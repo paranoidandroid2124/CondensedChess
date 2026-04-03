@@ -67,9 +67,9 @@ private[llm] final case class PlayerFacingClaimPacket(
 
 private[llm] object PlayerFacingClaimPacket:
   private val lineOnlyPilotOwners =
-    Set("local_file_entry_bind")
+    Set.empty[String]
   private val lineOnlyPilotFamilies =
-    Set("half_open_file_pressure")
+    Set.empty[String]
 
   def isLineOnlyPilot(ownerSource: String, ownerFamily: String): Boolean =
     lineOnlyPilotOwners.contains(ownerSource) || lineOnlyPilotFamilies.contains(ownerFamily)

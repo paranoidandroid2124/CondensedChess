@@ -60,7 +60,7 @@ private[llm] object CounterplayAxisSuppressionCertification:
   )
 
   private val ApplicableSubplans =
-    Set(SubplanId.BreakPrevention.id, SubplanId.KeySquareDenial.id)
+    Set(SubplanId.ProphylaxisRestraint.id, SubplanId.BreakPrevention.id, SubplanId.KeySquareDenial.id)
   private val DirectReplyPurposes =
     Set("defense_reply_multipv", "reply_multipv")
   private val ValidationPurposes =
@@ -86,6 +86,18 @@ private[llm] object CounterplayAxisSuppressionCertification:
       "winning route",
       "winning plan",
       "totally squeezed"
+    )
+  private val GenericNamedResourceLabels =
+    Set(
+      "counterplay",
+      "deny counterplay",
+      "deny_counterplay",
+      "counterplay resource",
+      "resource",
+      "threat",
+      "plan",
+      "their plan",
+      "the plan"
     )
 
   def evaluate(
@@ -222,6 +234,8 @@ private[llm] object CounterplayAxisSuppressionCertification:
         )
       val claimScope =
         primaryAxis.map(_.claimScope).getOrElse("break_axis")
+      val requiresNamedResource =
+        plan.subplanId.contains(SubplanId.ProphylaxisRestraint.id)
       val squeezeArchetype =
         if plan.subplanId.contains(SubplanId.KeySquareDenial.id) || claimScope == "entry_axis" then
           "route_denial"
@@ -250,6 +264,7 @@ private[llm] object CounterplayAxisSuppressionCertification:
       val failsIf =
         List(
           Option.when(validationResults.isEmpty)("pv_restatement_only"),
+          Option.when(requiresNamedResource && claimScope != "named_resource")("named_resource_missing"),
           Option.when(!directBestDefensePresent)("direct_best_defense_missing"),
           Option.when(!lateMiddlegameSlice || !clearlyBetter || !distinctiveEnough || !ontologyAllowed)(
             "local_to_global_overreach"
@@ -355,7 +370,34 @@ private[llm] object CounterplayAxisSuppressionCertification:
           defensiveSufficiency = plan.defensiveSufficiency
         )
       )
+    }.orElse {
+      namedResourceLabel(plan).map { label =>
+        AxisSignal(
+          label = label,
+          claimScope = "named_resource",
+          deniedResourceClass = plan.deniedResourceClass,
+          counterplayScoreDrop = plan.counterplayScoreDrop,
+          breakNeutralizationStrength = plan.breakNeutralizationStrength,
+          defensiveSufficiency = plan.defensiveSufficiency
+        )
+      }
     }
+
+  private def namedResourceLabel(
+      plan: PreventedPlan
+  ): Option[String] =
+    clean(plan.planId)
+      .map(_.replace('_', ' ').replace('-', ' ').replaceAll("\\s+", " ").trim)
+      .filter(_.nonEmpty)
+      .filterNot(label => GenericNamedResourceLabels.contains(normalize(label)))
+      .filter(_ =>
+        plan.breakNeutralized.isEmpty &&
+          plan.deniedSquares.isEmpty &&
+          (
+            plan.preventedThreatType.exists(_.trim.nonEmpty) ||
+              plan.deniedResourceClass.exists(_.trim.nonEmpty)
+          )
+      )
 
   private def confidenceScore(
       lateMiddlegameSlice: Boolean,

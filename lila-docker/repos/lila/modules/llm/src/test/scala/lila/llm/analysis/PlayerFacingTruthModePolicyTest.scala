@@ -758,7 +758,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     )
   }
 
-  test("exact local file-entry bind packet stays on the bounded half-open-file cell without widening beyond line scope") {
+  test("exact local file-entry bind packet is admitted as a bounded move-local half-open-file release") {
     val ctx =
       baseCtx().copy(
         fen = "2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24",
@@ -858,8 +858,116 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     assertEquals(delta.packet.ownerSource, "local_file_entry_bind")
     assertEquals(delta.packet.ownerFamily, "half_open_file_pressure")
-    assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.LineOnly)
+    assertEquals(delta.packet.bestDefenseBranchKey, Some("c1c8|f8e8"))
+    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(delta.packet.releaseRisks, Nil)
+    assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+    assert(PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
+  }
+
+  test("file-entry promotion fails closed when the best-defense branch key is missing") {
+    val ctx =
+      baseCtx().copy(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24",
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "local_file_entry_bind_missing_branch",
+              planName = "Take the c-file away and keep b4 closed",
+              subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id,
+              executionSteps = List("Take the c-file away first and keep b4 closed.")
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "local_file_entry_bind_missing_branch",
+              subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_c_file",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("c-file"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 145,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("break"),
+                deniedEntryScope = Some("file")
+              ),
+              PreventedPlanInfo(
+                planId = "deny_entry",
+                deniedSquares = List("b4"),
+                breakNeutralized = None,
+                mobilityDelta = -2,
+                counterplayScoreDrop = 130,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("entry_square"),
+                deniedEntryScope = Some("single_square")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("c1c8"),
+                scoreCp = 90,
+                depth = 18,
+                parsedMoves = List(
+                  PvMove("c1c8", "Rc8", "c1", "c8", "R", isCapture = false, capturedPiece = None, givesCheck = false)
+                )
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_b4",
+              ownerSide = "white",
+              piece = "R",
+              from = "c1",
+              targetSquare = "b4",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("keep b4 closed while controlling the c-file"),
+              evidence = List("probe")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("keep b4 closed while controlling the c-file")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx,
+        StrategyPackSurface.from(pack),
+        None
+      ).get
+
+    assertEquals(delta.packet.bestDefenseBranchKey, None)
+    assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assert(!PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
+    Option.when(delta.packet.ownerFamily == "half_open_file_pressure")(delta.packet.sameBranchState).foreach { state =>
+      assertEquals(state, PlayerFacingSameBranchState.Missing)
+    }
   }
 
   test("exact named-break suppression packet is admitted as a bounded move-local neutralize-key-break release") {
@@ -1046,6 +1154,191 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assert(!PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
   }
 
+  test("exact prophylactic-move packet is admitted as a bounded move-local counterplay-restraint release") {
+    val ctx =
+      baseCtx().copy(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "prophylactic_move_named_resource",
+              planName = "Slow queenside counterplay before expanding",
+              subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id,
+              executionSteps = List("Slow queenside counterplay before expanding.")
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "prophylactic_move_named_resource",
+              subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "queenside counterplay",
+                deniedSquares = Nil,
+                breakNeutralized = None,
+                mobilityDelta = -2,
+                counterplayScoreDrop = 138,
+                preventedThreatType = None,
+                deniedResourceClass = Some("counterplay_route"),
+                citationLine = Some("Queenside counterplay never gets going on the defended branch.")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("a2a3", "b7b5", "a3a4"),
+                scoreCp = 82,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_b4",
+              ownerSide = "white",
+              piece = "P",
+              from = "a2",
+              targetSquare = "b4",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("queenside counterplay"),
+              evidence = List("probe")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("queenside counterplay")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx,
+        StrategyPackSurface.from(pack),
+        None
+      ).get
+
+    assertEquals(delta.packet.ownerSource, "prophylactic_move")
+    assertEquals(delta.packet.ownerFamily, "counterplay_restraint")
+    assertEquals(delta.packet.bestDefenseBranchKey, Some("a2a3|b7b5"))
+    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(delta.packet.releaseRisks, Nil)
+    assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+    assert(PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
+  }
+
+  test("prophylactic-move promotion fails closed when the best-defense branch key is missing") {
+    val ctx =
+      baseCtx().copy(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "prophylactic_move_named_resource_missing_branch",
+              planName = "Slow queenside counterplay before expanding",
+              subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id,
+              executionSteps = List("Slow queenside counterplay before expanding.")
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "prophylactic_move_named_resource_missing_branch",
+              subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "queenside counterplay",
+                deniedSquares = Nil,
+                breakNeutralized = None,
+                mobilityDelta = -2,
+                counterplayScoreDrop = 138,
+                preventedThreatType = None,
+                deniedResourceClass = Some("counterplay_route"),
+                citationLine = Some("Queenside counterplay never gets going on the defended branch.")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("a2a3"),
+                scoreCp = 82,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_b4",
+              ownerSide = "white",
+              piece = "P",
+              from = "a2",
+              targetSquare = "b4",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("queenside counterplay"),
+              evidence = List("probe")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("queenside counterplay")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx,
+        StrategyPackSurface.from(pack),
+        None
+      ).get
+
+    assertEquals(delta.packet.ownerSource, "prophylactic_move")
+    assertEquals(delta.packet.ownerFamily, "counterplay_restraint")
+    assertEquals(delta.packet.bestDefenseBranchKey, None)
+    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Missing)
+    assert(delta.packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.SameBranchMissing))
+    assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.LineOnly)
+    assert(!PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
+  }
+
   test("quiet neutralize-key-break remains non-user-facing after main-path promotion") {
     val ctx =
       baseCtx().copy(
@@ -1088,6 +1381,187 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       )
 
     assertEquals(QuietMoveIntentBuilder.build(ctx), None)
+  }
+
+  test("regrouping-style piece improvement does not materialize the prophylactic exact owner path") {
+    val ctx =
+      baseCtx().copy(
+        fen = "r1bq1rk1/pp3ppp/2n1pn2/2bp4/3P4/2N1PN2/PPQ2PPP/R1B2RK1 w - - 0 12",
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "defensive_regrouping_shell",
+              planName = "Re-anchor the bishop to blunt queenside counterplay",
+              subplanId = ThemeTaxonomy.SubplanId.WorstPieceImprovement.id,
+              executionSteps = List("Re-anchor the bishop and cover the queenside route."),
+              themeL1 = ThemeTaxonomy.ThemeL1.PieceRedeployment.id
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "defensive_regrouping_shell",
+              subplanId = ThemeTaxonomy.SubplanId.WorstPieceImprovement.id,
+              themeL1 = ThemeTaxonomy.ThemeL1.PieceRedeployment.id
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "queenside counterplay",
+                deniedSquares = Nil,
+                breakNeutralized = None,
+                mobilityDelta = -1,
+                counterplayScoreDrop = 96,
+                preventedThreatType = None,
+                deniedResourceClass = Some("counterplay_route"),
+                citationLine = Some("The regrouping move slows queenside counterplay.")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 16,
+            variations = List(
+              VariationLine(
+                moves = List("c1e3", "b7b5", "e3d4"),
+                scoreCp = 44,
+                depth = 16
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_d4",
+              ownerSide = "white",
+              piece = "B",
+              from = "c1",
+              targetSquare = "d4",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("cover queenside counterplay"),
+              evidence = List("probe")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("cover queenside counterplay")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx,
+        StrategyPackSurface.from(pack),
+        None
+      )
+
+    delta.foreach { evidence =>
+      assertNotEquals(evidence.packet.ownerSource, "prophylactic_move")
+      assertNotEquals(evidence.packet.ownerFamily, "counterplay_restraint")
+    }
+  }
+
+  test("open-file pressure without an independent entry denial stays outside the exact file-entry owner path") {
+    val ctx =
+      baseCtx().copy(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24",
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "open_file_control_shell",
+              planName = "Occupy the c-file with heavy pieces",
+              subplanId = ThemeTaxonomy.SubplanId.OpenFilePressure.id,
+              executionSteps = List("Occupy the c-file and pressure it."),
+              themeL1 = ThemeTaxonomy.ThemeL1.PieceRedeployment.id
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "open_file_control_shell",
+              subplanId = ThemeTaxonomy.SubplanId.OpenFilePressure.id,
+              themeL1 = ThemeTaxonomy.ThemeL1.PieceRedeployment.id
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_c_file",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("c-file"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 145,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("break"),
+                deniedEntryScope = Some("file")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("c1c8", "f8e8", "c8e8"),
+                scoreCp = 90,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_c5",
+              ownerSide = "white",
+              piece = "R",
+              from = "c1",
+              targetSquare = "c5",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("control the c-file"),
+              evidence = List("probe")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("control the c-file")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx,
+        StrategyPackSurface.from(pack),
+        None
+      )
+
+    delta.foreach { evidence =>
+      assertNotEquals(evidence.packet.ownerFamily, "half_open_file_pressure")
+    }
   }
 
   test("trade-key-defender packet stays blocked without an exact cert owner path") {

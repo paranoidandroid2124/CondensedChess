@@ -267,9 +267,10 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
         }
       case PlayerFacingMoveDeltaClass.CounterplayReduction =>
         val namedBreakOnly = delta.packet.ownerFamily == "neutralize_key_break"
+        val namedResourceOnly = delta.packet.ownerFamily == "counterplay_restraint"
         strategicCounterplayClaim(ctx, delta)
           .orElse {
-            Option.unless(namedBreakOnly) {
+            Option.unless(namedBreakOnly || namedResourceOnly) {
               anchor.map { focal =>
                 delta.ontologyFamily match
                   case PlayerFacingClaimOntologyFamily.RouteDenial =>
@@ -283,7 +284,7 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
               }
             }.flatten
           }
-          .orElse(Option.unless(namedBreakOnly)("This continues to restrain the opponent's counterplay."))
+          .orElse(Option.unless(namedBreakOnly || namedResourceOnly)("This continues to restrain the opponent's counterplay."))
       case PlayerFacingMoveDeltaClass.ResourceRemoval =>
         resourceRemovalClaim(ctx, delta)
           .orElse(anchor.map { focal =>
@@ -305,6 +306,7 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
   ): Option[String] =
     Option.unless(HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)) {
       val namedBreakOnly = delta.packet.ownerFamily == "neutralize_key_break"
+      val namedResourceOnly = delta.packet.ownerFamily == "counterplay_restraint"
       val preventedPlans =
         ctx.semantic.toList.flatMap(_.preventedPlans)
       LocalFileEntryBindCertification.certifiedSurfacePair(ctx)
@@ -338,6 +340,7 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
                         .filterNot(_.equalsIgnoreCase("counterplay"))
                         .map(plan => s"This slows down $plan before it gets started.")
                     }.flatten)
+                    .filterNot(_ => namedResourceOnly && clean(prevented.planId).isEmpty)
             }
         }
     }.flatten

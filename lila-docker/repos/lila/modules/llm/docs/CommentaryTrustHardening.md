@@ -94,9 +94,35 @@ Use the documents in this order:
   no surviving suppression/release-risk objection. The release stays local
   only; broad squeeze / whole-position no-counterplay / heavy-piece relabel /
   support-only reinflation remain blocked.
-  bounded `half_open_file_pressure` remains packet-owned but hard-fixed
-  `line_only`, and `trade_key_defender` remains blocked on exact owner-path
-  materialization.
+  bounded `half_open_file_pressure` is now the second promoted packet-owned
+  family, but only on one exact-board local file-entry slice:
+  move-local release is allowed only when one defended branch proves both the
+  denied file corridor and the independent entry square with a concrete
+  `bestDefenseBranchKey`, `sameBranchState=Proven`, `persistence=Stable`, and
+  no surviving suppression/release-risk objection. The release must stay local
+  (`takes the file-and-entry route away on this branch`); file-occupancy-only
+  shells, non-independent entry axes, persistence holes, heavy-piece release
+  shells, route-network restatement, and support-only reinflation remain
+  fail-closed. Active and whole-game replay stay closed for this family.
+  bounded `counterplay_restraint` is now the third promoted packet-owned
+  family, but only on one exact-board `prophylactic_move` slice:
+  move-local release is allowed only when one defended branch proves one named
+  prevented resource with a concrete `bestDefenseBranchKey`,
+  `sameBranchState=Proven`, `persistence=Stable`, and no surviving
+  suppression/release-risk objection. `QuestionFirstCommentaryPlanner` may
+  admit that exact `weak_main` packet as the move owner for `WhyThis`, but the
+  released wording must stay one-board / one-resource / one-branch local
+  (`slows X before it gets started`); generic prophylaxis praise,
+  whole-position no-counterplay, move-order fragility, heavy-piece relabel,
+  and support-only reinflation remain fail-closed. Active and whole-game
+  replay stay closed for this family too.
+  `defensive_regrouping` remains candidate:
+  regrouping-style piece-improvement plans still lack a distinct exact owner
+  path and may not borrow the promoted prophylactic release.
+  bounded `open_file_control` remains candidate:
+  `OpenFilePressure` / `RookFileTransfer` still need the already-certified
+  local file-entry pair and do not open a separate exact owner lane.
+  `trade_key_defender` remains blocked on exact owner-path materialization.
 - Promotion-record requirement:
   pilot-cell status, exact FEN controls, blockers, and touched verification now
   live in

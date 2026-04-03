@@ -561,7 +561,8 @@ private[llm] object PlayerFacingTruthModePolicy:
           plan.mobilityDelta < 0
       ) && (
         plan.breakNeutralized.exists(_.trim.nonEmpty) ||
-          plan.deniedSquares.nonEmpty
+          plan.deniedSquares.nonEmpty ||
+          namedPreventedResourceLabel(plan).nonEmpty
       )
     )
 
@@ -834,20 +835,31 @@ private[llm] object PlayerFacingTruthModePolicy:
   ): ClaimOwnerSeed =
     val planOwner = leadingOwnerFamily(ctx)
     val trigger = leadingTriggerKind(ctx)
+    val localFileEntryPair = LocalFileEntryBindCertification.certifiedSurfacePair(ctx)
+    val prophylacticRestraintPlan =
+      trigger.contains("counterplay_restraint") || planOwner.contains("prophylaxis_restraint")
     deltaClass match
       case PlayerFacingMoveDeltaClass.CounterplayReduction
-          if LocalFileEntryBindCertification.certifiedSurfacePair(ctx).nonEmpty =>
+          if localFileEntryPair.nonEmpty =>
         ClaimOwnerSeed(
           ownerSource = "local_file_entry_bind",
           ownerFamily = "half_open_file_pressure",
           triggerKind = "file_entry_denial"
         )
       case PlayerFacingMoveDeltaClass.ResourceRemoval
-          if LocalFileEntryBindCertification.certifiedSurfacePair(ctx).nonEmpty =>
+          if localFileEntryPair.nonEmpty =>
         ClaimOwnerSeed(
           ownerSource = "local_file_entry_bind",
           ownerFamily = "half_open_file_pressure",
           triggerKind = "file_entry_denial"
+        )
+      case PlayerFacingMoveDeltaClass.CounterplayReduction | PlayerFacingMoveDeltaClass.ResourceRemoval
+          if prophylacticRestraintPlan &&
+            hasNamedPreventedResource(preventedNow) =>
+        ClaimOwnerSeed(
+          ownerSource = "prophylactic_move",
+          ownerFamily = "counterplay_restraint",
+          triggerKind = "prophylactic_move"
         )
       case PlayerFacingMoveDeltaClass.CounterplayReduction
           if preventedNow.exists(_.breakNeutralized.exists(_.trim.nonEmpty)) =>
@@ -863,9 +875,16 @@ private[llm] object PlayerFacingTruthModePolicy:
           triggerKind = trigger.getOrElse("trade_key_defender")
         )
       case _ =>
+        val guardedPlanOwner =
+          planOwner.filterNot { owner =>
+            (owner == "half_open_file_pressure" && localFileEntryPair.isEmpty) ||
+            (owner == "neutralize_key_break" && !preventedNow.exists(_.breakNeutralized.exists(_.trim.nonEmpty))) ||
+            (owner == "counterplay_restraint" && !hasNamedPreventedResource(preventedNow)) ||
+            (owner == "prophylaxis_restraint" && !hasNamedPreventedResource(preventedNow))
+          }
         ClaimOwnerSeed(
           ownerSource = genericOwnerSource(deltaClass),
-          ownerFamily = planOwner.getOrElse(genericOwnerFamily(deltaClass)),
+          ownerFamily = guardedPlanOwner.getOrElse(genericOwnerFamily(deltaClass)),
           triggerKind = trigger.getOrElse(genericTriggerKind(deltaClass))
         )
 
@@ -906,11 +925,20 @@ private[llm] object PlayerFacingTruthModePolicy:
     val breakPilot =
       ownerSeed.ownerSource == "counterplay_axis_suppression" ||
         ownerSeed.ownerFamily == "neutralize_key_break"
+    val prophylacticPilot =
+      ownerSeed.ownerSource == "prophylactic_move" ||
+        ownerSeed.ownerFamily == "counterplay_restraint"
     if fileEntryPilot && branchVisible && stableBranch then
       PlayerFacingSameBranchState.Proven
+    else if fileEntryPilot && !branchVisible then
+      PlayerFacingSameBranchState.Missing
     else if breakPilot && branchVisible && stableBranch then
       PlayerFacingSameBranchState.Proven
     else if breakPilot && !branchVisible then
+      PlayerFacingSameBranchState.Missing
+    else if prophylacticPilot && branchVisible && stableBranch then
+      PlayerFacingSameBranchState.Proven
+    else if prophylacticPilot && !branchVisible then
       PlayerFacingSameBranchState.Missing
     else if claimGate.provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked && branchVisible then
       PlayerFacingSameBranchState.Ambiguous
@@ -946,8 +974,10 @@ private[llm] object PlayerFacingTruthModePolicy:
       reasons += PlayerFacingClaimSuppressionReason.AlternativeDominance
     if ownerSeed.ownerSource == "local_file_entry_bind" ||
         ownerSeed.ownerSource == "counterplay_axis_suppression" ||
+        ownerSeed.ownerSource == "prophylactic_move" ||
         ownerSeed.ownerFamily == "half_open_file_pressure" ||
-        ownerSeed.ownerFamily == "neutralize_key_break"
+        ownerSeed.ownerFamily == "neutralize_key_break" ||
+        ownerSeed.ownerFamily == "counterplay_restraint"
     then
       sameBranchState match
         case PlayerFacingSameBranchState.Missing =>
@@ -976,7 +1006,15 @@ private[llm] object PlayerFacingTruthModePolicy:
         sameBranchState == PlayerFacingSameBranchState.Proven &&
         persistence != PlayerFacingClaimPersistence.Stable
     then risks += PlayerFacingClaimReleaseRisk.RouteMirage
+    if ownerSeed.ownerFamily == "counterplay_restraint" &&
+        sameBranchState == PlayerFacingSameBranchState.Proven &&
+        persistence != PlayerFacingClaimPersistence.Stable
+    then risks += PlayerFacingClaimReleaseRisk.RouteMirage
     if (ownerSeed.ownerSource == "local_file_entry_bind" || ownerSeed.ownerFamily == "half_open_file_pressure") &&
+        sameBranchState != PlayerFacingSameBranchState.Proven
+    then
+      risks += PlayerFacingClaimReleaseRisk.SurfaceReinflation
+    if (ownerSeed.ownerSource == "prophylactic_move" || ownerSeed.ownerFamily == "counterplay_restraint") &&
         sameBranchState != PlayerFacingSameBranchState.Proven
     then
       risks += PlayerFacingClaimReleaseRisk.SurfaceReinflation
@@ -1143,12 +1181,56 @@ private[llm] object PlayerFacingTruthModePolicy:
       persistence: PlayerFacingClaimPersistence
   ): Boolean =
     ownerSeed.ownerFamily match
+      case "half_open_file_pressure" =>
+        bestDefenseBranchKey.nonEmpty &&
+          sameBranchState == PlayerFacingSameBranchState.Proven &&
+          persistence == PlayerFacingClaimPersistence.Stable
       case "neutralize_key_break" =>
+        bestDefenseBranchKey.nonEmpty &&
+          sameBranchState == PlayerFacingSameBranchState.Proven &&
+          persistence == PlayerFacingClaimPersistence.Stable
+      case "counterplay_restraint" =>
         bestDefenseBranchKey.nonEmpty &&
           sameBranchState == PlayerFacingSameBranchState.Proven &&
           persistence == PlayerFacingClaimPersistence.Stable
       case "trade_key_defender" => false
       case _                    => true
+
+  private val GenericNamedResourceLabels =
+    Set(
+      "counterplay",
+      "deny counterplay",
+      "deny_counterplay",
+      "counterplay resource",
+      "resource",
+      "threat",
+      "plan",
+      "their plan",
+      "the plan"
+    )
+
+  private def hasNamedPreventedResource(
+      preventedNow: List[PreventedPlanInfo]
+  ): Boolean =
+    preventedNow.exists(plan => namedPreventedResourceLabel(plan).nonEmpty)
+
+  private def namedPreventedResourceLabel(
+      plan: PreventedPlanInfo
+  ): Option[String] =
+    clean(plan.planId)
+      .map(_.replace('_', ' ').replace('-', ' ').replaceAll("\\s+", " ").trim)
+      .filter(_.nonEmpty)
+      .filterNot(label => GenericNamedResourceLabels.contains(normalize(label)))
+      .filter(_ =>
+        plan.breakNeutralized.isEmpty &&
+          plan.deniedSquares.isEmpty &&
+          (
+            plan.preventedThreatType.exists(_.trim.nonEmpty) ||
+              plan.deniedResourceClass.exists(_.trim.nonEmpty) ||
+              plan.counterplayScoreDrop > 0 ||
+              plan.mobilityDelta < 0
+          )
+      )
 
   private def isEvidenceBackedTier(raw: String): Boolean =
     val normalized = normalize(raw)

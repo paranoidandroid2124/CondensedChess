@@ -793,6 +793,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
       normalizedId(plan.themeL1) == ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id &&
       plan.subplanId.exists { subplanId =>
         val normalizedSubplan = normalizedId(subplanId)
+        normalizedSubplan == ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id ||
         normalizedSubplan == ThemeTaxonomy.SubplanId.BreakPrevention.id ||
         normalizedSubplan == ThemeTaxonomy.SubplanId.KeySquareDenial.id
       }
@@ -1118,6 +1119,14 @@ private[llm] object QuestionFirstCommentaryPlanner:
       sceneType: SceneType
   ): Either[QuestionPlan, RejectedQuestionPlan] =
     given QuestionPlannerInputs = inputs
+    val moveOwnerClaim =
+      inputs.mainBundle.flatMap { bundle =>
+        bundle.mainClaim.orElse(
+          bundle.lineScopedClaim.filter(claim =>
+            claim.packet.exists(_.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain)
+          )
+        )
+      }
     val domainFirst =
       sceneType match
         case SceneType.OpeningRelation if inputs.openingRelationClaim.nonEmpty =>
@@ -1131,7 +1140,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
         namedRouteNetworkWhyThisClaim(inputs)
       val ownerClaim =
         namedRouteClaim
-          .orElse(inputs.mainBundle.flatMap(_.mainClaim).map(_.claimText))
+          .orElse(moveOwnerClaim.map(_.claimText))
           .orElse(inputs.quietIntent.map(_.claimText))
       ownerClaim match
         case None =>
@@ -1170,7 +1179,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
                   )
               }
           val strength =
-            if inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical) then
+            if moveOwnerClaim.exists(_.mode == PlayerFacingTruthMode.Tactical) then
               QuestionPlanStrengthTier.Strong
             else QuestionPlanStrengthTier.Moderate
           mkPlan(
@@ -1184,16 +1193,16 @@ private[llm] object QuestionFirstCommentaryPlanner:
             strengthTier = strength,
             sourceKinds =
               (
-                List(inputs.mainBundle.flatMap(_.mainClaim).map(_.sourceKind), inputs.quietIntent.map(_.sourceKind)).flatten ++
+                List(moveOwnerClaim.map(_.sourceKind), inputs.quietIntent.map(_.sourceKind)).flatten ++
                   Option.when(namedRouteOwner)(NamedRouteNetworkBindCertification.OwnerSource).toList
               ).distinct,
             admissibilityReasons = List("move_owner", "move_local_claim"),
             ownerFamily =
               if namedRouteOwner then OwnerFamily.MoveDelta
-              else if inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical) then OwnerFamily.TacticalFailure
+              else if moveOwnerClaim.exists(_.mode == PlayerFacingTruthMode.Tactical) then OwnerFamily.TacticalFailure
               else OwnerFamily.MoveDelta,
             ownerSource =
-              inputs.mainBundle.flatMap(_.mainClaim).map(_.sourceKind)
+              moveOwnerClaim.map(_.sourceKind)
                 .orElse(inputs.quietIntent.map(_.sourceKind))
                 .getOrElse("move_owner")
           )
@@ -1988,7 +1997,13 @@ private[llm] object QuestionFirstCommentaryPlanner:
 
     val moveDelta =
       List(
-        inputs.mainBundle.flatMap(_.mainClaim).map { claim =>
+        inputs.mainBundle.flatMap { bundle =>
+          bundle.mainClaim.orElse(
+            bundle.lineScopedClaim.filter(claim =>
+              claim.packet.exists(_.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain)
+            )
+          )
+        }.map { claim =>
           ownerCandidate(
             family =
               if claim.mode == PlayerFacingTruthMode.Tactical then OwnerFamily.TacticalFailure

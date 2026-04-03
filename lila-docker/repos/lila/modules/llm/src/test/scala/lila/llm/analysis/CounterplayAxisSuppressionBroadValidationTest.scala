@@ -199,8 +199,133 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
       sourceScope = FactScope.Now
     )
 
+  private def namedResourcePreventedPlan(
+      planId: String = "queenside counterplay",
+      counterplayScoreDrop: Int = 138
+  ): PreventedPlan =
+    PreventedPlan(
+      planId = planId,
+      deniedSquares = Nil,
+      breakNeutralized = None,
+      mobilityDelta = -2,
+      counterplayScoreDrop = counterplayScoreDrop,
+      preventedThreatType = None,
+      deniedResourceClass = Some("counterplay_route"),
+      breakNeutralizationStrength = Some(80),
+      defensiveSufficiency = Some(77),
+      sourceScope = FactScope.Now
+    )
+
   private val corpusScenarios =
     List(
+      CorpusScenario(
+        id = "true_prophylactic_move_named_resource",
+        planId = "prophylactic_move_named_resource",
+        planName = "Slow queenside counterplay before expanding",
+        subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id,
+        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        phaseCell = PhaseCell.LateMiddlegame,
+        evalPosture = EvalPostureCell.ClearlyBetter,
+        texture = TextureCell.ProphylacticClamp,
+        criticisms = Set.empty,
+        phase = "middlegame",
+        ply = 28,
+        fen = QueenlessLateMiddlegameFen,
+        probes =
+          List(
+            supportProbe(
+              id = "probe_true_prophylactic_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("b7b5", "a2a3"),
+              replyPvs = Some(List(List("b7b5", "a2a3"), List("h7h5", "g2g4"))),
+              futureSnapshot =
+                Some(
+                  FutureSnapshot(
+                    resolvedThreatKinds = List("Counterplay"),
+                    newThreatKinds = Nil,
+                    targetsDelta = TargetsDelta(Nil, Nil, Nil, List("queenside counterplay")),
+                    planBlockersRemoved = List("queenside counterplay stays muted"),
+                    planPrereqsMet = List("queenside counterplay never gets going")
+                  )
+                ),
+              keyMotifs = List("queenside counterplay stays muted", "prophylactic restraint")
+            ),
+            supportProbe(
+              id = "probe_true_prophylactic_validation",
+              bestReplyPv = List("b7b5", "a2a3"),
+              replyPvs = Some(List(List("b7b5", "a2a3"), List("h7h5", "g2g4"))),
+              futureSnapshot =
+                Some(
+                  FutureSnapshot(
+                    resolvedThreatKinds = List("Counterplay"),
+                    newThreatKinds = Nil,
+                    targetsDelta = TargetsDelta(Nil, Nil, Nil, List("queenside counterplay")),
+                    planBlockersRemoved = List("queenside counterplay stays muted"),
+                    planPrereqsMet = List("queenside counterplay never gets going")
+                  )
+                ),
+              keyMotifs = List("queenside counterplay stays muted", "prophylactic restraint")
+            )
+          ),
+        preventedPlans = List(namedResourcePreventedPlan()),
+        evalCp = 182,
+        expectedCertified = true,
+        expectedFails = Set.empty
+      ),
+      CorpusScenario(
+        id = "named_resource_missing",
+        planId = "named_resource_missing",
+        planName = "Quiet prophylactic shell",
+        subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id,
+        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        phaseCell = PhaseCell.LateMiddlegame,
+        evalPosture = EvalPostureCell.ClearlyBetter,
+        texture = TextureCell.QuietImprovementOnly,
+        criticisms = Set(CriticismCell.WaitingMoveDisguisedAsPlan),
+        phase = "middlegame",
+        ply = 28,
+        fen = QueenlessLateMiddlegameFen,
+        probes =
+          List(
+            supportProbe(
+              id = "probe_named_resource_missing_direct",
+              purpose = "defense_reply_multipv",
+              bestReplyPv = List("b7b5", "a2a3"),
+              replyPvs = Some(List(List("b7b5", "a2a3"), List("h7h5", "g2g4"))),
+              futureSnapshot =
+                Some(
+                  FutureSnapshot(
+                    resolvedThreatKinds = List("Counterplay"),
+                    newThreatKinds = Nil,
+                    targetsDelta = TargetsDelta(Nil, Nil, Nil, List("counterplay")),
+                    planBlockersRemoved = List("counterplay stays muted"),
+                    planPrereqsMet = List("counterplay never gets going")
+                  )
+                ),
+              keyMotifs = List("counterplay stays muted", "quiet restraint")
+            ),
+            supportProbe(
+              id = "probe_named_resource_missing_validation",
+              bestReplyPv = List("b7b5", "a2a3"),
+              replyPvs = Some(List(List("b7b5", "a2a3"), List("h7h5", "g2g4"))),
+              futureSnapshot =
+                Some(
+                  FutureSnapshot(
+                    resolvedThreatKinds = List("Counterplay"),
+                    newThreatKinds = Nil,
+                    targetsDelta = TargetsDelta(Nil, Nil, Nil, List("counterplay")),
+                    planBlockersRemoved = List("counterplay stays muted"),
+                    planPrereqsMet = List("counterplay never gets going")
+                  )
+                ),
+              keyMotifs = List("counterplay stays muted", "quiet restraint")
+            )
+          ),
+        preventedPlans = List(namedResourcePreventedPlan(planId = "deny_counterplay")),
+        evalCp = 182,
+        expectedCertified = false,
+        expectedFails = Set("named_resource_missing", "waiting_move_disguised_as_plan", "hidden_freeing_break")
+      ),
       CorpusScenario(
         id = "true_named_break_suppression",
         planId = "named_break_suppression",
@@ -776,6 +901,123 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         )
     )
 
+  private def whyThisNamedResourceCtx(missingBranch: Boolean = false): NarrativeContext =
+    BookmakerProseGoldenFixtures.prophylacticCut.ctx.copy(
+      authorQuestions =
+        List(
+          AuthorQuestion(
+            id = "q_b2b_prophylactic_why_this",
+            kind = AuthorQuestionKind.WhyThis,
+            priority = 100,
+            question = "Why is a3 the right prophylactic move here?",
+            evidencePurposes = List("reply_multipv")
+          )
+        ),
+      authorEvidence =
+        List(
+          QuestionEvidence(
+            questionId = "q_b2b_prophylactic_why_this",
+            purpose = "reply_multipv",
+            branches =
+              List(
+                EvidenceBranch(
+                  keyMove = "line_1",
+                  line = "23.a3 b5 24.a4 and queenside counterplay never gets going.",
+                  evalCp = Some(82)
+                )
+              )
+          )
+        ),
+      mainStrategicPlans =
+        List(
+          PlanHypothesis(
+            planId = "prophylactic_move_named_resource",
+            planName = "Slow queenside counterplay before expanding",
+            rank = 1,
+            score = 0.82,
+            preconditions = Nil,
+            executionSteps = List("Slow queenside counterplay before expanding."),
+            failureModes = List("If the branch opens up, queenside counterplay comes back."),
+            viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
+            evidenceSources = List("theme:restriction_prophylaxis"),
+            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+            subplanId = Some(ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id)
+          )
+        ),
+      strategicPlanExperiments =
+        List(
+          StrategicPlanExperiment(
+            planId = "prophylactic_move_named_resource",
+            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+            subplanId = Some(ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id),
+            evidenceTier = "evidence_backed",
+            supportProbeCount = 1,
+            bestReplyStable = true,
+            futureSnapshotAligned = true,
+            counterBreakNeutralized = true,
+            moveOrderSensitive = false,
+            experimentConfidence = 0.87
+          )
+        ),
+      semantic = Some(
+        SemanticSection(
+          structuralWeaknesses = Nil,
+          pieceActivity = Nil,
+          positionalFeatures = Nil,
+          compensation = None,
+          endgameFeatures = None,
+          practicalAssessment = None,
+          preventedPlans = List(
+            PreventedPlanInfo(
+              planId = "queenside counterplay",
+              deniedSquares = Nil,
+              breakNeutralized = None,
+              mobilityDelta = -2,
+              counterplayScoreDrop = 138,
+              preventedThreatType = None,
+              deniedResourceClass = Some("counterplay_route"),
+              citationLine = Some("Queenside counterplay never gets going on the defended branch.")
+            )
+          ),
+          conceptSummary = Nil
+        )
+      ),
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 18,
+          variations =
+            List(
+              VariationLine(
+                moves = if missingBranch then List("a2a3") else List("a2a3", "b7b5", "a3a4"),
+                scoreCp = 82,
+                depth = 18
+              )
+            )
+        )
+      )
+    )
+
+  private val prophylacticMovePack: Option[StrategyPack] =
+    Some(
+      StrategyPack(
+        sideToMove = "white",
+        directionalTargets =
+          List(
+            StrategyDirectionalTarget(
+              targetId = "target_b4",
+              ownerSide = "white",
+              piece = "P",
+              from = "a3",
+              targetSquare = "b4",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("queenside counterplay"),
+              evidence = List("probe")
+            )
+          ),
+        signalDigest = Some(NarrativeSignalDigest(decision = Some("queenside counterplay")))
+      )
+    )
+
   private def surfaceReinflationCtx: NarrativeContext =
     BookmakerProseGoldenFixtures.prophylacticCut.ctx.copy(
       semantic = None,
@@ -959,6 +1201,142 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
       slots.supportPrimary.foreach(assertNoSuppressionInflation)
       slots.supportSecondary.foreach(assertNoSuppressionInflation)
     }
+  }
+
+  test("exact positive control promotes prophylactic-move only as a bounded WhyThis move delta") {
+    val ctx = whyThisNamedResourceCtx()
+    val outline =
+      BookStyleRenderer.validatedOutline(ctx, strategyPack = prophylacticMovePack, truthContract = None)
+    val plannerInputs =
+      QuestionPlannerInputsBuilder.build(ctx, strategyPack = prophylacticMovePack, truthContract = None)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
+    val chronicleArtifact =
+      GameChronicleCompressionPolicy.renderWithTrace(
+        ctx = ctx,
+        parts = emptyParts.copy(focusedOutline = outline),
+        strategyPack = prophylacticMovePack,
+        truthContract = None
+      )
+    val activeSelection =
+      ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
+        ActiveStrategicCoachingBriefBuilder.PlannerReplay(
+          authorQuestions = ctx.authorQuestions,
+          inputs = plannerInputs,
+          rankedPlans = rankedPlans
+        )
+      )
+    val bookmakerSlots =
+      BookmakerLiveCompressionPolicy.buildSlots(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = prophylacticMovePack,
+        truthContract = None
+      )
+    val bookmakerFallback =
+      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = prophylacticMovePack,
+        truthContract = None
+      )
+    val surfacedClaim =
+      plannerInputs.mainBundle.flatMap(bundle => bundle.mainClaim.orElse(bundle.lineScopedClaim))
+
+    assert(surfacedClaim.nonEmpty, clues(plannerInputs.mainBundle))
+    assertEquals(
+      surfacedClaim.flatMap(_.packet.map(_.ownerSource)),
+      Some("prophylactic_move"),
+      clues(plannerInputs.mainBundle, surfacedClaim)
+    )
+    assertEquals(
+      surfacedClaim.flatMap(_.packet.map(_.ownerFamily)),
+      Some("counterplay_restraint"),
+      clues(plannerInputs.mainBundle, surfacedClaim)
+    )
+    assertEquals(
+      surfacedClaim.flatMap(_.packet).flatMap(_.bestDefenseBranchKey),
+      Some("a2a3|b7b5"),
+      clues(plannerInputs.mainBundle, surfacedClaim)
+    )
+    assertEquals(
+      surfacedClaim.flatMap(_.packet.map(_.fallbackMode)),
+      Some(PlayerFacingClaimFallbackMode.WeakMain),
+      clues(plannerInputs.mainBundle, surfacedClaim)
+    )
+    assertEquals(
+      rankedPlans.primary.map(_.questionKind),
+      Some(AuthorQuestionKind.WhyThis),
+      clues(rankedPlans)
+    )
+    assert(
+      rankedPlans.primary.map(_.claim).exists(_.toLowerCase.contains("queenside counterplay")),
+      clues(rankedPlans)
+    )
+    chronicleArtifact.foreach { artifact =>
+      assertNoSuppressionInflation(artifact.narrative)
+      assert(artifact.narrative.toLowerCase.contains("queenside counterplay"), clues(artifact.narrative))
+    }
+    assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
+    assert(bookmakerSlots.nonEmpty, clues(bookmakerSlots, rankedPlans))
+    bookmakerSlots.foreach { slots =>
+      assertNoSuppressionInflation(slots.claim)
+      assert(slots.claim.toLowerCase.contains("queenside counterplay"), clues(slots.claim))
+    }
+    assertNoSuppressionInflation(bookmakerFallback.claim)
+    assert(
+      bookmakerFallback.claim.toLowerCase.contains("queenside counterplay"),
+      clues(bookmakerFallback.claim)
+    )
+  }
+
+  test("prophylactic-move promotion stays fail-closed when the defended branch key is missing") {
+    val ctx = whyThisNamedResourceCtx(missingBranch = true)
+    val outline =
+      BookStyleRenderer.validatedOutline(ctx, strategyPack = prophylacticMovePack, truthContract = None)
+    val plannerInputs =
+      QuestionPlannerInputsBuilder.build(ctx, strategyPack = prophylacticMovePack, truthContract = None)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
+    val activeSelection =
+      ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
+        ActiveStrategicCoachingBriefBuilder.PlannerReplay(
+          authorQuestions = ctx.authorQuestions,
+          inputs = plannerInputs,
+          rankedPlans = rankedPlans
+        )
+      )
+    val surfacedClaim =
+      plannerInputs.mainBundle.flatMap(bundle => bundle.mainClaim.orElse(bundle.lineScopedClaim))
+
+    assertEquals(
+      surfacedClaim.flatMap(_.packet.map(_.ownerSource)),
+      Some("prophylactic_move"),
+      clues(plannerInputs.mainBundle, surfacedClaim)
+    )
+    assertEquals(
+      surfacedClaim.flatMap(_.packet).flatMap(_.bestDefenseBranchKey),
+      None,
+      clues(plannerInputs.mainBundle, surfacedClaim)
+    )
+    assertNotEquals(
+      surfacedClaim.flatMap(_.packet.map(_.fallbackMode)),
+      Some(PlayerFacingClaimFallbackMode.WeakMain),
+      clues(plannerInputs.mainBundle, surfacedClaim)
+    )
+    assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs))
+    assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
+    assertNoSuppressionInflation(
+      BookmakerLiveCompressionPolicy
+        .buildSlotsOrFallback(
+          ctx,
+          outline,
+          refs = None,
+          strategyPack = prophylacticMovePack,
+          truthContract = None
+        )
+        .claim
+    )
   }
 
   test("exact positive control promotes neutralize-key-break only as a bounded WhatChanged move delta") {

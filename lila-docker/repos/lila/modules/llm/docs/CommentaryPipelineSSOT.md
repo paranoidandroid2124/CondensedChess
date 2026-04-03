@@ -959,9 +959,41 @@ Current rules:
     ("takes the ...X break away"), and `QuestionFirstCommentaryPlanner`
     now preserves the admitted move-owner source instead of relabeling that
     exact move-local claim as support-only `prevented_plan`
-  - bounded B4 `half_open_file_pressure` remains packet-owned but hard-fixed
-    `line_only`; `trade_key_defender` remains blocked without an exact cert
-    owner path, so this change does not widen broader B2/B4/B6/B7/B8 rhetoric
+  - bounded B4 `half_open_file_pressure` is now promoted on one exact local
+    file-entry slice only:
+    the packet may release `weak_main` only when the exact file corridor plus
+    independent entry-square pair survives with a concrete
+    `bestDefenseBranchKey`, `sameBranchState=Proven`,
+    `persistence=Stable`, and no surviving suppression/release-risk objection;
+    allowed wording stays one-board / one-file-corridor / one-entry-square /
+    one-branch local
+    (`This keeps b4 closed and takes the c-file away as a counterplay route.`)
+    file-occupancy-only shells, non-independent entry axes, missing branch-key
+    proof, heavy-piece release shells, and route-network reinflation stay
+    fail-closed; Active and whole-game replay remain closed for this family
+  - bounded `counterplay_restraint` is now promoted on one exact
+    `prophylactic_move` slice only:
+    one named resource on one board may release as a bounded move-local
+    `WhyThis` claim only when the packet carries a concrete
+    `bestDefenseBranchKey`, `sameBranchState=Proven`,
+    `persistence=Stable`, and no surviving suppression/release-risk objection;
+    `QuestionFirstCommentaryPlanner` may treat that exact `weak_main`
+    line-scoped packet as the move owner for `WhyThis`, but the release must
+    stay one-board / one-resource / one-branch local
+    (`slows X before it gets started` / `keeps X from getting going on this
+    branch`), and Active plus whole-game replay remain closed. Generic
+    prophylaxis praise, whole-position no-counterplay, move-order-fragile
+    shells, support-only reinflation, and heavy-piece relabel stay fail-closed
+  - `defensive_regrouping` remains candidate only:
+    regrouping-style piece-improvement plans do not inherit the promoted
+    `counterplay_restraint` owner path, so no new exact move-local owner lane
+    opens for generic consolidation or improvement rhetoric
+  - bounded `open_file_control` remains candidate only:
+    `OpenFilePressure` / `RookFileTransfer` do not gain a distinct exact owner
+    path without the already-certified local file-entry pair, so no separate
+    `open_file_control` family or broader open-file wording opens in runtime
+  - `trade_key_defender` remains blocked without an exact cert owner path, so
+    this change does not widen broader B2/B6/B7/B8 rhetoric
   - `Minimal` and `Tactical` packaging may not surface unsupported `Better is
     ...`, `The concrete square is ...`, or `A concrete target is ...` claims
     unless the shared truth mode policy has already admitted a concrete,

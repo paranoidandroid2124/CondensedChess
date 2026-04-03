@@ -213,23 +213,23 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       val secondary = rankedPlans.secondary
       val swapped =
         secondary.filter(candidate =>
-          !replayClosedNamedRouteNetwork(candidate) &&
+          !replayClosedForActive(candidate, inputs) &&
             activePriority(candidate.questionKind) > activePriority(primary.questionKind) &&
             activeKindAllowed(candidate.questionKind) &&
             notWeaker(candidate, primary, inputs)
         )
       val selected =
-        if replayClosedNamedRouteNetwork(primary) then
+        if replayClosedForActive(primary, inputs) then
           swapped.map(candidate => PlannerSurfaceSelection(candidate, None, inputs))
         else if !activeKindAllowed(primary.questionKind) then
           swapped.map(candidate => PlannerSurfaceSelection(candidate, Some(primary), inputs))
         else
           swapped
             .map(candidate => PlannerSurfaceSelection(candidate, Some(primary), inputs))
-            .orElse(Some(PlannerSurfaceSelection(primary, secondary.filterNot(replayClosedNamedRouteNetwork), inputs)))
+            .orElse(Some(PlannerSurfaceSelection(primary, secondary.filterNot(replayClosedForActive(_, inputs)), inputs)))
       selected.filter { selection =>
         activeKindAllowed(selection.primary.questionKind) &&
-          !replayClosedNamedRouteNetwork(selection.primary) &&
+          !replayClosedForActive(selection.primary, inputs) &&
           (
             selection.primary.questionKind != AuthorQuestionKind.WhatChanged ||
               compactWhatChanged(selection.primary)
@@ -237,11 +237,51 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
       }
     }
 
+  private def replayClosedForActive(
+      plan: QuestionPlan,
+      inputs: QuestionPlannerInputs
+  ): Boolean =
+    replayClosedNamedRouteNetwork(plan) ||
+      replayClosedCounterplayRestraint(plan, inputs) ||
+      replayClosedHalfOpenFilePressure(plan, inputs)
+
   private def replayClosedNamedRouteNetwork(
       plan: QuestionPlan
   ): Boolean =
     plan.ownerSource == NamedRouteNetworkBindCertification.OwnerSource ||
       plan.sourceKinds.contains(NamedRouteNetworkBindCertification.OwnerSource)
+
+  private def replayClosedHalfOpenFilePressure(
+      plan: QuestionPlan,
+      inputs: QuestionPlannerInputs
+  ): Boolean =
+    inputs.mainBundle.flatMap(_.primaryClaim).exists { claim =>
+      val sourceKinds =
+        Set(claim.sourceKind, s"${claim.sourceKind}_line").filter(_.trim.nonEmpty)
+      claim.packet.exists { packet =>
+        packet.ownerFamily == "half_open_file_pressure" &&
+          (
+            NarrativeDedupCore.sameSemanticSentence(claim.claimText, plan.claim) ||
+              plan.sourceKinds.exists(sourceKinds.contains)
+          )
+      }
+    }
+
+  private def replayClosedCounterplayRestraint(
+      plan: QuestionPlan,
+      inputs: QuestionPlannerInputs
+  ): Boolean =
+    inputs.mainBundle.flatMap(_.primaryClaim).exists { claim =>
+      val sourceKinds =
+        Set(claim.sourceKind, s"${claim.sourceKind}_line").filter(_.trim.nonEmpty)
+      claim.packet.exists { packet =>
+        packet.ownerFamily == "counterplay_restraint" &&
+          (
+            NarrativeDedupCore.sameSemanticSentence(claim.claimText, plan.claim) ||
+              plan.sourceKinds.exists(sourceKinds.contains)
+          )
+      }
+    }
 
   private def activePriority(kind: AuthorQuestionKind): Int =
     kind match

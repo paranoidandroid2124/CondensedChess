@@ -6,7 +6,7 @@ import munit.FunSuite
 import lila.llm.*
 import lila.llm.model.*
 import lila.llm.model.authoring.*
-import lila.llm.model.strategic.PreventedPlan
+import lila.llm.model.strategic.{ EngineEvidence, PreventedPlan, PvMove, VariationLine }
 
 class LocalFileEntryBindBroadValidationTest extends FunSuite:
 
@@ -718,6 +718,26 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
             moveOrderSensitive = evidenceTier != "evidence_backed",
             experimentConfidence = if evidenceTier == "evidence_backed" then 0.91 else 0.28
           )
+        ),
+      engineEvidence =
+        Some(
+          EngineEvidence(
+            depth = 18,
+            variations =
+              List(
+                VariationLine(
+                  moves = List("c1c8", "f8e8", "c8e8"),
+                  scoreCp = 90,
+                  depth = 18,
+                  parsedMoves =
+                    List(
+                      PvMove("c1c8", "Rc8", "c1", "c8", "R", isCapture = false, capturedPiece = None, givesCheck = false),
+                      PvMove("f8e8", "Rfe8", "f8", "e8", "R", isCapture = false, capturedPiece = None, givesCheck = false),
+                      PvMove("c8e8", "Rxe8+", "c8", "e8", "R", isCapture = true, capturedPiece = Some("r"), givesCheck = true)
+                    )
+                )
+              )
+          )
         )
     )
 
@@ -733,6 +753,109 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
             evidencePurposes = List("reply_multipv")
           )
         )
+    )
+
+  private def whatChangedMissingBranchCtx: NarrativeContext =
+    whatChangedSurfaceCtx.copy(
+      engineEvidence =
+        Some(
+          EngineEvidence(
+            depth = 18,
+            variations =
+              List(
+                VariationLine(
+                  moves = List("c1c8"),
+                  scoreCp = 90,
+                  depth = 18,
+                  parsedMoves =
+                    List(
+                      PvMove("c1c8", "Rc8", "c1", "c8", "R", isCapture = false, capturedPiece = None, givesCheck = false)
+                    )
+                )
+              )
+          )
+        )
+    )
+
+  private def whatChangedFileOccupancyOnlyCtx: NarrativeContext =
+    whatChangedSurfaceCtx.copy(
+      semantic =
+        whatChangedSurfaceCtx.semantic.map(_.copy(
+          preventedPlans =
+            List(
+              PreventedPlanInfo(
+                planId = "occupy_c_file",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("c-file"),
+                mobilityDelta = -1,
+                counterplayScoreDrop = 110,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("pressure"),
+                deniedEntryScope = Some("single_square")
+              ),
+              PreventedPlanInfo(
+                planId = "hint_b4",
+                deniedSquares = List("b4"),
+                breakNeutralized = None,
+                mobilityDelta = -1,
+                counterplayScoreDrop = 80,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("entry_square"),
+                deniedEntryScope = Some("single_square")
+              )
+            )
+        ))
+    )
+
+  private def whatChangedNonIndependentEntryCtx: NarrativeContext =
+    whatChangedSurfaceCtx.copy(
+      semantic =
+        whatChangedSurfaceCtx.semantic.map(_.copy(
+          preventedPlans =
+            List(
+              PreventedPlanInfo(
+                planId = "deny_c_file",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("c-file"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 145,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("break"),
+                deniedEntryScope = Some("file")
+              ),
+              PreventedPlanInfo(
+                planId = "same_axis_square",
+                deniedSquares = List("c5"),
+                breakNeutralized = None,
+                mobilityDelta = -2,
+                counterplayScoreDrop = 130,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("entry_square"),
+                deniedEntryScope = Some("single_square")
+              )
+            )
+        ))
+    )
+
+  private def fileEntryStrategyPack: Option[StrategyPack] =
+    Some(
+      StrategyPack(
+        sideToMove = "white",
+        directionalTargets =
+          List(
+            StrategyDirectionalTarget(
+              targetId = "target_b4",
+              ownerSide = "white",
+              piece = "R",
+              from = "c1",
+              targetSquare = "b4",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("keep b4 closed while controlling the c-file"),
+              evidence = List("probe")
+            )
+          ),
+        signalDigest = Some(NarrativeSignalDigest(decision = Some("keep b4 closed while controlling the c-file")))
+      )
     )
 
   private def surfaceReinflationCtx: NarrativeContext =
@@ -850,17 +973,16 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
     }
   }
 
-  test("certified local file-entry bind stays line-only and does not reopen planner ownership") {
+  test("certified local file-entry bind stays bounded on supported non-active surfaces") {
     val ctx = whyThisSurfaceCtx("evidence_backed")
-    val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = None, truthContract = None)
-    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
+    val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = fileEntryStrategyPack, truthContract = None)
+    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = fileEntryStrategyPack, truthContract = None)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
-    val chronicleSelection = GameChronicleCompressionPolicy.selectPlannerSurface(rankedPlans, plannerInputs)
     val chronicleArtifact =
       GameChronicleCompressionPolicy.renderWithTrace(
         ctx = ctx,
         parts = emptyParts.copy(focusedOutline = outline),
-        strategyPack = None,
+        strategyPack = fileEntryStrategyPack,
         truthContract = None
       )
     val activeSelection =
@@ -868,10 +990,24 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
         ActiveStrategicCoachingBriefBuilder.PlannerReplay(ctx.authorQuestions, plannerInputs, rankedPlans)
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = None)
+      BookmakerLiveCompressionPolicy.buildSlots(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = fileEntryStrategyPack,
+        truthContract = None
+      )
 
-    assertEquals(rankedPlans.primary, None, clues(rankedPlans))
-    assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
+    plannerInputs.mainBundle.flatMap(_.mainClaim).foreach { claim =>
+      assertNoFileEntryInflation(claim.claimText)
+      assert(claim.claimText.toLowerCase.contains("c-file"), clues(claim))
+      assert(claim.claimText.toLowerCase.contains("b4"), clues(claim))
+    }
+    rankedPlans.primary.foreach { plan =>
+      assertNoFileEntryInflation(plan.claim)
+      assert(plan.claim.toLowerCase.contains("c-file"), clues(plan))
+      assert(plan.claim.toLowerCase.contains("b4"), clues(plan))
+    }
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
     chronicleArtifact.foreach(artifact => assertNoFileEntryInflation(artifact.narrative))
     bookmakerSlots.foreach { slots =>
@@ -881,15 +1017,103 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
     }
   }
 
-  test("bounded file-entry pilot no longer reopens WhatChanged planner ownership") {
+  test("exact positive control promotes half-open-file pressure only as a bounded WhatChanged move delta") {
     val ctx = whatChangedSurfaceCtx
-    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
+    val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = fileEntryStrategyPack, truthContract = None)
+    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = fileEntryStrategyPack, truthContract = None)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
+    val chronicleArtifact =
+      GameChronicleCompressionPolicy.renderWithTrace(
+        ctx = ctx,
+        parts = emptyParts.copy(focusedOutline = outline),
+        strategyPack = fileEntryStrategyPack,
+        truthContract = None
+      )
+    val activeSelection =
+      ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
+        ActiveStrategicCoachingBriefBuilder.PlannerReplay(ctx.authorQuestions, plannerInputs, rankedPlans)
+      )
+    val bookmakerSlots =
+      BookmakerLiveCompressionPolicy.buildSlots(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = fileEntryStrategyPack,
+        truthContract = None
+      )
+
+    assertEquals(
+      plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).map(_.ownerFamily),
+      Some("half_open_file_pressure"),
+      clues(plannerInputs.mainBundle)
+    )
+    assertEquals(
+      plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).map(_.fallbackMode),
+      Some(PlayerFacingClaimFallbackMode.WeakMain),
+      clues(plannerInputs.mainBundle)
+    )
+    assertEquals(
+      rankedPlans.primary.map(_.questionKind),
+      Some(AuthorQuestionKind.WhatChanged),
+      clues(rankedPlans)
+    )
+    assert(
+      rankedPlans.primary.map(_.claim).exists(claim =>
+        claim.toLowerCase.contains("c-file") && claim.toLowerCase.contains("b4")
+      ),
+      clues(rankedPlans)
+    )
+    rankedPlans.primary.foreach(plan => assertNoFileEntryInflation(plan.claim))
+    chronicleArtifact.foreach { artifact =>
+      assertNoFileEntryInflation(artifact.narrative)
+      assert(artifact.narrative.toLowerCase.contains("c-file"), clues(artifact.narrative))
+      assert(artifact.narrative.toLowerCase.contains("b4"), clues(artifact.narrative))
+    }
+    assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
+    bookmakerSlots.foreach { slots =>
+      assertNoFileEntryInflation(slots.claim)
+      assert(slots.claim.toLowerCase.contains("c-file"), clues(slots.claim))
+      assert(slots.claim.toLowerCase.contains("b4"), clues(slots.claim))
+    }
+  }
+
+  test("file-entry promotion stays fail-closed when the best-defense branch key is missing") {
+    val ctx = whatChangedMissingBranchCtx
+    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = fileEntryStrategyPack, truthContract = None)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
 
+    assertNotEquals(
+      plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).map(_.fallbackMode),
+      Some(PlayerFacingClaimFallbackMode.WeakMain),
+      clues(plannerInputs.mainBundle)
+    )
     assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs))
-    plannerInputs.mainBundle.flatMap(_.lineScopedClaim).foreach { claim =>
-      assertNoFileEntryInflation(claim.claimText)
-    }
+  }
+
+  test("file occupancy only cannot reopen the half-open-file move-local owner") {
+    val ctx = whatChangedFileOccupancyOnlyCtx
+    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = fileEntryStrategyPack, truthContract = None)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
+
+    assertNotEquals(
+      plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).map(_.fallbackMode),
+      Some(PlayerFacingClaimFallbackMode.WeakMain),
+      clues(plannerInputs.mainBundle)
+    )
+    assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs))
+  }
+
+  test("non-independent entry axis cannot reopen the half-open-file move-local owner") {
+    val ctx = whatChangedNonIndependentEntryCtx
+    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = fileEntryStrategyPack, truthContract = None)
+    val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
+
+    assertNotEquals(
+      plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).map(_.fallbackMode),
+      Some(PlayerFacingClaimFallbackMode.WeakMain),
+      clues(plannerInputs.mainBundle)
+    )
+    assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs))
   }
 
   test("uncertified local file-entry shell cannot re-inflate across planner, replay, active, or whole-game reuse") {
