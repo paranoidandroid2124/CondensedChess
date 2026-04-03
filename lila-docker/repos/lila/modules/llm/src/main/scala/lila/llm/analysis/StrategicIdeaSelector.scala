@@ -185,6 +185,21 @@ private[llm] object StrategicIdeaSelector:
       focusZone = signal.focusZone
     )
 
+  def packetAnchorTerms(signal: StrategyIdeaSignal): List[String] =
+    (
+      signal.focusSquares ++
+        signal.focusFiles.map(file => s"${normalizeFileToken(file).getOrElse(file)}-file") ++
+        signal.focusDiagonals ++
+        signal.focusZone.toList ++
+        signal.beneficiaryPieces
+    ).flatMap(displayToken).distinct
+
+  def packetRivalKind(pack: StrategyPack): Option[String] =
+    pack.strategicIdeas.lift(1).flatMap(signal => displayToken(signal.kind))
+
+  private def displayToken(raw: String): Option[String] =
+    Option(raw).map(_.trim).filter(_.nonEmpty)
+
   private def collectTypedEvidence(
       pack: StrategyPack,
       semantic: StrategicIdeaSemanticContext

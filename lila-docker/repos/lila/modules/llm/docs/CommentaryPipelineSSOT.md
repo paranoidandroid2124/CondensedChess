@@ -932,6 +932,31 @@ Current rules:
     still surface only with weak lexical envelopes (`still leaves`,
     `continues to allow`, `keeps ... available`), while uncertified causal
     connectors (`therefore`, `thereby`, `which means`) are disallowed
+  - the move-delta / quiet-intent lane now also carries one backend-only
+    `PlayerFacingClaimPacket` sidecar:
+    `PlayerFacingTruthModePolicy`, `MainPathMoveDeltaClaimBuilder`, and
+    `QuietMoveIntentBuilder` thread a shared packet containing
+    `claimGate`, `ownerSource`, `ownerFamily`, `scope`, `triggerKind`,
+    `bestDefenseMove`, `bestDefenseBranchKey`, `sameBranchState`,
+    `persistence`, `rivalKind`, `suppressionReasons`, `releaseRisks`, and
+    `fallbackMode`; this packet is internal-only and does not add a new public
+    payload, debug shell, or `StrategicPlanExperiment` field
+  - packet fallback stays fail-closed:
+    `weak_main` is allowed only when the shared packet has no surviving
+    suppression or release-risk reasons and the owner is not one of the current
+    line-only pilots; `line_only` keeps exact-board
+    evidence visible without reopening move-local ownership; `exact_factual`
+    preserves strategic-mode classification when needed without reconstructing
+    strategy text from raw support carriers
+  - current packetized pilot mapping is narrower than the existing planner
+    lanes:
+    exact B2 `neutralize_key_break` and bounded B4 `half_open_file_pressure`
+    packets are recognized and anchored, but the move-delta lane still keeps
+    them hard-fixed `line_only`; `neutralize_key_break` may mark
+    `sameBranchState=Proven` only when a concrete `bestDefenseBranchKey` is
+    visible; `trade_key_defender` remains blocked without an exact cert owner
+    path, so no new positive planner/replay/whole-game surface was opened in
+    this change
   - `Minimal` and `Tactical` packaging may not surface unsupported `Better is
     ...`, `The concrete square is ...`, or `A concrete target is ...` claims
     unless the shared truth mode policy has already admitted a concrete,
@@ -983,6 +1008,7 @@ Primary files:
 - `modules/llm/src/main/scala/lila/llm/analysis/BookStyleRenderer.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerPolishSlots.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/CertifiedDecisionFrameBuilder.scala`
+- `modules/llm/src/main/scala/lila/llm/analysis/PlayerFacingClaimPacket.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/MainPathMoveDeltaClaimBuilder.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/BookmakerStrategicLedgerBuilder.scala`
 - `modules/llm/src/main/scala/lila/llm/PolishPrompt.scala`
@@ -2135,6 +2161,7 @@ Current owner map for Stage-4 surface uplift:
   - `DualAxisBindCertification`
   - `LocalFileEntryBindCertification`
   - `HeavyPieceLocalBindValidation`
+  - `PlayerFacingClaimPacket`
   - `PlayerFacingTruthModePolicy`
   - `MainPathMoveDeltaClaimBuilder`
   - `QuietMoveIntentBuilder`

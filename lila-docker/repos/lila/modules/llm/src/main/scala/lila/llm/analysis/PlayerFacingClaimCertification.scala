@@ -68,6 +68,12 @@ private[llm] object PlayerFacingClaimCertification:
       case PlayerFacingClaimTaintFlag.BranchConditioned => true
     }
 
+  def blocksMainClaim(packet: PlayerFacingClaimPacket): Boolean =
+    blocksMainClaim(packet.claimGate.taintFlags.toSet) ||
+      packet.claimGate.alternativeDominance ||
+      packet.scope == PlayerFacingPacketScope.BackendOnly ||
+      packet.fallbackMode == PlayerFacingClaimFallbackMode.Suppress
+
   def allowsStrongMainClaim(
       certificateStatus: PlayerFacingCertificateStatus,
       quantifier: PlayerFacingClaimQuantifier,
@@ -83,6 +89,20 @@ private[llm] object PlayerFacingClaimCertification:
       quantifier != PlayerFacingClaimQuantifier.LineConditioned &&
       attribution == PlayerFacingClaimAttributionGrade.Distinctive &&
       stability != PlayerFacingClaimStabilityGrade.Unstable
+
+  def allowsStrongMainClaim(packet: PlayerFacingClaimPacket): Boolean =
+    packet.scope == PlayerFacingPacketScope.MoveLocal &&
+      packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
+      packet.suppressionReasons.isEmpty &&
+      packet.releaseRisks.isEmpty &&
+      allowsStrongMainClaim(
+        certificateStatus = packet.claimGate.certificateStatus,
+        quantifier = packet.claimGate.quantifier,
+        attribution = packet.claimGate.attributionGrade,
+        stability = packet.claimGate.stabilityGrade,
+        provenance = packet.claimGate.provenanceClass,
+        taintFlags = packet.claimGate.taintFlags.toSet
+      )
 
   def allowsWeakMainClaim(
       certificateStatus: PlayerFacingCertificateStatus,
@@ -101,6 +121,20 @@ private[llm] object PlayerFacingClaimCertification:
       attribution != PlayerFacingClaimAttributionGrade.StateOnly &&
       stability != PlayerFacingClaimStabilityGrade.Unstable
 
+  def allowsWeakMainClaim(packet: PlayerFacingClaimPacket): Boolean =
+    packet.scope == PlayerFacingPacketScope.MoveLocal &&
+      packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
+      packet.suppressionReasons.isEmpty &&
+      !packet.claimGate.alternativeDominance &&
+      allowsWeakMainClaim(
+        certificateStatus = packet.claimGate.certificateStatus,
+        quantifier = packet.claimGate.quantifier,
+        attribution = packet.claimGate.attributionGrade,
+        stability = packet.claimGate.stabilityGrade,
+        provenance = packet.claimGate.provenanceClass,
+        taintFlags = packet.claimGate.taintFlags.toSet
+      )
+
   def allowsLineEvidenceHook(
       certificateStatus: PlayerFacingCertificateStatus,
       provenance: PlayerFacingClaimProvenanceClass,
@@ -110,3 +144,13 @@ private[llm] object PlayerFacingClaimCertification:
       certificateStatus == PlayerFacingCertificateStatus.WeaklyValid) &&
       provenance == PlayerFacingClaimProvenanceClass.ProbeBacked &&
       !blocksMainClaim(taintFlags)
+
+  def allowsLineEvidenceHook(packet: PlayerFacingClaimPacket): Boolean =
+    packet.scope != PlayerFacingPacketScope.BackendOnly &&
+      packet.allowsLineEvidence &&
+      !packet.claimGate.alternativeDominance &&
+      allowsLineEvidenceHook(
+        certificateStatus = packet.claimGate.certificateStatus,
+        provenance = packet.claimGate.provenanceClass,
+        taintFlags = packet.claimGate.taintFlags.toSet
+      )

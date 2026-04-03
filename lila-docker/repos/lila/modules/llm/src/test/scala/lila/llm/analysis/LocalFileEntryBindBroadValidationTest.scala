@@ -850,7 +850,7 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
     }
   }
 
-  test("planner-owned WhyThis parity holds for a certified local file-entry bind without reinflation") {
+  test("certified local file-entry bind stays line-only and does not reopen planner ownership") {
     val ctx = whyThisSurfaceCtx("evidence_backed")
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = None, truthContract = None)
     val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
@@ -870,10 +870,10 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
     val bookmakerSlots =
       BookmakerLiveCompressionPolicy.buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = None)
 
-    assertEquals(rankedPlans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhyThis), clues(rankedPlans))
-    assert(chronicleSelection.nonEmpty, clues(chronicleSelection, rankedPlans))
-    assert(chronicleArtifact.exists(_.narrative.nonEmpty), clues(chronicleArtifact))
-    assert(activeSelection.forall(_.primary.questionKind == AuthorQuestionKind.WhyThis), clues(activeSelection, rankedPlans))
+    assertEquals(rankedPlans.primary, None, clues(rankedPlans))
+    assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
+    assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
+    chronicleArtifact.foreach(artifact => assertNoFileEntryInflation(artifact.narrative))
     bookmakerSlots.foreach { slots =>
       assert(BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase.contains("c-file"), clues(slots.claim))
       assert(BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase.contains("b4"), clues(slots.claim))
@@ -881,15 +881,15 @@ class LocalFileEntryBindBroadValidationTest extends FunSuite:
     }
   }
 
-  test("bounded WhatChanged uses the certified c-file and b4 change without widening the claim") {
+  test("bounded file-entry pilot no longer reopens WhatChanged planner ownership") {
     val ctx = whatChangedSurfaceCtx
     val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
-    val primary = rankedPlans.primary.getOrElse(fail("missing what-changed plan"))
-    assertEquals(primary.questionKind, AuthorQuestionKind.WhatChanged, clues(primary, rankedPlans))
-    assert(primary.claim.toLowerCase.contains("c-file"), clues(primary))
-    assert(primary.claim.toLowerCase.contains("b4"), clues(primary))
-    assertNoFileEntryInflation(primary.claim)
+
+    assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs))
+    plannerInputs.mainBundle.flatMap(_.lineScopedClaim).foreach { claim =>
+      assertNoFileEntryInflation(claim.claimText)
+    }
   }
 
   test("uncertified local file-entry shell cannot re-inflate across planner, replay, active, or whole-game reuse") {

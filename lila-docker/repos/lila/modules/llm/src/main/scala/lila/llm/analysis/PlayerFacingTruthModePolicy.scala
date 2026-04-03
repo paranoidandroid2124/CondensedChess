@@ -33,34 +33,17 @@ private[llm] final case class PlayerFacingMoveDeltaEvidence(
     certificateStatus: PlayerFacingCertificateStatus = PlayerFacingCertificateStatus.Invalid,
     taintFlags: Set[PlayerFacingClaimTaintFlag] = Set.empty,
     ontologyFamily: PlayerFacingClaimOntologyFamily = PlayerFacingClaimOntologyFamily.Unknown,
-    connectorPermission: Boolean = false
+    connectorPermission: Boolean = false,
+    packet: PlayerFacingClaimPacket = PlayerFacingClaimPacket.empty
 ):
   def allowsStrongMainClaim: Boolean =
-    PlayerFacingClaimCertification.allowsStrongMainClaim(
-      certificateStatus = certificateStatus,
-      quantifier = quantifier,
-      attribution = attributionGrade,
-      stability = stabilityGrade,
-      provenance = provenanceClass,
-      taintFlags = taintFlags
-    )
+    PlayerFacingClaimCertification.allowsStrongMainClaim(packet)
 
   def allowsWeakMainClaim: Boolean =
-    PlayerFacingClaimCertification.allowsWeakMainClaim(
-      certificateStatus = certificateStatus,
-      quantifier = quantifier,
-      attribution = attributionGrade,
-      stability = stabilityGrade,
-      provenance = provenanceClass,
-      taintFlags = taintFlags
-    )
+    PlayerFacingClaimCertification.allowsWeakMainClaim(packet)
 
   def allowsLineEvidenceHook: Boolean =
-    PlayerFacingClaimCertification.allowsLineEvidenceHook(
-      certificateStatus = certificateStatus,
-      provenance = provenanceClass,
-      taintFlags = taintFlags
-    )
+    PlayerFacingClaimCertification.allowsLineEvidenceHook(packet)
 
 private[llm] object PlayerFacingTruthModePolicy:
 
@@ -85,7 +68,8 @@ private[llm] object PlayerFacingTruthModePolicy:
     val forcingProof = forcingProofAvailable(ctx.engineEvidence.toList.flatMap(_.variations))
     val deltaEvidence = strategicDeltaEvidence(ctx, surface, truthContract)
     if isTactical(truthContract, sacrificeClass, forcingProof) then PlayerFacingTruthMode.Tactical
-    else if sacrificeClass == PlayerFacingSacrificeClass.StrategicSacrifice || deltaEvidence.nonEmpty
+    else if sacrificeClass == PlayerFacingSacrificeClass.StrategicSacrifice ||
+        deltaEvidence.exists(_.packet.admitsStrategicTruthMode)
     then
       PlayerFacingTruthMode.Strategic
     else if StandardCommentaryClaimPolicy.quietStandardPosition(ctx, truthContract) then
@@ -97,7 +81,8 @@ private[llm] object PlayerFacingTruthModePolicy:
     val sacrificeClass = classifySacrifice(moment, surface)
     val deltaEvidence = strategicDeltaEvidence(moment, surface)
     if isTactical(moment, sacrificeClass) then PlayerFacingTruthMode.Tactical
-    else if sacrificeClass == PlayerFacingSacrificeClass.StrategicSacrifice || deltaEvidence.nonEmpty
+    else if sacrificeClass == PlayerFacingSacrificeClass.StrategicSacrifice ||
+        deltaEvidence.exists(_.packet.admitsStrategicTruthMode)
     then PlayerFacingTruthMode.Strategic
     else PlayerFacingTruthMode.Minimal
 
@@ -490,7 +475,14 @@ private[llm] object PlayerFacingTruthModePolicy:
             normalize(ref.idea).contains("simplif")
         )
       def result(kind: PlayerFacingMoveDeltaClass): Option[PlayerFacingMoveDeltaEvidence] =
-        Some(PlayerFacingMoveDeltaEvidence(kind, anchors))
+        Some(
+          activeStrategicDeltaEvidence(
+            ctx = ctx,
+            surface = surface,
+            deltaClass = kind,
+            anchors = anchors
+          )
+        )
 
       if preventedNow.exists(plan =>
           plan.counterplayScoreDrop > 0 ||
@@ -669,19 +661,463 @@ private[llm] object PlayerFacingTruthModePolicy:
         stabilityGrade = stabilityGrade,
         taintFlags = taintFlags
       )
+    val claimGate =
+      PlanEvidenceEvaluator.ClaimCertification(
+        certificateStatus = certificateStatus,
+        quantifier = quantifier,
+        modalityTier = modalityForDelta(deltaClass, quantifier, stabilityGrade, ontologyFamily),
+        attributionGrade = attributionGrade,
+        stabilityGrade = stabilityGrade,
+        provenanceClass = provenanceClass,
+        taintFlags = taintFlags.toList,
+        ontologyFamily = ontologyFamily,
+        alternativeDominance = ctx.strategicPlanExperiments.exists(_.refuteProbeCount > 0)
+      )
+    val packet =
+      mainPathClaimPacket(
+        ctx = ctx,
+        surface = surface,
+        deltaClass = deltaClass,
+        anchors = anchors,
+        preventedNow = preventedNow,
+        claimGate = claimGate
+      )
     PlayerFacingMoveDeltaEvidence(
       deltaClass = deltaClass,
       anchorTerms = anchors,
       quantifier = quantifier,
-      modalityTier = modalityForDelta(deltaClass, quantifier, stabilityGrade, ontologyFamily),
+      modalityTier = claimGate.modalityTier,
       attributionGrade = attributionGrade,
       stabilityGrade = stabilityGrade,
       provenanceClass = provenanceClass,
       certificateStatus = certificateStatus,
       taintFlags = taintFlags,
       ontologyFamily = ontologyFamily,
-      connectorPermission = false
+      connectorPermission =
+        packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
+          packet.releaseRisks.isEmpty,
+      packet = packet
     )
+
+  private final case class ClaimOwnerSeed(
+      ownerSource: String,
+      ownerFamily: String,
+      triggerKind: String
+  )
+
+  private def activeStrategicDeltaEvidence(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot,
+      deltaClass: PlayerFacingMoveDeltaClass,
+      anchors: List[String]
+  ): PlayerFacingMoveDeltaEvidence =
+    val ontologyFamily = ontologyFamilyForActiveDelta(deltaClass)
+    val claimGate =
+      PlanEvidenceEvaluator.ClaimCertification(
+        certificateStatus = PlayerFacingCertificateStatus.Invalid,
+        quantifier = PlayerFacingClaimQuantifier.Existential,
+        modalityTier = PlayerFacingClaimModalityTier.Available,
+        attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
+        stabilityGrade = PlayerFacingClaimStabilityGrade.Unknown,
+        provenanceClass = PlayerFacingClaimProvenanceClass.StructuralOnly,
+        ontologyFamily = ontologyFamily
+      )
+    val packet =
+      PlayerFacingClaimPacket(
+        claimGate = claimGate,
+        ownerSource = "active_move_delta",
+        ownerFamily = genericOwnerFamily(deltaClass),
+        scope = PlayerFacingPacketScope.MoveLocal,
+        triggerKind = genericTriggerKind(deltaClass),
+        anchorTerms = packetAnchorTerms(anchors, surface),
+        bestDefenseMove = bestDefenseMoveFromContext(ctx),
+        bestDefenseBranchKey = bestDefenseBranchKeyFromContext(ctx),
+        sameBranchState =
+          if bestDefenseBranchKeyFromContext(ctx).nonEmpty then
+            PlayerFacingSameBranchState.Ambiguous
+          else PlayerFacingSameBranchState.Missing,
+        persistence =
+          if ctx.engineEvidence.toList.flatMap(_.variations).nonEmpty then
+            PlayerFacingClaimPersistence.BestDefenseOnly
+          else PlayerFacingClaimPersistence.Broken,
+        rivalKind = surface.secondaryIdea.flatMap(idea => clean(idea.kind)),
+        fallbackMode =
+          if anchors.nonEmpty then PlayerFacingClaimFallbackMode.ExactFactual
+          else PlayerFacingClaimFallbackMode.Suppress
+      )
+    PlayerFacingMoveDeltaEvidence(
+      deltaClass = deltaClass,
+      anchorTerms = anchors,
+      quantifier = claimGate.quantifier,
+      modalityTier = claimGate.modalityTier,
+      attributionGrade = claimGate.attributionGrade,
+      stabilityGrade = claimGate.stabilityGrade,
+      provenanceClass = claimGate.provenanceClass,
+      certificateStatus = claimGate.certificateStatus,
+      taintFlags = claimGate.taintFlags.toSet,
+      ontologyFamily = ontologyFamily,
+      connectorPermission = false,
+      packet = packet
+    )
+
+  private def mainPathClaimPacket(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot,
+      deltaClass: PlayerFacingMoveDeltaClass,
+      anchors: List[String],
+      preventedNow: List[PreventedPlanInfo],
+      claimGate: PlanEvidenceEvaluator.ClaimCertification
+  ): PlayerFacingClaimPacket =
+    val ownerSeed = ownerSeedForMainPath(ctx, surface, deltaClass, preventedNow)
+    val anchorTerms = packetAnchorTerms(anchors, surface)
+    val bestDefenseMove = bestDefenseMoveFromContext(ctx)
+    val bestDefenseBranchKey = bestDefenseBranchKeyFromContext(ctx)
+    val sameBranchState =
+      sameBranchStateForMainPath(
+        ctx = ctx,
+        ownerSeed = ownerSeed,
+        claimGate = claimGate,
+        bestDefenseBranchKey = bestDefenseBranchKey
+      )
+    val persistence = persistenceForMainPath(ctx, claimGate)
+    val rivalKind =
+      secondaryOwnerFamily(ctx)
+        .orElse(surface.secondaryIdea.flatMap(idea => clean(idea.kind)))
+    val suppressionReasons =
+      suppressionReasonsForMainPath(
+        ctx = ctx,
+        ownerSeed = ownerSeed,
+        claimGate = claimGate,
+        sameBranchState = sameBranchState,
+        rivalKind = rivalKind
+      )
+    val releaseRisks =
+      releaseRisksForMainPath(
+        ctx = ctx,
+        ownerSeed = ownerSeed,
+        sameBranchState = sameBranchState
+      )
+    val fallbackMode =
+      fallbackModeForMainPath(
+        claimGate = claimGate,
+        ownerSeed = ownerSeed,
+        anchors = anchorTerms,
+        suppressionReasons = suppressionReasons,
+        releaseRisks = releaseRisks
+      )
+    PlayerFacingClaimPacket(
+      claimGate = claimGate,
+      ownerSource = ownerSeed.ownerSource,
+      ownerFamily = ownerSeed.ownerFamily,
+      scope = scopeForFallback(fallbackMode),
+      triggerKind = ownerSeed.triggerKind,
+      anchorTerms = anchorTerms,
+      bestDefenseMove = bestDefenseMove,
+      bestDefenseBranchKey = bestDefenseBranchKey,
+      sameBranchState = sameBranchState,
+      persistence = persistence,
+      rivalKind = rivalKind,
+      suppressionReasons = suppressionReasons,
+      releaseRisks = releaseRisks,
+      fallbackMode = fallbackMode
+    )
+
+  private def ownerSeedForMainPath(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot,
+      deltaClass: PlayerFacingMoveDeltaClass,
+      preventedNow: List[PreventedPlanInfo]
+  ): ClaimOwnerSeed =
+    val planOwner = leadingOwnerFamily(ctx)
+    val trigger = leadingTriggerKind(ctx)
+    deltaClass match
+      case PlayerFacingMoveDeltaClass.CounterplayReduction
+          if LocalFileEntryBindCertification.certifiedSurfacePair(ctx).nonEmpty =>
+        ClaimOwnerSeed(
+          ownerSource = "local_file_entry_bind",
+          ownerFamily = "half_open_file_pressure",
+          triggerKind = "file_entry_denial"
+        )
+      case PlayerFacingMoveDeltaClass.ResourceRemoval
+          if LocalFileEntryBindCertification.certifiedSurfacePair(ctx).nonEmpty =>
+        ClaimOwnerSeed(
+          ownerSource = "local_file_entry_bind",
+          ownerFamily = "half_open_file_pressure",
+          triggerKind = "file_entry_denial"
+        )
+      case PlayerFacingMoveDeltaClass.CounterplayReduction
+          if preventedNow.exists(_.breakNeutralized.exists(_.trim.nonEmpty)) =>
+        ClaimOwnerSeed(
+          ownerSource = "counterplay_axis_suppression",
+          ownerFamily = "neutralize_key_break",
+          triggerKind = "break_neutralization"
+        )
+      case PlayerFacingMoveDeltaClass.ExchangeForcing if likelyTradeKeyDefender(ctx, surface) =>
+        ClaimOwnerSeed(
+          ownerSource = "exchange_forcing_delta",
+          ownerFamily = "trade_key_defender",
+          triggerKind = trigger.getOrElse("trade_key_defender")
+        )
+      case _ =>
+        ClaimOwnerSeed(
+          ownerSource = genericOwnerSource(deltaClass),
+          ownerFamily = planOwner.getOrElse(genericOwnerFamily(deltaClass)),
+          triggerKind = trigger.getOrElse(genericTriggerKind(deltaClass))
+        )
+
+  private def leadingOwnerFamily(ctx: NarrativeContext): Option[String] =
+    StrategicNarrativePlanSupport
+      .evidenceBackedMainPlans(ctx)
+      .headOption
+      .map(plan => PlanMatcher.ownerFamily(plan.themeL1, plan.subplanId))
+
+  private def secondaryOwnerFamily(ctx: NarrativeContext): Option[String] =
+    StrategicNarrativePlanSupport
+      .evidenceBackedMainPlans(ctx)
+      .lift(1)
+      .map(plan => PlanMatcher.ownerFamily(plan.themeL1, plan.subplanId))
+
+  private def leadingTriggerKind(ctx: NarrativeContext): Option[String] =
+    StrategicNarrativePlanSupport
+      .evidenceBackedMainPlans(ctx)
+      .headOption
+      .map(plan => PlanMatcher.triggerKind(plan.themeL1, plan.subplanId))
+
+  private def sameBranchStateForMainPath(
+      ctx: NarrativeContext,
+      ownerSeed: ClaimOwnerSeed,
+      claimGate: PlanEvidenceEvaluator.ClaimCertification,
+      bestDefenseBranchKey: Option[String]
+  ): PlayerFacingSameBranchState =
+    val evidenceBacked =
+      ctx.strategicPlanExperiments.filter(exp => isEvidenceBackedTier(exp.evidenceTier))
+    val stableBranch =
+      evidenceBacked.exists(exp =>
+        (exp.bestReplyStable || exp.futureSnapshotAligned) && !exp.moveOrderSensitive
+      )
+    val branchVisible = bestDefenseBranchKey.nonEmpty
+    val fileEntryPilot =
+      ownerSeed.ownerSource == "local_file_entry_bind" ||
+        ownerSeed.ownerFamily == "half_open_file_pressure"
+    val breakPilot =
+      ownerSeed.ownerSource == "counterplay_axis_suppression" ||
+        ownerSeed.ownerFamily == "neutralize_key_break"
+    if fileEntryPilot && branchVisible && stableBranch then
+      PlayerFacingSameBranchState.Proven
+    else if breakPilot && branchVisible && stableBranch then
+      PlayerFacingSameBranchState.Proven
+    else if claimGate.provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked && branchVisible then
+      PlayerFacingSameBranchState.Ambiguous
+    else if claimGate.provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked then
+      PlayerFacingSameBranchState.Ambiguous
+    else PlayerFacingSameBranchState.Missing
+
+  private def persistenceForMainPath(
+      ctx: NarrativeContext,
+      claimGate: PlanEvidenceEvaluator.ClaimCertification
+  ): PlayerFacingClaimPersistence =
+    val evidenceBacked =
+      ctx.strategicPlanExperiments.filter(exp => isEvidenceBackedTier(exp.evidenceTier))
+    if claimGate.provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
+      PlayerFacingClaimPersistence.Broken
+    else if evidenceBacked.exists(exp => exp.bestReplyStable && exp.futureSnapshotAligned && !exp.moveOrderSensitive) then
+      PlayerFacingClaimPersistence.Stable
+    else if evidenceBacked.exists(_.bestReplyStable) then
+      PlayerFacingClaimPersistence.BestDefenseOnly
+    else if evidenceBacked.exists(_.futureSnapshotAligned) then
+      PlayerFacingClaimPersistence.FutureOnly
+    else PlayerFacingClaimPersistence.Broken
+
+  private def suppressionReasonsForMainPath(
+      ctx: NarrativeContext,
+      ownerSeed: ClaimOwnerSeed,
+      claimGate: PlanEvidenceEvaluator.ClaimCertification,
+      sameBranchState: PlayerFacingSameBranchState,
+      rivalKind: Option[String]
+  ): List[String] =
+    val reasons = scala.collection.mutable.ListBuffer.empty[String]
+    if claimGate.alternativeDominance then
+      reasons += PlayerFacingClaimSuppressionReason.AlternativeDominance
+    if ownerSeed.ownerSource == "local_file_entry_bind" ||
+        ownerSeed.ownerSource == "counterplay_axis_suppression" ||
+        ownerSeed.ownerFamily == "half_open_file_pressure" ||
+        ownerSeed.ownerFamily == "neutralize_key_break"
+    then
+      sameBranchState match
+        case PlayerFacingSameBranchState.Missing =>
+          reasons += PlayerFacingClaimSuppressionReason.SameBranchMissing
+        case PlayerFacingSameBranchState.Ambiguous =>
+          reasons += PlayerFacingClaimSuppressionReason.SameBranchAmbiguous
+        case PlayerFacingSameBranchState.Proven => ()
+    if ownerSeed.ownerFamily == "trade_key_defender" then
+      reasons += PlayerFacingClaimSuppressionReason.SupportOnlyReinflation
+    if rivalKind.exists(rival => rival != ownerSeed.ownerFamily && claimGate.alternativeDominance) then
+      reasons += PlayerFacingClaimSuppressionReason.RivalStoryAlive
+    reasons.toList.distinct
+
+  private def releaseRisksForMainPath(
+      ctx: NarrativeContext,
+      ownerSeed: ClaimOwnerSeed,
+      sameBranchState: PlayerFacingSameBranchState
+  ): List[String] =
+    val risks = scala.collection.mutable.ListBuffer.empty[String]
+    if ctx.strategicPlanExperiments.exists(_.moveOrderSensitive) then
+      risks += PlayerFacingClaimReleaseRisk.MoveOrderFragility
+    if HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx) then
+      risks += PlayerFacingClaimReleaseRisk.HeavyPieceLeakage
+    if (ownerSeed.ownerSource == "local_file_entry_bind" || ownerSeed.ownerFamily == "half_open_file_pressure") &&
+        sameBranchState != PlayerFacingSameBranchState.Proven
+    then
+      risks += PlayerFacingClaimReleaseRisk.SurfaceReinflation
+    if ownerSeed.ownerFamily == "trade_key_defender" then
+      risks += PlayerFacingClaimReleaseRisk.RivalRelease
+    risks.toList.distinct
+
+  private def fallbackModeForMainPath(
+      claimGate: PlanEvidenceEvaluator.ClaimCertification,
+      ownerSeed: ClaimOwnerSeed,
+      anchors: List[String],
+      suppressionReasons: List[String],
+      releaseRisks: List[String]
+  ): PlayerFacingClaimFallbackMode =
+    val allowsWeak =
+      PlayerFacingClaimCertification.allowsWeakMainClaim(
+        certificateStatus = claimGate.certificateStatus,
+        quantifier = claimGate.quantifier,
+        attribution = claimGate.attributionGrade,
+        stability = claimGate.stabilityGrade,
+        provenance = claimGate.provenanceClass,
+        taintFlags = claimGate.taintFlags.toSet
+      )
+    val allowsLine =
+      PlayerFacingClaimCertification.allowsLineEvidenceHook(
+        certificateStatus = claimGate.certificateStatus,
+        provenance = claimGate.provenanceClass,
+        taintFlags = claimGate.taintFlags.toSet
+      )
+    val lineOnlyPilot =
+      PlayerFacingClaimPacket.isLineOnlyPilot(ownerSeed.ownerSource, ownerSeed.ownerFamily)
+    if lineOnlyPilot then
+      PlayerFacingClaimFallbackMode.LineOnly
+    else if allowsWeak && suppressionReasons.isEmpty && releaseRisks.isEmpty then
+      PlayerFacingClaimFallbackMode.WeakMain
+    else if allowsLine &&
+        ownerSeed.ownerFamily != "trade_key_defender" &&
+        !suppressionReasons.contains(PlayerFacingClaimSuppressionReason.AlternativeDominance)
+    then PlayerFacingClaimFallbackMode.LineOnly
+    else if anchors.nonEmpty then PlayerFacingClaimFallbackMode.ExactFactual
+    else PlayerFacingClaimFallbackMode.Suppress
+
+  private def scopeForFallback(
+      fallbackMode: PlayerFacingClaimFallbackMode
+  ): PlayerFacingPacketScope =
+    fallbackMode match
+      case PlayerFacingClaimFallbackMode.WeakMain   => PlayerFacingPacketScope.MoveLocal
+      case PlayerFacingClaimFallbackMode.LineOnly   => PlayerFacingPacketScope.LineScoped
+      case PlayerFacingClaimFallbackMode.ExactFactual => PlayerFacingPacketScope.MoveLocal
+      case PlayerFacingClaimFallbackMode.Suppress   => PlayerFacingPacketScope.BackendOnly
+
+  private def bestDefenseMoveFromContext(ctx: NarrativeContext): Option[String] =
+    bestDefenseMoveFromVariations(ctx.engineEvidence.toList.flatMap(_.variations))
+
+  private def bestDefenseBranchKeyFromContext(ctx: NarrativeContext): Option[String] =
+    bestDefenseBranchKeyFromVariations(ctx.engineEvidence.toList.flatMap(_.variations))
+
+  private def bestDefenseMoveFromVariations(
+      variations: List[VariationLine]
+  ): Option[String] =
+    variations.headOption.flatMap { line =>
+      line.parsedMoves.lift(1).flatMap(move => clean(move.san))
+        .orElse(line.moves.lift(1).flatMap(clean))
+    }
+
+  private def bestDefenseBranchKeyFromVariations(
+      variations: List[VariationLine]
+  ): Option[String] =
+    variations.headOption.flatMap(line =>
+      branchKeyFromMoves(line.moves)
+        .orElse(branchKeyFromMoves(line.parsedMoves.flatMap(move => clean(move.uci))))
+    )
+
+  private def branchKeyFromMoves(
+      moves: List[String]
+  ): Option[String] =
+    moves.take(2).flatMap(clean) match
+      case first :: second :: Nil => Some(s"${normalize(first)}|${normalize(second)}")
+      case _                      => None
+
+  private def packetAnchorTerms(
+      anchors: List[String],
+      surface: StrategyPackSurface.Snapshot
+  ): List[String] =
+    (
+      anchors ++
+        surface.dominantIdea.toList.flatMap(StrategicIdeaSelector.packetAnchorTerms) ++
+        surface.topDirectionalTarget.toList.flatMap(target => List(target.targetSquare)) ++
+        surface.topMoveRef.toList.flatMap(ref => List(ref.target))
+    ).flatMap(clean).distinct
+
+  private def likelyTradeKeyDefender(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot
+  ): Boolean =
+    val evidenceText =
+      ctx.decision.toList.flatMap(decision =>
+        decision.delta.newOpportunities ++ decision.delta.planAdvancements ++ decision.delta.resolvedThreats
+      ).map(normalize)
+    StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx).exists(plan =>
+      plan.subplanId.contains(ThemeTaxonomy.SubplanId.DefenderTrade.id) ||
+        plan.subplanId.contains(ThemeTaxonomy.SubplanId.SimplificationWindow.id)
+    ) ||
+      evidenceText.exists(text => containsAny(text, List("defender", "guard", "cover", "protector"))) ||
+      surface.topMoveRef.exists(ref =>
+        containsAny(normalize(ref.idea), List("defender", "guard", "cover", "trade"))
+      )
+
+  private def genericOwnerSource(deltaClass: PlayerFacingMoveDeltaClass): String =
+    deltaClass match
+      case PlayerFacingMoveDeltaClass.NewAccess            => "new_access_delta"
+      case PlayerFacingMoveDeltaClass.PressureIncrease     => "pressure_increase_delta"
+      case PlayerFacingMoveDeltaClass.ExchangeForcing      => "exchange_forcing_delta"
+      case PlayerFacingMoveDeltaClass.CounterplayReduction => "counterplay_reduction_delta"
+      case PlayerFacingMoveDeltaClass.ResourceRemoval      => "resource_removal_delta"
+      case PlayerFacingMoveDeltaClass.PlanAdvance          => "plan_advance_delta"
+
+  private def genericOwnerFamily(deltaClass: PlayerFacingMoveDeltaClass): String =
+    deltaClass match
+      case PlayerFacingMoveDeltaClass.NewAccess            => "new_access"
+      case PlayerFacingMoveDeltaClass.PressureIncrease     => "pressure_increase"
+      case PlayerFacingMoveDeltaClass.ExchangeForcing      => "exchange_forcing"
+      case PlayerFacingMoveDeltaClass.CounterplayReduction => "counterplay_reduction"
+      case PlayerFacingMoveDeltaClass.ResourceRemoval      => "resource_removal"
+      case PlayerFacingMoveDeltaClass.PlanAdvance          => "plan_advance"
+
+  private def genericTriggerKind(deltaClass: PlayerFacingMoveDeltaClass): String =
+    deltaClass match
+      case PlayerFacingMoveDeltaClass.NewAccess            => "new_access"
+      case PlayerFacingMoveDeltaClass.PressureIncrease     => "pressure_increase"
+      case PlayerFacingMoveDeltaClass.ExchangeForcing      => "exchange_forcing"
+      case PlayerFacingMoveDeltaClass.CounterplayReduction => "counterplay_reduction"
+      case PlayerFacingMoveDeltaClass.ResourceRemoval      => "resource_removal"
+      case PlayerFacingMoveDeltaClass.PlanAdvance          => "plan_advance"
+
+  private def ontologyFamilyForActiveDelta(
+      deltaClass: PlayerFacingMoveDeltaClass
+  ): PlayerFacingClaimOntologyFamily =
+    deltaClass match
+      case PlayerFacingMoveDeltaClass.NewAccess            => PlayerFacingClaimOntologyFamily.Access
+      case PlayerFacingMoveDeltaClass.PressureIncrease     => PlayerFacingClaimOntologyFamily.Pressure
+      case PlayerFacingMoveDeltaClass.ExchangeForcing      => PlayerFacingClaimOntologyFamily.Exchange
+      case PlayerFacingMoveDeltaClass.CounterplayReduction => PlayerFacingClaimOntologyFamily.CounterplayRestraint
+      case PlayerFacingMoveDeltaClass.ResourceRemoval      => PlayerFacingClaimOntologyFamily.ResourceRemoval
+      case PlayerFacingMoveDeltaClass.PlanAdvance          => PlayerFacingClaimOntologyFamily.PlanAdvance
+
+  private def clean(raw: String): Option[String] =
+    Option(raw).map(_.trim).filter(_.nonEmpty)
+
+  private def isEvidenceBackedTier(raw: String): Boolean =
+    val normalized = normalize(raw)
+    normalized == "evidence_backed" || normalized == "evidencebacked"
 
   private def claimProvenance(
       ctx: NarrativeContext

@@ -16,7 +16,8 @@ private[llm] final case class MainPathScopedClaim(
     anchorTerms: List[String],
     evidenceLines: List[String],
     sourceKind: String,
-    tacticalOwnership: Option[String]
+    tacticalOwnership: Option[String],
+    packet: Option[PlayerFacingClaimPacket] = None
 ):
   def lens: StrategicLens =
     if tacticalOwnership.nonEmpty then StrategicLens.Decision
@@ -104,7 +105,10 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
     PlayerFacingTruthModePolicy
       .mainPathMoveDeltaEvidence(ctx, surface, truthContract)
       .flatMap { delta =>
-        val anchorTerms = PlayerFacingTruthModePolicy.mainPathAnchorTerms(surface, truthContract)
+        val anchorTerms =
+          delta.packet.anchorTerms
+            .filter(_.trim.nonEmpty)
+            .distinct
         val sourceKind = mainSourceKind(surface, truthContract)
         val lineEvidence =
           Option.when(delta.allowsLineEvidenceHook) {
@@ -138,24 +142,26 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
                 anchorTerms = anchorTerms,
                 evidenceLines = lineEvidence,
                 sourceKind = sourceKind,
-                tacticalOwnership = None
+                tacticalOwnership = None,
+                packet = Some(delta.packet)
               )
             }
-        mainClaim.map { main =>
-          val lineClaim =
-            lineEvidence.headOption.map { line =>
-              MainPathScopedClaim(
-                scope = PlayerFacingClaimScope.LineScoped,
-                mode = PlayerFacingTruthMode.Strategic,
-                deltaClass = Some(delta.deltaClass),
-                claimText = line,
-                anchorTerms = anchorTerms,
-                evidenceLines = List(line),
-                sourceKind = s"${sourceKind}_line",
-                tacticalOwnership = None
-              )
-            }
-          MainPathClaimBundle(Some(main), lineClaim)
+        val lineClaim =
+          lineEvidence.headOption.map { line =>
+            MainPathScopedClaim(
+              scope = PlayerFacingClaimScope.LineScoped,
+              mode = PlayerFacingTruthMode.Strategic,
+              deltaClass = Some(delta.deltaClass),
+              claimText = line,
+              anchorTerms = anchorTerms,
+              evidenceLines = List(line),
+              sourceKind = s"${sourceKind}_line",
+              tacticalOwnership = None,
+              packet = Some(delta.packet.copy(scope = PlayerFacingPacketScope.LineScoped))
+            )
+          }
+        Option.when(mainClaim.nonEmpty || lineClaim.nonEmpty) {
+          MainPathClaimBundle(mainClaim, lineClaim)
         }
       }
 

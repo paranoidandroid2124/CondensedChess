@@ -80,6 +80,25 @@ Use the documents in this order:
   does not authorize a new runtime path, new owner lane, `WhatChanged`, replay,
   or whole-game reuse. Any B7b work must stay on the existing architecture and
   begin with the fail-closed charter below.
+- Current mid-layer hardening note:
+  runtime now threads one backend-only `PlayerFacingClaimPacket` across
+  `PlayerFacingTruthModePolicy`, `MainPathMoveDeltaClaimBuilder`, and
+  `QuietMoveIntentBuilder`. The packet is the shared suppression/release-risk
+  carrier for move-local strategic admission; it adds no new public schema,
+  payload, or persisted debug field.
+- Packet pilot status on 2026-04-03:
+  `neutralize_key_break` and bounded `half_open_file_pressure` are now
+  packet-owned families with exact-board anchors, but the move-delta lane keeps
+  them hard-fixed `line_only` in this change rather than widening them into a
+  new move-local owner; `neutralize_key_break` cannot mark
+  `sameBranchState=Proven` without a concrete `bestDefenseBranchKey`.
+  `trade_key_defender` remains blocked on exact owner-path materialization and
+  stays below positive packet release.
+- Promotion-record requirement:
+  pilot-cell status, exact FEN controls, blockers, and touched verification now
+  live in
+  `modules/llm/tmp/strategic-promotion-record.md`; do not call a cell
+  `promoted` without that record plus same-change doc updates.
 - CTH board-truth validation rule:
   B-track design, self-critique, and validation must stay tied to exact board
   positions plus engine-backed best-defense / best-path verification. Verbal
@@ -3652,61 +3671,21 @@ truth-owning family, and if so, define the narrowest certifiable first slice
 before any runtime work is allowed.
 
 Current status:
-`B8a` design + corpus validation complete only.
+`B8` is now reset to a clean design-only placeholder.
 No runtime slice, new payload field, new owner lane, or new prose family is
 opened by this section.
 
-Current narrowest plausible unit:
-- one same-branch `sector-local active-plan collapse`
-- meaning:
-  before the move, the defender still has multiple active plan families in one
-  bounded sector; after the move, the root-best defended branch would need to
-  show those families collapsing into at most one holding-only residue for a
-  bounded continuation
-
-Exact-FEN validation outcome on the 2026-04-02 pass:
-- local QC seeds with direct PGN/FEN recovery, such as
-  `Qa5` on `2b3k1/p3qp1p/6p1/4P3/3p4/P2B3P/3Q1PP1/6K1 w - - 0 28`
-  and `Ke7` on `3R1k2/5ppp/ppb2n2/2r5/P1p5/2N1P1N1/1PP3PP/6K1 b - - 0 27`,
-  stayed inside true slight-edge territory but did not survive the B8 burden:
-  the defender still kept multiple active plan families on the root-best
-  branch rather than degrading to holding-only
-- the best local fixture-style control,
-  `rnbq1rk1/pp3pbp/3p1np1/2pP4/4P3/2N2N2/PP2BPPP/R1BQK2R w KQ - 0 9`
-  after root-best `Nd2`, behaved like target-fixing / prophylaxis with plural
-  defender resources still live
-- external exact-FEN leads already recoverable inside local tooling, such as
-  `r4bk1/1r2n1p1/p2p1p1p/1q1Pp3/2N1P3/RP1QBPP1/6KP/R7 w - - 0 27`
-  and
-  `8/1prrk1p1/p1p1ppb1/P1P3p1/2BPP3/4KPP1/1R5P/1R6 w - - 0 1`,
-  either equalized, lived in clearly-better pressure rather than slight-edge
-  squeeze, or kept too much tactical/release content to count as holding-only
-- repo-local blocker reruns continued to fail closed exactly where expected:
-  B6 route-chain restatement on
-  `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24`,
-  heavy-piece release on
-  `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P1PN2/PPQ2PPP/2R2RK1 w - - 0 24`,
-  B7 simplification relabel on
-  `r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13`,
-  and pure-endgame inflation on
-  `2K5/2P1k3/8/8/8/8/7r/R7 w - - 0 1`
-
-Contract consequence:
-- the existing deferred `slightEdgeLocalSqueeze` draft remains directionally
-  right, but any future reopening also needs explicit
-  `preMoveActivePlans`, `postMoveActivePlans`, `collapsedPlanFamilies`, and
-  `holdingOnlyFamilies` enumeration on the exact best-defense branch
-- even with that narrower contract, current corpus evidence is insufficient for
-  positive reopening
+Current working rule:
+- do not keep an active B8 queue from the prior B8a corpus/acquisition pass
+- do not treat the cleared B8a material as a standing proving baseline
+- if B8 is revisited later, restart from fresh ontology and fresh corpus rather
+  than from the discarded queue
 
 Current verdict:
-- `B8 still too fuzzy / more corpus work needed`
+- `B8 reset / no active proving queue`
 - reason:
-  no two independent exact-FEN survivors currently prove a measurable
-  same-branch local active-plan collapse in true slight-edge territory
-
-Reference workup:
-- [b8a_slight_edge_local_squeeze_20260402.md](C:/Codes/CondensedChess/lila-docker/repos/lila/tmp/b8a_slight_edge_local_squeeze_20260402.md)
+  the prior B8a design and corpus pass produced neither a stable enough
+  taxonomy nor any exact-board survivor worth carrying forward as a live queue
 
 ## CTH-0 Audit Baseline
 

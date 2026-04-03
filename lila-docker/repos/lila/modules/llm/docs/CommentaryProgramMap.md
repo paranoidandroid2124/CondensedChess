@@ -123,21 +123,13 @@ This file is an index and status map. It is not the canonical runtime audit.
   simplification gate, so B7 status remains `still overfit / more corpus work
   needed`
 - CTH-B8:
-  `B8a` first-slice design + corpus validation is now
-  `still too fuzzy / more corpus work needed`.
-  The 2026-04-02 pass narrowed the only plausible unit to one same-branch
-  sector-local active-plan collapse, but the rerun corpus did not produce two
-  independent exact-FEN survivors.
-  Local QC seeds such as `Qa5` on
-  `2b3k1/p3qp1p/6p1/4P3/3p4/P2B3P/3Q1PP1/6K1 w - - 0 28`
-  and `Ke7` on
-  `3R1k2/5ppp/ppb2n2/2r5/P1p5/2N1P1N1/1PP3PP/6K1 b - - 0 27`
-  stayed slight-edge but failed the contract because the defender kept
-  multiple active families on the root-best branch, while external exact-FEN
-  leads either equalized, drifted into clearly-better pressure, or collapsed
-  into B1 / B6 / B7 relabel risk.
-  B8 therefore remains design-only:
-  no runtime slice, owner lane, schema, or prose family is opened.
+  B8 has been reset to a clean design-only placeholder.
+  Prior B8a corpus/acquisition artifacts were intentionally cleared after
+  failing to produce either a stable taxonomy or any exact-board survivor worth
+  carrying forward as an active queue.
+  No runtime slice, owner lane, schema, or prose family is open, and any
+  future B8 work must restart from fresh ontology/corpus rather than reuse the
+  cleared artifacts.
 - Current operating mode:
   maintain the live B1 / B2 / B3 / B4 runtime, the maintenance-only B5b
   containment slice, and the current B6 route-network slice; B7 is

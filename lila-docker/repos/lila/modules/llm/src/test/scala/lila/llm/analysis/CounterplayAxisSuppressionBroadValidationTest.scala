@@ -906,7 +906,7 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
     }
   }
 
-  test("planner-owned WhyThis parity holds only for certified named-break suppression") {
+  test("certified named-break suppression stays line-only and does not reopen planner ownership") {
     val ctx = whyThisSurfaceCtx("evidence_backed")
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = None, truthContract = None)
     val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
@@ -949,20 +949,11 @@ class CounterplayAxisSuppressionBroadValidationTest extends FunSuite:
         LiveNarrativeCompressionCore.deterministicProse(bookmakerFallback)
       )
 
-    assertEquals(
-      rankedPlans.primary.map(_.questionKind),
-      Some(AuthorQuestionKind.WhyThis),
-      clues(rankedPlans, plannerInputs.decisionFrame)
-    )
-    assert(chronicleSelection.nonEmpty, clues(chronicleSelection, rankedPlans))
-    assert(chronicleArtifact.exists(_.narrative.nonEmpty), clues(chronicleArtifact))
-    assertEquals(
-      activeSelection.map(_.primary.questionKind),
-      Some(AuthorQuestionKind.WhyThis),
-      clues(activeSelection, rankedPlans)
-    )
-    assert(bookmakerSlots.nonEmpty, clues(bookmakerSlots, rankedPlans))
-    assert(bookmakerParagraphs.size >= 2, clues(bookmakerParagraphs, bookmakerFallback))
+    assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs.decisionFrame))
+    assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
+    assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
+    chronicleArtifact.foreach(artifact => assertNoSuppressionInflation(artifact.narrative))
+    assert(bookmakerParagraphs.nonEmpty, clues(bookmakerParagraphs, bookmakerFallback))
     bookmakerSlots.foreach { slots =>
       assertNoSuppressionInflation(slots.claim)
       slots.supportPrimary.foreach(assertNoSuppressionInflation)

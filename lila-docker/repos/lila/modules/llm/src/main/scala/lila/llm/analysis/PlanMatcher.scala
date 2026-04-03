@@ -89,6 +89,29 @@ object PlanMatcher:
     val DefenderOverload = SubplanId.DefenderOverload.id
     val ClearanceBreak = SubplanId.ClearanceBreak.id
 
+  def triggerKind(themeL1: String, subplanId: Option[String]): String =
+    ThemeTaxonomy.SubplanId.fromId(subplanId.getOrElse("")).map {
+      case ThemeTaxonomy.SubplanId.BreakPrevention     => "break_neutralization"
+      case ThemeTaxonomy.SubplanId.KeySquareDenial     => "entry_square_denial"
+      case ThemeTaxonomy.SubplanId.OpenFilePressure    => "bounded_file_pressure"
+      case ThemeTaxonomy.SubplanId.RookFileTransfer    => "bounded_file_pressure"
+      case ThemeTaxonomy.SubplanId.DefenderTrade       => "trade_key_defender"
+      case ThemeTaxonomy.SubplanId.SimplificationWindow => "trade_key_defender"
+      case ThemeTaxonomy.SubplanId.ProphylaxisRestraint => "counterplay_restraint"
+      case other                                       => other.id
+    }.orElse(ThemeTaxonomy.ThemeL1.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")
+
+  def ownerFamily(themeL1: String, subplanId: Option[String]): String =
+    ThemeTaxonomy.SubplanId.fromId(subplanId.getOrElse("")).map {
+      case ThemeTaxonomy.SubplanId.BreakPrevention     => "neutralize_key_break"
+      case ThemeTaxonomy.SubplanId.KeySquareDenial     => "half_open_file_pressure"
+      case ThemeTaxonomy.SubplanId.OpenFilePressure    => "half_open_file_pressure"
+      case ThemeTaxonomy.SubplanId.RookFileTransfer    => "half_open_file_pressure"
+      case ThemeTaxonomy.SubplanId.DefenderTrade       => "trade_key_defender"
+      case ThemeTaxonomy.SubplanId.SimplificationWindow => "trade_key_defender"
+      case other                                       => other.id
+    }.orElse(ThemeTaxonomy.ThemeL1.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")
+
   case class ActivePlans(
       primary: PlanMatch,
       secondary: Option[PlanMatch],

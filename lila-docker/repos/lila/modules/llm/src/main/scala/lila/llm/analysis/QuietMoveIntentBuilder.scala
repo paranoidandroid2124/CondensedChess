@@ -20,7 +20,8 @@ private[llm] final case class QuietMoveIntentClaim(
     provenanceClass: PlayerFacingClaimProvenanceClass = PlayerFacingClaimProvenanceClass.Deferred,
     certificateStatus: PlayerFacingCertificateStatus = PlayerFacingCertificateStatus.Invalid,
     taintFlags: Set[PlayerFacingClaimTaintFlag] = Set.empty,
-    ontologyFamily: PlayerFacingClaimOntologyFamily = PlayerFacingClaimOntologyFamily.Unknown
+    ontologyFamily: PlayerFacingClaimOntologyFamily = PlayerFacingClaimOntologyFamily.Unknown,
+    packet: PlayerFacingClaimPacket = PlayerFacingClaimPacket.empty
 ):
   def lens: StrategicLens =
     intentClass match
@@ -29,14 +30,7 @@ private[llm] final case class QuietMoveIntentClaim(
       case _ => StrategicLens.Structure
 
   def allowsUserFacing: Boolean =
-    PlayerFacingClaimCertification.allowsWeakMainClaim(
-      certificateStatus = certificateStatus,
-      quantifier = quantifier,
-      attribution = attributionGrade,
-      stability = stabilityGrade,
-      provenance = provenanceClass,
-      taintFlags = taintFlags
-    )
+    PlayerFacingClaimCertification.allowsWeakMainClaim(packet)
 
 private[llm] object QuietMoveIntentBuilder:
 
@@ -272,15 +266,71 @@ private[llm] object QuietMoveIntentBuilder:
       else if PlayerFacingClaimCertification.blocksMainClaim(taintFlags) then PlayerFacingCertificateStatus.Invalid
       else if quantifier == PlayerFacingClaimQuantifier.Universal then PlayerFacingCertificateStatus.Valid
       else PlayerFacingCertificateStatus.WeaklyValid
+    val claimGate =
+      PlanEvidenceEvaluator.ClaimCertification(
+        certificateStatus = certificateStatus,
+        quantifier = quantifier,
+        modalityTier = quietModalityTier(claim.intentClass, quantifier),
+        attributionGrade = attributionGrade,
+        stabilityGrade = stabilityGrade,
+        provenanceClass = provenanceClass,
+        taintFlags = taintFlags.toList,
+        ontologyFamily = quietOntologyFamily(claim.intentClass)
+      )
+    val releaseRisks =
+      Option.when(
+        claim.intentClass == QuietMoveIntentClass.CounterplayRestraint &&
+          HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)
+      )(PlayerFacingClaimReleaseRisk.HeavyPieceLeakage).toList
+    val ownerFamily = quietOwnerFamily(claim.intentClass)
+    val lineOnlyPilot =
+      PlayerFacingClaimPacket.isLineOnlyPilot(claim.sourceKind, ownerFamily)
+    val fallbackMode =
+      if lineOnlyPilot then PlayerFacingClaimFallbackMode.LineOnly
+      else if PlayerFacingClaimCertification.allowsWeakMainClaim(
+          certificateStatus = certificateStatus,
+          quantifier = quantifier,
+          attribution = attributionGrade,
+          stability = stabilityGrade,
+          provenance = provenanceClass,
+          taintFlags = taintFlags
+        ) && releaseRisks.isEmpty
+      then PlayerFacingClaimFallbackMode.WeakMain
+      else PlayerFacingClaimFallbackMode.ExactFactual
     claim.copy(
       quantifier = quantifier,
-      modalityTier = quietModalityTier(claim.intentClass, quantifier),
+      modalityTier = claimGate.modalityTier,
       attributionGrade = attributionGrade,
       stabilityGrade = stabilityGrade,
       provenanceClass = provenanceClass,
       certificateStatus = certificateStatus,
       taintFlags = taintFlags,
-      ontologyFamily = quietOntologyFamily(claim.intentClass)
+      ontologyFamily = claimGate.ontologyFamily,
+      packet =
+        PlayerFacingClaimPacket(
+          claimGate = claimGate,
+          ownerSource = claim.sourceKind,
+          ownerFamily = ownerFamily,
+          scope = PlayerFacingPacketScope.MoveLocal,
+          triggerKind = claim.sourceKind,
+          anchorTerms = anchorSquare.toList.flatMap(clean),
+          bestDefenseMove = quietBestDefenseMove(ctx),
+          bestDefenseBranchKey = quietBestDefenseBranchKey(ctx),
+          sameBranchState =
+            if provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked then
+              PlayerFacingSameBranchState.Ambiguous
+            else PlayerFacingSameBranchState.Missing,
+          persistence =
+            if provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked then
+              PlayerFacingClaimPersistence.BestDefenseOnly
+            else PlayerFacingClaimPersistence.Broken,
+          suppressionReasons =
+            Option.when(releaseRisks.nonEmpty)(
+              PlayerFacingClaimSuppressionReason.SupportOnlyReinflation
+            ).toList,
+          releaseRisks = releaseRisks,
+          fallbackMode = fallbackMode
+        )
     )
 
   private def quietClaimProvenance(
@@ -401,6 +451,32 @@ private[llm] object QuietMoveIntentBuilder:
       case QuietMoveIntentClass.KingSafety           => PlayerFacingClaimOntologyFamily.KingSafety
       case QuietMoveIntentClass.TechnicalConversionStep => PlayerFacingClaimOntologyFamily.TechnicalConversion
       case QuietMoveIntentClass.PieceImprovement     => PlayerFacingClaimOntologyFamily.PieceImprovement
+
+  private def quietOwnerFamily(
+      intentClass: QuietMoveIntentClass
+  ): String =
+    intentClass match
+      case QuietMoveIntentClass.CounterplayRestraint => "neutralize_key_break"
+      case QuietMoveIntentClass.KingSafety           => "king_safety"
+      case QuietMoveIntentClass.TechnicalConversionStep => "technical_conversion"
+      case QuietMoveIntentClass.PieceImprovement     => "piece_improvement"
+
+  private def quietBestDefenseMove(
+      ctx: NarrativeContext
+  ): Option[String] =
+    ctx.engineEvidence.toList.flatMap(_.variations).headOption.flatMap { line =>
+      line.parsedMoves.lift(1).flatMap(move => clean(move.san))
+        .orElse(line.moves.lift(1).flatMap(clean))
+    }
+
+  private def quietBestDefenseBranchKey(
+      ctx: NarrativeContext
+  ): Option[String] =
+    ctx.engineEvidence.toList.flatMap(_.variations).headOption.flatMap { line =>
+      line.moves.take(2).flatMap(clean) match
+        case first :: second :: Nil => Some(s"${normalize(first)}|${normalize(second)}")
+        case _                      => None
+    }
 
   private def candidateText(candidate: CandidateInfo): String =
     normalize(
