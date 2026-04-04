@@ -1,6 +1,6 @@
 package lila.strategicPuzzle
 
-import play.api.libs.json.Json
+import play.api.libs.json.{ JsObject, Json }
 
 import lila.core.userId.UserId
 import lila.strategicPuzzle.StrategicPuzzle.*
@@ -51,6 +51,63 @@ class StrategicPuzzleLogicTest extends FunSuite:
     assertEquals(doc.planId, Some("plan_main"))
     assertEquals(doc.terminalId, Some("t1"))
     assertEquals(doc.terminalFamilyKey, Some("pawn_break|e4"))
+  }
+
+  test("progressFromAttempts rebuilds unique latest attempts and a monotonic cleared set") {
+    val attempts = List(
+      attempt("p3", StatusFull),
+      attempt("p3", StatusWrong),
+      attempt("p2", StatusFull),
+      attempt("p1", StatusPartial),
+      attempt("p0", StatusFull)
+    )
+
+    val progress = progressFromAttempts(UserId("tester"), attempts)
+
+    assertEquals(progress._id, "tester")
+    assertEquals(progress.currentStreak, 2)
+    assertEquals(progress.latestAttemptsByPuzzle.map(_.puzzleId), List("p3", "p2", "p1", "p0"))
+    assertEquals(progress.latestAttemptsByPuzzle.map(_.status), List(StatusFull, StatusFull, StatusPartial, StatusFull))
+    assertEquals(progress.clearedPuzzleIds, List("p3", "p2", "p0"))
+  }
+
+  test("applyAttempt refreshes the latest unique puzzle attempt and keeps cleared puzzles monotonic") {
+    val base =
+      ProgressDoc(
+        _id = "tester",
+        currentStreak = 1,
+        latestAttemptsByPuzzle = List(
+          AttemptSummary("p2", StatusFull, "2026-03-18T00:00:00Z"),
+          AttemptSummary("p1", StatusPartial, "2026-03-17T00:00:00Z")
+        ),
+        clearedPuzzleIds = List("p2"),
+        updatedAt = "2026-03-18T00:00:00Z"
+      )
+
+    val updated = applyAttempt(base, attempt("p1", StatusFull))
+
+    assertEquals(updated.currentStreak, 2)
+    assertEquals(updated.latestAttemptsByPuzzle.map(_.puzzleId), List("p1", "p2"))
+    assertEquals(updated.latestAttemptsByPuzzle.map(_.status), List(StatusFull, StatusFull))
+    assertEquals(updated.clearedPuzzleIds, List("p1", "p2"))
+  }
+
+  test("strategic puzzle payload omits nested runtime shell when stripped for public bootstrap") {
+    val doc =
+      StrategicPuzzleDoc(
+        id = "puzzle-1",
+        schema = "chesstory.strategicPuzzle.v1",
+        source = SourcePayload(seedId = "seed-1", opening = Some("Sample Opening"), eco = Some("C20")),
+        position = PositionPayload(fen = "sample-fen", sideToMove = "white"),
+        dominantFamily = Some(DominantFamilySummary("pawn_break|e4", "pawn_break", "e4")),
+        qualityScore = QualityScore(12),
+        generationMeta = GenerationMeta(PublicSelectionStatus),
+        runtimeShell = None
+      )
+
+    val json = Json.toJson(doc).as[JsObject]
+
+    assert(!json.keys.contains("runtimeShell"))
   }
 
   test("materialize promotes a public plan layer without dropping proof data") {

@@ -204,6 +204,57 @@ class AuthorQuestionGeneratorTest extends FunSuite:
     assert(questions.exists(_.kind == AuthorQuestionKind.WhatChanged), clues(questions))
   }
 
+  test("generate seeds WhatMattersHere for white-side Carlsbad fixed-target positions") {
+    val fen = "r1bqr1k1/pp2bpp1/2p1nn1p/3p4/3P3B/2NBPP2/PPQ1N1PP/3R1RK1 w - - 0 13"
+    val ctx =
+      IntegratedContext(
+        evalCp = 71,
+        isWhiteToMove = true
+      )
+    val questions =
+      AuthorQuestionGenerator.generate(
+        data =
+          minimalData(ctx).copy(
+            fen = fen,
+            prevMove = Some("f1e1"),
+            ply = 25,
+            isWhiteToMove = true
+          ),
+        ctx = ctx,
+        candidates = Nil,
+        playedSan = Some("Re1")
+      )
+
+    assert(questions.exists(question =>
+      question.kind == AuthorQuestionKind.WhatMattersHere &&
+        question.question.contains("fixed target on c6")
+    ), clues(questions))
+  }
+
+  test("generate does not seed WhatMattersHere for the black-to-move sibling control") {
+    val fen = "r1bqrnk1/4bppp/2p2n2/pp1p2B1/3P4/P1NBP3/1PQ1NPPP/3R1RK1 b - - 1 13"
+    val ctx =
+      IntegratedContext(
+        evalCp = 17,
+        isWhiteToMove = false
+      )
+    val questions =
+      AuthorQuestionGenerator.generate(
+        data =
+          minimalData(ctx).copy(
+            fen = fen,
+            prevMove = Some("g7g6"),
+            ply = 25,
+            isWhiteToMove = false
+          ),
+        ctx = ctx,
+        candidates = Nil,
+        playedSan = Some("g6")
+      )
+
+    assert(!questions.exists(_.kind == AuthorQuestionKind.WhatMattersHere), clues(questions))
+  }
+
   test("generate keeps diverse question kinds instead of truncating to duplicate high-priority kinds") {
     val threat =
       Threat(

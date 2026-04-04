@@ -61,10 +61,11 @@ Use the documents in this order:
   heavy-piece positive rollout remains closed
 - CTH-B7:
   design/recon/charter baseline ready only:
-  no B7 runtime slice is open, and the only candidate allowed into B7b review
-  is one same-defended-branch bounded task shift after forced simplification;
-  exact-FEN positive control plus an exact-board nasty-case pack remain
-  mandatory before any rollout
+  no B7 runtime slice is open. The 2026-04-04 owner-admission pass consumed
+  the old `K09B` / `K09F` trade-down controls into promoted bounded
+  `favorable_simplification`, so B7 currently has no certified exact-FEN
+  positive control; an exact-board nasty-case pack plus a new distinct
+  task-shift survivor remain mandatory before any rollout
 - CTH-B8:
   `B8a` first-slice design + corpus validation is now
   `still too fuzzy / more corpus work needed`:
@@ -84,8 +85,10 @@ Use the documents in this order:
   runtime now threads one backend-only `PlayerFacingClaimPacket` across
   `PlayerFacingTruthModePolicy`, `MainPathMoveDeltaClaimBuilder`, and
   `QuietMoveIntentBuilder`. The packet is the shared suppression/release-risk
-  carrier for move-local strategic admission; it adds no new public schema,
-  payload, or persisted debug field.
+  carrier for move-local strategic admission; it now also carries one private
+  `ownerPathWitness` lane (`ownerSeedTerms`, `continuationTerms`,
+  `rivalTerms`, `structureTransitionTerms`) so owner-path proof can deepen
+  without adding any new public schema, payload, or persisted debug field.
 - Packet pilot status on 2026-04-03:
   `neutralize_key_break` is now the first promoted packet-owned family:
   one exact-board named-break suppression may release as a bounded move-local
@@ -124,24 +127,82 @@ Use the documents in this order:
   `half_open_file_pressure`:
   `OpenFilePressure` / `RookFileTransfer` still need the already-certified
   local file-entry pair, so they do not open a separate exact owner lane.
-  `weakness_fixation` has now been re-reviewed and remains absorbed on the
-  reviewed `static_weakness_fixation` cell, with the already-absorbed
-  `backward_pawn_targeting` subtype staying subordinate wording on that same
-  lane:
-  exact `B21` / `B21A` controls plus `K03A` / `B15A` / `B16B` fixed-target
-  controls confirm the reviewed cell, but that exact slice still does not
-  materialize a one-board / one-target-complex / one-branch owner. Even with
-  branch-key visibility, the reviewed static-weakness lane stays below
-  `sameBranchState=Proven`, so `weak_main` release remains fail-closed there.
-  `K09A` / `K09D` / `K09E` still let preparatory, prophylactic, and
-  file-pressure rival stories dominate. The sibling review likewise keeps
-  `minority_attack_fixation` and `iqp_inducement` subordinate: `K03A` /
-  `B15A` / `B16B` hold Carlsbad fixed-target truth without a move-local
-  minority lever, while `K09A` / `K09B` / `K09F` stay structure/conversion
-  led and `K09B` remains move-order fragile under deeper engine recheck. Synthetic shells for
-  those reviewed siblings now fail-close under the same absorbed weakness
-  gate, so exact-board owner proof remains mandatory before any reopen.
-  `trade_key_defender` remains blocked on exact owner-path materialization.
+  `weakness_fixation` now has two exact live slices on the canonical path:
+  one move-local same-task slice on the reviewed `static_weakness_fixation`
+  cell, and one current-position probe on the reviewed
+  `backward_pawn_targeting` subtype:
+  exact `B21` / `B21A` now materialize a one-board / one-target / one-branch
+  owner only when the live row proves all of the following at once:
+  the `TargetFixing` idea carries `plan_match_target_fixing`,
+  `weak_complex_fixation`, and `minority_attack_fixation`; the Carlsbad
+  profile is absent; the current FEN focus squares contain exactly one
+  opponent pawn target; and the defended branch key is present. On that narrow
+  admission path the runtime now emits
+  `ownerSource=exact_target_fixation`,
+  `ownerFamily=static_weakness_fixation`,
+  `bestDefenseBranchKey=f3d2|b8a6`, `sameBranchState=Proven`,
+  `persistence=Stable`, `main_bundle=This keeps the pressure fixed on d6.`,
+  and one narrow planner-owned `WhatChanged` delta on the existing move-delta
+  owner path:
+  `This changes the position by fixing d6 as the target.` with exact
+  same-branch contrast/consequence
+  (`Before the move, d6 was not yet fixed as the target on that defended
+  branch.` / `That same defended branch keeps the pressure fixed on d6.`).
+  Bookmaker and Chronicle consume that planner-owned delta as primary instead
+  of exact factual fallback, but the trust boundary stays strict: the ranking
+  preference is limited to this admitted `exact_target_fixation` packet, and
+  no broad state-summary, generic weakness prose, or support-only relabel may
+  piggyback on it.
+  On 2026-04-04, the same exact packet also became the only admitted live
+  `decisionComparison` comparative-support lane: the runtime may carry
+  `comparedMove`, `comparativeConsequence`, and
+  `comparativeSource=exact_target_fixation_delta` only when the verified best
+  move survives sanitization and the comparison reuses that certified exact
+  target-state delta. Current exact positive control is `B21A`, where support
+  may say
+  `Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.`
+  The lane stays support-only: it may not outrank the main owner, may not
+  paraphrase `cpLossVsChosen`, and may not reuse `whyAbsentFromTopMultiPV`,
+  latent support prose, or close-candidate copy as comparative truth.
+  exact `B15A` / `B16B` now also materialize the first current-position probe
+  owner on the live Carlsbad fixed target:
+  when the live FEN proves the exact board shape (`white to move`, black pawns
+  on `c6` and `d5`, white pawns on `b2` and `d4`), the defended branch key is
+  present, there is no already-admitted move-local `exact_target_fixation`
+  owner, and live weakness support survives, the runtime emits
+  `ownerSource=carlsbad_fixed_target_probe`,
+  `ownerFamily=backward_pawn_targeting`,
+  `scope=PositionLocal`,
+  `main_bundle=The key strategic fact here is that c6 is the fixed target.`,
+  and planner-owned `WhatMattersHere` with the bounded coda
+  `So the task is to keep the queenside pressure trained on c6 instead of
+  rushing a conversion.` Bookmaker and Chronicle may consume that deterministic
+  planner-owned primary, but the trust boundary stays strict:
+  the lane is current-position only, may not be rewritten as move-local
+  explanation, may not reuse support-only `mainStrategicPlans` / `strategyPack`
+  prose as the owner claim, and may not generalize into a broad Carlsbad
+  lesson or a minority-attack shell.
+  The trust boundary stays narrow overall: `K03A` still fails closed on the
+  black-to-move sibling, `K09A` / `K09D` / `K09E` still let preparatory,
+  prophylactic, and file-pressure rival stories dominate, and generic or
+  synthetic weakness shells outside these exact
+  `exact_target_fixation` / `carlsbad_fixed_target_probe` witnesses remain
+  fail-closed. On 2026-04-04, bounded
+  `favorable_simplification` remained the separate promoted Cluster C sibling
+  only on one exact same-task slice: `K09B` and `K09F` still keep the defended
+  branch `d4e6|f7e6`, the packet proves `bestDefenseBranchKey`,
+  `sameBranchState=Proven`, and `persistence=Stable`, and the shared planner
+  materializes the move-local claim `This trade keeps the same local edge on
+  e6.` on the existing `MoveDelta -> WhyThis` lane. The slices stay disjoint:
+  `same_job_conversion`, `trade_key_defender_relabel`, `route_bind_relabel`,
+  `better_endgame_inflation`, `support_only_reinflation`, and `B7_drift`
+  remain hard fail-closed, and no broader weakness-family widening follows
+  from the exact `B21` / `B21A` admission.
+  `trade_key_defender` remains blocked on exact owner-path materialization:
+  the exact `d4e6|f7e6` control can now carry private post-trade owner seed,
+  continuation, and structure-transition witness, but trust hardening still
+  forces `SupportOnlyReinflation` / `RivalRelease` closure until a distinct
+  public certification lane exists.
 - Promotion-record requirement:
   pilot-cell status, exact FEN controls, blockers, and touched verification now
   live in
@@ -1987,6 +2048,15 @@ B4 fix-up hardening closed in this step:
   `adversarial-review green` and `current bounded scope complete` inside its
   narrow charter only; that means maintenance-only watch for the bounded local
   file-entry slice, not broader B4 family completion
+- Cluster D first-cell review stays blocked:
+  the exact one-square `b4` denial candidate on
+  `2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23`
+  still does not open a standalone move-local owner path. Review replay on the
+  attempted `a3` branch stayed owner-closed, engine reruns at `depth=20/24`
+  kept root-best on `f3d2`, and forced `entry_square_denial` packets without a
+  certified file-entry pair or named-resource prophylaxis now hard-suppress on
+  `scope_inflation` rather than leaking through generic route-denial /
+  `resource_removal` prose
 
 Next move:
 
@@ -3353,41 +3423,41 @@ Hard preconditions before any B7b implementation:
 ### Exact-FEN corpus recon status
 
 The 2026-04-02 corpus workup materially strengthened the nasty pack, and the
-follow-up late-middlegame hunt did find one reviewable B7b branch candidate,
-but the implementation-time review blocked it on the current runtime path:
+later 2026-04-04 owner-admission pass resolved the old K09 trade-down near
+miss onto the existing Cluster C lane instead of reopening B7:
 
-- K09B exact-branch review candidate:
+- `K09B` / `K09F` exact-branch controls:
   `r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13`
-  still survives local Stockfish review with root-best trigger `Nxe6` (`d4e6`)
-  and best-defense reply `...fxe6`; the same defended branch keeps the bounded
-  continuation
-  `...Rd1 ... Bf4 ... Qb6 ...`
-  alive and therefore remains a valid exact-board review control
-- B7b review outcome on the current pipeline:
-  blocked, not passed; the live runtime still classifies the position as
-  `phase=Opening` / `taskMode=ExplainTactics`, produces no evidence-backed
-  strategic main plan, no `preventedPlansNow`, no named-route/local-file
-  surface, no `main_bundle`, and no planner-owned `WhyThis` owner. The only
-  surviving move-linked text is the line-scoped preview
-  `Line: a) Nxe6 fxe6 Rad1.`, which means a rollout here would collapse into
-  `engine_pv_paraphrase`
+  and
+  `2rqr1k1/pp2bpp1/2n1bn1p/3p4/3N4/P1N1B1P1/1P2PPBP/2RQ1RK1 w - - 1 14`
+  still survive local Stockfish review with root-best trigger `Nxe6` (`d4e6`)
+  and best-defense reply `...fxe6`; the same defended branch `d4e6|f7e6`
+  keeps bounded continuation proof in both rows
+- current pipeline outcome:
+  not a B7 rollout. The live runtime now admits planner-owned same-task
+  simplification on the existing `MoveDelta -> WhyThis` lane
+  (`This trade keeps the same local edge on e6.`), which closes the old
+  `line-scoped preview` / `missing_move_owner` blocker for `K09B` but only by
+  proving same-task continuity rather than a shifted job
 - B7 containment consequence:
-  runtime remains closed because the current audited architecture does not yet
-  carry a measurable `currentTask -> shiftedTask` proof for K09B without either
-  new private/backend-only materialization or a weaker prose paraphrase; a new
-  owner lane remains unapproved and out of scope
+  B7 remains closed because these rows still do not prove a measurable
+  `currentTask -> shiftedTask` handoff. `K09B` / `K09F` therefore no longer
+  count as B7 positive controls, and the current corpus has no certified
+  exact-FEN B7 survivor
 
 #### 2026-04-02 narrow redesign diagnosis
 
-The exact-board blocker is no longer discovery. K09B remains useful as a
-positive control, owner-path blocker, and narrow redesign smoke candidate. The
-canonical blocker is now split into two linked absences:
+The exact-board blocker is no longer owner admission on the old K09 rows. After
+the same-task simplification promotion, the remaining blocker for B7 is
+narrower: the exact defended branch still lacks a measurable task delta.
+Current exact evidence proves that the move keeps the same local edge in a
+cleaner form; it does not prove that a different bounded job takes over. The
+canonical blocker is therefore:
 
-- no owner-admissible backend-only carrier/materialization for a bounded
-  task-shift proof on the live planner path
-- no closed task vocabulary that can encode a real
-  `currentTask -> shiftedTask` handoff without collapsing into B1 conversion,
-  B6 route-bind language, or generic `better ending` rhetoric
+- no exact-board survivor currently proves a distinct backend-only
+  `currentTask -> shiftedTask` handoff on the same defended branch without
+  collapsing into B1 conversion, B6 route-bind language, or generic
+  `better ending` rhetoric
 
 Task vocabulary gap map:
 
@@ -3428,9 +3498,9 @@ Owner-path admissibility map:
 
 | stage | current state | failure point | required minimal redesign |
 | --- | --- | --- | --- |
-| ingress | exact-board trigger, best defense, and same-branch continuation already exist for K09B | not the blocker anymore | none at producer discovery |
-| carrier/materialization | current carriers expose theme/subplan/line data only | no private record of `currentTask`, `shiftedTask`, or their witnesses | add a private/backend-only task-shift certification beside existing builder certifications |
-| planner admissibility | `buildWhyThisPlan` can admit `mainBundle`, `quietIntent`, or `namedRouteNetworkSurface` only | no B7 planner source exists, so K09B falls to `missing_move_owner` | add a private task-shift planner input/claim; if it cannot stay private and planner-local, keep B7 deferred |
+| ingress | exact-board trigger, best defense, and same-branch continuation already exist for `K09B` / `K09F` and now materialize as same-task simplification | not the blocker anymore | none at producer discovery |
+| carrier/materialization | current carriers can now privately certify owner seed, continuation, and structure witness for bounded favorable simplification | no private record yet proves a distinct `currentTask` / `shiftedTask` witness beyond same-task continuity | add a private/backend-only task-shift certification beside existing builder certifications only if a new exact row requires it |
+| planner admissibility | `buildWhyThisPlan` can now admit bounded `favorable_simplification` on the existing `mainBundle` lane | there is still no B7 planner source, and the current exact rows do not justify adding one | keep B7 deferred unless a distinct task-shift proof survives on the same architecture |
 | replay/whole-game containment | current safe fallback is the line preview only | any broader surface would reinflate into route or ending rhetoric | require `surfaceContainmentMarker = planner_why_this_only`; keep `WhatChanged`, Chronicle, Bookmaker, Active, and whole-game fail-closed |
 
 Canonical admissibility conclusion:
@@ -3589,9 +3659,9 @@ Validation matrix:
 
 | `candidate_id` | `trigger` | `best_defense` | `same_branch` | `currentTask fit` | `shiftedTask fit` | `continuationBound` | `releaseSuppression` | `distinct_from_B1` | `distinct_from_B6` | `containment_risk` | `verdict` | `fail_reason` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `K09B` | `Nxe6` | `...fxe6` | `yes` | `yes` | `yes`, narrowly | `yes` | narrow pass only; later queen/rook activity exists but does not yet displace the target-led reading | `yes` | `yes` | `high` | survives as `positive control only` | frozen pair is reviewable, but runtime still has no carrier/materialization and therefore no planner owner |
+| `K09B` | `Nxe6` | `...fxe6` | `yes` | `yes` | no live task-shift proof | `yes` | narrow pass only; later queen/rook activity does not displace the same-task reading | `yes` | `yes` | `high` | fail-close to Cluster C same-task simplification | current runtime now certifies one exact same-task simplification owner, not a shifted task |
 | `K09A` | `Qb3` | `...Qd7` | `yes` | preparatory only | `no` | `yes` | insufficient | `no` | `yes` | `medium` | fail-close | setup move, not the shift-owning trigger |
-| `K09F` | `Nxe6` | `...fxe6` | `yes` | `yes` | `no` | `yes` | `no` | `no` | blurred | `high` | fail-close | holdable simplification shell; no crisp post-trade task |
+| `K09F` | `Nxe6` | `...fxe6` | `yes` | `yes` | no live task-shift proof | `yes` | no separate shifted-task witness | `no` | blurred | `high` | fail-close to Cluster C same-task simplification | exact branch now survives only as `same edge, cleaner form`; breadth still prevents any shifted task |
 | `MI2` | root best `Kh1` | `...Bc5` | `yes` | `no` | `no` | `yes` | `no` | `no` | `yes` | `medium-high` | fail-close | root branch is not a simplification handoff; generic conversion/cashing-in dominates |
 | `MI3` | root best `Nd5` | `...Nxd5` | `yes` | `no` | `no` | `yes` | `no` | `no` | `yes` | `medium-high` | fail-close | wrong family; high-edge coordination/cashing-in, not B7 |
 | `B21` | `Nd2` | `...Na6` | `yes` | `no` | `no` | `yes` | not the issue | `yes` | `yes` | `low-medium` | fail-close | target fixation only; no simplification handoff |
@@ -3620,32 +3690,32 @@ Failure taxonomy validation:
 | failure type | validated by |
 | --- | --- |
 | `task_label_only` | `B21`, `B21A` |
-| `current_shifted_not_distinct` | `K09F` |
+| `same_task_not_transition` | `K09B`, `K09F` |
 | `route_bind_relabel` | `b6_route_chain_near_miss` |
 | `conversion_relabel` | `MI2`, `MI3` |
-| `line_preview_disguised_as_task` | current K09B runtime output still collapses to `Line: a) Nxe6 fxe6 Rad1.` plus `missing_move_owner` |
+| `line_preview_disguised_as_task` | stale risk only; the old `K09B` line-preview blocker is now closed by same-task simplification and must not be reread as B7 evidence |
 | `surface_overhang` | K09B survives only under planner-only containment; replay reuse remains explicitly closed |
 | `schema_pressure` | the current planner/build path still lacks any legal public carrier; any public-carrier pressure would break the frozen contract |
 | `heavy_piece_leakage` | `b5_queen_infiltration_shell` |
 | `endgame_inflation` | `lucena_blocker` |
-| `candidate_overfitting` | only `K09B` survives as a positive control, so reopen must demand more than that single row |
+| `no_b7_positive_control` | `K09B` / `K09F` now belong to Cluster C same-task simplification, and no remaining exact row survives as a certified B7 control |
 
 Admissibility decision memo:
 
 - the frozen contract is strict enough to reject all current near-miss and
   blocker rows for different reasons
 - the contract does **not** become runtime-open from this validation pass
-- `K09B` remains both:
-  - the lone positive control for the frozen pair
-  - the owner-path blocker because the runtime still cannot materialize the
-    contract
-- because `candidate_overfitting` remains live, future B7 reopen now requires
+- `K09B` / `K09F` no longer serve as B7 positive controls or owner-path
+  blockers because the current runtime now materializes them on the promoted
+  Cluster C same-task simplification lane
+- because `no_b7_positive_control` remains live, future B7 reopen now requires
   more than the existing freeze:
   - implement private/backend-only materialization only
   - keep planner `WhyThis` only containment
   - rerun this same matrix with no new leakage
-  - and add at least one second non-`K09B` exact-FEN survivor for the same
-    frozen pair before any runtime reopening review
+  - and find at least one new exact-FEN survivor whose best-defense branch
+    proves a distinct bounded `currentTask -> shiftedTask` pair rather than
+    same-task simplification before any runtime reopening review
 - 2026-04-02 second-survivor hunt result:
   exact-FEN reruns over `K09C`, `K09G`, `K09H`, `MI1`, `MI4`, `K19`, plus the
   required blocker pack found no second non-`K09B` late-middlegame survivor
@@ -4247,7 +4317,7 @@ longer appends quiet-support prose.
 | Payload field | Source definition | Current render site | Classification | Risk |
 | --- | --- | --- | --- | --- |
 | `strategyPack.strategicIdeas`, `pieceRoutes`, `pieceMoveRefs`, `directionalTargets`, `longTermFocus` | `responsePayload.ts`, `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only carrier` | `unsupported_generalization` |
-| `signalDigest.decisionComparison` | `models.scala`, `responsePayload.ts` | `bookmaker.ts`, `narrativeView.ts` | `support_only`, benchmark-adjacent | `fallback_truth_rewrite` if a non-canonical frontend/backend reprojection is reintroduced |
+| `signalDigest.decisionComparison` | `models.scala`, `responsePayload.ts` | `bookmaker.ts`, `narrativeView.ts` | `support_only`, benchmark-adjacent; exact comparative subfields (`comparedMove`, `comparativeConsequence`, `comparativeSource`) are canonical only on the admitted `exact_target_fixation_delta` lane | `fallback_truth_rewrite` if a non-canonical frontend/backend reprojection is reintroduced |
 | `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `unsupported_generalization` |
 | `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `support_only_overreach` |
 | `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
@@ -4274,6 +4344,9 @@ Accepted residuals:
 3. planner/direct exact-factual fallback may stay as a narrow residual only at
    literal move-shape scope; ambiguous captures may not pick up
    simplification/exchange meaning.
+4. decision-comparison support may render the exact comparative lane only from
+   canonical `signalDigest.decisionComparison`; it may not replace the primary
+   planner claim.
 
 #### Chronicle
 
@@ -4292,6 +4365,9 @@ Accepted residuals:
    families still require canonical truth or separate support-only fallback.
 4. threat-stop primary is preserved even when `WhyNow` would otherwise outrank
    it.
+5. decision-comparison support may mirror the exact comparative lane only from
+   canonical `signalDigest.decisionComparison`; Chronicle may not reconstruct
+   it from `topEngineMove` or generic alternative fields.
 
 #### Active
 

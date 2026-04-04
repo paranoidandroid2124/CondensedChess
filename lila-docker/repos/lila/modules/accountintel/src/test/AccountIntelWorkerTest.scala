@@ -5,15 +5,7 @@ import java.time.Instant
 import play.api.Configuration
 
 import lila.accountintel.AccountIntel.*
-import lila.accountintel.service.{
-  AccountNotebookEngine,
-  NotebookPersisted,
-  NotebookPersistFailure,
-  NotebookSink,
-  SelectiveEvalLookup,
-  SelectiveEvalProbe,
-  SelectiveEvalRefiner
-}
+import lila.accountintel.service.{ AccountNotebookEngine, SelectiveEvalLookup, SelectiveEvalProbe, SelectiveEvalRefiner }
 
 class AccountIntelWorkerTest extends munit.FunSuite:
 
@@ -52,42 +44,65 @@ class AccountIntelWorkerTest extends munit.FunSuite:
 
     def byId(id: String) = fuccess(Option(current).filter(_.id == id))
     def insert(job: AccountIntelJob) = funit
-    def latestByDedupeKey(dedupeKey: String) = fuccess(none)
-    def latestSucceededByDedupeKey(dedupeKey: String) = fuccess(none)
-    def latestActiveByDedupeKey(dedupeKey: String) = fuccess(none)
-    def recentByDedupeKey(dedupeKey: String, limit: Int) = fuccess(Nil)
+    def latestByOwnerScopeKey(ownerScopeKey: String) = fuccess(none)
+    def latestSucceededByOwnerScopeKey(ownerScopeKey: String) = fuccess(none)
+    def latestActiveByOwnerScopeKey(ownerScopeKey: String) = fuccess(none)
+    def latestActiveBuildByDedupeKey(dedupeKey: String) = fuccess(none)
+    def recentByOwnerScopeKey(ownerScopeKey: String, limit: Int) = fuccess(Nil)
     def recentSucceededByOwner(ownerId: String, limit: Int) = fuccess(Nil)
     def claimNextQueued(now: Instant) =
-      if current.status == JobStatus.Queued then
-        current = current.copy(status = JobStatus.Running, progressStage = "fetching_games")
+      if current.status == JobStatus.Queued && current.buildOwner then
+        current = current.copy(status = JobStatus.Running, progressStage = "fetching_games", queueState = "running")
         fuccess(current.some)
       else fuccess(none)
     def claimQueuedById(id: String, now: Instant) =
-      if current.id == id && current.status == JobStatus.Queued then
-        current = current.copy(status = JobStatus.Running, progressStage = "fetching_games")
+      if current.id == id && current.status == JobStatus.Queued && current.buildOwner then
+        current = current.copy(status = JobStatus.Running, progressStage = "fetching_games", queueState = "running")
         fuccess(current.some)
       else fuccess(none)
-    def setProgress(id: String, progressStage: String) =
-      current = current.copy(progressStage = progressStage)
+    def setProgress(
+        id: String,
+        progressStage: String,
+        snapshotState: String,
+        processedGames: Option[Int],
+        totalGames: Option[Int],
+        etaSec: Option[Int]
+    ) =
+      current = current.copy(
+        progressStage = progressStage,
+        snapshotState = snapshotState,
+        processedGames = processedGames.getOrElse(current.processedGames),
+        totalGames = totalGames.orElse(current.totalGames),
+        etaSec = etaSec.orElse(current.etaSec)
+      )
       funit
     def markSucceeded(
         id: String,
-        studyId: String,
-        chapterId: String,
-        notebookUrl: String,
+        surfaceId: String,
+        sourceFingerprint: String,
         warnings: List[String],
-        surfaceJson: String
+        surfaceJson: String,
+        sampledGameCount: Int,
+        totalGames: Int,
+        cacheHit: Boolean,
+        refreshLockedUntil: Option[Instant]
     ) =
       markedSuccess = true
       current = current.copy(
         status = JobStatus.Succeeded,
-        studyId = studyId.some,
-        chapterId = chapterId.some,
-        notebookUrl = notebookUrl.some,
+        surfaceId = surfaceId.some,
+        sourceFingerprint = sourceFingerprint.some,
         warnings = warnings,
-        surfaceJson = surfaceJson.some
+        surfaceJson = surfaceJson.some,
+        queueState = "ready",
+        snapshotState = "ready",
+        cacheHit = cacheHit,
+        refreshLockedUntil = refreshLockedUntil,
+        processedGames = sampledGameCount,
+        totalGames = totalGames.some
       )
       funit
+    def setPublication(id: String, studyId: String, chapterId: String, notebookUrl: String) = funit
     def markFailed(id: String, code: String, message: String) =
       markedFailed = true
       current = current.copy(status = JobStatus.Failed, errorCode = code.some, errorMessage = message.some)
@@ -95,9 +110,31 @@ class AccountIntelWorkerTest extends munit.FunSuite:
     def requeueTimedOutRunning(timeout: scala.concurrent.duration.FiniteDuration, retryLimit: Int) =
       if AccountIntelJob.timedOutRunning(current, Instant.now(), timeout) then
         requeued = true
-        current = current.copy(status = JobStatus.Queued, progressStage = "queued")
+        current = current.copy(status = JobStatus.Queued, progressStage = "queued", queueState = "queued")
       funit
     def cleanupExpired(successTtl: scala.concurrent.duration.FiniteDuration, failedTtl: scala.concurrent.duration.FiniteDuration) = funit
+
+  private class FakeSurfaceStore(initial: List[AccountIntelSurfaceSnapshot] = Nil) extends AccountIntelSurfaceStore:
+    var inserted = List.empty[AccountIntelSurfaceSnapshot]
+    private var snapshots = initial.map(snapshot => snapshot.id -> snapshot).toMap
+
+    def byId(id: String) = fuccess(snapshots.get(id))
+    def latestByDedupeKey(dedupeKey: String) =
+      fuccess(snapshots.values.filter(_.dedupeKey == dedupeKey).toList.sortBy(_.updatedAt.toEpochMilli).lastOption)
+    def latestFreshByDedupeKey(dedupeKey: String, freshSince: Instant) =
+      fuccess(
+        snapshots.values
+          .filter(snapshot => snapshot.dedupeKey == dedupeKey && !snapshot.updatedAt.isBefore(freshSince))
+          .toList
+          .sortBy(_.updatedAt.toEpochMilli)
+          .lastOption
+      )
+    def byDedupeKeyAndFingerprint(dedupeKey: String, sourceFingerprint: String) =
+      fuccess(snapshots.values.find(snapshot => snapshot.dedupeKey == dedupeKey && snapshot.sourceFingerprint == sourceFingerprint))
+    def insert(snapshot: AccountIntelSurfaceSnapshot) =
+      inserted = inserted :+ snapshot
+      snapshots = snapshots.updated(snapshot.id, snapshot)
+      funit
 
   private val noEvalLookup = new SelectiveEvalLookup:
     def lookup(fen: String) = fuccess(none[SelectiveEvalProbe])
@@ -108,17 +145,7 @@ class AccountIntelWorkerTest extends munit.FunSuite:
   private class ExplodingFetcher extends AccountGameFetcher:
     def fetchRecentGames(provider: String, username: String) = fufail(new RuntimeException("boom"))
 
-  private class FakeSink extends NotebookSink:
-    var persisted = false
-    def persist(job: AccountIntelJob, artifact: NotebookBuildArtifact) =
-      persisted = true
-      fuccess(Right(NotebookPersisted("study-1", "chapter-1", "/notebook/study-1/chapter-1")))
-
-  private class FailingSink(code: String, message: String) extends NotebookSink:
-    def persist(job: AccountIntelJob, artifact: NotebookBuildArtifact) =
-      fuccess(Left(NotebookPersistFailure(code, message)))
-
-  test("worker processes queued job end-to-end and stores notebook url"):
+  test("worker processes queued job end-to-end and stores a shared surface snapshot"):
     val job = AccountIntelJob.newQueued("u1", "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite)
     val repo = new FakeStore(job)
     val fetcher = new FakeFetcher(
@@ -133,15 +160,54 @@ class AccountIntelWorkerTest extends munit.FunSuite:
         sampleGame("g8", "opp8", "ych24", "1/2-1/2")
       )
     )
+    val surfaces = new FakeSurfaceStore()
     val engine = new AccountNotebookEngine(fetcher, new SelectiveEvalRefiner(noEvalLookup, noEvalLookup))
-    val sink = new FakeSink
-    val worker = new AccountIntelWorker(Configuration.empty, repo, fetcher, engine, sink)
+    val worker = new AccountIntelWorker(Configuration.empty, repo, surfaces, fetcher, engine)
 
     worker.runNext().map: _ =>
       assert(repo.markedSuccess)
-      assert(sink.persisted)
-      assertEquals(repo.current.notebookUrl, Some("/notebook/study-1/chapter-1"))
+      assertEquals(surfaces.inserted.size, 1)
+      assert(repo.current.surfaceId.nonEmpty)
       assert(repo.current.surfaceJson.exists(_.contains("chesstory.account.surface.v1")))
+      assertEquals(repo.current.notebookUrl, None)
+
+  test("worker cache-hits identical source fingerprints and skips a second surface insert"):
+    val games = List(
+      sampleGame("g1", "ych24", "opp1", "0-1"),
+      sampleGame("g2", "ych24", "opp2", "1/2-1/2"),
+      sampleGame("g3", "ych24", "opp3", "0-1"),
+      sampleGame("g4", "ych24", "opp4", "1/2-1/2"),
+      sampleGame("g5", "opp5", "ych24", "1-0"),
+      sampleGame("g6", "opp6", "ych24", "1/2-1/2"),
+      sampleGame("g7", "opp7", "ych24", "1-0"),
+      sampleGame("g8", "opp8", "ych24", "1/2-1/2")
+    )
+    val fingerprint = AccountIntelSurfaceSnapshot.fingerprint(games)
+    val existingSnapshot = AccountIntelSurfaceSnapshot(
+      id = "surface-1",
+      dedupeKey = AccountIntelJob.dedupeKey("chesscom", "ych24", ProductKind.MyAccountIntelligenceLite),
+      provider = "chesscom",
+      username = "ych24",
+      kind = ProductKind.MyAccountIntelligenceLite,
+      sourceFingerprint = fingerprint,
+      surfaceJson = """{"headline":"cached"}""",
+      dossierJson = """{"kind":"dossier"}""",
+      representativePgn = "1. e4 e5",
+      sampledGameCount = games.size,
+      eligibleGameCount = games.size
+    )
+    val job = AccountIntelJob.newQueued("u1", "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite)
+    val repo = new FakeStore(job)
+    val surfaces = new FakeSurfaceStore(List(existingSnapshot))
+    val fetcher = new FakeFetcher(games)
+    val engine = new AccountNotebookEngine(fetcher, new SelectiveEvalRefiner(noEvalLookup, noEvalLookup))
+    val worker = new AccountIntelWorker(Configuration.empty, repo, surfaces, fetcher, engine)
+
+    worker.runNext().map: _ =>
+      assert(repo.markedSuccess)
+      assertEquals(repo.current.cacheHit, true)
+      assertEquals(surfaces.inserted, Nil)
+      assertEquals(repo.current.surfaceId, Some(existingSnapshot.id))
 
   test("tick requeues timed-out running jobs before picking them up again"):
     val stale = AccountIntelJob
@@ -152,50 +218,23 @@ class AccountIntelWorkerTest extends munit.FunSuite:
       )
     val repo = new FakeStore(stale)
     val fetcher = new FakeFetcher(Nil)
+    val surfaces = new FakeSurfaceStore()
     val engine = new AccountNotebookEngine(fetcher, new SelectiveEvalRefiner(noEvalLookup, noEvalLookup))
-    val sink = new FakeSink
-    val worker = new AccountIntelWorker(Configuration.empty, repo, fetcher, engine, sink)
+    val worker = new AccountIntelWorker(Configuration.empty, repo, surfaces, fetcher, engine)
 
     worker.tick().map: _ =>
       assert(repo.requeued)
 
-  test("worker marks the job failed when notebook persistence fails"):
-    val job = AccountIntelJob.newQueued("u1", "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite)
-    val repo = new FakeStore(job)
-    val fetcher = new FakeFetcher(
-      List(
-        sampleGame("g1", "ych24", "opp1", "0-1"),
-        sampleGame("g2", "ych24", "opp2", "1/2-1/2"),
-        sampleGame("g3", "ych24", "opp3", "0-1"),
-        sampleGame("g4", "ych24", "opp4", "1/2-1/2"),
-        sampleGame("g5", "opp5", "ych24", "1-0"),
-        sampleGame("g6", "opp6", "ych24", "1/2-1/2"),
-        sampleGame("g7", "opp7", "ych24", "1-0"),
-        sampleGame("g8", "opp8", "ych24", "1/2-1/2")
-      )
-    )
-    val engine = new AccountNotebookEngine(fetcher, new SelectiveEvalRefiner(noEvalLookup, noEvalLookup))
-    val worker = new AccountIntelWorker(
-      Configuration.empty,
-      repo,
-      fetcher,
-      engine,
-      new FailingSink("study_create_failed", "Notebook study creation failed.")
-    )
-
-    worker.runNext().map: _ =>
-      assert(repo.markedFailed)
-      assertEquals(repo.current.errorCode, Some("study_create_failed"))
-
   test("worker marks unexpected fetch exceptions as worker_exception"):
     val job = AccountIntelJob.newQueued("u1", "chesscom", "ych24", ProductKind.OpponentPrep)
     val repo = new FakeStore(job)
+    val surfaces = new FakeSurfaceStore()
     val worker = new AccountIntelWorker(
       Configuration.empty,
       repo,
+      surfaces,
       new ExplodingFetcher,
-      new AccountNotebookEngine(new ExplodingFetcher, new SelectiveEvalRefiner(noEvalLookup, noEvalLookup)),
-      new FakeSink
+      new AccountNotebookEngine(new ExplodingFetcher, new SelectiveEvalRefiner(noEvalLookup, noEvalLookup))
     )
 
     worker.runNext().map: _ =>
@@ -217,29 +256,11 @@ class AccountIntelWorkerTest extends munit.FunSuite:
         sampleGame("g8", "opp8", "ych24", "1/2-1/2")
       )
     )
+    val surfaces = new FakeSurfaceStore()
     val engine = new AccountNotebookEngine(fetcher, new SelectiveEvalRefiner(noEvalLookup, noEvalLookup))
-    val sink = new FakeSink
-    val worker = new AccountIntelWorker(Configuration.empty, repo, fetcher, engine, sink)
+    val worker = new AccountIntelWorker(Configuration.empty, repo, surfaces, fetcher, engine)
 
     worker.runJob(job.id).map: outcome =>
       assertEquals(outcome, RunJobOutcome.Started)
       assert(repo.markedSuccess)
-      assertEquals(repo.current.notebookUrl, Some("/notebook/study-1/chapter-1"))
-
-  test("runJob reports missing and non-queued jobs honestly"):
-    val job = AccountIntelJob
-      .newQueued("u1", "chesscom", "ych24", ProductKind.OpponentPrep)
-      .copy(status = JobStatus.Running)
-    val repo = new FakeStore(job)
-    val worker = new AccountIntelWorker(
-      Configuration.empty,
-      repo,
-      new FakeFetcher(Nil),
-      new AccountNotebookEngine(new FakeFetcher(Nil), new SelectiveEvalRefiner(noEvalLookup, noEvalLookup)),
-      new FakeSink
-    )
-
-    worker.runJob("missing-id").flatMap: missing =>
-      worker.runJob(job.id).map: notQueued =>
-        assertEquals(missing, RunJobOutcome.Missing)
-        assertEquals(notQueued, RunJobOutcome.NotQueued)
+      assert(repo.current.surfaceId.nonEmpty)

@@ -51,7 +51,7 @@ final class AccountIntel(
       req.contentType.exists(_.contains("application/json"))
 
   private def internalWorkerAuthorized(using req: RequestHeader): Boolean =
-    env.accountintel.internalAuthHeaderValue.exists: expected =>
+    env.accountintel.internalAuthHeaderValue.forall: expected =>
       req.headers.get(env.accountintel.internalAuthHeaderName).contains(expected)
 
   private def parseSubmit(body: AnyContent): Either[String, SubmitPayload] =
@@ -113,6 +113,13 @@ final class AccountIntel(
       "requestedAt" -> job.requestedAt.toString,
       "finishedAt" -> job.finishedAt.map(_.toString),
       "progressStage" -> job.progressStage,
+      "queueState" -> job.queueState,
+      "snapshotState" -> job.snapshotState,
+      "processedGames" -> job.processedGames,
+      "totalGames" -> job.totalGames,
+      "etaSec" -> job.etaSec,
+      "cacheHit" -> job.cacheHit,
+      "refreshLockedUntil" -> job.refreshLockedUntil.map(_.toString),
       "warnings" -> job.warnings,
       "url" -> accountResultUrl(job.provider, job.username, job.kind, jobId = Some(job.id)),
       "notebookUrl" -> job.notebookUrl,
@@ -266,6 +273,24 @@ final class AccountIntel(
           Ok.page(views.accountIntel.status(job))
   }
 
+  def publish(jobId: String) = Auth { _ ?=> me ?=>
+    env.accountintel.publicationApi
+      .publish(me.userId, jobId)
+      .map:
+        case Left(err) =>
+          BadRequest(jsonError(err))
+        case Right(persisted) =>
+          Ok(
+            Json.obj(
+              "ok" -> true,
+              "jobId" -> jobId,
+              "notebookUrl" -> persisted.notebookUrl,
+              "studyId" -> persisted.studyId,
+              "chapterId" -> persisted.chapterId
+            )
+          )
+  }
+
   def product(provider: String, username: String, kind: String, side: String) = Auth { ctx ?=> me ?=>
     val resolvedKind = resolveKind(kind)
     val selectedJobId = get("jobId").filter(_.nonEmpty)
@@ -296,7 +321,7 @@ final class AccountIntel(
   }
 
   def runJobInternal(jobId: String) = Anon:
-    if !env.accountintel.workerEnabled || env.accountintel.internalAuthHeaderValue.isEmpty then
+    if !env.accountintel.workerEnabled then
       NotFound(jsonError("Account intel worker endpoint is disabled.")).toFuccess
     else if !internalWorkerAuthorized then
       Unauthorized(jsonError("Invalid account intel worker token.")).toFuccess
@@ -308,3 +333,13 @@ final class AccountIntel(
           NotFound(jsonError("Account notebook build job not found.")).toFuccess
         case lila.accountintel.AccountIntel.RunJobOutcome.NotQueued =>
           Conflict(jsonError("Account notebook build job is not queued.")).toFuccess
+
+  def runMaintenanceInternal = Anon:
+    if !env.accountintel.workerEnabled then
+      NotFound(jsonError("Account intel worker endpoint is disabled.")).toFuccess
+    else if !internalWorkerAuthorized then
+      Unauthorized(jsonError("Invalid account intel worker token.")).toFuccess
+    else
+      env.accountintel.worker.runMaintenance().inject(
+        Accepted(Json.obj("ok" -> true))
+      )

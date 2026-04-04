@@ -153,7 +153,15 @@ describe('frontend audit regressions', () => {
     assert.match(strategicPuzzleTs, /window\.addEventListener\('popstate', this\.onPopState\)/);
     assert.match(strategicPuzzleTs, /history\.replaceState\(\{ strategicPuzzle: this\.historySnapshot\(url\) \}, '', url\)/);
     assert.match(strategicPuzzleTs, /history\.pushState\(\{ strategicPuzzle: this\.historySnapshot\(url\) \}, '', url\)/);
+    assert.match(strategicPuzzleTs, /puzzleId: this\.payload\.puzzle\.id/);
+    assert.doesNotMatch(strategicPuzzleTs, /payload: this\.payload/);
     assert.match(strategicPuzzleTs, /this\.restoreSnapshot\(snapshot\)/);
+  });
+
+  test('strategic puzzle solved-next flow reloads by puzzle id instead of reusing next bootstrap payloads', () => {
+    assert.match(routes, /^GET\s+\/api\/strategic-puzzle\/:id\s+controllers\.StrategicPuzzle\.showJson\(id\)$/m);
+    assert.match(strategicPuzzleTs, /await fetch\(`\/api\/strategic-puzzle\/\$\{encodeURIComponent\(puzzleId\)\}`\)/);
+    assert.doesNotMatch(strategicPuzzleTs, /fetch\(`\/api\/strategic-puzzle\/next\?after=/);
   });
 
   test('analysis move navigation pushes user-visible ply history and restores it on popstate', () => {
@@ -402,6 +410,25 @@ describe('frontend audit regressions', () => {
     assert.match(narrativeViewTs, /h3\.narrative-signal-title', 'Support'/);
     assert.match(narrativeViewTs, /details\.narrative-advanced-details/);
     assert.match(narrativeViewTs, /summary\.narrative-advanced-details__summary', 'Advanced details'/);
+  });
+
+  test('decision comparison surfaces only read canonical comparative digest fields for the new exact lane', () => {
+    const bookmakerDecisionBlock = extractBetween(
+      bookmakerTs,
+      'function renderDecisionCompareStrip(',
+      'type BookmakerStrategySurface = {',
+    );
+    const narrativeDecisionBlock = extractBetween(
+      narrativeViewTs,
+      'function narrativeDecisionMoveStrip(',
+      'function narrativeDecisionMoveChip(',
+    );
+
+    assert.match(bookmakerDecisionBlock, /comparison\?\.comparativeConsequence\?\.trim\(\) \? comparison\?\.comparedMove/);
+    assert.match(bookmakerDecisionBlock, /renderBookmakerMoveChip\('Compared'/);
+    assert.match(narrativeDecisionBlock, /comparison\.comparativeConsequence[\s\S]*narrativeDecisionMoveChip\('Compared'/);
+    assert.doesNotMatch(bookmakerDecisionBlock, /topEngineMove/);
+    assert.doesNotMatch(narrativeDecisionBlock, /topEngineMove/);
   });
 });
 

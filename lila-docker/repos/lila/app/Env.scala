@@ -75,7 +75,8 @@ final class Env(
     userApi = user.api
   )
   val strategicPuzzle: lila.strategicPuzzle.Env = new lila.strategicPuzzle.Env(
-    mongo = mongo
+    mongo = mongo,
+    mongoCache = memo.mongoCache
   )
   val beta: lila.beta.Env = new lila.beta.Env(
     mongo = mongo,

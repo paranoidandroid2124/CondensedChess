@@ -199,7 +199,32 @@ object StrategicPuzzle:
       runtimeShell: Option[RuntimeShell]
   )
   object StrategicPuzzleDoc:
-    given OFormat[StrategicPuzzleDoc] = Json.format[StrategicPuzzleDoc]
+    given Reads[StrategicPuzzleDoc] =
+      (
+        (__ \ "id").read[String] and
+          (__ \ "schema").read[String] and
+          (__ \ "source").read[SourcePayload] and
+          (__ \ "position").read[PositionPayload] and
+          (__ \ "dominantFamily").readNullable[DominantFamilySummary] and
+          (__ \ "qualityScore").read[QualityScore] and
+          (__ \ "generationMeta").read[GenerationMeta] and
+          (__ \ "runtimeShell").readNullable[RuntimeShell]
+      )(StrategicPuzzleDoc.apply)
+
+    given OWrites[StrategicPuzzleDoc] = OWrites { doc =>
+      val withFamily =
+        Json.obj(
+          "id" -> doc.id,
+          "schema" -> doc.schema,
+          "source" -> doc.source,
+          "position" -> doc.position,
+          "qualityScore" -> doc.qualityScore,
+          "generationMeta" -> doc.generationMeta
+        ) ++ doc.dominantFamily.fold(Json.obj())(family => Json.obj("dominantFamily" -> family))
+      withFamily ++ doc.runtimeShell.fold(Json.obj())(shell => Json.obj("runtimeShell" -> shell))
+    }
+
+    given OFormat[StrategicPuzzleDoc] = OFormat(summon[Reads[StrategicPuzzleDoc]], summon[OWrites[StrategicPuzzleDoc]])
 
   final case class AttemptSummary(
       puzzleId: String,
@@ -216,6 +241,16 @@ object StrategicPuzzle:
   )
   object ProgressPayload:
     given OFormat[ProgressPayload] = Json.format[ProgressPayload]
+
+  final case class ProgressDoc(
+      _id: String,
+      currentStreak: Int,
+      latestAttemptsByPuzzle: List[AttemptSummary],
+      clearedPuzzleIds: List[String],
+      updatedAt: String
+  )
+  object ProgressDoc:
+    given OFormat[ProgressDoc] = Json.format[ProgressDoc]
 
   final case class BootstrapPayload(
       puzzle: StrategicPuzzleDoc,
@@ -236,8 +271,7 @@ object StrategicPuzzle:
   final case class CompleteResponse(
       saved: Boolean,
       currentStreak: Int,
-      nextPuzzleId: Option[String],
-      nextPuzzleUrl: Option[String]
+      nextPuzzleId: Option[String]
   )
   object CompleteResponse:
     given OFormat[CompleteResponse] = Json.format[CompleteResponse]
@@ -245,7 +279,7 @@ object StrategicPuzzle:
   enum CompleteOutcome:
     case Invalid
     case MissingPuzzle
-    case Success(response: CompleteResponse, next: Option[BootstrapPayload])
+    case Success(response: CompleteResponse)
 
   final case class AttemptDoc(
       _id: String,
@@ -318,6 +352,32 @@ object StrategicPuzzle:
 
   def computeStreak(attempts: List[AttemptDoc]): Int =
     latestByPuzzle(attempts).iterator.takeWhile(_.status == StatusFull).length
+
+  def computeSummaryStreak(attempts: List[AttemptSummary]): Int =
+    attempts.iterator.takeWhile(_.status == StatusFull).length
+
+  def progressFromAttempts(userId: UserId, attempts: List[AttemptDoc]): ProgressDoc =
+    val latest = latestByPuzzle(attempts).map(asAttemptSummary)
+    ProgressDoc(
+      _id = userId.value,
+      currentStreak = computeSummaryStreak(latest),
+      latestAttemptsByPuzzle = latest,
+      clearedPuzzleIds = attempts.iterator.collect { case attempt if attempt.status == StatusFull => attempt.puzzleId }.toList.distinct,
+      updatedAt = attempts.headOption.map(_.completedAt).getOrElse(currentIsoInstant())
+    )
+
+  def applyAttempt(progress: ProgressDoc, attempt: AttemptDoc): ProgressDoc =
+    val summary = asAttemptSummary(attempt)
+    val latest = summary :: progress.latestAttemptsByPuzzle.filterNot(_.puzzleId == attempt.puzzleId)
+    val cleared =
+      if attempt.status == StatusFull then (attempt.puzzleId :: progress.clearedPuzzleIds).distinct
+      else progress.clearedPuzzleIds
+    progress.copy(
+      currentStreak = computeSummaryStreak(latest),
+      latestAttemptsByPuzzle = latest,
+      clearedPuzzleIds = cleared,
+      updatedAt = attempt.completedAt
+    )
 
   private final case class ProofResolution(
       terminal: TerminalReveal,
@@ -649,3 +709,10 @@ object StrategicPuzzle:
       }
       ._2
       .reverse
+
+  private def asAttemptSummary(attempt: AttemptDoc): AttemptSummary =
+    AttemptSummary(
+      puzzleId = attempt.puzzleId,
+      status = attempt.status,
+      completedAt = attempt.completedAt
+    )

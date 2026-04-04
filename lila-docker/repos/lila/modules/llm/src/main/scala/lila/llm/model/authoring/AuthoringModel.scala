@@ -6,6 +6,7 @@ enum AuthorQuestionKind:
   case WhyThis
   case WhyNow
   case WhatChanged
+  case WhatMattersHere
   case WhatMustBeStopped
   case WhosePlanIsFaster
 

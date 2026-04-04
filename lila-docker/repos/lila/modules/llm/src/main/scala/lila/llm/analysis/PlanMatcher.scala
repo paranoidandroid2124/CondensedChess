@@ -4,7 +4,7 @@ import chess.*
 import lila.llm.model.*
 import lila.llm.model.Motif.*
 import lila.llm.analysis.L3.{ PawnPlayAnalysis, PositionClassification, ThreatAnalysis, TensionPolicy }
-import lila.llm.model.structure.{ PlanAlignment, StructureProfile }
+import lila.llm.model.structure.{ PlanAlignment, StructureId, StructureProfile }
 import chess.Color.White
 import lila.llm.analysis.ThemeTaxonomy.{ ThemeL1, SubplanId }
 
@@ -77,10 +77,14 @@ object PlanMatcher:
     val RookFileTransfer = SubplanId.RookFileTransfer.id
     val SpaceClamp = SubplanId.FlankClamp.id
     val WeaknessFixation = SubplanId.StaticWeaknessFixation.id
+    val MinorityAttackFixation = SubplanId.MinorityAttackFixation.id
+    val BackwardPawnTargeting = SubplanId.BackwardPawnTargeting.id
+    val IQPInducement = SubplanId.IQPInducement.id
     val PawnBreakPreparation = SubplanId.CentralBreakTiming.id
     val WingBreakTiming = SubplanId.WingBreakTiming.id
     val TensionMaintenance = SubplanId.TensionMaintenance.id
     val FavorableExchange = SubplanId.SimplificationWindow.id
+    val DefenderTrade = SubplanId.DefenderTrade.id
     val FlankInfrastructure = SubplanId.RookPawnMarch.id
     val HookCreation = SubplanId.HookCreation.id
     val RookLiftScaffold = SubplanId.RookLiftScaffold.id
@@ -96,7 +100,7 @@ object PlanMatcher:
       case ThemeTaxonomy.SubplanId.OpenFilePressure    => "bounded_file_pressure"
       case ThemeTaxonomy.SubplanId.RookFileTransfer    => "bounded_file_pressure"
       case ThemeTaxonomy.SubplanId.DefenderTrade       => "trade_key_defender"
-      case ThemeTaxonomy.SubplanId.SimplificationWindow => "trade_key_defender"
+      case ThemeTaxonomy.SubplanId.SimplificationWindow => ThemeTaxonomy.SubplanId.SimplificationWindow.id
       case ThemeTaxonomy.SubplanId.ProphylaxisRestraint => "counterplay_restraint"
       case other                                       => other.id
     }.orElse(ThemeTaxonomy.ThemeL1.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")
@@ -108,7 +112,7 @@ object PlanMatcher:
       case ThemeTaxonomy.SubplanId.OpenFilePressure    => "half_open_file_pressure"
       case ThemeTaxonomy.SubplanId.RookFileTransfer    => "half_open_file_pressure"
       case ThemeTaxonomy.SubplanId.DefenderTrade       => "trade_key_defender"
-      case ThemeTaxonomy.SubplanId.SimplificationWindow => "trade_key_defender"
+      case ThemeTaxonomy.SubplanId.SimplificationWindow => ThemeTaxonomy.SubplanId.SimplificationWindow.id
       case other                                       => other.id
     }.orElse(ThemeTaxonomy.ThemeL1.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")
 
@@ -400,6 +404,7 @@ object PlanMatcher:
         (if s.hookChance then 0.10 else 0.0) +
         math.min(0.16, ev.size * 0.05) -
         (if s.oppWeakness == 0 && ev.isEmpty then 0.05 else 0.0)
+    val subplanId = weaknessFixationSubplan(m, ctx, side, s)
     themed(
       Theme.WeaknessFixation,
       Plan.WeakPawnAttack(side, "fixed"),
@@ -408,7 +413,7 @@ object PlanMatcher:
       List("create and fix long-term targets"),
       Option.when(ctx.tacticalThreatToUs && !ctx.tacticalThreatToThem)("immediate defense can postpone fixation").toList,
       Option.when(s.oppWeakness == 0 && ev.isEmpty)("need to induce weakness before attacking it").toList,
-      subplanId = Some(Subplan.WeaknessFixation)
+      subplanId = Some(subplanId)
     )
 
   private def breakPrep(m: List[Motif], ctx: IntegratedContext, side: Color): PlanMatch =
@@ -457,6 +462,7 @@ object PlanMatcher:
         (if simplifyWindow then 0.20 else 0.0) +
         (if evalEdge >= 80 then 0.10 else if evalEdge <= -80 then -0.08 else 0.0) +
         math.min(0.15, ev.size * 0.05)
+    val subplanId = favorableExchangeSubplan(m, ctx, side)
     themed(
       Theme.FavorableExchange,
       Plan.Exchange(side, "favorable simplification"),
@@ -465,8 +471,55 @@ object PlanMatcher:
       List("exchange only when structure improves"),
       Option.when(evalEdge <= -80)("behind on eval; simplification may help opponent").toList,
       Option.when(!simplifyWindow && ev.isEmpty)("need clear exchange asymmetry first").toList,
-      subplanId = Some(Subplan.FavorableExchange)
+      subplanId = Some(subplanId)
     )
+
+  private def weaknessFixationSubplan(
+      m: List[Motif],
+      ctx: IntegratedContext,
+      side: Color,
+      s: SideSnapshot
+  ): String =
+    val opp = !side
+    val backwardPawnTarget =
+      m.exists {
+        case BackwardPawn(_, _, c, _, _) if c == opp => true
+        case _                                        => false
+      }
+    val isolatedPawnTarget =
+      m.exists {
+        case IsolatedPawn(_, _, c, _, _) if c == opp => true
+        case _                                        => false
+      }
+    val minorityAttackStructure = structureMatches(ctx, StructureId.Carlsbad)
+    val iqpTargetStructure =
+      side match
+        case White => structureMatches(ctx, StructureId.IQPBlack)
+        case _     => structureMatches(ctx, StructureId.IQPWhite)
+    if minorityAttackStructure && (s.hookChance || s.oppWeakness > 0) then
+      Subplan.MinorityAttackFixation
+    else if backwardPawnTarget then
+      Subplan.BackwardPawnTargeting
+    else if iqpTargetStructure && isolatedPawnTarget then
+      Subplan.IQPInducement
+    else Subplan.WeaknessFixation
+
+  private def favorableExchangeSubplan(
+      m: List[Motif],
+      ctx: IntegratedContext,
+      side: Color
+  ): String =
+    val hasDefenderRemoval =
+      m.exists {
+        case RemovingTheDefender(_, _, _, _, c, _, _) if c == side => true
+        case _                                                     => false
+      }
+    val planTaggedDefenderTrade =
+      ctx.planAlignment.exists(_.reasonCodes.exists(code =>
+        code.toLowerCase.contains("defender") || code.toLowerCase.contains("remove")
+      ))
+    if hasDefenderRemoval || planTaggedDefenderTrade then Subplan.DefenderTrade
+    else Subplan.FavorableExchange
 
   private def flankInfrastructure(m: List[Motif], ctx: IntegratedContext, side: Color, s: SideSnapshot): PlanMatch =
     val ev = evidence(m, 0.19) {
@@ -654,6 +707,11 @@ object PlanMatcher:
       rookPawnReady = if w then st.whiteRookPawnMarchReady else st.blackRookPawnMarchReady,
       hookChance = if w then st.whiteHookCreationChance else st.blackHookCreationChance,
       clamp = if w then st.whiteColorComplexClamp else st.blackColorComplexClamp
+    )
+
+  private def structureMatches(ctx: IntegratedContext, target: StructureId): Boolean =
+    ctx.structureProfile.exists(profile =>
+      profile.primary == target || profile.alternatives.contains(target)
     )
 
   private def kingExposure(features: Option[PositionFeatures], side: Color): Int =

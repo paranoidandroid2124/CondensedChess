@@ -385,12 +385,14 @@ function renderDecisionCompareStrip(
     });
     const chosen = comparison?.chosenMove?.trim() || '';
     const best = comparison?.engineBestMove?.trim() || '';
-    const deferred = comparison?.deferredMove?.trim() || '';
+    const compared = comparison?.comparativeConsequence?.trim() ? comparison?.comparedMove?.trim() || '' : '';
+    const deferred = comparison?.comparativeConsequence?.trim() ? '' : comparison?.deferredMove?.trim() || '';
     const secondary = surface.secondary;
 
     const moveBits = [
         renderBookmakerMoveChip('Chosen', chosen, refIndex.firstBySan, 'chosen'),
         !surface.chosenMatchesBest ? renderBookmakerMoveChip('Engine', best, refIndex.firstBySan, 'engine') : null,
+        compared ? renderBookmakerMoveChip('Compared', compared, refIndex.firstBySan, 'deferred') : null,
         deferred ? renderBookmakerMoveChip(comparison?.practicalAlternative ? 'Practical' : 'Deferred', deferred, refIndex.firstBySan, 'deferred') : null,
     ].filter(Boolean);
 

@@ -577,6 +577,12 @@ private[llm] object StrategicIdeaSelector:
       semantic.positionalFeatures.collect {
         case PositionalTag.WeakSquare(square, owner) if !matchesSide(owner, side) => square.key
       }.toSet
+    val structuralTargetSquares =
+      semantic.structuralWeaknesses
+        .filter(weakness => !matchesSide(weakness.color, side))
+        .flatMap(_.squares.map(_.key))
+        .distinct
+    val exactTargetSquares = (enemyWeakSquares.toList ++ structuralTargetSquares).distinct
 
     val weakSquareEvidence =
       enemyWeakSquares.toList.map { square =>
@@ -609,12 +615,14 @@ private[llm] object StrategicIdeaSelector:
     val minorityAttackEvidence =
       semantic.positionalFeatures.collect {
         case PositionalTag.MinorityAttack(color, flank) if matchesSide(color, side) =>
+          val focusSquares = flankTargetSquares(flank, exactTargetSquares).take(3)
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.TargetFixing,
             readiness = StrategicIdeaReadiness.Build,
             source = "minority_attack_fixation",
-            confidence = 0.70,
+            confidence = 0.70 + Option.when(focusSquares.nonEmpty)(0.06).getOrElse(0.0),
+            focusSquares = focusSquares,
             focusZone = Some(flank),
             factIds = List(s"minority_attack_$flank")
           )
@@ -660,7 +668,7 @@ private[llm] object StrategicIdeaSelector:
             readiness = StrategicIdeaReadiness.Build,
             source = "plan_match_target_fixing",
             confidence = 0.78 + math.min(0.06, plan.score * 0.08),
-            focusSquares = enemyWeakSquares.toList.take(2),
+            focusSquares = exactTargetSquares.take(2),
             factIds = List("plan_match_target_fixing", s"plan_${plan.plan.id.toString.toLowerCase}")
           )
         }
@@ -670,7 +678,7 @@ private[llm] object StrategicIdeaSelector:
       pack.directionalTargets
         .filter(_.ownerSide == side)
         .flatMap { target =>
-          Option.when(enemyWeakSquares.contains(target.targetSquare)) {
+          Option.when(exactTargetSquares.contains(target.targetSquare)) {
             evidence(
               ownerSide = side,
               kind = StrategicIdeaKind.TargetFixing,
@@ -687,12 +695,7 @@ private[llm] object StrategicIdeaSelector:
     val compensationTargetFixation =
       semantic.positionFeatures
         .flatMap { features =>
-          val structuralTargetSquares =
-            semantic.structuralWeaknesses
-              .filter(weakness => !matchesSide(weakness.color, side))
-              .flatMap(_.squares.map(_.key))
-              .distinct
-          val allTargetSquares = (enemyWeakSquares.toList ++ structuralTargetSquares).distinct
+          val allTargetSquares = exactTargetSquares
           val queensideTargetCount =
             allTargetSquares.count(square =>
               square.headOption.exists(file => file == 'a' || file == 'b' || file == 'c')
@@ -734,15 +737,16 @@ private[llm] object StrategicIdeaSelector:
             case PositionalTag.MinorityAttack(color, _) => matchesSide(color, side)
             case _                                      => false
           } &&
-          enemyWeakSquares.nonEmpty
+          exactTargetSquares.nonEmpty
       ) {
+        val queensideTargets = flankTargetSquares("queenside", exactTargetSquares).take(3)
         evidence(
           ownerSide = side,
           kind = StrategicIdeaKind.TargetFixing,
           readiness = StrategicIdeaReadiness.Build,
           source = "carlsbad_fixation_profile",
           confidence = 0.90,
-          focusSquares = enemyWeakSquares.toList.take(3),
+          focusSquares = if queensideTargets.nonEmpty then queensideTargets else exactTargetSquares.take(3),
           factIds = List("structure_carlsbad", "carlsbad_fixation_profile", "minority_attack_fixation")
         )
       }.toList
@@ -3104,10 +3108,32 @@ private[llm] object StrategicIdeaSelector:
   ): Boolean =
     !hasStrongTargetFixingAnchor(candidate, semantic)
 
+  private def flankTargetSquares(flank: String, squares: List[String]): List[String] =
+    val files =
+      normalizeFactToken(flank) match
+        case "queenside" => Set('a', 'b', 'c', 'd')
+        case "kingside"  => Set('e', 'f', 'g', 'h')
+        case _           => Set.empty[Char]
+    if files.isEmpty then Nil
+    else
+      squares.filter(square => square.headOption.exists(files.contains))
+
   private def hasStrongTargetFixingAnchor(
       candidate: Candidate,
       semantic: StrategicIdeaSemanticContext
   ): Boolean =
+    val exactDirectionalTarget =
+      candidateHasSource(candidate, "directional_target_fixation") &&
+        candidate.focusSquares.nonEmpty &&
+        candidateHasAnySource(candidate, Set("weak_complex_fixation", "enemy_weak_square"))
+    val exactStructuralTarget =
+      candidateHasSource(candidate, "weak_complex_fixation") &&
+        candidate.focusSquares.nonEmpty &&
+        candidate.sourceCount >= 2
+    val exactMinorityTarget =
+      candidateHasSource(candidate, "minority_attack_fixation") &&
+        candidate.focusSquares.nonEmpty &&
+        candidateHasAnySource(candidate, Set("weak_complex_fixation", "enemy_weak_square", "carlsbad_fixation_profile"))
     candidateHasAnySource(
       candidate,
       Set(
@@ -3116,6 +3142,9 @@ private[llm] object StrategicIdeaSelector:
         "compensation_target_fixation"
       )
     ) ||
+      exactDirectionalTarget ||
+      exactStructuralTarget ||
+      exactMinorityTarget ||
       structureIs(semantic, StructureId.Carlsbad)
 
   private def hasStrongLineAnchor(candidate: Candidate): Boolean =
@@ -3280,6 +3309,18 @@ private[llm] object StrategicIdeaSelector:
       ) ||
       (
         candidateHasSource(candidate, "plan_match_transformation") &&
+          candidateHasAnySource(
+            candidate,
+            Set(
+              "removing_the_defender",
+              "winning_endgame_transition",
+              "exchange_availability_bridge",
+              "iqp_simplification_profile"
+            )
+          )
+      ) ||
+      (
+        candidateHasSource(candidate, "classification_transformation_window") &&
           candidateHasAnySource(
             candidate,
             Set(

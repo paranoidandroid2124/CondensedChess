@@ -366,6 +366,9 @@ Current canonical flow:
       `PlanRace` is `PrimaryAllowed` only in `plan_clash`;
       `MoveDelta` is `PrimaryAllowed` only in
       `quiet_improvement | transition_conversion`;
+      `PositionProbe` is `PrimaryAllowed` only in `quiet_improvement`, and
+      only when a certified `PositionLocal` main claim already exists on the
+      shared main bundle;
       `TacticalFailure` and `ForcingDefense` only own their matching scenes
     - move-linked `OpeningRelation` / `EndgameTransition` translators are
       `PrimaryAllowed` only in their own scenes, and only through the shared
@@ -397,7 +400,7 @@ Current canonical flow:
 14. `GameChronicleCompressionPolicy` is planner-first:
     - Chronicle may swap only within planner top-2
     - Chronicle surface preference is
-      `WhyNow > WhatChanged > WhatMustBeStopped > WhyThis > WhosePlanIsFaster`
+      `WhyNow > WhatChanged/WhatMattersHere > WhatMustBeStopped > WhyThis > WhosePlanIsFaster`
     - a swap is allowed only when claim ownership, evidence quality,
       fallback strength, and plan strength do not get weaker
     - replay-side claim ownership scoring now keeps a legal opening/endgame
@@ -497,7 +500,8 @@ Current canonical flow:
 3. `QuestionPlannerInputsBuilder` is built once for the Bookmaker owner path
    from live carriers only:
    `MainPathMoveDeltaClaimBuilder`, `QuietMoveIntentBuilder`,
-   `CertifiedDecisionFrameBuilder`, sanitized `DecisionComparison`,
+   `CertifiedDecisionFrameBuilder`, sanitized `DecisionComparison` plus the
+   narrow exact-target-fixation comparative-support enrichment,
    `AlternativeNarrativeSupport`, current-board `preventedPlans`, `PVDelta`,
    threat tables, opponent plan, and cleaned candidate evidence lines.
 4. `QuestionFirstCommentaryPlanner` ranks `primary + optional secondary`
@@ -938,7 +942,9 @@ Current rules:
     `QuietMoveIntentBuilder` thread a shared packet containing
     `claimGate`, `ownerSource`, `ownerFamily`, `scope`, `triggerKind`,
     `bestDefenseMove`, `bestDefenseBranchKey`, `sameBranchState`,
-    `persistence`, `rivalKind`, `suppressionReasons`, `releaseRisks`, and
+    `persistence`, `rivalKind`, backend-only `ownerPathWitness`
+    (`ownerSeedTerms`, `continuationTerms`, `rivalTerms`,
+    `structureTransitionTerms`), `suppressionReasons`, `releaseRisks`, and
     `fallbackMode`; this packet is internal-only and does not add a new public
     payload, debug shell, or `StrategicPlanExperiment` field
   - packet fallback stays fail-closed:
@@ -948,6 +954,13 @@ Current rules:
     evidence visible without reopening move-local ownership; `exact_factual`
     preserves strategic-mode classification when needed without reconstructing
     strategy text from raw support carriers
+  - packet admission is now witness-backed rather than family-label-only:
+    `PlayerFacingClaimCertification` requires a concrete backend-only owner
+    seed before `weak_main` or line-evidence hooks can survive, and exact
+    owner-path families also need continuation proof through the same packet
+    lane. `MainPathMoveDeltaClaimBuilder` and `QuietMoveIntentBuilder` may
+    reuse those private witness terms for local anchor wording, but no new
+    public schema or prose family is opened by that reuse
   - current packetized pilot mapping is narrower than the existing planner
     lanes:
     exact B2 `neutralize_key_break` is now promoted on one bounded move-delta
@@ -984,6 +997,21 @@ Current rules:
     branch`), and Active plus whole-game replay remain closed. Generic
     prophylaxis praise, whole-position no-counterplay, move-order-fragile
     shells, support-only reinflation, and heavy-piece relabel stay fail-closed
+  - bounded `favorable_simplification` is now promoted on one exact same-task
+    simplification slice only:
+    the packet may release `weak_main` on the existing move-delta lane only
+    when the exact exchange square plus defended recapture branch survive with
+    a concrete `bestDefenseBranchKey`, `sameBranchState=Proven`,
+    `persistence=Stable`, a concrete backend-only owner seed, and no surviving
+    suppression/release-risk reason. `QuestionFirstCommentaryPlanner` may
+    admit that exact packet only through planner-owned `WhyThis`, and the
+    released wording must stay one-board / one-trade / one-branch local
+    (`This trade keeps the same local edge on e6.` /
+    `This favorable simplification keeps the same local edge after the trade on
+    e6.`). `same_job_conversion`, `trade_key_defender_relabel`,
+    `route_bind_relabel`, `better_endgame_inflation`,
+    `support_only_reinflation`, and `B7_drift` remain hard fail-closed, and no
+    new planner question, public schema, or owner family opens with this slice
   - `defensive_regrouping` is now triaged as absorbed into
     `prophylactic_move`, not as an independent promotion candidate:
     regrouping-style piece-improvement plans do not gain a distinct exact
@@ -996,24 +1024,73 @@ Current rules:
     path beyond the already-certified local file-entry pair, so exact positive
     release remains owned only by `half_open_file_pressure` and broader
     open-file wording still stays closed
-  - `weakness_fixation` remains absorbed on the reviewed
-    `static_weakness_fixation` cell, not as an independent promotion candidate:
-    exact `B21` / `B21A` controls confirm the reviewed cell, but that exact
-    slice still does not gain a distinct exact owner path. Even when a
-    reviewed weakness shell carries a concrete branch key and stable branch
-    evidence, the lane stays below `sameBranchState=Proven`, so `weak_main`
-    release remains closed there; the already-absorbed
-    `backward_pawn_targeting` subtype stays subordinate wording on that same
-    lane, and rival preparatory / prophylactic / file-pressure stories still
-    outrank `K09A` / `K09D` / `K09E`. The sibling review also fail-closes
-    `minority_attack_fixation` and `iqp_inducement`: `K03A` / `B15A` / `B16B`
-    keep Carlsbad target truth without a move-local minority lever, while
-    `K09A` / `K09B` / `K09F` stay structure/conversion led and `K09B`
-    remains move-order fragile under deeper engine recheck. Synthetic shells for those
-    reviewed siblings now fail-close under the same absorbed weakness gate, so
-    exact-board owner proof is required before any future reopen
+  - reviewed `weakness_fixation` now has one live exact owner-path admission on
+    the reviewed `static_weakness_fixation` cell plus one exact current-position
+    probe on the reviewed `backward_pawn_targeting` subtype:
+    exact `B21` / `B21A` now admit one planner-owned exact-target state-delta
+    slice on the canonical runtime path when the current FEN proves one
+    move-local fixed target: the `TargetFixing` idea must carry
+    `plan_match_target_fixing`, `weak_complex_fixation`, and
+    `minority_attack_fixation`, must not carry the Carlsbad profile, and the
+    exact focus squares must contain one opponent pawn target on the live
+    board. On that admitted slice the runtime now materializes
+    `ownerSource=exact_target_fixation`,
+    `ownerFamily=static_weakness_fixation`,
+    `bestDefenseBranchKey=f3d2|b8a6`, `sameBranchState=Proven`,
+    `persistence=Stable`, `main_bundle=This keeps the pressure fixed on d6.`,
+    and planner-owned `WhatChanged`
+    (`This changes the position by fixing d6 as the target.` /
+    `Before the move, d6 was not yet fixed as the target on that defended
+    branch.` / `That same defended branch keeps the pressure fixed on d6.`).
+    `QuestionFirstCommentaryPlanner` gives that exact same-branch delta a
+    narrow ranking preference over the sibling `WhyThis` restatement only on
+    this admitted owner lane, so Bookmaker and Chronicle now consume
+    `planner_primary=[WhatChanged | MoveDelta | target | This changes the
+    position by fixing d6 as the target.]` rather than exact factual fallback.
+    Broad structure-summary `WhatChanged`, generic weakness prose, and
+    support-only relabeling remain fail-closed.
+    The same admitted packet is also the only live comparative-support lane on
+    canonical `signalDigest.decisionComparison`: when the verified best move
+    survives sanitization and the exact target-state delta survives on the same
+    defended branch, runtime may emit `comparedMove`,
+    `comparativeConsequence`, and
+    `comparativeSource=exact_target_fixation_delta`. Current certified
+    comparative positive is `B21A`, where canonical support may say
+    `Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.`
+    This lane stays support-only: it may not replace the planner owner, may
+    not paraphrase `cpLossVsChosen`, and vanishes when the verified best move
+    is absent.
+    exact `B15A` / `B16B` now open the first planner-owned current-position
+    probe on that same cluster when the live FEN proves the exact Carlsbad
+    target shape (`white to move`, black pawns on `c6` and `d5`, white pawns
+    on `b2` and `d4`), the defended branch key is present, there is no live
+    `exact_target_fixation` move owner already, and the reviewed weakness
+    support survives on the live row. On that admitted slice the runtime now
+    materializes `ownerSource=carlsbad_fixed_target_probe`,
+    `ownerFamily=backward_pawn_targeting`, `scope=PositionLocal`,
+    `bestDefenseBranchKey=h4f2|b7b5` on `B15A` / `f1e1|c8d7` on `B16B`,
+    `sameBranchState=Proven`, `persistence=Stable`, and
+    `main_bundle=The key strategic fact here is that c6 is the fixed target.`
+    `QuestionFirstCommentaryPlanner` now admits that packet only as
+    planner-owned `WhatMattersHere`, so Bookmaker and Chronicle consume the
+    deterministic primary claim plus coda
+    (`So the task is to keep the queenside pressure trained on c6 instead of
+    rushing a conversion.`) rather than inflating support-only Carlsbad prose
+    or reusing move-local `WhyThis` / `WhatChanged`.
+    The slice stays narrow: `K03A` still fails closed on the black-to-move
+    sibling, `K09A` / `K09D` / `K09E` remain preparatory / prophylactic /
+    file-pressure rival dominated, `K09B` / `K09F` still belong only to the
+    promoted bounded `favorable_simplification` slice on the exact
+    `d4e6|f7e6` branch, and generic or synthetic weakness shells outside these
+    dedicated `exact_target_fixation` / `carlsbad_fixed_target_probe`
+    certification lanes remain fail-closed
   - `trade_key_defender` remains blocked without an exact cert owner path, so
-    this change does not widen broader B2/B6/B7/B8 rhetoric
+    this change does not widen broader B2/B6/B7/B8 rhetoric:
+    the packet can now carry post-trade owner-seed plus
+    structure-transition witness on the exact `d4e6|f7e6` control and can
+    prove the same defended branch privately, but `SupportOnlyReinflation`,
+    `RivalRelease`, and the absence of a distinct public certification lane
+    still keep release closed
   - `Minimal` and `Tactical` packaging may not surface unsupported `Better is
     ...`, `The concrete square is ...`, or `A concrete target is ...` claims
     unless the shared truth mode policy has already admitted a concrete,
@@ -1454,6 +1531,16 @@ Current rules:
     residual main-plan proof back into player-facing surfaces
   - no new public payload/schema field exists for this slice; the certification
     contract is backend-only
+  - standalone `entry_square_denial` remains fail-closed:
+    when `SubplanId.KeySquareDenial` does not certify the B4 file-plus-entry
+    pair and does not relabel into the promoted named-resource prophylaxis
+    lane, `PlayerFacingTruthModePolicy` may still build a private
+    square-specific packet but now records `scope_inflation` and suppresses the
+    move-local player-facing release instead of falling through generic
+    `resource_removal` / route-denial prose; exact D01A review
+    (`2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23`)
+    stayed owner-closed with `main_bundle=-` / `planner_primary=-`, and engine
+    reruns at `depth=20/24` kept root-best on `f3d2`
   - removed latent probe purposes (`latent_plan_immediate`,
     `latent_plan_refutation`, `free_tempo_branches`) are not owner-path
     contracts anymore
@@ -1464,7 +1551,8 @@ Current rules:
     `GameChronicleCompressionPolicy`
   - the shared bundle is built once from live carriers only:
     `MainPathMoveDeltaClaimBuilder`, `QuietMoveIntentBuilder`,
-    `CertifiedDecisionFrameBuilder`, sanitized `DecisionComparison`,
+    `CertifiedDecisionFrameBuilder`, sanitized `DecisionComparison` plus the
+    narrow exact-target-fixation comparative-support enrichment,
     `AlternativeNarrativeSupport`, `PlayerFacingTruthModePolicy`,
     current-board `preventedPlans`, `PVDelta`, threat tables, opponent plan,
     and cleaned candidate evidence lines
@@ -2187,9 +2275,15 @@ Current frontend rule:
 - frontend does not reconstruct hidden strategy from free-form prose
 - Chronicle frontend decision-comparison support consumes only canonical
   `signalDigest.decisionComparison`
+- the exact comparative lane is digest-only too:
+  `comparedMove`, `comparativeConsequence`, and `comparativeSource` may render
+  only when they are present on canonical `signalDigest.decisionComparison`
 - `topEngineMove` remains a fallback/debug payload input and may not be
   reprojected into a user-facing decision-comparison surface when the canonical
   digest is absent
+- frontend may not synthesize the comparative lane from `topEngineMove`,
+  `cpLossVsChosen`, deferred fields, `whyAbsentFromTopMultiPV`, or latent
+  strategy carriers when the canonical digest omits it
 - bookmaker controller / decoder no longer serialize or expect legacy
   `latentPlans` / `whyAbsentFromTopMultiPV` fields on the user-facing runtime
   response
@@ -2234,8 +2328,9 @@ Current owner map for Stage-4 surface uplift:
 - remain non-owner / suppressed:
   - `latentPlans`
   - `whyAbsentFromTopMultiPV`
-  - reviewed `static_weakness_fixation` / `backward_pawn_targeting` packet
-    shells without a dedicated exact certification lane
+  - generic reviewed `static_weakness_fixation` / `backward_pawn_targeting`
+    packet shells outside the dedicated `exact_target_fixation` /
+    `carlsbad_fixed_target_probe` certification lanes
   - generic active/support strategic families
   - old thesis / hold-reason revival paths
 

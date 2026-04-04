@@ -305,6 +305,7 @@ private[llm] object GameChronicleCompressionPolicy:
   private def chroniclePriority(kind: AuthorQuestionKind): Int =
     kind match
       case AuthorQuestionKind.WhyNow             => 5
+      case AuthorQuestionKind.WhatMattersHere    => 4
       case AuthorQuestionKind.WhatChanged        => 4
       case AuthorQuestionKind.WhatMustBeStopped  => 3
       case AuthorQuestionKind.WhyThis            => 2
@@ -353,6 +354,9 @@ private[llm] object GameChronicleCompressionPolicy:
       plan.ownerSource == "endgame_transition_translator"
     then
       if plan.questionKind == AuthorQuestionKind.WhatChanged then 5 else 4
+    else if plan.ownerFamily == OwnerFamily.PositionProbe &&
+      plan.questionKind == AuthorQuestionKind.WhatMattersHere
+    then 5
     else if inputs.mainBundle.flatMap(_.mainClaim).exists(claim => sameSentence(claim.claimText, plan.claim)) then 4
     else if plan.questionKind == AuthorQuestionKind.WhatChanged &&
       plan.sourceKinds.exists(kind =>
@@ -462,6 +466,8 @@ private[llm] object GameChronicleCompressionPolicy:
         plan.questionKind match
           case AuthorQuestionKind.WhyNow =>
             containsAny(normalize(line), List("threat", "window", "delay", "immediate", "counterplay"))
+          case AuthorQuestionKind.WhatMattersHere =>
+            containsAny(normalize(line), List("target", "pressure", "queenside", "fixed"))
           case AuthorQuestionKind.WhatChanged =>
             containsAny(normalize(line), List("opens", "pressure", "exchange", "counterplay", "improves"))
           case AuthorQuestionKind.WhatMustBeStopped =>

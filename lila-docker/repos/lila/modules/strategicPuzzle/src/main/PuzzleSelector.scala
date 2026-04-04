@@ -2,31 +2,25 @@ package lila.strategicPuzzle
 
 import scala.util.Random
 
-import lila.core.userId.UserId
 import lila.strategicPuzzle.StrategicPuzzle.*
 
 final class PuzzleSelector(
-    repo: PuzzleRepo,
-    progressRepo: ProgressRepo
+    repo: PuzzleRepo
 )(using Executor):
 
-  def nextFor(userId: UserId, excludeId: Option[String]): Fu[Option[StrategicPuzzleDoc]] =
-    for
-      publicIds <- repo.listPublicIds()
-      clearedIds <- progressRepo.clearedPuzzleIds(userId)
-      chosenId <- chooseNextId(publicIds, clearedIds, excludeId)
-      puzzle <- chosenId.fold(fuccess(none[StrategicPuzzleDoc]))(repo.byId)
-    yield puzzle
+  def nextIdFor(progress: ProgressDoc, excludeId: Option[String]): Fu[Option[String]] =
+    repo
+      .listPublicIds()
+      .map(ids => PuzzleSelector.chooseNextId(ids, progress.clearedPuzzleIds, excludeId, Random.nextInt))
+
+  def nextFor(progress: ProgressDoc, excludeId: Option[String]): Fu[Option[StrategicPuzzleDoc]] =
+    nextIdFor(progress, excludeId).flatMap(_.fold(fuccess(none[StrategicPuzzleDoc]))(repo.byId))
+
+  def nextAnonymousId(excludeId: Option[String]): Fu[Option[String]] =
+    repo.randomPublicId(excludeId.toSet)
 
   def nextAnonymous(excludeId: Option[String]): Fu[Option[StrategicPuzzleDoc]] =
-    repo.randomPublic(excludeId.toSet)
-
-  private def chooseNextId(
-      publicIds: List[String],
-      clearedIds: List[String],
-      excludeId: Option[String]
-  ): Fu[Option[String]] =
-    fuccess(PuzzleSelector.chooseNextId(publicIds, clearedIds, excludeId, Random.nextInt))
+    nextAnonymousId(excludeId).flatMap(_.fold(fuccess(none[StrategicPuzzleDoc]))(repo.byId))
 
 object PuzzleSelector:
 

@@ -667,12 +667,23 @@ private[llm] object DecisiveTruth:
   ): Option[DecisionComparison] =
     comparison.map { existing =>
       val benchmark = contract.benchmarkMove
+      val verifiedBestMove = contract.verifiedBestMove.orElse(existing.engineBestMove)
       val preservedReason =
         if benchmark.nonEmpty && existing.engineBestMove.exists(best => benchmark.exists(move => sameMoveToken(best, move))) then
           existing.deferredReason.flatMap(normalized).map(UserFacingSignalSanitizer.sanitize)
         else None
+      val (preservedComparedMove, preservedComparativeConsequence, preservedComparativeSource) =
+        preservedComparativeFields(
+          comparedMove = existing.comparedMove,
+          consequence = existing.comparativeConsequence,
+          source = existing.comparativeSource,
+          verifiedBestMove = verifiedBestMove
+        )
       existing.copy(
-        engineBestMove = contract.verifiedBestMove.orElse(existing.engineBestMove),
+        engineBestMove = verifiedBestMove,
+        comparedMove = preservedComparedMove,
+        comparativeConsequence = preservedComparativeConsequence,
+        comparativeSource = preservedComparativeSource,
         cpLossVsChosen = Option.when(contract.cpLoss > 0)(contract.cpLoss),
         deferredMove = benchmark,
         deferredReason = preservedReason,
@@ -690,12 +701,23 @@ private[llm] object DecisiveTruth:
       val benchmark = contract.benchmarkMove
       val sanitizedComparison =
         existing.decisionComparison.map { comparison =>
+          val verifiedBestMove = contract.verifiedBestMove.orElse(comparison.engineBestMove)
           val preservedReason =
             if benchmark.nonEmpty && comparison.engineBestMove.exists(best => benchmark.exists(move => sameMoveToken(best, move))) then
               comparison.deferredReason.flatMap(normalized).map(UserFacingSignalSanitizer.sanitize)
             else None
+          val (preservedComparedMove, preservedComparativeConsequence, preservedComparativeSource) =
+            preservedComparativeFields(
+              comparedMove = comparison.comparedMove,
+              consequence = comparison.comparativeConsequence,
+              source = comparison.comparativeSource,
+              verifiedBestMove = verifiedBestMove
+            )
           comparison.copy(
-            engineBestMove = contract.verifiedBestMove.orElse(comparison.engineBestMove),
+            engineBestMove = verifiedBestMove,
+            comparedMove = preservedComparedMove,
+            comparativeConsequence = preservedComparativeConsequence,
+            comparativeSource = preservedComparativeSource,
             cpLossVsChosen = Option.when(contract.cpLoss > 0)(contract.cpLoss),
             deferredMove = benchmark,
             deferredReason = preservedReason,
@@ -711,6 +733,28 @@ private[llm] object DecisiveTruth:
         investedMaterial = Option.when(contract.compensationProseAllowed)(existing.investedMaterial).flatten
       )
     }
+
+  private def preservedComparativeFields(
+      comparedMove: Option[String],
+      consequence: Option[String],
+      source: Option[String],
+      verifiedBestMove: Option[String]
+  ): (Option[String], Option[String], Option[String]) =
+    val preservedSource =
+      source.flatMap(normalized).filter(_ == DecisionComparisonComparativeSupport.ExactTargetFixationSource)
+    val preservedConsequence =
+      Option.when(preservedSource.nonEmpty && verifiedBestMove.nonEmpty) {
+        consequence.flatMap(normalized).map(UserFacingSignalSanitizer.sanitize)
+      }.flatten
+    val preservedComparedMove =
+      Option.when(preservedConsequence.nonEmpty) {
+        comparedMove.flatMap(normalized)
+      }.flatten
+    (
+      preservedComparedMove,
+      preservedConsequence,
+      preservedSource.filter(_ => preservedConsequence.nonEmpty)
+    )
 
   def sanitizeStrategyPack(
       strategyPack: Option[StrategyPack],

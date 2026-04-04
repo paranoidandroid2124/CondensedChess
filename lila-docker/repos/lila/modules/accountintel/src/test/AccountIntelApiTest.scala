@@ -17,45 +17,51 @@ class AccountIntelApiTest extends munit.FunSuite:
 
     def byId(id: String) = fuccess(jobs.get(id))
     def insert(job: AccountIntelJob) =
-      val duplicateActive =
-        jobs.values.exists(existing =>
-          existing.dedupeKey == job.dedupeKey && Set(JobStatus.Queued, JobStatus.Running).contains(existing.status)
+      val duplicateActiveBuild =
+        job.buildOwner && jobs.values.exists(existing =>
+          existing.buildOwner && existing.dedupeKey == job.dedupeKey && Set(JobStatus.Queued, JobStatus.Running).contains(existing.status)
         )
-      if duplicateActive then fufail(new RuntimeException("E11000 duplicate key error collection: accountIntel active_dedupe_unique"))
+      if duplicateActiveBuild then fufail(new RuntimeException("E11000 duplicate key error collection: accountIntel active_build_unique"))
       else
         inserted = inserted :+ job
         jobs = jobs.updated(job.id, job)
         funit
-    def latestByDedupeKey(dedupeKey: String) =
+    def latestByOwnerScopeKey(ownerScopeKey: String) =
       fuccess(
         jobs.values
-          .filter(_.dedupeKey == dedupeKey)
+          .filter(_.ownerScopeKey == ownerScopeKey)
           .toList
           .sortBy(_.updatedAt.toEpochMilli)
           .lastOption
       )
-    def latestSucceededByDedupeKey(dedupeKey: String) =
+    def latestSucceededByOwnerScopeKey(ownerScopeKey: String) =
       fuccess(
         jobs.values
-          .filter(job => job.dedupeKey == dedupeKey && job.status == JobStatus.Succeeded)
+          .filter(job => job.ownerScopeKey == ownerScopeKey && job.status == JobStatus.Succeeded)
           .toList
           .sortBy(_.updatedAt.toEpochMilli)
           .lastOption
       )
-    def latestActiveByDedupeKey(dedupeKey: String) =
+    def latestActiveByOwnerScopeKey(ownerScopeKey: String) =
       fuccess(
         jobs.values
-          .filter(job =>
-            job.dedupeKey == dedupeKey && Set(JobStatus.Queued, JobStatus.Running).contains(job.status)
-          )
+          .filter(job => job.ownerScopeKey == ownerScopeKey && Set(JobStatus.Queued, JobStatus.Running).contains(job.status))
           .toList
           .sortBy(_.updatedAt.toEpochMilli)
           .lastOption
       )
-    def recentByDedupeKey(dedupeKey: String, limit: Int) =
+    def latestActiveBuildByDedupeKey(dedupeKey: String) =
       fuccess(
         jobs.values
-          .filter(_.dedupeKey == dedupeKey)
+          .filter(job => job.buildOwner && job.dedupeKey == dedupeKey && Set(JobStatus.Queued, JobStatus.Running).contains(job.status))
+          .toList
+          .sortBy(_.updatedAt.toEpochMilli)
+          .lastOption
+      )
+    def recentByOwnerScopeKey(ownerScopeKey: String, limit: Int) =
+      fuccess(
+        jobs.values
+          .filter(_.ownerScopeKey == ownerScopeKey)
           .toList
           .sortBy(_.updatedAt.toEpochMilli)(Ordering.Long.reverse)
           .take(limit)
@@ -70,15 +76,26 @@ class AccountIntelApiTest extends munit.FunSuite:
       )
     def claimNextQueued(now: Instant) = fuccess(none)
     def claimQueuedById(id: String, now: Instant) = fuccess(none)
-    def setProgress(id: String, progressStage: String) = funit
+    def setProgress(
+        id: String,
+        progressStage: String,
+        snapshotState: String,
+        processedGames: Option[Int],
+        totalGames: Option[Int],
+        etaSec: Option[Int]
+    ) = funit
     def markSucceeded(
         id: String,
-        studyId: String,
-        chapterId: String,
-        notebookUrl: String,
+        surfaceId: String,
+        sourceFingerprint: String,
         warnings: List[String],
-        surfaceJson: String
+        surfaceJson: String,
+        sampledGameCount: Int,
+        totalGames: Int,
+        cacheHit: Boolean,
+        refreshLockedUntil: Option[Instant]
     ) = funit
+    def setPublication(id: String, studyId: String, chapterId: String, notebookUrl: String) = funit
     def markFailed(id: String, code: String, message: String) =
       markedFailed = markedFailed :+ (id, code, message)
       jobs.get(id).foreach: job =>
@@ -87,125 +104,138 @@ class AccountIntelApiTest extends munit.FunSuite:
     def requeueTimedOutRunning(timeout: scala.concurrent.duration.FiniteDuration, retryLimit: Int) = funit
     def cleanupExpired(successTtl: scala.concurrent.duration.FiniteDuration, failedTtl: scala.concurrent.duration.FiniteDuration) = funit
 
+  private class FakeSurfaceStore(initial: List[AccountIntelSurfaceSnapshot] = Nil) extends AccountIntelSurfaceStore:
+    private var snapshots = initial.map(snapshot => snapshot.id -> snapshot).toMap
+
+    def byId(id: String) = fuccess(snapshots.get(id))
+    def latestByDedupeKey(dedupeKey: String) =
+      fuccess(
+        snapshots.values.filter(_.dedupeKey == dedupeKey).toList.sortBy(_.updatedAt.toEpochMilli).lastOption
+      )
+    def latestFreshByDedupeKey(dedupeKey: String, freshSince: Instant) =
+      fuccess(
+        snapshots.values
+          .filter(snapshot => snapshot.dedupeKey == dedupeKey && !snapshot.updatedAt.isBefore(freshSince))
+          .toList
+          .sortBy(_.updatedAt.toEpochMilli)
+          .lastOption
+      )
+    def byDedupeKeyAndFingerprint(dedupeKey: String, sourceFingerprint: String) =
+      fuccess(snapshots.values.find(snapshot => snapshot.dedupeKey == dedupeKey && snapshot.sourceFingerprint == sourceFingerprint))
+    def insert(snapshot: AccountIntelSurfaceSnapshot) =
+      snapshots = snapshots.updated(snapshot.id, snapshot)
+      funit
+
   private class FakeDispatcher(result: DispatchOutcome = DispatchOutcome.Accepted) extends AccountIntelJobDispatcher:
     var dispatched = List.empty[AccountIntelJob]
     def dispatch(job: AccountIntelJob) =
       dispatched = dispatched :+ job
       fuccess(result)
 
-  test("submit reuses fresh successful jobs instead of inserting duplicates"):
-    val existing = AccountIntelJob
-      .newQueued("u1", "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite)
-      .copy(
-        status = JobStatus.Succeeded,
-        updatedAt = Instant.now().minusSeconds(10)
-      )
-    val repo = new FakeStore(List(existing))
-    val dispatcher = new FakeDispatcher
-    val api = new AccountIntelApi(Configuration.empty, repo, dispatcher)
-
-    api.submit(UserId("u1"), "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite).map: result =>
-      assertEquals(result, Right(existing))
-      assertEquals(repo.inserted, Nil)
-      assertEquals(dispatcher.dispatched, Nil)
+  private def sampleSurface(
+      provider: String = "chesscom",
+      username: String = "ych24",
+      kind: ProductKind = ProductKind.MyAccountIntelligenceLite,
+      updatedAt: Instant = Instant.now()
+  ) =
+    AccountIntelSurfaceSnapshot(
+      id = "surface-1",
+      dedupeKey = AccountIntelJob.dedupeKey(provider, username, kind),
+      provider = provider,
+      username = username,
+      kind = kind,
+      sourceFingerprint = "fp-1",
+      surfaceJson = """{"headline":"cached","source":{"sampledGameCount":12}}""",
+      dossierJson = """{"kind":"dossier"}""",
+      representativePgn = "1. e4 e5 2. Nf3 Nc6",
+      sampledGameCount = 12,
+      eligibleGameCount = 12,
+      warnings = List("cached"),
+      createdAt = updatedAt,
+      updatedAt = updatedAt
+    )
 
   test("submit validates provider and username before queueing"):
     val repo = new FakeStore()
+    val surfaces = new FakeSurfaceStore()
     val dispatcher = new FakeDispatcher
-    val api = new AccountIntelApi(Configuration.empty, repo, dispatcher)
+    val api = new AccountIntelApi(Configuration.empty, repo, surfaces, dispatcher)
 
     api.submit(UserId("u1"), "bad-provider", "??", ProductKind.OpponentPrep).map: result =>
       assert(result.isLeft)
       assertEquals(repo.inserted, Nil)
       assertEquals(dispatcher.dispatched, Nil)
 
-  test("submit requeues stale failed jobs after cooldown instead of reusing them"):
-    val existing = AccountIntelJob
-      .newQueued("u1", "chesscom", "ych24", ProductKind.OpponentPrep)
-      .copy(
-        status = JobStatus.Failed,
-        attemptCount = 1,
-        updatedAt = Instant.now().minusSeconds(3600)
-      )
+  test("submit reuses owner active jobs before creating duplicates"):
+    val existing = AccountIntelJob.newQueued("u1", "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite)
     val repo = new FakeStore(List(existing))
-    val config = Configuration.from(Map("accountIntel.job.failedCooldown" -> "5 minutes"))
+    val surfaces = new FakeSurfaceStore()
     val dispatcher = new FakeDispatcher
-    val api = new AccountIntelApi(config, repo, dispatcher)
-
-    api.submit(UserId("u1"), "chesscom", "ych24", ProductKind.OpponentPrep).map: result =>
-      assert(result.isRight)
-      assertEquals(repo.inserted.size, 1)
-      assertNotEquals(repo.inserted.head.id, existing.id)
-      assertEquals(dispatcher.dispatched.size, 1)
-
-  test("status only returns jobs owned by the caller"):
-    val existing = AccountIntelJob.newQueued("u2", "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite)
-    val repo = new FakeStore(List(existing))
-    val api = new AccountIntelApi(Configuration.empty, repo, new FakeDispatcher)
-
-    api.status(UserId("u1"), existing.id).map: result =>
-      assertEquals(result, None)
-
-  test("submit dispatches newly queued jobs for external worker pickup"):
-    val repo = new FakeStore()
-    val dispatcher = new FakeDispatcher
-    val api = new AccountIntelApi(Configuration.empty, repo, dispatcher)
+    val api = new AccountIntelApi(Configuration.empty, repo, surfaces, dispatcher)
 
     api.submit(UserId("u1"), "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite).map: result =>
-      assert(result.isRight)
-      assertEquals(repo.inserted.size, 1)
-      assertEquals(dispatcher.dispatched.map(_.id), repo.inserted.map(_.id))
+      assertEquals(result, Right(existing))
+      assertEquals(repo.inserted, Nil)
+      assertEquals(dispatcher.dispatched, Nil)
 
-  test("submit reuses the already-active job when an active dedupe collision occurs at insert time"):
+  test("submit attaches a cached surface for a different owner without dispatching"):
+    val repo = new FakeStore()
+    val surfaces = new FakeSurfaceStore(List(sampleSurface(updatedAt = Instant.now().minusSeconds(60))))
+    val dispatcher = new FakeDispatcher
+    val api = new AccountIntelApi(Configuration.empty, repo, surfaces, dispatcher)
+
+    api.submit(UserId("u2"), "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite).map: result =>
+      val job = result.toOption.get
+      assertEquals(job.status, JobStatus.Succeeded)
+      assertEquals(job.cacheHit, true)
+      assertEquals(job.buildOwner, false)
+      assertEquals(repo.inserted.size, 1)
+      assertEquals(dispatcher.dispatched, Nil)
+
+  test("submit attaches a watcher run to an active shared build from another owner"):
     val active = AccountIntelJob
       .newQueued("u1", "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite)
-      .copy(status = JobStatus.Queued)
+      .copy(status = JobStatus.Running, queueState = "running", snapshotState = "fetching_games")
     val repo = new FakeStore(List(active))
+    val surfaces = new FakeSurfaceStore()
     val dispatcher = new FakeDispatcher
-    val api = new AccountIntelApi(Configuration.empty, repo, dispatcher)
+    val api = new AccountIntelApi(Configuration.empty, repo, surfaces, dispatcher)
+
+    api.submit(UserId("u2"), "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite).map: result =>
+      val watcher = result.toOption.get
+      assertEquals(watcher.buildOwner, false)
+      assertEquals(watcher.buildSourceId, Some(active.id))
+      assertEquals(watcher.status, JobStatus.Running)
+      assertEquals(dispatcher.dispatched, Nil)
+
+  test("force submit respects shared refresh cooldown"):
+    val repo = new FakeStore()
+    val surfaces = new FakeSurfaceStore(List(sampleSurface(updatedAt = Instant.now().minusSeconds(120))))
+    val api = new AccountIntelApi(Configuration.empty, repo, surfaces, new FakeDispatcher)
+
+    api.submit(UserId("u2"), "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite, force = true).map: result =>
+      assert(result.left.exists(_.startsWith("Refresh is locked until")))
+
+  test("submit dispatches a newly queued build when no shared surface exists"):
+    val repo = new FakeStore()
+    val surfaces = new FakeSurfaceStore()
+    val dispatcher = new FakeDispatcher
+    val api = new AccountIntelApi(Configuration.empty, repo, surfaces, dispatcher)
 
     api.submit(UserId("u1"), "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite).map: result =>
-      assertEquals(result, Right(active))
-      assertEquals(repo.inserted, Nil)
+      val job = result.toOption.get
+      assertEquals(job.buildOwner, true)
+      assertEquals(repo.inserted.size, 1)
+      assertEquals(dispatcher.dispatched.map(_.id), List(job.id))
 
-  test("submit fails and marks the job failed when dispatch is unavailable on a workerless node"):
+  test("submit fails and marks the build failed when dispatch is unavailable on a workerless node"):
     val repo = new FakeStore()
+    val surfaces = new FakeSurfaceStore()
     val dispatcher = new FakeDispatcher(DispatchOutcome.Failed("worker offline"))
     val config = Configuration.from(Map("accountIntel.worker.enabled" -> false))
-    val api = new AccountIntelApi(config, repo, dispatcher)
+    val api = new AccountIntelApi(config, repo, surfaces, dispatcher)
 
     api.submit(UserId("u1"), "chesscom", "ych24", ProductKind.OpponentPrep).map: result =>
       assertEquals(result, Left("Account notebook worker is unavailable. Please try again later."))
       assertEquals(repo.inserted.size, 1)
       assertEquals(repo.markedFailed.headOption.map(_._2), Some("dispatch_failed"))
-
-  test("selectedJob resolves an older job by id outside the truncated history window"):
-    val older = AccountIntelJob
-      .newQueued("u1", "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite)
-      .copy(status = JobStatus.Succeeded)
-    val newer = (1 to 12).toList.map { i =>
-      AccountIntelJob
-        .newQueued("u1", "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite)
-        .copy(status = JobStatus.Succeeded, updatedAt = Instant.now().plusSeconds(i.toLong))
-    }
-    val repo = new FakeStore(older :: newer)
-    val api = new AccountIntelApi(Configuration.empty, repo, new FakeDispatcher)
-
-    api.selectedJob(UserId("u1"), "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite, older.id).map: result =>
-      assertEquals(result, Right(Some(older)))
-
-  test("submit with force bypasses dedupe reuse"):
-    val existing = AccountIntelJob
-      .newQueued("u1", "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite)
-      .copy(
-        status = JobStatus.Succeeded,
-        updatedAt = Instant.now().minusSeconds(10)
-      )
-    val repo = new FakeStore(List(existing))
-    val dispatcher = new FakeDispatcher
-    val api = new AccountIntelApi(Configuration.empty, repo, dispatcher)
-
-    api.submit(UserId("u1"), "chesscom", "ych24", ProductKind.MyAccountIntelligenceLite, force = true).map: result =>
-      assert(result.isRight)
-      assertEquals(repo.inserted.size, 1)
-      assertNotEquals(repo.inserted.head.id, existing.id)

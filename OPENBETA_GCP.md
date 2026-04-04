@@ -92,11 +92,18 @@ These bindings are only required when the related mode is enabled.
 - `ACCOUNT_INTEL_DISPATCH_BASE_URL`
 - `ACCOUNT_INTEL_DISPATCH_BEARER_TOKEN`
 - `ACCOUNT_INTEL_WORKER_TOKEN`
+- `ACCOUNT_INTEL_CLOUD_TASKS_PROJECT_ID`
+- `ACCOUNT_INTEL_CLOUD_TASKS_LOCATION`
+- `ACCOUNT_INTEL_CLOUD_TASKS_QUEUE`
+- `ACCOUNT_INTEL_CLOUD_TASKS_WORKER_URL`
+- `ACCOUNT_INTEL_CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL`
+- `ACCOUNT_INTEL_CLOUD_TASKS_AUDIENCE`
 - `ACCOUNT_INTEL_SELECTIVE_EVAL_ENDPOINT`
 
 Rules:
 
 - if `ACCOUNT_INTEL_DISPATCH_BASE_URL` is set, the dispatch auth token set must be complete before deploy
+- if `ACCOUNT_INTEL_CLOUD_TASKS_QUEUE` is set, the Cloud Tasks project/location/worker URL/service account set must be complete before deploy
 - if `ACCOUNT_INTEL_SELECTIVE_EVAL_ENDPOINT` is set, it becomes part of readiness and must point to a real remote service
 - if dispatch is not configured, local worker mode remains valid
 
@@ -162,6 +169,14 @@ gcloud run services update chesstory-openbeta \
   --region=asia-northeast3 \
   --update-env-vars=ACCOUNT_INTEL_DISPATCH_BASE_URL=https://worker.chesstory.com \
   --set-secrets=ACCOUNT_INTEL_DISPATCH_BEARER_TOKEN=account-intel-dispatch-token:latest,ACCOUNT_INTEL_WORKER_TOKEN=account-intel-worker-token:latest
+```
+
+Cloud Tasks Account Intel dispatch bindings:
+
+```bash
+gcloud run services update chesstory-openbeta \
+  --region=asia-northeast3 \
+  --update-env-vars=ACCOUNT_INTEL_CLOUD_TASKS_PROJECT_ID=YOUR_PROJECT,ACCOUNT_INTEL_CLOUD_TASKS_LOCATION=asia-northeast3,ACCOUNT_INTEL_CLOUD_TASKS_QUEUE=account-intel-builds,ACCOUNT_INTEL_CLOUD_TASKS_WORKER_URL=https://chesstory-account-intel-worker-xxxxx.run.app,ACCOUNT_INTEL_CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL=cloud-tasks-invoker@YOUR_PROJECT.iam.gserviceaccount.com,ACCOUNT_INTEL_CLOUD_TASKS_AUDIENCE=https://chesstory-account-intel-worker-xxxxx.run.app
 ```
 
 ## Open-beta product feedback path

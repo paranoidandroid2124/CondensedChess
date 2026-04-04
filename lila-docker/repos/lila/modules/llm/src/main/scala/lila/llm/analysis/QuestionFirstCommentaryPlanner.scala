@@ -59,6 +59,7 @@ private[llm] enum OwnerFamily:
   case TacticalFailure
   case ForcingDefense
   case MoveDelta
+  case PositionProbe
   case DecisionTiming
   case PlanRace
   case OpeningRelation
@@ -69,6 +70,7 @@ private[llm] enum OwnerFamily:
       case TacticalFailure   => "TacticalFailure"
       case ForcingDefense    => "ForcingDefense"
       case MoveDelta         => "MoveDelta"
+      case PositionProbe     => "PositionProbe"
       case DecisionTiming    => "DecisionTiming"
       case PlanRace          => "PlanRace"
       case OpeningRelation   => "OpeningRelation"
@@ -309,6 +311,15 @@ private[llm] object QuestionPlannerInputsBuilder:
         .distinct
     val mainBundle =
       MainPathMoveDeltaClaimBuilder.build(ctx, strategyPack, truthContract, cleanedEvidenceLines)
+    val comparativeDecisionComparison =
+      DecisionComparisonComparativeSupport.enrich(
+        comparison = decisionComparison,
+        ctx = ctx,
+        strategyPack = strategyPack,
+        truthContract = truthContract,
+        candidateEvidenceLines = cleanedEvidenceLines,
+        mainBundleOverride = mainBundle
+      )
     val quietIntent =
       Option.when(mainBundle.isEmpty) {
         QuietMoveIntentBuilder.build(ctx, cleanedEvidenceLines)
@@ -339,7 +350,7 @@ private[llm] object QuestionPlannerInputsBuilder:
       mainBundle = mainBundle,
       quietIntent = quietIntent,
       decisionFrame = decisionFrame,
-      decisionComparison = decisionComparison,
+      decisionComparison = comparativeDecisionComparison,
       alternativeNarrative = AlternativeNarrativeSupport.build(ctx),
       truthMode = PlayerFacingTruthModePolicy.classify(ctx, strategyPack, truthContract),
       preventedPlansNow = preventedPlansNow,
@@ -476,6 +487,8 @@ private[llm] object QuestionFirstCommentaryPlanner:
       sceneType: SceneType
   ): Either[QuestionPlan, RejectedQuestionPlan] =
     question.kind match
+      case AuthorQuestionKind.WhatMattersHere =>
+        buildWhatMattersHerePlan(question, inputs, truthContract, sceneType)
       case AuthorQuestionKind.WhyThis =>
         buildWhyThisPlan(question, inputs, truthContract, sceneType)
       case AuthorQuestionKind.WhyNow =>
@@ -487,8 +500,9 @@ private[llm] object QuestionFirstCommentaryPlanner:
       case AuthorQuestionKind.WhosePlanIsFaster =>
         buildWhosePlanIsFasterPlan(question, ply, inputs, truthContract, sceneType)
 
-  private def planScore(sceneType: SceneType, plan: QuestionPlan): (Int, Int, Int, Int, Int, Int, Int) =
+  private def planScore(sceneType: SceneType, plan: QuestionPlan): (Int, Int, Int, Int, Int, Int, Int, Int) =
     (
+      exactStateDeltaPriority(plan),
       questionSuitability(sceneType, plan),
       strengthScore(plan.strengthTier),
       plan.contrast.fold(0)(_ => 1),
@@ -498,6 +512,13 @@ private[llm] object QuestionFirstCommentaryPlanner:
       tacticalSeverity(plan)
     )
 
+  private def exactStateDeltaPriority(plan: QuestionPlan): Int =
+    Option.when(
+      plan.questionKind == AuthorQuestionKind.WhatChanged &&
+        plan.admissibilityReasons.contains("exact_target_state_delta") &&
+        (plan.contrast.nonEmpty || plan.consequence.nonEmpty)
+    )(1).getOrElse(0)
+
   private def questionSuitability(
       sceneType: SceneType,
       plan: QuestionPlan
@@ -505,6 +526,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
     sceneType match
       case SceneType.TacticalFailure =>
         plan.questionKind match
+          case AuthorQuestionKind.WhatMattersHere => 1
           case AuthorQuestionKind.WhyThis           => 5
           case AuthorQuestionKind.WhatChanged       => 4
           case AuthorQuestionKind.WhatMustBeStopped => 3
@@ -512,6 +534,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
           case AuthorQuestionKind.WhosePlanIsFaster => 1
       case SceneType.ForcingDefense =>
         plan.questionKind match
+          case AuthorQuestionKind.WhatMattersHere => 1
           case AuthorQuestionKind.WhatMustBeStopped => 5
           case AuthorQuestionKind.WhyNow            => 4
           case AuthorQuestionKind.WhatChanged       => 3
@@ -519,6 +542,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
           case AuthorQuestionKind.WhosePlanIsFaster => 1
       case SceneType.PlanClash =>
         plan.questionKind match
+          case AuthorQuestionKind.WhatMattersHere => 1
           case AuthorQuestionKind.WhosePlanIsFaster => 5
           case AuthorQuestionKind.WhyThis           => 4
           case AuthorQuestionKind.WhyNow            => 3
@@ -526,6 +550,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
           case AuthorQuestionKind.WhatMustBeStopped => 1
       case SceneType.TransitionConversion =>
         plan.questionKind match
+          case AuthorQuestionKind.WhatMattersHere => 2
           case AuthorQuestionKind.WhatChanged       => 5
           case AuthorQuestionKind.WhyThis           => 4
           case AuthorQuestionKind.WhyNow            => 3
@@ -533,6 +558,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
           case AuthorQuestionKind.WhosePlanIsFaster => 1
       case SceneType.OpeningRelation =>
         plan.questionKind match
+          case AuthorQuestionKind.WhatMattersHere => 1
           case AuthorQuestionKind.WhyThis           => 5
           case AuthorQuestionKind.WhatChanged       => 4
           case AuthorQuestionKind.WhyNow            => 3
@@ -540,6 +566,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
           case AuthorQuestionKind.WhosePlanIsFaster => 1
       case SceneType.EndgameTransition =>
         plan.questionKind match
+          case AuthorQuestionKind.WhatMattersHere => 1
           case AuthorQuestionKind.WhatChanged       => 5
           case AuthorQuestionKind.WhyThis           => 4
           case AuthorQuestionKind.WhyNow            => 3
@@ -547,6 +574,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
           case AuthorQuestionKind.WhosePlanIsFaster => 1
       case SceneType.QuietImprovement =>
         plan.questionKind match
+          case AuthorQuestionKind.WhatMattersHere => 6
           case AuthorQuestionKind.WhyThis           => 5
           case AuthorQuestionKind.WhatChanged       => 4
           case AuthorQuestionKind.WhyNow            => 3
@@ -579,11 +607,23 @@ private[llm] object QuestionFirstCommentaryPlanner:
       head.questionId != candidate.questionId &&
       head.questionKind != candidate.questionKind &&
       !sameText(head.claim, candidate.claim) &&
+      !suppressesExactStateDeltaRestatement(head, candidate) &&
       (
         candidate.contrast.exists(text => !head.contrast.exists(sameText(_, text))) ||
           candidate.evidence.exists(e => !head.evidence.exists(existing => sameText(existing.text, e.text)))
       )
     }
+
+  private def suppressesExactStateDeltaRestatement(
+      primary: QuestionPlan,
+      candidate: QuestionPlan
+  ): Boolean =
+    primary.questionKind == AuthorQuestionKind.WhatChanged &&
+      primary.admissibilityReasons.contains("exact_target_state_delta") &&
+      candidate.questionKind == AuthorQuestionKind.WhyThis &&
+      primary.ownerFamily == OwnerFamily.MoveDelta &&
+      candidate.ownerFamily == OwnerFamily.MoveDelta &&
+      primary.ownerSource == candidate.ownerSource
 
   private def buildAuthorEvidence(
       question: AuthorQuestion,
@@ -935,6 +975,55 @@ private[llm] object QuestionFirstCommentaryPlanner:
       s"That removes roughly ${plan.counterplayScoreDrop}cp of counterplay from the next phase."
     }
 
+  private def exactTargetFixationPacket(
+      inputs: QuestionPlannerInputs
+  ): Option[PlayerFacingClaimPacket] =
+    inputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).filter(packet =>
+      packet.ownerSource == PlayerFacingTruthModePolicy.ExactTargetFixationOwnerSource &&
+        packet.ownerFamily == ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id &&
+        packet.bestDefenseBranchKey.nonEmpty &&
+        packet.sameBranchState == PlayerFacingSameBranchState.Proven &&
+        packet.persistence == PlayerFacingClaimPersistence.Stable
+    )
+
+  private def exactTargetFixationSquare(
+      packet: PlayerFacingClaimPacket
+  ): Option[String] =
+    (packet.ownerPathWitness.ownerSeedTerms ++ packet.anchorTerms)
+      .flatMap(cleanLine)
+      .map(_.toLowerCase)
+      .find(_.matches("[a-h][1-8]"))
+
+  private def exactTargetFixationChangeClaim(
+      inputs: QuestionPlannerInputs
+  ): Option[String] =
+    exactTargetFixationPacket(inputs).flatMap(packet =>
+      exactTargetFixationSquare(packet).map(square =>
+        s"This changes the position by fixing $square as the target."
+      )
+    )
+
+  private def exactTargetFixationChangeContrast(
+      inputs: QuestionPlannerInputs
+  ): Option[String] =
+    exactTargetFixationPacket(inputs).flatMap(packet =>
+      exactTargetFixationSquare(packet).map(square =>
+        s"Before the move, $square was not yet fixed as the target on that defended branch."
+      )
+    )
+
+  private def exactTargetFixationChangeConsequence(
+      inputs: QuestionPlannerInputs
+  ): Option[QuestionPlanConsequence] =
+    exactTargetFixationPacket(inputs).flatMap(packet =>
+      exactTargetFixationSquare(packet).map(square =>
+        QuestionPlanConsequence(
+          s"That same defended branch keeps the pressure fixed on $square.",
+          QuestionPlanConsequenceBeat.WrapUp
+        )
+      )
+    )
+
   private def decisionComparisonChangeClaim(
       comparison: Option[DecisionComparison]
   ): Option[String] =
@@ -1112,6 +1201,67 @@ private[llm] object QuestionFirstCommentaryPlanner:
       ownerSource = "endgame_transition_translator"
     )
 
+  private def buildWhatMattersHerePlan(
+      question: AuthorQuestion,
+      inputs: QuestionPlannerInputs,
+      @unused truthContract: Option[DecisiveTruthContract],
+      @unused sceneType: SceneType
+  ): Either[QuestionPlan, RejectedQuestionPlan] =
+    given QuestionPlannerInputs = inputs
+    val positionProbe =
+      inputs.mainBundle.flatMap(_.mainClaim).filter(_.scope == PlayerFacingClaimScope.PositionLocal)
+    positionProbe match
+      case None =>
+        reject(question, QuestionPlanFallbackMode.FactualFallback, "position_probe_missing")
+      case Some(claim) =>
+        val packet = claim.packet
+        val ownerSource = packet.map(_.ownerSource).getOrElse(claim.sourceKind)
+        val evidence =
+          evidenceForQuestion(
+            question = question,
+            fallbackLine = inputs.mainBundle.flatMap(_.lineScopedClaim).map(_.claimText),
+            sourceKinds = List(claim.sourceKind)
+          )
+        val consequence =
+          packet.flatMap(positionProbeConsequence).map(text =>
+            QuestionPlanConsequence(text, QuestionPlanConsequenceBeat.WrapUp)
+          )
+        val strength =
+          packet.filter(p =>
+            p.sameBranchState == PlayerFacingSameBranchState.Proven &&
+              p.persistence == PlayerFacingClaimPersistence.Stable
+          ).map(_ => QuestionPlanStrengthTier.Strong).getOrElse(QuestionPlanStrengthTier.Moderate)
+        mkPlan(
+          question = question,
+          kind = AuthorQuestionKind.WhatMattersHere,
+          claim = claim.claimText,
+          evidence = evidence,
+          contrast = None,
+          consequence = consequence,
+          fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
+          strengthTier = strength,
+          sourceKinds = List(claim.sourceKind),
+          admissibilityReasons = List("position_probe_owner", "current_position_truth"),
+          ownerFamily = OwnerFamily.PositionProbe,
+          ownerSource = ownerSource
+        )
+
+  private def positionProbeConsequence(packet: PlayerFacingClaimPacket): Option[String] =
+    val exactSquare =
+      (packet.ownerPathWitness.ownerSeedTerms ++ packet.anchorTerms)
+        .flatMap(cleanLine)
+        .map(_.toLowerCase)
+        .find(_.matches("[a-h][1-8]"))
+    Option.when(
+      packet.ownerSource == PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource
+    ) {
+      exactSquare
+        .map(square =>
+          s"So the task is to keep the queenside pressure trained on $square instead of rushing a conversion."
+        )
+        .getOrElse("So the task is to keep the pressure on the fixed target instead of rushing a conversion.")
+    }
+
   private def buildWhyThisPlan(
       question: AuthorQuestion,
       inputs: QuestionPlannerInputs,
@@ -1121,9 +1271,10 @@ private[llm] object QuestionFirstCommentaryPlanner:
     given QuestionPlannerInputs = inputs
     val moveOwnerClaim =
       inputs.mainBundle.flatMap { bundle =>
-        bundle.mainClaim.orElse(
+        bundle.mainClaim.filter(_.scope == PlayerFacingClaimScope.MoveLocal).orElse(
           bundle.lineScopedClaim.filter(claim =>
-            claim.packet.exists(_.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain)
+            claim.scope == PlayerFacingClaimScope.LineScoped &&
+              claim.packet.exists(_.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain)
           )
         )
       }
@@ -1384,16 +1535,20 @@ private[llm] object QuestionFirstCommentaryPlanner:
         case SceneType.EndgameTransition if inputs.endgameTransitionClaim.nonEmpty =>
           Some(buildEndgameTransitionPlan(question, inputs, AuthorQuestionKind.WhatChanged))
         case _ => None
-    val moveOwner = inputs.mainBundle.flatMap(_.mainClaim)
+    val moveOwner =
+      inputs.mainBundle.flatMap(_.mainClaim).filter(_.scope == PlayerFacingClaimScope.MoveLocal)
+    val exactTargetFixationChange = exactTargetFixationChangeClaim(inputs)
     val canPromoteDecisionComparisonChange =
       moveOwner.nonEmpty || hasConcreteMoveDeltaChange(inputs)
     val allowedPreventedPlans =
       Option.unless(inputs.heavyPieceLocalBindBlocked)(inputs.preventedPlansNow).getOrElse(Nil)
     val moveLinkedChange =
-      inputs.pvDelta.flatMap { delta =>
-        resolvedThreatConsequence(delta)
-          .orElse(newOpportunityConsequence(delta))
-          .orElse(planAdvanceConsequence(delta))
+      exactTargetFixationChange.orElse {
+        inputs.pvDelta.flatMap { delta =>
+          resolvedThreatConsequence(delta)
+            .orElse(newOpportunityConsequence(delta))
+            .orElse(planAdvanceConsequence(delta))
+        }
       }.orElse {
         localFileEntryChangeClaim(inputs)
       }.orElse {
@@ -1411,9 +1566,11 @@ private[llm] object QuestionFirstCommentaryPlanner:
               .orElse(moveOwner.map(_.claimText))
               .getOrElse("")
           val contrast =
-            inputs.pvDelta.flatMap { delta =>
-              delta.resolvedThreats.headOption.map(threat => s"Before the move, $threat was still on the board.")
-                .orElse(delta.concessions.headOption.map(concession => s"The tradeoff is that $concession."))
+            exactTargetFixationChangeContrast(inputs).orElse {
+              inputs.pvDelta.flatMap { delta =>
+                delta.resolvedThreats.headOption.map(threat => s"Before the move, $threat was still on the board.")
+                  .orElse(delta.concessions.headOption.map(concession => s"The tradeoff is that $concession."))
+              }
             }.orElse {
               localFileEntryChangeContrast(inputs)
             }.orElse {
@@ -1422,10 +1579,12 @@ private[llm] object QuestionFirstCommentaryPlanner:
               Option.when(canPromoteDecisionComparisonChange)(decisionComparisonChangeContrast(inputs.decisionComparison)).flatten
             }
           val consequence =
-            inputs.pvDelta.flatMap { delta =>
-              planAdvanceConsequence(delta)
-                .orElse(newOpportunityConsequence(delta))
-                .map(text => QuestionPlanConsequence(text, QuestionPlanConsequenceBeat.WrapUp))
+            exactTargetFixationChangeConsequence(inputs).orElse {
+              inputs.pvDelta.flatMap { delta =>
+                planAdvanceConsequence(delta)
+                  .orElse(newOpportunityConsequence(delta))
+                  .map(text => QuestionPlanConsequence(text, QuestionPlanConsequenceBeat.WrapUp))
+              }
             }.orElse {
               localFileEntryChangeConsequence(inputs)
                 .map(text => QuestionPlanConsequence(text, QuestionPlanConsequenceBeat.WrapUp))
@@ -1438,6 +1597,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
             }
           val sourceKinds =
             moveOwner.toList.map(_.sourceKind) ++
+              Option.when(exactTargetFixationChange.nonEmpty)("exact_target_fixation_delta").toList ++
               inputs.pvDelta.toList.map(_ => "pv_delta") ++
               Option.when(localFileEntryChangeClaim(inputs).nonEmpty)("prevented_plan").toList ++
               allowedPreventedPlans
@@ -1468,7 +1628,9 @@ private[llm] object QuestionFirstCommentaryPlanner:
             fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
             strengthTier = QuestionPlanStrengthTier.Strong,
             sourceKinds = sourceKinds,
-            admissibilityReasons = List("move_attributed_change"),
+            admissibilityReasons =
+              List("move_attributed_change") ++
+                Option.when(exactTargetFixationChange.nonEmpty)("exact_target_state_delta").toList,
             ownerFamily =
               if moveOwner.exists(_.mode == PlayerFacingTruthMode.Tactical) then OwnerFamily.TacticalFailure
               else if inputs.decisionComparison.exists(comparison => decisionComparisonChangeClaim(Some(comparison)).nonEmpty) &&
@@ -1877,6 +2039,12 @@ private[llm] object QuestionFirstCommentaryPlanner:
             case SceneType.QuietImprovement | SceneType.TransitionConversion =>
               primary("move_delta_primary_in_quiet_or_conversion_scene")
             case _ => support("move_delta_support_only_outside_quiet_or_conversion_scene")
+        case OwnerFamily.PositionProbe =>
+          sceneType match
+            case SceneType.QuietImprovement =>
+              primary("position_probe_primary_in_quiet_scene")
+            case _ =>
+              support("position_probe_support_only_outside_quiet_scene")
         case OwnerFamily.DecisionTiming =>
           candidate.timingSource match
             case Some(TimingSource.CloseCandidate) =>
@@ -1995,10 +2163,24 @@ private[llm] object QuestionFirstCommentaryPlanner:
         }
       ).flatten
 
+    val positionProbe =
+      inputs.mainBundle.flatMap(_.mainClaim).filter(_.scope == PlayerFacingClaimScope.PositionLocal).map {
+        claim =>
+          ownerCandidate(
+            family = OwnerFamily.PositionProbe,
+            source = claim.sourceKind,
+            sourceKinds = List(claim.sourceKind),
+            questionKinds = List(AuthorQuestionKind.WhatMattersHere),
+            moveLinked = false,
+            proposedFamilyMapping = "PositionProbe/position_local",
+            reasons = List("current_position_probe")
+          )
+      }.toList
+
     val moveDelta =
       List(
         inputs.mainBundle.flatMap { bundle =>
-          bundle.mainClaim.orElse(
+          bundle.mainClaim.filter(_.scope == PlayerFacingClaimScope.MoveLocal).orElse(
             bundle.lineScopedClaim.filter(claim =>
               claim.packet.exists(_.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain)
             )
@@ -2118,7 +2300,7 @@ private[llm] object QuestionFirstCommentaryPlanner:
 
     val domainShadowSignals = shadowDomainSignals(ctx, inputs)
 
-    (tacticalFailure ++ forcingDefense ++ moveDelta ++ decisionTiming ++ timingRefinements ++ planRace ++ domainShadowSignals)
+    (tacticalFailure ++ forcingDefense ++ positionProbe ++ moveDelta ++ decisionTiming ++ timingRefinements ++ planRace ++ domainShadowSignals)
       .groupBy(_.key)
       .toList
       .sortBy { case ((family, source, materiality, timingSource), _) =>

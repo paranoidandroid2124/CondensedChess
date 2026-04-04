@@ -17,6 +17,11 @@ final class AccountIntelJobRepo(coll: Coll)(using Executor) extends AccountIntel
 
   private object F:
     val ownerId = "ownerId"
+    val ownerScopeKey = "ownerScopeKey"
+    val buildOwner = "buildOwner"
+    val buildSourceId = "buildSourceId"
+    val surfaceId = "surfaceId"
+    val sourceFingerprint = "sourceFingerprint"
     val status = "status"
     val dedupeKey = "dedupeKey"
     val updatedAt = "updatedAt"
@@ -25,6 +30,13 @@ final class AccountIntelJobRepo(coll: Coll)(using Executor) extends AccountIntel
     val finishedAt = "finishedAt"
     val attemptCount = "attemptCount"
     val progressStage = "progressStage"
+    val queueState = "queueState"
+    val snapshotState = "snapshotState"
+    val processedGames = "processedGames"
+    val totalGames = "totalGames"
+    val etaSec = "etaSec"
+    val cacheHit = "cacheHit"
+    val refreshLockedUntil = "refreshLockedUntil"
     val warnings = "warnings"
     val studyId = "studyId"
     val chapterId = "chapterId"
@@ -39,32 +51,44 @@ final class AccountIntelJobRepo(coll: Coll)(using Executor) extends AccountIntel
   def insert(job: AccountIntelJob): Funit =
     coll.insert.one(job).void
 
-  def latestByDedupeKey(dedupeKey: String): Fu[Option[AccountIntelJob]] =
+  def latestByOwnerScopeKey(ownerScopeKey: String): Fu[Option[AccountIntelJob]] =
     coll
-      .find($doc(F.dedupeKey -> dedupeKey))
+      .find($doc(F.ownerScopeKey -> ownerScopeKey))
       .sort($sort.desc(F.updatedAt))
       .one[AccountIntelJob]
 
-  def latestSucceededByDedupeKey(dedupeKey: String): Fu[Option[AccountIntelJob]] =
+  def latestSucceededByOwnerScopeKey(ownerScopeKey: String): Fu[Option[AccountIntelJob]] =
     coll
-      .find($doc(F.dedupeKey -> dedupeKey, F.status -> JobStatus.Succeeded.key))
+      .find($doc(F.ownerScopeKey -> ownerScopeKey, F.status -> JobStatus.Succeeded.key))
       .sort($sort.desc(F.updatedAt))
       .one[AccountIntelJob]
 
-  def latestActiveByDedupeKey(dedupeKey: String): Fu[Option[AccountIntelJob]] =
+  def latestActiveByOwnerScopeKey(ownerScopeKey: String): Fu[Option[AccountIntelJob]] =
     coll
       .find(
         $doc(
-          F.dedupeKey -> dedupeKey,
+          F.ownerScopeKey -> ownerScopeKey,
           F.status.$in(List(JobStatus.Queued.key, JobStatus.Running.key))
         )
       )
       .sort($sort.desc(F.updatedAt))
       .one[AccountIntelJob]
 
-  def recentByDedupeKey(dedupeKey: String, limit: Int): Fu[List[AccountIntelJob]] =
+  def latestActiveBuildByDedupeKey(dedupeKey: String): Fu[Option[AccountIntelJob]] =
     coll
-      .find($doc(F.dedupeKey -> dedupeKey), none[Bdoc])
+      .find(
+        $doc(
+          F.dedupeKey -> dedupeKey,
+          F.buildOwner -> true,
+          F.status.$in(List(JobStatus.Queued.key, JobStatus.Running.key))
+        )
+      )
+      .sort($sort.desc(F.updatedAt))
+      .one[AccountIntelJob]
+
+  def recentByOwnerScopeKey(ownerScopeKey: String, limit: Int): Fu[List[AccountIntelJob]] =
+    coll
+      .find($doc(F.ownerScopeKey -> ownerScopeKey), none[Bdoc])
       .sort($sort.desc(F.updatedAt))
       .cursor[AccountIntelJob]()
       .list(limit)
@@ -78,10 +102,13 @@ final class AccountIntelJobRepo(coll: Coll)(using Executor) extends AccountIntel
 
   def claimNextQueued(now: Instant): Fu[Option[AccountIntelJob]] =
     coll.findAndUpdateSimplified[AccountIntelJob](
-      selector = $doc(F.status -> JobStatus.Queued.key),
+      selector = $doc(F.status -> JobStatus.Queued.key, F.buildOwner -> true),
       update = $set(
         F.status -> JobStatus.Running.key,
         F.progressStage -> "fetching_games",
+        F.queueState -> "running",
+        F.snapshotState -> "fetching_games",
+        F.etaSec -> 150,
         F.startedAt -> now,
         F.updatedAt -> now
       ) ++ $inc(F.attemptCount -> 1),
@@ -91,63 +118,138 @@ final class AccountIntelJobRepo(coll: Coll)(using Executor) extends AccountIntel
 
   def claimQueuedById(id: String, now: Instant): Fu[Option[AccountIntelJob]] =
     coll.findAndUpdateSimplified[AccountIntelJob](
-      selector = $id(id) ++ $doc(F.status -> JobStatus.Queued.key),
+      selector = $id(id) ++ $doc(F.status -> JobStatus.Queued.key, F.buildOwner -> true),
       update = $set(
         F.status -> JobStatus.Running.key,
         F.progressStage -> "fetching_games",
+        F.queueState -> "running",
+        F.snapshotState -> "fetching_games",
+        F.etaSec -> 150,
         F.startedAt -> now,
         F.updatedAt -> now
       ) ++ $inc(F.attemptCount -> 1),
       fetchNewObject = true
     )
 
-  def setProgress(id: String, progressStage: String): Funit =
-    coll.update
-      .one(
-        $id(id),
-        $set(F.progressStage -> progressStage, F.updatedAt -> nowInstant)
+  def setProgress(
+      id: String,
+      progressStage: String,
+      snapshotState: String,
+      processedGames: Option[Int],
+      totalGames: Option[Int],
+      etaSec: Option[Int]
+  ): Funit =
+    val setDoc = $set(
+      F.progressStage -> progressStage,
+      F.snapshotState -> snapshotState,
+      F.updatedAt -> nowInstant
+    ) ++ processedGames.fold($doc())(value => $set(F.processedGames -> value)) ++
+      totalGames.fold($doc())(value => $set(F.totalGames -> value)) ++
+      etaSec.fold($unset(F.etaSec))(value => $set(F.etaSec -> value))
+    coll.update.one($id(id), setDoc).void >>
+      mirrorFollowers(
+        id,
+        $set(
+          F.status -> JobStatus.Running.key,
+          F.progressStage -> progressStage,
+          F.queueState -> "running",
+          F.snapshotState -> snapshotState,
+          F.updatedAt -> nowInstant
+        ) ++ processedGames.fold($doc())(value => $set(F.processedGames -> value)) ++
+          totalGames.fold($doc())(value => $set(F.totalGames -> value)) ++
+          etaSec.fold($unset(F.etaSec))(value => $set(F.etaSec -> value))
       )
-      .void
 
   def markSucceeded(
       id: String,
-      studyId: String,
-      chapterId: String,
-      notebookUrl: String,
+      surfaceId: String,
+      sourceFingerprint: String,
       warnings: List[String],
-      surfaceJson: String
+      surfaceJson: String,
+      sampledGameCount: Int,
+      totalGames: Int,
+      cacheHit: Boolean,
+      refreshLockedUntil: Option[Instant]
   ): Funit =
-    coll.update
-      .one(
-        $id(id),
+    val now = nowInstant
+    val update = $set(
+      F.status -> JobStatus.Succeeded.key,
+      F.progressStage -> "completed",
+      F.queueState -> "ready",
+      F.snapshotState -> "ready",
+      F.surfaceId -> surfaceId,
+      F.sourceFingerprint -> sourceFingerprint,
+      F.surfaceJson -> surfaceJson,
+      F.warnings -> warnings,
+      F.processedGames -> sampledGameCount,
+      F.totalGames -> totalGames,
+      F.etaSec -> 0,
+      F.cacheHit -> cacheHit,
+      F.refreshLockedUntil -> refreshLockedUntil,
+      F.finishedAt -> now,
+      F.updatedAt -> now
+    ) ++ $unset(F.errorCode, F.errorMessage)
+    coll.update.one($id(id), update).void >>
+      mirrorFollowers(
+        id,
         $set(
           F.status -> JobStatus.Succeeded.key,
           F.progressStage -> "completed",
-          F.studyId -> studyId,
-          F.chapterId -> chapterId,
-          F.notebookUrl -> notebookUrl,
+          F.queueState -> "ready",
+          F.snapshotState -> "ready",
+          F.surfaceId -> surfaceId,
+          F.sourceFingerprint -> sourceFingerprint,
           F.surfaceJson -> surfaceJson,
           F.warnings -> warnings,
-          F.finishedAt -> nowInstant,
-          F.updatedAt -> nowInstant
+          F.processedGames -> sampledGameCount,
+          F.totalGames -> totalGames,
+          F.etaSec -> 0,
+          F.cacheHit -> cacheHit,
+          F.refreshLockedUntil -> refreshLockedUntil,
+          F.finishedAt -> now,
+          F.updatedAt -> now
         ) ++ $unset(F.errorCode, F.errorMessage)
       )
-      .void
 
-  def markFailed(id: String, code: String, message: String): Funit =
+  def setPublication(id: String, studyId: String, chapterId: String, notebookUrl: String): Funit =
     coll.update
       .one(
         $id(id),
         $set(
-          F.status -> JobStatus.Failed.key,
-          F.progressStage -> "failed",
-          F.errorCode -> code,
-          F.errorMessage -> message.take(500),
-          F.finishedAt -> nowInstant,
+          F.studyId -> studyId,
+          F.chapterId -> chapterId,
+          F.notebookUrl -> notebookUrl,
           F.updatedAt -> nowInstant
         )
       )
       .void
+
+  def markFailed(id: String, code: String, message: String): Funit =
+    val now = nowInstant
+    val update = $set(
+      F.status -> JobStatus.Failed.key,
+      F.progressStage -> "failed",
+      F.queueState -> "failed",
+      F.snapshotState -> "failed",
+      F.errorCode -> code,
+      F.errorMessage -> message.take(500),
+      F.finishedAt -> now,
+      F.updatedAt -> now
+    ) ++ $unset(F.etaSec)
+    coll.update.one($id(id), update).void >>
+      mirrorFollowers(
+        id,
+        $set(
+          F.status -> JobStatus.Failed.key,
+          F.progressStage -> "failed",
+          F.queueState -> "failed",
+          F.snapshotState -> "failed",
+          F.errorCode -> code,
+          F.errorMessage -> message.take(500),
+          F.finishedAt -> now,
+          F.updatedAt -> now
+        ) ++ $unset(F.etaSec)
+      )
 
   def requeueTimedOutRunning(timeout: FiniteDuration, retryLimit: Int): Funit =
     val now = nowInstant
@@ -155,6 +257,7 @@ final class AccountIntelJobRepo(coll: Coll)(using Executor) extends AccountIntel
       .find(
         $doc(
           F.status -> JobStatus.Running.key,
+          F.buildOwner -> true,
           F.updatedAt.$lt(now.minusMillis(timeout.toMillis))
         )
       )
@@ -163,16 +266,26 @@ final class AccountIntelJobRepo(coll: Coll)(using Executor) extends AccountIntel
       .flatMap: jobs =>
         jobs.sequentiallyVoid: job =>
           if AccountIntelJob.timedOutRunning(job, now, timeout) && job.attemptCount < retryLimit then
-            coll.update
-              .one(
-                $id(job.id),
+            val update = $set(
+              F.status -> JobStatus.Queued.key,
+              F.progressStage -> "queued",
+              F.queueState -> "queued",
+              F.snapshotState -> "queued",
+              F.etaSec -> 180,
+              F.updatedAt -> now
+            ) ++ $unset(F.errorCode, F.errorMessage, F.finishedAt)
+            coll.update.one($id(job.id), update).void >>
+              mirrorFollowers(
+                job.id,
                 $set(
                   F.status -> JobStatus.Queued.key,
                   F.progressStage -> "queued",
-                  F.updatedAt -> nowInstant
+                  F.queueState -> "queued",
+                  F.snapshotState -> "queued",
+                  F.etaSec -> 180,
+                  F.updatedAt -> now
                 ) ++ $unset(F.errorCode, F.errorMessage, F.finishedAt)
               )
-              .void
           else markFailed(job.id, "timeout", "Account notebook build timed out.")
 
   def cleanupExpired(successTtl: FiniteDuration, failedTtl: FiniteDuration): Funit =
@@ -191,7 +304,22 @@ final class AccountIntelJobRepo(coll: Coll)(using Executor) extends AccountIntel
         case err =>
           logger.warn(s"accountintel cleanup failed: ${err.getMessage}")
 
+  private def mirrorFollowers(buildId: String, update: Bdoc): Funit =
+    coll.update
+      .one(
+        $doc(F.buildSourceId -> buildId, F.buildOwner -> false),
+        update,
+        multi = true
+      )
+      .void
+
   private def ensureIndexes(): Unit =
+    coll.indexesManager.ensure(
+      Index(
+        key = Seq(F.ownerScopeKey -> IndexType.Ascending, F.updatedAt -> IndexType.Descending),
+        name = Some("owner_scope_updated")
+      )
+    )
     coll.indexesManager.ensure(
       Index(
         key = Seq(F.dedupeKey -> IndexType.Ascending, F.updatedAt -> IndexType.Descending),
@@ -207,10 +335,11 @@ final class AccountIntelJobRepo(coll: Coll)(using Executor) extends AccountIntel
     coll.indexesManager.ensure(
       Index(
         key = Seq(F.dedupeKey -> IndexType.Ascending),
-        name = Some("active_dedupe_unique"),
+        name = Some("active_build_unique"),
         unique = true,
         options = $doc(
           "partialFilterExpression" -> $doc(
+            F.buildOwner -> true,
             F.status -> $doc("$in" -> List(JobStatus.Queued.key, JobStatus.Running.key))
           )
         )
@@ -220,5 +349,11 @@ final class AccountIntelJobRepo(coll: Coll)(using Executor) extends AccountIntel
       Index(
         key = Seq(F.ownerId -> IndexType.Ascending, F.status -> IndexType.Ascending, F.updatedAt -> IndexType.Descending),
         name = Some("owner_status_updated")
+      )
+    )
+    coll.indexesManager.ensure(
+      Index(
+        key = Seq(F.buildSourceId -> IndexType.Ascending, F.updatedAt -> IndexType.Descending),
+        name = Some("build_source_updated")
       )
     )

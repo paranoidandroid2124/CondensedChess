@@ -5,7 +5,8 @@ import chess.format.Fen
 import chess.variant.Standard
 import lila.llm.*
 import lila.llm.model.{ Motif, Plan, PlanMatch, StrategicPlanExperiment }
-import lila.llm.model.strategic.{ PositionalTag, PreventedPlan }
+import lila.llm.model.strategic.{ PositionalTag, PreventedPlan, WeakComplex }
+import lila.llm.model.structure.{ CenterState, StructureId, StructureProfile }
 import munit.FunSuite
 
 class StrategicIdeaSelectorTest extends FunSuite:
@@ -193,6 +194,75 @@ class StrategicIdeaSelectorTest extends FunSuite:
       selectFromFen("r1bqr1k1/pp2bpp1/2n2n1p/3p4/3N4/2N1B1P1/PP2PPBP/R2Q1RK1 w - - 2 12")
 
     assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.FavorableTradeOrTransformation))
+  }
+
+  test("directional target fixation survives when the target is structural rather than tag-only") {
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "white",
+        structuralWeaknesses = List(
+          WeakComplex(
+            color = Color.Black,
+            squares = List(Square.D6),
+            isOutpost = false,
+            cause = "Backward pawn on d6"
+          )
+        )
+      )
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        directionalTargets = List(
+          StrategyDirectionalTarget(
+            targetId = "d6_target",
+            ownerSide = "white",
+            piece = "N",
+            from = "f5",
+            targetSquare = "d6",
+            readiness = DirectionalTargetReadiness.Build,
+            strategicReasons = List("keep the d6 weakness fixed"),
+            evidence = List("probe")
+          )
+        )
+      )
+
+    val ideas = StrategicIdeaSelector.select(pack, semantic)
+
+    assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.TargetFixing))
+    assert(ideas.headOption.exists(_.focusSquares.contains("d6")))
+    assert(ideas.headOption.exists(_.evidenceRefs.contains("source:directional_target_fixation")))
+  }
+
+  test("minority-attack fixation carries queenside target squares into the idea packet") {
+    val semantic =
+      StrategicIdeaSemanticContext(
+        sideToMove = "white",
+        positionalFeatures = List(PositionalTag.MinorityAttack(Color.White, "queenside")),
+        structuralWeaknesses = List(
+          WeakComplex(
+            color = Color.Black,
+            squares = List(Square.B7),
+            isOutpost = false,
+            cause = "Minority-attack target on b7"
+          )
+        ),
+        structureProfile = Some(
+          StructureProfile(
+            primary = StructureId.Carlsbad,
+            confidence = 0.98,
+            alternatives = Nil,
+            centerState = CenterState.Locked,
+            evidenceCodes = List("structure_carlsbad")
+          )
+        )
+      )
+    val pack = StrategyPack(sideToMove = "white")
+
+    val ideas = StrategicIdeaSelector.select(pack, semantic)
+
+    assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.TargetFixing))
+    assert(ideas.headOption.exists(_.focusSquares.contains("b7")))
+    assert(ideas.headOption.exists(_.evidenceRefs.contains("source:minority_attack_fixation")))
   }
 
   test("compensation development lead promotes king-attack build-up over broad space") {

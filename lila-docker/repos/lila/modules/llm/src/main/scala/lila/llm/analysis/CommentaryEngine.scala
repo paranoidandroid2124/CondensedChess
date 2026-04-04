@@ -2290,10 +2290,19 @@ object CommentaryEngine:
     truthContract: Option[DecisiveTruthContract] = None,
     decisionComparisonOverride: Option[DecisionComparison] = None
   ): Option[NarrativeSignalDigest] =
-    val sanitizedComparison =
+    val baseComparison =
       truthContract
-        .flatMap(contract => DecisiveTruth.sanitizeDecisionComparison(decisionComparisonOverride, contract).map(_.toDigest))
-        .orElse(decisionComparisonOverride.map(_.toDigest))
+        .flatMap(contract => DecisiveTruth.sanitizeDecisionComparison(decisionComparisonOverride, contract))
+        .orElse(decisionComparisonOverride)
+    val sanitizedComparison =
+      DecisionComparisonComparativeSupport
+        .enrich(
+          comparison = baseComparison,
+          ctx = ctx,
+          strategyPack = strategyPack,
+          truthContract = truthContract
+        )
+        .map(_.toDigest)
     val base =
       NarrativeSignalDigestBuilder.buildWithAuthoringEvidence(
         ctx,

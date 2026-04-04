@@ -78,10 +78,12 @@ POST  /account-intel/notebooks        controllers.AccountIntel.submit
 POST  /api/account-intel/notebooks    controllers.AccountIntel.submit
 GET   /api/account-intel/jobs/:jobId  controllers.AccountIntel.jobStatusApi(jobId)
 GET   /account-intel/jobs/:jobId      controllers.AccountIntel.jobStatusPage(jobId)
+POST  /api/account-intel/jobs/:jobId/publish controllers.AccountIntel.publish(jobId)
 GET   /api/account-intel/:provider/:username/history controllers.AccountIntel.historyApi(provider: String, username: String, kind: String ?= "my_account_intelligence_lite")
 GET   /api/account-intel/:provider/:username controllers.AccountIntel.surfaceApi(provider: String, username: String, kind: String ?= "my_account_intelligence_lite")
 GET   /account-intel/:provider/:username controllers.AccountIntel.product(provider: String, username: String, kind: String ?= "my_account_intelligence_lite", side: String ?= "")
 POST  /internal/account-intel/jobs/:jobId/run controllers.AccountIntel.runJobInternal(jobId)
+POST  /internal/account-intel/maintenance controllers.AccountIntel.runMaintenanceInternal
 
 # Notebook API (legacy /api/study paths kept internal)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/ana-move controllers.Study.anaMove(id: StudyId, chapterId: StudyChapterId)
@@ -123,6 +125,7 @@ GET   /strategic-puzzle                controllers.StrategicPuzzle.home
 GET   /strategic-puzzle/demo           controllers.Main.strategicPuzzleDemo
 GET   /strategic-puzzle/:id            controllers.StrategicPuzzle.show(id)
 GET   /api/strategic-puzzle/next       controllers.StrategicPuzzle.next
+GET   /api/strategic-puzzle/:id        controllers.StrategicPuzzle.showJson(id)
 POST  /api/strategic-puzzle/:id/complete controllers.StrategicPuzzle.complete(id)
 
 # User

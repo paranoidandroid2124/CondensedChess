@@ -25,6 +25,14 @@ final class StrategicPuzzle(
         _.fold(notFound):
           renderPage
 
+  def showJson(id: String) = Open:
+    env.strategicPuzzle.api
+      .bootstrapById(id, ctx.me.map(_.userId))
+      .map:
+        _.fold(NotFound(Json.obj("error" -> "That strategic puzzle is no longer available.")))(payload =>
+          JsonOk(Json.toJson(UserFacingPayloadSanitizer.sanitize(payload)))
+        )
+
   def next = Open:
     val excludeId = get("after").filter(_.nonEmpty)
     env.strategicPuzzle.api
@@ -45,7 +53,7 @@ final class StrategicPuzzle(
               BadRequest(Json.obj("error" -> "We could not record that puzzle result."))
             case CompleteOutcome.MissingPuzzle =>
               NotFound(Json.obj("error" -> "That strategic puzzle is no longer available."))
-            case CompleteOutcome.Success(response, _) =>
+            case CompleteOutcome.Success(response) =>
               JsonOk(Json.toJson(response))
     )
 

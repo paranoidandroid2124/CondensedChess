@@ -1,20 +1,18 @@
 package lila.accountintel
 
 import play.api.Configuration
-import play.api.libs.json.Json
 
 import scala.concurrent.duration.*
 
 import lila.accountintel.AccountIntel.*
 import lila.accountintel.service.AccountNotebookEngine
-import lila.accountintel.service.NotebookSink
 
 final class AccountIntelWorker(
     appConfig: Configuration,
     repo: AccountIntelJobStore,
+    surfaceStore: AccountIntelSurfaceStore,
     source: AccountGameFetcher,
-    engine: AccountNotebookEngine,
-    notebookSink: NotebookSink
+    engine: AccountNotebookEngine
 )(using Executor):
 
   private val runningTimeout =
@@ -25,11 +23,15 @@ final class AccountIntelWorker(
     appConfig.getOptional[FiniteDuration]("accountIntel.job.successTtl").getOrElse(24.hours)
   private val failedTtl =
     appConfig.getOptional[FiniteDuration]("accountIntel.job.failedTtl").getOrElse(72.hours)
+  private val refreshCooldown =
+    appConfig.getOptional[FiniteDuration]("accountIntel.surface.refreshCooldown").getOrElse(24.hours)
 
   def tick(): Funit =
+    runMaintenance() >> runNext()
+
+  def runMaintenance(): Funit =
     repo.requeueTimedOutRunning(runningTimeout, retryLimit) >>
-      repo.cleanupExpired(successTtl, failedTtl) >>
-      runNext()
+      repo.cleanupExpired(successTtl, failedTtl)
 
   def runJob(jobId: String): Fu[RunJobOutcome] =
     repo.byId(jobId).flatMap:
@@ -60,9 +62,35 @@ final class AccountIntelWorker(
 
   private def process(job: AccountIntelJob): Funit =
     for
-      _ <- repo.setProgress(job.id, "fetching_games")
+      _ <- repo.setProgress(job.id, "fetching_games", "fetching_games", etaSec = Some(150))
       games <- source.fetchRecentGames(job.provider, job.username)
-      _ <- repo.setProgress(job.id, "extracting_primitives")
+      fingerprint = AccountIntelSurfaceSnapshot.fingerprint(games)
+      existing <- surfaceStore.byDedupeKeyAndFingerprint(job.dedupeKey, fingerprint)
+      _ <- existing.fold(buildAndPersist(job, games, fingerprint)):
+        snapshot =>
+          repo.markSucceeded(
+            id = job.id,
+            surfaceId = snapshot.id,
+            sourceFingerprint = snapshot.sourceFingerprint,
+            warnings = snapshot.warnings,
+            surfaceJson = snapshot.surfaceJson,
+            sampledGameCount = snapshot.sampledGameCount,
+            totalGames = snapshot.sampledGameCount,
+            cacheHit = true,
+            refreshLockedUntil = Some(snapshot.updatedAt.plusMillis(refreshCooldown.toMillis))
+          )
+    yield ()
+
+  private def buildAndPersist(job: AccountIntelJob, games: List[ExternalGame], fingerprint: String): Funit =
+    for
+      _ <- repo.setProgress(
+        job.id,
+        "extracting_primitives",
+        "building_surface",
+        processedGames = Some(0),
+        totalGames = Some(games.size),
+        etaSec = Some(90)
+      )
       buildResult <- engine.buildFromGames(
         job.provider,
         job.username,
@@ -74,28 +102,33 @@ final class AccountIntelWorker(
         err => repo.markFailed(job.id, "build_failed", err),
         artifact =>
           for
-            _ <- repo.setProgress(job.id, "creating_notebook")
-            _ <- persist(job, artifact)
+            _ <- repo.setProgress(
+              job.id,
+              "publishing_surface",
+              "building_surface",
+              processedGames = Some(games.size),
+              totalGames = Some(games.size),
+              etaSec = Some(15)
+            )
+            snapshot = AccountIntelSurfaceSnapshot.fromArtifact(
+              provider = job.provider,
+              username = job.username,
+              kind = job.kind,
+              sourceFingerprint = fingerprint,
+              artifact = artifact
+            )
+            _ <- surfaceStore.insert(snapshot)
+            _ <- repo.markSucceeded(
+              id = job.id,
+              surfaceId = snapshot.id,
+              sourceFingerprint = snapshot.sourceFingerprint,
+              warnings = artifact.warnings,
+              surfaceJson = snapshot.surfaceJson,
+              sampledGameCount = artifact.sampledGameCount,
+              totalGames = games.size,
+              cacheHit = false,
+              refreshLockedUntil = Some(snapshot.updatedAt.plusMillis(refreshCooldown.toMillis))
+            )
           yield ()
       )
     yield ()
-
-  private def persist(job: AccountIntelJob, artifact: NotebookBuildArtifact): Funit =
-    notebookSink
-      .persist(job, artifact)
-      .flatMap:
-        case Left(failure) =>
-          repo.markFailed(
-            job.id,
-            failure.code,
-            failure.message
-          )
-        case Right(persisted) =>
-          repo.markSucceeded(
-            id = job.id,
-            studyId = persisted.studyId,
-            chapterId = persisted.chapterId,
-            notebookUrl = persisted.notebookUrl,
-            warnings = artifact.warnings,
-            surfaceJson = Json.stringify(artifact.surface)
-          )

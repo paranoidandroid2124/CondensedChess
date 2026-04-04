@@ -138,6 +138,7 @@ object ProductionConfigValidator:
         errors += "game.gifUrl must point to a Chesstory-controlled GIF export endpoint or remain empty in production."
 
     val dispatchBase = configuredString(config, "accountIntel.dispatch.baseUrl")
+    val cloudTasksQueue = configuredString(config, "accountIntel.dispatch.cloudTasks.queue")
     dispatchBase.foreach: base =>
       if pointsToLocalhost(base) then
         errors += "accountIntel.dispatch.baseUrl must not point to localhost in production."
@@ -146,6 +147,19 @@ object ProductionConfigValidator:
       val hasWorkerHeader = configuredString(config, "accountIntel.worker.authHeaderValue").isDefined
       if !hasBearer && !hasDispatchHeader && !hasWorkerHeader then
         errors += "accountIntel.dispatch.baseUrl requires either accountIntel.dispatch.bearerToken or a non-empty worker auth header value in production."
+
+    cloudTasksQueue.foreach: _ =>
+      List(
+        "accountIntel.dispatch.cloudTasks.projectId",
+        "accountIntel.dispatch.cloudTasks.location",
+        "accountIntel.dispatch.cloudTasks.workerUrl",
+        "accountIntel.dispatch.cloudTasks.serviceAccountEmail"
+      ).foreach: path =>
+        if configuredString(config, path).isEmpty then
+          errors += s"$path must be configured when Cloud Tasks dispatch is enabled in production."
+      configuredString(config, "accountIntel.dispatch.cloudTasks.workerUrl").foreach: workerUrl =>
+        if pointsToLocalhost(workerUrl) then
+          errors += "accountIntel.dispatch.cloudTasks.workerUrl must not point to localhost in production."
 
     configuredString(config, "accountIntel.selectiveEval.endpoint").foreach: endpoint =>
       if pointsToLocalhost(endpoint) then

@@ -145,7 +145,6 @@ interface CompleteResponse {
   saved: boolean;
   currentStreak: number;
   nextPuzzleId?: string;
-  nextPuzzleUrl?: string;
 }
 
 type FeedbackKind = 'neutral' | 'success' | 'warning';
@@ -167,7 +166,7 @@ interface ProofResolution {
 
 interface StrategicPuzzleSnapshot {
   url: string;
-  payload: BootstrapPayload;
+  puzzleId: string;
   stage: SolveStage;
   revealFocus: RevealFocus;
   selectedPlanId: string | null;
@@ -204,6 +203,7 @@ class StrategicPuzzleApp {
 
   mount() {
     window.addEventListener('popstate', this.onPopState);
+    this.app.innerHTML = this.shellView();
     this.render();
   }
 
@@ -271,17 +271,51 @@ class StrategicPuzzleApp {
   }
 
   private get nextAvailable(): boolean {
-    if (!this.reveal) return false;
-    if (!this.payload.progress.authenticated) return true;
-    return Boolean(this.completion?.nextPuzzleId);
+    return Boolean(this.reveal && this.completion?.nextPuzzleId);
   }
 
   private render() {
-    this.cg?.destroy();
-    this.app.innerHTML = this.view();
+    this.ensureShell();
+    const shell = this.app.querySelector<HTMLElement>('.sp-runtime-shell');
+    if (shell) shell.classList.toggle('has-reveal', Boolean(this.reveal));
+    const topbar = this.app.querySelector<HTMLElement>('[data-region="topbar"]');
+    if (topbar) topbar.innerHTML = this.renderTopbar();
+    const boardMeta = this.app.querySelector<HTMLElement>('[data-region="board-meta"]');
+    if (boardMeta) boardMeta.innerHTML = this.renderBoardMeta();
+    const boardStage = this.app.querySelector<HTMLElement>('.sp-runtime-board-stage');
+    if (boardStage) boardStage.className = `sp-runtime-board-stage${this.boardFeedback ? ` is-${this.boardFeedback}` : ''}`;
+    const boardCallouts = this.app.querySelector<HTMLElement>('[data-region="board-callouts"]');
+    if (boardCallouts) boardCallouts.innerHTML = this.renderBoardCallouts();
+    const statePane = this.app.querySelector<HTMLElement>('[data-region="state-pane"]');
+    if (statePane) statePane.innerHTML = this.renderStatePane(this.accountPatternsUrl());
     this.bindBoard();
     this.bindButtons();
     this.replaceHistoryState();
+  }
+
+  private ensureShell() {
+    if (this.app.querySelector('#sp-runtime-board')) return;
+    this.cg?.destroy();
+    this.cg = undefined;
+    this.app.innerHTML = this.shellView();
+  }
+
+  private shellView(): string {
+    return `
+      <section class="sp-demo-shell sp-runtime-shell">
+        <section data-region="topbar"></section>
+        <article class="sp-demo-board-card sp-demo-board-card--runtime">
+          <div class="sp-runtime-board-shell">
+            <div class="sp-runtime-board-stage">
+              <div class="sp-runtime-board-meta" data-region="board-meta"></div>
+              <div id="sp-runtime-board" class="sp-runtime-board"></div>
+            </div>
+          </div>
+          <div data-region="board-callouts"></div>
+        </article>
+        <div data-region="state-pane"></div>
+      </section>
+    `;
   }
 
   private replaceHistoryState(url = this.currentUrl()) {
@@ -300,7 +334,7 @@ class StrategicPuzzleApp {
   private historySnapshot(url: string): StrategicPuzzleSnapshot {
     return {
       url,
-      payload: this.payload,
+      puzzleId: this.payload.puzzle.id,
       stage: this.stage,
       revealFocus: this.revealFocus,
       selectedPlanId: this.selectedPlanId,
@@ -316,8 +350,15 @@ class StrategicPuzzleApp {
     return `${window.location.pathname}${window.location.search}${window.location.hash}`;
   }
 
-  private restoreSnapshot(snapshot: StrategicPuzzleSnapshot) {
-    this.payload = snapshot.payload;
+  private async restoreSnapshot(snapshot: StrategicPuzzleSnapshot) {
+    if (snapshot.puzzleId !== this.payload.puzzle.id) {
+      const payload = await this.loadBootstrapById(snapshot.puzzleId);
+      if (!payload) {
+        window.location.reload();
+        return;
+      }
+      this.payload = payload;
+    }
     this.stage = snapshot.stage;
     this.revealFocus = snapshot.revealFocus || 'start';
     this.selectedPlanId = snapshot.selectedPlanId;
@@ -329,6 +370,17 @@ class StrategicPuzzleApp {
     this.busy = false;
     this.boardFeedback = null;
     this.render();
+  }
+
+  private async loadBootstrapById(puzzleId: string): Promise<BootstrapPayload | null> {
+    try {
+      const res = await fetch(`/api/strategic-puzzle/${encodeURIComponent(puzzleId)}`);
+      if (!res.ok) return null;
+      return (await res.json()) as BootstrapPayload;
+    } catch (err) {
+      console.warn('strategic puzzle bootstrap fetch failed', err);
+      return null;
+    }
   }
 
   private accountPatternsUrl(): string | null {
@@ -343,7 +395,7 @@ class StrategicPuzzleApp {
       window.location.reload();
       return;
     }
-    this.restoreSnapshot(snapshot);
+    void this.restoreSnapshot(snapshot);
   };
 
   private stageIndex(): number {
@@ -368,41 +420,30 @@ class StrategicPuzzleApp {
     }
   }
 
-  private view(): string {
-    const reveal = this.reveal;
+  private renderTopbar(): string {
     const introText = 'Find the task, choose the start, then review the task, the start, and the exact proof.';
-    const accountPatternsUrl = this.accountPatternsUrl();
     const streakLabel = this.payload.progress.authenticated ? `Current streak ${this.payload.progress.currentStreak}` : 'Anonymous session';
     return `
-      <section class="sp-demo-shell sp-runtime-shell${reveal ? ' has-reveal' : ''}">
-        <section class="sp-runtime-topbar">
-          <div class="sp-runtime-topbar__lead">
-            <p class="sp-demo-kicker">Strategic Puzzle</p>
-            <h1>${this.orientation === 'white' ? 'White' : 'Black'} to move</h1>
-            <p class="sp-runtime-intro">${escapeHtml(introText)}</p>
+      <section class="sp-runtime-topbar">
+        <div class="sp-runtime-topbar__lead">
+          <p class="sp-demo-kicker">Strategic Puzzle</p>
+          <h1>${this.orientation === 'white' ? 'White' : 'Black'} to move</h1>
+          <p class="sp-runtime-intro">${escapeHtml(introText)}</p>
+        </div>
+        <div class="sp-runtime-topbar__stats">
+          <div class="sp-metric-card"><strong>${this.stageIndex()} / 3</strong><span>${escapeHtml(this.stageLabel())}</span></div>
+          <div class="sp-runtime-topbar__status">
+            <span class="sp-chip sp-chip--streak">${escapeHtml(streakLabel)}</span>
           </div>
-          <div class="sp-runtime-topbar__stats">
-            <div class="sp-metric-card"><strong>${this.stageIndex()} / 3</strong><span>${escapeHtml(this.stageLabel())}</span></div>
-            <div class="sp-runtime-topbar__status">
-              <span class="sp-chip sp-chip--streak">${escapeHtml(streakLabel)}</span>
-            </div>
-          </div>
-        </section>
-        <article class="sp-demo-board-card sp-demo-board-card--runtime">
-          <div class="sp-runtime-board-shell">
-            <div class="sp-runtime-board-stage${this.boardFeedback ? ` is-${this.boardFeedback}` : ''}">
-              <div class="sp-runtime-board-meta">
-                <span class="sp-chip sp-chip--turn">${escapeHtml(capitalize(this.orientation))} to move</span>
-                <span class="sp-chip sp-chip--theme">${escapeHtml(this.payload.puzzle.dominantFamily?.dominantIdeaKind ? humanize(this.payload.puzzle.dominantFamily.dominantIdeaKind) : 'strategic puzzle')}</span>
-                <span class="sp-chip sp-chip--echo">${escapeHtml(this.stageLabel())}</span>
-              </div>
-              <div id="sp-runtime-board" class="sp-runtime-board"></div>
-            </div>
-          </div>
-          ${this.renderBoardCallouts()}
-        </article>
-        ${this.renderStatePane(accountPatternsUrl)}
       </section>
+    `;
+  }
+
+  private renderBoardMeta(): string {
+    return `
+      <span class="sp-chip sp-chip--turn">${escapeHtml(capitalize(this.orientation))} to move</span>
+      <span class="sp-chip sp-chip--theme">${escapeHtml(this.payload.puzzle.dominantFamily?.dominantIdeaKind ? humanize(this.payload.puzzle.dominantFamily.dominantIdeaKind) : 'strategic puzzle')}</span>
+      <span class="sp-chip sp-chip--echo">${escapeHtml(this.stageLabel())}</span>
     `;
   }
 
@@ -788,7 +829,7 @@ class StrategicPuzzleApp {
   private bindBoard() {
     const boardEl = this.app.querySelector('#sp-runtime-board') as HTMLElement | null;
     if (!boardEl) return;
-    this.cg = makeChessground(boardEl, {
+    const config = {
       fen: this.currentFen,
       lastMove: this.currentBoardLastMove(),
       orientation: this.orientation,
@@ -803,9 +844,14 @@ class StrategicPuzzleApp {
       highlight: { lastMove: true },
       animation: { duration: 220 },
       events: {
-        move: (orig, dest) => this.handleBoardMove(orig, dest),
+        move: (orig: Key, dest: Key) => this.handleBoardMove(orig, dest),
       },
-    });
+    };
+    if (!this.cg) {
+      this.cg = makeChessground(boardEl, config);
+      return;
+    }
+    this.cg.set(config as any);
   }
 
   private bindButtons() {
@@ -1004,15 +1050,21 @@ class StrategicPuzzleApp {
   }
 
   private async loadNext() {
+    const nextPuzzleId = this.completion?.nextPuzzleId;
+    if (!nextPuzzleId) {
+      this.feedback = { kind: 'neutral', text: 'No uncleared strategic puzzle is left for this account right now.' };
+      this.render();
+      return;
+    }
     this.busy = true;
     try {
-      const res = await fetch(`/api/strategic-puzzle/next?after=${encodeURIComponent(this.payload.puzzle.id)}`);
-      if (!res.ok) {
+      const nextPayload = await this.loadBootstrapById(nextPuzzleId);
+      if (!nextPayload) {
         this.feedback = { kind: 'neutral', text: 'No uncleared strategic puzzle is left for this account right now.' };
         this.render();
         return;
       }
-      this.payload = (await res.json()) as BootstrapPayload;
+      this.payload = nextPayload;
       this.stage = 'plan';
       this.revealFocus = 'start';
       this.selectedPlanId = null;
@@ -1021,7 +1073,7 @@ class StrategicPuzzleApp {
       this.historyOpen = false;
       this.feedback = { kind: 'neutral', text: '' };
       this.completion = null;
-      this.pushHistoryState(`/strategic-puzzle/${this.payload.puzzle.id}`);
+      this.pushHistoryState(`/strategic-puzzle/${nextPuzzleId}`);
       this.render();
     } catch (err) {
       console.warn('strategic puzzle next fetch failed', err);
@@ -1068,7 +1120,7 @@ export function initModule(payload: BootstrapPayload) {
 
 function readHistorySnapshot(state: unknown): StrategicPuzzleSnapshot | null {
   const snapshot = (state as StrategicPuzzleHistoryState | null | undefined)?.strategicPuzzle;
-  return snapshot && typeof snapshot.url === 'string' ? snapshot : null;
+  return snapshot && typeof snapshot.url === 'string' && typeof snapshot.puzzleId === 'string' ? snapshot : null;
 }
 
 function humanize(value: string) {

@@ -96,32 +96,18 @@ This file is an index and status map. It is not the canonical runtime audit.
   deferred behind the exact-board burden
 - CTH-B7:
   design/recon/charter baseline ready only:
-  no B7 runtime slice is open, and the only candidate allowed into B7b review
-  is one same-defended-branch bounded task shift after forced simplification.
-  Broad `good endgame` / favorable-transition rhetoric remains closed; B7b
-  now has one exact-FEN review control plus a stronger exact-board nasty-case
-  pack, but no rollout is reviewable until the owner-path and task-vocabulary
-  blockers are closed. The 2026-04-02 exact-FEN corpus recon strengthened the
-  nasty pack, and the late-middlegame positive hunt did recover one reviewable
-  local branch candidate on
-  `r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13`
-  after root-best `Nxe6`. But the B7b implementation review blocked rollout:
-  the current runtime still sees that position as `Opening / ExplainTactics`
-  with no planner-owned move owner, so the only surviving hook is the
-  line-scoped preview `Nxe6 fxe6 Rad1`. Runtime therefore remains closed. The
-  blocker is now modeled as two linked absences on the existing architecture:
-  no owner-admissible backend-only task-shift carrier/materialization and no
-  closed `currentTask -> shiftedTask` vocabulary for the bounded handoff.
-  The backend-only contract design freeze is now the canonical baseline, and
-  runtime remains deferred on that frozen envelope. The 2026-04-02 validation
-  pass held the frozen pair against the current near-miss / blocker corpus, but
-  reopen now also requires one second non-`K09B` exact-FEN survivor for the
-  same pair. The 2026-04-02 second-survivor hunt did not find one, so B7
-  remains explicitly deferred as a one-row-overfit family on the current corpus.
-  A follow-up parallel local/web-assisted hunt also reran `K09I` plus three
-  external exact-FEN leads and found that none even survived the root-best
-  simplification gate, so B7 status remains `still overfit / more corpus work
-  needed`
+  no B7 runtime slice is open. The 2026-04-04 owner-admission pass resolved
+  the old `K09B` / `K09F` trade-down near miss onto Cluster C instead:
+  on the exact defended branch `d4e6|f7e6`, the current runtime now
+  materializes planner-owned same-task simplification on the existing
+  `MoveDelta -> WhyThis` lane (`This trade keeps the same local edge on e6.`),
+  not a task shift. Broad `good endgame` / favorable-transition rhetoric
+  remains closed; the backend-only `currentTask -> shiftedTask` contract freeze
+  is still the canonical B7 baseline, but it has no certified exact-FEN
+  positive control on the current corpus. Because `K09B` / `K09F` now belong to
+  promoted bounded `favorable_simplification` and follow-up hunts still found
+  no independent survivor, B7 remains explicitly deferred as
+  `still overfit / more corpus work needed`
 - CTH-B8:
   B8 has been reset to a clean design-only placeholder.
   Prior B8a corpus/acquisition artifacts were intentionally cleared after
@@ -156,9 +142,16 @@ canonical docs.
 | Cluster | Family bucket | Included families / subfamilies | Current result | Next action |
 | --- | --- | --- | --- | --- |
 | A | Restriction / Counterplay Suppression | `15.neutralize_key_break`, `15.prophylactic_move`, `15.defensive_regrouping`, `8.half_open_file_pressure`, `8.open_file_control` | `neutralize_key_break`, `prophylactic_move`, and `half_open_file_pressure` promoted; `defensive_regrouping` absorbed into `prophylactic_move`; `open_file_control` absorbed into `half_open_file_pressure` | closed unless new exact-board corpus changes one of the absorbed cells |
-| B | Target Fixation / Weakness Pressure | reviewed `static_weakness_fixation`, `backward_pawn_targeting`, `target_focused_coordination`, `minority_attack_fixation`, `iqp_inducement` | reviewed static weakness lane remains absorbed; `backward_pawn_targeting` stays subtype-only; `target_focused_coordination` stays support-only; `minority_attack_fixation` stays weakness support-only; `iqp_inducement` stays structure/conversion support-only | reopen only if one reviewed weakness sibling gets a same-branch move-local owner path |
-| C | Exchange / Removal Without Task-Shift | `17.trade_key_defender`, bounded `favorable_simplification`, bounded `trade_attacking_piece`, bounded `remove_key_defender` trigger-only form | `trade_key_defender` and bounded `favorable_simplification` blocked on exact review; `trade_attacking_piece` and `remove_key_defender` remain queued | hold the remaining trigger-only queue; do not reopen favorable simplification without a second independent stable root-best simplification control |
-| D | Coordination / Access Conversion | bounded `support_file_occupation`, bounded `entry_square_enable_deny`, bounded `target_focused_piece_coordination` | not started | queue only; no runtime owner path reviewed yet |
+| B | Target Fixation / Weakness Pressure | reviewed `static_weakness_fixation`, `backward_pawn_targeting`, `target_focused_coordination`, `minority_attack_fixation`, `iqp_inducement` | cluster B now has two live exact slices on the canonical path: `B21` / `B21A` keep the existing move-local `exact_target_fixation` lane (`bestDefenseBranchKey=f3d2|b8a6`, `sameBranchState=Proven`, `persistence=Stable`, `main_bundle=This keeps the pressure fixed on d6.`, planner-primary `WhatChanged=This changes the position by fixing d6 as the target.` plus same-branch contrast/consequence), and `B15A` / `B16B` now open the first planner-owned current-position probe lane on the Carlsbad fixed target (`ownerSource=carlsbad_fixed_target_probe`, `ownerFamily=backward_pawn_targeting`, `scope=PositionLocal`, `main_bundle=The key strategic fact here is that c6 is the fixed target.`, planner-primary `WhatMattersHere`, deterministic Bookmaker / Chronicle primary, and coda `So the task is to keep the queenside pressure trained on c6 instead of rushing a conversion.`); the same exact `B21A` packet still backs the only support-only `decisionComparison` comparative digest (`Nd2` versus `Qc2`: `Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.`); `target_focused_coordination` stays support-only; `minority_attack_fixation` stays absorbed support-only; `iqp_inducement` stays structure/conversion support-only; `K03A` remains fail-closed | keep both exact lanes narrow: `B21` / `B21A` stay move-owned delta only, `B15A` / `B16B` stay current-position probe only, and fail-close siblings unless a new reviewed row survives exact board + same-branch proof without relabel drift |
+| C | Exchange / Removal Without Task-Shift | `17.trade_key_defender`, bounded `favorable_simplification`, bounded `trade_attacking_piece`, bounded `remove_key_defender` trigger-only form | bounded `favorable_simplification` is now promoted on one exact same-task simplification slice; `trade_key_defender` stays blocked; `trade_attacking_piece` is now reviewed fail-closed because `K08A` is not a real live-attacker removal row, `K08D` is not root-best, and exploratory `MI5` collapses into tactic-first `Qxd6` relief; `remove_key_defender` is now reviewed fail-closed because `K09B`/`K09F` only survive as same-task simplification on `d4e6|f7e6`, `K09A`/`K09D`/`K09E` stay preparatory or prophylactic/file-pressure rivals, and `MI5` is still tactic-first relief rather than a one-defender local trigger | keep the promoted simplification slice narrow and keep `trade_key_defender`, `trade_attacking_piece`, and `remove_key_defender` blocked; reopen `trade_attacking_piece` or `remove_key_defender` only with a new exact row whose planner-owned move-local owner survives without relabeling into simplification, blocked defender-trade ownership, attack-piece removal, or tactical cleanup |
+| D | Coordination / Access Conversion | bounded `support_file_occupation`, bounded `entry_square_enable_deny`, bounded `target_focused_piece_coordination` | `entry_square_enable_deny` reviewed and blocked; `support_file_occupation` and `target_focused_piece_coordination` remain queued | keep `entry_square_enable_deny` blocked unless a new exact root-best row materializes a one-square move-local owner without relabeling into prophylaxis or file-entry reuse; keep the other two cells queue-only |
+
+Current mid-layer priority remains machinery-first for the remaining unopened
+review cells:
+deepen owner seed, same-branch continuation, rival-story arbitration, and
+structure-transition witness inside the existing canonical owner-path modules
+while keeping the newly opened Cluster B slice narrow and the remaining C / D
+reviews fail-closed until they survive the same proof burden.
 
 ## What Step 1-7 Closed
 
@@ -293,18 +286,13 @@ Current status:
   behind the same exact-board burden
 - `CTH-B7`:
   design/recon/charter baseline ready only:
-  no runtime slice is open; the selected candidate is one same-defended-branch
-  bounded task shift after forced simplification, but rollout remains closed
-  because the current K09B review control survives exact-board engine replay
-  but not runtime-owner review; the blocker is now fixed as owner-path
-  admissibility plus a missing backend-only `currentTask -> shiftedTask`
-  vocabulary, not as exact-board discovery. The backend-only contract design
-  freeze is now canonical, and B7 runtime remains deferred on that baseline
-  rather than runtime reopening. The follow-up second-survivor hunt found no
-  non-`K09B` late-middlegame exact-FEN survivor for the frozen pair, so current
-  B7 status stays `still overfit / more corpus work needed`; the later parallel
-  hunt tightened that conclusion by eliminating `K09I` and three web-recovered
-  historical exact-FEN leads at the root-best trigger gate
+  no runtime slice is open. The old `K09B` review control is no longer a B7
+  near miss: `K09B` / `K09F` now materialize only as promoted bounded
+  `favorable_simplification` on the exact `d4e6|f7e6` branch, so B7 still
+  lacks a certified exact-FEN positive control. The backend-only
+  `currentTask -> shiftedTask` contract freeze remains canonical, and B7
+  runtime stays deferred on that baseline until some new exact-board survivor
+  proves a distinct task handoff rather than same-task simplification
 - `CTH-B8`:
   confirmed later frontier:
   slight-edge local squeeze; deferred until fortress/progress discrimination is

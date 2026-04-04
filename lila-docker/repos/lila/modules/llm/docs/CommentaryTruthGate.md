@@ -727,10 +727,13 @@ plus the local quality-audit rerun artifacts referenced there.
     battlefront, and a concrete timing anchor survive planner admission; a
     generic race shell is not a player-facing owner even if support rows exist
   - main-path ownership is scope-aware:
-    `MoveLocal` claims may own the main sentence; `LineScoped` claims may
-    survive only as explicit subordinate lines, and strategic line-scoped
-    consequences are not allowed to stand alone without a move-local strategic
-    claim
+    `MoveLocal` claims may own the main sentence; certified `PositionLocal`
+    claims may also own the main sentence, but only on a reviewed
+    current-position probe lane (currently the exact
+    `carlsbad_fixed_target_probe -> WhatMattersHere` slice on `B15A` /
+    `B16B`); `LineScoped` claims may survive only as explicit subordinate
+    lines, and strategic line-scoped consequences are not allowed to stand
+    alone without a canonical main-path strategic claim
   - user-facing state-summary thesis / fallback revival is not canonical:
     old `StrategicThesisBuilder`-style main-path promotion may not recreate a
     Bookmaker / Chronicle claim once tactical / strategic ownership failed

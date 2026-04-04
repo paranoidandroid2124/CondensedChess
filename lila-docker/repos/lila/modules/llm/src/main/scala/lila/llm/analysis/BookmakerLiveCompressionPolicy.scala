@@ -234,6 +234,19 @@ private[llm] object BookmakerLiveCompressionPolicy:
     val timingTension = plannerTimingTension(primary.questionKind, inputs, ctx)
 
     primary.questionKind match
+      case AuthorQuestionKind.WhatMattersHere =>
+        Some(
+          PlannerSlotDraft(
+            questionKind = AuthorQuestionKind.WhatMattersHere,
+            lens = plannerLens(primary, inputs),
+            claim = primary.claim,
+            supportPrimary = admissibleContrast,
+            supportSecondary = secondarySupport,
+            tension = None,
+            evidenceHook = primaryEvidence,
+            coda = primaryConsequence
+          )
+        )
       case AuthorQuestionKind.WhyThis =>
         Some(
           PlannerSlotDraft(
@@ -373,6 +386,7 @@ private[llm] object BookmakerLiveCompressionPolicy:
       .orElse(inputs.quietIntent.map(_.lens))
       .getOrElse {
         primary.questionKind match
+          case AuthorQuestionKind.WhatMattersHere => StrategicLens.Structure
           case AuthorQuestionKind.WhatMustBeStopped => StrategicLens.Prophylaxis
           case AuthorQuestionKind.WhosePlanIsFaster => StrategicLens.Decision
           case AuthorQuestionKind.WhyNow            => StrategicLens.Decision

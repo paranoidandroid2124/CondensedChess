@@ -283,6 +283,11 @@ private[llm] object QuietMoveIntentBuilder:
           HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)
       )(PlayerFacingClaimReleaseRisk.HeavyPieceLeakage).toList
     val ownerFamily = quietOwnerFamily(claim.intentClass)
+    val ownerPathWitness = quietOwnerPathWitness(ctx, claim.intentClass, anchorSquare)
+    val sameBranchState =
+      quietSameBranchState(ctx, provenanceClass, ownerFamily, ownerPathWitness)
+    val persistence =
+      quietPersistence(ctx, provenanceClass, ownerFamily)
     val lineOnlyPilot =
       PlayerFacingClaimPacket.isLineOnlyPilot(claim.sourceKind, ownerFamily)
     val quietCounterplayPilot =
@@ -319,14 +324,9 @@ private[llm] object QuietMoveIntentBuilder:
           anchorTerms = anchorSquare.toList.flatMap(clean),
           bestDefenseMove = quietBestDefenseMove(ctx),
           bestDefenseBranchKey = quietBestDefenseBranchKey(ctx),
-          sameBranchState =
-            if provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked then
-              PlayerFacingSameBranchState.Ambiguous
-            else PlayerFacingSameBranchState.Missing,
-          persistence =
-            if provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked then
-              PlayerFacingClaimPersistence.BestDefenseOnly
-            else PlayerFacingClaimPersistence.Broken,
+          sameBranchState = sameBranchState,
+          persistence = persistence,
+          ownerPathWitness = ownerPathWitness,
           suppressionReasons =
             Option.when(releaseRisks.nonEmpty)(
               PlayerFacingClaimSuppressionReason.SupportOnlyReinflation
@@ -480,6 +480,92 @@ private[llm] object QuietMoveIntentBuilder:
         case first :: second :: Nil => Some(s"${normalize(first)}|${normalize(second)}")
         case _                      => None
     }
+
+  private def quietOwnerPathWitness(
+      ctx: NarrativeContext,
+      intentClass: QuietMoveIntentClass,
+      anchorSquare: Option[String]
+  ): PlayerFacingOwnerPathWitness =
+    val ownerSeedTerms =
+      anchorSquare.toList.flatMap(clean) ++
+        Option.when(intentClass == QuietMoveIntentClass.CounterplayRestraint) {
+          ctx.semantic.toList.flatMap(_.preventedPlans).flatMap(plan =>
+            plan.breakNeutralized.flatMap(clean).toList ++
+              plan.deniedSquares.flatMap(clean) ++
+              plan.preventedThreatType.flatMap(clean).toList
+          )
+        }.getOrElse(Nil)
+    val continuationTerms =
+      quietBestDefenseBranchKey(ctx).toList ++
+        quietBestDefenseMove(ctx).toList ++
+        quietEvidenceBackedExperiments(ctx, quietOwnerFamily(intentClass)).flatMap { experiment =>
+          List(
+            Option.when(experiment.bestReplyStable)("best_reply_stable"),
+            Option.when(experiment.futureSnapshotAligned)("future_snapshot_aligned"),
+            Option.when(experiment.counterBreakNeutralized)("counter_break_neutralized")
+          ).flatten
+        }
+    PlayerFacingOwnerPathWitness(
+      ownerSeedTerms = ownerSeedTerms.distinct,
+      continuationTerms = continuationTerms.distinct,
+      structureTransitionTerms =
+        Option.when(intentClass == QuietMoveIntentClass.CounterplayRestraint)(ownerSeedTerms.distinct).getOrElse(Nil)
+    )
+
+  private def quietSameBranchState(
+      ctx: NarrativeContext,
+      provenanceClass: PlayerFacingClaimProvenanceClass,
+      ownerFamily: String,
+      ownerPathWitness: PlayerFacingOwnerPathWitness
+  ): PlayerFacingSameBranchState =
+    if provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
+      PlayerFacingSameBranchState.Missing
+    else if quietBestDefenseBranchKey(ctx).isEmpty then
+      PlayerFacingSameBranchState.Missing
+    else
+      val experiments = quietEvidenceBackedExperiments(ctx, ownerFamily)
+      if ownerPathWitness.hasOwnerSeed &&
+          experiments.exists(exp => exp.bestReplyStable && exp.futureSnapshotAligned && !exp.moveOrderSensitive)
+      then PlayerFacingSameBranchState.Proven
+      else if ownerPathWitness.hasContinuation || experiments.nonEmpty then PlayerFacingSameBranchState.Ambiguous
+      else PlayerFacingSameBranchState.Missing
+
+  private def quietPersistence(
+      ctx: NarrativeContext,
+      provenanceClass: PlayerFacingClaimProvenanceClass,
+      ownerFamily: String
+  ): PlayerFacingClaimPersistence =
+    if provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
+      PlayerFacingClaimPersistence.Broken
+    else
+      val experiments = quietEvidenceBackedExperiments(ctx, ownerFamily)
+      if experiments.exists(exp => exp.bestReplyStable && exp.futureSnapshotAligned && !exp.moveOrderSensitive) then
+        PlayerFacingClaimPersistence.Stable
+      else if experiments.exists(_.bestReplyStable) then
+        PlayerFacingClaimPersistence.BestDefenseOnly
+      else if experiments.exists(_.futureSnapshotAligned) then
+        PlayerFacingClaimPersistence.FutureOnly
+      else PlayerFacingClaimPersistence.Broken
+
+  private def quietEvidenceBackedExperiments(
+      ctx: NarrativeContext,
+      ownerFamily: String
+  ): List[StrategicPlanExperiment] =
+    val evidenceBacked = ctx.strategicPlanExperiments.filter(exp => normalize(exp.evidenceTier) == "evidence backed")
+    val matched =
+      ownerFamily match
+        case "neutralize_key_break" =>
+          evidenceBacked.filter(exp =>
+            exp.counterBreakNeutralized ||
+              exp.subplanId.contains(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+          )
+        case "counterplay_restraint" =>
+          evidenceBacked.filter(exp =>
+            exp.subplanId.contains(ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id) ||
+              exp.themeL1 == ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id
+          )
+        case _ => evidenceBacked
+    if matched.nonEmpty then matched else evidenceBacked
 
   private def candidateText(candidate: CandidateInfo): String =
     normalize(

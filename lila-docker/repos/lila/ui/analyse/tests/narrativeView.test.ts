@@ -574,6 +574,50 @@ describe('narrative review card click guard', () => {
     assert.ok(!selectors.includes('div.narrative-signal-box'));
   });
 
+  test('decision-comparison support renders exact comparative consequence from the canonical digest', async () => {
+    const { narrativeMomentView } = await loadNarrativeViewModule();
+    const ctrl: any = {
+      root: {
+        data: {
+          game: {
+            variant: { key: 'standard' },
+          },
+        },
+      },
+    };
+
+    const moment: any = {
+      ply: 24,
+      moveNumber: 12,
+      side: 'white',
+      momentType: 'StrategicBridge',
+      fen: 'rnbqr1k1/pp3pbp/3p1np1/2pP4/4P3/2N2N2/PP2BPPP/R1BQ1RK1 w - - 2 1',
+      narrative: 'Nd2 fixes d6 as the next target.',
+      concepts: [],
+      variations: [],
+      signalDigest: {
+        decisionComparison: {
+          chosenMove: 'Nd2',
+          engineBestMove: 'Nd2',
+          engineBestPv: ['Nd2', '...Na6', 'f3', 'Nc7'],
+          comparedMove: 'Qc2',
+          comparativeConsequence:
+            'Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.',
+          comparativeSource: 'exact_target_fixation_delta',
+          chosenMatchesBest: true,
+        },
+      },
+    };
+
+    const vnode = narrativeMomentView(ctrl, moment);
+    const text = collectText(vnode);
+
+    assert.match(text, /Decision compare/);
+    assert.match(text, /Chosen/);
+    assert.match(text, /Compared/);
+    assert.match(text, /Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch/);
+  });
+
   test('strategic note no longer rebuilds active strategy surfaces from strategyPack fallback', async () => {
     const { narrativeMomentView } = await loadNarrativeViewModule();
     const ctrl: any = {

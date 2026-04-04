@@ -4,6 +4,7 @@ import munit.FunSuite
 import lila.llm.{ DirectionalTargetReadiness, GameChronicleMoment, NarrativeSignalDigest, RouteSurfaceMode, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
 import lila.llm.model.*
 import lila.llm.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
+import lila.llm.model.authoring.NarrativeOutline
 import lila.llm.model.strategic.{ EngineEvidence, PvMove, VariationLine }
 
 class PlayerFacingTruthModePolicyTest extends FunSuite:
@@ -103,11 +104,26 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
   private val defaultQuestions =
     List(
       AuthorQuestion("why_this", AuthorQuestionKind.WhyThis, 100, "Why this move?"),
+      AuthorQuestion("what_matters_here", AuthorQuestionKind.WhatMattersHere, 90, "What matters here?"),
       AuthorQuestion("what_changed", AuthorQuestionKind.WhatChanged, 80, "What changed?"),
       AuthorQuestion("why_now", AuthorQuestionKind.WhyNow, 60, "Why now?")
     )
 
-  private def exactReviewSnapshot(id: String) =
+  private val emptyParts =
+    CommentaryEngine.HybridNarrativeParts(
+      lead = "Lead",
+      defaultBridge = "Bridge",
+      criticalBranch = None,
+      body = "Body",
+      primaryPlan = None,
+      focusedOutline = NarrativeOutline(beats = Nil),
+      phase = "Middlegame",
+      tacticalPressure = false,
+      cpWhite = Some(20),
+      bead = 1
+    )
+
+  private def exactReviewScene(id: String) =
     val fixture =
       TaskShiftProvingFixtures.reviewFixtures
         .find(_.id == id)
@@ -133,7 +149,105 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       QuestionPlannerInputsBuilder.build(ctx, Some(pack), truthContract = None)
     val ranked =
       QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+    (fixture, ctx, pack, inputs, ranked)
+
+  private def exactReviewSnapshot(id: String) =
+    val (fixture, _, pack, inputs, ranked) = exactReviewScene(id)
     (fixture, pack, inputs, ranked)
+
+  private def standaloneEntrySquareDenialSnapshot() =
+    val ctx =
+      baseCtx().copy(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        ply = 46,
+        playedMove = Some("a2a3"),
+        playedSan = Some("a3"),
+        authorQuestions = defaultQuestions,
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "entry_route_denial",
+              planName = "Take away the b4 entry square",
+              subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id,
+              executionSteps = List("Keep Black out of b4 on the defended branch.")
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "entry_route_denial",
+              subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_entry",
+                deniedSquares = List("b4"),
+                breakNeutralized = None,
+                mobilityDelta = -2,
+                counterplayScoreDrop = 138,
+                preventedThreatType = Some("counterplay"),
+                citationLine = Some("Black can no longer use b4 as an entry square."),
+                deniedResourceClass = Some("entry_square"),
+                deniedEntryScope = Some("single_square")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        meta = Some(
+          MetaSignals(
+            choiceType = ChoiceType.NarrowChoice,
+            targets = Targets(Nil, Nil),
+            planConcurrency = PlanConcurrency("Attack", None, "independent"),
+            whyNot = Some("Black can no longer use b4 as an entry square.")
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations =
+              List(
+                VariationLine(
+                  moves = List("a2a3", "b7b5", "a3a4"),
+                  scoreCp = 82,
+                  depth = 18
+                )
+              )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          directionalTargets =
+            List(
+              StrategyDirectionalTarget(
+                targetId = "target_b4",
+                ownerSide = "white",
+                piece = "P",
+                from = "a2",
+                targetSquare = "b4",
+                readiness = DirectionalTargetReadiness.Build,
+                strategicReasons = List("keep Black out of b4"),
+                evidence = List("probe")
+              )
+            ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("keep Black out of b4")))
+        )
+      )
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
+    val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+    (ctx, pack, inputs, ranked)
 
   test("quiet shell-only support resolves to Minimal") {
     val ctx = baseCtx().copy(strategicSalience = lila.llm.model.strategic.StrategicSalience.Low)
@@ -1698,8 +1812,10 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     assertEquals(delta.packet.ownerFamily, ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id)
     assertEquals(delta.packet.bestDefenseBranchKey, Some("f3d2|b8a6"))
-    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Ambiguous)
+    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
     assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assertEquals(delta.packet.ownerPathWitness.ownerSeedTerms.contains("d6"), true)
+    assert(delta.packet.ownerPathWitness.continuationTerms.nonEmpty)
     assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assert(!PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
 
@@ -1707,29 +1823,102 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(bundle.flatMap(_.mainClaim), None)
   }
 
-  test("exact weakness positive controls stay fail-closed at runtime and planner") {
+  test("exact weakness positive controls promote planner-owned WhatChanged state delta on the admitted target-fixation lane") {
     List("B21", "B21A").foreach { id =>
       val (_, pack, inputs, ranked) = exactReviewSnapshot(id)
 
       if !pack.strategicIdeas.exists(_.kind == StrategicIdeaKind.TargetFixing) then
         fail(s"$id should still expose target-fixing evidence")
 
-      assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
-      assert(ranked.primary.isEmpty)
-      assert(
-        ranked.rejected.exists(_.reasons.contains("missing_move_owner"))
+      val mainClaim =
+        inputs.mainBundle.flatMap(_.mainClaim).getOrElse(fail(s"$id should admit a main claim"))
+      val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the owner packet"))
+
+      assertEquals(mainClaim.claimText, "This keeps the pressure fixed on d6.")
+      assertEquals(packet.ownerSource, PlayerFacingTruthModePolicy.ExactTargetFixationOwnerSource)
+      assertEquals(packet.ownerFamily, ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id)
+      assertEquals(packet.bestDefenseBranchKey, Some("f3d2|b8a6"))
+      assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+      assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+      assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+      assert(packet.ownerPathWitness.ownerSeedTerms.contains("d6"))
+      assertEquals(
+        ranked.primary.map(_.questionKind),
+        Some(AuthorQuestionKind.WhatChanged)
       )
+      assertEquals(
+        ranked.primary.map(_.claim),
+        Some("This changes the position by fixing d6 as the target.")
+      )
+      assertEquals(
+        ranked.primary.flatMap(_.contrast),
+        Some("Before the move, d6 was not yet fixed as the target on that defended branch.")
+      )
+      assertEquals(
+        ranked.primary.flatMap(_.consequence.map(_.text)),
+        Some("That same defended branch keeps the pressure fixed on d6.")
+      )
+      assertEquals(ranked.primary.map(_.ownerFamily), Some(OwnerFamily.MoveDelta))
+      assert(ranked.primary.exists(_.admissibilityReasons.contains("exact_target_state_delta")))
+      assertEquals(ranked.secondary, None)
     }
   }
 
-  test("exact weakness support and reviewed sibling rows keep the owner path closed") {
-    List("K03A", "B15A", "B16B").foreach { id =>
+  test("carlsbad fixed-target positive controls promote planner-owned WhatMattersHere position probes") {
+    val expectedBranchKeys =
+      Map(
+        "B15A" -> "h4f2|b7b5",
+        "B16B" -> "f1e1|c8d7"
+      )
+
+    List("B15A", "B16B").foreach { id =>
+      val (_, pack, inputs, ranked) = exactReviewSnapshot(id)
+
+      assert(!pack.strategicIdeas.exists(_.kind == StrategicIdeaKind.TargetFixing), clues(id, pack.strategicIdeas))
+
+      val mainClaim =
+        inputs.mainBundle.flatMap(_.mainClaim).getOrElse(fail(s"$id should now admit a position probe"))
+      val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the probe packet"))
+
+      assertEquals(mainClaim.scope, PlayerFacingClaimScope.PositionLocal)
+      assertEquals(mainClaim.claimText, "The key strategic fact here is that c6 is the fixed target.")
+      assertEquals(packet.ownerSource, PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource)
+      assertEquals(packet.ownerFamily, ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id)
+      assertEquals(packet.scope, PlayerFacingPacketScope.PositionLocal)
+      assertEquals(packet.bestDefenseBranchKey, expectedBranchKeys.get(id))
+      assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+      assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+      assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+      assert(packet.ownerPathWitness.ownerSeedTerms.contains("c6"))
+      assert(packet.ownerPathWitness.ownerSeedTerms.contains("fixed_target:c6"))
+      assert(packet.ownerPathWitness.ownerSeedTerms.contains(ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id))
+      assertEquals(
+        ranked.primary.map(_.questionKind),
+        Some(AuthorQuestionKind.WhatMattersHere)
+      )
+      assertEquals(
+        ranked.primary.map(_.claim),
+        Some("The key strategic fact here is that c6 is the fixed target.")
+      )
+      assertEquals(
+        ranked.primary.flatMap(_.consequence.map(_.text)),
+        Some("So the task is to keep the queenside pressure trained on c6 instead of rushing a conversion.")
+      )
+      assertEquals(ranked.primary.map(_.ownerFamily), Some(OwnerFamily.PositionProbe))
+      assert(ranked.primary.exists(_.admissibilityReasons.contains("position_probe_owner")))
+      assertEquals(ranked.secondary, None)
+    }
+  }
+
+  test("reviewed sibling rows and blocked controls keep the owner path closed") {
+    List("K03A").foreach { id =>
       val (_, _, inputs, ranked) = exactReviewSnapshot(id)
       assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
       assert(ranked.primary.isEmpty)
+      assert(ranked.rejected.exists(_.reasons.contains("position_probe_missing")))
     }
 
-    List("K09A", "K09B", "K09D", "K09E", "K09F").foreach { id =>
+    List("K09A", "K09D", "K09E", "D01A").foreach { id =>
       val (_, pack, inputs, ranked) = exactReviewSnapshot(id)
 
       if pack.strategicIdeas.headOption.exists(_.kind == StrategicIdeaKind.TargetFixing) then
@@ -1737,6 +1926,181 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
       assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
       assert(ranked.primary.isEmpty)
+      assert(ranked.rejected.exists(_.reasons.contains("missing_move_owner")))
+    }
+  }
+
+  test("carlsbad probe deterministic surfaces keep WhatMattersHere as planner-owned primary") {
+    List("B15A", "B16B").foreach { id =>
+      val (_, ctx, pack, inputs, ranked) = exactReviewScene(id)
+      val outline =
+        BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = None)
+
+      val bookmakerSelection =
+        BookmakerLiveCompressionPolicy.renderSelection(inputs, ranked, truthContract = None)
+          .getOrElse(fail(s"$id should select a planner-owned bookmaker surface"))
+      val bookmakerSlots =
+        BookmakerLiveCompressionPolicy
+          .buildSlots(ctx, outline, refs = None, strategyPack = Some(pack))
+          .getOrElse(fail(s"$id should build planner-owned bookmaker slots"))
+      val bookmakerFallbackAware =
+        BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+          ctx = ctx,
+          outline = outline,
+          refs = None,
+          strategyPack = Some(pack),
+          truthContract = None
+        )
+
+      assertEquals(bookmakerSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
+      assertEquals(bookmakerSelection.primary.ownerFamily, OwnerFamily.PositionProbe)
+      assertEquals(
+        BookmakerProseContract.stripMoveHeader(bookmakerSlots.claim),
+        "The key strategic fact here is that c6 is the fixed target."
+      )
+      assertEquals(
+        bookmakerSlots.coda,
+        Some("So the task is to keep the queenside pressure trained on c6 instead of rushing a conversion.")
+      )
+      assertEquals(bookmakerFallbackAware, bookmakerSlots)
+
+      val chronicleSelection =
+        GameChronicleCompressionPolicy.selectPlannerSurface(ranked, inputs)
+          .getOrElse(fail(s"$id should select a planner-owned chronicle surface"))
+      val chronicleArtifact =
+        GameChronicleCompressionPolicy
+          .renderWithTrace(
+            ctx = ctx,
+            parts = emptyParts.copy(focusedOutline = outline),
+            strategyPack = Some(pack),
+            truthContract = None
+          )
+          .getOrElse(fail(s"$id should render a chronicle artifact"))
+
+      assertEquals(chronicleSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
+      assertEquals(chronicleSelection.primary.ownerFamily, OwnerFamily.PositionProbe)
+      assert(
+        chronicleArtifact.narrative.startsWith("The key strategic fact here is that c6 is the fixed target."),
+        clue(chronicleArtifact.narrative)
+      )
+      assertEquals(chronicleArtifact.quietSupportTrace.applied, false)
+    }
+  }
+
+  test("cluster B deterministic surfaces keep the exact target-fixation WhatChanged as planner-owned primary") {
+    List("B21", "B21A").foreach { id =>
+      val (_, ctx, pack, inputs, ranked) = exactReviewScene(id)
+      val outline =
+        BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = None)
+
+      val bookmakerSelection =
+        BookmakerLiveCompressionPolicy.renderSelection(inputs, ranked, truthContract = None)
+          .getOrElse(fail(s"$id should select a planner-owned bookmaker surface"))
+      val bookmakerSlots =
+        BookmakerLiveCompressionPolicy
+          .buildSlots(ctx, outline, refs = None, strategyPack = Some(pack))
+          .getOrElse(fail(s"$id should build planner-owned bookmaker slots"))
+      val bookmakerFallbackAware =
+        BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+          ctx = ctx,
+          outline = outline,
+          refs = None,
+          strategyPack = Some(pack),
+          truthContract = None
+        )
+
+      assertEquals(bookmakerSelection.primary.questionKind, AuthorQuestionKind.WhatChanged)
+      assertEquals(bookmakerSelection.primary.ownerFamily, OwnerFamily.MoveDelta)
+      assertEquals(
+        BookmakerProseContract.stripMoveHeader(bookmakerSlots.claim),
+        "This changes the position by fixing d6 as the target."
+      )
+      assertEquals(bookmakerFallbackAware, bookmakerSlots)
+
+      val chronicleSelection =
+        GameChronicleCompressionPolicy.selectPlannerSurface(ranked, inputs)
+          .getOrElse(fail(s"$id should select a planner-owned chronicle surface"))
+      val chronicleArtifact =
+        GameChronicleCompressionPolicy
+          .renderWithTrace(
+            ctx = ctx,
+            parts = emptyParts.copy(focusedOutline = outline),
+            strategyPack = Some(pack),
+            truthContract = None
+          )
+          .getOrElse(fail(s"$id should render a chronicle artifact"))
+
+      assertEquals(chronicleSelection.primary.questionKind, AuthorQuestionKind.WhatChanged)
+      assertEquals(chronicleSelection.primary.ownerFamily, OwnerFamily.MoveDelta)
+      assert(chronicleArtifact.narrative.startsWith("This changes the position by fixing d6 as the target."))
+      assertEquals(chronicleArtifact.quietSupportTrace.applied, false)
+    }
+  }
+
+  test("bounded favorable simplification exact controls materialize a same-task owner path") {
+    List("K09B", "K09F").foreach { id =>
+      val (_, pack, inputs, ranked) = exactReviewSnapshot(id)
+
+      assert(pack.strategicIdeas.exists(_.kind == StrategicIdeaKind.FavorableTradeOrTransformation))
+
+      val mainClaim =
+        inputs.mainBundle.flatMap(_.mainClaim).getOrElse(fail(s"$id should now admit a main claim"))
+      val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the owner packet"))
+
+      assert(mainClaim.claimText.toLowerCase.contains("same local edge"))
+      assertEquals(packet.ownerFamily, ThemeTaxonomy.SubplanId.SimplificationWindow.id)
+      assertEquals(packet.bestDefenseBranchKey, Some("d4e6|f7e6"))
+      assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+      assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+      assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+      assertEquals(ranked.primary.map(_.claim), Some(mainClaim.claimText))
+      assertEquals(ranked.primary.map(_.questionKind), Some(AuthorQuestionKind.WhyThis))
+      assert(!ranked.primary.exists(_.questionKind == AuthorQuestionKind.WhatChanged))
+    }
+  }
+
+  test("attacking-piece trade review rows stay owner-closed when the charter collapses into rival shells") {
+    List("K08A", "K08D").foreach { id =>
+      val (_, _, inputs, ranked) = exactReviewSnapshot(id)
+
+      assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
+      assert(ranked.primary.isEmpty)
+      assert(
+        ranked.rejected.exists(_.reasons.contains("missing_move_owner"))
+      )
+    }
+
+    val (_, pack, inputs, ranked) = exactReviewSnapshot("MI5")
+    assert(pack.strategicIdeas.exists(_.kind == StrategicIdeaKind.FavorableTradeOrTransformation))
+    assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
+    assert(ranked.primary.isEmpty)
+    assert(
+      ranked.rejected.exists(_.reasons.contains("missing_move_owner"))
+    )
+  }
+
+  test("remove-key-defender trigger-only review rows stay bounded to simplification or fail closed") {
+    List("K09B", "K09F").foreach { id =>
+      val (_, _, inputs, ranked) = exactReviewSnapshot(id)
+      val mainClaim =
+        inputs.mainBundle.flatMap(_.mainClaim).getOrElse(fail(s"$id should stay owned by simplification instead"))
+      val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the owner packet"))
+
+      assertEquals(packet.ownerFamily, ThemeTaxonomy.SubplanId.SimplificationWindow.id)
+      assertNotEquals(packet.ownerFamily, "trade_key_defender")
+      assert(mainClaim.claimText.toLowerCase.contains("same local edge"))
+      assert(!mainClaim.claimText.toLowerCase.contains("defender"))
+      assertEquals(ranked.primary.map(_.claim), Some(mainClaim.claimText))
+    }
+
+    List("K09A", "K09D", "K09E", "MI5").foreach { id =>
+      val (_, _, inputs, ranked) = exactReviewSnapshot(id)
+
+      assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
+      assert(ranked.primary.isEmpty)
+      assert(
+        ranked.rejected.exists(_.reasons.contains("missing_move_owner"))
+      )
     }
   }
 
@@ -1838,7 +2202,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       ).get
 
     assertEquals(delta.packet.ownerFamily, ThemeTaxonomy.SubplanId.MinorityAttackFixation.id)
-    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Ambiguous)
+    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(delta.packet.ownerPathWitness.ownerSeedTerms.contains("b7"), true)
     assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assert(!PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
 
@@ -2040,5 +2405,34 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       ).get
 
     assertEquals(delta.packet.ownerFamily, "trade_key_defender")
+    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assert(delta.packet.ownerPathWitness.ownerSeedTerms.contains("e6"))
+    assert(delta.packet.ownerPathWitness.structureTransitionTerms.nonEmpty)
+    assert(delta.packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.SupportOnlyReinflation))
     assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+  }
+
+  test("standalone entry-square denial stays owner-closed without a promoted family") {
+    val (ctx, pack, inputs, ranked) = standaloneEntrySquareDenialSnapshot()
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx,
+        StrategyPackSurface.from(pack),
+        None
+      ).getOrElse(fail("standalone entry-square denial should still build a packet"))
+
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ResourceRemoval)
+    assertEquals(delta.packet.triggerKind, "entry_square_denial")
+    assertEquals(delta.packet.ownerSource, "resource_removal_delta")
+    assertEquals(delta.packet.ownerFamily, "resource_removal")
+    assertEquals(delta.packet.bestDefenseBranchKey, Some("a2a3|b7b5"))
+    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+    assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
+    assert(delta.packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.ScopeInflation))
+    assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.Suppress)
+    assert(!PlayerFacingClaimCertification.allowsWeakMainClaim(delta.packet))
+
+    assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
+    assertEquals(inputs.mainBundle.flatMap(_.lineScopedClaim), None)
+    assert(ranked.primary.isEmpty)
   }

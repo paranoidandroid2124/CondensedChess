@@ -23,7 +23,7 @@ object strategicPuzzlePage:
             div(id := "strategic-puzzle-app")(
               div(cls := "sp-live-noscript")(
                 h2("Loading strategic puzzle"),
-                p("If this stays empty, enable JavaScript to choose the task, choose the start, and open the review.")
+                p("If this stays empty, enable JavaScript to solve the live puzzle and open the review.")
               )
             )
           )

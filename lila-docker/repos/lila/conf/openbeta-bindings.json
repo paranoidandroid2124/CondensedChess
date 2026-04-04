@@ -267,6 +267,60 @@
       "notes": "Shared worker auth token for Account Intel internal calls."
     },
     {
+      "env": "ACCOUNT_INTEL_CLOUD_TASKS_PROJECT_ID",
+      "configPath": "accountIntel.dispatch.cloudTasks.projectId",
+      "kind": "plain",
+      "requiredMode": "dispatch_only",
+      "readinessClass": "none",
+      "probe": "config_only",
+      "notes": "GCP project ID used to enqueue Account Intel Cloud Tasks."
+    },
+    {
+      "env": "ACCOUNT_INTEL_CLOUD_TASKS_LOCATION",
+      "configPath": "accountIntel.dispatch.cloudTasks.location",
+      "kind": "plain",
+      "requiredMode": "dispatch_only",
+      "readinessClass": "none",
+      "probe": "config_only",
+      "notes": "GCP region containing the Account Intel Cloud Tasks queue."
+    },
+    {
+      "env": "ACCOUNT_INTEL_CLOUD_TASKS_QUEUE",
+      "configPath": "accountIntel.dispatch.cloudTasks.queue",
+      "kind": "plain",
+      "requiredMode": "dispatch_only",
+      "readinessClass": "none",
+      "probe": "config_only",
+      "notes": "Cloud Tasks queue name used for Account Intel builds."
+    },
+    {
+      "env": "ACCOUNT_INTEL_CLOUD_TASKS_WORKER_URL",
+      "configPath": "accountIntel.dispatch.cloudTasks.workerUrl",
+      "kind": "plain",
+      "requiredMode": "dispatch_only",
+      "readinessClass": "core",
+      "probe": "http",
+      "notes": "Private Cloud Run worker base URL for Account Intel task delivery."
+    },
+    {
+      "env": "ACCOUNT_INTEL_CLOUD_TASKS_SERVICE_ACCOUNT_EMAIL",
+      "configPath": "accountIntel.dispatch.cloudTasks.serviceAccountEmail",
+      "kind": "plain",
+      "requiredMode": "dispatch_only",
+      "readinessClass": "none",
+      "probe": "config_only",
+      "notes": "Service account email attached to Cloud Tasks OIDC calls into the worker."
+    },
+    {
+      "env": "ACCOUNT_INTEL_CLOUD_TASKS_AUDIENCE",
+      "configPath": "accountIntel.dispatch.cloudTasks.audience",
+      "kind": "plain",
+      "requiredMode": "dispatch_only",
+      "readinessClass": "none",
+      "probe": "config_only",
+      "notes": "Optional OIDC audience override for Account Intel worker invocation."
+    },
+    {
       "env": "ACCOUNT_INTEL_SELECTIVE_EVAL_ENDPOINT",
       "configPath": "accountIntel.selectiveEval.endpoint",
       "kind": "plain",

@@ -609,6 +609,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
   end assertExpectation
 
   private val whatChangedFixture = plannerRuntimeFixture("what_changed_positive")
+  private val whatChangedNegativeFixture = plannerRuntimeFixture("what_changed_negative")
   private val whyThisFallbackFixture = plannerRuntimeFixture("why_this_fallback")
   private val whyThisNegativeFixture = plannerRuntimeFixture("why_this_negative")
   private val stopPositiveFixture = plannerRuntimeFixture("what_must_be_stopped_positive")
@@ -792,6 +793,36 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
       val result = observe(fixture)
       assertExpectation(result)
     }
+  }
+
+  test("what_changed_negative stays exact-factual and does not reopen planner-owned state summary") {
+    val fixture =
+      HarnessFixture(
+        id = "what_changed_negative",
+        scene =
+          BookChronicleScene(
+            ctx = whatChangedNegativeFixture.ctx,
+            strategyPack = whatChangedNegativeFixture.strategyPack,
+            truthContract = whatChangedNegativeFixture.truthContract,
+            expectedFallbackClaim = whatChangedNegativeFixture.expectedFallbackClaim
+          ),
+        active =
+          ActiveScene(
+            moment = activeMoment(authorQuestions = Nil),
+            deltaBundle = activeDeltaBundle,
+            dossier = activeDossier
+          ),
+        expectation =
+          FixtureExpectation(
+            bookmakerOwner = None,
+            chronicleOwner = None,
+            bookmakerMode = SurfaceMode.ExactFactualFallback,
+            chronicleMode = SurfaceMode.ExactFactualFallback,
+            activeExpectation = ActiveExpectation.MustOmit
+          )
+      )
+    val result = observe(fixture)
+    assertExpectation(result)
   }
 
   private object RiskClass:

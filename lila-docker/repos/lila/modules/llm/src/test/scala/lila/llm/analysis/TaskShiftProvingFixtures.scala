@@ -38,14 +38,16 @@ private[llm] object TaskShiftProvingFixtures:
         source = "StrategicIdeaFenFixtures.K09B",
         fen = "r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13",
         expectedTags = List("positive_control"),
-        note = "Lone exact-board positive control for SecureFavorableSimplification -> PressureFixedWeakComplex."
+        note =
+          "Exact same-task simplification control on d4e6|f7e6; the row now materializes on bounded favorable simplification, not B7 task shift."
       ),
       TransitionCandidate(
         id = "k09f_trade_down_continuation_4",
         source = "StrategicIdeaFenFixtures.K09F",
         fen = "2rqr1k1/pp2bpp1/2n1bn1p/3p4/3N4/P1N1B1P1/1P2PPBP/2RQ1RK1 w - - 1 14",
         expectedTags = List("holdable_simplification"),
-        note = "The simplification lands, but the branch stays too broad to isolate the shifted task."
+        note =
+          "Exact same-task simplification follow-up on d4e6|f7e6; admissible only as same-edge cleaner form, not as a shifted task."
       ),
       TransitionCandidate(
         id = "k09d_trade_down_continuation_8",
@@ -60,6 +62,46 @@ private[llm] object TaskShiftProvingFixtures:
         fen = "r1bq1rk1/pp3ppp/5n2/3p4/1PnP4/2N2N2/P3BPPP/R2Q1RK1 w - - 1 13",
         expectedTags = List("non_simplification_root_best", "heavy_piece_release_survives"),
         note = "Route and release pressure survive the branch, so the task never narrows into B7."
+      ),
+      TransitionCandidate(
+        id = "k08a_attacking_piece_trade_candidate",
+        source = "StrategicIdeaFenFixtures.K08A",
+        fen = "2rq1rk1/pp1bppb1/3p1np1/7p/2nNP2P/1BN1BP2/PPPQ2P1/1K1R3R w - - 2 14",
+        expectedTags = List("candidate_attack_piece_trade"),
+        note =
+          "Candidate-only attacker-removal row: Bxc4 exchanges off Black's most advanced kingside attacker, but the row must still prove same-branch ownership and avoid tactic-first drift."
+      ),
+      TransitionCandidate(
+        id = "k08d_attacking_piece_trade_candidate",
+        source = "StrategicIdeaFenFixtures.K08D",
+        fen = "2rq1rk1/1p1bppb1/p2p1np1/4n1Bp/3NP2P/1BN2P2/PPPQ2P1/2KR3R w - - 0 14",
+        expectedTags = List("candidate_attack_piece_trade"),
+        note =
+          "Candidate-only attacker-removal row: Bxf6 is the narrow local pressure-reduction idea, but the row must fail closed if root-best or planner ownership stays elsewhere."
+      ),
+      TransitionCandidate(
+        id = "mi5_trade_queen_relief_candidate",
+        source = "PlanPriorityFenFixtureTest.MI5",
+        fen = "r2qk2r/1b1nbppp/pp1Qpn2/8/2P5/BPN2NP1/P3PPBP/R2R2K1 b kq - 0 11",
+        expectedTags = List("candidate_attack_piece_trade", "queen_trade_relief"),
+        note =
+          "Exploratory exact row for the existing queen-trade-shield slice: Black can trade off White's attacking queen on d6 only if the branch really cuts the immediate pressure and avoids generic conversion relabel."
+      ),
+      TransitionCandidate(
+        id = "d01a_entry_square_candidate",
+        source = "CounterplayAxisSuppressionBroadValidationTest.true_entry_route_denial",
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        expectedTags = List("entry_square_candidate", "prophylaxis_absorption"),
+        note =
+          "Exact one-square b4 denial candidate. Review only whether the root-best move can materialize a standalone move-local owner without widening into prophylaxis or file-entry reuse."
+      ),
+      TransitionCandidate(
+        id = "d01b_file_entry_contrast",
+        source = "PlayerFacingTruthModePolicyTest.true_local_file_entry_bind",
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24",
+        expectedTags = List("file_entry_contrast"),
+        note =
+          "Boundary contrast only: the c-file plus b4 pair is already owned by the promoted half-open-file lane and must not be relabeled as standalone entry-square access."
       ),
       TransitionCandidate(
         id = "k03a_carlsbad_fixed_targets_continuation",
@@ -176,25 +218,27 @@ private[llm] object TaskShiftProvingFixtures:
       ),
       ReviewFixture(
         id = "K09B",
-        label = "candidate trade-down continuation",
+        label = "same-task simplification control",
         fen = "r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13",
         phase = "middlegame",
         ply = 26,
         scoreCp = 60,
         pvMoves = List("d4e6", "f7e6", "a1d1", "g8h8", "e3f4", "d8b6", "a2a3", "a8c8", "e2e4", "c6d4", "c2d2", "d4b3"),
         expectedTags = List("positive_control"),
-        note = "Lone positive control; exact branch still fails runtime ownership."
+        note =
+          "Exact d4e6|f7e6 branch now carries planner-owned same-task simplification on the existing MoveDelta -> WhyThis lane; do not reuse it as B7 evidence."
       ),
       ReviewFixture(
         id = "K09F",
-        label = "holdable simplification shell",
+        label = "same-task simplification breadth control",
         fen = "2rqr1k1/pp2bpp1/2n1bn1p/3p4/3N4/P1N1B1P1/1P2PPBP/2RQ1RK1 w - - 1 14",
         phase = "middlegame",
         ply = 28,
         scoreCp = 40,
         pvMoves = List("d4e6", "f7e6", "g2h3", "d8d7", "c1c2", "e7f8", "c3b5", "a7a6", "b5d4"),
         expectedTags = List("holdable_simplification"),
-        note = "The recapture is exact, but the post-trade task remains too broad."
+        note =
+          "Exact d4e6|f7e6 branch survives only as same-task simplification; residual breadth keeps it out of any B7 shifted-task reading."
       ),
       ReviewFixture(
         id = "K09D",
@@ -217,6 +261,106 @@ private[llm] object TaskShiftProvingFixtures:
         pvMoves = List("a1c1", "c4d6", "f3e5", "c8f5", "h2h3", "a8c8", "d1d2", "f5e6", "e5d3", "c8c4", "d3c5", "c4b4", "c5e6", "f7e6", "d2e3", "d8c8"),
         expectedTags = List("non_simplification_root_best", "heavy_piece_release_survives"),
         note = "The best branch stays anchored to file pressure and release features."
+      ),
+      ReviewFixture(
+        id = "K08A",
+        label = "attacking-piece trade candidate",
+        fen = "2rq1rk1/pp1bppb1/3p1np1/7p/2nNP2P/1BN1BP2/PPPQ2P1/1K1R3R w - - 2 14",
+        phase = "middlegame",
+        ply = 28,
+        scoreCp = 31,
+        pvMoves =
+          List(
+            "b3c4",
+            "c8c4",
+            "g2g4",
+            "h5g4",
+            "h4h5",
+            "f6h5",
+            "f3g4",
+            "d7g4",
+            "d1g1",
+            "d8c8",
+            "c3d5",
+            "f8e8"
+          ),
+        expectedTags = List("candidate_attack_piece_trade"),
+        note =
+          "Candidate-only row for trading off Black's advanced c4-knight; promote only if the planner can materialize a distinct move-local pressure-reduction owner instead of tactic-first or generic exchange prose."
+      ),
+      ReviewFixture(
+        id = "K08D",
+        label = "attacking-piece trade near-miss",
+        fen = "2rq1rk1/1p1bppb1/p2p1np1/4n1Bp/3NP2P/1BN2P2/PPPQ2P1/2KR3R w - - 0 14",
+        phase = "middlegame",
+        ply = 28,
+        scoreCp = 129,
+        pvMoves =
+          List(
+            "g2g4",
+            "e5c4",
+            "d2d3",
+            "c4e5",
+            "d3e3",
+            "e5c4",
+            "b3c4",
+            "c8c4",
+            "g5f6",
+            "g7f6",
+            "g4h5",
+            "d8b6"
+          ),
+        expectedTags = List("candidate_attack_piece_trade", "near_miss_root_best"),
+        note =
+          "The local Bxf6 trade idea exists, but the row must fail closed if the exact root-best branch stays with g-pawn expansion before any attacking-piece exchange."
+      ),
+      ReviewFixture(
+        id = "MI5",
+        label = "queen-trade relief exploratory row",
+        fen = "r2qk2r/1b1nbppp/pp1Qpn2/8/2P5/BPN2NP1/P3PPBP/R2R2K1 b kq - 0 11",
+        phase = "middlegame",
+        ply = 22,
+        scoreCp = -541,
+        pvMoves = List(
+          "e7d6",
+          "a3d6",
+          "a8c8",
+          "f3e5",
+          "b7g2",
+          "g1g2",
+          "c8a8",
+          "g2g1",
+          "d8c8",
+          "d1d4",
+          "d7e5"
+        ),
+        expectedTags = List("candidate_attack_piece_trade", "queen_trade_relief"),
+        note =
+          "Exploratory exact row for the existing queen-trade-shield slice: count it only if trading White's queen on d6 materializes as a move-local pressure-reduction owner rather than generic favorable exchange."
+      ),
+      ReviewFixture(
+        id = "D01A",
+        label = "entry-square denial candidate",
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        phase = "middlegame",
+        ply = 46,
+        scoreCp = 82,
+        pvMoves = List("a2a3", "b7b5", "a3a4"),
+        expectedTags = List("entry_square_candidate", "prophylaxis_absorption"),
+        note =
+          "Exact a3 branch makes b4 unavailable, but Cluster D may open only if the one-square effect materializes as its own move-local owner rather than collapsing into the prophylactic named-resource lane or generic route-denial prose."
+      ),
+      ReviewFixture(
+        id = "D01B",
+        label = "file-entry contrast",
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24",
+        phase = "middlegame",
+        ply = 48,
+        scoreCp = 90,
+        pvMoves = List("c1c8", "f8e8", "c8e8"),
+        expectedTags = List("file_entry_contrast"),
+        note =
+          "Exact boundary contrast only: the c-file plus b4 pair belongs to the promoted half-open-file packet and must remain outside standalone entry-square review."
       ),
       ReviewFixture(
         id = "K03A",

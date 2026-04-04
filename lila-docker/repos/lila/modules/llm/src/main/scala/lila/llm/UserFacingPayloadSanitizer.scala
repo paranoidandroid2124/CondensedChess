@@ -55,7 +55,7 @@ object UserFacingPayloadSanitizer:
       puzzle =
         payload.puzzle.copy(
           dominantFamily = payload.puzzle.dominantFamily.map(sanitizeDominantFamily),
-          runtimeShell = payload.puzzle.runtimeShell.map(sanitizeRuntimeShell)
+          runtimeShell = None
         ),
       runtimeShell = shell
     )

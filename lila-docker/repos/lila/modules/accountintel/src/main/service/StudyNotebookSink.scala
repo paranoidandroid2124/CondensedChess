@@ -9,14 +9,16 @@ import lila.core.study.Visibility
 case class NotebookPersisted(studyId: String, chapterId: String, notebookUrl: String)
 case class NotebookPersistFailure(code: String, message: String)
 
-trait NotebookSink:
-  def persist(job: AccountIntelJob, artifact: NotebookBuildArtifact): Fu[Either[NotebookPersistFailure, NotebookPersisted]]
-
 final class StudyNotebookSink(
     studyApi: lila.study.StudyApi,
     userApi: lila.core.user.UserApi
-)(using Executor)
-    extends NotebookSink:
+)(using Executor):
+
+  def persistStored(
+      job: AccountIntelJob,
+      snapshot: AccountIntelSurfaceSnapshot
+  ): Fu[Either[NotebookPersistFailure, NotebookPersisted]] =
+    persist(job, snapshot.toArtifact)
 
   def persist(
       job: AccountIntelJob,

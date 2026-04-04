@@ -3,6 +3,9 @@ export type DecisionComparisonDigestLike = {
   engineBestMove?: string;
   engineBestScoreCp?: number;
   engineBestPv?: string[];
+  comparedMove?: string;
+  comparativeConsequence?: string;
+  comparativeSource?: string;
   cpLossVsChosen?: number;
   deferredMove?: string;
   deferredReason?: string;
@@ -50,8 +53,11 @@ export function formatDecisionComparisonHeadline(comparison?: DecisionComparison
 
   const chosen = comparison.chosenMove?.trim();
   const best = comparison.engineBestMove?.trim();
+  const comparative = comparison.comparativeConsequence?.trim();
+  const compared = comparative ? comparison.comparedMove?.trim() : '';
   const gap = formatCp(comparison.cpLossVsChosen);
 
+  if (comparison.chosenMatchesBest && chosen && compared) return `Chosen ${chosen} compared with ${compared}.`;
   if (comparison.chosenMatchesBest && chosen) return `Chosen ${chosen} matches the engine best.`;
   if (chosen && best) return `Chosen ${chosen} vs engine best ${best}${gap ? ` (${gap} gap)` : ''}.`;
   if (best) return `Engine best is ${best}${gap ? ` (${gap})` : ''}.`;
@@ -73,8 +79,13 @@ export function buildDecisionComparisonRows(
   const engineLine = normalizeList(comparison.engineBestPv).slice(0, 4).join(' ');
   if (includeEngineLine && engineLine) rows.push({ label: 'Engine line', value: engineLine });
 
-  const deferredMove = comparison.deferredMove?.trim();
-  const deferredReason = comparison.deferredReason?.trim();
+  const comparative = comparison.comparativeConsequence?.trim();
+  const compared = comparative ? comparison.comparedMove?.trim() : '';
+  if (compared) rows.push({ label: 'Compared branch', value: compared });
+  if (comparative) rows.push({ label: 'Exact comparison', value: comparative });
+
+  const deferredMove = comparative ? '' : comparison.deferredMove?.trim();
+  const deferredReason = comparative ? '' : comparison.deferredReason?.trim();
   if (deferredMove) {
     const label = comparison.practicalAlternative ? 'Practical alternative' : 'Deferred branch';
     const value =
@@ -107,8 +118,10 @@ export function buildDecisionComparisonSurface(
 
   const chosen = comparison.chosenMove?.trim();
   const best = comparison.engineBestMove?.trim();
-  const deferredMove = comparison.deferredMove?.trim();
-  const deferredReason = comparison.deferredReason?.trim();
+  const comparative = comparison.comparativeConsequence?.trim();
+  const comparedMove = comparative ? comparison.comparedMove?.trim() : '';
+  const deferredMove = comparative ? '' : comparison.deferredMove?.trim();
+  const deferredReason = comparative ? '' : comparison.deferredReason?.trim();
   const deferredLabel = buildDeferredLabel(comparison);
   const includeEngineLine = opts.includeEngineLine ?? true;
   const includeEvidence = opts.includeEvidence ?? true;
@@ -117,13 +130,15 @@ export function buildDecisionComparisonSurface(
   const gap = formatCp(comparison.cpLossVsChosen);
 
   let headline: string | null = null;
-  if (comparison.chosenMatchesBest && chosen) headline = `Chosen ${chosen} · engine agrees`;
+  if (comparison.chosenMatchesBest && chosen && comparedMove) headline = `Chosen ${chosen} · Compared ${comparedMove}`;
+  else if (comparison.chosenMatchesBest && chosen) headline = `Chosen ${chosen} · engine agrees`;
   else if (chosen && best) headline = `Chosen ${chosen} · Engine ${best}`;
   else if (best) headline = `Engine ${best}`;
   else if (chosen) headline = `Chosen ${chosen}`;
 
   let secondary: string | null = null;
-  if (deferredMove && deferredReason) secondary = `${deferredLabel}: ${deferredMove} · ${deferredReason}`;
+  if (comparative) secondary = comparative;
+  else if (deferredMove && deferredReason) secondary = `${deferredLabel}: ${deferredMove} · ${deferredReason}`;
   else if (deferredMove) secondary = `${deferredLabel}: ${deferredMove}`;
   else if (deferredReason) secondary = `${deferredLabel}: ${deferredReason}`;
   else if (evidence && !engineLine) secondary = `Line: ${evidence}`;

@@ -15,7 +15,10 @@ private[analysis] final case class DecisionComparison(
     deferredSource: Option[String],
     evidence: Option[String],
     practicalAlternative: Boolean,
-    chosenMatchesBest: Boolean
+    chosenMatchesBest: Boolean,
+    comparedMove: Option[String] = None,
+    comparativeConsequence: Option[String] = None,
+    comparativeSource: Option[String] = None
 ):
   def toDigest: DecisionComparisonDigest =
     DecisionComparisonDigest(
@@ -23,6 +26,9 @@ private[analysis] final case class DecisionComparison(
       engineBestMove = engineBestMove,
       engineBestScoreCp = engineBestScoreCp,
       engineBestPv = engineBestPv,
+      comparedMove = comparedMove,
+      comparativeConsequence = comparativeConsequence,
+      comparativeSource = comparativeSource,
       cpLossVsChosen = cpLossVsChosen,
       deferredMove = deferredMove,
       deferredReason = deferredReason,

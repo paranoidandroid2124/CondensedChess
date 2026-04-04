@@ -5,7 +5,7 @@ import reactivemongo.api.bson.*
 import java.time.Instant
 import scala.util.Try
 
-import lila.accountintel.AccountIntel.{ AccountIntelJob, JobStatus, ProductKind }
+import lila.accountintel.AccountIntel.{ AccountIntelJob, AccountIntelSurfaceSnapshot, JobStatus, ProductKind }
 import lila.db.dsl.{ *, given }
 
 object BSONHandlers:
@@ -13,7 +13,7 @@ object BSONHandlers:
   private given BSONHandler[ProductKind] = quickHandler(
     {
       case BSONString(value) => ProductKind.fromKey(value).getOrElse(ProductKind.MyAccountIntelligenceLite)
-      case _ => ProductKind.MyAccountIntelligenceLite
+      case _                 => ProductKind.MyAccountIntelligenceLite
     },
     kind => BSONString(kind.key)
   )
@@ -21,7 +21,7 @@ object BSONHandlers:
   private given BSONHandler[JobStatus] = quickHandler(
     {
       case BSONString(value) => JobStatus.fromKey(value).getOrElse(JobStatus.Queued)
-      case _ => JobStatus.Queued
+      case _                 => JobStatus.Queued
     },
     status => BSONString(status.key)
   )
@@ -34,8 +34,29 @@ object BSONHandlers:
       username <- doc.getAsTry[String]("username")
       kind <- doc.getAsTry[ProductKind]("kind")
       status <- doc.getAsTry[JobStatus]("status")
-      dedupeKey <- doc.getAsTry[String]("dedupeKey")
+      dedupeKey = doc
+        .getAsOpt[String]("dedupeKey")
+        .getOrElse(AccountIntel.AccountIntelJob.dedupeKey(provider, username, kind))
+      ownerScopeKey = doc
+        .getAsOpt[String]("ownerScopeKey")
+        .getOrElse(AccountIntel.AccountIntelJob.ownerScopeKey(ownerId, provider, username, kind))
+      buildOwner = doc.getAsOpt[Boolean]("buildOwner").getOrElse(true)
+      buildSourceId = doc.getAsOpt[String]("buildSourceId")
+      surfaceId = doc.getAsOpt[String]("surfaceId")
+      sourceFingerprint = doc.getAsOpt[String]("sourceFingerprint")
       progressStage <- doc.getAsTry[String]("progressStage")
+      queueState = doc.getAsOpt[String]("queueState").getOrElse(status match
+        case JobStatus.Queued    => "queued"
+        case JobStatus.Running   => "running"
+        case JobStatus.Succeeded => "ready"
+        case JobStatus.Failed    => "failed"
+      )
+      snapshotState = doc.getAsOpt[String]("snapshotState").getOrElse(progressStage)
+      processedGames = doc.getAsOpt[Int]("processedGames").getOrElse(0)
+      totalGames = doc.getAsOpt[Int]("totalGames")
+      etaSec = doc.getAsOpt[Int]("etaSec")
+      cacheHit = doc.getAsOpt[Boolean]("cacheHit").getOrElse(false)
+      refreshLockedUntil = doc.getAsOpt[Instant]("refreshLockedUntil")
       requestedAt <- doc.getAsTry[Instant]("requestedAt")
       startedAt = doc.getAsOpt[Instant]("startedAt")
       finishedAt = doc.getAsOpt[Instant]("finishedAt")
@@ -57,7 +78,19 @@ object BSONHandlers:
       kind = kind,
       status = status,
       dedupeKey = dedupeKey,
+      ownerScopeKey = ownerScopeKey,
+      buildOwner = buildOwner,
+      buildSourceId = buildSourceId,
+      surfaceId = surfaceId,
+      sourceFingerprint = sourceFingerprint,
       progressStage = progressStage,
+      queueState = queueState,
+      snapshotState = snapshotState,
+      processedGames = processedGames,
+      totalGames = totalGames,
+      etaSec = etaSec,
+      cacheHit = cacheHit,
+      refreshLockedUntil = refreshLockedUntil,
       requestedAt = requestedAt,
       startedAt = startedAt,
       finishedAt = finishedAt,
@@ -83,7 +116,19 @@ object BSONHandlers:
         "kind" -> job.kind,
         "status" -> job.status,
         "dedupeKey" -> job.dedupeKey,
+        "ownerScopeKey" -> job.ownerScopeKey,
+        "buildOwner" -> job.buildOwner,
+        "buildSourceId" -> job.buildSourceId,
+        "surfaceId" -> job.surfaceId,
+        "sourceFingerprint" -> job.sourceFingerprint,
         "progressStage" -> job.progressStage,
+        "queueState" -> job.queueState,
+        "snapshotState" -> job.snapshotState,
+        "processedGames" -> job.processedGames,
+        "totalGames" -> job.totalGames,
+        "etaSec" -> job.etaSec,
+        "cacheHit" -> job.cacheHit,
+        "refreshLockedUntil" -> job.refreshLockedUntil,
         "requestedAt" -> job.requestedAt,
         "startedAt" -> job.startedAt,
         "finishedAt" -> job.finishedAt,
@@ -98,3 +143,57 @@ object BSONHandlers:
         "createdAt" -> job.createdAt,
         "updatedAt" -> job.updatedAt
       )
+
+  given BSONDocumentReader[AccountIntelSurfaceSnapshot] =
+    BSONDocumentReader.from[AccountIntelSurfaceSnapshot]: doc =>
+      for
+        id <- doc.getAsTry[String]("_id")
+        dedupeKey <- doc.getAsTry[String]("dedupeKey")
+        provider <- doc.getAsTry[String]("provider")
+        username <- doc.getAsTry[String]("username")
+        kind <- doc.getAsTry[ProductKind]("kind")
+        sourceFingerprint <- doc.getAsTry[String]("sourceFingerprint")
+        surfaceJson <- doc.getAsTry[String]("surfaceJson")
+        dossierJson <- doc.getAsTry[String]("dossierJson")
+        representativePgn <- doc.getAsTry[String]("representativePgn")
+        sampledGameCount = doc.getAsOpt[Int]("sampledGameCount").getOrElse(0)
+        eligibleGameCount = doc.getAsOpt[Int]("eligibleGameCount").getOrElse(0)
+        warnings = doc.getAsOpt[List[String]]("warnings").getOrElse(Nil)
+        createdAt <- doc.getAsTry[Instant]("createdAt")
+        updatedAt <- doc.getAsTry[Instant]("updatedAt")
+      yield AccountIntelSurfaceSnapshot(
+        id = id,
+        dedupeKey = dedupeKey,
+        provider = provider,
+        username = username,
+        kind = kind,
+        sourceFingerprint = sourceFingerprint,
+        surfaceJson = surfaceJson,
+        dossierJson = dossierJson,
+        representativePgn = representativePgn,
+        sampledGameCount = sampledGameCount,
+        eligibleGameCount = eligibleGameCount,
+        warnings = warnings,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+      )
+
+  given BSONDocumentWriter[AccountIntelSurfaceSnapshot] =
+    BSONDocumentWriter.from[AccountIntelSurfaceSnapshot]: snapshot =>
+      Try:
+        BSONDocument(
+          "_id" -> snapshot.id,
+          "dedupeKey" -> snapshot.dedupeKey,
+          "provider" -> snapshot.provider,
+          "username" -> snapshot.username,
+          "kind" -> snapshot.kind,
+          "sourceFingerprint" -> snapshot.sourceFingerprint,
+          "surfaceJson" -> snapshot.surfaceJson,
+          "dossierJson" -> snapshot.dossierJson,
+          "representativePgn" -> snapshot.representativePgn,
+          "sampledGameCount" -> snapshot.sampledGameCount,
+          "eligibleGameCount" -> snapshot.eligibleGameCount,
+          "warnings" -> snapshot.warnings,
+          "createdAt" -> snapshot.createdAt,
+          "updatedAt" -> snapshot.updatedAt
+        )

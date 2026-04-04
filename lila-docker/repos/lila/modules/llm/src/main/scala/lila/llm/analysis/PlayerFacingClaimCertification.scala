@@ -59,6 +59,20 @@ private[llm] enum PlayerFacingClaimTaintFlag:
 
 private[llm] object PlayerFacingClaimCertification:
 
+  private val ExactOwnerPathFamilies =
+    Set(
+      "half_open_file_pressure",
+      "neutralize_key_break",
+      "counterplay_restraint",
+      "trade_key_defender",
+      ThemeTaxonomy.SubplanId.SimplificationWindow.id,
+      ThemeTaxonomy.ThemeL1.WeaknessFixation.id,
+      ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
+      ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
+      ThemeTaxonomy.SubplanId.MinorityAttackFixation.id,
+      ThemeTaxonomy.SubplanId.IQPInducement.id
+    )
+
   def blocksMainClaim(taintFlags: Set[PlayerFacingClaimTaintFlag]): Boolean =
     taintFlags.exists {
       case PlayerFacingClaimTaintFlag.Latent           => true
@@ -74,7 +88,39 @@ private[llm] object PlayerFacingClaimCertification:
       packet.scope == PlayerFacingPacketScope.BackendOnly ||
       packet.fallbackMode == PlayerFacingClaimFallbackMode.Suppress
 
-  def allowsStrongMainClaim(
+  def hasConcreteOwnerSeed(packet: PlayerFacingClaimPacket): Boolean =
+    packet.ownerPathWitness.hasOwnerSeed &&
+      (packet.anchorTerms.nonEmpty || packet.ownerPathWitness.hasStructureTransition)
+
+  def hasContinuationWitness(packet: PlayerFacingClaimPacket): Boolean =
+    packet.sameBranchState == PlayerFacingSameBranchState.Proven ||
+      packet.ownerPathWitness.hasContinuation
+
+  def hasStructureTransitionWitness(packet: PlayerFacingClaimPacket): Boolean =
+    packet.ownerPathWitness.hasStructureTransition
+
+  def exactOwnerPathFamily(packet: PlayerFacingClaimPacket): Boolean =
+    ExactOwnerPathFamilies.contains(packet.ownerFamily)
+
+  def exactOwnerPathFamily(ownerFamily: String): Boolean =
+    ExactOwnerPathFamilies.contains(ownerFamily)
+
+  private def packetWitnessSatisfiesClaim(packet: PlayerFacingClaimPacket): Boolean =
+    hasConcreteOwnerSeed(packet) &&
+      (
+        !exactOwnerPathFamily(packet) ||
+          hasContinuationWitness(packet)
+      )
+
+  private def packetWitnessSatisfiesLineHook(packet: PlayerFacingClaimPacket): Boolean =
+    hasConcreteOwnerSeed(packet) ||
+      hasStructureTransitionWitness(packet)
+
+  private def primaryClaimScopeAllowed(packet: PlayerFacingClaimPacket): Boolean =
+    packet.scope == PlayerFacingPacketScope.MoveLocal ||
+      packet.scope == PlayerFacingPacketScope.PositionLocal
+
+  private def allowsStrongByGate(
       certificateStatus: PlayerFacingCertificateStatus,
       quantifier: PlayerFacingClaimQuantifier,
       attribution: PlayerFacingClaimAttributionGrade,
@@ -90,21 +136,7 @@ private[llm] object PlayerFacingClaimCertification:
       attribution == PlayerFacingClaimAttributionGrade.Distinctive &&
       stability != PlayerFacingClaimStabilityGrade.Unstable
 
-  def allowsStrongMainClaim(packet: PlayerFacingClaimPacket): Boolean =
-    packet.scope == PlayerFacingPacketScope.MoveLocal &&
-      packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
-      packet.suppressionReasons.isEmpty &&
-      packet.releaseRisks.isEmpty &&
-      allowsStrongMainClaim(
-        certificateStatus = packet.claimGate.certificateStatus,
-        quantifier = packet.claimGate.quantifier,
-        attribution = packet.claimGate.attributionGrade,
-        stability = packet.claimGate.stabilityGrade,
-        provenance = packet.claimGate.provenanceClass,
-        taintFlags = packet.claimGate.taintFlags.toSet
-      )
-
-  def allowsWeakMainClaim(
+  private def allowsWeakByGate(
       certificateStatus: PlayerFacingCertificateStatus,
       quantifier: PlayerFacingClaimQuantifier,
       attribution: PlayerFacingClaimAttributionGrade,
@@ -121,12 +153,62 @@ private[llm] object PlayerFacingClaimCertification:
       attribution != PlayerFacingClaimAttributionGrade.StateOnly &&
       stability != PlayerFacingClaimStabilityGrade.Unstable
 
+  def allowsStrongMainClaim(
+      certificateStatus: PlayerFacingCertificateStatus,
+      quantifier: PlayerFacingClaimQuantifier,
+      attribution: PlayerFacingClaimAttributionGrade,
+      stability: PlayerFacingClaimStabilityGrade,
+      provenance: PlayerFacingClaimProvenanceClass,
+      taintFlags: Set[PlayerFacingClaimTaintFlag]
+  ): Boolean =
+    allowsStrongByGate(
+      certificateStatus = certificateStatus,
+      quantifier = quantifier,
+      attribution = attribution,
+      stability = stability,
+      provenance = provenance,
+      taintFlags = taintFlags
+    )
+
+  def allowsStrongMainClaim(packet: PlayerFacingClaimPacket): Boolean =
+    primaryClaimScopeAllowed(packet) &&
+      packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
+      packet.suppressionReasons.isEmpty &&
+      packet.releaseRisks.isEmpty &&
+      packetWitnessSatisfiesClaim(packet) &&
+      allowsStrongByGate(
+        certificateStatus = packet.claimGate.certificateStatus,
+        quantifier = packet.claimGate.quantifier,
+        attribution = packet.claimGate.attributionGrade,
+        stability = packet.claimGate.stabilityGrade,
+        provenance = packet.claimGate.provenanceClass,
+        taintFlags = packet.claimGate.taintFlags.toSet
+      )
+
+  def allowsWeakMainClaim(
+      certificateStatus: PlayerFacingCertificateStatus,
+      quantifier: PlayerFacingClaimQuantifier,
+      attribution: PlayerFacingClaimAttributionGrade,
+      stability: PlayerFacingClaimStabilityGrade,
+      provenance: PlayerFacingClaimProvenanceClass,
+      taintFlags: Set[PlayerFacingClaimTaintFlag]
+  ): Boolean =
+    allowsWeakByGate(
+      certificateStatus = certificateStatus,
+      quantifier = quantifier,
+      attribution = attribution,
+      stability = stability,
+      provenance = provenance,
+      taintFlags = taintFlags
+    )
+
   def allowsWeakMainClaim(packet: PlayerFacingClaimPacket): Boolean =
-    packet.scope == PlayerFacingPacketScope.MoveLocal &&
+    primaryClaimScopeAllowed(packet) &&
       packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
       packet.suppressionReasons.isEmpty &&
       !packet.claimGate.alternativeDominance &&
-      allowsWeakMainClaim(
+      packetWitnessSatisfiesClaim(packet) &&
+      allowsWeakByGate(
         certificateStatus = packet.claimGate.certificateStatus,
         quantifier = packet.claimGate.quantifier,
         attribution = packet.claimGate.attributionGrade,
@@ -149,6 +231,7 @@ private[llm] object PlayerFacingClaimCertification:
     packet.scope != PlayerFacingPacketScope.BackendOnly &&
       packet.allowsLineEvidence &&
       !packet.claimGate.alternativeDominance &&
+      packetWitnessSatisfiesLineHook(packet) &&
       allowsLineEvidenceHook(
         certificateStatus = packet.claimGate.certificateStatus,
         provenance = packet.claimGate.provenanceClass,

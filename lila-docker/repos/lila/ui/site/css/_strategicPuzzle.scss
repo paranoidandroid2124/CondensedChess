@@ -812,6 +812,10 @@ body.dark {
   padding: 0.85rem 0.95rem;
 }
 
+.sp-demo-panel--solve {
+  position: static;
+}
+
 .sp-runtime-pane {
   grid-area: pane;
   position: sticky;

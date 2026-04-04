@@ -202,10 +202,6 @@ object accountIntel:
         )
 
   def status(job: lila.accountintel.AccountIntel.AccountIntelJob)(using ctx: Context): Page =
-    val refreshMs =
-      if job.status == lila.accountintel.AccountIntel.JobStatus.Queued || job.status == lila.accountintel.AccountIntel.JobStatus.Running
-      then 4000
-      else 0
     val resultHref = productUrl(job.provider, job.username, job.kind.key, "", Some(job.id))
     Page("Building Account Intel - Chesstory")
       .css("auth")
@@ -216,7 +212,11 @@ object accountIntel:
               a(href := homeUrl, cls := "logo")("Chesstory")
             ),
             div(cls := "auth-container auth-container--wide")(
-              div(cls := "auth-card auth-card--importer auth-card--status")(
+              div(
+                cls := "auth-card auth-card--importer auth-card--status js-account-intel-status",
+                attr("data-job-id") := job.id,
+                attr("data-result-url") := resultHref
+              )(
                 div(cls := "status-shell")(
                   div(cls := "importer-hero importer-hero--status")(
                     div(cls := "importer-hero__eyebrow")("Pattern report"),
@@ -254,7 +254,7 @@ object accountIntel:
                       div(cls := "status-meta-grid")(
                         metaCard("Requested", job.requestedAt.toString),
                         metaCard("Run ID", job.id),
-                        metaCard("Current step", stageLabel(job.progressStage))
+                        metaCardRich("Current step", span(cls := "js-ai-status-meta-stage")(stageLabel(job.progressStage)))
                       )
                     ),
                     div(cls := "importer-panel importer-panel--status-side")(
@@ -266,12 +266,12 @@ object accountIntel:
                       ),
                       div(cls := "status-callout status-callout--primary")(
                         strong(statusTitle(job)),
-                        span(
+                        span(cls := "js-ai-status-callout-copy")(
                           if job.status == lila.accountintel.AccountIntel.JobStatus.Failed then
                             "The build stopped before the pattern report was attached."
                           else if job.status == lila.accountintel.AccountIntel.JobStatus.Succeeded then
                             "The pattern report is ready to open."
-                          else "The worker is still processing the account. This page auto-refreshes while the run is active."
+                          else "The worker is still processing the account."
                         )
                       ),
                       job.warnings.nonEmpty.option(
@@ -291,17 +291,23 @@ object accountIntel:
                         )
                       ),
                       div(cls := "auth-links status-links")(
-                        statusPrimaryAction(job, resultHref),
-                        job.notebookUrl.map(url => a(href := url)("Open study notebook")),
+                        (job.status match
+                          case lila.accountintel.AccountIntel.JobStatus.Succeeded =>
+                            a(href := resultHref, cls := "status-links__primary js-ai-status-result")("Open pattern report")
+                          case lila.accountintel.AccountIntel.JobStatus.Failed =>
+                            statusPrimaryAction(job, resultHref)
+                          case _ =>
+                            a(href := resultHref, cls := "status-links__primary js-ai-status-result", hidden := "hidden")(
+                              "Open pattern report"
+                            )),
+                        job.notebookUrl
+                          .map(url => a(href := url, cls := "js-ai-status-notebook")("Open study notebook"))
+                          .getOrElse(
+                            a(href := "#", cls := "js-ai-status-notebook", hidden := "hidden")("Open study notebook")
+                          ),
                         a(href := routes.AccountIntel.landing("", "").url)("Back to pattern report")
                       )
                     )
-                  ),
-                  (refreshMs > 0).option(
-                    script(raw(s"window.setTimeout(function () { window.location.reload(); }, $refreshMs);"))
-                  ),
-                  (refreshMs == 0 && job.status == lila.accountintel.AccountIntel.JobStatus.Succeeded).option(
-                    script(raw(s"window.setTimeout(function () { window.location.assign('$resultHref'); }, 1200);"))
                   )
                 )
               )
@@ -326,7 +332,7 @@ object accountIntel:
     val exemplarGames = (surface \ "exemplarGames").asOpt[List[JsObject]].getOrElse(Nil)
     val actionCards = (surface \ "actions").asOpt[List[JsObject]].getOrElse(Nil)
     val checklist = (surface \ "checklist").asOpt[JsObject]
-    val notebookUrl = state.displayedJob.flatMap(_.notebookUrl).orElse(state.latestSuccessful.flatMap(_.notebookUrl))
+    val notebookUrl = state.displayedJob.flatMap(_.notebookUrl)
     val visiblePatterns = patterns.filter(pattern => side == "all" || (pattern \ "side").asOpt[String].contains(side))
     val leadPattern = visiblePatterns.headOption
     val hasAdditionalPatterns = visiblePatterns.drop(1).nonEmpty
@@ -902,15 +908,19 @@ object accountIntel:
       notebookUrl: Option[String],
       state: ProductState
   ): Frag =
+    val publishableJobId = state.selectedJobId.orElse(state.displayedJob.map(_.id))
     div(cls := "importer-panel importer-panel--guide account-product-utility")(
       div(cls := "importer-panel__head")(
         strong(cls := "importer-panel__title")("Study notebook"),
         p(cls := "importer-panel__copy")(
-          "Stay on this page for the answer. Open the study notebook only when you want the move tree, chapter flow, and a shareable study artifact."
+          "Stay on this page for the answer. Create the study notebook only when you want the move tree, chapter flow, and a shareable study artifact."
         )
       ),
       div(cls := "account-product-utility-links")(
         notebookUrl.map(url => a(href := url, cls := "account-product-secondary-link")("Open study notebook")),
+        publishableJobId.filter(_ => notebookUrl.isEmpty).map(_ =>
+          button(tpe := "button", cls := "account-product-secondary-link js-ai-publish-study")("Create study notebook")
+        ),
         div(cls := "copy-me account-product-copy")(
           input(
             tpe := "text",
@@ -1099,6 +1109,12 @@ object accountIntel:
       span(value)
     )
 
+  private def metaCardRich(label: String, value: Frag): Frag =
+    div(cls := "status-meta-card")(
+      strong(label),
+      value
+    )
+
   private def statusTitle(job: lila.accountintel.AccountIntel.AccountIntelJob): String =
     job.status match
       case lila.accountintel.AccountIntel.JobStatus.Queued => "Queued for analysis"
@@ -1142,7 +1158,7 @@ object accountIntel:
       case "queued" => "Waiting for the worker."
       case "fetching_games" => "Fetching recent public games."
       case "extracting_primitives" => "Extracting recurring structure signals."
-      case "creating_notebook" => "Attaching the pattern report and study notebook link."
+      case "publishing_surface" => "Finalizing the shared pattern report."
       case "completed" => "Pattern report created successfully."
       case "failed" => "The job ended with an error."
       case other => other.replace('_', ' ')
@@ -1167,9 +1183,9 @@ object accountIntel:
       ProgressStep(3, "extracting_primitives", "Extract signals", "Recurring structures, transitions, and anchor candidates are being assembled."),
       ProgressStep(
         4,
-        "creating_notebook",
-        "Attach result",
-        "The pattern report is being attached. The study notebook link, if available, is added afterward."
+        "publishing_surface",
+        "Publish surface",
+        "The shared pattern report is being finalized and attached to the current run."
       )
     )
 

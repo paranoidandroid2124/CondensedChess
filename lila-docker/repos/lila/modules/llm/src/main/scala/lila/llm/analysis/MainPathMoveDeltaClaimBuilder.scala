@@ -6,6 +6,7 @@ import lila.llm.model.strategic.{ VariationLine, VariationTag }
 
 private[llm] enum PlayerFacingClaimScope:
   case MoveLocal
+  case PositionLocal
   case LineScoped
 
 private[llm] final case class MainPathScopedClaim(
@@ -106,10 +107,12 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
       .mainPathMoveDeltaEvidence(ctx, surface, truthContract)
       .flatMap { delta =>
         val anchorTerms =
-          delta.packet.anchorTerms
-            .filter(_.trim.nonEmpty)
-            .distinct
-        val sourceKind = mainSourceKind(surface, truthContract)
+          (
+            delta.packet.anchorTerms ++
+              delta.packet.ownerPathWitness.ownerSeedTerms ++
+              delta.packet.ownerPathWitness.structureTransitionTerms
+          ).filter(_.trim.nonEmpty).distinct
+        val sourceKind = strategicSourceKind(delta.packet, surface, truthContract)
         val lineEvidence =
           Option.when(delta.allowsLineEvidenceHook) {
             strategicEvidenceLines(
@@ -135,7 +138,7 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
             )
             .map { text =>
               MainPathScopedClaim(
-                scope = PlayerFacingClaimScope.MoveLocal,
+                scope = claimScope(delta.packet),
                 mode = PlayerFacingTruthMode.Strategic,
                 deltaClass = Some(delta.deltaClass),
                 claimText = text,
@@ -254,16 +257,30 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
             case _                                      => s"This still leaves access to $square."
         }
       case PlayerFacingMoveDeltaClass.PressureIncrease =>
-        anchor.map { square =>
-          delta.modalityTier match
-            case PlayerFacingClaimModalityTier.Supports => s"This increases pressure on $square."
-            case _                                      => s"This continues to allow pressure on $square."
+        preferredWitnessAnchor(delta.packet).orElse(anchor).map { square =>
+          if delta.packet.ownerSource == PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource then
+            s"The key strategic fact here is that $square is the fixed target."
+          else if delta.packet.ownerSource == PlayerFacingTruthModePolicy.ExactTargetFixationOwnerSource then
+            delta.modalityTier match
+              case PlayerFacingClaimModalityTier.Supports => s"This keeps $square fixed as the target."
+              case _                                      => s"This keeps the pressure fixed on $square."
+          else
+            delta.modalityTier match
+              case PlayerFacingClaimModalityTier.Supports => s"This increases pressure on $square."
+              case _                                      => s"This continues to allow pressure on $square."
         }
       case PlayerFacingMoveDeltaClass.ExchangeForcing =>
-        anchor.map { square =>
-          delta.modalityTier match
-            case PlayerFacingClaimModalityTier.Forces => s"This makes the exchange on $square hard to avoid."
-            case _                                    => s"This keeps the exchange on $square available."
+        preferredWitnessAnchor(delta.packet).orElse(anchor).map { square =>
+          if delta.packet.ownerFamily == ThemeTaxonomy.SubplanId.SimplificationWindow.id then
+            delta.modalityTier match
+              case PlayerFacingClaimModalityTier.Forces =>
+                s"This favorable simplification keeps the same local edge after the trade on $square."
+              case _ =>
+                s"This trade keeps the same local edge on $square."
+          else
+            delta.modalityTier match
+              case PlayerFacingClaimModalityTier.Forces => s"This makes the exchange on $square hard to avoid."
+              case _                                    => s"This keeps the exchange on $square available."
         }
       case PlayerFacingMoveDeltaClass.CounterplayReduction =>
         val namedBreakOnly = delta.packet.ownerFamily == "neutralize_key_break"
@@ -293,7 +310,7 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
             else s"This limits the defensive resource tied to $focal."
           })
       case PlayerFacingMoveDeltaClass.PlanAdvance =>
-        anchor.map { square =>
+        preferredWitnessAnchor(delta.packet).orElse(anchor).map { square =>
           delta.modalityTier match
             case PlayerFacingClaimModalityTier.Advances => s"This advances the plan toward $square."
             case PlayerFacingClaimModalityTier.Supports => s"This supports the plan toward $square."
@@ -305,6 +322,7 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
       delta: PlayerFacingMoveDeltaEvidence
   ): Option[String] =
     Option.unless(HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)) {
+      val witnessAnchor = preferredWitnessAnchor(delta.packet)
       val namedBreakOnly = delta.packet.ownerFamily == "neutralize_key_break"
       val namedResourceOnly = delta.packet.ownerFamily == "counterplay_restraint"
       val preventedPlans =
@@ -321,6 +339,7 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
                 case PlayerFacingClaimOntologyFamily.RouteDenial =>
                   prevented.deniedSquares.headOption
                     .flatMap(clean)
+                    .orElse(witnessAnchor)
                     .map(square => s"This keeps the opponent out of $square.")
                 case PlayerFacingClaimOntologyFamily.ColorComplexSqueeze =>
                   clean(prevented.planId)
@@ -329,15 +348,18 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
                 case _ =>
                   prevented.breakNeutralized
                     .flatMap(clean)
+                    .orElse(witnessAnchor)
                     .map(file => s"This keeps $file from coming right away.")
                     .orElse(Option.unless(namedBreakOnly) {
                       prevented.deniedSquares.headOption
                         .flatMap(clean)
+                        .orElse(witnessAnchor)
                         .map(square => s"This keeps the opponent out of $square.")
                     }.flatten)
                     .orElse(Option.unless(namedBreakOnly) {
                       clean(prevented.planId)
                         .filterNot(_.equalsIgnoreCase("counterplay"))
+                        .orElse(witnessAnchor)
                         .map(plan => s"This slows down $plan before it gets started.")
                     }.flatten)
                     .filterNot(_ => namedResourceOnly && clean(prevented.planId).isEmpty)
@@ -349,6 +371,7 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
       ctx: NarrativeContext,
       delta: PlayerFacingMoveDeltaEvidence
   ): Option[String] =
+    val witnessAnchor = preferredWitnessAnchor(delta.packet)
     ctx.semantic.toList
       .flatMap(_.preventedPlans)
       .find(plan =>
@@ -366,14 +389,17 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
           case PlayerFacingClaimOntologyFamily.RouteDenial =>
             prevented.deniedSquares.headOption
               .flatMap(clean)
+              .orElse(witnessAnchor)
               .map(square => s"This $verb entry on $square as a defensive resource.")
           case _ =>
             prevented.breakNeutralized
               .flatMap(clean)
+              .orElse(witnessAnchor)
               .map(file => s"This $verb $file as a defensive resource.")
               .orElse(
                 prevented.deniedSquares.headOption
                   .flatMap(clean)
+                  .orElse(witnessAnchor)
                   .map(square => s"This $verb $square as a defensive square.")
               )
               .orElse(
@@ -394,6 +420,20 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
 
   private def contractAnchor(truthContract: Option[DecisiveTruthContract]): Option[String] =
     truthContract.flatMap(_.verifiedPayoffAnchor).flatMap(clean)
+
+  private def preferredWitnessAnchor(packet: PlayerFacingClaimPacket): Option[String] =
+    (
+      packet.ownerPathWitness.ownerSeedTerms ++
+        packet.ownerPathWitness.structureTransitionTerms ++
+        packet.anchorTerms
+    ).find(term => term.matches("[a-h][1-8]") || term.toLowerCase.contains("file"))
+
+  private def claimScope(packet: PlayerFacingClaimPacket): PlayerFacingClaimScope =
+    packet.scope match
+      case PlayerFacingPacketScope.MoveLocal    => PlayerFacingClaimScope.MoveLocal
+      case PlayerFacingPacketScope.PositionLocal => PlayerFacingClaimScope.PositionLocal
+      case PlayerFacingPacketScope.LineScoped   => PlayerFacingClaimScope.LineScoped
+      case PlayerFacingPacketScope.BackendOnly  => PlayerFacingClaimScope.LineScoped
 
   private def tacticalSourceKind(
       ctx: NarrativeContext,
@@ -437,6 +477,15 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
     else if surface.topMoveRef.exists(_.target.trim.nonEmpty) then "move_ref"
     else if truthContract.flatMap(_.verifiedPayoffAnchor).exists(_.trim.nonEmpty) then "contract"
     else "evidence"
+
+  private def strategicSourceKind(
+      packet: PlayerFacingClaimPacket,
+      surface: StrategyPackSurface.Snapshot,
+      truthContract: Option[DecisiveTruthContract]
+  ): String =
+    Option.when(packet.ownerSource == PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource) {
+      packet.ownerSource
+    }.getOrElse(mainSourceKind(surface, truthContract))
 
   private def looksLikeTacticalSacrifice(
       ctx: NarrativeContext,

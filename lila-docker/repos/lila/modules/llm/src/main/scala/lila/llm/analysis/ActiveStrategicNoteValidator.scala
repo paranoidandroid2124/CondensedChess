@@ -269,7 +269,7 @@ private[llm] object ActiveStrategicNoteValidator:
         .filter(_.nonEmpty)
         .distinct
     plan.ownerFamily match
-      case OwnerFamily.TacticalFailure | OwnerFamily.MoveDelta | OwnerFamily.OpeningRelation | OwnerFamily.EndgameTransition =>
+      case OwnerFamily.TacticalFailure | OwnerFamily.MoveDelta | OwnerFamily.PositionProbe | OwnerFamily.OpeningRelation | OwnerFamily.EndgameTransition =>
         Option.when(plan.claim.trim.nonEmpty && supportTexts.nonEmpty) {
           PlannerMinimumContract(
             questionKind = plan.questionKind,

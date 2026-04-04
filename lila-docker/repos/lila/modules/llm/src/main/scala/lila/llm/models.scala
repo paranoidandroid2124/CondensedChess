@@ -385,7 +385,10 @@ case class DecisionComparisonDigest(
     deferredSource: Option[String] = None,
     evidence: Option[String] = None,
     practicalAlternative: Boolean = false,
-    chosenMatchesBest: Boolean = false
+    chosenMatchesBest: Boolean = false,
+    comparedMove: Option[String] = None,
+    comparativeConsequence: Option[String] = None,
+    comparativeSource: Option[String] = None
 )
 object DecisionComparisonDigest:
   given Writes[DecisionComparisonDigest] = Json.writes[DecisionComparisonDigest]

@@ -189,6 +189,34 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(sanitized.chosenMatchesBest, true)
   }
 
+  test("exact comparative consequence survives sanitization only with a verified best move") {
+    val raw =
+      comparison(
+        chosenMove = "Nd2",
+        engineBestMove = Some("Nd2"),
+        cpLoss = 0,
+        chosenMatchesBest = true
+      ).copy(
+        comparedMove = Some("Qc2"),
+        comparativeConsequence = Some("Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch."),
+        comparativeSource = Some(DecisionComparisonComparativeSupport.ExactTargetFixationSource)
+      )
+
+    val contract = DecisiveTruth.derive(
+      ctx = ctx("f3d2", "Nd2"),
+      comparisonOverride = Some(raw)
+    )
+    val sanitized = DecisiveTruth.sanitizeDecisionComparison(Some(raw), contract).getOrElse(fail("missing comparison"))
+
+    assertEquals(sanitized.engineBestMove, Some("Nd2"))
+    assertEquals(sanitized.comparedMove, Some("Qc2"))
+    assertEquals(
+      sanitized.comparativeConsequence,
+      Some("Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.")
+    )
+    assertEquals(sanitized.comparativeSource, Some(DecisionComparisonComparativeSupport.ExactTargetFixationSource))
+  }
+
   test("verified blunder strips compensation framing from context and signal digests") {
     val comp = compensationInfo(125, "central pressure", Map("central pressure" -> 0.82))
     val raw =
@@ -244,6 +272,10 @@ class DecisiveTruthContractTest extends FunSuite:
         cpLoss = 150,
         deferredMove = Some("Qd3"),
         deferredReason = Some("it coordinates more cleanly")
+      ).copy(
+        comparedMove = Some("Qd3"),
+        comparativeConsequence = Some("Qc6 fixes d6 as the target; Qd3 leaves d6 unfixed on the compared branch."),
+        comparativeSource = Some(DecisionComparisonComparativeSupport.ExactTargetFixationSource)
       )
 
     val contract = DecisiveTruth.derive(
@@ -256,6 +288,9 @@ class DecisiveTruthContractTest extends FunSuite:
     assertEquals(contract.benchmarkProseAllowed, false)
     assertEquals(contract.benchmarkMove, None)
     assertEquals(sanitized.engineBestMove, None)
+    assertEquals(sanitized.comparedMove, None)
+    assertEquals(sanitized.comparativeConsequence, None)
+    assertEquals(sanitized.comparativeSource, None)
     assertEquals(sanitized.deferredMove, None)
     assertEquals(sanitized.deferredReason, None)
     assertEquals(sanitized.practicalAlternative, false)

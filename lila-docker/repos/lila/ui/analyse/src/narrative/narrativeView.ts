@@ -1296,7 +1296,10 @@ function narrativeDecisionMoveStrip(
         !comparison.chosenMatchesBest
             ? narrativeDecisionMoveChip('Engine', comparison.engineBestMove, moveRefs, 'engine')
             : null,
-        comparison.deferredMove
+        comparison.comparativeConsequence
+            ? narrativeDecisionMoveChip('Compared', comparison.comparedMove, moveRefs, 'deferred')
+            : null,
+        !comparison.comparativeConsequence && comparison.deferredMove
             ? narrativeDecisionMoveChip(
                 comparison.practicalAlternative ? 'Practical' : 'Deferred',
                 comparison.deferredMove,

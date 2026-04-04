@@ -158,6 +158,8 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
   ): VisibleSideSurfaces =
     val alignedIdeas =
       selection.primary.questionKind match
+        case AuthorQuestionKind.WhatMattersHere =>
+          decisionFrame.ideaRefs(max = 1)
         case AuthorQuestionKind.WhyThis =>
           decisionFrame.ideaRefs(max = 2)
         case AuthorQuestionKind.WhatChanged =>
@@ -170,6 +172,14 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
           Nil
     val alignedDossier = decisionFrame.alignedDossier(dossier)
     selection.primary.questionKind match
+      case AuthorQuestionKind.WhatMattersHere =>
+        VisibleSideSurfaces(
+          ideaRefs = alignedIdeas,
+          routeRefs = decisionFrame.alignedRouteRefs(deltaBundle.visibleRouteRefs),
+          moveRefs = decisionFrame.alignedMoveRefs(deltaBundle.visibleMoveRefs),
+          directionalTargets = decisionFrame.alignedTargets(deltaBundle.visibleDirectionalTargets),
+          dossier = alignedDossier
+        )
       case AuthorQuestionKind.WhyThis =>
         VisibleSideSurfaces(
           ideaRefs = alignedIdeas,
@@ -285,6 +295,7 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
 
   private def activePriority(kind: AuthorQuestionKind): Int =
     kind match
+      case AuthorQuestionKind.WhatMattersHere    => 4
       case AuthorQuestionKind.WhyThis            => 4
       case AuthorQuestionKind.WhatMustBeStopped  => 3
       case AuthorQuestionKind.WhyNow             => 2
@@ -762,6 +773,7 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
 
   private def replayQuestionKind(raw: String): Option[AuthorQuestionKind] =
     Option(raw).map(_.trim) collect {
+      case "WhatMattersHere"    => AuthorQuestionKind.WhatMattersHere
       case "WhyThis"            => AuthorQuestionKind.WhyThis
       case "WhyNow"             => AuthorQuestionKind.WhyNow
       case "WhatChanged"        => AuthorQuestionKind.WhatChanged
@@ -800,6 +812,19 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
           cleanActiveSentence(selection.primary.claim)
     val supportCandidates =
       selection.primary.questionKind match
+        case AuthorQuestionKind.WhatMattersHere =>
+          List(
+            supportCandidate(
+              source = "consequence",
+              raw = selection.primary.consequence.map(_.text),
+              cleaned = cleanActiveSupportSentence(selection.primary.consequence.map(_.text))
+            ),
+            supportCandidate(
+              source = "evidence",
+              raw = selection.primary.evidence.map(_.text),
+              cleaned = shortEvidenceSentence(selection.primary.evidence)
+            )
+          )
         case AuthorQuestionKind.WhyThis =>
           List(
             supportCandidate(
@@ -873,8 +898,8 @@ private[llm] object ActiveStrategicCoachingBriefBuilder:
 
     val minimumSentences =
       selection.primary.questionKind match
-        case AuthorQuestionKind.WhyNow | AuthorQuestionKind.WhatChanged => 2
-        case _                                                          => 1
+        case AuthorQuestionKind.WhatMattersHere | AuthorQuestionKind.WhyNow | AuthorQuestionKind.WhatChanged => 2
+        case _                                                                                                 => 1
 
     val result =
       Option.when(sentences.nonEmpty && sentences.size >= minimumSentences) {

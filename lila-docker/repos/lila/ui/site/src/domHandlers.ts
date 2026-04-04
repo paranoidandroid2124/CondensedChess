@@ -52,6 +52,7 @@ export function addDomHandlers() {
   topBar();
   syncCookieConsentDialogState();
   initAccountIntelProduct();
+  initAccountIntelStatus();
 
   $('#main-wrap').on('click', '.copy-me__button', function (this: HTMLElement) {
     const showCheckmark = () => {
@@ -182,13 +183,24 @@ type AccountIntelState = {
   latestSuccessfulJob?: {
     notebookUrl?: string;
   } | null;
-  activeJob?: {
-    jobId: string;
-    status: string;
-    progressStage: string;
-  } | null;
+  activeJob?: AccountIntelJobStatus | null;
   surface?: any;
   history: AccountIntelHistoryEntry[];
+};
+
+type AccountIntelJobStatus = {
+  jobId: string;
+  status: string;
+  progressStage: string;
+  queueState?: string;
+  snapshotState?: string;
+  processedGames?: number;
+  totalGames?: number | null;
+  etaSec?: number | null;
+  cacheHit?: boolean;
+  refreshLockedUntil?: string | null;
+  notebookUrl?: string | null;
+  url?: string | null;
 };
 
 type AccountIntelHistoryEntry = {
@@ -198,6 +210,13 @@ type AccountIntelHistoryEntry = {
   requestedAt: string;
   finishedAt?: string | null;
   progressStage: string;
+  queueState?: string;
+  snapshotState?: string;
+  processedGames?: number;
+  totalGames?: number | null;
+  etaSec?: number | null;
+  cacheHit?: boolean;
+  refreshLockedUntil?: string | null;
   warnings?: string[];
   url: string;
   notebookUrl?: string | null;
@@ -220,6 +239,25 @@ type AccountIntelHistoryEntry = {
 };
 
 type AccountIntelSupportTab = 'study' | 'compare' | 'history' | 'notes';
+
+const accountIntelStageLabel = (stage: string) => {
+  switch (stage) {
+    case 'queued':
+      return 'Waiting for the worker.';
+    case 'fetching_games':
+      return 'Fetching recent public games.';
+    case 'extracting_primitives':
+      return 'Extracting recurring structure signals.';
+    case 'publishing_surface':
+      return 'Finalizing the shared pattern report.';
+    case 'completed':
+      return 'Pattern report created successfully.';
+    case 'failed':
+      return 'The job ended with an error.';
+    default:
+      return stage.replaceAll('_', ' ');
+  }
+};
 
 function initAccountIntelProduct() {
   const root = document.querySelector<HTMLElement>('.js-account-intel-product');
@@ -285,6 +323,8 @@ function initAccountIntelProduct() {
     if (jobId) url.searchParams.set('jobId', jobId);
     return url.pathname + url.search;
   };
+  const jobStatusUrl = (jobId: string) => `/api/account-intel/jobs/${encodeURIComponent(jobId)}`;
+  const publishUrl = (jobId: string) => `/api/account-intel/jobs/${encodeURIComponent(jobId)}/publish`;
   const resultUrlForKind = (kind: string, jobId: string | null = currentSelectedJobId) => {
     const url = new URL(pageBaseUrl, window.location.origin);
     url.searchParams.set('kind', kind);
@@ -309,9 +349,20 @@ function initAccountIntelProduct() {
     else window.history.pushState({}, '', next);
   };
   const currentNotebookUrl = () =>
-    (currentSelectedJobId ? state?.history.find(job => job.jobId === currentSelectedJobId)?.notebookUrl : null) ||
-    state?.latestSuccessfulJob?.notebookUrl ||
-    '';
+    (() => {
+      const selectedNotebook = currentSelectedJobId
+        ? state?.history.find(job => job.jobId === currentSelectedJobId)?.notebookUrl
+        : null;
+      const surfaceJobId = state?.surfaceJobId || null;
+      const surfaceNotebook = surfaceJobId ? state?.history.find(job => job.jobId === surfaceJobId)?.notebookUrl : null;
+      return selectedNotebook || surfaceNotebook || state?.activeJob?.notebookUrl || '';
+    })();
+  const currentJobEntry = () => (currentSelectedJobId ? state?.history.find(job => job.jobId === currentSelectedJobId) : null) || null;
+  const canPublishNotebook = () => !!currentSelectedJobId && !currentNotebookUrl();
+  const refreshLockLabel = () => {
+    const raw = state?.activeJob?.refreshLockedUntil || currentJobEntry()?.refreshLockedUntil;
+    return raw ? humanDate(raw) : '';
+  };
   const currentPatterns = () => (state?.surface?.patterns || []) as any[];
   const visiblePatterns = () => currentPatterns().filter(pattern => currentSide === 'all' || pattern?.side === currentSide);
   const availableSupportTabs = (): AccountIntelSupportTab[] =>
@@ -740,15 +791,17 @@ function initAccountIntelProduct() {
       <div class="importer-panel importer-panel--guide account-product-utility">
         <div class="importer-panel__head">
           <strong class="importer-panel__title">Study notebook</strong>
-          <p class="importer-panel__copy">Stay on this page for the answer. Open the study notebook only when you want the move tree, chapter flow, and a shareable study artifact.</p>
+          <p class="importer-panel__copy">Stay on this page for the answer. Create the study notebook only when you want the move tree, chapter flow, and a shareable study artifact.</p>
         </div>
         <div class="account-product-utility-links">
           ${notebookUrl ? `<a href="${escapeHtml(notebookUrl)}" class="account-product-secondary-link">Open study notebook</a>` : ''}
+          ${canPublishNotebook() ? `<button type="button" class="account-product-secondary-link js-ai-publish-study">Create study notebook</button>` : ''}
           <div class="copy-me account-product-copy">
             <input type="text" readonly class="account-product-copy__value" value="${escapeHtml(window.location.pathname + window.location.search)}" />
             <button class="copy-me__button button-metal">Copy result link</button>
           </div>
         </div>
+        ${refreshLockLabel() ? `<span class="account-product-evidence-line">Refresh lock until ${escapeHtml(refreshLockLabel())}</span>` : ''}
       </div>
     `;
   };
@@ -839,10 +892,15 @@ function initAccountIntelProduct() {
   const renderActiveJob = () => {
     const job = state?.activeJob;
     if (!job || (job.status !== 'queued' && job.status !== 'running')) return '';
+    const progress =
+      job.totalGames && job.totalGames > 0
+        ? `${job.processedGames || 0}/${job.totalGames} games`
+        : stageLabel(job.progressStage || 'queued');
+    const eta = typeof job.etaSec === 'number' && job.etaSec > 0 ? ` • ETA ${Math.ceil(job.etaSec / 60)} min` : '';
     return `
       <div class="status-callout status-callout--primary account-product-callout">
         <strong>${escapeHtml(activeJobLabel(job.status))} • ${escapeHtml(kindLabel(state!.kind))}</strong>
-        <span>${escapeHtml(stageLabel(job.progressStage || 'queued'))}</span>
+        <span>${escapeHtml(progress + eta)}</span>
         <div class="auth-links status-links">
           <a href="/account-intel/jobs/${escapeHtml(job.jobId)}" class="status-links__primary">Open build status</a>
         </div>
@@ -930,24 +988,7 @@ function initAccountIntelProduct() {
   };
 
   const capitalize = (value: string) => (value ? value.charAt(0).toUpperCase() + value.slice(1) : value);
-  const stageLabel = (stage: string) => {
-    switch (stage) {
-      case 'queued':
-        return 'Waiting for the worker.';
-      case 'fetching_games':
-        return 'Fetching recent public games.';
-      case 'extracting_primitives':
-        return 'Extracting recurring structure signals.';
-      case 'creating_notebook':
-        return 'Attaching the study notebook and pattern report.';
-      case 'completed':
-        return 'Pattern report created successfully.';
-      case 'failed':
-        return 'The job ended with an error.';
-      default:
-        return stage.replaceAll('_', ' ');
-    }
-  };
+  const stageLabel = accountIntelStageLabel;
 
   const refreshSupportPanel = (scrollIntoView = false) => {
     activeSupportTab = normalizeSupportTab(activeSupportTab);
@@ -1020,11 +1061,32 @@ function initAccountIntelProduct() {
     }
   };
 
+  const pollActiveJob = async () => {
+    if (!state?.activeJob?.jobId) return;
+    try {
+      const response = await fetch(jobStatusUrl(state.activeJob.jobId), {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      });
+      if (!response.ok) throw new Error(`Failed account-intel job status fetch: ${response.status}`);
+      const job = (await response.json()) as AccountIntelJobStatus;
+      state = { ...state!, activeJob: job };
+      if (job.status === 'queued' || job.status === 'running') {
+        renderAll();
+        schedulePoll();
+      } else {
+        await fetchState(stateUrlForKind(state!.kind, currentSelectedJobId), 'none');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const schedulePoll = () => {
     if (pollHandle) window.clearTimeout(pollHandle);
     if (!state?.activeJob || (state.activeJob.status !== 'queued' && state.activeJob.status !== 'running')) return;
     pollHandle = window.setTimeout(() => {
-      fetchState(stateUrlForKind(state!.kind, currentSelectedJobId), 'none');
+      void pollActiveJob();
     }, 4000);
   };
 
@@ -1072,6 +1134,30 @@ function initAccountIntelProduct() {
       event.preventDefault();
       activeSupportTab = normalizeSupportTab(supportTab.dataset.tab);
       refreshSupportPanel();
+      return;
+    }
+    const publishStudy = target?.closest<HTMLButtonElement>('.js-ai-publish-study');
+    if (publishStudy && currentSelectedJobId) {
+      event.preventDefault();
+      publishStudy.disabled = true;
+      publishStudy.setAttribute('aria-busy', 'true');
+      fetch(publishUrl(currentSelectedJobId), {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      })
+        .then(async response => {
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(body.error || body.message || `Failed study publish: ${response.status}`);
+          await fetchState(stateUrlForKind(state!.kind, currentSelectedJobId), 'none');
+          activeSupportTab = 'study';
+          refreshSupportPanel();
+        })
+        .catch(err => {
+          console.error(err);
+          publishStudy.disabled = false;
+          publishStudy.removeAttribute('aria-busy');
+        });
     }
   });
 
@@ -1089,4 +1175,67 @@ function initAccountIntelProduct() {
   renderAll();
   syncLocation(state.kind, currentSide, true, currentSelectedJobId);
   schedulePoll();
+}
+
+function initAccountIntelStatus() {
+  const root = document.querySelector<HTMLElement>('.js-account-intel-status');
+  if (!root) return;
+
+  const jobId = root.dataset.jobId;
+  const resultUrl = root.dataset.resultUrl || '';
+  if (!jobId) return;
+
+  const setText = (selector: string, value: string) => {
+    const el = root.querySelector<HTMLElement>(selector);
+    if (el) el.textContent = value;
+  };
+
+  const setHref = (selector: string, value: string) => {
+    const el = root.querySelector<HTMLAnchorElement>(selector);
+    if (el) el.href = value;
+  };
+
+  const setHidden = (selector: string, hidden: boolean) => {
+    const el = root.querySelector<HTMLElement>(selector);
+    if (el) {
+      if (hidden) el.setAttribute('hidden', 'hidden');
+      else el.removeAttribute('hidden');
+    }
+  };
+
+  const refresh = async () => {
+    try {
+      const response = await fetch(`/api/account-intel/jobs/${encodeURIComponent(jobId)}`, {
+        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+      });
+      if (!response.ok) throw new Error(`Failed account-intel status fetch: ${response.status}`);
+      const job = (await response.json()) as AccountIntelJobStatus;
+      setText('.js-ai-status-stage', accountIntelStageLabel(job.progressStage || 'queued'));
+      setText('.js-ai-status-meta-stage', accountIntelStageLabel(job.progressStage || 'queued'));
+      const progress =
+        job.totalGames && job.totalGames > 0
+          ? `${job.processedGames || 0}/${job.totalGames} games`
+          : accountIntelStageLabel(job.progressStage || 'queued');
+      setText('.js-ai-status-callout-copy', progress);
+      if (job.url) setHref('.js-ai-status-result', job.url);
+      if (job.notebookUrl) {
+        setHref('.js-ai-status-notebook', job.notebookUrl);
+        setHidden('.js-ai-status-notebook', false);
+      }
+      if (job.status === 'succeeded') {
+        setHidden('.js-ai-status-result', false);
+        if (resultUrl) window.setTimeout(() => window.location.assign(resultUrl), 1200);
+      } else if (job.status === 'failed') {
+        setHidden('.js-ai-status-result', true);
+      } else {
+        window.setTimeout(() => void refresh(), 4000);
+      }
+    } catch (err) {
+      console.error(err);
+      window.setTimeout(() => void refresh(), 4000);
+    }
+  };
+
+  void refresh();
 }

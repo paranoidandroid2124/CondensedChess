@@ -20,6 +20,29 @@ describe('bookmaker response payload', () => {
     assert.equal(digest?.dominantIdeaFocus, 'h5');
   });
 
+  test('signal digest preserves exact decision-comparison comparative fields', () => {
+    const digest = signalDigestFromResponse({
+      signalDigest: {
+        decisionComparison: {
+          chosenMove: 'Nd2',
+          engineBestMove: 'Nd2',
+          comparedMove: 'Qc2',
+          comparativeConsequence:
+            'Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.',
+          comparativeSource: 'exact_target_fixation_delta',
+          chosenMatchesBest: true,
+        },
+      },
+    });
+
+    assert.equal(digest?.decisionComparison?.comparedMove, 'Qc2');
+    assert.equal(
+      digest?.decisionComparison?.comparativeConsequence,
+      'Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.',
+    );
+    assert.equal(digest?.decisionComparison?.comparativeSource, 'exact_target_fixation_delta');
+  });
+
   test('decodeBookmakerResponse reuses fallback prose and supporting arrays when refined payload omits them', () => {
     const decoded = decodeBookmakerResponse(
       {
