@@ -4,9 +4,10 @@ import _root_.chess.{ Pawn, Square }
 import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
 
-import lila.llm.{ DirectionalTargetReadiness, GameChronicleMoment, RouteSurfaceMode, StrategicIdeaKind, StrategyIdeaSignal, StrategyPack }
+import lila.llm.{ DirectionalTargetReadiness, GameChronicleMoment, RouteSurfaceMode, StrategicIdeaKind, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef }
 import lila.llm.model.*
 import lila.llm.model.strategic.{ VariationLine, VariationTag }
+import scala.annotation.unused
 
 private[llm] enum PlayerFacingTruthMode:
   case Minimal
@@ -202,8 +203,7 @@ private[llm] object PlayerFacingTruthModePolicy:
       (
         moveLinkedAnchorTerms(surface, truthContract) ++
           boundedSimplificationLineAnchors(ctx, surface) ++
-          exactTargetFixationAnchorTerms(ctx, surface) ++
-          carlsbadFixedTargetProbeAnchorTerms(ctx, surface)
+          exactPressureIncreaseAnchorTerms(ctx, surface)
       ).distinct
     if anchors.isEmpty || surfaceLooksShellOnly(surface) || !hasConcreteStrategicEvidence(ctx, surface, truthContract)
     then None
@@ -428,17 +428,13 @@ private[llm] object PlayerFacingTruthModePolicy:
     val exactBoundedSimplificationWitness =
       exactBoundedSimplificationExchangeSquare(ctx, surface).nonEmpty &&
         bestDefenseBranchKeyFromContext(ctx).nonEmpty
-    val exactTargetFixationProof =
-      exactTargetFixationWitness(ctx, surface).nonEmpty &&
-        bestDefenseBranchKeyFromContext(ctx).nonEmpty
-    val carlsbadFixedTargetProbeProof =
-      carlsbadFixedTargetProbeWitness(ctx, surface).nonEmpty &&
+    val exactPressureIncreaseProof =
+      exactPressureIncreaseWitness(ctx, surface).nonEmpty &&
         bestDefenseBranchKeyFromContext(ctx).nonEmpty
     val moveLinkedAnchor =
       hasMoveLinkedStrategicAnchor(surface) ||
         boundedSimplificationLineAnchors(ctx, surface).nonEmpty ||
-        exactTargetFixationAnchorTerms(ctx, surface).nonEmpty ||
-        carlsbadFixedTargetProbeAnchorTerms(ctx, surface).nonEmpty
+        exactPressureIncreaseAnchorTerms(ctx, surface).nonEmpty
     val semanticConcrete =
       ctx.decision.exists(decision =>
         decision.delta.resolvedThreats.nonEmpty ||
@@ -460,8 +456,7 @@ private[llm] object PlayerFacingTruthModePolicy:
         semanticConcrete ||
           truthBacked ||
           exactBoundedSimplificationWitness ||
-          exactTargetFixationProof ||
-          carlsbadFixedTargetProbeProof
+          exactPressureIncreaseProof
       ) &&
       !surfaceLooksShellOnly(surface)
 
@@ -490,8 +485,7 @@ private[llm] object PlayerFacingTruthModePolicy:
       (
         moveLinkedAnchorTerms(surface, truthContract) ++
           boundedSimplificationLineAnchors(ctx, surface) ++
-          exactTargetFixationAnchorTerms(ctx, surface) ++
-          carlsbadFixedTargetProbeAnchorTerms(ctx, surface)
+          exactPressureIncreaseAnchorTerms(ctx, surface)
       ).distinct
     if anchors.isEmpty || surfaceLooksShellOnly(surface) || !hasConcreteStrategicEvidence(ctx, surface, truthContract)
     then None
@@ -672,11 +666,9 @@ private[llm] object PlayerFacingTruthModePolicy:
         comp.returnVector.keys.exists(key => containsAny(normalize(key), List("attack", "initiative", "king")))
       )) &&
         anchoredTarget
-    val exactTargetFixationSignal =
-      exactTargetFixationWitness(ctx, surface).nonEmpty
-    val carlsbadFixedTargetProbeSignal =
-      carlsbadFixedTargetProbeWitness(ctx, surface).nonEmpty
-    (deltaSignals && anchoredTarget) || compensationSignal || exactTargetFixationSignal || carlsbadFixedTargetProbeSignal
+    val exactPressureIncreaseSignal =
+      exactPressureIncreaseWitness(ctx, surface).nonEmpty
+    (deltaSignals && anchoredTarget) || compensationSignal || exactPressureIncreaseSignal
 
   private def hasMainPathPlanAdvance(
       surface: StrategyPackSurface.Snapshot,
@@ -717,7 +709,6 @@ private[llm] object PlayerFacingTruthModePolicy:
       )
     val taintFlags =
       claimTaintFlags(
-        ctx = ctx,
         provenanceClass = provenanceClass,
         quantifier = quantifier
       )
@@ -790,17 +781,86 @@ private[llm] object PlayerFacingTruthModePolicy:
     "exact_target_fixation"
   private[llm] val CarlsbadFixedTargetProbeOwnerSource =
     "carlsbad_fixed_target_probe"
+  private[llm] val TargetFocusedCoordinationOwnerSource =
+    "target_focused_coordination_probe"
+  private[llm] val TargetFocusedCoordinationOwnerFamily =
+    "target_focused_coordination"
 
-  private final case class ExactTargetFixationWitness(
+  private enum ExactSliceKind:
+    case TargetFixation
+    case CarlsbadFixedTargetProbe
+    case TargetFocusedCoordinationProbe
+
+  private final case class ExactSliceDescriptor(
+      kind: ExactSliceKind,
+      ownerSource: String,
+      ownerFamily: String,
+      triggerKind: String,
+      releasedScope: PlayerFacingPacketScope,
+      releaseOwnerFamilies: Set[String],
+      exemptFromRivalChecks: Boolean = false
+  ):
+    def packetMatches(packet: PlayerFacingClaimPacket): Boolean =
+      packet.ownerSource == ownerSource &&
+        packet.ownerFamily == ownerFamily
+
+    def ownerSeedMatches(ownerSeed: ClaimOwnerSeed): Boolean =
+      ownerSeed.ownerSource == ownerSource &&
+        releaseOwnerFamilies.contains(ownerSeed.ownerFamily)
+
+  private val ExactTargetFixationDescriptor =
+    ExactSliceDescriptor(
+      kind = ExactSliceKind.TargetFixation,
+      ownerSource = ExactTargetFixationOwnerSource,
+      ownerFamily = ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
+      triggerKind = "target_fixation",
+      releasedScope = PlayerFacingPacketScope.MoveLocal,
+      releaseOwnerFamilies = Set(ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id)
+    )
+
+  private val CarlsbadFixedTargetProbeDescriptor =
+    ExactSliceDescriptor(
+      kind = ExactSliceKind.CarlsbadFixedTargetProbe,
+      ownerSource = CarlsbadFixedTargetProbeOwnerSource,
+      ownerFamily = ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
+      triggerKind = "position_probe",
+      releasedScope = PlayerFacingPacketScope.PositionLocal,
+      releaseOwnerFamilies =
+        Set(
+          ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
+          ThemeTaxonomy.SubplanId.MinorityAttackFixation.id
+        ),
+      exemptFromRivalChecks = true
+    )
+
+  private val TargetFocusedCoordinationDescriptor =
+    ExactSliceDescriptor(
+      kind = ExactSliceKind.TargetFocusedCoordinationProbe,
+      ownerSource = TargetFocusedCoordinationOwnerSource,
+      ownerFamily = TargetFocusedCoordinationOwnerFamily,
+      triggerKind = "position_probe",
+      releasedScope = PlayerFacingPacketScope.PositionLocal,
+      releaseOwnerFamilies = Set(TargetFocusedCoordinationOwnerFamily)
+    )
+
+  private val ExactSliceDescriptors =
+    List(
+      ExactTargetFixationDescriptor,
+      CarlsbadFixedTargetProbeDescriptor,
+      TargetFocusedCoordinationDescriptor
+    )
+
+  private final case class ExactSliceWitness(
+      descriptor: ExactSliceDescriptor,
       targetSquare: String,
       ownerSeedTerms: List[String],
       structureTransitionTerms: List[String]
   )
 
-  private final case class CarlsbadFixedTargetProbeWitness(
-      targetSquare: String,
-      ownerSeedTerms: List[String],
-      structureTransitionTerms: List[String]
+  private[llm] final case class PositionProbeQuestionSeed(
+      questionFocusText: String,
+      why: String,
+      anchors: List[String]
   )
 
   private def activeStrategicDeltaEvidence(
@@ -954,8 +1014,22 @@ private[llm] object PlayerFacingTruthModePolicy:
         ),
       suppressionReasons = suppressionReasons,
       releaseRisks = releaseRisks,
-      fallbackMode = fallbackMode
+        fallbackMode = fallbackMode
     )
+
+  private def exactPressureIncreaseOwnerSeed(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot
+  ): Option[ClaimOwnerSeed] =
+    exactPressureIncreaseWitness(ctx, surface).map { witness =>
+      ClaimOwnerSeed(
+        ownerSource = witness.descriptor.ownerSource,
+        ownerFamily = witness.descriptor.ownerFamily,
+        triggerKind = witness.descriptor.triggerKind,
+        ownerSeedTerms = witness.ownerSeedTerms,
+        structureTransitionTerms = witness.structureTransitionTerms
+      )
+    }
 
   private def ownerSeedForMainPath(
       ctx: NarrativeContext,
@@ -971,31 +1045,13 @@ private[llm] object PlayerFacingTruthModePolicy:
     val tradeTransitionTerms = tradeStructureTransitionTerms(ctx, surface)
     val namedPreventedTerms = namedPreventedResourceTerms(preventedNow)
     val breakTerms = breakResourceTerms(preventedNow)
-    val carlsbadFixedTargetProbe = carlsbadFixedTargetProbeWitness(ctx, surface)
-    val exactTargetFixation = exactTargetFixationWitness(ctx, surface)
+    val exactPressureIncreaseSeed = exactPressureIncreaseOwnerSeed(ctx, surface)
     val prophylacticRestraintPlan =
       trigger.contains("counterplay_restraint") || planOwner.contains("prophylaxis_restraint")
     deltaClass match
       case PlayerFacingMoveDeltaClass.PressureIncrease
-          if carlsbadFixedTargetProbe.nonEmpty =>
-        val witness = carlsbadFixedTargetProbe.get
-        ClaimOwnerSeed(
-          ownerSource = CarlsbadFixedTargetProbeOwnerSource,
-          ownerFamily = ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
-          triggerKind = "position_probe",
-          ownerSeedTerms = witness.ownerSeedTerms,
-          structureTransitionTerms = witness.structureTransitionTerms
-        )
-      case PlayerFacingMoveDeltaClass.PressureIncrease
-          if exactTargetFixation.nonEmpty =>
-        val witness = exactTargetFixation.get
-        ClaimOwnerSeed(
-          ownerSource = ExactTargetFixationOwnerSource,
-          ownerFamily = ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
-          triggerKind = "target_fixation",
-          ownerSeedTerms = witness.ownerSeedTerms,
-          structureTransitionTerms = witness.structureTransitionTerms
-        )
+          if exactPressureIncreaseSeed.nonEmpty =>
+        exactPressureIncreaseSeed.get
       case PlayerFacingMoveDeltaClass.CounterplayReduction
           if localFileEntryPair.nonEmpty =>
         val pair = localFileEntryPair.get
@@ -1077,7 +1133,6 @@ private[llm] object PlayerFacingTruthModePolicy:
               deltaClass = deltaClass,
               ctx = ctx,
               surface = surface,
-              preventedNow = preventedNow,
               targetComplexTerms = targetComplexTerms,
               tradeOwnerTerms = tradeOwnerTerms,
               namedPreventedTerms = namedPreventedTerms,
@@ -1097,7 +1152,6 @@ private[llm] object PlayerFacingTruthModePolicy:
       deltaClass: PlayerFacingMoveDeltaClass,
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot,
-      preventedNow: List[PreventedPlanInfo],
       targetComplexTerms: List[String],
       tradeOwnerTerms: List[String],
       namedPreventedTerms: List[String],
@@ -1349,18 +1403,15 @@ private[llm] object PlayerFacingTruthModePolicy:
   ): List[String] =
     val exactTradeContinuation =
       exactBoundedSimplificationContinuationSquare(ctx, ownerSeed)
-    val carlsbadFixedTargetProbeContinuation =
-      carlsbadFixedTargetProbeContinuationTerms(ctx, ownerSeed)
-    val exactTargetFixationContinuation =
-      exactTargetFixationContinuationTerms(ctx, ownerSeed)
+    val exactSliceContinuation =
+      exactSliceContinuationTerms(ctx, ownerSeed)
     (
       bestDefenseBranchKey.toList ++
         bestDefenseMove.toList ++
         exactTradeContinuation.toList.flatMap(square =>
           List("exact_trade_continuation", s"exchange_square:$square", square)
         ) ++
-        carlsbadFixedTargetProbeContinuation ++
-        exactTargetFixationContinuation ++
+        exactSliceContinuation ++
         ownerLinkedEvidenceBackedExperiments(ctx, ownerSeed).flatMap { experiment =>
           List(
             Option.when(experiment.bestReplyStable)("best_reply_stable"),
@@ -1497,6 +1548,69 @@ private[llm] object PlayerFacingTruthModePolicy:
       case PlayerFacingMoveDeltaClass.ExchangeForcing      => "trade_key_defender"
       case _                                              => genericOwnerFamily(deltaClass)
 
+  private def exactSliceDescriptor(
+      ownerSeed: ClaimOwnerSeed
+  ): Option[ExactSliceDescriptor] =
+    ExactSliceDescriptors.find(_.ownerSeedMatches(ownerSeed))
+
+  private def exactSliceDescriptor(
+      packet: PlayerFacingClaimPacket
+  ): Option[ExactSliceDescriptor] =
+    ExactSliceDescriptors.find(_.packetMatches(packet))
+
+  private def exactSliceTargetWitnessTag(
+      descriptor: ExactSliceDescriptor,
+      square: String
+  ): String =
+    descriptor.kind match
+      case ExactSliceKind.TargetFocusedCoordinationProbe => s"coordinated_target:$square"
+      case _                                            => s"fixed_target:$square"
+
+  private def exactSlicePositionProbeDescriptor(
+      packet: PlayerFacingClaimPacket
+  ): Option[ExactSliceDescriptor] =
+    exactSliceDescriptor(packet).filter(descriptor =>
+      descriptor.kind == ExactSliceKind.CarlsbadFixedTargetProbe ||
+        descriptor.kind == ExactSliceKind.TargetFocusedCoordinationProbe
+    )
+
+  private def exactSliceContinuationTerms(
+      ctx: NarrativeContext,
+      ownerSeed: ClaimOwnerSeed
+  ): List[String] =
+    exactSliceDescriptor(ownerSeed).toList.flatMap { descriptor =>
+      val targetSquares =
+        ownerSeed.ownerSeedTerms
+          .map(normalize)
+          .filter(_.matches("[a-h][1-8]"))
+          .distinct
+      ctx.engineEvidence.toList.flatMap(_.variations).headOption.toList.flatMap { line =>
+        val continuationMoves =
+          line.moves.drop(2).take(2).flatMap(clean).map(normalize)
+        Option.when(targetSquares.nonEmpty && continuationMoves.nonEmpty) {
+          targetSquares.flatMap(square =>
+            List(
+              descriptor.ownerSource,
+              exactSliceTargetWitnessTag(descriptor, square),
+              s"best_branch:${continuationMoves.mkString("|")}",
+              square
+            ) ++ continuationMoves
+          )
+        }.getOrElse(Nil)
+      }
+    }.distinct
+
+  private def exactSliceReleaseAllowed(
+      ownerSeed: ClaimOwnerSeed,
+      bestDefenseBranchKey: Option[String],
+      sameBranchState: PlayerFacingSameBranchState,
+      persistence: PlayerFacingClaimPersistence
+  ): Boolean =
+    exactSliceDescriptor(ownerSeed).nonEmpty &&
+      bestDefenseBranchKey.nonEmpty &&
+      sameBranchState == PlayerFacingSameBranchState.Proven &&
+      persistence == PlayerFacingClaimPersistence.Stable
+
   private def sameBranchStateForMainPath(
       ctx: NarrativeContext,
       ownerSeed: ClaimOwnerSeed,
@@ -1513,24 +1627,16 @@ private[llm] object PlayerFacingTruthModePolicy:
       val evidenceBacked = ownerLinkedEvidenceBackedExperiments(ctx, ownerSeed)
       val exactTradeContinuation =
         exactBoundedSimplificationContinuationSquare(ctx, ownerSeed)
-      val carlsbadFixedTargetProbeContinuation =
-        carlsbadFixedTargetProbeContinuationTerms(ctx, ownerSeed)
-      val exactTargetFixationContinuation =
-        exactTargetFixationContinuationTerms(ctx, ownerSeed)
+      val exactSliceContinuation =
+        exactSliceContinuationTerms(ctx, ownerSeed)
       val stableBestDefense = evidenceBacked.exists(_.bestReplyStable)
       val futureAligned = evidenceBacked.exists(_.futureSnapshotAligned)
       val moveOrderClean = !evidenceBacked.exists(_.moveOrderSensitive)
       val concreteOwnerSeed = ownerSeed.ownerSeedTerms.nonEmpty
       val concreteTransition = ownerSeed.structureTransitionTerms.nonEmpty
-      if ownerSeed.ownerSource == CarlsbadFixedTargetProbeOwnerSource &&
+      if exactSliceDescriptor(ownerSeed).nonEmpty &&
           concreteOwnerSeed &&
-          carlsbadFixedTargetProbeContinuation.nonEmpty &&
-          continuationTerms.nonEmpty
-      then
-        PlayerFacingSameBranchState.Proven
-      else if ownerSeed.ownerSource == ExactTargetFixationOwnerSource &&
-          concreteOwnerSeed &&
-          exactTargetFixationContinuation.nonEmpty &&
+          exactSliceContinuation.nonEmpty &&
           continuationTerms.nonEmpty
       then
         PlayerFacingSameBranchState.Proven
@@ -1557,13 +1663,8 @@ private[llm] object PlayerFacingTruthModePolicy:
       PlayerFacingClaimPersistence.Broken
     else
       val evidenceBacked = ownerLinkedEvidenceBackedExperiments(ctx, ownerSeed)
-      if carlsbadFixedTargetProbeContinuationTerms(ctx, ownerSeed).nonEmpty &&
-          ownerSeed.ownerSource == CarlsbadFixedTargetProbeOwnerSource &&
-          claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
-      then
-        PlayerFacingClaimPersistence.Stable
-      else if exactTargetFixationContinuationTerms(ctx, ownerSeed).nonEmpty &&
-          ownerSeed.ownerSource == ExactTargetFixationOwnerSource &&
+      if exactSliceContinuationTerms(ctx, ownerSeed).nonEmpty &&
+          exactSliceDescriptor(ownerSeed).nonEmpty &&
           claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
       then
         PlayerFacingClaimPersistence.Stable
@@ -1608,21 +1709,21 @@ private[llm] object PlayerFacingTruthModePolicy:
         reasons += PlayerFacingClaimSuppressionReason.SameJobConversion
       if boundedSimplificationTradeKeyDefenderRelabel(ctx, surface) then
         reasons += PlayerFacingClaimSuppressionReason.TradeKeyDefenderRelabel
-      if boundedSimplificationRouteBindRelabel(ctx, surface, rivalAssessment) then
+      if boundedSimplificationRouteBindRelabel(rivalAssessment) then
         reasons += PlayerFacingClaimSuppressionReason.RouteBindRelabel
       if boundedSimplificationBetterEndgameInflation(ctx, surface) then
         reasons += PlayerFacingClaimSuppressionReason.BetterEndgameInflation
       if boundedSimplificationB7Drift(ctx, surface) then
         reasons += PlayerFacingClaimSuppressionReason.B7Drift
     if rivalAssessment.rivalStoryAlive &&
-        ownerSeed.ownerSource != CarlsbadFixedTargetProbeOwnerSource
+        !exactSliceDescriptor(ownerSeed).exists(_.exemptFromRivalChecks)
     then
       reasons += PlayerFacingClaimSuppressionReason.RivalStoryAlive
     reasons.toList.distinct
 
   private def releaseRisksForMainPath(
       ctx: NarrativeContext,
-      surface: StrategyPackSurface.Snapshot,
+      @unused surface: StrategyPackSurface.Snapshot,
       ownerSeed: ClaimOwnerSeed,
       sameBranchState: PlayerFacingSameBranchState,
       persistence: PlayerFacingClaimPersistence,
@@ -1652,11 +1753,11 @@ private[llm] object PlayerFacingTruthModePolicy:
     if ownerSeed.ownerFamily == "trade_key_defender" then
       risks += PlayerFacingClaimReleaseRisk.RivalRelease
     if rivalAssessment.rivalReleaseRisk &&
-        ownerSeed.ownerSource != CarlsbadFixedTargetProbeOwnerSource
+        !exactSliceDescriptor(ownerSeed).exists(_.exemptFromRivalChecks)
     then
       risks += PlayerFacingClaimReleaseRisk.RivalRelease
     if ownerSeed.ownerFamily == BoundedFavorableSimplificationFamily &&
-        boundedSimplificationRouteBindRelabel(ctx, surface, rivalAssessment)
+        boundedSimplificationRouteBindRelabel(rivalAssessment)
     then
       risks += PlayerFacingClaimReleaseRisk.RivalRelease
     risks.toList.distinct
@@ -1714,12 +1815,12 @@ private[llm] object PlayerFacingTruthModePolicy:
   ): PlayerFacingPacketScope =
     fallbackMode match
       case PlayerFacingClaimFallbackMode.WeakMain
-          if ownerSeed.ownerSource == CarlsbadFixedTargetProbeOwnerSource =>
+          if exactSliceDescriptor(ownerSeed).exists(_.releasedScope == PlayerFacingPacketScope.PositionLocal) =>
         PlayerFacingPacketScope.PositionLocal
       case PlayerFacingClaimFallbackMode.WeakMain   => PlayerFacingPacketScope.MoveLocal
       case PlayerFacingClaimFallbackMode.LineOnly   => PlayerFacingPacketScope.LineScoped
       case PlayerFacingClaimFallbackMode.ExactFactual
-          if ownerSeed.ownerSource == CarlsbadFixedTargetProbeOwnerSource =>
+          if exactSliceDescriptor(ownerSeed).exists(_.releasedScope == PlayerFacingPacketScope.PositionLocal) =>
         PlayerFacingPacketScope.PositionLocal
       case PlayerFacingClaimFallbackMode.ExactFactual => PlayerFacingPacketScope.MoveLocal
       case PlayerFacingClaimFallbackMode.Suppress   => PlayerFacingPacketScope.BackendOnly
@@ -1827,21 +1928,9 @@ private[llm] object PlayerFacingTruthModePolicy:
       sameBranchState: PlayerFacingSameBranchState,
       persistence: PlayerFacingClaimPersistence
   ): Boolean =
-    if ownerSeed.ownerSource == CarlsbadFixedTargetProbeOwnerSource &&
-        Set(
-          ThemeTaxonomy.SubplanId.MinorityAttackFixation.id,
-          ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id
-        ).contains(ownerSeed.ownerFamily)
+    if exactSliceDescriptor(ownerSeed).nonEmpty
     then
-      bestDefenseBranchKey.nonEmpty &&
-        sameBranchState == PlayerFacingSameBranchState.Proven &&
-        persistence == PlayerFacingClaimPersistence.Stable
-    else if ownerSeed.ownerSource == ExactTargetFixationOwnerSource &&
-        ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id
-    then
-      bestDefenseBranchKey.nonEmpty &&
-        sameBranchState == PlayerFacingSameBranchState.Proven &&
-        persistence == PlayerFacingClaimPersistence.Stable
+      exactSliceReleaseAllowed(ownerSeed, bestDefenseBranchKey, sameBranchState, persistence)
     else if isReviewedAbsorbedWeaknessOwnerFamily(ownerSeed.ownerFamily) then false
     else
       ownerSeed.ownerFamily match
@@ -1899,8 +1988,6 @@ private[llm] object PlayerFacingTruthModePolicy:
       likelyTradeKeyDefender(ctx, surface)
 
   private def boundedSimplificationRouteBindRelabel(
-      ctx: NarrativeContext,
-      surface: StrategyPackSurface.Snapshot,
       rivalAssessment: RivalAssessment
   ): Boolean =
     rivalAssessment.rivalStoryAlive &&
@@ -1962,18 +2049,26 @@ private[llm] object PlayerFacingTruthModePolicy:
   ): Option[String] =
     ctx.engineEvidence.toList.flatMap(_.variations).headOption.flatMap(immediateExchangeContinuationSquare)
 
-  private def carlsbadFixedTargetProbeAnchorTerms(
+  private def exactPressureIncreaseWitness(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot
+  ): Option[ExactSliceWitness] =
+    carlsbadFixedTargetProbeWitness(ctx, surface)
+      .orElse(targetFocusedCoordinationWitness(ctx, surface))
+      .orElse(exactTargetFixationWitness(ctx, surface))
+
+  private def exactPressureIncreaseAnchorTerms(
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot
   ): List[String] =
-    carlsbadFixedTargetProbeWitness(ctx, surface).toList.flatMap { witness =>
+    exactPressureIncreaseWitness(ctx, surface).toList.flatMap { witness =>
       witness.targetSquare :: witness.ownerSeedTerms
     }.distinct
 
   private def carlsbadFixedTargetProbeWitness(
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot
-  ): Option[CarlsbadFixedTargetProbeWitness] =
+  ): Option[ExactSliceWitness] =
     val exactSignalVisible =
       List(surface.dominantIdea, surface.secondaryIdea).flatten.exists(idea =>
         idea.kind == StrategicIdeaKind.TargetFixing &&
@@ -1986,16 +2081,13 @@ private[llm] object PlayerFacingTruthModePolicy:
     Option.when(
       exactTargetFixationWitness(ctx, surface).isEmpty &&
         exactTargetFixationPosition(ctx).exists { case (board, sideToMove) =>
-          sideToMove.white &&
+          carlsbadFixedTargetBoardTarget(board, sideToMove).contains("c6") &&
             exactSignalVisible &&
-            boardHasEnemyPawn(board, sideToMove, "c6") &&
-            boardHasEnemyPawn(board, sideToMove, "d5") &&
-            boardHasFriendlyPawn(board, sideToMove, "b2") &&
-            boardHasFriendlyPawn(board, sideToMove, "d4") &&
             bestDefenseBranchKeyFromContext(ctx).nonEmpty
         }
     ) {
-      CarlsbadFixedTargetProbeWitness(
+      ExactSliceWitness(
+        descriptor = CarlsbadFixedTargetProbeDescriptor,
         targetSquare = "c6",
         ownerSeedTerms =
           List(
@@ -2010,6 +2102,52 @@ private[llm] object PlayerFacingTruthModePolicy:
             "c6_target",
             "d5_chain"
           ).distinct
+      )
+    }
+
+  private def targetFocusedCoordinationWitness(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot
+  ): Option[ExactSliceWitness] =
+    val targetSquare =
+      exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
+        targetFocusedCoordinationBoardTarget(board, sideToMove)
+      }
+    val moveRefs =
+      targetSquare.toList.flatMap(square => targetFocusedCoordinationMoveRefs(surface, square))
+    val exactSignalVisible =
+      targetSquare.nonEmpty &&
+        moveRefs.map(_.from).distinct.size >= 2 &&
+        moveRefs.exists(_.evidence.contains("target_knight")) &&
+        surface.allRoutes.exists(route =>
+          containsAny(normalize(route.purpose), List("coordination", "plan activation"))
+        )
+    Option.when(
+      exactTargetFixationWitness(ctx, surface).isEmpty &&
+        carlsbadFixedTargetProbeWitness(ctx, surface).isEmpty &&
+        exactSignalVisible &&
+        bestDefenseBranchKeyFromContext(ctx).nonEmpty
+    ) {
+      ExactSliceWitness(
+        descriptor = TargetFocusedCoordinationDescriptor,
+        targetSquare = targetSquare.get,
+        ownerSeedTerms =
+          List(
+            targetSquare.get,
+            s"coordinated_target:${targetSquare.get}",
+            TargetFocusedCoordinationOwnerFamily,
+            "rook_on_c1"
+          ).distinct,
+        structureTransitionTerms =
+          moveRefs
+            .flatMap(ref =>
+              List(
+                s"support_from:${normalize(ref.from)}",
+                s"target_piece:${normalize(ref.target)}",
+                "coordinated_piece_pressure"
+              )
+            )
+            .distinct
       )
     }
 
@@ -2047,18 +2185,19 @@ private[llm] object PlayerFacingTruthModePolicy:
       )
     weaknessPlanVisible || weaknessSupportVisible || semanticWeaknessVisible
 
-  private def exactTargetFixationAnchorTerms(
-      ctx: NarrativeContext,
-      surface: StrategyPackSurface.Snapshot
-  ): List[String] =
-    exactTargetFixationWitness(ctx, surface).toList.flatMap { witness =>
-      witness.targetSquare :: witness.ownerSeedTerms
-    }.distinct
+  private def targetFocusedCoordinationMoveRefs(
+      surface: StrategyPackSurface.Snapshot,
+      targetSquare: String
+  ): List[StrategyPieceMoveRef] =
+    surface.allMoveRefs.filter(ref =>
+      normalize(ref.target) == targetSquare &&
+        normalize(ref.idea).contains("contest")
+    )
 
   private def exactTargetFixationWitness(
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot
-  ): Option[ExactTargetFixationWitness] =
+  ): Option[ExactSliceWitness] =
     val targetFixIdea =
       List(surface.dominantIdea, surface.secondaryIdea).flatten.find { idea =>
         idea.kind == StrategicIdeaKind.TargetFixing &&
@@ -2089,7 +2228,8 @@ private[llm] object PlayerFacingTruthModePolicy:
       idea <- targetFixIdea
       targetSquare <- backwardPawnTarget
       if idea.focusSquares.isEmpty || idea.focusSquares.map(normalize).contains(targetSquare)
-    yield ExactTargetFixationWitness(
+    yield ExactSliceWitness(
+      descriptor = ExactTargetFixationDescriptor,
       targetSquare = targetSquare,
       ownerSeedTerms =
         List(
@@ -2109,6 +2249,29 @@ private[llm] object PlayerFacingTruthModePolicy:
   ) =
     Fen.read(Standard, Fen.Full(ctx.fen)).map(position => (position.board, position.color))
 
+  private def carlsbadFixedTargetBoardTarget(
+      board: _root_.chess.Board,
+      sideToMove: _root_.chess.Color
+  ): Option[String] =
+    Option.when(
+      sideToMove.white &&
+        boardHasEnemyPawn(board, sideToMove, "c6") &&
+        boardHasEnemyPawn(board, sideToMove, "d5") &&
+        boardHasFriendlyPawn(board, sideToMove, "b2") &&
+        boardHasFriendlyPawn(board, sideToMove, "d4")
+    )("c6")
+
+  private def targetFocusedCoordinationBoardTarget(
+      board: _root_.chess.Board,
+      sideToMove: _root_.chess.Color
+  ): Option[String] =
+    Option.when(
+      sideToMove.white &&
+        carlsbadFixedTargetBoardTarget(board, sideToMove).isEmpty &&
+        boardHasFriendlyRole(board, sideToMove, "c1", _root_.chess.Rook) &&
+        boardHasEnemyRole(board, sideToMove, "c6", _root_.chess.Knight)
+    )("c6")
+
   private def boardHasEnemyPawn(
       board: _root_.chess.Board,
       sideToMove: _root_.chess.Color,
@@ -2119,70 +2282,180 @@ private[llm] object PlayerFacingTruthModePolicy:
       .flatMap(board.pieceAt)
       .exists(piece => piece.color != sideToMove && piece.role == Pawn)
 
+  private def boardHasEnemyRole(
+      board: _root_.chess.Board,
+      sideToMove: _root_.chess.Color,
+      squareKey: String,
+      role: _root_.chess.Role
+  ): Boolean =
+    Square.all
+      .find(_.key == squareKey)
+      .flatMap(board.pieceAt)
+      .exists(piece => piece.color != sideToMove && piece.role == role)
+
   private def boardHasFriendlyPawn(
       board: _root_.chess.Board,
       sideToMove: _root_.chess.Color,
       squareKey: String
   ): Boolean =
+    boardHasFriendlyRole(board, sideToMove, squareKey, Pawn)
+
+  private def boardHasFriendlyRole(
+      board: _root_.chess.Board,
+      sideToMove: _root_.chess.Color,
+      squareKey: String,
+      role: _root_.chess.Role
+  ): Boolean =
     Square.all
       .find(_.key == squareKey)
       .flatMap(board.pieceAt)
-      .exists(piece => piece.color == sideToMove && piece.role == Pawn)
+      .exists(piece => piece.color == sideToMove && piece.role == role)
 
-  private def sideToMoveLabel(ctx: NarrativeContext): String =
-    exactTargetFixationPosition(ctx).map { case (_, sideToMove) => sideToMove.name }.getOrElse("")
+  private[llm] def exactSliceTargetSquare(
+      packet: PlayerFacingClaimPacket
+  ): Option[String] =
+    exactSliceDescriptor(packet).flatMap { _ =>
+      (packet.ownerPathWitness.ownerSeedTerms ++ packet.anchorTerms)
+        .flatMap(clean)
+        .map(_.toLowerCase)
+        .find(_.matches("[a-h][1-8]"))
+    }
 
-  private def exactTargetFixationContinuationTerms(
-      ctx: NarrativeContext,
-      ownerSeed: ClaimOwnerSeed
-  ): List[String] =
-    Option.when(ownerSeed.ownerSource == ExactTargetFixationOwnerSource) {
-      val targetSquares =
-        ownerSeed.ownerSeedTerms
-          .map(normalize)
-          .filter(_.matches("[a-h][1-8]"))
-          .distinct
-      ctx.engineEvidence.toList.flatMap(_.variations).headOption.toList.flatMap { line =>
-        val continuationMoves =
-          line.moves.drop(2).take(2).flatMap(clean).map(normalize)
-        Option.when(targetSquares.nonEmpty && continuationMoves.nonEmpty) {
-          targetSquares.flatMap(square =>
-            List(
-              "exact_target_fixation",
-              s"fixed_target:$square",
-              s"best_branch:${continuationMoves.mkString("|")}",
-              square
-            ) ++ continuationMoves
-          )
-        }.getOrElse(Nil)
-      }
-    }.getOrElse(Nil).distinct
+  private def certifiedExactSlicePacket(
+      packet: PlayerFacingClaimPacket,
+      accepts: ExactSliceDescriptor => Boolean
+  ): Boolean =
+    exactSliceDescriptor(packet).exists(descriptor =>
+      accepts(descriptor) &&
+        packet.scope == descriptor.releasedScope &&
+        packet.bestDefenseBranchKey.nonEmpty &&
+        packet.sameBranchState == PlayerFacingSameBranchState.Proven &&
+        packet.persistence == PlayerFacingClaimPersistence.Stable &&
+        packet.releaseRisks.isEmpty &&
+        PlayerFacingClaimCertification.allowsWeakMainClaim(packet)
+    )
 
-  private def carlsbadFixedTargetProbeContinuationTerms(
-      ctx: NarrativeContext,
-      ownerSeed: ClaimOwnerSeed
-  ): List[String] =
-    Option.when(ownerSeed.ownerSource == CarlsbadFixedTargetProbeOwnerSource) {
-      val targetSquares =
-        ownerSeed.ownerSeedTerms
-          .map(normalize)
-          .filter(_.matches("[a-h][1-8]"))
-          .distinct
-      ctx.engineEvidence.toList.flatMap(_.variations).headOption.toList.flatMap { line =>
-        val continuationMoves =
-          line.moves.drop(2).take(2).flatMap(clean).map(normalize)
-        Option.when(targetSquares.nonEmpty && continuationMoves.nonEmpty) {
-          targetSquares.flatMap(square =>
-            List(
-              "carlsbad_fixed_target_probe",
-              s"fixed_target:$square",
-              s"best_branch:${continuationMoves.mkString("|")}",
-              square
-            ) ++ continuationMoves
-          )
-        }.getOrElse(Nil)
-      }
-    }.getOrElse(Nil).distinct
+  private[llm] def certifiedExactTargetFixationPacket(
+      packet: PlayerFacingClaimPacket
+  ): Boolean =
+    certifiedExactSlicePacket(packet, _ == ExactTargetFixationDescriptor)
+
+  private[llm] def certifiedPositionProbePacket(
+      packet: PlayerFacingClaimPacket
+  ): Boolean =
+    certifiedExactSlicePacket(packet, descriptor =>
+      exactSlicePositionProbeDescriptor(packet).contains(descriptor)
+    )
+
+  private[llm] def pressureIncreaseMainClaim(
+      packet: PlayerFacingClaimPacket,
+      modalityTier: PlayerFacingClaimModalityTier,
+      fallbackAnchor: Option[String]
+  ): Option[String] =
+    exactSliceTargetSquare(packet).orElse(fallbackAnchor).map { square =>
+      if packet.ownerSource == CarlsbadFixedTargetProbeOwnerSource then
+        s"The key strategic fact here is that $square is the fixed target."
+      else if packet.ownerSource == TargetFocusedCoordinationOwnerSource then
+        s"The key strategic fact here is that the pressure is coordinated on $square."
+      else if packet.ownerSource == ExactTargetFixationOwnerSource then
+        modalityTier match
+          case PlayerFacingClaimModalityTier.Supports => s"This keeps $square fixed as the target."
+          case _                                      => s"This keeps the pressure fixed on $square."
+      else
+        modalityTier match
+          case PlayerFacingClaimModalityTier.Supports => s"This increases pressure on $square."
+          case _                                      => s"This continues to allow pressure on $square."
+    }
+
+  private[llm] def exactTargetFixationWhatChangedClaim(
+      packet: PlayerFacingClaimPacket
+  ): Option[String] =
+    Option.when(certifiedExactTargetFixationPacket(packet)) {
+      exactSliceTargetSquare(packet).map(square =>
+        s"This changes the position by fixing $square as the target."
+      )
+    }.flatten
+
+  private[llm] def exactTargetFixationWhatChangedContrast(
+      packet: PlayerFacingClaimPacket
+  ): Option[String] =
+    Option.when(certifiedExactTargetFixationPacket(packet)) {
+      exactSliceTargetSquare(packet).map(square =>
+        s"Before the move, $square was not yet fixed as the target on that defended branch."
+      )
+    }.flatten
+
+  private[llm] def exactTargetFixationWhatChangedConsequence(
+      packet: PlayerFacingClaimPacket
+  ): Option[String] =
+    Option.when(certifiedExactTargetFixationPacket(packet)) {
+      exactSliceTargetSquare(packet).map(square =>
+        s"That same defended branch keeps the pressure fixed on $square."
+      )
+    }.flatten
+
+  private[llm] def positionProbeTaskConsequence(
+      packet: PlayerFacingClaimPacket
+  ): Option[String] =
+    Option.when(certifiedPositionProbePacket(packet)) {
+      packet.ownerSource match
+        case CarlsbadFixedTargetProbeOwnerSource =>
+          exactSliceTargetSquare(packet)
+            .map(square =>
+              s"So the task is to keep the queenside pressure trained on $square instead of rushing a conversion."
+            )
+            .orElse(Some("So the task is to keep the pressure on the fixed target instead of rushing a conversion."))
+        case TargetFocusedCoordinationOwnerSource =>
+          exactSliceTargetSquare(packet)
+            .map(square =>
+              s"So the task is to keep the pressure coordinated on $square until the target has to give way."
+            )
+            .orElse(Some("So the task is to keep the pieces coordinated on the target until it has to give way."))
+        case _ => None
+    }.flatten
+
+  private[llm] def positionProbeQuestionSeed(
+      ctx: IntegratedContext,
+      posOpt: Option[_root_.chess.Position]
+  ): Option[PositionProbeQuestionSeed] =
+    carlsbadFixedTargetQuestionSeed(ctx, posOpt)
+      .orElse(targetFocusedCoordinationQuestionSeed(ctx, posOpt))
+
+  private def carlsbadFixedTargetQuestionSeed(
+      ctx: IntegratedContext,
+      posOpt: Option[_root_.chess.Position]
+  ): Option[PositionProbeQuestionSeed] =
+    Option.when(
+      ctx.isWhiteToMove &&
+        ctx.maxThreatLossToUs < 120 &&
+        !ctx.attackingOpportunityAtRisk &&
+        posOpt.exists(pos => carlsbadFixedTargetBoardTarget(pos.board, pos.color).contains("c6"))
+    ) {
+      PositionProbeQuestionSeed(
+        questionFocusText = "the fixed target on c6",
+        why =
+          "The position is defined less by an immediate race than by the fixed queenside target that has to stay under pressure.",
+        anchors = List("c6", "fixed target", "queenside")
+      )
+    }
+
+  private def targetFocusedCoordinationQuestionSeed(
+      ctx: IntegratedContext,
+      posOpt: Option[_root_.chess.Position]
+  ): Option[PositionProbeQuestionSeed] =
+    Option.when(
+      ctx.isWhiteToMove &&
+        ctx.maxThreatLossToUs < 120 &&
+        !ctx.attackingOpportunityAtRisk &&
+        posOpt.exists(pos => targetFocusedCoordinationBoardTarget(pos.board, pos.color).contains("c6"))
+    ) {
+      PositionProbeQuestionSeed(
+        questionFocusText = "the coordinated pressure on c6",
+        why =
+          "The position turns on how the pieces keep c6 under coordinated pressure, not on a generic trade or file story.",
+        anchors = List("c6", "coordinated pressure", "target coordination")
+      )
+    }
 
   private def immediateExchangeContinuationSquare(
       variation: VariationLine
@@ -2252,13 +2525,9 @@ private[llm] object PlayerFacingTruthModePolicy:
     val exactBoundedSimplification =
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
         exactBoundedSimplificationExchangeSquare(ctx, surface).nonEmpty
-    val exactTargetFixation =
+    val exactPressureIncrease =
       deltaClass == PlayerFacingMoveDeltaClass.PressureIncrease &&
-        exactTargetFixationWitness(ctx, surface).nonEmpty &&
-        bestDefenseBranchKeyFromContext(ctx).nonEmpty
-    val carlsbadFixedTargetProbe =
-      deltaClass == PlayerFacingMoveDeltaClass.PressureIncrease &&
-        carlsbadFixedTargetProbeWitness(ctx, surface).nonEmpty &&
+        exactPressureIncreaseWitness(ctx, surface).nonEmpty &&
         bestDefenseBranchKeyFromContext(ctx).nonEmpty
     val evidenceBacked =
       StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx).nonEmpty ||
@@ -2268,7 +2537,7 @@ private[llm] object PlayerFacingTruthModePolicy:
     val deferred =
       ctx.strategicPlanExperiments.exists(_.evidenceTier == "deferred") ||
         ctx.probeRequests.nonEmpty
-    if evidenceBacked || exactBoundedSimplification || exactTargetFixation || carlsbadFixedTargetProbe then
+    if evidenceBacked || exactBoundedSimplification || exactPressureIncrease then
       PlayerFacingClaimProvenanceClass.ProbeBacked
     else if pvCoupled then PlayerFacingClaimProvenanceClass.PvCoupled
     else if deferred then PlayerFacingClaimProvenanceClass.Deferred
@@ -2284,12 +2553,7 @@ private[llm] object PlayerFacingTruthModePolicy:
       PlayerFacingClaimQuantifier.LineConditioned
     else if
       deltaClass == PlayerFacingMoveDeltaClass.PressureIncrease &&
-        exactTargetFixationWitness(ctx, surface).nonEmpty &&
-        bestDefenseBranchKeyFromContext(ctx).nonEmpty
-    then PlayerFacingClaimQuantifier.BestResponse
-    else if
-      deltaClass == PlayerFacingMoveDeltaClass.PressureIncrease &&
-        carlsbadFixedTargetProbeWitness(ctx, surface).nonEmpty &&
+        exactPressureIncreaseWitness(ctx, surface).nonEmpty &&
         bestDefenseBranchKeyFromContext(ctx).nonEmpty
     then PlayerFacingClaimQuantifier.BestResponse
     else if
@@ -2317,12 +2581,7 @@ private[llm] object PlayerFacingTruthModePolicy:
       PlayerFacingClaimStabilityGrade.Unknown
     else if
       deltaClass == PlayerFacingMoveDeltaClass.PressureIncrease &&
-        exactTargetFixationWitness(ctx, surface).nonEmpty &&
-        bestDefenseBranchKeyFromContext(ctx).nonEmpty
-    then PlayerFacingClaimStabilityGrade.Stable
-    else if
-      deltaClass == PlayerFacingMoveDeltaClass.PressureIncrease &&
-        carlsbadFixedTargetProbeWitness(ctx, surface).nonEmpty &&
+        exactPressureIncreaseWitness(ctx, surface).nonEmpty &&
         bestDefenseBranchKeyFromContext(ctx).nonEmpty
     then PlayerFacingClaimStabilityGrade.Stable
     else if
@@ -2339,7 +2598,6 @@ private[llm] object PlayerFacingTruthModePolicy:
       else PlayerFacingClaimStabilityGrade.Unknown
 
   private def claimTaintFlags(
-      ctx: NarrativeContext,
       provenanceClass: PlayerFacingClaimProvenanceClass,
       quantifier: PlayerFacingClaimQuantifier
   ): Set[PlayerFacingClaimTaintFlag] =

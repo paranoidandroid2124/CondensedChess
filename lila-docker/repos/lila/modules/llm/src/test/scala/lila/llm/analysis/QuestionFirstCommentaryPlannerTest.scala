@@ -74,6 +74,23 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       tacticalOwnership = Option.when(mode == PlayerFacingTruthMode.Tactical)("tactical")
     )
 
+  private def positionLocalClaim(
+      text: String,
+      sourceKind: String = PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource,
+      packet: PlayerFacingClaimPacket
+  ): MainPathScopedClaim =
+    MainPathScopedClaim(
+      scope = PlayerFacingClaimScope.PositionLocal,
+      mode = PlayerFacingTruthMode.Strategic,
+      deltaClass = Some(PlayerFacingMoveDeltaClass.PressureIncrease),
+      claimText = text,
+      anchorTerms = List("c6"),
+      evidenceLines = List("14...Qb6 15.Rb1"),
+      sourceKind = sourceKind,
+      tacticalOwnership = None,
+      packet = Some(packet)
+    )
+
   private def lineClaim(text: String, sourceKind: String = "line_delta"): MainPathScopedClaim =
     MainPathScopedClaim(
       scope = PlayerFacingClaimScope.LineScoped,
@@ -84,6 +101,54 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       evidenceLines = List(text),
       sourceKind = sourceKind,
       tacticalOwnership = None
+    )
+
+  private def certifiedPositionProbePacket(
+      ownerSource: String = PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource,
+      ownerFamily: String = ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
+      anchorSquare: String = "c6",
+      ownerSeedTerms: List[String] =
+        List(
+          "c6",
+          "fixed_target:c6",
+          ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id
+        ),
+      continuationTerms: List[String] =
+        List("carlsbad_fixed_target_probe", "fixed_target:c6", "best_branch:b5|Qb6"),
+      structureTransitionTerms: List[String] = List("queenside_fixed_chain", "c6_target", "d5_chain"),
+      scope: PlayerFacingPacketScope = PlayerFacingPacketScope.PositionLocal,
+      sameBranchState: PlayerFacingSameBranchState = PlayerFacingSameBranchState.Proven,
+      persistence: PlayerFacingClaimPersistence = PlayerFacingClaimPersistence.Stable,
+      fallbackMode: PlayerFacingClaimFallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
+      bestDefenseMove: String = "b5",
+      bestDefenseBranchKey: String = "h4f2|b7b5"
+  ): PlayerFacingClaimPacket =
+    PlayerFacingClaimPacket(
+      claimGate =
+        PlanEvidenceEvaluator.ClaimCertification(
+          certificateStatus = PlayerFacingCertificateStatus.Valid,
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
+          ontologyFamily = PlayerFacingClaimOntologyFamily.Pressure
+        ),
+      ownerSource = ownerSource,
+      ownerFamily = ownerFamily,
+      scope = scope,
+      triggerKind = "position_probe",
+      anchorTerms = List(anchorSquare),
+      bestDefenseMove = Some(bestDefenseMove),
+      bestDefenseBranchKey = Some(bestDefenseBranchKey),
+      sameBranchState = sameBranchState,
+      persistence = persistence,
+      ownerPathWitness =
+        PlayerFacingOwnerPathWitness(
+          ownerSeedTerms = ownerSeedTerms,
+          continuationTerms = continuationTerms,
+          structureTransitionTerms = structureTransitionTerms
+        ),
+      fallbackMode = fallbackMode
     )
 
   private def threat(
@@ -285,6 +350,135 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     assertEquals(plans.primary, None)
     assertEquals(plans.rejected.headOption.map(_.questionKind), Some(AuthorQuestionKind.WhyThis))
+  }
+
+  test("WhatMattersHere admits only a certified position probe packet") {
+    val q = question("q_probe", AuthorQuestionKind.WhatMattersHere)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(
+                  positionLocalClaim(
+                    "The key strategic fact here is that c6 is the fixed target.",
+                    packet = certifiedPositionProbePacket()
+                  )
+                ),
+                Some(lineClaim("14...Qb6 15.Rb1"))
+              )
+            )
+        ),
+        None
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing primary position probe"))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhatMattersHere)
+    assertEquals(primary.ownerFamily, OwnerFamily.PositionProbe)
+    assertEquals(primary.ownerSource, PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource)
+    assert(primary.admissibilityReasons.contains("certified_position_probe"), clues(primary))
+    assertEquals(
+      primary.consequence.map(_.text),
+      Some("So the task is to keep the queenside pressure trained on c6 instead of rushing a conversion.")
+    )
+  }
+
+  test("WhatMattersHere keeps slice-specific wording for target-focused coordination probes") {
+    val q = question("q_probe_coordination", AuthorQuestionKind.WhatMattersHere)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(
+                  positionLocalClaim(
+                    "The key strategic fact here is that the pressure is coordinated on c6.",
+                    sourceKind = PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource,
+                    packet =
+                      certifiedPositionProbePacket(
+                        ownerSource = PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource,
+                        ownerFamily = PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerFamily,
+                        ownerSeedTerms =
+                          List(
+                            "c6",
+                            "coordinated_target:c6",
+                            PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerFamily,
+                            "rook_on_c1"
+                          ),
+                        continuationTerms =
+                          List(
+                            PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource,
+                            "coordinated_target:c6",
+                            "best_branch:d2|Qd7"
+                          ),
+                        structureTransitionTerms =
+                          List("support_from:e3", "support_from:g2", "coordinated_piece_pressure"),
+                        bestDefenseMove = "Qd7",
+                        bestDefenseBranchKey = "d1b3|d8d7"
+                      )
+                  )
+                ),
+                Some(lineClaim("13.Qb3 Qd7 14.Rfd1"))
+              )
+            )
+        ),
+        None
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing target-focused coordination probe"))
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhatMattersHere)
+    assertEquals(primary.ownerFamily, OwnerFamily.PositionProbe)
+    assertEquals(primary.ownerSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource)
+    assertEquals(primary.claim, "The key strategic fact here is that the pressure is coordinated on c6.")
+    assertEquals(
+      primary.consequence.map(_.text),
+      Some("So the task is to keep the pressure coordinated on c6 until the target has to give way.")
+    )
+  }
+
+  test("WhatMattersHere rejects an uncertified PositionLocal shell even when the claim text looks right") {
+    val q = question("q_probe_uncertified", AuthorQuestionKind.WhatMattersHere)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(
+                  positionLocalClaim(
+                    "The key strategic fact here is that c6 is the fixed target.",
+                    packet =
+                      certifiedPositionProbePacket(
+                        sameBranchState = PlayerFacingSameBranchState.Ambiguous,
+                        persistence = PlayerFacingClaimPersistence.BestDefenseOnly,
+                        fallbackMode = PlayerFacingClaimFallbackMode.ExactFactual
+                      )
+                  )
+                ),
+                Some(lineClaim("14...Qb6 15.Rb1"))
+              )
+            )
+        ),
+        None
+      )
+
+    assertEquals(plans.primary, None)
+    assert(plans.ownerTrace.ownerCandidates.forall(_.family != OwnerFamily.PositionProbe), clues(plans.ownerTrace))
+    assert(
+      plans.rejected.exists(rejected =>
+        rejected.questionKind == AuthorQuestionKind.WhatMattersHere &&
+          rejected.reasons.contains("position_probe_not_certified")
+      ),
+      clues(plans.rejected)
+    )
   }
 
   test("WhyNow requires a concrete timing reason") {

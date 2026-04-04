@@ -366,16 +366,14 @@ object AuthorQuestionGenerator:
     fen: String,
     playedUci: String
   ): Option[AuthorQuestion] =
-    Option.when(carlsbadFixedTargetProbeSeed(ctx, posOpt)) {
+    PlayerFacingTruthModePolicy.positionProbeQuestionSeed(ctx, posOpt).map { seed =>
       AuthorQuestion(
         id = s"probe_${Integer.toHexString((fen + playedUci).hashCode)}",
         kind = AuthorQuestionKind.WhatMattersHere,
         priority = 1,
-        question = s"What matters most here for $us around the fixed target on c6?",
-        why = Some(
-          "The position is defined less by an immediate race than by the fixed queenside target that has to stay under pressure."
-        ),
-        anchors = List("c6", "fixed target", "queenside"),
+        question = s"What matters most here for $us around ${seed.questionFocusText}?",
+        why = Some(seed.why),
+        anchors = seed.anchors,
         evidencePurposes = List("reply_multipv")
       )
     }
@@ -509,28 +507,3 @@ object AuthorQuestionGenerator:
       case a :: Nil => a
       case a :: b :: Nil => s"$a or $b"
       case many => many.init.mkString(", ") + s", or ${many.last}"
-
-  private def carlsbadFixedTargetProbeSeed(
-    ctx: IntegratedContext,
-    posOpt: Option[Position]
-  ): Boolean =
-    ctx.isWhiteToMove &&
-      ctx.maxThreatLossToUs < 120 &&
-      !ctx.attackingOpportunityAtRisk &&
-      posOpt.exists { pos =>
-        hasPiece(pos, "c6", Black, Pawn) &&
-          hasPiece(pos, "d5", Black, Pawn) &&
-          hasPiece(pos, "b2", White, Pawn) &&
-          hasPiece(pos, "d4", White, Pawn)
-      }
-
-  private def hasPiece(
-    pos: Position,
-    squareKey: String,
-    color: Color,
-    role: Role
-  ): Boolean =
-    Square.all
-      .find(_.key.equalsIgnoreCase(squareKey))
-      .flatMap(pos.board.pieceAt)
-      .exists(piece => piece.color == color && piece.role == role)

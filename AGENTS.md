@@ -26,7 +26,7 @@ trace if the request is already answered by that SSoT.
 
 Use the document roles strictly:
 - `CommentaryProgramMap.md`
-  - onboarding / current status / Step 1-7 + CQF map
+  - onboarding / current status / active CQF map
 - `CommentaryPipelineSSOT.md`
   - canonical runtime audit
 - `CommentaryTruthGate.md`
@@ -34,12 +34,8 @@ Use the document roles strictly:
 - `CommentaryTrustHardening.md`
   - canonical trust-risk map, CTH audit baseline, Track 5 defer rationale,
     trust-hardening priorities
-
-There is no separate CQF appendix anymore. CQF status, track map, and active
-quality-work handoff live in `CommentaryProgramMap.md`, while canonical signoff
-and runtime policy remain in `CommentaryTruthGate.md` and
-`CommentaryPipelineSSOT.md`. Trust-hardening work and lesson-readiness questions
-must also use `CommentaryTrustHardening.md`.
+- There is no separate CQF appendix. CQF status and active quality-work handoff
+  live in `CommentaryProgramMap.md`.
 
 Re-audit only if:
 - the user explicitly asks for a fresh audit,
@@ -86,6 +82,39 @@ must stay anchored to exact board truth rather than verbal sketches.
   - exact board-verified claim
   - conjectural extension or future frontier idea
   Do **not** let the latter masquerade as validated truth.
+
+## Exact-Slice and Admission Boundary Guardrails
+
+When opening or cleaning up a narrow exact slice in Chesstory, keep the slice
+boundary centralized.
+
+- Do **not** spread the same slice policy across multiple layers as ad hoc
+  string checks unless the layer boundary truly requires it.
+- If a slice needs special handling for:
+  - owner source
+  - witness extraction
+  - continuation terms
+  - same-branch / persistence / release rules
+  - scope overrides
+  then centralize those rules in one canonical runtime boundary first, and let
+  downstream planner / renderer code consume that certified result.
+- Do **not** gate planner ownership from broad scope alone. For example,
+  `PositionLocal` by itself must not be enough to admit `WhatMattersHere`; use a
+  certified slice/source predicate instead.
+- If two exact slices share the same structural pattern, prefer a shared private
+  helper or descriptor over duplicating the pattern with new special-case blocks.
+- Keep wording contracts aligned with slice certification:
+  - main claim wording
+  - contrast / consequence wording
+  - deterministic surface selection
+  should not drift independently for the same slice.
+- Before adding a new exact slice, check whether an existing slice helper should
+  be generalized instead of adding another parallel special case.
+- If cleanup is needed, prefer:
+  1. centralizing the slice predicate/helper
+  2. tightening planner admission to certified slices only
+  3. reusing the existing canonical planner/build/replay path
+  rather than adding another rollout-style exception.
 
 ## Naming, Packaging, and Verification Guardrails
 

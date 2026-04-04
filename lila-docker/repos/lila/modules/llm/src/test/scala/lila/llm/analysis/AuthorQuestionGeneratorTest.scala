@@ -231,6 +231,33 @@ class AuthorQuestionGeneratorTest extends FunSuite:
     ), clues(questions))
   }
 
+  test("generate seeds WhatMattersHere for the reviewed target-focused coordination probe rows") {
+    val fen = "r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PP2PPBP/2RQ1RK1 w - - 4 13"
+    val ctx =
+      IntegratedContext(
+        evalCp = 92,
+        isWhiteToMove = true
+      )
+    val questions =
+      AuthorQuestionGenerator.generate(
+        data =
+          minimalData(ctx).copy(
+            fen = fen,
+            prevMove = Some("d1b3"),
+            ply = 26,
+            isWhiteToMove = true
+          ),
+        ctx = ctx,
+        candidates = Nil,
+        playedSan = Some("Qb3")
+      )
+
+    assert(questions.exists(question =>
+      question.kind == AuthorQuestionKind.WhatMattersHere &&
+        question.question.contains("coordinated pressure on c6")
+    ), clues(questions))
+  }
+
   test("generate does not seed WhatMattersHere for the black-to-move sibling control") {
     val fen = "r1bqrnk1/4bppp/2p2n2/pp1p2B1/3P4/P1NBP3/1PQ1NPPP/3R1RK1 b - - 1 13"
     val ctx =
@@ -250,6 +277,30 @@ class AuthorQuestionGeneratorTest extends FunSuite:
         ctx = ctx,
         candidates = Nil,
         playedSan = Some("g6")
+      )
+
+    assert(!questions.exists(_.kind == AuthorQuestionKind.WhatMattersHere), clues(questions))
+  }
+
+  test("generate keeps WhatMattersHere closed on the file-pressure rival blocker") {
+    val fen = "r1bq1rk1/pp3ppp/5n2/3p4/1PnP4/2N2N2/P3BPPP/R2Q1RK1 w - - 1 13"
+    val ctx =
+      IntegratedContext(
+        evalCp = 82,
+        isWhiteToMove = true
+      )
+    val questions =
+      AuthorQuestionGenerator.generate(
+        data =
+          minimalData(ctx).copy(
+            fen = fen,
+            prevMove = Some("a1c1"),
+            ply = 26,
+            isWhiteToMove = true
+          ),
+        ctx = ctx,
+        candidates = Nil,
+        playedSan = Some("Rc1")
       )
 
     assert(!questions.exists(_.kind == AuthorQuestionKind.WhatMattersHere), clues(questions))

@@ -119,7 +119,6 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
               delta = delta,
               ctx = ctx,
               strategyPack = strategyPack,
-              surface = surface,
               truthContract = truthContract,
               candidateEvidenceLines = candidateEvidenceLines
             )
@@ -210,7 +209,6 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
       delta: PlayerFacingMoveDeltaEvidence,
       ctx: NarrativeContext,
       strategyPack: Option[StrategyPack],
-      surface: StrategyPackSurface.Snapshot,
       truthContract: Option[DecisiveTruthContract],
       candidateEvidenceLines: List[String]
   ): List[String] =
@@ -257,18 +255,11 @@ private[llm] object MainPathMoveDeltaClaimBuilder:
             case _                                      => s"This still leaves access to $square."
         }
       case PlayerFacingMoveDeltaClass.PressureIncrease =>
-        preferredWitnessAnchor(delta.packet).orElse(anchor).map { square =>
-          if delta.packet.ownerSource == PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource then
-            s"The key strategic fact here is that $square is the fixed target."
-          else if delta.packet.ownerSource == PlayerFacingTruthModePolicy.ExactTargetFixationOwnerSource then
-            delta.modalityTier match
-              case PlayerFacingClaimModalityTier.Supports => s"This keeps $square fixed as the target."
-              case _                                      => s"This keeps the pressure fixed on $square."
-          else
-            delta.modalityTier match
-              case PlayerFacingClaimModalityTier.Supports => s"This increases pressure on $square."
-              case _                                      => s"This continues to allow pressure on $square."
-        }
+        PlayerFacingTruthModePolicy.pressureIncreaseMainClaim(
+          packet = delta.packet,
+          modalityTier = delta.modalityTier,
+          fallbackAnchor = preferredWitnessAnchor(delta.packet).orElse(anchor)
+        )
       case PlayerFacingMoveDeltaClass.ExchangeForcing =>
         preferredWitnessAnchor(delta.packet).orElse(anchor).map { square =>
           if delta.packet.ownerFamily == ThemeTaxonomy.SubplanId.SimplificationWindow.id then

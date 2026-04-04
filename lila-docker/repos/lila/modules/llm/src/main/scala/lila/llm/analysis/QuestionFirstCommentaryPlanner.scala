@@ -978,49 +978,33 @@ private[llm] object QuestionFirstCommentaryPlanner:
   private def exactTargetFixationPacket(
       inputs: QuestionPlannerInputs
   ): Option[PlayerFacingClaimPacket] =
-    inputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).filter(packet =>
-      packet.ownerSource == PlayerFacingTruthModePolicy.ExactTargetFixationOwnerSource &&
-        packet.ownerFamily == ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id &&
-        packet.bestDefenseBranchKey.nonEmpty &&
-        packet.sameBranchState == PlayerFacingSameBranchState.Proven &&
-        packet.persistence == PlayerFacingClaimPersistence.Stable
-    )
+    inputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet)
+      .filter(PlayerFacingTruthModePolicy.certifiedExactTargetFixationPacket)
 
-  private def exactTargetFixationSquare(
-      packet: PlayerFacingClaimPacket
-  ): Option[String] =
-    (packet.ownerPathWitness.ownerSeedTerms ++ packet.anchorTerms)
-      .flatMap(cleanLine)
-      .map(_.toLowerCase)
-      .find(_.matches("[a-h][1-8]"))
+  private def certifiedPositionProbeClaim(
+      inputs: QuestionPlannerInputs
+  ): Option[MainPathScopedClaim] =
+    inputs.mainBundle.flatMap(_.mainClaim).filter(claim =>
+      claim.scope == PlayerFacingClaimScope.PositionLocal &&
+        claim.packet.exists(PlayerFacingTruthModePolicy.certifiedPositionProbePacket)
+    )
 
   private def exactTargetFixationChangeClaim(
       inputs: QuestionPlannerInputs
   ): Option[String] =
-    exactTargetFixationPacket(inputs).flatMap(packet =>
-      exactTargetFixationSquare(packet).map(square =>
-        s"This changes the position by fixing $square as the target."
-      )
-    )
+    exactTargetFixationPacket(inputs).flatMap(PlayerFacingTruthModePolicy.exactTargetFixationWhatChangedClaim)
 
   private def exactTargetFixationChangeContrast(
       inputs: QuestionPlannerInputs
   ): Option[String] =
-    exactTargetFixationPacket(inputs).flatMap(packet =>
-      exactTargetFixationSquare(packet).map(square =>
-        s"Before the move, $square was not yet fixed as the target on that defended branch."
-      )
-    )
+    exactTargetFixationPacket(inputs).flatMap(PlayerFacingTruthModePolicy.exactTargetFixationWhatChangedContrast)
 
   private def exactTargetFixationChangeConsequence(
       inputs: QuestionPlannerInputs
   ): Option[QuestionPlanConsequence] =
     exactTargetFixationPacket(inputs).flatMap(packet =>
-      exactTargetFixationSquare(packet).map(square =>
-        QuestionPlanConsequence(
-          s"That same defended branch keeps the pressure fixed on $square.",
-          QuestionPlanConsequenceBeat.WrapUp
-        )
+      PlayerFacingTruthModePolicy.exactTargetFixationWhatChangedConsequence(packet).map(text =>
+        QuestionPlanConsequence(text, QuestionPlanConsequenceBeat.WrapUp)
       )
     )
 
@@ -1208,14 +1192,18 @@ private[llm] object QuestionFirstCommentaryPlanner:
       @unused sceneType: SceneType
   ): Either[QuestionPlan, RejectedQuestionPlan] =
     given QuestionPlannerInputs = inputs
-    val positionProbe =
+    val rawPositionProbe =
       inputs.mainBundle.flatMap(_.mainClaim).filter(_.scope == PlayerFacingClaimScope.PositionLocal)
-    positionProbe match
+    certifiedPositionProbeClaim(inputs) match
       case None =>
-        reject(question, QuestionPlanFallbackMode.FactualFallback, "position_probe_missing")
+        rawPositionProbe match
+          case Some(_) =>
+            reject(question, QuestionPlanFallbackMode.FactualFallback, "position_probe_not_certified")
+          case None =>
+            reject(question, QuestionPlanFallbackMode.FactualFallback, "position_probe_missing")
       case Some(claim) =>
-        val packet = claim.packet
-        val ownerSource = packet.map(_.ownerSource).getOrElse(claim.sourceKind)
+        val packet = claim.packet.get
+        val ownerSource = packet.ownerSource
         val evidence =
           evidenceForQuestion(
             question = question,
@@ -1223,14 +1211,11 @@ private[llm] object QuestionFirstCommentaryPlanner:
             sourceKinds = List(claim.sourceKind)
           )
         val consequence =
-          packet.flatMap(positionProbeConsequence).map(text =>
+          positionProbeConsequence(packet).map(text =>
             QuestionPlanConsequence(text, QuestionPlanConsequenceBeat.WrapUp)
           )
         val strength =
-          packet.filter(p =>
-            p.sameBranchState == PlayerFacingSameBranchState.Proven &&
-              p.persistence == PlayerFacingClaimPersistence.Stable
-          ).map(_ => QuestionPlanStrengthTier.Strong).getOrElse(QuestionPlanStrengthTier.Moderate)
+          QuestionPlanStrengthTier.Strong
         mkPlan(
           question = question,
           kind = AuthorQuestionKind.WhatMattersHere,
@@ -1240,27 +1225,14 @@ private[llm] object QuestionFirstCommentaryPlanner:
           consequence = consequence,
           fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
           strengthTier = strength,
-          sourceKinds = List(claim.sourceKind),
-          admissibilityReasons = List("position_probe_owner", "current_position_truth"),
+          sourceKinds = List(claim.sourceKind, ownerSource).distinct,
+          admissibilityReasons = List("position_probe_owner", "current_position_truth", "certified_position_probe"),
           ownerFamily = OwnerFamily.PositionProbe,
           ownerSource = ownerSource
         )
 
   private def positionProbeConsequence(packet: PlayerFacingClaimPacket): Option[String] =
-    val exactSquare =
-      (packet.ownerPathWitness.ownerSeedTerms ++ packet.anchorTerms)
-        .flatMap(cleanLine)
-        .map(_.toLowerCase)
-        .find(_.matches("[a-h][1-8]"))
-    Option.when(
-      packet.ownerSource == PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource
-    ) {
-      exactSquare
-        .map(square =>
-          s"So the task is to keep the queenside pressure trained on $square instead of rushing a conversion."
-        )
-        .getOrElse("So the task is to keep the pressure on the fixed target instead of rushing a conversion.")
-    }
+    PlayerFacingTruthModePolicy.positionProbeTaskConsequence(packet)
 
   private def buildWhyThisPlan(
       question: AuthorQuestion,
@@ -2164,17 +2136,17 @@ private[llm] object QuestionFirstCommentaryPlanner:
       ).flatten
 
     val positionProbe =
-      inputs.mainBundle.flatMap(_.mainClaim).filter(_.scope == PlayerFacingClaimScope.PositionLocal).map {
-        claim =>
-          ownerCandidate(
-            family = OwnerFamily.PositionProbe,
-            source = claim.sourceKind,
-            sourceKinds = List(claim.sourceKind),
-            questionKinds = List(AuthorQuestionKind.WhatMattersHere),
-            moveLinked = false,
-            proposedFamilyMapping = "PositionProbe/position_local",
-            reasons = List("current_position_probe")
-          )
+      certifiedPositionProbeClaim(inputs).map { claim =>
+        val packet = claim.packet.get
+        ownerCandidate(
+          family = OwnerFamily.PositionProbe,
+          source = packet.ownerSource,
+          sourceKinds = List(claim.sourceKind, packet.ownerSource).distinct,
+          questionKinds = List(AuthorQuestionKind.WhatMattersHere),
+          moveLinked = false,
+          proposedFamilyMapping = "PositionProbe/position_local",
+          reasons = List("current_position_probe", "certified_position_probe")
+        )
       }.toList
 
     val moveDelta =

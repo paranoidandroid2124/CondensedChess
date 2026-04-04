@@ -70,7 +70,8 @@ private[llm] object PlayerFacingClaimCertification:
       ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
       ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
       ThemeTaxonomy.SubplanId.MinorityAttackFixation.id,
-      ThemeTaxonomy.SubplanId.IQPInducement.id
+      ThemeTaxonomy.SubplanId.IQPInducement.id,
+      PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerFamily
     )
 
   def blocksMainClaim(taintFlags: Set[PlayerFacingClaimTaintFlag]): Boolean =

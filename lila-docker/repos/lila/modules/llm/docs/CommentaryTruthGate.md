@@ -731,9 +731,12 @@ plus the local quality-audit rerun artifacts referenced there.
     claims may also own the main sentence, but only on a reviewed
     current-position probe lane (currently the exact
     `carlsbad_fixed_target_probe -> WhatMattersHere` slice on `B15A` /
-    `B16B`); `LineScoped` claims may survive only as explicit subordinate
-    lines, and strategic line-scoped consequences are not allowed to stand
-    alone without a canonical main-path strategic claim
+    `B16B` and the exact
+    `target_focused_coordination_probe -> WhatMattersHere` slice on `K09A` /
+    `K09D`); generic `PositionLocal` shells still fail closed, `LineScoped`
+    claims may survive only as explicit subordinate lines, and strategic
+    line-scoped consequences are not allowed to stand alone without a
+    canonical main-path strategic claim
   - user-facing state-summary thesis / fallback revival is not canonical:
     old `StrategicThesisBuilder`-style main-path promotion may not recreate a
     Bookmaker / Chronicle claim once tactical / strategic ownership failed

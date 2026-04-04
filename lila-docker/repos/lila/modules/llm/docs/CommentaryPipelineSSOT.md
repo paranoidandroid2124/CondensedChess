@@ -360,16 +360,18 @@ Current canonical flow:
       translators coexist with a move-local transition anchor, shadow
       classification absorbs them into `transition_conversion` rather than
       forcing an arbitrary opening-vs-endgame prior
-    - v1 admission is intentionally conservative:
-      `support_material` never enters the owner pool;
-      `DecisionTiming(close_candidate)` is always `SupportOnly`;
-      `PlanRace` is `PrimaryAllowed` only in `plan_clash`;
-      `MoveDelta` is `PrimaryAllowed` only in
-      `quiet_improvement | transition_conversion`;
-      `PositionProbe` is `PrimaryAllowed` only in `quiet_improvement`, and
-      only when a certified `PositionLocal` main claim already exists on the
-      shared main bundle;
-      `TacticalFailure` and `ForcingDefense` only own their matching scenes
+- v1 admission is intentionally conservative:
+  `support_material` never enters the owner pool;
+  `DecisionTiming(close_candidate)` is always `SupportOnly`;
+  `PlanRace` is `PrimaryAllowed` only in `plan_clash`;
+  `MoveDelta` is `PrimaryAllowed` only in
+  `quiet_improvement | transition_conversion`;
+  `PositionProbe` is `PrimaryAllowed` only in `quiet_improvement`, and
+  only when the shared main bundle already carries the certified
+  `carlsbad_fixed_target_probe` `PositionLocal` packet
+  (`fallbackMode=WeakMain`, `sameBranchState=Proven`,
+  `persistence=Stable`, no surviving release risk);
+  `TacticalFailure` and `ForcingDefense` only own their matching scenes
     - move-linked `OpeningRelation` / `EndgameTransition` translators are
       `PrimaryAllowed` only in their own scenes, and only through the shared
       planner's scene-first `WhyThis` / `WhatChanged` builders; raw opening
@@ -1071,19 +1073,40 @@ Current rules:
     `bestDefenseBranchKey=h4f2|b7b5` on `B15A` / `f1e1|c8d7` on `B16B`,
     `sameBranchState=Proven`, `persistence=Stable`, and
     `main_bundle=The key strategic fact here is that c6 is the fixed target.`
-    `QuestionFirstCommentaryPlanner` now admits that packet only as
-    planner-owned `WhatMattersHere`, so Bookmaker and Chronicle consume the
-    deterministic primary claim plus coda
+    `QuestionFirstCommentaryPlanner` now admits only that certified packet as
+    planner-owned `WhatMattersHere` and rejects generic `PositionLocal`
+    shells as `position_probe_not_certified`, so Bookmaker and Chronicle
+    consume the deterministic primary claim plus coda
     (`So the task is to keep the queenside pressure trained on c6 instead of
     rushing a conversion.`) rather than inflating support-only Carlsbad prose
     or reusing move-local `WhyThis` / `WhatChanged`.
-    The slice stays narrow: `K03A` still fails closed on the black-to-move
-    sibling, `K09A` / `K09D` / `K09E` remain preparatory / prophylactic /
-    file-pressure rival dominated, `K09B` / `K09F` still belong only to the
-    promoted bounded `favorable_simplification` slice on the exact
-    `d4e6|f7e6` branch, and generic or synthetic weakness shells outside these
-    dedicated `exact_target_fixation` / `carlsbad_fixed_target_probe`
-    certification lanes remain fail-closed
+    exact `K09A` / `K09D` now also materialize the second current-position
+    probe on a separate exact coordination slice when the live FEN proves
+    `white to move`, a white rook on `c1`, an enemy knight on `c6`, at least
+    two exact move refs contesting `c6`, and route evidence that keeps the
+    pieces coordinated on that target; the row must also have a defended branch
+    key and may not already certify either the move-local
+    `exact_target_fixation` lane or the Carlsbad fixed-target probe. On that
+    admitted slice the runtime now materializes
+    `ownerSource=target_focused_coordination_probe`,
+    `ownerFamily=target_focused_coordination`, `scope=PositionLocal`,
+    `bestDefenseBranchKey=d1b3|d8d7` on `K09A` / `h2h3|g4f3` on `K09D`,
+    `sameBranchState=Proven`, `persistence=Stable`, and
+    `main_bundle=The key strategic fact here is that the pressure is coordinated on c6.`
+    `QuestionFirstCommentaryPlanner` still rejects generic `PositionLocal`
+    shells, but it now admits the certified Carlsbad or target-focused
+    coordination packet as planner-owned `WhatMattersHere`, so Bookmaker and
+    Chronicle consume the deterministic primary claim plus bounded coda
+    (`So the task is to keep the pressure coordinated on c6 until the target
+    has to give way.`) rather than inflating support-only coordination wording,
+    move-local explanation, or generic activity praise.
+    The slices stay narrow: `K03A` still fails closed on the black-to-move
+    sibling, `K09E` remains file-pressure / release-rival dominated, `K09B` /
+    `K09F` still belong only to the promoted bounded
+    `favorable_simplification` slice on the exact `d4e6|f7e6` branch, and
+    generic or synthetic weakness shells outside these dedicated
+    `exact_target_fixation` / `carlsbad_fixed_target_probe` /
+    `target_focused_coordination_probe` certification lanes remain fail-closed
   - `trade_key_defender` remains blocked without an exact cert owner path, so
     this change does not widen broader B2/B6/B7/B8 rhetoric:
     the packet can now carry post-trade owner-seed plus
@@ -2329,8 +2352,9 @@ Current owner map for Stage-4 surface uplift:
   - `latentPlans`
   - `whyAbsentFromTopMultiPV`
   - generic reviewed `static_weakness_fixation` / `backward_pawn_targeting`
-    packet shells outside the dedicated `exact_target_fixation` /
-    `carlsbad_fixed_target_probe` certification lanes
+    / `target_focused_coordination` packet shells outside the dedicated
+    `exact_target_fixation` / `carlsbad_fixed_target_probe` /
+    `target_focused_coordination_probe` certification lanes
   - generic active/support strategic families
   - old thesis / hold-reason revival paths
 

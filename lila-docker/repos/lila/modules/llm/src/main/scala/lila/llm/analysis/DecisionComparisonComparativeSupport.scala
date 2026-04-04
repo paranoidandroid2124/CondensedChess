@@ -88,21 +88,13 @@ private[analysis] object DecisionComparisonComparativeSupport:
   private def exactTargetFixationPacket(
       mainBundle: Option[MainPathClaimBundle]
   ): Option[PlayerFacingClaimPacket] =
-    mainBundle.flatMap(_.mainClaim).flatMap(_.packet).filter(packet =>
-      packet.ownerSource == PlayerFacingTruthModePolicy.ExactTargetFixationOwnerSource &&
-        packet.ownerFamily == ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id &&
-        packet.bestDefenseBranchKey.nonEmpty &&
-        packet.sameBranchState == PlayerFacingSameBranchState.Proven &&
-        packet.persistence == PlayerFacingClaimPersistence.Stable
-    )
+    mainBundle.flatMap(_.mainClaim).flatMap(_.packet)
+      .filter(PlayerFacingTruthModePolicy.certifiedExactTargetFixationPacket)
 
   private def exactTargetFixationSquare(
       packet: PlayerFacingClaimPacket
   ): Option[String] =
-    (packet.ownerPathWitness.ownerSeedTerms ++ packet.anchorTerms)
-      .flatMap(cleanText)
-      .map(_.toLowerCase)
-      .find(_.matches("[a-h][1-8]"))
+    PlayerFacingTruthModePolicy.exactSliceTargetSquare(packet)
 
   private def leadSan(fen: String, line: VariationLine): Option[String] =
     line.ourMove.map(_.san).flatMap(cleanMove)

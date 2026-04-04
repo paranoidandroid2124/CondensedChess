@@ -127,10 +127,11 @@ Use the documents in this order:
   `half_open_file_pressure`:
   `OpenFilePressure` / `RookFileTransfer` still need the already-certified
   local file-entry pair, so they do not open a separate exact owner lane.
-  `weakness_fixation` now has two exact live slices on the canonical path:
+  `weakness_fixation` now has three exact live slices on the canonical path:
   one move-local same-task slice on the reviewed `static_weakness_fixation`
-  cell, and one current-position probe on the reviewed
-  `backward_pawn_targeting` subtype:
+  cell, one current-position probe on the reviewed
+  `backward_pawn_targeting` subtype, and one separate current-position probe
+  on reviewed `target_focused_coordination`:
   exact `B21` / `B21A` now materialize a one-board / one-target / one-branch
   owner only when the live row proves all of the following at once:
   the `TargetFixing` idea carries `plan_match_target_fixing`,
@@ -178,16 +179,41 @@ Use the documents in this order:
   `So the task is to keep the queenside pressure trained on c6 instead of
   rushing a conversion.` Bookmaker and Chronicle may consume that deterministic
   planner-owned primary, but the trust boundary stays strict:
+  `QuestionFirstCommentaryPlanner` only accepts the certified
+  `carlsbad_fixed_target_probe` packet there and rejects generic
+  `PositionLocal` shells as `position_probe_not_certified`;
   the lane is current-position only, may not be rewritten as move-local
   explanation, may not reuse support-only `mainStrategicPlans` / `strategyPack`
   prose as the owner claim, and may not generalize into a broad Carlsbad
   lesson or a minority-attack shell.
+  exact `K09A` / `K09D` now materialize the second current-position probe
+  owner on a separate exact coordination slice:
+  when the live FEN proves `white to move`, a white rook on `c1`, an enemy
+  knight on `c6`, at least two exact move refs contesting `c6`, route evidence
+  that keeps the pieces coordinated on that target, a defended branch key, and
+  no already-certified `exact_target_fixation` or
+  `carlsbad_fixed_target_probe` owner, the runtime emits
+  `ownerSource=target_focused_coordination_probe`,
+  `ownerFamily=target_focused_coordination`,
+  `scope=PositionLocal`,
+  `main_bundle=The key strategic fact here is that the pressure is coordinated on c6.`,
+  and planner-owned `WhatMattersHere` with the bounded coda
+  `So the task is to keep the pressure coordinated on c6 until the target has to give way.`
+  The planner gate stays slice-specific:
+  `QuestionFirstCommentaryPlanner` accepts only the certified
+  `carlsbad_fixed_target_probe` or `target_focused_coordination_probe` packet
+  there and still rejects generic `PositionLocal` shells as
+  `position_probe_not_certified`; the lane is current-position only, may not be
+  rewritten as move-local explanation, may not reuse support-only
+  `mainStrategicPlans` / `strategyPack` prose as the owner claim, and may not
+  drift into generic piece-coordination praise, prophylactic shell prose, or a
+  file-pressure rival story.
   The trust boundary stays narrow overall: `K03A` still fails closed on the
-  black-to-move sibling, `K09A` / `K09D` / `K09E` still let preparatory,
-  prophylactic, and file-pressure rival stories dominate, and generic or
-  synthetic weakness shells outside these exact
-  `exact_target_fixation` / `carlsbad_fixed_target_probe` witnesses remain
-  fail-closed. On 2026-04-04, bounded
+  black-to-move sibling, `K09E` still lets the file-pressure / release rival
+  dominate, and generic or synthetic weakness shells outside these exact
+  `exact_target_fixation` / `carlsbad_fixed_target_probe` /
+  `target_focused_coordination_probe` witnesses remain fail-closed. On
+  2026-04-04, bounded
   `favorable_simplification` remained the separate promoted Cluster C sibling
   only on one exact same-task slice: `K09B` and `K09F` still keep the defended
   branch `d4e6|f7e6`, the packet proves `bestDefenseBranchKey`,
@@ -3660,7 +3686,7 @@ Validation matrix:
 | `candidate_id` | `trigger` | `best_defense` | `same_branch` | `currentTask fit` | `shiftedTask fit` | `continuationBound` | `releaseSuppression` | `distinct_from_B1` | `distinct_from_B6` | `containment_risk` | `verdict` | `fail_reason` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `K09B` | `Nxe6` | `...fxe6` | `yes` | `yes` | no live task-shift proof | `yes` | narrow pass only; later queen/rook activity does not displace the same-task reading | `yes` | `yes` | `high` | fail-close to Cluster C same-task simplification | current runtime now certifies one exact same-task simplification owner, not a shifted task |
-| `K09A` | `Qb3` | `...Qd7` | `yes` | preparatory only | `no` | `yes` | insufficient | `no` | `yes` | `medium` | fail-close | setup move, not the shift-owning trigger |
+| `K09A` | `Qb3` | `...Qd7` | `yes` | preparatory only for B7 | `no` | `yes` | B7 suppression still holds | `yes` | `yes` | `medium` | fail-close to Cluster B exact coordination probe | the move still does not own a B7 shifted-task claim, but the exact defended branch now certifies the separate `target_focused_coordination_probe` current-position owner on `c6` |
 | `K09F` | `Nxe6` | `...fxe6` | `yes` | `yes` | no live task-shift proof | `yes` | no separate shifted-task witness | `no` | blurred | `high` | fail-close to Cluster C same-task simplification | exact branch now survives only as `same edge, cleaner form`; breadth still prevents any shifted task |
 | `MI2` | root best `Kh1` | `...Bc5` | `yes` | `no` | `no` | `yes` | `no` | `no` | `yes` | `medium-high` | fail-close | root branch is not a simplification handoff; generic conversion/cashing-in dominates |
 | `MI3` | root best `Nd5` | `...Nxd5` | `yes` | `no` | `no` | `yes` | `no` | `no` | `yes` | `medium-high` | fail-close | wrong family; high-edge coordination/cashing-in, not B7 |

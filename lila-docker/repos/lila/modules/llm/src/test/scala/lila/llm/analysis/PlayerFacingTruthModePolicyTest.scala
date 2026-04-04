@@ -1910,6 +1910,54 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     }
   }
 
+  test("target-focused coordination positive controls promote planner-owned WhatMattersHere position probes") {
+    val expectedBranchKeys =
+      Map(
+        "K09A" -> "d1b3|d8d7",
+        "K09D" -> "h2h3|g4f3"
+      )
+
+    List("K09A", "K09D").foreach { id =>
+      val (_, pack, inputs, ranked) = exactReviewSnapshot(id)
+
+      assert(pack.strategicIdeas.exists(_.kind == StrategicIdeaKind.FavorableTradeOrTransformation), clues(id, pack.strategicIdeas))
+
+      val mainClaim =
+        inputs.mainBundle.flatMap(_.mainClaim).getOrElse(fail(s"$id should now admit a coordination probe"))
+      val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the probe packet"))
+
+      assertEquals(mainClaim.scope, PlayerFacingClaimScope.PositionLocal)
+      assertEquals(mainClaim.claimText, "The key strategic fact here is that the pressure is coordinated on c6.")
+      assertEquals(packet.ownerSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource)
+      assertEquals(packet.ownerFamily, PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerFamily)
+      assertEquals(packet.scope, PlayerFacingPacketScope.PositionLocal)
+      assertEquals(packet.bestDefenseBranchKey, expectedBranchKeys.get(id))
+      assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
+      assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
+      assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+      assert(packet.bestDefenseMove.nonEmpty)
+      assert(packet.ownerPathWitness.ownerSeedTerms.contains("c6"))
+      assert(packet.ownerPathWitness.ownerSeedTerms.contains("coordinated_target:c6"))
+      assert(packet.ownerPathWitness.ownerSeedTerms.contains("rook_on_c1"))
+      assert(packet.ownerPathWitness.continuationTerms.contains(PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource))
+      assert(packet.ownerPathWitness.continuationTerms.contains("coordinated_target:c6"))
+      assert(packet.ownerPathWitness.structureTransitionTerms.contains("coordinated_piece_pressure"))
+      assertEquals(ranked.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMattersHere))
+      assertEquals(
+        ranked.primary.map(_.claim),
+        Some("The key strategic fact here is that the pressure is coordinated on c6.")
+      )
+      assertEquals(
+        ranked.primary.flatMap(_.consequence.map(_.text)),
+        Some("So the task is to keep the pressure coordinated on c6 until the target has to give way.")
+      )
+      assertEquals(ranked.primary.map(_.ownerFamily), Some(OwnerFamily.PositionProbe))
+      assertEquals(ranked.primary.map(_.ownerSource), Some(PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource))
+      assert(ranked.primary.exists(_.admissibilityReasons.contains("certified_position_probe")))
+      assertEquals(ranked.secondary, None)
+    }
+  }
+
   test("reviewed sibling rows and blocked controls keep the owner path closed") {
     List("K03A").foreach { id =>
       val (_, _, inputs, ranked) = exactReviewSnapshot(id)
@@ -1918,7 +1966,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       assert(ranked.rejected.exists(_.reasons.contains("position_probe_missing")))
     }
 
-    List("K09A", "K09D", "K09E", "D01A").foreach { id =>
+    List("K09E", "D01A").foreach { id =>
       val (_, pack, inputs, ranked) = exactReviewSnapshot(id)
 
       if pack.strategicIdeas.headOption.exists(_.kind == StrategicIdeaKind.TargetFixing) then
@@ -1927,6 +1975,63 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
       assert(ranked.primary.isEmpty)
       assert(ranked.rejected.exists(_.reasons.contains("missing_move_owner")))
+    }
+  }
+
+  test("target-focused coordination deterministic surfaces keep WhatMattersHere as planner-owned primary") {
+    List("K09A", "K09D").foreach { id =>
+      val (_, ctx, pack, inputs, ranked) = exactReviewScene(id)
+      val outline =
+        BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = None)
+
+      val bookmakerSelection =
+        BookmakerLiveCompressionPolicy.renderSelection(inputs, ranked, truthContract = None)
+          .getOrElse(fail(s"$id should select a planner-owned bookmaker surface"))
+      val bookmakerSlots =
+        BookmakerLiveCompressionPolicy
+          .buildSlots(ctx, outline, refs = None, strategyPack = Some(pack))
+          .getOrElse(fail(s"$id should build planner-owned bookmaker slots"))
+      val bookmakerFallbackAware =
+        BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+          ctx = ctx,
+          outline = outline,
+          refs = None,
+          strategyPack = Some(pack),
+          truthContract = None
+        )
+
+      assertEquals(bookmakerSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
+      assertEquals(bookmakerSelection.primary.ownerFamily, OwnerFamily.PositionProbe)
+      assertEquals(
+        BookmakerProseContract.stripMoveHeader(bookmakerSlots.claim),
+        "The key strategic fact here is that the pressure is coordinated on c6."
+      )
+      assertEquals(
+        bookmakerSlots.coda,
+        Some("So the task is to keep the pressure coordinated on c6 until the target has to give way.")
+      )
+      assertEquals(bookmakerFallbackAware, bookmakerSlots)
+
+      val chronicleSelection =
+        GameChronicleCompressionPolicy.selectPlannerSurface(ranked, inputs)
+          .getOrElse(fail(s"$id should select a planner-owned chronicle surface"))
+      val chronicleArtifact =
+        GameChronicleCompressionPolicy
+          .renderWithTrace(
+            ctx = ctx,
+            parts = emptyParts.copy(focusedOutline = outline),
+            strategyPack = Some(pack),
+            truthContract = None
+          )
+          .getOrElse(fail(s"$id should render a chronicle artifact"))
+
+      assertEquals(chronicleSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
+      assertEquals(chronicleSelection.primary.ownerFamily, OwnerFamily.PositionProbe)
+      assert(
+        chronicleArtifact.narrative.startsWith("The key strategic fact here is that the pressure is coordinated on c6."),
+        clue(chronicleArtifact.narrative)
+      )
+      assertEquals(chronicleArtifact.quietSupportTrace.applied, false)
     }
   }
 
@@ -2093,7 +2198,19 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       assertEquals(ranked.primary.map(_.claim), Some(mainClaim.claimText))
     }
 
-    List("K09A", "K09D", "K09E", "MI5").foreach { id =>
+    List("K09A", "K09D").foreach { id =>
+      val (_, _, inputs, ranked) = exactReviewSnapshot(id)
+      val mainClaim =
+        inputs.mainBundle.flatMap(_.mainClaim).getOrElse(fail(s"$id should stay on the coordination probe lane"))
+      val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the probe packet"))
+
+      assertEquals(packet.ownerSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource)
+      assertEquals(packet.ownerFamily, PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerFamily)
+      assertNotEquals(packet.ownerFamily, "trade_key_defender")
+      assertEquals(ranked.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMattersHere))
+    }
+
+    List("K09E", "MI5").foreach { id =>
       val (_, _, inputs, ranked) = exactReviewSnapshot(id)
 
       assertEquals(inputs.mainBundle.flatMap(_.mainClaim), None)
