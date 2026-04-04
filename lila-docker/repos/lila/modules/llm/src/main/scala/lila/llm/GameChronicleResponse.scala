@@ -1,7 +1,6 @@
 package lila.llm
 
 import play.api.libs.json.*
-import lila.llm.model.{ GameArc, GameArcMoment }
 import lila.llm.model.strategic.VariationLine
 
 case class GameChronicleResponse(
@@ -21,28 +20,6 @@ case class GameChronicleResponse(
 object GameChronicleResponse:
 
   val schemaV6 = "chesstory.gameNarrative.v6"
-
-  def fromGameArc(
-      arc: GameArc,
-      review: Option[GameChronicleReview] = None,
-      sourceMode: String = "rule",
-      model: Option[String] = None,
-      planTier: String = PlanTier.Basic,
-      llmLevel: String = LlmLevel.Polish
-  ): GameChronicleResponse =
-    GameChronicleResponse(
-      schema = schemaV6,
-      intro = arc.gameIntro,
-      moments = arc.keyMomentNarratives.map(GameChronicleMoment.fromArcMoment),
-      conclusion = arc.conclusion,
-      themes = arc.overallThemes,
-      review = review,
-      sourceMode = sourceMode,
-      model = model,
-      planTier = PlanTier.normalize(planTier),
-      llmLevel = LlmLevel.normalize(llmLevel),
-      strategicThreads = arc.strategicThreads
-    )
 
   given Writes[GameChronicleResponse] = Json.writes[GameChronicleResponse]
 
@@ -77,8 +54,8 @@ case class GameChronicleMoment(
     probeRefinementRequests: List[lila.llm.model.ProbeRequest] = Nil,
     authorQuestions: List[AuthorQuestionSummary] = Nil,
     authorEvidence: List[AuthorEvidenceSummary] = Nil,
-    mainStrategicPlans: List[lila.llm.model.authoring.PlanHypothesis] = Nil,
-    strategicPlanExperiments: List[lila.llm.model.StrategicPlanExperiment] = Nil,
+    mainStrategicPlans: List[JsObject] = Nil,
+    strategicPlanExperiments: List[JsObject] = Nil,
     strategicBranch: Boolean = false,
     activeStrategicNote: Option[String] = None,
     activeStrategicSourceMode: Option[String] = None,
@@ -91,53 +68,6 @@ case class GameChronicleMoment(
 )
 
 object GameChronicleMoment:
-
-  def fromArcMoment(moment: GameArcMoment): GameChronicleMoment =
-    val moveNum = (moment.ply + 1) / 2
-    val side = if (moment.ply % 2 == 1) "white" else "black"
-    GameChronicleMoment(
-      momentId = s"ply_${moment.ply}_${moment.momentType.toLowerCase}",
-      ply = moment.ply,
-      moveNumber = moveNum,
-      side = side,
-      moveClassification = moment.moveClassification,
-      momentType = moment.momentType,
-      fen = moment.analysisData.fen,
-      narrative = moment.narrative,
-      selectionKind = moment.selectionKind,
-      selectionLabel = moment.selectionLabel,
-      selectionReason = moment.selectionReason,
-      concepts = moment.analysisData.conceptSummary,
-      variations = moment.analysisData.alternatives,
-      cpBefore = moment.cpBefore.getOrElse(0),
-      cpAfter = moment.cpAfter.getOrElse(moment.analysisData.evalCp),
-      mateBefore = moment.mateBefore,
-      mateAfter = moment.mateAfter,
-      wpaSwing = moment.wpaSwing,
-      strategicSalience = Some(moment.analysisData.strategicSalience.toString),
-      transitionType = moment.transitionType,
-      transitionConfidence = moment.transitionConfidence,
-      activePlan = moment.activePlan,
-      topEngineMove = moment.topEngineMove,
-      collapse = moment.collapse,
-      strategyPack = moment.strategyPack,
-      signalDigest = moment.signalDigest,
-      probeRequests = moment.probeRequests,
-      probeRefinementRequests = moment.probeRefinementRequests,
-      authorQuestions = moment.authorQuestions,
-      authorEvidence = moment.authorEvidence,
-      mainStrategicPlans = moment.mainStrategicPlans,
-      strategicPlanExperiments = moment.strategicPlanExperiments,
-      strategicBranch = moment.strategicBranch,
-      activeStrategicNote = moment.activeStrategicNote,
-      activeStrategicSourceMode = moment.activeStrategicSourceMode,
-      activeStrategicIdeas = moment.activeStrategicIdeas,
-      activeStrategicRoutes = moment.activeStrategicRoutes,
-      activeStrategicMoves = moment.activeStrategicMoves,
-      activeDirectionalTargets = moment.activeDirectionalTargets,
-      activeBranchDossier = moment.activeBranchDossier,
-      strategicThread = moment.strategicThread
-    )
 
   given Writes[GameChronicleMoment] = Json.writes[GameChronicleMoment]
 

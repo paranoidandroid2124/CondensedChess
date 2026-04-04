@@ -1,6 +1,5 @@
 package lila.llm.model.structure
 
-import lila.llm.model.PlanId
 import play.api.libs.json.*
 
 enum StructureId:
@@ -94,9 +93,9 @@ object StructureProfile:
 
 case class StructuralPlaybookEntry(
     structureId: StructureId,
-    whitePlans: List[PlanId],
-    blackPlans: List[PlanId],
-    counterPlans: List[PlanId],
+    whitePlans: List[String],
+    blackPlans: List[String],
+    counterPlans: List[String],
     preconditions: List[String] = Nil,
     narrativeIntent: String = "play around central tension and piece coordination",
     narrativeRisk: String = "balanced"

@@ -9,11 +9,8 @@ import scala.io.Source
 
 class PrimitiveExtractionTest extends FunSuite:
 
-  test("canonical primitive expectation bank stays primitive-first and exact-board backed") {
-    val rows = PrimitiveExtractionTest.rows
-    assert(rows.size >= 20, clue(s"expected at least 20 primitive expectations, got ${rows.size}"))
-
-    rows.foreach { row =>
+  PrimitiveExtractionTest.rows.foreach { row =>
+    test(s"primitive expectation ${row.id}") {
       val evidence =
         RawPositionEvidence.fromFen(row.fen).fold(err => fail(err), identity)
       val primitives =
@@ -31,6 +28,20 @@ class PrimitiveExtractionTest extends FunSuite:
         case other =>
           fail(s"${row.id}: unsupported expectation=$other")
     }
+  }
+
+  test("primitive expectation bank covers contrastive and eager-negative boundary rows") {
+    val rows = PrimitiveExtractionTest.rows
+
+    assert(rows.size >= 40, clue(s"expected at least 40 primitive expectations, got ${rows.size}"))
+    assert(rows.count(_.expectation == "present") >= 20, clue("expected a meaningful positive primitive slice"))
+    assert(rows.count(_.expectation == "absent") >= 12, clue("expected a meaningful negative primitive slice"))
+    assert(rows.exists(_.source.startsWith("contrastive:")), clue("expected contrastive source labels"))
+    assert(rows.exists(row => row.primitive == "RouteContestSeed" && row.expectation == "present"))
+    assert(rows.exists(row => row.primitive == "RouteContestSeed" && row.expectation == "absent"))
+    assert(rows.exists(_.source == "negative:blocked-route"), clue("expected blocked-route eager-access negatives"))
+    assert(rows.exists(_.source == "negative:wing-exchange-noise"), clue("expected noisy exchange negatives"))
+    assert(rows.exists(_.source == "negative:almost-passer"), clue("expected almost-passer negatives"))
   }
 
 object PrimitiveExtractionTest:
@@ -211,31 +222,29 @@ object PrimitiveExtractionTest:
     val owner = parseColor(row.owner)
     row.primitive match
       case "TargetSquare" =>
-        row.square.exists(parseSquare).exists(square => primitives.hasTarget(owner, square))
-      case "BreakAxis" =>
-        row.file.exists(parseFile).exists(file => primitives.hasBreakAxis(owner, file))
-      case "EntrySquare" =>
-        row.square.exists(parseSquare).exists(square => primitives.hasEntrySquare(owner, square))
+        primitives.hasTarget(owner, requireSquare(row))
+      case "BreakCandidate" =>
+        primitives.hasBreakCandidate(owner, requireFile(row))
+      case "RouteContestSeed" =>
+        primitives.hasRouteContestSeed(owner, requireSquare(row))
       case "ExchangeSquare" =>
-        row.square.exists(parseSquare).exists(square => primitives.hasExchangeSquare(owner, square))
+        primitives.hasExchangeSquare(owner, requireSquare(row))
       case "AccessRoute" =>
-        row.file.exists(parseFile).exists(file => primitives.hasAccessRoute(owner, file))
+        primitives.hasAccessRoute(owner, requireFile(row))
       case "DefendedResource" =>
-        row.square.exists(parseSquare).exists(square => primitives.hasDefendedResource(owner, square))
+        primitives.hasDefendedResource(owner, requireSquare(row))
       case "PieceRoleIssue" =>
-        row.kind.flatMap(parsePieceRoleIssueKind).exists { issue =>
-          row.square.flatMap(parseSquare) match
+        val issue = requirePieceRoleIssueKind(row)
+        row.square.flatMap(parseSquare) match
             case Some(square) => primitives.hasPieceRoleIssue(owner, square, issue)
             case None         => primitives.pieceRoleIssues.exists(p => p.owner == owner && p.issue == issue)
-        }
       case "CriticalSquare" =>
-        row.kind.flatMap(parseCriticalSquareKind).exists { kind =>
-          row.square.flatMap(parseSquare) match
+        val kind = requireCriticalSquareKind(row)
+        row.square.flatMap(parseSquare) match
             case Some(square) => primitives.hasCriticalSquare(owner, square, kind)
             case None         => primitives.criticalSquares.exists(p => p.owner == owner && p.kind == kind)
-        }
       case "PasserSeed" =>
-        row.square.exists(parseSquare).exists(square => primitives.hasPasserSeed(owner, square))
+        primitives.hasPasserSeed(owner, requireSquare(row))
       case other =>
         throw new IllegalArgumentException(s"${row.id}: unsupported primitive=$other")
 
@@ -244,14 +253,14 @@ object PrimitiveExtractionTest:
       .map {
         case t: TargetSquare =>
           s"TargetSquare(owner=${showColor(t.owner)}, square=${t.square.key}, fixed=${t.fixed}, atk=${t.attackerCount}, def=${t.defenderCount})"
-        case b: BreakAxis =>
-          s"BreakAxis(owner=${showColor(b.owner)}, file=${b.file.char}, break=${b.breakSquare.key}, targets=${b.targetSquares.map(_.key).mkString("[", ",", "]")})"
-        case e: EntrySquare =>
-          s"EntrySquare(owner=${showColor(e.owner)}, square=${e.square.key}, lane=${e.lane.char})"
+        case b: BreakCandidate =>
+          s"BreakCandidate(owner=${showColor(b.owner)}, file=${b.file.char}, break=${b.breakSquare.key}, targets=${b.targetSquares.map(_.key).mkString("[", ",", "]")}, support=${b.supportCount}, resist=${b.resistanceCount})"
+        case e: RouteContestSeed =>
+          s"RouteContestSeed(owner=${showColor(e.owner)}, square=${e.square.key}, lane=${e.lane.char}, atk=${e.attackerCount}, def=${e.defenderCount})"
         case e: ExchangeSquare =>
           s"ExchangeSquare(owner=${showColor(e.owner)}, square=${e.square.key}, occupant=${e.occupant}, atk=${e.attackerCount}, def=${e.defenderCount})"
         case a: AccessRoute =>
-          s"AccessRoute(owner=${showColor(a.owner)}, file=${a.file.char}, entries=${a.entrySquares.map(_.key).mkString("[", ",", "]")})"
+          s"AccessRoute(owner=${showColor(a.owner)}, file=${a.file.char}, roles=${a.roles.mkString("[", ",", "]")})"
         case d: DefendedResource =>
           s"DefendedResource(owner=${showColor(d.owner)}, square=${d.square.key}, role=${d.role}, atk=${d.attackerCount}, def=${d.defenderCount})"
         case p: PieceRoleIssue =>
@@ -264,19 +273,38 @@ object PrimitiveExtractionTest:
       .mkString("\n")
 
   private def parseColor(raw: String): Color =
-    if raw.equalsIgnoreCase("white") then Color.White else Color.Black
+    raw.toLowerCase match
+      case "white" => Color.White
+      case "black" => Color.Black
+      case _       => throw new IllegalArgumentException(s"unsupported owner=$raw")
 
   private def parseSquare(raw: String): Option[Square] =
     Square.all.find(_.key.equalsIgnoreCase(raw))
 
   private def parseFile(raw: String): Option[File] =
-    raw.headOption.flatMap(ch => File.all.find(_.char.toLower == ch.toLower))
+    Option.when(raw.length == 1)(raw.head).flatMap(ch => File.all.find(_.char.toLower == ch.toLower))
 
   private def parsePieceRoleIssueKind(raw: String): Option[PieceRoleIssueKind] =
     PieceRoleIssueKind.values.find(_.toString.equalsIgnoreCase(raw))
 
   private def parseCriticalSquareKind(raw: String): Option[CriticalSquareKind] =
     CriticalSquareKind.values.find(_.toString.equalsIgnoreCase(raw))
+
+  private def requireSquare(row: ExpectationRow): Square =
+    row.square.flatMap(parseSquare).getOrElse(throw new IllegalArgumentException(s"${row.id}: missing/invalid square"))
+
+  private def requireFile(row: ExpectationRow): File =
+    row.file.flatMap(parseFile).getOrElse(throw new IllegalArgumentException(s"${row.id}: missing/invalid file"))
+
+  private def requirePieceRoleIssueKind(row: ExpectationRow): PieceRoleIssueKind =
+    row.kind.flatMap(parsePieceRoleIssueKind).getOrElse(
+      throw new IllegalArgumentException(s"${row.id}: missing/invalid piece-role issue kind")
+    )
+
+  private def requireCriticalSquareKind(row: ExpectationRow): CriticalSquareKind =
+    row.kind.flatMap(parseCriticalSquareKind).getOrElse(
+      throw new IllegalArgumentException(s"${row.id}: missing/invalid critical-square kind")
+    )
 
   private def showColor(color: Color): String =
     if color.white then "white" else "black"

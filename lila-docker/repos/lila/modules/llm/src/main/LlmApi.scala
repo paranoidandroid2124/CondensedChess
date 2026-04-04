@@ -1,5 +1,7 @@
 package lila.llm
 
+import lila.llm.analysis.OpeningExplorerClient
+
 final class LlmApi(
     openingExplorer: OpeningExplorerClient,
     geminiClient: GeminiClient,

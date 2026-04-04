@@ -131,10 +131,10 @@ Goals:
 Examples:
 
 - target square
-- break axis
+- break candidate
 - access route
+- route contest seed
 - exchange square
-- entry square
 - defended resource
 
 The key rule is primitive-first, not strategy-name-first.
@@ -152,7 +152,12 @@ Phase 3 is complete only if all of the following are true:
   legacy semantic helper ingress directly
 - the same semantic meaning is not recomputed again downstream from raw feature
   piles once a primitive exists for it
+- primitive names do not collide with mature object-family names
+- primitive extraction preserves exact-board inputs for later counterplay,
+  access-race, and timing-shaped deltas without reopening raw ingress
 - preserved fixtures have primitive-backed expectation coverage
+- forbidden raw or legacy ingress is mechanically fenced by source/signature
+  tests
 - the new path makes old semantic ingress harder to restore than the primitive
   path is to extend
 

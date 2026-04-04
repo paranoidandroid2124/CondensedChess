@@ -1,6 +1,5 @@
 package lila.llm.model.structure
 
-import lila.llm.model.PlanId
 import play.api.libs.json.*
 
 case class StructureGoldRow(
@@ -8,7 +7,7 @@ case class StructureGoldRow(
     fen: String,
     primary: StructureId,
     alternatives: List[StructureId] = Nil,
-    expectedTopPlanIds: List[PlanId] = Nil,
+    expectedTopPlanIds: List[String] = Nil,
     seedPv: List[String] = Nil,
     sourceGameId: Option[String] = None,
     sourcePly: Option[Int] = None,
@@ -18,12 +17,6 @@ case class StructureGoldRow(
 )
 
 object StructureGoldRow:
-  given Writes[PlanId] = Writes(v => JsString(v.toString))
-  given Reads[PlanId] = Reads {
-    case JsString(raw) =>
-      PlanId.values.find(_.toString == raw).map(JsSuccess(_)).getOrElse(JsError(s"Unknown PlanId: $raw"))
-    case _ => JsError("Expected PlanId string")
-  }
   given OFormat[StructureGoldRow] = Json.format[StructureGoldRow]
 
 case class PerClassMetrics(

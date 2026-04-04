@@ -183,13 +183,13 @@ enum StrategicSalience:
 
 object StrategicSalience:
   def calculate(
-      transitionType: lila.llm.model.TransitionType,
+      transitionType: String,
       consecutivePlies: Int,
       evalDeltaCp: Int,
       themeMaxShare: Double = 1.0
   ): StrategicSalience =
-    import lila.llm.model.TransitionType.*
-    
+    val normalizedTransition = Option(transitionType).getOrElse("").trim.toLowerCase
+
     // High Entropy / Chaos fallback
     if themeMaxShare < 0.35 then return StrategicSalience.Low
     
@@ -197,15 +197,18 @@ object StrategicSalience:
     if evalDeltaCp.abs >= 200 then return StrategicSalience.Low
 
     // Evaluate based on transition
-    transitionType match
-      case ForcedPivot | NaturalShift | Opportunistic => StrategicSalience.High
-      case Continuation =>
+    normalizedTransition match
+      case "forcedpivot" | "forced_pivot" | "naturalshift" | "natural_shift" | "opportunistic" =>
+        StrategicSalience.High
+      case "continuation" =>
         if consecutivePlies == 2 || consecutivePlies == 3 then StrategicSalience.High // Execution or Fruition
         else StrategicSalience.Low // Standard development/maintenance
-      case Opening =>
+      case "opening" =>
         // Opening can still carry stable strategic content when theme coherence is clear.
         if (consecutivePlies >= 2 && themeMaxShare >= 0.55) || themeMaxShare >= 0.72 then StrategicSalience.High
         else StrategicSalience.Low
+      case _ =>
+        StrategicSalience.Low
 
 case class CounterfactualMatch(
     userMove: String,
@@ -215,7 +218,7 @@ case class CounterfactualMatch(
     userMoveMotifs: List[lila.llm.model.Motif],
     severity: String,
     userLine: lila.llm.model.strategic.VariationLine,
-    causalThreat: Option[lila.llm.analysis.ThreatExtractor.CausalThreat] = None,
+    causalThreat: Option[String] = None,
     bestLine: lila.llm.model.strategic.VariationLine = lila.llm.model.strategic.VariationLine(Nil, 0)
 )
 case class MoveIntent(

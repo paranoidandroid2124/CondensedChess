@@ -21,17 +21,20 @@ object CanonicalPrimitiveExtractor extends PrimitiveExtractor:
       contract: DecisiveTruthContract
   ): PrimitiveBank =
     val board = evidence.board
+    val breakCandidates = extractBreakCandidates(board)
     val accessRoutes = extractAccessRoutes(board)
+    val routeContestSeeds = extractRouteContestSeeds(board, accessRoutes)
+    val passerSeeds = extractPasserSeeds(board)
     PrimitiveBank(
       targetSquares = extractTargetSquares(evidence),
-      breakAxes = extractBreakAxes(board),
-      entrySquares = extractEntrySquares(board, accessRoutes),
+      breakCandidates = breakCandidates,
+      routeContestSeeds = routeContestSeeds,
       exchangeSquares = extractExchangeSquares(board),
       accessRoutes = accessRoutes,
       defendedResources = extractDefendedResources(evidence),
       pieceRoleIssues = extractPieceRoleIssues(board),
-      criticalSquares = extractCriticalSquares(board),
-      passerSeeds = extractPasserSeeds(board)
+      criticalSquares = extractCriticalSquares(board, breakCandidates, passerSeeds),
+      passerSeeds = passerSeeds
     ).normalized
 
   private def extractTargetSquares(evidence: RawPositionEvidence): List[TargetSquare] =
@@ -90,7 +93,7 @@ object CanonicalPrimitiveExtractor extends PrimitiveExtractor:
 
     factualTargets ++ structuralTargets
 
-  private def extractBreakAxes(board: Board): List[BreakAxis] =
+  private def extractBreakCandidates(board: Board): List[BreakCandidate] =
     Owners.flatMap { owner =>
       board.byPiece(owner, Pawn).squares.flatMap { square =>
         val pushTarget =
@@ -104,19 +107,23 @@ object CanonicalPrimitiveExtractor extends PrimitiveExtractor:
             .filter(target => board.pieceAt(target).exists(piece => piece.color != owner && piece.role == Pawn))
 
         pushTarget.map { target =>
-          BreakAxis(
+          BreakCandidate(
             owner = owner,
             file = square.file,
             breakSquare = target,
-            targetSquares = pawnPressureTargets(board, owner, target)
+            targetSquares = pawnPressureTargets(board, owner, target),
+            supportCount = countAttackers(board, target, owner),
+            resistanceCount = countAttackers(board, target, !owner)
           )
         }.toList ++
           captureTargets.map { target =>
-            BreakAxis(
+            BreakCandidate(
               owner = owner,
               file = square.file,
               breakSquare = target,
-              targetSquares = List(target)
+              targetSquares = List(target),
+              supportCount = countAttackers(board, target, owner),
+              resistanceCount = countAttackers(board, target, !owner)
             )
           }
       }
@@ -137,25 +144,30 @@ object CanonicalPrimitiveExtractor extends PrimitiveExtractor:
           AccessRoute(
             owner = owner,
             file = file,
-            roles = routeRoles,
-            entrySquares = candidateEntrySquares(board, owner, file).take(2)
+            roles = routeRoles
           )
         }
       }
     }
 
-  private def extractEntrySquares(
+  private def extractRouteContestSeeds(
       board: Board,
       accessRoutes: List[AccessRoute]
-  ): List[EntrySquare] =
+  ): List[RouteContestSeed] =
     accessRoutes.flatMap { route =>
-      route.entrySquares.map { square =>
-        EntrySquare(
-          owner = route.owner,
-          square = square,
-          lane = route.file,
-          supportingRoles = route.roles
-        )
+      candidateRouteSquares(board, route.owner, route.file).flatMap { square =>
+        val attackerCount = countAttackers(board, square, route.owner)
+        val defenderCount = countAttackers(board, square, !route.owner)
+        Option.when(attackerCount > 0 && attackerCount >= defenderCount) {
+          RouteContestSeed(
+            owner = route.owner,
+            square = square,
+            lane = route.file,
+            supportingRoles = route.roles,
+            attackerCount = attackerCount,
+            defenderCount = defenderCount
+          )
+        }
       }
     }
 
@@ -237,7 +249,11 @@ object CanonicalPrimitiveExtractor extends PrimitiveExtractor:
       }
     }
 
-  private def extractCriticalSquares(board: Board): List[CriticalSquare] =
+  private def extractCriticalSquares(
+      board: Board,
+      breakCandidates: List[BreakCandidate],
+      passerSeeds: List[PasserSeed]
+  ): List[CriticalSquare] =
     val outposts =
       Owners.flatMap { owner =>
         Square.all.flatMap { square =>
@@ -252,7 +268,7 @@ object CanonicalPrimitiveExtractor extends PrimitiveExtractor:
         }
       }
     val promotionSquares =
-      extractPasserSeeds(board).flatMap { seed =>
+      passerSeeds.flatMap { seed =>
         promotionSquare(seed.square, seed.owner).map { square =>
           CriticalSquare(
             owner = seed.owner,
@@ -263,7 +279,7 @@ object CanonicalPrimitiveExtractor extends PrimitiveExtractor:
         }
       }
     val breakContacts =
-      extractBreakAxes(board).map { axis =>
+      breakCandidates.map { axis =>
         CriticalSquare(
           owner = axis.owner,
           square = axis.breakSquare,
@@ -368,7 +384,7 @@ object CanonicalPrimitiveExtractor extends PrimitiveExtractor:
       .squares
       .filter(target => board.pieceAt(target).exists(piece => piece.color != owner && piece.role == Pawn))
 
-  private def candidateEntrySquares(board: Board, owner: Color, file: File): List[Square] =
+  private def candidateRouteSquares(board: Board, owner: Color, file: File): List[Square] =
     squaresOnFile(file)
       .filter(square => inEnemyHalf(square, owner) && board.pieceAt(square).isEmpty)
       .sortBy(square => (-relativeRank(square, owner), -countAttackers(board, square, owner)))

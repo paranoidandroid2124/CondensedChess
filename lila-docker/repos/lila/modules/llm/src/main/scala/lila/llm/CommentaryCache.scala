@@ -3,7 +3,6 @@ package lila.llm
 import com.github.blemale.scaffeine.Cache
 import java.security.MessageDigest
 
-import lila.llm.analysis.PlanStateTracker
 import lila.llm.model.ProbeResult
 import lila.llm.model.strategic.EndgamePatternState
 import play.api.libs.json.*
@@ -72,7 +71,7 @@ final class CommentaryCache(using Executor):
       case other => Json.stringify(other)
 
   private def stateFingerprint(
-      planStateToken: Option[PlanStateTracker],
+      planStateToken: Option[JsValue],
       endgameStateToken: Option[EndgamePatternState]
   ): String =
     (planStateToken, endgameStateToken) match
@@ -81,7 +80,7 @@ final class CommentaryCache(using Executor):
         sha1Hex(
           canonicalJson(
             Json.obj(
-              "plan" -> planStateToken.map(Json.toJson(_)).getOrElse(JsNull),
+              "plan" -> planStateToken.getOrElse(JsNull),
               "endgame" -> endgameStateToken.map(Json.toJson(_)).getOrElse(JsNull)
             )
           )
@@ -91,7 +90,7 @@ final class CommentaryCache(using Executor):
       fen: String,
       lastMove: Option[String],
       probeResults: List[ProbeResult],
-      planStateToken: Option[PlanStateTracker],
+      planStateToken: Option[JsValue],
       endgameStateToken: Option[EndgamePatternState],
       llmContext: Option[LlmCacheContext]
   ): String =
@@ -115,7 +114,7 @@ final class CommentaryCache(using Executor):
       fen: String,
       lastMove: Option[String],
       probeResults: List[ProbeResult],
-      planStateToken: Option[PlanStateTracker]
+      planStateToken: Option[JsValue]
   ): Option[CommentResponse] =
     get(fen, lastMove, probeResults, planStateToken, None, None)
 
@@ -123,7 +122,7 @@ final class CommentaryCache(using Executor):
       fen: String,
       lastMove: Option[String],
       probeResults: List[ProbeResult],
-      planStateToken: Option[PlanStateTracker],
+      planStateToken: Option[JsValue],
       endgameStateToken: Option[EndgamePatternState]
   ): Option[CommentResponse] =
     get(fen, lastMove, probeResults, planStateToken, endgameStateToken, None)
@@ -132,7 +131,7 @@ final class CommentaryCache(using Executor):
       fen: String,
       lastMove: Option[String],
       probeResults: List[ProbeResult],
-      planStateToken: Option[PlanStateTracker],
+      planStateToken: Option[JsValue],
       endgameStateToken: Option[EndgamePatternState],
       llmContext: Option[LlmCacheContext]
   ): Option[CommentResponse] =
@@ -151,7 +150,7 @@ final class CommentaryCache(using Executor):
       lastMove: Option[String],
       response: CommentResponse,
       probeResults: List[ProbeResult],
-      planStateToken: Option[PlanStateTracker]
+      planStateToken: Option[JsValue]
   ): Unit =
     put(fen, lastMove, response, probeResults, planStateToken, None, None)
 
@@ -160,7 +159,7 @@ final class CommentaryCache(using Executor):
       lastMove: Option[String],
       response: CommentResponse,
       probeResults: List[ProbeResult],
-      planStateToken: Option[PlanStateTracker],
+      planStateToken: Option[JsValue],
       endgameStateToken: Option[EndgamePatternState]
   ): Unit =
     put(fen, lastMove, response, probeResults, planStateToken, endgameStateToken, None)
@@ -170,7 +169,7 @@ final class CommentaryCache(using Executor):
       lastMove: Option[String],
       response: CommentResponse,
       probeResults: List[ProbeResult],
-      planStateToken: Option[PlanStateTracker],
+      planStateToken: Option[JsValue],
       endgameStateToken: Option[EndgamePatternState],
       llmContext: Option[LlmCacheContext]
   ): Unit =
@@ -188,7 +187,7 @@ final class CommentaryCache(using Executor):
       fen: String,
       lastMove: Option[String],
       probeResults: List[ProbeResult],
-      planStateToken: Option[PlanStateTracker]
+      planStateToken: Option[JsValue]
   ): Unit =
     invalidate(fen, lastMove, probeResults, planStateToken, None, None)
 
@@ -196,7 +195,7 @@ final class CommentaryCache(using Executor):
       fen: String,
       lastMove: Option[String],
       probeResults: List[ProbeResult],
-      planStateToken: Option[PlanStateTracker],
+      planStateToken: Option[JsValue],
       endgameStateToken: Option[EndgamePatternState]
   ): Unit =
     invalidate(fen, lastMove, probeResults, planStateToken, endgameStateToken, None)
@@ -205,7 +204,7 @@ final class CommentaryCache(using Executor):
       fen: String,
       lastMove: Option[String],
       probeResults: List[ProbeResult],
-      planStateToken: Option[PlanStateTracker],
+      planStateToken: Option[JsValue],
       endgameStateToken: Option[EndgamePatternState],
       llmContext: Option[LlmCacheContext]
   ): Unit =

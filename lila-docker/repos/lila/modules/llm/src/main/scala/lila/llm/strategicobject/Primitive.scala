@@ -15,18 +15,22 @@ final case class TargetSquare(
     fixed: Boolean
 ) extends Primitive
 
-final case class BreakAxis(
+final case class BreakCandidate(
     owner: Color,
     file: File,
     breakSquare: Square,
-    targetSquares: List[Square]
+    targetSquares: List[Square],
+    supportCount: Int,
+    resistanceCount: Int
 ) extends Primitive
 
-final case class EntrySquare(
+final case class RouteContestSeed(
     owner: Color,
     square: Square,
     lane: File,
-    supportingRoles: Set[Role]
+    supportingRoles: Set[Role],
+    attackerCount: Int,
+    defenderCount: Int
 ) extends Primitive
 
 final case class ExchangeSquare(
@@ -41,8 +45,7 @@ final case class ExchangeSquare(
 final case class AccessRoute(
     owner: Color,
     file: File,
-    roles: Set[Role],
-    entrySquares: List[Square]
+    roles: Set[Role]
 ) extends Primitive
 
 final case class DefendedResource(
@@ -85,8 +88,8 @@ final case class PasserSeed(
 
 final case class PrimitiveBank(
     targetSquares: List[TargetSquare] = Nil,
-    breakAxes: List[BreakAxis] = Nil,
-    entrySquares: List[EntrySquare] = Nil,
+    breakCandidates: List[BreakCandidate] = Nil,
+    routeContestSeeds: List[RouteContestSeed] = Nil,
     exchangeSquares: List[ExchangeSquare] = Nil,
     accessRoutes: List[AccessRoute] = Nil,
     defendedResources: List[DefendedResource] = Nil,
@@ -97,8 +100,8 @@ final case class PrimitiveBank(
 
   def all: List[Primitive] =
     targetSquares ++
-      breakAxes ++
-      entrySquares ++
+      breakCandidates ++
+      routeContestSeeds ++
       exchangeSquares ++
       accessRoutes ++
       defendedResources ++
@@ -109,8 +112,9 @@ final case class PrimitiveBank(
   def normalized: PrimitiveBank =
     copy(
       targetSquares = targetSquares.distinct.sortBy(t => (colorIndex(t.owner), t.square.key)),
-      breakAxes = breakAxes.distinct.sortBy(a => (colorIndex(a.owner), a.file.char.toString)),
-      entrySquares = entrySquares.distinct.sortBy(e => (colorIndex(e.owner), e.square.key)),
+      breakCandidates = breakCandidates.distinct.sortBy(a => (colorIndex(a.owner), a.file.char.toString, a.breakSquare.key)),
+      routeContestSeeds =
+        routeContestSeeds.distinct.sortBy(e => (colorIndex(e.owner), e.lane.char.toString, e.square.key)),
       exchangeSquares = exchangeSquares.distinct.sortBy(e => (colorIndex(e.owner), e.square.key)),
       accessRoutes = accessRoutes.distinct.sortBy(r => (colorIndex(r.owner), r.file.char.toString)),
       defendedResources = defendedResources.distinct.sortBy(r => (colorIndex(r.owner), r.square.key)),
@@ -122,11 +126,11 @@ final case class PrimitiveBank(
   def hasTarget(owner: Color, square: Square): Boolean =
     targetSquares.exists(p => p.owner == owner && p.square == square)
 
-  def hasBreakAxis(owner: Color, file: File): Boolean =
-    breakAxes.exists(p => p.owner == owner && p.file == file)
+  def hasBreakCandidate(owner: Color, file: File): Boolean =
+    breakCandidates.exists(p => p.owner == owner && p.file == file)
 
-  def hasEntrySquare(owner: Color, square: Square): Boolean =
-    entrySquares.exists(p => p.owner == owner && p.square == square)
+  def hasRouteContestSeed(owner: Color, square: Square): Boolean =
+    routeContestSeeds.exists(p => p.owner == owner && p.square == square)
 
   def hasExchangeSquare(owner: Color, square: Square): Boolean =
     exchangeSquares.exists(p => p.owner == owner && p.square == square)

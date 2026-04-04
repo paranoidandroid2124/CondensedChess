@@ -46,7 +46,7 @@ case class CommentRequest(
     afterEval: Option[EvalData] = None,
     afterVariations: Option[List[lila.llm.model.strategic.VariationLine]] = None,
     // State Passing: persist plan state between individual move queries
-    planStateToken: Option[lila.llm.analysis.PlanStateTracker] = None,
+    planStateToken: Option[JsValue] = None,
     endgameStateToken: Option[lila.llm.model.strategic.EndgamePatternState] = None
 )
 object CommentRequest:
@@ -597,9 +597,9 @@ case class CommentResponse(
   probeRequests: List[lila.llm.model.ProbeRequest] = Nil,
   authorQuestions: List[AuthorQuestionSummary] = Nil,
   authorEvidence: List[AuthorEvidenceSummary] = Nil,
-  mainStrategicPlans: List[lila.llm.model.authoring.PlanHypothesis] = Nil,
-  strategicPlanExperiments: List[lila.llm.model.StrategicPlanExperiment] = Nil,
-  planStateToken: Option[lila.llm.analysis.PlanStateTracker] = None,
+  mainStrategicPlans: List[JsObject] = Nil,
+  strategicPlanExperiments: List[JsObject] = Nil,
+  planStateToken: Option[JsValue] = None,
   endgameStateToken: Option[lila.llm.model.strategic.EndgamePatternState] = None,
   sourceMode: String = "rule",
   model: Option[String] = None,
@@ -617,7 +617,7 @@ object CommentResponse:
 case class BookmakerResult(
     response: CommentResponse,
     cacheHit: Boolean,
-    diagnosticPlanSidecar: Option[lila.llm.analysis.PlanEvidenceEvaluator.DiagnosticPlanSidecar] = None
+    diagnosticPlanSidecar: Option[JsValue] = None
 )
 
 object AsyncGameAnalysisDurability:

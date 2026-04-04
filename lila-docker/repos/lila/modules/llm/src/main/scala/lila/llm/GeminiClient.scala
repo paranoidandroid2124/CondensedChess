@@ -7,7 +7,6 @@ import play.api.libs.ws.DefaultBodyReadables.*
 import scala.concurrent.Future
 import scala.concurrent.duration.*
 import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
-import lila.llm.analysis.BookmakerPolishSlots
 
 /** Gemini API client with context caching.
   * Falls back to `None` when disabled or on error.
@@ -45,7 +44,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       tension: Option[Double] = None,
       salience: Option[lila.llm.model.strategic.StrategicSalience] = None,
       momentType: Option[String] = None,
-      bookmakerSlots: Option[BookmakerPolishSlots] = None
+      bookmakerSlots: Option[Any] = None
   ): Future[Option[String]] =
     if !config.enabled then Future.successful(None)
     else if prose.isBlank then Future.successful(None)
@@ -79,7 +78,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       fen: String,
       openingName: Option[String] = None,
       allowedSans: List[String] = Nil,
-      bookmakerSlots: Option[BookmakerPolishSlots] = None
+      bookmakerSlots: Option[Any] = None
   ): Future[Option[String]] =
     if !config.enabled then Future.successful(None)
     else if originalProse.isBlank || rejectedPolish.isBlank then Future.successful(None)

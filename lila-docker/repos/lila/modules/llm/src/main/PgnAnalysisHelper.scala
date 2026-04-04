@@ -1,7 +1,7 @@
 package lila.llm
 
 import chess.*
-import chess.format.Fen
+import chess.format.{ Fen, Uci }
 import chess.format.pgn.{ Parser, PgnStr }
 
 /**
@@ -120,10 +120,16 @@ object PgnAnalysisHelper:
 
   /**
    * Helper to convert UCI move string to SAN string using FEN context.
-   * Delegates to NarrativeUtils.uciToSan for single source of truth.
    */
   private def convertUciToSan(fen: String, uciMove: String): Option[String] =
-    lila.llm.analysis.NarrativeUtils.uciToSan(fen, uciMove)
+    Fen
+      .read(chess.variant.Standard, Fen.Full(fen))
+      .flatMap { position =>
+        Uci(uciMove)
+          .collect { case move: Uci.Move => move }
+          .flatMap(position.move(_).toOption)
+          .map(_.toSanStr.toString)
+      }
 
   /**
    * Helper to get the side-to-move correctly from FEN, not from ply parity.

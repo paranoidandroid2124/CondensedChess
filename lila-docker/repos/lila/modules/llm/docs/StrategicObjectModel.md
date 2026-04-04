@@ -283,12 +283,19 @@ Required flow:
 Example primitives:
 
 - target square
-- break axis
-- entry square
+- break candidate
+- route contest seed
 - exchange square
-- route
+- access lane
 - outpost
 - passer potential
+
+Phase 3 primitive names must stay strictly below object-family names.
+
+- use names such as `BreakCandidate`, not `BreakAxis`
+- preserve exact board-grounded contrast material such as contested route-entry
+  seeds
+- do not let a primitive name pre-claim an object family or relation verdict
 
 ## Planner Contract
 

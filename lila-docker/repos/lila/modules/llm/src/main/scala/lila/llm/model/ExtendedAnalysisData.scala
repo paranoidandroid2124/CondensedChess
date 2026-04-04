@@ -1,9 +1,9 @@
 package lila.llm.model
 
 import lila.llm.model.{ Motif, PlanMatch, PositionNature }
-import lila.llm.model.authoring.PlanHypothesis
 import lila.llm.model.strategic._
 import lila.llm.model.structure.{ PlanAlignment, StructureProfile }
+import play.api.libs.json.*
 
 // The SSOT (Single Source of Truth) for LLM Prompt Generation
 case class ExtendedAnalysisData(
@@ -38,13 +38,13 @@ case class ExtendedAnalysisData(
     isWhiteToMove: Boolean,
     phase: String = "middlegame",
     planContinuity: Option[PlanContinuity] = None,
-    planSequence: Option[lila.llm.model.PlanSequenceSummary] = None,
+    planSequence: Option[JsObject] = None,
     tacticalThreatToUs: Boolean = false,
     tacticalThreatToThem: Boolean = false,
     structureProfile: Option[StructureProfile] = None,
     structureEvalLatencyMs: Option[Long] = None,
     planAlignment: Option[PlanAlignment] = None,
-    planHypotheses: List[PlanHypothesis] = Nil,
+    planHypotheses: List[JsObject] = Nil,
     strategicSalience: StrategicSalience = StrategicSalience.High,
 
     // Endgame pattern continuity
@@ -52,27 +52,13 @@ case class ExtendedAnalysisData(
     endgameTransition: Option[String] = None,     // e.g. "Lucena(Win) → Draw" when pattern shifts
     
     // Full IntegratedContext (preserves classification, threats, pawnAnalysis, features)
-    integratedContext: Option[lila.llm.analysis.IntegratedContext] = None
+    integratedContext: Option[JsValue] = None
 ) {
-  /** Returns stored IntegratedContext or constructs minimal fallback */
-  def toContext: lila.llm.analysis.IntegratedContext = {
-    integratedContext.getOrElse {
-      lila.llm.analysis.IntegratedContext(
-        evalCp = evalCp,
-        isWhiteToMove = isWhiteToMove,
-        positionKey = Some(fen),
-        threatsToUs = None,
-        threatsToThem = None,
-        structureProfile = structureProfile,
-        planAlignment = planAlignment
-      )
-    }
-  }
+  def toContext: JsValue =
+    integratedContext.getOrElse(Json.obj("fen" -> fen, "evalCp" -> evalCp, "isWhiteToMove" -> isWhiteToMove))
 }
 
 object ExtendedAnalysisData {
-  import play.api.libs.json._
-  
   implicit val writes: OWrites[ExtendedAnalysisData] = OWrites { data =>
     Json.obj(
       "fen" -> data.fen,

@@ -192,6 +192,25 @@ lazy val beta = module("beta",
 lazy val llm = module("llm",
   Seq(db, memo, strategicPuzzle),
   playWs.bundle ++ tests.bundle
+).settings(
+  Compile / unmanagedSources / includeFilter := new SimpleFileFilter(file => {
+    val path = file.getAbsolutePath.replace('\\', '/')
+    path.contains("/src/main/scala/lila/llm/strategicobject/") ||
+    path.endsWith("/src/main/scala/lila/llm/analysis/DecisiveTruth.scala") ||
+    path.endsWith("/src/main/scala/lila/llm/analysis/FactExtractor.scala") ||
+    path.endsWith("/src/main/scala/lila/llm/analysis/PositionAnalyzer.scala") ||
+    path.endsWith("/src/main/scala/lila/llm/analysis/PositionCharacterizer.scala") ||
+    path.endsWith("/src/main/scala/lila/llm/model/Fact.scala") ||
+    path.endsWith("/src/main/scala/lila/llm/model/Motif.scala") ||
+    path.endsWith("/src/main/scala/lila/llm/model/PositionNature.scala") ||
+    path.endsWith("/src/main/scala/lila/llm/model/Variation.scala") ||
+    path.endsWith("/src/main/scala/lila/llm/model/strategic/StrategicModels.scala")
+  }),
+  Test / unmanagedSources / includeFilter := new SimpleFileFilter(file => {
+    val path = file.getAbsolutePath.replace('\\', '/')
+    path.endsWith("/src/test/scala/lila/llm/strategicobject/PrimitiveExtractionTest.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/strategicobject/PrimitiveBoundaryTest.scala")
+  })
 )
 
 lazy val evalCache = module("evalCache",
