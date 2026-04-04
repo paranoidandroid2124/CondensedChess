@@ -5,6 +5,14 @@ This document is the execution roadmap for the rewrite governed by
 
 It is intentionally demolition-first.
 
+This roadmap follows the original design-memo phase numbering.
+
+- `Phase 0` through `Phase 2` are preparatory boundary-setting phases.
+- demolition and skeleton layout are recorded as completed rewrite checkpoints,
+  not as separate long-term semantic phases.
+- the first active rebuild phase after demolition is `Phase 3. Primitive
+  Extraction Layer`.
+
 ## Rewrite Principles
 
 - legacy topology must not be preserved by default
@@ -13,7 +21,19 @@ It is intentionally demolition-first.
 - fixture corpus is more important than legacy harness code
 - truth spine survives; topology scaffolding does not
 
-## Phase 0. Authority Shift
+## Current Checkpoint
+
+The rewrite has already completed the following preparatory work:
+
+- authority shift to `StrategicObjectModel.md`
+- red-spine extraction and fixture-bank preservation
+- strategic-object model definition
+- demolition of the legacy commentary semantic topology
+- source-tree skeleton layout for the new architecture
+
+The next active implementation phase is therefore `Phase 3`.
+
+## Phase 0. Rewrite Boundary Declaration
 
 Goals:
 
@@ -26,7 +46,7 @@ Outputs:
 - canonical north-star doc
 - updated contributor instructions
 
-## Phase 1. Red Spine Extraction
+## Phase 1. Test Spine Extraction
 
 Goals:
 
@@ -51,12 +71,8 @@ Delete or archive:
 - support/fallback topology tests
 - replay/compression tests whose purpose is legacy structure preservation
 
-## Phase 2. Fixture Bank Preservation
-
-Goals:
-
-- extract exact FEN/PGN/branch-key phenomenon data from useful legacy tests
-- preserve examples while deleting harnesses
+This phase includes fixture-bank preservation. Useful exact cases must be
+preserved even when the old harnesses are deleted.
 
 Each preserved fixture should keep:
 
@@ -66,43 +82,47 @@ Each preserved fixture should keep:
 - expected phenomenon
 - branch key when known
 
-## Phase 3. Demolition
+## Phase 2. Strategic Object Model Definition
 
 Goals:
 
-- remove legacy semantic topology before new synthesis begins
+- define the 24 object basis families
+- define relation operators
+- define certificate schema
+- define delta kinds
 
-Primary demolition targets:
+Outputs:
 
-- `PlanMatcher`
-- `StrategyPackBuilder`
-- `StrategyPackSurface`
-- `PlayerFacingTruthModePolicy`
-- `MainPathMoveDeltaClaimBuilder`
-- `QuietMoveIntentBuilder`
-- `CertifiedDecisionFrameBuilder`
-- `QuestionFirstCommentaryPlanner`
+- object type spec
+- certificate spec
+- relation spec
+- delta spec
 
-This phase may leave compile red on purpose.
+This phase also records the keep/replace boundary:
 
-## Phase 4. Skeleton Layout
+- keep `L0` through `L2`
+- replace `L3` through `L6`
+- keep `L7` thin
 
-Goals:
+## Completed Demolition Checkpoint
 
-- leave only the new architecture boundary in source form
+The following rewrite prerequisites are already complete and should not be
+renumbered as future semantic phases:
 
-Required skeleton:
+- legacy semantic/planner/carrier topology demolition
+- compile-red intermediate state acceptance during demolition
+- minimal skeleton boundary in source form:
+  - `RawPositionEvidence`
+  - `StrategicObjectSynthesizer`
+  - `StrategicObjectDeltaProjector`
+  - `ClaimCertification`
+  - `QuestionPlanner`
+  - `Renderer`
 
-- `RawPositionEvidence`
-- `StrategicObjectSynthesizer`
-- `StrategicObjectDeltaProjector`
-- `ClaimCertification`
-- `QuestionPlanner`
-- `Renderer`
+The point of this checkpoint was to make old topology restoration harder than
+new object-native construction.
 
-At this point, old topology should no longer be tempting to restore.
-
-## Phase 5. Primitive Extraction
+## Phase 3. Primitive Extraction Layer
 
 Goals:
 
@@ -119,12 +139,40 @@ Examples:
 
 The key rule is primitive-first, not strategy-name-first.
 
-## Phase 6. First Object Families
+Planner and claim code must not read raw motif piles directly once this phase
+lands.
+
+### Phase 3 Exit Criteria
+
+Phase 3 is complete only if all of the following are true:
+
+- primitive canonical types are fixed under stable role-based names
+- primitive extraction reads only `L0` through `L2` evidence
+- downstream object/planner/claim code no longer reads raw motif piles or
+  legacy semantic helper ingress directly
+- the same semantic meaning is not recomputed again downstream from raw feature
+  piles once a primitive exists for it
+- preserved fixtures have primitive-backed expectation coverage
+- the new path makes old semantic ingress harder to restore than the primitive
+  path is to extend
+
+Phase 3 fails if it degenerates into:
+
+- a thin wrapper over raw feature maps
+- a second semantic ingress running in parallel with old raw feature access
+- premature object synthesis
+- planner projection
+- claim wording
+- user-facing capability rollout
+
+## Phase 4. StrategicObjectSynthesizer Implementation
 
 Initial families to implement:
 
 - `FixedTargetComplex`
+- `CounterplayAxis`
 - `TradeInvariant`
+- `AccessNetwork`
 
 Why:
 
@@ -132,7 +180,10 @@ Why:
 - they stress both current-position and move-local semantics
 - they test whether the new architecture can replace existing narrow slices
 
-## Phase 7. Delta Projection
+The first goal is object instantiation from exact known cases, not broad family
+rollout.
+
+## Phase 5. StrategicObjectDeltaProjector Implementation
 
 Goals:
 
@@ -143,7 +194,10 @@ Goals:
 
 These deltas should be object-native, not family-helper-native.
 
-## Phase 8. Certification
+The target is to re-express old exact breakthroughs as object deltas rather
+than family-specific helpers.
+
+## Phase 6. ClaimCertification Rewrite
 
 Goals:
 
@@ -164,7 +218,7 @@ Replace:
 - family-forest branching
 - slice-specific release hacks
 
-## Phase 9. Planner Rebuild
+## Phase 7. Planner Rewrite
 
 Goals:
 
@@ -185,7 +239,10 @@ Planner outputs:
 - `WhyNow`
 - `WhatMustBeStopped`
 
-## Phase 10. Renderer Thin Shell
+Planner should choose projection only; it must not rediscover semantics from raw
+features.
+
+## Phase 8. Renderer / UI Thin Shell
 
 Goals:
 
@@ -203,7 +260,7 @@ Remove:
 - semantic salvage
 - fallback-driven strategy invention
 
-## Phase 11. Reconstitution Pass
+## Phase 9. Narrow Slice Reconstitution
 
 Rebuild the already-proven semantics on the new architecture first.
 
@@ -217,6 +274,65 @@ Suggested order:
 
 The rewrite should earn back old exact successes from the new architecture,
 not preserve them through adapters.
+
+## Phase 10. Expansion
+
+Once narrow slice parity exists on the new architecture, coverage should grow by
+adding object contracts rather than adding new family-specific rollout paths.
+
+Initial expansion priorities:
+
+- `CounterplayAxis`
+- `AccessNetwork`
+- `TradeInvariant`
+- `ConversionFunnel`
+- `PlanRace`
+
+## Capability Maturation Map
+
+This roadmap defines not only implementation order, but also when the rewrite
+becomes a real strategic explanation system.
+
+- `Phase 3. Primitive Extraction Layer`
+  - raw strategic ingredients only
+  - not yet a strategic explanation layer
+
+- `Phase 4. StrategicObjectSynthesizer`
+  - object-level strategic state appears
+  - strategy becomes object-native, but not yet delta-explanatory
+
+- `Phase 5. StrategicObjectDeltaProjector`
+  - first phase where contrastive strategic explanation becomes structurally
+    possible
+  - the system can express what a move changed in strategic-object terms
+  - counterplay and race-shaped discussion become structurally possible here
+
+- `Phase 6. ClaimCertification`
+  - strategic explanation becomes trustworthy here
+  - persistence, proof strength, and fail-closed release are decided here
+
+- `Phase 7. Planner`
+  - certified object deltas are projected into question forms:
+    - `WhyThis`
+    - `WhatChanged`
+    - `WhatMattersHere`
+    - `WhyNow`
+    - `WhatMustBeStopped`
+  - planner chooses projection only; it does not create semantics
+
+- `Phase 8. Renderer / UI Thin Shell`
+  - strategic explanation becomes user-visible
+  - no semantic reconstruction is allowed here
+
+- `Phase 9. Narrow Slice Reconstitution`
+  - proves that previously successful exact slices can be rebuilt on the new
+    architecture
+
+- `Phase 10. Expansion`
+  - mature doctrine-level and opening-specific strategic explanation belongs
+    here
+  - richer race, conversion, and counterplay narratives should become fully
+    mature here rather than merely structurally representable
 
 ## Execution Rules for Agents
 

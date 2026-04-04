@@ -12,7 +12,7 @@ enum QuestionAxis:
 final case class PlannedQuestion(
     axis: QuestionAxis,
     claimIds: List[String],
-    support: List[String] = Nil
+    supportClaimIds: List[String] = Nil
 )
 
 trait QuestionPlanner:

@@ -16,6 +16,6 @@ final case class StrategicObject(
 
 trait StrategicObjectSynthesizer:
   def synthesize(
-      evidence: RawPositionEvidence,
+      primitives: PrimitiveBank,
       truth: MoveTruthFrame
   ): List[StrategicObject]

@@ -10,9 +10,7 @@ enum StrategicDeltaScope:
 final case class StrategicObjectDelta(
     objectId: String,
     scope: StrategicDeltaScope,
-    summary: String,
-    before: Option[String] = None,
-    after: Option[String] = None
+    evidenceRefs: List[String] = Nil
 )
 
 trait StrategicObjectDeltaProjector:

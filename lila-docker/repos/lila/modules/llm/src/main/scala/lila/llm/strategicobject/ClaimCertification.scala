@@ -13,8 +13,8 @@ final case class CertifiedClaim(
     objectId: String,
     deltaScope: StrategicDeltaScope,
     status: ClaimStatus,
-    summary: String,
-    support: List[String] = Nil
+    deltaObjectId: String,
+    supportingObjectIds: List[String] = Nil
 )
 
 trait ClaimCertification:

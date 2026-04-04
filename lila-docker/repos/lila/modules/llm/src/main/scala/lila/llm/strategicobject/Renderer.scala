@@ -1,8 +1,8 @@
 package lila.llm.strategicobject
 
 final case class RenderedCommentary(
-    primary: String,
-    support: List[String] = Nil
+    claimIds: List[String],
+    supportClaimIds: List[String] = Nil
 )
 
 trait Renderer:
