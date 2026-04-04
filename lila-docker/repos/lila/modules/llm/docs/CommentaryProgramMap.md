@@ -1,5 +1,17 @@
 # Commentary Program Map
 
+> Legacy migration reference only.
+>
+> This document describes the pre-demolition commentary-analysis program state.
+> It is not rewrite design authority. Use `StrategicObjectModel.md` as the
+> north-star and `StrategicObjectRoadmap.md` as the execution roadmap.
+
+Legacy migration reference only. This document is not rewrite design
+authority. For commentary-analysis rewrite direction, target architecture, and
+demolition boundary decisions, use `StrategicObjectModel.md` first and
+`StrategicObjectRoadmap.md` second. This file remains useful only for legacy
+program status, CQF history, and migration-risk context.
+
 This document is the single onboarding and navigation entry point for the
 Chesstory commentary-analysis program.
 

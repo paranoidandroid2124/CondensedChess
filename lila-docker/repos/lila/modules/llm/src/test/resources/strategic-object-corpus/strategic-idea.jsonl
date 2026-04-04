@@ -1,0 +1,10 @@
+{"id":"K01","label":"French f6 break","phenomenon":"pawn_break","fen":"r2qk2r/pp1bbppp/2n1p3/3pPn2/NP1P4/P2B1N2/1B3PPP/R2QK2R b KQkq - 8 12","label_type":"positive"}
+{"id":"K02","label":"Maroczy bind core","phenomenon":"space_gain_or_restriction","fen":"r2q1rk1/pp1bppbp/2np1np1/8/2P1P3/2N1B3/PPN1BPPP/R2Q1RK1 w - - 3 10","label_type":"positive"}
+{"id":"K03","label":"Carlsbad fixed targets","phenomenon":"target_fixing","fen":"r1bqrnk1/1p2bppp/2p2n2/p2p2B1/3P4/P1NBP3/1PQ1NPPP/1R3RK1 b - - 0 12","label_type":"positive"}
+{"id":"K04","label":"QGD open c-file","phenomenon":"line_occupation","fen":"r1b2rk1/pp1nqppp/2p1p3/3n4/2BP4/2N1PN2/PP3PPP/2RQ1RK1 w - - 1 11","label_type":"positive"}
+{"id":"K05","label":"Sveshnikov d5 outpost","phenomenon":"outpost_creation_or_occupation","fen":"r1bq1rk1/5ppp/p1np1b2/1p1Np3/4P3/2P5/PPN2PPP/R2QKB1R w KQ - 2 12","label_type":"positive"}
+{"id":"K06","label":"Closed French knight vs bishop","phenomenon":"minor_piece_imbalance_exploitation","fen":"r2q1rk1/pp1bbppp/2n1p3/3pPn2/3P4/5N2/PPN1BPPP/R1BQ1RK1 w - - 3 11","label_type":"positive"}
+{"id":"K07","label":"Ruy Lopez before h3","phenomenon":"prophylaxis","fen":"r1bq1rk1/2p1bppp/p1np1n2/1p2p3/4P3/1BP2N2/PP1P1PPP/RNBQR1K1 w - - 1 9","label_type":"positive"}
+{"id":"K08","label":"Dragon attack shell","phenomenon":"king_attack_build_up","fen":"2rq1rk1/pp1bppb1/3p1np1/4n2p/3NP2P/1BN1BP2/PPPQ2P1/2KR3R w - - 0 13","label_type":"positive"}
+{"id":"K09","label":"IQP trade-down window","phenomenon":"favorable_trade_or_transformation","fen":"r1bqr1k1/pp2bpp1/2n2n1p/3p4/3N4/2N1B1P1/PP2PPBP/R2Q1RK1 w - - 2 12","label_type":"positive"}
+{"id":"K10","label":"Hedgehog containment","phenomenon":"counterplay_suppression","fen":"r2qk2r/1b1nbppp/pp1ppn2/8/2PQ4/BPN2NP1/P3PPBP/R2R2K1 w kq - 2 11","label_type":"positive"}

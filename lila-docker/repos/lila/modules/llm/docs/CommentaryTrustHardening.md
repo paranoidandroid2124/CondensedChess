@@ -1,5 +1,18 @@
 # Commentary Trust Hardening
 
+> Legacy migration reference only.
+>
+> This file is the trust-risk map for the pre-demolition commentary-analysis
+> pipeline. It remains a blocker and regression reference for the preserved
+> truth spine, but it is not rewrite design authority and must not be used to
+> justify restoring legacy planner or policy topology.
+
+Legacy trust-hardening map / migration reference only. This document records
+trust risks, blocker preservation, and release-safety constraints for the
+legacy pipeline; it does not define rewrite architecture. Use
+`StrategicObjectModel.md` for target design and treat this file as a guardrail
+on what demolition and rebuild work must not silently invalidate.
+
 This document is the canonical trust-hardening map for the Chesstory
 commentary-analysis pipeline.
 

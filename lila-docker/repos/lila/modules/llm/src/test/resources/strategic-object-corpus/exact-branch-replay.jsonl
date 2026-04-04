@@ -1,0 +1,5 @@
+{"id":"queen_infiltration_positive","label":"positive","phenomenon":"queen_infiltration","fen":"2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P1PN2/PPQ2PPP/2R2RK1 w - - 0 24","uci_line":["b2b3","d8e7","c3c4","e7a3"],"branch_key":"queen_infiltration"}
+{"id":"rook_switch_positive","label":"positive","phenomenon":"rook_lift","fen":"2rq1rk1/pp3ppp/2n1pn2/3p2P1/2P1P3/PPQ2PBP/2RR2K1 w - - 0 24","uci_line":["c2e2","c6e7","g2f3","f8e8"],"branch_key":"rook_switch"}
+{"id":"perpetual_check_positive","label":"positive","phenomenon":"perpetual_check","fen":"r4rk1/5ppp/8/8/7q/8/2Q3P1/R5K1 b - - 0 1","uci_line":["h4e1","g1h2","e1h4","h2g1","h4e1"],"branch_key":"perpetual_check"}
+{"id":"exchange_sac_release_positive","label":"positive","phenomenon":"exchange_sac_release","fen":"2rq1rk1/pp3ppp/4pn2/3p4/3P4/4PN2/PP1Q1PPP/2B2RK1 w - - 0 24","uci_line":["h2h3","c8c1","f1c1"],"branch_key":"exchange_sac_release"}
+{"id":"wrong_turn_negative","label":"negative","phenomenon":"illegal_move_fail_closed","fen":"2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P1PN2/PPQ2PPP/2R2RK1 b - - 0 24","uci_line":["b2b3","d8e7","c3c4","e7a3"],"branch_key":"wrong_turn"}

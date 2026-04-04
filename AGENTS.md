@@ -1,10 +1,17 @@
 # Agent Instructions
 
-For tasks touching the Chesstory commentary-analysis pipeline, first use
-`lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md`
-as the onboarding map, then use
-`lila-docker/repos/lila/modules/llm/docs/CommentaryPipelineSSOT.md`
-as the canonical runtime audit.
+For tasks touching the Chesstory commentary-analysis rewrite, first use
+`lila-docker/repos/lila/modules/llm/docs/StrategicObjectModel.md`
+as the canonical north-star, then use
+`lila-docker/repos/lila/modules/llm/docs/StrategicObjectRoadmap.md`
+as the execution roadmap.
+
+The existing commentary docs are legacy migration references, not rewrite
+design authority:
+- `lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md`
+- `lila-docker/repos/lila/modules/llm/docs/CommentaryPipelineSSOT.md`
+- `lila-docker/repos/lila/modules/llm/docs/CommentaryTruthGate.md`
+- `lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md`
 
 Scope includes helper modules and consumption paths across:
 - `strategic`
@@ -22,22 +29,26 @@ Scope includes helper modules and consumption paths across:
 - outline / renderer / API / frontend
 
 Do not redo the full `producer -> carrier/model -> builder -> outline -> renderer -> API -> frontend`
-trace if the request is already answered by that SSoT.
+trace if the request is already answered by the rewrite north-star docs or by a
+legacy migration reference.
 
 Use the document roles strictly:
+- `StrategicObjectModel.md`
+  - canonical rewrite north-star
+- `StrategicObjectRoadmap.md`
+  - canonical rewrite execution roadmap
 - `CommentaryProgramMap.md`
-  - onboarding / current status / active CQF map
+  - legacy current-state map
 - `CommentaryPipelineSSOT.md`
-  - canonical runtime audit
+  - legacy runtime audit
 - `CommentaryTruthGate.md`
-  - canonical signoff / truth gate
+  - legacy signoff / truth gate
 - `CommentaryTrustHardening.md`
-  - canonical trust-risk map, CTH audit baseline, Track 5 defer rationale,
-    trust-hardening priorities
+  - legacy trust-risk map and migration blocker reference
 - There is no separate CQF appendix. CQF status and active quality-work handoff
-  live in `CommentaryProgramMap.md`.
+  for the old system live in `CommentaryProgramMap.md`.
 
-Re-audit only if:
+Re-audit the legacy commentary docs only if:
 - the user explicitly asks for a fresh audit,
 - code changed after the SSoT snapshot in
   `lila-docker/repos/lila/modules/llm/src/main`,
@@ -45,7 +56,9 @@ Re-audit only if:
   `lila-docker/repos/lila/ui/analyse/src`,
 - or the task introduces a runtime path not covered by the SSoT.
 
-When changing the audited pipeline, update the SSoT in the same change.
+When changing the legacy audited pipeline, update the legacy SSoT in the same
+change. When changing rewrite direction, update `StrategicObjectModel.md`
+and/or `StrategicObjectRoadmap.md` in the same change.
 
 When changing trust-relevant behavior, update
 `lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md`

@@ -1,5 +1,18 @@
 # Commentary Pipeline SSOT
 
+> Legacy migration reference only.
+>
+> This file is a pre-demolition audit snapshot of the legacy commentary-analysis
+> topology. It remains useful for migration risk and truth-spine reference, but
+> it is not rewrite design authority. Use `StrategicObjectModel.md` for the
+> target architecture and `StrategicObjectRoadmap.md` for execution order.
+
+Legacy runtime audit / migration reference only. This document describes the
+current or recently-audited legacy commentary-analysis pipeline and the truth
+spine that must not be broken casually, but it does not define the rewrite
+architecture. Rewrite authority lives in `StrategicObjectModel.md`; execution
+sequencing lives in `StrategicObjectRoadmap.md`.
+
 This file is the canonical audit for the current Chesstory commentary-analysis
 pipeline.
 

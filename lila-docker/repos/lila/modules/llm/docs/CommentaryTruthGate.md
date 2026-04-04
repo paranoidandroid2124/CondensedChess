@@ -1,5 +1,17 @@
 # Commentary Truth Gate
 
+> Legacy migration reference only.
+>
+> This document remains the legacy truth-signoff reference for the pre-
+> demolition pipeline. It does not define the rewrite architecture. Use
+> `StrategicObjectModel.md` for rewrite authority and consult this file only to
+> preserve the truth spine while topology is being removed.
+
+Legacy truth-gate / migration reference only. This document remains
+authoritative for protecting legacy truth invariants during migration, but it
+is not the design authority for the new strategic-object architecture. Rewrite
+semantics and layer boundaries are governed by `StrategicObjectModel.md`.
+
 This document defines the canonical chess-truth signoff gate for Chesstory.
 
 For program status, Step 1-7 closure, CQF track state, and document roles, see
