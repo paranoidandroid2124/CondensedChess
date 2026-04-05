@@ -17,10 +17,20 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
       primitives: PrimitiveBank,
       truth: MoveTruthFrame
   ): List[StrategicObject] =
-    val _ = truth
     val bank = primitives.normalized
     val refs = bank.all.map(PrimitiveReference.fromPrimitive).map(_.normalized)
-    val objects =
+    val boardDirect =
+      boardDirectObjects(bank, refs)
+    val graphDerived =
+      graphDerivedObjects(refs, truth, boardDirect)
+    val objects = boardDirect ++ graphDerived
+
+    attachRelations(objects).map(_.normalized).sortBy(o => (o.family.ordinal, colorIndex(o.owner), o.id))
+
+  private def boardDirectObjects(
+      bank: PrimitiveBank,
+      refs: List[PrimitiveReference]
+  ): List[StrategicObject] =
       pawnStructureObjects(bank, refs) ++
         kingSafetyObjects(bank, refs) ++
         developmentObjects(bank, refs) ++
@@ -36,7 +46,29 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
         redeploymentRouteObjects(bank, refs) ++
         passerObjects(bank, refs)
 
-    attachRelations(objects).map(_.normalized).sortBy(o => (o.family.ordinal, colorIndex(o.owner), o.id))
+  private def graphDerivedObjects(
+      refs: List[PrimitiveReference],
+      truth: MoveTruthFrame,
+      boardDirect: List[StrategicObject]
+  ): List[StrategicObject] =
+    val stage0 = attachRelations(boardDirect).map(_.normalized)
+    val foundation =
+      defenderDependencyObjects(refs, stage0) ++
+        tradeInvariantObjects(refs, stage0) ++
+        tensionStateObjects(refs, stage0) ++
+        attackScaffoldObjects(refs, stage0)
+    val stage1 = attachRelations(stage0 ++ foundation).map(_.normalized)
+    val operational =
+      materialInvestmentContractObjects(refs, truth, stage1) ++
+        initiativeWindowObjects(refs, truth, stage1) ++
+        conversionFunnelObjects(refs, stage1) ++
+        fortressHoldingShellObjects(refs, stage1)
+    val stage2 = attachRelations(stage1 ++ operational).map(_.normalized)
+    val cross =
+      planRaceObjects(refs, stage2) ++
+        transitionBridgeObjects(refs, stage2)
+
+    (foundation ++ operational ++ cross).groupBy(_.id).values.map(_.head).toList
 
   private def pawnStructureObjects(
       bank: PrimitiveBank,
@@ -731,6 +763,996 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
       }
     }
 
+  private def defenderDependencyObjects(
+      refs: List[PrimitiveReference],
+      objects: List[StrategicObject]
+  ): List[StrategicObject] =
+    Owners.flatMap { owner =>
+      val defendedRefs = refs.filter(ref => ref.owner == owner && ref.kind == PrimitiveKind.DefendedResource)
+      defendedRefs.groupBy(ref => dominantSector(ref.allSquares, ref.lane.toList)).toList.flatMap { case (sector, group) =>
+        val defendedSquares = distinctSquares(group.flatMap(_.allSquares))
+        val files = distinctFiles(group.flatMap(_.lane) ++ defendedSquares.map(_.file))
+        val pressureObjects =
+          familyObjects(
+            objects,
+            !owner,
+            Set(StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.RestrictionShell)
+          ).filter(obj => overlapsGroup(obj, defendedSquares.toSet, files.toSet, Some(sector)))
+        val constrainedObjects =
+          familyObjects(
+            objects,
+            owner,
+            Set(StrategicObjectFamily.MobilityCage, StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.CounterplayAxis)
+          ).filter(obj => overlapsGroup(obj, defendedSquares.toSet, files.toSet, Some(sector)))
+        Option.when(group.nonEmpty && pressureObjects.nonEmpty) {
+          val pressureSquares = distinctSquares(pressureObjects.flatMap(objectSquares))
+          val sourceObjects = uniqueById(pressureObjects ++ constrainedObjects)
+          val locusSquares = distinctSquares(defendedSquares ++ pressureSquares ++ constrainedObjects.flatMap(objectSquares))
+          val locusFiles = distinctFiles(files ++ sourceObjects.flatMap(objectFiles))
+          val supportingPrimitives =
+            combinedPrimitives(
+              sourceObjects,
+              refs,
+              locusSquares.toSet,
+              locusFiles.toSet,
+              Set(PrimitiveKind.DefendedResource, PrimitiveKind.TargetSquare, PrimitiveKind.RouteContestSeed, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.PieceRoleIssue)
+            )
+          val supportingPieces = combinedPieces(sourceObjects, supportingPrimitives)
+          mkObject(
+            id = objectId(StrategicObjectFamily.DefenderDependencyNetwork, owner, Some(sector), defendedSquares.headOption, locusFiles.toSet),
+            family = StrategicObjectFamily.DefenderDependencyNetwork,
+            owner = owner,
+            locus = StrategicObjectLocus(squares = locusSquares, files = locusFiles),
+            sector = Some(sector),
+            anchors =
+              primarySquareAnchors(defendedSquares) ++
+                pressureSquareAnchors(pressureSquares) ++
+                pieceAnchors(supportingPieces, StrategicAnchorRole.Constraint),
+            profile =
+              StrategicObjectProfile.DefenderDependencyNetwork(
+                defendedSquares = defendedSquares,
+                defenderSquares = distinctSquares(group.flatMap(_.anchorSquares)),
+                pressureSquares = pressureSquares,
+                defenderRoles = group.flatMap(_.roles).toSet,
+                features =
+                  Set.newBuilder[DefenderDependencyFeature]
+                    .addAll(Option.when(pressureObjects.exists(_.family == StrategicObjectFamily.FixedTargetComplex))(DefenderDependencyFeature.FixedAnchor))
+                    .addAll(Option.when(constrainedObjects.exists(_.family == StrategicObjectFamily.RestrictionShell))(DefenderDependencyFeature.RestrictedDefender))
+                    .addAll(Option.when(constrainedObjects.exists(_.family == StrategicObjectFamily.CounterplayAxis) || pressureObjects.exists(_.family == StrategicObjectFamily.CounterplayAxis))(DefenderDependencyFeature.CounterplayBound))
+                    .addAll(Option.when(constrainedObjects.exists(_.family == StrategicObjectFamily.MobilityCage))(DefenderDependencyFeature.MobilityBound))
+                    .result()
+              ),
+            supportingPrimitives = supportingPrimitives,
+            supportingPieces = supportingPieces,
+            rivals =
+              combinedRivals(
+                pressureObjects,
+                refs,
+                !owner,
+                locusSquares.toSet,
+                locusFiles.toSet,
+                Set(PrimitiveKind.TargetSquare, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.RouteContestSeed, PrimitiveKind.ReleaseCandidate)
+              ),
+            horizonClass = ObjectHorizonClass.Structural,
+            supportBalance = group.size + constrainedObjects.size,
+            pressureBalance = pressureObjects.size + pressureSquares.size,
+            mobilityGain = 0,
+            tags = Set(StrategicEvidenceTag.Dependency, StrategicEvidenceTag.Contested)
+          )
+        }
+      }
+    }
+
+  private def tradeInvariantObjects(
+      refs: List[PrimitiveReference],
+      objects: List[StrategicObject]
+  ): List[StrategicObject] =
+    Owners.flatMap { owner =>
+      val tradeRefs =
+        refs.filter(ref =>
+          ref.owner == owner && Set(PrimitiveKind.ReleaseCandidate, PrimitiveKind.ExchangeSquare).contains(ref.kind)
+        )
+      tradeRefs.groupBy(ref => dominantSector(ref.allSquares, ref.lane.toList)).toList.flatMap { case (sector, group) =>
+        val tradeSquares = distinctSquares(group.flatMap(_.allSquares))
+        val files = distinctFiles(group.flatMap(_.lane) ++ tradeSquares.map(_.file))
+        val roots =
+          familyObjects(
+            objects,
+            owner,
+            Set(StrategicObjectFamily.BreakAxis, StrategicObjectFamily.AccessNetwork, StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.PasserComplex)
+          ).filter(obj => overlapsGroup(obj, tradeSquares.toSet, files.toSet, Some(sector)))
+        val preserved =
+          uniqueById(
+            roots ++
+              roots.flatMap(obj =>
+                relatedObjects(
+                  obj,
+                  objects,
+                  Set(StrategicRelationOperator.Enables, StrategicRelationOperator.Preserves),
+                  Set(StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.BreakAxis, StrategicObjectFamily.AccessNetwork, StrategicObjectFamily.PasserComplex)
+                )
+              )
+          )
+        Option.when(group.nonEmpty && preserved.size >= 2) {
+          val invariantSquares = distinctSquares(preserved.flatMap(objectSquares))
+          val locusSquares = distinctSquares(tradeSquares ++ invariantSquares)
+          val locusFiles = distinctFiles(files ++ preserved.flatMap(objectFiles))
+          val supportingPrimitives =
+            combinedPrimitives(
+              preserved,
+              refs,
+              locusSquares.toSet,
+              locusFiles.toSet,
+              Set(PrimitiveKind.ReleaseCandidate, PrimitiveKind.ExchangeSquare, PrimitiveKind.BreakCandidate, PrimitiveKind.TargetSquare, PrimitiveKind.PasserSeed, PrimitiveKind.AccessRoute)
+            )
+          val supportingPieces = combinedPieces(preserved, supportingPrimitives)
+          mkObject(
+            id = objectId(StrategicObjectFamily.TradeInvariant, owner, Some(sector), tradeSquares.headOption.orElse(invariantSquares.headOption), locusFiles.toSet),
+            family = StrategicObjectFamily.TradeInvariant,
+            owner = owner,
+            locus = StrategicObjectLocus(squares = locusSquares, files = locusFiles),
+            sector = Some(sector),
+            anchors =
+              primarySquareAnchors(tradeSquares) ++
+                supportSquareAnchors(invariantSquares) ++
+                fileAnchors(locusFiles, StrategicAnchorRole.Secondary),
+            profile =
+              StrategicObjectProfile.TradeInvariant(
+                exchangeSquares = tradeSquares,
+                invariantSquares = invariantSquares,
+                preservedFiles = locusFiles.toSet,
+                preservedFamilies = preserved.map(_.family).toSet,
+                features =
+                  Set.newBuilder[TradeInvariantFeature]
+                    .addAll(Option.when(preserved.exists(_.family == StrategicObjectFamily.FixedTargetComplex))(TradeInvariantFeature.FixedTargetAnchor))
+                    .addAll(Option.when(preserved.exists(_.family == StrategicObjectFamily.BreakAxis))(TradeInvariantFeature.BreakAnchor))
+                    .addAll(Option.when(preserved.exists(_.family == StrategicObjectFamily.AccessNetwork))(TradeInvariantFeature.AccessAnchor))
+                    .addAll(Option.when(preserved.exists(_.family == StrategicObjectFamily.PasserComplex))(TradeInvariantFeature.PasserAnchor))
+                    .addAll(Option.when(group.exists(_.releaseKind.nonEmpty))(TradeInvariantFeature.ReleaseOverlap))
+                    .result()
+              ),
+            supportingPrimitives = supportingPrimitives,
+            supportingPieces = supportingPieces,
+            rivals =
+              combinedRivals(
+                familyObjects(objects, !owner, Set(StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.FixedTargetComplex))
+                  .filter(obj => overlapsGroup(obj, locusSquares.toSet, locusFiles.toSet, Some(sector))),
+                refs,
+                !owner,
+                locusSquares.toSet,
+                locusFiles.toSet,
+                Set(PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.DefendedResource, PrimitiveKind.ReleaseCandidate)
+              ),
+            horizonClass = ObjectHorizonClass.Structural,
+            supportBalance = preserved.size,
+            pressureBalance = tradeSquares.size,
+            mobilityGain = 0,
+            tags = Set(StrategicEvidenceTag.Exchange, StrategicEvidenceTag.Contested)
+          )
+        }
+      }
+    }
+
+  private def tensionStateObjects(
+      refs: List[PrimitiveReference],
+      objects: List[StrategicObject]
+  ): List[StrategicObject] =
+    Owners.flatMap { owner =>
+      val contactRefs =
+        refs.filter(ref => ref.owner == owner && Set(PrimitiveKind.TensionContactSeed, PrimitiveKind.LeverContactSeed).contains(ref.kind))
+      val releaseRefs = refs.filter(ref => ref.owner == owner && ref.kind == PrimitiveKind.ReleaseCandidate)
+      contactRefs.groupBy(ref => dominantSector(ref.allSquares, ref.lane.toList)).toList.flatMap { case (sector, group) =>
+        val contactSquares = distinctSquares(group.flatMap(_.allSquares))
+        val files = distinctFiles(group.flatMap(_.lane) ++ releaseRefs.flatMap(_.lane) ++ contactSquares.map(_.file))
+        val ownAxes =
+          familyObjects(objects, owner, Set(StrategicObjectFamily.BreakAxis, StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.RestrictionShell))
+            .filter(obj => overlapsGroup(obj, contactSquares.toSet, files.toSet, Some(sector)))
+        val rivalAxes =
+          familyObjects(objects, !owner, Set(StrategicObjectFamily.BreakAxis, StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.RestrictionShell))
+            .filter(obj => overlapsGroup(obj, contactSquares.toSet, files.toSet, Some(sector)))
+        val releaseSquares = distinctSquares(releaseRefs.flatMap(_.allSquares).filter(square => sectorOfSquare(square) == sector))
+        Option.when(group.nonEmpty && (releaseSquares.nonEmpty || ownAxes.nonEmpty || rivalAxes.nonEmpty)) {
+          val locusSquares = distinctSquares(contactSquares ++ releaseSquares ++ ownAxes.flatMap(objectSquares) ++ rivalAxes.flatMap(objectSquares))
+          val locusFiles = distinctFiles(files ++ ownAxes.flatMap(objectFiles) ++ rivalAxes.flatMap(objectFiles))
+          val supportingPrimitives =
+            combinedPrimitives(
+              uniqueById(ownAxes ++ rivalAxes),
+              refs,
+              locusSquares.toSet,
+              locusFiles.toSet,
+              Set(PrimitiveKind.TensionContactSeed, PrimitiveKind.LeverContactSeed, PrimitiveKind.ReleaseCandidate, PrimitiveKind.BreakCandidate, PrimitiveKind.CounterplayResourceSeed)
+            )
+          val supportingPieces = combinedPieces(ownAxes, supportingPrimitives)
+          mkObject(
+            id = objectId(StrategicObjectFamily.TensionState, owner, Some(sector), contactSquares.headOption, locusFiles.toSet),
+            family = StrategicObjectFamily.TensionState,
+            owner = owner,
+            locus = StrategicObjectLocus(squares = locusSquares, files = locusFiles),
+            sector = Some(sector),
+            anchors =
+              primarySquareAnchors(contactSquares) ++
+                pressureSquareAnchors(releaseSquares) ++
+                fileAnchors(locusFiles, StrategicAnchorRole.Constraint),
+            profile =
+              StrategicObjectProfile.TensionState(
+                contactSquares = contactSquares,
+                releaseSquares = releaseSquares,
+                pressureSquares = distinctSquares(rivalAxes.flatMap(objectSquares) ++ releaseSquares),
+                breakSquares =
+                  distinctSquares(
+                    ownAxes.collect {
+                      case obj if obj.family == StrategicObjectFamily.BreakAxis => objectSquares(obj)
+                    }.flatten
+                  ),
+                features =
+                  Set.newBuilder[TensionFeature]
+                    .addAll(Option.when(group.exists(_.flags.contains(PrimitiveEvidenceFlag.Maintainable)))(TensionFeature.MaintainableContact))
+                    .addAll(Option.when(releaseSquares.nonEmpty)(TensionFeature.ReleasePressure))
+                    .addAll(Option.when(ownAxes.exists(_.family == StrategicObjectFamily.BreakAxis))(TensionFeature.BreakPressure))
+                    .addAll(Option.when((ownAxes ++ rivalAxes).exists(_.family == StrategicObjectFamily.CounterplayAxis))(TensionFeature.CounterplayPressure))
+                    .addAll(Option.when((ownAxes ++ rivalAxes).exists(_.family == StrategicObjectFamily.RestrictionShell))(TensionFeature.RestrictionOverlay))
+                    .result()
+              ),
+            supportingPrimitives = supportingPrimitives,
+            supportingPieces = supportingPieces,
+            rivals =
+              combinedRivals(
+                rivalAxes,
+                refs,
+                !owner,
+                locusSquares.toSet,
+                locusFiles.toSet,
+                Set(PrimitiveKind.TensionContactSeed, PrimitiveKind.ReleaseCandidate, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.BreakCandidate)
+              ),
+            horizonClass = ObjectHorizonClass.Operational,
+            supportBalance = ownAxes.size + group.size,
+            pressureBalance = rivalAxes.size + releaseSquares.size,
+            mobilityGain = 0,
+            tags = Set(StrategicEvidenceTag.Tension, StrategicEvidenceTag.Contested)
+          )
+        }
+      }
+    }
+
+  private def attackScaffoldObjects(
+      refs: List[PrimitiveReference],
+      objects: List[StrategicObject]
+  ): List[StrategicObject] =
+    Owners.flatMap { owner =>
+      val hookRefs = refs.filter(ref => ref.owner == owner && ref.kind == PrimitiveKind.HookContactSeed)
+      val ownRoutes =
+        familyObjects(objects, owner, Set(StrategicObjectFamily.AccessNetwork, StrategicObjectFamily.RedeploymentRoute))
+      val ownCritical = familyObjects(objects, owner, Set(StrategicObjectFamily.CriticalSquareComplex))
+      val enemyShells = familyObjects(objects, !owner, Set(StrategicObjectFamily.KingSafetyShell))
+      enemyShells.flatMap { shell =>
+        val routeParticipants = ownRoutes.filter(obj => overlapsObject(obj, shell))
+        val enabledCritical =
+          uniqueById(
+            ownCritical.filter(obj => overlapsObject(obj, shell)) ++
+              routeParticipants.flatMap(obj =>
+                relatedObjects(
+                  obj,
+                  objects,
+                  Set(StrategicRelationOperator.Enables),
+                  Set(StrategicObjectFamily.CriticalSquareComplex, StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.PasserComplex)
+                )
+              )
+          )
+        val hookSquares =
+          distinctSquares(
+            hookRefs.flatMap(_.allSquares).filter(square => shell.sector == sectorOfSquare(square))
+          )
+        val participants = uniqueById(routeParticipants ++ enabledCritical :+ shell)
+        Option.when((routeParticipants.nonEmpty || hookSquares.nonEmpty) && (enabledCritical.nonEmpty || hookSquares.nonEmpty)) {
+          val targetSquares = distinctSquares(objectSquares(shell))
+          val scaffoldSquares = distinctSquares(enabledCritical.flatMap(objectSquares))
+          val routes = distinctRoutes(routeParticipants.flatMap(objectRoutes))
+          val locusSquares = distinctSquares(targetSquares ++ scaffoldSquares ++ hookSquares ++ routes.flatMap(_.allSquares))
+          val locusFiles = distinctFiles(participants.flatMap(objectFiles) ++ locusSquares.map(_.file))
+          val supportingPrimitives =
+            combinedPrimitives(
+              participants,
+              refs,
+              locusSquares.toSet,
+              locusFiles.toSet,
+              Set(PrimitiveKind.AccessRoute, PrimitiveKind.RouteContestSeed, PrimitiveKind.RedeploymentPathSeed, PrimitiveKind.DiagonalLaneSeed, PrimitiveKind.LiftCorridorSeed, PrimitiveKind.KnightRouteSeed, PrimitiveKind.CriticalSquare, PrimitiveKind.HookContactSeed, PrimitiveKind.TargetSquare)
+            )
+          val supportingPieces = combinedPieces(participants, supportingPrimitives)
+          mkObject(
+            id = objectId(StrategicObjectFamily.AttackScaffold, owner, Some(shell.sector), targetSquares.headOption.orElse(hookSquares.headOption), locusFiles.toSet),
+            family = StrategicObjectFamily.AttackScaffold,
+            owner = owner,
+            locus = StrategicObjectLocus(squares = locusSquares, files = locusFiles, route = routes.headOption),
+            sector = Some(shell.sector),
+            anchors =
+              pressureSquareAnchors(targetSquares) ++
+                supportSquareAnchors(scaffoldSquares) ++
+                pressureSquareAnchors(hookSquares) ++
+                routeAnchors(routes, StrategicAnchorRole.Entry) ++
+                pieceAnchors(supportingPieces, StrategicAnchorRole.Support),
+            profile =
+              StrategicObjectProfile.AttackScaffold(
+                targetOwner = shell.owner,
+                scaffoldSquares = distinctSquares(targetSquares ++ scaffoldSquares ++ hookSquares),
+                entryFiles = locusFiles.toSet,
+                entryRoutes = routes,
+                features =
+                  Set.newBuilder[AttackScaffoldFeature]
+                    .addAll(Option.when(routeParticipants.exists(_.family == StrategicObjectFamily.AccessNetwork) && routeParticipants.exists(obj => objectFiles(obj).nonEmpty))(AttackScaffoldFeature.FileAccess))
+                    .addAll(Option.when(routeParticipants.exists(_.family == StrategicObjectFamily.AccessNetwork) && routes.nonEmpty)(AttackScaffoldFeature.RouteAccess))
+                    .addAll(Option.when(routeParticipants.exists(_.family == StrategicObjectFamily.RedeploymentRoute))(AttackScaffoldFeature.RedeploymentLift))
+                    .addAll(Option.when(enabledCritical.nonEmpty)(AttackScaffoldFeature.CriticalEntry))
+                    .addAll(Option.when(hookSquares.nonEmpty)(AttackScaffoldFeature.HookPressure))
+                    .result()
+              ),
+            supportingPrimitives = supportingPrimitives,
+            supportingPieces = supportingPieces,
+            rivals =
+              combinedRivals(
+                List(shell),
+                refs,
+                !owner,
+                locusSquares.toSet,
+                locusFiles.toSet,
+                Set(PrimitiveKind.DefendedResource, PrimitiveKind.RouteContestSeed, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.TargetSquare)
+              ),
+            horizonClass = ObjectHorizonClass.Operational,
+            supportBalance = routeParticipants.size + enabledCritical.size,
+            pressureBalance = targetSquares.size + hookSquares.size,
+            mobilityGain = routes.map(_.via.size).sum,
+          tags = Set(StrategicEvidenceTag.Attack, StrategicEvidenceTag.ShellPressure)
+          )
+        }
+      }
+    }
+
+  private def materialInvestmentContractObjects(
+      refs: List[PrimitiveReference],
+      truth: MoveTruthFrame,
+      objects: List[StrategicObject]
+  ): List[StrategicObject] =
+    Option.when(hasMaterialInvestment(truth)) {
+      Owners.flatMap { owner =>
+        val contractObjects =
+          familyObjects(
+            objects,
+            owner,
+            Set(
+              StrategicObjectFamily.FixedTargetComplex,
+              StrategicObjectFamily.AccessNetwork,
+              StrategicObjectFamily.CounterplayAxis,
+              StrategicObjectFamily.AttackScaffold
+            )
+          )
+        Option.when(contractObjects.exists(_.family == StrategicObjectFamily.AttackScaffold) || contractObjects.map(_.family).distinct.size >= 2) {
+          val compensationSquares = distinctSquares(contractObjects.flatMap(objectSquares))
+          val files = distinctFiles(contractObjects.flatMap(objectFiles))
+          val supportingPrimitives =
+            combinedPrimitives(
+              contractObjects,
+              refs,
+              compensationSquares.toSet,
+              files.toSet,
+              Set(PrimitiveKind.TargetSquare, PrimitiveKind.AccessRoute, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.HookContactSeed, PrimitiveKind.BreakCandidate)
+            )
+          val supportingPieces = combinedPieces(contractObjects, supportingPrimitives)
+          val investedCp =
+            truth.materialEconomics.investedMaterialCp.getOrElse(math.max(0, truth.materialEconomics.afterDeficit - truth.materialEconomics.beforeDeficit))
+          mkObject(
+            id = objectId(StrategicObjectFamily.MaterialInvestmentContract, owner, Some(dominantSector(compensationSquares, files)), compensationSquares.headOption, files.toSet),
+            family = StrategicObjectFamily.MaterialInvestmentContract,
+            owner = owner,
+            locus = StrategicObjectLocus(squares = compensationSquares, files = files),
+            sector = Some(dominantSector(compensationSquares, files)),
+            anchors =
+              primarySquareAnchors(compensationSquares) ++
+                pieceAnchors(supportingPieces, StrategicAnchorRole.Support) ++
+                fileAnchors(files, StrategicAnchorRole.Secondary),
+            profile =
+              StrategicObjectProfile.MaterialInvestmentContract(
+                investedMaterialCp = investedCp,
+                beforeDeficit = truth.materialEconomics.beforeDeficit,
+                afterDeficit = truth.materialEconomics.afterDeficit,
+                compensationSquares = compensationSquares,
+                compensationFiles = files.toSet,
+                features =
+                  Set.newBuilder[MaterialInvestmentFeature]
+                    .addOne(MaterialInvestmentFeature.InvestedMaterial)
+                    .addAll(Option.when(truth.materialEconomics.afterDeficit > truth.materialEconomics.beforeDeficit)(MaterialInvestmentFeature.IncreasedDeficit))
+                    .addAll(Option.when(contractObjects.exists(_.family == StrategicObjectFamily.CounterplayAxis))(MaterialInvestmentFeature.CounterplayCompensation))
+                    .addAll(Option.when(contractObjects.exists(_.family == StrategicObjectFamily.AccessNetwork))(MaterialInvestmentFeature.AccessCompensation))
+                    .addAll(Option.when(contractObjects.exists(_.family == StrategicObjectFamily.FixedTargetComplex))(MaterialInvestmentFeature.TargetCompensation))
+                    .addAll(Option.when(contractObjects.exists(_.family == StrategicObjectFamily.AttackScaffold))(MaterialInvestmentFeature.AttackCompensation))
+                    .result()
+              ),
+            supportingPrimitives = supportingPrimitives,
+            supportingPieces = supportingPieces,
+            rivals =
+              combinedRivals(
+                familyObjects(objects, !owner, Set(StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.KingSafetyShell))
+                  .filter(obj => overlapsGroup(obj, compensationSquares.toSet, files.toSet, None)),
+                refs,
+                !owner,
+                compensationSquares.toSet,
+                files.toSet,
+                Set(PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.ReleaseCandidate, PrimitiveKind.DefendedResource)
+              ),
+            horizonClass = ObjectHorizonClass.Operational,
+            supportBalance = contractObjects.size + math.max(1, investedCp / 100),
+            pressureBalance = truth.materialEconomics.afterDeficit - truth.materialEconomics.beforeDeficit,
+            mobilityGain = 0,
+            tags = Set(StrategicEvidenceTag.Investment)
+          )
+        }
+      }
+    }.getOrElse(Nil)
+
+  private def initiativeWindowObjects(
+      refs: List[PrimitiveReference],
+      truth: MoveTruthFrame,
+      objects: List[StrategicObject]
+  ): List[StrategicObject] =
+    val _ = truth
+    Owners.flatMap { owner =>
+      val activators =
+        familyObjects(
+          objects,
+          owner,
+          Set(
+            StrategicObjectFamily.AttackScaffold,
+            StrategicObjectFamily.CounterplayAxis,
+            StrategicObjectFamily.BreakAxis,
+            StrategicObjectFamily.AccessNetwork
+          )
+        )
+      val rivalObjects =
+        familyObjects(
+          objects,
+          !owner,
+          Set(
+            StrategicObjectFamily.KingSafetyShell,
+            StrategicObjectFamily.CounterplayAxis,
+            StrategicObjectFamily.RestrictionShell,
+            StrategicObjectFamily.TensionState,
+            StrategicObjectFamily.AttackScaffold
+          )
+        )
+      activators.groupBy(_.sector).toList.flatMap { case (sector, ownGroup) =>
+        val ownRelated =
+          uniqueById(
+            ownGroup ++
+              ownGroup.flatMap(obj =>
+                relatedObjects(
+                  obj,
+                  objects,
+                  Set(StrategicRelationOperator.Enables, StrategicRelationOperator.OverloadsOrUndermines, StrategicRelationOperator.Denies),
+                  Set(StrategicObjectFamily.KingSafetyShell, StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.RestrictionShell)
+                )
+              )
+          )
+        val response =
+          rivalObjects.filter(obj => sector == obj.sector || ownRelated.exists(overlapsObject(_, obj)))
+        Option.when(ownRelated.nonEmpty && response.nonEmpty) {
+          val windowSquares = distinctSquares(ownRelated.flatMap(objectSquares) ++ response.flatMap(objectSquares))
+          val files = distinctFiles(ownRelated.flatMap(objectFiles) ++ response.flatMap(objectFiles))
+          val supportingPrimitives =
+            combinedPrimitives(
+              uniqueById(ownRelated ++ response),
+              refs,
+              windowSquares.toSet,
+              files.toSet,
+              Set(PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.BreakCandidate, PrimitiveKind.AccessRoute, PrimitiveKind.HookContactSeed, PrimitiveKind.TensionContactSeed, PrimitiveKind.ReleaseCandidate, PrimitiveKind.TargetSquare)
+            )
+          val supportingPieces = combinedPieces(ownRelated, supportingPrimitives)
+          mkObject(
+            id = objectId(StrategicObjectFamily.InitiativeWindow, owner, Some(sector), windowSquares.headOption, files.toSet),
+            family = StrategicObjectFamily.InitiativeWindow,
+            owner = owner,
+            locus = StrategicObjectLocus(squares = windowSquares, files = files),
+            sector = Some(sector),
+            anchors =
+              primarySquareAnchors(windowSquares) ++
+                fileAnchors(files, StrategicAnchorRole.Pressure) ++
+                pieceAnchors(supportingPieces, StrategicAnchorRole.Support),
+            profile =
+              StrategicObjectProfile.InitiativeWindow(
+                windowSquares = windowSquares,
+                triggerFiles = files.toSet,
+                rivalPressureSquares = distinctSquares(response.flatMap(objectSquares)),
+                catalystFamilies = ownRelated.map(_.family).toSet,
+                features =
+                  Set.newBuilder[InitiativeWindowFeature]
+                    .addAll(Option.when(ownRelated.exists(_.family == StrategicObjectFamily.BreakAxis))(InitiativeWindowFeature.BreakTiming))
+                    .addAll(Option.when(ownRelated.exists(_.family == StrategicObjectFamily.CounterplayAxis))(InitiativeWindowFeature.CounterplayTiming))
+                    .addAll(Option.when(ownRelated.exists(_.family == StrategicObjectFamily.AccessNetwork))(InitiativeWindowFeature.AccessTiming))
+                    .addAll(Option.when(ownRelated.exists(_.family == StrategicObjectFamily.AttackScaffold))(InitiativeWindowFeature.AttackTiming))
+                    .addAll(Option.when(response.exists(_.family == StrategicObjectFamily.KingSafetyShell))(InitiativeWindowFeature.ShellStress))
+                    .addAll(Option.when(truth.tactical.forcingLine || truth.difficultyNovelty.depthSensitive || truth.moveQuality.swingSeverity > 0)(InitiativeWindowFeature.ForcingHint))
+                    .result()
+              ),
+            supportingPrimitives = supportingPrimitives,
+            supportingPieces = supportingPieces,
+            rivals =
+              combinedRivals(
+                response,
+                refs,
+                !owner,
+                windowSquares.toSet,
+                files.toSet,
+                Set(PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.ReleaseCandidate, PrimitiveKind.TargetSquare, PrimitiveKind.DefendedResource)
+              ),
+            horizonClass = ObjectHorizonClass.Operational,
+            supportBalance = ownRelated.size,
+            pressureBalance = response.size + Option.when(truth.tactical.forcingLine)(1).getOrElse(0),
+            mobilityGain = 0,
+            tags = Set(StrategicEvidenceTag.Initiative)
+          )
+        }
+      }
+    }
+
+  private def conversionFunnelObjects(
+      refs: List[PrimitiveReference],
+      objects: List[StrategicObject]
+  ): List[StrategicObject] =
+    Owners.flatMap { owner =>
+      val entryObjects =
+        familyObjects(objects, owner, Set(StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.TradeInvariant))
+      val channelObjects =
+        familyObjects(objects, owner, Set(StrategicObjectFamily.AccessNetwork, StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.TradeInvariant))
+      val exitObjects =
+        familyObjects(objects, owner, Set(StrategicObjectFamily.PasserComplex, StrategicObjectFamily.TradeInvariant))
+      val connectedChannels =
+        channelObjects.filter(channel => entryObjects.exists(overlapsObject(channel, _)) || exitObjects.exists(overlapsObject(channel, _)))
+      val connectedEntries =
+        entryObjects.filter(entry => connectedChannels.exists(overlapsObject(entry, _)) || exitObjects.exists(overlapsObject(entry, _)))
+      val connectedExits =
+        exitObjects.filter(exit => connectedChannels.exists(overlapsObject(exit, _)) || connectedEntries.exists(overlapsObject(exit, _)))
+      val participants = uniqueById(connectedEntries ++ connectedChannels ++ connectedExits)
+      Option.when(connectedEntries.nonEmpty && connectedChannels.nonEmpty && participants.size >= 2) {
+        val entrySquares = distinctSquares(connectedEntries.flatMap(objectSquares))
+        val channelSquares = distinctSquares(connectedChannels.flatMap(objectSquares))
+        val exitSquares = distinctSquares(connectedExits.flatMap(objectSquares))
+        val locusSquares = distinctSquares(entrySquares ++ channelSquares ++ exitSquares)
+        val files = distinctFiles(participants.flatMap(objectFiles))
+        val supportingPrimitives =
+          combinedPrimitives(
+            participants,
+            refs,
+            locusSquares.toSet,
+            files.toSet,
+            Set(PrimitiveKind.TargetSquare, PrimitiveKind.AccessRoute, PrimitiveKind.RouteContestSeed, PrimitiveKind.ReleaseCandidate, PrimitiveKind.PasserSeed)
+          )
+        val supportingPieces = combinedPieces(participants, supportingPrimitives)
+        mkObject(
+          id = objectId(StrategicObjectFamily.ConversionFunnel, owner, Some(dominantSector(locusSquares, files)), entrySquares.headOption.orElse(channelSquares.headOption), files.toSet),
+          family = StrategicObjectFamily.ConversionFunnel,
+          owner = owner,
+          locus = StrategicObjectLocus(squares = locusSquares, files = files),
+          sector = Some(dominantSector(locusSquares, files)),
+          anchors =
+            primarySquareAnchors(entrySquares) ++
+              supportSquareAnchors(channelSquares) ++
+              exitSquareAnchors(exitSquares) ++
+              pieceAnchors(supportingPieces, StrategicAnchorRole.Support),
+          profile =
+            StrategicObjectProfile.ConversionFunnel(
+              entrySquares = entrySquares,
+              channelSquares = channelSquares,
+              exitSquares = exitSquares,
+              funnelFiles = files.toSet,
+              features =
+                Set.newBuilder[ConversionFunnelFeature]
+                  .addAll(Option.when(connectedEntries.exists(_.family == StrategicObjectFamily.FixedTargetComplex))(ConversionFunnelFeature.TargetEntry))
+                  .addAll(Option.when(connectedChannels.exists(_.family == StrategicObjectFamily.RestrictionShell))(ConversionFunnelFeature.RestrictionGate))
+                  .addAll(Option.when(connectedEntries.exists(_.family == StrategicObjectFamily.TradeInvariant) || connectedExits.exists(_.family == StrategicObjectFamily.TradeInvariant))(ConversionFunnelFeature.TradeChannel))
+                  .addAll(Option.when(connectedChannels.exists(_.family == StrategicObjectFamily.AccessNetwork))(ConversionFunnelFeature.AccessChannel))
+                  .addAll(Option.when(connectedExits.exists(_.family == StrategicObjectFamily.PasserComplex))(ConversionFunnelFeature.PasserExit))
+                  .result()
+            ),
+          supportingPrimitives = supportingPrimitives,
+          supportingPieces = supportingPieces,
+          rivals =
+            combinedRivals(
+              familyObjects(objects, !owner, Set(StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.PasserComplex))
+                .filter(obj => overlapsGroup(obj, locusSquares.toSet, files.toSet, None)),
+              refs,
+              !owner,
+              locusSquares.toSet,
+              files.toSet,
+              Set(PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.DefendedResource, PrimitiveKind.ReleaseCandidate)
+            ),
+          horizonClass = ObjectHorizonClass.Operational,
+          supportBalance = connectedEntries.size + connectedChannels.size,
+          pressureBalance = connectedExits.size,
+          mobilityGain = 0,
+          tags = Set(StrategicEvidenceTag.Conversion)
+        )
+      }
+    }
+
+  private def fortressHoldingShellObjects(
+      refs: List[PrimitiveReference],
+      objects: List[StrategicObject]
+  ): List[StrategicObject] =
+    Owners.flatMap { owner =>
+      val holdingObjects =
+        familyObjects(
+          objects,
+          owner,
+          Set(
+            StrategicObjectFamily.RestrictionShell,
+            StrategicObjectFamily.MobilityCage,
+            StrategicObjectFamily.CriticalSquareComplex,
+            StrategicObjectFamily.KingSafetyShell
+          )
+        )
+      val invadingObjects =
+        familyObjects(objects, !owner, Set(StrategicObjectFamily.PasserComplex, StrategicObjectFamily.AccessNetwork, StrategicObjectFamily.AttackScaffold))
+      val threatened =
+        invadingObjects.filter(invader => holdingObjects.exists(overlapsObject(invader, _)))
+      Option.when(holdingObjects.nonEmpty && threatened.nonEmpty) {
+        val holdSquares = distinctSquares(holdingObjects.flatMap(objectSquares))
+        val blockadeSquares = distinctSquares(threatened.flatMap(objectSquares))
+        val noEntrySquares =
+          distinctSquares(
+            familyObjects(objects, owner, Set(StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.CriticalSquareComplex))
+              .flatMap(objectSquares)
+          )
+        val guardedSquares =
+          distinctSquares(familyObjects(objects, owner, Set(StrategicObjectFamily.KingSafetyShell)).flatMap(objectSquares))
+        val locusSquares = distinctSquares(holdSquares ++ blockadeSquares ++ noEntrySquares ++ guardedSquares)
+        val files = distinctFiles(holdingObjects.flatMap(objectFiles) ++ threatened.flatMap(objectFiles))
+        val supportingPrimitives =
+          combinedPrimitives(
+            uniqueById(holdingObjects ++ threatened),
+            refs,
+            locusSquares.toSet,
+            files.toSet,
+            Set(PrimitiveKind.TargetSquare, PrimitiveKind.CriticalSquare, PrimitiveKind.RouteContestSeed, PrimitiveKind.AccessRoute, PrimitiveKind.PasserSeed)
+          )
+        val supportingPieces = combinedPieces(holdingObjects, supportingPrimitives)
+        mkObject(
+          id = objectId(StrategicObjectFamily.FortressHoldingShell, owner, Some(dominantSector(locusSquares, files)), holdSquares.headOption.orElse(blockadeSquares.headOption), files.toSet),
+          family = StrategicObjectFamily.FortressHoldingShell,
+          owner = owner,
+          locus = StrategicObjectLocus(squares = locusSquares, files = files),
+          sector = Some(dominantSector(locusSquares, files)),
+          anchors =
+            constraintSquareAnchors(holdSquares) ++
+              pressureSquareAnchors(blockadeSquares) ++
+              supportSquareAnchors(noEntrySquares) ++
+              pieceAnchors(supportingPieces, StrategicAnchorRole.Support),
+          profile =
+            StrategicObjectProfile.FortressHoldingShell(
+              holdSquares = holdSquares,
+              entryDeniedSquares = distinctSquares(blockadeSquares ++ noEntrySquares),
+              blockadeSquares = blockadeSquares,
+              shellFiles = files.toSet,
+              features =
+                Set.newBuilder[HoldingShellFeature]
+                  .addAll(Option.when(holdingObjects.exists(_.family == StrategicObjectFamily.RestrictionShell))(HoldingShellFeature.RestrictionWall))
+                  .addAll(Option.when(holdingObjects.exists(_.family == StrategicObjectFamily.MobilityCage))(HoldingShellFeature.MobilityWall))
+                  .addAll(Option.when(holdingObjects.exists(_.family == StrategicObjectFamily.CriticalSquareComplex))(HoldingShellFeature.CriticalHold))
+                  .addAll(Option.when(threatened.exists(_.family == StrategicObjectFamily.PasserComplex))(HoldingShellFeature.PasserBlockade))
+                  .addAll(Option.when(holdingObjects.exists(_.family == StrategicObjectFamily.KingSafetyShell))(HoldingShellFeature.ShellCover))
+                  .result()
+            ),
+          supportingPrimitives = supportingPrimitives,
+          supportingPieces = supportingPieces,
+          rivals =
+            combinedRivals(
+              threatened,
+              refs,
+              !owner,
+              locusSquares.toSet,
+              files.toSet,
+              Set(PrimitiveKind.PasserSeed, PrimitiveKind.AccessRoute, PrimitiveKind.HookContactSeed, PrimitiveKind.CounterplayResourceSeed)
+            ),
+          horizonClass = ObjectHorizonClass.Structural,
+          supportBalance = holdingObjects.size,
+          pressureBalance = threatened.size,
+          mobilityGain = 0,
+          tags = Set(StrategicEvidenceTag.Holding, StrategicEvidenceTag.Restricted)
+        )
+      }
+    }
+
+  private def planRaceObjects(
+      refs: List[PrimitiveReference],
+      objects: List[StrategicObject]
+  ): List[StrategicObject] =
+    Owners.flatMap { owner =>
+      val ownRaceObjects =
+        familyObjects(
+          objects,
+          owner,
+          Set(
+            StrategicObjectFamily.CounterplayAxis,
+            StrategicObjectFamily.AccessNetwork,
+            StrategicObjectFamily.PasserComplex,
+            StrategicObjectFamily.InitiativeWindow,
+            StrategicObjectFamily.TensionState
+          )
+        )
+      val rivalRaceObjects =
+        familyObjects(
+          objects,
+          !owner,
+          Set(
+            StrategicObjectFamily.CounterplayAxis,
+            StrategicObjectFamily.AccessNetwork,
+            StrategicObjectFamily.PasserComplex,
+            StrategicObjectFamily.InitiativeWindow,
+            StrategicObjectFamily.TensionState
+          )
+        )
+      val linkedRivals =
+        uniqueById(
+          ownRaceObjects.flatMap(obj =>
+            relatedObjects(
+              obj,
+              objects,
+              Set(StrategicRelationOperator.RacesWith, StrategicRelationOperator.OverloadsOrUndermines, StrategicRelationOperator.Denies),
+              Set(
+                StrategicObjectFamily.CounterplayAxis,
+                StrategicObjectFamily.AccessNetwork,
+                StrategicObjectFamily.PasserComplex,
+                StrategicObjectFamily.InitiativeWindow,
+                StrategicObjectFamily.TensionState
+              )
+            )
+          ).filter(_.owner == !owner)
+        )
+      val actualRivals = uniqueById(rivalRaceObjects.filter(rival => ownRaceObjects.exists(overlapsObject(rival, _))) ++ linkedRivals)
+      Option.when(ownRaceObjects.nonEmpty && actualRivals.nonEmpty) {
+        val ownPressureSquares = distinctSquares(ownRaceObjects.flatMap(objectSquares))
+        val rivalPressureSquares = distinctSquares(actualRivals.flatMap(objectSquares))
+        val sharedSquares = distinctSquares(ownPressureSquares.intersect(rivalPressureSquares))
+        val files = distinctFiles(ownRaceObjects.flatMap(objectFiles) ++ actualRivals.flatMap(objectFiles))
+        val locusSquares = distinctSquares(ownPressureSquares ++ rivalPressureSquares)
+        val supportingPrimitives =
+          combinedPrimitives(
+            uniqueById(ownRaceObjects ++ actualRivals),
+            refs,
+            locusSquares.toSet,
+            files.toSet,
+            Set(PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.AccessRoute, PrimitiveKind.PasserSeed, PrimitiveKind.TensionContactSeed, PrimitiveKind.ReleaseCandidate)
+          )
+        val supportingPieces = combinedPieces(ownRaceObjects, supportingPrimitives)
+        mkObject(
+          id = objectId(StrategicObjectFamily.PlanRace, owner, Some(dominantSector(locusSquares, files)), ownPressureSquares.headOption.orElse(rivalPressureSquares.headOption), files.toSet),
+          family = StrategicObjectFamily.PlanRace,
+          owner = owner,
+          locus = StrategicObjectLocus(squares = locusSquares, files = files),
+          sector = Some(dominantSector(locusSquares, files)),
+          anchors =
+            primarySquareAnchors(ownPressureSquares) ++
+              pressureSquareAnchors(rivalPressureSquares) ++
+              supportSquareAnchors(sharedSquares) ++
+              pieceAnchors(supportingPieces, StrategicAnchorRole.Support),
+          profile =
+            StrategicObjectProfile.PlanRace(
+              rivalOwner = !owner,
+              raceSquares = locusSquares,
+              raceFiles = files.toSet,
+              ownGoalSquares = ownPressureSquares,
+              rivalGoalSquares = rivalPressureSquares,
+              features =
+                Set.newBuilder[PlanRaceFeature]
+                  .addAll(Option.when(ownRaceObjects.exists(_.family == StrategicObjectFamily.CounterplayAxis) && actualRivals.exists(_.family == StrategicObjectFamily.CounterplayAxis))(PlanRaceFeature.BilateralCounterplay))
+                  .addAll(Option.when(ownRaceObjects.exists(_.family == StrategicObjectFamily.AccessNetwork) && actualRivals.exists(_.family == StrategicObjectFamily.AccessNetwork))(PlanRaceFeature.BilateralAccess))
+                  .addAll(Option.when(ownRaceObjects.exists(_.family == StrategicObjectFamily.PasserComplex) && actualRivals.exists(_.family == StrategicObjectFamily.PasserComplex))(PlanRaceFeature.BilateralPassers))
+                  .addAll(Option.when(ownRaceObjects.exists(_.family == StrategicObjectFamily.InitiativeWindow) && actualRivals.exists(_.family == StrategicObjectFamily.InitiativeWindow))(PlanRaceFeature.BilateralInitiative))
+                  .addAll(Option.when(ownRaceObjects.exists(_.family == StrategicObjectFamily.TensionState) || actualRivals.exists(_.family == StrategicObjectFamily.TensionState))(PlanRaceFeature.SharedTension))
+                  .result()
+            ),
+          supportingPrimitives = supportingPrimitives,
+          supportingPieces = supportingPieces,
+          rivals =
+            combinedRivals(
+              actualRivals,
+              refs,
+              !owner,
+              locusSquares.toSet,
+              files.toSet,
+              Set(PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.AccessRoute, PrimitiveKind.PasserSeed, PrimitiveKind.TensionContactSeed)
+            ),
+            horizonClass = ObjectHorizonClass.Operational,
+            supportBalance = ownRaceObjects.size,
+            pressureBalance = actualRivals.size,
+            mobilityGain = 0,
+            tags = Set(StrategicEvidenceTag.Race)
+          )
+      }
+    }
+
+  private def transitionBridgeObjects(
+      refs: List[PrimitiveReference],
+      objects: List[StrategicObject]
+  ): List[StrategicObject] =
+    Owners.flatMap { owner =>
+      val structure = familyObjects(objects, owner, Set(StrategicObjectFamily.PawnStructureRegime))
+      val bridgeSources =
+        familyObjects(
+          objects,
+          owner,
+          Set(
+            StrategicObjectFamily.PasserComplex,
+            StrategicObjectFamily.TradeInvariant,
+            StrategicObjectFamily.AccessNetwork,
+            StrategicObjectFamily.ConversionFunnel
+          )
+        )
+      val connectedSources =
+        bridgeSources.filter(source =>
+          structure.exists(overlapsObject(source, _)) ||
+            relatedObjects(
+              source,
+              objects,
+              Set(StrategicRelationOperator.Preserves, StrategicRelationOperator.TransformsTo),
+              Set(StrategicObjectFamily.ConversionFunnel, StrategicObjectFamily.PasserComplex, StrategicObjectFamily.TradeInvariant)
+            ).nonEmpty
+        )
+      Option.when(structure.nonEmpty && connectedSources.nonEmpty) {
+        val continuitySquares = distinctSquares(structure.flatMap(objectSquares) ++ connectedSources.flatMap(objectSquares))
+        val files = distinctFiles(structure.flatMap(objectFiles) ++ connectedSources.flatMap(objectFiles))
+        val destinationSquares =
+          distinctSquares(
+            familyObjects(objects, owner, Set(StrategicObjectFamily.PasserComplex, StrategicObjectFamily.ConversionFunnel))
+              .flatMap(objectSquares)
+          )
+        val supportingPrimitives =
+          combinedPrimitives(
+            uniqueById(structure ++ connectedSources),
+            refs,
+            continuitySquares.toSet,
+            files.toSet,
+            Set(PrimitiveKind.BreakCandidate, PrimitiveKind.TargetSquare, PrimitiveKind.PasserSeed, PrimitiveKind.ReleaseCandidate, PrimitiveKind.AccessRoute)
+          )
+        val supportingPieces = combinedPieces(structure ++ connectedSources, supportingPrimitives)
+        mkObject(
+          id = objectId(StrategicObjectFamily.TransitionBridge, owner, Some(dominantSector(continuitySquares, files)), continuitySquares.headOption, files.toSet),
+          family = StrategicObjectFamily.TransitionBridge,
+          owner = owner,
+          locus = StrategicObjectLocus(squares = continuitySquares ++ destinationSquares, files = files),
+          sector = Some(dominantSector(continuitySquares, files)),
+          anchors =
+            primarySquareAnchors(continuitySquares) ++
+              exitSquareAnchors(destinationSquares) ++
+              fileAnchors(files, StrategicAnchorRole.Secondary) ++
+              pieceAnchors(supportingPieces, StrategicAnchorRole.Support),
+          profile =
+            StrategicObjectProfile.TransitionBridge(
+              bridgeSquares = distinctSquares(continuitySquares ++ destinationSquares),
+              bridgeFiles = files.toSet,
+              sourceFamilies = (structure ++ connectedSources).map(_.family).toSet,
+              destinationFamilies = familyObjects(objects, owner, Set(StrategicObjectFamily.PasserComplex, StrategicObjectFamily.ConversionFunnel)).map(_.family).toSet,
+              features =
+                Set.newBuilder[TransitionBridgeFeature]
+                  .addAll(Option.when(structure.nonEmpty)(TransitionBridgeFeature.StructureBridge))
+                  .addAll(Option.when(connectedSources.exists(_.family == StrategicObjectFamily.TradeInvariant))(TransitionBridgeFeature.TradeBridge))
+                  .addAll(Option.when(connectedSources.exists(_.family == StrategicObjectFamily.AccessNetwork))(TransitionBridgeFeature.AccessBridge))
+                  .addAll(Option.when(connectedSources.exists(_.family == StrategicObjectFamily.ConversionFunnel))(TransitionBridgeFeature.ConversionBridge))
+                  .addAll(Option.when(connectedSources.exists(_.family == StrategicObjectFamily.PasserComplex) || destinationSquares.nonEmpty)(TransitionBridgeFeature.PasserBridge))
+                  .result()
+            ),
+          supportingPrimitives = supportingPrimitives,
+          supportingPieces = supportingPieces,
+          rivals =
+            combinedRivals(
+              familyObjects(objects, !owner, Set(StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.PlanRace))
+                .filter(obj => overlapsGroup(obj, continuitySquares.toSet, files.toSet, None)),
+              refs,
+              !owner,
+              continuitySquares.toSet,
+              files.toSet,
+              Set(PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.ReleaseCandidate, PrimitiveKind.DefendedResource)
+            ),
+          horizonClass = ObjectHorizonClass.Structural,
+          supportBalance = structure.size + connectedSources.size,
+          pressureBalance = destinationSquares.size,
+          mobilityGain = 0,
+          tags = Set(StrategicEvidenceTag.Transition)
+        )
+      }
+    }
+
+  private def familyObjects(
+      objects: List[StrategicObject],
+      owner: Color,
+      families: Set[StrategicObjectFamily]
+  ): List[StrategicObject] =
+    objects.filter(obj => obj.owner == owner && families.contains(obj.family))
+
+  private def relatedObjects(
+      source: StrategicObject,
+      objects: List[StrategicObject],
+      operators: Set[StrategicRelationOperator],
+      families: Set[StrategicObjectFamily]
+  ): List[StrategicObject] =
+    source.relations.flatMap { relation =>
+      Option.when(operators.contains(relation.operator) && families.contains(relation.target.family)) {
+        objects.find(_.id == relation.target.objectId)
+      }.flatten
+    }
+
+  private def combinedPrimitives(
+      sourceObjects: List[StrategicObject],
+      refs: List[PrimitiveReference],
+      squares: Set[Square],
+      files: Set[File],
+      kinds: Set[PrimitiveKind]
+  ): List[PrimitiveReference] =
+    (sourceObjects.flatMap(_.supportingPrimitives) ++ selectRefs(refs, None, squares, files, kinds)).map(_.normalized).distinct
+
+  private def combinedPieces(
+      sourceObjects: List[StrategicObject],
+      supportingPrimitives: List[PrimitiveReference]
+  ): List[StrategicPieceRef] =
+    mergePieces(
+      sourceObjects.flatMap(_.supportingPieces) ++ sourceObjects.flatMap(_.anchors.flatMap(_.piece)),
+      supportingPrimitives
+    )
+
+  private def combinedRivals(
+      rivalObjects: List[StrategicObject],
+      refs: List[PrimitiveReference],
+      owner: Color,
+      squares: Set[Square],
+      files: Set[File],
+      kinds: Set[PrimitiveKind]
+  ): List[StrategicRivalReference] =
+    (rivalObjects.map(rivalReferenceFromObject) ++ rivalsFrom(refs, owner, squares, files, kinds)).map(_.normalized).distinct
+
+  private def rivalReferenceFromObject(obj: StrategicObject): StrategicRivalReference =
+    StrategicRivalReference(
+      kind = RivalReferenceKind.Object,
+      owner = obj.owner,
+      squares = objectSquares(obj),
+      file = Option.when(objectFiles(obj).size == 1)(objectFiles(obj).head),
+      roles = obj.supportingPieces.flatMap(_.roles).toSet,
+      objectId = Some(obj.id),
+      objectFamily = Some(obj.family)
+    )
+
+  private def overlapsObject(left: StrategicObject, right: StrategicObject): Boolean =
+    overlapsGroup(left, objectSquares(right).toSet, objectFiles(right).toSet, Some(right.sector))
+
+  private def overlapsGroup(
+      obj: StrategicObject,
+      squares: Set[Square],
+      files: Set[File],
+      sector: Option[ObjectSector]
+  ): Boolean =
+    objectSquares(obj).exists(squares.contains) ||
+      objectFiles(obj).exists(files.contains) ||
+      sector.contains(obj.sector)
+
+  private def objectSquares(obj: StrategicObject): List[Square] =
+    distinctSquares(
+      obj.locus.allSquares ++
+        obj.anchors.flatMap(_.squares) ++
+        obj.anchors.flatMap(_.route.toList.flatMap(_.allSquares))
+    )
+
+  private def objectFiles(obj: StrategicObject): List[File] =
+    distinctFiles(obj.locus.files ++ obj.anchors.flatMap(_.file))
+
+  private def objectRoutes(obj: StrategicObject): List[StrategicRouteGeometry] =
+    distinctRoutes(obj.locus.route.toList ++ obj.anchors.flatMap(_.route))
+
+  private def distinctRoutes(routes: List[StrategicRouteGeometry]): List[StrategicRouteGeometry] =
+    routes.map(_.normalized).distinct.sortBy(route => route.allSquares.map(_.key).mkString("-"))
+
+  private def uniqueById(objects: List[StrategicObject]): List[StrategicObject] =
+    objects.groupBy(_.id).values.map(_.head).toList
+
+  private def hasMaterialInvestment(truth: MoveTruthFrame): Boolean =
+    truth.materialEconomics.investedMaterialCp.nonEmpty ||
+      truth.materialEconomics.sacrificeKind.nonEmpty ||
+      truth.materialEconomics.afterDeficit != truth.materialEconomics.beforeDeficit
+
   private def attachRelations(objects: List[StrategicObject]): List[StrategicObject] =
     objects.map { current =>
       current.copy(
@@ -746,18 +1768,49 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
     else
       val sameOwner = current.owner == other.owner
       val opposing = current.owner != other.owner
-      val sharedSquares = current.locus.allSquares.intersect(other.locus.allSquares).nonEmpty
-      val sharedFiles = current.locus.files.intersect(other.locus.files).nonEmpty
+      val sharedSquares = objectSquares(current).intersect(objectSquares(other)).nonEmpty
+      val sharedFiles = objectFiles(current).intersect(objectFiles(other)).nonEmpty
+      val sameSector = current.sector == other.sector
       (current.family, other.family) match
         case (StrategicObjectFamily.BreakAxis, StrategicObjectFamily.FixedTargetComplex) if sameOwner && (sharedSquares || sharedFiles) => Some(StrategicRelationOperator.Enables)
         case (StrategicObjectFamily.AccessNetwork, StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.CriticalSquareComplex | StrategicObjectFamily.PasserComplex)
             if sameOwner && (sharedSquares || sharedFiles) => Some(StrategicRelationOperator.Enables)
+        case (StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.RedeploymentRoute, StrategicObjectFamily.AttackScaffold) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.Enables)
+        case (StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.BreakAxis | StrategicObjectFamily.InitiativeWindow) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.Enables)
+        case (StrategicObjectFamily.CriticalSquareComplex, StrategicObjectFamily.AttackScaffold | StrategicObjectFamily.FortressHoldingShell) if (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.Enables)
         case (StrategicObjectFamily.PieceRoleFitness, StrategicObjectFamily.RedeploymentRoute) if sameOwner && sharedSquares => Some(StrategicRelationOperator.DependsOn)
+        case (StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.DefenderDependencyNetwork) if opposing && (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.OverloadsOrUndermines)
+        case (StrategicObjectFamily.AttackScaffold | StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.BreakAxis, StrategicObjectFamily.InitiativeWindow) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.DependsOn)
+        case (StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.AttackScaffold, StrategicObjectFamily.MaterialInvestmentContract)
+            if sameOwner && (sharedSquares || sharedFiles || sameSector) => Some(StrategicRelationOperator.DependsOn)
+        case (StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.RestrictionShell | StrategicObjectFamily.PasserComplex | StrategicObjectFamily.TradeInvariant, StrategicObjectFamily.ConversionFunnel)
+            if sameOwner && (sharedSquares || sharedFiles || sameSector) => Some(StrategicRelationOperator.DependsOn)
+        case (StrategicObjectFamily.PawnStructureRegime | StrategicObjectFamily.TradeInvariant | StrategicObjectFamily.ConversionFunnel | StrategicObjectFamily.PasserComplex, StrategicObjectFamily.TransitionBridge)
+            if sameOwner && (sharedSquares || sharedFiles || sameSector) => Some(StrategicRelationOperator.Preserves)
         case (StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.CounterplayAxis) if opposing && (sharedSquares || sharedFiles) => Some(StrategicRelationOperator.Denies)
         case (StrategicObjectFamily.MobilityCage, StrategicObjectFamily.CounterplayAxis) if opposing && sharedSquares => Some(StrategicRelationOperator.Denies)
+        case (StrategicObjectFamily.FortressHoldingShell, StrategicObjectFamily.PasserComplex | StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.AttackScaffold) if opposing && (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.Denies)
         case (StrategicObjectFamily.PawnStructureRegime, StrategicObjectFamily.BreakAxis | StrategicObjectFamily.PasserComplex) if sameOwner && (sharedSquares || sharedFiles) => Some(StrategicRelationOperator.Preserves)
+        case (StrategicObjectFamily.TradeInvariant, StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.PasserComplex) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.Preserves)
+        case (StrategicObjectFamily.TransitionBridge, StrategicObjectFamily.ConversionFunnel | StrategicObjectFamily.PasserComplex) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.TransformsTo)
+        case (StrategicObjectFamily.ConversionFunnel, StrategicObjectFamily.PasserComplex | StrategicObjectFamily.TradeInvariant) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.TransformsTo)
         case (StrategicObjectFamily.PasserComplex, StrategicObjectFamily.PasserComplex) if opposing => Some(StrategicRelationOperator.RacesWith)
+        case (StrategicObjectFamily.PlanRace, StrategicObjectFamily.PlanRace | StrategicObjectFamily.InitiativeWindow | StrategicObjectFamily.PasserComplex) if opposing && (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.RacesWith)
         case (StrategicObjectFamily.KingSafetyShell, StrategicObjectFamily.CounterplayAxis) if opposing && current.sector == other.sector => Some(StrategicRelationOperator.OverloadsOrUndermines)
+        case (StrategicObjectFamily.AttackScaffold, StrategicObjectFamily.KingSafetyShell) if opposing && (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.OverloadsOrUndermines)
+        case (StrategicObjectFamily.TensionState, StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.BreakAxis) if opposing && (sharedSquares || sharedFiles || sameSector) =>
+          Some(StrategicRelationOperator.OverloadsOrUndermines)
         case _ => None
 
   private def mkObject(

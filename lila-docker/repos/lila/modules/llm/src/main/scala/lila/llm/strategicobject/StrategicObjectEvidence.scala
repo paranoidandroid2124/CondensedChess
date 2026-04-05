@@ -471,3 +471,13 @@ enum StrategicEvidenceTag:
   case Promotion
   case MobilityGain
   case RouteAccess
+  case Dependency
+  case Exchange
+  case Tension
+  case Attack
+  case Investment
+  case Initiative
+  case Race
+  case Transition
+  case Conversion
+  case Holding

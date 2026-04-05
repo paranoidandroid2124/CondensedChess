@@ -20,6 +20,7 @@ final case class StrategicObject(
 ):
   require(id.nonEmpty, "strategic object id must be non-empty")
   require(anchors.nonEmpty, "strategic object must carry anchors")
+  require(profile.family == family, s"strategic object profile ${profile.family} must match family $family")
   require(supportingPrimitives.nonEmpty, "strategic object must carry supporting primitives")
 
   def normalized: StrategicObject =

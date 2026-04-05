@@ -1,6 +1,7 @@
 package lila.llm.strategicobject
 
 import chess.{ Color, Square }
+import lila.llm.analysis.MoveTruthFrame
 import munit.FunSuite
 import play.api.libs.json.*
 
@@ -10,15 +11,19 @@ class StrategicObjectSynthesizerTest extends FunSuite:
 
   import StrategicObjectSynthesizerTest.*
 
-  test("canonical vocabulary stays full while runtime synthesis stays board-direct") {
+  test("canonical vocabulary stays full and runtime synthesis reaches all 24 families") {
+    val synthesizedFamilies =
+      rows.flatMap(objectsForRow).map(_.family).toSet
+
     assertEquals(StrategicObjectFamily.values.length, 24)
     assertEquals(StrategicObjectFamily.boardDirectFamilies.size, 14)
     assertEquals(StrategicObjectFamily.graphDerivedFamilies.size, 10)
+    assertEquals(synthesizedFamilies, StrategicObjectFamily.values.toSet)
   }
 
-  test("each board-direct family has exact, negative, and contrastive fixture coverage") {
+  test("each family has exact, negative, and contrastive fixture coverage") {
     val grouped = rows.groupBy(row => parseFamily(row.family))
-    StrategicObjectFamily.boardDirectFamilies.foreach { family =>
+    StrategicObjectFamily.values.foreach { family =>
       val familyRows = grouped.getOrElse(family, Nil)
       assert(familyRows.exists(_.caseType == "exact"), clue(s"missing exact row for $family"))
       assert(familyRows.exists(_.caseType == "negative"), clue(s"missing negative row for $family"))
@@ -26,18 +31,67 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     }
   }
 
-  test("fixture bank only synthesizes board-direct families") {
+  test("fixture bank keeps full family split and expected minimum row count") {
+    assert(rows.size >= 72, clue(s"expected at least 72 object rows, got ${rows.size}"))
+    assertEquals(rows.groupBy(_.family).size, 24)
+  }
+
+  test("fixture bank synthesizes graph-derived families in the object layer") {
     val synthesized =
-      rows.flatMap(row => objectsForFen(row.fen)).groupBy(_.id).values.map(_.head).toList
+      rows.flatMap(objectsForRow).groupBy(_.id).values.map(_.head).toList
 
     assert(synthesized.nonEmpty, clue("expected non-empty synthesized fixture bank"))
-    assert(synthesized.forall(obj => StrategicObjectFamily.boardDirectFamilies.contains(obj.family)))
-    assert(synthesized.forall(obj => !StrategicObjectFamily.graphDerivedFamilies.contains(obj.family)))
+    assert(StrategicObjectFamily.graphDerivedFamilies.forall(family => synthesized.exists(_.family == family)))
+  }
+
+  test("graph-derived objects carry relation and rival richness") {
+    val graphRows =
+      rows.filter(row => row.expectation == "present" && StrategicObjectFamily.graphDerivedFamilies.contains(parseFamily(row.family)))
+
+    assert(graphRows.nonEmpty, clue("expected graph-derived rows"))
+    graphRows.foreach { row =>
+      val objects = objectsForRow(row)
+      val matched = findMatches(row, objects)
+      assert(matched.nonEmpty, clue(s"${row.id} expected graph object\n${render(objects)}"))
+      matched.foreach { obj =>
+        assert(obj.relations.nonEmpty, clue(s"${row.id}: expected graph relations"))
+        assert(
+          obj.rivalResourcesOrObjects.exists(_.kind == RivalReferenceKind.Object) || obj.stateStrength.coverage >= 2,
+          clue(s"${row.id}: expected object rival or multi-primitive support")
+        )
+      }
+    }
+  }
+
+  test("graph-derived objects only reuse primitive-bank references") {
+    val graphRows =
+      rows.filter(row => row.expectation == "present" && StrategicObjectFamily.graphDerivedFamilies.contains(parseFamily(row.family)))
+
+    graphRows.foreach { row =>
+      val primitiveRefs = primitiveRefsForRow(row).toSet
+      val objects = objectsForRow(row)
+      findMatches(row, objects).foreach { obj =>
+        obj.supportingPrimitives.foreach { ref =>
+          assert(primitiveRefs.contains(ref), clue(s"${row.id}: synthesized primitive ref not present in primitive bank: ${ref.kind}"))
+        }
+      }
+    }
+  }
+
+  test("strategic object rejects mismatched family and profile pairs") {
+    val sample =
+      objectsForFen("6k1/8/8/4p3/3P4/2P5/8/6K1 w - - 0 1")
+        .find(_.family == StrategicObjectFamily.BreakAxis)
+        .getOrElse(fail("expected break axis sample"))
+
+    intercept[IllegalArgumentException] {
+      sample.copy(family = StrategicObjectFamily.TradeInvariant)
+    }
   }
 
   rows.foreach { row =>
     test(s"object expectation ${row.id}") {
-      val objects = objectsForFen(row.fen)
+      val objects = objectsForRow(row)
       val matched = findMatches(row, objects)
 
       row.expectation match
@@ -51,29 +105,35 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     }
   }
 
-  test("contrastive file duel yields bilateral access networks and shell pressure") {
+  test("contrastive file duel yields bilateral access, shell, and race objects") {
     val objects = objectsForFen("2r3k1/8/8/8/8/8/8/2R3K1 w - - 0 1")
 
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.AccessNetwork && obj.owner == Color.White))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.AccessNetwork && obj.owner == Color.Black))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.KingSafetyShell && obj.owner == Color.White))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.KingSafetyShell && obj.owner == Color.Black))
+    assert(objects.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.White))
+    assert(objects.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.Black))
   }
 
-  test("contrastive break race yields bilateral structure and break objects") {
+  test("contrastive break race yields bilateral structure, break, and tension objects") {
     val objects = objectsForFen("6k1/5p2/3p4/4P3/2P5/8/8/6K1 w - - 0 1")
 
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.PawnStructureRegime && obj.owner == Color.White))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.PawnStructureRegime && obj.owner == Color.Black))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.BreakAxis && obj.owner == Color.White))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.BreakAxis && obj.owner == Color.Black))
+    assert(objects.exists(obj => obj.family == StrategicObjectFamily.TensionState && obj.owner == Color.White))
+    assert(objects.exists(obj => obj.family == StrategicObjectFamily.TensionState && obj.owner == Color.Black))
   }
 
-  test("contrastive passer race yields bilateral passer complexes") {
+  test("contrastive passer race yields bilateral passer and plan-race objects") {
     val objects = objectsForFen("6k1/2P5/8/8/8/8/5p2/6K1 w - - 0 1")
 
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.PasserComplex && obj.owner == Color.White))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.PasserComplex && obj.owner == Color.Black))
+    assert(objects.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.White))
+    assert(objects.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.Black))
   }
 
   private def assertRichObject(
@@ -84,6 +144,7 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     assert(obj.id.nonEmpty, clue(s"${row.id}: expected object id"))
     assert(obj.anchors.nonEmpty, clue(s"${row.id}: expected anchors"))
     assert(obj.supportingPrimitives.nonEmpty, clue(s"${row.id}: expected supporting primitives"))
+    assertEquals(obj.profile.family, obj.family, clue(s"${row.id}: profile family mismatch"))
     assert(obj.stateStrength.coverage == obj.supportingPrimitives.size, clue(s"${row.id}: coverage mismatch"))
     assert(obj.evidenceFootprint.primitiveCount == obj.supportingPrimitives.size, clue(s"${row.id}: primitive count mismatch"))
     assert(obj.evidenceFootprint.supportingPieceCount == obj.supportingPieces.size, clue(s"${row.id}: supporting piece count mismatch"))
@@ -93,7 +154,7 @@ class StrategicObjectSynthesizerTest extends FunSuite:
       obj.locus.route.nonEmpty || obj.locus.allSquares.nonEmpty || obj.locus.files.nonEmpty,
       clue(s"${row.id}: expected non-empty object locus")
     )
-    assert(profileMatchesFamily(row, obj), clue(s"${row.id}: profile/family mismatch"))
+    assert(profileMatchesFamily(obj), clue(s"${row.id}: profile/family mismatch"))
     row.anchor.flatMap(parseSquare).foreach { anchor =>
       assert(objectSquares(obj).contains(anchor), clue(s"${row.id}: missing anchor $anchor"))
     }
@@ -108,12 +169,10 @@ class StrategicObjectSynthesizerTest extends FunSuite:
       assert(output.exists(_.id == relation.target.objectId), clue(s"${row.id}: unresolved relation target ${relation.target.objectId}"))
     }
 
-  private def profileMatchesFamily(
-      row: ObjectExpectationRow,
-      obj: StrategicObject
-  ): Boolean =
+  private def profileMatchesFamily(obj: StrategicObject): Boolean =
     (obj.family, obj.profile) match
-      case (StrategicObjectFamily.PawnStructureRegime, StrategicObjectProfile.PawnStructureRegime(identity, _, _, _, _))                 => identity.nonEmpty
+      case (StrategicObjectFamily.PawnStructureRegime, StrategicObjectProfile.PawnStructureRegime(identity, _, _, _, _)) =>
+        identity.nonEmpty
       case (StrategicObjectFamily.KingSafetyShell, StrategicObjectProfile.KingSafetyShell(_, accessFiles, stressedSquares, pressureSquares)) =>
         accessFiles.nonEmpty || stressedSquares.nonEmpty || pressureSquares.nonEmpty
       case (StrategicObjectFamily.DevelopmentCoordinationState, StrategicObjectProfile.DevelopmentCoordinationState(_, laggingPieces, activeFiles, coordinationSquares)) =>
@@ -124,22 +183,42 @@ class StrategicObjectSynthesizerTest extends FunSuite:
         clampSquares.nonEmpty
       case (StrategicObjectFamily.CriticalSquareComplex, StrategicObjectProfile.CriticalSquareComplex(criticalKinds, _, pressure)) =>
         criticalKinds.nonEmpty && pressure > 0
-      case (StrategicObjectFamily.FixedTargetComplex, StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, _, _)) =>
-        row.anchor.flatMap(parseSquare).forall(_ == targetSquare)
+      case (StrategicObjectFamily.FixedTargetComplex, StrategicObjectProfile.FixedTargetComplex(_, _, occupantRoles, _, _)) =>
+        occupantRoles.nonEmpty
       case (StrategicObjectFamily.BreakAxis, StrategicObjectProfile.BreakAxis(sourceSquare, breakSquare, targetSquares, _, _)) =>
         sourceSquare != breakSquare && targetSquares.nonEmpty
       case (StrategicObjectFamily.AccessNetwork, StrategicObjectProfile.AccessNetwork(lane, route, _, _)) =>
         lane.nonEmpty || route.nonEmpty
-      case (StrategicObjectFamily.CounterplayAxis, StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, _)) =>
-        resourceSquares.nonEmpty || breakSquares.nonEmpty
+      case (StrategicObjectFamily.CounterplayAxis, StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares)) =>
+        resourceSquares.nonEmpty || breakSquares.nonEmpty || pressureSquares.nonEmpty
       case (StrategicObjectFamily.RestrictionShell, StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares)) =>
         restrictedSquares.nonEmpty && constraintSquares.nonEmpty
       case (StrategicObjectFamily.MobilityCage, StrategicObjectProfile.MobilityCage(affectedPiece, deniedSquares, _)) =>
         affectedPiece.squares.nonEmpty && deniedSquares.nonEmpty
       case (StrategicObjectFamily.RedeploymentRoute, StrategicObjectProfile.RedeploymentRoute(route, _, _)) =>
         route.origin != route.target
+      case (StrategicObjectFamily.DefenderDependencyNetwork, StrategicObjectProfile.DefenderDependencyNetwork(defendedSquares, defenderSquares, pressureSquares, defenderRoles, features)) =>
+        defendedSquares.nonEmpty && defenderSquares.nonEmpty && pressureSquares.nonEmpty && defenderRoles.nonEmpty && features.nonEmpty
+      case (StrategicObjectFamily.TradeInvariant, StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, preservedFiles, preservedFamilies, features)) =>
+        exchangeSquares.nonEmpty && invariantSquares.nonEmpty && preservedFiles.nonEmpty && preservedFamilies.nonEmpty && features.nonEmpty
+      case (StrategicObjectFamily.TensionState, StrategicObjectProfile.TensionState(contactSquares, releaseSquares, pressureSquares, breakSquares, features)) =>
+        contactSquares.nonEmpty && (releaseSquares.nonEmpty || pressureSquares.nonEmpty || breakSquares.nonEmpty) && features.nonEmpty
+      case (StrategicObjectFamily.AttackScaffold, StrategicObjectProfile.AttackScaffold(_, scaffoldSquares, entryFiles, entryRoutes, features)) =>
+        scaffoldSquares.nonEmpty && (entryFiles.nonEmpty || entryRoutes.nonEmpty) && features.nonEmpty
+      case (StrategicObjectFamily.MaterialInvestmentContract, StrategicObjectProfile.MaterialInvestmentContract(investedMaterialCp, _, _, compensationSquares, compensationFiles, features)) =>
+        investedMaterialCp >= 0 && compensationSquares.nonEmpty && compensationFiles.nonEmpty && features.nonEmpty
+      case (StrategicObjectFamily.InitiativeWindow, StrategicObjectProfile.InitiativeWindow(windowSquares, triggerFiles, rivalPressureSquares, catalystFamilies, features)) =>
+        windowSquares.nonEmpty && triggerFiles.nonEmpty && rivalPressureSquares.nonEmpty && catalystFamilies.nonEmpty && features.nonEmpty
+      case (StrategicObjectFamily.PlanRace, StrategicObjectProfile.PlanRace(_, raceSquares, raceFiles, ownGoalSquares, rivalGoalSquares, features)) =>
+        raceSquares.nonEmpty && raceFiles.nonEmpty && ownGoalSquares.nonEmpty && rivalGoalSquares.nonEmpty && features.nonEmpty
+      case (StrategicObjectFamily.TransitionBridge, StrategicObjectProfile.TransitionBridge(bridgeSquares, bridgeFiles, sourceFamilies, destinationFamilies, features)) =>
+        bridgeSquares.nonEmpty && bridgeFiles.nonEmpty && sourceFamilies.nonEmpty && destinationFamilies.nonEmpty && features.nonEmpty
+      case (StrategicObjectFamily.ConversionFunnel, StrategicObjectProfile.ConversionFunnel(entrySquares, channelSquares, exitSquares, funnelFiles, features)) =>
+        entrySquares.nonEmpty && channelSquares.nonEmpty && exitSquares.nonEmpty && funnelFiles.nonEmpty && features.nonEmpty
       case (StrategicObjectFamily.PasserComplex, StrategicObjectProfile.PasserComplex(passerSquare, promotionSquare, relativeRank, _, _)) =>
         passerSquare != promotionSquare && relativeRank > 0
+      case (StrategicObjectFamily.FortressHoldingShell, StrategicObjectProfile.FortressHoldingShell(holdSquares, entryDeniedSquares, blockadeSquares, shellFiles, features)) =>
+        holdSquares.nonEmpty && entryDeniedSquares.nonEmpty && (blockadeSquares.nonEmpty || shellFiles.nonEmpty) && features.nonEmpty
       case _ => false
 
 object StrategicObjectSynthesizerTest:
@@ -155,7 +234,8 @@ object StrategicObjectSynthesizerTest:
       anchor: Option[String],
       sector: Option[String],
       primitiveKind: Option[String],
-      tag: Option[String]
+      tag: Option[String],
+      truthCase: Option[String]
   )
 
   private given Reads[ObjectExpectationRow] = Json.reads[ObjectExpectationRow]
@@ -174,11 +254,58 @@ object StrategicObjectSynthesizerTest:
           case Left(err)  => throw new IllegalArgumentException(s"invalid object expectation row ${idx + 1}: $err")
       }
 
-  def objectsForFen(fen: String): List[StrategicObject] =
+  def objectsForFen(
+      fen: String,
+      truth: MoveTruthFrame = PrimitiveExtractionTest.neutralTruthFrame
+  ): List[StrategicObject] =
     val evidence = RawPositionEvidence.fromFen(fen).fold(err => throw new IllegalArgumentException(err), identity)
     val primitives =
-      CanonicalPrimitiveExtractor.extract(evidence, PrimitiveExtractionTest.neutralTruthFrame, PrimitiveExtractionTest.neutralContract)
-    CanonicalStrategicObjectSynthesizer.synthesize(primitives, PrimitiveExtractionTest.neutralTruthFrame)
+      CanonicalPrimitiveExtractor.extract(evidence, truth, PrimitiveExtractionTest.neutralContract)
+    CanonicalStrategicObjectSynthesizer.synthesize(primitives, truth)
+
+  def objectsForRow(row: ObjectExpectationRow): List[StrategicObject] =
+    objectsForFen(row.fen, truthFrame(row.truthCase))
+
+  def primitiveRefsForRow(row: ObjectExpectationRow): List[PrimitiveReference] =
+    val truth = truthFrame(row.truthCase)
+    val evidence = RawPositionEvidence.fromFen(row.fen).fold(err => throw new IllegalArgumentException(err), identity)
+    CanonicalPrimitiveExtractor
+      .extract(evidence, truth, PrimitiveExtractionTest.neutralContract)
+      .all
+      .map(PrimitiveReference.fromPrimitive)
+      .map(_.normalized)
+
+  def truthFrame(truthCase: Option[String]): MoveTruthFrame =
+    truthCase match
+      case None | Some("neutral") =>
+        PrimitiveExtractionTest.neutralTruthFrame
+      case Some("investment") =>
+        PrimitiveExtractionTest.neutralTruthFrame.copy(
+          moveQuality = PrimitiveExtractionTest.neutralTruthFrame.moveQuality.copy(swingSeverity = 120, severityBand = "major"),
+          materialEconomics =
+            PrimitiveExtractionTest.neutralTruthFrame.materialEconomics.copy(
+              investedMaterialCp = Some(300),
+              beforeDeficit = 0,
+              afterDeficit = 300,
+              movingPieceValue = 300,
+              capturedPieceValue = 0,
+              sacrificeKind = Some("exchange"),
+              overinvestment = true
+            )
+        )
+      case Some("forcing") =>
+        PrimitiveExtractionTest.neutralTruthFrame.copy(
+          tactical = PrimitiveExtractionTest.neutralTruthFrame.tactical.copy(forcingLine = true),
+          difficultyNovelty = PrimitiveExtractionTest.neutralTruthFrame.difficultyNovelty.copy(depthSensitive = true),
+          moveQuality = PrimitiveExtractionTest.neutralTruthFrame.moveQuality.copy(swingSeverity = 60, severityBand = "forcing")
+        )
+      case Some("forcing-investment") =>
+        truthFrame(Some("investment")).copy(
+          tactical = truthFrame(Some("investment")).tactical.copy(forcingLine = true),
+          difficultyNovelty = truthFrame(Some("investment")).difficultyNovelty.copy(depthSensitive = true)
+        )
+      case Some(other) =>
+        throw new IllegalArgumentException(s"unsupported truthCase=$other")
 
   def findMatches(
       row: ObjectExpectationRow,

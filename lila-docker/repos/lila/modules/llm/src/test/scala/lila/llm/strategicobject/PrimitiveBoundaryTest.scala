@@ -63,17 +63,10 @@ class PrimitiveBoundaryTest extends FunSuite:
   }
 
   test("downstream strategicobject files reject raw and legacy semantic ingress") {
-    val downstreamFiles = List(
-      "StrategicObjectFamily.scala",
-      "StrategicObjectEvidence.scala",
-      "StrategicObjectProfile.scala",
-      "StrategicObject.scala",
-      "StrategicObjectSynthesizer.scala",
-      "StrategicObjectDeltaProjector.scala",
-      "ClaimCertification.scala",
-      "QuestionPlanner.scala",
-      "Renderer.scala"
-    )
+    val downstreamFiles =
+      scalaSources(strategicObjectDir)
+        .map(_.getFileName.toString)
+        .filterNot(Set("PrimitiveExtraction.scala", "RawPositionEvidence.scala").contains)
     val forbiddenTokens = List(
       "RawPositionEvidence",
       "BoardFeatureEvidence",
