@@ -284,9 +284,17 @@ Example primitives:
 
 - target square
 - break candidate
+- diagonal lane seed
+- lift corridor seed
+- knight route seed
+- redeployment path seed
 - route contest seed
 - exchange square
 - access lane
+- hook contact seed
+- tension contact seed
+- counterplay resource seed
+- release candidate
 - outpost
 - passer potential
 
@@ -296,6 +304,29 @@ Phase 3 primitive names must stay strictly below object-family names.
 - preserve exact board-grounded contrast material such as contested route-entry
   seeds
 - do not let a primitive name pre-claim an object family or relation verdict
+
+Phase 3 primitive coverage is contract-bearing, not harness-only.
+
+For each reopened primitive axis, the fixture bank must contain exact-board
+rows for:
+
+- certified positive
+- certified negative
+- contrastive asymmetric comparison
+- noisy near-miss rejection
+
+Phase 3 contrastive coverage is primitive-only. It proves that exact-board
+route geometry, hook/lever contact, counterplay resources, and
+tension/release-maintain anchors survive extraction. It does not authorize
+planner projection, claim wording, or user-facing contrastive explanation
+before object deltas exist.
+
+The primitive boundary is singular:
+
+- raw evidence and legacy semantic carriers may enter only through
+  `RawPositionEvidence -> PrimitiveExtractor`
+- later phases must consume primitive anchors rather than reopen board-state
+  discovery for route geometry, counterplay resources, or tension contacts
 
 ## Planner Contract
 

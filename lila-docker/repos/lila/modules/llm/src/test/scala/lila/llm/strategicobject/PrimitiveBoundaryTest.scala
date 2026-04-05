@@ -14,13 +14,23 @@ class PrimitiveBoundaryTest extends FunSuite:
       Paths.get("lila-docker", "repos", "lila", "modules", "llm", "src", "main", "scala", "lila", "llm", "strategicobject")
     )
 
-  test("raw evidence ingress stays confined to the primitive extractor boundary") {
-    val rawEvidenceUsers =
-      scalaSources(strategicObjectDir).flatMap { path =>
-        Option.when(read(path).contains("RawPositionEvidence"))(path.getFileName.toString)
-      }
+  test("raw evidence and board ingress stay confined to the primitive extractor boundary") {
+    assertTokenUsers("RawPositionEvidence", List("PrimitiveExtraction.scala", "RawPositionEvidence.scala"))
+    assertTokenUsers("PositionAnalyzer", List("RawPositionEvidence.scala"))
+    assertTokenUsers("FactExtractor", List("RawPositionEvidence.scala"))
+    assertTokenUsers("pieceAt(", List("PrimitiveExtraction.scala"))
+    assertTokenUsers("attackers(", List("PrimitiveExtraction.scala"))
+  }
 
-    assertEquals(rawEvidenceUsers.sorted, List("PrimitiveExtraction.scala", "RawPositionEvidence.scala"))
+  test("primitive extractor public signature stays singular") {
+    val extractMethods = classOf[PrimitiveExtractor].getMethods.filter(_.getName == "extract")
+
+    assertEquals(extractMethods.length, 1)
+    assertEquals(
+      extractMethods.head.getParameterTypes.toList,
+      List(classOf[RawPositionEvidence], classOf[MoveTruthFrame], classOf[DecisiveTruthContract])
+    )
+    assertEquals(extractMethods.head.getReturnType, classOf[PrimitiveBank])
   }
 
   test("downstream strategicobject signatures stay above the primitive boundary") {
@@ -73,6 +83,12 @@ class PrimitiveBoundaryTest extends FunSuite:
       "QuietMoveIntentBuilder",
       "CertifiedDecisionFrameBuilder",
       "QuestionFirstCommentaryPlanner",
+      "Board",
+      "Bitboard",
+      "pieceAt(",
+      "attackers(",
+      "factsFor(",
+      "staticFactsByColor",
       "semanticDigest",
       "supportDigest",
       "narrativeDigest",
@@ -108,6 +124,13 @@ class PrimitiveBoundaryTest extends FunSuite:
 
   private def scalaSources(root: Path): List[Path] =
     Files.walk(root).iterator().asScala.filter(path => Files.isRegularFile(path) && path.toString.endsWith(".scala")).toList
+
+  private def assertTokenUsers(token: String, expectedFiles: List[String]): Unit =
+    val actual =
+      scalaSources(strategicObjectDir).flatMap { path =>
+        Option.when(read(path).contains(token))(path.getFileName.toString)
+      }
+    assertEquals(actual.sorted, expectedFiles.sorted, clue(s"unexpected users for token: $token"))
 
   private def read(path: Path): String =
     Files.readString(path)

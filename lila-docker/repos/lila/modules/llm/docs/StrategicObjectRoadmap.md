@@ -133,9 +133,17 @@ Examples:
 - target square
 - break candidate
 - access route
+- diagonal lane seed
+- lift corridor seed
+- knight route seed
+- redeployment path seed
 - route contest seed
 - exchange square
 - defended resource
+- hook contact seed
+- tension contact seed
+- counterplay resource seed
+- release candidate
 
 The key rule is primitive-first, not strategy-name-first.
 
@@ -156,6 +164,13 @@ Phase 3 is complete only if all of the following are true:
 - primitive extraction preserves exact-board inputs for later counterplay,
   access-race, and timing-shaped deltas without reopening raw ingress
 - preserved fixtures have primitive-backed expectation coverage
+- each reopened primitive axis has fixture-bank coverage for exact positive,
+  exact negative, contrastive asymmetric, and noisy near-miss rows
+- Phase 3 contrastive coverage must preserve non-file route geometry,
+  hook/lever contact, generic counterplay resources, and
+  tension/release-maintain anchors without object synthesis
+- only `PrimitiveExtractor.extract(RawPositionEvidence, MoveTruthFrame,
+  DecisiveTruthContract): PrimitiveBank` may consume raw evidence
 - forbidden raw or legacy ingress is mechanically fenced by source/signature
   tests
 - the new path makes old semantic ingress harder to restore than the primitive
@@ -300,6 +315,8 @@ becomes a real strategic explanation system.
 
 - `Phase 3. Primitive Extraction Layer`
   - raw strategic ingredients only
+  - contrastive-ready primitive anchors exist here, but only below the object
+    layer
   - not yet a strategic explanation layer
 
 - `Phase 4. StrategicObjectSynthesizer`
