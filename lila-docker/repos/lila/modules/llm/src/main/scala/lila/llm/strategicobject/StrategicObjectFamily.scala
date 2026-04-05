@@ -45,5 +45,23 @@ object StrategicObjectFamily:
     StrategicObjectFamily.PasserComplex
   )
 
+  val directDeltaOwners: Set[StrategicObjectFamily] = boardDirectFamilies
+
+  val conditionalCompositeDeltaOwners: Set[StrategicObjectFamily] = Set(
+    StrategicObjectFamily.TradeInvariant,
+    StrategicObjectFamily.TensionState,
+    StrategicObjectFamily.AttackScaffold,
+    StrategicObjectFamily.MaterialInvestmentContract,
+    StrategicObjectFamily.InitiativeWindow,
+    StrategicObjectFamily.ConversionFunnel
+  )
+
+  val metaInterpretiveDeltaFamilies: Set[StrategicObjectFamily] = Set(
+    StrategicObjectFamily.DefenderDependencyNetwork,
+    StrategicObjectFamily.PlanRace,
+    StrategicObjectFamily.TransitionBridge,
+    StrategicObjectFamily.FortressHoldingShell
+  )
+
   val graphDerivedFamilies: Set[StrategicObjectFamily] =
     values.toSet -- boardDirectFamilies

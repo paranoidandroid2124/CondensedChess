@@ -28,9 +28,17 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       claims: List[CertifiedClaim]
   ): PlannedQuestion =
     val primaryClaims =
-      claims.filter(claim => claim.status == ClaimStatus.Certified && claim.readiness == StrategicObjectReadiness.Stable)
+      claims.filter(claim =>
+        claim.status == ClaimStatus.Certified &&
+          claim.readiness == StrategicObjectReadiness.Stable &&
+          claim.hasTypedDelta
+      )
     val supportClaims =
-      claims.filter(claim => claim.status == ClaimStatus.SupportOnly && claim.readiness == StrategicObjectReadiness.Provisional)
+      claims.filter(claim =>
+        claim.status == ClaimStatus.SupportOnly &&
+          claim.readiness == StrategicObjectReadiness.Provisional &&
+          claim.hasTypedDelta
+      )
     val axis = chooseAxis(contract, primaryClaims, supportClaims)
     PlannedQuestion(
       axis = axis,
@@ -44,10 +52,10 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       supportClaims: List[CertifiedClaim]
   ): QuestionAxis =
     val pool = if primaryClaims.nonEmpty then primaryClaims else supportClaims
-    if pool.exists(_.deltaScope == StrategicDeltaScope.MoveLocal) && contract.isBad then QuestionAxis.WhatMustBeStopped
-    else if pool.exists(_.deltaScope == StrategicDeltaScope.MoveLocal) then QuestionAxis.WhyThis
-    else if pool.exists(_.deltaScope == StrategicDeltaScope.Comparative) then QuestionAxis.WhatChanged
-    else if pool.exists(_.deltaScope == StrategicDeltaScope.PositionLocal) then QuestionAxis.WhatMattersHere
+    if pool.exists(isTypedMoveLocal) && contract.isBad then QuestionAxis.WhatMustBeStopped
+    else if pool.exists(isTypedMoveLocal) then QuestionAxis.WhyThis
+    else if pool.exists(isTypedComparative) then QuestionAxis.WhatChanged
+    else if pool.exists(isTypedPositionLocal) then QuestionAxis.WhatMattersHere
     else QuestionAxis.WhatMattersHere
 
   private def claimsForAxis(
@@ -63,8 +71,40 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
   ): Boolean =
     axis match
       case QuestionAxis.WhyThis | QuestionAxis.WhyNow | QuestionAxis.WhatMustBeStopped =>
-        claim.deltaScope == StrategicDeltaScope.MoveLocal
+        isTypedMoveLocal(claim)
       case QuestionAxis.WhatChanged =>
-        claim.deltaScope == StrategicDeltaScope.Comparative
+        isTypedComparative(claim)
       case QuestionAxis.WhatMattersHere =>
-        claim.deltaScope == StrategicDeltaScope.PositionLocal
+        isTypedPositionLocal(claim)
+
+  private def isTypedMoveLocal(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.delta.exists(_.projection match
+      case StrategicDeltaProjection.MoveLocal(_, transition) =>
+        transition.isTransitionAware
+      case _ =>
+        false
+    )
+
+  private def isTypedComparative(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.delta.exists(_.projection match
+      case StrategicDeltaProjection.Comparative(_, _, witness, counterpartObjectIds, profile) =>
+        witness.isFamilyAware &&
+          counterpartObjectIds.nonEmpty &&
+          profile.metrics.nonEmpty
+      case _ =>
+        false
+    )
+
+  private def isTypedPositionLocal(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.delta.exists(_.projection match
+      case StrategicDeltaProjection.PositionLocal(_, focalAnchorCount) =>
+        focalAnchorCount > 0
+      case _ =>
+        false
+    )

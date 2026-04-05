@@ -122,6 +122,22 @@ renumbered as future semantic phases:
 The point of this checkpoint was to make old topology restoration harder than
 new object-native construction.
 
+## Documentation Hygiene
+
+These authority markdown files are not free-form scratchpads.
+
+For each phase, keep only:
+
+- canonical scope
+- current execution status
+- gate or exit criteria
+- calibrated family/readiness rules when they materially affect later phases
+
+If intermediate notes accumulate during a phase, fold them back into the
+canonical phase section and remove redundant narration.
+New sessions should be able to read the phase sections directly without
+recovering intent from stale progress notes.
+
 ## Phase 3. Primitive Extraction Layer
 
 Goals:
@@ -292,6 +308,55 @@ Goals:
 
 These deltas should be object-native, not family-helper-native.
 
+Phase 5 works over the full 24-family object universe.
+The conceptual north-star delta space is therefore `24 families x 3 scopes = 72
+delta cells`.
+
+But Phase 5 must not treat all 24 families as equal direct delta owners.
+
+### Tier 1. Direct Delta Owners
+
+Implementation should begin here.
+These families are the primary Phase 5 owners and should be the first pass of
+delta projection work:
+
+1. `PawnStructureRegime`
+2. `KingSafetyShell`
+3. `DevelopmentCoordinationState`
+4. `PieceRoleFitness`
+5. `SpaceClamp`
+6. `CriticalSquareComplex`
+7. `FixedTargetComplex`
+8. `BreakAxis`
+9. `AccessNetwork`
+10. `CounterplayAxis`
+11. `RestrictionShell`
+12. `MobilityCage`
+13. `RedeploymentRoute`
+14. `PasserComplex`
+
+### Tier 2. Conditional Composite Delta Owners
+
+These belong inside the same Phase 5 universe, but should be reopened only
+after Tier 1 has a stable object-native delta path:
+
+1. `TradeInvariant`
+2. `TensionState`
+3. `AttackScaffold`
+4. `MaterialInvestmentContract`
+5. `InitiativeWindow`
+6. `ConversionFunnel`
+
+### Tier 3. Meta / Interpretive Delta Families
+
+These still belong inside the Phase 5 working universe, but should normally
+remain support-oriented or deferred unless later calibration justifies more:
+
+1. `DefenderDependencyNetwork`
+2. `PlanRace`
+3. `TransitionBridge`
+4. `FortressHoldingShell`
+
 Readiness must constrain delta eligibility here:
 
 - `Stable`
@@ -303,6 +368,65 @@ Readiness must constrain delta eligibility here:
 
 The target is to re-express old exact breakthroughs as object deltas rather
 than family-specific helpers.
+
+Phase 5 should therefore proceed in this order:
+
+1. Tier 1 direct delta owners
+2. Tier 2 conditional composite owners
+3. Tier 3 meta / interpretive families
+
+### Phase 5 Pass 1 Status
+
+The current pass opens only the Tier 1 direct delta owners on the runtime
+delta boundary.
+
+Current canonical delta contract:
+
+- `StrategicObjectDelta`
+  - `objectId`, `family`, `owner`, `scope`
+  - typed family `profile`
+  - typed scope `projection`
+  - `changedAnchors`
+  - `supportingObjectIds`
+  - `rivalObjectIds`
+  - typed `evidenceRefs`
+
+Current projector rules:
+
+- Tier 1 only at the direct delta boundary
+- `Stable`
+  - may project all three scopes, but only through family-specific typed
+    witnesses rather than scope placeholders
+- `Provisional`
+  - remains position-local first and may reopen comparative conservatively
+- Tier 2 / Tier 3
+  - remain object-layer state only on this pass; no direct delta emission
+
+Phase 5 pass 1 reinforcement now also tightens the already-landed structure:
+
+- `MoveLocal`
+  - reopened only from a strict transition-aware witness assembled from the
+    canonical played move trace plus surviving object-graph evidence; current
+    object labeling alone is no longer sufficient
+- `ClaimCertification` / `QuestionPlanner`
+  - preserve and consume the admitted typed delta snapshot instead of
+    collapsing back to scope-only release metadata
+- `Comparative`
+  - now carries family-aware comparative witness plus family-aware metric
+    profile, and rival admission is tightened to same-family or explicitly
+    family-compatible counterparts rather than broad overlap alone
+
+Current verification baseline:
+
+- exact-board Tier 1 delta fixture bank under
+  `src/test/resources/strategic-object-corpus/delta-expectations.jsonl`
+- per-family coverage for:
+  - `exact`
+  - `negative`
+  - `contrastive`
+  - `near_miss`
+- projector boundary tests now also fence primitive ingress after
+  `StrategicObjectSynthesizer`
 
 ## Phase 6. ClaimCertification Rewrite
 

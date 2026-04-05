@@ -1,51 +1,82 @@
 package lila.llm.strategicobject
 
-import lila.llm.analysis.DecisiveTruthContract
-
-enum StrategicDeltaScope:
-  case MoveLocal
-  case PositionLocal
-  case Comparative
-
-final case class StrategicObjectDelta(
-    objectId: String,
-    scope: StrategicDeltaScope,
-    evidenceRefs: List[String] = Nil
-)
+import chess.{ Color, File, Square }
+import lila.llm.analysis.{ DecisiveTruthContract, MoveTruthFrame }
 
 trait StrategicObjectDeltaProjector:
   def project(
       contract: DecisiveTruthContract,
+      truth: MoveTruthFrame,
       objects: List[StrategicObject]
   ): List[StrategicObjectDelta]
 
 object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjector:
 
+  private val MoveTransitionRelationOps = Set(
+    StrategicRelationOperator.Enables,
+    StrategicRelationOperator.Preserves,
+    StrategicRelationOperator.TransformsTo,
+    StrategicRelationOperator.DependsOn,
+    StrategicRelationOperator.Denies,
+    StrategicRelationOperator.OverloadsOrUndermines
+  )
+
+  private final case class ComparativeCandidate(
+      rival: StrategicObject,
+      witness: StrategicComparativeWitness
+  )
+
+  private final case class ComparativeSelection(
+      witness: StrategicComparativeWitness,
+      rivals: List[StrategicObject],
+      balance: StrategicComparativeBalance
+  )
+
+  private final case class DeltaContext(
+      supportObjects: List[StrategicObject],
+      comparative: Option[ComparativeSelection]
+  ):
+    def rivalObjects: List[StrategicObject] =
+      comparative.map(_.rivals).getOrElse(Nil)
+
   def project(
       contract: DecisiveTruthContract,
+      truth: MoveTruthFrame,
       objects: List[StrategicObject]
   ): List[StrategicObjectDelta] =
-    objects.flatMap { obj =>
-      eligibleScopes(contract, obj).map { scope =>
-        StrategicObjectDelta(
-          objectId = obj.id,
-          scope = scope,
-          evidenceRefs = evidenceRefs(obj, scope)
-        )
+    val objectsById = objects.map(obj => obj.id -> obj).toMap
+    objects
+      .filter(obj => StrategicObjectFamily.directDeltaOwners.contains(obj.family))
+      .flatMap { obj =>
+        val context = deltaContext(obj, objects, objectsById)
+        eligibleScopes(contract, truth, obj).flatMap { scope =>
+          projectionFor(contract, truth, obj, scope, context).map { projection =>
+            StrategicObjectDelta(
+              objectId = obj.id,
+              family = obj.family,
+              owner = obj.owner,
+              scope = scope,
+              profile = obj.profile,
+              projection = projection,
+              changedAnchors = changedAnchors(obj, scope, projection),
+              supportingObjectIds = context.supportObjects.map(_.id).distinct.sorted.take(4),
+              rivalObjectIds = context.rivalObjects.map(_.id).distinct.sorted.take(4),
+              evidenceRefs = evidenceRefs(obj)
+            )
+          }
+        }
       }
-    }.sortBy(delta => (delta.objectId, delta.scope.ordinal))
+      .sortBy(delta => (delta.family.ordinal, colorIndex(delta.owner), delta.objectId, delta.scope.ordinal))
 
   private def eligibleScopes(
       contract: DecisiveTruthContract,
+      truth: MoveTruthFrame,
       obj: StrategicObject
   ): List[StrategicDeltaScope] =
     obj.readiness match
       case StrategicObjectReadiness.Stable =>
-        List(
-          StrategicDeltaScope.MoveLocal,
-          StrategicDeltaScope.PositionLocal,
-          StrategicDeltaScope.Comparative
-        )
+        Option.when(hasTransitionTruth(contract, truth))(StrategicDeltaScope.MoveLocal).toList ++
+          List(StrategicDeltaScope.PositionLocal, StrategicDeltaScope.Comparative)
       case StrategicObjectReadiness.Provisional =>
         List(StrategicDeltaScope.PositionLocal) ++
           Option.when(contract.hasVisibleTruth || contract.prefersDecisivePromotion)(
@@ -54,13 +85,1080 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case StrategicObjectReadiness.DeferredForDelta =>
         Nil
 
-  private def evidenceRefs(
+  private def projectionFor(
+      contract: DecisiveTruthContract,
+      truth: MoveTruthFrame,
       obj: StrategicObject,
-      scope: StrategicDeltaScope
-  ): List[String] =
+      scope: StrategicDeltaScope,
+      context: DeltaContext
+  ): Option[StrategicDeltaProjection] =
+    scope match
+      case StrategicDeltaScope.MoveLocal =>
+        for
+          move <- moveTrace(contract, truth)
+          axis <- transitionAxisFor(obj.profile)
+          tag <- moveLocalTag(obj.profile, axis, obj.stateStrength)
+          witness <- moveTransitionWitness(move, obj, axis, context)
+        yield StrategicDeltaProjection.MoveLocal(change = tag, witness = witness)
+      case StrategicDeltaScope.PositionLocal =>
+        Some(
+          StrategicDeltaProjection.PositionLocal(
+            state = positionLocalTag(obj),
+            focalAnchorCount = changedAnchors(obj, scope, positionProjection(obj)).size
+          )
+        )
+      case StrategicDeltaScope.Comparative =>
+        context.comparative.map(selection =>
+          StrategicDeltaProjection.Comparative(
+            contrast = comparativeTag(selection.balance),
+            balance = selection.balance,
+            witness = selection.witness,
+            counterpartObjectIds = selection.rivals.map(_.id).distinct.sorted.take(4),
+            profile = comparativeProfile(obj, selection)
+          )
+        )
+
+  private def positionProjection(
+      obj: StrategicObject
+  ): StrategicDeltaProjection =
+    StrategicDeltaProjection.PositionLocal(
+      state = positionLocalTag(obj),
+      focalAnchorCount = 1
+    )
+
+  private def transitionAxisFor(
+      profile: StrategicObjectProfile
+  ): Option[StrategicMoveTransitionAxis] =
+    profile match
+      case StrategicObjectProfile.PawnStructureRegime(_, breakFiles, fixedTargets, passerSquares, contactSquares) =>
+        Some(
+          if breakFiles.nonEmpty || contactSquares.nonEmpty then StrategicMoveTransitionAxis.PawnBreakContact
+          else if fixedTargets.nonEmpty then StrategicMoveTransitionAxis.PawnFixation
+          else if passerSquares.nonEmpty then StrategicMoveTransitionAxis.PawnPasserPush
+          else StrategicMoveTransitionAxis.PawnBreakContact
+        )
+      case _: StrategicObjectProfile.KingSafetyShell              => Some(StrategicMoveTransitionAxis.KingEntryPressure)
+      case _: StrategicObjectProfile.DevelopmentCoordinationState => Some(StrategicMoveTransitionAxis.DevelopmentCoordinationShift)
+      case _: StrategicObjectProfile.PieceRoleFitness             => Some(StrategicMoveTransitionAxis.RoleRepairOrTrap)
+      case _: StrategicObjectProfile.SpaceClamp                   => Some(StrategicMoveTransitionAxis.SpaceClampAdvance)
+      case _: StrategicObjectProfile.CriticalSquareComplex        => Some(StrategicMoveTransitionAxis.CriticalSquareOccupation)
+      case _: StrategicObjectProfile.FixedTargetComplex           => Some(StrategicMoveTransitionAxis.FixedTargetFixation)
+      case _: StrategicObjectProfile.BreakAxis                    => Some(StrategicMoveTransitionAxis.BreakActivation)
+      case _: StrategicObjectProfile.AccessNetwork                => Some(StrategicMoveTransitionAxis.AccessRouteActivation)
+      case _: StrategicObjectProfile.CounterplayAxis              => Some(StrategicMoveTransitionAxis.CounterplayResourceShift)
+      case _: StrategicObjectProfile.RestrictionShell             => Some(StrategicMoveTransitionAxis.RestrictionImposition)
+      case _: StrategicObjectProfile.MobilityCage                => Some(StrategicMoveTransitionAxis.MobilityRestriction)
+      case _: StrategicObjectProfile.RedeploymentRoute           => Some(StrategicMoveTransitionAxis.RedeploymentActivation)
+      case _: StrategicObjectProfile.PasserComplex               => Some(StrategicMoveTransitionAxis.PasserAdvance)
+      case _ =>
+        None
+
+  private def moveLocalTag(
+      profile: StrategicObjectProfile,
+      axis: StrategicMoveTransitionAxis,
+      stateStrength: StrategicObjectStateStrength
+  ): Option[StrategicDeltaTag] =
+    (profile, axis) match
+      case (StrategicObjectProfile.PawnStructureRegime(_, _, fixedTargets, _, _), StrategicMoveTransitionAxis.PawnFixation) =>
+        Some(if fixedTargets.nonEmpty then StrategicDeltaTag.RegimeFixed else StrategicDeltaTag.BreakDrivenShift)
+      case (StrategicObjectProfile.PawnStructureRegime(_, _, _, passerSquares, _), StrategicMoveTransitionAxis.PawnPasserPush) =>
+        Some(if passerSquares.nonEmpty then StrategicDeltaTag.ChainIdentityShift else StrategicDeltaTag.BreakDrivenShift)
+      case (_: StrategicObjectProfile.PawnStructureRegime, StrategicMoveTransitionAxis.PawnBreakContact) =>
+        Some(StrategicDeltaTag.BreakDrivenShift)
+      case (StrategicObjectProfile.KingSafetyShell(condition, accessFiles, _, _), StrategicMoveTransitionAxis.KingEntryPressure) =>
+        Some(
+          if condition == KingSafetyCondition.Infiltrated || accessFiles.nonEmpty then StrategicDeltaTag.ShellOpened
+          else StrategicDeltaTag.ShellIntensified
+        )
+      case (StrategicObjectProfile.DevelopmentCoordinationState(status, laggingPieces, activeFiles, _), StrategicMoveTransitionAxis.DevelopmentCoordinationShift) =>
+        Some(
+          status match
+            case CoordinationStatus.Leading if activeFiles.nonEmpty   => StrategicDeltaTag.CoordinationImproved
+            case CoordinationStatus.Lagging if laggingPieces.nonEmpty => StrategicDeltaTag.CoordinationWorsened
+            case CoordinationStatus.Lagging                           => StrategicDeltaTag.LagIncreased
+            case _                                                    => StrategicDeltaTag.LagReduced
+        )
+      case (StrategicObjectProfile.PieceRoleFitness(issue, _, repairTargets), StrategicMoveTransitionAxis.RoleRepairOrTrap) =>
+        Some(
+          if issue == PieceRoleIssueKind.TrappedPiece then StrategicDeltaTag.RoleDegraded
+          else if repairTargets.nonEmpty then StrategicDeltaTag.RoleRepaired
+          else StrategicDeltaTag.RoleDegraded
+        )
+      case (_: StrategicObjectProfile.SpaceClamp, StrategicMoveTransitionAxis.SpaceClampAdvance) =>
+        Some(StrategicDeltaTag.SpaceExpanded)
+      case (StrategicObjectProfile.CriticalSquareComplex(criticalKinds, focalSquares, pressure), StrategicMoveTransitionAxis.CriticalSquareOccupation) =>
+        Some(
+          if pressure >= 2 || criticalKinds.contains(CriticalSquareKind.PromotionSquare) || criticalKinds.contains(CriticalSquareKind.BreakContact)
+          then StrategicDeltaTag.CriticalReinforced
+          else if focalSquares.nonEmpty then StrategicDeltaTag.CriticalCreated
+          else StrategicDeltaTag.CriticalLost
+        )
+      case (StrategicObjectProfile.FixedTargetComplex(_, _, _, fixed, _), StrategicMoveTransitionAxis.FixedTargetFixation) =>
+        Some(if fixed then StrategicDeltaTag.TargetFixed else if stateStrength.pressureBalance > 0 then StrategicDeltaTag.TargetPressureIntensified else StrategicDeltaTag.TargetRelieved)
+      case (StrategicObjectProfile.BreakAxis(_, _, _, _, supportBalance), StrategicMoveTransitionAxis.BreakActivation) =>
+        Some(if supportBalance >= 2 then StrategicDeltaTag.BreakAccelerated else if supportBalance >= 0 then StrategicDeltaTag.BreakOpened else StrategicDeltaTag.BreakClosed)
+      case (StrategicObjectProfile.AccessNetwork(_, route, _, contestedSquares), StrategicMoveTransitionAxis.AccessRouteActivation) =>
+        Some(if route.nonEmpty then StrategicDeltaTag.AccessOpened else if contestedSquares.nonEmpty then StrategicDeltaTag.AccessImproved else StrategicDeltaTag.AccessDenied)
+      case (StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, _), StrategicMoveTransitionAxis.CounterplayResourceShift) =>
+        Some(if breakSquares.nonEmpty then StrategicDeltaTag.CounterplayOpened else if resourceSquares.nonEmpty then StrategicDeltaTag.CounterplayLive else StrategicDeltaTag.CounterplayReduced)
+      case (_: StrategicObjectProfile.RestrictionShell, StrategicMoveTransitionAxis.RestrictionImposition) =>
+        Some(StrategicDeltaTag.RestrictionTightened)
+      case (StrategicObjectProfile.MobilityCage(_, deniedSquares, repairTargets), StrategicMoveTransitionAxis.MobilityRestriction) =>
+        Some(if deniedSquares.nonEmpty && repairTargets.isEmpty then StrategicDeltaTag.CageCreated else if deniedSquares.size > repairTargets.size then StrategicDeltaTag.CageTightened else StrategicDeltaTag.CageBroken)
+      case (StrategicObjectProfile.RedeploymentRoute(route, _, mobilityGain), StrategicMoveTransitionAxis.RedeploymentActivation) =>
+        Some(if mobilityGain.exists(_ > 1) then StrategicDeltaTag.RouteShortened else if mobilityGain.nonEmpty || route.via.nonEmpty then StrategicDeltaTag.RouteOpened else StrategicDeltaTag.RouteBlocked)
+      case (StrategicObjectProfile.PasserComplex(_, _, relativeRank, protectedByPawn, escortSquares), StrategicMoveTransitionAxis.PasserAdvance) =>
+        Some(if relativeRank >= 5 then StrategicDeltaTag.PasserAccelerated else if protectedByPawn || escortSquares.nonEmpty then StrategicDeltaTag.PasserSupported else StrategicDeltaTag.PasserCreated)
+      case _ =>
+        None
+
+  private def positionLocalTag(
+      obj: StrategicObject
+  ): StrategicDeltaTag =
+    obj.profile match
+      case StrategicObjectProfile.PawnStructureRegime(_, breakFiles, fixedTargets, passerSquares, contactSquares) =>
+        if fixedTargets.nonEmpty then StrategicDeltaTag.RegimeFixed
+        else if passerSquares.nonEmpty then StrategicDeltaTag.ChainIdentityShift
+        else if breakFiles.nonEmpty || contactSquares.nonEmpty then StrategicDeltaTag.BreakDrivenShift
+        else StrategicDeltaTag.RegimeReleased
+      case StrategicObjectProfile.KingSafetyShell(condition, accessFiles, _, pressureSquares) =>
+        if condition == KingSafetyCondition.Infiltrated || pressureSquares.size >= 4 then StrategicDeltaTag.ShellIntensified
+        else if accessFiles.nonEmpty then StrategicDeltaTag.ShellOpened
+        else StrategicDeltaTag.ShellRelieved
+      case StrategicObjectProfile.DevelopmentCoordinationState(status, laggingPieces, _, _) =>
+        status match
+          case CoordinationStatus.Lagging if laggingPieces.nonEmpty => StrategicDeltaTag.LagIncreased
+          case CoordinationStatus.Leading                           => StrategicDeltaTag.CoordinationImproved
+          case _ if laggingPieces.nonEmpty                          => StrategicDeltaTag.LagReduced
+          case _                                                    => StrategicDeltaTag.CoordinationImproved
+      case StrategicObjectProfile.PieceRoleFitness(issue, _, repairTargets) =>
+        if issue == PieceRoleIssueKind.TrappedPiece then StrategicDeltaTag.RoleDegraded
+        else if repairTargets.nonEmpty then StrategicDeltaTag.RoleRepaired
+        else StrategicDeltaTag.RoleDegraded
+      case StrategicObjectProfile.SpaceClamp(_, clampSquares, _) =>
+        if clampSquares.size >= 3 then StrategicDeltaTag.SpaceExpanded else StrategicDeltaTag.SpaceContracted
+      case StrategicObjectProfile.CriticalSquareComplex(_, focalSquares, pressure) =>
+        if pressure >= 2 then StrategicDeltaTag.CriticalReinforced
+        else if focalSquares.nonEmpty then StrategicDeltaTag.CriticalCreated
+        else StrategicDeltaTag.CriticalLost
+      case StrategicObjectProfile.FixedTargetComplex(_, _, _, fixed, _) =>
+        if fixed then StrategicDeltaTag.TargetFixed
+        else if obj.stateStrength.pressureBalance > 0 then StrategicDeltaTag.TargetPressureIntensified
+        else StrategicDeltaTag.TargetRelieved
+      case StrategicObjectProfile.BreakAxis(_, _, _, _, supportBalance) =>
+        if supportBalance > 0 then StrategicDeltaTag.BreakOpened
+        else if supportBalance == 0 then StrategicDeltaTag.BreakDelayed
+        else StrategicDeltaTag.BreakClosed
+      case StrategicObjectProfile.AccessNetwork(_, route, _, contestedSquares) =>
+        if contestedSquares.nonEmpty || route.nonEmpty then StrategicDeltaTag.AccessImproved
+        else StrategicDeltaTag.AccessOpened
+      case StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, _) =>
+        if breakSquares.nonEmpty || resourceSquares.nonEmpty then StrategicDeltaTag.CounterplayLive
+        else StrategicDeltaTag.CounterplayReduced
+      case StrategicObjectProfile.RestrictionShell(restrictedSquares, _, _) =>
+        if restrictedSquares.nonEmpty then StrategicDeltaTag.RestrictionTightened
+        else StrategicDeltaTag.RestrictionLoosened
+      case StrategicObjectProfile.MobilityCage(_, deniedSquares, repairTargets) =>
+        if deniedSquares.size > repairTargets.size then StrategicDeltaTag.CageTightened
+        else StrategicDeltaTag.CageBroken
+      case StrategicObjectProfile.RedeploymentRoute(route, _, mobilityGain) =>
+        if mobilityGain.exists(_ > 1) then StrategicDeltaTag.RouteShortened
+        else if mobilityGain.exists(_ > 0) || route.via.nonEmpty then StrategicDeltaTag.RouteOpened
+        else StrategicDeltaTag.RouteBlocked
+      case StrategicObjectProfile.PasserComplex(_, _, relativeRank, protectedByPawn, escortSquares) =>
+        if relativeRank >= 5 then StrategicDeltaTag.PasserAccelerated
+        else if protectedByPawn || escortSquares.nonEmpty then StrategicDeltaTag.PasserSupported
+        else StrategicDeltaTag.PasserCreated
+      case _ =>
+        StrategicDeltaTag.ComparativeBalance
+
+  private def comparativeTag(
+      balance: StrategicComparativeBalance
+  ): StrategicDeltaTag =
+    balance.standing match
+      case ComparativeStanding.Ahead | ComparativeStanding.Behind => StrategicDeltaTag.ComparativeEdge
+      case ComparativeStanding.Balanced | ComparativeStanding.Contested => StrategicDeltaTag.ComparativeBalance
+
+  private def deltaContext(
+      obj: StrategicObject,
+      objects: List[StrategicObject],
+      objectsById: Map[String, StrategicObject]
+  ): DeltaContext =
+    val supportObjects =
+      (
+        obj.relations.collect {
+          case relation if relation.target.owner == obj.owner => objectsById.get(relation.target.objectId)
+        }.flatten ++
+          objects.filter(other =>
+            other.owner == obj.owner &&
+              other.relations.exists(relation => relation.target.objectId == obj.id)
+          )
+      ).distinct.sortBy(_.id)
+
+    DeltaContext(
+      supportObjects = supportObjects,
+      comparative = comparativeSelection(
+        obj,
+        supportObjects,
+        objects.filter(other => comparativeOwnerCompatible(obj, other))
+      )
+    )
+
+  private def comparativeSelection(
+      obj: StrategicObject,
+      supportObjects: List[StrategicObject],
+      rivalPool: List[StrategicObject]
+  ): Option[ComparativeSelection] =
+    val candidates =
+      rivalPool
+        .flatMap(rival => comparativeWitness(obj, rival).map(ComparativeCandidate(rival, _)))
+        .sortBy(candidate => candidateRank(obj, candidate))
+
+    candidates.headOption.map { primary =>
+      val grouped =
+        candidates
+          .filter(candidate =>
+            candidate.witness.axis == primary.witness.axis &&
+              candidate.witness.counterpartFamily == primary.witness.counterpartFamily
+          )
+          .take(4)
+      val aggregatedWitness =
+        StrategicComparativeWitness(
+          axis = primary.witness.axis,
+          counterpartFamily = primary.witness.counterpartFamily,
+          matchedSquares = distinctSquares(grouped.flatMap(_.witness.matchedSquares)),
+          matchedFiles = distinctFiles(grouped.flatMap(_.witness.matchedFiles)),
+          relationWitnesses = grouped.flatMap(_.witness.relationWitnesses).toSet,
+          rivalPrimitiveKinds = grouped.flatMap(_.witness.rivalPrimitiveKinds).toSet
+        ).normalized
+      val rivals = grouped.map(_.rival).distinct.sortBy(_.id)
+      ComparativeSelection(
+        witness = aggregatedWitness,
+        rivals = rivals,
+        balance = comparativeBalance(obj, supportObjects, rivals)
+      )
+    }
+
+  private def comparativeWitness(
+      current: StrategicObject,
+      other: StrategicObject
+  ): Option[StrategicComparativeWitness] =
+    if !familyCompatible(current.family, other.family) then None
+    else
+      val matchedSquares0 = typedComparedSquares(current, other)
+      val matchedFiles0 = typedComparedFiles(current, other)
+      val witness =
+        StrategicComparativeWitness(
+          axis = comparativeAxisFor(current.profile),
+          counterpartFamily = other.family,
+          matchedSquares = matchedSquares0,
+          matchedFiles = matchedFiles0,
+          relationWitnesses = relationWitnessesBetween(current, other),
+          rivalPrimitiveKinds = matchedRivalPrimitiveKinds(current, other)
+        ).normalized
+
+      Option.when(comparativeAdmissible(current, other, witness))(witness)
+
+  private def comparativeAdmissible(
+      current: StrategicObject,
+      other: StrategicObject,
+      witness: StrategicComparativeWitness
+  ): Boolean =
+    val compatibleFamily =
+      current.family == other.family || familyCompatibilityFallback(current.family).contains(other.family)
+    val strongEvidence =
+      witness.matchedSquares.nonEmpty ||
+        witness.matchedFiles.nonEmpty ||
+        witness.relationWitnesses.nonEmpty ||
+        hasDirectRivalReferenceBetween(current, other)
+
+    compatibleFamily &&
+      comparativeAxisGate(current.family, witness) &&
+      strongEvidence
+
+  private def comparativeAxisGate(
+      family: StrategicObjectFamily,
+      witness: StrategicComparativeWitness
+  ): Boolean =
+    family match
+      case StrategicObjectFamily.KingSafetyShell =>
+        witness.matchedFiles.nonEmpty || witness.matchedSquares.nonEmpty
+      case StrategicObjectFamily.FixedTargetComplex =>
+        witness.matchedSquares.nonEmpty
+      case StrategicObjectFamily.BreakAxis =>
+        witness.matchedSquares.nonEmpty ||
+          witness.relationWitnesses.contains(StrategicRelationOperator.RacesWith) ||
+          witness.relationWitnesses.contains(StrategicRelationOperator.Denies)
+      case StrategicObjectFamily.AccessNetwork =>
+        witness.matchedFiles.nonEmpty || witness.relationWitnesses.nonEmpty
+      case StrategicObjectFamily.CounterplayAxis =>
+        witness.matchedSquares.nonEmpty
+      case StrategicObjectFamily.RestrictionShell =>
+        witness.matchedSquares.nonEmpty || witness.relationWitnesses.nonEmpty
+      case StrategicObjectFamily.PasserComplex =>
+        witness.matchedSquares.nonEmpty || witness.matchedFiles.nonEmpty
+      case _ =>
+        witness.isFamilyAware
+
+  private def candidateRank(
+      current: StrategicObject,
+      candidate: ComparativeCandidate
+  ): (Int, Int, Int, Int, String) =
+    (
+      if candidate.rival.family == current.family then 0 else 1,
+      -candidate.witness.relationWitnesses.size,
+      -candidate.witness.matchedSquares.size,
+      -candidate.witness.matchedFiles.size,
+      candidate.rival.id
+    )
+
+  private def comparativeBalance(
+      obj: StrategicObject,
+      supportObjects: List[StrategicObject],
+      rivalObjects: List[StrategicObject]
+  ): StrategicComparativeBalance =
+    val ownerPressure = obj.stateStrength.pressureBalance + supportObjects.map(_.stateStrength.pressureBalance).sum
+    val rivalPressure = rivalObjects.map(_.stateStrength.pressureBalance).sum
+    val ownerSupport = obj.stateStrength.supportBalance + supportObjects.map(_.stateStrength.supportBalance).sum
+    val rivalSupport = rivalObjects.map(_.stateStrength.supportBalance).sum
+    val ownerTotal = ownerPressure + ownerSupport
+    val rivalTotal = rivalPressure + rivalSupport
+    val standing =
+      if ownerTotal > rivalTotal then ComparativeStanding.Ahead
+      else if rivalTotal > ownerTotal then ComparativeStanding.Behind
+      else if ownerTotal > 0 || rivalTotal > 0 then ComparativeStanding.Contested
+      else ComparativeStanding.Balanced
+    StrategicComparativeBalance(
+      ownerPressure = ownerPressure,
+      rivalPressure = rivalPressure,
+      ownerSupport = ownerSupport,
+      rivalSupport = rivalSupport,
+      standing = standing
+    )
+
+  private def comparativeProfile(
+      obj: StrategicObject,
+      selection: ComparativeSelection
+  ): StrategicComparativeProfile =
+    val rival = selection.rivals.head
+    StrategicComparativeProfile(
+      axis = selection.witness.axis,
+      counterpartFamily = selection.witness.counterpartFamily,
+      metrics = comparativeMetrics(obj.profile, rival.profile)
+    ).normalized
+
+  private def comparativeMetrics(
+      current: StrategicObjectProfile,
+      rival: StrategicObjectProfile
+  ): List[StrategicComparativeMetric] =
+    (current, rival) match
+      case (StrategicObjectProfile.PawnStructureRegime(_, breakFiles, fixedTargets, passerSquares, contactSquares), StrategicObjectProfile.PawnStructureRegime(_, rivalBreakFiles, rivalFixedTargets, rivalPasserSquares, rivalContactSquares)) =>
+        List(
+          StrategicComparativeMetric.BreakPressure(breakFiles.size + contactSquares.size, rivalBreakFiles.size + rivalContactSquares.size),
+          StrategicComparativeMetric.FixationCount(fixedTargets.size, rivalFixedTargets.size),
+          StrategicComparativeMetric.PasserPotential(passerSquares.size, rivalPasserSquares.size)
+        )
+      case (StrategicObjectProfile.KingSafetyShell(_, accessFiles, stressedSquares, pressureSquares), StrategicObjectProfile.KingSafetyShell(_, rivalAccessFiles, rivalStressedSquares, rivalPressureSquares)) =>
+        List(
+          StrategicComparativeMetric.ShellStress(stressedSquares.size + pressureSquares.size, rivalStressedSquares.size + rivalPressureSquares.size),
+          StrategicComparativeMetric.EntryAccess(accessFiles.size, rivalAccessFiles.size)
+        )
+      case (StrategicObjectProfile.DevelopmentCoordinationState(_, laggingPieces, activeFiles, _), StrategicObjectProfile.DevelopmentCoordinationState(_, rivalLaggingPieces, rivalActiveFiles, _)) =>
+        List(
+          StrategicComparativeMetric.LaggingPieceCount(laggingPieces.size, rivalLaggingPieces.size),
+          StrategicComparativeMetric.ActiveFileCount(activeFiles.size, rivalActiveFiles.size)
+        )
+      case (StrategicObjectProfile.PieceRoleFitness(issue, _, repairTargets), StrategicObjectProfile.PieceRoleFitness(rivalIssue, _, rivalRepairTargets)) =>
+        List(
+          StrategicComparativeMetric.LiabilitySeverity(pieceRoleSeverity(issue), pieceRoleSeverity(rivalIssue)),
+          StrategicComparativeMetric.RepairSquareCount(repairTargets.size, rivalRepairTargets.size)
+        )
+      case (StrategicObjectProfile.SpaceClamp(_, clampSquares, pressureFiles), StrategicObjectProfile.SpaceClamp(_, rivalClampSquares, rivalPressureFiles)) =>
+        List(
+          StrategicComparativeMetric.ClampSquareCount(clampSquares.size, rivalClampSquares.size),
+          StrategicComparativeMetric.PressureFileCount(pressureFiles.size, rivalPressureFiles.size)
+        )
+      case (StrategicObjectProfile.CriticalSquareComplex(_, focalSquares, pressure), StrategicObjectProfile.CriticalSquareComplex(_, rivalFocalSquares, rivalPressure)) =>
+        List(
+          StrategicComparativeMetric.CriticalControl(focalSquares.size, rivalFocalSquares.size),
+          StrategicComparativeMetric.CriticalPressure(pressure, rivalPressure)
+        )
+      case (StrategicObjectProfile.FixedTargetComplex(_, _, _, _, defended), StrategicObjectProfile.FixedTargetComplex(_, _, _, _, rivalDefended)) =>
+        List(
+          StrategicComparativeMetric.TargetPressure(if defended then 0 else 1, if rivalDefended then 0 else 1),
+          StrategicComparativeMetric.TargetDefense(if defended then 1 else 0, if rivalDefended then 1 else 0)
+        )
+      case (StrategicObjectProfile.FixedTargetComplex(_, _, _, _, defended), StrategicObjectProfile.RestrictionShell(rivalRestrictedSquares, _, rivalConstraintSquares)) =>
+        List(
+          StrategicComparativeMetric.TargetPressure(if defended then 0 else 1, rivalConstraintSquares.size),
+          StrategicComparativeMetric.TargetDefense(if defended then 1 else 0, rivalRestrictedSquares.size)
+        )
+      case (StrategicObjectProfile.FixedTargetComplex(_, _, _, _, defended), StrategicObjectProfile.BreakAxis(_, _, rivalTargetSquares, _, rivalSupportBalance)) =>
+        List(
+          StrategicComparativeMetric.TargetPressure(if defended then 0 else 1, rivalTargetSquares.size),
+          StrategicComparativeMetric.TargetDefense(if defended then 1 else 0, math.max(rivalSupportBalance, 0))
+        )
+      case (StrategicObjectProfile.BreakAxis(_, _, targetSquares, _, supportBalance), StrategicObjectProfile.BreakAxis(_, _, rivalTargetSquares, _, rivalSupportBalance)) =>
+        List(
+          StrategicComparativeMetric.BreakAvailability(targetSquares.size, rivalTargetSquares.size),
+          StrategicComparativeMetric.BreakSupport(supportBalance, rivalSupportBalance)
+        )
+      case (StrategicObjectProfile.BreakAxis(_, _, targetSquares, _, supportBalance), StrategicObjectProfile.CounterplayAxis(_, rivalBreakSquares, rivalPressureSquares)) =>
+        List(
+          StrategicComparativeMetric.BreakAvailability(targetSquares.size, rivalBreakSquares.size),
+          StrategicComparativeMetric.BreakSupport(supportBalance, rivalPressureSquares.size)
+        )
+      case (StrategicObjectProfile.AccessNetwork(_, route, _, contestedSquares), StrategicObjectProfile.AccessNetwork(_, rivalRoute, _, rivalContestedSquares)) =>
+        List(
+          StrategicComparativeMetric.EntryUsability(route.toList.flatMap(_.allSquares).size, rivalRoute.toList.flatMap(_.allSquares).size),
+          StrategicComparativeMetric.RouteContest(contestedSquares.size, rivalContestedSquares.size)
+        )
+      case (StrategicObjectProfile.AccessNetwork(_, route, _, contestedSquares), StrategicObjectProfile.KingSafetyShell(_, rivalAccessFiles, rivalStressedSquares, rivalPressureSquares)) =>
+        List(
+          StrategicComparativeMetric.EntryUsability(route.toList.flatMap(_.allSquares).size, rivalAccessFiles.size),
+          StrategicComparativeMetric.RouteContest(contestedSquares.size, rivalStressedSquares.size + rivalPressureSquares.size)
+        )
+      case (StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares), StrategicObjectProfile.CounterplayAxis(rivalResourceSquares, rivalBreakSquares, rivalPressureSquares)) =>
+        List(
+          StrategicComparativeMetric.ReliefResource(resourceSquares.size + pressureSquares.size, rivalResourceSquares.size + rivalPressureSquares.size),
+          StrategicComparativeMetric.BreakPressure(breakSquares.size, rivalBreakSquares.size)
+        )
+      case (StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares), StrategicObjectProfile.BreakAxis(_, _, rivalTargetSquares, _, rivalSupportBalance)) =>
+        List(
+          StrategicComparativeMetric.ReliefResource(resourceSquares.size + pressureSquares.size, rivalTargetSquares.size + math.max(rivalSupportBalance, 0)),
+          StrategicComparativeMetric.BreakPressure(breakSquares.size, rivalTargetSquares.size)
+        )
+      case (StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares), StrategicObjectProfile.RestrictionShell(rivalRestrictedSquares, _, rivalConstraintSquares)) =>
+        List(
+          StrategicComparativeMetric.RestrictionCoverage(restrictedSquares.size, rivalRestrictedSquares.size),
+          StrategicComparativeMetric.ConstraintCount(constraintSquares.size, rivalConstraintSquares.size)
+        )
+      case (StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares), StrategicObjectProfile.FixedTargetComplex(_, _, _, _, rivalDefended)) =>
+        List(
+          StrategicComparativeMetric.RestrictionCoverage(restrictedSquares.size, if rivalDefended then 1 else 0),
+          StrategicComparativeMetric.ConstraintCount(constraintSquares.size, 1)
+        )
+      case (StrategicObjectProfile.MobilityCage(_, deniedSquares, repairTargets), StrategicObjectProfile.MobilityCage(_, rivalDeniedSquares, rivalRepairTargets)) =>
+        List(
+          StrategicComparativeMetric.DeniedSquareCount(deniedSquares.size, rivalDeniedSquares.size),
+          StrategicComparativeMetric.RepairCount(repairTargets.size, rivalRepairTargets.size)
+        )
+      case (StrategicObjectProfile.MobilityCage(_, deniedSquares, repairTargets), StrategicObjectProfile.PieceRoleFitness(rivalIssue, _, rivalRepairTargets)) =>
+        List(
+          StrategicComparativeMetric.DeniedSquareCount(deniedSquares.size, pieceRoleSeverity(rivalIssue)),
+          StrategicComparativeMetric.RepairCount(repairTargets.size, rivalRepairTargets.size)
+        )
+      case (StrategicObjectProfile.RedeploymentRoute(route, _, mobilityGain), StrategicObjectProfile.RedeploymentRoute(rivalRoute, _, rivalMobilityGain)) =>
+        List(
+          StrategicComparativeMetric.RouteClarity(route.allSquares.size, rivalRoute.allSquares.size),
+          StrategicComparativeMetric.MobilityGain(mobilityGain.getOrElse(0), rivalMobilityGain.getOrElse(0))
+        )
+      case (StrategicObjectProfile.RedeploymentRoute(route, _, mobilityGain), StrategicObjectProfile.DevelopmentCoordinationState(_, rivalLaggingPieces, rivalActiveFiles, rivalCoordinationSquares)) =>
+        List(
+          StrategicComparativeMetric.RouteClarity(route.allSquares.size, rivalLaggingPieces.size + rivalCoordinationSquares.size),
+          StrategicComparativeMetric.MobilityGain(mobilityGain.getOrElse(0), rivalActiveFiles.size)
+        )
+      case (StrategicObjectProfile.PasserComplex(_, _, relativeRank, _, escortSquares), StrategicObjectProfile.PasserComplex(_, _, rivalRelativeRank, _, rivalEscortSquares)) =>
+        List(
+          StrategicComparativeMetric.PromotionRouteCleanliness(relativeRank, rivalRelativeRank),
+          StrategicComparativeMetric.EscortCoverage(escortSquares.size, rivalEscortSquares.size)
+        )
+      case (StrategicObjectProfile.PasserComplex(_, _, relativeRank, _, escortSquares), StrategicObjectProfile.CriticalSquareComplex(_, rivalFocalSquares, rivalPressure)) =>
+        List(
+          StrategicComparativeMetric.PromotionRouteCleanliness(relativeRank, rivalPressure),
+          StrategicComparativeMetric.EscortCoverage(escortSquares.size, rivalFocalSquares.size)
+        )
+      case (StrategicObjectProfile.PieceRoleFitness(issue, _, repairTargets), StrategicObjectProfile.MobilityCage(_, rivalDeniedSquares, rivalRepairTargets)) =>
+        List(
+          StrategicComparativeMetric.LiabilitySeverity(pieceRoleSeverity(issue), rivalDeniedSquares.size),
+          StrategicComparativeMetric.RepairSquareCount(repairTargets.size, rivalRepairTargets.size)
+        )
+      case (StrategicObjectProfile.DevelopmentCoordinationState(_, laggingPieces, activeFiles, _), StrategicObjectProfile.RedeploymentRoute(rivalRoute, _, rivalMobilityGain)) =>
+        List(
+          StrategicComparativeMetric.LaggingPieceCount(laggingPieces.size, rivalRoute.allSquares.size),
+          StrategicComparativeMetric.ActiveFileCount(activeFiles.size, rivalMobilityGain.getOrElse(0))
+        )
+      case (StrategicObjectProfile.CriticalSquareComplex(_, focalSquares, pressure), StrategicObjectProfile.PasserComplex(_, _, rivalRelativeRank, _, rivalEscortSquares)) =>
+        List(
+          StrategicComparativeMetric.CriticalControl(focalSquares.size, rivalRelativeRank),
+          StrategicComparativeMetric.CriticalPressure(pressure, rivalEscortSquares.size)
+        )
+      case _ =>
+        Nil
+
+  private def pieceRoleSeverity(
+      issue: PieceRoleIssueKind
+  ): Int =
+    issue match
+      case PieceRoleIssueKind.TrappedPiece => 3
+      case PieceRoleIssueKind.BadBishop    => 1
+
+  private def moveTransitionWitness(
+      move: StrategicPlayedMoveTrace,
+      obj: StrategicObject,
+      axis: StrategicMoveTransitionAxis,
+      context: DeltaContext
+  ): Option[StrategicMoveTransitionWitness] =
+    val anchoredSquares =
+      moveTouchedSquares(
+        move,
+        transitionAnchorSquares(obj) ++
+          obj.evidenceFootprint.anchorSquares ++
+          obj.evidenceFootprint.contestedSquares ++
+          obj.supportingPrimitives.flatMap(_.allSquares)
+      )
+    val anchoredFiles =
+      moveTouchedFiles(
+        move,
+        transitionAnchorFiles(obj) ++
+          obj.evidenceFootprint.lanes ++
+          obj.supportingPrimitives.flatMap(ref => ref.lane.toList ++ ref.allSquares.map(_.file))
+      )
+    val anchoredPrimitiveKinds =
+      obj.supportingPrimitives.collect {
+        case primitive if moveTouchesPrimitive(move, primitive) => primitive.kind
+      }.toSet
+    val coreSquares = moveTouchedSquares(move, comparableSquares(obj))
+    val coreFiles = moveTouchedFiles(move, comparableFiles(obj))
+    val relatedObjects =
+      (context.supportObjects ++ context.rivalObjects)
+        .map(other => other.id -> other)
+        .toMap
+    val relationWitnessTriples =
+      obj.relations.collect {
+        case relation
+            if MoveTransitionRelationOps.contains(relation.operator) &&
+              relatedObjects.contains(relation.target.objectId) =>
+          val related = relatedObjects(relation.target.objectId)
+          val relationSquares = moveTouchedSquares(move, relationComparableSquares(obj, related))
+          val relationFiles = moveTouchedFiles(move, relationComparableFiles(obj, related))
+          Option.when(
+            relationSquares.nonEmpty ||
+              (relationFiles.nonEmpty && hasDirectRivalReferenceBetween(obj, related))
+          )(
+            (relation.operator, relationSquares, relationFiles)
+          )
+      }.flatten
+    val relationWitnesses = relationWitnessTriples.map(_._1).toSet
+    val witness =
+      StrategicMoveTransitionWitness(
+        move = move,
+        axis = axis,
+        matchedSquares =
+          distinctSquares(
+            anchoredSquares ++
+              relationWitnessTriples.flatMap(_._2)
+          ).take(6),
+        matchedFiles =
+          distinctFiles(
+            anchoredFiles ++
+              relationWitnessTriples.flatMap(_._3)
+          ).take(4),
+        relationWitnesses = relationWitnesses,
+        primitiveKinds = anchoredPrimitiveKinds
+      ).normalized
+
+    Option.when(
+      witness.isTransitionAware &&
+        moveTransitionCoreSatisfied(obj, coreSquares, coreFiles, anchoredPrimitiveKinds, relationWitnesses)
+    )(witness)
+
+  private def moveTrace(
+      contract: DecisiveTruthContract,
+      truth: MoveTruthFrame
+  ): Option[StrategicPlayedMoveTrace] =
+    truth.playedMove
+      .orElse(contract.playedMove)
+      .flatMap(parseMove)
+
+  private def parseMove(
+      raw: String
+  ): Option[StrategicPlayedMoveTrace] =
+    Option(raw).map(_.trim).filter(_.length >= 4).flatMap { move =>
+      for
+        from <- Square.fromKey(move.slice(0, 2))
+        to <- Square.fromKey(move.slice(2, 4))
+      yield StrategicPlayedMoveTrace(from = from, to = to, promotion = None)
+    }
+
+  private def hasTransitionTruth(
+      contract: DecisiveTruthContract,
+      truth: MoveTruthFrame
+  ): Boolean =
+    moveTrace(contract, truth).nonEmpty &&
+      (
+        truth.strategicOwnership.currentMoveEvidence ||
+          truth.strategicOwnership.currentConcreteCarrier ||
+          truth.strategicOwnership.currentSemanticAnchorMatch ||
+          truth.surfacedMoveOwnsTruth ||
+          truth.verifiedBestMove.nonEmpty ||
+          contract.surfacedMoveOwnsTruth ||
+          contract.verifiedBestMove.nonEmpty
+      )
+
+  private def changedAnchors(
+      obj: StrategicObject,
+      scope: StrategicDeltaScope,
+      projection: StrategicDeltaProjection
+  ): List[StrategicObjectAnchor] =
+    val roleFilter =
+      scope match
+        case StrategicDeltaScope.MoveLocal =>
+          Set(
+            StrategicAnchorRole.Primary,
+            StrategicAnchorRole.Entry,
+            StrategicAnchorRole.Exit,
+            StrategicAnchorRole.Pressure,
+            StrategicAnchorRole.Constraint
+          )
+        case StrategicDeltaScope.PositionLocal =>
+          Set(
+            StrategicAnchorRole.Primary,
+            StrategicAnchorRole.Support,
+            StrategicAnchorRole.Pressure,
+            StrategicAnchorRole.Constraint
+          )
+        case StrategicDeltaScope.Comparative =>
+          Set(
+            StrategicAnchorRole.Primary,
+            StrategicAnchorRole.Entry,
+            StrategicAnchorRole.Exit,
+            StrategicAnchorRole.Pressure,
+            StrategicAnchorRole.Constraint
+          )
+
+    val focusSquares =
+      projection match
+        case StrategicDeltaProjection.MoveLocal(_, witness)         => witness.matchedSquares
+        case StrategicDeltaProjection.PositionLocal(_, _)           => distinctSquares(obj.evidenceFootprint.anchorSquares ++ obj.evidenceFootprint.contestedSquares ++ obj.locus.allSquares)
+        case StrategicDeltaProjection.Comparative(_, _, witness, _, _) => witness.matchedSquares
+
+    val focusFiles =
+      projection match
+        case StrategicDeltaProjection.MoveLocal(_, witness)         => witness.matchedFiles
+        case StrategicDeltaProjection.PositionLocal(_, _)           => objectFiles(obj)
+        case StrategicDeltaProjection.Comparative(_, _, witness, _, _) => witness.matchedFiles
+
+    val filtered =
+      obj.anchors
+        .map(_.normalized)
+        .filter(anchor => roleFilter.contains(anchor.role))
+        .filter(anchor => anchorMatches(anchor, focusSquares.toSet, focusFiles.toSet))
+
+    if filtered.nonEmpty then filtered.distinct.take(4)
+    else obj.anchors.map(_.normalized).distinct.take(4)
+
+  private def anchorMatches(
+      anchor: StrategicObjectAnchor,
+      focusSquares: Set[Square],
+      focusFiles: Set[File]
+  ): Boolean =
+    focusSquares.isEmpty && focusFiles.isEmpty ||
+      anchor.squares.exists(focusSquares.contains) ||
+      anchor.route.exists(_.allSquares.exists(focusSquares.contains)) ||
+      anchor.file.exists(focusFiles.contains) ||
+      anchor.piece.exists(_.squares.exists(focusSquares.contains))
+
+  private def evidenceRefs(
+      obj: StrategicObject
+  ): List[StrategicDeltaEvidenceRef] =
     obj.supportingPrimitives
-      .take(4)
       .map { ref =>
-        val anchor = ref.anchorSquares.headOption.map(_.key).getOrElse("cluster")
-        s"${scope.toString.toLowerCase}:${ref.kind}:$anchor"
+        StrategicDeltaEvidenceRef(
+          primitiveKind = ref.kind,
+          anchorSquares = ref.anchorSquares,
+          contestedSquares = ref.contestedSquares,
+          lane = ref.lane
+        ).normalized
       }
+      .distinct
+      .sortBy(ref => s"${ref.primitiveKind}-${ref.anchorSquares.map(_.key).mkString("-")}-${ref.lane.map(_.char).getOrElse('-')}")
+      .take(4)
+
+  private def comparativeAxisFor(
+      profile: StrategicObjectProfile
+  ): StrategicComparativeAxis =
+    profile match
+      case StrategicObjectProfile.PawnStructureRegime(_, _, fixedTargets, passerSquares, _) =>
+        if fixedTargets.nonEmpty then StrategicComparativeAxis.PawnFixationContrast
+        else if passerSquares.nonEmpty then StrategicComparativeAxis.PawnPasserPotentialContrast
+        else StrategicComparativeAxis.PawnBreakPressureContrast
+      case StrategicObjectProfile.KingSafetyShell(condition, accessFiles, _, _) =>
+        if condition == KingSafetyCondition.Infiltrated || accessFiles.nonEmpty then StrategicComparativeAxis.KingEntryPressureContrast
+        else StrategicComparativeAxis.KingShellIntegrityContrast
+      case _: StrategicObjectProfile.DevelopmentCoordinationState =>
+        StrategicComparativeAxis.DevelopmentLeadContrast
+      case _: StrategicObjectProfile.PieceRoleFitness =>
+        StrategicComparativeAxis.PieceRoleLiabilityContrast
+      case _: StrategicObjectProfile.SpaceClamp =>
+        StrategicComparativeAxis.SpaceClampCoverageContrast
+      case _: StrategicObjectProfile.CriticalSquareComplex =>
+        StrategicComparativeAxis.CriticalSquareControlContrast
+      case StrategicObjectProfile.FixedTargetComplex(_, _, _, _, defended) =>
+        if defended then StrategicComparativeAxis.FixedTargetDefenseContrast
+        else StrategicComparativeAxis.FixedTargetPressureContrast
+      case StrategicObjectProfile.BreakAxis(_, _, _, _, supportBalance) =>
+        if supportBalance > 0 then StrategicComparativeAxis.BreakSupportRace
+        else StrategicComparativeAxis.BreakAvailabilityContrast
+      case StrategicObjectProfile.AccessNetwork(_, _, _, contestedSquares) =>
+        if contestedSquares.nonEmpty then StrategicComparativeAxis.AccessRouteContestContrast
+        else StrategicComparativeAxis.AccessEntryUsabilityContrast
+      case StrategicObjectProfile.CounterplayAxis(_, breakSquares, _) =>
+        if breakSquares.nonEmpty then StrategicComparativeAxis.CounterplayBreakPressureContrast
+        else StrategicComparativeAxis.CounterplayReliefContrast
+      case _: StrategicObjectProfile.RestrictionShell =>
+        StrategicComparativeAxis.RestrictionContainmentContrast
+      case _: StrategicObjectProfile.MobilityCage =>
+        StrategicComparativeAxis.MobilityRestrictionContrast
+      case StrategicObjectProfile.RedeploymentRoute(_, _, mobilityGain) =>
+        if mobilityGain.exists(_ > 1) then StrategicComparativeAxis.RedeploymentTempoContrast
+        else StrategicComparativeAxis.RedeploymentRouteClarityContrast
+      case StrategicObjectProfile.PasserComplex(_, _, _, protectedByPawn, escortSquares) =>
+        if protectedByPawn || escortSquares.nonEmpty then StrategicComparativeAxis.PasserEscortContrast
+        else StrategicComparativeAxis.PasserPromotionRouteContrast
+      case _ =>
+        StrategicComparativeAxis.BreakAvailabilityContrast
+
+  private def familyCompatible(
+      current: StrategicObjectFamily,
+      other: StrategicObjectFamily
+  ): Boolean =
+    current == other || familyCompatibilityFallback(current).contains(other)
+
+  private def familyCompatibilityFallback(
+      family: StrategicObjectFamily
+  ): Set[StrategicObjectFamily] =
+    family match
+      case StrategicObjectFamily.PawnStructureRegime          => Set(StrategicObjectFamily.BreakAxis)
+      case StrategicObjectFamily.KingSafetyShell              => Set(StrategicObjectFamily.AccessNetwork)
+      case StrategicObjectFamily.DevelopmentCoordinationState => Set(StrategicObjectFamily.RedeploymentRoute)
+      case StrategicObjectFamily.PieceRoleFitness             => Set(StrategicObjectFamily.MobilityCage)
+      case StrategicObjectFamily.SpaceClamp                   => Set(StrategicObjectFamily.RestrictionShell)
+      case StrategicObjectFamily.CriticalSquareComplex        => Set(StrategicObjectFamily.PasserComplex)
+      case StrategicObjectFamily.FixedTargetComplex           => Set(StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.BreakAxis)
+      case StrategicObjectFamily.BreakAxis                    => Set(StrategicObjectFamily.PawnStructureRegime, StrategicObjectFamily.CounterplayAxis)
+      case StrategicObjectFamily.AccessNetwork                => Set(StrategicObjectFamily.KingSafetyShell, StrategicObjectFamily.RedeploymentRoute)
+      case StrategicObjectFamily.CounterplayAxis              => Set(StrategicObjectFamily.BreakAxis)
+      case StrategicObjectFamily.RestrictionShell             => Set(StrategicObjectFamily.SpaceClamp, StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.MobilityCage)
+      case StrategicObjectFamily.MobilityCage                 => Set(StrategicObjectFamily.PieceRoleFitness, StrategicObjectFamily.RestrictionShell)
+      case StrategicObjectFamily.RedeploymentRoute            => Set(StrategicObjectFamily.DevelopmentCoordinationState, StrategicObjectFamily.AccessNetwork)
+      case StrategicObjectFamily.PasserComplex                => Set(StrategicObjectFamily.CriticalSquareComplex)
+      case _ =>
+        Set.empty
+
+  private def comparativeOwnerCompatible(
+      current: StrategicObject,
+      other: StrategicObject
+  ): Boolean =
+    other.id != current.id &&
+      (
+        other.owner != current.owner ||
+          sameOwnerComparativePair(current.family, other.family)
+      )
+
+  private def sameOwnerComparativePair(
+      left: StrategicObjectFamily,
+      right: StrategicObjectFamily
+  ): Boolean =
+    Set(left, right) match
+      case pair
+          if pair == Set(StrategicObjectFamily.PieceRoleFitness, StrategicObjectFamily.MobilityCage) ||
+            pair == Set(StrategicObjectFamily.DevelopmentCoordinationState, StrategicObjectFamily.RedeploymentRoute) ||
+            pair == Set(StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.RestrictionShell) =>
+        true
+      case _ =>
+        false
+
+  private def relationWitnessesBetween(
+      current: StrategicObject,
+      other: StrategicObject
+  ): Set[StrategicRelationOperator] =
+    (
+      current.relations.collect {
+        case relation if relation.target.objectId == other.id => relation.operator
+      } ++
+        other.relations.collect {
+          case relation if relation.target.objectId == current.id => relation.operator
+        }
+    ).toSet
+
+  private def rivalReferenceSquaresBetween(
+      current: StrategicObject,
+      other: StrategicObject
+  ): List[Square] =
+    current.rivalResourcesOrObjects.collect {
+      case rival if rivalMatchesObject(rival, other) =>
+        rival.squares
+    }.flatten
+
+  private def rivalReferenceFilesBetween(
+      current: StrategicObject,
+      other: StrategicObject
+  ): List[File] =
+    current.rivalResourcesOrObjects.collect {
+      case rival if rivalMatchesObject(rival, other) =>
+        rival.file
+    }.flatten
+
+  private def matchedRivalPrimitiveKinds(
+      current: StrategicObject,
+      other: StrategicObject
+  ): Set[PrimitiveKind] =
+    current.evidenceFootprint.primitiveKinds
+      .intersect(other.evidenceFootprint.primitiveKinds)
+      .union(directRivalReferencePrimitiveKindsBetween(current, other))
+
+  private def comparableSquares(
+      obj: StrategicObject
+  ): List[Square] =
+    obj.profile match
+      case StrategicObjectProfile.PawnStructureRegime(_, _, fixedTargets, passerSquares, contactSquares) =>
+        distinctSquares(fixedTargets ++ passerSquares ++ contactSquares)
+      case StrategicObjectProfile.KingSafetyShell(_, _, stressedSquares, pressureSquares) =>
+        distinctSquares(stressedSquares ++ pressureSquares)
+      case StrategicObjectProfile.DevelopmentCoordinationState(_, laggingPieces, _, coordinationSquares) =>
+        distinctSquares(laggingPieces.flatMap(_.squares) ++ coordinationSquares)
+      case StrategicObjectProfile.PieceRoleFitness(_, affectedPiece, repairTargets) =>
+        distinctSquares(affectedPiece.squares ++ repairTargets)
+      case StrategicObjectProfile.SpaceClamp(_, clampSquares, _) =>
+        distinctSquares(clampSquares)
+      case StrategicObjectProfile.CriticalSquareComplex(_, focalSquares, _) =>
+        distinctSquares(focalSquares)
+      case StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, _, _) =>
+        List(targetSquare)
+      case StrategicObjectProfile.BreakAxis(sourceSquare, breakSquare, targetSquares, _, _) =>
+        distinctSquares(sourceSquare :: breakSquare :: targetSquares)
+      case StrategicObjectProfile.AccessNetwork(_, route, _, contestedSquares) =>
+        distinctSquares(route.toList.flatMap(_.allSquares) ++ contestedSquares)
+      case StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares) =>
+        distinctSquares(resourceSquares ++ breakSquares ++ pressureSquares)
+      case StrategicObjectProfile.RestrictionShell(restrictedSquares, contestedSquares, constraintSquares) =>
+        distinctSquares(restrictedSquares ++ contestedSquares ++ constraintSquares)
+      case StrategicObjectProfile.MobilityCage(affectedPiece, deniedSquares, repairTargets) =>
+        distinctSquares(affectedPiece.squares ++ deniedSquares ++ repairTargets)
+      case StrategicObjectProfile.RedeploymentRoute(route, _, _) =>
+        distinctSquares(route.allSquares)
+      case StrategicObjectProfile.PasserComplex(passerSquare, promotionSquare, _, _, escortSquares) =>
+        distinctSquares(passerSquare :: promotionSquare :: escortSquares)
+      case _ =>
+        objectSquares(obj)
+
+  private def typedComparedSquares(
+      current: StrategicObject,
+      other: StrategicObject
+  ): List[Square] =
+    distinctSquares(
+      comparableSquares(current).intersect(comparableSquares(other)) ++
+        transitionAnchorSquares(current).intersect(transitionAnchorSquares(other)) ++
+        directRivalReferenceSquaresBetween(current, other)
+    )
+
+  private def comparableFiles(
+      obj: StrategicObject
+  ): List[File] =
+    obj.profile match
+      case StrategicObjectProfile.PawnStructureRegime(_, breakFiles, fixedTargets, passerSquares, contactSquares) =>
+        distinctFiles(breakFiles.toList ++ (fixedTargets ++ passerSquares ++ contactSquares).map(_.file))
+      case StrategicObjectProfile.KingSafetyShell(_, accessFiles, stressedSquares, pressureSquares) =>
+        distinctFiles(accessFiles.toList ++ (stressedSquares ++ pressureSquares).map(_.file))
+      case StrategicObjectProfile.DevelopmentCoordinationState(_, laggingPieces, activeFiles, coordinationSquares) =>
+        distinctFiles(activeFiles.toList ++ laggingPieces.flatMap(_.squares.map(_.file)) ++ coordinationSquares.map(_.file))
+      case StrategicObjectProfile.PieceRoleFitness(_, affectedPiece, repairTargets) =>
+        distinctFiles(affectedPiece.squares.map(_.file) ++ repairTargets.map(_.file))
+      case StrategicObjectProfile.SpaceClamp(_, clampSquares, pressureFiles) =>
+        distinctFiles(pressureFiles.toList ++ clampSquares.map(_.file))
+      case StrategicObjectProfile.CriticalSquareComplex(_, focalSquares, _) =>
+        distinctFiles(focalSquares.map(_.file))
+      case StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, _, _) =>
+        List(targetSquare.file)
+      case StrategicObjectProfile.BreakAxis(sourceSquare, breakSquare, targetSquares, _, _) =>
+        distinctFiles(List(sourceSquare.file, breakSquare.file) ++ targetSquares.map(_.file))
+      case StrategicObjectProfile.AccessNetwork(lane, route, _, contestedSquares) =>
+        distinctFiles(lane.toList ++ route.toList.flatMap(_.allSquares.map(_.file)) ++ contestedSquares.map(_.file))
+      case StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares) =>
+        distinctFiles((resourceSquares ++ breakSquares ++ pressureSquares).map(_.file))
+      case StrategicObjectProfile.RestrictionShell(restrictedSquares, contestedSquares, constraintSquares) =>
+        distinctFiles((restrictedSquares ++ contestedSquares ++ constraintSquares).map(_.file))
+      case StrategicObjectProfile.MobilityCage(affectedPiece, deniedSquares, repairTargets) =>
+        distinctFiles(affectedPiece.squares.map(_.file) ++ deniedSquares.map(_.file) ++ repairTargets.map(_.file))
+      case StrategicObjectProfile.RedeploymentRoute(route, _, _) =>
+        distinctFiles(route.allSquares.map(_.file))
+      case StrategicObjectProfile.PasserComplex(passerSquare, promotionSquare, _, _, escortSquares) =>
+        distinctFiles((passerSquare :: promotionSquare :: escortSquares).map(_.file))
+      case _ =>
+        objectFiles(obj)
+
+  private def typedComparedFiles(
+      current: StrategicObject,
+      other: StrategicObject
+  ): List[File] =
+    distinctFiles(
+      comparableFiles(current).intersect(comparableFiles(other)) ++
+        transitionAnchorFiles(current).intersect(transitionAnchorFiles(other)) ++
+        directRivalReferenceFilesBetween(current, other)
+    )
+
+  private def transitionAnchorSquares(
+      obj: StrategicObject
+  ): List[Square] =
+    distinctSquares(
+      obj.anchors.flatMap(_.squares) ++
+        obj.anchors.flatMap(_.route.toList.flatMap(_.allSquares)) ++
+        obj.anchors.flatMap(_.piece.toList.flatMap(_.squares))
+    )
+
+  private def transitionAnchorFiles(
+      obj: StrategicObject
+  ): List[File] =
+    distinctFiles(
+      obj.anchors.flatMap(_.file) ++
+        obj.anchors.flatMap(_.squares.map(_.file)) ++
+        obj.anchors.flatMap(_.route.toList.flatMap(_.allSquares.map(_.file))) ++
+        obj.anchors.flatMap(_.piece.toList.flatMap(_.squares.map(_.file)))
+    )
+
+  private def moveTouchedSquares(
+      move: StrategicPlayedMoveTrace,
+      squares: List[Square]
+  ): List[Square] =
+    distinctSquares(move.touchedSquares.intersect(squares))
+
+  private def moveTouchedFiles(
+      move: StrategicPlayedMoveTrace,
+      files: List[File]
+  ): List[File] =
+    distinctFiles(move.touchedFiles.intersect(files))
+
+  private def moveTouchesPrimitive(
+      move: StrategicPlayedMoveTrace,
+      primitive: PrimitiveReference
+  ): Boolean =
+    moveTouchedSquares(move, primitive.allSquares).nonEmpty ||
+      moveTouchedFiles(move, primitive.lane.toList ++ primitive.allSquares.map(_.file)).nonEmpty
+
+  private def moveTransitionCoreSatisfied(
+      obj: StrategicObject,
+      coreSquares: List[Square],
+      coreFiles: List[File],
+      primitiveKinds: Set[PrimitiveKind],
+      relationWitnesses: Set[StrategicRelationOperator]
+  ): Boolean =
+    obj.profile match
+      case _: StrategicObjectProfile.KingSafetyShell | _: StrategicObjectProfile.AccessNetwork =>
+        coreSquares.nonEmpty ||
+          (coreFiles.nonEmpty && primitiveKinds.nonEmpty) ||
+          relationWitnesses.nonEmpty
+      case _: StrategicObjectProfile.PawnStructureRegime =>
+        (coreSquares.nonEmpty && primitiveKinds.nonEmpty) || relationWitnesses.nonEmpty
+      case _ =>
+        coreSquares.nonEmpty || relationWitnesses.nonEmpty
+
+  private def hasDirectRivalReferenceBetween(
+      current: StrategicObject,
+      other: StrategicObject
+  ): Boolean =
+    directRivalReferenceSquaresBetween(current, other).nonEmpty ||
+      directRivalReferenceFilesBetween(current, other).nonEmpty ||
+      directRivalReferencePrimitiveKindsBetween(current, other).nonEmpty
+
+  private def directRivalReferenceSquaresBetween(
+      current: StrategicObject,
+      other: StrategicObject
+  ): List[Square] =
+    distinctSquares(
+      rivalReferenceSquaresBetween(current, other) ++
+        rivalReferenceSquaresBetween(other, current)
+    )
+
+  private def directRivalReferenceFilesBetween(
+      current: StrategicObject,
+      other: StrategicObject
+  ): List[File] =
+    distinctFiles(
+      rivalReferenceFilesBetween(current, other) ++
+        rivalReferenceFilesBetween(other, current)
+    )
+
+  private def directRivalReferencePrimitiveKindsBetween(
+      current: StrategicObject,
+      other: StrategicObject
+  ): Set[PrimitiveKind] =
+    (
+      current.rivalResourcesOrObjects.collect {
+        case rival if rivalMatchesObject(rival, other) => rival.primitiveKind
+      }.flatten ++
+        other.rivalResourcesOrObjects.collect {
+          case rival if rivalMatchesObject(rival, current) => rival.primitiveKind
+        }.flatten
+    ).toSet
+
+  private def rivalMatchesObject(
+      rival: StrategicRivalReference,
+      other: StrategicObject
+  ): Boolean =
+    rival.objectId.contains(other.id) ||
+      (rival.objectFamily.contains(other.family) && (rival.squares.nonEmpty || rival.file.nonEmpty))
+
+  private def relationComparableSquares(
+      current: StrategicObject,
+      other: StrategicObject
+  ): List[Square] =
+    distinctSquares(
+      comparableSquares(current).intersect(comparableSquares(other)) ++
+        transitionAnchorSquares(current).intersect(transitionAnchorSquares(other)) ++
+        directRivalReferenceSquaresBetween(current, other)
+    )
+
+  private def relationComparableFiles(
+      current: StrategicObject,
+      other: StrategicObject
+  ): List[File] =
+    distinctFiles(
+      comparableFiles(current).intersect(comparableFiles(other)) ++
+        transitionAnchorFiles(current).intersect(transitionAnchorFiles(other)) ++
+        directRivalReferenceFilesBetween(current, other)
+    )
+
+  private def objectSquares(
+      obj: StrategicObject
+  ): List[Square] =
+    distinctSquares(
+      obj.locus.allSquares ++
+        obj.anchors.flatMap(_.squares) ++
+        obj.anchors.flatMap(_.route.toList.flatMap(_.allSquares)) ++
+        obj.anchors.flatMap(_.piece.toList.flatMap(_.squares)) ++
+        obj.supportingPrimitives.flatMap(_.allSquares) ++
+        obj.supportingPieces.flatMap(_.squares) ++
+        obj.evidenceFootprint.anchorSquares ++
+        obj.evidenceFootprint.contestedSquares
+    )
+
+  private def objectFiles(
+      obj: StrategicObject
+  ): List[File] =
+    distinctFiles(
+      obj.locus.files ++
+        obj.anchors.flatMap(_.file) ++
+        obj.anchors.flatMap(anchor => anchor.squares.map(_.file)) ++
+        obj.anchors.flatMap(_.route.toList.flatMap(_.allSquares.map(_.file))) ++
+        obj.supportingPrimitives.flatMap(ref => ref.lane.toList ++ ref.allSquares.map(_.file)) ++
+        obj.supportingPieces.flatMap(_.squares.map(_.file)) ++
+        obj.evidenceFootprint.lanes ++
+        obj.evidenceFootprint.anchorSquares.map(_.file) ++
+        obj.evidenceFootprint.contestedSquares.map(_.file)
+    )
+
+  private def distinctSquares(
+      squares: List[Square]
+  ): List[Square] =
+    squares.distinct.sortBy(_.key)
+
+  private def distinctFiles(
+      files: List[File]
+  ): List[File] =
+    files.distinct.sortBy(_.char.toString)
+
+  private def colorIndex(
+      color: Color
+  ): Int =
+    if color.white then 0 else 1

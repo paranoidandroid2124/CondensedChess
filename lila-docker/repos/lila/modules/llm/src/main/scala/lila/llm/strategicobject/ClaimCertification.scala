@@ -13,10 +13,15 @@ final case class CertifiedClaim(
     objectId: String,
     deltaScope: StrategicDeltaScope,
     status: ClaimStatus,
-    deltaObjectId: String,
     readiness: StrategicObjectReadiness,
+    delta: Option[StrategicObjectDelta] = None,
     supportingObjectIds: List[String] = Nil
-)
+):
+  def primaryTag: Option[StrategicDeltaTag] =
+    delta.map(_.primaryTag)
+
+  def hasTypedDelta: Boolean =
+    delta.nonEmpty
 
 object CanonicalClaimCertification extends ClaimCertification:
 
@@ -34,9 +39,9 @@ object CanonicalClaimCertification extends ClaimCertification:
             objectId = obj.id,
             deltaScope = delta.scope,
             status = claimStatus(obj.readiness),
-            deltaObjectId = obj.id,
             readiness = obj.readiness,
-            supportingObjectIds = obj.relations.map(_.target.objectId).distinct.take(4)
+            delta = Some(delta),
+            supportingObjectIds = delta.supportingObjectIds
           )
         }
       }
@@ -50,8 +55,8 @@ object CanonicalClaimCertification extends ClaimCertification:
             objectId = obj.id,
             deltaScope = StrategicDeltaScope.PositionLocal,
             status = ClaimStatus.Deferred,
-            deltaObjectId = obj.id,
             readiness = obj.readiness,
+            delta = None,
             supportingObjectIds = obj.relations.map(_.target.objectId).distinct.take(4)
           )
         }

@@ -8,10 +8,12 @@ class ClaimCertificationTest extends FunSuite:
   private val fileDuelFen = "2r3k1/8/8/8/8/8/8/2R3K1 w - - 0 1"
   private val passerRaceFen = "6k1/2P5/8/8/8/8/5p2/6K1 w - - 0 1"
 
-  test("claim certification promotes stable objects and demotes provisional ones to support-only") {
-    val objects = StrategicObjectSynthesizerTest.objectsForFen(fileDuelFen)
-    val deltas = CanonicalStrategicObjectDeltaProjector.project(PrimitiveExtractionTest.neutralContract, objects)
-    val claims = CanonicalClaimCertification.certify(PrimitiveExtractionTest.neutralContract, objects, deltas)
+  test("claim certification preserves typed deltas for stable and provisional claims") {
+    val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor("c1c8")
+    val contract = PrimitiveExtractionTest.moveTransitionVisibleContractFor("c1c8")
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(fileDuelFen, truth)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
     val access = objects.find(obj => obj.family == StrategicObjectFamily.AccessNetwork && obj.owner == Color.White).getOrElse(
       fail("expected white access network")
     )
@@ -27,14 +29,24 @@ class ClaimCertificationTest extends FunSuite:
 
     assertEquals(accessClaim.readiness, StrategicObjectReadiness.Stable)
     assertEquals(accessClaim.status, ClaimStatus.Certified)
+    assert(accessClaim.delta.nonEmpty, clue("stable claim must keep typed delta"))
+    assert(accessClaim.primaryTag.nonEmpty, clue("stable claim must keep primary tag"))
     assertEquals(shellClaim.readiness, StrategicObjectReadiness.Provisional)
     assertEquals(shellClaim.status, ClaimStatus.SupportOnly)
+    assert(shellClaim.delta.nonEmpty, clue("provisional claim must keep typed delta"))
   }
 
-  test("deferred families are certified only as deferred non-primary claims") {
-    val objects = StrategicObjectSynthesizerTest.objectsForFen(passerRaceFen)
-    val deltas = CanonicalStrategicObjectDeltaProjector.project(PrimitiveExtractionTest.neutralContract, objects)
-    val claims = CanonicalClaimCertification.certify(PrimitiveExtractionTest.neutralContract, objects, deltas)
+  test("deferred families remain claims without promoted typed delta") {
+    val truth = PrimitiveExtractionTest.moveTransitionTruthFrame
+    val contract = PrimitiveExtractionTest.moveTransitionContract
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(passerRaceFen, truth)
+    val deltas =
+      CanonicalStrategicObjectDeltaProjector.project(
+        contract,
+        truth,
+        objects
+      )
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
     val planRace = objects.find(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.White).getOrElse(
       fail("expected white plan race")
     )
@@ -42,4 +54,5 @@ class ClaimCertificationTest extends FunSuite:
 
     assertEquals(deferredClaim.readiness, StrategicObjectReadiness.DeferredForDelta)
     assertEquals(deferredClaim.status, ClaimStatus.Deferred)
+    assert(deferredClaim.delta.isEmpty, clue("deferred claim must not materialize a direct typed delta"))
   }

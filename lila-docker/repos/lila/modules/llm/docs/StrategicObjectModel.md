@@ -409,6 +409,130 @@ Delta, certification, and planner layers must consume the canonical object
 readiness rather than re-deriving release confidence from family names,
 primitive count, or wording-level heuristics.
 
+## Phase 5 Delta Universe
+
+Phase 5 operates over the full 24-family object vocabulary.
+
+- working universe: `24` strategic-object families
+- conceptual delta cells: `72`
+  - `24 families x 3 scopes`
+  - `move_local`
+  - `position_local`
+  - `comparative`
+
+This does **not** mean that all 24 families have equal delta ownership or equal
+player-facing authority.
+
+### Tier 1. Direct Delta Owners
+
+These are the core Phase 5 owner families. Their object state should project
+cleanly into move-local, position-local, and comparative delta once readiness
+allows it.
+
+1. `PawnStructureRegime`
+2. `KingSafetyShell`
+3. `DevelopmentCoordinationState`
+4. `PieceRoleFitness`
+5. `SpaceClamp`
+6. `CriticalSquareComplex`
+7. `FixedTargetComplex`
+8. `BreakAxis`
+9. `AccessNetwork`
+10. `CounterplayAxis`
+11. `RestrictionShell`
+12. `MobilityCage`
+13. `RedeploymentRoute`
+14. `PasserComplex`
+
+### Tier 2. Conditional Composite Delta Owners
+
+These families belong inside the Phase 5 universe, but they usually require
+stronger relation, continuity, or witness burden before they should behave like
+direct move-local owners.
+
+1. `TradeInvariant`
+2. `TensionState`
+3. `AttackScaffold`
+4. `MaterialInvestmentContract`
+5. `InitiativeWindow`
+6. `ConversionFunnel`
+
+### Tier 3. Meta / Interpretive Delta Families
+
+These families must still be computed inside Phase 5, but they should usually
+remain support-oriented or deferred unless later calibration materially upgrades
+their readiness.
+
+1. `DefenderDependencyNetwork`
+2. `PlanRace`
+3. `TransitionBridge`
+4. `FortressHoldingShell`
+
+This 14 / 6 / 4 split is the north-star Phase 5 target map.
+It does not erase the existing readiness system.
+Instead, it explains how the full 24-family universe should be interpreted once
+delta projection becomes the center of the pipeline.
+
+Implementation order inside Phase 5 should therefore begin with Tier 1 direct
+delta owners, then move to Tier 2 composite owners, and only then reopen Tier 3
+meta families.
+
+### Canonical Delta Contract
+
+Phase 5 pass 1 opens direct delta ownership only for the Tier 1 families above.
+The canonical runtime delta is no longer a scope placeholder.
+
+Each emitted `StrategicObjectDelta` must carry, at minimum:
+
+- `objectId`
+- `family`
+- `owner`
+- `scope`
+- typed family `profile`
+- typed scope `projection`
+- `changedAnchors`
+- `supportingObjectIds`
+- `rivalObjectIds`
+- typed `evidenceRefs`
+
+The canonical scope projections are:
+
+- `MoveLocal`
+  - typed change-bearing delta only when a family-specific transition witness
+    survives from the canonical move trace plus object-graph evidence; current
+    object shape alone is not sufficient
+- `PositionLocal`
+  - typed current-state probe over the certified object slice
+- `Comparative`
+  - typed bilateral object comparison with counterpart ids, family-aware
+    comparative witness, and family-aware comparative profile; it must not
+    degrade into owner-isolated summary or broad-overlap-only rivalry
+
+Pass 1 reinforcement also keeps the typed delta alive past projection:
+
+- `ClaimCertification`
+  - preserves the canonical typed delta snapshot on each admitted certified
+    claim instead of collapsing to scope-only release metadata
+- `QuestionPlanner`
+  - may bucket or admit only from the certified typed delta contract; it does
+    not need to mint wording here, but it must not lose which transition or
+    comparative axis was certified
+
+Pass 1 keeps the readiness boundary intact inside the projector:
+
+- `Stable`
+  - Tier 1 family may emit move-local, position-local, or comparative only
+    when the family-specific projection witness survives
+- `Provisional`
+  - Tier 1 family defaults to position-local and may reopen comparative only
+    conservatively; move-local stays closed in the current pass
+- `DeferredForDelta`
+  - object survives in graph state but emits no delta
+
+Tier 2 and Tier 3 families remain in the Phase 5 universe and remain in the
+object graph, but they do not gain direct delta ownership in pass 1 even when
+their object readiness is `Stable` or `Provisional`.
+
 ## Certificate Axes
 
 Object certificates reuse the existing strength of the current system.

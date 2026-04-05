@@ -2,6 +2,7 @@ package lila.llm.strategicobject
 
 import chess.{ Color, File, Square }
 import lila.llm.analysis.*
+import lila.llm.analysis.DecisiveTruth.toContract
 import munit.FunSuite
 import play.api.libs.json.*
 
@@ -211,6 +212,38 @@ object PrimitiveExtractionTest:
       benchmarkProseAllowed = false
     )
 
+  val moveTransitionTruthFrame: MoveTruthFrame =
+    neutralTruthFrame.copy(
+      playedMove = Some("e2e4"),
+      verifiedBestMove = Some("e2e4"),
+      strategicOwnership =
+        neutralTruthFrame.strategicOwnership.copy(
+          currentMoveEvidence = true,
+          currentConcreteCarrier = true,
+          currentSemanticAnchorMatch = true
+        ),
+      surfacedMoveOwnsTruth = true
+    )
+
+  val moveTransitionVisibleTruthFrame: MoveTruthFrame =
+    moveTransitionTruthFrame.copy(visibilityRole = TruthVisibilityRole.PrimaryVisible)
+
+  def moveTransitionTruthFrameFor(
+      playedMove: String
+  ): MoveTruthFrame =
+    moveTransitionTruthFrame.copy(
+      playedMove = Some(playedMove),
+      verifiedBestMove = Some(playedMove)
+    )
+
+  def moveTransitionVisibleTruthFrameFor(
+      playedMove: String
+  ): MoveTruthFrame =
+    moveTransitionVisibleTruthFrame.copy(
+      playedMove = Some(playedMove),
+      verifiedBestMove = Some(playedMove)
+    )
+
   val neutralContract: DecisiveTruthContract =
     DecisiveTruthContract(
       playedMove = None,
@@ -239,6 +272,22 @@ object PrimitiveExtractionTest:
       failureIntentAnchor = None,
       failureInterpretationAllowed = false
     )
+
+  val moveTransitionContract: DecisiveTruthContract =
+    moveTransitionTruthFrame.toContract
+
+  val moveTransitionVisibleContract: DecisiveTruthContract =
+    moveTransitionVisibleTruthFrame.toContract
+
+  def moveTransitionContractFor(
+      playedMove: String
+  ): DecisiveTruthContract =
+    moveTransitionTruthFrameFor(playedMove).toContract
+
+  def moveTransitionVisibleContractFor(
+      playedMove: String
+  ): DecisiveTruthContract =
+    moveTransitionVisibleTruthFrameFor(playedMove).toContract
 
   def matches(row: ExpectationRow, primitives: PrimitiveBank): Boolean =
     val owner = parseColor(row.owner)

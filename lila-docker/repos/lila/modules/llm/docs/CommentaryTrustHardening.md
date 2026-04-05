@@ -273,6 +273,32 @@ Use the documents in this order:
   only:
   no readiness promotion, new public wording, or new user-facing capability
   follows from the calibration pass.
+- rewrite-local strategic-object delta note on 2026-04-05:
+  Phase 5 pass 1 now opens typed object-native delta only for the Tier 1
+  direct owners. The runtime delta contract now carries typed family profile,
+  typed scope projection, changed anchors, supporting object ids, rival object
+  ids, and typed evidence refs instead of a thin
+  `objectId + scope + string evidence` shell. The trust boundary stays strict:
+  Tier 2 / Tier 3 families remain in graph state but do not emit direct delta
+  on this pass; provisional Tier 1 families remain position-local first; and
+  comparative delta now requires bilateral rival-object context instead of
+  owner-isolated summary. This is still trust-hardening only:
+  it reduces fake delta, scope inflation, and direct-owner leakage without
+  adding new renderer wording, planner semantics, or user-facing release.
+- rewrite-local strategic-object delta reinforcement note on 2026-04-05:
+  strict pass-1 reinforcement now closes three remaining trust gaps without
+  reopening raw board or primitive extraction boundaries. `MoveLocal` may open
+  only when the projector can certify a transition-aware witness from the
+  canonical played move trace plus object-graph evidence; current-state object
+  labeling alone no longer qualifies as delta. `ClaimCertification` and
+  `QuestionPlanner` now preserve the admitted typed delta contract instead of
+  collapsing back to scope-only release metadata, so planner primary/support
+  admission cannot silently relabel what was certified. Comparative delta is
+  also tightened to family-aware witness/profile pairs with same-family or
+  explicitly family-compatible rivals only, blocking broad-overlap-only
+  counterpart inflation. This remains a trust-boundary tightening only:
+  no new public wording, renderer behavior, Tier 2 / Tier 3 owner lane, or
+  legacy helper topology is reopened.
 
 ## Current Status
 

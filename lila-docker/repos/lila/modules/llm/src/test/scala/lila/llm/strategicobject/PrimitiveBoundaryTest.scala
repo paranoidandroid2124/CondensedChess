@@ -43,7 +43,7 @@ class PrimitiveBoundaryTest extends FunSuite:
     assertMethodParameters(
       owner = classOf[StrategicObjectDeltaProjector],
       method = "project",
-      expected = List(classOf[DecisiveTruthContract], classOf[List[?]])
+      expected = List(classOf[DecisiveTruthContract], classOf[MoveTruthFrame], classOf[List[?]])
     )
     assertMethodParameters(
       owner = classOf[ClaimCertification],
@@ -102,6 +102,31 @@ class PrimitiveBoundaryTest extends FunSuite:
         assert(
           !containsForbiddenToken(content, token),
           clue(s"$fileName must not contain forbidden token: $token")
+        )
+      }
+    }
+  }
+
+  test("post-synth strategicobject files do not reopen primitive ingress") {
+    val postSynthFiles =
+      scalaSources(strategicObjectDir)
+        .map(_.getFileName.toString)
+        .filterNot(
+          Set(
+            "Primitive.scala",
+            "PrimitiveExtraction.scala",
+            "RawPositionEvidence.scala",
+            "StrategicObjectSynthesizer.scala"
+          ).contains
+        )
+    val forbiddenTokens = List("PrimitiveBank", "PrimitiveExtractor")
+
+    postSynthFiles.foreach { fileName =>
+      val content = read(strategicObjectDir.resolve(fileName))
+      forbiddenTokens.foreach { token =>
+        assert(
+          !containsForbiddenToken(content, token),
+          clue(s"$fileName must not reopen primitive ingress through token: $token")
         )
       }
     }
