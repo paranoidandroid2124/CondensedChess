@@ -416,6 +416,25 @@ Phase 5 pass 1 reinforcement now also tightens the already-landed structure:
     profile, and rival admission is tightened to same-family or explicitly
     family-compatible counterparts rather than broad overlap alone
 
+Phase 5 Tier-1 provisional hardening and promotion audit on 2026-04-06 keeps
+the remaining provisional direct-owner families
+`KingSafetyShell`, `DevelopmentCoordinationState`, `PieceRoleFitness`,
+`SpaceClamp`, `CounterplayAxis`, `RestrictionShell`, `MobilityCage`, and
+`RedeploymentRoute` on the same runtime lane:
+
+- all eight stay `Provisional` on this pass
+- `MoveLocal` remains closed for all eight families
+- `Comparative` may reopen only from exact-board rival/counterpart evidence
+  plus typed family metrics; provisional rows now require at least three typed
+  metrics
+- family generation/admission is tightened against false-positive pictures such
+  as shell-pressure-only, activity-without-coordination, bad-piece-with-exits,
+  single-file space pictures, counterplay seeds without an axis, restriction
+  pictures without denial coverage, trapped-shape-only cages, and one-step
+  maneuver mirages
+- `SpaceClamp` now requires multi-file clamp evidence at generation time so a
+  file-duel picture cannot rise as clamp ownership
+
 Current verification baseline:
 
 - exact-board Tier 1 delta fixture bank under
@@ -425,8 +444,48 @@ Current verification baseline:
   - `negative`
   - `contrastive`
   - `near_miss`
+- provisional Tier 1 coverage also requires:
+  - object rows: `nasty_negative`
+  - delta rows: `nasty_negative`, `move_local_false_witness`,
+    `comparative_false_rival`
 - projector boundary tests now also fence primitive ingress after
   `StrategicObjectSynthesizer`
+
+### Phase 5 Tier 1 Provisional Hardening Status
+
+The current promotion-audit pass is a hardening pass, not a forced-promotion
+pass.
+
+Completed on this pass:
+
+- the eight provisional Tier 1 direct owners now carry exact-board corpus on
+  `exact`, `contrastive`, `near_miss`, `nasty_negative`,
+  `move_local_false_witness`, and `comparative_false_rival`
+- comparative calibration is now family-aware at the typed-metric level; the
+  provisional comparative lane requires a real admissible counterpart plus at
+  least three typed metrics
+- synthesis/projector admission is tightened at the family boundary instead of
+  by planner or wording fallback
+- `SpaceClamp` now requires real multi-file clamp evidence; single-file
+  pressure pictures are not enough
+
+Current verdict on this roadmap pass:
+
+- `KingSafetyShell` -> stay `Provisional`
+- `DevelopmentCoordinationState` -> stay `Provisional`
+- `PieceRoleFitness` -> stay `Provisional`
+- `SpaceClamp` -> stay `Provisional`
+- `CounterplayAxis` -> stay `Provisional`
+- `RestrictionShell` -> stay `Provisional`
+- `MobilityCage` -> stay `Provisional`
+- `RedeploymentRoute` -> stay `Provisional`
+
+Current move-local policy on this pass:
+
+- all eight provisional Tier 1 families remain closed on `move_local`
+- promotion is deferred until broader exact-board positive and nasty-negative
+  resistance justifies reopening, rather than being inferred from a small
+  positive corpus
 
 ## Phase 6. ClaimCertification Rewrite
 

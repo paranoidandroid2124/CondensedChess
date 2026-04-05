@@ -35,7 +35,18 @@ final case class FamilyGenerationMetrics(
     targetWitnessCount: Int = 0,
     timingWitnessCount: Int = 0,
     preservedSourceCount: Int = 0,
-    goalWitnessCount: Int = 0
+    goalWitnessCount: Int = 0,
+    activeFileCount: Int = 0,
+    laggingPieceCount: Int = 0,
+    coordinationSquareCount: Int = 0,
+    repairSquareCount: Int = 0,
+    escapeSquareCount: Int = 0,
+    clampSquareCount: Int = 0,
+    counterspaceSquareCount: Int = 0,
+    deniedSquareCount: Int = 0,
+    routeSquareCount: Int = 0,
+    routeWaypointCount: Int = 0,
+    routeTempoGain: Int = 0
 )
 
 final case class FamilyGenerationEvidence(
@@ -99,7 +110,7 @@ object StrategicObjectFamilyContract:
         StrategicObjectFamilyContract(
           family,
           minimumAnchorPattern = MinimumAnchorPattern.ShellEntryScaffold,
-          forbiddenLoosePatterns = Set(ForbiddenLoosePattern.BroadOverlapOnly),
+          forbiddenLoosePatterns = Set(ForbiddenLoosePattern.BroadOverlapOnly, ForbiddenLoosePattern.ShellPressureOnly),
           defaultReadiness = StrategicObjectReadiness.Provisional
         )
       case StrategicObjectFamily.DevelopmentCoordinationState =>
@@ -371,13 +382,41 @@ object StrategicObjectFamilyContract:
           evidence.metrics.targetWitnessCount > 0
       case StrategicObjectFamily.KingSafetyShell =>
         evidence.metrics.entryWitnessCount > 0 &&
-          evidence.metrics.pressureSquareCount > 0
+          evidence.metrics.pressureSquareCount > 0 &&
+          evidence.metrics.targetWitnessCount > 1
+      case StrategicObjectFamily.DevelopmentCoordinationState =>
+        val activityBurden =
+          evidence.metrics.activeFileCount + evidence.metrics.entryWitnessCount
+        evidence.metrics.coordinationSquareCount >= 2 &&
+          (
+            (evidence.metrics.laggingPieceCount > 0 && activityBurden > 0) ||
+              evidence.metrics.laggingPieceCount >= 2 ||
+              evidence.metrics.activeFileCount >= 2
+          )
+      case StrategicObjectFamily.PieceRoleFitness =>
+        evidence.primitiveKinds.contains(PrimitiveKind.PieceRoleIssue) &&
+          evidence.metrics.escapeSquareCount <= 3
+      case StrategicObjectFamily.SpaceClamp =>
+        evidence.metrics.clampSquareCount >= 3 &&
+          evidence.metrics.activeFileCount >= 2
       case StrategicObjectFamily.RestrictionShell =>
         evidence.metrics.pressureSquareCount > 0 &&
+          evidence.metrics.targetWitnessCount > 1 &&
           evidence.primitiveKinds.intersect(Set(PrimitiveKind.TargetSquare, PrimitiveKind.CriticalSquare)).nonEmpty
       case StrategicObjectFamily.CounterplayAxis =>
         evidence.primitiveKinds.contains(PrimitiveKind.CounterplayResourceSeed) &&
-          (evidence.metrics.entryWitnessCount > 0 || evidence.metrics.pressureSquareCount > 1)
+          evidence.metrics.entryWitnessCount > 0 &&
+          evidence.metrics.targetWitnessCount > 1
+      case StrategicObjectFamily.MobilityCage =>
+        evidence.primitiveKinds.contains(PrimitiveKind.PieceRoleIssue) &&
+          evidence.metrics.deniedSquareCount > 0 &&
+          evidence.metrics.deniedSquareCount > evidence.metrics.repairSquareCount
+      case StrategicObjectFamily.RedeploymentRoute =>
+        evidence.metrics.routeSquareCount >= 3 &&
+          (
+            evidence.metrics.routeWaypointCount > 0 ||
+              evidence.metrics.routeTempoGain > 0
+          )
       case StrategicObjectFamily.TensionState =>
         evidence.primitiveKinds.exists(kind =>
           kind == PrimitiveKind.TensionContactSeed || kind == PrimitiveKind.LeverContactSeed

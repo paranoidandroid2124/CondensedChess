@@ -250,8 +250,35 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
       val knightSeeds = bank.knightRouteSeeds.filter(_.owner == owner)
       val redeploySeeds = bank.redeploymentPathSeeds.filter(_.owner == owner)
       val squares = distinctSquares(routeSeeds.map(_.square) ++ diagonalSeeds.map(_.target) ++ liftSeeds.map(_.target) ++ knightSeeds.map(_.target) ++ redeploySeeds.map(_.target) ++ issues.map(_.square))
-      Option.when(squares.nonEmpty || accessRoutes.nonEmpty) {
-        val files = distinctFiles(accessRoutes.map(_.file) ++ routeSeeds.map(_.lane))
+      val developmentPrimitiveKinds =
+        Set.newBuilder[PrimitiveKind]
+          .addAll(Option.when(issues.nonEmpty)(PrimitiveKind.PieceRoleIssue))
+          .addAll(Option.when(accessRoutes.nonEmpty)(PrimitiveKind.AccessRoute))
+          .addAll(Option.when(routeSeeds.nonEmpty)(PrimitiveKind.RouteContestSeed))
+          .addAll(Option.when(diagonalSeeds.nonEmpty)(PrimitiveKind.DiagonalLaneSeed))
+          .addAll(Option.when(liftSeeds.nonEmpty)(PrimitiveKind.LiftCorridorSeed))
+          .addAll(Option.when(knightSeeds.nonEmpty)(PrimitiveKind.KnightRouteSeed))
+          .addAll(Option.when(redeploySeeds.nonEmpty)(PrimitiveKind.RedeploymentPathSeed))
+          .result()
+      val files = distinctFiles(accessRoutes.map(_.file) ++ routeSeeds.map(_.lane))
+      Option.when(
+        contractAllows(
+          StrategicObjectFamily.DevelopmentCoordinationState,
+          FamilyGenerationEvidence(
+            primitiveKinds = developmentPrimitiveKinds,
+            anchorSquares = squares.toSet,
+            files = files.toSet,
+            metrics =
+              FamilyGenerationMetrics(
+                activeFileCount = accessRoutes.map(_.file).toSet.size,
+                laggingPieceCount = issues.size,
+                coordinationSquareCount = squares.size,
+                entryWitnessCount =
+                  routeSeeds.size + diagonalSeeds.size + liftSeeds.size + knightSeeds.size + redeploySeeds.size
+              )
+          )
+        )
+      ) {
         val active = accessRoutes.size + routeSeeds.size + diagonalSeeds.size + liftSeeds.size + knightSeeds.size
         val lag = issues.size + redeploySeeds.size
         val status = if lag > active then CoordinationStatus.Lagging else if active > lag then CoordinationStatus.Leading else CoordinationStatus.Balanced
@@ -294,7 +321,7 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
       bank: PrimitiveBank,
       refs: List[PrimitiveReference]
   ): List[StrategicObject] =
-    bank.pieceRoleIssues.map { issue =>
+    bank.pieceRoleIssues.flatMap { issue =>
       val repairRoutes =
         bank.redeploymentPathSeeds.filter(seed => seed.owner == issue.owner && seed.origin == issue.square) ++
           bank.diagonalLaneSeeds.filter(seed => seed.owner == issue.owner && seed.origin == issue.square) ++
@@ -308,27 +335,52 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
           }
         )
       val primitivesForObject = refsFrom(issue :: repairRoutes)
-      mkObject(
-        id = objectId(StrategicObjectFamily.PieceRoleFitness, issue.owner, sec(issue.square), Some(issue.square), Set(issue.square.file)),
-        family = StrategicObjectFamily.PieceRoleFitness,
-        owner = issue.owner,
-        locus = StrategicObjectLocus(squares = issue.square :: repairTargets),
-        sector = sec(issue.square),
-        anchors = pieceAnchors(List(pieceRef(issue.owner, issue.square, issue.role)), StrategicAnchorRole.Primary) ++ exitSquareAnchors(repairTargets),
-        profile =
-          StrategicObjectProfile.PieceRoleFitness(
-            issue = issue.issue,
-            affectedPiece = pieceRef(issue.owner, issue.square, issue.role),
-            repairTargets = repairTargets
-          ),
-        supportingPrimitives = primitivesForObject,
-        supportingPieces = mergePieces(List(pieceRef(issue.owner, issue.square, issue.role)), primitivesForObject),
-        rivals = rivalsFrom(refs, !issue.owner, (repairTargets :+ issue.square).toSet, Set(issue.square.file), Set(PrimitiveKind.TargetSquare, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.RouteContestSeed)),
-        horizonClass = if issue.issue == PieceRoleIssueKind.BadBishop then ObjectHorizonClass.Structural else ObjectHorizonClass.Maneuver,
-        supportBalance = repairTargets.size,
-        pressureBalance = repairTargets.size,
-        mobilityGain = repairRoutes.collect { case seed: RedeploymentPathSeed => seed.mobilityGain }.sum,
-        tags = Option.when(issue.issue == PieceRoleIssueKind.TrappedPiece)(StrategicEvidenceTag.Trapped).toSet
+      val pieceRolePrimitiveKinds =
+        Set.newBuilder[PrimitiveKind]
+          .addOne(PrimitiveKind.PieceRoleIssue)
+          .addAll(Option.when(repairRoutes.exists(_.isInstanceOf[RedeploymentPathSeed]))(PrimitiveKind.RedeploymentPathSeed))
+          .addAll(Option.when(repairRoutes.exists(_.isInstanceOf[DiagonalLaneSeed]))(PrimitiveKind.DiagonalLaneSeed))
+          .addAll(Option.when(repairRoutes.exists(_.isInstanceOf[KnightRouteSeed]))(PrimitiveKind.KnightRouteSeed))
+          .result()
+      Option.when(
+        contractAllows(
+          StrategicObjectFamily.PieceRoleFitness,
+          FamilyGenerationEvidence(
+            primitiveKinds = pieceRolePrimitiveKinds,
+            anchorSquares = (issue.square :: repairTargets).toSet,
+            files = Set(issue.square.file),
+            pieceRoles = Set(issue.role),
+            metrics =
+              FamilyGenerationMetrics(
+                repairSquareCount = repairTargets.size,
+                escapeSquareCount = repairTargets.size,
+                entryWitnessCount = repairRoutes.size
+              )
+          )
+        )
+      )(
+        mkObject(
+          id = objectId(StrategicObjectFamily.PieceRoleFitness, issue.owner, sec(issue.square), Some(issue.square), Set(issue.square.file)),
+          family = StrategicObjectFamily.PieceRoleFitness,
+          owner = issue.owner,
+          locus = StrategicObjectLocus(squares = issue.square :: repairTargets),
+          sector = sec(issue.square),
+          anchors = pieceAnchors(List(pieceRef(issue.owner, issue.square, issue.role)), StrategicAnchorRole.Primary) ++ exitSquareAnchors(repairTargets),
+          profile =
+            StrategicObjectProfile.PieceRoleFitness(
+              issue = issue.issue,
+              affectedPiece = pieceRef(issue.owner, issue.square, issue.role),
+              repairTargets = repairTargets
+            ),
+          supportingPrimitives = primitivesForObject,
+          supportingPieces = mergePieces(List(pieceRef(issue.owner, issue.square, issue.role)), primitivesForObject),
+          rivals = rivalsFrom(refs, !issue.owner, (repairTargets :+ issue.square).toSet, Set(issue.square.file), Set(PrimitiveKind.TargetSquare, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.RouteContestSeed)),
+          horizonClass = if issue.issue == PieceRoleIssueKind.BadBishop then ObjectHorizonClass.Structural else ObjectHorizonClass.Maneuver,
+          supportBalance = repairTargets.size,
+          pressureBalance = repairTargets.size,
+          mobilityGain = repairRoutes.collect { case seed: RedeploymentPathSeed => seed.mobilityGain }.sum,
+          tags = Option.when(issue.issue == PieceRoleIssueKind.TrappedPiece)(StrategicEvidenceTag.Trapped).toSet
+        )
       )
     }
 
@@ -345,8 +397,29 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
             bank.breakCandidates.filter(_.owner == owner).flatMap(_.targetSquares)
         )
       clampSquares.groupBy(sectorOfSquare).toList.flatMap { case (sector, squares) =>
-        Option.when(squares.size >= 2) {
           val files = distinctFiles(squares.map(_.file))
+        val spaceClampPrimitiveKinds =
+          Set.newBuilder[PrimitiveKind]
+            .addAll(Option.when(bank.criticalSquares.exists(square => square.owner == owner && square.kind == CriticalSquareKind.Outpost && sectorOfSquare(square.square) == sector))(PrimitiveKind.CriticalSquare))
+            .addAll(Option.when(bank.routeContestSeeds.exists(seed => seed.owner == owner && sectorOfSquare(seed.square) == sector))(PrimitiveKind.RouteContestSeed))
+            .addAll(Option.when(bank.targetSquares.exists(target => target.owner == owner && sectorOfSquare(target.square) == sector))(PrimitiveKind.TargetSquare))
+            .addAll(Option.when(bank.breakCandidates.exists(axis => axis.owner == owner && axis.targetSquares.exists(square => sectorOfSquare(square) == sector)))(PrimitiveKind.BreakCandidate))
+            .result()
+        Option.when(
+          contractAllows(
+            StrategicObjectFamily.SpaceClamp,
+            FamilyGenerationEvidence(
+              primitiveKinds = spaceClampPrimitiveKinds,
+              anchorSquares = squares.toSet,
+              files = files.toSet,
+              metrics =
+                FamilyGenerationMetrics(
+                  clampSquareCount = squares.size,
+                  activeFileCount = files.size
+                )
+            )
+          )
+        )(
           mkObject(
             id = objectId(StrategicObjectFamily.SpaceClamp, owner, Some(sector), squares.headOption, files.toSet),
             family = StrategicObjectFamily.SpaceClamp,
@@ -374,7 +447,7 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
             mobilityGain = 0,
             tags = Set(if sector == ObjectSector.Center then StrategicEvidenceTag.Central else StrategicEvidenceTag.Flank)
           )
-        }
+        )
       }
     }
 
@@ -733,7 +806,7 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
       bank: PrimitiveBank,
       refs: List[PrimitiveReference]
   ): List[StrategicObject] =
-    bank.pieceRoleIssues.filter(_.issue == PieceRoleIssueKind.TrappedPiece).map { issue =>
+    bank.pieceRoleIssues.filter(_.issue == PieceRoleIssueKind.TrappedPiece).flatMap { issue =>
       val denied =
         distinctSquares(
           bank.targetSquares.filter(p => p.owner == !issue.owner && p.square == issue.square).map(_.square) ++
@@ -746,27 +819,54 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
             bank.knightRouteSeeds.filter(seed => seed.owner == issue.owner && seed.origin == issue.square).map(_.target) ++
             bank.diagonalLaneSeeds.filter(seed => seed.owner == issue.owner && seed.origin == issue.square).map(_.target)
         )
-      mkObject(
-        id = objectId(StrategicObjectFamily.MobilityCage, issue.owner, sec(issue.square), Some(issue.square), Set(issue.square.file)),
-        family = StrategicObjectFamily.MobilityCage,
-        owner = issue.owner,
-        locus = StrategicObjectLocus(squares = issue.square :: denied ++ repairs, files = List(issue.square.file)),
-        sector = sec(issue.square),
-        anchors = pieceAnchors(List(pieceRef(issue.owner, issue.square, issue.role)), StrategicAnchorRole.Primary) ++ constraintSquareAnchors(denied) ++ exitSquareAnchors(repairs),
-        profile =
-          StrategicObjectProfile.MobilityCage(
-            affectedPiece = pieceRef(issue.owner, issue.square, issue.role),
-            deniedSquares = denied,
-            repairTargets = repairs
-          ),
-        supportingPrimitives = selectRefs(refs, None, (issue.square :: denied ++ repairs).toSet, Set(issue.square.file), Set(PrimitiveKind.PieceRoleIssue, PrimitiveKind.TargetSquare, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.RouteContestSeed, PrimitiveKind.RedeploymentPathSeed, PrimitiveKind.KnightRouteSeed, PrimitiveKind.DiagonalLaneSeed)),
-        supportingPieces = List(pieceRef(issue.owner, issue.square, issue.role)),
-        rivals = rivalsFrom(refs, !issue.owner, denied.toSet, Set(issue.square.file), Set(PrimitiveKind.TargetSquare, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.RouteContestSeed)),
-        horizonClass = ObjectHorizonClass.Maneuver,
-        supportBalance = repairs.size,
-        pressureBalance = denied.size - repairs.size,
-        mobilityGain = 0,
-        tags = Set(StrategicEvidenceTag.Trapped)
+      val mobilityCagePrimitiveKinds =
+        Set.newBuilder[PrimitiveKind]
+          .addOne(PrimitiveKind.PieceRoleIssue)
+          .addAll(Option.when(denied.nonEmpty && bank.targetSquares.exists(p => p.owner == !issue.owner && p.square == issue.square))(PrimitiveKind.TargetSquare))
+          .addAll(Option.when(denied.nonEmpty && bank.counterplayResourceSeeds.exists(seed => seed.owner == !issue.owner && seed.pressureSquares.contains(issue.square)))(PrimitiveKind.CounterplayResourceSeed))
+          .addAll(Option.when(denied.nonEmpty && bank.routeContestSeeds.exists(seed => seed.owner == !issue.owner && seed.square == issue.square))(PrimitiveKind.RouteContestSeed))
+          .addAll(Option.when(bank.redeploymentPathSeeds.exists(seed => seed.owner == issue.owner && seed.origin == issue.square))(PrimitiveKind.RedeploymentPathSeed))
+          .addAll(Option.when(bank.knightRouteSeeds.exists(seed => seed.owner == issue.owner && seed.origin == issue.square))(PrimitiveKind.KnightRouteSeed))
+          .addAll(Option.when(bank.diagonalLaneSeeds.exists(seed => seed.owner == issue.owner && seed.origin == issue.square))(PrimitiveKind.DiagonalLaneSeed))
+          .result()
+      Option.when(
+        contractAllows(
+          StrategicObjectFamily.MobilityCage,
+          FamilyGenerationEvidence(
+            primitiveKinds = mobilityCagePrimitiveKinds,
+            anchorSquares = (issue.square :: denied ++ repairs).toSet,
+            files = Set(issue.square.file),
+            pieceRoles = Set(issue.role),
+            metrics =
+              FamilyGenerationMetrics(
+                deniedSquareCount = denied.size,
+                repairSquareCount = repairs.size
+              )
+          )
+        )
+      )(
+        mkObject(
+          id = objectId(StrategicObjectFamily.MobilityCage, issue.owner, sec(issue.square), Some(issue.square), Set(issue.square.file)),
+          family = StrategicObjectFamily.MobilityCage,
+          owner = issue.owner,
+          locus = StrategicObjectLocus(squares = issue.square :: denied ++ repairs, files = List(issue.square.file)),
+          sector = sec(issue.square),
+          anchors = pieceAnchors(List(pieceRef(issue.owner, issue.square, issue.role)), StrategicAnchorRole.Primary) ++ constraintSquareAnchors(denied) ++ exitSquareAnchors(repairs),
+          profile =
+            StrategicObjectProfile.MobilityCage(
+              affectedPiece = pieceRef(issue.owner, issue.square, issue.role),
+              deniedSquares = denied,
+              repairTargets = repairs
+            ),
+          supportingPrimitives = selectRefs(refs, None, (issue.square :: denied ++ repairs).toSet, Set(issue.square.file), Set(PrimitiveKind.PieceRoleIssue, PrimitiveKind.TargetSquare, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.RouteContestSeed, PrimitiveKind.RedeploymentPathSeed, PrimitiveKind.KnightRouteSeed, PrimitiveKind.DiagonalLaneSeed)),
+          supportingPieces = List(pieceRef(issue.owner, issue.square, issue.role)),
+          rivals = rivalsFrom(refs, !issue.owner, denied.toSet, Set(issue.square.file), Set(PrimitiveKind.TargetSquare, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.RouteContestSeed)),
+          horizonClass = ObjectHorizonClass.Maneuver,
+          supportBalance = repairs.size,
+          pressureBalance = denied.size - repairs.size,
+          mobilityGain = 0,
+          tags = Set(StrategicEvidenceTag.Trapped)
+        )
       )
     }
 
@@ -774,40 +874,60 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
       bank: PrimitiveBank,
       refs: List[PrimitiveReference]
   ): List[StrategicObject] =
-    bank.diagonalLaneSeeds.map(seed => routeObject(seed.owner, routeGeometry(seed), seed.role, None, refs, "diag")) ++
-      bank.liftCorridorSeeds.map(seed => routeObject(seed.owner, routeGeometry(seed), Rook, None, refs, "lift")) ++
-      bank.knightRouteSeeds.map(seed => routeObject(seed.owner, routeGeometry(seed), Knight, None, refs, "knight")) ++
-      bank.redeploymentPathSeeds.map(seed => routeObject(seed.owner, routeGeometry(seed), seed.role, Some(seed.mobilityGain), refs, "redeploy"))
+    bank.diagonalLaneSeeds.flatMap(seed => routeObject(seed.owner, routeGeometry(seed), seed.role, None, PrimitiveKind.DiagonalLaneSeed, refs, "diag")) ++
+      bank.liftCorridorSeeds.flatMap(seed => routeObject(seed.owner, routeGeometry(seed), Rook, None, PrimitiveKind.LiftCorridorSeed, refs, "lift")) ++
+      bank.knightRouteSeeds.flatMap(seed => routeObject(seed.owner, routeGeometry(seed), Knight, None, PrimitiveKind.KnightRouteSeed, refs, "knight")) ++
+      bank.redeploymentPathSeeds.flatMap(seed => routeObject(seed.owner, routeGeometry(seed), seed.role, Some(seed.mobilityGain), PrimitiveKind.RedeploymentPathSeed, refs, "redeploy"))
 
   private def routeObject(
       owner: Color,
       route: StrategicRouteGeometry,
       role: Role,
       mobilityGain: Option[Int],
+      primitiveKind: PrimitiveKind,
       refs: List[PrimitiveReference],
       extra: String
-  ): StrategicObject =
-    mkObject(
-      id = objectId(StrategicObjectFamily.RedeploymentRoute, owner, sec(route.target), Some(route.target), Set(route.target.file), extra = extra),
-      family = StrategicObjectFamily.RedeploymentRoute,
-      owner = owner,
-      locus = StrategicObjectLocus(route = Some(route), squares = route.allSquares, files = List(route.target.file)),
-      sector = sec(route.target),
-      anchors = routeAnchors(List(route), StrategicAnchorRole.Entry) ++ exitSquareAnchors(List(route.target)),
-      profile =
-        StrategicObjectProfile.RedeploymentRoute(
-          route = route,
-          role = role,
-          mobilityGain = mobilityGain
-        ),
-      supportingPrimitives = selectRefs(refs, Some(owner), route.allSquares.toSet, Set(route.target.file), Set(PrimitiveKind.DiagonalLaneSeed, PrimitiveKind.LiftCorridorSeed, PrimitiveKind.KnightRouteSeed, PrimitiveKind.RedeploymentPathSeed, PrimitiveKind.CriticalSquare, PrimitiveKind.RouteContestSeed, PrimitiveKind.TargetSquare, PrimitiveKind.PieceRoleIssue)),
-      supportingPieces = List(pieceRef(owner, route.origin, role)),
-      rivals = rivalsFrom(refs, !owner, (route.via :+ route.target).toSet, Set(route.target.file), Set(PrimitiveKind.RouteContestSeed, PrimitiveKind.TargetSquare, PrimitiveKind.CriticalSquare, PrimitiveKind.CounterplayResourceSeed)),
-      horizonClass = ObjectHorizonClass.Maneuver,
-      supportBalance = mobilityGain.getOrElse(route.via.size + 1),
-      pressureBalance = 1,
-      mobilityGain = mobilityGain.getOrElse(0),
-      tags = mobilityGain.map(_ => StrategicEvidenceTag.MobilityGain).toSet ++ Set(StrategicEvidenceTag.RouteAccess)
+  ): Option[StrategicObject] =
+    Option.when(
+      contractAllows(
+        StrategicObjectFamily.RedeploymentRoute,
+        FamilyGenerationEvidence(
+          primitiveKinds = Set(primitiveKind),
+          anchorSquares = route.allSquares.toSet,
+          files = Set(route.target.file),
+          pieceRoles = Set(role),
+          metrics =
+            FamilyGenerationMetrics(
+              routeSquareCount = route.allSquares.size,
+              routeWaypointCount = route.via.size,
+              routeTempoGain = mobilityGain.getOrElse(0),
+              entryWitnessCount = route.via.size + 1
+            )
+        )
+      )
+    )(
+      mkObject(
+        id = objectId(StrategicObjectFamily.RedeploymentRoute, owner, sec(route.target), Some(route.target), Set(route.target.file), extra = extra),
+        family = StrategicObjectFamily.RedeploymentRoute,
+        owner = owner,
+        locus = StrategicObjectLocus(route = Some(route), squares = route.allSquares, files = List(route.target.file)),
+        sector = sec(route.target),
+        anchors = routeAnchors(List(route), StrategicAnchorRole.Entry) ++ exitSquareAnchors(List(route.target)),
+        profile =
+          StrategicObjectProfile.RedeploymentRoute(
+            route = route,
+            role = role,
+            mobilityGain = mobilityGain
+          ),
+        supportingPrimitives = selectRefs(refs, Some(owner), route.allSquares.toSet, Set(route.target.file), Set(PrimitiveKind.DiagonalLaneSeed, PrimitiveKind.LiftCorridorSeed, PrimitiveKind.KnightRouteSeed, PrimitiveKind.RedeploymentPathSeed, PrimitiveKind.CriticalSquare, PrimitiveKind.RouteContestSeed, PrimitiveKind.TargetSquare, PrimitiveKind.PieceRoleIssue)),
+        supportingPieces = List(pieceRef(owner, route.origin, role)),
+        rivals = rivalsFrom(refs, !owner, (route.via :+ route.target).toSet, Set(route.target.file), Set(PrimitiveKind.RouteContestSeed, PrimitiveKind.TargetSquare, PrimitiveKind.CriticalSquare, PrimitiveKind.CounterplayResourceSeed)),
+        horizonClass = ObjectHorizonClass.Maneuver,
+        supportBalance = mobilityGain.getOrElse(route.via.size + 1),
+        pressureBalance = 1,
+        mobilityGain = mobilityGain.getOrElse(0),
+        tags = mobilityGain.map(_ => StrategicEvidenceTag.MobilityGain).toSet ++ Set(StrategicEvidenceTag.RouteAccess)
+      )
     )
 
   private def passerObjects(

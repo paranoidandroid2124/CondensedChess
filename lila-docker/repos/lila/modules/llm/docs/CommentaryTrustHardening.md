@@ -299,6 +299,41 @@ Use the documents in this order:
   counterpart inflation. This remains a trust-boundary tightening only:
   no new public wording, renderer behavior, Tier 2 / Tier 3 owner lane, or
   legacy helper topology is reopened.
+- rewrite-local Tier-1 provisional hardening and promotion-audit note on
+  2026-04-06:
+  the remaining provisional direct-owner families
+  `KingSafetyShell`, `DevelopmentCoordinationState`, `PieceRoleFitness`,
+  `SpaceClamp`, `CounterplayAxis`, `RestrictionShell`, `MobilityCage`, and
+  `RedeploymentRoute` now carry exact-board nasty corpus on both the object and
+  delta lanes, and their runtime admission is tightened family-by-family
+  instead of broad same-sector or file-overlap heuristics. Shell, coordination,
+  role-liability, clamp, counterplay, restriction, cage, and reroute pictures
+  now need typed board evidence such as real shell entry/pressure burden,
+  lag-plus-activity coherence, limited repair/escape counts, multi-file clamp
+  coverage, concrete counterplay entry, denial coverage, effective mobility
+  loss, and route clarity/tempo. Comparative reopening for provisional
+  families now requires at least three typed metrics plus admissible
+  counterpart witnesses, and forced-stable replay still keeps their
+  `move_local_false_witness` and `comparative_false_rival` rows closed.
+  Promotion was audited conservatively and all eight families stay
+  `Provisional`; `MoveLocal` remains closed for all eight on this pass. This is
+  still trust-hardening only:
+  it reduces false-positive admission and fake comparative inflation without
+  adding planner wording, renderer semantics, or new user-facing release.
+- rewrite-local strategic-object Tier-1 provisional audit note on 2026-04-06:
+  the eight provisional direct-owner families
+  (`KingSafetyShell`, `DevelopmentCoordinationState`, `PieceRoleFitness`,
+  `SpaceClamp`, `CounterplayAxis`, `RestrictionShell`, `MobilityCage`,
+  `RedeploymentRoute`) now carry exact-board nasty coverage on
+  `near_miss`, `nasty_negative`, `move_local_false_witness`, and
+  `comparative_false_rival` in addition to their positive corpus. Their
+  synthesis and comparative gates are tightened at the family boundary, the
+  provisional comparative lane now requires a real admissible counterpart plus
+  at least three typed metrics, and single-file pressure pictures no longer
+  admit `SpaceClamp`. This pass does not reopen raw board, primitive
+  extraction, planner wording, renderer semantics, or Tier 2 / Tier 3 owner
+  lanes. All eight families remain `Provisional`, and `move_local` remains
+  closed for all eight on the current rewrite lane.
 
 ## Current Status
 

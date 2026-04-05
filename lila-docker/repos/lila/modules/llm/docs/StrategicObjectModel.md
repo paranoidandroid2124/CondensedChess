@@ -533,6 +533,55 @@ Tier 2 and Tier 3 families remain in the Phase 5 universe and remain in the
 object graph, but they do not gain direct delta ownership in pass 1 even when
 their object readiness is `Stable` or `Provisional`.
 
+Phase 5 Tier-1 provisional hardening and promotion audit on 2026-04-06 does
+not change that readiness boundary. The eight provisional Tier 1 direct owners
+`KingSafetyShell`, `DevelopmentCoordinationState`, `PieceRoleFitness`,
+`SpaceClamp`, `CounterplayAxis`, `RestrictionShell`, `MobilityCage`, and
+`RedeploymentRoute` remain object-valid but delta-conservative:
+
+- all eight stay `Provisional`
+- `MoveLocal` remains closed for all eight families even under forced-stable
+  replay
+- `Comparative` may reopen only from exact-board counterpart evidence plus a
+  typed family profile with at least three metrics
+- provisional-family corpus must now prove exact-board positive, contrastive,
+  near-miss, nasty-negative, move-local false-witness, and comparative
+  false-rival behavior instead of relying on verbal motif coverage
+
+### Phase 5 Tier 1 Provisional Audit
+
+The current conservative boundary for the eight provisional Tier 1 direct
+owners is now exact-board audited rather than motif-driven:
+
+- `KingSafetyShell`
+- `DevelopmentCoordinationState`
+- `PieceRoleFitness`
+- `SpaceClamp`
+- `CounterplayAxis`
+- `RestrictionShell`
+- `MobilityCage`
+- `RedeploymentRoute`
+
+Current north-star outcome:
+
+- all eight stay `Provisional`
+- all eight keep `move_local` closed on the current rewrite lane
+- comparative may reopen only from family-aware counterpart witness plus a
+  typed comparative metric profile; broad same-sector or same-file rivalry is
+  not sufficient
+- each family now requires exact-board corpus on:
+  - `exact`
+  - `contrastive`
+  - `near_miss`
+  - `nasty_negative`
+  - `move_local_false_witness`
+  - `comparative_false_rival`
+
+This is a readiness-discipline rule, not a wording rule.
+Tier 1 provisional families survive in the object graph and in conservative
+comparative lanes, but they should not be promoted on verbal motif confidence
+or on single-board positive examples alone.
+
 ## Certificate Axes
 
 Object certificates reuse the existing strength of the current system.

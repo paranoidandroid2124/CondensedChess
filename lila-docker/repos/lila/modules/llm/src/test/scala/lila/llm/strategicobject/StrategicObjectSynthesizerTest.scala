@@ -32,8 +32,34 @@ class StrategicObjectSynthesizerTest extends FunSuite:
   }
 
   test("fixture bank keeps full family split and expected minimum row count") {
-    assert(rows.size >= 84, clue(s"expected at least 84 object rows, got ${rows.size}"))
+    assert(rows.size >= 100, clue(s"expected at least 100 object rows, got ${rows.size}"))
     assertEquals(rows.groupBy(_.family).size, 24)
+  }
+
+  test("Tier-1 provisional families carry exact-board near-miss and nasty-negative object coverage") {
+    val provisionalFamilies = Set(
+      StrategicObjectFamily.KingSafetyShell,
+      StrategicObjectFamily.DevelopmentCoordinationState,
+      StrategicObjectFamily.PieceRoleFitness,
+      StrategicObjectFamily.SpaceClamp,
+      StrategicObjectFamily.CounterplayAxis,
+      StrategicObjectFamily.RestrictionShell,
+      StrategicObjectFamily.MobilityCage,
+      StrategicObjectFamily.RedeploymentRoute
+    )
+
+    provisionalFamilies.foreach { family =>
+      val familyRows = rows.filter(row => parseFamily(row.family) == family)
+      val caseTypes = familyRows.map(_.caseType).toSet
+      assert(caseTypes.contains("exact"), clue(s"missing exact object row for $family"))
+      assert(caseTypes.contains("contrastive"), clue(s"missing contrastive object row for $family"))
+      assert(caseTypes.contains("near_miss"), clue(s"missing near_miss object row for $family"))
+      assert(caseTypes.contains("nasty_negative"), clue(s"missing nasty_negative object row for $family"))
+      assert(
+        familyRows.forall(row => !row.source.startsWith("strategic-idea:")),
+        clue(s"$family still uses opening-name-first source labels")
+      )
+    }
   }
 
   test("fixture bank carries live-board hardening negative coverage") {

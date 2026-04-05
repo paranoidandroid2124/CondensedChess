@@ -29,7 +29,8 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
   private final case class ComparativeSelection(
       witness: StrategicComparativeWitness,
       rivals: List[StrategicObject],
-      balance: StrategicComparativeBalance
+      balance: StrategicComparativeBalance,
+      profile: StrategicComparativeProfile
   )
 
   private final case class DeltaContext(
@@ -114,7 +115,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
             balance = selection.balance,
             witness = selection.witness,
             counterpartObjectIds = selection.rivals.map(_.id).distinct.sorted.take(4),
-            profile = comparativeProfile(obj, selection)
+            profile = selection.profile
           )
         )
 
@@ -314,7 +315,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         .flatMap(rival => comparativeWitness(obj, rival).map(ComparativeCandidate(rival, _)))
         .sortBy(candidate => candidateRank(obj, candidate))
 
-    candidates.headOption.map { primary =>
+    candidates.headOption.flatMap { primary =>
       val grouped =
         candidates
           .filter(candidate =>
@@ -332,10 +333,15 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
           rivalPrimitiveKinds = grouped.flatMap(_.witness.rivalPrimitiveKinds).toSet
         ).normalized
       val rivals = grouped.map(_.rival).distinct.sortBy(_.id)
-      ComparativeSelection(
-        witness = aggregatedWitness,
-        rivals = rivals,
-        balance = comparativeBalance(obj, supportObjects, rivals)
+      val balance = comparativeBalance(obj, supportObjects, rivals)
+      val profile = comparativeProfile(obj, primary.rival, aggregatedWitness)
+      Option.when(comparativeProfileAdmissible(obj, rivals, aggregatedWitness, profile))(
+        ComparativeSelection(
+          witness = aggregatedWitness,
+          rivals = rivals,
+          balance = balance,
+          profile = profile
+        )
       )
     }
 
@@ -438,14 +444,45 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
 
   private def comparativeProfile(
       obj: StrategicObject,
-      selection: ComparativeSelection
+      rival: StrategicObject,
+      witness: StrategicComparativeWitness
   ): StrategicComparativeProfile =
-    val rival = selection.rivals.head
     StrategicComparativeProfile(
-      axis = selection.witness.axis,
-      counterpartFamily = selection.witness.counterpartFamily,
+      axis = witness.axis,
+      counterpartFamily = witness.counterpartFamily,
       metrics = comparativeMetrics(obj.profile, rival.profile)
     ).normalized
+
+  private def comparativeProfileAdmissible(
+      current: StrategicObject,
+      rivals: List[StrategicObject],
+      witness: StrategicComparativeWitness,
+      profile: StrategicComparativeProfile
+  ): Boolean =
+    val readiness = StrategicObjectFamilyContract.forFamily(current.family).defaultReadiness
+    val provisionalMetricFloor =
+      readiness != StrategicObjectReadiness.Provisional || profile.metrics.size >= 3
+    val counterpartGate =
+      (current.family, profile.counterpartFamily) match
+        case (StrategicObjectFamily.PieceRoleFitness, StrategicObjectFamily.MobilityCage) =>
+          rivals.exists(rival => samePieceCounterpart(current, rival))
+        case (StrategicObjectFamily.MobilityCage, StrategicObjectFamily.PieceRoleFitness) =>
+          rivals.exists(rival => samePieceCounterpart(current, rival))
+        case (StrategicObjectFamily.DevelopmentCoordinationState, StrategicObjectFamily.RedeploymentRoute) =>
+          rivals.exists(rival => sharedRouteCounterpart(current, rival))
+        case (StrategicObjectFamily.RedeploymentRoute, StrategicObjectFamily.DevelopmentCoordinationState) =>
+          rivals.exists(rival => sharedRouteCounterpart(current, rival))
+        case (StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.FixedTargetComplex) =>
+          rivals.exists(rival => sharedTargetCounterpart(current, rival))
+        case (StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.RestrictionShell) =>
+          rivals.exists(rival => sharedTargetCounterpart(current, rival))
+        case (StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.BreakAxis) =>
+          witness.matchedSquares.nonEmpty &&
+            witness.rivalPrimitiveKinds.contains(PrimitiveKind.BreakCandidate)
+        case _ =>
+          true
+
+    profile.metrics.nonEmpty && provisionalMetricFloor && counterpartGate
 
   private def comparativeMetrics(
       current: StrategicObjectProfile,
@@ -461,22 +498,42 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case (StrategicObjectProfile.KingSafetyShell(_, accessFiles, stressedSquares, pressureSquares), StrategicObjectProfile.KingSafetyShell(_, rivalAccessFiles, rivalStressedSquares, rivalPressureSquares)) =>
         List(
           StrategicComparativeMetric.ShellStress(stressedSquares.size + pressureSquares.size, rivalStressedSquares.size + rivalPressureSquares.size),
-          StrategicComparativeMetric.EntryAccess(accessFiles.size, rivalAccessFiles.size)
+          StrategicComparativeMetric.EntryAccess(accessFiles.size, rivalAccessFiles.size),
+          StrategicComparativeMetric.ShellIntegrity(
+            kingShellIntegrityScore(accessFiles, stressedSquares, pressureSquares),
+            kingShellIntegrityScore(rivalAccessFiles, rivalStressedSquares, rivalPressureSquares)
+          ),
+          StrategicComparativeMetric.StressDistribution(
+            stressDistributionScore(stressedSquares, pressureSquares),
+            stressDistributionScore(rivalStressedSquares, rivalPressureSquares)
+          )
         )
       case (StrategicObjectProfile.DevelopmentCoordinationState(_, laggingPieces, activeFiles, _), StrategicObjectProfile.DevelopmentCoordinationState(_, rivalLaggingPieces, rivalActiveFiles, _)) =>
         List(
           StrategicComparativeMetric.LaggingPieceCount(laggingPieces.size, rivalLaggingPieces.size),
-          StrategicComparativeMetric.ActiveFileCount(activeFiles.size, rivalActiveFiles.size)
+          StrategicComparativeMetric.ActiveFileCount(activeFiles.size, rivalActiveFiles.size),
+          StrategicComparativeMetric.CoordinationCoherence(
+            coordinationCoherenceScore(laggingPieces, activeFiles),
+            coordinationCoherenceScore(rivalLaggingPieces, rivalActiveFiles)
+          )
         )
       case (StrategicObjectProfile.PieceRoleFitness(issue, _, repairTargets), StrategicObjectProfile.PieceRoleFitness(rivalIssue, _, rivalRepairTargets)) =>
         List(
           StrategicComparativeMetric.LiabilitySeverity(pieceRoleSeverity(issue), pieceRoleSeverity(rivalIssue)),
-          StrategicComparativeMetric.RepairSquareCount(repairTargets.size, rivalRepairTargets.size)
+          StrategicComparativeMetric.RepairSquareCount(repairTargets.size, rivalRepairTargets.size),
+          StrategicComparativeMetric.EscapeAvailability(
+            distinctFiles(repairTargets.map(_.file)).size,
+            distinctFiles(rivalRepairTargets.map(_.file)).size
+          )
         )
       case (StrategicObjectProfile.SpaceClamp(_, clampSquares, pressureFiles), StrategicObjectProfile.SpaceClamp(_, rivalClampSquares, rivalPressureFiles)) =>
         List(
           StrategicComparativeMetric.ClampSquareCount(clampSquares.size, rivalClampSquares.size),
-          StrategicComparativeMetric.PressureFileCount(pressureFiles.size, rivalPressureFiles.size)
+          StrategicComparativeMetric.PressureFileCount(pressureFiles.size, rivalPressureFiles.size),
+          StrategicComparativeMetric.UsableCounterspace(
+            distinctFiles(clampSquares.map(_.file)).size,
+            distinctFiles(rivalClampSquares.map(_.file)).size
+          )
         )
       case (StrategicObjectProfile.CriticalSquareComplex(_, focalSquares, pressure), StrategicObjectProfile.CriticalSquareComplex(_, rivalFocalSquares, rivalPressure)) =>
         List(
@@ -521,42 +578,62 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case (StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares), StrategicObjectProfile.CounterplayAxis(rivalResourceSquares, rivalBreakSquares, rivalPressureSquares)) =>
         List(
           StrategicComparativeMetric.ReliefResource(resourceSquares.size + pressureSquares.size, rivalResourceSquares.size + rivalPressureSquares.size),
-          StrategicComparativeMetric.BreakPressure(breakSquares.size, rivalBreakSquares.size)
+          StrategicComparativeMetric.BreakPressure(breakSquares.size, rivalBreakSquares.size),
+          StrategicComparativeMetric.EntryViability(
+            distinctFiles((resourceSquares ++ breakSquares).map(_.file)).size,
+            distinctFiles((rivalResourceSquares ++ rivalBreakSquares).map(_.file)).size
+          )
         )
       case (StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares), StrategicObjectProfile.BreakAxis(_, _, rivalTargetSquares, _, rivalSupportBalance)) =>
         List(
           StrategicComparativeMetric.ReliefResource(resourceSquares.size + pressureSquares.size, rivalTargetSquares.size + math.max(rivalSupportBalance, 0)),
-          StrategicComparativeMetric.BreakPressure(breakSquares.size, rivalTargetSquares.size)
+          StrategicComparativeMetric.BreakPressure(breakSquares.size, rivalTargetSquares.size),
+          StrategicComparativeMetric.EntryViability(
+            distinctFiles((resourceSquares ++ breakSquares).map(_.file)).size,
+            distinctFiles(rivalTargetSquares.map(_.file)).size
+          )
         )
       case (StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares), StrategicObjectProfile.RestrictionShell(rivalRestrictedSquares, _, rivalConstraintSquares)) =>
         List(
           StrategicComparativeMetric.RestrictionCoverage(restrictedSquares.size, rivalRestrictedSquares.size),
-          StrategicComparativeMetric.ConstraintCount(constraintSquares.size, rivalConstraintSquares.size)
+          StrategicComparativeMetric.ConstraintCount(constraintSquares.size, rivalConstraintSquares.size),
+          StrategicComparativeMetric.ReopenedSquareCount(constraintSquares.size, rivalConstraintSquares.size)
         )
       case (StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares), StrategicObjectProfile.FixedTargetComplex(_, _, _, _, rivalDefended)) =>
         List(
           StrategicComparativeMetric.RestrictionCoverage(restrictedSquares.size, if rivalDefended then 1 else 0),
-          StrategicComparativeMetric.ConstraintCount(constraintSquares.size, 1)
+          StrategicComparativeMetric.ConstraintCount(constraintSquares.size, 1),
+          StrategicComparativeMetric.ReopenedSquareCount(constraintSquares.size, if rivalDefended then 0 else 1)
         )
       case (StrategicObjectProfile.MobilityCage(_, deniedSquares, repairTargets), StrategicObjectProfile.MobilityCage(_, rivalDeniedSquares, rivalRepairTargets)) =>
         List(
           StrategicComparativeMetric.DeniedSquareCount(deniedSquares.size, rivalDeniedSquares.size),
-          StrategicComparativeMetric.RepairCount(repairTargets.size, rivalRepairTargets.size)
+          StrategicComparativeMetric.RepairCount(repairTargets.size, rivalRepairTargets.size),
+          StrategicComparativeMetric.EffectiveMobilityLoss(
+            math.max(deniedSquares.size - repairTargets.size, 0),
+            math.max(rivalDeniedSquares.size - rivalRepairTargets.size, 0)
+          )
         )
       case (StrategicObjectProfile.MobilityCage(_, deniedSquares, repairTargets), StrategicObjectProfile.PieceRoleFitness(rivalIssue, _, rivalRepairTargets)) =>
         List(
           StrategicComparativeMetric.DeniedSquareCount(deniedSquares.size, pieceRoleSeverity(rivalIssue)),
-          StrategicComparativeMetric.RepairCount(repairTargets.size, rivalRepairTargets.size)
+          StrategicComparativeMetric.RepairCount(repairTargets.size, rivalRepairTargets.size),
+          StrategicComparativeMetric.EffectiveMobilityLoss(
+            math.max(deniedSquares.size - repairTargets.size, 0),
+            math.max(pieceRoleSeverity(rivalIssue) - rivalRepairTargets.size, 0)
+          )
         )
       case (StrategicObjectProfile.RedeploymentRoute(route, _, mobilityGain), StrategicObjectProfile.RedeploymentRoute(rivalRoute, _, rivalMobilityGain)) =>
         List(
           StrategicComparativeMetric.RouteClarity(route.allSquares.size, rivalRoute.allSquares.size),
-          StrategicComparativeMetric.MobilityGain(mobilityGain.getOrElse(0), rivalMobilityGain.getOrElse(0))
+          StrategicComparativeMetric.MobilityGain(mobilityGain.getOrElse(0), rivalMobilityGain.getOrElse(0)),
+          StrategicComparativeMetric.DestinationQuality(squareQuality(route.target), squareQuality(rivalRoute.target))
         )
       case (StrategicObjectProfile.RedeploymentRoute(route, _, mobilityGain), StrategicObjectProfile.DevelopmentCoordinationState(_, rivalLaggingPieces, rivalActiveFiles, rivalCoordinationSquares)) =>
         List(
           StrategicComparativeMetric.RouteClarity(route.allSquares.size, rivalLaggingPieces.size + rivalCoordinationSquares.size),
-          StrategicComparativeMetric.MobilityGain(mobilityGain.getOrElse(0), rivalActiveFiles.size)
+          StrategicComparativeMetric.MobilityGain(mobilityGain.getOrElse(0), rivalActiveFiles.size),
+          StrategicComparativeMetric.DestinationQuality(squareQuality(route.target), rivalCoordinationSquares.size)
         )
       case (StrategicObjectProfile.PasserComplex(_, _, relativeRank, _, escortSquares), StrategicObjectProfile.PasserComplex(_, _, rivalRelativeRank, _, rivalEscortSquares)) =>
         List(
@@ -571,12 +648,20 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case (StrategicObjectProfile.PieceRoleFitness(issue, _, repairTargets), StrategicObjectProfile.MobilityCage(_, rivalDeniedSquares, rivalRepairTargets)) =>
         List(
           StrategicComparativeMetric.LiabilitySeverity(pieceRoleSeverity(issue), rivalDeniedSquares.size),
-          StrategicComparativeMetric.RepairSquareCount(repairTargets.size, rivalRepairTargets.size)
+          StrategicComparativeMetric.RepairSquareCount(repairTargets.size, rivalRepairTargets.size),
+          StrategicComparativeMetric.EscapeAvailability(
+            distinctFiles(repairTargets.map(_.file)).size,
+            math.max(rivalDeniedSquares.size - rivalRepairTargets.size, 0)
+          )
         )
       case (StrategicObjectProfile.DevelopmentCoordinationState(_, laggingPieces, activeFiles, _), StrategicObjectProfile.RedeploymentRoute(rivalRoute, _, rivalMobilityGain)) =>
         List(
           StrategicComparativeMetric.LaggingPieceCount(laggingPieces.size, rivalRoute.allSquares.size),
-          StrategicComparativeMetric.ActiveFileCount(activeFiles.size, rivalMobilityGain.getOrElse(0))
+          StrategicComparativeMetric.ActiveFileCount(activeFiles.size, rivalMobilityGain.getOrElse(0)),
+          StrategicComparativeMetric.CoordinationCoherence(
+            coordinationCoherenceScore(laggingPieces, activeFiles),
+            squareQuality(rivalRoute.target)
+          )
         )
       case (StrategicObjectProfile.CriticalSquareComplex(_, focalSquares, pressure), StrategicObjectProfile.PasserComplex(_, _, rivalRelativeRank, _, rivalEscortSquares)) =>
         List(
@@ -585,6 +670,68 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         )
       case _ =>
         Nil
+
+  private def samePieceCounterpart(
+      current: StrategicObject,
+      rival: StrategicObject
+  ): Boolean =
+    (current.profile, rival.profile) match
+      case (StrategicObjectProfile.PieceRoleFitness(_, affectedPiece, _), StrategicObjectProfile.MobilityCage(cagedPiece, _, _)) =>
+        affectedPiece.squares.intersect(cagedPiece.squares).nonEmpty
+      case (StrategicObjectProfile.MobilityCage(cagedPiece, _, _), StrategicObjectProfile.PieceRoleFitness(_, affectedPiece, _)) =>
+        cagedPiece.squares.intersect(affectedPiece.squares).nonEmpty
+      case _ =>
+        false
+
+  private def sharedRouteCounterpart(
+      current: StrategicObject,
+      rival: StrategicObject
+  ): Boolean =
+    (current.profile, rival.profile) match
+      case (StrategicObjectProfile.DevelopmentCoordinationState(_, laggingPieces, _, coordinationSquares), StrategicObjectProfile.RedeploymentRoute(route, _, _)) =>
+        route.allSquares.intersect(laggingPieces.flatMap(_.squares) ++ coordinationSquares).size >= 2
+      case (StrategicObjectProfile.RedeploymentRoute(route, _, _), StrategicObjectProfile.DevelopmentCoordinationState(_, laggingPieces, _, coordinationSquares)) =>
+        route.allSquares.intersect(laggingPieces.flatMap(_.squares) ++ coordinationSquares).size >= 2
+      case _ =>
+        false
+
+  private def sharedTargetCounterpart(
+      current: StrategicObject,
+      rival: StrategicObject
+  ): Boolean =
+    (current.profile, rival.profile) match
+      case (StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares), StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, _, _)) =>
+        (restrictedSquares ++ constraintSquares).contains(targetSquare)
+      case (StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, _, _), StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares)) =>
+        (restrictedSquares ++ constraintSquares).contains(targetSquare)
+      case _ =>
+        false
+
+  private def kingShellIntegrityScore(
+      accessFiles: Set[File],
+      stressedSquares: List[Square],
+      pressureSquares: List[Square]
+  ): Int =
+    math.max(0, 6 - accessFiles.size - distinctFiles((stressedSquares ++ pressureSquares).map(_.file)).size)
+
+  private def stressDistributionScore(
+      stressedSquares: List[Square],
+      pressureSquares: List[Square]
+  ): Int =
+    distinctFiles((stressedSquares ++ pressureSquares).map(_.file)).size
+
+  private def coordinationCoherenceScore(
+      laggingPieces: List[StrategicPieceRef],
+      activeFiles: Set[File]
+  ): Int =
+    math.max(activeFiles.size - laggingPieces.size, 0)
+
+  private def squareQuality(
+      square: Square
+  ): Int =
+    val fileDistance = math.abs(square.file.char.toInt - 'd'.toInt)
+    val rankDistance = math.abs(square.rank.value - 4)
+    math.max(0, 8 - fileDistance - rankDistance)
 
   private def pieceRoleSeverity(
       issue: PieceRoleIssueKind
@@ -1050,6 +1197,38 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
           relationWitnesses.nonEmpty
       case _: StrategicObjectProfile.PawnStructureRegime =>
         (coreSquares.nonEmpty && primitiveKinds.nonEmpty) || relationWitnesses.nonEmpty
+      case _: StrategicObjectProfile.DevelopmentCoordinationState =>
+        coreSquares.nonEmpty &&
+          primitiveKinds.intersect(Set(PrimitiveKind.PieceRoleIssue, PrimitiveKind.AccessRoute, PrimitiveKind.RedeploymentPathSeed)).nonEmpty &&
+          (coreSquares.size >= 2 || relationWitnesses.nonEmpty)
+      case _: StrategicObjectProfile.PieceRoleFitness =>
+        coreSquares.nonEmpty &&
+          primitiveKinds.intersect(Set(PrimitiveKind.PieceRoleIssue, PrimitiveKind.RedeploymentPathSeed, PrimitiveKind.KnightRouteSeed, PrimitiveKind.DiagonalLaneSeed)).nonEmpty
+      case _: StrategicObjectProfile.SpaceClamp =>
+        coreSquares.size >= 2 &&
+          primitiveKinds.intersect(Set(PrimitiveKind.CriticalSquare, PrimitiveKind.TargetSquare, PrimitiveKind.BreakCandidate, PrimitiveKind.RouteContestSeed)).nonEmpty
+      case _: StrategicObjectProfile.CounterplayAxis =>
+        coreSquares.nonEmpty &&
+          primitiveKinds.contains(PrimitiveKind.CounterplayResourceSeed) &&
+          (
+            primitiveKinds.contains(PrimitiveKind.BreakCandidate) ||
+              primitiveKinds.contains(PrimitiveKind.ReleaseCandidate) ||
+              relationWitnesses.nonEmpty
+          )
+      case _: StrategicObjectProfile.RestrictionShell =>
+        coreSquares.size >= 2 &&
+          primitiveKinds.intersect(Set(PrimitiveKind.TargetSquare, PrimitiveKind.CriticalSquare, PrimitiveKind.RouteContestSeed)).nonEmpty &&
+          (coreFiles.nonEmpty || relationWitnesses.nonEmpty)
+      case _: StrategicObjectProfile.MobilityCage =>
+        coreSquares.nonEmpty &&
+          primitiveKinds.contains(PrimitiveKind.PieceRoleIssue) &&
+          (
+            primitiveKinds.intersect(Set(PrimitiveKind.TargetSquare, PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.RouteContestSeed)).nonEmpty ||
+              relationWitnesses.nonEmpty
+          )
+      case _: StrategicObjectProfile.RedeploymentRoute =>
+        coreSquares.size >= 2 &&
+          primitiveKinds.intersect(Set(PrimitiveKind.DiagonalLaneSeed, PrimitiveKind.LiftCorridorSeed, PrimitiveKind.KnightRouteSeed, PrimitiveKind.RedeploymentPathSeed)).nonEmpty
       case _ =>
         coreSquares.nonEmpty || relationWitnesses.nonEmpty
 
@@ -1097,7 +1276,13 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       other: StrategicObject
   ): Boolean =
     rival.objectId.contains(other.id) ||
-      (rival.objectFamily.contains(other.family) && (rival.squares.nonEmpty || rival.file.nonEmpty))
+      (
+        rival.objectFamily.contains(other.family) &&
+          (
+            rival.squares.exists(square => objectSquares(other).contains(square)) ||
+              rival.file.exists(file => objectFiles(other).contains(file))
+          )
+      )
 
   private def relationComparableSquares(
       current: StrategicObject,

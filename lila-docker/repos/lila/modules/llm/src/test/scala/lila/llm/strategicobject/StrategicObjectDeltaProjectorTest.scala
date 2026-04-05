@@ -11,7 +11,7 @@ class StrategicObjectDeltaProjectorTest extends FunSuite:
   import StrategicObjectDeltaProjectorTest.*
 
   test("delta fixture bank covers all Tier-1 direct owners, scopes, and nasty negatives") {
-    assert(rows.size >= 56, clue(s"expected at least 56 delta rows, got ${rows.size}"))
+    assert(rows.size >= 80, clue(s"expected at least 80 delta rows, got ${rows.size}"))
     assertEquals(rows.groupBy(_.family).size, 14)
     assert(rows.forall(row => StrategicObjectFamily.directDeltaOwners.contains(parseFamily(row.family))))
 
@@ -29,6 +29,24 @@ class StrategicObjectDeltaProjectorTest extends FunSuite:
         ),
         clue(s"missing scope coverage for $family")
       )
+    }
+  }
+
+  test("Tier-1 provisional families carry nasty-negative, false-witness, and false-rival delta coverage") {
+    val provisionalFamilies =
+      StrategicObjectFamily.directDeltaOwners.filter(family =>
+        StrategicObjectFamilyContract.forFamily(family).defaultReadiness == StrategicObjectReadiness.Provisional
+      )
+
+    provisionalFamilies.foreach { family =>
+      val familyRows = rows.filter(row => parseFamily(row.family) == family)
+      val caseTypes = familyRows.map(_.caseType).toSet
+      assert(caseTypes.contains("exact"), clue(s"missing exact delta row for $family"))
+      assert(caseTypes.contains("contrastive"), clue(s"missing contrastive delta row for $family"))
+      assert(caseTypes.contains("near_miss"), clue(s"missing near_miss delta row for $family"))
+      assert(caseTypes.contains("nasty_negative"), clue(s"missing nasty_negative delta row for $family"))
+      assert(caseTypes.contains("move_local_false_witness"), clue(s"missing move_local_false_witness row for $family"))
+      assert(caseTypes.contains("comparative_false_rival"), clue(s"missing comparative_false_rival row for $family"))
     }
   }
 
@@ -177,6 +195,46 @@ class StrategicObjectDeltaProjectorTest extends FunSuite:
     visibleComparativeRows.foreach(row => assert(deltasForRow(row).nonEmpty, clue(s"${row.id}: visible comparative should open")))
   }
 
+  test("provisional false-witness and false-rival rows stay closed even under forced-stable replay") {
+    rows.filter(_.caseType == "move_local_false_witness").foreach { row =>
+      val family = parseFamily(row.family)
+      val owner = parseColor(row.owner)
+      val truth = truthFor(row)
+      val contract = contractFor(row)
+      val objects =
+        StrategicObjectSynthesizerTest
+          .objectsForFen(row.fen, truth)
+          .map(obj =>
+            if obj.family == family && obj.owner == owner then obj.copy(readiness = StrategicObjectReadiness.Stable)
+            else obj
+          )
+      val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+      assert(
+        scopeDeltas(row, deltas).isEmpty,
+        clue(s"${row.id}: strict move-local witness should stay closed even if the family is forced stable")
+      )
+    }
+
+    rows.filter(_.caseType == "comparative_false_rival").foreach { row =>
+      val family = parseFamily(row.family)
+      val owner = parseColor(row.owner)
+      val truth = truthFor(row)
+      val contract = contractFor(row)
+      val objects =
+        StrategicObjectSynthesizerTest
+          .objectsForFen(row.fen, truth)
+          .map(obj =>
+            if obj.family == family && obj.owner == owner then obj.copy(readiness = StrategicObjectReadiness.Stable)
+            else obj
+          )
+      val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+      assert(
+        scopeDeltas(row, deltas).isEmpty,
+        clue(s"${row.id}: unsupported comparative rival should stay blocked even if the family is forced stable")
+      )
+    }
+  }
+
   rows.foreach { row =>
     test(s"delta expectation ${row.id}") {
       val matched = deltasForRow(row)
@@ -272,6 +330,11 @@ class StrategicObjectDeltaProjectorTest extends FunSuite:
         assert(counterpartObjectIds.nonEmpty, clue(s"${row.id}: expected counterpart ids"))
         assert(delta.rivalObjectIds.nonEmpty, clue(s"${row.id}: expected rival object ids"))
         assert(profile.metrics.nonEmpty, clue(s"${row.id}: expected comparative metrics"))
+        if StrategicObjectFamilyContract.forFamily(delta.family).defaultReadiness == StrategicObjectReadiness.Provisional then
+          assert(
+            profile.metrics.size >= 3,
+            clue(s"${row.id}: provisional comparative rows must carry at least three typed metrics")
+          )
 
   private def deltaSquares(
       delta: StrategicObjectDelta
