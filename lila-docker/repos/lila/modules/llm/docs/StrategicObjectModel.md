@@ -227,6 +227,99 @@ The mature target model uses 24 near-orthogonal object families.
 23. `PasserComplex`
 24. `FortressHoldingShell`
 
+The rewrite must preserve all 24 families as the canonical object vocabulary.
+No future phase should reinterpret the architecture as "only the first few
+families matter". A narrow implementation frontier is allowed, but a narrow
+vocabulary is not.
+
+## First-Order Object Richness
+
+Phase 4 must not collapse into "four thin objects". The first strategic object
+layer should be rich enough that later delta/planner phases do not need to
+rediscover semantics from raw board state.
+
+### Board-Direct First-Order Objects
+
+These families should be expected to rise directly from primitive material once
+Phase 4 starts.
+
+1. `PawnStructureRegime`
+2. `KingSafetyShell`
+3. `DevelopmentCoordinationState`
+4. `PieceRoleFitness`
+5. `SpaceClamp`
+6. `CriticalSquareComplex`
+7. `FixedTargetComplex`
+8. `BreakAxis`
+9. `AccessNetwork`
+10. `CounterplayAxis`
+11. `RestrictionShell`
+12. `MobilityCage`
+13. `RedeploymentRoute`
+14. `PasserComplex`
+
+These are "board-direct" not because they are trivial, but because the Phase 3
+primitive bank should already contain enough exact-board material to objectize
+them without reopening raw board discovery.
+
+### Graph-Derived First-Order Objects
+
+These families may require object-graph composition inside Phase 4, but they
+still belong to object state, not later planner invention.
+
+15. `DefenderDependencyNetwork`
+16. `TradeInvariant`
+17. `TensionState`
+18. `AttackScaffold`
+19. `MaterialInvestmentContract`
+20. `InitiativeWindow`
+21. `PlanRace`
+22. `TransitionBridge`
+23. `ConversionFunnel`
+24. `FortressHoldingShell`
+
+These "graph-derived" families must still exist as object-layer state before
+Phase 5. Delta projection may compare or transform them, but it must not invent
+them from scratch.
+
+## Phase 4 Frontier Rule
+
+The roadmap may name a small executable frontier such as:
+
+- `FixedTargetComplex`
+- `CounterplayAxis`
+- `TradeInvariant`
+- `AccessNetwork`
+
+That frontier is only the initial implementation order. It must not be read as
+the intended long-term size of the object layer.
+
+Phase 4 therefore has two simultaneous duties:
+
+- fix the full 24-family vocabulary in code and schema
+- make a small exact executable frontier real first
+
+## Strategic Object Schema
+
+A strategic object must carry more than an id and a family label. The first
+object layer should be able to represent, at minimum:
+
+- `id`
+- `family`
+- `owner`
+- `locus` or `sector`
+- `anchors`
+- `supportingPrimitives`
+- `supportingPieces`
+- `rivalResourcesOrObjects`
+- `relations`
+- `stateStrength`
+- `horizonClass`
+- `evidenceFootprint`
+
+An object schema that is too thin will push real semantics back into later
+delta/planner phases, which the rewrite explicitly forbids.
+
 ## Relation Operators
 
 The object layer also needs stable relation operators. Minimum target set:

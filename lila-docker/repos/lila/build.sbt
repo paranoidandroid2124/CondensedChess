@@ -209,7 +209,8 @@ lazy val llm = module("llm",
   Test / unmanagedSources / includeFilter := new SimpleFileFilter(file => {
     val path = file.getAbsolutePath.replace('\\', '/')
     path.endsWith("/src/test/scala/lila/llm/strategicobject/PrimitiveExtractionTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/PrimitiveBoundaryTest.scala")
+    path.endsWith("/src/test/scala/lila/llm/strategicobject/PrimitiveBoundaryTest.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/strategicobject/StrategicObjectSynthesizerTest.scala")
   })
 )
 

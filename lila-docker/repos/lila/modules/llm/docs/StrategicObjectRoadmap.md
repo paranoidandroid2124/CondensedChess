@@ -187,6 +187,50 @@ Phase 3 fails if it degenerates into:
 
 ## Phase 4. StrategicObjectSynthesizer Implementation
 
+Phase 4 must establish the full strategic-object vocabulary in code, even if
+the first executable frontier is intentionally smaller.
+
+The four-family frontier below is an implementation starting point, not the
+intended richness ceiling of the object layer.
+
+Required vocabulary richness for the first object layer:
+
+- all 24 object families remain canonical
+- board-direct first-order families should be objectizable directly from the
+  primitive bank
+- graph-derived first-order families must still live at object-layer state,
+  not appear for the first time in delta/planner logic
+
+Board-direct first-order families:
+
+- `PawnStructureRegime`
+- `KingSafetyShell`
+- `DevelopmentCoordinationState`
+- `PieceRoleFitness`
+- `SpaceClamp`
+- `CriticalSquareComplex`
+- `FixedTargetComplex`
+- `BreakAxis`
+- `AccessNetwork`
+- `CounterplayAxis`
+- `RestrictionShell`
+- `MobilityCage`
+- `RedeploymentRoute`
+- `PasserComplex`
+
+Graph-derived first-order families:
+
+- `DefenderDependencyNetwork`
+- `TradeInvariant`
+- `TensionState`
+- `AttackScaffold`
+- `MaterialInvestmentContract`
+- `InitiativeWindow`
+- `PlanRace`
+- `TransitionBridge`
+- `ConversionFunnel`
+- `FortressHoldingShell`
+
 Initial families to implement:
 
 - `FixedTargetComplex`
@@ -201,7 +245,18 @@ Why:
 - they test whether the new architecture can replace existing narrow slices
 
 The first goal is object instantiation from exact known cases, not broad family
-rollout.
+rollout. But this must happen inside a full-vocabulary schema, not a reduced
+"four thin objects" schema.
+
+Phase 4 is complete only if:
+
+- the full object vocabulary remains explicit in code/schema
+- the initial frontier is implemented as exact object contracts
+- later phases do not need to rediscover missing object richness from raw board
+  state
+- object schema is rich enough to carry owner, locus/sector, anchors,
+  supporting primitives, supporting pieces, rival resources or objects,
+  relations, state strength, horizon class, and evidence footprint
 
 ## Phase 5. StrategicObjectDeltaProjector Implementation
 

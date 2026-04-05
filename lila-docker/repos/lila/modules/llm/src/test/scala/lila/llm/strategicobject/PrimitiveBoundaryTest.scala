@@ -3,6 +3,7 @@ package lila.llm.strategicobject
 import lila.llm.analysis.{ DecisiveTruthContract, MoveTruthFrame }
 import munit.FunSuite
 
+import java.util.regex.Pattern
 import java.nio.file.{ Files, Path, Paths }
 import scala.jdk.CollectionConverters.*
 
@@ -63,6 +64,10 @@ class PrimitiveBoundaryTest extends FunSuite:
 
   test("downstream strategicobject files reject raw and legacy semantic ingress") {
     val downstreamFiles = List(
+      "StrategicObjectFamily.scala",
+      "StrategicObjectEvidence.scala",
+      "StrategicObjectProfile.scala",
+      "StrategicObject.scala",
       "StrategicObjectSynthesizer.scala",
       "StrategicObjectDeltaProjector.scala",
       "ClaimCertification.scala",
@@ -102,7 +107,7 @@ class PrimitiveBoundaryTest extends FunSuite:
       val content = read(strategicObjectDir.resolve(fileName))
       forbiddenTokens.foreach { token =>
         assert(
-          !content.contains(token),
+          !containsForbiddenToken(content, token),
           clue(s"$fileName must not contain forbidden token: $token")
         )
       }
@@ -134,6 +139,13 @@ class PrimitiveBoundaryTest extends FunSuite:
 
   private def read(path: Path): String =
     Files.readString(path)
+
+  private def containsForbiddenToken(content: String, token: String): Boolean =
+    val matcher =
+      if token.forall(ch => ch.isLetterOrDigit || ch == '_' || ch == '.')
+      then Pattern.compile(s"\\b${Pattern.quote(token)}\\b")
+      else Pattern.compile(Pattern.quote(token))
+    matcher.matcher(content).find()
 
   private def resolveRepoPath(relatives: Path*): Path =
     val cwd = Paths.get(System.getProperty("user.dir")).toAbsolutePath.normalize
