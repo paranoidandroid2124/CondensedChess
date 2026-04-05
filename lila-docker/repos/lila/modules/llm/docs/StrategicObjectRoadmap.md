@@ -195,6 +195,21 @@ That means the object layer must add canonical generation contracts and a
 readiness band per family rather than treating all 24 families as equally
 delta-ready on day one.
 
+Phase 4 also needs an exact-board calibration pass for high-risk graph-derived
+families.
+That pass is not a vocabulary reduction step.
+It must:
+
+- expand exact positive / contrastive / near-miss / broad-overlap corpus rows
+  for high-risk families
+- prove that bilateral presence, source self-reuse, shell shape, ordinary
+  defense, or generic activity do not over-admit `PlanRace`,
+  `TransitionBridge`, `FortressHoldingShell`, `DefenderDependencyNetwork`, or
+  `InitiativeWindow`
+- tighten contracts when exact-board nasty rows still leak
+- keep readiness conservative unless the corpus, not verbal intuition, proves
+  a broader release burden
+
 The four-family frontier below is an implementation starting point, not the
 intended richness ceiling of the object layer.
 

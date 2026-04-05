@@ -32,13 +32,29 @@ class StrategicObjectSynthesizerTest extends FunSuite:
   }
 
   test("fixture bank keeps full family split and expected minimum row count") {
-    assert(rows.size >= 72, clue(s"expected at least 72 object rows, got ${rows.size}"))
+    assert(rows.size >= 84, clue(s"expected at least 84 object rows, got ${rows.size}"))
     assertEquals(rows.groupBy(_.family).size, 24)
   }
 
   test("fixture bank carries live-board hardening negative coverage") {
     val requiredCaseTypes =
-      Set("near_miss", "broad_overlap", "shell_only", "bilateral_not_race", "trade_not_invariant", "restriction_not_fortress")
+      Set(
+        "near_miss",
+        "broad_overlap",
+        "shell_only",
+        "bilateral_not_race",
+        "trade_not_invariant",
+        "restriction_not_fortress",
+        "split_pressure_without_shared_goal",
+        "source_without_destination",
+        "shell_shape_without_blockade",
+        "denied_entry_without_holding",
+        "initiative_without_overlap",
+        "pressure_without_timing_window",
+        "defended_without_pressure",
+        "pressure_without_dependency",
+        "ordinary_defense_not_network"
+      )
 
     requiredCaseTypes.foreach { caseType =>
       assert(rows.exists(_.caseType == caseType), clue(s"missing hardening caseType=$caseType"))
@@ -55,6 +71,33 @@ class StrategicObjectSynthesizerTest extends FunSuite:
       rows.exists(row => row.caseType == "restriction_not_fortress" && row.family == "FortressHoldingShell" && row.expectation == "absent"),
       clue("expected restriction-not-fortress negative")
     )
+  }
+
+  test("high-risk families carry family-specific nasty calibration rows") {
+    val requiredCaseTypesByFamily =
+      Map(
+        StrategicObjectFamily.PlanRace ->
+          Set("exact", "contrastive", "negative", "near_miss", "broad_overlap", "bilateral_not_race", "split_pressure_without_shared_goal"),
+        StrategicObjectFamily.TransitionBridge ->
+          Set("exact", "contrastive", "negative", "near_miss", "broad_overlap", "source_without_destination"),
+        StrategicObjectFamily.FortressHoldingShell ->
+          Set("exact", "contrastive", "negative", "near_miss", "restriction_not_fortress", "shell_shape_without_blockade", "denied_entry_without_holding"),
+        StrategicObjectFamily.InitiativeWindow ->
+          Set("exact", "contrastive", "negative", "near_miss", "broad_overlap", "initiative_without_overlap", "pressure_without_timing_window"),
+        StrategicObjectFamily.DefenderDependencyNetwork ->
+          Set("exact", "contrastive", "negative", "near_miss", "defended_without_pressure", "pressure_without_dependency", "ordinary_defense_not_network")
+      )
+
+    requiredCaseTypesByFamily.foreach { case (family, requiredCaseTypes) =>
+      val familyRows = rows.filter(row => parseFamily(row.family) == family)
+      val seenCaseTypes = familyRows.map(_.caseType).toSet
+      requiredCaseTypes.foreach { caseType =>
+        assert(
+          seenCaseTypes.contains(caseType),
+          clue(s"missing $caseType coverage for $family; saw ${seenCaseTypes.toList.sorted.mkString(", ")}")
+        )
+      }
+    }
   }
 
   test("fixture bank synthesizes graph-derived families in the object layer") {
@@ -169,11 +212,14 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     val fileDuel = objectsForFen("2r3k1/8/8/8/8/8/8/2R3K1 w - - 0 1")
     assert(fileDuel.exists(obj => obj.family == StrategicObjectFamily.KingSafetyShell && obj.owner == Color.White))
     assert(!fileDuel.exists(obj => obj.family == StrategicObjectFamily.AttackScaffold && obj.owner == Color.White))
+    assert(!fileDuel.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.White))
+    assert(!fileDuel.exists(obj => obj.family == StrategicObjectFamily.InitiativeWindow && obj.owner == Color.White))
 
     val splitPressure = objectsForFen("6k1/8/8/8/8/8/5p2/2R3K1 w - - 0 1")
     assert(splitPressure.exists(obj => obj.family == StrategicObjectFamily.AccessNetwork && obj.owner == Color.White))
     assert(splitPressure.exists(obj => obj.family == StrategicObjectFamily.PasserComplex && obj.owner == Color.Black))
     assert(!splitPressure.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.White))
+    assert(!splitPressure.exists(obj => obj.family == StrategicObjectFamily.InitiativeWindow && obj.owner == Color.White))
 
     val b16 = objectsForFen("r1b1rnk1/pp2qppp/2p5/3p3n/3P4/2NBPP2/PPQ1N1PP/R4RK1 w - - 0 13")
     assert(b16.exists(obj => obj.family == StrategicObjectFamily.FixedTargetComplex && obj.owner == Color.White))
@@ -183,6 +229,17 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     val k10 = objectsForFen("r2qk2r/1b1nbppp/pp1ppn2/8/2PQ4/BPN2NP1/P3PPBP/R2R2K1 w kq - 2 11")
     assert(k10.exists(obj => obj.family == StrategicObjectFamily.RestrictionShell && obj.owner == Color.White))
     assert(!k10.exists(obj => obj.family == StrategicObjectFamily.FortressHoldingShell && obj.owner == Color.White))
+
+    val lonePasser = objectsForFen("6k1/2P5/8/8/8/8/8/6K1 w - - 0 1")
+    assert(lonePasser.exists(obj => obj.family == StrategicObjectFamily.PasserComplex && obj.owner == Color.White))
+    assert(!lonePasser.exists(obj => obj.family == StrategicObjectFamily.TransitionBridge && obj.owner == Color.White))
+
+    val hookPressure = objectsForFen("6k1/8/6p1/8/6BP/8/8/6K1 w - - 0 1")
+    assert(hookPressure.exists(obj => obj.family == StrategicObjectFamily.AttackScaffold && obj.owner == Color.White))
+    assert(!hookPressure.exists(obj => obj.family == StrategicObjectFamily.FortressHoldingShell && obj.owner == Color.Black))
+
+    val ordinaryDefense = objectsForFen("6k1/8/8/3p4/4p3/3K4/8/8 w - - 0 1")
+    assert(!ordinaryDefense.exists(obj => obj.family == StrategicObjectFamily.DefenderDependencyNetwork && obj.owner == Color.Black))
   }
 
   private def assertRichObject(

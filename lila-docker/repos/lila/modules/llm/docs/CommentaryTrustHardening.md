@@ -262,6 +262,17 @@ Use the documents in this order:
   This change is trust-hardening only:
   it tightens false-positive admission and planner primary eligibility without
   adding new public wording, new user-facing capability, or legacy topology.
+- rewrite-local strategic-object calibration note on 2026-04-05:
+  hardening alone is not sufficient for overlap-heavy graph-derived families.
+  The rewrite object layer now also carries exact-board nasty corpus for
+  `PlanRace`, `TransitionBridge`, `FortressHoldingShell`,
+  `InitiativeWindow`, and `DefenderDependencyNetwork`, and their generation
+  contracts were tightened so they do not rise from bilateral presence,
+  source/destination self-reuse, shell-shape-only pictures, generic active
+  pressure, or ordinary defense pictures. This remains a trust-boundary change
+  only:
+  no readiness promotion, new public wording, or new user-facing capability
+  follows from the calibration pass.
 
 ## Current Status
 

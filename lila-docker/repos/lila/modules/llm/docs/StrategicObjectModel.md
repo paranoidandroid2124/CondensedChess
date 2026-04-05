@@ -357,6 +357,29 @@ delta, certification, and planner admission:
   - object survives in the graph but must not project primary player-facing
     delta until later hardening phases reopen it
 
+High-risk graph-derived families also require exact-board calibration, not only
+structural hardening.
+
+- `PlanRace`
+  - must not rise from bilateral presence or same-family overlap alone; it
+    needs shared goal geometry or an explicit race/conflict link
+- `TransitionBridge`
+  - must not self-satisfy source and destination from the same bare survivor;
+    it needs a real bridge witness plus destination continuity
+- `FortressHoldingShell`
+  - must prove denied-entry and blockade on the actual threatened hold lane,
+    not just a shell-shaped picture in the same sector
+- `InitiativeWindow`
+  - must prove a timing witness; ordinary active pressure or broad overlap is
+    insufficient
+- `DefenderDependencyNetwork`
+  - must prove a load-bearing constrained defender under pressure, not merely a
+    defended square with nearby activity
+
+Until later phases reopen these families with broader exact-board evidence,
+readiness should stay conservative rather than being promoted on verbal motif
+confidence.
+
 ## Relation Operators
 
 The object layer also needs stable relation operators. Minimum target set:

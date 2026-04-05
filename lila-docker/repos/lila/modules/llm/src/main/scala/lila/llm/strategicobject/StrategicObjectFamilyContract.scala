@@ -25,6 +25,7 @@ final case class FamilyGenerationMetrics(
     sharedAnchorCount: Int = 0,
     contestedOverlapCount: Int = 0,
     typedOverlapCount: Int = 0,
+    bridgeWitnessCount: Int = 0,
     deniedEntryCount: Int = 0,
     blockadeCount: Int = 0,
     defendedSquareCount: Int = 0,
@@ -32,6 +33,7 @@ final case class FamilyGenerationMetrics(
     pressureSquareCount: Int = 0,
     entryWitnessCount: Int = 0,
     targetWitnessCount: Int = 0,
+    timingWitnessCount: Int = 0,
     preservedSourceCount: Int = 0,
     goalWitnessCount: Int = 0
 )
@@ -265,29 +267,38 @@ object StrategicObjectFamilyContract:
       case StrategicObjectFamily.PlanRace =>
         val ownCore = evidence.sourceFamilies.intersect(PlanRaceFamilies)
         val rivalCore = evidence.rivalFamilies.intersect(PlanRaceFamilies)
+        val linkedRace =
+          evidence.relationOperators.exists(op =>
+            op == StrategicRelationOperator.RacesWith ||
+              op == StrategicRelationOperator.Denies ||
+              op == StrategicRelationOperator.OverloadsOrUndermines
+          )
         ownCore.nonEmpty &&
           rivalCore.nonEmpty &&
-          evidence.metrics.goalWitnessCount >= 2 &&
+          evidence.metrics.goalWitnessCount > 0 &&
           (
-            evidence.metrics.typedOverlapCount > 0 ||
-              evidence.metrics.sharedAnchorCount > 0 ||
-              evidence.metrics.contestedOverlapCount > 0
+            evidence.metrics.sharedAnchorCount > 0 ||
+              evidence.metrics.contestedOverlapCount > 0 ||
+              linkedRace
           )
       case StrategicObjectFamily.TransitionBridge =>
+        val chainedTransition =
+          evidence.relationOperators.exists(op =>
+            op == StrategicRelationOperator.Preserves || op == StrategicRelationOperator.TransformsTo
+          )
         evidence.sourceFamilies.contains(StrategicObjectFamily.PawnStructureRegime) &&
-          evidence.sourceFamilies.nonEmpty &&
           evidence.destinationFamilies.nonEmpty &&
+          evidence.metrics.bridgeWitnessCount > 0 &&
           (
-            evidence.destinationFamilies.contains(StrategicObjectFamily.PasserComplex) ||
-              evidence.relationOperators.exists(op =>
-                op == StrategicRelationOperator.Preserves || op == StrategicRelationOperator.TransformsTo
+            chainedTransition ||
+              (
+                evidence.destinationFamilies.contains(StrategicObjectFamily.PasserComplex) &&
+                  evidence.metrics.sharedAnchorCount > 0
               )
           ) &&
           (
             evidence.metrics.sharedAnchorCount > 0 ||
-              evidence.relationOperators.exists(op =>
-                op == StrategicRelationOperator.Preserves || op == StrategicRelationOperator.TransformsTo
-              )
+              chainedTransition
           )
       case StrategicObjectFamily.FortressHoldingShell =>
         evidence.sourceFamilies.contains(StrategicObjectFamily.RestrictionShell) &&
@@ -296,17 +307,34 @@ object StrategicObjectFamilyContract:
           evidence.metrics.deniedEntryCount > 0 &&
           evidence.metrics.blockadeCount > 0
       case StrategicObjectFamily.DefenderDependencyNetwork =>
-        evidence.primitiveKinds.contains(PrimitiveKind.DefendedResource) &&
+        val constrainedDefender =
+          evidence.sourceFamilies.exists(family =>
+            family == StrategicObjectFamily.RestrictionShell ||
+              family == StrategicObjectFamily.MobilityCage
+          )
+        val dependencyLink =
+          evidence.relationOperators.exists(op =>
+            op == StrategicRelationOperator.Denies ||
+              op == StrategicRelationOperator.OverloadsOrUndermines ||
+              op == StrategicRelationOperator.DependsOn
+          )
+        constrainedDefender &&
+          dependencyLink &&
+          evidence.metrics.sourceCount > 0 &&
+          evidence.metrics.rivalCount > 0 &&
+          evidence.primitiveKinds.contains(PrimitiveKind.DefendedResource) &&
+          evidence.metrics.sharedAnchorCount > 0 &&
           evidence.metrics.defendedSquareCount > 0 &&
           evidence.metrics.defenderPieceCount > 0 &&
           evidence.metrics.pressureSquareCount > 0
       case StrategicObjectFamily.InitiativeWindow =>
         val strongActivator =
           evidence.sourceFamilies.exists(family =>
-            family == StrategicObjectFamily.AttackScaffold ||
-              family == StrategicObjectFamily.BreakAxis ||
-              family == StrategicObjectFamily.CounterplayAxis
+            family == StrategicObjectFamily.AttackScaffold
           )
+        val stressedRival =
+          evidence.rivalFamilies.contains(StrategicObjectFamily.KingSafetyShell) ||
+            evidence.rivalFamilies.contains(StrategicObjectFamily.AttackScaffold)
         val accessBackedTiming =
           evidence.sourceFamilies.contains(StrategicObjectFamily.AccessNetwork) &&
             evidence.primitiveKinds.exists(kind =>
@@ -317,7 +345,9 @@ object StrategicObjectFamilyContract:
                 PrimitiveKind.TensionContactSeed
               ).contains(kind)
             )
-        (strongActivator || accessBackedTiming) &&
+        evidence.metrics.timingWitnessCount > 0 &&
+          (strongActivator || accessBackedTiming) &&
+          stressedRival &&
           evidence.rivalFamilies.nonEmpty &&
           (
             evidence.metrics.sharedAnchorCount > 0 ||
