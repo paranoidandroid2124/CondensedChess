@@ -190,6 +190,11 @@ Phase 3 fails if it degenerates into:
 Phase 4 must establish the full strategic-object vocabulary in code, even if
 the first executable frontier is intentionally smaller.
 
+Phase 4 also owns family hardening.
+That means the object layer must add canonical generation contracts and a
+readiness band per family rather than treating all 24 families as equally
+delta-ready on day one.
+
 The four-family frontier below is an implementation starting point, not the
 intended richness ceiling of the object layer.
 
@@ -252,11 +257,14 @@ Phase 4 is complete only if:
 
 - the full object vocabulary remains explicit in code/schema
 - the initial frontier is implemented as exact object contracts
+- graph-derived and overlap-heavy families have canonical generation contracts
+  that reject broad-overlap-only admission
+- every family has a canonical readiness default orthogonal to strength
 - later phases do not need to rediscover missing object richness from raw board
   state
 - object schema is rich enough to carry owner, locus/sector, anchors,
   supporting primitives, supporting pieces, rival resources or objects,
-  relations, state strength, horizon class, and evidence footprint
+  relations, state strength, readiness, horizon class, and evidence footprint
 
 ## Phase 5. StrategicObjectDeltaProjector Implementation
 
@@ -268,6 +276,15 @@ Goals:
   - comparative delta
 
 These deltas should be object-native, not family-helper-native.
+
+Readiness must constrain delta eligibility here:
+
+- `Stable`
+  - may project move-local, position-local, or comparative candidates
+- `Provisional`
+  - defaults to position-local and may stay support-only on comparative lanes
+- `DeferredForDelta`
+  - remains object-layer state only and must not emit player-facing delta
 
 The target is to re-express old exact breakthroughs as object deltas rather
 than family-specific helpers.
@@ -293,6 +310,11 @@ Replace:
 - family-forest branching
 - slice-specific release hacks
 
+Claim certification must consume canonical object readiness rather than
+primitive-count or family-name heuristics. `Provisional` and
+`DeferredForDelta` families may survive in object state but must not be
+silently promoted into primary claims.
+
 ## Phase 7. Planner Rewrite
 
 Goals:
@@ -316,6 +338,12 @@ Planner outputs:
 
 Planner should choose projection only; it must not rediscover semantics from raw
 features.
+
+Planner primary admission must therefore remain readiness-bound:
+
+- only `Stable` certified claims may drive `claimIds`
+- `Provisional` claims may survive only as support or secondary material
+- `DeferredForDelta` families remain blocked from primary planner ownership
 
 ## Phase 8. Renderer / UI Thin Shell
 

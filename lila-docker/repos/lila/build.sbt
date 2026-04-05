@@ -210,7 +210,10 @@ lazy val llm = module("llm",
     val path = file.getAbsolutePath.replace('\\', '/')
     path.endsWith("/src/test/scala/lila/llm/strategicobject/PrimitiveExtractionTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/PrimitiveBoundaryTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/StrategicObjectSynthesizerTest.scala")
+    path.endsWith("/src/test/scala/lila/llm/strategicobject/StrategicObjectSynthesizerTest.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/strategicobject/StrategicObjectDeltaProjectorTest.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/strategicobject/ClaimCertificationTest.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/strategicobject/QuestionPlannerTest.scala")
   })
 )
 

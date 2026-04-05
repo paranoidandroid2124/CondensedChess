@@ -320,6 +320,43 @@ object layer should be able to represent, at minimum:
 An object schema that is too thin will push real semantics back into later
 delta/planner phases, which the rewrite explicitly forbids.
 
+## Family Hardening And Readiness
+
+The full 24-family vocabulary remains canonical, but family admission strength
+is not uniform.
+
+Phase 4 objectization therefore requires a canonical family contract for each
+family with, at minimum:
+
+- required primitive witnesses
+- required source or rival object witnesses when the family is graph-derived
+- required relation or continuity patterns when the family is transition-shaped
+- minimum shared-anchor or contested-anchor burden
+- explicit forbidden loose patterns such as broad-overlap-only admission
+
+Each synthesized object must also carry one readiness band orthogonal to
+`StrategicStrengthBand`:
+
+- `Stable`
+- `Provisional`
+- `DeferredForDelta`
+
+Readiness is not object strength, and object strength is not readiness.
+A `Dominant` object may still be `DeferredForDelta`, while an `Established`
+object may still be `Stable`.
+
+The purpose of readiness is not to delete weak families from object state.
+The purpose is to preserve the full object graph while constraining downstream
+delta, certification, and planner admission:
+
+- `Stable`
+  - primary candidate for delta, certification, and planner admission
+- `Provisional`
+  - object survives and may support position-local or support-only release
+- `DeferredForDelta`
+  - object survives in the graph but must not project primary player-facing
+    delta until later hardening phases reopen it
+
 ## Relation Operators
 
 The object layer also needs stable relation operators. Minimum target set:
@@ -343,6 +380,11 @@ Strategic explanation is always delta-bearing.
 - every released claim must also bind exactly one certified delta
 - deltas may be move-local, position-local, or branch-comparative
 - if no certified delta survives, the planner must defer or stay support-only
+
+Readiness constrains this delta principle.
+Delta, certification, and planner layers must consume the canonical object
+readiness rather than re-deriving release confidence from family names,
+primitive count, or wording-level heuristics.
 
 ## Certificate Axes
 

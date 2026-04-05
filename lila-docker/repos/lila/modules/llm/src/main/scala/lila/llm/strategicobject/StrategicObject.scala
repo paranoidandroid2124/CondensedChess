@@ -15,6 +15,7 @@ final case class StrategicObject(
     rivalResourcesOrObjects: List[StrategicRivalReference],
     relations: List[StrategicRelation],
     stateStrength: StrategicObjectStateStrength,
+    readiness: StrategicObjectReadiness,
     horizonClass: ObjectHorizonClass,
     evidenceFootprint: StrategicObjectEvidenceFootprint
 ):

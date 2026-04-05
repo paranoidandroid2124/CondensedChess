@@ -253,6 +253,15 @@ Use the documents in this order:
   sketches alone do not count as strategic validation; if the exact position
   and best line are not established, the claim stays deferred, support-only, or
   negative-first.
+- rewrite-local strategic-object hardening note on 2026-04-05:
+  the rewrite object layer now distinguishes family generation contract from
+  family release readiness. All 24 strategic-object families remain canonical
+  runtime state, but overlap-heavy families may now stay object-only or
+  support-only through a canonical readiness band consumed by
+  `StrategicObjectDeltaProjector`, `ClaimCertification`, and `QuestionPlanner`.
+  This change is trust-hardening only:
+  it tightens false-positive admission and planner primary eligibility without
+  adding new public wording, new user-facing capability, or legacy topology.
 
 ## Current Status
 

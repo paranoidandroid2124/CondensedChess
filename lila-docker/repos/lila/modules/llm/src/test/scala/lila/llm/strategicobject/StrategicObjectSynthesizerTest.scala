@@ -36,6 +36,27 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     assertEquals(rows.groupBy(_.family).size, 24)
   }
 
+  test("fixture bank carries live-board hardening negative coverage") {
+    val requiredCaseTypes =
+      Set("near_miss", "broad_overlap", "shell_only", "bilateral_not_race", "trade_not_invariant", "restriction_not_fortress")
+
+    requiredCaseTypes.foreach { caseType =>
+      assert(rows.exists(_.caseType == caseType), clue(s"missing hardening caseType=$caseType"))
+    }
+    assert(
+      rows.exists(row => row.caseType == "shell_only" && row.family == "AttackScaffold" && row.expectation == "absent"),
+      clue("expected shell-only attack-scaffold negative")
+    )
+    assert(
+      rows.exists(row => row.caseType == "trade_not_invariant" && row.family == "TradeInvariant" && row.expectation == "absent"),
+      clue("expected trade-not-invariant negative")
+    )
+    assert(
+      rows.exists(row => row.caseType == "restriction_not_fortress" && row.family == "FortressHoldingShell" && row.expectation == "absent"),
+      clue("expected restriction-not-fortress negative")
+    )
+  }
+
   test("fixture bank synthesizes graph-derived families in the object layer") {
     val synthesized =
       rows.flatMap(objectsForRow).groupBy(_.id).values.map(_.head).toList
@@ -78,6 +99,16 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     }
   }
 
+  test("objects inherit canonical family readiness defaults") {
+    rows.filter(_.expectation == "present").flatMap(objectsForRow).foreach { obj =>
+      assertEquals(
+        obj.readiness,
+        StrategicObjectFamilyContract.forFamily(obj.family).defaultReadiness,
+        clue(s"${obj.id}: readiness mismatch")
+      )
+    }
+  }
+
   test("strategic object rejects mismatched family and profile pairs") {
     val sample =
       objectsForFen("6k1/8/8/4p3/3P4/2P5/8/6K1 w - - 0 1")
@@ -105,26 +136,24 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     }
   }
 
-  test("contrastive file duel yields bilateral access, shell, and race objects") {
+  test("contrastive file duel yields bilateral access and shell objects") {
     val objects = objectsForFen("2r3k1/8/8/8/8/8/8/2R3K1 w - - 0 1")
 
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.AccessNetwork && obj.owner == Color.White))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.AccessNetwork && obj.owner == Color.Black))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.KingSafetyShell && obj.owner == Color.White))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.KingSafetyShell && obj.owner == Color.Black))
-    assert(objects.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.White))
-    assert(objects.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.Black))
   }
 
-  test("contrastive break race yields bilateral structure, break, and tension objects") {
+  test("contrastive break board keeps bilateral structure and break objects without race inflation") {
     val objects = objectsForFen("6k1/5p2/3p4/4P3/2P5/8/8/6K1 w - - 0 1")
 
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.PawnStructureRegime && obj.owner == Color.White))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.PawnStructureRegime && obj.owner == Color.Black))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.BreakAxis && obj.owner == Color.White))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.BreakAxis && obj.owner == Color.Black))
-    assert(objects.exists(obj => obj.family == StrategicObjectFamily.TensionState && obj.owner == Color.White))
-    assert(objects.exists(obj => obj.family == StrategicObjectFamily.TensionState && obj.owner == Color.Black))
+    assert(!objects.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.White))
+    assert(!objects.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.Black))
   }
 
   test("contrastive passer race yields bilateral passer and plan-race objects") {
@@ -134,6 +163,26 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.PasserComplex && obj.owner == Color.Black))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.White))
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.Black))
+  }
+
+  test("hardening near-miss boards keep live support while rejecting weak graph-derived inflation") {
+    val fileDuel = objectsForFen("2r3k1/8/8/8/8/8/8/2R3K1 w - - 0 1")
+    assert(fileDuel.exists(obj => obj.family == StrategicObjectFamily.KingSafetyShell && obj.owner == Color.White))
+    assert(!fileDuel.exists(obj => obj.family == StrategicObjectFamily.AttackScaffold && obj.owner == Color.White))
+
+    val splitPressure = objectsForFen("6k1/8/8/8/8/8/5p2/2R3K1 w - - 0 1")
+    assert(splitPressure.exists(obj => obj.family == StrategicObjectFamily.AccessNetwork && obj.owner == Color.White))
+    assert(splitPressure.exists(obj => obj.family == StrategicObjectFamily.PasserComplex && obj.owner == Color.Black))
+    assert(!splitPressure.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.White))
+
+    val b16 = objectsForFen("r1b1rnk1/pp2qppp/2p5/3p3n/3P4/2NBPP2/PPQ1N1PP/R4RK1 w - - 0 13")
+    assert(b16.exists(obj => obj.family == StrategicObjectFamily.FixedTargetComplex && obj.owner == Color.White))
+    assert(!b16.exists(obj => obj.family == StrategicObjectFamily.TradeInvariant && obj.owner == Color.White))
+    assert(!b16.exists(obj => obj.family == StrategicObjectFamily.TransitionBridge && obj.owner == Color.White))
+
+    val k10 = objectsForFen("r2qk2r/1b1nbppp/pp1ppn2/8/2PQ4/BPN2NP1/P3PPBP/R2R2K1 w kq - 2 11")
+    assert(k10.exists(obj => obj.family == StrategicObjectFamily.RestrictionShell && obj.owner == Color.White))
+    assert(!k10.exists(obj => obj.family == StrategicObjectFamily.FortressHoldingShell && obj.owner == Color.White))
   }
 
   private def assertRichObject(
@@ -146,6 +195,11 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     assert(obj.supportingPrimitives.nonEmpty, clue(s"${row.id}: expected supporting primitives"))
     assertEquals(obj.profile.family, obj.family, clue(s"${row.id}: profile family mismatch"))
     assert(obj.stateStrength.coverage == obj.supportingPrimitives.size, clue(s"${row.id}: coverage mismatch"))
+    assertEquals(
+      obj.readiness,
+      StrategicObjectFamilyContract.forFamily(obj.family).defaultReadiness,
+      clue(s"${row.id}: readiness mismatch")
+    )
     assert(obj.evidenceFootprint.primitiveCount == obj.supportingPrimitives.size, clue(s"${row.id}: primitive count mismatch"))
     assert(obj.evidenceFootprint.supportingPieceCount == obj.supportingPieces.size, clue(s"${row.id}: supporting piece count mismatch"))
     assert(obj.evidenceFootprint.rivalCount == obj.rivalResourcesOrObjects.size, clue(s"${row.id}: rival count mismatch"))
@@ -333,7 +387,7 @@ object StrategicObjectSynthesizerTest:
         val squares = objectSquares(obj).map(_.key).mkString("[", ",", "]")
         val primitives = obj.evidenceFootprint.primitiveKinds.toList.map(_.toString).sorted.mkString("[", ",", "]")
         val tags = obj.evidenceFootprint.tags.toList.map(_.toString).sorted.mkString("[", ",", "]")
-        s"${obj.family}:${showColor(obj.owner)} sector=${obj.sector} squares=$squares primitives=$primitives tags=$tags"
+        s"${obj.family}:${showColor(obj.owner)} readiness=${obj.readiness} sector=${obj.sector} squares=$squares primitives=$primitives tags=$tags"
       }
       .mkString("\n")
 

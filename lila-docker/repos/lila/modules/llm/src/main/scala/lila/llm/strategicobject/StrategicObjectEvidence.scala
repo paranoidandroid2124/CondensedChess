@@ -21,6 +21,11 @@ enum StrategicStrengthBand:
   case Established
   case Dominant
 
+enum StrategicObjectReadiness:
+  case Stable
+  case Provisional
+  case DeferredForDelta
+
 final case class StrategicObjectStateStrength(
     band: StrategicStrengthBand,
     coverage: Int,
