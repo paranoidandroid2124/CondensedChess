@@ -35,6 +35,17 @@ These correspond to:
 - position-probe explanation
 - state-delta explanation
 
+Current rewrite checkpoint:
+
+- `Phase 3` primitive extraction is complete
+- `Phase 4` objectization, hardening, and exact-board calibration are complete
+- `Phase 5` currently runs on the Tier 1 direct-delta-owner lane with exact-
+  board reinforcement and provisional-family hardening already landed
+
+This document remains the capability north-star, not the active packet queue.
+Use `StrategicObjectRoadmap.md` for live execution order and current frontier
+status.
+
 ## Structural Diagnosis
 
 Current strengths:

@@ -301,7 +301,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       comparative = comparativeSelection(
         obj,
         supportObjects,
-        objects.filter(other => comparativeOwnerCompatible(obj, other))
+        objects.filter(other => other.id != obj.id)
       )
     )
 
@@ -330,7 +330,8 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
           matchedSquares = distinctSquares(grouped.flatMap(_.witness.matchedSquares)),
           matchedFiles = distinctFiles(grouped.flatMap(_.witness.matchedFiles)),
           relationWitnesses = grouped.flatMap(_.witness.relationWitnesses).toSet,
-          rivalPrimitiveKinds = grouped.flatMap(_.witness.rivalPrimitiveKinds).toSet
+          rivalPrimitiveKinds = grouped.flatMap(_.witness.rivalPrimitiveKinds).toSet,
+          counterpartWitnessKinds = grouped.flatMap(_.witness.counterpartWitnessKinds).toSet
         ).normalized
       val rivals = grouped.map(_.rival).distinct.sortBy(_.id)
       val balance = comparativeBalance(obj, supportObjects, rivals)
@@ -349,18 +350,36 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       current: StrategicObject,
       other: StrategicObject
   ): Option[StrategicComparativeWitness] =
-    if !familyCompatible(current.family, other.family) then None
+    if
+      !StrategicObjectFamilyContract.comparativeFamiliesCompatible(current.family, other.family) ||
+        !StrategicObjectFamilyContract.comparativeOwnersCompatible(
+          current.family,
+          other.family,
+          sameOwner = current.owner == other.owner
+        )
+    then None
     else
-      val matchedSquares0 = typedComparedSquares(current, other)
-      val matchedFiles0 = typedComparedFiles(current, other)
+      val sharedSquares = sharedComparableSquares(current, other)
+      val sharedFiles = sharedComparableFiles(current, other)
+      val directRivalSquares = directRivalReferenceSquaresBetween(current, other)
+      val directRivalFiles = directRivalReferenceFilesBetween(current, other)
       val witness =
         StrategicComparativeWitness(
           axis = comparativeAxisFor(current.profile),
           counterpartFamily = other.family,
-          matchedSquares = matchedSquares0,
-          matchedFiles = matchedFiles0,
+          matchedSquares = distinctSquares(sharedSquares ++ directRivalSquares),
+          matchedFiles = distinctFiles(sharedFiles ++ directRivalFiles),
           relationWitnesses = relationWitnessesBetween(current, other),
-          rivalPrimitiveKinds = matchedRivalPrimitiveKinds(current, other)
+          rivalPrimitiveKinds = matchedRivalPrimitiveKinds(current, other),
+          counterpartWitnessKinds =
+            counterpartWitnessKinds(
+              current,
+              other,
+              sharedSquares,
+              sharedFiles,
+              directRivalSquares,
+              directRivalFiles
+            )
         ).normalized
 
       Option.when(comparativeAdmissible(current, other, witness))(witness)
@@ -370,41 +389,13 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       other: StrategicObject,
       witness: StrategicComparativeWitness
   ): Boolean =
-    val compatibleFamily =
-      current.family == other.family || familyCompatibilityFallback(current.family).contains(other.family)
-    val strongEvidence =
-      witness.matchedSquares.nonEmpty ||
-        witness.matchedFiles.nonEmpty ||
-        witness.relationWitnesses.nonEmpty ||
-        hasDirectRivalReferenceBetween(current, other)
-
-    compatibleFamily &&
-      comparativeAxisGate(current.family, witness) &&
-      strongEvidence
-
-  private def comparativeAxisGate(
-      family: StrategicObjectFamily,
-      witness: StrategicComparativeWitness
-  ): Boolean =
-    family match
-      case StrategicObjectFamily.KingSafetyShell =>
-        witness.matchedFiles.nonEmpty || witness.matchedSquares.nonEmpty
-      case StrategicObjectFamily.FixedTargetComplex =>
-        witness.matchedSquares.nonEmpty
-      case StrategicObjectFamily.BreakAxis =>
-        witness.matchedSquares.nonEmpty ||
-          witness.relationWitnesses.contains(StrategicRelationOperator.RacesWith) ||
-          witness.relationWitnesses.contains(StrategicRelationOperator.Denies)
-      case StrategicObjectFamily.AccessNetwork =>
-        witness.matchedFiles.nonEmpty || witness.relationWitnesses.nonEmpty
-      case StrategicObjectFamily.CounterplayAxis =>
-        witness.matchedSquares.nonEmpty
-      case StrategicObjectFamily.RestrictionShell =>
-        witness.matchedSquares.nonEmpty || witness.relationWitnesses.nonEmpty
-      case StrategicObjectFamily.PasserComplex =>
-        witness.matchedSquares.nonEmpty || witness.matchedFiles.nonEmpty
-      case _ =>
-        witness.isFamilyAware
+    StrategicObjectFamilyContract.comparativeCounterpartAdmissible(
+      current.family,
+      other.family,
+      witness,
+      sameOwner = current.owner == other.owner
+    ) &&
+      StrategicObjectFamilyContract.comparativeAxisSatisfied(current.family, witness)
 
   private def candidateRank(
       current: StrategicObject,
@@ -463,24 +454,15 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
     val provisionalMetricFloor =
       readiness != StrategicObjectReadiness.Provisional || profile.metrics.size >= 3
     val counterpartGate =
-      (current.family, profile.counterpartFamily) match
-        case (StrategicObjectFamily.PieceRoleFitness, StrategicObjectFamily.MobilityCage) =>
-          rivals.exists(rival => samePieceCounterpart(current, rival))
-        case (StrategicObjectFamily.MobilityCage, StrategicObjectFamily.PieceRoleFitness) =>
-          rivals.exists(rival => samePieceCounterpart(current, rival))
-        case (StrategicObjectFamily.DevelopmentCoordinationState, StrategicObjectFamily.RedeploymentRoute) =>
-          rivals.exists(rival => sharedRouteCounterpart(current, rival))
-        case (StrategicObjectFamily.RedeploymentRoute, StrategicObjectFamily.DevelopmentCoordinationState) =>
-          rivals.exists(rival => sharedRouteCounterpart(current, rival))
-        case (StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.FixedTargetComplex) =>
-          rivals.exists(rival => sharedTargetCounterpart(current, rival))
-        case (StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.RestrictionShell) =>
-          rivals.exists(rival => sharedTargetCounterpart(current, rival))
-        case (StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.BreakAxis) =>
-          witness.matchedSquares.nonEmpty &&
-            witness.rivalPrimitiveKinds.contains(PrimitiveKind.BreakCandidate)
-        case _ =>
-          true
+      rivals.nonEmpty &&
+        rivals.forall(rival =>
+          StrategicObjectFamilyContract.comparativeCounterpartAdmissible(
+            current.family,
+            rival.family,
+            witness,
+            sameOwner = current.owner == rival.owner
+          )
+        )
 
     profile.metrics.nonEmpty && provisionalMetricFloor && counterpartGate
 
@@ -966,56 +948,6 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case _ =>
         StrategicComparativeAxis.BreakAvailabilityContrast
 
-  private def familyCompatible(
-      current: StrategicObjectFamily,
-      other: StrategicObjectFamily
-  ): Boolean =
-    current == other || familyCompatibilityFallback(current).contains(other)
-
-  private def familyCompatibilityFallback(
-      family: StrategicObjectFamily
-  ): Set[StrategicObjectFamily] =
-    family match
-      case StrategicObjectFamily.PawnStructureRegime          => Set(StrategicObjectFamily.BreakAxis)
-      case StrategicObjectFamily.KingSafetyShell              => Set(StrategicObjectFamily.AccessNetwork)
-      case StrategicObjectFamily.DevelopmentCoordinationState => Set(StrategicObjectFamily.RedeploymentRoute)
-      case StrategicObjectFamily.PieceRoleFitness             => Set(StrategicObjectFamily.MobilityCage)
-      case StrategicObjectFamily.SpaceClamp                   => Set(StrategicObjectFamily.RestrictionShell)
-      case StrategicObjectFamily.CriticalSquareComplex        => Set(StrategicObjectFamily.PasserComplex)
-      case StrategicObjectFamily.FixedTargetComplex           => Set(StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.BreakAxis)
-      case StrategicObjectFamily.BreakAxis                    => Set(StrategicObjectFamily.PawnStructureRegime, StrategicObjectFamily.CounterplayAxis)
-      case StrategicObjectFamily.AccessNetwork                => Set(StrategicObjectFamily.KingSafetyShell, StrategicObjectFamily.RedeploymentRoute)
-      case StrategicObjectFamily.CounterplayAxis              => Set(StrategicObjectFamily.BreakAxis)
-      case StrategicObjectFamily.RestrictionShell             => Set(StrategicObjectFamily.SpaceClamp, StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.MobilityCage)
-      case StrategicObjectFamily.MobilityCage                 => Set(StrategicObjectFamily.PieceRoleFitness, StrategicObjectFamily.RestrictionShell)
-      case StrategicObjectFamily.RedeploymentRoute            => Set(StrategicObjectFamily.DevelopmentCoordinationState, StrategicObjectFamily.AccessNetwork)
-      case StrategicObjectFamily.PasserComplex                => Set(StrategicObjectFamily.CriticalSquareComplex)
-      case _ =>
-        Set.empty
-
-  private def comparativeOwnerCompatible(
-      current: StrategicObject,
-      other: StrategicObject
-  ): Boolean =
-    other.id != current.id &&
-      (
-        other.owner != current.owner ||
-          sameOwnerComparativePair(current.family, other.family)
-      )
-
-  private def sameOwnerComparativePair(
-      left: StrategicObjectFamily,
-      right: StrategicObjectFamily
-  ): Boolean =
-    Set(left, right) match
-      case pair
-          if pair == Set(StrategicObjectFamily.PieceRoleFitness, StrategicObjectFamily.MobilityCage) ||
-            pair == Set(StrategicObjectFamily.DevelopmentCoordinationState, StrategicObjectFamily.RedeploymentRoute) ||
-            pair == Set(StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.RestrictionShell) =>
-        true
-      case _ =>
-        false
-
   private def relationWitnessesBetween(
       current: StrategicObject,
       other: StrategicObject
@@ -1090,16 +1022,6 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case _ =>
         objectSquares(obj)
 
-  private def typedComparedSquares(
-      current: StrategicObject,
-      other: StrategicObject
-  ): List[Square] =
-    distinctSquares(
-      comparableSquares(current).intersect(comparableSquares(other)) ++
-        transitionAnchorSquares(current).intersect(transitionAnchorSquares(other)) ++
-        directRivalReferenceSquaresBetween(current, other)
-    )
-
   private def comparableFiles(
       obj: StrategicObject
   ): List[File] =
@@ -1135,15 +1057,42 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case _ =>
         objectFiles(obj)
 
-  private def typedComparedFiles(
+  private def sharedComparableSquares(
+      current: StrategicObject,
+      other: StrategicObject
+  ): List[Square] =
+    distinctSquares(
+      comparableSquares(current).intersect(comparableSquares(other)) ++
+        transitionAnchorSquares(current).intersect(transitionAnchorSquares(other))
+    )
+
+  private def sharedComparableFiles(
       current: StrategicObject,
       other: StrategicObject
   ): List[File] =
     distinctFiles(
       comparableFiles(current).intersect(comparableFiles(other)) ++
-        transitionAnchorFiles(current).intersect(transitionAnchorFiles(other)) ++
-        directRivalReferenceFilesBetween(current, other)
+        transitionAnchorFiles(current).intersect(transitionAnchorFiles(other))
     )
+
+  private def counterpartWitnessKinds(
+      current: StrategicObject,
+      other: StrategicObject,
+      sharedSquares: List[Square],
+      sharedFiles: List[File],
+      directRivalSquares: List[Square],
+      directRivalFiles: List[File]
+  ): Set[StrategicCounterpartWitnessKind] =
+    List(
+      Option.when(sharedSquares.nonEmpty)(StrategicCounterpartWitnessKind.SharedSquare),
+      Option.when(sharedFiles.nonEmpty)(StrategicCounterpartWitnessKind.SharedFile),
+      Option.when(sharedRouteCounterpart(current, other))(StrategicCounterpartWitnessKind.SharedRoute),
+      Option.when(sharedTargetCounterpart(current, other))(StrategicCounterpartWitnessKind.SharedTarget),
+      Option.when(samePieceCounterpart(current, other))(StrategicCounterpartWitnessKind.SharedPiece),
+      Option.when(directRivalSquares.nonEmpty || directRivalFiles.nonEmpty)(
+        StrategicCounterpartWitnessKind.DirectRivalReference
+      )
+    ).flatten.toSet
 
   private def transitionAnchorSquares(
       obj: StrategicObject

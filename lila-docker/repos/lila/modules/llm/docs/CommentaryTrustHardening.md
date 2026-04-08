@@ -13,7 +13,11 @@ legacy pipeline; it does not define rewrite architecture. Use
 `StrategicObjectModel.md` for target design and treat this file as a guardrail
 on what demolition and rebuild work must not silently invalidate.
 
-This document is the canonical trust-hardening map for the Chesstory
+For rewrite current status and active implementation order, use
+`StrategicObjectRoadmap.md`. This file remains the legacy trust-risk guardrail
+and migration blocker reference, not the rewrite packet queue.
+
+This document is the canonical legacy trust-hardening map for the Chesstory
 commentary-analysis pipeline.
 
 Use it when work is primarily about:
@@ -29,7 +33,8 @@ Use it when work is primarily about:
 
 This document does not replace the runtime audit or truth gate.
 
-Use the documents in this order:
+Use the documents in this order when the task is primarily about the preserved
+legacy pipeline:
 
 1. `CommentaryProgramMap.md`
 2. `CommentaryPipelineSSOT.md`
@@ -39,15 +44,22 @@ Use the documents in this order:
 ## Canonical Role
 
 - `CommentaryProgramMap.md`
-  - onboarding, current status, roadmap, active priority
+  - legacy onboarding, legacy current status, document navigation
 - `CommentaryPipelineSSOT.md`
-  - canonical runtime audit
+  - canonical legacy runtime audit
 - `CommentaryTruthGate.md`
-  - canonical release/signoff truth gate
+  - canonical legacy release/signoff truth gate
 - `CommentaryTrustHardening.md`
-  - canonical trust-risk map, CTH audit baseline, trust-hardening priority map
+  - canonical legacy trust-risk map, CTH audit baseline, trust-hardening
+    priority map
+- `StrategicObjectRoadmap.md`
+  - canonical rewrite checkpoint and current strategic-object execution order
 
-## Current Canonical State
+## Legacy Canonical State
+
+The status below is the legacy trust-hardening state.
+Do not read it as the live rewrite checkpoint; rewrite phase status now lives
+in `StrategicObjectRoadmap.md`.
 
 - Step 1-7:
   signoff-ready
@@ -296,7 +308,11 @@ Use the documents in this order:
   admission cannot silently relabel what was certified. Comparative delta is
   also tightened to family-aware witness/profile pairs with same-family or
   explicitly family-compatible rivals only, blocking broad-overlap-only
-  counterpart inflation. This remains a trust-boundary tightening only:
+  counterpart inflation. The counterpart gate now lives in one centralized
+  family contract, and admitted comparative witnesses must expose exact
+  witness kinds such as shared square, file, route, target, piece, or direct
+  rival reference rather than same-sector summary. This remains a
+  trust-boundary tightening only:
   no new public wording, renderer behavior, Tier 2 / Tier 3 owner lane, or
   legacy helper topology is reopened.
 - rewrite-local Tier-1 provisional hardening and promotion-audit note on

@@ -12,6 +12,10 @@ authoritative for protecting legacy truth invariants during migration, but it
 is not the design authority for the new strategic-object architecture. Rewrite
 semantics and layer boundaries are governed by `StrategicObjectModel.md`.
 
+For rewrite current status and active implementation phase, use
+`StrategicObjectRoadmap.md`. This file protects the preserved legacy truth
+spine; it is not the rewrite status board.
+
 This document defines the canonical chess-truth signoff gate for Chesstory.
 
 For program status, Step 1-7 closure, CQF track state, and document roles, see
@@ -22,12 +26,13 @@ It complements
 by specifying how decisive-move truth is judged after the runtime pipeline
 produces its surfaces.
 
-Current program mode is maintenance-only. This file is policy, not frontier
-status; use
+Current legacy program mode is maintenance-only. This file is policy, not
+rewrite frontier status; use
 [`CommentaryProgramMap.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md)
 and
 [`CommentaryTrustHardening.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md)
-for active status and re-review triggers.
+for legacy active status and re-review triggers, and
+`StrategicObjectRoadmap.md` for rewrite frontier status.
 
 ## Core Rule
 

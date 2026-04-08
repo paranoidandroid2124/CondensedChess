@@ -137,13 +137,22 @@ enum StrategicComparativeAxis:
   case PasserPromotionRouteContrast
   case PasserEscortContrast
 
+enum StrategicCounterpartWitnessKind:
+  case SharedSquare
+  case SharedFile
+  case SharedRoute
+  case SharedTarget
+  case SharedPiece
+  case DirectRivalReference
+
 final case class StrategicComparativeWitness(
     axis: StrategicComparativeAxis,
     counterpartFamily: StrategicObjectFamily,
     matchedSquares: List[Square] = Nil,
     matchedFiles: List[File] = Nil,
     relationWitnesses: Set[StrategicRelationOperator] = Set.empty,
-    rivalPrimitiveKinds: Set[PrimitiveKind] = Set.empty
+    rivalPrimitiveKinds: Set[PrimitiveKind] = Set.empty,
+    counterpartWitnessKinds: Set[StrategicCounterpartWitnessKind] = Set.empty
 ):
   def normalized: StrategicComparativeWitness =
     copy(
@@ -151,8 +160,11 @@ final case class StrategicComparativeWitness(
       matchedFiles = matchedFiles.distinct.sortBy(_.char.toString)
     )
 
+  def hasExactCounterpartWitness: Boolean =
+    matchedSquares.nonEmpty || matchedFiles.nonEmpty || counterpartWitnessKinds.nonEmpty
+
   def isFamilyAware: Boolean =
-    matchedSquares.nonEmpty || matchedFiles.nonEmpty || relationWitnesses.nonEmpty
+    hasExactCounterpartWitness || relationWitnesses.nonEmpty
 
 final case class StrategicComparativeBalance(
     ownerPressure: Int,

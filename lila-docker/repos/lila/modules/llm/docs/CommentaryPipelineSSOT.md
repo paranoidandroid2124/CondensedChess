@@ -13,8 +13,12 @@ spine that must not be broken casually, but it does not define the rewrite
 architecture. Rewrite authority lives in `StrategicObjectModel.md`; execution
 sequencing lives in `StrategicObjectRoadmap.md`.
 
-This file is the canonical audit for the current Chesstory commentary-analysis
-pipeline.
+For rewrite current status, active phase, and next implementation tranche, use
+`StrategicObjectRoadmap.md`. This file is a maintenance-only legacy topology
+audit, not a rewrite status board.
+
+This file is the canonical audit for the current legacy Chesstory
+commentary-analysis pipeline.
 
 For onboarding, Step 1-7 status, CQF track status, and document navigation, see
 [`CommentaryProgramMap.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md)
@@ -23,12 +27,13 @@ first.
 It intentionally describes the latest live pipeline and deletes the older
 dated update-log style material. Historical side paths are not canonical.
 
-Current program mode is maintenance-only. This file is the runtime source of
-truth, not the active-work tracker; use
+Current legacy program mode is maintenance-only. This file is the runtime
+source of truth, not the rewrite active-work tracker; use
 [`CommentaryProgramMap.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md)
 and
 [`CommentaryTrustHardening.md`](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md)
-for frontier status and re-review triggers.
+for legacy frontier status and re-review triggers, and
+`StrategicObjectRoadmap.md` for rewrite frontier status.
 
 ## Authority
 

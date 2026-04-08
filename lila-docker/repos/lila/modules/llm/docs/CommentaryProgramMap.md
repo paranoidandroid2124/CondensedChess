@@ -12,8 +12,13 @@ demolition boundary decisions, use `StrategicObjectModel.md` first and
 `StrategicObjectRoadmap.md` second. This file remains useful only for legacy
 program status, CQF history, and migration-risk context.
 
+For rewrite sessions, do not use this file as the active-work tracker.
+The current rewrite checkpoint lives in `StrategicObjectRoadmap.md` and is
+already past demolition, `Phase 3`, and `Phase 4`; the live frontier is inside
+`Phase 5`.
+
 This document is the single onboarding and navigation entry point for the
-Chesstory commentary-analysis program.
+legacy Chesstory commentary-analysis program.
 
 Use it when a new session needs to understand:
 
@@ -32,7 +37,8 @@ This file is an index and status map. It is not the canonical runtime audit.
 - This file:
   [CommentaryProgramMap.md](C:/Codes/CondensedChess/lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md)
 - Purpose:
-  onboarding, roadmap status, current active work, document navigation
+  legacy onboarding, document navigation, CQF/CTH status, migration-risk
+  context
 
 ### 2. Runtime audit
 
@@ -58,7 +64,11 @@ This file is an index and status map. It is not the canonical runtime audit.
   trust-risk inventory, CTH audit baseline, hardening priorities, and Track 5
   defer rationale
 
-## Current Canonical State
+## Legacy Canonical State
+
+The status below is for the preserved legacy commentary program only.
+Do not infer rewrite frontier state from CQF / CTH status here; use
+`StrategicObjectRoadmap.md` for the current strategic-object rewrite checkpoint.
 
 - Step 1-7:
   closed and signoff-ready

@@ -128,6 +128,8 @@ class StrategicObjectDeltaProjectorTest extends FunSuite:
         delta.projection match
           case StrategicDeltaProjection.Comparative(_, balance, witness, counterpartObjectIds, profile) =>
             assert(witness.isFamilyAware, clue(s"${row.id}: expected family-aware comparative witness"))
+            assert(witness.hasExactCounterpartWitness, clue(s"${row.id}: expected exact counterpart witness"))
+            assert(witness.counterpartWitnessKinds.nonEmpty, clue(s"${row.id}: expected counterpart witness kinds"))
             assert(delta.rivalObjectIds.nonEmpty, clue(s"${row.id}: expected rival object ids"))
             assert(counterpartObjectIds.nonEmpty, clue(s"${row.id}: expected counterpart ids"))
             assert(profile.metrics.nonEmpty, clue(s"${row.id}: expected comparative metrics"))
@@ -327,6 +329,8 @@ class StrategicObjectDeltaProjectorTest extends FunSuite:
         assert(focalAnchorCount > 0, clue(s"${row.id}: expected focal anchors"))
       case StrategicDeltaProjection.Comparative(_, _, witness, counterpartObjectIds, profile) =>
         assert(witness.isFamilyAware, clue(s"${row.id}: expected comparative witness"))
+        assert(witness.hasExactCounterpartWitness, clue(s"${row.id}: expected exact counterpart witness"))
+        assert(witness.counterpartWitnessKinds.nonEmpty, clue(s"${row.id}: expected counterpart witness kinds"))
         assert(counterpartObjectIds.nonEmpty, clue(s"${row.id}: expected counterpart ids"))
         assert(delta.rivalObjectIds.nonEmpty, clue(s"${row.id}: expected rival object ids"))
         assert(profile.metrics.nonEmpty, clue(s"${row.id}: expected comparative metrics"))

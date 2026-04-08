@@ -96,11 +96,86 @@ object StrategicObjectFamilyContract:
     StrategicObjectFamily.RestrictionShell
   )
 
+  private val ComparativeCounterpartFamilies: Map[StrategicObjectFamily, Set[StrategicObjectFamily]] = Map(
+    StrategicObjectFamily.PawnStructureRegime -> Set(StrategicObjectFamily.BreakAxis),
+    StrategicObjectFamily.KingSafetyShell -> Set(StrategicObjectFamily.AccessNetwork),
+    StrategicObjectFamily.DevelopmentCoordinationState -> Set(StrategicObjectFamily.RedeploymentRoute),
+    StrategicObjectFamily.PieceRoleFitness -> Set(StrategicObjectFamily.MobilityCage),
+    StrategicObjectFamily.SpaceClamp -> Set(StrategicObjectFamily.RestrictionShell),
+    StrategicObjectFamily.CriticalSquareComplex -> Set(StrategicObjectFamily.PasserComplex),
+    StrategicObjectFamily.FixedTargetComplex -> Set(StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.BreakAxis),
+    StrategicObjectFamily.BreakAxis -> Set(StrategicObjectFamily.PawnStructureRegime, StrategicObjectFamily.CounterplayAxis),
+    StrategicObjectFamily.AccessNetwork -> Set(StrategicObjectFamily.KingSafetyShell, StrategicObjectFamily.RedeploymentRoute),
+    StrategicObjectFamily.CounterplayAxis -> Set(StrategicObjectFamily.BreakAxis),
+    StrategicObjectFamily.RestrictionShell -> Set(
+      StrategicObjectFamily.SpaceClamp,
+      StrategicObjectFamily.FixedTargetComplex,
+      StrategicObjectFamily.MobilityCage
+    ),
+    StrategicObjectFamily.MobilityCage -> Set(StrategicObjectFamily.PieceRoleFitness, StrategicObjectFamily.RestrictionShell),
+    StrategicObjectFamily.RedeploymentRoute -> Set(StrategicObjectFamily.DevelopmentCoordinationState, StrategicObjectFamily.AccessNetwork),
+    StrategicObjectFamily.PasserComplex -> Set(StrategicObjectFamily.CriticalSquareComplex)
+  )
+
+  private val SameOwnerComparativePairs: Set[Set[StrategicObjectFamily]] = Set(
+    Set(StrategicObjectFamily.PieceRoleFitness, StrategicObjectFamily.MobilityCage),
+    Set(StrategicObjectFamily.DevelopmentCoordinationState, StrategicObjectFamily.RedeploymentRoute),
+    Set(StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.RestrictionShell)
+  )
+
   val all: Map[StrategicObjectFamily, StrategicObjectFamilyContract] =
     StrategicObjectFamily.values.map(family => family -> contractFor(family)).toMap
 
   def forFamily(family: StrategicObjectFamily): StrategicObjectFamilyContract =
     all(family)
+
+  def comparativeFamiliesCompatible(
+      current: StrategicObjectFamily,
+      other: StrategicObjectFamily
+  ): Boolean =
+    current == other || ComparativeCounterpartFamilies.getOrElse(current, Set.empty).contains(other)
+
+  def comparativeOwnersCompatible(
+      current: StrategicObjectFamily,
+      other: StrategicObjectFamily,
+      sameOwner: Boolean
+  ): Boolean =
+    !sameOwner || SameOwnerComparativePairs.contains(Set(current, other))
+
+  def comparativeCounterpartAdmissible(
+      current: StrategicObjectFamily,
+      other: StrategicObjectFamily,
+      witness: StrategicComparativeWitness,
+      sameOwner: Boolean
+  ): Boolean =
+    comparativeFamiliesCompatible(current, other) &&
+      comparativeOwnersCompatible(current, other, sameOwner) &&
+      witness.hasExactCounterpartWitness &&
+      counterpartPairGate(current, other, witness)
+
+  def comparativeAxisSatisfied(
+      family: StrategicObjectFamily,
+      witness: StrategicComparativeWitness
+  ): Boolean =
+    family match
+      case StrategicObjectFamily.KingSafetyShell =>
+        witness.matchedFiles.nonEmpty || witness.matchedSquares.nonEmpty
+      case StrategicObjectFamily.FixedTargetComplex =>
+        witness.matchedSquares.nonEmpty
+      case StrategicObjectFamily.BreakAxis =>
+        witness.matchedSquares.nonEmpty ||
+          witness.relationWitnesses.contains(StrategicRelationOperator.RacesWith) ||
+          witness.relationWitnesses.contains(StrategicRelationOperator.Denies)
+      case StrategicObjectFamily.AccessNetwork =>
+        witness.matchedFiles.nonEmpty || witness.relationWitnesses.nonEmpty
+      case StrategicObjectFamily.CounterplayAxis =>
+        witness.matchedSquares.nonEmpty
+      case StrategicObjectFamily.RestrictionShell =>
+        witness.matchedSquares.nonEmpty || witness.relationWitnesses.nonEmpty
+      case StrategicObjectFamily.PasserComplex =>
+        witness.matchedSquares.nonEmpty || witness.matchedFiles.nonEmpty
+      case _ =>
+        witness.isFamilyAware
 
   private def contractFor(family: StrategicObjectFamily): StrategicObjectFamilyContract =
     family match
@@ -213,6 +288,30 @@ object StrategicObjectFamilyContract:
           forbiddenLoosePatterns = Set(ForbiddenLoosePattern.RestrictionOnly, ForbiddenLoosePattern.BroadOverlapOnly),
           defaultReadiness = StrategicObjectReadiness.DeferredForDelta
         )
+
+  private def counterpartPairGate(
+      current: StrategicObjectFamily,
+      other: StrategicObjectFamily,
+      witness: StrategicComparativeWitness
+  ): Boolean =
+    (current, other) match
+      case (StrategicObjectFamily.PieceRoleFitness, StrategicObjectFamily.MobilityCage) |
+          (StrategicObjectFamily.MobilityCage, StrategicObjectFamily.PieceRoleFitness) =>
+        witness.counterpartWitnessKinds.contains(StrategicCounterpartWitnessKind.SharedPiece)
+      case (StrategicObjectFamily.DevelopmentCoordinationState, StrategicObjectFamily.RedeploymentRoute) |
+          (StrategicObjectFamily.RedeploymentRoute, StrategicObjectFamily.DevelopmentCoordinationState) =>
+        witness.counterpartWitnessKinds.contains(StrategicCounterpartWitnessKind.SharedRoute)
+      case (StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.FixedTargetComplex) |
+          (StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.RestrictionShell) =>
+        witness.counterpartWitnessKinds.contains(StrategicCounterpartWitnessKind.SharedTarget)
+      case (StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.BreakAxis) |
+          (StrategicObjectFamily.BreakAxis, StrategicObjectFamily.CounterplayAxis) =>
+        (
+          witness.counterpartWitnessKinds.contains(StrategicCounterpartWitnessKind.SharedSquare) ||
+            witness.counterpartWitnessKinds.contains(StrategicCounterpartWitnessKind.DirectRivalReference)
+        ) && witness.rivalPrimitiveKinds.contains(PrimitiveKind.BreakCandidate)
+      case _ =>
+        true
 
   private def accepts(
       contract: StrategicObjectFamilyContract,

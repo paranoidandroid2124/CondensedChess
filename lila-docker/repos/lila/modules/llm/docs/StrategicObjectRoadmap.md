@@ -10,8 +10,8 @@ This roadmap follows the original design-memo phase numbering.
 - `Phase 0` through `Phase 2` are preparatory boundary-setting phases.
 - demolition and skeleton layout are recorded as completed rewrite checkpoints,
   not as separate long-term semantic phases.
-- the first active rebuild phase after demolition is `Phase 3. Primitive
-  Extraction Layer`.
+- the first active rebuild phase after demolition was `Phase 3. Primitive
+  Extraction Layer`; the live rewrite frontier now sits in `Phase 5` below.
 
 ## Rewrite Principles
 
@@ -23,15 +23,49 @@ This roadmap follows the original design-memo phase numbering.
 
 ## Current Checkpoint
 
-The rewrite has already completed the following preparatory work:
+The rewrite has already completed the following checkpoints:
 
 - authority shift to `StrategicObjectModel.md`
 - red-spine extraction and fixture-bank preservation
 - strategic-object model definition
 - demolition of the legacy commentary semantic topology
 - source-tree skeleton layout for the new architecture
+- `Phase 3. Primitive Extraction Layer`
+- `Phase 4. StrategicObjectSynthesizer`
+  - pass 1 board-direct first-order objectization
+  - pass 2 graph-derived first-order objectization
+- strategic-object hardening and exact-board calibration
+- `Phase 5` Tier 1 direct-delta-owner opening
+- `Phase 5` pass 1 reinforcement
+  - strict move-local witness
+  - typed delta preservation through certification/planner
+  - family-aware comparative witness and metric profile
+- `Phase 5` Tier 1 provisional hardening / promotion audit
+  - `KingSafetyShell`
+  - `DevelopmentCoordinationState`
+  - `PieceRoleFitness`
+  - `SpaceClamp`
+  - `CounterplayAxis`
+  - `RestrictionShell`
+  - `MobilityCage`
+  - `RedeploymentRoute`
+  - all eight remain `Provisional`
 
-The next active implementation phase is therefore `Phase 3`.
+The current active implementation frontier is therefore still inside `Phase 5`,
+not `Phase 3`.
+
+Near-term canonical sequence from the current checkpoint:
+
+1. keep Tier 1 provisional families exact-board hardened without forced
+   promotion
+2. tighten comparative / counterpart contract inside `Phase 5`
+3. move `Phase 6` certification from readiness-only mapping to delta-aware
+   burden
+4. open `Phase 7` question-native planner semantics on top of certified typed
+   delta
+
+For live rewrite status, treat the phase sections below, especially `Phase 5`
+onward, as authoritative. This checkpoint is only the top-level summary.
 
 ## Phase 0. Rewrite Boundary Declaration
 
@@ -413,8 +447,10 @@ Phase 5 pass 1 reinforcement now also tightens the already-landed structure:
     collapsing back to scope-only release metadata
 - `Comparative`
   - now carries family-aware comparative witness plus family-aware metric
-    profile, and rival admission is tightened to same-family or explicitly
-    family-compatible counterparts rather than broad overlap alone
+    profile, and rival admission is tightened through a centralized family
+    counterpart contract: only same-family or explicitly family-compatible
+    counterparts with exact square/file/route/target or direct-rival witness
+    survive, rather than broad overlap alone
 
 Phase 5 Tier-1 provisional hardening and promotion audit on 2026-04-06 keeps
 the remaining provisional direct-owner families
@@ -426,7 +462,8 @@ the remaining provisional direct-owner families
 - `MoveLocal` remains closed for all eight families
 - `Comparative` may reopen only from exact-board rival/counterpart evidence
   plus typed family metrics; provisional rows now require at least three typed
-  metrics
+  metrics, and the admitted counterpart witness must now carry explicit exact
+  witness kinds instead of relying on same-sector or owner-isolated summary
 - family generation/admission is tightened against false-positive pictures such
   as shell-pressure-only, activity-without-coordination, bad-piece-with-exits,
   single-file space pictures, counterplay seeds without an axis, restriction
