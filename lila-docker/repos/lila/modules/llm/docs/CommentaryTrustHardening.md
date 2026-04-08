@@ -365,6 +365,27 @@ in `StrategicObjectRoadmap.md`.
   it reduces stable-but-weak overclaim and comparative shallowness without
   opening planner wording, renderer semantics, Tier 2 / Tier 3 delta lanes, or
   any new user-facing release.
+- rewrite-local strategic-object question-admission matrix note on 2026-04-08:
+  `QuestionPlanner` now reads one centralized question-admission matrix on top
+  of the delta-aware certification boundary rather than letting support-only or
+  scope-shell claims choose a primary lane. `WhyThis` and
+  `WhatMustBeStopped` now require a `Certified` typed `MoveLocal` delta and are
+  split only by `DecisiveTruthContract.isBad`; `WhatChanged` requires a
+  `Certified` typed `Comparative` delta; and `WhatMattersHere` requires a
+  `Certified` typed `PositionLocal` delta. `SupportOnly` typed claims may
+  still survive as secondary material, but only after a matching certified
+  primary axis is already admitted; `Deferred` and scope-only shells no longer
+  choose planner ownership. This remains a trust-boundary tightening only:
+  it blocks primary-lane drift without adding new wording, renderer behavior,
+  Tier 2 / Tier 3 widening, or renderer-side semantic revival.
+- rewrite-local strategic-object WhyNow note on 2026-04-08:
+  `WhyNow` is now admitted as a separate timing-sensitive move-local lane on
+  top of the same delta-aware certification boundary. It opens only on
+  non-bad contracts from a `Certified` typed `MoveLocal` delta whose witness
+  carries release or acceleration/delay evidence, and it stays distinct from
+  the non-timing `WhyThis` lane while leaving bad-contract move-local timing
+  on `WhatMustBeStopped`. This tightens timing ownership without adding new
+  wording, renderer behavior, or Tier 2 / Tier 3 widening.
 
 ## Current Status
 

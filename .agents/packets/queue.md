@@ -26,6 +26,15 @@ Authority:
   - passed
   - comparative counterpart admissibility is now centralized at the family
     contract boundary
+- `P7-Q01-question-admission-matrix`
+  - passed
+  - planner primary admission now follows a centralized certified typed-delta
+    matrix; support-only and scope-shell claims no longer choose the primary
+    question lane, and `WhyNow` remained deferred to `P7-Q02`
+- `P7-Q02-whynow-admission`
+  - passed
+  - WhyNow is now a separate certified timing lane from timing-sensitive
+    move-local witnesses; support-only timing deltas alone do not open it
 
 ## Active Queue
 
@@ -34,8 +43,8 @@ Authority:
 | `P5-C01-comparative-counterpart-contract` | `passed` | 1 | counterpart admissibility | landed on the current packet lane |
 | `P5-C02-contrast-separability` | `blocked` | 2 | comparative quality | retry failed to prove a distinct exact-board shallow-contrast row; current burden appears to belong in certification rather than projector |
 | `P6-A01-delta-aware-certification` | `passed` | 3 | certification burden | certification now reads typed delta burden; stable weak deltas downgrade to support-only or deferred |
-| `P7-Q01-question-admission-matrix` | `ready` | 4 | planner semantics | define typed admission per question kind |
-| `P7-Q02-whynow-admission` | `ready` | 5 | planner semantics | open WhyNow only from timing witness |
+| `P7-Q01-question-admission-matrix` | `passed` | 4 | planner semantics | centralized typed-delta question matrix landed; `WhyNow` remained deferred until `P7-Q02` |
+| `P7-Q02-whynow-admission` | `passed` | 5 | planner semantics | timing-sensitive WhyNow lane landed from certified move-local witness |
 | `P7-E01-explanation-trace` | `ready` | 6 | eval trace | test/research only, no runtime payload widening |
 | `P7-E02-tail-risk-eval` | `ready` | 7 | eval gate | hardest-slice CI, not macro average only |
 

@@ -605,6 +605,34 @@ Planner primary admission must therefore remain readiness-bound:
 - `Provisional` claims may survive only as support or secondary material
 - `DeferredForDelta` families remain blocked from primary planner ownership
 
+Current `P7-Q01` / `P7-Q02` planner admission matrix on top of delta-aware
+certification:
+
+- `WhyNow`
+  - `Certified` typed `MoveLocal` only on non-bad contracts when the
+    projection carries timing-sensitive witness such as `ReleaseCandidate`
+    primitive evidence or a timing tag like `BreakAccelerated`,
+    `BreakDelayed`, `RouteShortened`, or `PasserAccelerated`
+- `WhyThis`
+  - `Certified` typed `MoveLocal` only, and only when `DecisiveTruthContract`
+    is not `isBad`
+- `WhatMustBeStopped`
+  - `Certified` typed `MoveLocal` only, and only when `DecisiveTruthContract`
+    is `isBad`
+- `WhatChanged`
+  - `Certified` typed `Comparative` only
+- `WhatMattersHere`
+  - `Certified` typed `PositionLocal` only
+- `SupportOnly`
+  - typed claims may remain secondary only after a matching primary axis is
+    already admitted
+- scope-only shells and `Deferred`
+  - do not choose a primary question lane
+- `WhyNow`
+  - remains a separate timing-owned lane and is not reopened by the
+    non-timing `WhyThis` path; bad-contract move-local timing still stays on
+    `WhatMustBeStopped`
+
 ## Phase 8. Renderer / UI Thin Shell
 
 Goals:

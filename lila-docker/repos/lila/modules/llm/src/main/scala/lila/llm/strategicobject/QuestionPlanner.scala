@@ -23,59 +23,123 @@ trait QuestionPlanner:
 
 object CanonicalQuestionPlanner extends QuestionPlanner:
 
+  private final case class QuestionAdmission(
+      axis: QuestionAxis,
+      primaryAllowed: DecisiveTruthContract => Boolean = _ => true,
+      primaryClaim: CertifiedClaim => Boolean,
+      supportClaim: CertifiedClaim => Boolean
+  )
+
+  private val admissionMatrix: List[QuestionAdmission] =
+    List(
+      QuestionAdmission(
+        axis = QuestionAxis.WhatMustBeStopped,
+        primaryAllowed = _.isBad,
+        primaryClaim = isCertifiedTypedMoveLocal,
+        supportClaim = isSupportOnlyTypedMoveLocal
+      ),
+      QuestionAdmission(
+        axis = QuestionAxis.WhyNow,
+        primaryAllowed = contract => !contract.isBad,
+        primaryClaim = isCertifiedTimingSensitiveMoveLocal,
+        supportClaim = isSupportOnlyTimingSensitiveMoveLocal
+      ),
+      QuestionAdmission(
+        axis = QuestionAxis.WhyThis,
+        primaryAllowed = contract => !contract.isBad,
+        primaryClaim = isCertifiedTypedMoveLocal,
+        supportClaim = isSupportOnlyTypedMoveLocal
+      ),
+      QuestionAdmission(
+        axis = QuestionAxis.WhatChanged,
+        primaryClaim = isCertifiedTypedComparative,
+        supportClaim = isSupportOnlyTypedComparative
+      ),
+      QuestionAdmission(
+        axis = QuestionAxis.WhatMattersHere,
+        primaryClaim = isCertifiedTypedPositionLocal,
+        supportClaim = isSupportOnlyTypedPositionLocal
+      )
+    )
+
   def plan(
       contract: DecisiveTruthContract,
       claims: List[CertifiedClaim]
   ): PlannedQuestion =
-    val primaryClaims =
-      claims.filter(claim =>
-        claim.status == ClaimStatus.Certified &&
-          claim.readiness == StrategicObjectReadiness.Stable &&
-          claim.hasTypedDelta
-      )
+    val axis = chooseAxis(contract, claims)
+    val primaryClaims = claimsForAxis(claims, axis)
     val supportClaims =
-      claims.filter(claim =>
-        claim.status == ClaimStatus.SupportOnly &&
-          claim.readiness == StrategicObjectReadiness.Provisional &&
-          claim.hasTypedDelta
-      )
-    val axis = chooseAxis(contract, primaryClaims, supportClaims)
+      if primaryClaims.nonEmpty then supportClaimsForAxis(claims, axis)
+      else Nil
     PlannedQuestion(
       axis = axis,
-      claimIds = claimsForAxis(primaryClaims, axis).map(_.id),
-      supportClaimIds = claimsForAxis(supportClaims, axis).map(_.id)
+      claimIds = primaryClaims.map(_.id),
+      supportClaimIds = supportClaims.map(_.id)
     )
 
   private def chooseAxis(
       contract: DecisiveTruthContract,
-      primaryClaims: List[CertifiedClaim],
-      supportClaims: List[CertifiedClaim]
+      claims: List[CertifiedClaim]
   ): QuestionAxis =
-    val pool = if primaryClaims.nonEmpty then primaryClaims else supportClaims
-    if pool.exists(isTypedMoveLocal) && contract.isBad then QuestionAxis.WhatMustBeStopped
-    else if pool.exists(isTypedMoveLocal) then QuestionAxis.WhyThis
-    else if pool.exists(isTypedComparative) then QuestionAxis.WhatChanged
-    else if pool.exists(isTypedPositionLocal) then QuestionAxis.WhatMattersHere
-    else QuestionAxis.WhatMattersHere
+    admissionMatrix
+      .collectFirst {
+        case admission
+            if admission.primaryAllowed(contract) &&
+              claims.exists(admission.primaryClaim) =>
+          admission.axis
+      }
+      .getOrElse(QuestionAxis.WhatMattersHere)
 
   private def claimsForAxis(
       claims: List[CertifiedClaim],
       axis: QuestionAxis
   ): List[CertifiedClaim] =
-    val matching = claims.filter(claimMatchesAxis(_, axis))
-    if matching.nonEmpty then matching else claims
+    admissionFor(axis)
+      .toList
+      .flatMap { admission =>
+        claims.filter(admission.primaryClaim)
+      }
 
-  private def claimMatchesAxis(
-      claim: CertifiedClaim,
+  private def admissionFor(
       axis: QuestionAxis
+  ): Option[QuestionAdmission] =
+    admissionMatrix.find(_.axis == axis)
+
+  private def supportClaimsForAxis(
+      claims: List[CertifiedClaim],
+      axis: QuestionAxis
+  ): List[CertifiedClaim] =
+    admissionFor(axis)
+      .toList
+      .flatMap(admission => claims.filter(admission.supportClaim))
+
+  private def isCertifiedTypedMoveLocal(
+      claim: CertifiedClaim
   ): Boolean =
-    axis match
-      case QuestionAxis.WhyThis | QuestionAxis.WhyNow | QuestionAxis.WhatMustBeStopped =>
-        isTypedMoveLocal(claim)
-      case QuestionAxis.WhatChanged =>
-        isTypedComparative(claim)
-      case QuestionAxis.WhatMattersHere =>
-        isTypedPositionLocal(claim)
+    claim.status == ClaimStatus.Certified &&
+      claim.hasTypedDelta &&
+      isTypedMoveLocal(claim)
+
+  private def isSupportOnlyTypedMoveLocal(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.status == ClaimStatus.SupportOnly &&
+      claim.hasTypedDelta &&
+      isTypedMoveLocal(claim)
+
+  private def isCertifiedTimingSensitiveMoveLocal(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.status == ClaimStatus.Certified &&
+      claim.hasTypedDelta &&
+      isTimingSensitiveMoveLocal(claim)
+
+  private def isSupportOnlyTimingSensitiveMoveLocal(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.status == ClaimStatus.SupportOnly &&
+      claim.hasTypedDelta &&
+      isTimingSensitiveMoveLocal(claim)
 
   private def isTypedMoveLocal(
       claim: CertifiedClaim
@@ -86,6 +150,39 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       case _ =>
         false
     )
+
+  private val timingSensitiveMoveLocalTags =
+    Set(
+      StrategicDeltaTag.BreakAccelerated,
+      StrategicDeltaTag.BreakDelayed,
+      StrategicDeltaTag.RouteShortened,
+      StrategicDeltaTag.PasserAccelerated
+    )
+
+  private def isTimingSensitiveMoveLocal(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.delta.exists(_.projection match
+      case StrategicDeltaProjection.MoveLocal(change, witness) =>
+        timingSensitiveMoveLocalTags.contains(change) ||
+          witness.primitiveKinds.contains(PrimitiveKind.ReleaseCandidate)
+      case _ =>
+        false
+    )
+
+  private def isCertifiedTypedComparative(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.status == ClaimStatus.Certified &&
+      claim.hasTypedDelta &&
+      isTypedComparative(claim)
+
+  private def isSupportOnlyTypedComparative(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.status == ClaimStatus.SupportOnly &&
+      claim.hasTypedDelta &&
+      isTypedComparative(claim)
 
   private def isTypedComparative(
       claim: CertifiedClaim
@@ -98,6 +195,20 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       case _ =>
         false
     )
+
+  private def isCertifiedTypedPositionLocal(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.status == ClaimStatus.Certified &&
+      claim.hasTypedDelta &&
+      isTypedPositionLocal(claim)
+
+  private def isSupportOnlyTypedPositionLocal(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.status == ClaimStatus.SupportOnly &&
+      claim.hasTypedDelta &&
+      isTypedPositionLocal(claim)
 
   private def isTypedPositionLocal(
       claim: CertifiedClaim

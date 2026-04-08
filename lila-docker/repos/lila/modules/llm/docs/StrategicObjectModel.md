@@ -709,6 +709,33 @@ question projection:
 - `WhyNow`
 - `WhatMustBeStopped`
 
+Canonical admission matrix on the current planner lane:
+
+- `WhyNow`
+  - opens only on non-bad contracts from a `Certified` typed `MoveLocal`
+    delta with a timing-sensitive witness such as `ReleaseCandidate`
+    primitive evidence or a timing tag like `BreakAccelerated`,
+    `BreakDelayed`, `RouteShortened`, or `PasserAccelerated`
+- `WhyThis`
+  - opens only from a `Certified` typed `MoveLocal` delta when the contract is
+    not `isBad`
+- `WhatMustBeStopped`
+  - opens only from a `Certified` typed `MoveLocal` delta when the contract is
+    `isBad`
+- `WhatChanged`
+  - opens only from a `Certified` typed `Comparative` delta
+- `WhatMattersHere`
+  - opens only from a `Certified` typed `PositionLocal` delta
+- `SupportOnly`
+  - typed claims may attach only as secondary material behind an already
+    admitted primary axis
+- `Deferred` or scope-only shells
+  - do not open planner ownership
+- `WhyNow`
+  - remains a separate timing-owned lane and is not reopened by the
+    non-timing `WhyThis` path; bad-contract move-local timing still stays on
+    `WhatMustBeStopped`
+
 ## Renderer Contract
 
 The renderer must stay thin.
