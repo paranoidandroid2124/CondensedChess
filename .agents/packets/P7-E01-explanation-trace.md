@@ -25,10 +25,17 @@ payloads.
 
 - test/tooling:
   - `modules/llm/src/test/...` trace helpers and/or exporters
+  - `lila-docker/repos/lila/build.sbt` if the new test-tooling package must be
+    admitted by the `llm` test source filter
   - test resources if trace fixtures are needed
+  - `tools/strategic_object/reports/...` when the runner materializes a trace
+    artifact during verification
+- control plane:
+  - `.agents/packets/queue.md` when the packet lands
 - docs:
   - `modules/llm/docs/StrategicObjectRoadmap.md`
-  - `modules/llm/docs/CommentaryTrustHardening.md`
+  - `modules/llm/docs/CommentaryTrustHardening.md` only if this packet leaks
+    into runtime trust behavior, which is not expected on the test-only lane
 
 ## Exact Rows
 

@@ -71,6 +71,8 @@ Near-term canonical sequence from the current checkpoint:
    delta rather than readiness-only fallbacks
 4. build trace-backed evaluation and promotion work on top of the narrowed
    certification boundary
+5. use that trace boundary for tail-risk evaluation rather than widening
+   runtime payloads
 
 For live rewrite status, treat the phase sections below, especially `Phase 5`
 onward, as authoritative. This checkpoint is only the top-level summary.
@@ -632,6 +634,21 @@ certification:
   - remains a separate timing-owned lane and is not reopened by the
     non-timing `WhyThis` path; bad-contract move-local timing still stays on
     `WhatMustBeStopped`
+
+Current `P7-E01` explanation-trace status on the same planner lane:
+
+- canonical pre-sanitization explanation trace now lives only on the
+  `src/test` / research boundary
+- the trace runner exports one row per exact corpus slice with:
+  - row id / case type / FEN / played move
+  - family / readiness / scope
+  - typed projection / witness / exact-board evidence summary
+  - certification status
+  - planner axis plus primary/support/no-admission bucket
+  - localized stage counts so exact and nasty rows can stop at object, delta,
+    certification, or planner rather than only final payload observation
+- this packet does not widen runtime payloads, planner wording, renderer
+  semantics, or Tier 2 / Tier 3 admission
 
 ## Phase 8. Renderer / UI Thin Shell
 

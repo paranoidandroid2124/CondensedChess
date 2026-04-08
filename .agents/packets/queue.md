@@ -35,6 +35,11 @@ Authority:
   - passed
   - WhyNow is now a separate certified timing lane from timing-sensitive
     move-local witnesses; support-only timing deltas alone do not open it
+- `P7-E01-explanation-trace`
+  - passed
+  - canonical pre-sanitization explanation trace now exports exact-row and
+    nasty-row localizable projector / certification / planner state at the
+    test-research boundary without widening runtime payloads
 
 ## Active Queue
 
@@ -45,7 +50,7 @@ Authority:
 | `P6-A01-delta-aware-certification` | `passed` | 3 | certification burden | certification now reads typed delta burden; stable weak deltas downgrade to support-only or deferred |
 | `P7-Q01-question-admission-matrix` | `passed` | 4 | planner semantics | centralized typed-delta question matrix landed; `WhyNow` remained deferred until `P7-Q02` |
 | `P7-Q02-whynow-admission` | `passed` | 5 | planner semantics | timing-sensitive WhyNow lane landed from certified move-local witness |
-| `P7-E01-explanation-trace` | `ready` | 6 | eval trace | test/research only, no runtime payload widening |
+| `P7-E01-explanation-trace` | `passed` | 6 | eval trace | canonical pre-sanitization explanation trace now exports row-local projector / certification / planner state at the test boundary |
 | `P7-E02-tail-risk-eval` | `ready` | 7 | eval gate | hardest-slice CI, not macro average only |
 
 ## Packet Selection Rule
