@@ -62,7 +62,9 @@ Authority:
 Always pick the highest-priority packet that is:
 
 - `ready`, and
-- not blocked by an unfinished earlier packet.
+- not blocked by an unfinished earlier packet whose burden has not been
+  explicitly transferred, deferred, or contained by queue notes and the
+  blocked packet's status notes.
 
 Do not combine packets unless the queue is explicitly edited to do so.
 
