@@ -650,6 +650,25 @@ Current `P7-E01` explanation-trace status on the same planner lane:
 - this packet does not widen runtime payloads, planner wording, renderer
   semantics, or Tier 2 / Tier 3 admission
 
+Current `P7-E02` tail-risk eval status on the same planner lane:
+
+- the test-only trace contract now emits a dedicated tail-risk evaluation report
+  over `P7-E01` rows with macro pass-rate and hardest-slice separation
+- macro metric is `passRate` over the existing trace rows, while the hard gate
+  separately counts planner-leak failures on the packet-target negative slices
+- hardest metric enforces planner-blocked hardest slices:
+  - `near_miss`
+  - `nasty_negative`
+  - `move_local_false_witness`
+  - `comparative_false_rival`
+  - packet-owned `planner_negative` rows in test-only evaluation
+- evaluator fails fast when any hardest-slice `expectation == "absent"` row
+  leaks into planner admission (`primary`/`support`) even when macro pass rate
+  still stays above `0.98`
+- evaluation is available via
+  `StrategicObjectExplanationTraceRunner --tail-risk --tail-risk-threshold=0.98` and
+  writes `*.tail-risk.json` on top of the existing `*.jsonl` trace output
+
 ## Phase 8. Renderer / UI Thin Shell
 
 Goals:

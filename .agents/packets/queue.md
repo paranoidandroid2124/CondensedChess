@@ -40,6 +40,10 @@ Authority:
   - canonical pre-sanitization explanation trace now exports exact-row and
     nasty-row localizable projector / certification / planner state at the
     test-research boundary without widening runtime payloads
+- `P7-E02-tail-risk-eval`
+  - passed
+  - tail-risk evaluation now gates hardest-slice planner leaks separately from
+    macro pass rate, including packet-owned `planner_negative` checks
 
 ## Active Queue
 
@@ -51,7 +55,7 @@ Authority:
 | `P7-Q01-question-admission-matrix` | `passed` | 4 | planner semantics | centralized typed-delta question matrix landed; `WhyNow` remained deferred until `P7-Q02` |
 | `P7-Q02-whynow-admission` | `passed` | 5 | planner semantics | timing-sensitive WhyNow lane landed from certified move-local witness |
 | `P7-E01-explanation-trace` | `passed` | 6 | eval trace | canonical pre-sanitization explanation trace now exports row-local projector / certification / planner state at the test boundary |
-| `P7-E02-tail-risk-eval` | `ready` | 7 | eval gate | hardest-slice CI, not macro average only |
+| `P7-E02-tail-risk-eval` | `passed` | 7 | eval gate | tail-risk evaluation now enforces hardest-slice planner-leak rejection plus packet-owned `planner_negative` coverage |
 
 ## Packet Selection Rule
 

@@ -4614,6 +4614,7 @@ Update it whenever trust-relevant behavior changes in:
 - frontend support rendering
 - Active contract alignment
 - lesson-readiness gating
+- trace-level evaluation gate behavior
 
 When a later task claims to reduce false positive, overclaim,
 overgeneralization, fallback rewrite, or surface inconsistency, the task should
@@ -4625,3 +4626,12 @@ Current maintenance rule:
 - require adversarial review before `close-ready`
 - if a fresh runtime change touches a bounded B1 / B2 / B3 seam, reopen only
   the touched slice and extend its negative fixtures first
+- keep trace-derived tail-risk gates explicit:
+  - macro pass-rate and hardest-slice planner leak pass must both pass on
+    `P7-E02` and future planner-admission regressions
+  - a single hardest-slice planner leak in an `expectation == absent` row should
+    continue to fail the packet gate, even if aggregate macro pass stays above
+    `tail-risk` threshold
+  - packet-owned `planner_negative` checks stay in the same hard-fail class as
+    `near_miss`, `nasty_negative`, `move_local_false_witness`, and
+    `comparative_false_rival`

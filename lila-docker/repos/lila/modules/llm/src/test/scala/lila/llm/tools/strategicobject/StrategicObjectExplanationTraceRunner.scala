@@ -2,11 +2,15 @@ package lila.llm.tools.strategicobject
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Path }
+import play.api.libs.json.Json
 
 object StrategicObjectExplanationTraceRunner:
 
   final case class Config(
       outputPath: Path,
+      evaluationPath: Option[Path],
+      runTailRiskGate: Boolean,
+      macroPassThreshold: Double,
       limit: Option[Int],
       caseTypes: Set[String]
   )
@@ -25,6 +29,25 @@ object StrategicObjectExplanationTraceRunner:
       if config.caseTypes.isEmpty then rows
       else rows.filter(row => config.caseTypes.contains(row.caseType))
     val selected = config.limit.fold(filteredByCaseType)(filteredByCaseType.take)
+    if config.runTailRiskGate then
+      val evaluation = StrategicObjectExplanationTraceSupport.tailRiskEvaluation(selected, config.macroPassThreshold)
+      val reportPath =
+        config.evaluationPath.getOrElse(
+          config.outputPath
+            .getParent
+            .resolve(
+              s"${config.outputPath.getFileName.toString.replaceFirst("\\.jsonl$", "")}.tail-risk.json"
+            )
+        )
+      writeText(reportPath, Json.prettyPrint(Json.toJson(evaluation)))
+      println(
+        s"[strategic-object-explanation-trace] tail-risk: macroPass=${evaluation.macroMetrics.passRate}, " +
+          s"plannerLeaks=${evaluation.tailRisk.plannerLeakRows}/${evaluation.tailRisk.hardestRows}, " +
+          s"threshold=${evaluation.macroPassThreshold}"
+      )
+      if !evaluation.passed then
+        evaluation.failures.foreach { failure => println(s"[strategic-object-explanation-trace] tail-risk failure: $failure") }
+        sys.exit(1)
     writeText(config.outputPath, StrategicObjectExplanationTraceSupport.renderJsonl(selected))
     println(s"[strategic-object-explanation-trace] wrote ${selected.size} rows to ${config.outputPath}")
 
@@ -36,6 +59,9 @@ object StrategicObjectExplanationTraceRunner:
           workspaceRoot.resolve(
             Path.of("tools", "strategic_object", "reports", "StrategicObjectExplanationTrace.latest.jsonl")
           ),
+        evaluationPath = None,
+        runTailRiskGate = false,
+        macroPassThreshold = StrategicObjectExplanationTraceSupport.tailRiskMacroPassThreshold,
         limit = None,
         caseTypes = Set.empty
       )
@@ -60,6 +86,20 @@ object StrategicObjectExplanationTraceRunner:
           loop(tail, cfg.copy(caseTypes = parseCaseTypes(head.stripPrefix("--case-types="))))
         case "--case-types" :: value :: tail =>
           loop(tail, cfg.copy(caseTypes = parseCaseTypes(value)))
+        case "--tail-risk" :: tail =>
+          loop(tail, cfg.copy(runTailRiskGate = true))
+        case head :: tail if head.startsWith("--tail-risk-threshold=") =>
+          head.stripPrefix("--tail-risk-threshold=").toDoubleOption match
+            case Some(value) if value >= 0.0 && value <= 1.0 => loop(tail, cfg.copy(macroPassThreshold = value))
+            case _                                          => Left(s"invalid --tail-risk-threshold: $head")
+        case "--tail-risk-threshold" :: value :: tail =>
+          value.toDoubleOption match
+            case Some(value) if value >= 0.0 && value <= 1.0 => loop(tail, cfg.copy(macroPassThreshold = value))
+            case _                                          => Left(s"invalid --tail-risk-threshold: $value")
+        case head :: tail if head.startsWith("--tail-risk-output=") =>
+          loop(tail, cfg.copy(evaluationPath = Some(Path.of(head.stripPrefix("--tail-risk-output=")).toAbsolutePath.normalize)))
+        case "--tail-risk-output" :: value :: tail =>
+          loop(tail, cfg.copy(evaluationPath = Some(Path.of(value).toAbsolutePath.normalize)))
         case unknown :: _ =>
           Left(s"unknown argument: $unknown")
 

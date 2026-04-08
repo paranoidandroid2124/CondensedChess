@@ -1,0 +1,51 @@
+{
+  "schema" : "chesstory.strategicObject.explanationTraceTailRisk.v1",
+  "macroPassThreshold" : 0.98,
+  "macroMetrics" : {
+    "totalRows" : 80,
+    "passedRows" : 80,
+    "passRate" : 1,
+    "leakRows" : 0,
+    "leakRate" : 0
+  },
+  "tailRisk" : {
+    "totalRows" : 80,
+    "hardestRows" : 38,
+    "plannerLeakRows" : 0,
+    "plannerLeakRate" : 0,
+    "byCaseType" : [ {
+      "caseType" : "comparative_false_rival",
+      "totalRows" : 8,
+      "expectedPlannerBlockedRows" : 8,
+      "plannerLeakRows" : 0,
+      "plannerLeakRate" : 0
+    }, {
+      "caseType" : "move_local_false_witness",
+      "totalRows" : 8,
+      "expectedPlannerBlockedRows" : 8,
+      "plannerLeakRows" : 0,
+      "plannerLeakRate" : 0
+    }, {
+      "caseType" : "nasty_negative",
+      "totalRows" : 8,
+      "expectedPlannerBlockedRows" : 8,
+      "plannerLeakRows" : 0,
+      "plannerLeakRate" : 0
+    }, {
+      "caseType" : "near_miss",
+      "totalRows" : 14,
+      "expectedPlannerBlockedRows" : 14,
+      "plannerLeakRows" : 0,
+      "plannerLeakRate" : 0
+    }, {
+      "caseType" : "planner_negative",
+      "totalRows" : 0,
+      "expectedPlannerBlockedRows" : 0,
+      "plannerLeakRows" : 0,
+      "plannerLeakRate" : 0
+    } ],
+    "plannerLeakRowIds" : [ ]
+  },
+  "passed" : true,
+  "failures" : [ ]
+}

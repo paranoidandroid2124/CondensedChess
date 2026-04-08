@@ -50,6 +50,48 @@ object StrategicObjectExplanationTraceSupport:
   object PlannerTrace:
     given Writes[PlannerTrace] = Json.writes[PlannerTrace]
 
+  final case class MacroMetrics(
+      totalRows: Int,
+      passedRows: Int,
+      passRate: Double,
+      leakRows: Int,
+      leakRate: Double
+  )
+  object MacroMetrics:
+    given Writes[MacroMetrics] = Json.writes[MacroMetrics]
+
+  final case class TailCaseTypeMetrics(
+      caseType: String,
+      totalRows: Int,
+      expectedPlannerBlockedRows: Int,
+      plannerLeakRows: Int,
+      plannerLeakRate: Double
+  )
+  object TailCaseTypeMetrics:
+    given Writes[TailCaseTypeMetrics] = Json.writes[TailCaseTypeMetrics]
+
+  final case class TailRiskMetrics(
+      totalRows: Int,
+      hardestRows: Int,
+      plannerLeakRows: Int,
+      plannerLeakRate: Double,
+      byCaseType: List[TailCaseTypeMetrics],
+      plannerLeakRowIds: List[String]
+  )
+  object TailRiskMetrics:
+    given Writes[TailRiskMetrics] = Json.writes[TailRiskMetrics]
+
+  final case class TailRiskEvaluation(
+      schema: String,
+      macroPassThreshold: Double,
+      macroMetrics: MacroMetrics,
+      tailRisk: TailRiskMetrics,
+      passed: Boolean,
+      failures: List[String]
+  )
+  object TailRiskEvaluation:
+    given Writes[TailRiskEvaluation] = Json.writes[TailRiskEvaluation]
+
   final case class EvidenceTrace(
       changedAnchorSquares: List[String],
       evidenceAnchorSquares: List[String],
@@ -97,6 +139,115 @@ object StrategicObjectExplanationTraceSupport:
 
   def renderJsonl(rows: List[ExplanationTraceRow]): String =
     rows.map(row => Json.stringify(Json.toJson(row))).mkString("", "\n", "\n")
+
+  val tailRiskCaseTypes: Set[String] =
+    Set(
+      "near_miss",
+      "nasty_negative",
+      "move_local_false_witness",
+      "comparative_false_rival",
+      "planner_negative"
+    )
+
+  val tailRiskMacroPassThreshold: Double = 0.98
+
+  def tailRiskEvaluation(
+      rows: List[ExplanationTraceRow],
+      macroPassThreshold: Double = tailRiskMacroPassThreshold
+  ): TailRiskEvaluation =
+    val macroMetrics = macroMetricsForRows(rows)
+    val tailMetrics = tailRiskMetrics(rows)
+    val failures = List.newBuilder[String]
+
+    if macroMetrics.passRate < macroPassThreshold then
+      failures += s"macro_pass_rate_below_threshold:${macroMetrics.passRate} < ${macroPassThreshold}"
+    if tailMetrics.plannerLeakRows > 0 then
+      failures += s"planner_negative_leaks:${tailMetrics.plannerLeakRowIds.mkString(",")}"
+
+    TailRiskEvaluation(
+      schema = "chesstory.strategicObject.explanationTraceTailRisk.v1",
+      macroPassThreshold = macroPassThreshold,
+      macroMetrics = macroMetrics,
+      tailRisk = tailMetrics,
+      passed = failures.result().isEmpty,
+      failures = failures.result()
+    )
+
+  private def macroMetricsForRows(
+      rows: List[ExplanationTraceRow]
+  ): MacroMetrics =
+    val totalRows = rows.size
+    val leakRows = rows.count(isMacroLeak)
+    val passedRows = totalRows - leakRows
+    MacroMetrics(
+      totalRows = totalRows,
+      passedRows = passedRows,
+      passRate = passRate(passedRows, totalRows),
+      leakRows = leakRows,
+      leakRate = if totalRows == 0 then 0.0 else leakRows.toDouble / totalRows
+    )
+
+  private def tailRiskMetrics(
+      rows: List[ExplanationTraceRow]
+  ): TailRiskMetrics =
+    val tailRows = rows.filter(row => tailRiskCaseTypes.contains(row.caseType))
+    val byCaseType =
+      tailRiskCaseTypes.toList.sorted.map { caseType =>
+        val matching = tailRows.filter(_.caseType == caseType)
+        val expectedPlannerBlockedRows = matching.count(_.expectation == "absent")
+        val plannerLeakRows = matching.count(isPlannerLeak)
+        val rate =
+          if expectedPlannerBlockedRows == 0 then 0.0
+          else plannerLeakRows.toDouble / expectedPlannerBlockedRows
+
+        TailCaseTypeMetrics(
+          caseType = caseType,
+          totalRows = matching.size,
+          expectedPlannerBlockedRows = expectedPlannerBlockedRows,
+          plannerLeakRows = plannerLeakRows,
+          plannerLeakRate = rate
+        )
+      }
+    val plannerLeakRows =
+      tailRows
+        .filter(isPlannerLeak)
+        .map(_.rowId)
+        .sorted
+
+    val hardestRows = tailRows.size
+    TailRiskMetrics(
+      totalRows = rows.size,
+      hardestRows = hardestRows,
+      plannerLeakRows = plannerLeakRows.size,
+      plannerLeakRate = if hardestRows == 0 then 0.0 else plannerLeakRows.size.toDouble / hardestRows,
+      byCaseType = byCaseType,
+      plannerLeakRowIds = plannerLeakRows
+    )
+
+  private def isPlannerLeak(
+      row: ExplanationTraceRow
+  ): Boolean =
+    row.expectation == "absent" && row.planner.admission != "none"
+
+  private def isMacroLeak(
+      row: ExplanationTraceRow
+  ): Boolean =
+    row.expectation match
+      case "present" =>
+        row.projection.kind.isEmpty ||
+          row.certification.status.isEmpty ||
+          Set("absent", "object").contains(row.localization.localizedStage)
+      case "absent" =>
+        isPlannerLeak(row)
+      case _ =>
+        true
+
+  private def passRate(
+      passCount: Int,
+      totalCount: Int
+  ): Double =
+    if totalCount == 0 then 1.0
+    else passCount.toDouble / totalCount.toDouble
 
   def traceRow(
       row: StrategicObjectDeltaProjectorTest.DeltaExpectationRow

@@ -3,6 +3,8 @@ package lila.llm.tools.strategicobject
 import munit.FunSuite
 import play.api.libs.json.Json
 
+import StrategicObjectExplanationTraceSupport.ExplanationTraceRow
+
 class StrategicObjectExplanationTraceSupportTest extends FunSuite:
 
   test("trace rows cover packet-required case types with row-local localization") {
@@ -70,6 +72,83 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
     }
   }
 
+  test("tail-risk report splits macro averages from hardest-slice planner leak metrics") {
+    val rows = StrategicObjectExplanationTraceSupport.traceRows
+    val evaluation = StrategicObjectExplanationTraceSupport.tailRiskEvaluation(rows)
+
+    assert(evaluation.passed, clue(evaluation.failures))
+    assertEquals(evaluation.macroMetrics.totalRows, rows.size)
+    assertEquals(evaluation.macroMetrics.passedRows, rows.size)
+    assertEquals(evaluation.tailRisk.totalRows, rows.size)
+    assert(evaluation.tailRisk.hardestRows >= 0)
+    assert(
+      evaluation.macroMetrics.passRate >= 0.98,
+      clue(s"expected macro pass rate >=98%, got ${evaluation.macroMetrics.passRate}")
+    )
+    assertEquals(evaluation.tailRisk.byCaseType.map(_.caseType).toSet, StrategicObjectExplanationTraceSupport.tailRiskCaseTypes)
+    assertEquals(evaluation.tailRisk.plannerLeakRows, 0)
+  }
+
+  test("hard negative planner-negative rows are blocked from planner admission") {
+    val rows = StrategicObjectExplanationTraceSupport.traceRows
+    val hardNegativeRows =
+      rows.filter(row =>
+        StrategicObjectExplanationTraceSupport.tailRiskCaseTypes.contains(row.caseType) &&
+          row.expectation == "absent"
+      )
+    val leaked = hardNegativeRows.filter(_.planner.admission != "none")
+
+    assert(hardNegativeRows.nonEmpty, clue("expected hardest negative rows from trace corpus"))
+    assertEquals(leaked.size, 0, clue(leaked.map(_.rowId).mkString(", ")))
+  }
+
+  test("tail-risk gate fails on planner leak even with macro pass above threshold") {
+    val rows = StrategicObjectExplanationTraceSupport.traceRows
+    val seedRow = rows.find(_.rowId == "king-safety-position-nasty-negative").getOrElse(
+      fail("expected planner-blocked hardest negative row")
+    )
+    val corrupted =
+      rows.map { row =>
+        if row.rowId == seedRow.rowId then withPlannerLeak(row)
+        else row
+      }
+    val evaluation = StrategicObjectExplanationTraceSupport.tailRiskEvaluation(corrupted, 0.98)
+
+    assert(!evaluation.passed, clue(evaluation.failures))
+    assert(evaluation.failures.exists(_.contains("planner_negative_leaks")))
+    assert(
+      evaluation.macroMetrics.passRate >= 0.98,
+      clue(s"macro still must stay high: ${evaluation.macroMetrics.passRate}")
+    )
+  }
+
+  test("tail-risk gate treats packet planner negatives as hard failures without dragging macro below threshold") {
+    val rows = StrategicObjectExplanationTraceSupport.traceRows
+    val plannerNegative =
+      withPlannerLeak(
+        rows.find(_.rowId == "access-network-move-exact").getOrElse(
+          fail("expected access-network-move-exact trace row")
+        ),
+        rowId = Some("packet-planner-negative"),
+        caseType = Some("planner_negative"),
+        admission = "support",
+        axis = "WhyNow",
+        claimId = "support-only-timing-leak"
+      )
+    val evaluation = StrategicObjectExplanationTraceSupport.tailRiskEvaluation(rows :+ plannerNegative, 0.98)
+
+    assert(!evaluation.passed, clue(evaluation.failures))
+    assert(
+      evaluation.macroMetrics.passRate >= 0.98,
+      clue(s"macro should stay high: ${evaluation.macroMetrics.passRate}")
+    )
+    assertEquals(evaluation.tailRisk.plannerLeakRowIds, List("packet-planner-negative"))
+    assert(
+      evaluation.tailRisk.byCaseType.find(_.caseType == "planner_negative").exists(_.plannerLeakRows == 1),
+      clue(evaluation.tailRisk.byCaseType)
+    )
+  }
+
   test("jsonl render keeps one structured line per trace row") {
     val rows = StrategicObjectExplanationTraceSupport.traceRows.take(3)
     val rendered = StrategicObjectExplanationTraceSupport.renderJsonl(rows)
@@ -78,3 +157,28 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
     assertEquals(parsed.size, rows.size)
     parsed.foreach(js => assert((js \ "rowId").asOpt[String].nonEmpty, clue(js)))
   }
+
+  private def withPlannerLeak(
+      row: ExplanationTraceRow,
+      rowId: Option[String] = None,
+      caseType: Option[String] = None,
+      admission: String = "primary",
+      axis: String = "WhatMattersHere",
+      claimId: String = "hard-negative-leak"
+  ): ExplanationTraceRow =
+    row.copy(
+      rowId = rowId.getOrElse(row.rowId),
+      caseType = caseType.getOrElse(row.caseType),
+      expectation = "absent",
+      certification = row.certification.copy(status = Some("Certified"), claimId = Some(claimId)),
+      planner = row.planner.copy(
+        axis = axis,
+        admission = admission,
+        primaryClaimIds = if admission == "primary" then List(claimId) else Nil,
+        supportClaimIds = if admission == "support" then List(claimId) else Nil
+      ),
+      localization = row.localization.copy(
+        localizedStage = if admission == "primary" then "planner_primary" else "planner_support",
+        claimMatchCount = 1
+      )
+    )
