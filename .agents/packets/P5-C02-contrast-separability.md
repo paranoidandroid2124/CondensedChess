@@ -72,3 +72,14 @@ should close rather than drift into weak player-facing contrast.
   killing valid Tier 1 comparative lanes
 - blocked condition: separability burden clearly belongs in certification, not
   projector
+- latest observed blocker:
+  - shallow contrast proof must be distinct from already-blocked
+    `comparative_false_rival` rows
+  - counterpart-gate duplicates are not enough to certify a new separability
+    burden
+  - one retry attempted a same-owner `FixedTargetComplex` vs
+    `RestrictionShell` shared-target row on `exact:restriction-shell-k03`, but
+    the row still survived projector comparative admission under validation
+  - with no distinct exact-board shallow-contrast proof that survives the
+    projector's own typed metric space, the remaining burden is treated as
+    certification-owned and this packet is `blocked`
