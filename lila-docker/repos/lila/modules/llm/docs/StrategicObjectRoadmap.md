@@ -11,7 +11,7 @@ This roadmap follows the original design-memo phase numbering.
 - demolition and skeleton layout are recorded as completed rewrite checkpoints,
   not as separate long-term semantic phases.
 - the first active rebuild phase after demolition was `Phase 3. Primitive
-  Extraction Layer`; the live rewrite frontier now sits in `Phase 5` below.
+  Extraction Layer`; the live rewrite frontier now sits in `Phase 7` below.
 
 ## Rewrite Principles
 
@@ -50,19 +50,27 @@ The rewrite has already completed the following checkpoints:
   - `MobilityCage`
   - `RedeploymentRoute`
   - all eight remain `Provisional`
+- `Phase 6. ClaimCertification Rewrite`
+  - certification is now delta-aware rather than readiness-only
+  - `Stable` claims require scope-specific typed delta burden before they may
+    stay `Certified`
+  - shallow-but-typed stable deltas now downgrade to `SupportOnly`, and
+    insufficient exact-board support now downgrades to `Deferred`
+  - `Provisional` typed deltas remain `SupportOnly`
 
-The current active implementation frontier is therefore still inside `Phase 5`,
+The current active implementation frontier is therefore now inside `Phase 7`,
 not `Phase 3`.
 
 Near-term canonical sequence from the current checkpoint:
 
 1. keep Tier 1 provisional families exact-board hardened without forced
    promotion
-2. tighten comparative / counterpart contract inside `Phase 5`
-3. move `Phase 6` certification from readiness-only mapping to delta-aware
-   burden
-4. open `Phase 7` question-native planner semantics on top of certified typed
+2. open `Phase 7` question-native planner semantics on top of certified typed
    delta
+3. keep `WhyNow` and other question admission lanes bound to typed certified
+   delta rather than readiness-only fallbacks
+4. build trace-backed evaluation and promotion work on top of the narrowed
+   certification boundary
 
 For live rewrite status, treat the phase sections below, especially `Phase 5`
 onward, as authoritative. This checkpoint is only the top-level summary.
@@ -549,6 +557,23 @@ Claim certification must consume canonical object readiness rather than
 primitive-count or family-name heuristics. `Provisional` and
 `DeferredForDelta` families may survive in object state but must not be
 silently promoted into primary claims.
+
+Current Phase 6 status:
+
+- certification now reads readiness plus typed delta burden
+- `Stable` is no longer an automatic `Certified`
+- `MoveLocal`
+  - needs a transition-aware typed witness plus exact-board support to remain
+    primary
+- `PositionLocal`
+  - needs focal anchors plus exact-board support to remain primary
+- `Comparative`
+  - needs exact counterpart witness, rival object context, and at least two
+    typed metrics to remain primary; shallow one-metric contrast stays
+    `SupportOnly`
+- insufficient exact-board support now downgrades even `Stable` claims to
+  `Deferred`
+- `Provisional` typed deltas remain `SupportOnly`
 
 ## Phase 7. Planner Rewrite
 

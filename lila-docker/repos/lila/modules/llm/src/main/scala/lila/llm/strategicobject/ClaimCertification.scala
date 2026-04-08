@@ -8,6 +8,11 @@ enum ClaimStatus:
   case Deferred
   case Rejected
 
+private enum DeltaCertificationBurden:
+  case Primary
+  case SupportOnly
+  case Insufficient
+
 final case class CertifiedClaim(
     id: String,
     objectId: String,
@@ -34,11 +39,12 @@ object CanonicalClaimCertification extends ClaimCertification:
     val claimsFromDeltas =
       deltas.flatMap { delta =>
         objectsById.get(delta.objectId).map { obj =>
+          val burden = certificationBurden(delta)
           CertifiedClaim(
             id = claimId(obj.id, delta.scope),
             objectId = obj.id,
             deltaScope = delta.scope,
-            status = claimStatus(obj.readiness),
+            status = claimStatus(obj.readiness, burden),
             readiness = obj.readiness,
             delta = Some(delta),
             supportingObjectIds = delta.supportingObjectIds
@@ -75,12 +81,55 @@ object CanonicalClaimCertification extends ClaimCertification:
     s"$objectId:${scope.toString.toLowerCase}"
 
   private def claimStatus(
-      readiness: StrategicObjectReadiness
+      readiness: StrategicObjectReadiness,
+      burden: DeltaCertificationBurden
   ): ClaimStatus =
     readiness match
-      case StrategicObjectReadiness.Stable           => ClaimStatus.Certified
-      case StrategicObjectReadiness.Provisional      => ClaimStatus.SupportOnly
+      case StrategicObjectReadiness.Stable =>
+        burden match
+          case DeltaCertificationBurden.Primary      => ClaimStatus.Certified
+          case DeltaCertificationBurden.SupportOnly  => ClaimStatus.SupportOnly
+          case DeltaCertificationBurden.Insufficient => ClaimStatus.Deferred
+      case StrategicObjectReadiness.Provisional =>
+        burden match
+          case DeltaCertificationBurden.Primary | DeltaCertificationBurden.SupportOnly =>
+            ClaimStatus.SupportOnly
+          case DeltaCertificationBurden.Insufficient =>
+            ClaimStatus.Deferred
       case StrategicObjectReadiness.DeferredForDelta => ClaimStatus.Deferred
+
+  private def certificationBurden(
+      delta: StrategicObjectDelta
+  ): DeltaCertificationBurden =
+    val exactBoardSupport = hasExactBoardSupport(delta)
+    delta.projection match
+      case StrategicDeltaProjection.MoveLocal(_, witness) =>
+        if exactBoardSupport && witness.hasAnchoredEvidence then DeltaCertificationBurden.Primary
+        else if exactBoardSupport && witness.isTransitionAware then DeltaCertificationBurden.SupportOnly
+        else DeltaCertificationBurden.Insufficient
+      case StrategicDeltaProjection.PositionLocal(_, focalAnchorCount) =>
+        if exactBoardSupport && focalAnchorCount > 0 then DeltaCertificationBurden.Primary
+        else if delta.changedAnchors.nonEmpty && focalAnchorCount > 0 then DeltaCertificationBurden.SupportOnly
+        else DeltaCertificationBurden.Insufficient
+      case StrategicDeltaProjection.Comparative(_, _, witness, counterpartObjectIds, profile) =>
+        val comparativeSupport =
+          exactBoardSupport &&
+            witness.isFamilyAware &&
+            witness.hasExactCounterpartWitness &&
+            counterpartObjectIds.nonEmpty &&
+            delta.rivalObjectIds.nonEmpty &&
+            profile.metrics.nonEmpty
+        if comparativeSupport && profile.metrics.size >= 2 then DeltaCertificationBurden.Primary
+        else if comparativeSupport then DeltaCertificationBurden.SupportOnly
+        else DeltaCertificationBurden.Insufficient
+
+  private def hasExactBoardSupport(
+      delta: StrategicObjectDelta
+  ): Boolean =
+    delta.changedAnchors.nonEmpty &&
+      delta.evidenceRefs.exists(ref =>
+        ref.anchorSquares.nonEmpty || ref.contestedSquares.nonEmpty || ref.lane.nonEmpty
+      )
 
 trait ClaimCertification:
   def certify(

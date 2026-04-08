@@ -350,6 +350,21 @@ in `StrategicObjectRoadmap.md`.
   extraction, planner wording, renderer semantics, or Tier 2 / Tier 3 owner
   lanes. All eight families remain `Provisional`, and `move_local` remains
   closed for all eight on the current rewrite lane.
+- rewrite-local delta-aware certification note on 2026-04-08:
+  `ClaimCertification` no longer maps readiness directly to release status.
+  The certification boundary now reads typed delta burden from the canonical
+  delta contract itself. `Stable` claims remain `Certified` only when their
+  scope-specific typed delta still carries exact-board support:
+  `MoveLocal` needs a transition-aware anchored witness,
+  `PositionLocal` needs focal anchors plus exact-board evidence, and
+  `Comparative` needs exact counterpart witness, rival-object context, and at
+  least two typed metrics. Shallow-but-typed stable deltas now downgrade to
+  `SupportOnly`, insufficient exact-board support downgrades to `Deferred`
+  even for `Stable`, and `Provisional` typed deltas remain `SupportOnly`.
+  This is still trust-hardening only:
+  it reduces stable-but-weak overclaim and comparative shallowness without
+  opening planner wording, renderer semantics, Tier 2 / Tier 3 delta lanes, or
+  any new user-facing release.
 
 ## Current Status
 

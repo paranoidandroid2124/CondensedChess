@@ -70,3 +70,13 @@ delta witness, comparative burden, and exact-board support.
 - start status: `ready`
 - pass condition: certification reads typed delta quality, not readiness alone
 - blocked condition: planner or delta projector must change first
+- landed result:
+  - `ClaimCertification` now reads scope-specific typed delta burden from the
+    canonical delta contract instead of mapping `Stable` directly to
+    `Certified`
+  - weak-but-typed stable deltas now downgrade to `SupportOnly`, and
+    insufficient exact-board support downgrades to `Deferred`
+  - `Provisional` typed deltas remain `SupportOnly`
+  - serial validation passed:
+    `sbt -batch "llm/testOnly lila.llm.strategicobject.ClaimCertificationTest lila.llm.strategicobject.StrategicObjectDeltaProjectorTest"`
+    and `sbt -batch "llm/compile"`

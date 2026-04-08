@@ -529,6 +529,26 @@ Pass 1 reinforcement also keeps the typed delta alive past projection:
     not need to mint wording here, but it must not lose which transition or
     comparative axis was certified
 
+Phase 6 then moves certification off readiness-only mapping.
+
+- `Stable`
+  - is not an automatic certification grant; the typed delta must still carry
+    scope-specific exact-board burden
+- `MoveLocal`
+  - needs a transition-aware witness with anchored board support to remain
+    primary
+- `PositionLocal`
+  - needs focal anchors plus exact-board evidence to remain primary
+- `Comparative`
+  - needs exact counterpart witness, rival-object context, and at least two
+    typed metrics to remain primary
+- shallow-but-typed deltas may survive as `SupportOnly`
+- insufficient exact-board support must downgrade to `Deferred` rather than
+  overclaiming from readiness alone
+- `Provisional`
+  - still may not become primary on this pass even when its typed delta burden
+    is otherwise adequate
+
 Pass 1 keeps the readiness boundary intact inside the projector:
 
 - `Stable`

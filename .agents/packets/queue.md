@@ -33,7 +33,7 @@ Authority:
 |---|---|---:|---|---|
 | `P5-C01-comparative-counterpart-contract` | `passed` | 1 | counterpart admissibility | landed on the current packet lane |
 | `P5-C02-contrast-separability` | `blocked` | 2 | comparative quality | retry failed to prove a distinct exact-board shallow-contrast row; current burden appears to belong in certification rather than projector |
-| `P6-A01-delta-aware-certification` | `ready` | 3 | certification burden | move beyond readiness-only mapping |
+| `P6-A01-delta-aware-certification` | `passed` | 3 | certification burden | certification now reads typed delta burden; stable weak deltas downgrade to support-only or deferred |
 | `P7-Q01-question-admission-matrix` | `ready` | 4 | planner semantics | define typed admission per question kind |
 | `P7-Q02-whynow-admission` | `ready` | 5 | planner semantics | open WhyNow only from timing witness |
 | `P7-E01-explanation-trace` | `ready` | 6 | eval trace | test/research only, no runtime payload widening |
