@@ -166,6 +166,52 @@ class StrategicObjectDeltaProjectorTest extends FunSuite:
     )
   }
 
+  test("comparative near-miss rows stay exact-board admissible while remaining taxonomy-distinct from false rivals and strong contrast") {
+    val shallowRows =
+      rows.filter(row =>
+        row.caseType == "near_miss" &&
+          row.expectation == "present" &&
+          parseScope(row.scope) == StrategicDeltaScope.Comparative
+      )
+
+    assert(shallowRows.nonEmpty, clue("expected at least one comparative near-miss row"))
+    shallowRows.foreach { row =>
+      val familyRows =
+        rows.filter(candidate =>
+          candidate.family == row.family &&
+            parseScope(candidate.scope) == StrategicDeltaScope.Comparative
+        )
+      val falseRival = familyRows.find(_.caseType == "comparative_false_rival").getOrElse(
+        fail(s"${row.id}: missing same-family comparative_false_rival row")
+      )
+      val strongContrast = familyRows.find(_.caseType == "contrastive").getOrElse(
+        fail(s"${row.id}: missing same-family contrastive row")
+      )
+      val matched = deltasForRow(row)
+
+      assert(matched.nonEmpty, clue(s"${row.id}: shallow comparative must remain projector-admissible"))
+      assert(
+        row.fen != falseRival.fen,
+        clue(s"${row.id}: shallow comparative must not reuse the false-rival board")
+      )
+      assert(
+        row.fen != strongContrast.fen,
+        clue(s"${row.id}: shallow comparative must not reuse the strong-contrast board")
+      )
+      matched.foreach { delta =>
+        delta.projection match
+          case StrategicDeltaProjection.Comparative(_, _, witness, counterpartObjectIds, profile) =>
+            assert(witness.isFamilyAware, clue(s"${row.id}: expected family-aware shallow witness"))
+            assert(witness.hasExactCounterpartWitness, clue(s"${row.id}: expected exact counterpart witness"))
+            assert(counterpartObjectIds.nonEmpty, clue(s"${row.id}: expected counterpart object ids"))
+            assert(delta.rivalObjectIds.nonEmpty, clue(s"${row.id}: expected rival object ids"))
+            assert(profile.metrics.nonEmpty, clue(s"${row.id}: expected typed comparative metrics"))
+          case other =>
+            fail(s"${row.id}: expected comparative projection, got $other")
+      }
+    }
+  }
+
   test("provisional direct owners stay move-local closed even with transition truth and reopen comparative only under visible truth") {
     val provisionalFamilies =
       StrategicObjectFamily.directDeltaOwners.filter(family =>

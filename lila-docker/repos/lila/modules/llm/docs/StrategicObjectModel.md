@@ -41,6 +41,21 @@ Current rewrite checkpoint:
 - `Phase 4` objectization, hardening, and exact-board calibration are complete
 - `Phase 5` currently runs on the Tier 1 direct-delta-owner lane with exact-
   board reinforcement and provisional-family hardening already landed
+- `Phase 6` delta-aware certification is complete
+- `Phase 7` question admission, `WhyNow`, explanation trace, and tail-risk
+  gate are complete
+
+Current post-spine frontier:
+
+- the certified planner spine is now structurally landed
+- the next frontier is chess-meaning closure rather than more family sprawl
+- this means:
+  - comparative quality must now distinguish admissible comparative from
+    instructionally separate comparative
+  - one exact comparative-support slice should be re-earned on the new spine
+    before broader narrow-slice expansion
+  - Tier 1 provisional promotion or move-local reopening should wait until
+    comparative-quality closure and early Phase 9 slice parity exist
 
 This document remains the capability north-star, not the active packet queue.
 Use `StrategicObjectRoadmap.md` for live execution order and current frontier
@@ -735,6 +750,43 @@ Canonical admission matrix on the current planner lane:
   - remains a separate timing-owned lane and is not reopened by the
     non-timing `WhyThis` path; bad-contract move-local timing still stays on
     `WhatMustBeStopped`
+
+## Post-Spine Frontier
+
+Comparative-quality certification remains the gate to close on this spine, not
+a projector-side widening step.
+The next north-star frontier is chess-meaning closure on top of the landed
+spine.
+
+That frontier should proceed in this order:
+
+1. comparative-quality certification
+   - decide when an admissible comparative remains too shallow to be a real
+     explanation and must fall to `SupportOnly`, `Deferred`, or
+     `planner_none`
+   - decompose this into:
+     - exact-board shallow-comparative corpus
+     - trace/tail-risk localization for shallow comparative
+     - certification outcome matrix for admissible-but-shallow comparative
+2. exact comparative support
+   - re-earn one exact comparative-support slice on the new spine before
+     broader slice parity claims
+3. exact narrow-slice reconstitution
+   - regain exact target-fixation and bounded favorable-simplification slices
+     on the new architecture
+4. Tier 1 provisional re-audit
+   - revisit provisional comparative lanes only after comparative-quality
+     closure and first slice parity
+5. selective move-local reopen
+   - reopen provisional move-local only where exact-board positive and nasty
+     negative resistance justify it
+
+This frontier is about separating:
+
+- "a comparative exists" from
+- "the comparative expresses a genuinely different strategic campaign"
+
+It is therefore a chess-meaning problem, not a renderer or wording problem.
 
 ## Renderer Contract
 

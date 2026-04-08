@@ -26,6 +26,10 @@ Authority:
   - passed
   - comparative counterpart admissibility is now centralized at the family
     contract boundary
+- `P6-A01-delta-aware-certification`
+  - passed
+  - certification now reads typed delta burden instead of mapping readiness
+    directly to release
 - `P7-Q01-question-admission-matrix`
   - passed
   - planner primary admission now follows a centralized certified typed-delta
@@ -44,6 +48,18 @@ Authority:
   - passed
   - tail-risk evaluation now gates hardest-slice planner leaks separately from
     macro pass rate, including packet-owned `planner_negative` checks
+- `P6-A02a-shallow-comparative-corpus`
+  - passed
+  - canonical exact-board shallow-comparative rows now exist on the
+    same-owner `DevelopmentCoordinationState` / `RedeploymentRoute` pair from
+    `exact:redeployment-path`; the comparative is projector-admissible but is
+    taxonomy-distinct from both family false-rival rows and the stronger
+    `contrastive:redeployment-path` rows
+- certified planner spine through `P7-E02`
+  - landed
+  - object delta, delta-aware certification, question admission, `WhyNow`,
+    explanation trace, and tail-risk gate now form one bounded runtime/test
+    spine
 
 ## Active Queue
 
@@ -56,6 +72,17 @@ Authority:
 | `P7-Q02-whynow-admission` | `passed` | 5 | planner semantics | timing-sensitive WhyNow lane landed from certified move-local witness |
 | `P7-E01-explanation-trace` | `passed` | 6 | eval trace | canonical pre-sanitization explanation trace now exports row-local projector / certification / planner state at the test boundary |
 | `P7-E02-tail-risk-eval` | `passed` | 7 | eval gate | tail-risk evaluation now enforces hardest-slice planner-leak rejection plus packet-owned `planner_negative` coverage |
+| `P6-A02-comparative-quality-certification` | `blocked` | 8 | comparative quality certification | umbrella packet blocked; ownership is now decomposed into `P6-A02a` exact shallow corpus, `P6-A02b` trace localization, and `P6-A02c` certification outcome matrix |
+| `P6-A02a-shallow-comparative-corpus` | `passed` | 9 | comparative quality corpus | canonical same-owner `DevelopmentCoordinationState` / `RedeploymentRoute` shallow-comparative rows now exist on `exact:redeployment-path` without collapsing back into `comparative_false_rival` or reusing the strong contrast board |
+| `P6-A02b-shallow-comparative-trace` | `ready` | 10 | comparative quality trace | make trace/tail-risk localize shallow comparative failures as certification/planner outcomes rather than generic absence |
+| `P6-A02c-comparative-certification-outcomes` | `ready` | 11 | comparative quality certification | define canonical `Certified` / `SupportOnly` / `Deferred` / `planner_none` outcomes for admissible-but-shallow comparative rows |
+| `P9-A01-exact-comparative-support` | `blocked` | 12 | narrow-slice reconstitution | blocked on `P6-A02a` through `P6-A02c`; do not advance until comparative-quality certification has canonical exact-board and trace-backed closure |
+| `P9-A02-exact-target-fixation-reconstitution` | `ready` | 13 | narrow-slice reconstitution | re-earn one exact target-fixation slice on the new architecture without legacy adapters |
+| `P9-A03-bounded-favorable-simplification` | `ready` | 14 | narrow-slice reconstitution | re-earn one bounded favorable-simplification slice on the new spine only |
+| `P9-A04-current-position-fixed-target-probe` | `ready` | 15 | narrow-slice reconstitution | reopen one current-position fixed-target probe after exact comparative support is stable |
+| `P9-A05-current-position-coordination-probe` | `ready` | 16 | narrow-slice reconstitution | reopen one current-position coordination probe after earlier Phase 9 slices hold |
+| `P5-T01-tier1-provisional-comparative-reaudit` | `ready` | 17 | readiness / promotion | re-audit provisional Tier 1 comparative lanes after comparative-quality closure and first slice parity |
+| `P5-T02-tier1-provisional-move-local-reopen-audit` | `ready` | 18 | readiness / promotion | reopen provisional move-local only where exact-board positives and nasty negatives justify it |
 
 ## Packet Selection Rule
 

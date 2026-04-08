@@ -67,11 +67,23 @@ This control plane assumes the following rewrite state is already landed:
 - strategic object hardening and calibration complete
 - Phase 5 pass 1 and reinforcement complete
 - Tier 1 provisional hardening/promotion audit complete
+- Phase 6 delta-aware certification complete
+- Phase 7 question admission / `WhyNow` / explanation trace / tail-risk gate
+  complete
 
 The next runtime frontier is not more family sprawl.
 It is:
 
-1. comparative / counterpart contract tightening
-2. delta-aware certification
-3. question-native planner semantics
-4. trace-backed evaluation and promotion loop
+1. comparative-quality certification to absorb the blocked `P5-C02`
+   shallow-contrast burden
+   - first decompose it into:
+     - exact shallow-comparative corpus
+     - trace/tail-risk localization
+     - certification outcome matrix
+2. exact comparative support as the first Phase 9 narrow-slice
+   reconstitution target
+3. exact target fixation and bounded favorable simplification on the new
+   certified planner spine
+4. Tier 1 provisional comparative re-audit after comparative-quality closure
+5. selective provisional move-local reopen audit only where exact-board
+   resistance justifies it

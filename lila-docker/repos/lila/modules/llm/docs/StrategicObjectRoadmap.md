@@ -57,22 +57,26 @@ The rewrite has already completed the following checkpoints:
   - shallow-but-typed stable deltas now downgrade to `SupportOnly`, and
     insufficient exact-board support now downgrades to `Deferred`
   - `Provisional` typed deltas remain `SupportOnly`
+- `Phase 7. Planner Rewrite`
+  - question admission matrix is now typed-delta-native
+  - `WhyNow` is now a separate timing-sensitive certified lane
+  - pre-sanitization explanation trace and tail-risk gate are landed on the
+    test/research boundary
 
-The current active implementation frontier is therefore now inside `Phase 7`,
-not `Phase 3`.
+The current active implementation frontier is therefore now just beyond the
+Phase 7 planner/eval spine, not back inside `Phase 7`.
 
 Near-term canonical sequence from the current checkpoint:
 
-1. keep Tier 1 provisional families exact-board hardened without forced
-   promotion
-2. open `Phase 7` question-native planner semantics on top of certified typed
-   delta
-3. keep `WhyNow` and other question admission lanes bound to typed certified
-   delta rather than readiness-only fallbacks
-4. build trace-backed evaluation and promotion work on top of the narrowed
-   certification boundary
-5. use that trace boundary for tail-risk evaluation rather than widening
-   runtime payloads
+1. absorb the blocked `P5-C02` shallow-contrast burden into
+   comparative-quality certification rather than projector widening
+2. front-load one exact comparative-support slice in `Phase 9`
+3. re-earn exact target-fixation and bounded favorable-simplification slices
+   on the new certified planner spine
+4. re-audit Tier 1 provisional comparative lanes only after comparative-quality
+   closure and early narrow-slice parity
+5. reopen provisional move-local selectively only where exact-board positives
+   and nasty negatives justify it
 
 For live rewrite status, treat the phase sections below, especially `Phase 5`
 onward, as authoritative. This checkpoint is only the top-level summary.
@@ -687,20 +691,72 @@ Remove:
 - semantic salvage
 - fallback-driven strategy invention
 
+## Post-Phase-7 Frontier
+
+The certified planner spine is now landed through:
+
+- typed delta projection
+- delta-aware certification
+- question-native planner admission
+- separate timing-sensitive `WhyNow`
+- pre-sanitization explanation trace
+- tail-risk gating
+
+The next frontier is not more family sprawl.
+It is chess-meaning closure on top of that spine.
+
+Canonical next tranche order:
+
+1. `P6-A02` comparative-quality certification
+   - absorb the `P5-C02` shallow-contrast blocker into certification/eval
+     outcomes such as `Certified`, `SupportOnly`, `Deferred`, and
+     `planner_none`
+   - execute this as three sub-packets:
+     - `P6-A02a` exact shallow-comparative corpus
+       - passed on `exact:redeployment-path` via the same-owner
+         `DevelopmentCoordinationState` / `RedeploymentRoute` pair; this
+         established canonical exact-board shallow-comparative rows that keep
+         admissible exact counterpart witness without reusing either the family
+         `comparative_false_rival` boards or the stronger
+         `contrastive:redeployment-path` boards
+     - `P6-A02b` shallow-comparative trace localization
+     - `P6-A02c` comparative certification outcome matrix
+2. `P9-A01` exact comparative support
+   - re-earn one exact comparative-support slice on the new spine before
+     broader slice parity claims
+3. `P9-A02` exact target fixation
+4. `P9-A03` bounded favorable simplification
+5. `P9-A04` current-position fixed target probe
+6. `P9-A05` current-position coordination probe
+7. `P5-T01` Tier 1 provisional comparative re-audit
+8. `P5-T02` Tier 1 provisional move-local reopen audit
+
+This order is intentional.
+The current bottleneck is not raw planner control anymore.
+It is whether a comparative that survives object and delta admission is
+actually chess-meaningfully different enough to deserve certification and
+planner ownership.
+
 ## Phase 9. Narrow Slice Reconstitution
 
 Rebuild the already-proven semantics on the new architecture first.
 
 Suggested order:
 
-1. exact target fixation
-2. bounded favorable simplification
-3. current-position fixed target probe
-4. exact comparative support
+1. exact comparative support
+2. exact target fixation
+3. bounded favorable simplification
+4. current-position fixed target probe
 5. current-position coordination probe
 
 The rewrite should earn back old exact successes from the new architecture,
 not preserve them through adapters.
+
+Current lane note:
+
+- exact comparative support is intentionally front-loaded because comparative
+  quality closure is the current chess-meaning bottleneck after the certified
+  planner spine landed
 
 ## Phase 10. Expansion
 
