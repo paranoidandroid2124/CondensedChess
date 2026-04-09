@@ -85,3 +85,26 @@ promotion or stronger admission.
 - pass condition: comparative re-audit is explicit and exact-board grounded
 - blocked condition: comparative-quality closure is still too weak to support
   family-level promotion decisions
+- final status: `passed_with_defer`
+- final verdict:
+  - `KingSafetyShell` -> stay `Provisional`
+  - `DevelopmentCoordinationState` -> stay `Provisional`
+  - `PieceRoleFitness` -> stay `Provisional`
+  - `SpaceClamp` -> stay `Provisional`
+  - `CounterplayAxis` -> stay `Provisional`
+  - `RestrictionShell` -> stay `Provisional`
+  - `MobilityCage` -> stay `Provisional`
+  - `RedeploymentRoute` -> stay `Provisional`
+- exact-board outcome:
+  - all eight families now carry explicit comparative `near_miss` rows in
+    addition to `contrastive`, `nasty_negative`, and
+    `comparative_false_rival` coverage
+  - shallow comparative stays projector-admissible but localizes at
+    `certification` as `SupportOnly` and stays planner `none`
+  - no comparative-only promotion was justified on this packet
+- verification note:
+  - `ClaimCertificationTest` and `QuestionPlannerTest` passed after the packet
+    diff
+  - `StrategicObjectDeltaProjectorTest` remained blocked by the dirty-worktree
+    unrelated failure on `fixed-target-move-exact`; all packet-owned
+    provisional comparative rows passed inside that suite

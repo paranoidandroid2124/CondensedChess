@@ -65,6 +65,10 @@ board grounded and avoid overreading generic activity as coordination truth.
 ## Status Notes
 
 - start status: `ready`
+- end status: `passed_with_defer`
+- packet result:
+  - reopened one bounded current-position coordination probe on `K09A`
+  - kept `K09D`, `K09E`, and single-active-piece mirage rows fail-closed
 - pass condition: one current-position coordination probe is reopened without
   generic-activity inflation
 - blocked condition: coordination still cannot be separated from activity-only

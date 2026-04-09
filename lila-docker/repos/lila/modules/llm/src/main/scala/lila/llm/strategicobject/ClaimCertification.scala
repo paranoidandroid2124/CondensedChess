@@ -44,7 +44,7 @@ object CanonicalClaimCertification extends ClaimCertification:
             id = claimId(obj.id, delta.scope),
             objectId = obj.id,
             deltaScope = delta.scope,
-            status = claimStatus(obj.readiness, burden),
+            status = claimStatus(obj.readiness, burden, delta),
             readiness = obj.readiness,
             delta = Some(delta),
             supportingObjectIds = delta.supportingObjectIds
@@ -82,7 +82,8 @@ object CanonicalClaimCertification extends ClaimCertification:
 
   private def claimStatus(
       readiness: StrategicObjectReadiness,
-      burden: DeltaCertificationBurden
+      burden: DeltaCertificationBurden,
+      delta: StrategicObjectDelta
   ): ClaimStatus =
     readiness match
       case StrategicObjectReadiness.Stable =>
@@ -92,6 +93,8 @@ object CanonicalClaimCertification extends ClaimCertification:
           case DeltaCertificationBurden.Insufficient => ClaimStatus.Deferred
       case StrategicObjectReadiness.Provisional =>
         burden match
+          case DeltaCertificationBurden.Primary if CurrentPositionProbeSlice.isCoordinationProbeDelta(delta) =>
+            ClaimStatus.Certified
           case DeltaCertificationBurden.Primary | DeltaCertificationBurden.SupportOnly =>
             ClaimStatus.SupportOnly
           case DeltaCertificationBurden.Insufficient =>

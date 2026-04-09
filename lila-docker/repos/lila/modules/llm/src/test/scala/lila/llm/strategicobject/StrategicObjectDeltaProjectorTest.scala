@@ -50,6 +50,40 @@ class StrategicObjectDeltaProjectorTest extends FunSuite:
     }
   }
 
+  test("Tier-1 provisional families carry explicit comparative near-miss rows distinct from contrastive and false-rival boards") {
+    val provisionalFamilies =
+      StrategicObjectFamily.directDeltaOwners.filter(family =>
+        StrategicObjectFamilyContract.forFamily(family).defaultReadiness == StrategicObjectReadiness.Provisional
+      )
+
+    provisionalFamilies.foreach { family =>
+      val familyRows =
+        rows.filter(row =>
+          parseFamily(row.family) == family &&
+            parseScope(row.scope) == StrategicDeltaScope.Comparative
+        )
+      val nearMiss = familyRows.find(_.caseType == "near_miss").getOrElse(
+        fail(s"missing comparative near_miss row for $family")
+      )
+      val falseRival = familyRows.find(_.caseType == "comparative_false_rival").getOrElse(
+        fail(s"missing comparative_false_rival row for $family")
+      )
+      val strongContrast = familyRows.find(_.caseType == "contrastive").getOrElse(
+        fail(s"missing comparative contrastive row for $family")
+      )
+
+      assertEquals(nearMiss.expectation, "present", clue(s"${nearMiss.id}: shallow comparative should stay projector-visible"))
+      assertEquals(nearMiss.plannerExpectation, Some("none"), clue(s"${nearMiss.id}: shallow comparative must stay planner-none"))
+      assertEquals(
+        nearMiss.localizationExpectation,
+        Some("certification"),
+        clue(s"${nearMiss.id}: shallow comparative should localize at certification")
+      )
+      assert(nearMiss.fen != falseRival.fen, clue(s"${nearMiss.id}: shallow comparative must not reuse the false-rival board"))
+      assert(nearMiss.fen != strongContrast.fen, clue(s"${nearMiss.id}: shallow comparative must not reuse the strong-contrast board"))
+    }
+  }
+
   test("projector emits deltas only for Tier-1 direct owners even when later-tier objects exist") {
     val laterTierRows =
       StrategicObjectSynthesizerTest.rows.filter(row =>
@@ -210,6 +244,25 @@ class StrategicObjectDeltaProjectorTest extends FunSuite:
             fail(s"${row.id}: expected comparative projection, got $other")
       }
     }
+  }
+
+  test("provisional comparative near-miss rows remain family-complete and typed") {
+    val provisionalFamilies =
+      StrategicObjectFamily.directDeltaOwners.filter(family =>
+        StrategicObjectFamilyContract.forFamily(family).defaultReadiness == StrategicObjectReadiness.Provisional
+      )
+    val shallowFamilies =
+      rows
+        .filter(row =>
+          row.caseType == "near_miss" &&
+            row.expectation == "present" &&
+            parseScope(row.scope) == StrategicDeltaScope.Comparative &&
+            provisionalFamilies.contains(parseFamily(row.family))
+        )
+        .map(row => parseFamily(row.family))
+        .toSet
+
+    assertEquals(shallowFamilies, provisionalFamilies.toSet)
   }
 
   test("provisional direct owners stay move-local closed even with transition truth and reopen comparative only under visible truth") {

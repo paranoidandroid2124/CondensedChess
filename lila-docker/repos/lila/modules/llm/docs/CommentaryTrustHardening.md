@@ -217,8 +217,8 @@ in `StrategicObjectRoadmap.md`.
   `ConversionFunnel-white-wholeboard-a7-abcdefg`,
   `DefenderDependencyNetwork-white-center-d4-de`) so the live B15A slice can
   reopen while the K03A and K09E siblings stay closed.
-  exact `K09A` / `K09D` now materialize the second current-position probe
-  owner on a separate exact coordination slice:
+  exact `K09A` now materializes the second current-position probe owner on a
+  separate exact coordination slice:
   when the live FEN proves `white to move`, a white rook on `c1`, an enemy
   knight on `c6`, at least two exact move refs contesting `c6`, route evidence
   that keeps the pieces coordinated on that target, a defended branch key, and
@@ -234,14 +234,17 @@ in `StrategicObjectRoadmap.md`.
   `QuestionFirstCommentaryPlanner` accepts only the certified
   `carlsbad_fixed_target_probe` or `target_focused_coordination_probe` packet
   there and still rejects generic `PositionLocal` shells as
-  `position_probe_not_certified`; the lane is current-position only, may not be
-  rewritten as move-local explanation, may not reuse support-only
+  `position_probe_not_certified`; current-position support is now also
+  slice-bounded, so a coordination primary may not inherit fixed-target support
+  (or vice versa). The lane is current-position only, may not be rewritten as
+  move-local explanation, may not reuse support-only
   `mainStrategicPlans` / `strategyPack` prose as the owner claim, and may not
   drift into generic piece-coordination praise, prophylactic shell prose, or a
   file-pressure rival story.
   The trust boundary stays narrow overall: `K03A` still fails closed on the
-  black-to-move sibling, `K09E` still lets the file-pressure / release rival
-  dominate, and generic or synthetic weakness shells outside these exact
+  black-to-move sibling, `K09D` now fails closed as activity-only,
+  `K09E` still lets the file-pressure / release rival dominate, and generic or
+  synthetic weakness shells outside these exact
   `exact_target_fixation` / `carlsbad_fixed_target_probe` /
   `target_focused_coordination_probe` witnesses remain fail-closed. On
   2026-04-04, bounded
@@ -389,10 +392,19 @@ in `StrategicObjectRoadmap.md`.
   same-owner `RestrictionShell` comparative claim behind `WhatChanged`, and
   only when it shares the exact primary target of a `Certified`
   `FixedTargetComplex` comparative primary on the new spine. This is the
-  first Phase 9 comparative-support slice only: shallow comparative rows such
-  as `DevelopmentCoordinationState` / `RedeploymentRoute` stay planner `none`
-  and localize at `certification`, and no broader comparative-support rollout,
-  new wording, renderer behavior, or Tier 2 / Tier 3 widening opens from it.
+  first Phase 9 comparative-support slice only: shallow comparative rows for
+  all eight provisional Tier 1 families stay planner `none` and localize at
+  `certification`, and no broader comparative-support rollout, new wording,
+  renderer behavior, or Tier 2 / Tier 3 widening opens from it.
+- rewrite-local Tier-1 provisional comparative re-audit note on 2026-04-09:
+  `KingSafetyShell`, `DevelopmentCoordinationState`, `PieceRoleFitness`,
+  `SpaceClamp`, `CounterplayAxis`, `RestrictionShell`, `MobilityCage`, and
+  `RedeploymentRoute` now also carry explicit comparative `near_miss` rows in
+  addition to their `contrastive`, `nasty_negative`, and
+  `comparative_false_rival` audit surface. The shallow rows remain
+  projector-admissible but stay `SupportOnly` at certification and planner
+  `none`; no comparative-only promotion, new wording, renderer behavior, or
+  Tier 2 / Tier 3 widening follows from this re-audit.
 - rewrite-local exact target-fixation note on 2026-04-09:
   `QuestionPlanner` may now admit one exact `FixedTargetComplex`
   `WhyThis` slice on the new spine, but only when the move-local witness is

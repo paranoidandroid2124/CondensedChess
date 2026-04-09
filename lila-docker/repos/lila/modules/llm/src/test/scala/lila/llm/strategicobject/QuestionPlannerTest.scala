@@ -174,6 +174,97 @@ class QuestionPlannerTest extends FunSuite:
     assert(primaryClaim.primaryTag.contains(StrategicDeltaTag.TargetFixed), clue("expected exact fixation"))
   }
 
+  test("planner chooses WhatMattersHere from the packet-owned current-position coordination probe") {
+    val row =
+      CurrentPositionCoordinationProbeTest.rows.find(_.caseType == "exact").getOrElse(
+        fail("expected current-position coordination exact row")
+      )
+    val truth = PrimitiveExtractionTest.neutralTruthFrame
+    val contract = PrimitiveExtractionTest.neutralContract
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
+    val objectIds = currentPositionCoordinationObjectIds(row, objects)
+    val positionClaims =
+      claims.filter(claim =>
+        objectIds.contains(claim.objectId) &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal
+      )
+    val primaryClaim =
+      positionClaims.find(claim =>
+        claim.status == ClaimStatus.Certified &&
+          claim.primaryTag.contains(StrategicDeltaTag.CoordinationImproved)
+      ).getOrElse(
+        fail("expected certified current-position coordination claim")
+      )
+
+    assertEquals(planned.axis, QuestionAxis.WhatMattersHere)
+    assert(positionClaims.nonEmpty, clue("expected at least one certified coordination position-local claim"))
+    assert(planned.claimIds.contains(primaryClaim.id), clue("expected packet-owned coordination primary admission"))
+  }
+
+  test("whatmattershere support remains slice-bounded between coordination and fixed-target probes") {
+    val truth = PrimitiveExtractionTest.neutralTruthFrame
+    val contract = PrimitiveExtractionTest.neutralContract
+    val coordinationRow =
+      CurrentPositionCoordinationProbeTest.rows.find(_.caseType == "exact").getOrElse(
+        fail("expected current-position coordination exact row")
+      )
+    val fixedTargetRow =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.caseType == "exact").getOrElse(
+        fail("expected current-position fixed-target exact row")
+      )
+
+    val coordinationObjects = StrategicObjectSynthesizerTest.objectsForFen(coordinationRow.fen, truth)
+    val coordinationDeltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, coordinationObjects)
+    val coordinationClaims = CanonicalClaimCertification.certify(contract, coordinationObjects, coordinationDeltas)
+    val coordinationIds = currentPositionCoordinationObjectIds(coordinationRow, coordinationObjects)
+    val coordinationPrimary =
+      coordinationClaims.find(claim =>
+        coordinationIds.contains(claim.objectId) &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+          claim.status == ClaimStatus.Certified &&
+          claim.primaryTag.contains(StrategicDeltaTag.CoordinationImproved)
+      ).getOrElse(
+        fail("expected certified coordination primary claim")
+      )
+
+    val fixedTargetObjects = StrategicObjectSynthesizerTest.objectsForFen(fixedTargetRow.fen, truth)
+    val fixedTargetDeltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, fixedTargetObjects)
+    val fixedTargetClaims = CanonicalClaimCertification.certify(contract, fixedTargetObjects, fixedTargetDeltas)
+    val fixedTargetIds = currentPositionTargetObjectIds(fixedTargetRow, fixedTargetObjects)
+    val fixedTargetSupport =
+      fixedTargetClaims.find(claim =>
+        fixedTargetIds.contains(claim.objectId) &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+          claim.status == ClaimStatus.Certified &&
+          claim.primaryTag.contains(StrategicDeltaTag.TargetFixed)
+      ).map(claim =>
+        claim.copy(
+          id = s"${claim.id}:support-slice-check",
+          status = ClaimStatus.SupportOnly
+        )
+      ).getOrElse(
+        fail("expected fixed-target support candidate")
+      )
+    val coordinationSupport =
+      coordinationPrimary.copy(
+        id = s"${coordinationPrimary.id}:support-slice-check",
+        status = ClaimStatus.SupportOnly
+      )
+
+    val planned = CanonicalQuestionPlanner.plan(
+      contract,
+      List(coordinationPrimary, coordinationSupport, fixedTargetSupport)
+    )
+
+    assertEquals(planned.axis, QuestionAxis.WhatMattersHere)
+    assertEquals(planned.claimIds, List(coordinationPrimary.id))
+    assertEquals(planned.supportClaimIds, List(coordinationSupport.id))
+    assert(!planned.supportClaimIds.contains(fixedTargetSupport.id), clue("cross-slice fixed-target support must remain closed under coordination primary"))
+  }
+
   test("planner keeps WhatChanged ahead of the packet-owned current-position probe on mixed boards") {
     val row =
       CurrentPositionFixedTargetProbeTest.rows.find(_.caseType == "exact").getOrElse(
@@ -290,6 +381,51 @@ class QuestionPlannerTest extends FunSuite:
     assert(planned.supportClaimIds.isEmpty, clue("generic shallow comparative support must stay closed"))
   }
 
+  test("Tier-1 provisional comparative near-miss rows stay planner-none family by family") {
+    val provisionalFamilies =
+      StrategicObjectFamily.directDeltaOwners.filter(family =>
+        StrategicObjectFamilyContract.forFamily(family).defaultReadiness == StrategicObjectReadiness.Provisional
+      )
+    val shallowRows =
+      StrategicObjectDeltaProjectorTest.rows.filter(row =>
+        row.caseType == "near_miss" &&
+          row.expectation == "present" &&
+          row.plannerExpectation.contains("none") &&
+          row.localizationExpectation.contains("certification") &&
+          row.scope == "comparative" &&
+          provisionalFamilies.contains(StrategicObjectDeltaProjectorTest.parseFamily(row.family))
+      )
+
+    assertEquals(shallowRows.map(_.family).toSet, provisionalFamilies.map(_.toString).toSet)
+    shallowRows.foreach { row =>
+      val truth = truthFor(row)
+      val contract = contractFor(row)
+      val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+      val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+      val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+      val planned = CanonicalQuestionPlanner.plan(contract, claims)
+      val comparativeIds =
+        claims.collect {
+          case claim
+              if claim.deltaScope == StrategicDeltaScope.Comparative &&
+                claim.status == ClaimStatus.SupportOnly &&
+                objects.exists(obj =>
+                  obj.id == claim.objectId &&
+                    obj.family == StrategicObjectDeltaProjectorTest.parseFamily(row.family) &&
+                    obj.owner == StrategicObjectDeltaProjectorTest.parseColor(row.owner)
+                ) =>
+            claim.id
+        }.toSet
+
+      assert(comparativeIds.nonEmpty, clue(s"${row.id}: expected support-only shallow comparative claim"))
+      assertEquals(
+        planned.supportClaimIds.filter(comparativeIds.contains),
+        Nil,
+        clue(s"${row.id}: provisional shallow comparative should stay planner-none, planned=$planned")
+      )
+    }
+  }
+
   test("planner leaves deferred families out of primary and support admission") {
     val truth = PrimitiveExtractionTest.moveTransitionTruthFrame
     val contract = PrimitiveExtractionTest.moveTransitionContract
@@ -371,3 +507,20 @@ class QuestionPlannerTest extends FunSuite:
         obj.anchors.flatMap(_.squares) ++
         obj.anchors.flatMap(_.route.toList.flatMap(_.allSquares))
     ).distinct.sortBy(_.key)
+
+  private def currentPositionCoordinationObjectIds(
+      row: CurrentPositionCoordinationProbeTest.CurrentPositionCoordinationProbeRow,
+      objects: List[StrategicObject]
+  ): Set[String] =
+    val family = StrategicObjectSynthesizerTest.parseFamily(row.family)
+    val owner = StrategicObjectSynthesizerTest.parseColor(row.owner)
+    val anchor = row.anchor.flatMap(StrategicObjectSynthesizerTest.parseSquare)
+
+    objects
+      .filter(obj =>
+        obj.family == family &&
+          obj.owner == owner &&
+          anchor.forall(objectSquares(obj).contains)
+      )
+      .map(_.id)
+      .toSet

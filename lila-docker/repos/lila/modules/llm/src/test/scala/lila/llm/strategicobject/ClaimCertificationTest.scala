@@ -1,5 +1,6 @@
 package lila.llm.strategicobject
 
+import chess.Square
 import chess.Color
 import munit.FunSuite
 
@@ -131,6 +132,50 @@ class ClaimCertificationTest extends FunSuite:
     assertEquals(weakenedClaim.status, ClaimStatus.SupportOnly)
   }
 
+  test("Tier-1 provisional comparative near-miss rows stay support-only and localize at certification") {
+    val provisionalFamilies =
+      StrategicObjectFamily.directDeltaOwners.filter(family =>
+        StrategicObjectFamilyContract.forFamily(family).defaultReadiness == StrategicObjectReadiness.Provisional
+      )
+    val shallowRows =
+      StrategicObjectDeltaProjectorTest.rows.filter(row =>
+        row.caseType == "near_miss" &&
+          row.expectation == "present" &&
+          row.plannerExpectation.contains("none") &&
+          row.localizationExpectation.contains("certification") &&
+          row.scope == "comparative" &&
+          provisionalFamilies.contains(StrategicObjectDeltaProjectorTest.parseFamily(row.family))
+      )
+
+    assertEquals(shallowRows.map(_.family).toSet, provisionalFamilies.map(_.toString).toSet)
+    shallowRows.foreach { row =>
+      val truth = truthFor(row)
+      val contract = contractFor(row)
+      val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+      val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+      val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+      val objectIds =
+        objects
+          .filter(obj =>
+            obj.family == StrategicObjectDeltaProjectorTest.parseFamily(row.family) &&
+              obj.owner == StrategicObjectDeltaProjectorTest.parseColor(row.owner)
+          )
+          .map(_.id)
+          .toSet
+      val comparativeClaims =
+        claims.filter(claim =>
+          objectIds.contains(claim.objectId) &&
+            claim.deltaScope == StrategicDeltaScope.Comparative
+        )
+
+      assert(comparativeClaims.nonEmpty, clue(s"${row.id}: expected comparative claim"))
+      assert(
+        comparativeClaims.forall(_.status == ClaimStatus.SupportOnly),
+        clue(s"${row.id}: shallow provisional comparative should stay support-only, got $comparativeClaims")
+      )
+    }
+  }
+
   test("insufficient exact-board support defers instead of overclaiming") {
     val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor("c1c8")
     val contract = PrimitiveExtractionTest.moveTransitionVisibleContractFor("c1c8")
@@ -176,6 +221,54 @@ class ClaimCertificationTest extends FunSuite:
     assert(deferredClaim.delta.isEmpty, clue("deferred claim must not materialize a direct typed delta"))
   }
 
+  test("coordination probe certification promotes only the packet-owned exact current-position slice") {
+    val truth = PrimitiveExtractionTest.neutralTruthFrame
+    val contract = PrimitiveExtractionTest.neutralContract
+    val exactRow =
+      CurrentPositionCoordinationProbeTest.rows.find(_.caseType == "exact").getOrElse(
+        fail("expected current-position coordination exact row")
+      )
+    val exactObjects = StrategicObjectSynthesizerTest.objectsForFen(exactRow.fen, truth)
+    val exactDeltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, exactObjects)
+    val exactClaims = CanonicalClaimCertification.certify(contract, exactObjects, exactDeltas)
+    val exactObjectIds = coordinationTargetObjectIds(exactRow, exactObjects)
+    val exactPositionClaims =
+      exactClaims.filter(claim =>
+        exactObjectIds.contains(claim.objectId) &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal
+      )
+    val exactPrimary =
+      exactPositionClaims.find(claim =>
+        claim.status == ClaimStatus.Certified &&
+          claim.primaryTag.contains(StrategicDeltaTag.CoordinationImproved)
+      )
+
+    assert(exactObjectIds.nonEmpty, clue("expected at least one exact coordination object"))
+    assert(exactPrimary.nonEmpty, clue(s"expected certified coordination probe claim, got $exactPositionClaims"))
+
+    val closedRows = CurrentPositionCoordinationProbeTest.rows.filter(_.caseType != "exact")
+    closedRows.foreach { row =>
+      val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+      val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+      val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+      val objectIds = coordinationTargetObjectIds(row, objects)
+      val positionClaims =
+        claims.filter(claim =>
+          objectIds.contains(claim.objectId) &&
+            claim.deltaScope == StrategicDeltaScope.PositionLocal
+        )
+      val certifiedCoordination = positionClaims.filter(claim =>
+        claim.status == ClaimStatus.Certified &&
+          claim.primaryTag.contains(StrategicDeltaTag.CoordinationImproved)
+      )
+      assertEquals(
+        certifiedCoordination,
+        Nil,
+        clue(s"${row.id}: expected closed coordination slice, claims=$positionClaims")
+      )
+    }
+  }
+
   private def deltaRow(
       id: String
   ): StrategicObjectDeltaProjectorTest.DeltaExpectationRow =
@@ -211,3 +304,29 @@ class ClaimCertificationTest extends FunSuite:
       truthCase: Option[String]
   ): Boolean =
     truthCase.contains("primary_visible") || truthCase.contains("move_transition_visible")
+
+  private def coordinationTargetObjectIds(
+      row: CurrentPositionCoordinationProbeTest.CurrentPositionCoordinationProbeRow,
+      objects: List[StrategicObject]
+  ): Set[String] =
+    val family = StrategicObjectSynthesizerTest.parseFamily(row.family)
+    val owner = StrategicObjectSynthesizerTest.parseColor(row.owner)
+    val anchor = row.anchor.flatMap(StrategicObjectSynthesizerTest.parseSquare)
+
+    objects
+      .filter(obj =>
+        obj.family == family &&
+          obj.owner == owner &&
+          anchor.forall(coordinationObjectSquares(obj).contains)
+      )
+      .map(_.id)
+      .toSet
+
+  private def coordinationObjectSquares(
+      obj: StrategicObject
+  ): List[Square] =
+    (
+      obj.locus.allSquares ++
+        obj.anchors.flatMap(_.squares) ++
+        obj.anchors.flatMap(_.route.toList.flatMap(_.allSquares))
+    ).distinct.sortBy(_.key)

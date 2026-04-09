@@ -58,8 +58,8 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       ),
       QuestionAdmission(
         axis = QuestionAxis.WhatMattersHere,
-        primaryClaim = isCertifiedCurrentPositionFixedTarget,
-        supportClaim = isSupportOnlyCurrentPositionFixedTarget
+        primaryClaim = isCertifiedCurrentPositionProbe,
+        supportClaim = isSupportOnlyCurrentPositionProbe
       )
     )
 
@@ -118,6 +118,8 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
         axis match
           case QuestionAxis.WhatChanged =>
             exactSharedTargetComparativeSupport(primaryClaims, candidateSupportClaims).toList
+          case QuestionAxis.WhatMattersHere =>
+            exactCurrentPositionProbeSupport(primaryClaims, candidateSupportClaims)
           case _ =>
             candidateSupportClaims
       }
@@ -168,13 +170,6 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       StrategicDeltaTag.PasserAccelerated
     )
 
-  private val currentPositionFixedTargetSupportIds: Set[String] =
-    Set(
-      "AccessNetwork-white-queenside-c2-c",
-      "ConversionFunnel-white-wholeboard-a7-abcdefg",
-      "DefenderDependencyNetwork-white-center-d4-de"
-    )
-
   private def isTimingSensitiveMoveLocal(
       claim: CertifiedClaim
   ): Boolean =
@@ -218,6 +213,28 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       supportClaim: CertifiedClaim,
       score: Int
   )
+
+  private enum CurrentPositionProbeKind:
+    case FixedTarget
+    case Coordination
+
+  private def exactCurrentPositionProbeSupport(
+      primaryClaims: List[CertifiedClaim],
+      supportClaims: List[CertifiedClaim]
+  ): List[CertifiedClaim] =
+    val primaryKinds = primaryClaims.flatMap(currentPositionProbeKind).toSet
+    supportClaims.filter(claim =>
+      currentPositionProbeKind(claim).exists(primaryKinds.contains)
+    )
+
+  private def currentPositionProbeKind(
+      claim: CertifiedClaim
+  ): Option[CurrentPositionProbeKind] =
+    claim.delta.flatMap { delta =>
+      if CurrentPositionProbeSlice.isFixedTargetProbeDelta(delta) then Some(CurrentPositionProbeKind.FixedTarget)
+      else if CurrentPositionProbeSlice.isCoordinationProbeDelta(delta) then Some(CurrentPositionProbeKind.Coordination)
+      else None
+    }
 
   private def exactSharedTargetComparativeSupport(
       primaryClaims: List[CertifiedClaim],
@@ -341,39 +358,23 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
         delta.evidenceRefs.flatMap(_.contestedSquares)
     ).map(_.key).toSet
 
-  private def isCertifiedCurrentPositionFixedTarget(
+  private def isCertifiedCurrentPositionProbe(
       claim: CertifiedClaim
   ): Boolean =
-    isCurrentPositionFixedTarget(claim, ClaimStatus.Certified)
+    isCurrentPositionProbe(claim, ClaimStatus.Certified)
 
-  private def isSupportOnlyCurrentPositionFixedTarget(
+  private def isSupportOnlyCurrentPositionProbe(
       claim: CertifiedClaim
   ): Boolean =
-    isCurrentPositionFixedTarget(claim, ClaimStatus.SupportOnly)
+    isCurrentPositionProbe(claim, ClaimStatus.SupportOnly)
 
-  private def isCurrentPositionFixedTarget(
+  private def isCurrentPositionProbe(
       claim: CertifiedClaim,
       status: ClaimStatus
   ): Boolean =
-      claim.status == status &&
+    claim.status == status &&
       claim.hasTypedDelta &&
-      claim.delta.exists {
-        case StrategicObjectDelta(
-              _,
-              StrategicObjectFamily.FixedTargetComplex,
-              _,
-              StrategicDeltaScope.PositionLocal,
-              _,
-              StrategicDeltaProjection.PositionLocal(StrategicDeltaTag.TargetFixed, focalAnchorCount),
-              changedAnchors,
-              _,
-              _,
-              evidenceRefs
-            ) =>
-          focalAnchorCount > 0 &&
-            claim.supportingObjectIds.toSet == currentPositionFixedTargetSupportIds &&
-            changedAnchors.nonEmpty &&
-            evidenceRefs.nonEmpty
-        case _ =>
-          false
-      }
+      claim.delta.exists(delta =>
+        CurrentPositionProbeSlice.isFixedTargetProbeDelta(delta) ||
+          CurrentPositionProbeSlice.isCoordinationProbeDelta(delta)
+      )

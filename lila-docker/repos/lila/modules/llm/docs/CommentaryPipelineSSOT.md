@@ -1098,8 +1098,8 @@ Current rules:
     (`So the task is to keep the queenside pressure trained on c6 instead of
     rushing a conversion.`) rather than inflating support-only Carlsbad prose
     or reusing move-local `WhyThis` / `WhatChanged`.
-    exact `K09A` / `K09D` now also materialize the second current-position
-    probe on a separate exact coordination slice when the live FEN proves
+    exact `K09A` now also materializes the second current-position probe on a
+    separate exact coordination slice when the live FEN proves
     `white to move`, a white rook on `c1`, an enemy knight on `c6`, at least
     two exact move refs contesting `c6`, and route evidence that keeps the
     pieces coordinated on that target; the row must also have a defended branch
@@ -1108,19 +1108,22 @@ Current rules:
     admitted slice the runtime now materializes
     `ownerSource=target_focused_coordination_probe`,
     `ownerFamily=target_focused_coordination`, `scope=PositionLocal`,
-    `bestDefenseBranchKey=d1b3|d8d7` on `K09A` / `h2h3|g4f3` on `K09D`,
+    `bestDefenseBranchKey=d1b3|d8d7` on `K09A`,
     `sameBranchState=Proven`, `persistence=Stable`, and
     `main_bundle=The key strategic fact here is that the pressure is coordinated on c6.`
     `QuestionFirstCommentaryPlanner` still rejects generic `PositionLocal`
     shells, but it now admits the certified Carlsbad or target-focused
-    coordination packet as planner-owned `WhatMattersHere`, so Bookmaker and
-    Chronicle consume the deterministic primary claim plus bounded coda
+    coordination packet as planner-owned `WhatMattersHere`; current-position
+    support remains exact-slice bounded and does not cross-attach between the
+    fixed-target and coordination probes. Bookmaker and Chronicle consume the
+    deterministic primary claim plus bounded coda
     (`So the task is to keep the pressure coordinated on c6 until the target
     has to give way.`) rather than inflating support-only coordination wording,
     move-local explanation, or generic activity praise.
     The slices stay narrow: `K03A` still fails closed on the black-to-move
-    sibling, `K09E` remains file-pressure / release-rival dominated, `K09B` /
-    `K09F` still belong only to the promoted bounded
+    sibling, `K09D` now fails closed as activity-only,
+    `K09E` remains file-pressure / release-rival dominated, `K09B` / `K09F`
+    still belong only to the promoted bounded
     `favorable_simplification` slice on the exact `d4e6|f7e6` branch, and
     generic or synthetic weakness shells outside these dedicated
     `exact_target_fixation` / `carlsbad_fixed_target_probe` /

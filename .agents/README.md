@@ -74,9 +74,10 @@ This control plane assumes the following rewrite state is already landed:
 The next runtime frontier is not more family sprawl.
 It is:
 
-1. current-position fixed-target probe, now passed, with current-position
-   coordination probe next after exact comparative support, exact target
-   fixation, and bounded favorable simplification
-2. Tier 1 provisional comparative re-audit after early narrow-slice parity
+1. current-position fixed-target probe and current-position coordination probe,
+   both now passed as narrow exact slices
+2. Tier 1 provisional comparative re-audit is now `passed_with_defer`:
+   all eight provisional families stay `Provisional`, and their shallow
+   comparative rows stay `SupportOnly` / planner `none`
 3. selective provisional move-local reopen audit only where exact-board
    resistance justifies it

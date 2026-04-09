@@ -55,6 +55,8 @@ Current post-spine frontier:
   spine
 - one exact current-position fixed-target probe is now re-earned on the new
   spine
+- one exact current-position coordination probe is now re-earned on the new
+  spine (K09A only; K09D/K09E and single-active-piece mirage remain closed)
 - this means:
   - the first reopened comparative-support slice is one exact same-owner
     shared-target `FixedTargetComplex` + `RestrictionShell` `WhatChanged`
@@ -65,12 +67,11 @@ Current post-spine frontier:
   - the first reopened favorable-simplification slice is one exact same-task
     `TradeInvariant` move-local `WhyThis` lane keyed to a centralized bounded
     projector predicate, not a broad conversion, task-shift, or endgame lane
-  - the next frontier is current-position coordination rather than more family
-    sprawl
-  - Tier 1 provisional promotion or move-local reopening should wait until
-    early Phase 9 slice parity exists beyond those first exact
-    comparative-support, target-fixation, bounded favorable-simplification,
-    and current-position fixed-target slices
+  - Tier 1 provisional comparative re-audit is now passed_with_defer:
+    all eight provisional families stay `Provisional`, and family-complete
+    shallow comparative rows stay `SupportOnly` / planner `none`
+  - the next frontier is selective provisional move-local reopen audit rather
+    than more comparative family sprawl
 
 This document remains the capability north-star, not the active packet queue.
 Use `StrategicObjectRoadmap.md` for live execution order and current frontier
@@ -630,6 +631,9 @@ Current north-star outcome:
 - comparative may reopen only from family-aware counterpart witness plus a
   typed comparative metric profile; broad same-sector or same-file rivalry is
   not sufficient
+- family-complete shallow comparative rows now survive exact-board projection
+  for all eight families but remain `SupportOnly` / planner `none`, so no
+  comparative-only promotion is justified on this pass
 - each family now requires exact-board corpus on:
   - `exact`
   - `contrastive`
@@ -789,11 +793,12 @@ That frontier should proceed in this order:
      comparative support, target fixation, and bounded favorable
      simplification
 2. Tier 1 provisional re-audit
-   - revisit provisional comparative lanes only after exact comparative
-     support and first slice parity
+   - passed_with_defer: all eight provisional comparative lanes remain
+     `Provisional`, and shallow comparative stays certification/planner
+     fail-closed
 3. selective move-local reopen
-   - reopen provisional move-local only where exact-board positive and nasty
-     negative resistance justify it
+   - next frontier: reopen provisional move-local only where exact-board
+     positive and nasty-negative resistance justify it
 
 This frontier is about separating:
 

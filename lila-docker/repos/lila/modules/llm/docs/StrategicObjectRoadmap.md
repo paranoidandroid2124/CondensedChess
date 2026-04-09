@@ -69,9 +69,12 @@ Phase 7 planner/eval spine, not back inside `Phase 7`.
 Near-term canonical sequence from the current checkpoint:
 
 1. current-position fixed-target probe is passed; current-position
-   coordination probe is next after the first exact comparative-support,
-   target-fixation, and bounded favorable-simplification slices
-2. Tier 1 provisional comparative re-audit after early narrow-slice parity
+   coordination probe is also passed_with_defer after the first exact
+   comparative-support, target-fixation, and bounded favorable-simplification
+   slices
+2. Tier 1 provisional comparative re-audit is now passed_with_defer:
+   all eight families stay `Provisional`, and family-complete shallow rows
+   stay `SupportOnly` / planner `none`
 3. selective provisional move-local reopen audit only where exact-board
    resistance justifies it
 
@@ -514,6 +517,9 @@ Completed on this pass:
 - comparative calibration is now family-aware at the typed-metric level; the
   provisional comparative lane requires a real admissible counterpart plus at
   least three typed metrics
+- comparative shallow re-audit is now family-complete across all eight
+  provisional families, and those shallow rows stay `SupportOnly` /
+  planner `none` rather than promoting comparative ownership
 - synthesis/projector admission is tightened at the family boundary instead of
   by planner or wording fallback
 - `SpaceClamp` now requires real multi-file clamp evidence; single-file
@@ -724,9 +730,17 @@ the new spine now re-earns one exact same-task `TradeInvariant` move-local
 predicate admits the object at the projector boundary; target-led,
 contrastive, and heavy-piece-release lookalikes remain move-local closed.
 
-1. `P9-A05` current-position coordination probe
-2. `P5-T01` Tier 1 provisional comparative re-audit
-3. `P5-T02` Tier 1 provisional move-local reopen audit
+`P9-A05` current-position coordination probe also passed with defer on 2026-04-09:
+the new spine now re-earns one exact `DevelopmentCoordinationState`
+`WhatMattersHere` slice on `K09A` only; `K09D`, `K09E`, and the
+single-active-piece mirage remain fail-closed.
+
+`P5-T01` Tier 1 provisional comparative re-audit passed_with_defer on 2026-04-09:
+all eight provisional families stay `Provisional`; the comparative lane now
+has family-complete shallow rows that remain projector-admissible but localize
+at `certification` as `SupportOnly` and stay planner `none`.
+
+1. `P5-T02` Tier 1 provisional move-local reopen audit
 
 Comparative-quality certification is now complete.
 
@@ -757,6 +771,8 @@ Suggested order:
    - passed on 2026-04-09
    - the exact B15A slice now reopens only through the certified current-position fixed-target bundle; K03A and K09E stay closed
 2. current-position coordination probe
+   - passed_with_defer on 2026-04-09
+   - the exact K09A slice now reopens only through the certified current-position coordination probe; K09D, K09E, and the single-active-piece mirage stay closed
 
 The rewrite should earn back old exact successes from the new architecture,
 not preserve them through adapters.
@@ -769,8 +785,11 @@ Current lane note:
 - bounded favorable simplification is now also closed on one same-task
   `TradeInvariant` move-local slice
 - the current-position fixed-target probe is now passed on the same new spine
-- the next frontier is the current-position coordination probe on the same
-  new spine
+- the current-position coordination probe is now also passed (with defer) on
+  the same new spine
+- Tier 1 provisional comparative re-audit is now passed_with_defer with all
+  eight families staying `Provisional`
+- the next frontier is Tier 1 provisional move-local reopen audit (`P5-T02`)
 
 ## Phase 10. Expansion
 

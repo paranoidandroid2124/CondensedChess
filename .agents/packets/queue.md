@@ -80,6 +80,9 @@ Authority:
 - `P9-A04-current-position-fixed-target-probe`
   - passed
   - reopened one bounded current-position fixed-target probe; B15A is primary while K03A and K09E stay closed
+- `P9-A05-current-position-coordination-probe`
+  - passed_with_defer
+  - reopened one bounded current-position coordination probe on K09A; K09D, K09E, and the single-active-piece mirage stay closed
 - certified planner spine through `P7-E02`
   - landed
   - object delta, delta-aware certification, question admission, `WhyNow`,
@@ -105,8 +108,8 @@ Authority:
 | `P9-A02-exact-target-fixation-reconstitution` | `passed` | 13 | narrow-slice reconstitution | one exact target-fixation slice is re-earned from a fixation-square move-local witness; pressure-only and near-miss target rows remain fail-closed |
 | `P9-A03-bounded-favorable-simplification` | `passed` | 14 | narrow-slice reconstitution | exact same-task `TradeInvariant -> TradePreserved -> WhyThis` slice re-earned; negative/contrastive/near-miss closure held |
 | `P9-A04-current-position-fixed-target-probe` | `passed` | 15 | narrow-slice reconstitution | reopened one bounded current-position fixed-target probe; B15A primary, K03A/K09E closed |
-| `P9-A05-current-position-coordination-probe` | `ready` | 16 | narrow-slice reconstitution | next ready packet after P9-A04 pass; reopen one current-position coordination probe after earlier Phase 9 slices hold |
-| `P5-T01-tier1-provisional-comparative-reaudit` | `ready` | 17 | readiness / promotion | re-audit provisional Tier 1 comparative lanes after comparative-quality closure and first slice parity |
+| `P9-A05-current-position-coordination-probe` | `passed_with_defer` | 16 | narrow-slice reconstitution | reopened one exact current-position coordination probe on K09A only; K09D/K09E/single-active-piece mirage remain closed |
+| `P5-T01-tier1-provisional-comparative-reaudit` | `passed_with_defer` | 17 | readiness / promotion | family-complete comparative shallow rows now exist for all eight provisional families; all eight stay `Provisional`, and shallow comparative remains `SupportOnly` / planner `none` |
 | `P5-T02-tier1-provisional-move-local-reopen-audit` | `ready` | 18 | readiness / promotion | reopen provisional move-local only where exact-board positives and nasty negatives justify it |
 
 ## Packet Selection Rule
