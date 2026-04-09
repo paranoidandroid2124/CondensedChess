@@ -85,5 +85,18 @@ fixed-target slices without reopening new semantics.
 ## Status Notes
 
 - start status: `ready`
+- end status: `blocked`
+- blocked on: `2026-04-09`
+- exact missing boundary:
+  - the current exact `WhatMattersHere` fixed-target slice from `P9-A04` is
+    anchored on `c6`, while the current exact `WhyThis` target-fixation slice
+    from `P9-A02` and exact `WhatChanged` comparative-support slice from
+    `P9-A01` are anchored on `d6`
+  - the current packet-scoped runtime therefore does not expose one real exact
+    shared-target campaign that survives across all three axes; it exposes
+    three independent exact lanes
+  - without either an already-certified current-position `d6` fixed-target
+    probe or another packet-allowed shared-target continuity boundary, this
+    packet cannot truthfully pass
 - pass condition: one fixed-weakness target campaign survives end-to-end without new semantics
 - blocked condition: the campaign cannot survive shell delivery without naming a missing exact boundary first

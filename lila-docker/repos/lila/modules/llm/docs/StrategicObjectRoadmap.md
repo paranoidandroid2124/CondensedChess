@@ -710,15 +710,19 @@ Current vertical proving order:
    - Bookmaker renderer/API/frontend shell now consumes certified planner
      ownership only and does not reintroduce semantic salvage
 2. `P8-R02-exact-target-campaign-e2e`
-   - next highest-priority `ready` packet
-   - prove one fixed-weakness campaign survives end-to-end across
-     `WhatMattersHere`, `WhyThis`, and `WhatChanged`
+   - blocked on 2026-04-09
+   - current exact fixed-target slices do not yet form one real shared-target
+     campaign across `WhatMattersHere`, `WhyThis`, and `WhatChanged`
 3. `P8-R03-bounded-favorable-simplification-e2e`
-   - prove one bounded favorable-simplification explanation survives
-     end-to-end
+   - blocked on 2026-04-09
+   - on `curated-exact:k09b`, the exact simplification claim still shares the
+     `WhyThis` primary payload with unrelated move-local `AccessNetwork`,
+     `FixedTargetComplex`, and opponent-side `TradeInvariant` claims, so the
+     thin shell cannot isolate one bounded explanation without a new
+     primary-claim selection boundary
 4. `P8-R04-current-position-coordination-e2e`
    - prove one bounded current-position coordination probe survives end-to-end
-     in its current deferred form
+    in its current deferred form
 
 Execution rule:
 
@@ -775,15 +779,24 @@ the new spine now re-earns one exact `DevelopmentCoordinationState`
 `WhatMattersHere` slice on `K09A` only; `K09D`, `K09E`, and the
 single-active-piece mirage remain fail-closed.
 
-`P8-R02` is now the next highest-priority `ready` packet and should use
-`P9-A01`, `P9-A02`, and `P9-A04` together:
-the next proof target is one fixed-weakness target campaign that survives
-end-to-end across `WhatMattersHere`, `WhyThis`, and `WhatChanged`.
+`P8-R02` is blocked on 2026-04-09:
+the current exact fixed-target tranche does not yet provide one real shared-
+target campaign across all three axes.
+`P9-A04` currently certifies a `c6`-anchored current-position fixed-target
+probe, while `P9-A02` and `P9-A01` currently certify `d6`-anchored move-local
+fixation and comparative-support slices.
+That means the runtime currently proves three independent exact lanes rather
+than one exact shared-target campaign, so this packet cannot truthfully pass
+without an already-certified shared-target continuity boundary.
 
-`P8-R03` should then use `P9-A03`:
-the next proof target after the target campaign is one bounded favorable-
-simplification explanation that survives end-to-end without broad conversion
-or endgame inflation.
+`P8-R03` is blocked on 2026-04-09:
+the exact `curated-exact:k09b` simplification claim survives certification and
+planner admission, but the current `WhyThis` payload still carries unrelated
+move-local `AccessNetwork`, `FixedTargetComplex`, and opponent-side
+`TradeInvariant` claim ids alongside the exact simplification claim.
+Because the thin shell mirrors planner `claimIds`, the current runtime proves
+the slice only as one member of a mixed move-local payload rather than as one
+bounded favorable-simplification explanation.
 
 `P8-R04` should then use `P9-A05` in its current deferred form:
 the next proof target after that is one bounded current-position coordination

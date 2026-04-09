@@ -105,6 +105,13 @@ Authority:
     `claimIds/supportClaimIds`, and packet-owned exact-row shell tests cover
     the re-earned stable slices plus `K03A`, `K09E`, and single-active-piece
     mirage closure
+- `P8-R02-exact-target-campaign-e2e`
+  - blocked
+  - the current exact fixed-target tranche does not yet contain one real
+    shared-target campaign across all three axes: `P9-A04` is anchored on
+    `c6`, while `P9-A02` and `P9-A01` are anchored on `d6`, so the runtime
+    currently proves three independent exact lanes rather than one exact
+    shared-target campaign
 
 ## Active Queue
 
@@ -129,8 +136,8 @@ Authority:
 | `P5-T01-tier1-provisional-comparative-reaudit` | `passed_with_defer` | 17 | readiness / promotion | family-complete comparative shallow rows now exist for all eight provisional families; all eight stay `Provisional`, and shallow comparative remains `SupportOnly` / planner `none` |
 | `P5-T02-tier1-provisional-move-local-reopen-audit` | `blocked` | 18 | readiness / promotion | all eight provisional families remain move-local closed; no family-complete move-local exact positive or move-local nasty-negative burden exists yet, so selective reopen is not certified; this evidence stop is orthogonal to the next vertical tranche on already re-earned stable slices |
 | `P8-R01-thin-shell-certified-renderer` | `passed` | 19 | vertical slice / thin shell | landed Bookmaker thin-shell closure: controller/frontend path no longer exports/decodes/reconstructs `strategyPack` / `signalDigest`; renderer mirrors planner `claimIds/supportClaimIds`; exact-row shell closure held on `K03A` / `K09E` / single-active-piece mirage |
-| `P8-R02-exact-target-campaign-e2e` | `ready` | 20 | vertical slice / target campaign | next highest-priority ready packet; use `P9-A01`, `P9-A02`, and `P9-A04` to prove one fixed-weakness campaign survives end-to-end across `WhatMattersHere`, `WhyThis`, and `WhatChanged` without new gate work |
-| `P8-R03-bounded-favorable-simplification-e2e` | `ready` | 21 | vertical slice / simplification | use `P9-A03` to prove one bounded favorable-simplification explanation survives end-to-end without broad conversion or endgame inflation |
+| `P8-R02-exact-target-campaign-e2e` | `blocked` | 20 | vertical slice / target campaign | exact missing boundary: no current packet-scoped shared-target continuity exists across all three axes because `P9-A04` is `c6`-anchored while `P9-A02` and `P9-A01` are `d6`-anchored; current runtime proves separate exact lanes, not one shared campaign |
+| `P8-R03-bounded-favorable-simplification-e2e` | `blocked` | 21 | vertical slice / simplification | exact missing boundary: on `curated-exact:k09b`, `WhyThis` still emits mixed move-local `claimIds` (`AccessNetwork`, `FixedTargetComplex`, opponent `TradeInvariant`, plus the exact simplification claim), so the thin shell cannot isolate one bounded favorable-simplification explanation without a new primary-claim selection boundary |
 | `P8-R04-current-position-coordination-e2e` | `ready` | 22 | vertical slice / coordination | use `P9-A05` in its current `passed_with_defer` state to prove one bounded coordination probe survives end-to-end while K09D/K09E/mirage stay closed |
 
 ## Current Vertical Tranche Rule

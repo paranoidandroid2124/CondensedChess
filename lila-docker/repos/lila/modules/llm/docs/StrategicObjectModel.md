@@ -87,7 +87,18 @@ Current post-spine frontier:
 - `P8-R01` thin-shell certified renderer passed on 2026-04-09:
   Bookmaker shell delivery is now thin on certified planner ownership and no
   longer exports/decodes/reconstructs `strategyPack` / `signalDigest` on this
-  path; `P8-R02` is now the next highest-priority `ready` packet
+  path
+- `P8-R02` exact target campaign e2e is blocked on 2026-04-09:
+  the current exact fixed-target tranche does not yet provide one real
+  shared-target campaign across all three axes because the current-position
+  probe is `c6`-anchored while the current move-local fixation and
+  comparative-support slices are `d6`-anchored
+- `P8-R03` bounded favorable-simplification e2e is blocked on 2026-04-09:
+  the exact `curated-exact:k09b` simplification claim still shares `WhyThis`
+  primary payload with unrelated move-local `AccessNetwork`,
+  `FixedTargetComplex`, and opponent-side `TradeInvariant` claim ids, so the
+  thin shell cannot isolate one bounded favorable-simplification explanation
+  without a new exact primary-claim selection boundary
 - the blocked provisional move-local reopen lane is a stopping rule for that
   evidence pack, not a blocker to vertical proof on already re-earned stable
   slices

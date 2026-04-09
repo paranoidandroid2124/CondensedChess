@@ -80,12 +80,17 @@ It is:
      ownership; this path no longer exports/decodes/reconstructs
      `strategyPack` / `signalDigest`
 2. `P8-R02-exact-target-campaign-e2e`
-   - next highest-priority `ready` packet
-   - prove one fixed-weakness campaign survives end-to-end across
-     `WhatMattersHere`, `WhyThis`, and `WhatChanged`
+   - blocked
+   - current exact slices do not yet form one real shared-target campaign:
+     the `WhatMattersHere` probe is `c6`-anchored while the `WhyThis` and
+     `WhatChanged` exact controls are `d6`-anchored
 3. `P8-R03-bounded-favorable-simplification-e2e`
-   - prove one bounded favorable-simplification explanation survives
-     end-to-end without broad conversion inflation
+   - blocked
+   - on `curated-exact:k09b`, the exact simplification claim still shares the
+     `WhyThis` primary payload with unrelated move-local `AccessNetwork`,
+     `FixedTargetComplex`, and opponent-side `TradeInvariant` claims, so the
+     thin shell cannot isolate one bounded explanation without a new primary-
+     claim selection boundary
 4. `P8-R04-current-position-coordination-e2e`
    - prove one bounded current-position coordination probe survives end-to-end
      in its current `passed_with_defer` form
