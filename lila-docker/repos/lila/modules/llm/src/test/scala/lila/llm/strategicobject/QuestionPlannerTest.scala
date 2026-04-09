@@ -2,11 +2,17 @@ package lila.llm.strategicobject
 
 import chess.Color
 import munit.FunSuite
+import lila.llm.analysis.TruthVisibilityRole
 
 class QuestionPlannerTest extends FunSuite:
 
   private val fileDuelFen = "2r3k1/8/8/8/8/8/8/2R3K1 w - - 0 1"
+  private val k10Fen = "r2qk2r/1b1nbppp/pp1ppn2/8/2PQ4/BPN2NP1/P3PPBP/R2R2K1 w kq - 2 11"
   private val passerRaceFen = "6k1/2P5/8/8/8/8/5p2/6K1 w - - 0 1"
+  private val visibleComparativeTruth =
+    PrimitiveExtractionTest.neutralTruthFrame.copy(visibilityRole = TruthVisibilityRole.PrimaryVisible)
+  private val visibleComparativeContract =
+    PrimitiveExtractionTest.neutralContract.copy(visibilityRole = TruthVisibilityRole.PrimaryVisible)
 
   test("planner only admits typed stable claims as primary and keeps provisional typed claims as support") {
     val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor("c1c8")
@@ -179,47 +185,51 @@ class QuestionPlannerTest extends FunSuite:
     ))
   }
 
-  test("support-only claims attach only when their typed delta matches the admitted axis") {
-    val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor("c1c8")
-    val contract = PrimitiveExtractionTest.moveTransitionVisibleContractFor("c1c8")
-    val objects = StrategicObjectSynthesizerTest.objectsForFen(fileDuelFen, truth)
+  test("whatchanged admits only the packet-owned shared-target comparative support slice") {
+    val truth = visibleComparativeTruth
+    val contract = visibleComparativeContract
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(k10Fen, truth)
     val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
     val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
-    val shellSupport =
-      claims.find(claim =>
-        claim.status == ClaimStatus.SupportOnly &&
-          claim.deltaScope == StrategicDeltaScope.PositionLocal
-      ).getOrElse(fail("expected position-local support claim"))
-    val comparativePrimary =
+    val fixedTargetPrimary =
       claims.find(claim =>
         claim.status == ClaimStatus.Certified &&
-          claim.deltaScope == StrategicDeltaScope.Comparative
-      ).getOrElse(fail("expected certified comparative claim"))
-    val comparativeSupportId = comparativePrimary.id
-    val comparativeLaneClaims =
-      claims.map { claim =>
-        claim.delta match
-          case Some(delta) if delta.scope == StrategicDeltaScope.MoveLocal =>
-            claim.copy(delta = None)
-          case _ if claim.id == comparativeSupportId =>
-            claim.copy(status = ClaimStatus.SupportOnly)
-          case _ =>
-            claim
-      }
-    val planned = CanonicalQuestionPlanner.plan(contract, comparativeLaneClaims)
+          claim.deltaScope == StrategicDeltaScope.Comparative &&
+          objects.exists(obj =>
+            obj.id == claim.objectId &&
+              obj.family == StrategicObjectFamily.FixedTargetComplex &&
+              obj.owner == Color.White
+          )
+      ).getOrElse(fail("expected certified fixed-target comparative primary"))
+    val restrictionSupport =
+      claims.find(claim =>
+        claim.status == ClaimStatus.SupportOnly &&
+          claim.deltaScope == StrategicDeltaScope.Comparative &&
+          objects.exists(obj =>
+            obj.id == claim.objectId &&
+              obj.family == StrategicObjectFamily.RestrictionShell &&
+              obj.owner == Color.White
+          )
+      ).getOrElse(fail("expected restriction-shell comparative support"))
+    val spaceClampSupport =
+      claims.find(claim =>
+        claim.status == ClaimStatus.SupportOnly &&
+          claim.deltaScope == StrategicDeltaScope.Comparative &&
+          objects.exists(obj =>
+            obj.id == claim.objectId &&
+              obj.family == StrategicObjectFamily.SpaceClamp &&
+              obj.owner == Color.White
+          )
+      ).getOrElse(fail("expected space-clamp comparative support candidate"))
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
 
     assertEquals(planned.axis, QuestionAxis.WhatChanged)
-    assert(planned.claimIds.forall(id =>
-      comparativeLaneClaims.find(_.id == id).exists(_.deltaScope == StrategicDeltaScope.Comparative)
-    ))
-    assert(planned.supportClaimIds.contains(comparativeSupportId), clue("matching comparative support should attach"))
-    assert(!planned.supportClaimIds.contains(shellSupport.id), clue("non-matching position-local support must stay out of WhatChanged"))
-    assert(planned.supportClaimIds.forall(id =>
-      comparativeLaneClaims.find(_.id == id).exists(_.deltaScope == StrategicDeltaScope.Comparative)
-    ), clue("support must stay on the admitted axis"))
+    assert(planned.claimIds.contains(fixedTargetPrimary.id), clue("fixed-target comparative should stay primary"))
+    assertEquals(planned.supportClaimIds, List(restrictionSupport.id))
+    assert(!planned.supportClaimIds.contains(spaceClampSupport.id), clue("non-packet comparative support must stay closed"))
   }
 
-  test("support-only shallow comparative claims do not open a primary question axis by themselves") {
+  test("shallow comparative rows stay planner-none even when whatchanged has certified primary claims") {
     val row = deltaRow("development-comparative-near-miss")
     val truth = truthFor(row)
     val contract = contractFor(row)
@@ -232,11 +242,12 @@ class QuestionPlannerTest extends FunSuite:
           claim.deltaScope == StrategicDeltaScope.Comparative &&
           claim.objectId == "DevelopmentCoordinationState-white-mixed-c1"
       ).getOrElse(fail("expected support-only shallow comparative claim"))
-    val planned = CanonicalQuestionPlanner.plan(contract, List(shallowComparative))
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
 
-    assertEquals(planned.axis, QuestionAxis.WhatMattersHere)
-    assert(planned.claimIds.isEmpty, clue("support-only shallow comparative should not own a primary axis"))
-    assert(planned.supportClaimIds.isEmpty, clue("support-only shallow comparative should not attach without a primary axis"))
+    assertEquals(planned.axis, QuestionAxis.WhatChanged)
+    assert(planned.claimIds.nonEmpty, clue("expected certified comparative primary claims on the board"))
+    assert(!planned.supportClaimIds.contains(shallowComparative.id), clue("shallow comparative should stay planner-none"))
+    assert(planned.supportClaimIds.isEmpty, clue("generic shallow comparative support must stay closed"))
   }
 
   test("planner leaves deferred families out of primary and support admission") {

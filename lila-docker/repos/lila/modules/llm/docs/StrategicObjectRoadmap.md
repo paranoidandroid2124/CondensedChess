@@ -68,10 +68,10 @@ Phase 7 planner/eval spine, not back inside `Phase 7`.
 
 Near-term canonical sequence from the current checkpoint:
 
-1. exact comparative support as the first `Phase 9` narrow-slice
-   reconstitution target
-2. exact target fixation and bounded favorable simplification on the new
-   certified planner spine
+1. exact target fixation and bounded favorable simplification on the new
+   certified planner spine after the first exact comparative-support slice
+2. current-position fixed target probe and current-position coordination probe
+   after earlier Phase 9 slices hold
 3. Tier 1 provisional comparative re-audit after exact comparative support
    and early narrow-slice parity
 4. selective provisional move-local reopen audit only where exact-board
@@ -709,15 +709,17 @@ It is chess-meaning closure on top of that spine.
 
 Canonical next tranche order:
 
-1. `P9-A01` exact comparative support
-   - re-earn one exact comparative-support slice on the new spine before
-     broader slice parity claims
-2. `P9-A02` exact target fixation
-3. `P9-A03` bounded favorable simplification
-4. `P9-A04` current-position fixed target probe
-5. `P9-A05` current-position coordination probe
-6. `P5-T01` Tier 1 provisional comparative re-audit
-7. `P5-T02` Tier 1 provisional move-local reopen audit
+`P9-A01` exact comparative support passed on 2026-04-09:
+the new spine now re-earns one exact same-owner shared-target
+`FixedTargetComplex` + `RestrictionShell` `WhatChanged` support slice, while
+shallow comparative stays planner `none` and localizes at `certification`.
+
+1. `P9-A02` exact target fixation
+2. `P9-A03` bounded favorable simplification
+3. `P9-A04` current-position fixed target probe
+4. `P9-A05` current-position coordination probe
+5. `P5-T01` Tier 1 provisional comparative re-audit
+6. `P5-T02` Tier 1 provisional move-local reopen audit
 
 Comparative-quality certification is now complete.
 
@@ -744,20 +746,18 @@ Rebuild the already-proven semantics on the new architecture first.
 
 Suggested order:
 
-1. exact comparative support
-2. exact target fixation
-3. bounded favorable simplification
-4. current-position fixed target probe
-5. current-position coordination probe
+1. exact target fixation
+2. bounded favorable simplification
+3. current-position fixed target probe
+4. current-position coordination probe
 
 The rewrite should earn back old exact successes from the new architecture,
 not preserve them through adapters.
 
 Current lane note:
 
-- exact comparative support is intentionally front-loaded because comparative
-  quality closure is the current chess-meaning bottleneck after the certified
-  planner spine landed
+- exact comparative support is now closed as the first Phase 9 slice
+- the next frontier is exact target fixation on the same new spine
 
 ## Phase 10. Expansion
 

@@ -54,6 +54,25 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
     assertEquals(row.localization.localizedStage, "planner_none")
   }
 
+  test("shared-target comparative rows stay upstream under the live k10 trace") {
+    val fixedTarget =
+      StrategicObjectExplanationTraceSupport.traceRows.find(_.rowId == "fixed-target-comparative-contrastive").getOrElse(
+        fail("expected fixed-target comparative trace row")
+      )
+    val restriction =
+      StrategicObjectExplanationTraceSupport.traceRows.find(_.rowId == "restriction-shell-comparative-contrastive").getOrElse(
+        fail("expected restriction-shell comparative trace row")
+      )
+
+    assertEquals(fixedTarget.certification.status, Some("Certified"))
+    assertEquals(fixedTarget.planner.admission, "none")
+    assertEquals(fixedTarget.localization.localizedStage, "planner_none")
+
+    assertEquals(restriction.certification.status, Some("SupportOnly"))
+    assertEquals(restriction.planner.admission, "none")
+    assertEquals(restriction.localization.localizedStage, "certification")
+  }
+
   test("near-miss and nasty-negative rows stay localized without planner admission drift") {
     val rows = StrategicObjectExplanationTraceSupport.traceRows
     val selected =
@@ -72,7 +91,7 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
     }
   }
 
-  test("shallow comparative rows stay upstream-present while carrying explicit planner/localization expectations") {
+  test("shallow comparative rows stay upstream-present while carrying explicit planner-none expectations") {
     val rows = StrategicObjectExplanationTraceSupport.traceRows
     val selected =
       rows.filter(row =>
@@ -85,10 +104,10 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
       assertEquals(row.expectation, "present")
       assertEquals(row.scope, "comparative")
       assertEquals(row.certification.status, Some("SupportOnly"))
-      assertEquals(row.planner.admission, "support")
-      assertEquals(row.localization.localizedStage, "planner_support")
-      assertEquals(row.traceExpectation.plannerAdmission, Some("support"))
-      assertEquals(row.traceExpectation.localizationStage, Some("planner_support"))
+      assertEquals(row.planner.admission, "none")
+      assertEquals(row.localization.localizedStage, "certification")
+      assertEquals(row.traceExpectation.plannerAdmission, Some("none"))
+      assertEquals(row.traceExpectation.localizationStage, Some("certification"))
       assert(row.traceExpectationMatch.satisfied, clue(row))
       assertEquals(row.traceExpectationMatch.plannerAdmission, Some(true))
       assertEquals(row.traceExpectationMatch.localizationStage, Some(true))

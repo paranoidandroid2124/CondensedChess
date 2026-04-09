@@ -69,7 +69,7 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
     val axis = chooseAxis(contract, claims)
     val primaryClaims = claimsForAxis(claims, axis)
     val supportClaims =
-      if primaryClaims.nonEmpty then supportClaimsForAxis(claims, axis)
+      if primaryClaims.nonEmpty then supportClaimsForAxis(claims, axis, primaryClaims)
       else Nil
     PlannedQuestion(
       axis = axis,
@@ -107,11 +107,19 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
 
   private def supportClaimsForAxis(
       claims: List[CertifiedClaim],
-      axis: QuestionAxis
+      axis: QuestionAxis,
+      primaryClaims: List[CertifiedClaim]
   ): List[CertifiedClaim] =
     admissionFor(axis)
       .toList
-      .flatMap(admission => claims.filter(admission.supportClaim))
+      .flatMap { admission =>
+        val candidateSupportClaims = claims.filter(admission.supportClaim)
+        axis match
+          case QuestionAxis.WhatChanged =>
+            exactSharedTargetComparativeSupport(primaryClaims, candidateSupportClaims).toList
+          case _ =>
+            candidateSupportClaims
+      }
 
   private def isCertifiedTypedMoveLocal(
       claim: CertifiedClaim
@@ -195,6 +203,135 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       case _ =>
         false
     )
+
+  private final case class ComparativeSupportCandidate(
+      primaryClaimId: String,
+      supportClaimId: String,
+      supportClaim: CertifiedClaim,
+      score: Int
+  )
+
+  private def exactSharedTargetComparativeSupport(
+      primaryClaims: List[CertifiedClaim],
+      supportClaims: List[CertifiedClaim]
+  ): Option[CertifiedClaim] =
+    supportClaims
+      .flatMap(supportClaim =>
+        primaryClaims.flatMap(primaryClaim =>
+          exactSharedTargetComparativeSupportCandidate(primaryClaim, supportClaim)
+        )
+      )
+      .sortBy(candidate =>
+        (
+          -candidate.score,
+          candidate.primaryClaimId,
+          candidate.supportClaimId
+        )
+      )
+      .headOption
+      .map(_.supportClaim)
+
+  private def exactSharedTargetComparativeSupportCandidate(
+      primaryClaim: CertifiedClaim,
+      supportClaim: CertifiedClaim
+  ): Option[ComparativeSupportCandidate] =
+    Option.when(isExactSharedTargetComparativeSupport(primaryClaim, supportClaim)) {
+      ComparativeSupportCandidate(
+        primaryClaimId = primaryClaim.id,
+        supportClaimId = supportClaim.id,
+        supportClaim = supportClaim,
+        score =
+          comparativeStandingScore(primaryClaim.delta) +
+            comparativeCentralityScore(primaryClaim.delta) +
+            sharedComparativeTargetSquares(primaryClaim.delta, supportClaim.delta).size
+      )
+    }
+
+  private def isExactSharedTargetComparativeSupport(
+      primaryClaim: CertifiedClaim,
+      supportClaim: CertifiedClaim
+  ): Boolean =
+    (primaryClaim.delta, supportClaim.delta) match
+      case (Some(primaryDelta), Some(supportDelta)) =>
+        primaryDelta.scope == StrategicDeltaScope.Comparative &&
+          supportDelta.scope == StrategicDeltaScope.Comparative &&
+          primaryDelta.family == StrategicObjectFamily.FixedTargetComplex &&
+          supportDelta.family == StrategicObjectFamily.RestrictionShell &&
+          primaryDelta.owner == supportDelta.owner &&
+          primaryDelta.comparativeProfile.exists(profile =>
+            Set(
+              StrategicComparativeAxis.FixedTargetPressureContrast,
+              StrategicComparativeAxis.FixedTargetDefenseContrast
+            ).contains(profile.axis)
+          ) &&
+          supportDelta.comparativeProfile.exists(_.axis == StrategicComparativeAxis.RestrictionContainmentContrast) &&
+          sharedComparativeTargetSquares(Some(primaryDelta), Some(supportDelta)).nonEmpty
+      case _ =>
+        false
+
+  private def sharedComparativeTargetSquares(
+      primaryDelta: Option[StrategicObjectDelta],
+      supportDelta: Option[StrategicObjectDelta]
+  ): Set[String] =
+    (primaryDelta, supportDelta) match
+      case (Some(primary), Some(support)) =>
+        primaryTargetSquares(primary).intersect(comparativeSquares(support))
+      case _ =>
+        Set.empty
+
+  private def primaryTargetSquares(
+      delta: StrategicObjectDelta
+  ): Set[String] =
+    delta.changedAnchors
+      .flatMap(_.squares)
+      .map(_.key)
+      .toSet
+
+  private def comparativeStandingScore(
+      delta: Option[StrategicObjectDelta]
+  ): Int =
+    delta match
+      case Some(
+            StrategicObjectDelta(
+              _,
+              StrategicObjectFamily.FixedTargetComplex,
+              _,
+              StrategicDeltaScope.Comparative,
+              _,
+              StrategicDeltaProjection.Comparative(_, balance, _, _, _),
+              _,
+              _,
+              _,
+              _
+            )
+          ) =>
+        balance.standing match
+          case ComparativeStanding.Ahead     => 8
+          case ComparativeStanding.Contested => 4
+          case ComparativeStanding.Balanced  => 2
+          case ComparativeStanding.Behind    => 0
+      case _ =>
+        0
+
+  private def comparativeCentralityScore(
+      delta: Option[StrategicObjectDelta]
+  ): Int =
+    delta
+      .toList
+      .flatMap(primaryTargetSquares)
+      .flatMap(squareKey => chess.Square.fromKey(squareKey).toList)
+      .map(square => 3 - math.abs(square.file.char.toInt - 'd'.toInt))
+      .maxOption
+      .getOrElse(0)
+
+  private def comparativeSquares(
+      delta: StrategicObjectDelta
+  ): Set[String] =
+    (
+      delta.changedAnchors.flatMap(_.squares) ++
+        delta.evidenceRefs.flatMap(_.anchorSquares) ++
+        delta.evidenceRefs.flatMap(_.contestedSquares)
+    ).map(_.key).toSet
 
   private def isCertifiedTypedPositionLocal(
       claim: CertifiedClaim

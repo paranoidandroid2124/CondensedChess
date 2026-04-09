@@ -378,6 +378,15 @@ in `StrategicObjectRoadmap.md`.
   choose planner ownership. This remains a trust-boundary tightening only:
   it blocks primary-lane drift without adding new wording, renderer behavior,
   Tier 2 / Tier 3 widening, or renderer-side semantic revival.
+- rewrite-local exact comparative-support note on 2026-04-09:
+  `QuestionPlanner` may now attach at most one `SupportOnly`
+  same-owner `RestrictionShell` comparative claim behind `WhatChanged`, and
+  only when it shares the exact primary target of a `Certified`
+  `FixedTargetComplex` comparative primary on the new spine. This is the
+  first Phase 9 comparative-support slice only: shallow comparative rows such
+  as `DevelopmentCoordinationState` / `RedeploymentRoute` stay planner `none`
+  and localize at `certification`, and no broader comparative-support rollout,
+  new wording, renderer behavior, or Tier 2 / Tier 3 widening opens from it.
 - rewrite-local strategic-object WhyNow note on 2026-04-08:
   `WhyNow` is now admitted as a separate timing-sensitive move-local lane on
   top of the same delta-aware certification boundary. It opens only on

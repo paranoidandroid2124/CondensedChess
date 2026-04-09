@@ -49,12 +49,16 @@ Current post-spine frontier:
 
 - the certified planner spine is now structurally landed
 - comparative-quality certification is now closed
-- the next frontier is exact comparative support rather than more family sprawl
+- one exact comparative-support slice is now re-earned on the new spine
 - this means:
-  - one exact comparative-support slice should be re-earned on the new spine
-    before broader narrow-slice expansion
+  - the first reopened comparative-support slice is one exact same-owner
+    shared-target `FixedTargetComplex` + `RestrictionShell` `WhatChanged`
+    support lane only
+  - the next frontier is exact narrow-slice reconstitution rather than more
+    family sprawl
   - Tier 1 provisional promotion or move-local reopening should wait until
-    exact comparative support and early Phase 9 slice parity exist
+    early Phase 9 slice parity exists beyond that first exact
+    comparative-support slice
 
 This document remains the capability north-star, not the active packet queue.
 Use `StrategicObjectRoadmap.md` for live execution order and current frontier
@@ -758,19 +762,19 @@ The next north-star frontier is chess-meaning closure on top of the landed
 spine.
 
 Comparative-quality certification is now closed.
+Exact comparative support is now re-earned on one narrow same-owner
+shared-target `FixedTargetComplex` + `RestrictionShell` slice, while shallow
+comparative stays planner `none` and localizes at `certification`.
 
 That frontier should proceed in this order:
 
-1. exact comparative support
-   - re-earn one exact comparative-support slice on the new spine before
-     broader slice parity claims
-2. exact narrow-slice reconstitution
+1. exact narrow-slice reconstitution
    - regain exact target-fixation and bounded favorable-simplification slices
      on the new architecture
-3. Tier 1 provisional re-audit
+2. Tier 1 provisional re-audit
    - revisit provisional comparative lanes only after exact comparative
      support and first slice parity
-4. selective move-local reopen
+3. selective move-local reopen
    - reopen provisional move-local only where exact-board positive and nasty
      negative resistance justify it
 

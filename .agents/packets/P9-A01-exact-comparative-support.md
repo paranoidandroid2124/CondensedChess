@@ -71,6 +71,15 @@ comparative explanation, not just an internally valid comparative object.
 ## Status Notes
 
 - start status: `ready`
+- end status: `passed`
+- completion note:
+  - exact same-owner shared-target `RestrictionShell` support is now
+    re-earned behind one certified `FixedTargetComplex` `WhatChanged`
+    primary on the new spine
+  - packet-owned `exact` / `negative` / `contrastive` / `near_miss` rows
+    exist under `visible_no_transition`
+  - shallow comparative remains fail-closed at planner `none` and
+    localization `certification`
 - pass condition: one exact comparative-support slice is rebuilt on the new
   spine only
 - blocked condition: the selected slice still depends on legacy topology or
