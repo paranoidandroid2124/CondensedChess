@@ -83,11 +83,28 @@ Authority:
 - `P9-A05-current-position-coordination-probe`
   - passed_with_defer
   - reopened one bounded current-position coordination probe on K09A; K09D, K09E, and the single-active-piece mirage stay closed
+- narrow-slice reconstitution baseline through `P9-A05`
+  - landed
+  - exact comparative support, target fixation, bounded favorable
+    simplification, current-position fixed-target probe, and current-position
+    coordination probe have each been re-earned at least once on the new spine
+- Tier 1 provisional readiness re-audit through `P5-T02`
+  - landed
+  - comparative re-audit is `passed_with_defer`, and move-local reopen remains
+    `blocked` on missing exact-positive plus nasty-negative evidence
 - certified planner spine through `P7-E02`
   - landed
   - object delta, delta-aware certification, question admission, `WhyNow`,
     explanation trace, and tail-risk gate now form one bounded runtime/test
     spine
+- `P8-R01-thin-shell-certified-renderer`
+  - passed
+  - Bookmaker renderer/API/frontend shell now stays thin on certified planner
+    ownership; this path no longer exports/decodes/reconstructs
+    `strategyPack` / `signalDigest`, thin-shell rendering mirrors
+    `claimIds/supportClaimIds`, and packet-owned exact-row shell tests cover
+    the re-earned stable slices plus `K03A`, `K09E`, and single-active-piece
+    mirage closure
 
 ## Active Queue
 
@@ -110,7 +127,21 @@ Authority:
 | `P9-A04-current-position-fixed-target-probe` | `passed` | 15 | narrow-slice reconstitution | reopened one bounded current-position fixed-target probe; B15A primary, K03A/K09E closed |
 | `P9-A05-current-position-coordination-probe` | `passed_with_defer` | 16 | narrow-slice reconstitution | reopened one exact current-position coordination probe on K09A only; K09D/K09E/single-active-piece mirage remain closed |
 | `P5-T01-tier1-provisional-comparative-reaudit` | `passed_with_defer` | 17 | readiness / promotion | family-complete comparative shallow rows now exist for all eight provisional families; all eight stay `Provisional`, and shallow comparative remains `SupportOnly` / planner `none` |
-| `P5-T02-tier1-provisional-move-local-reopen-audit` | `blocked` | 18 | readiness / promotion | all eight provisional families remain move-local closed; no family-complete move-local exact positive or move-local nasty-negative burden exists yet, so selective reopen is not certified |
+| `P5-T02-tier1-provisional-move-local-reopen-audit` | `blocked` | 18 | readiness / promotion | all eight provisional families remain move-local closed; no family-complete move-local exact positive or move-local nasty-negative burden exists yet, so selective reopen is not certified; this evidence stop is orthogonal to the next vertical tranche on already re-earned stable slices |
+| `P8-R01-thin-shell-certified-renderer` | `passed` | 19 | vertical slice / thin shell | landed Bookmaker thin-shell closure: controller/frontend path no longer exports/decodes/reconstructs `strategyPack` / `signalDigest`; renderer mirrors planner `claimIds/supportClaimIds`; exact-row shell closure held on `K03A` / `K09E` / single-active-piece mirage |
+| `P8-R02-exact-target-campaign-e2e` | `ready` | 20 | vertical slice / target campaign | next highest-priority ready packet; use `P9-A01`, `P9-A02`, and `P9-A04` to prove one fixed-weakness campaign survives end-to-end across `WhatMattersHere`, `WhyThis`, and `WhatChanged` without new gate work |
+| `P8-R03-bounded-favorable-simplification-e2e` | `ready` | 21 | vertical slice / simplification | use `P9-A03` to prove one bounded favorable-simplification explanation survives end-to-end without broad conversion or endgame inflation |
+| `P8-R04-current-position-coordination-e2e` | `ready` | 22 | vertical slice / coordination | use `P9-A05` in its current `passed_with_defer` state to prove one bounded coordination probe survives end-to-end while K09D/K09E/mirage stay closed |
+
+## Current Vertical Tranche Rule
+
+- `P8-R02` through `P8-R04` may proceed despite `P5-T02` because they consume
+  only already re-earned stable slices and do not depend on provisional
+  move-local reopening.
+- Do not open a new horizontal gate, ownership, or certification packet before
+  one of `P8-R02` through `P8-R04` fails on an exact slice.
+- If a vertical packet fails, derive the new gate packet from that exact slice
+  failure instead of widening infra proactively.
 
 ## Packet Selection Rule
 

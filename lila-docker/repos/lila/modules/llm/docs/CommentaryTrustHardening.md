@@ -4320,7 +4320,7 @@ Accepted residuals encoded in the pack:
 What remains outside the pack:
 
 - Track 5 lesson extraction is still deferred
-- frontend support implication cap is still a separate follow-up slice
+- Chronicle frontend support implication cap is still a separate follow-up slice
 - not every future generalized lexicon family is enumerated yet; the pack
   freezes the currently known forbidden families and residual lanes
 
@@ -4354,7 +4354,7 @@ Current posture:
 
 Residual-only follow-up items:
 
-- frontend support implication cap still remains a separate slice
+- Chronicle frontend support implication cap remains a separate follow-up slice; Bookmaker thin-shell closure landed in `P8-R01`
 - Active remains diagnostic-only rather than signoff-clean
 - non-wrapper support surfaces still carry bounded `support_only` text
 - validator backup cleanup is still narrow-family rather than universal
@@ -4487,6 +4487,9 @@ Structural risk not fully realized yet:
   decision-comparison support box no longer rebuilds
   `DecisionComparisonDigest` from `topEngineMove` when the canonical digest is
   missing
+- `P8-R01` landed Bookmaker thin-shell closure: Bookmaker controller/frontend
+  path no longer exports/decodes/reconstructs `strategyPack` / `signalDigest`
+  and now mirrors planner `claimIds/supportClaimIds` only
 - Chronicle backend exact-factual fallback now stays claim-only even when the
   quiet-support composer emits a candidate, so factual fallback does not
   re-lift support-only digest material into user-facing Chronicle prose
@@ -4536,13 +4539,17 @@ longer appends quiet-support prose.
 
 ### 4. Frontend Payload Risk Map
 
+`P8-R01` closed the Bookmaker frontend carrier-reconstruction lane.
+The remaining frontend support-implication follow-up residual in this map is
+the Chronicle `narrativeView.ts` lane.
+
 | Payload field | Source definition | Current render site | Classification | Risk |
 | --- | --- | --- | --- | --- |
-| `strategyPack.strategicIdeas`, `pieceRoutes`, `pieceMoveRefs`, `directionalTargets`, `longTermFocus` | `responsePayload.ts`, `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only carrier` | `unsupported_generalization` |
-| `signalDigest.decisionComparison` | `models.scala`, `responsePayload.ts` | `bookmaker.ts`, `narrativeView.ts` | `support_only`, benchmark-adjacent; exact comparative subfields (`comparedMove`, `comparativeConsequence`, `comparativeSource`) are canonical only on the admitted `exact_target_fixation_delta` lane | `fallback_truth_rewrite` if a non-canonical frontend/backend reprojection is reintroduced |
-| `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `unsupported_generalization` |
-| `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `support_only_overreach` |
-| `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
+| `strategyPack.strategicIdeas`, `pieceRoutes`, `pieceMoveRefs`, `directionalTargets`, `longTermFocus` | `models.scala` | `narrativeView.ts` | `support_only carrier` | `unsupported_generalization` |
+| `signalDigest.decisionComparison` | `models.scala` | `narrativeView.ts` | `support_only`, benchmark-adjacent; exact comparative subfields (`comparedMove`, `comparativeConsequence`, `comparativeSource`) are canonical only on the admitted `exact_target_fixation_delta` lane | `fallback_truth_rewrite` if a non-canonical frontend/backend reprojection is reintroduced |
+| `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `narrativeView.ts` | `support_only` | `unsupported_generalization` |
+| `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `narrativeView.ts` | `support_only` | `support_only_overreach` |
+| `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
 | `activeStrategicNote`, `activeStrategicIdeas`, `activeStrategicRoutes`, `activeStrategicMoves`, `activeDirectionalTargets`, `activeBranchDossier` | `GameChronicleResponse.scala` | `narrativeView.ts` | `Active-only surface` | `surface_divergence` |
 | `topEngineMove` | `GameChronicleResponse.scala` | `narrativeView.ts` | `fallback input only` | `blocked_lane_contamination` residual; Chronicle decision-comparison fallback rewrite closed |
 
@@ -4550,11 +4557,13 @@ longer appends quiet-support prose.
 
 #### Bookmaker
 
-Bookmaker remains the most stable trust-bound surface.
+Bookmaker thin-shell closure landed in `P8-R01`.
 
 - planner-first
 - exact-factual fallback only when needed
 - narrow secondary swap only in constrained conditions
+- no Bookmaker frontend carrier reconstruction from `strategyPack` /
+  `signalDigest` on the current path
 
 Accepted residuals:
 
@@ -4566,10 +4575,6 @@ Accepted residuals:
 3. planner/direct exact-factual fallback may stay as a narrow residual only at
    literal move-shape scope; ambiguous captures may not pick up
    simplification/exchange meaning.
-4. decision-comparison support may render the exact comparative lane only from
-   canonical `signalDigest.decisionComparison`; it may not replace the primary
-   planner claim.
-
 #### Chronicle
 
 Chronicle is mostly contract-bound but allows more implication variance than
@@ -4590,6 +4595,8 @@ Accepted residuals:
 5. decision-comparison support may mirror the exact comparative lane only from
    canonical `signalDigest.decisionComparison`; Chronicle may not reconstruct
    it from `topEngineMove` or generic alternative fields.
+6. Chronicle frontend support implication cap remains a follow-up residual;
+   Bookmaker thin-shell closure is already landed.
 
 #### Active
 
@@ -4615,8 +4622,9 @@ Why:
 1. CTH-A is now core complete, but only as a trust-hardening tranche; it does
    not make lesson extraction automatically admissible
 2. support carriers can still surface bounded generalized implication on
-   non-wrapper lanes, and frontend support implication cap remains a follow-up
-   residual
+   non-wrapper lanes; the remaining frontend support implication cap follow-up
+   residual is Chronicle, while Bookmaker thin-shell closure landed in
+   `P8-R01`
 3. Active remains diagnostic-only even after the contract-alignment slice, so
    lesson extraction would still inherit a non-signoff surface
 4. the Step 6 / Step 7 harness freezes current forbidden families and accepted
@@ -4630,7 +4638,7 @@ support-only material into portable lesson truth.
 
 | Required guard | Why it is necessary | First files / paths to touch |
 | --- | --- | --- |
-| frontend support implication cap | lesson cannot sit on top of frontend-visible support implication that still outruns current trust authority | `bookmaker.ts`, `narrativeView.ts`, `responsePayload.ts` |
+| Chronicle frontend support implication cap | lesson cannot sit on top of Chronicle frontend-visible support implication that still outruns current trust authority | `narrativeView.ts`, `GameChronicleCompressionPolicy.scala` |
 | Active signoff cleanup | lesson divergence would still leak through a diagnostic-only surface even after contract alignment | `ActiveStrategicCoachingBriefBuilder.scala`, `LlmApi.scala`, `ActiveStrategicNoteValidator.scala` |
 | broader authority rollout maintenance | currently tagged fragment families are enough for CTH-A, but future lesson work still needs broader authority ownership over any newly reused generalized family | `NarrativeLexicon.scala`, `NarrativeOutlineBuilder.scala`, `CommentaryEngine.scala` |
 | lesson-specific admissibility layer | only move-linked, scene-scoped, owner-bound, evidence-bound lesson candidates may survive even after the current generalization gate | `NarrativeOutlineBuilder.scala`, `NarrativeLexicon.scala` |
@@ -4644,7 +4652,7 @@ support-only material into portable lesson truth.
      and the first large negative fixture pack
 2. extend the Step 6 / Step 7 regression corpus when new residuals are
    accepted or when a surface gains a stronger owner
-3. frontend support implication cap
+3. Chronicle frontend support implication cap
 4. opening/endgame replay claim hardening as a fixed regression target
 5. support-only overreach audit across runtime and frontend surfaces
 6. Active diagnostic-only cleanup if a later workstream wants signoff-clean

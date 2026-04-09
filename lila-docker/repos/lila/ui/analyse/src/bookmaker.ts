@@ -18,23 +18,17 @@ import {
     type StudyBookmakerRef,
 } from './bookmaker/studyPersistence';
 import { flushBookmakerStudySyncQueue, rememberBookmakerStudySync } from './bookmaker/studySyncQueue';
-import { buildDecisionComparisonSurface } from './decisionComparison';
 import {
-    buildPlayerFacingSupportOptions,
     filterPlayerFacingValues,
-    formatDeploymentSummary,
     formatEvidenceStatus,
     humanizeToken,
-    rewritePlayerFacingSupportText,
 } from './chesstory/signalFormatting';
 import {
     decodeBookmakerResponse,
     type DecodedBookmakerResponse,
     type BookmakerStrategicLedgerV1,
     type BookmakerRefsV1,
-    type NarrativeSignalDigest,
     type PolishMetaV1,
-    type StrategyPackV1,
     variationLinesFromResponse,
 } from './bookmaker/responsePayload';
 import {
@@ -42,7 +36,7 @@ import {
     renderBookmakerLedgerProbeRows,
 } from './bookmaker/ledgerSurface';
 import { formatStrategicPlanText, strategicPlanExperimentIndex } from './bookmaker/planSupportSurface';
-import { escapeHtml, normalizeSanToken, renderInteractiveSanChip } from './bookmaker/surfaceShared';
+import { escapeHtml, normalizeSanToken } from './bookmaker/surfaceShared';
 import { restoreStoredBookmakerTokens } from './bookmaker/stateContinuity';
 import { buildCompactSupportSurface } from './chesstory/compactSupportSurface';
 import type {
@@ -324,17 +318,15 @@ type BookmakerMoveRef = {
 };
 
 type BookmakerRefIndex = {
-    firstBySan: Map<string, BookmakerMoveRef>;
     anyBySan: Map<string, BookmakerMoveRef>;
 };
 
 function buildBookmakerRefIndex(refs: BookmakerRefsV1 | null): BookmakerRefIndex {
-    const firstBySan = new Map<string, BookmakerMoveRef>();
     const anyBySan = new Map<string, BookmakerMoveRef>();
-    if (!refs) return { firstBySan, anyBySan };
+    if (!refs) return { anyBySan };
 
     refs.variations.forEach(variation => {
-        variation.moves.forEach((move, idx) => {
+        variation.moves.forEach(move => {
             const normalized = normalizeSanToken(move.san);
             if (!normalized) return;
             const ref: BookmakerMoveRef = {
@@ -343,167 +335,17 @@ function buildBookmakerRefIndex(refs: BookmakerRefsV1 | null): BookmakerRefIndex
                 uci: move.uci,
                 fenAfter: move.fenAfter,
             };
-            if (idx === 0 && !firstBySan.has(normalized)) firstBySan.set(normalized, ref);
             if (!anyBySan.has(normalized)) anyBySan.set(normalized, ref);
         });
     });
 
-    return { firstBySan, anyBySan };
-}
-
-function renderBookmakerMoveChip(
-    label: string,
-    move: string | null | undefined,
-    refIndex: Map<string, BookmakerMoveRef>,
-    tone: 'chosen' | 'engine' | 'deferred',
-): string | null {
-    const normalized = normalizeSanToken(move);
-    const raw = move?.trim() || normalized;
-    if (!normalized || !raw) return null;
-    const ref = refIndex.get(normalized);
-    const chip = renderInteractiveSanChip(raw, ref || null, {
-        interactiveClasses: 'bookmaker-decision-compare__move-chip move-chip move-chip--interactive',
-        fallbackTag: 'span',
-        fallbackClasses: 'bookmaker-decision-compare__move-chip',
-    });
-
-    return `
-      <span class="bookmaker-decision-compare__move bookmaker-decision-compare__move--${tone}">
-        <span class="bookmaker-decision-compare__move-label">${escapeHtml(label)}</span>
-        ${chip}
-      </span>
-    `;
-}
-
-function renderDecisionCompareStrip(
-    comparison: NarrativeSignalDigest['decisionComparison'],
-    refIndex: BookmakerRefIndex,
-): string | null {
-    const surface = buildDecisionComparisonSurface(comparison, {
-        includeEngineLine: false,
-        includeEvidence: false,
-    });
-    const chosen = comparison?.chosenMove?.trim() || '';
-    const best = comparison?.engineBestMove?.trim() || '';
-    const compared = comparison?.comparativeConsequence?.trim() ? comparison?.comparedMove?.trim() || '' : '';
-    const deferred = comparison?.comparativeConsequence?.trim() ? '' : comparison?.deferredMove?.trim() || '';
-    const secondary = surface.secondary;
-
-    const moveBits = [
-        renderBookmakerMoveChip('Chosen', chosen, refIndex.firstBySan, 'chosen'),
-        !surface.chosenMatchesBest ? renderBookmakerMoveChip('Engine', best, refIndex.firstBySan, 'engine') : null,
-        compared ? renderBookmakerMoveChip('Compared', compared, refIndex.firstBySan, 'deferred') : null,
-        deferred ? renderBookmakerMoveChip(comparison?.practicalAlternative ? 'Practical' : 'Deferred', deferred, refIndex.firstBySan, 'deferred') : null,
-    ].filter(Boolean);
-
-    if (!moveBits.length && !secondary) return null;
-
-    const classes = [
-        'bookmaker-decision-compare',
-        surface.chosenMatchesBest ? 'bookmaker-decision-compare--match' : '',
-        !surface.headline ? 'bookmaker-decision-compare--fallback' : '',
-    ]
-        .filter(Boolean)
-        .join(' ');
-    const kicker = !surface.headline ? 'Alternative context' : 'Decision compare';
-
-    return `
-      <div class="${classes}">
-        <div class="bookmaker-decision-compare__topline">
-          <span class="bookmaker-decision-compare__kicker">${escapeHtml(kicker)}</span>
-          ${surface.gap ? `<span class="bookmaker-decision-compare__gap">${escapeHtml(surface.gap)}</span>` : ''}
-        </div>
-        ${moveBits.length ? `<div class="bookmaker-decision-compare__moves">${moveBits.join('')}</div>` : ''}
-        ${secondary ? `<div class="bookmaker-decision-compare__secondary">${escapeHtml(secondary)}</div>` : ''}
-      </div>
-    `;
-}
-
-type BookmakerStrategySurface = {
-    idea: string | null;
-    campaign: string | null;
-    execution: string | null;
-    objective: string | null;
-};
-
-function bookmakerIdeaText(kind: string | null | undefined, focus: string | null | undefined): string | null {
-    const base = typeof kind === 'string' && kind.trim() ? humanizeToken(kind.replace(/_/g, ' ')) : '';
-    const suffix = typeof focus === 'string' && focus.trim() ? focus.trim() : '';
-    const text = [base, suffix].filter(Boolean).join(' · ').trim();
-    return text || null;
-}
-
-function bookmakerRouteText(strategyPack: StrategyPackV1 | null, owner: string | null): string | null {
-    const route =
-        strategyPack?.pieceRoutes?.find(r => r.surfaceMode !== 'hidden' && (!owner || r.ownerSide === owner)) ||
-        strategyPack?.pieceRoutes?.find(r => r.surfaceMode !== 'hidden');
-    if (!route) return null;
-    const destination = Array.isArray(route.route) && route.route.length ? route.route[route.route.length - 1] : '';
-    const piece = humanizeToken(route.piece);
-    if (route.surfaceMode === 'exact' && route.route.length >= 2) {
-        return [(`${piece} via ${route.route.join('-')}`).trim(), route.purpose || ''].filter(Boolean).join(' · ');
-    }
-    return [(`${piece} toward ${destination}`).trim(), route.purpose || ''].filter(Boolean).join(' · ');
-}
-
-function bookmakerMoveRefText(strategyPack: StrategyPackV1 | null, owner: string | null): string | null {
-    const moveRef =
-        strategyPack?.pieceMoveRefs?.find(ref => !owner || ref.ownerSide === owner) ||
-        strategyPack?.pieceMoveRefs?.[0];
-    if (!moveRef) return null;
-    return [humanizeToken(moveRef.piece), `toward ${moveRef.target}`, moveRef.idea || ''].filter(Boolean).join(' · ');
-}
-
-function bookmakerObjectiveText(strategyPack: StrategyPackV1 | null, owner: string | null): string | null {
-    const target =
-        strategyPack?.directionalTargets?.find(value => !owner || value.ownerSide === owner) ||
-        strategyPack?.directionalTargets?.[0];
-    if (target) return `make ${target.targetSquare} available for the ${humanizeToken(target.piece)}`;
-    const focus = strategyPack?.longTermFocus?.find(Boolean)?.trim();
-    return focus || null;
-}
-
-function buildBookmakerStrategySurface(
-    strategyPack: StrategyPackV1 | null,
-    signalDigest: NarrativeSignalDigest | null,
-): BookmakerStrategySurface {
-    const dominantIdea = strategyPack?.strategicIdeas?.[0] || null;
-    const secondaryIdea = strategyPack?.strategicIdeas?.[1] || null;
-    const owner = dominantIdea?.ownerSide || strategyPack?.sideToMove || null;
-    const sideToMove = strategyPack?.sideToMove || null;
-    const dominantText =
-        bookmakerIdeaText(signalDigest?.dominantIdeaKind, signalDigest?.dominantIdeaFocus) ||
-        bookmakerIdeaText(dominantIdea?.kind || null, [
-            ...(dominantIdea?.focusSquares || []),
-            ...(dominantIdea?.focusFiles || []),
-            ...(dominantIdea?.focusDiagonals || []),
-            dominantIdea?.focusZone || '',
-        ].filter(Boolean).join(', '));
-    const secondaryText =
-        bookmakerIdeaText(signalDigest?.secondaryIdeaKind, signalDigest?.secondaryIdeaFocus) ||
-        bookmakerIdeaText(secondaryIdea?.kind || null, [
-            ...(secondaryIdea?.focusSquares || []),
-            ...(secondaryIdea?.focusFiles || []),
-            ...(secondaryIdea?.focusDiagonals || []),
-            secondaryIdea?.focusZone || '',
-        ].filter(Boolean).join(', '));
-
-    return {
-        idea: [dominantText ? `Dominant ${dominantText}` : '', secondaryText ? `Secondary ${secondaryText}` : '']
-            .filter(Boolean)
-            .join(' · ') || null,
-        campaign: owner && sideToMove && owner !== sideToMove ? `${humanizeToken(owner)} campaign` : null,
-        execution: bookmakerRouteText(strategyPack, owner) || bookmakerMoveRefText(strategyPack, owner),
-        objective: bookmakerObjectiveText(strategyPack, owner),
-    };
+    return { anyBySan };
 }
 
 function decorateBookmakerHtml(
     html: string,
     refs: BookmakerRefsV1 | null,
     ledger: BookmakerStrategicLedgerV1 | null,
-    strategyPack: StrategyPackV1 | null,
-    signalDigest: NarrativeSignalDigest | null,
     mainPlans: PlanHypothesis[],
     strategicPlanExperiments: StrategicPlanExperiment[],
     probeRequests: ProbeRequest[],
@@ -511,61 +353,28 @@ function decorateBookmakerHtml(
     authorEvidence: AuthorEvidenceSummary[],
 ): string {
     const rows: string[] = [];
-    const advancedRows: string[] = [];
     const probeRows: string[] = [];
     const authorRows: string[] = [];
-    const decisionComparison = signalDigest?.decisionComparison;
-    const strategySurface = buildBookmakerStrategySurface(strategyPack, signalDigest);
     const refIndex = buildBookmakerRefIndex(refs);
     const resolveLedgerRef = (san: string) => refIndex.anyBySan.get(normalizeSanToken(san)) || null;
     const authorQuestionById = new Map(authorQuestions.map(question => [question.id, question]));
     const experimentIndex = strategicPlanExperimentIndex(strategicPlanExperiments);
-    const supportOpts = buildPlayerFacingSupportOptions(signalDigest);
     const mainPlanTexts = mainPlans
         .slice(0, 2)
         .map(plan => formatStrategicPlanText(plan, experimentIndex))
         .filter(Boolean);
-    const deploymentSummary = signalDigest ? formatDeploymentSummary(signalDigest) : null;
     const compactSurface = buildCompactSupportSurface({
-        signalDigest,
+        signalDigest: null,
         mainPlanTexts,
-        deploymentSummary,
+        deploymentSummary: null,
     });
     const compactPlanText = compactSurface.mainPlanTexts.map(escapeHtml).join(' · ');
-    const pushAdvancedRow = (label: string, value: string | null | undefined) => {
-        const cleaned = rewritePlayerFacingSupportText(value, supportOpts);
-        if (!cleaned) return;
-        advancedRows.push(`<div class="bookmaker-strategic-summary__row"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(cleaned)}</div>`);
-    };
 
     if (compactPlanText)
         rows.push(`<div class="bookmaker-strategic-summary__row"><strong>Main plans:</strong> ${compactPlanText}</div>`);
-    const decisionStrip = renderDecisionCompareStrip(decisionComparison, refIndex);
-    if (decisionStrip) rows.push(decisionStrip);
     compactSurface.rows.forEach(([label, value]) => {
         rows.push(`<div class="bookmaker-strategic-summary__row"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</div>`);
     });
-
-    const structureBits = filterPlayerFacingValues([
-        signalDigest?.structureProfile || '',
-        signalDigest?.centerState ? `${signalDigest.centerState.toLowerCase()} center` : '',
-    ], supportOpts);
-    pushAdvancedRow('Idea', strategySurface.idea);
-    pushAdvancedRow('Execution', strategySurface.execution);
-    pushAdvancedRow('Objective', strategySurface.objective);
-    if (structureBits.length)
-        advancedRows.push(`<div class="bookmaker-strategic-summary__row"><strong>Structure:</strong> ${escapeHtml(structureBits.join(' · '))}</div>`);
-    if (signalDigest?.prophylaxisPlan || signalDigest?.prophylaxisThreat || typeof signalDigest?.counterplayScoreDrop === 'number') {
-        const prophylaxisDetails = filterPlayerFacingValues([
-            signalDigest?.prophylaxisThreat ? `stops ${signalDigest.prophylaxisThreat}` : '',
-            signalDigest?.prophylaxisPlan ? `slows down ${signalDigest.prophylaxisPlan}` : '',
-        ], supportOpts);
-        if (prophylaxisDetails.length)
-            advancedRows.push(`<div class="bookmaker-strategic-summary__row"><strong>Prophylaxis:</strong> ${escapeHtml(prophylaxisDetails.join(' · '))}</div>`);
-    }
-    const compensationDetails = filterPlayerFacingValues([signalDigest?.compensation || ''], supportOpts);
-    if (compensationDetails.length)
-        advancedRows.push(`<div class="bookmaker-strategic-summary__row"><strong>Compensation:</strong> ${escapeHtml(compensationDetails.join(' · '))}</div>`);
     probeRows.push(...renderBookmakerLedgerProbeRows(ledger, resolveLedgerRef));
     probeRequests
         .slice(0, 2)
@@ -588,7 +397,7 @@ function decorateBookmakerHtml(
                 Array.isArray(probe.moves) && probe.moves.length
                     ? probe.moves.slice(0, 2).map((move: string) => escapeHtml(move)).join(' / ')
                     : '';
-            const detailText = filterPlayerFacingValues(details, supportOpts).join(' | ');
+            const detailText = filterPlayerFacingValues(details).join(' | ');
             probeRows.push(`
               <div class="bookmaker-probe-summary__row">
                 <strong>${escapeHtml(primary)}:</strong>
@@ -612,10 +421,10 @@ function decorateBookmakerHtml(
             purposes.length ? `focus ${purposes.join('; ')}` : '',
             objectives.length ? `objective ${objectives.join('; ')}` : '',
             anchors.length ? `anchors ${anchors.join(', ')}` : '',
-        ], supportOpts);
+        ]);
         const branchMarkup = branches
             .map(branch => {
-                const details = filterPlayerFacingValues([branch.line], supportOpts);
+                const details = filterPlayerFacingValues([branch.line]);
                 const normalizedKeyMove = normalizeSanToken(branch.keyMove);
                 const moveRef = refIndex.anyBySan.get(normalizedKeyMove);
                 const branchMove = moveRef
@@ -649,7 +458,7 @@ function decorateBookmakerHtml(
         const anchors = (question.anchors || []).filter(Boolean).slice(0, 2);
         const meta = filterPlayerFacingValues([
             anchors.length ? `anchors ${anchors.join(', ')}` : '',
-        ], supportOpts);
+        ]);
             authorRows.push(`
               <div class="bookmaker-authoring-summary__card">
                 <div class="bookmaker-authoring-summary__head">
@@ -664,18 +473,17 @@ function decorateBookmakerHtml(
         });
     }
 
-    if (!rows.length && !advancedRows.length && !probeRows.length && !authorRows.length) return html;
+    if (!rows.length && !probeRows.length && !authorRows.length) return html;
 
     return `
       <div class="bookmaker-strategic-summary">
         <div class="bookmaker-strategic-summary__title">Support</div>
         ${rows.join('')}
         ${
-            advancedRows.length || probeRows.length || authorRows.length
+            probeRows.length || authorRows.length
                 ? `
           <details class="bookmaker-strategic-summary__details">
             <summary class="bookmaker-strategic-summary__details-summary">Advanced details</summary>
-            ${advancedRows.join('')}
             ${
                 probeRows.length
                     ? `
@@ -710,8 +518,6 @@ function decorateDecodedBookmakerHtml(decoded: DecodedBookmakerResponse): string
         decoded.html,
         decoded.refs,
         decoded.bookmakerLedger,
-        decoded.strategyPack,
-        decoded.signalDigest,
         decoded.mainStrategicPlans,
         decoded.strategicPlanExperiments,
         decoded.probeRequests,

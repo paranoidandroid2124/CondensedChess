@@ -68,14 +68,17 @@ Phase 7 planner/eval spine, not back inside `Phase 7`.
 
 Near-term canonical sequence from the current checkpoint:
 
-1. current-position fixed-target probe is passed; current-position
-   coordination probe is also passed_with_defer after the first exact
-   comparative-support, target-fixation, and bounded favorable-simplification
-   slices
-2. Tier 1 provisional comparative re-audit is now passed_with_defer:
-   all eight families stay `Provisional`, and family-complete shallow rows
-   stay `SupportOnly` / planner `none`
-3. Tier 1 provisional move-local reopen audit is now blocked:
+1. `Phase 8` must now prove a thin shell certified renderer on top of the
+   landed planner/eval spine
+2. one fixed-weakness target campaign must then be proved end-to-end across
+   already re-earned exact comparative-support, target-fixation, and
+   current-position fixed-target slices
+3. one bounded favorable-simplification explanation must then be proved
+   end-to-end on the already re-earned same-task `TradeInvariant` slice
+4. one bounded current-position coordination probe must then be proved
+   end-to-end in its current `passed_with_defer` form
+5. only after those vertical proofs should new horizontal gate packets reopen
+6. Tier 1 provisional move-local reopen audit is now blocked:
    all eight families remain `move_local` closed because no family-complete
    move-local exact-positive plus move-local nasty-negative burden exists yet
 
@@ -700,6 +703,31 @@ Remove:
 - semantic salvage
 - fallback-driven strategy invention
 
+Current vertical proving order:
+
+1. `P8-R01-thin-shell-certified-renderer`
+   - passed on 2026-04-09
+   - Bookmaker renderer/API/frontend shell now consumes certified planner
+     ownership only and does not reintroduce semantic salvage
+2. `P8-R02-exact-target-campaign-e2e`
+   - next highest-priority `ready` packet
+   - prove one fixed-weakness campaign survives end-to-end across
+     `WhatMattersHere`, `WhyThis`, and `WhatChanged`
+3. `P8-R03-bounded-favorable-simplification-e2e`
+   - prove one bounded favorable-simplification explanation survives
+     end-to-end
+4. `P8-R04-current-position-coordination-e2e`
+   - prove one bounded current-position coordination probe survives end-to-end
+     in its current deferred form
+
+Execution rule:
+
+- do not add another horizontal gate, ownership, or support-only packet before
+  one of these vertical packets fails on an exact slice
+- `P5-T02` does not block this tranche because the tranche consumes only
+  already re-earned stable slices and does not depend on provisional
+  move-local reopening
+
 ## Post-Phase-7 Frontier
 
 The certified planner spine is now landed through:
@@ -712,9 +740,18 @@ The certified planner spine is now landed through:
 - tail-risk gating
 
 The next frontier is not more family sprawl.
-It is chess-meaning closure on top of that spine.
+It is chess-meaning closure on top of that spine, proved vertically rather
+than by adding more horizontal infra first.
 
 Canonical next tranche order:
+
+`P8-R01` thin-shell certified renderer passed on 2026-04-09:
+Bookmaker renderer/API/frontend shell now stays semantically thin on certified
+planner output; controller/frontend Bookmaker payload no longer
+exports/decodes/reconstructs `strategyPack` / `signalDigest` on that path; the
+canonical thin-shell renderer mirrors planner `claimIds/supportClaimIds`; and
+board-anchored shell tests covered the re-earned stable slices plus `K03A`,
+`K09E`, and the single-active-piece mirage closure.
 
 `P9-A01` exact comparative support passed on 2026-04-09:
 the new spine now re-earns one exact same-owner shared-target
@@ -737,6 +774,21 @@ contrastive, and heavy-piece-release lookalikes remain move-local closed.
 the new spine now re-earns one exact `DevelopmentCoordinationState`
 `WhatMattersHere` slice on `K09A` only; `K09D`, `K09E`, and the
 single-active-piece mirage remain fail-closed.
+
+`P8-R02` is now the next highest-priority `ready` packet and should use
+`P9-A01`, `P9-A02`, and `P9-A04` together:
+the next proof target is one fixed-weakness target campaign that survives
+end-to-end across `WhatMattersHere`, `WhyThis`, and `WhatChanged`.
+
+`P8-R03` should then use `P9-A03`:
+the next proof target after the target campaign is one bounded favorable-
+simplification explanation that survives end-to-end without broad conversion
+or endgame inflation.
+
+`P8-R04` should then use `P9-A05` in its current deferred form:
+the next proof target after that is one bounded current-position coordination
+probe that survives end-to-end while `K09D`, `K09E`, and the single-active-
+piece mirage remain closed.
 
 `P5-T01` Tier 1 provisional comparative re-audit passed_with_defer on 2026-04-09:
 all eight provisional families stay `Provisional`; the comparative lane now
@@ -763,9 +815,9 @@ Comparative-quality certification is now complete.
 
 This order is intentional.
 The current bottleneck is not raw planner control anymore.
-It is whether a comparative that survives object and delta admission is
-actually chess-meaningfully different enough to deserve certification and
-planner ownership.
+It is whether the already re-earned exact slices can survive all the way to a
+thin user-visible shell without semantic drift, and only then whether new gate
+work is justified by exact slice failure.
 
 ## Phase 9. Narrow Slice Reconstitution
 
@@ -773,10 +825,19 @@ Rebuild the already-proven semantics on the new architecture first.
 
 Suggested order:
 
-1. current-position fixed-target probe
+1. exact comparative support
+   - passed on 2026-04-09
+   - the exact same-owner shared-target support slice is re-earned on the new spine
+2. exact target fixation
+   - passed on 2026-04-09
+   - the exact fixation-square move-local slice is re-earned on the new spine
+3. bounded favorable simplification
+   - passed on 2026-04-09
+   - the exact same-task `TradeInvariant` simplification slice is re-earned
+4. current-position fixed-target probe
    - passed on 2026-04-09
    - the exact B15A slice now reopens only through the certified current-position fixed-target bundle; K03A and K09E stay closed
-2. current-position coordination probe
+5. current-position coordination probe
    - passed_with_defer on 2026-04-09
    - the exact K09A slice now reopens only through the certified current-position coordination probe; K09D, K09E, and the single-active-piece mirage stay closed
 
@@ -793,6 +854,8 @@ Current lane note:
 - the current-position fixed-target probe is now passed on the same new spine
 - the current-position coordination probe is now also passed (with defer) on
   the same new spine
+- Phase 9 is therefore no longer the active packet frontier by itself; the
+  next active frontier is Phase 8 vertical proving over these re-earned slices
 - Tier 1 provisional comparative re-audit is now passed_with_defer with all
   eight families staying `Provisional`
 - Tier 1 provisional move-local reopen audit is now blocked with all eight

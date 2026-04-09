@@ -95,6 +95,10 @@ move-local negatives must remain closed.
     missing exact-positive plus move-local nasty-negative burden blocks the
     audit at certification readiness rather than requiring projector or
     certification semantics to change
+- frontier note:
+  - this blocked evidence burden is orthogonal to the next Phase 8/9 vertical
+    tranche because that tranche consumes only already re-earned stable slices
+    and does not depend on provisional move-local reopening
 - verification note:
   - `sbt -batch "llm/testOnly lila.llm.strategicobject.StrategicObjectDeltaProjectorTest"`
     reran the packet-owned provisional move-local checks successfully, but the

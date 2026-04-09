@@ -74,12 +74,30 @@ This control plane assumes the following rewrite state is already landed:
 The next runtime frontier is not more family sprawl.
 It is:
 
-1. current-position fixed-target probe and current-position coordination probe,
-   both now passed as narrow exact slices
-2. Tier 1 provisional comparative re-audit is now `passed_with_defer`:
-   all eight provisional families stay `Provisional`, and their shallow
-   comparative rows stay `SupportOnly` / planner `none`
-3. Tier 1 provisional move-local reopen audit is now `blocked`:
-   all eight provisional families remain `move_local` closed because the
-   family-complete move-local exact-positive and move-local nasty-negative
-   burden is still missing
+1. `P8-R01-thin-shell-certified-renderer`
+   - passed
+   - Bookmaker renderer/API/frontend thin shell is landed on certified planner
+     ownership; this path no longer exports/decodes/reconstructs
+     `strategyPack` / `signalDigest`
+2. `P8-R02-exact-target-campaign-e2e`
+   - next highest-priority `ready` packet
+   - prove one fixed-weakness campaign survives end-to-end across
+     `WhatMattersHere`, `WhyThis`, and `WhatChanged`
+3. `P8-R03-bounded-favorable-simplification-e2e`
+   - prove one bounded favorable-simplification explanation survives
+     end-to-end without broad conversion inflation
+4. `P8-R04-current-position-coordination-e2e`
+   - prove one bounded current-position coordination probe survives end-to-end
+     in its current `passed_with_defer` form
+
+Current blocking note:
+
+- `P5-T02-tier1-provisional-move-local-reopen-audit` remains `blocked` on
+  missing family-complete move-local exact-positive and nasty-negative
+  evidence, but that burden is orthogonal to the current vertical tranche
+  because the tranche consumes only already re-earned stable slices.
+
+Operational rule:
+
+- do not open another horizontal gate/ownership packet before one of the
+  `P8-R0x` packets fails on an exact slice

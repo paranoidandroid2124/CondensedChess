@@ -74,6 +74,23 @@ Current post-spine frontier:
     all eight provisional families stay `move_local` closed because no
     family-complete exact-positive plus move-local nasty-negative witness pack
     exists yet
+- the next active frontier is now a vertical Phase 8/9 proving tranche, not a
+  new horizontal gate tranche
+- that vertical tranche should:
+  - prove a thin shell renderer/API/front can carry certified planner output
+    without semantic salvage
+  - prove one fixed-weakness target campaign end-to-end across
+    `WhatMattersHere`, `WhyThis`, and `WhatChanged`
+  - prove one bounded favorable-simplification slice end-to-end
+  - prove one bounded current-position coordination probe end-to-end in its
+    current deferred form
+- `P8-R01` thin-shell certified renderer passed on 2026-04-09:
+  Bookmaker shell delivery is now thin on certified planner ownership and no
+  longer exports/decodes/reconstructs `strategyPack` / `signalDigest` on this
+  path; `P8-R02` is now the next highest-priority `ready` packet
+- the blocked provisional move-local reopen lane is a stopping rule for that
+  evidence pack, not a blocker to vertical proof on already re-earned stable
+  slices
 
 This document remains the capability north-star, not the active packet queue.
 Use `StrategicObjectRoadmap.md` for live execution order and current frontier
@@ -790,18 +807,24 @@ pressure-only target pictures stay planner `none` and localize no higher than
 
 That frontier should proceed in this order:
 
-1. exact narrow-slice reconstitution
-   - regain current-position probe slices on the new architecture after exact
-     comparative support, target fixation, and bounded favorable
-     simplification
-2. Tier 1 provisional re-audit
-   - passed_with_defer: all eight provisional comparative lanes remain
-     `Provisional`, and shallow comparative stays certification/planner
-     fail-closed
-3. selective move-local reopen
-   - currently blocked: all eight provisional families remain move-local
-     closed because the audit still lacks family-complete exact move-local
-     positives and move-local nasty-negative resistance
+1. `Phase 8` thin-shell certified renderer
+   - prove renderer/API/frontend delivery consumes certified planner output
+     without semantic salvage or support-only promotion
+2. fixed-weakness target campaign end-to-end
+   - use the already re-earned exact comparative-support, target-fixation, and
+     current-position fixed-target slices to prove one campaign survives across
+     `WhatMattersHere`, `WhyThis`, and `WhatChanged`
+3. bounded favorable-simplification end-to-end
+   - use the already re-earned same-task `TradeInvariant` slice to prove one
+     bounded simplification explanation survives user-visible delivery
+4. current-position coordination end-to-end
+   - use the current `K09A` coordination slice in its `passed_with_defer`
+     state to prove one bounded probe survives user-visible delivery while the
+     closed siblings stay closed
+5. only then derive new gate packets from exact slice failures
+   - if one of the vertical packets fails, derive the needed ownership,
+     certification, or renderer packet from that exact failure instead of
+     widening infra proactively
 
 This frontier is about separating:
 
@@ -826,6 +849,13 @@ It must not:
 - salvage semantics from fallback text
 - infer strategy from raw support
 - widen a blocked claim into lesson-style prose
+
+Current proving rule:
+
+- renderer/API/frontend work should now proceed only as vertical proof over
+  already re-earned stable slices
+- new renderer, planner, or certification abstractions should be opened only
+  when one of those exact vertical slices fails and names the missing boundary
 
 ## What Must Stop
 

@@ -272,8 +272,7 @@ final class LlmController(
                         "model" -> response.model,
                         "planTier" -> response.planTier,
                         "llmLevel" -> response.llmLevel,
-                        "strategyPack" -> response.strategyPack,
-                        "signalDigest" -> response.signalDigest,
+                        "bookmakerLedger" -> response.bookmakerLedger,
                         "cacheHit" -> result.cacheHit
                       )
                       val withRefs = response.refs.fold(baseJson)(r => baseJson ++ Json.obj("refs" -> r))
