@@ -67,6 +67,11 @@ Authority:
     certification/planner outcome matrix: strong exact contrast stays
     certified, shallow exact contrast stays support-only or deferred, and
     shallow-only planner ownership stays closed
+- `P9-A02-exact-target-fixation-reconstitution`
+  - passed
+  - one exact `FixedTargetComplex` move-local `WhyThis` slice is re-earned on
+    a centralized fixation-square witness, while pressure-only and near-miss
+    target pictures remain planner `none`
 - certified planner spine through `P7-E02`
   - landed
   - object delta, delta-aware certification, question admission, `WhyNow`,
@@ -89,7 +94,7 @@ Authority:
 | `P6-A02b-shallow-comparative-trace` | `passed` | 10 | comparative quality trace | trace/tail-risk now preserve explicit planner/localization expectations for shallow-comparative rows, and `planner_negative` hard-fail checks can target upstream-present rows without collapsing them into generic absence |
 | `P6-A02c-comparative-certification-outcomes` | `passed` | 11 | comparative quality certification | canonical `Certified` / `SupportOnly` / `Deferred` / `planner_none` outcomes are now locked for admissible-but-shallow comparative rows |
 | `P9-A01-exact-comparative-support` | `passed` | 12 | narrow-slice reconstitution | exact same-owner shared-target comparative support is re-earned on the new spine; shallow comparative stays fail-closed at planner `none` / localization `certification` |
-| `P9-A02-exact-target-fixation-reconstitution` | `ready` | 13 | narrow-slice reconstitution | re-earn one exact target-fixation slice on the new architecture without legacy adapters |
+| `P9-A02-exact-target-fixation-reconstitution` | `passed` | 13 | narrow-slice reconstitution | one exact target-fixation slice is re-earned from a fixation-square move-local witness; pressure-only and near-miss target rows remain fail-closed |
 | `P9-A03-bounded-favorable-simplification` | `ready` | 14 | narrow-slice reconstitution | re-earn one bounded favorable-simplification slice on the new spine only |
 | `P9-A04-current-position-fixed-target-probe` | `ready` | 15 | narrow-slice reconstitution | reopen one current-position fixed-target probe after exact comparative support is stable |
 | `P9-A05-current-position-coordination-probe` | `ready` | 16 | narrow-slice reconstitution | reopen one current-position coordination probe after earlier Phase 9 slices hold |

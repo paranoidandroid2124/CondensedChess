@@ -98,7 +98,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         for
           move <- moveTrace(contract, truth)
           axis <- transitionAxisFor(obj.profile)
-          tag <- moveLocalTag(obj.profile, axis, obj.stateStrength)
+          tag <- moveLocalTag(obj.profile, axis)
           witness <- moveTransitionWitness(move, obj, axis, context)
         yield StrategicDeltaProjection.MoveLocal(change = tag, witness = witness)
       case StrategicDeltaScope.PositionLocal =>
@@ -156,8 +156,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
 
   private def moveLocalTag(
       profile: StrategicObjectProfile,
-      axis: StrategicMoveTransitionAxis,
-      stateStrength: StrategicObjectStateStrength
+      axis: StrategicMoveTransitionAxis
   ): Option[StrategicDeltaTag] =
     (profile, axis) match
       case (StrategicObjectProfile.PawnStructureRegime(_, _, fixedTargets, _, _), StrategicMoveTransitionAxis.PawnFixation) =>
@@ -195,7 +194,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
           else StrategicDeltaTag.CriticalLost
         )
       case (StrategicObjectProfile.FixedTargetComplex(_, _, _, fixed, _), StrategicMoveTransitionAxis.FixedTargetFixation) =>
-        Some(if fixed then StrategicDeltaTag.TargetFixed else if stateStrength.pressureBalance > 0 then StrategicDeltaTag.TargetPressureIntensified else StrategicDeltaTag.TargetRelieved)
+        Option.when(fixed)(StrategicDeltaTag.TargetFixed)
       case (StrategicObjectProfile.BreakAxis(_, _, _, _, supportBalance), StrategicMoveTransitionAxis.BreakActivation) =>
         Some(if supportBalance >= 2 then StrategicDeltaTag.BreakAccelerated else if supportBalance >= 0 then StrategicDeltaTag.BreakOpened else StrategicDeltaTag.BreakClosed)
       case (StrategicObjectProfile.AccessNetwork(_, route, _, contestedSquares), StrategicMoveTransitionAxis.AccessRouteActivation) =>
@@ -731,7 +730,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
     val anchoredSquares =
       moveTouchedSquares(
         move,
-        transitionAnchorSquares(obj) ++
+        moveTransitionWitnessSquares(obj) ++
           obj.evidenceFootprint.anchorSquares ++
           obj.evidenceFootprint.contestedSquares ++
           obj.supportingPrimitives.flatMap(_.allSquares)
@@ -747,7 +746,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       obj.supportingPrimitives.collect {
         case primitive if moveTouchesPrimitive(move, primitive) => primitive.kind
       }.toSet
-    val coreSquares = moveTouchedSquares(move, comparableSquares(obj))
+    val coreSquares = moveTouchedSquares(move, moveTransitionCoreSquares(obj))
     val coreFiles = moveTouchedFiles(move, comparableFiles(obj))
     val relatedObjects =
       (context.supportObjects ++ context.rivalObjects)
@@ -1125,6 +1124,29 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
   ): List[File] =
     distinctFiles(move.touchedFiles.intersect(files))
 
+  private def moveTransitionWitnessSquares(
+      obj: StrategicObject
+  ): List[Square] =
+    distinctSquares(
+      transitionAnchorSquares(obj) ++ moveTransitionCoreSquares(obj)
+    )
+
+  private def moveTransitionCoreSquares(
+      obj: StrategicObject
+  ): List[Square] =
+    obj.profile match
+      case StrategicObjectProfile.FixedTargetComplex(targetSquare, targetOwner, _, fixed, _) =>
+        Option.when(fixed)(fixationWitnessSquare(targetSquare, targetOwner)).toList.flatten
+      case _ =>
+        comparableSquares(obj)
+
+  private def fixationWitnessSquare(
+      targetSquare: Square,
+      targetOwner: Color
+  ): Option[Square] =
+    val forwardDelta = if targetOwner.white then 1 else -1
+    Square.at(targetSquare.file.value, targetSquare.rank.value + forwardDelta)
+
   private def moveTouchesPrimitive(
       move: StrategicPlayedMoveTrace,
       primitive: PrimitiveReference
@@ -1168,6 +1190,10 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         coreSquares.size >= 2 &&
           primitiveKinds.intersect(Set(PrimitiveKind.TargetSquare, PrimitiveKind.CriticalSquare, PrimitiveKind.RouteContestSeed)).nonEmpty &&
           (coreFiles.nonEmpty || relationWitnesses.nonEmpty)
+      case StrategicObjectProfile.FixedTargetComplex(_, _, _, fixed, _) =>
+        fixed &&
+          coreSquares.nonEmpty &&
+          primitiveKinds.contains(PrimitiveKind.TargetSquare)
       case _: StrategicObjectProfile.MobilityCage =>
         coreSquares.nonEmpty &&
           primitiveKinds.contains(PrimitiveKind.PieceRoleIssue) &&

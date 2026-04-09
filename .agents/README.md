@@ -74,11 +74,10 @@ This control plane assumes the following rewrite state is already landed:
 The next runtime frontier is not more family sprawl.
 It is:
 
-1. exact comparative support as the first Phase 9 narrow-slice
-   reconstitution target
-2. exact target fixation and bounded favorable simplification on the new
-   certified planner spine
-3. Tier 1 provisional comparative re-audit after exact comparative support and
-   early narrow-slice parity
+1. bounded favorable simplification as the next Phase 9 narrow-slice target
+   after exact comparative support and exact target fixation
+2. current-position fixed target probe and current-position coordination probe
+   after the earlier Phase 9 slices hold
+3. Tier 1 provisional comparative re-audit after early narrow-slice parity
 4. selective provisional move-local reopen audit only where exact-board
    resistance justifies it

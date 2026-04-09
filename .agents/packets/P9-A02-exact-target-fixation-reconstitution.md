@@ -67,6 +67,18 @@ reconstruction or legacy helper revival.
 ## Status Notes
 
 - start status: `ready`
+- current status: `passed`
+- completion note:
+  - `FixedTargetComplex` move-local now reopens only from a centralized
+    fixation-square witness on the target's exact forward square when the
+    object is truly `fixed=true`
+  - packet-owned exact and contrastive rows are now board-consistent
+    non-capture bishop moves onto the fixation square, and both survive object
+    -> delta -> certification -> planner as `WhyThis`
+  - packet-owned negative and near-miss rows keep `FixedTargetComplex`
+    objectization without any move-local `TargetFixed` delta or planner
+    admission when the move only pressures the target but does not create the
+    fixation geometry
 - pass condition: one exact target-fixation slice is re-earned cleanly
 - blocked condition: the slice still depends on legacy fixation-specific
   topology

@@ -387,6 +387,16 @@ in `StrategicObjectRoadmap.md`.
   as `DevelopmentCoordinationState` / `RedeploymentRoute` stay planner `none`
   and localize at `certification`, and no broader comparative-support rollout,
   new wording, renderer behavior, or Tier 2 / Tier 3 widening opens from it.
+- rewrite-local exact target-fixation note on 2026-04-09:
+  `QuestionPlanner` may now admit one exact `FixedTargetComplex`
+  `WhyThis` slice on the new spine, but only when the move-local witness is
+  anchored on the target's exact fixation square and the object is truly
+  `fixed=true`. Pressure-only target rows and near-miss target rows remain
+  fail-closed: they may still objectize as `FixedTargetComplex`, but they do
+  not emit a move-local `TargetFixed` delta or planner admission unless the
+  played move reaches that fixation geometry. This change stays narrowly
+  bounded to the packet-owned slice and does not reopen broader target-touch
+  release, new wording, renderer behavior, or Tier 2 / Tier 3 widening.
 - rewrite-local strategic-object WhyNow note on 2026-04-08:
   `WhyNow` is now admitted as a separate timing-sensitive move-local lane on
   top of the same delta-aware certification boundary. It opens only on
