@@ -211,6 +211,12 @@ in `StrategicObjectRoadmap.md`.
   explanation, may not reuse support-only `mainStrategicPlans` / `strategyPack`
   prose as the owner claim, and may not generalize into a broad Carlsbad
   lesson or a minority-attack shell.
+  Current implementation note on 2026-04-09:
+  the current-position fixed-target admission now hinges on the exact
+  certified support bundle (`AccessNetwork-white-queenside-c2-c`,
+  `ConversionFunnel-white-wholeboard-a7-abcdefg`,
+  `DefenderDependencyNetwork-white-center-d4-de`) so the live B15A slice can
+  reopen while the K03A and K09E siblings stay closed.
   exact `K09A` / `K09D` now materialize the second current-position probe
   owner on a separate exact coordination slice:
   when the live FEN proves `white to move`, a white rook on `c1`, an enemy
@@ -397,6 +403,19 @@ in `StrategicObjectRoadmap.md`.
   played move reaches that fixation geometry. This change stays narrowly
   bounded to the packet-owned slice and does not reopen broader target-touch
   release, new wording, renderer behavior, or Tier 2 / Tier 3 widening.
+- rewrite-local bounded favorable-simplification note on 2026-04-09:
+  `StrategicObjectDeltaProjector` may now admit one exact same-task
+  `TradeInvariant` move-local slice on the new spine, but only when a
+  centralized bounded favorable-simplification predicate is satisfied at the
+  projector boundary: the object must carry exact exchange and invariant
+  squares, preserve at least one non-passer family, exclude passer-bound
+  simplification, and prove one fixed-target, break, or access anchor. The
+  admitted delta is `TradePreserved` only, and downstream certification and
+  planner merely consume that certified result on the existing `WhyThis` lane.
+  Target-led boards, contrastive boards, and heavy-piece-release near-misses
+  remain fail-closed for move-local admission, so this change does not reopen
+  B7/task-shift, broad conversion, endgame theorem, new wording, renderer
+  behavior, or Tier 2 / Tier 3 widening.
 - rewrite-local strategic-object WhyNow note on 2026-04-08:
   `WhyNow` is now admitted as a separate timing-sensitive move-local lane on
   top of the same delta-aware certification boundary. It opens only on

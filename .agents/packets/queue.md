@@ -72,6 +72,14 @@ Authority:
   - one exact `FixedTargetComplex` move-local `WhyThis` slice is re-earned on
     a centralized fixation-square witness, while pressure-only and near-miss
     target pictures remain planner `none`
+- `P9-A03-bounded-favorable-simplification`
+  - passed
+  - one exact same-task `TradeInvariant` move-local `TradePreserved`
+    `WhyThis` slice is re-earned on the new spine, while target-led,
+    contrastive, and heavy-piece-release lookalikes remain fail-closed
+- `P9-A04-current-position-fixed-target-probe`
+  - passed
+  - reopened one bounded current-position fixed-target probe; B15A is primary while K03A and K09E stay closed
 - certified planner spine through `P7-E02`
   - landed
   - object delta, delta-aware certification, question admission, `WhyNow`,
@@ -95,9 +103,9 @@ Authority:
 | `P6-A02c-comparative-certification-outcomes` | `passed` | 11 | comparative quality certification | canonical `Certified` / `SupportOnly` / `Deferred` / `planner_none` outcomes are now locked for admissible-but-shallow comparative rows |
 | `P9-A01-exact-comparative-support` | `passed` | 12 | narrow-slice reconstitution | exact same-owner shared-target comparative support is re-earned on the new spine; shallow comparative stays fail-closed at planner `none` / localization `certification` |
 | `P9-A02-exact-target-fixation-reconstitution` | `passed` | 13 | narrow-slice reconstitution | one exact target-fixation slice is re-earned from a fixation-square move-local witness; pressure-only and near-miss target rows remain fail-closed |
-| `P9-A03-bounded-favorable-simplification` | `ready` | 14 | narrow-slice reconstitution | re-earn one bounded favorable-simplification slice on the new spine only |
-| `P9-A04-current-position-fixed-target-probe` | `ready` | 15 | narrow-slice reconstitution | reopen one current-position fixed-target probe after exact comparative support is stable |
-| `P9-A05-current-position-coordination-probe` | `ready` | 16 | narrow-slice reconstitution | reopen one current-position coordination probe after earlier Phase 9 slices hold |
+| `P9-A03-bounded-favorable-simplification` | `passed` | 14 | narrow-slice reconstitution | exact same-task `TradeInvariant -> TradePreserved -> WhyThis` slice re-earned; negative/contrastive/near-miss closure held |
+| `P9-A04-current-position-fixed-target-probe` | `passed` | 15 | narrow-slice reconstitution | reopened one bounded current-position fixed-target probe; B15A primary, K03A/K09E closed |
+| `P9-A05-current-position-coordination-probe` | `ready` | 16 | narrow-slice reconstitution | next ready packet after P9-A04 pass; reopen one current-position coordination probe after earlier Phase 9 slices hold |
 | `P5-T01-tier1-provisional-comparative-reaudit` | `ready` | 17 | readiness / promotion | re-audit provisional Tier 1 comparative lanes after comparative-quality closure and first slice parity |
 | `P5-T02-tier1-provisional-move-local-reopen-audit` | `ready` | 18 | readiness / promotion | reopen provisional move-local only where exact-board positives and nasty negatives justify it |
 

@@ -146,27 +146,67 @@ class QuestionPlannerTest extends FunSuite:
     assert(planned.claimIds.forall(id => !scopeOnlyClaims.find(_.id == id).exists(_.deltaScope == StrategicDeltaScope.MoveLocal)))
   }
 
-  test("planner chooses WhatMattersHere from certified position-local delta when change lanes are absent") {
-    val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor("c1c8")
-    val contract = PrimitiveExtractionTest.moveTransitionVisibleContractFor("c1c8")
-    val objects = StrategicObjectSynthesizerTest.objectsForFen(fileDuelFen, truth)
+  test("planner chooses WhatMattersHere from the packet-owned current-position fixed-target probe") {
+    val row =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.caseType == "exact").getOrElse(
+        fail("expected current-position fixed-target exact row")
+      )
+    val truth = PrimitiveExtractionTest.neutralTruthFrame
+    val contract = PrimitiveExtractionTest.neutralContract
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
     val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
     val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
-    val positionOnlyClaims =
-      claims.map { claim =>
-        claim.delta match
-          case Some(delta) if delta.scope != StrategicDeltaScope.PositionLocal =>
-            claim.copy(delta = None)
-          case _ =>
-            claim
-      }
-    val planned = CanonicalQuestionPlanner.plan(contract, positionOnlyClaims)
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
+    val objectIds = currentPositionTargetObjectIds(row, objects)
+    val positionClaims =
+      claims.filter(claim =>
+        objectIds.contains(claim.objectId) &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal
+      )
+    val primaryClaim =
+      positionClaims.find(_.status == ClaimStatus.Certified).getOrElse(
+        fail("expected certified current-position fixed-target claim")
+      )
 
     assertEquals(planned.axis, QuestionAxis.WhatMattersHere)
-    assert(planned.claimIds.nonEmpty, clue("expected at least one certified position-local claim"))
-    assert(planned.claimIds.forall(id =>
-      positionOnlyClaims.find(_.id == id).exists(_.deltaScope == StrategicDeltaScope.PositionLocal)
-    ))
+    assert(positionClaims.nonEmpty, clue("expected at least one certified position-local claim"))
+    assert(planned.claimIds.contains(primaryClaim.id), clue("expected packet-owned primary admission"))
+    assert(primaryClaim.primaryTag.contains(StrategicDeltaTag.TargetFixed), clue("expected exact fixation"))
+  }
+
+  test("planner keeps WhatChanged ahead of the packet-owned current-position probe on mixed boards") {
+    val row =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.caseType == "exact").getOrElse(
+        fail("expected current-position fixed-target exact row")
+      )
+    val truth = visibleComparativeTruth
+    val contract = visibleComparativeContract
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
+    val objectIds = currentPositionTargetObjectIds(row, objects)
+    val positionClaims =
+      claims.filter(claim =>
+        objectIds.contains(claim.objectId) &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal
+      )
+    val comparativePrimary =
+      claims.find(claim =>
+        claim.status == ClaimStatus.Certified &&
+          claim.deltaScope == StrategicDeltaScope.Comparative &&
+          claim.delta.exists(_.family == StrategicObjectFamily.FixedTargetComplex) &&
+          objects.exists(obj =>
+            obj.id == claim.objectId &&
+              obj.family == StrategicObjectFamily.FixedTargetComplex &&
+              obj.owner == Color.White
+          )
+      ).getOrElse(fail("expected certified comparative fixed-target claim"))
+
+    assert(positionClaims.nonEmpty, clue("expected mixed-board current-position fixed-target claim"))
+    assertEquals(planned.axis, QuestionAxis.WhatChanged)
+    assert(planned.claimIds.contains(comparativePrimary.id), clue("comparative lane must keep precedence"))
+    assert(!planned.claimIds.exists(positionClaims.map(_.id).toSet.contains), clue("packet-owned probe must not suppress WhatChanged"))
   }
 
   test("planner chooses WhatMustBeStopped only from certified move-local delta on bad contracts") {
@@ -305,3 +345,29 @@ class QuestionPlannerTest extends FunSuite:
       truthCase: Option[String]
   ): Boolean =
     truthCase.contains("primary_visible") || truthCase.contains("move_transition_visible")
+
+  private def currentPositionTargetObjectIds(
+      row: CurrentPositionFixedTargetProbeTest.CurrentPositionFixedTargetRow,
+      objects: List[StrategicObject]
+  ): Set[String] =
+    val family = StrategicObjectSynthesizerTest.parseFamily(row.family)
+    val owner = StrategicObjectSynthesizerTest.parseColor(row.owner)
+    val anchor = row.anchor.flatMap(StrategicObjectSynthesizerTest.parseSquare)
+
+    objects
+      .filter(obj =>
+        obj.family == family &&
+          obj.owner == owner &&
+          anchor.forall(objectSquares(obj).contains)
+      )
+      .map(_.id)
+      .toSet
+
+  private def objectSquares(
+      obj: StrategicObject
+  ): List[chess.Square] =
+    (
+      obj.locus.allSquares ++
+        obj.anchors.flatMap(_.squares) ++
+        obj.anchors.flatMap(_.route.toList.flatMap(_.allSquares))
+    ).distinct.sortBy(_.key)

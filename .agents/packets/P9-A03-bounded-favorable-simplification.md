@@ -22,13 +22,17 @@ slice must stay narrow, exact-board grounded, and planner-bounded.
 ## Touched Files
 
 - runtime:
-  - only the minimal files required by the selected simplification slice
+  - `modules/llm/src/main/scala/lila/llm/strategicobject/StrategicObjectDelta.scala`
+  - `modules/llm/src/main/scala/lila/llm/strategicobject/StrategicObjectDeltaProjector.scala`
 - tests:
-  - exact simplification slice tests
+  - `build.sbt`
+  - `modules/llm/src/test/scala/lila/llm/strategicobject/FavorableSimplificationAdmissionTest.scala`
 - corpus:
-  - positive, negative, and near-miss simplification rows
+  - `modules/llm/src/test/resources/strategic-object-corpus/favorable-simplification-expectations.jsonl`
 - docs:
+  - `.agents/packets/queue.md`
   - `modules/llm/docs/StrategicObjectRoadmap.md`
+  - `modules/llm/docs/StrategicObjectModel.md`
   - `modules/llm/docs/CommentaryTrustHardening.md` if trust meaning moves
 
 ## Exact Rows
@@ -45,6 +49,8 @@ slice must stay narrow, exact-board grounded, and planner-bounded.
 ## Validation
 
 - packet-specific `sbt testOnly`
+- serial targeted regressions through `TargetFixationAdmissionTest`,
+  `ClaimCertificationTest`, and `QuestionPlannerTest`
 - `sbt -batch "llm/compile"`
 
 ## Exit Criteria
@@ -65,6 +71,21 @@ slice must stay narrow, exact-board grounded, and planner-bounded.
 ## Status Notes
 
 - start status: `ready`
+- finish status: `passed` on `2026-04-09`
+- exact slice:
+  - one same-task `TradeInvariant` move-local `TradePreserved` slice on
+    `curated-exact:k09b` (`d4e6`) now survives object -> delta ->
+    certification -> planner as `WhyThis`
+- fail-closed closure:
+  - `hardening:b16-target-led` stays planner `none`
+  - `curated-exact:k10` stays move-local closed and localizes at `object`
+  - `hardening:b5-heavy-piece-release` stays absent
+- validation:
+  - `sbt -batch "llm/testOnly lila.llm.strategicobject.FavorableSimplificationAdmissionTest"` passed
+  - `sbt -batch "llm/testOnly lila.llm.strategicobject.TargetFixationAdmissionTest"` passed
+  - `sbt -batch "llm/testOnly lila.llm.strategicobject.ClaimCertificationTest"` passed
+  - `sbt -batch "llm/testOnly lila.llm.strategicobject.QuestionPlannerTest"` passed
+  - `sbt -batch "llm/compile"` passed
 - pass condition: one bounded favorable-simplification slice is recovered
   cleanly
 - blocked condition: the slice cannot stay bounded on the new spine

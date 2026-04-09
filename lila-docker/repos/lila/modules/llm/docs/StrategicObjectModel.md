@@ -51,6 +51,10 @@ Current post-spine frontier:
 - comparative-quality certification is now closed
 - one exact comparative-support slice is now re-earned on the new spine
 - one exact target-fixation slice is now re-earned on the new spine
+- one exact bounded favorable-simplification slice is now re-earned on the new
+  spine
+- one exact current-position fixed-target probe is now re-earned on the new
+  spine
 - this means:
   - the first reopened comparative-support slice is one exact same-owner
     shared-target `FixedTargetComplex` + `RestrictionShell` `WhatChanged`
@@ -58,11 +62,15 @@ Current post-spine frontier:
   - the first reopened target-fixation slice is one exact
     `FixedTargetComplex` `WhyThis` lane keyed to the target's fixation square
     on a truly `fixed=true` object, not a generic target-touch move
-  - the next frontier is bounded favorable-simplification and current-position
-    narrow-slice reconstitution rather than more family sprawl
+  - the first reopened favorable-simplification slice is one exact same-task
+    `TradeInvariant` move-local `WhyThis` lane keyed to a centralized bounded
+    projector predicate, not a broad conversion, task-shift, or endgame lane
+  - the next frontier is current-position coordination rather than more family
+    sprawl
   - Tier 1 provisional promotion or move-local reopening should wait until
     early Phase 9 slice parity exists beyond those first exact
-    comparative-support and target-fixation slices
+    comparative-support, target-fixation, bounded favorable-simplification,
+    and current-position fixed-target slices
 
 This document remains the capability north-star, not the active packet queue.
 Use `StrategicObjectRoadmap.md` for live execution order and current frontier
@@ -777,9 +785,9 @@ pressure-only target pictures stay planner `none` and localize no higher than
 That frontier should proceed in this order:
 
 1. exact narrow-slice reconstitution
-   - regain bounded favorable-simplification and current-position probe slices
-     on the new architecture after exact comparative support and target
-     fixation
+   - regain current-position probe slices on the new architecture after exact
+     comparative support, target fixation, and bounded favorable
+     simplification
 2. Tier 1 provisional re-audit
    - revisit provisional comparative lanes only after exact comparative
      support and first slice parity

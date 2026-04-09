@@ -68,12 +68,11 @@ Phase 7 planner/eval spine, not back inside `Phase 7`.
 
 Near-term canonical sequence from the current checkpoint:
 
-1. bounded favorable simplification on the new certified planner spine after
-   the first exact comparative-support and target-fixation slices
-2. current-position fixed target probe and current-position coordination probe
-   after earlier Phase 9 slices hold
-3. Tier 1 provisional comparative re-audit after early narrow-slice parity
-4. selective provisional move-local reopen audit only where exact-board
+1. current-position fixed-target probe is passed; current-position
+   coordination probe is next after the first exact comparative-support,
+   target-fixation, and bounded favorable-simplification slices
+2. Tier 1 provisional comparative re-audit after early narrow-slice parity
+3. selective provisional move-local reopen audit only where exact-board
    resistance justifies it
 
 Comparative-quality certification is now complete; `P6-A02` is resolved.
@@ -719,11 +718,15 @@ the new spine now re-earns one exact `FixedTargetComplex` move-local
 square on a truly `fixed=true` target; pressure-only target pictures remain
 planner `none`.
 
-1. `P9-A03` bounded favorable simplification
-2. `P9-A04` current-position fixed target probe
-3. `P9-A05` current-position coordination probe
-4. `P5-T01` Tier 1 provisional comparative re-audit
-5. `P5-T02` Tier 1 provisional move-local reopen audit
+`P9-A03` bounded favorable simplification also passed on 2026-04-09:
+the new spine now re-earns one exact same-task `TradeInvariant` move-local
+`WhyThis` slice only when a centralized bounded favorable-simplification
+predicate admits the object at the projector boundary; target-led,
+contrastive, and heavy-piece-release lookalikes remain move-local closed.
+
+1. `P9-A05` current-position coordination probe
+2. `P5-T01` Tier 1 provisional comparative re-audit
+3. `P5-T02` Tier 1 provisional move-local reopen audit
 
 Comparative-quality certification is now complete.
 
@@ -750,9 +753,10 @@ Rebuild the already-proven semantics on the new architecture first.
 
 Suggested order:
 
-1. bounded favorable simplification
-2. current-position fixed target probe
-3. current-position coordination probe
+1. current-position fixed-target probe
+   - passed on 2026-04-09
+   - the exact B15A slice now reopens only through the certified current-position fixed-target bundle; K03A and K09E stay closed
+2. current-position coordination probe
 
 The rewrite should earn back old exact successes from the new architecture,
 not preserve them through adapters.
@@ -762,7 +766,11 @@ Current lane note:
 - exact comparative support is now closed as the first Phase 9 slice
 - exact target fixation is now also closed on one fixation-square move-local
   slice
-- the next frontier is bounded favorable simplification on the same new spine
+- bounded favorable simplification is now also closed on one same-task
+  `TradeInvariant` move-local slice
+- the current-position fixed-target probe is now passed on the same new spine
+- the next frontier is the current-position coordination probe on the same
+  new spine
 
 ## Phase 10. Expansion
 

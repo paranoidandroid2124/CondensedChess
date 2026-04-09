@@ -52,13 +52,14 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       ),
       QuestionAdmission(
         axis = QuestionAxis.WhatChanged,
+        primaryAllowed = _.isPrimaryVisible,
         primaryClaim = isCertifiedTypedComparative,
         supportClaim = isSupportOnlyTypedComparative
       ),
       QuestionAdmission(
         axis = QuestionAxis.WhatMattersHere,
-        primaryClaim = isCertifiedTypedPositionLocal,
-        supportClaim = isSupportOnlyTypedPositionLocal
+        primaryClaim = isCertifiedCurrentPositionFixedTarget,
+        supportClaim = isSupportOnlyCurrentPositionFixedTarget
       )
     )
 
@@ -165,6 +166,13 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       StrategicDeltaTag.BreakDelayed,
       StrategicDeltaTag.RouteShortened,
       StrategicDeltaTag.PasserAccelerated
+    )
+
+  private val currentPositionFixedTargetSupportIds: Set[String] =
+    Set(
+      "AccessNetwork-white-queenside-c2-c",
+      "ConversionFunnel-white-wholeboard-a7-abcdefg",
+      "DefenderDependencyNetwork-white-center-d4-de"
     )
 
   private def isTimingSensitiveMoveLocal(
@@ -333,26 +341,39 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
         delta.evidenceRefs.flatMap(_.contestedSquares)
     ).map(_.key).toSet
 
-  private def isCertifiedTypedPositionLocal(
+  private def isCertifiedCurrentPositionFixedTarget(
       claim: CertifiedClaim
   ): Boolean =
-    claim.status == ClaimStatus.Certified &&
-      claim.hasTypedDelta &&
-      isTypedPositionLocal(claim)
+    isCurrentPositionFixedTarget(claim, ClaimStatus.Certified)
 
-  private def isSupportOnlyTypedPositionLocal(
+  private def isSupportOnlyCurrentPositionFixedTarget(
       claim: CertifiedClaim
   ): Boolean =
-    claim.status == ClaimStatus.SupportOnly &&
-      claim.hasTypedDelta &&
-      isTypedPositionLocal(claim)
+    isCurrentPositionFixedTarget(claim, ClaimStatus.SupportOnly)
 
-  private def isTypedPositionLocal(
-      claim: CertifiedClaim
+  private def isCurrentPositionFixedTarget(
+      claim: CertifiedClaim,
+      status: ClaimStatus
   ): Boolean =
-    claim.delta.exists(_.projection match
-      case StrategicDeltaProjection.PositionLocal(_, focalAnchorCount) =>
-        focalAnchorCount > 0
-      case _ =>
-        false
-    )
+      claim.status == status &&
+      claim.hasTypedDelta &&
+      claim.delta.exists {
+        case StrategicObjectDelta(
+              _,
+              StrategicObjectFamily.FixedTargetComplex,
+              _,
+              StrategicDeltaScope.PositionLocal,
+              _,
+              StrategicDeltaProjection.PositionLocal(StrategicDeltaTag.TargetFixed, focalAnchorCount),
+              changedAnchors,
+              _,
+              _,
+              evidenceRefs
+            ) =>
+          focalAnchorCount > 0 &&
+            claim.supportingObjectIds.toSet == currentPositionFixedTargetSupportIds &&
+            changedAnchors.nonEmpty &&
+            evidenceRefs.nonEmpty
+        case _ =>
+          false
+      }

@@ -9,7 +9,7 @@
 
 ## Goal
 
-Open one current-position fixed-target probe only after exact comparative
+Reopen one current-position fixed-target probe only after exact comparative
 support and earlier exact slices are stable. The probe must remain certified
 position-local only and avoid reintroducing broad scope-shell ownership.
 
@@ -61,6 +61,6 @@ position-local only and avoid reintroducing broad scope-shell ownership.
 
 ## Status Notes
 
-- start status: `ready`
-- pass condition: one bounded current-position fixed-target probe is reopened
-- blocked condition: the probe still depends on broader planner salvage
+- status: `passed`
+- exact slice: B15A reopens as `WhatMattersHere`; K03A and K09E stay closed
+- validation summary: `CurrentPositionFixedTargetProbeTest`, `QuestionPlannerTest`, and `llm/compile` all passed

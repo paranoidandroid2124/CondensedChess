@@ -47,7 +47,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
   ): List[StrategicObjectDelta] =
     val objectsById = objects.map(obj => obj.id -> obj).toMap
     objects
-      .filter(obj => StrategicObjectFamily.directDeltaOwners.contains(obj.family))
+      .filter(deltaFamilyEligible)
       .flatMap { obj =>
         val context = deltaContext(obj, objects, objectsById)
         eligibleScopes(contract, truth, obj).flatMap { scope =>
@@ -74,17 +74,46 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       truth: MoveTruthFrame,
       obj: StrategicObject
   ): List[StrategicDeltaScope] =
-    obj.readiness match
-      case StrategicObjectReadiness.Stable =>
-        Option.when(hasTransitionTruth(contract, truth))(StrategicDeltaScope.MoveLocal).toList ++
-          List(StrategicDeltaScope.PositionLocal, StrategicDeltaScope.Comparative)
-      case StrategicObjectReadiness.Provisional =>
-        List(StrategicDeltaScope.PositionLocal) ++
-          Option.when(contract.hasVisibleTruth || contract.prefersDecisivePromotion)(
-            StrategicDeltaScope.Comparative
-          )
-      case StrategicObjectReadiness.DeferredForDelta =>
-        Nil
+    if isBoundedFavorableSimplificationSlice(obj) then
+      Option.when(hasTransitionTruth(contract, truth))(StrategicDeltaScope.MoveLocal).toList
+    else
+      obj.readiness match
+        case StrategicObjectReadiness.Stable =>
+          Option.when(hasTransitionTruth(contract, truth))(StrategicDeltaScope.MoveLocal).toList ++
+            List(StrategicDeltaScope.PositionLocal, StrategicDeltaScope.Comparative)
+        case StrategicObjectReadiness.Provisional =>
+          List(StrategicDeltaScope.PositionLocal) ++
+            Option.when(contract.hasVisibleTruth || contract.prefersDecisivePromotion)(
+              StrategicDeltaScope.Comparative
+            )
+        case StrategicObjectReadiness.DeferredForDelta =>
+          Nil
+
+  private def deltaFamilyEligible(
+      obj: StrategicObject
+  ): Boolean =
+    StrategicObjectFamily.directDeltaOwners.contains(obj.family) ||
+      isBoundedFavorableSimplificationSlice(obj)
+
+  private def isBoundedFavorableSimplificationSlice(
+      obj: StrategicObject
+  ): Boolean =
+    obj.profile match
+      case StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, _, preservedFamilies, features) =>
+        exchangeSquares.nonEmpty &&
+          invariantSquares.nonEmpty &&
+          preservedFamilies.nonEmpty &&
+          !features.contains(TradeInvariantFeature.PasserAnchor) &&
+          !preservedFamilies.contains(StrategicObjectFamily.PasserComplex) &&
+          features.intersect(
+            Set(
+              TradeInvariantFeature.FixedTargetAnchor,
+              TradeInvariantFeature.BreakAnchor,
+              TradeInvariantFeature.AccessAnchor
+            )
+          ).nonEmpty
+      case _ =>
+        false
 
   private def projectionFor(
       contract: DecisiveTruthContract,
@@ -151,6 +180,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case _: StrategicObjectProfile.MobilityCage                => Some(StrategicMoveTransitionAxis.MobilityRestriction)
       case _: StrategicObjectProfile.RedeploymentRoute           => Some(StrategicMoveTransitionAxis.RedeploymentActivation)
       case _: StrategicObjectProfile.PasserComplex               => Some(StrategicMoveTransitionAxis.PasserAdvance)
+      case _: StrategicObjectProfile.TradeInvariant              => Some(StrategicMoveTransitionAxis.TradeSimplification)
       case _ =>
         None
 
@@ -209,6 +239,17 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         Some(if mobilityGain.exists(_ > 1) then StrategicDeltaTag.RouteShortened else if mobilityGain.nonEmpty || route.via.nonEmpty then StrategicDeltaTag.RouteOpened else StrategicDeltaTag.RouteBlocked)
       case (StrategicObjectProfile.PasserComplex(_, _, relativeRank, protectedByPawn, escortSquares), StrategicMoveTransitionAxis.PasserAdvance) =>
         Some(if relativeRank >= 5 then StrategicDeltaTag.PasserAccelerated else if protectedByPawn || escortSquares.nonEmpty then StrategicDeltaTag.PasserSupported else StrategicDeltaTag.PasserCreated)
+      case (StrategicObjectProfile.TradeInvariant(_, _, _, preservedFamilies, features), StrategicMoveTransitionAxis.TradeSimplification) =>
+        Option.when(
+          features.intersect(
+            Set(
+              TradeInvariantFeature.FixedTargetAnchor,
+              TradeInvariantFeature.BreakAnchor,
+              TradeInvariantFeature.AccessAnchor
+            )
+          ).nonEmpty &&
+            preservedFamilies.nonEmpty
+        )(StrategicDeltaTag.TradePreserved)
       case _ =>
         None
 
@@ -1016,6 +1057,8 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         distinctSquares(affectedPiece.squares ++ deniedSquares ++ repairTargets)
       case StrategicObjectProfile.RedeploymentRoute(route, _, _) =>
         distinctSquares(route.allSquares)
+      case StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, _, _, _) =>
+        distinctSquares(exchangeSquares ++ invariantSquares)
       case StrategicObjectProfile.PasserComplex(passerSquare, promotionSquare, _, _, escortSquares) =>
         distinctSquares(passerSquare :: promotionSquare :: escortSquares)
       case _ =>
@@ -1051,6 +1094,8 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         distinctFiles(affectedPiece.squares.map(_.file) ++ deniedSquares.map(_.file) ++ repairTargets.map(_.file))
       case StrategicObjectProfile.RedeploymentRoute(route, _, _) =>
         distinctFiles(route.allSquares.map(_.file))
+      case StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, preservedFiles, _, _) =>
+        distinctFiles(preservedFiles.toList ++ (exchangeSquares ++ invariantSquares).map(_.file))
       case StrategicObjectProfile.PasserComplex(passerSquare, promotionSquare, _, _, escortSquares) =>
         distinctFiles((passerSquare :: promotionSquare :: escortSquares).map(_.file))
       case _ =>
@@ -1137,6 +1182,8 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
     obj.profile match
       case StrategicObjectProfile.FixedTargetComplex(targetSquare, targetOwner, _, fixed, _) =>
         Option.when(fixed)(fixationWitnessSquare(targetSquare, targetOwner)).toList.flatten
+      case StrategicObjectProfile.TradeInvariant(exchangeSquares, _, _, _, _) =>
+        distinctSquares(exchangeSquares)
       case _ =>
         comparableSquares(obj)
 
@@ -1204,6 +1251,18 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case _: StrategicObjectProfile.RedeploymentRoute =>
         coreSquares.size >= 2 &&
           primitiveKinds.intersect(Set(PrimitiveKind.DiagonalLaneSeed, PrimitiveKind.LiftCorridorSeed, PrimitiveKind.KnightRouteSeed, PrimitiveKind.RedeploymentPathSeed)).nonEmpty
+      case StrategicObjectProfile.TradeInvariant(exchangeSquares, _, _, preservedFamilies, features) =>
+        coreSquares.intersect(exchangeSquares).nonEmpty &&
+          primitiveKinds.contains(PrimitiveKind.ExchangeSquare) &&
+          preservedFamilies.nonEmpty &&
+          !features.contains(TradeInvariantFeature.PasserAnchor) &&
+          features.intersect(
+            Set(
+              TradeInvariantFeature.FixedTargetAnchor,
+              TradeInvariantFeature.BreakAnchor,
+              TradeInvariantFeature.AccessAnchor
+            )
+          ).nonEmpty
       case _ =>
         coreSquares.nonEmpty || relationWitnesses.nonEmpty
 

@@ -60,6 +60,7 @@ enum StrategicDeltaTag:
   case PasserAccelerated
   case PasserBlocked
   case PasserSupported
+  case TradePreserved
   case ComparativeEdge
   case ComparativeBalance
 
@@ -91,6 +92,7 @@ enum StrategicMoveTransitionAxis:
   case MobilityRestriction
   case RedeploymentActivation
   case PasserAdvance
+  case TradeSimplification
 
 final case class StrategicMoveTransitionWitness(
     move: StrategicPlayedMoveTrace,
