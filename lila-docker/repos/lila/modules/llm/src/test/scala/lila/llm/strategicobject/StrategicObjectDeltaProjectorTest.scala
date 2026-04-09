@@ -296,6 +296,32 @@ class StrategicObjectDeltaProjectorTest extends FunSuite:
     visibleComparativeRows.foreach(row => assert(deltasForRow(row).nonEmpty, clue(s"${row.id}: visible comparative should open")))
   }
 
+  test("P5-T02 audit stays blocked until provisional families gain move-local exact positives and move-local nasty negatives") {
+    val provisionalFamilies =
+      StrategicObjectFamily.directDeltaOwners.filter(family =>
+        StrategicObjectFamilyContract.forFamily(family).defaultReadiness == StrategicObjectReadiness.Provisional
+      )
+
+    provisionalFamilies.foreach { family =>
+      val moveRows =
+        rows.filter(row =>
+          parseFamily(row.family) == family &&
+            parseScope(row.scope) == StrategicDeltaScope.MoveLocal
+        )
+      val caseTypes = moveRows.map(_.caseType).toSet
+
+      assertEquals(
+        caseTypes,
+        Set("near_miss", "move_local_false_witness"),
+        clue(s"$family: move-local reopen should stay blocked without exact/nasty corpus rows")
+      )
+      assert(
+        moveRows.forall(_.expectation == "absent"),
+        clue(s"$family: provisional move-local rows should remain fail-closed")
+      )
+    }
+  }
+
   test("provisional false-witness and false-rival rows stay closed even under forced-stable replay") {
     rows.filter(_.caseType == "move_local_false_witness").foreach { row =>
       val family = parseFamily(row.family)

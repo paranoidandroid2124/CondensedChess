@@ -110,7 +110,7 @@ Authority:
 | `P9-A04-current-position-fixed-target-probe` | `passed` | 15 | narrow-slice reconstitution | reopened one bounded current-position fixed-target probe; B15A primary, K03A/K09E closed |
 | `P9-A05-current-position-coordination-probe` | `passed_with_defer` | 16 | narrow-slice reconstitution | reopened one exact current-position coordination probe on K09A only; K09D/K09E/single-active-piece mirage remain closed |
 | `P5-T01-tier1-provisional-comparative-reaudit` | `passed_with_defer` | 17 | readiness / promotion | family-complete comparative shallow rows now exist for all eight provisional families; all eight stay `Provisional`, and shallow comparative remains `SupportOnly` / planner `none` |
-| `P5-T02-tier1-provisional-move-local-reopen-audit` | `ready` | 18 | readiness / promotion | reopen provisional move-local only where exact-board positives and nasty negatives justify it |
+| `P5-T02-tier1-provisional-move-local-reopen-audit` | `blocked` | 18 | readiness / promotion | all eight provisional families remain move-local closed; no family-complete move-local exact positive or move-local nasty-negative burden exists yet, so selective reopen is not certified |
 
 ## Packet Selection Rule
 

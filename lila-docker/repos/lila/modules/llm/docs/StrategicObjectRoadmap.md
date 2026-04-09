@@ -75,8 +75,9 @@ Near-term canonical sequence from the current checkpoint:
 2. Tier 1 provisional comparative re-audit is now passed_with_defer:
    all eight families stay `Provisional`, and family-complete shallow rows
    stay `SupportOnly` / planner `none`
-3. selective provisional move-local reopen audit only where exact-board
-   resistance justifies it
+3. Tier 1 provisional move-local reopen audit is now blocked:
+   all eight families remain `move_local` closed because no family-complete
+   move-local exact-positive plus move-local nasty-negative burden exists yet
 
 Comparative-quality certification is now complete; `P6-A02` is resolved.
 
@@ -539,9 +540,11 @@ Current verdict on this roadmap pass:
 Current move-local policy on this pass:
 
 - all eight provisional Tier 1 families remain closed on `move_local`
-- promotion is deferred until broader exact-board positive and nasty-negative
-  resistance justifies reopening, rather than being inferred from a small
-  positive corpus
+- `P5-T02` on 2026-04-09 did not reopen any family:
+  the audit found no family-complete move-local exact-positive survivors and
+  no family-complete move-local nasty-negative resistance rows, so the lane
+  stays blocked on evidence rather than changing projector or certification
+  meaning
 
 ## Phase 6. ClaimCertification Rewrite
 
@@ -740,7 +743,10 @@ all eight provisional families stay `Provisional`; the comparative lane now
 has family-complete shallow rows that remain projector-admissible but localize
 at `certification` as `SupportOnly` and stay planner `none`.
 
-1. `P5-T02` Tier 1 provisional move-local reopen audit
+`P5-T02` Tier 1 provisional move-local reopen audit is blocked on 2026-04-09:
+all eight provisional families remain `move_local` closed because the current
+corpus still lacks family-complete move-local exact positives and move-local
+nasty-negative resistance.
 
 Comparative-quality certification is now complete.
 
@@ -789,7 +795,8 @@ Current lane note:
   the same new spine
 - Tier 1 provisional comparative re-audit is now passed_with_defer with all
   eight families staying `Provisional`
-- the next frontier is Tier 1 provisional move-local reopen audit (`P5-T02`)
+- Tier 1 provisional move-local reopen audit is now blocked with all eight
+  families still move-local closed on the current evidence pack
 
 ## Phase 10. Expansion
 

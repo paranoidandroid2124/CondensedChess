@@ -70,8 +70,10 @@ Current post-spine frontier:
   - Tier 1 provisional comparative re-audit is now passed_with_defer:
     all eight provisional families stay `Provisional`, and family-complete
     shallow comparative rows stay `SupportOnly` / planner `none`
-  - the next frontier is selective provisional move-local reopen audit rather
-    than more comparative family sprawl
+  - Tier 1 provisional move-local reopen audit is now blocked:
+    all eight provisional families stay `move_local` closed because no
+    family-complete exact-positive plus move-local nasty-negative witness pack
+    exists yet
 
 This document remains the capability north-star, not the active packet queue.
 Use `StrategicObjectRoadmap.md` for live execution order and current frontier
@@ -797,8 +799,9 @@ That frontier should proceed in this order:
      `Provisional`, and shallow comparative stays certification/planner
      fail-closed
 3. selective move-local reopen
-   - next frontier: reopen provisional move-local only where exact-board
-     positive and nasty-negative resistance justify it
+   - currently blocked: all eight provisional families remain move-local
+     closed because the audit still lacks family-complete exact move-local
+     positives and move-local nasty-negative resistance
 
 This frontier is about separating:
 

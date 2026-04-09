@@ -79,5 +79,7 @@ It is:
 2. Tier 1 provisional comparative re-audit is now `passed_with_defer`:
    all eight provisional families stay `Provisional`, and their shallow
    comparative rows stay `SupportOnly` / planner `none`
-3. selective provisional move-local reopen audit only where exact-board
-   resistance justifies it
+3. Tier 1 provisional move-local reopen audit is now `blocked`:
+   all eight provisional families remain `move_local` closed because the
+   family-complete move-local exact-positive and move-local nasty-negative
+   burden is still missing

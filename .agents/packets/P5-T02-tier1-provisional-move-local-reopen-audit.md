@@ -76,3 +76,28 @@ move-local negatives must remain closed.
 - pass condition: only justified provisional families reopen move-local
 - blocked condition: exact-board witness burden is still too weak for safe
   provisional move-local reopening
+- final status: `blocked`
+- final verdict:
+  - `KingSafetyShell` -> remain closed
+  - `DevelopmentCoordinationState` -> remain closed
+  - `PieceRoleFitness` -> remain closed
+  - `SpaceClamp` -> remain closed
+  - `CounterplayAxis` -> remain closed
+  - `RestrictionShell` -> remain closed
+  - `MobilityCage` -> remain closed
+  - `RedeploymentRoute` -> remain closed
+- exact-board outcome:
+  - no family currently carries a `move_local` `exact` positive row
+  - no family currently carries a `move_local` `nasty_negative` row
+  - all eight families do carry `move_local` `near_miss` and
+    `move_local_false_witness` rows, and those rows stay fail-closed
+  - the packet therefore does not justify selective move-local reopening; the
+    missing exact-positive plus move-local nasty-negative burden blocks the
+    audit at certification readiness rather than requiring projector or
+    certification semantics to change
+- verification note:
+  - `sbt -batch "llm/testOnly lila.llm.strategicobject.StrategicObjectDeltaProjectorTest"`
+    reran the packet-owned provisional move-local checks successfully, but the
+    suite still failed on the pre-existing unrelated
+    `delta expectation fixed-target-move-exact`
+  - `sbt -batch "llm/compile"` passed
