@@ -74,16 +74,11 @@ This control plane assumes the following rewrite state is already landed:
 The next runtime frontier is not more family sprawl.
 It is:
 
-1. comparative-quality certification to absorb the blocked `P5-C02`
-   shallow-contrast burden
-   - first decompose it into:
-     - exact shallow-comparative corpus
-     - trace/tail-risk localization
-     - certification outcome matrix
-2. exact comparative support as the first Phase 9 narrow-slice
+1. exact comparative support as the first Phase 9 narrow-slice
    reconstitution target
-3. exact target fixation and bounded favorable simplification on the new
+2. exact target fixation and bounded favorable simplification on the new
    certified planner spine
-4. Tier 1 provisional comparative re-audit after comparative-quality closure
-5. selective provisional move-local reopen audit only where exact-board
+3. Tier 1 provisional comparative re-audit after exact comparative support and
+   early narrow-slice parity
+4. selective provisional move-local reopen audit only where exact-board
    resistance justifies it

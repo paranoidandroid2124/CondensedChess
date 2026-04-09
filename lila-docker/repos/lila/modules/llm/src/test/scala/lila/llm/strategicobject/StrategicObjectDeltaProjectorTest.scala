@@ -577,7 +577,9 @@ object StrategicObjectDeltaProjectorTest:
       deltaTag: String,
       anchor: Option[String],
       truthCase: Option[String],
-      playedMove: Option[String]
+      playedMove: Option[String],
+      plannerExpectation: Option[String],
+      localizationExpectation: Option[String]
   )
 
   private given Reads[DeltaExpectationRow] = Json.reads[DeltaExpectationRow]

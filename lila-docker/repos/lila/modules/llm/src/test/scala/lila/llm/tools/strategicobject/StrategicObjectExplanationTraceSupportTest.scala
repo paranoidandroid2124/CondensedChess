@@ -72,6 +72,29 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
     }
   }
 
+  test("shallow comparative rows stay upstream-present while carrying explicit planner/localization expectations") {
+    val rows = StrategicObjectExplanationTraceSupport.traceRows
+    val selected =
+      rows.filter(row =>
+        row.rowId == "development-comparative-near-miss" ||
+          row.rowId == "redeployment-route-comparative-near-miss"
+      )
+
+    assertEquals(selected.size, 2)
+    selected.foreach { row =>
+      assertEquals(row.expectation, "present")
+      assertEquals(row.scope, "comparative")
+      assertEquals(row.certification.status, Some("SupportOnly"))
+      assertEquals(row.planner.admission, "support")
+      assertEquals(row.localization.localizedStage, "planner_support")
+      assertEquals(row.traceExpectation.plannerAdmission, Some("support"))
+      assertEquals(row.traceExpectation.localizationStage, Some("planner_support"))
+      assert(row.traceExpectationMatch.satisfied, clue(row))
+      assertEquals(row.traceExpectationMatch.plannerAdmission, Some(true))
+      assertEquals(row.traceExpectationMatch.localizationStage, Some(true))
+    }
+  }
+
   test("tail-risk report splits macro averages from hardest-slice planner leak metrics") {
     val rows = StrategicObjectExplanationTraceSupport.traceRows
     val evaluation = StrategicObjectExplanationTraceSupport.tailRiskEvaluation(rows)
@@ -92,10 +115,7 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
   test("hard negative planner-negative rows are blocked from planner admission") {
     val rows = StrategicObjectExplanationTraceSupport.traceRows
     val hardNegativeRows =
-      rows.filter(row =>
-        StrategicObjectExplanationTraceSupport.tailRiskCaseTypes.contains(row.caseType) &&
-          row.expectation == "absent"
-      )
+      rows.filter(row => StrategicObjectExplanationTraceSupport.tailRiskCaseTypes.contains(row.caseType) && StrategicObjectExplanationTraceSupport.expectsPlannerBlock(row))
     val leaked = hardNegativeRows.filter(_.planner.admission != "none")
 
     assert(hardNegativeRows.nonEmpty, clue("expected hardest negative rows from trace corpus"))
@@ -126,14 +146,17 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
     val rows = StrategicObjectExplanationTraceSupport.traceRows
     val plannerNegative =
       withPlannerLeak(
-        rows.find(_.rowId == "access-network-move-exact").getOrElse(
-          fail("expected access-network-move-exact trace row")
+        rows.find(_.rowId == "development-comparative-near-miss").getOrElse(
+          fail("expected shallow comparative trace row")
         ),
         rowId = Some("packet-planner-negative"),
         caseType = Some("planner_negative"),
+        expectation = Some("present"),
         admission = "support",
-        axis = "WhyNow",
-        claimId = "support-only-timing-leak"
+        axis = "WhatChanged",
+        claimId = "shallow-comparative-planner-leak",
+        plannerExpectation = Some("none"),
+        localizationExpectation = Some("planner_none")
       )
     val evaluation = StrategicObjectExplanationTraceSupport.tailRiskEvaluation(rows :+ plannerNegative, 0.98)
 
@@ -144,7 +167,9 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
     )
     assertEquals(evaluation.tailRisk.plannerLeakRowIds, List("packet-planner-negative"))
     assert(
-      evaluation.tailRisk.byCaseType.find(_.caseType == "planner_negative").exists(_.plannerLeakRows == 1),
+      evaluation.tailRisk.byCaseType.find(_.caseType == "planner_negative").exists(metric =>
+        metric.expectedPlannerBlockedRows == 1 && metric.plannerLeakRows == 1
+      ),
       clue(evaluation.tailRisk.byCaseType)
     )
   }
@@ -162,14 +187,17 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
       row: ExplanationTraceRow,
       rowId: Option[String] = None,
       caseType: Option[String] = None,
+      expectation: Option[String] = None,
       admission: String = "primary",
       axis: String = "WhatMattersHere",
-      claimId: String = "hard-negative-leak"
+      claimId: String = "hard-negative-leak",
+      plannerExpectation: Option[String] = None,
+      localizationExpectation: Option[String] = None
   ): ExplanationTraceRow =
     row.copy(
       rowId = rowId.getOrElse(row.rowId),
       caseType = caseType.getOrElse(row.caseType),
-      expectation = "absent",
+      expectation = expectation.getOrElse("absent"),
       certification = row.certification.copy(status = Some("Certified"), claimId = Some(claimId)),
       planner = row.planner.copy(
         axis = axis,
@@ -180,5 +208,15 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
       localization = row.localization.copy(
         localizedStage = if admission == "primary" then "planner_primary" else "planner_support",
         claimMatchCount = 1
-      )
+      ),
+      traceExpectation = row.traceExpectation.copy(
+        plannerAdmission = plannerExpectation.orElse(row.traceExpectation.plannerAdmission),
+        localizationStage = localizationExpectation.orElse(row.traceExpectation.localizationStage)
+      ),
+      traceExpectationMatch =
+        row.traceExpectationMatch.copy(
+          plannerAdmission = plannerExpectation.orElse(row.traceExpectation.plannerAdmission).map(_ => false),
+          localizationStage = localizationExpectation.orElse(row.traceExpectation.localizationStage).map(_ => false),
+          satisfied = false
+        )
     )

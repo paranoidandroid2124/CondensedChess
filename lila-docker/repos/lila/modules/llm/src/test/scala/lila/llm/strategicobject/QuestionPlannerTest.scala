@@ -219,6 +219,26 @@ class QuestionPlannerTest extends FunSuite:
     ), clue("support must stay on the admitted axis"))
   }
 
+  test("support-only shallow comparative claims do not open a primary question axis by themselves") {
+    val row = deltaRow("development-comparative-near-miss")
+    val truth = truthFor(row)
+    val contract = contractFor(row)
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val shallowComparative =
+      claims.find(claim =>
+        claim.status == ClaimStatus.SupportOnly &&
+          claim.deltaScope == StrategicDeltaScope.Comparative &&
+          claim.objectId == "DevelopmentCoordinationState-white-mixed-c1"
+      ).getOrElse(fail("expected support-only shallow comparative claim"))
+    val planned = CanonicalQuestionPlanner.plan(contract, List(shallowComparative))
+
+    assertEquals(planned.axis, QuestionAxis.WhatMattersHere)
+    assert(planned.claimIds.isEmpty, clue("support-only shallow comparative should not own a primary axis"))
+    assert(planned.supportClaimIds.isEmpty, clue("support-only shallow comparative should not attach without a primary axis"))
+  }
+
   test("planner leaves deferred families out of primary and support admission") {
     val truth = PrimitiveExtractionTest.moveTransitionTruthFrame
     val contract = PrimitiveExtractionTest.moveTransitionContract

@@ -92,6 +92,20 @@ class ClaimCertificationTest extends FunSuite:
         .certify(contract, objects, List(strongDelta))
         .find(_.objectId == strongDelta.objectId)
         .getOrElse(fail("expected certified fixed-target claim"))
+    val unsupportedClaim =
+      CanonicalClaimCertification
+        .certify(
+          contract,
+          objects,
+          List(
+            strongDelta.copy(
+              changedAnchors = Nil,
+              evidenceRefs = Nil
+            )
+          )
+        )
+        .find(_.objectId == strongDelta.objectId)
+        .getOrElse(fail("expected deferred fixed-target claim"))
     val weakenedDelta =
       strongDelta.copy(
         projection = strongDelta.projection match
@@ -113,6 +127,7 @@ class ClaimCertificationTest extends FunSuite:
         .getOrElse(fail("expected weakened fixed-target claim"))
 
     assertEquals(strongClaim.status, ClaimStatus.Certified)
+    assertEquals(unsupportedClaim.status, ClaimStatus.Deferred)
     assertEquals(weakenedClaim.status, ClaimStatus.SupportOnly)
   }
 

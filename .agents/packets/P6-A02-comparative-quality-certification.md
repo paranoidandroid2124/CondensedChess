@@ -92,14 +92,13 @@ player-facing and therefore must fall to `SupportOnly`, `Deferred`, or
 ## Status Notes
 
 - start status: `ready`
+- current status: `passed`
 - pass condition: comparative quality is owned canonically by certification/eval
   rather than unresolved projector heuristics
 - blocked condition: the certification boundary still cannot distinguish
   admissible-but-shallow comparative from a truly different strategic campaign
-- current status: `blocked`
-- latest blocker: `P6-A02a` is now landed, but the certification boundary
-  still lacks `P6-A02b` trace localization and `P6-A02c` outcome closure for
-  the exact shallow rows
+- latest blocker: `P6-A02a` corpus and `P6-A02b` trace localization are now
+  landed, and `P6-A02c` closes the exact shallow outcome matrix
 - decomposition note:
   - this umbrella packet is now split into:
     - `P6-A02a-shallow-comparative-corpus`
@@ -110,5 +109,12 @@ player-facing and therefore must fall to `SupportOnly`, `Deferred`, or
       - passed with canonical same-owner shallow-comparative rows on
         `DevelopmentCoordinationState` / `RedeploymentRoute` from
         `exact:redeployment-path`
-  - do not retry the umbrella packet directly until those sub-packets land or
-    fail conclusively
+    - `P6-A02b`
+      - passed with explicit trace/tail-risk planner and localization
+        expectations for shallow-comparative rows, including planner-negative
+        targeting that no longer needs to fake generic absence
+    - `P6-A02c`
+      - passed with canonical comparative certification/planner outcomes for
+        strong exact contrast, shallow support-only contrast, deferred
+        insufficient support, and planner-none shallow-only ownership
+  - umbrella packet resolved; do not retry directly

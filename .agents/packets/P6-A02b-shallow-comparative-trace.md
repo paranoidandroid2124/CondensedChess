@@ -63,6 +63,12 @@ visible to evaluation.
 ## Status Notes
 
 - start status: `ready`
+- current status: `passed`
+- landed note:
+  - trace/tail-risk now carry explicit planner and localization expectations
+    for shallow-comparative rows, so upstream-present shallow rows no longer
+    disappear into generic absence and packet-owned `planner_negative` checks
+    can target planner-blocked expectations directly
 - pass condition: trace/tail-risk localize shallow comparative failures
   explicitly
 - blocked condition: the trace contract still cannot tell shallow comparative

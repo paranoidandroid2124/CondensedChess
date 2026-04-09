@@ -50,6 +50,21 @@ object StrategicObjectExplanationTraceSupport:
   object PlannerTrace:
     given Writes[PlannerTrace] = Json.writes[PlannerTrace]
 
+  final case class TraceExpectation(
+      plannerAdmission: Option[String],
+      localizationStage: Option[String]
+  )
+  object TraceExpectation:
+    given Writes[TraceExpectation] = Json.writes[TraceExpectation]
+
+  final case class TraceExpectationMatch(
+      plannerAdmission: Option[Boolean],
+      localizationStage: Option[Boolean],
+      satisfied: Boolean
+  )
+  object TraceExpectationMatch:
+    given Writes[TraceExpectationMatch] = Json.writes[TraceExpectationMatch]
+
   final case class MacroMetrics(
       totalRows: Int,
       passedRows: Int,
@@ -129,7 +144,9 @@ object StrategicObjectExplanationTraceSupport:
       certification: CertificationTrace,
       planner: PlannerTrace,
       evidence: EvidenceTrace,
-      localization: LocalizationTrace
+      localization: LocalizationTrace,
+      traceExpectation: TraceExpectation,
+      traceExpectationMatch: TraceExpectationMatch
   )
   object ExplanationTraceRow:
     given Writes[ExplanationTraceRow] = Json.writes[ExplanationTraceRow]
@@ -150,6 +167,11 @@ object StrategicObjectExplanationTraceSupport:
     )
 
   val tailRiskMacroPassThreshold: Double = 0.98
+
+  def expectsPlannerBlock(
+      row: ExplanationTraceRow
+  ): Boolean =
+    row.expectation == "absent" || row.traceExpectation.plannerAdmission.contains("none")
 
   def tailRiskEvaluation(
       rows: List[ExplanationTraceRow],
@@ -194,7 +216,7 @@ object StrategicObjectExplanationTraceSupport:
     val byCaseType =
       tailRiskCaseTypes.toList.sorted.map { caseType =>
         val matching = tailRows.filter(_.caseType == caseType)
-        val expectedPlannerBlockedRows = matching.count(_.expectation == "absent")
+        val expectedPlannerBlockedRows = matching.count(expectsPlannerBlock)
         val plannerLeakRows = matching.count(isPlannerLeak)
         val rate =
           if expectedPlannerBlockedRows == 0 then 0.0
@@ -227,7 +249,7 @@ object StrategicObjectExplanationTraceSupport:
   private def isPlannerLeak(
       row: ExplanationTraceRow
   ): Boolean =
-    row.expectation == "absent" && row.planner.admission != "none"
+    expectsPlannerBlock(row) && row.planner.admission != "none"
 
   private def isMacroLeak(
       row: ExplanationTraceRow
@@ -236,7 +258,9 @@ object StrategicObjectExplanationTraceSupport:
       case "present" =>
         row.projection.kind.isEmpty ||
           row.certification.status.isEmpty ||
-          Set("absent", "object").contains(row.localization.localizedStage)
+          Set("absent", "object").contains(row.localization.localizedStage) ||
+          row.traceExpectationMatch.plannerAdmission.contains(false) ||
+          row.traceExpectationMatch.localizationStage.contains(false)
       case "absent" =>
         isPlannerLeak(row)
       case _ =>
@@ -266,6 +290,10 @@ object StrategicObjectExplanationTraceSupport:
     val traceObject = matchedObjects.sortBy(_.id).headOption
     val traceDelta = matchedDeltas.sortBy(_.objectId).headOption
     val traceClaim = matchedClaims.sortBy(_.id).headOption
+    val planner = plannerTrace(planned, matchedClaims)
+    val localization = localizationTrace(planned, matchedObjects, matchedDeltas, matchedClaims)
+    val traceExpectation = expectedTrace(row)
+    val traceExpectationMatch = expectedTraceMatch(traceExpectation, planner, localization)
 
     ExplanationTraceRow(
       rowId = row.id,
@@ -284,9 +312,37 @@ object StrategicObjectExplanationTraceSupport:
       projection = projectionTrace(traceDelta),
       witness = witnessTrace(traceDelta),
       certification = certificationTrace(traceClaim),
-      planner = plannerTrace(planned, matchedClaims),
+      planner = planner,
       evidence = evidenceTrace(traceDelta),
-      localization = localizationTrace(planned, matchedObjects, matchedDeltas, matchedClaims)
+      localization = localization,
+      traceExpectation = traceExpectation,
+      traceExpectationMatch = traceExpectationMatch
+    )
+
+  private def expectedTrace(
+      row: StrategicObjectDeltaProjectorTest.DeltaExpectationRow
+  ): TraceExpectation =
+    TraceExpectation(
+      plannerAdmission = row.plannerExpectation,
+      localizationStage = row.localizationExpectation
+    )
+
+  private def expectedTraceMatch(
+      expectation: TraceExpectation,
+      planner: PlannerTrace,
+      localization: LocalizationTrace
+  ): TraceExpectationMatch =
+    val plannerAdmission =
+      expectation.plannerAdmission.map(matchesExpected(_, planner.admission))
+    val localizationStage =
+      expectation.localizationStage.map(matchesExpected(_, localization.localizedStage))
+
+    TraceExpectationMatch(
+      plannerAdmission = plannerAdmission,
+      localizationStage = localizationStage,
+      satisfied =
+        plannerAdmission.forall(identity) &&
+          localizationStage.forall(identity)
     )
 
   private def truthFor(
@@ -529,3 +585,9 @@ object StrategicObjectExplanationTraceSupport:
       files: List[File]
   ): List[String] =
     files.distinct.sortBy(_.char.toString).map(_.char.toString)
+
+  private def matchesExpected(
+      expected: String,
+      actual: String
+  ): Boolean =
+    expected.equalsIgnoreCase(actual)

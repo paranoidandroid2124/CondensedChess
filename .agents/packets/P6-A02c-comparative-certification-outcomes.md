@@ -76,6 +76,7 @@ localization exist. This packet decides when such rows become `SupportOnly`,
 ## Status Notes
 
 - start status: `ready`
+- current status: `passed`
 - pass condition: canonical certification/planner outcomes exist for shallow
   comparative rows
 - blocked condition: even with corpus and trace localization, certification

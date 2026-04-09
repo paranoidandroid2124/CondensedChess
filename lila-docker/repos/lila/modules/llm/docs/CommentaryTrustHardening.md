@@ -4629,9 +4629,11 @@ Current maintenance rule:
 - keep trace-derived tail-risk gates explicit:
   - macro pass-rate and hardest-slice planner leak pass must both pass on
     `P7-E02` and future planner-admission regressions
-  - a single hardest-slice planner leak in an `expectation == absent` row should
-    continue to fail the packet gate, even if aggregate macro pass stays above
-    `tail-risk` threshold
+  - a single hardest-slice planner leak in any row that explicitly expects
+    planner blocking, whether upstream `absent` or upstream `present` with a
+    trace-level planner expectation of `none`, should continue to fail the
+    packet gate even if aggregate macro pass stays above `tail-risk` threshold
   - packet-owned `planner_negative` checks stay in the same hard-fail class as
     `near_miss`, `nasty_negative`, `move_local_false_witness`, and
-    `comparative_false_rival`
+    `comparative_false_rival`; they must not fake `expectation == absent` only
+    to become visible to the gate

@@ -68,15 +68,16 @@ Phase 7 planner/eval spine, not back inside `Phase 7`.
 
 Near-term canonical sequence from the current checkpoint:
 
-1. absorb the blocked `P5-C02` shallow-contrast burden into
-   comparative-quality certification rather than projector widening
-2. front-load one exact comparative-support slice in `Phase 9`
-3. re-earn exact target-fixation and bounded favorable-simplification slices
-   on the new certified planner spine
-4. re-audit Tier 1 provisional comparative lanes only after comparative-quality
-   closure and early narrow-slice parity
-5. reopen provisional move-local selectively only where exact-board positives
-   and nasty negatives justify it
+1. exact comparative support as the first `Phase 9` narrow-slice
+   reconstitution target
+2. exact target fixation and bounded favorable simplification on the new
+   certified planner spine
+3. Tier 1 provisional comparative re-audit after exact comparative support
+   and early narrow-slice parity
+4. selective provisional move-local reopen audit only where exact-board
+   resistance justifies it
+
+Comparative-quality certification is now complete; `P6-A02` is resolved.
 
 For live rewrite status, treat the phase sections below, especially `Phase 5`
 onward, as authoritative. This checkpoint is only the top-level summary.
@@ -666,9 +667,10 @@ Current `P7-E02` tail-risk eval status on the same planner lane:
   - `move_local_false_witness`
   - `comparative_false_rival`
   - packet-owned `planner_negative` rows in test-only evaluation
-- evaluator fails fast when any hardest-slice `expectation == "absent"` row
-  leaks into planner admission (`primary`/`support`) even when macro pass rate
-  still stays above `0.98`
+- evaluator fails fast when any hardest-slice row that explicitly expects
+  planner blocking, whether upstream `absent` or upstream `present` with a
+  planner expectation of `none`, leaks into planner admission
+  (`primary`/`support`) even when macro pass rate still stays above `0.98`
 - evaluation is available via
   `StrategicObjectExplanationTraceRunner --tail-risk --tail-risk-threshold=0.98` and
   writes `*.tail-risk.json` on top of the existing `*.jsonl` trace output
@@ -707,29 +709,28 @@ It is chess-meaning closure on top of that spine.
 
 Canonical next tranche order:
 
-1. `P6-A02` comparative-quality certification
-   - absorb the `P5-C02` shallow-contrast blocker into certification/eval
-     outcomes such as `Certified`, `SupportOnly`, `Deferred`, and
-     `planner_none`
-   - execute this as three sub-packets:
-     - `P6-A02a` exact shallow-comparative corpus
-       - passed on `exact:redeployment-path` via the same-owner
-         `DevelopmentCoordinationState` / `RedeploymentRoute` pair; this
-         established canonical exact-board shallow-comparative rows that keep
-         admissible exact counterpart witness without reusing either the family
-         `comparative_false_rival` boards or the stronger
-         `contrastive:redeployment-path` boards
-     - `P6-A02b` shallow-comparative trace localization
-     - `P6-A02c` comparative certification outcome matrix
-2. `P9-A01` exact comparative support
+1. `P9-A01` exact comparative support
    - re-earn one exact comparative-support slice on the new spine before
      broader slice parity claims
-3. `P9-A02` exact target fixation
-4. `P9-A03` bounded favorable simplification
-5. `P9-A04` current-position fixed target probe
-6. `P9-A05` current-position coordination probe
-7. `P5-T01` Tier 1 provisional comparative re-audit
-8. `P5-T02` Tier 1 provisional move-local reopen audit
+2. `P9-A02` exact target fixation
+3. `P9-A03` bounded favorable simplification
+4. `P9-A04` current-position fixed target probe
+5. `P9-A05` current-position coordination probe
+6. `P5-T01` Tier 1 provisional comparative re-audit
+7. `P5-T02` Tier 1 provisional move-local reopen audit
+
+Comparative-quality certification is now complete.
+
+- `P6-A02`
+  - passed
+  - absorbed the `P5-C02` shallow-contrast burden into canonical
+    `Certified` / `SupportOnly` / `Deferred` / `planner_none` outcomes
+- `P6-A02a`
+  - passed
+- `P6-A02b`
+  - passed
+- `P6-A02c`
+  - passed
 
 This order is intentional.
 The current bottleneck is not raw planner control anymore.

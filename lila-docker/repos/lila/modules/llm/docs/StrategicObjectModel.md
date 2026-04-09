@@ -48,14 +48,13 @@ Current rewrite checkpoint:
 Current post-spine frontier:
 
 - the certified planner spine is now structurally landed
-- the next frontier is chess-meaning closure rather than more family sprawl
+- comparative-quality certification is now closed
+- the next frontier is exact comparative support rather than more family sprawl
 - this means:
-  - comparative quality must now distinguish admissible comparative from
-    instructionally separate comparative
   - one exact comparative-support slice should be re-earned on the new spine
     before broader narrow-slice expansion
   - Tier 1 provisional promotion or move-local reopening should wait until
-    comparative-quality closure and early Phase 9 slice parity exist
+    exact comparative support and early Phase 9 slice parity exist
 
 This document remains the capability north-star, not the active packet queue.
 Use `StrategicObjectRoadmap.md` for live execution order and current frontier
@@ -758,26 +757,20 @@ a projector-side widening step.
 The next north-star frontier is chess-meaning closure on top of the landed
 spine.
 
+Comparative-quality certification is now closed.
+
 That frontier should proceed in this order:
 
-1. comparative-quality certification
-   - decide when an admissible comparative remains too shallow to be a real
-     explanation and must fall to `SupportOnly`, `Deferred`, or
-     `planner_none`
-   - decompose this into:
-     - exact-board shallow-comparative corpus
-     - trace/tail-risk localization for shallow comparative
-     - certification outcome matrix for admissible-but-shallow comparative
-2. exact comparative support
+1. exact comparative support
    - re-earn one exact comparative-support slice on the new spine before
      broader slice parity claims
-3. exact narrow-slice reconstitution
+2. exact narrow-slice reconstitution
    - regain exact target-fixation and bounded favorable-simplification slices
      on the new architecture
-4. Tier 1 provisional re-audit
-   - revisit provisional comparative lanes only after comparative-quality
-     closure and first slice parity
-5. selective move-local reopen
+3. Tier 1 provisional re-audit
+   - revisit provisional comparative lanes only after exact comparative
+     support and first slice parity
+4. selective move-local reopen
    - reopen provisional move-local only where exact-board positive and nasty
      negative resistance justify it
 
