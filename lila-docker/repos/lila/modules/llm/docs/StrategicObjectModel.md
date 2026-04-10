@@ -75,37 +75,32 @@ Current post-spine frontier:
     all eight provisional families stay `move_local` closed because no
     family-complete exact-positive plus move-local nasty-negative witness pack
     exists yet
-- the first vertical Phase 8/9 proving tranche is now exhausted
-- the next active frontier is now a composite chess semantics tranche derived
-  from the blocked vertical slices, not another generic horizontal gate
-  tranche
-- that tranche should:
-  - reopen `TradeInvariant` narrowly for primary simplification ownership
-  - close comparative near-miss fail-closed ownership before continuity
+- the first vertical Phase 8/9 proving tranche is now closed
+- the composite chess semantics tranche derived from the blocked vertical
+  slices is now landed rather than still pending
+- that tranche has now:
+  - reopened `TradeInvariant` narrowly for primary simplification ownership
+  - closed comparative near-miss fail-closed ownership before continuity
     reruns:
     - certification-owned `WhatChanged` comparative near-miss demotion
     - planner demotion matrix for near-miss/support-only comparative
     - trace/tail-risk gate for `WhatChanged` comparative near-miss leakage
-  - close shared-target continuity as a certification-owned witness only
-    after the comparative near-miss tranche lands
-  - rerun the blocked target-campaign and bounded-simplification slices only
-    after the comparative near-miss tranche lands
+  - closed shared-target continuity as a certification-owned witness only
+  - rerun the blocked target-campaign and bounded-simplification slices
+    without new infra
 - `P8-R01` thin-shell certified renderer passed on 2026-04-09:
   Bookmaker shell delivery is now thin on certified planner ownership and no
   longer exports/decodes/reconstructs `strategyPack` / `signalDigest` on this
   path
-- `P8-R02` exact target campaign e2e is blocked on 2026-04-09:
-  the current exact fixed-target tranche does not yet provide one real
-  shared-target campaign across all three axes because the current-position
-  tranche now carries both the preserved B15A `c6` probe and the packet-owned
-  `d6` probe, each with its own exact support bundle, while the current
-  move-local fixation and comparative-support slices are `d6`-anchored
-- `P8-R03` bounded favorable-simplification e2e is blocked on 2026-04-09:
-  the exact `curated-exact:k09b` simplification claim still shared `WhyThis`
-  primary payload with unrelated move-local `AccessNetwork`,
-  `FixedTargetComplex`, and opponent-side `TradeInvariant` claim ids on the
-  blocked slice; `P5-U01` now closes that packet-owned primary-isolation
-  boundary, but the rerun remains pending
+- `P8-R02` exact target campaign e2e passed on 2026-04-11:
+  the packet-owned `d6` current-position probe, `WhyThis(d6)` fixation lane,
+  and exact `WhatChanged(d6)` comparative-support lane now survive thin-shell
+  delivery as one certified shared-target campaign without reopening
+  `TransitionBridge` or broad campaign-threading
+- `P8-R03` bounded favorable-simplification e2e passed on 2026-04-11:
+  the exact `curated-exact:k09b` simplification claim now reaches the thin
+  shell as one isolated primary `WhyThis` explanation after `P5-U01` closed
+  the packet-owned primary-isolation boundary
 - `P8-R04` current-position coordination e2e passed_with_defer on 2026-04-10:
   one bounded `K09A` current-position coordination probe now survives thin-
   shell delivery end-to-end, while `K09D`, `K09E`, and single-active-piece
@@ -130,9 +125,9 @@ Current post-spine frontier:
   - `P7-Q03` planner demotion matrix passed on 2026-04-10; `WhatChanged`
     primary now stays on `comparative_primary` only
   - `P7-E03` trace/tail-risk near-miss gate passed on 2026-04-10
-- `P9-R05-blocked-slice-rerun` is now ungated by continuity:
-  no new packet should widen doctrine before that rerun names the next exact
-  failure
+- `P9-R05-blocked-slice-rerun` passed on 2026-04-11:
+  rerun closed `P8-R02` and `P8-R03` using only landed `P5-U01` / `P6-B01`
+  semantics, so no new doctrine-widening packet was needed
 - the blocked provisional move-local reopen lane is a stopping rule for that
   evidence pack, not a blocker to vertical proof on already re-earned stable
   slices
@@ -878,18 +873,20 @@ That frontier should proceed in this order:
    - comparative follow-through tranche status before continuity:
      - `P7-Q03` planner demotion matrix passed on 2026-04-10
      - `P7-E03` trace/tail-risk near-miss gate passed on 2026-04-10
-   - `P6-B01` passed on 2026-04-10:
-     certification now stamps one packet-owned shared-target continuity
-     witness on the `d6` current-position probe, target-fixation lane, and
-     the exact packet-owned comparative-support claim; planner support
-     pairing for `WhatChanged` now consumes only that witness, so stripping
-     it closes support and the `d5` contrastive pair plus near-miss /
-     wrong-support / preserved `c6` stay outside the boundary
-   - `P9-R05` is now the next rerun gate rather than a continuity blocker
+    - `P6-B01` passed on 2026-04-10:
+      certification now stamps one packet-owned shared-target continuity
+      witness on the `d6` current-position probe, target-fixation lane, and
+      the exact packet-owned comparative-support claim; planner support
+      pairing for `WhatChanged` now consumes only that witness, so stripping
+      it closes support and the `d5` contrastive pair plus near-miss /
+      wrong-support / preserved `c6` stay outside the boundary
+    - `P9-R05` passed on 2026-04-11:
+      rerun closed `P8-R02` and `P8-R03` using only the landed composite
+      semantics, so no new exact failure was named here
 6. only then derive any further gate packets from exact slice failures
-   - if the rerun still fails, derive the needed ownership, certification, or
-     renderer packet from that exact failure instead of widening infra
-     proactively
+   - after the now-passed rerun, keep the same rule: derive any future
+     ownership, certification, or renderer packet from a new exact failure
+     instead of widening infra proactively
 
 This frontier is about separating:
 

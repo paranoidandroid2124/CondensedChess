@@ -80,19 +80,16 @@ It is:
      ownership; this path no longer exports/decodes/reconstructs
      `strategyPack` / `signalDigest`
 2. `P8-R02-exact-target-campaign-e2e`
-   - blocked
-   - current exact slices do not yet form one real shared-target campaign:
-     the current-position tranche now carries both the preserved `c6` probe
-     and the packet-owned `d6` probe, but the runtime still proves separate
-     exact lanes rather than one certified shared-target campaign
+   - passed
+   - the packet-owned `d6` current-position probe, `WhyThis(d6)` fixation
+     lane, and exact `WhatChanged(d6)` comparative-support lane now survive
+     thin-shell delivery as one certified shared-target campaign without new
+     infra
 3. `P8-R03-bounded-favorable-simplification-e2e`
-   - blocked
-   - on `curated-exact:k09b`, the exact simplification claim still shares the
-     `WhyThis` primary payload with unrelated move-local `AccessNetwork`,
-     `FixedTargetComplex`, and opponent-side `TradeInvariant` claims, so the
-     thin shell could not isolate one bounded explanation before `P5-U01`;
-     that primary-isolation boundary is now closed, and `P9-R05` remains the
-     rerun gate
+   - passed
+   - on `curated-exact:k09b`, the bounded favorable-simplification claim now
+     reaches the thin shell as one isolated primary `WhyThis` explanation;
+     unrelated move-local claims remain out of that primary shell payload
 4. `P8-R04-current-position-coordination-e2e`
    - passed_with_defer
    - one bounded `K09A` current-position coordination probe survives end-to-
@@ -130,9 +127,10 @@ It is:
    - trace/tail-risk gate now exposes comparative near-miss demotion and
      hard-fails near-miss `WhatChanged` leakage
 11. `P9-R05-blocked-slice-rerun`
-    - do not run yet
-    - `P9-R05` is now the next rerun gate after the landed continuity
-      boundary
+    - passed
+    - rerun closed `P8-R02` and `P8-R03` on 2026-04-11 using only landed
+      `P5-U01` / `P6-B01` composite semantics; no new infra or doctrine packet
+      was needed
 
 Current blocking note:
 
@@ -143,13 +141,16 @@ Current blocking note:
 
 Operational rule:
 
-- the first vertical proving tranche is exhausted:
-  - `P8-R02` and `P8-R03` failed on exact slice boundaries
+- the first vertical proving tranche is now closed:
+  - `P8-R01` passed
+  - `P8-R02` passed on 2026-04-11 via the packet-owned `d6` continuity rerun
+  - `P8-R03` passed on 2026-04-11 via the packet-owned `k09b`
+    primary-isolation rerun
   - `P8-R04` closed in `passed_with_defer`
-- `P5-U01` has now closed the bounded favorable-simplification isolation
-  boundary, and `P6-B01` has now closed its own exact comparative-support
-  continuity boundary
-- the next packets must therefore derive from those exact failures rather than
-  widen infra generically; the comparative near-miss fail-closed tranche has
-  now landed, `P6-B01` is passed, and `P9-R05` is no longer gated by
-  unresolved continuity
+- `P5-U01` and `P6-B01` closed the exact boundaries that had blocked the two
+  vertical reruns, and `P9-R05` confirmed both shell outcomes without new
+  planner/renderer doctrine
+- do not widen infra generically from these now-closed slices; any future
+  packet must still derive from a new exact failure rather than reopening
+  `TransitionBridge`, broad campaign-threading, or broad simplification
+  doctrine

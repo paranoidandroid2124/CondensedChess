@@ -79,21 +79,13 @@ broadening into generic conversion, endgame, or task-shift prose.
 ## Status Notes
 
 - start status: `ready`
-- finish status: `blocked` on `2026-04-09`
-- failed validation:
-  - `sbt -batch "llm/testOnly *FavorableSimplificationAdmissionTest"` with a
-    packet-owned shell-bound assertion on `curated-exact:k09b`
-- exact missing boundary:
-  - the exact `TradeInvariant-white-center-e6-de:movelocal` simplification
-    claim does survive certification and planner admission, but the current
-    `WhyThis` primary payload still carries unrelated move-local claim ids from
-    `AccessNetwork`, `FixedTargetComplex`, and the opponent-side
-    `TradeInvariant`
-  - because the thin shell mirrors planner `claimIds`, one bounded favorable-
-    simplification explanation cannot reach the shell in isolation without a
-    new exact primary-claim selection boundary
-  - follow-on ownership is now transferred to
-    `P5-U01-trade-invariant-primary-simplification`; do not answer this
-    blocker by broadening generic simplification or endgame doctrine
+- finish status: `passed` on `2026-04-11`
+- rerun outcome:
+  - on `curated-exact:k09b`, the packet-owned
+    `TradeInvariant-white-center-e6-de:movelocal` simplification claim now
+    reaches the thin shell as the sole primary `WhyThis` explanation
+  - unrelated move-local `AccessNetwork`, `FixedTargetComplex`, and
+    opponent-side `TradeInvariant` claims no longer remain in that primary
+    shell payload after `P5-U01`
 - pass condition: one bounded favorable-simplification slice survives end-to-end without inflation
 - blocked condition: shell delivery cannot preserve the bounded same-task meaning without new exact boundary work

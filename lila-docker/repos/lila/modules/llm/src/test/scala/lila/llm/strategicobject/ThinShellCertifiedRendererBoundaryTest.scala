@@ -5,6 +5,13 @@ import munit.FunSuite
 
 class ThinShellCertifiedRendererBoundaryTest extends FunSuite:
 
+  private val packetWitness: CertifiedBoundaryWitness =
+    CertifiedBoundaryWitness.SharedTargetContinuity(
+      Square.fromKey("d6").getOrElse(
+        fail("missing packet target square d6")
+      )
+    )
+
   test("P9-A01 exact comparative support survives as thin-shell primary/support only") {
     val row =
       ComparativeSupportAdmissionTest.rows.find(_.id == "shared-target-support-exact").getOrElse(
@@ -147,6 +154,86 @@ class ThinShellCertifiedRendererBoundaryTest extends FunSuite:
     assertThinShellMirror(planned, claims)
   }
 
+  test("P9-R05 rerun closes P8-R02 as one d6 target campaign through the thin shell") {
+    val positionRow =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d6-exact").getOrElse(
+        fail("expected packet-owned d6 current-position fixed-target exact row")
+      )
+    val (positionObjects, _, positionClaims, positionPlanned) = runNeutralPipeline(positionRow.fen)
+    val positionIds = objectIdsFor(positionRow.family, positionRow.owner, positionRow.anchor, positionObjects)
+    val positionPrimary =
+      claimsFor(positionIds, StrategicDeltaScope.PositionLocal, positionClaims).find(claim =>
+        claim.status == ClaimStatus.Certified &&
+          claim.primaryTag.contains(StrategicDeltaTag.TargetFixed) &&
+          SharedTargetContinuityBoundary.hasPacketContinuity(claim)
+      ).getOrElse(
+        fail("expected packet-owned d6 WhatMattersHere primary with certified continuity")
+      )
+
+    val fixationRow =
+      TargetFixationAdmissionTest.rows.find(_.id == "target-fixation-exact").getOrElse(
+        fail("expected packet-owned target-fixation exact row")
+      )
+    val fixationTruth = TargetFixationAdmissionTest.truthFor(fixationRow)
+    val fixationContract = TargetFixationAdmissionTest.contractFor(fixationRow)
+    val (fixationObjects, _, fixationClaims, fixationPlanned) =
+      runPipeline(fixationRow.fen, fixationTruth, fixationContract)
+    val fixationIds = objectIdsFor(fixationRow.family, fixationRow.owner, Some(fixationRow.anchor), fixationObjects)
+    val fixationPrimary =
+      claimsFor(fixationIds, StrategicDeltaScope.MoveLocal, fixationClaims).find(claim =>
+        claim.status == ClaimStatus.Certified &&
+          claim.primaryTag.contains(StrategicDeltaTag.TargetFixed) &&
+          SharedTargetContinuityBoundary.hasPacketContinuity(claim)
+      ).getOrElse(
+        fail("expected packet-owned d6 WhyThis primary with certified continuity")
+      )
+
+    val comparativeRow =
+      ComparativeSupportAdmissionTest.rows.find(_.id == "shared-target-support-exact").getOrElse(
+        fail("expected packet-owned comparative exact row")
+      )
+    val comparativeTruth = ComparativeSupportAdmissionTest.truthFor(comparativeRow)
+    val comparativeContract = ComparativeSupportAdmissionTest.contractFor(comparativeRow)
+    val (comparativeObjects, _, comparativeClaims, comparativePlanned) =
+      runPipeline(comparativeRow.fen, comparativeTruth, comparativeContract)
+    val comparativePrimary =
+      ComparativeSupportAdmissionTest.primaryClaim(comparativeRow, comparativeObjects, comparativeClaims).getOrElse(
+        fail("expected packet-owned WhatChanged primary")
+      )
+    val comparativeSupport =
+      ComparativeSupportAdmissionTest.supportClaim(comparativeRow, comparativeObjects, comparativeClaims).getOrElse(
+        fail("expected packet-owned WhatChanged support")
+      )
+
+    val positionContinuityPrimaries =
+      continuityBoundClaimIds(positionPlanned.claimIds, positionClaims)
+
+    assertEquals(positionPlanned.axis, QuestionAxis.WhatMattersHere)
+    assertEquals(positionContinuityPrimaries, List(positionPrimary.id))
+    assertEquals(positionPrimary.boundaryWitnesses, Set(packetWitness))
+    assertThinShellMirror(positionPlanned, positionClaims)
+
+    val fixationContinuityPrimaries =
+      continuityBoundClaimIds(fixationPlanned.claimIds, fixationClaims)
+
+    assertEquals(fixationPlanned.axis, QuestionAxis.WhyThis)
+    assertEquals(fixationContinuityPrimaries, List(fixationPrimary.id))
+    assertEquals(fixationPrimary.boundaryWitnesses, Set(packetWitness))
+    assertThinShellMirror(fixationPlanned, fixationClaims)
+
+    val comparativeContinuityPrimaries =
+      continuityBoundClaimIds(comparativePlanned.claimIds, comparativeClaims)
+    val comparativeContinuitySupport =
+      continuityBoundClaimIds(comparativePlanned.supportClaimIds, comparativeClaims)
+
+    assertEquals(comparativePlanned.axis, QuestionAxis.WhatChanged)
+    assertEquals(comparativeContinuityPrimaries, List(comparativePrimary.id))
+    assertEquals(comparativeContinuitySupport, List(comparativeSupport.id))
+    assertEquals(comparativePrimary.boundaryWitnesses, Set(packetWitness))
+    assertEquals(comparativeSupport.boundaryWitnesses, Set(packetWitness))
+    assertThinShellMirror(comparativePlanned, comparativeClaims)
+  }
+
   test("K03A fixed-target negative stays closed at shell") {
     val row =
       CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-negative").getOrElse(
@@ -214,6 +301,29 @@ class ThinShellCertifiedRendererBoundaryTest extends FunSuite:
     assertThinShellMirror(planned, claims)
   }
 
+  test("P9-R05 rerun closes P8-R03 as one isolated favorable-simplification shell explanation") {
+    val row =
+      FavorableSimplificationAdmissionTest.rows.find(_.id == "bounded-favorable-simplification-exact").getOrElse(
+        fail("expected favorable-simplification exact row")
+      )
+    val truth = FavorableSimplificationAdmissionTest.truthFor(row)
+    val contract = FavorableSimplificationAdmissionTest.contractFor(row)
+    val (objects, _, claims, planned) = runPipeline(row.fen, truth, contract)
+    val objectIds = objectIdsFor(row.family, row.owner, row.anchor, objects)
+    val moveLocalClaims = claimsFor(objectIds, StrategicDeltaScope.MoveLocal, claims)
+    val primary =
+      moveLocalClaims.find(claim => claim.delta.exists(TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationDelta)).getOrElse(
+        fail("expected packet-owned primary simplification claim")
+      )
+
+    assertEquals(planned.axis, QuestionAxis.WhyThis)
+    assertEquals(planned.claimIds, List(primary.id))
+    assertEquals(planned.supportClaimIds, Nil)
+    assertEquals(primary.primaryTag, Some(StrategicDeltaTag.TradePreserved))
+    assert(moveLocalClaims.filterNot(_.id == primary.id).forall(claim => !planned.claimIds.contains(claim.id)))
+    assertThinShellMirror(planned, claims)
+  }
+
   private def runPipeline(
       fen: String,
       truth: lila.llm.analysis.MoveTruthFrame,
@@ -257,6 +367,14 @@ class ThinShellCertifiedRendererBoundaryTest extends FunSuite:
     claims.filter(claim =>
       objectIds.contains(claim.objectId) &&
         claim.deltaScope == scope
+    )
+
+  private def continuityBoundClaimIds(
+      plannedClaimIds: List[String],
+      claims: List[CertifiedClaim]
+  ): List[String] =
+    plannedClaimIds.filter(id =>
+      claims.find(_.id == id).exists(SharedTargetContinuityBoundary.hasPacketContinuity)
     )
 
   private def admission(

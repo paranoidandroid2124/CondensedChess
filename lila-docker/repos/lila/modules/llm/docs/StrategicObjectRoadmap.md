@@ -70,15 +70,17 @@ Near-term canonical sequence from the current checkpoint:
 
 1. `Phase 8` must now prove a thin shell certified renderer on top of the
    landed planner/eval spine
-2. the first vertical proving tranche is now exhausted:
-   - `P8-R02` blocked on shared-target continuity
-   - `P8-R03` blocked on bounded favorable-simplification primary isolation
+2. the first vertical proving tranche is now closed on rerun:
+   - `P8-R02` passed on 2026-04-11 through the packet-owned `d6` continuity
+     witness and thin-shell rerun
+   - `P8-R03` passed on 2026-04-11 through the packet-owned `k09b`
+     primary-isolation rerun
    - `P8-R04` proved one bounded current-position coordination probe end-to-
      end in `passed_with_defer`
 3. `P5-U01-trade-invariant-primary-simplification` is now passed:
    - the packet-owned primary-isolation boundary on `curated-exact:k09b` is
      closed
-   - `P8-R03` remains blocked until the rerun confirms the shell outcome
+   - `P8-R03` shell rerun now also passes in `P9-R05`
 4. the comparative near-miss follow-through is now landed:
    - `P6-B02-whatchanged-comparative-nearmiss-certification`
       - passed
@@ -99,9 +101,12 @@ Near-term canonical sequence from the current checkpoint:
    - `WhatChanged` comparative support no longer relies on planner-side
      salvage; only claims carrying that certified witness may attach, while
      near-miss, wrong-support, and preserved `c6` rows stay outside it
-   - `P9-R05-blocked-slice-rerun` is no longer gated by unresolved continuity
-7. only after the continuity closure should any new horizontal gate packets reopen
-8. Tier 1 provisional move-local reopen audit is now blocked:
+7. `P9-R05-blocked-slice-rerun` is now passed:
+   - rerun closed `P8-R02` and `P8-R03` on 2026-04-11 using only landed
+     `P5-U01` / `P6-B01` semantics
+   - no new infra, doctrine widening, or legacy salvage was needed
+8. only after the continuity closure should any new horizontal gate packets reopen
+9. Tier 1 provisional move-local reopen audit is now blocked:
    all eight families remain `move_local` closed because no family-complete
    move-local exact-positive plus move-local nasty-negative burden exists yet
 
@@ -735,15 +740,14 @@ Current vertical proving order:
    - Bookmaker renderer/API/frontend shell now consumes certified planner
      ownership only and does not reintroduce semantic salvage
 2. `P8-R02-exact-target-campaign-e2e`
-   - blocked on 2026-04-09
-   - current exact fixed-target slices do not yet form one real shared-target
-     campaign across `WhatMattersHere`, `WhyThis`, and `WhatChanged`
+   - passed on 2026-04-11
+   - the packet-owned `d6` current-position probe, `WhyThis(d6)` fixation
+     lane, and exact `WhatChanged(d6)` comparative-support lane now survive
+     thin-shell delivery as one certified shared-target campaign
 3. `P8-R03-bounded-favorable-simplification-e2e`
-   - blocked on 2026-04-09
-   - on `curated-exact:k09b`, the mixed primary payload was the blocked-slice
-     condition on 2026-04-09; `P5-U01` has now closed that packet-owned
-     primary-isolation boundary, and `P8-R03` remains blocked only pending
-     rerun in `P9-R05`
+   - passed on 2026-04-11
+   - on `curated-exact:k09b`, the bounded favorable-simplification claim now
+     reaches the thin shell as one isolated primary `WhyThis` explanation
 4. `P8-R04-current-position-coordination-e2e`
    - passed_with_defer on 2026-04-10
    - one bounded `K09A` current-position coordination probe survives end-to-
@@ -762,16 +766,16 @@ Current vertical proving order:
     - `P7-E03-comparative-nearmiss-tail-risk`
       - passed on 2026-04-10; trace/tail-risk now expose comparative near-miss
         demotion and hard-fail `WhatChanged` primary leakage
-   - `P6-B01-shared-target-continuity-certification`
-     - passed on 2026-04-10
-     - certification now stamps one packet-owned shared-target continuity
-       witness on the `d6` current-position probe, target-fixation, and the
-       exact packet-owned comparative-support claim; planner support pairing
-       for `WhatChanged` consumes only that witness while the `d5`
-       contrastive pair stays outside it
-   - `P9-R05-blocked-slice-rerun`
-     - continuity no longer blocks it; it remains the next exact rerun rather
-       than a doctrine-widening packet
+    - `P6-B01-shared-target-continuity-certification`
+      - passed on 2026-04-10
+      - certification now stamps one packet-owned shared-target continuity
+        witness on the `d6` current-position probe, target-fixation, and the
+        exact packet-owned comparative-support claim; planner support pairing
+        for `WhatChanged` consumes only that witness while the `d5`
+        contrastive pair stays outside it
+    - `P9-R05-blocked-slice-rerun`
+      - passed on 2026-04-11; rerun closed both blocked vertical slices using
+        only landed `P5-U01` / `P6-B01` semantics
 
 Execution rule:
 
@@ -828,25 +832,18 @@ the new spine now re-earns one exact `DevelopmentCoordinationState`
 `WhatMattersHere` slice on `K09A` only; `K09D`, `K09E`, and the
 single-active-piece mirage remain fail-closed.
 
-`P8-R02` is blocked on 2026-04-09:
-the current exact fixed-target tranche does not yet provide one real shared-
-target campaign across all three axes.
-`P9-A04` currently certifies the preserved `c6` current-position fixed-target
-probe and the packet-owned `d6` current-position fixed-target probe, each on
-its own exact support bundle, while `P9-A02` and `P9-A01` currently certify
-`d6`-anchored move-local fixation and comparative-support slices.
-That means the runtime still proves independent exact lanes rather than one
-exact shared-target campaign, even after the packet-owned `d6` continuity
-boundary landed, so this packet now hands off to `P9-R05` rather than blocking
-on missing continuity certification.
+`P8-R02` passed on 2026-04-11:
+the packet-owned `d6` current-position probe, the exact `WhyThis(d6)`
+fixation lane, and the exact `WhatChanged(d6)` comparative-support lane now
+survive thin-shell delivery as one certified shared-target campaign.
+The `WhyThis` row may still carry unrelated non-packet move-local primary
+claims, but the certified `d6` continuity-bound lane survives end-to-end
+without reopening `TransitionBridge` or broad campaign-threading.
 
-`P8-R03` is blocked on 2026-04-09:
-the exact `curated-exact:k09b` simplification claim survived certification and
-planner admission, but the current `WhyThis` payload still carried unrelated
-move-local `AccessNetwork`, `FixedTargetComplex`, and opponent-side
-`TradeInvariant` claim ids alongside the exact simplification claim.
-`P5-U01` now closes that packet-owned primary-isolation boundary, so the rerun
-is the remaining blocker rather than the exact slice boundary itself.
+`P8-R03` passed on 2026-04-11:
+the exact `curated-exact:k09b` simplification claim now reaches the thin shell
+as one isolated primary `WhyThis` explanation after `P5-U01` closed the
+packet-owned primary-isolation boundary.
 
 `P8-R04` passed_with_defer on 2026-04-10:
 the exact `P9-A05` deferred slice now survives end-to-end on `K09A`, while
@@ -873,7 +870,9 @@ target-fixation lane, and the exact packet-owned comparative-support claim,
 while the `d5` contrastive pair, `shared-target-support-near-miss`,
 wrong-support, and preserved `c6` stay outside the witness boundary.
 
-`P9-R05` should now rerun the blocked slices, but this packet does not open it.
+`P9-R05` passed on 2026-04-11:
+rerun closed the two blocked slices using only landed `P5-U01` / `P6-B01`
+semantics, so this roadmap does not open a new packet here.
 
 `P5-T01` Tier 1 provisional comparative re-audit passed_with_defer on 2026-04-09:
 all eight provisional families stay `Provisional`; the comparative lane now
@@ -942,9 +941,9 @@ Current lane note:
   spine with both the preserved `c6` probe and the packet-owned `d6` probe
 - the current-position coordination probe is now also passed (with defer) on
   the same new spine
-- Phase 9 is therefore no longer the active packet frontier by itself; the
-  active frontier has moved to `P9-R05` blocked-slice rerun after the landed
-  `P6-B01` continuity boundary
+- Phase 9 is therefore no longer the active packet frontier by itself, and
+  `P9-R05` has now also passed on 2026-04-11 after the landed `P6-B01`
+  continuity boundary
 - Tier 1 provisional comparative re-audit is now passed_with_defer with all
   eight families staying `Provisional`
 - Tier 1 provisional move-local reopen audit is now blocked with all eight

@@ -73,6 +73,16 @@ the exact blockers are actually resolved.
 - start status: `ready`
 - gate:
   - run only after `P5-U01` and `P6-B01` land or are explicitly resolved
+- finish status: `passed` on `2026-04-11`
+- result:
+  - `P8-R02` now passes: the packet-owned `d6` target campaign survives
+    `WhatMattersHere`, `WhyThis`, and `WhatChanged` to thin shell on the
+    landed `P6-B01` continuity witness
+  - `P8-R03` now passes: `curated-exact:k09b` keeps one isolated bounded
+    favorable-simplification primary explanation to thin shell on the landed
+    `P5-U01` boundary
+  - no runtime or trust-behavior change was needed; rerun closed both slices
+    with tests plus status/doc sync only
 - pass condition:
   - `P8-R02` and/or `P8-R03` are rerun on exact rows and their new verdict is
     grounded in landed composite semantics

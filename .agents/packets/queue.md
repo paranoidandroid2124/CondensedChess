@@ -116,19 +116,21 @@ Authority:
     the re-earned stable slices plus `K03A`, `K09E`, and single-active-piece
     mirage closure
 - `P8-R02-exact-target-campaign-e2e`
-  - blocked
-  - the current exact fixed-target tranche does not yet contain one real
-    shared-target campaign across all three axes: `P9-A04` is anchored on
-    `c6`, while `P9-A02` and `P9-A01` are anchored on `d6`, so the runtime
-    currently proves three independent exact lanes rather than one exact
-    shared-target campaign
+  - passed
+  - the packet-owned `d6` current-position probe, `WhyThis(d6)` fixation
+    lane, and exact `WhatChanged(d6)` comparative-support lane now survive
+    thin-shell delivery as one certified shared-target campaign
+- `P8-R03-bounded-favorable-simplification-e2e`
+  - passed
+  - on `curated-exact:k09b`, the bounded favorable-simplification claim now
+    survives to the thin shell as one isolated primary `WhyThis` explanation
 - `P8-R04-current-position-coordination-e2e`
   - passed_with_defer
   - one bounded `K09A` current-position coordination probe now survives thin-
     shell delivery end-to-end, while `K09D`, `K09E`, and the single-active-
     piece mirage remain planner/shell closed
 - composite chess semantics tranche after vertical proof exhaustion
-  - in_progress
+  - landed
   - `P5-U01-trade-invariant-primary-simplification` closed the packet-owned
     primary-isolation boundary on `curated-exact:k09b`
   - `P6-B01-shared-target-continuity-certification` is now `passed`:
@@ -149,7 +151,9 @@ Authority:
       trace/tail-risk now expose comparative near-miss demotion and hard-fail
       `WhatChanged` primary leakage
   - the comparative fail-closed tranche is now landed
-  - `P9-R05-blocked-slice-rerun` is no longer gated by unresolved continuity
+  - `P9-R05-blocked-slice-rerun` is now passed on 2026-04-11:
+    rerun closed `P8-R02` and `P8-R03` using only landed `P5-U01` /
+    `P6-B01` semantics, so no new infra packet was opened
 
 ## Active Queue
 
@@ -175,26 +179,26 @@ Authority:
 | `P5-T01-tier1-provisional-comparative-reaudit` | `passed_with_defer` | 17 | readiness / promotion | family-complete comparative shallow rows now exist for all eight provisional families; all eight stay `Provisional`, and shallow comparative remains `SupportOnly` / planner `none` |
 | `P5-T02-tier1-provisional-move-local-reopen-audit` | `blocked` | 18 | readiness / promotion | all eight provisional families remain move-local closed; no family-complete move-local exact positive or move-local nasty-negative burden exists yet, so selective reopen is not certified; this evidence stop is orthogonal to the next vertical tranche on already re-earned stable slices |
 | `P8-R01-thin-shell-certified-renderer` | `passed` | 19 | vertical slice / thin shell | landed Bookmaker thin-shell closure: controller/frontend path no longer exports/decodes/reconstructs `strategyPack` / `signalDigest`; renderer mirrors planner `claimIds/supportClaimIds`; exact-row shell closure held on `K03A` / `K09E` / single-active-piece mirage |
-| `P8-R02-exact-target-campaign-e2e` | `blocked` | 20 | vertical slice / target campaign | exact missing boundary: the current-position tranche now carries both preserved `c6` and packet-owned `d6` exact probes, and `P6-B01` has landed the packet-owned `d6` continuity witness, but the runtime still does not prove one end-to-end shared-target campaign across all three axes; rerun ownership now sits with `P9-R05-blocked-slice-rerun` rather than a broad `TransitionBridge` reopen |
-| `P8-R03-bounded-favorable-simplification-e2e` | `blocked` | 21 | vertical slice / simplification | exact missing boundary: on `curated-exact:k09b`, `WhyThis` still emitted mixed move-local `claimIds` (`AccessNetwork`, `FixedTargetComplex`, opponent `TradeInvariant`, plus the exact simplification claim) on the blocked slice; `P5-U01` now closes that primary-isolation boundary, and `P9-R05` remains the rerun gate rather than a new doctrine packet |
+| `P8-R02-exact-target-campaign-e2e` | `passed` | 20 | vertical slice / target campaign | rerun passed on 2026-04-11: the packet-owned `d6` current-position probe, `WhyThis(d6)` fixation lane, and exact `WhatChanged(d6)` comparative-support lane now survive thin-shell delivery as one certified shared-target campaign without new infra |
+| `P8-R03-bounded-favorable-simplification-e2e` | `passed` | 21 | vertical slice / simplification | rerun passed on 2026-04-11: on `curated-exact:k09b`, the bounded favorable-simplification claim now reaches the thin shell as one isolated primary `WhyThis` explanation after `P5-U01` closed the primary-isolation boundary |
 | `P8-R04-current-position-coordination-e2e` | `passed_with_defer` | 22 | vertical slice / coordination | bounded `K09A` coordination probe survives end-to-end on `WhatMattersHere`; `K09D`, `K09E`, and single-active-piece mirage stay fail-closed |
 | `P5-U01-trade-invariant-primary-simplification` | `passed` | 23 | composite semantics / TradeInvariant | one bounded favorable-simplification claim now owns the primary `WhyThis` explanation on `curated-exact:k09b`; unrelated move-local claims were removed from the primary simplification payload |
 | `P6-B01-shared-target-continuity-certification` | `passed` | 24 | composite semantics / shared-target continuity | certification now stamps one packet-owned shared-target continuity witness on the `d6` current-position probe, target-fixation lane, and the exact packet-owned comparative-support claim; planner support pairing for `WhatChanged` consumes only that witness while the `d5` contrastive pair stays outside it |
 | `P6-B02-whatchanged-comparative-nearmiss-certification` | `passed` | 25 | comparative fail-closed / certification | packet-owned near-miss comparative is now support-only or deferred and never owns `WhatChanged` primary |
 | `P7-Q03-whatchanged-comparative-demotion-matrix` | `passed` | 26 | comparative fail-closed / planner | planner demotion matrix landed on 2026-04-10: `WhatChanged` primary now stays on `comparative_primary` only; support-only/shallow comparative evidence cannot reconstruct primary ownership |
 | `P7-E03-comparative-nearmiss-tail-risk` | `passed` | 27 | comparative fail-closed / eval | trace + tail-risk gate now exposes comparative near-miss demotion and hard-fails `WhatChanged` primary leakage |
-| `P9-R05-blocked-slice-rerun` | `ready` | 28 | composite semantics / blocked rerun | continuity is now closed; this remains the next rerun gate rather than a doctrine-widening packet |
+| `P9-R05-blocked-slice-rerun` | `passed` | 28 | composite semantics / blocked rerun | passed on 2026-04-11: rerun closed both blocked vertical slices using only landed `P5-U01` / `P6-B01` semantics; no new infra, doctrine widening, or legacy salvage was needed |
 
 ## Current Frontier Rule
 
-- the first vertical Phase 8/9 tranche is now exhausted:
+- the first vertical Phase 8/9 tranche is now closed:
   - `P8-R01` passed
-  - `P8-R02` blocked
-  - `P8-R03` blocked
+  - `P8-R02` passed on 2026-04-11
+  - `P8-R03` passed on 2026-04-11
   - `P8-R04` passed_with_defer
-- `P5-U01` is now passed and closes the exact primary-isolation boundary for
-  `curated-exact:k09b`; `P8-R03` remains blocked until the rerun confirms the
-  shell outcome.
+- `P5-U01` and `P6-B01` closed the exact boundaries that had blocked the two
+  reruns, and `P9-R05` confirmed both shell outcomes without new
+  planner/renderer doctrine.
 - `P5-T02` remains orthogonal because the next tranche still consumes only
   already re-earned stable slices and does not depend on provisional
   move-local reopening.
@@ -203,7 +207,8 @@ Authority:
   - `P7-Q03` planner demotion matrix (passed on 2026-04-10)
   - `P7-E03` trace/tail-risk leak gate (passed on 2026-04-10)
   - `P6-B01` certification-owned shared-target continuity witness (passed on 2026-04-10)
-- `P9-R05` is now the next gated rerun packet
+- `P9-R05` is now passed; do not invent a new packet unless a later exact
+  slice names a fresh missing boundary.
 - do not open broad `TransitionBridge`, generic campaign-threading, or broad
   simplification doctrine before those packets fail and name a new exact
   boundary.
