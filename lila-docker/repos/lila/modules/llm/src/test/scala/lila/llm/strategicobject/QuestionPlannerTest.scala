@@ -220,6 +220,38 @@ class QuestionPlannerTest extends FunSuite:
     assert(primaryClaim.primaryTag.contains(StrategicDeltaTag.TargetFixed), clue("expected exact fixation"))
   }
 
+  test("planner chooses WhatMattersHere from the packet-owned d6 current-position fixed-target probe") {
+    val row =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d6-exact").getOrElse(
+        fail("expected packet-owned d6 current-position fixed-target row")
+      )
+    val truth = PrimitiveExtractionTest.neutralTruthFrame
+    val contract = PrimitiveExtractionTest.neutralContract
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
+    val objectIds = currentPositionTargetObjectIds(row, objects)
+    val positionClaims =
+      claims.filter(claim =>
+        objectIds.contains(claim.objectId) &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal
+      )
+    val primaryClaim =
+      positionClaims.find(_.status == ClaimStatus.Certified).getOrElse(
+        fail("expected certified packet-owned d6 current-position fixed-target claim")
+      )
+
+    assertEquals(planned.axis, QuestionAxis.WhatMattersHere)
+    assert(positionClaims.nonEmpty, clue("expected at least one certified position-local claim"))
+    assert(planned.claimIds.contains(primaryClaim.id), clue("expected packet-owned d6 primary admission"))
+    assert(primaryClaim.primaryTag.contains(StrategicDeltaTag.TargetFixed), clue("expected exact d6 fixation"))
+    assertEquals(
+      primaryClaim.supportingObjectIds.toSet,
+      CurrentPositionFixedTargetProbeTest.exactSupportBundleFor(row.id)
+    )
+  }
+
   test("planner chooses WhatMattersHere from the packet-owned current-position coordination probe") {
     val row =
       CurrentPositionCoordinationProbeTest.rows.find(_.caseType == "exact").getOrElse(
@@ -402,11 +434,13 @@ class QuestionPlannerTest extends FunSuite:
 
     assertEquals(planned.axis, QuestionAxis.WhatChanged)
     assert(planned.claimIds.contains(fixedTargetPrimary.id), clue("fixed-target comparative should stay primary"))
+    assert(SharedTargetContinuityBoundary.hasPacketContinuity(fixedTargetPrimary), clue("packet-owned comparative primary must be certification-owned"))
+    assert(SharedTargetContinuityBoundary.hasPacketContinuity(restrictionSupport), clue("packet-owned comparative support must be certification-owned"))
     assertEquals(planned.supportClaimIds, List(restrictionSupport.id))
     assert(!planned.supportClaimIds.contains(spaceClampSupport.id), clue("non-packet comparative support must stay closed"))
   }
 
-  test("whatchanged pairs the packet-owned white support on the contrastive comparative-support row") {
+  test("whatchanged keeps the contrastive comparative-support row outside the packet-owned continuity boundary") {
     val row =
       ComparativeSupportAdmissionTest.rows.find(_.id == "shared-target-support-contrastive").getOrElse(
         fail("expected comparative contrastive row")
@@ -423,7 +457,8 @@ class QuestionPlannerTest extends FunSuite:
     val planned = CanonicalQuestionPlanner.plan(contract, claims)
 
     assertEquals(planned.axis, QuestionAxis.WhatChanged)
-    assertEquals(planned.supportClaimIds, List(expectedSupport.id))
+    assert(!SharedTargetContinuityBoundary.hasPacketContinuity(expectedSupport), clue("contrastive support must stay outside the certified continuity boundary"))
+    assertEquals(planned.supportClaimIds, Nil)
   }
 
   test("support-only comparative rows cannot reconstruct WhatChanged primary ownership") {

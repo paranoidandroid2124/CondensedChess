@@ -1,5 +1,7 @@
 package lila.llm.strategicobject
 
+import chess.Square
+
 import lila.llm.analysis.DecisiveTruthContract
 
 enum ClaimStatus:
@@ -13,6 +15,9 @@ private enum DeltaCertificationBurden:
   case SupportOnly
   case Insufficient
 
+enum CertifiedBoundaryWitness:
+  case SharedTargetContinuity(targetSquare: Square)
+
 final case class CertifiedClaim(
     id: String,
     objectId: String,
@@ -20,7 +25,8 @@ final case class CertifiedClaim(
     status: ClaimStatus,
     readiness: StrategicObjectReadiness,
     delta: Option[StrategicObjectDelta] = None,
-    supportingObjectIds: List[String] = Nil
+    supportingObjectIds: List[String] = Nil,
+    boundaryWitnesses: Set[CertifiedBoundaryWitness] = Set.empty
 ):
   def primaryTag: Option[StrategicDeltaTag] =
     delta.map(_.primaryTag)
@@ -67,12 +73,14 @@ object CanonicalClaimCertification extends ClaimCertification:
           )
         }
 
-    (claimsFromDeltas ++ deferredClaims)
-      .groupBy(_.id)
-      .values
-      .map(_.head)
-      .toList
-      .sortBy(claim => (claim.objectId, claim.deltaScope.ordinal, claim.status.ordinal))
+    SharedTargetContinuityBoundary.certify(
+      (claimsFromDeltas ++ deferredClaims)
+        .groupBy(_.id)
+        .values
+        .map(_.head)
+        .toList
+        .sortBy(claim => (claim.objectId, claim.deltaScope.ordinal, claim.status.ordinal))
+    )
 
   private def claimId(
       objectId: String,

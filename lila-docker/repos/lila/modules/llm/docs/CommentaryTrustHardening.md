@@ -212,11 +212,19 @@ in `StrategicObjectRoadmap.md`.
   prose as the owner claim, and may not generalize into a broad Carlsbad
   lesson or a minority-attack shell.
   Current implementation note on 2026-04-09:
-  the current-position fixed-target admission now hinges on the exact
-  certified support bundle (`AccessNetwork-white-queenside-c2-c`,
-  `ConversionFunnel-white-wholeboard-a7-abcdefg`,
-  `DefenderDependencyNetwork-white-center-d4-de`) so the live B15A slice can
-  reopen while the K03A and K09E siblings stay closed.
+    the current-position fixed-target admission now hinges on the exact
+    certified support bundle for the preserved B15A c6 slice
+    (`AccessNetwork-white-queenside-c2-c`,
+    `ConversionFunnel-white-wholeboard-a7-abcdefg`,
+    `DefenderDependencyNetwork-white-center-d4-de`) and the packet-owned d6
+    slice (`AccessNetwork-white-center-d1-d`,
+    `AccessNetwork-white-center-d6-d-diag`,
+    `AccessNetwork-white-center-d7-d-knight`,
+    `AccessNetwork-white-queenside-b6-b-diag`) so both exact slices can stay
+    open through the same canonical boundary while K03A and K09E stay closed.
+    The comparative support side no longer pairs from raw support-square
+    overlap; its packet-owned exact descriptor is recorded separately on the
+    `P6-B01` continuity note below.
   exact `K09A` now materializes the second current-position probe owner on a
   separate exact coordination slice:
   when the live FEN proves `white to move`, a white rook on `c1`, an enemy
@@ -404,9 +412,18 @@ in `StrategicObjectRoadmap.md`.
   `comparative_primary` only. Support-only comparative evidence and shallow
   comparative rows may remain support/deferred signals, but they cannot
   reconstruct `WhatChanged` primary ownership. For the packet-owned fixed-
-  target comparative slice, planner support pairing stays bounded to the
-  slice-certified shared-target `RestrictionShell` lane, so the contrastive
-  white support still attaches while near-miss support no longer does.
+  target comparative slice, planner support pairing is now certification-owned
+  only: `ClaimCertification` stamps one packet-bounded shared-target
+  continuity witness on the `d6` current-position probe, target-fixation
+  lane, and the exact packet-owned comparative-support claim whose descriptor
+  is the two-object bundle
+  (`ConversionFunnel-white-wholeboard-b6-bcdefg`,
+  `DefenderDependencyNetwork-white-kingside-f3-fgh`), and
+  `QuestionPlanner` consumes only that witness for `WhatChanged` support.
+  The `d5` contrastive white comparative pair is now a regression check
+  outside the witness boundary. Stripping the witness closes packet-owned
+  support, while near-miss, wrong-support, and preserved `c6` rows stay
+  outside the boundary.
 - rewrite-local Tier-1 provisional comparative re-audit note on 2026-04-09:
   `KingSafetyShell`, `DevelopmentCoordinationState`, `PieceRoleFitness`,
   `SpaceClamp`, `CounterplayAxis`, `RestrictionShell`, `MobilityCage`, and

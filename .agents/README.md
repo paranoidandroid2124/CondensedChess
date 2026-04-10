@@ -82,8 +82,9 @@ It is:
 2. `P8-R02-exact-target-campaign-e2e`
    - blocked
    - current exact slices do not yet form one real shared-target campaign:
-     the `WhatMattersHere` probe is `c6`-anchored while the `WhyThis` and
-     `WhatChanged` exact controls are `d6`-anchored
+     the current-position tranche now carries both the preserved `c6` probe
+     and the packet-owned `d6` probe, but the runtime still proves separate
+     exact lanes rather than one certified shared-target campaign
 3. `P8-R03-bounded-favorable-simplification-e2e`
    - blocked
    - on `curated-exact:k09b`, the exact simplification claim still shares the
@@ -96,36 +97,42 @@ It is:
    - passed_with_defer
    - one bounded `K09A` current-position coordination probe survives end-to-
      end while `K09D`, `K09E`, and single-active-piece mirage remain closed
-5. `P5-U01-trade-invariant-primary-simplification`
+5. `P9-A04b-d6-current-position-fixed-target-probe`
+   - passed
+   - the current-position fixed-target tranche now contains both the
+     preserved B15A `c6` exact probe and the packet-owned `d6` exact probe
+     on the same centralized boundary
+6. `P5-U01-trade-invariant-primary-simplification`
    - passed
    - one bounded favorable-simplification claim now owns the primary
      `WhyThis` explanation on `curated-exact:k09b`; unrelated move-local
      claims no longer remain in the primary simplification payload
-6. `P6-B01-shared-target-continuity-certification`
-   - blocked
-   - exact missing boundary: the packet-owned `WhatChanged`
-     comparative-support lane still needs a continuity rerun after the
-     comparative follow-through completes; no new continuity packet should
-     assume broader ownership or support reuse before the remaining tail-risk
-     gate lands
-7. `P6-B02-whatchanged-comparative-nearmiss-certification`
+7. `P6-B01-shared-target-continuity-certification`
+   - passed
+   - one packet-owned shared-target continuity witness now closes the `d6`
+     lane across `WhatMattersHere`, `WhyThis`, and `WhatChanged` at
+     certification; planner support pairing for `WhatChanged` now consumes
+     only that witness, while preserved `c6`, near-miss, and wrong-support
+     rows stay outside it
+8. `P6-B02-whatchanged-comparative-nearmiss-certification`
    - passed
    - packet-owned near-miss comparative now stays support-only or deferred
      and never owns `WhatChanged` primary
    - certification-owned closure: comparative near-miss must not own
      `WhatChanged` primary
-8. `P7-Q03-whatchanged-comparative-demotion-matrix`
+9. `P7-Q03-whatchanged-comparative-demotion-matrix`
    - passed
    - planner demotion: only `comparative_primary` may own `WhatChanged`
      primary; support-only/shallow comparative evidence cannot reconstruct
      primary ownership
-9. `P7-E03-comparative-nearmiss-tail-risk`
+10. `P7-E03-comparative-nearmiss-tail-risk`
    - passed
    - trace/tail-risk gate now exposes comparative near-miss demotion and
      hard-fails near-miss `WhatChanged` leakage
-10. `P9-R05-blocked-slice-rerun`
+11. `P9-R05-blocked-slice-rerun`
     - do not run yet
-    - `P9-R05` stays behind the unresolved `P6-B01` continuity boundary
+    - `P9-R05` is now the next rerun gate after the landed continuity
+      boundary
 
 Current blocking note:
 
@@ -140,9 +147,9 @@ Operational rule:
   - `P8-R02` and `P8-R03` failed on exact slice boundaries
   - `P8-R04` closed in `passed_with_defer`
 - `P5-U01` has now closed the bounded favorable-simplification isolation
-  boundary, but `P8-R03` still remains blocked and `P6-B01` is now also
-  blocked on its own exact comparative-support boundary
+  boundary, and `P6-B01` has now closed its own exact comparative-support
+  continuity boundary
 - the next packets must therefore derive from those exact failures rather than
   widen infra generically; the comparative near-miss fail-closed tranche has
-  now landed, `P6-B01` remains blocked on continuity rerun, and `P9-R05`
-  stays gated behind that rerun
+  now landed, `P6-B01` is passed, and `P9-R05` is no longer gated by
+  unresolved continuity

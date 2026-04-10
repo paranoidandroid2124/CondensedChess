@@ -137,6 +137,10 @@ class ClaimCertificationTest extends FunSuite:
       ComparativeSupportAdmissionTest.rows.find(_.id == "shared-target-support-exact").getOrElse(
         fail("expected comparative exact row")
       )
+    val contrastiveRow =
+      ComparativeSupportAdmissionTest.rows.find(_.id == "shared-target-support-contrastive").getOrElse(
+        fail("expected comparative contrastive row")
+      )
     val nearMissRow =
       ComparativeSupportAdmissionTest.rows.find(_.id == "shared-target-support-near-miss").getOrElse(
         fail("expected comparative near-miss row")
@@ -160,6 +164,25 @@ class ClaimCertificationTest extends FunSuite:
     assertEquals(exactSupport.status, ClaimStatus.SupportOnly)
     assertEquals(exactPrimary.deltaScope, StrategicDeltaScope.Comparative)
     assertEquals(exactSupport.deltaScope, StrategicDeltaScope.Comparative)
+    assert(SharedTargetContinuityBoundary.hasPacketContinuity(exactPrimary), clue("exact comparative primary must carry the certified continuity witness"))
+    assert(SharedTargetContinuityBoundary.hasPacketContinuity(exactSupport), clue("exact comparative support must carry the certified continuity witness"))
+
+    val contrastiveTruth = ComparativeSupportAdmissionTest.truthFor(contrastiveRow)
+    val contrastiveContract = ComparativeSupportAdmissionTest.contractFor(contrastiveRow)
+    val contrastiveObjects = StrategicObjectSynthesizerTest.objectsForFen(contrastiveRow.fen, contrastiveTruth)
+    val contrastiveDeltas = CanonicalStrategicObjectDeltaProjector.project(contrastiveContract, contrastiveTruth, contrastiveObjects)
+    val contrastiveClaims = CanonicalClaimCertification.certify(contrastiveContract, contrastiveObjects, contrastiveDeltas)
+    val contrastivePrimary =
+      ComparativeSupportAdmissionTest.primaryClaim(contrastiveRow, contrastiveObjects, contrastiveClaims).getOrElse(
+        fail("expected contrastive comparative primary claim")
+      )
+    val contrastiveSupport =
+      ComparativeSupportAdmissionTest.supportClaim(contrastiveRow, contrastiveObjects, contrastiveClaims).getOrElse(
+        fail("expected contrastive comparative support claim")
+      )
+
+    assert(!SharedTargetContinuityBoundary.hasPacketContinuity(contrastivePrimary), clue("contrastive comparative primary must stay outside the certified continuity witness"))
+    assert(!SharedTargetContinuityBoundary.hasPacketContinuity(contrastiveSupport), clue("contrastive comparative support must stay outside the certified continuity witness"))
 
     val nearTruth = ComparativeSupportAdmissionTest.truthFor(nearMissRow)
     val nearContract = ComparativeSupportAdmissionTest.contractFor(nearMissRow)
@@ -183,6 +206,7 @@ class ClaimCertificationTest extends FunSuite:
       nearSupport.status == ClaimStatus.SupportOnly || nearSupport.status == ClaimStatus.Deferred,
       clue(s"near-miss comparative must stay support-only or deferred, got ${nearSupport.status}, claims=[$nearSummary]")
     )
+    assert(!SharedTargetContinuityBoundary.hasPacketContinuity(nearSupport), clue("near-miss comparative support must stay outside the continuity boundary"))
   }
 
   test("Tier-1 provisional comparative near-miss rows stay support-only and localize at certification") {

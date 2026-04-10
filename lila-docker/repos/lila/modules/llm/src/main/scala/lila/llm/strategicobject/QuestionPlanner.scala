@@ -220,19 +220,6 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
         false
     )
 
-  private final case class ComparativeSupportCandidate(
-      primaryClaimId: String,
-      supportClaimId: String,
-      supportClaim: CertifiedClaim,
-      primaryTargetRankScore: Int,
-      supportRestrictionScore: Int,
-      sharedTargetCount: Int,
-      supportWitnessScore: Int,
-      supportTargetOverlapScore: Int,
-      primaryStandingScore: Int,
-      primaryCentralityScore: Int
-  )
-
   private enum CurrentPositionProbeKind:
     case FixedTarget
     case Coordination
@@ -259,189 +246,19 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       primaryClaims: List[CertifiedClaim],
       supportClaims: List[CertifiedClaim]
   ): Option[CertifiedClaim] =
-    supportClaims
-      .flatMap(supportClaim =>
-        primaryClaims.flatMap(primaryClaim =>
-          exactSharedTargetComparativeSupportCandidate(primaryClaim, supportClaim)
+    val continuityPrimaryClaims =
+      primaryClaims.filter(SharedTargetContinuityBoundary.hasPacketContinuity)
+
+    Option.when(continuityPrimaryClaims.nonEmpty) {
+      supportClaims
+        .filter(supportClaim =>
+          continuityPrimaryClaims.exists(primaryClaim =>
+            SharedTargetContinuityBoundary.sharesPacketContinuity(primaryClaim, supportClaim)
+          )
         )
-      )
-      .sortBy(candidate =>
-        (
-          -candidate.primaryCentralityScore,
-          -candidate.primaryTargetRankScore,
-          -candidate.supportRestrictionScore,
-          -candidate.sharedTargetCount,
-          -candidate.supportTargetOverlapScore,
-          -candidate.supportWitnessScore,
-          -candidate.primaryStandingScore,
-          candidate.primaryClaimId,
-          candidate.supportClaimId
-        )
-      )
-      .headOption
-      .map(_.supportClaim)
-
-  private def exactSharedTargetComparativeSupportCandidate(
-      primaryClaim: CertifiedClaim,
-      supportClaim: CertifiedClaim
-  ): Option[ComparativeSupportCandidate] =
-    val sharedTargetSquares =
-      sharedComparativeTargetSquares(primaryClaim.delta, supportClaim.delta)
-    Option.when(isExactSharedTargetComparativeSupport(primaryClaim, supportClaim)) {
-      ComparativeSupportCandidate(
-        primaryClaimId = primaryClaim.id,
-        supportClaimId = supportClaim.id,
-        supportClaim = supportClaim,
-        primaryTargetRankScore = primaryTargetRankScore(primaryClaim.delta),
-        supportRestrictionScore = restrictionSupportOverlapScore(primaryClaim.delta, supportClaim.delta),
-        sharedTargetCount = sharedTargetSquares.size,
-        supportWitnessScore = comparativeWitnessSpecificityScore(supportClaim.delta),
-        supportTargetOverlapScore = supportTargetOverlapScore(supportClaim.delta, sharedTargetSquares),
-        primaryStandingScore = comparativeStandingScore(primaryClaim.delta),
-        primaryCentralityScore = comparativeCentralityScore(primaryClaim.delta)
-      )
-    }
-
-  private def isExactSharedTargetComparativeSupport(
-      primaryClaim: CertifiedClaim,
-      supportClaim: CertifiedClaim
-  ): Boolean =
-    (primaryClaim.delta, supportClaim.delta) match
-      case (Some(primaryDelta), Some(supportDelta)) =>
-        primaryDelta.scope == StrategicDeltaScope.Comparative &&
-          supportDelta.scope == StrategicDeltaScope.Comparative &&
-          primaryDelta.family == StrategicObjectFamily.FixedTargetComplex &&
-          supportDelta.family == StrategicObjectFamily.RestrictionShell &&
-          primaryDelta.owner == supportDelta.owner &&
-          primaryDelta.comparativeProfile.exists(profile =>
-            Set(
-              StrategicComparativeAxis.FixedTargetPressureContrast,
-              StrategicComparativeAxis.FixedTargetDefenseContrast
-            ).contains(profile.axis)
-          ) &&
-          supportDelta.comparativeProfile.exists(_.axis == StrategicComparativeAxis.RestrictionContainmentContrast) &&
-          comparativeSupportCorroborationCount(supportDelta) >= 2 &&
-          sharedComparativeTargetSquares(Some(primaryDelta), Some(supportDelta)).nonEmpty
-      case _ =>
-        false
-
-  private def sharedComparativeTargetSquares(
-      primaryDelta: Option[StrategicObjectDelta],
-      supportDelta: Option[StrategicObjectDelta]
-  ): Set[String] =
-    (primaryDelta, supportDelta) match
-      case (Some(primary), Some(support)) =>
-        primaryTargetSquares(primary).intersect(exactComparativeSupportSquares(support))
-      case _ =>
-        Set.empty
-
-  private def primaryTargetSquares(
-      delta: StrategicObjectDelta
-  ): Set[String] =
-    delta.changedAnchors
-      .flatMap(_.squares)
-      .map(_.key)
-      .toSet
-
-  private def comparativeStandingScore(
-      delta: Option[StrategicObjectDelta]
-  ): Int =
-    delta match
-      case Some(
-            StrategicObjectDelta(
-              _,
-              StrategicObjectFamily.FixedTargetComplex,
-              _,
-              StrategicDeltaScope.Comparative,
-              _,
-              StrategicDeltaProjection.Comparative(_, balance, _, _, _),
-              _,
-              _,
-              _,
-              _
-            )
-          ) =>
-        balance.standing match
-          case ComparativeStanding.Ahead     => 8
-          case ComparativeStanding.Contested => 4
-          case ComparativeStanding.Balanced  => 2
-          case ComparativeStanding.Behind    => 0
-      case _ =>
-        0
-
-  private def comparativeCentralityScore(
-      delta: Option[StrategicObjectDelta]
-  ): Int =
-    delta
-      .toList
-      .flatMap(primaryTargetSquares)
-      .flatMap(squareKey => chess.Square.fromKey(squareKey).toList)
-      .map(square => 3 - math.abs(square.file.char.toInt - 'd'.toInt))
-      .maxOption
-      .getOrElse(0)
-
-  private def primaryTargetRankScore(
-      delta: Option[StrategicObjectDelta]
-  ): Int =
-    delta
-      .toList
-      .flatMap(primaryTargetSquares)
-      .flatMap(squareKey => squareKey.drop(1).toIntOption)
-      .maxOption
-      .getOrElse(0)
-
-  private def exactComparativeSupportSquares(
-      delta: StrategicObjectDelta
-  ): Set[String] =
-    delta.profile match
-      case StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares) =>
-        (restrictedSquares ++ constraintSquares).map(_.key).toSet
-      case _ =>
-        delta.changedAnchors
-          .flatMap(_.squares)
-          .map(_.key)
-          .toSet
-
-  private def restrictionSupportOverlapScore(
-      primaryDelta: Option[StrategicObjectDelta],
-      supportDelta: Option[StrategicObjectDelta]
-  ): Int =
-    (primaryDelta, supportDelta) match
-      case (Some(primary), Some(StrategicObjectDelta(_, _, _, _, StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares), _, _, _, _, _))) =>
-        val primaryTargets = primaryTargetSquares(primary)
-        if primaryTargets.intersect(restrictedSquares.map(_.key).toSet).nonEmpty then 2
-        else if primaryTargets.intersect(constraintSquares.map(_.key).toSet).nonEmpty then 1
-        else 0
-      case _ =>
-        0
-
-  private def comparativeWitnessSpecificityScore(
-      delta: Option[StrategicObjectDelta]
-  ): Int =
-    delta.flatMap(_.comparativeWitness).map { witness =>
-      witness.counterpartWitnessKinds.toList.map {
-        case StrategicCounterpartWitnessKind.SharedTarget         => 16
-        case StrategicCounterpartWitnessKind.SharedSquare         => 8
-        case StrategicCounterpartWitnessKind.SharedFile           => 4
-        case StrategicCounterpartWitnessKind.SharedRoute          => 2
-        case StrategicCounterpartWitnessKind.DirectRivalReference => 2
-        case StrategicCounterpartWitnessKind.SharedPiece          => 1
-      }.sum + witness.matchedSquares.size + witness.matchedFiles.size + witness.relationWitnesses.size
-    }.getOrElse(0)
-
-  private def supportTargetOverlapScore(
-      delta: Option[StrategicObjectDelta],
-      sharedTargetSquares: Set[String]
-  ): Int =
-    delta
-      .map(exactComparativeSupportSquares)
-      .map(_.intersect(sharedTargetSquares).size)
-      .getOrElse(0)
-
-  private def comparativeSupportCorroborationCount(
-      delta: StrategicObjectDelta
-  ): Int =
-    delta.supportingObjectIds.distinct.size
+        .sortBy(_.id)
+        .headOption
+    }.flatten
 
   private def isCertifiedCurrentPositionProbe(
       claim: CertifiedClaim

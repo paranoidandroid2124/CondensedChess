@@ -89,24 +89,19 @@ generic campaign-thread engine.
 ## Status Notes
 
 - start status: `ready`
-- end status: `blocked`
-- blocked on: `2026-04-10`
-- primary blocker:
-  - `sbt -batch "llm/testOnly lila.llm.strategicobject.ComparativeSupportAdmissionTest"`
-    still failed during the packet attempt because the packet-owned
-    `WhatChanged` support slice was not stable enough to keep the intended
-    comparative support boundary fail-closed
-- exact missing boundary:
-  - the packet-owned `WhatChanged` support slice is not stable enough on the
-    near-miss comparative row, so shared-target continuity cannot be certified
-    without reopening a broader comparative-support boundary than this packet
-    allows
-  - the comparative near-miss fail-closed tranche has now landed:
-    - `P6-B02` certification-owned near-miss demotion passed
-    - `P7-Q03` planner demotion matrix passed
-    - `P7-E03` trace/tail-risk near-miss gate passed
-  - `P9-R05` must not be opened yet because the unresolved burden still sits
-    inside `P6-B01` and the continuity rerun is still unresolved
+- end status: `passed`
+- result:
+  - `ClaimCertification` now stamps one packet-owned shared-target
+    continuity witness on the `d6` current-position probe, the packet-owned
+    `WhyThis(d6)` fixation lane, and the packet-owned exact `WhatChanged`
+    comparative-support claim; the `d5` contrastive white pair now stays
+    outside the witness boundary as a regression check
+  - `QuestionPlanner` no longer salvages `WhatChanged` support pairing from
+    planner-side shared-target heuristics on this packet; support attaches
+    only when the certified continuity witness is present
+  - stripping the boundary witness closes packet-owned `WhatChanged` support,
+    while near-miss, wrong-support, and preserved `c6` rows stay outside the
+    boundary
 - pass condition:
   - one continuing fixed-weakness campaign survives across the three axes
     without broadening semantics

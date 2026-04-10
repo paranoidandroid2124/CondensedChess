@@ -132,6 +132,21 @@ class ThinShellCertifiedRendererBoundaryTest extends FunSuite:
     assertThinShellMirror(planned, claims)
   }
 
+  test("P9-A04b packet-owned d6 current-position fixed-target survives as thin-shell primary only") {
+    val row =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d6-exact").getOrElse(
+        fail("expected packet-owned d6 current-position fixed-target exact row")
+      )
+    val (objects, _, claims, planned) = runNeutralPipeline(row.fen)
+    val objectIds = objectIdsFor(row.family, row.owner, row.anchor, objects)
+    val positionClaims = claimsFor(objectIds, StrategicDeltaScope.PositionLocal, claims)
+
+    assertEquals(row.expectation, "primary")
+    assertEquals(admission(planned, positionClaims), row.plannerAdmission)
+    assert(positionClaims.exists(_.status == ClaimStatus.Certified), clue("expected certified d6 position-local fixed-target claim"))
+    assertThinShellMirror(planned, claims)
+  }
+
   test("K03A fixed-target negative stays closed at shell") {
     val row =
       CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-negative").getOrElse(

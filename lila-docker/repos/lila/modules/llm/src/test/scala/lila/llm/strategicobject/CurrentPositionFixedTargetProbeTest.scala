@@ -10,8 +10,12 @@ class CurrentPositionFixedTargetProbeTest extends FunSuite:
 
   import CurrentPositionFixedTargetProbeTest.*
 
-  test("packet current-position fixed-target corpus covers exact negative and near-miss rows") {
+  test("packet current-position fixed-target corpus covers c6 and d6 exact rows plus negative and near-miss rows") {
     assertEquals(rows.map(_.caseType).toSet, Set("exact", "negative", "near_miss"))
+    assertEquals(
+      rows.filter(_.caseType == "exact").map(_.id).toSet,
+      Set("current-position-fixed-target-exact", "current-position-fixed-target-d6-exact")
+    )
   }
 
   rows.foreach { row =>
@@ -54,6 +58,17 @@ class CurrentPositionFixedTargetProbeTest extends FunSuite:
           assert(positionClaims.nonEmpty, clue(s"${row.id}: expected position-local fixed-target claim"))
           assert(primaryClaim.delta.exists(_.family == StrategicObjectFamily.FixedTargetComplex), clue(s"${row.id}: expected FixedTargetComplex claim"))
           assert(primaryClaim.delta.exists(_.scope == StrategicDeltaScope.PositionLocal), clue(s"${row.id}: expected position-local claim"))
+          assertEquals(primaryClaim.supportingObjectIds.toSet, exactSupportBundleFor(row.id), clue(debugSummary))
+          assert(
+            primaryClaim.delta.exists(delta =>
+              delta.profile match
+                case StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, fixed, _) =>
+                  fixed && row.anchor.exists(_.equalsIgnoreCase(targetSquare.key))
+                case _ =>
+                  false
+            ),
+            clue(s"${row.id}: expected target identity aligned to ${row.anchor.getOrElse("unknown")}")
+          )
         case "none" =>
           assert(positionClaims.forall(claim => !planned.claimIds.contains(claim.id)), clue(s"${row.id}: closed slice must not become primary"))
           assert(positionClaims.forall(claim => !planned.supportClaimIds.contains(claim.id)), clue(s"${row.id}: closed slice must not become support"))
@@ -78,6 +93,29 @@ object CurrentPositionFixedTargetProbeTest:
   )
 
   private given Reads[CurrentPositionFixedTargetRow] = Json.reads[CurrentPositionFixedTargetRow]
+
+  val exactSupportBundles: Map[String, Set[String]] =
+    Map(
+      "current-position-fixed-target-exact" ->
+        Set(
+          "AccessNetwork-white-queenside-c2-c",
+          "ConversionFunnel-white-wholeboard-a7-abcdefg",
+          "DefenderDependencyNetwork-white-center-d4-de"
+        ),
+      "current-position-fixed-target-d6-exact" ->
+        Set(
+          "AccessNetwork-white-center-d1-d",
+          "AccessNetwork-white-center-d6-d-diag",
+          "AccessNetwork-white-center-d7-d-knight",
+          "AccessNetwork-white-queenside-b6-b-diag"
+        )
+    )
+
+  def exactSupportBundleFor(rowId: String): Set[String] =
+    exactSupportBundles.getOrElse(
+      rowId,
+      throw new NoSuchElementException(s"missing exact support bundle for $rowId")
+    )
 
   val rows: List[CurrentPositionFixedTargetRow] =
     Source

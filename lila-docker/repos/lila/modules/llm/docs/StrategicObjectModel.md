@@ -53,7 +53,8 @@ Current post-spine frontier:
 - one exact target-fixation slice is now re-earned on the new spine
 - one exact bounded favorable-simplification slice is now re-earned on the new
   spine
-- one exact current-position fixed-target probe is now re-earned on the new
+- the current-position fixed-target tranche now contains both the preserved
+  B15A `c6` exact probe and the packet-owned `d6` exact probe on the new
   spine
 - one exact current-position coordination probe is now re-earned on the new
   spine (K09A only; K09D/K09E and single-active-piece mirage remain closed)
@@ -96,8 +97,9 @@ Current post-spine frontier:
 - `P8-R02` exact target campaign e2e is blocked on 2026-04-09:
   the current exact fixed-target tranche does not yet provide one real
   shared-target campaign across all three axes because the current-position
-  probe is `c6`-anchored while the current move-local fixation and
-  comparative-support slices are `d6`-anchored
+  tranche now carries both the preserved B15A `c6` probe and the packet-owned
+  `d6` probe, each with its own exact support bundle, while the current
+  move-local fixation and comparative-support slices are `d6`-anchored
 - `P8-R03` bounded favorable-simplification e2e is blocked on 2026-04-09:
   the exact `curated-exact:k09b` simplification claim still shared `WhyThis`
   primary payload with unrelated move-local `AccessNetwork`,
@@ -111,23 +113,26 @@ Current post-spine frontier:
 - `P5-U01-trade-invariant-primary-simplification` passed on 2026-04-10:
   one bounded favorable-simplification claim now owns the primary `WhyThis`
   explanation on `curated-exact:k09b`
-- `P6-B01-shared-target-continuity-certification` is now blocked on
-  2026-04-10:
-  the packet-owned `WhatChanged` comparative-support lane still needs a
-  continuity rerun after the comparative follow-through completes; no new
-  continuity packet should assume broader ownership or support reuse before
-  the remaining near-miss tail-risk gate lands
+- `P6-B01-shared-target-continuity-certification` passed on 2026-04-10:
+  the packet-owned `d6` lane now closes one shared-target continuity witness
+  across `WhatMattersHere`, `WhyThis`, and `WhatChanged` at certification;
+  `WhatChanged` support pairing now consumes only that certified witness, and
+  preserved `c6`, near-miss, and wrong-support rows stay outside it
+- `P9-A04b-d6-current-position-fixed-target-probe` passed on 2026-04-10:
+  the current-position tranche now carries both the preserved B15A `c6` probe
+  and the packet-owned `d6` probe, each on the same centralized boundary with
+  its own exact support bundle
 - `P6-B02-whatchanged-comparative-nearmiss-certification` is `passed`:
   packet-owned near-miss comparative now stays support-only or deferred and
   never owns `WhatChanged` primary
-- the comparative follow-through tranche has now landed; shared-target
-  continuity retry remains blocked on `P6-B01`:
+- the comparative follow-through tranche has now landed, and shared-target
+  continuity is now also closed on `P6-B01`:
   - `P7-Q03` planner demotion matrix passed on 2026-04-10; `WhatChanged`
     primary now stays on `comparative_primary` only
   - `P7-E03` trace/tail-risk near-miss gate passed on 2026-04-10
-- `P9-R05-blocked-slice-rerun` must not run yet:
-  no new packet should open it while `P6-B01` remains blocked on its
-  continuity rerun
+- `P9-R05-blocked-slice-rerun` is now ungated by continuity:
+  no new packet should widen doctrine before that rerun names the next exact
+  failure
 - the blocked provisional move-local reopen lane is a stopping rule for that
   evidence pack, not a blocker to vertical proof on already re-earned stable
   slices
@@ -873,12 +878,14 @@ That frontier should proceed in this order:
    - comparative follow-through tranche status before continuity:
      - `P7-Q03` planner demotion matrix passed on 2026-04-10
      - `P7-E03` trace/tail-risk near-miss gate passed on 2026-04-10
-   - `P6-B01` remains blocked until the continuity rerun lands:
-     the packet-owned `WhatChanged` comparative-support lane is not stable
-     enough for continuity certification because
-     `shared-target-support-near-miss` still leaks support admission / wrong
-     restriction support under the existing exact comparative-support slice
-   - `P9-R05` must not run yet; it stays gated behind the continuity rerun
+   - `P6-B01` passed on 2026-04-10:
+     certification now stamps one packet-owned shared-target continuity
+     witness on the `d6` current-position probe, target-fixation lane, and
+     the exact packet-owned comparative-support claim; planner support
+     pairing for `WhatChanged` now consumes only that witness, so stripping
+     it closes support and the `d5` contrastive pair plus near-miss /
+     wrong-support / preserved `c6` stay outside the boundary
+   - `P9-R05` is now the next rerun gate rather than a continuity blocker
 6. only then derive any further gate packets from exact slice failures
    - if the rerun still fails, derive the needed ownership, certification, or
      renderer packet from that exact failure instead of widening infra
