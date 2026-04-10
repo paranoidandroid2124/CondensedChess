@@ -98,5 +98,8 @@ fixed-target slices without reopening new semantics.
   - without either an already-certified current-position `d6` fixed-target
     probe or another packet-allowed shared-target continuity boundary, this
     packet cannot truthfully pass
+  - follow-on ownership is now transferred to
+    `P6-B01-shared-target-continuity-certification`; do not answer this
+    blocker by reopening broad `TransitionBridge` semantics
 - pass condition: one fixed-weakness target campaign survives end-to-end without new semantics
 - blocked condition: the campaign cannot survive shell delivery without naming a missing exact boundary first

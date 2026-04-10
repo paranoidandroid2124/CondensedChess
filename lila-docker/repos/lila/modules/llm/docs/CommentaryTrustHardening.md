@@ -3728,6 +3728,10 @@ Owner-path admissibility map:
 Canonical admissibility conclusion:
 
 - as-is, the current architecture still blocks B7
+- the packet-owned `curated-exact:k09b` primary-isolation boundary is now
+  closed by `P5-U01`; that closes the mixed-payload trust gap for the exact
+  bounded favorable-simplification slice without reopening broader conversion
+  or endgame doctrine
 - a future B7 slice does not yet prove that a new owner lane is necessary, but
   it does require new private/backend-only materialization on the existing
   architecture

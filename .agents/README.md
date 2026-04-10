@@ -89,12 +89,29 @@ It is:
    - on `curated-exact:k09b`, the exact simplification claim still shares the
      `WhyThis` primary payload with unrelated move-local `AccessNetwork`,
      `FixedTargetComplex`, and opponent-side `TradeInvariant` claims, so the
-     thin shell cannot isolate one bounded explanation without a new primary-
-     claim selection boundary
+     thin shell could not isolate one bounded explanation before `P5-U01`;
+     that primary-isolation boundary is now closed, and `P9-R05` remains the
+     rerun gate
 4. `P8-R04-current-position-coordination-e2e`
    - passed_with_defer
    - one bounded `K09A` current-position coordination probe survives end-to-
      end while `K09D`, `K09E`, and single-active-piece mirage remain closed
+5. `P5-U01-trade-invariant-primary-simplification`
+   - passed
+   - one bounded favorable-simplification claim now owns the primary
+     `WhyThis` explanation on `curated-exact:k09b`; unrelated move-local
+     claims no longer remain in the primary simplification payload
+6. `P6-B01-shared-target-continuity-certification`
+   - blocked
+   - exact missing boundary: the packet-owned `WhatChanged`
+     comparative-support lane is not stable enough for continuity
+     certification because `shared-target-support-near-miss` still leaks
+     support admission / wrong restriction support under the existing exact
+     comparative-support slice
+7. `P9-R05-blocked-slice-rerun`
+   - do not run yet
+   - no new packet was opened from this session; `P9-R05` stays behind the
+     unresolved `P6-B01` boundary
 
 Current blocking note:
 
@@ -105,5 +122,11 @@ Current blocking note:
 
 Operational rule:
 
-- do not open another horizontal gate/ownership packet before one of the
-  `P8-R0x` packets fails on an exact slice
+- the first vertical proving tranche is exhausted:
+  - `P8-R02` and `P8-R03` failed on exact slice boundaries
+  - `P8-R04` closed in `passed_with_defer`
+- `P5-U01` has now closed the bounded favorable-simplification isolation
+  boundary, but `P8-R03` still remains blocked and `P6-B01` is now also
+  blocked on its own exact comparative-support boundary
+- the next packets must therefore derive from those exact failures rather than
+  widen infra generically, and `P9-R05` must not run yet

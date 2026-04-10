@@ -74,16 +74,14 @@ Current post-spine frontier:
     all eight provisional families stay `move_local` closed because no
     family-complete exact-positive plus move-local nasty-negative witness pack
     exists yet
-- the next active frontier is now a vertical Phase 8/9 proving tranche, not a
-  new horizontal gate tranche
-- that vertical tranche should:
-  - prove a thin shell renderer/API/front can carry certified planner output
-    without semantic salvage
-  - prove one fixed-weakness target campaign end-to-end across
-    `WhatMattersHere`, `WhyThis`, and `WhatChanged`
-  - prove one bounded favorable-simplification slice end-to-end
-  - carry one bounded current-position coordination probe end-to-end in its
-    deferred form; this is now proved on `P8-R04` (passed_with_defer)
+- the first vertical Phase 8/9 proving tranche is now exhausted
+- the next active frontier is now a composite chess semantics tranche derived
+  from the blocked vertical slices, not another generic horizontal gate
+  tranche
+- that tranche should:
+  - reopen `TradeInvariant` narrowly for primary simplification ownership
+  - close shared-target continuity as a certification-owned witness
+  - rerun the blocked target-campaign and bounded-simplification slices
 - `P8-R01` thin-shell certified renderer passed on 2026-04-09:
   Bookmaker shell delivery is now thin on certified planner ownership and no
   longer exports/decodes/reconstructs `strategyPack` / `signalDigest` on this
@@ -94,15 +92,26 @@ Current post-spine frontier:
   probe is `c6`-anchored while the current move-local fixation and
   comparative-support slices are `d6`-anchored
 - `P8-R03` bounded favorable-simplification e2e is blocked on 2026-04-09:
-  the exact `curated-exact:k09b` simplification claim still shares `WhyThis`
+  the exact `curated-exact:k09b` simplification claim still shared `WhyThis`
   primary payload with unrelated move-local `AccessNetwork`,
-  `FixedTargetComplex`, and opponent-side `TradeInvariant` claim ids, so the
-  thin shell cannot isolate one bounded favorable-simplification explanation
-  without a new exact primary-claim selection boundary
+  `FixedTargetComplex`, and opponent-side `TradeInvariant` claim ids on the
+  blocked slice; `P5-U01` now closes that packet-owned primary-isolation
+  boundary, but the rerun remains pending
 - `P8-R04` current-position coordination e2e passed_with_defer on 2026-04-10:
   one bounded `K09A` current-position coordination probe now survives thin-
   shell delivery end-to-end, while `K09D`, `K09E`, and single-active-piece
   mirage remain closed
+- `P5-U01-trade-invariant-primary-simplification` passed on 2026-04-10:
+  one bounded favorable-simplification claim now owns the primary `WhyThis`
+  explanation on `curated-exact:k09b`
+- `P6-B01-shared-target-continuity-certification` is now blocked on
+  2026-04-10:
+  the packet-owned `WhatChanged` comparative-support lane is not stable
+  enough for continuity certification because
+  `shared-target-support-near-miss` still leaks support admission / wrong
+  restriction support under the existing exact comparative-support slice
+- `P9-R05-blocked-slice-rerun` must not run yet:
+  no new packet was opened from this session while `P6-B01` remains blocked
 - the blocked provisional move-local reopen lane is a stopping rule for that
   evidence pack, not a blocker to vertical proof on already re-earned stable
   slices
@@ -835,10 +844,20 @@ That frontier should proceed in this order:
 4. current-position coordination end-to-end
    - `P8-R04` now proves one bounded `K09A` coordination probe survives
      user-visible delivery while the closed siblings stay closed
-5. only then derive new gate packets from exact slice failures
-   - if one of the vertical packets fails, derive the needed ownership,
-     certification, or renderer packet from that exact failure instead of
-     widening infra proactively
+5. composite chess semantics tranche
+   - `P5-U01` passed on 2026-04-10; one bounded favorable-simplification
+     claim now owns the primary `WhyThis` explanation on `curated-exact:k09b`
+   - `P6-B01` is blocked:
+     the packet-owned `WhatChanged` comparative-support lane is not stable
+     enough for continuity certification because
+     `shared-target-support-near-miss` still leaks support admission / wrong
+     restriction support under the existing exact comparative-support slice
+   - `P9-R05` must not run yet, and no new packet was opened from this
+     session
+6. only then derive any further gate packets from exact slice failures
+   - if the rerun still fails, derive the needed ownership, certification, or
+     renderer packet from that exact failure instead of widening infra
+     proactively
 
 This frontier is about separating:
 

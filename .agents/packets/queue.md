@@ -88,6 +88,11 @@ Authority:
   - exact comparative support, target fixation, bounded favorable
     simplification, current-position fixed-target probe, and current-position
     coordination probe have each been re-earned at least once on the new spine
+- `P5-U01-trade-invariant-primary-simplification`
+  - passed
+  - one bounded favorable-simplification claim now owns the primary `WhyThis`
+    explanation on `curated-exact:k09b`; unrelated move-local claims no longer
+    remain in the primary simplification payload
 - Tier 1 provisional readiness re-audit through `P5-T02`
   - landed
   - comparative re-audit is `passed_with_defer`, and move-local reopen remains
@@ -117,6 +122,17 @@ Authority:
   - one bounded `K09A` current-position coordination probe now survives thin-
     shell delivery end-to-end, while `K09D`, `K09E`, and the single-active-
     piece mirage remain planner/shell closed
+- composite chess semantics tranche after vertical proof exhaustion
+  - passed
+  - `P5-U01-trade-invariant-primary-simplification` closed the packet-owned
+    primary-isolation boundary on `curated-exact:k09b`
+  - `P6-B01-shared-target-continuity-certification` is now `blocked`:
+    the packet-owned `WhatChanged` comparative-support lane is not stable
+    enough for continuity certification because
+    `shared-target-support-near-miss` still leaks support admission / wrong
+    restriction support under the existing exact comparative-support slice
+  - `P9-R05-blocked-slice-rerun` must not run yet, and no new packet was
+    opened from this session
 
 ## Active Queue
 
@@ -141,20 +157,36 @@ Authority:
 | `P5-T01-tier1-provisional-comparative-reaudit` | `passed_with_defer` | 17 | readiness / promotion | family-complete comparative shallow rows now exist for all eight provisional families; all eight stay `Provisional`, and shallow comparative remains `SupportOnly` / planner `none` |
 | `P5-T02-tier1-provisional-move-local-reopen-audit` | `blocked` | 18 | readiness / promotion | all eight provisional families remain move-local closed; no family-complete move-local exact positive or move-local nasty-negative burden exists yet, so selective reopen is not certified; this evidence stop is orthogonal to the next vertical tranche on already re-earned stable slices |
 | `P8-R01-thin-shell-certified-renderer` | `passed` | 19 | vertical slice / thin shell | landed Bookmaker thin-shell closure: controller/frontend path no longer exports/decodes/reconstructs `strategyPack` / `signalDigest`; renderer mirrors planner `claimIds/supportClaimIds`; exact-row shell closure held on `K03A` / `K09E` / single-active-piece mirage |
-| `P8-R02-exact-target-campaign-e2e` | `blocked` | 20 | vertical slice / target campaign | exact missing boundary: no current packet-scoped shared-target continuity exists across all three axes because `P9-A04` is `c6`-anchored while `P9-A02` and `P9-A01` are `d6`-anchored; current runtime proves separate exact lanes, not one shared campaign |
-| `P8-R03-bounded-favorable-simplification-e2e` | `blocked` | 21 | vertical slice / simplification | exact missing boundary: on `curated-exact:k09b`, `WhyThis` still emits mixed move-local `claimIds` (`AccessNetwork`, `FixedTargetComplex`, opponent `TradeInvariant`, plus the exact simplification claim), so the thin shell cannot isolate one bounded favorable-simplification explanation without a new primary-claim selection boundary |
+| `P8-R02-exact-target-campaign-e2e` | `blocked` | 20 | vertical slice / target campaign | exact missing boundary: no current packet-scoped shared-target continuity exists across all three axes because `P9-A04` is `c6`-anchored while `P9-A02` and `P9-A01` are `d6`-anchored; current runtime proves separate exact lanes, not one shared campaign; burden transfers next to `P6-B01-shared-target-continuity-certification` rather than a broad `TransitionBridge` reopen |
+| `P8-R03-bounded-favorable-simplification-e2e` | `blocked` | 21 | vertical slice / simplification | exact missing boundary: on `curated-exact:k09b`, `WhyThis` still emitted mixed move-local `claimIds` (`AccessNetwork`, `FixedTargetComplex`, opponent `TradeInvariant`, plus the exact simplification claim) on the blocked slice; `P5-U01` now closes that primary-isolation boundary, and `P9-R05` remains the rerun gate rather than a new doctrine packet |
 | `P8-R04-current-position-coordination-e2e` | `passed_with_defer` | 22 | vertical slice / coordination | bounded `K09A` coordination probe survives end-to-end on `WhatMattersHere`; `K09D`, `K09E`, and single-active-piece mirage stay fail-closed |
+| `P5-U01-trade-invariant-primary-simplification` | `passed` | 23 | composite semantics / TradeInvariant | one bounded favorable-simplification claim now owns the primary `WhyThis` explanation on `curated-exact:k09b`; unrelated move-local claims were removed from the primary simplification payload |
+| `P6-B01-shared-target-continuity-certification` | `blocked` | 24 | composite semantics / shared-target continuity | exact missing boundary: the packet-owned `WhatChanged` comparative-support lane is not stable enough for continuity certification because `shared-target-support-near-miss` still leaks support admission / wrong restriction support under the existing exact comparative-support slice |
+| `P9-R05-blocked-slice-rerun` | `ready` | 25 | composite semantics / blocked rerun | must not run yet; `P6-B01` remains blocked on the unresolved comparative-support boundary, and no new packet was opened from this session |
 
-## Current Vertical Tranche Rule
+## Current Frontier Rule
 
-- `P8-R04` is now closed as `passed_with_defer`; `P8-R02` and `P8-R03` remain
-  `blocked` on the exact missing boundaries recorded in their queue notes.
-- `P5-T02` remains orthogonal to this tranche because these packets consume
-  only already re-earned stable slices and do not depend on provisional
+- the first vertical Phase 8/9 tranche is now exhausted:
+  - `P8-R01` passed
+  - `P8-R02` blocked
+  - `P8-R03` blocked
+  - `P8-R04` passed_with_defer
+- `P5-U01` is now passed and closes the exact primary-isolation boundary for
+  `curated-exact:k09b`; `P8-R03` remains blocked until the rerun confirms the
+  shell outcome.
+- `P5-T02` remains orthogonal because the next tranche still consumes only
+  already re-earned stable slices and does not depend on provisional
   move-local reopening.
-- Any future horizontal gate, ownership, or certification packet must be
-  derived from one of those exact blocked vertical-slice failures rather than
-  infra widening.
+- the active frontier remains blocked at `P6-B01`:
+  - exact missing boundary: the packet-owned `WhatChanged`
+    comparative-support lane is not stable enough for continuity
+    certification because `shared-target-support-near-miss` still leaks
+    support admission / wrong restriction support under the existing exact
+    comparative-support slice
+  - `P9-R05` must not run yet
+- do not open broad `TransitionBridge`, generic campaign-threading, or broad
+  simplification doctrine before those packets fail and name a new exact
+  boundary.
 
 ## Packet Selection Rule
 

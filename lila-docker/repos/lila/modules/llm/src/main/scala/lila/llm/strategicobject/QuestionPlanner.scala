@@ -95,11 +95,24 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       claims: List[CertifiedClaim],
       axis: QuestionAxis
   ): List[CertifiedClaim] =
-    admissionFor(axis)
-      .toList
-      .flatMap { admission =>
-        claims.filter(admission.primaryClaim)
-      }
+    axis match
+      case QuestionAxis.WhyThis =>
+        val packetOwnedPrimaryClaims =
+          claims.filter(TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationClaim)
+
+        if packetOwnedPrimaryClaims.nonEmpty then packetOwnedPrimaryClaims.sortBy(_.id).take(1)
+        else
+          admissionFor(axis)
+            .toList
+            .flatMap { admission =>
+              claims.filter(admission.primaryClaim)
+            }
+      case _ =>
+        admissionFor(axis)
+          .toList
+          .flatMap { admission =>
+            claims.filter(admission.primaryClaim)
+          }
 
   private def admissionFor(
       axis: QuestionAxis

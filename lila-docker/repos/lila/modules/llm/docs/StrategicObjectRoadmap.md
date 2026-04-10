@@ -70,14 +70,24 @@ Near-term canonical sequence from the current checkpoint:
 
 1. `Phase 8` must now prove a thin shell certified renderer on top of the
    landed planner/eval spine
-2. one fixed-weakness target campaign must then be proved end-to-end across
-   already re-earned exact comparative-support, target-fixation, and
-   current-position fixed-target slices
-3. one bounded favorable-simplification explanation must then be proved
-   end-to-end on the already re-earned same-task `TradeInvariant` slice
-4. one bounded current-position coordination probe is now proved end-to-end in
-   `P8-R04` with `passed_with_defer` on 2026-04-10
-5. only after those vertical proofs should new horizontal gate packets reopen
+2. the first vertical proving tranche is now exhausted:
+   - `P8-R02` blocked on shared-target continuity
+   - `P8-R03` blocked on bounded favorable-simplification primary isolation
+   - `P8-R04` proved one bounded current-position coordination probe end-to-
+     end in `passed_with_defer`
+3. `P5-U01-trade-invariant-primary-simplification` is now passed:
+   - the packet-owned primary-isolation boundary on `curated-exact:k09b` is
+     closed
+   - `P8-R03` remains blocked until the rerun confirms the shell outcome
+4. the active frontier is now blocked at `P6-B01`:
+   - exact missing boundary: the packet-owned `WhatChanged`
+     comparative-support lane is not stable enough for continuity
+     certification because `shared-target-support-near-miss` still leaks
+     support admission / wrong restriction support under the existing exact
+     comparative-support slice
+   - `P9-R05-blocked-slice-rerun` must not run yet, and no new packet was
+     opened from this session
+5. only after that composite tranche should any new horizontal gate packets reopen
 6. Tier 1 provisional move-local reopen audit is now blocked:
    all eight families remain `move_local` closed because no family-complete
    move-local exact-positive plus move-local nasty-negative burden exists yet
@@ -715,15 +725,27 @@ Current vertical proving order:
      campaign across `WhatMattersHere`, `WhyThis`, and `WhatChanged`
 3. `P8-R03-bounded-favorable-simplification-e2e`
    - blocked on 2026-04-09
-   - on `curated-exact:k09b`, the exact simplification claim still shares the
-     `WhyThis` primary payload with unrelated move-local `AccessNetwork`,
-     `FixedTargetComplex`, and opponent-side `TradeInvariant` claims, so the
-     thin shell cannot isolate one bounded explanation without a new
-     primary-claim selection boundary
+   - on `curated-exact:k09b`, the mixed primary payload was the blocked-slice
+     condition on 2026-04-09; `P5-U01` has now closed that packet-owned
+     primary-isolation boundary, and `P8-R03` remains blocked only pending
+     rerun in `P9-R05`
 4. `P8-R04-current-position-coordination-e2e`
    - passed_with_defer on 2026-04-10
    - one bounded `K09A` current-position coordination probe survives end-to-
      end while `K09D`, `K09E`, and single-active-piece mirage remain closed
+5. composite chess semantics tranche
+   - `P5-U01-trade-invariant-primary-simplification`
+     - passed on 2026-04-10; one bounded favorable simplification claim now
+       owns the main `WhyThis` explanation on `curated-exact:k09b`
+   - `P6-B01-shared-target-continuity-certification`
+     - blocked on 2026-04-10
+     - exact missing boundary: the packet-owned `WhatChanged`
+       comparative-support lane is not stable enough for continuity
+       certification because `shared-target-support-near-miss` still leaks
+       support admission / wrong restriction support under the existing exact
+       comparative-support slice
+   - `P9-R05-blocked-slice-rerun`
+     - must not run yet; no new packet was opened from this session
 
 Execution rule:
 
@@ -791,17 +813,27 @@ than one exact shared-target campaign, so this packet cannot truthfully pass
 without an already-certified shared-target continuity boundary.
 
 `P8-R03` is blocked on 2026-04-09:
-the exact `curated-exact:k09b` simplification claim survives certification and
-planner admission, but the current `WhyThis` payload still carries unrelated
+the exact `curated-exact:k09b` simplification claim survived certification and
+planner admission, but the current `WhyThis` payload still carried unrelated
 move-local `AccessNetwork`, `FixedTargetComplex`, and opponent-side
 `TradeInvariant` claim ids alongside the exact simplification claim.
-Because the thin shell mirrors planner `claimIds`, the current runtime proves
-the slice only as one member of a mixed move-local payload rather than as one
-bounded favorable-simplification explanation.
+`P5-U01` now closes that packet-owned primary-isolation boundary, so the rerun
+is the remaining blocker rather than the exact slice boundary itself.
 
 `P8-R04` passed_with_defer on 2026-04-10:
 the exact `P9-A05` deferred slice now survives end-to-end on `K09A`, while
 `K09D`, `K09E`, and the single-active-piece mirage remain closed.
+
+The next frontier is now a composite chess semantics tranche:
+
+`P6-B01` is now blocked:
+the packet-owned `WhatChanged` comparative-support lane is not stable enough
+for continuity certification because `shared-target-support-near-miss` still
+leaks support admission / wrong restriction support under the existing exact
+comparative-support slice.
+
+`P9-R05` should then rerun the blocked slices:
+it must not run yet, and no new packet was opened from this session.
 
 `P5-T01` Tier 1 provisional comparative re-audit passed_with_defer on 2026-04-09:
 all eight provisional families stay `Provisional`; the comparative lane now
@@ -868,7 +900,7 @@ Current lane note:
 - the current-position coordination probe is now also passed (with defer) on
   the same new spine
 - Phase 9 is therefore no longer the active packet frontier by itself; the
-  next active frontier is Phase 8 vertical proving over these re-earned slices
+  active frontier remains blocked at `P6-B01`, and `P9-R05` must not run yet
 - Tier 1 provisional comparative re-audit is now passed_with_defer with all
   eight families staying `Provisional`
 - Tier 1 provisional move-local reopen audit is now blocked with all eight

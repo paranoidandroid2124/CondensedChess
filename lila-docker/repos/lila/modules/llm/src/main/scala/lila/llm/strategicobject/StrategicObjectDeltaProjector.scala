@@ -74,7 +74,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       truth: MoveTruthFrame,
       obj: StrategicObject
   ): List[StrategicDeltaScope] =
-    if isBoundedFavorableSimplificationSlice(obj) then
+    if TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationObject(obj) then
       Option.when(hasTransitionTruth(contract, truth))(StrategicDeltaScope.MoveLocal).toList
     else
       obj.readiness match
@@ -93,27 +93,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       obj: StrategicObject
   ): Boolean =
     StrategicObjectFamily.directDeltaOwners.contains(obj.family) ||
-      isBoundedFavorableSimplificationSlice(obj)
-
-  private def isBoundedFavorableSimplificationSlice(
-      obj: StrategicObject
-  ): Boolean =
-    obj.profile match
-      case StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, _, preservedFamilies, features) =>
-        exchangeSquares.nonEmpty &&
-          invariantSquares.nonEmpty &&
-          preservedFamilies.nonEmpty &&
-          !features.contains(TradeInvariantFeature.PasserAnchor) &&
-          !preservedFamilies.contains(StrategicObjectFamily.PasserComplex) &&
-          features.intersect(
-            Set(
-              TradeInvariantFeature.FixedTargetAnchor,
-              TradeInvariantFeature.BreakAnchor,
-              TradeInvariantFeature.AccessAnchor
-            )
-          ).nonEmpty
-      case _ =>
-        false
+      TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationObject(obj)
 
   private def projectionFor(
       contract: DecisiveTruthContract,

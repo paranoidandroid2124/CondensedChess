@@ -92,5 +92,8 @@ broadening into generic conversion, endgame, or task-shift prose.
   - because the thin shell mirrors planner `claimIds`, one bounded favorable-
     simplification explanation cannot reach the shell in isolation without a
     new exact primary-claim selection boundary
+  - follow-on ownership is now transferred to
+    `P5-U01-trade-invariant-primary-simplification`; do not answer this
+    blocker by broadening generic simplification or endgame doctrine
 - pass condition: one bounded favorable-simplification slice survives end-to-end without inflation
 - blocked condition: shell delivery cannot preserve the bounded same-task meaning without new exact boundary work

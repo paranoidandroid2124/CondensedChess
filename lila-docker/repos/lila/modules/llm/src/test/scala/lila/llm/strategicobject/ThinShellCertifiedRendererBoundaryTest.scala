@@ -88,10 +88,15 @@ class ThinShellCertifiedRendererBoundaryTest extends FunSuite:
     val (objects, _, claims, planned) = runPipeline(row.fen, truth, contract)
     val objectIds = objectIdsFor(row.family, row.owner, row.anchor, objects)
     val moveLocalClaims = claimsFor(objectIds, StrategicDeltaScope.MoveLocal, claims)
+    val primary =
+      moveLocalClaims.find(claim => claim.delta.exists(TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationDelta)).getOrElse(
+        fail("expected packet-owned primary simplification claim")
+      )
 
     assertEquals(row.expectation, "primary")
     assertEquals(admission(planned, moveLocalClaims), row.plannerAdmission)
     assert(moveLocalClaims.exists(_.status == ClaimStatus.Certified), clue("expected certified move-local simplification claim"))
+    assertEquals(planned.claimIds, List(primary.id), clue("thin shell must isolate the primary simplification claim"))
     assertThinShellMirror(planned, claims)
   }
 

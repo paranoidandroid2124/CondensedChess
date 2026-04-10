@@ -11,7 +11,7 @@ class FavorableSimplificationAdmissionTest extends FunSuite:
   import FavorableSimplificationAdmissionTest.*
 
   test("packet favorable-simplification corpus covers exact negative contrastive and near-miss rows") {
-    assertEquals(rows.map(_.caseType).toSet, Set("exact", "negative", "contrastive", "near_miss"))
+    assertEquals(rows.map(_.caseType).toSet, Set("exact", "negative", "contrastive", "near_miss", "nasty_negative"))
   }
 
   rows.foreach { row =>
@@ -45,8 +45,10 @@ class FavorableSimplificationAdmissionTest extends FunSuite:
       row.expectation match
         case "primary" =>
           val primaryClaim =
-            moveLocalClaims.find(_.status == ClaimStatus.Certified).getOrElse(
-              fail(s"${row.id}: expected certified move-local trade-invariant claim")
+            moveLocalClaims.find(claim =>
+              claim.delta.exists(TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationDelta)
+            ).getOrElse(
+              fail(s"${row.id}: expected packet-owned primary simplification claim")
             )
 
           assert(objectIds.nonEmpty, clue(s"${row.id}: expected TradeInvariant object"))
@@ -54,7 +56,7 @@ class FavorableSimplificationAdmissionTest extends FunSuite:
           assert(moveLocalDeltas.forall(_.primaryTag == StrategicDeltaTag.TradePreserved), clue(s"${row.id}: expected bounded favorable-simplification delta tag"))
           assert(primaryClaim.primaryTag.contains(StrategicDeltaTag.TradePreserved), clue(s"${row.id}: expected trade-preserved certification"))
           assertEquals(planned.axis, QuestionAxis.WhyThis)
-          assert(planned.claimIds.contains(primaryClaim.id), clue(s"${row.id}: expected planner primary admission"))
+          assertEquals(planned.claimIds, List(primaryClaim.id), clue(s"${row.id}: expected isolated primary admission"))
         case "none" =>
           assert(moveLocalDeltas.isEmpty, clue(s"${row.id}: non-slice board must not emit a move-local TradeInvariant delta"))
           assert(moveLocalClaims.isEmpty, clue(s"${row.id}: expected no move-local TradeInvariant claim"))

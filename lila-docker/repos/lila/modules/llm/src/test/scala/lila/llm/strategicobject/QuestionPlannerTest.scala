@@ -43,6 +43,27 @@ class QuestionPlannerTest extends FunSuite:
     assert(shellSupport.delta.exists(_.scope == StrategicDeltaScope.PositionLocal), clue("support claim must preserve typed delta"))
   }
 
+  test("planner isolates the packet-owned favorable-simplification claim on curated-exact:k09b") {
+    val row =
+      FavorableSimplificationAdmissionTest.rows.find(_.id == "bounded-favorable-simplification-exact").getOrElse(
+        fail("expected favorable-simplification exact row")
+      )
+    val truth = FavorableSimplificationAdmissionTest.truthFor(row)
+    val contract = FavorableSimplificationAdmissionTest.contractFor(row)
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
+    val primary =
+      claims.find(claim => claim.delta.exists(TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationDelta)).getOrElse(
+        fail("expected packet-owned primary simplification claim")
+      )
+
+    assertEquals(planned.axis, QuestionAxis.WhyThis)
+    assertEquals(planned.claimIds, List(primary.id))
+    assert(primary.primaryTag.contains(StrategicDeltaTag.TradePreserved), clue("expected trade-preserved primary tag"))
+  }
+
   test("planner opens WhyNow from certified timing-sensitive move-local delta") {
     val row = deltaRow("passer-complex-move-exact")
     val truth = truthFor(row)
