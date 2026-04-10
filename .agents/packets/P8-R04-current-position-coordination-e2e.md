@@ -78,5 +78,10 @@ file-pressure, or single-piece praise, while the closed siblings stay closed.
 ## Status Notes
 
 - start status: `ready`
+- end status: `passed_with_defer`
+- packet result:
+  - existing runtime/test path already preserved one bounded `K09A`
+    coordination probe end-to-end
+  - `K09D`, `K09E`, and single-active-piece mirage remained fail-closed
 - pass condition: one bounded coordination probe survives end-to-end while the closed siblings stay closed
 - blocked condition: shell delivery requires broader coordination semantics than the exact slice justifies

@@ -92,8 +92,9 @@ It is:
      thin shell cannot isolate one bounded explanation without a new primary-
      claim selection boundary
 4. `P8-R04-current-position-coordination-e2e`
-   - prove one bounded current-position coordination probe survives end-to-end
-     in its current `passed_with_defer` form
+   - passed_with_defer
+   - one bounded `K09A` current-position coordination probe survives end-to-
+     end while `K09D`, `K09E`, and single-active-piece mirage remain closed
 
 Current blocking note:
 

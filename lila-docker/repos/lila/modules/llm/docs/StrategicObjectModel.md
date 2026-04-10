@@ -82,8 +82,8 @@ Current post-spine frontier:
   - prove one fixed-weakness target campaign end-to-end across
     `WhatMattersHere`, `WhyThis`, and `WhatChanged`
   - prove one bounded favorable-simplification slice end-to-end
-  - prove one bounded current-position coordination probe end-to-end in its
-    current deferred form
+  - carry one bounded current-position coordination probe end-to-end in its
+    deferred form; this is now proved on `P8-R04` (passed_with_defer)
 - `P8-R01` thin-shell certified renderer passed on 2026-04-09:
   Bookmaker shell delivery is now thin on certified planner ownership and no
   longer exports/decodes/reconstructs `strategyPack` / `signalDigest` on this
@@ -99,6 +99,10 @@ Current post-spine frontier:
   `FixedTargetComplex`, and opponent-side `TradeInvariant` claim ids, so the
   thin shell cannot isolate one bounded favorable-simplification explanation
   without a new exact primary-claim selection boundary
+- `P8-R04` current-position coordination e2e passed_with_defer on 2026-04-10:
+  one bounded `K09A` current-position coordination probe now survives thin-
+  shell delivery end-to-end, while `K09D`, `K09E`, and single-active-piece
+  mirage remain closed
 - the blocked provisional move-local reopen lane is a stopping rule for that
   evidence pack, not a blocker to vertical proof on already re-earned stable
   slices
@@ -829,9 +833,8 @@ That frontier should proceed in this order:
    - use the already re-earned same-task `TradeInvariant` slice to prove one
      bounded simplification explanation survives user-visible delivery
 4. current-position coordination end-to-end
-   - use the current `K09A` coordination slice in its `passed_with_defer`
-     state to prove one bounded probe survives user-visible delivery while the
-     closed siblings stay closed
+   - `P8-R04` now proves one bounded `K09A` coordination probe survives
+     user-visible delivery while the closed siblings stay closed
 5. only then derive new gate packets from exact slice failures
    - if one of the vertical packets fails, derive the needed ownership,
      certification, or renderer packet from that exact failure instead of

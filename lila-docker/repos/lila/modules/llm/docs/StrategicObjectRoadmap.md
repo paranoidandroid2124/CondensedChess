@@ -75,8 +75,8 @@ Near-term canonical sequence from the current checkpoint:
    current-position fixed-target slices
 3. one bounded favorable-simplification explanation must then be proved
    end-to-end on the already re-earned same-task `TradeInvariant` slice
-4. one bounded current-position coordination probe must then be proved
-   end-to-end in its current `passed_with_defer` form
+4. one bounded current-position coordination probe is now proved end-to-end in
+   `P8-R04` with `passed_with_defer` on 2026-04-10
 5. only after those vertical proofs should new horizontal gate packets reopen
 6. Tier 1 provisional move-local reopen audit is now blocked:
    all eight families remain `move_local` closed because no family-complete
@@ -721,8 +721,9 @@ Current vertical proving order:
      thin shell cannot isolate one bounded explanation without a new
      primary-claim selection boundary
 4. `P8-R04-current-position-coordination-e2e`
-   - prove one bounded current-position coordination probe survives end-to-end
-    in its current deferred form
+   - passed_with_defer on 2026-04-10
+   - one bounded `K09A` current-position coordination probe survives end-to-
+     end while `K09D`, `K09E`, and single-active-piece mirage remain closed
 
 Execution rule:
 
@@ -798,10 +799,9 @@ Because the thin shell mirrors planner `claimIds`, the current runtime proves
 the slice only as one member of a mixed move-local payload rather than as one
 bounded favorable-simplification explanation.
 
-`P8-R04` should then use `P9-A05` in its current deferred form:
-the next proof target after that is one bounded current-position coordination
-probe that survives end-to-end while `K09D`, `K09E`, and the single-active-
-piece mirage remain closed.
+`P8-R04` passed_with_defer on 2026-04-10:
+the exact `P9-A05` deferred slice now survives end-to-end on `K09A`, while
+`K09D`, `K09E`, and the single-active-piece mirage remain closed.
 
 `P5-T01` Tier 1 provisional comparative re-audit passed_with_defer on 2026-04-09:
 all eight provisional families stay `Provisional`; the comparative lane now

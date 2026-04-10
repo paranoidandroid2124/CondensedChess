@@ -112,6 +112,11 @@ Authority:
     `c6`, while `P9-A02` and `P9-A01` are anchored on `d6`, so the runtime
     currently proves three independent exact lanes rather than one exact
     shared-target campaign
+- `P8-R04-current-position-coordination-e2e`
+  - passed_with_defer
+  - one bounded `K09A` current-position coordination probe now survives thin-
+    shell delivery end-to-end, while `K09D`, `K09E`, and the single-active-
+    piece mirage remain planner/shell closed
 
 ## Active Queue
 
@@ -138,17 +143,18 @@ Authority:
 | `P8-R01-thin-shell-certified-renderer` | `passed` | 19 | vertical slice / thin shell | landed Bookmaker thin-shell closure: controller/frontend path no longer exports/decodes/reconstructs `strategyPack` / `signalDigest`; renderer mirrors planner `claimIds/supportClaimIds`; exact-row shell closure held on `K03A` / `K09E` / single-active-piece mirage |
 | `P8-R02-exact-target-campaign-e2e` | `blocked` | 20 | vertical slice / target campaign | exact missing boundary: no current packet-scoped shared-target continuity exists across all three axes because `P9-A04` is `c6`-anchored while `P9-A02` and `P9-A01` are `d6`-anchored; current runtime proves separate exact lanes, not one shared campaign |
 | `P8-R03-bounded-favorable-simplification-e2e` | `blocked` | 21 | vertical slice / simplification | exact missing boundary: on `curated-exact:k09b`, `WhyThis` still emits mixed move-local `claimIds` (`AccessNetwork`, `FixedTargetComplex`, opponent `TradeInvariant`, plus the exact simplification claim), so the thin shell cannot isolate one bounded favorable-simplification explanation without a new primary-claim selection boundary |
-| `P8-R04-current-position-coordination-e2e` | `ready` | 22 | vertical slice / coordination | use `P9-A05` in its current `passed_with_defer` state to prove one bounded coordination probe survives end-to-end while K09D/K09E/mirage stay closed |
+| `P8-R04-current-position-coordination-e2e` | `passed_with_defer` | 22 | vertical slice / coordination | bounded `K09A` coordination probe survives end-to-end on `WhatMattersHere`; `K09D`, `K09E`, and single-active-piece mirage stay fail-closed |
 
 ## Current Vertical Tranche Rule
 
-- `P8-R02` through `P8-R04` may proceed despite `P5-T02` because they consume
+- `P8-R04` is now closed as `passed_with_defer`; `P8-R02` and `P8-R03` remain
+  `blocked` on the exact missing boundaries recorded in their queue notes.
+- `P5-T02` remains orthogonal to this tranche because these packets consume
   only already re-earned stable slices and do not depend on provisional
   move-local reopening.
-- Do not open a new horizontal gate, ownership, or certification packet before
-  one of `P8-R02` through `P8-R04` fails on an exact slice.
-- If a vertical packet fails, derive the new gate packet from that exact slice
-  failure instead of widening infra proactively.
+- Any future horizontal gate, ownership, or certification packet must be
+  derived from one of those exact blocked vertical-slice failures rather than
+  infra widening.
 
 ## Packet Selection Rule
 
