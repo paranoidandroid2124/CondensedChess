@@ -79,16 +79,21 @@ Near-term canonical sequence from the current checkpoint:
    - the packet-owned primary-isolation boundary on `curated-exact:k09b` is
      closed
    - `P8-R03` remains blocked until the rerun confirms the shell outcome
-4. the active frontier is now blocked at `P6-B01`:
+4. the active frontier now has the comparative near-miss packet closed:
+   - `P6-B02-whatchanged-comparative-nearmiss-certification`
+     - passed
+   - `P7-Q03-whatchanged-comparative-demotion-matrix`
+   - `P7-E03-comparative-nearmiss-tail-risk`
+5. `P6-B01` remains blocked until the planner follow-through lands:
    - exact missing boundary: the packet-owned `WhatChanged`
-     comparative-support lane is not stable enough for continuity
-     certification because `shared-target-support-near-miss` still leaks
-     support admission / wrong restriction support under the existing exact
-     comparative-support slice
-   - `P9-R05-blocked-slice-rerun` must not run yet, and no new packet was
-     opened from this session
-5. only after that composite tranche should any new horizontal gate packets reopen
-6. Tier 1 provisional move-local reopen audit is now blocked:
+     comparative-support lane still needs continuity certification, but the
+     near-miss restriction row now defers and no longer stays
+     planner-attachable under the current planner
+   - `P9-R05-blocked-slice-rerun` must not run yet; the next follow-through
+     packets are `P7-Q03-whatchanged-comparative-demotion-matrix` and
+     `P7-E03-comparative-nearmiss-tail-risk`
+6. only after the comparative follow-through should any new horizontal gate packets reopen
+7. Tier 1 provisional move-local reopen audit is now blocked:
    all eight families remain `move_local` closed because no family-complete
    move-local exact-positive plus move-local nasty-negative burden exists yet
 
@@ -737,15 +742,20 @@ Current vertical proving order:
    - `P5-U01-trade-invariant-primary-simplification`
      - passed on 2026-04-10; one bounded favorable simplification claim now
        owns the main `WhyThis` explanation on `curated-exact:k09b`
+   - comparative near-miss fail-closed tranche
+     - `P6-B02-whatchanged-comparative-nearmiss-certification`
+       - passed; packet-owned near-miss comparative now stays support-only or
+         deferred and never owns `WhatChanged` primary
+     - `P7-Q03-whatchanged-comparative-demotion-matrix`
+     - `P7-E03-comparative-nearmiss-tail-risk`
    - `P6-B01-shared-target-continuity-certification`
      - blocked on 2026-04-10
      - exact missing boundary: the packet-owned `WhatChanged`
-       comparative-support lane is not stable enough for continuity
-       certification because `shared-target-support-near-miss` still leaks
-       support admission / wrong restriction support under the existing exact
-       comparative-support slice
+       comparative-support lane still needs continuity certification, but the
+       near-miss restriction row now defers and no longer stays
+       planner-attachable under the current planner
    - `P9-R05-blocked-slice-rerun`
-     - must not run yet; no new packet was opened from this session
+     - must not run yet; gated behind the comparative follow-through tranche
 
 Execution rule:
 
@@ -824,16 +834,25 @@ is the remaining blocker rather than the exact slice boundary itself.
 the exact `P9-A05` deferred slice now survives end-to-end on `K09A`, while
 `K09D`, `K09E`, and the single-active-piece mirage remain closed.
 
-The next frontier is now a composite chess semantics tranche:
+The next frontier is now a comparative near-miss fail-closed tranche:
 
-`P6-B01` is now blocked:
-the packet-owned `WhatChanged` comparative-support lane is not stable enough
-for continuity certification because `shared-target-support-near-miss` still
+`P6-B02-whatchanged-comparative-nearmiss-certification` is `passed`:
+packet-owned near-miss comparative now stays support-only or deferred and
+never owns `WhatChanged` primary.
+
+`P7-Q03-whatchanged-comparative-demotion-matrix` must prevent near-miss or
+support-only comparative claims from owning `WhatChanged` primary.
+
+`P7-E03-comparative-nearmiss-tail-risk` must add a trace/tail-risk gate for
+near-miss `WhatChanged` leakage.
+
+Only after that tranche lands should `P6-B01` reopen shared-target
+continuity: the packet-owned `WhatChanged` comparative-support lane still
+needs continuity certification because `shared-target-support-near-miss`
 leaks support admission / wrong restriction support under the existing exact
 comparative-support slice.
 
-`P9-R05` should then rerun the blocked slices:
-it must not run yet, and no new packet was opened from this session.
+`P9-R05` should then rerun the blocked slices, but must not run yet.
 
 `P5-T01` Tier 1 provisional comparative re-audit passed_with_defer on 2026-04-09:
 all eight provisional families stay `Provisional`; the comparative lane now
@@ -900,7 +919,8 @@ Current lane note:
 - the current-position coordination probe is now also passed (with defer) on
   the same new spine
 - Phase 9 is therefore no longer the active packet frontier by itself; the
-  active frontier remains blocked at `P6-B01`, and `P9-R05` must not run yet
+  active frontier remains blocked behind the comparative near-miss tranche,
+  and `P9-R05` must not run yet
 - Tier 1 provisional comparative re-audit is now passed_with_defer with all
   eight families staying `Provisional`
 - Tier 1 provisional move-local reopen audit is now blocked with all eight

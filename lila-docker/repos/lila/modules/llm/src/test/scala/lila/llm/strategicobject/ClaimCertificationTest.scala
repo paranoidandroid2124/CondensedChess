@@ -132,6 +132,59 @@ class ClaimCertificationTest extends FunSuite:
     assertEquals(weakenedClaim.status, ClaimStatus.SupportOnly)
   }
 
+  test("packet-owned shared-target comparative near-miss stays support-only or deferred at certification") {
+    val exactRow =
+      ComparativeSupportAdmissionTest.rows.find(_.id == "shared-target-support-exact").getOrElse(
+        fail("expected comparative exact row")
+      )
+    val nearMissRow =
+      ComparativeSupportAdmissionTest.rows.find(_.id == "shared-target-support-near-miss").getOrElse(
+        fail("expected comparative near-miss row")
+      )
+
+    val exactTruth = ComparativeSupportAdmissionTest.truthFor(exactRow)
+    val exactContract = ComparativeSupportAdmissionTest.contractFor(exactRow)
+    val exactObjects = StrategicObjectSynthesizerTest.objectsForFen(exactRow.fen, exactTruth)
+    val exactDeltas = CanonicalStrategicObjectDeltaProjector.project(exactContract, exactTruth, exactObjects)
+    val exactClaims = CanonicalClaimCertification.certify(exactContract, exactObjects, exactDeltas)
+    val exactPrimary =
+      ComparativeSupportAdmissionTest.primaryClaim(exactRow, exactObjects, exactClaims).getOrElse(
+        fail("expected exact comparative primary claim")
+      )
+    val exactSupport =
+      ComparativeSupportAdmissionTest.supportClaim(exactRow, exactObjects, exactClaims).getOrElse(
+        fail("expected exact comparative support claim")
+      )
+
+    assertEquals(exactPrimary.status, ClaimStatus.Certified)
+    assertEquals(exactSupport.status, ClaimStatus.SupportOnly)
+    assertEquals(exactPrimary.deltaScope, StrategicDeltaScope.Comparative)
+    assertEquals(exactSupport.deltaScope, StrategicDeltaScope.Comparative)
+
+    val nearTruth = ComparativeSupportAdmissionTest.truthFor(nearMissRow)
+    val nearContract = ComparativeSupportAdmissionTest.contractFor(nearMissRow)
+    val nearObjects = StrategicObjectSynthesizerTest.objectsForFen(nearMissRow.fen, nearTruth)
+    val nearDeltas = CanonicalStrategicObjectDeltaProjector.project(nearContract, nearTruth, nearObjects)
+    val nearClaims = CanonicalClaimCertification.certify(nearContract, nearObjects, nearDeltas)
+    val nearSupport =
+      ComparativeSupportAdmissionTest.supportClaim(nearMissRow, nearObjects, nearClaims).getOrElse(
+        fail("expected near-miss comparative claim")
+      )
+    val nearSummary =
+      nearClaims
+        .filter(_.deltaScope == StrategicDeltaScope.Comparative)
+        .map(claim =>
+          s"${claim.objectId}:${claim.status}:${claim.primaryTag}:${claim.delta.flatMap(_.comparativeProfile).map(_.metrics.size)}"
+        )
+        .mkString(", ")
+
+    assert(nearClaims.exists(_.deltaScope == StrategicDeltaScope.Comparative), clue("expected comparative delta for near-miss row"))
+    assert(
+      nearSupport.status == ClaimStatus.SupportOnly || nearSupport.status == ClaimStatus.Deferred,
+      clue(s"near-miss comparative must stay support-only or deferred, got ${nearSupport.status}, claims=[$nearSummary]")
+    )
+  }
+
   test("Tier-1 provisional comparative near-miss rows stay support-only and localize at certification") {
     val provisionalFamilies =
       StrategicObjectFamily.directDeltaOwners.filter(family =>

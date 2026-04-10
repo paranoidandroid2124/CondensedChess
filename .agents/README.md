@@ -108,10 +108,24 @@ It is:
      certification because `shared-target-support-near-miss` still leaks
      support admission / wrong restriction support under the existing exact
      comparative-support slice
-7. `P9-R05-blocked-slice-rerun`
-   - do not run yet
-   - no new packet was opened from this session; `P9-R05` stays behind the
-     unresolved `P6-B01` boundary
+7. `P6-B02-whatchanged-comparative-nearmiss-certification`
+   - passed
+   - packet-owned near-miss comparative now stays support-only or deferred
+     and never owns `WhatChanged` primary
+   - certification-owned closure: comparative near-miss must not own
+     `WhatChanged` primary
+8. `P7-Q03-whatchanged-comparative-demotion-matrix`
+   - ready
+   - planner demotion: only `comparative_primary` may own `WhatChanged`
+     primary; near-miss/support-only must demote or defer
+9. `P7-E03-comparative-nearmiss-tail-risk`
+   - ready
+   - trace/tail-risk gate: track and hard-fail near-miss `WhatChanged`
+     leakage
+10. `P9-R05-blocked-slice-rerun`
+    - do not run yet
+    - `P9-R05` stays behind the unresolved `P6-B01` boundary and the
+      comparative near-miss fail-closed tranche
 
 Current blocking note:
 
@@ -129,4 +143,5 @@ Operational rule:
   boundary, but `P8-R03` still remains blocked and `P6-B01` is now also
   blocked on its own exact comparative-support boundary
 - the next packets must therefore derive from those exact failures rather than
-  widen infra generically, and `P9-R05` must not run yet
+  widen infra generically, and the comparative near-miss fail-closed tranche
+  must land before `P6-B01` or `P9-R05` move again

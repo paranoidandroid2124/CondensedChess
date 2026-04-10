@@ -80,8 +80,15 @@ Current post-spine frontier:
   tranche
 - that tranche should:
   - reopen `TradeInvariant` narrowly for primary simplification ownership
-  - close shared-target continuity as a certification-owned witness
-  - rerun the blocked target-campaign and bounded-simplification slices
+  - close comparative near-miss fail-closed ownership before continuity
+    reruns:
+    - certification-owned `WhatChanged` comparative near-miss demotion
+    - planner demotion matrix for near-miss/support-only comparative
+    - trace/tail-risk gate for `WhatChanged` comparative near-miss leakage
+  - close shared-target continuity as a certification-owned witness only
+    after the comparative near-miss tranche lands
+  - rerun the blocked target-campaign and bounded-simplification slices only
+    after the comparative near-miss tranche lands
 - `P8-R01` thin-shell certified renderer passed on 2026-04-09:
   Bookmaker shell delivery is now thin on certified planner ownership and no
   longer exports/decodes/reconstructs `strategyPack` / `signalDigest` on this
@@ -110,8 +117,16 @@ Current post-spine frontier:
   enough for continuity certification because
   `shared-target-support-near-miss` still leaks support admission / wrong
   restriction support under the existing exact comparative-support slice
+- `P6-B02-whatchanged-comparative-nearmiss-certification` is `passed`:
+  packet-owned near-miss comparative now stays support-only or deferred and
+  never owns `WhatChanged` primary
+- the comparative follow-through tranche must now land before shared-target
+  continuity can be retried:
+  - `P7-Q03` planner demotion matrix
+  - `P7-E03` trace/tail-risk near-miss gate
 - `P9-R05-blocked-slice-rerun` must not run yet:
-  no new packet was opened from this session while `P6-B01` remains blocked
+  no new packet should open it while `P6-B01` remains blocked or the
+  comparative near-miss tranche is incomplete
 - the blocked provisional move-local reopen lane is a stopping rule for that
   evidence pack, not a blocker to vertical proof on already re-earned stable
   slices
@@ -822,8 +837,12 @@ spine.
 
 Comparative-quality certification is now closed.
 Exact comparative support is now re-earned on one narrow same-owner
-shared-target `FixedTargetComplex` + `RestrictionShell` slice, while shallow
-comparative stays planner `none` and localizes at `certification`.
+shared-target `FixedTargetComplex` + `RestrictionShell` slice. The packet-
+owned exact and contrastive shared-target `RestrictionShell` comparative rows
+stay `SupportOnly`, while the packet-owned near-miss `RestrictionShell`
+comparative row localizes at `Deferred` and does not stay planner-attachable
+under the current planner.
+Shallow comparative stays planner `none` and localizes at `certification`.
 Exact target fixation is now also re-earned on one narrow move-local
 `FixedTargetComplex` slice keyed to the exact fixation square, while
 pressure-only target pictures stay planner `none` and localize no higher than
@@ -847,13 +866,15 @@ That frontier should proceed in this order:
 5. composite chess semantics tranche
    - `P5-U01` passed on 2026-04-10; one bounded favorable-simplification
      claim now owns the primary `WhyThis` explanation on `curated-exact:k09b`
-   - `P6-B01` is blocked:
+   - comparative follow-through tranche must land before continuity:
+     - `P7-Q03` planner demotion matrix
+     - `P7-E03` trace/tail-risk near-miss gate
+   - `P6-B01` remains blocked until the follow-through lands:
      the packet-owned `WhatChanged` comparative-support lane is not stable
-     enough for continuity certification because
-     `shared-target-support-near-miss` still leaks support admission / wrong
-     restriction support under the existing exact comparative-support slice
-   - `P9-R05` must not run yet, and no new packet was opened from this
-     session
+     enough for continuity certification because the near-miss restriction
+     row now defers and no longer stays planner-attachable under the current
+     planner
+   - `P9-R05` must not run yet; it stays gated behind the near-miss tranche
 6. only then derive any further gate packets from exact slice failures
    - if the rerun still fails, derive the needed ownership, certification, or
      renderer packet from that exact failure instead of widening infra

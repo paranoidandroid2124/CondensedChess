@@ -101,8 +101,12 @@ generic campaign-thread engine.
     near-miss comparative row, so shared-target continuity cannot be certified
     without reopening a broader comparative-support boundary than this packet
     allows
+  - the comparative near-miss fail-closed tranche must land before retry:
+    - `P6-B02` certification-owned near-miss demotion
+    - `P7-Q03` planner demotion matrix
+    - `P7-E03` trace/tail-risk near-miss gate
   - `P9-R05` must not be opened yet because the unresolved burden still sits
-    inside `P6-B01`
+    inside `P6-B01` and the near-miss tranche is incomplete
 - pass condition:
   - one continuing fixed-weakness campaign survives across the three axes
     without broadening semantics
