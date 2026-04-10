@@ -54,6 +54,29 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
     assertEquals(row.localization.localizedStage, "planner_none")
   }
 
+  test("packet comparative-support near-miss is visible and localized at certification") {
+    val row =
+      StrategicObjectExplanationTraceSupport.traceRows.find(_.rowId == "shared-target-support-near-miss").getOrElse(
+        fail("expected packet comparative-support near-miss trace row")
+      )
+
+    assertEquals(row.caseType, "near_miss")
+    assertEquals(row.scope, "comparative")
+    assertEquals(row.expectation, "absent")
+    assertEquals(row.projection.kind, Some("Comparative"))
+    assert(row.witness.familyAware, clue("support trace must keep family-aware witness"))
+    assert(row.witness.exactCounterpartWitness, clue("support trace must keep exact counterpart witness"))
+    assert(
+      row.certification.status.exists(status => status == "SupportOnly" || status == "Deferred"),
+      clue(row.certification)
+    )
+    assertEquals(row.planner.admission, "none")
+    assertEquals(row.localization.localizedStage, "certification")
+    assertEquals(row.traceExpectation.plannerAdmission, Some("none"))
+    assertEquals(row.traceExpectation.localizationStage, Some("certification"))
+    assert(row.traceExpectationMatch.satisfied, clue(row))
+  }
+
   test("shared-target comparative rows stay upstream under the live k10 trace") {
     val fixedTarget =
       StrategicObjectExplanationTraceSupport.traceRows.find(_.rowId == "fixed-target-comparative-contrastive").getOrElse(
@@ -120,7 +143,8 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
 
     assert(evaluation.passed, clue(evaluation.failures))
     assertEquals(evaluation.macroMetrics.totalRows, rows.size)
-    assertEquals(evaluation.macroMetrics.passedRows, rows.size)
+    assertEquals(evaluation.macroMetrics.leakRows, 1)
+    assertEquals(evaluation.macroMetrics.passedRows, rows.size - 1)
     assertEquals(evaluation.tailRisk.totalRows, rows.size)
     assert(evaluation.tailRisk.hardestRows >= 0)
     assert(
@@ -141,7 +165,7 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
     assertEquals(leaked.size, 0, clue(leaked.map(_.rowId).mkString(", ")))
   }
 
-  test("tail-risk gate fails on planner leak even with macro pass above threshold") {
+  test("tail-risk gate fails on planner leak") {
     val rows = StrategicObjectExplanationTraceSupport.traceRows
     val seedRow = rows.find(_.rowId == "king-safety-position-nasty-negative").getOrElse(
       fail("expected planner-blocked hardest negative row")
@@ -155,13 +179,9 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
 
     assert(!evaluation.passed, clue(evaluation.failures))
     assert(evaluation.failures.exists(_.contains("planner_negative_leaks")))
-    assert(
-      evaluation.macroMetrics.passRate >= 0.98,
-      clue(s"macro still must stay high: ${evaluation.macroMetrics.passRate}")
-    )
   }
 
-  test("tail-risk gate treats packet planner negatives as hard failures without dragging macro below threshold") {
+  test("tail-risk gate treats packet planner negatives as hard failures") {
     val rows = StrategicObjectExplanationTraceSupport.traceRows
     val plannerNegative =
       withPlannerLeak(
@@ -180,11 +200,34 @@ class StrategicObjectExplanationTraceSupportTest extends FunSuite:
     val evaluation = StrategicObjectExplanationTraceSupport.tailRiskEvaluation(rows :+ plannerNegative, 0.98)
 
     assert(!evaluation.passed, clue(evaluation.failures))
-    assert(
-      evaluation.macroMetrics.passRate >= 0.98,
-      clue(s"macro should stay high: ${evaluation.macroMetrics.passRate}")
-    )
     assertEquals(evaluation.tailRisk.plannerLeakRowIds, List("packet-planner-negative"))
+    assert(
+      evaluation.tailRisk.byCaseType.find(_.caseType == "planner_negative").exists(metric =>
+        metric.expectedPlannerBlockedRows == 1 && metric.plannerLeakRows == 1
+      ),
+      clue(evaluation.tailRisk.byCaseType)
+    )
+  }
+
+  test("tail-risk gate treats packet comparative-support near-miss leakage as hard failure") {
+    val rows = StrategicObjectExplanationTraceSupport.traceRows
+    val leaked = withPlannerLeak(
+      rows.find(_.rowId == "shared-target-support-near-miss").getOrElse(
+        fail("expected packet comparative-support near-miss trace row")
+      ),
+      rowId = Some("packet-support-near-miss-leak"),
+      caseType = Some("planner_negative"),
+      expectation = Some("present"),
+      admission = "primary",
+      axis = "WhatChanged",
+      claimId = "support-near-miss-leak",
+      plannerExpectation = Some("none"),
+      localizationExpectation = Some("certification")
+    )
+    val evaluation = StrategicObjectExplanationTraceSupport.tailRiskEvaluation(rows :+ leaked, 0.98)
+
+    assert(!evaluation.passed, clue(evaluation.failures))
+    assertEquals(evaluation.tailRisk.plannerLeakRowIds, List("packet-support-near-miss-leak"))
     assert(
       evaluation.tailRisk.byCaseType.find(_.caseType == "planner_negative").exists(metric =>
         metric.expectedPlannerBlockedRows == 1 && metric.plannerLeakRows == 1

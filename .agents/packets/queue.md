@@ -135,10 +135,16 @@ Authority:
     because packet-owned near-miss comparative now stays support-only or
     deferred and never owns `WhatChanged` primary
   - the next sub-tranche is comparative follow-through:
-    - `P7-Q03-whatchanged-comparative-demotion-matrix`
-    - `P7-E03-comparative-nearmiss-tail-risk`
+    - `P7-Q03-whatchanged-comparative-demotion-matrix` is `passed` on
+      2026-04-10; `WhatChanged` primary now stays on
+      `comparative_primary` only, and support-only/shallow comparative
+      evidence cannot reconstruct primary ownership
+    - `P7-E03-comparative-nearmiss-tail-risk` is `passed` on 2026-04-10;
+      trace/tail-risk now expose comparative near-miss demotion and hard-fail
+      `WhatChanged` primary leakage
+  - the comparative fail-closed tranche is now landed
   - `P9-R05-blocked-slice-rerun` must not run yet and remains gated behind
-    the comparative fail-closed tranche
+    the unresolved `P6-B01` continuity rerun
 
 ## Active Queue
 
@@ -167,11 +173,11 @@ Authority:
 | `P8-R03-bounded-favorable-simplification-e2e` | `blocked` | 21 | vertical slice / simplification | exact missing boundary: on `curated-exact:k09b`, `WhyThis` still emitted mixed move-local `claimIds` (`AccessNetwork`, `FixedTargetComplex`, opponent `TradeInvariant`, plus the exact simplification claim) on the blocked slice; `P5-U01` now closes that primary-isolation boundary, and `P9-R05` remains the rerun gate rather than a new doctrine packet |
 | `P8-R04-current-position-coordination-e2e` | `passed_with_defer` | 22 | vertical slice / coordination | bounded `K09A` coordination probe survives end-to-end on `WhatMattersHere`; `K09D`, `K09E`, and single-active-piece mirage stay fail-closed |
 | `P5-U01-trade-invariant-primary-simplification` | `passed` | 23 | composite semantics / TradeInvariant | one bounded favorable-simplification claim now owns the primary `WhyThis` explanation on `curated-exact:k09b`; unrelated move-local claims were removed from the primary simplification payload |
-| `P6-B01-shared-target-continuity-certification` | `blocked` | 24 | composite semantics / shared-target continuity | exact missing boundary: the packet-owned `WhatChanged` comparative-support lane is not stable enough for continuity certification because `shared-target-support-near-miss` still leaks support admission / wrong restriction support under the existing exact comparative-support slice |
+| `P6-B01-shared-target-continuity-certification` | `blocked` | 24 | composite semantics / shared-target continuity | comparative near-miss follow-through has landed, but the packet-owned `WhatChanged` comparative-support lane still needs a continuity rerun; no new continuity packet should assume broader ownership or support reuse before that rerun |
 | `P6-B02-whatchanged-comparative-nearmiss-certification` | `passed` | 25 | comparative fail-closed / certification | packet-owned near-miss comparative is now support-only or deferred and never owns `WhatChanged` primary |
-| `P7-Q03-whatchanged-comparative-demotion-matrix` | `ready` | 26 | comparative fail-closed / planner | enforce demotion: only `comparative_primary` owns `WhatChanged`; `support_only` / `near_miss` must demote or defer |
-| `P7-E03-comparative-nearmiss-tail-risk` | `ready` | 27 | comparative fail-closed / eval | add trace + tail-risk gate for `WhatChanged` comparative near-miss leakage |
-| `P9-R05-blocked-slice-rerun` | `ready` | 28 | composite semantics / blocked rerun | must not run yet; `P6-B01` remains blocked and comparative fail-closed tranche must land first |
+| `P7-Q03-whatchanged-comparative-demotion-matrix` | `passed` | 26 | comparative fail-closed / planner | planner demotion matrix landed on 2026-04-10: `WhatChanged` primary now stays on `comparative_primary` only; support-only/shallow comparative evidence cannot reconstruct primary ownership |
+| `P7-E03-comparative-nearmiss-tail-risk` | `passed` | 27 | comparative fail-closed / eval | trace + tail-risk gate now exposes comparative near-miss demotion and hard-fails `WhatChanged` primary leakage |
+| `P9-R05-blocked-slice-rerun` | `ready` | 28 | composite semantics / blocked rerun | must not run yet; `P6-B01` remains blocked on continuity rerun |
 
 ## Current Frontier Rule
 
@@ -187,10 +193,10 @@ Authority:
   already re-earned stable slices and does not depend on provisional
   move-local reopening.
 - the active frontier remains blocked at `P6-B01` until the comparative
-  near-miss tranche lands:
-  - `P6-B02` certification-owned near-miss closure
-  - `P7-Q03` planner demotion matrix
-  - `P7-E03` trace/tail-risk leak gate
+  continuity rerun closes:
+  - `P6-B02` certification-owned near-miss closure (passed)
+  - `P7-Q03` planner demotion matrix (passed on 2026-04-10)
+  - `P7-E03` trace/tail-risk leak gate (passed on 2026-04-10)
 - `P9-R05` must not run yet
 - do not open broad `TransitionBridge`, generic campaign-threading, or broad
   simplification doctrine before those packets fail and name a new exact

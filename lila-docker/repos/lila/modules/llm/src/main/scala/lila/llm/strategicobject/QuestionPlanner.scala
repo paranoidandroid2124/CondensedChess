@@ -224,7 +224,13 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       primaryClaimId: String,
       supportClaimId: String,
       supportClaim: CertifiedClaim,
-      score: Int
+      primaryTargetRankScore: Int,
+      supportRestrictionScore: Int,
+      sharedTargetCount: Int,
+      supportWitnessScore: Int,
+      supportTargetOverlapScore: Int,
+      primaryStandingScore: Int,
+      primaryCentralityScore: Int
   )
 
   private enum CurrentPositionProbeKind:
@@ -261,7 +267,13 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       )
       .sortBy(candidate =>
         (
-          -candidate.score,
+          -candidate.primaryCentralityScore,
+          -candidate.primaryTargetRankScore,
+          -candidate.supportRestrictionScore,
+          -candidate.sharedTargetCount,
+          -candidate.supportTargetOverlapScore,
+          -candidate.supportWitnessScore,
+          -candidate.primaryStandingScore,
           candidate.primaryClaimId,
           candidate.supportClaimId
         )
@@ -273,15 +285,20 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       primaryClaim: CertifiedClaim,
       supportClaim: CertifiedClaim
   ): Option[ComparativeSupportCandidate] =
+    val sharedTargetSquares =
+      sharedComparativeTargetSquares(primaryClaim.delta, supportClaim.delta)
     Option.when(isExactSharedTargetComparativeSupport(primaryClaim, supportClaim)) {
       ComparativeSupportCandidate(
         primaryClaimId = primaryClaim.id,
         supportClaimId = supportClaim.id,
         supportClaim = supportClaim,
-        score =
-          comparativeStandingScore(primaryClaim.delta) +
-            comparativeCentralityScore(primaryClaim.delta) +
-            sharedComparativeTargetSquares(primaryClaim.delta, supportClaim.delta).size
+        primaryTargetRankScore = primaryTargetRankScore(primaryClaim.delta),
+        supportRestrictionScore = restrictionSupportOverlapScore(primaryClaim.delta, supportClaim.delta),
+        sharedTargetCount = sharedTargetSquares.size,
+        supportWitnessScore = comparativeWitnessSpecificityScore(supportClaim.delta),
+        supportTargetOverlapScore = supportTargetOverlapScore(supportClaim.delta, sharedTargetSquares),
+        primaryStandingScore = comparativeStandingScore(primaryClaim.delta),
+        primaryCentralityScore = comparativeCentralityScore(primaryClaim.delta)
       )
     }
 
@@ -303,6 +320,7 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
             ).contains(profile.axis)
           ) &&
           supportDelta.comparativeProfile.exists(_.axis == StrategicComparativeAxis.RestrictionContainmentContrast) &&
+          comparativeSupportCorroborationCount(supportDelta) >= 2 &&
           sharedComparativeTargetSquares(Some(primaryDelta), Some(supportDelta)).nonEmpty
       case _ =>
         false
@@ -313,7 +331,7 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
   ): Set[String] =
     (primaryDelta, supportDelta) match
       case (Some(primary), Some(support)) =>
-        primaryTargetSquares(primary).intersect(comparativeSquares(support))
+        primaryTargetSquares(primary).intersect(exactComparativeSupportSquares(support))
       case _ =>
         Set.empty
 
@@ -362,14 +380,68 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       .maxOption
       .getOrElse(0)
 
-  private def comparativeSquares(
+  private def primaryTargetRankScore(
+      delta: Option[StrategicObjectDelta]
+  ): Int =
+    delta
+      .toList
+      .flatMap(primaryTargetSquares)
+      .flatMap(squareKey => squareKey.drop(1).toIntOption)
+      .maxOption
+      .getOrElse(0)
+
+  private def exactComparativeSupportSquares(
       delta: StrategicObjectDelta
   ): Set[String] =
-    (
-      delta.changedAnchors.flatMap(_.squares) ++
-        delta.evidenceRefs.flatMap(_.anchorSquares) ++
-        delta.evidenceRefs.flatMap(_.contestedSquares)
-    ).map(_.key).toSet
+    delta.profile match
+      case StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares) =>
+        (restrictedSquares ++ constraintSquares).map(_.key).toSet
+      case _ =>
+        delta.changedAnchors
+          .flatMap(_.squares)
+          .map(_.key)
+          .toSet
+
+  private def restrictionSupportOverlapScore(
+      primaryDelta: Option[StrategicObjectDelta],
+      supportDelta: Option[StrategicObjectDelta]
+  ): Int =
+    (primaryDelta, supportDelta) match
+      case (Some(primary), Some(StrategicObjectDelta(_, _, _, _, StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares), _, _, _, _, _))) =>
+        val primaryTargets = primaryTargetSquares(primary)
+        if primaryTargets.intersect(restrictedSquares.map(_.key).toSet).nonEmpty then 2
+        else if primaryTargets.intersect(constraintSquares.map(_.key).toSet).nonEmpty then 1
+        else 0
+      case _ =>
+        0
+
+  private def comparativeWitnessSpecificityScore(
+      delta: Option[StrategicObjectDelta]
+  ): Int =
+    delta.flatMap(_.comparativeWitness).map { witness =>
+      witness.counterpartWitnessKinds.toList.map {
+        case StrategicCounterpartWitnessKind.SharedTarget         => 16
+        case StrategicCounterpartWitnessKind.SharedSquare         => 8
+        case StrategicCounterpartWitnessKind.SharedFile           => 4
+        case StrategicCounterpartWitnessKind.SharedRoute          => 2
+        case StrategicCounterpartWitnessKind.DirectRivalReference => 2
+        case StrategicCounterpartWitnessKind.SharedPiece          => 1
+      }.sum + witness.matchedSquares.size + witness.matchedFiles.size + witness.relationWitnesses.size
+    }.getOrElse(0)
+
+  private def supportTargetOverlapScore(
+      delta: Option[StrategicObjectDelta],
+      sharedTargetSquares: Set[String]
+  ): Int =
+    delta
+      .map(exactComparativeSupportSquares)
+      .map(_.intersect(sharedTargetSquares).size)
+      .getOrElse(0)
+
+  private def comparativeSupportCorroborationCount(
+      delta: StrategicObjectDelta
+  ): Int =
+    delta.supportingObjectIds.distinct.size
 
   private def isCertifiedCurrentPositionProbe(
       claim: CertifiedClaim

@@ -379,12 +379,15 @@ in `StrategicObjectRoadmap.md`.
   of the delta-aware certification boundary rather than letting support-only or
   scope-shell claims choose a primary lane. `WhyThis` and
   `WhatMustBeStopped` now require a `Certified` typed `MoveLocal` delta and are
-  split only by `DecisiveTruthContract.isBad`; `WhatChanged` requires a
-  `Certified` typed `Comparative` delta; and `WhatMattersHere` requires a
-  `Certified` typed `PositionLocal` delta. `SupportOnly` typed claims may
-  still survive as secondary material, but only after a matching certified
-  primary axis is already admitted; `Deferred` and scope-only shells no longer
-  choose planner ownership. This remains a trust-boundary tightening only:
+  split only by `DecisiveTruthContract.isBad`; `WhatChanged` requires the
+  certification-native `comparative_primary` lane (`Certified` typed
+  `Comparative`), so support-only and shallow comparative evidence stay
+  demoted/deferred and may not reconstruct primary ownership; and
+  `WhatMattersHere` requires a `Certified` typed `PositionLocal` delta.
+  `SupportOnly` typed claims may still survive as secondary material, but only
+  after a matching certified primary axis is already admitted; `Deferred` and
+  scope-only shells no longer choose planner ownership. This remains a
+  trust-boundary tightening only:
   it blocks primary-lane drift without adding new wording, renderer behavior,
   Tier 2 / Tier 3 widening, or renderer-side semantic revival.
 - rewrite-local exact comparative-support note on 2026-04-09:
@@ -396,6 +399,14 @@ in `StrategicObjectRoadmap.md`.
   all eight provisional Tier 1 families stay planner `none` and localize at
   `certification`, and no broader comparative-support rollout, new wording,
   renderer behavior, or Tier 2 / Tier 3 widening opens from it.
+- rewrite-local comparative demotion-matrix note on 2026-04-10:
+  `QuestionPlanner` now hard-gates `WhatChanged` primary ownership to
+  `comparative_primary` only. Support-only comparative evidence and shallow
+  comparative rows may remain support/deferred signals, but they cannot
+  reconstruct `WhatChanged` primary ownership. For the packet-owned fixed-
+  target comparative slice, planner support pairing stays bounded to the
+  slice-certified shared-target `RestrictionShell` lane, so the contrastive
+  white support still attaches while near-miss support no longer does.
 - rewrite-local Tier-1 provisional comparative re-audit note on 2026-04-09:
   `KingSafetyShell`, `DevelopmentCoordinationState`, `PieceRoleFitness`,
   `SpaceClamp`, `CounterplayAxis`, `RestrictionShell`, `MobilityCage`, and

@@ -78,8 +78,7 @@ Only keep the row classes that actually apply to the packet.
 
 ## Status Notes
 
-- start status: `ready`
-- pass condition:
-  - trace/tail-risk explicitly exposes near-miss demotion and gates leakage
-- blocked condition:
-  - near-miss leak persists without trace visibility or tail-risk gating
+- status: `passed`
+- result:
+  - trace/tail-risk explicitly exposes comparative near-miss demotion and
+    hard-fails leakage from near-miss or support-only comparative rows

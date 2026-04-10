@@ -113,20 +113,21 @@ Current post-spine frontier:
   explanation on `curated-exact:k09b`
 - `P6-B01-shared-target-continuity-certification` is now blocked on
   2026-04-10:
-  the packet-owned `WhatChanged` comparative-support lane is not stable
-  enough for continuity certification because
-  `shared-target-support-near-miss` still leaks support admission / wrong
-  restriction support under the existing exact comparative-support slice
+  the packet-owned `WhatChanged` comparative-support lane still needs a
+  continuity rerun after the comparative follow-through completes; no new
+  continuity packet should assume broader ownership or support reuse before
+  the remaining near-miss tail-risk gate lands
 - `P6-B02-whatchanged-comparative-nearmiss-certification` is `passed`:
   packet-owned near-miss comparative now stays support-only or deferred and
   never owns `WhatChanged` primary
-- the comparative follow-through tranche must now land before shared-target
-  continuity can be retried:
-  - `P7-Q03` planner demotion matrix
-  - `P7-E03` trace/tail-risk near-miss gate
+- the comparative follow-through tranche has now landed; shared-target
+  continuity retry remains blocked on `P6-B01`:
+  - `P7-Q03` planner demotion matrix passed on 2026-04-10; `WhatChanged`
+    primary now stays on `comparative_primary` only
+  - `P7-E03` trace/tail-risk near-miss gate passed on 2026-04-10
 - `P9-R05-blocked-slice-rerun` must not run yet:
-  no new packet should open it while `P6-B01` remains blocked or the
-  comparative near-miss tranche is incomplete
+  no new packet should open it while `P6-B01` remains blocked on its
+  continuity rerun
 - the blocked provisional move-local reopen lane is a stopping rule for that
   evidence pack, not a blocker to vertical proof on already re-earned stable
   slices
@@ -815,7 +816,10 @@ Canonical admission matrix on the current planner lane:
   - opens only from a `Certified` typed `MoveLocal` delta when the contract is
     `isBad`
 - `WhatChanged`
-  - opens only from a `Certified` typed `Comparative` delta
+  - opens only from a `comparative_primary` lane
+  - `comparative_primary` means the certification-native `Certified` typed
+    `Comparative` primary lane; support-only or shallow comparative evidence
+    stays demoted/deferred and must not reconstruct primary ownership
 - `WhatMattersHere`
   - opens only from a `Certified` typed `PositionLocal` delta
 - `SupportOnly`
@@ -866,15 +870,15 @@ That frontier should proceed in this order:
 5. composite chess semantics tranche
    - `P5-U01` passed on 2026-04-10; one bounded favorable-simplification
      claim now owns the primary `WhyThis` explanation on `curated-exact:k09b`
-   - comparative follow-through tranche must land before continuity:
-     - `P7-Q03` planner demotion matrix
-     - `P7-E03` trace/tail-risk near-miss gate
-   - `P6-B01` remains blocked until the follow-through lands:
+   - comparative follow-through tranche status before continuity:
+     - `P7-Q03` planner demotion matrix passed on 2026-04-10
+     - `P7-E03` trace/tail-risk near-miss gate passed on 2026-04-10
+   - `P6-B01` remains blocked until the continuity rerun lands:
      the packet-owned `WhatChanged` comparative-support lane is not stable
-     enough for continuity certification because the near-miss restriction
-     row now defers and no longer stays planner-attachable under the current
-     planner
-   - `P9-R05` must not run yet; it stays gated behind the near-miss tranche
+     enough for continuity certification because
+     `shared-target-support-near-miss` still leaks support admission / wrong
+     restriction support under the existing exact comparative-support slice
+   - `P9-R05` must not run yet; it stays gated behind the continuity rerun
 6. only then derive any further gate packets from exact slice failures
    - if the rerun still fails, derive the needed ownership, certification, or
      renderer packet from that exact failure instead of widening infra

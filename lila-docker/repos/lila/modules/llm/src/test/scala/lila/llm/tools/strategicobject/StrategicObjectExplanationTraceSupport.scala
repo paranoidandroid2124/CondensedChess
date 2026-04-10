@@ -152,7 +152,8 @@ object StrategicObjectExplanationTraceSupport:
     given Writes[ExplanationTraceRow] = Json.writes[ExplanationTraceRow]
 
   def traceRows: List[ExplanationTraceRow] =
-    StrategicObjectDeltaProjectorTest.rows.map(traceRow)
+    StrategicObjectDeltaProjectorTest.rows.map(traceRow) ++
+      ComparativeSupportAdmissionTest.rows.map(traceSupportRow)
 
   def renderJsonl(rows: List[ExplanationTraceRow]): String =
     rows.map(row => Json.stringify(Json.toJson(row))).mkString("", "\n", "\n")
@@ -307,6 +308,50 @@ object StrategicObjectExplanationTraceSupport:
       owner = row.owner,
       scope = row.scope,
       anchor = row.anchor,
+      objectId = traceObject.map(_.id),
+      readiness = traceObject.map(_.readiness.toString),
+      projection = projectionTrace(traceDelta),
+      witness = witnessTrace(traceDelta),
+      certification = certificationTrace(traceClaim),
+      planner = planner,
+      evidence = evidenceTrace(traceDelta),
+      localization = localization,
+      traceExpectation = traceExpectation,
+      traceExpectationMatch = traceExpectationMatch
+    )
+
+  def traceSupportRow(
+      row: ComparativeSupportAdmissionTest.ComparativeSupportRow
+  ): ExplanationTraceRow =
+    val truth = ComparativeSupportAdmissionTest.truthFor(row)
+    val contract = ComparativeSupportAdmissionTest.contractFor(row)
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
+
+    val traceClaim = ComparativeSupportAdmissionTest.supportClaim(row, objects, claims)
+    val traceObject = traceClaim.flatMap(claim => objects.find(_.id == claim.objectId))
+    val traceDelta = traceClaim.flatMap(claim =>
+      deltas.find(delta => delta.objectId == claim.objectId && delta.scope == claim.deltaScope)
+    )
+    val planner = supportPlannerTrace(planned, traceClaim)
+    val localization = supportLocalizationTrace(planned, traceClaim)
+    val traceExpectation = supportTraceExpectation(planner, localization)
+    val traceExpectationMatch = expectedTraceMatch(traceExpectation, planner, localization)
+
+    ExplanationTraceRow(
+      rowId = row.id,
+      caseType = row.caseType,
+      expectation = if row.expectation == "support" then "present" else "absent",
+      source = row.source,
+      fen = row.fen,
+      playedMove = None,
+      truthCase = None,
+      family = row.supportFamily,
+      owner = row.supportOwner,
+      scope = "comparative",
+      anchor = Some(row.supportAnchor),
       objectId = traceObject.map(_.id),
       readiness = traceObject.map(_.readiness.toString),
       projection = projectionTrace(traceDelta),
@@ -555,6 +600,48 @@ object StrategicObjectExplanationTraceSupport:
       objectMatchCount = matchedObjects.size,
       deltaMatchCount = matchedDeltas.size,
       claimMatchCount = matchedClaims.size
+    )
+
+  private def supportPlannerTrace(
+      planned: PlannedQuestion,
+      traceClaim: Option[CertifiedClaim]
+  ): PlannerTrace =
+    val admission =
+      traceClaim match
+        case Some(claim) if planned.supportClaimIds.contains(claim.id) => "support"
+        case _                                                         => "none"
+
+    PlannerTrace(
+      axis = planned.axis.toString,
+      admission = admission,
+      primaryClaimIds = planned.claimIds.sorted,
+      supportClaimIds = planned.supportClaimIds.sorted
+    )
+
+  private def supportLocalizationTrace(
+      planned: PlannedQuestion,
+      traceClaim: Option[CertifiedClaim]
+  ): LocalizationTrace =
+    val localizedStage =
+      traceClaim match
+        case Some(claim) if planned.supportClaimIds.contains(claim.id) => "planner_support"
+        case Some(_)                                                   => "certification"
+        case None                                                      => "absent"
+
+    LocalizationTrace(
+      localizedStage = localizedStage,
+      objectMatchCount = traceClaim.size,
+      deltaMatchCount = traceClaim.size,
+      claimMatchCount = traceClaim.size
+    )
+
+  private def supportTraceExpectation(
+      planner: PlannerTrace,
+      localization: LocalizationTrace
+  ): TraceExpectation =
+    TraceExpectation(
+      plannerAdmission = Some(planner.admission),
+      localizationStage = Some(localization.localizedStage)
     )
 
   private def objectSquares(

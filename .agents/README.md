@@ -104,10 +104,10 @@ It is:
 6. `P6-B01-shared-target-continuity-certification`
    - blocked
    - exact missing boundary: the packet-owned `WhatChanged`
-     comparative-support lane is not stable enough for continuity
-     certification because `shared-target-support-near-miss` still leaks
-     support admission / wrong restriction support under the existing exact
-     comparative-support slice
+     comparative-support lane still needs a continuity rerun after the
+     comparative follow-through completes; no new continuity packet should
+     assume broader ownership or support reuse before the remaining tail-risk
+     gate lands
 7. `P6-B02-whatchanged-comparative-nearmiss-certification`
    - passed
    - packet-owned near-miss comparative now stays support-only or deferred
@@ -115,17 +115,17 @@ It is:
    - certification-owned closure: comparative near-miss must not own
      `WhatChanged` primary
 8. `P7-Q03-whatchanged-comparative-demotion-matrix`
-   - ready
+   - passed
    - planner demotion: only `comparative_primary` may own `WhatChanged`
-     primary; near-miss/support-only must demote or defer
+     primary; support-only/shallow comparative evidence cannot reconstruct
+     primary ownership
 9. `P7-E03-comparative-nearmiss-tail-risk`
-   - ready
-   - trace/tail-risk gate: track and hard-fail near-miss `WhatChanged`
-     leakage
+   - passed
+   - trace/tail-risk gate now exposes comparative near-miss demotion and
+     hard-fails near-miss `WhatChanged` leakage
 10. `P9-R05-blocked-slice-rerun`
     - do not run yet
-    - `P9-R05` stays behind the unresolved `P6-B01` boundary and the
-      comparative near-miss fail-closed tranche
+    - `P9-R05` stays behind the unresolved `P6-B01` continuity boundary
 
 Current blocking note:
 
@@ -143,5 +143,6 @@ Operational rule:
   boundary, but `P8-R03` still remains blocked and `P6-B01` is now also
   blocked on its own exact comparative-support boundary
 - the next packets must therefore derive from those exact failures rather than
-  widen infra generically, and the comparative near-miss fail-closed tranche
-  must land before `P6-B01` or `P9-R05` move again
+  widen infra generically; the comparative near-miss fail-closed tranche has
+  now landed, `P6-B01` remains blocked on continuity rerun, and `P9-R05`
+  stays gated behind that rerun

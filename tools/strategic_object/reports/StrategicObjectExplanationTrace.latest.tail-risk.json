@@ -2,15 +2,15 @@
   "schema" : "chesstory.strategicObject.explanationTraceTailRisk.v1",
   "macroPassThreshold" : 0.98,
   "macroMetrics" : {
-    "totalRows" : 82,
-    "passedRows" : 82,
-    "passRate" : 1,
-    "leakRows" : 0,
-    "leakRate" : 0
+    "totalRows" : 92,
+    "passedRows" : 91,
+    "passRate" : 0.9891304347826086,
+    "leakRows" : 1,
+    "leakRate" : 0.010869565217391304
   },
   "tailRisk" : {
-    "totalRows" : 82,
-    "hardestRows" : 40,
+    "totalRows" : 92,
+    "hardestRows" : 47,
     "plannerLeakRows" : 0,
     "plannerLeakRate" : 0,
     "byCaseType" : [ {
@@ -33,8 +33,8 @@
       "plannerLeakRate" : 0
     }, {
       "caseType" : "near_miss",
-      "totalRows" : 16,
-      "expectedPlannerBlockedRows" : 14,
+      "totalRows" : 23,
+      "expectedPlannerBlockedRows" : 23,
       "plannerLeakRows" : 0,
       "plannerLeakRate" : 0
     }, {

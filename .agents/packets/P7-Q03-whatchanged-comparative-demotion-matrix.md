@@ -84,6 +84,14 @@ Only keep the row classes that actually apply to the packet.
 ## Status Notes
 
 - start status: `ready`
+- end status: `passed` on 2026-04-10
+- landed:
+  - planner `WhatChanged` primary admission now routes through
+    `comparative_primary` only
+  - support-only or shallow comparative evidence no longer reconstructs
+    `WhatChanged` primary ownership
+  - packet-owned shared-target `RestrictionShell` support still pairs on the
+    exact / contrastive rows, while the near-miss support row stays demoted
 - pass condition:
   - near-miss and support-only comparative are demoted at planner admission
     and never open `WhatChanged` primary
