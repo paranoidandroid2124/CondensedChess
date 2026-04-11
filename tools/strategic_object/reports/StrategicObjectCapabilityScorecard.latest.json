@@ -1,0 +1,1363 @@
+{
+  "schema" : "chesstory.strategicObject.capabilityScorecard.v1",
+  "system" : {
+    "totalRows" : 218,
+    "familyCount" : 24,
+    "positiveRows" : 90,
+    "negativeLeakRows" : 29,
+    "maturityBuckets" : [ {
+      "level" : 1,
+      "key" : "object_only",
+      "familyCount" : 9,
+      "families" : [ "AttackScaffold", "ConversionFunnel", "DefenderDependencyNetwork", "FortressHoldingShell", "InitiativeWindow", "MaterialInvestmentContract", "PlanRace", "TensionState", "TransitionBridge" ]
+    }, {
+      "level" : 2,
+      "key" : "support_only",
+      "familyCount" : 7,
+      "families" : [ "CounterplayAxis", "KingSafetyShell", "MobilityCage", "PieceRoleFitness", "RedeploymentRoute", "RestrictionShell", "SpaceClamp" ]
+    }, {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "familyCount" : 8,
+      "families" : [ "AccessNetwork", "BreakAxis", "CriticalSquareComplex", "DevelopmentCoordinationState", "FixedTargetComplex", "PasserComplex", "PawnStructureRegime", "TradeInvariant" ]
+    } ]
+  },
+  "families" : [ {
+    "family" : "AccessNetwork",
+    "maturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "planner_primary",
+    "totalRows" : 7,
+    "positiveRows" : 4,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 7,
+    "negativeLeakRows" : 1,
+    "primaryRows" : 1,
+    "supportRows" : 1,
+    "distinctPrimarySources" : 1,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 2,
+      "object" : 3,
+      "planner_none" : 1,
+      "planner_primary" : 1
+    },
+    "certificationCounts" : {
+      "Certified" : 2
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_none"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 1,
+      "highestStage" : "planner_primary"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 1,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "absent"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 1,
+      "highestStage" : "planner_none"
+    }, {
+      "axis" : "WhyThis",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "AttackScaffold",
+    "maturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "absent",
+    "totalRows" : 4,
+    "positiveRows" : 2,
+    "exactPositiveRows" : 1,
+    "satisfiedRows" : 4,
+    "negativeLeakRows" : 0,
+    "primaryRows" : 0,
+    "supportRows" : 0,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object" ],
+    "stageCounts" : {
+      "absent" : 2,
+      "object" : 2
+    },
+    "certificationCounts" : { },
+    "byScope" : [ ],
+    "byAxis" : [ ]
+  }, {
+    "family" : "BreakAxis",
+    "maturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "planner_primary",
+    "totalRows" : 7,
+    "positiveRows" : 4,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 7,
+    "negativeLeakRows" : 0,
+    "primaryRows" : 1,
+    "supportRows" : 1,
+    "distinctPrimarySources" : 1,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 3,
+      "object" : 2,
+      "planner_none" : 1,
+      "planner_primary" : 1
+    },
+    "certificationCounts" : {
+      "Certified" : 2
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_none"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 1,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "absent"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_none"
+    }, {
+      "axis" : "WhyNow",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "ConversionFunnel",
+    "maturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "absent",
+    "totalRows" : 3,
+    "positiveRows" : 2,
+    "exactPositiveRows" : 1,
+    "satisfiedRows" : 3,
+    "negativeLeakRows" : 0,
+    "primaryRows" : 0,
+    "supportRows" : 0,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object" ],
+    "stageCounts" : {
+      "absent" : 1,
+      "object" : 2
+    },
+    "certificationCounts" : { },
+    "byScope" : [ ],
+    "byAxis" : [ ]
+  }, {
+    "family" : "CounterplayAxis",
+    "maturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "certification",
+    "totalRows" : 13,
+    "positiveRows" : 5,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 13,
+    "negativeLeakRows" : 2,
+    "primaryRows" : 0,
+    "supportRows" : 3,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 6,
+      "certification" : 3,
+      "object" : 4
+    },
+    "certificationCounts" : {
+      "SupportOnly" : 3
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 3,
+      "positiveRows" : 2,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 2,
+      "highestStage" : "absent"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "totalRows" : 4,
+      "positiveRows" : 2,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 1,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 4,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 1,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "CriticalSquareComplex",
+    "maturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "planner_primary",
+    "totalRows" : 7,
+    "positiveRows" : 4,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 7,
+    "negativeLeakRows" : 1,
+    "primaryRows" : 1,
+    "supportRows" : 1,
+    "distinctPrimarySources" : 1,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 2,
+      "object" : 3,
+      "planner_none" : 1,
+      "planner_primary" : 1
+    },
+    "certificationCounts" : {
+      "Certified" : 2
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_none"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 1,
+      "highestStage" : "planner_primary"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 1,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "absent"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 1,
+      "highestStage" : "planner_none"
+    }, {
+      "axis" : "WhyThis",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "DefenderDependencyNetwork",
+    "maturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "absent",
+    "totalRows" : 7,
+    "positiveRows" : 2,
+    "exactPositiveRows" : 1,
+    "satisfiedRows" : 7,
+    "negativeLeakRows" : 0,
+    "primaryRows" : 0,
+    "supportRows" : 0,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object" ],
+    "stageCounts" : {
+      "absent" : 5,
+      "object" : 2
+    },
+    "certificationCounts" : { },
+    "byScope" : [ ],
+    "byAxis" : [ ]
+  }, {
+    "family" : "DevelopmentCoordinationState",
+    "maturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "planner_primary",
+    "totalRows" : 17,
+    "positiveRows" : 6,
+    "exactPositiveRows" : 3,
+    "satisfiedRows" : 17,
+    "negativeLeakRows" : 1,
+    "primaryRows" : 1,
+    "supportRows" : 3,
+    "distinctPrimarySources" : 1,
+    "evidenceSources" : [ "object", "packet_current_position_coordination", "trace" ],
+    "stageCounts" : {
+      "absent" : 10,
+      "certification" : 3,
+      "object" : 3,
+      "planner_primary" : 1
+    },
+    "certificationCounts" : {
+      "Certified" : 1,
+      "SupportOnly" : 3
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 3,
+      "positiveRows" : 2,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 1,
+      "highestStage" : "absent"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 7,
+      "positiveRows" : 2,
+      "exactRows" : 2,
+      "primaryRows" : 1,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_primary"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "totalRows" : 4,
+      "positiveRows" : 2,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 8,
+      "positiveRows" : 2,
+      "primaryRows" : 1,
+      "supportRows" : 1,
+      "negativeLeakRows" : 1,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "FixedTargetComplex",
+    "maturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "planner_primary",
+    "totalRows" : 15,
+    "positiveRows" : 8,
+    "exactPositiveRows" : 5,
+    "satisfiedRows" : 15,
+    "negativeLeakRows" : 5,
+    "primaryRows" : 4,
+    "supportRows" : 1,
+    "distinctPrimarySources" : 4,
+    "evidenceSources" : [ "object", "packet_current_position_fixed_target", "packet_target_fixation", "trace" ],
+    "stageCounts" : {
+      "absent" : 2,
+      "object" : 6,
+      "planner_none" : 3,
+      "planner_primary" : 4
+    },
+    "certificationCounts" : {
+      "Certified" : 7
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_none"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 6,
+      "positiveRows" : 3,
+      "exactRows" : 2,
+      "primaryRows" : 2,
+      "supportRows" : 0,
+      "negativeLeakRows" : 3,
+      "highestStage" : "planner_primary"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 5,
+      "positiveRows" : 2,
+      "exactRows" : 2,
+      "primaryRows" : 2,
+      "supportRows" : 0,
+      "negativeLeakRows" : 2,
+      "highestStage" : "planner_primary"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 6,
+      "positiveRows" : 2,
+      "primaryRows" : 2,
+      "supportRows" : 0,
+      "negativeLeakRows" : 3,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyNow",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "object"
+    }, {
+      "axis" : "WhyThis",
+      "totalRows" : 5,
+      "positiveRows" : 3,
+      "primaryRows" : 2,
+      "supportRows" : 1,
+      "negativeLeakRows" : 2,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "FortressHoldingShell",
+    "maturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "absent",
+    "totalRows" : 7,
+    "positiveRows" : 2,
+    "exactPositiveRows" : 1,
+    "satisfiedRows" : 7,
+    "negativeLeakRows" : 0,
+    "primaryRows" : 0,
+    "supportRows" : 0,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object" ],
+    "stageCounts" : {
+      "absent" : 5,
+      "object" : 2
+    },
+    "certificationCounts" : { },
+    "byScope" : [ ],
+    "byAxis" : [ ]
+  }, {
+    "family" : "InitiativeWindow",
+    "maturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "absent",
+    "totalRows" : 7,
+    "positiveRows" : 2,
+    "exactPositiveRows" : 1,
+    "satisfiedRows" : 7,
+    "negativeLeakRows" : 0,
+    "primaryRows" : 0,
+    "supportRows" : 0,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object" ],
+    "stageCounts" : {
+      "absent" : 5,
+      "object" : 2
+    },
+    "certificationCounts" : { },
+    "byScope" : [ ],
+    "byAxis" : [ ]
+  }, {
+    "family" : "KingSafetyShell",
+    "maturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "certification",
+    "totalRows" : 13,
+    "positiveRows" : 5,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 13,
+    "negativeLeakRows" : 3,
+    "primaryRows" : 0,
+    "supportRows" : 3,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 5,
+      "certification" : 3,
+      "object" : 5
+    },
+    "certificationCounts" : {
+      "SupportOnly" : 3
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 3,
+      "positiveRows" : 2,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 1,
+      "highestStage" : "certification"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 2,
+      "highestStage" : "absent"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "totalRows" : 4,
+      "positiveRows" : 2,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 2,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 4,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 1,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "MaterialInvestmentContract",
+    "maturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "absent",
+    "totalRows" : 3,
+    "positiveRows" : 2,
+    "exactPositiveRows" : 1,
+    "satisfiedRows" : 3,
+    "negativeLeakRows" : 0,
+    "primaryRows" : 0,
+    "supportRows" : 0,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object" ],
+    "stageCounts" : {
+      "absent" : 1,
+      "object" : 2
+    },
+    "certificationCounts" : { },
+    "byScope" : [ ],
+    "byAxis" : [ ]
+  }, {
+    "family" : "MobilityCage",
+    "maturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "certification",
+    "totalRows" : 13,
+    "positiveRows" : 4,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 13,
+    "negativeLeakRows" : 2,
+    "primaryRows" : 0,
+    "supportRows" : 3,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 7,
+      "certification" : 3,
+      "object" : 3
+    },
+    "certificationCounts" : {
+      "SupportOnly" : 3
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 3,
+      "positiveRows" : 2,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 2,
+      "highestStage" : "absent"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "totalRows" : 3,
+      "positiveRows" : 2,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 1,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 1,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "absent"
+    } ]
+  }, {
+    "family" : "PasserComplex",
+    "maturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "planner_primary",
+    "totalRows" : 7,
+    "positiveRows" : 4,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 7,
+    "negativeLeakRows" : 1,
+    "primaryRows" : 1,
+    "supportRows" : 1,
+    "distinctPrimarySources" : 1,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 2,
+      "object" : 3,
+      "planner_none" : 1,
+      "planner_primary" : 1
+    },
+    "certificationCounts" : {
+      "Certified" : 2
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_none"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 1,
+      "highestStage" : "planner_primary"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 1,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "absent"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 1,
+      "highestStage" : "planner_none"
+    }, {
+      "axis" : "WhyNow",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "PawnStructureRegime",
+    "maturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "planner_primary",
+    "totalRows" : 7,
+    "positiveRows" : 4,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 7,
+    "negativeLeakRows" : 1,
+    "primaryRows" : 1,
+    "supportRows" : 1,
+    "distinctPrimarySources" : 1,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 2,
+      "object" : 3,
+      "planner_none" : 1,
+      "planner_primary" : 1
+    },
+    "certificationCounts" : {
+      "Certified" : 2
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_none"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 1,
+      "highestStage" : "planner_primary"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 1,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "absent"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 1,
+      "highestStage" : "planner_none"
+    }, {
+      "axis" : "WhyThis",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "PieceRoleFitness",
+    "maturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "certification",
+    "totalRows" : 13,
+    "positiveRows" : 5,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 13,
+    "negativeLeakRows" : 2,
+    "primaryRows" : 0,
+    "supportRows" : 3,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 6,
+      "certification" : 3,
+      "object" : 4
+    },
+    "certificationCounts" : {
+      "SupportOnly" : 3
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 3,
+      "positiveRows" : 2,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 2,
+      "highestStage" : "absent"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "totalRows" : 4,
+      "positiveRows" : 2,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 1,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 4,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 1,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "PlanRace",
+    "maturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "absent",
+    "totalRows" : 7,
+    "positiveRows" : 2,
+    "exactPositiveRows" : 1,
+    "satisfiedRows" : 7,
+    "negativeLeakRows" : 0,
+    "primaryRows" : 0,
+    "supportRows" : 0,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object" ],
+    "stageCounts" : {
+      "absent" : 5,
+      "object" : 2
+    },
+    "certificationCounts" : { },
+    "byScope" : [ ],
+    "byAxis" : [ ]
+  }, {
+    "family" : "RedeploymentRoute",
+    "maturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "certification",
+    "totalRows" : 13,
+    "positiveRows" : 5,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 13,
+    "negativeLeakRows" : 2,
+    "primaryRows" : 0,
+    "supportRows" : 3,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 6,
+      "certification" : 3,
+      "object" : 4
+    },
+    "certificationCounts" : {
+      "SupportOnly" : 3
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 3,
+      "positiveRows" : 2,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 2,
+      "highestStage" : "absent"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "totalRows" : 3,
+      "positiveRows" : 2,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "absent"
+    }, {
+      "axis" : "WhyThis",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 2,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "RestrictionShell",
+    "maturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "planner_support",
+    "totalRows" : 16,
+    "positiveRows" : 6,
+    "exactPositiveRows" : 3,
+    "satisfiedRows" : 16,
+    "negativeLeakRows" : 4,
+    "primaryRows" : 0,
+    "supportRows" : 4,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 6,
+      "certification" : 5,
+      "object" : 4,
+      "planner_support" : 1
+    },
+    "certificationCounts" : {
+      "SupportOnly" : 6
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 6,
+      "positiveRows" : 3,
+      "exactRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 3,
+      "negativeLeakRows" : 2,
+      "highestStage" : "planner_support"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 2,
+      "highestStage" : "absent"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "totalRows" : 5,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 3,
+      "highestStage" : "planner_support"
+    }, {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "absent"
+    }, {
+      "axis" : "WhyNow",
+      "totalRows" : 3,
+      "positiveRows" : 2,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 1,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "SpaceClamp",
+    "maturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "certification",
+    "totalRows" : 14,
+    "positiveRows" : 5,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 14,
+    "negativeLeakRows" : 3,
+    "primaryRows" : 0,
+    "supportRows" : 3,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object", "trace" ],
+    "stageCounts" : {
+      "absent" : 6,
+      "certification" : 4,
+      "object" : 4
+    },
+    "certificationCounts" : {
+      "SupportOnly" : 4
+    },
+    "byScope" : [ {
+      "scope" : "comparative",
+      "totalRows" : 4,
+      "positiveRows" : 2,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 1,
+      "highestStage" : "certification"
+    }, {
+      "scope" : "move_local",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "exactRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 2,
+      "highestStage" : "absent"
+    }, {
+      "scope" : "position_local",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "totalRows" : 3,
+      "positiveRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 2,
+      "highestStage" : "absent"
+    }, {
+      "axis" : "WhatMattersHere",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "absent"
+    }, {
+      "axis" : "WhyNow",
+      "totalRows" : 1,
+      "positiveRows" : 1,
+      "primaryRows" : 0,
+      "supportRows" : 1,
+      "negativeLeakRows" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "totalRows" : 3,
+      "positiveRows" : 2,
+      "primaryRows" : 0,
+      "supportRows" : 2,
+      "negativeLeakRows" : 1,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "TensionState",
+    "maturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "absent",
+    "totalRows" : 3,
+    "positiveRows" : 2,
+    "exactPositiveRows" : 1,
+    "satisfiedRows" : 3,
+    "negativeLeakRows" : 0,
+    "primaryRows" : 0,
+    "supportRows" : 0,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object" ],
+    "stageCounts" : {
+      "absent" : 1,
+      "object" : 2
+    },
+    "certificationCounts" : { },
+    "byScope" : [ ],
+    "byAxis" : [ ]
+  }, {
+    "family" : "TradeInvariant",
+    "maturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "planner_primary",
+    "totalRows" : 9,
+    "positiveRows" : 3,
+    "exactPositiveRows" : 2,
+    "satisfiedRows" : 9,
+    "negativeLeakRows" : 1,
+    "primaryRows" : 1,
+    "supportRows" : 0,
+    "distinctPrimarySources" : 1,
+    "evidenceSources" : [ "object", "packet_favorable_simplification" ],
+    "stageCounts" : {
+      "absent" : 5,
+      "object" : 3,
+      "planner_primary" : 1
+    },
+    "certificationCounts" : {
+      "Certified" : 1
+    },
+    "byScope" : [ {
+      "scope" : "move_local",
+      "totalRows" : 5,
+      "positiveRows" : 1,
+      "exactRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 1,
+      "highestStage" : "planner_primary"
+    } ],
+    "byAxis" : [ {
+      "axis" : "WhyNow",
+      "totalRows" : 2,
+      "positiveRows" : 0,
+      "primaryRows" : 0,
+      "supportRows" : 0,
+      "negativeLeakRows" : 1,
+      "highestStage" : "absent"
+    }, {
+      "axis" : "WhyThis",
+      "totalRows" : 3,
+      "positiveRows" : 1,
+      "primaryRows" : 1,
+      "supportRows" : 0,
+      "negativeLeakRows" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "TransitionBridge",
+    "maturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "objectStage" : "object",
+    "deliveryStage" : "absent",
+    "totalRows" : 6,
+    "positiveRows" : 2,
+    "exactPositiveRows" : 1,
+    "satisfiedRows" : 6,
+    "negativeLeakRows" : 0,
+    "primaryRows" : 0,
+    "supportRows" : 0,
+    "distinctPrimarySources" : 0,
+    "evidenceSources" : [ "object" ],
+    "stageCounts" : {
+      "absent" : 4,
+      "object" : 2
+    },
+    "certificationCounts" : { },
+    "byScope" : [ ],
+    "byAxis" : [ ]
+  } ]
+}

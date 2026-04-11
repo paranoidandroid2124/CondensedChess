@@ -1,0 +1,1020 @@
+{
+  "schema" : "chesstory.strategicObject.batchCoverage.v1",
+  "input" : {
+    "sourceKinds" : [ "catalog_jsonl" ],
+    "sourcePaths" : [ "C:\\Codes\\CondensedChess\\tmp\\commentary-player-qc\\catalog\\catalog.jsonl" ],
+    "rawGameCount" : 360,
+    "evaluatedSampleCount" : 2801,
+    "samplesWithPlayedMove" : 2801,
+    "skippedGameCount" : 0,
+    "skippedGames" : [ ]
+  },
+  "system" : {
+    "evaluatedSampleCount" : 2801,
+    "activatedFamilyCount" : 23,
+    "primaryActivationCount" : 11492,
+    "supportActivationCount" : 0,
+    "objectOnlyActivationCount" : 6552
+  },
+  "families" : [ {
+    "family" : "AccessNetwork",
+    "capabilityMaturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "planner_primary",
+    "sampleCount" : 2442,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8718314887540164,
+    "primaryCount" : 2442,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 0,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "planner_primary",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2442,
+      "primaryCount" : 2442,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2442,
+      "primaryCount" : 2442,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 212,
+      "primaryCount" : 212,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1735,
+      "primaryCount" : 1735,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "AttackScaffold",
+    "capabilityMaturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "absent",
+    "sampleCount" : 2433,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8686183505890753,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 0,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 2433,
+    "highestBatchStage" : "object",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2433,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2433,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 211,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1728,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    } ]
+  }, {
+    "family" : "BreakAxis",
+    "capabilityMaturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "planner_primary",
+    "sampleCount" : 1942,
+    "gameCount" : 356,
+    "sampleHitRate" : 0.6933238129239557,
+    "primaryCount" : 1596,
+    "supportCount" : 0,
+    "plannerNoneCount" : 346,
+    "certificationOnlyCount" : 0,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "planner_primary",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 1942,
+      "primaryCount" : 1596,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 1942,
+      "primaryCount" : 1596,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 205,
+      "primaryCount" : 201,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1347,
+      "primaryCount" : 1065,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "ConversionFunnel",
+    "capabilityMaturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "absent",
+    "sampleCount" : 2440,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8711174580506962,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 0,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 2440,
+    "highestBatchStage" : "object",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2440,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2440,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 212,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1733,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    } ]
+  }, {
+    "family" : "CounterplayAxis",
+    "capabilityMaturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "certification",
+    "sampleCount" : 2434,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8689753659407354,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 2434,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2434,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2434,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 212,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1732,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "CriticalSquareComplex",
+    "capabilityMaturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "planner_primary",
+    "sampleCount" : 2441,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8714744734023563,
+    "primaryCount" : 2361,
+    "supportCount" : 0,
+    "plannerNoneCount" : 80,
+    "certificationOnlyCount" : 0,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "planner_primary",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2441,
+      "primaryCount" : 2361,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2441,
+      "primaryCount" : 2361,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 212,
+      "primaryCount" : 206,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1735,
+      "primaryCount" : 1682,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "DefenderDependencyNetwork",
+    "capabilityMaturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "absent",
+    "sampleCount" : 2263,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8079257408068546,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 2263,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2263,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2263,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 206,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1608,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "DevelopmentCoordinationState",
+    "capabilityMaturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "planner_primary",
+    "sampleCount" : 2274,
+    "gameCount" : 359,
+    "sampleHitRate" : 0.811852909675116,
+    "primaryCount" : 2,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 2272,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "planner_primary",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 1915,
+      "primaryCount" : 2,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2274,
+      "primaryCount" : 2,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 169,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1343,
+      "primaryCount" : 2,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "FixedTargetComplex",
+    "capabilityMaturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "planner_primary",
+    "sampleCount" : 2442,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8718314887540164,
+    "primaryCount" : 2424,
+    "supportCount" : 0,
+    "plannerNoneCount" : 18,
+    "certificationOnlyCount" : 0,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "planner_primary",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2442,
+      "primaryCount" : 2424,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2442,
+      "primaryCount" : 2424,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 212,
+      "primaryCount" : 212,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1735,
+      "primaryCount" : 1726,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "FortressHoldingShell",
+    "capabilityMaturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "absent",
+    "sampleCount" : 1,
+    "gameCount" : 1,
+    "sampleHitRate" : 0.0003570153516601214,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 1,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 1,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 1,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "InitiativeWindow",
+    "capabilityMaturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "absent",
+    "sampleCount" : 1924,
+    "gameCount" : 356,
+    "sampleHitRate" : 0.6868975365940736,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 1924,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 1924,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 1924,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 204,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1334,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "KingSafetyShell",
+    "capabilityMaturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "certification",
+    "sampleCount" : 2442,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8718314887540164,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 2442,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2442,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2442,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 212,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1735,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "MobilityCage",
+    "capabilityMaturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "certification",
+    "sampleCount" : 16,
+    "gameCount" : 13,
+    "sampleHitRate" : 0.005712245626561942,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 16,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 16,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 16,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 14,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "PasserComplex",
+    "capabilityMaturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "planner_primary",
+    "sampleCount" : 331,
+    "gameCount" : 158,
+    "sampleHitRate" : 0.11817208139950018,
+    "primaryCount" : 240,
+    "supportCount" : 0,
+    "plannerNoneCount" : 91,
+    "certificationOnlyCount" : 0,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "planner_primary",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 331,
+      "primaryCount" : 240,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 331,
+      "primaryCount" : 240,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 39,
+      "primaryCount" : 33,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 251,
+      "primaryCount" : 178,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "PawnStructureRegime",
+    "capabilityMaturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "planner_primary",
+    "sampleCount" : 2442,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8718314887540164,
+    "primaryCount" : 2369,
+    "supportCount" : 0,
+    "plannerNoneCount" : 73,
+    "certificationOnlyCount" : 0,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "planner_primary",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2442,
+      "primaryCount" : 2369,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2442,
+      "primaryCount" : 2369,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 212,
+      "primaryCount" : 212,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1735,
+      "primaryCount" : 1683,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "PieceRoleFitness",
+    "capabilityMaturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "certification",
+    "sampleCount" : 2003,
+    "gameCount" : 359,
+    "sampleHitRate" : 0.7151017493752231,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 2003,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 1644,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2003,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 146,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1135,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "PlanRace",
+    "capabilityMaturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "absent",
+    "sampleCount" : 2407,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8593359514459121,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 2407,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2407,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2407,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 212,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1712,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "RedeploymentRoute",
+    "capabilityMaturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "certification",
+    "sampleCount" : 2333,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8329168154230632,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 2333,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2333,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2333,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 202,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1654,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "RestrictionShell",
+    "capabilityMaturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "planner_support",
+    "sampleCount" : 2425,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8657622277757944,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 2425,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2425,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2425,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 212,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1726,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "SpaceClamp",
+    "capabilityMaturity" : {
+      "level" : 2,
+      "key" : "support_only",
+      "description" : "delivery evidence reaches claim/certification but not planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "certification",
+    "sampleCount" : 2410,
+    "gameCount" : 358,
+    "sampleHitRate" : 0.8604069975008926,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 2410,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 2410,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 2410,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 210,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 1722,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  }, {
+    "family" : "TensionState",
+    "capabilityMaturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "absent",
+    "sampleCount" : 400,
+    "gameCount" : 234,
+    "sampleHitRate" : 0.14280614066404856,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 0,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 400,
+    "highestBatchStage" : "object",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 400,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 400,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 128,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 193,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "object"
+    } ]
+  }, {
+    "family" : "TradeInvariant",
+    "capabilityMaturity" : {
+      "level" : 3,
+      "key" : "bounded_primary",
+      "description" : "at least one bounded slice reaches planner primary"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "planner_primary",
+    "sampleCount" : 1337,
+    "gameCount" : 356,
+    "sampleHitRate" : 0.47732952516958227,
+    "primaryCount" : 58,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 0,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 1279,
+    "highestBatchStage" : "planner_primary",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 1337,
+      "primaryCount" : 58,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 1337,
+      "primaryCount" : 58,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 150,
+      "primaryCount" : 29,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 947,
+      "primaryCount" : 29,
+      "supportCount" : 0,
+      "highestStage" : "planner_primary"
+    } ]
+  }, {
+    "family" : "TransitionBridge",
+    "capabilityMaturity" : {
+      "level" : 1,
+      "key" : "object_only",
+      "description" : "object evidence exists but delivery remains closed"
+    },
+    "capabilityObjectStage" : "object",
+    "capabilityDeliveryStage" : "absent",
+    "sampleCount" : 326,
+    "gameCount" : 158,
+    "sampleHitRate" : 0.11638700464119957,
+    "primaryCount" : 0,
+    "supportCount" : 0,
+    "plannerNoneCount" : 0,
+    "certificationOnlyCount" : 326,
+    "deltaOnlyCount" : 0,
+    "objectOnlyCount" : 0,
+    "highestBatchStage" : "certification",
+    "byAxis" : [ {
+      "axis" : "WhatChanged",
+      "familySampleCount" : 326,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhatMattersHere",
+      "familySampleCount" : 326,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyNow",
+      "familySampleCount" : 39,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    }, {
+      "axis" : "WhyThis",
+      "familySampleCount" : 247,
+      "primaryCount" : 0,
+      "supportCount" : 0,
+      "highestStage" : "certification"
+    } ]
+  } ]
+}

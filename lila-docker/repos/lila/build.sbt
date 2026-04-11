@@ -222,7 +222,13 @@ lazy val llm = module("llm",
     path.endsWith("/src/test/scala/lila/llm/strategicobject/ThinShellCertifiedRendererBoundaryTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectExplanationTraceSupport.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectExplanationTraceRunner.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectExplanationTraceSupportTest.scala")
+    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectExplanationTraceSupportTest.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectCapabilityScorecardSupport.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectCapabilityScorecardRunner.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectCapabilityScorecardSupportTest.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageSupport.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageRunner.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageSupportTest.scala")
   })
 )
 
