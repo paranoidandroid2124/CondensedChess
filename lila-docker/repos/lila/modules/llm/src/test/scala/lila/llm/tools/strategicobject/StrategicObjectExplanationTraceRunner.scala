@@ -57,7 +57,7 @@ object StrategicObjectExplanationTraceRunner:
       Config(
         outputPath =
           workspaceRoot.resolve(
-            Path.of("tools", "strategic_object", "reports", "StrategicObjectExplanationTrace.latest.jsonl")
+            Path.of("tmp", "strategic_object", "reports", "StrategicObjectExplanationTrace.latest.jsonl")
           ),
         evaluationPath = None,
         runTailRiskGate = false,

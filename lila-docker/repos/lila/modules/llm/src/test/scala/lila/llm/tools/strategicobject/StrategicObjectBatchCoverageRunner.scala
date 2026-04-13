@@ -9,6 +9,7 @@ object StrategicObjectBatchCoverageRunner:
   final case class Config(
       outputPath: Path,
       rowsOutputPath: Option[Path],
+      auditOutputPath: Option[Path],
       fenJsonl: Option[Path],
       gamesJson: Option[Path],
       catalogJsonl: Option[Path],
@@ -56,11 +57,15 @@ object StrategicObjectBatchCoverageRunner:
         skippedGames = loaded.flatMap(_._1.skippedGames).take(50)
       )
     val rows = loaded.flatMap(_._2)
-    val (report, evidenceRows) = StrategicObjectBatchCoverageSupport.report(mergedSummary, rows, config.families)
+    val (report, evidenceRows, auditRows) =
+      StrategicObjectBatchCoverageSupport.report(mergedSummary, rows, config.families)
 
     writeText(config.outputPath, Json.prettyPrint(Json.toJson(report)))
     config.rowsOutputPath.foreach(path =>
       writeText(path, StrategicObjectBatchCoverageSupport.renderJsonl(evidenceRows))
+    )
+    config.auditOutputPath.foreach(path =>
+      writeText(path, StrategicObjectBatchCoverageSupport.renderAuditJsonl(auditRows))
     )
 
     println(
@@ -69,6 +74,9 @@ object StrategicObjectBatchCoverageRunner:
     config.rowsOutputPath.foreach(path =>
       println(s"[strategic-object-batch-coverage] wrote activation rows to $path")
     )
+    config.auditOutputPath.foreach(path =>
+      println(s"[strategic-object-batch-coverage] wrote audit rows to $path")
+    )
 
   private def parseArgs(args: List[String]): Either[String, Config] =
     val workspaceRoot = detectWorkspaceRoot()
@@ -76,9 +84,15 @@ object StrategicObjectBatchCoverageRunner:
       Config(
         outputPath =
           workspaceRoot.resolve(
-            Path.of("tools", "strategic_object", "reports", "StrategicObjectBatchCoverage.latest.json")
+            Path.of("tmp", "strategic_object", "reports", "StrategicObjectBatchCoverage.latest.json")
           ),
         rowsOutputPath = None,
+        auditOutputPath =
+          Some(
+            workspaceRoot.resolve(
+              Path.of("tmp", "strategic_object", "reports", "StrategicObjectBatchCoverage.latest.audit.jsonl")
+            )
+          ),
         fenJsonl = None,
         gamesJson = None,
         catalogJsonl = None,
@@ -99,6 +113,10 @@ object StrategicObjectBatchCoverageRunner:
           loop(tail, cfg.copy(rowsOutputPath = Some(Path.of(head.stripPrefix("--rows-output=")).toAbsolutePath.normalize)))
         case "--rows-output" :: value :: tail =>
           loop(tail, cfg.copy(rowsOutputPath = Some(Path.of(value).toAbsolutePath.normalize)))
+        case head :: tail if head.startsWith("--audit-output=") =>
+          loop(tail, cfg.copy(auditOutputPath = Some(Path.of(head.stripPrefix("--audit-output=")).toAbsolutePath.normalize)))
+        case "--audit-output" :: value :: tail =>
+          loop(tail, cfg.copy(auditOutputPath = Some(Path.of(value).toAbsolutePath.normalize)))
         case head :: tail if head.startsWith("--fen-jsonl=") =>
           loop(tail, cfg.copy(fenJsonl = Some(Path.of(head.stripPrefix("--fen-jsonl=")).toAbsolutePath.normalize)))
         case "--fen-jsonl" :: value :: tail =>

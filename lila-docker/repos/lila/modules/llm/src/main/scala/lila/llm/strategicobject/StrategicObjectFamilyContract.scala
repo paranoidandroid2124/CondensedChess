@@ -25,7 +25,10 @@ final case class FamilyGenerationMetrics(
     sharedAnchorCount: Int = 0,
     contestedOverlapCount: Int = 0,
     typedOverlapCount: Int = 0,
+    typedAxisCount: Int = 0,
     bridgeWitnessCount: Int = 0,
+    continuationWitnessCount: Int = 0,
+    exitWitnessCount: Int = 0,
     deniedEntryCount: Int = 0,
     blockadeCount: Int = 0,
     defendedSquareCount: Int = 0,
@@ -35,7 +38,13 @@ final case class FamilyGenerationMetrics(
     targetWitnessCount: Int = 0,
     timingWitnessCount: Int = 0,
     preservedSourceCount: Int = 0,
+    exchangeWitnessCount: Int = 0,
+    persistenceWitnessCount: Int = 0,
     goalWitnessCount: Int = 0,
+    ownGoalWitnessCount: Int = 0,
+    rivalGoalWitnessCount: Int = 0,
+    dualClockCount: Int = 0,
+    orderingWitnessCount: Int = 0,
     activeFileCount: Int = 0,
     laggingPieceCount: Int = 0,
     coordinationSquareCount: Int = 0,
@@ -201,11 +210,17 @@ object StrategicObjectFamilyContract:
       case StrategicObjectFamily.BreakAxis =>
         StrategicObjectFamilyContract(family, defaultReadiness = StrategicObjectReadiness.Stable)
       case StrategicObjectFamily.AccessNetwork =>
-        StrategicObjectFamilyContract(family, defaultReadiness = StrategicObjectReadiness.Stable)
+        StrategicObjectFamilyContract(
+          family,
+          minimumAnchorPattern = MinimumAnchorPattern.SharedOrTypedAnchor,
+          forbiddenLoosePatterns = Set(ForbiddenLoosePattern.BroadOverlapOnly),
+          defaultReadiness = StrategicObjectReadiness.Stable
+        )
       case StrategicObjectFamily.CounterplayAxis =>
         StrategicObjectFamilyContract(
           family,
           requiredPrimitiveKinds = Set(PrimitiveKind.CounterplayResourceSeed),
+          minimumAnchorPattern = MinimumAnchorPattern.SharedOrTypedAnchor,
           forbiddenLoosePatterns = Set(ForbiddenLoosePattern.BroadOverlapOnly),
           defaultReadiness = StrategicObjectReadiness.Provisional
         )
@@ -277,7 +292,12 @@ object StrategicObjectFamilyContract:
           defaultReadiness = StrategicObjectReadiness.DeferredForDelta
         )
       case StrategicObjectFamily.ConversionFunnel =>
-        StrategicObjectFamilyContract(family, defaultReadiness = StrategicObjectReadiness.Provisional)
+        StrategicObjectFamilyContract(
+          family,
+          minimumAnchorPattern = MinimumAnchorPattern.SourceDestinationChain,
+          forbiddenLoosePatterns = Set(ForbiddenLoosePattern.BroadOverlapOnly),
+          defaultReadiness = StrategicObjectReadiness.Provisional
+        )
       case StrategicObjectFamily.PasserComplex =>
         StrategicObjectFamilyContract(family, defaultReadiness = StrategicObjectReadiness.Stable)
       case StrategicObjectFamily.FortressHoldingShell =>
@@ -335,7 +355,10 @@ object StrategicObjectFamilyContract:
         case MinimumAnchorPattern.SourceDestinationChain =>
           evidence.metrics.sharedAnchorCount > 0 ||
             evidence.relationOperators.exists(op =>
-              op == StrategicRelationOperator.Preserves || op == StrategicRelationOperator.TransformsTo
+              op == StrategicRelationOperator.Preserves ||
+                op == StrategicRelationOperator.TransformsTo ||
+                op == StrategicRelationOperator.DependsOn ||
+                op == StrategicRelationOperator.Enables
             )
         case MinimumAnchorPattern.DefendedPressureTriad =>
           evidence.metrics.defendedSquareCount > 0 &&
@@ -377,6 +400,12 @@ object StrategicObjectFamilyContract:
       case StrategicObjectFamily.PlanRace =>
         val ownCore = evidence.sourceFamilies.intersect(PlanRaceFamilies)
         val rivalCore = evidence.rivalFamilies.intersect(PlanRaceFamilies)
+        val timedRaceFamilies =
+          Set(
+            StrategicObjectFamily.CounterplayAxis,
+            StrategicObjectFamily.PasserComplex,
+            StrategicObjectFamily.InitiativeWindow
+          )
         val linkedRace =
           evidence.relationOperators.exists(op =>
             op == StrategicRelationOperator.RacesWith ||
@@ -385,6 +414,12 @@ object StrategicObjectFamilyContract:
           )
         ownCore.nonEmpty &&
           rivalCore.nonEmpty &&
+          evidence.sourceFamilies.intersect(timedRaceFamilies).nonEmpty &&
+          evidence.rivalFamilies.intersect(timedRaceFamilies).nonEmpty &&
+          evidence.metrics.ownGoalWitnessCount > 0 &&
+          evidence.metrics.rivalGoalWitnessCount > 0 &&
+          evidence.metrics.dualClockCount >= 2 &&
+          evidence.metrics.orderingWitnessCount > 0 &&
           evidence.metrics.goalWitnessCount > 0 &&
           (
             evidence.metrics.sharedAnchorCount > 0 ||
@@ -498,14 +533,26 @@ object StrategicObjectFamilyContract:
       case StrategicObjectFamily.SpaceClamp =>
         evidence.metrics.clampSquareCount >= 3 &&
           evidence.metrics.activeFileCount >= 2
+      case StrategicObjectFamily.AccessNetwork =>
+        evidence.metrics.entryWitnessCount > 0 &&
+          (
+            evidence.metrics.targetWitnessCount > 0 ||
+              evidence.metrics.routeSquareCount >= 3
+          )
       case StrategicObjectFamily.RestrictionShell =>
         evidence.metrics.pressureSquareCount > 0 &&
           evidence.metrics.targetWitnessCount > 1 &&
           evidence.primitiveKinds.intersect(Set(PrimitiveKind.TargetSquare, PrimitiveKind.CriticalSquare)).nonEmpty
       case StrategicObjectFamily.CounterplayAxis =>
         evidence.primitiveKinds.contains(PrimitiveKind.CounterplayResourceSeed) &&
-          evidence.metrics.entryWitnessCount > 0 &&
-          evidence.metrics.targetWitnessCount > 1
+          evidence.metrics.typedAxisCount > 0 &&
+          evidence.metrics.entryWitnessCount >= 2 &&
+          evidence.metrics.targetWitnessCount > 1 &&
+          (
+            evidence.metrics.exchangeWitnessCount > 0 ||
+              evidence.metrics.activeFileCount > 0 ||
+              evidence.metrics.pressureSquareCount >= 3
+          )
       case StrategicObjectFamily.MobilityCage =>
         evidence.primitiveKinds.contains(PrimitiveKind.PieceRoleIssue) &&
           evidence.metrics.deniedSquareCount > 0 &&
@@ -526,7 +573,31 @@ object StrategicObjectFamilyContract:
               evidence.rivalFamilies.intersect(TensionFamilies).nonEmpty
           )
       case StrategicObjectFamily.TradeInvariant =>
+        evidence.metrics.exchangeWitnessCount > 0 &&
+          evidence.metrics.persistenceWitnessCount > 0 &&
         evidence.metrics.preservedSourceCount >= 2 &&
           evidence.metrics.goalWitnessCount > 0
+      case StrategicObjectFamily.ConversionFunnel =>
+        evidence.sourceFamilies.intersect(
+          Set(StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.TradeInvariant)
+        ).nonEmpty &&
+          evidence.destinationFamilies.intersect(
+            Set(
+              StrategicObjectFamily.PasserComplex,
+              StrategicObjectFamily.TradeInvariant,
+              StrategicObjectFamily.DefenderDependencyNetwork
+            )
+          ).nonEmpty &&
+          evidence.metrics.sourceCount > 0 &&
+          evidence.metrics.bridgeWitnessCount > 0 &&
+          evidence.metrics.continuationWitnessCount >= 2 &&
+          evidence.metrics.exitWitnessCount > 0 &&
+          evidence.metrics.goalWitnessCount > 0 &&
+          evidence.relationOperators.exists(op =>
+            op == StrategicRelationOperator.DependsOn ||
+              op == StrategicRelationOperator.TransformsTo ||
+              op == StrategicRelationOperator.Preserves ||
+              op == StrategicRelationOperator.Enables
+          )
       case _ =>
         true

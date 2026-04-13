@@ -464,6 +464,31 @@ in `StrategicObjectRoadmap.md`.
   the non-timing `WhyThis` lane while leaving bad-contract move-local timing
   on `WhatMustBeStopped`. This tightens timing ownership without adding new
   wording, renderer behavior, or Tier 2 / Tier 3 widening.
+- rewrite-local strategic-object disentanglement hardening note on 2026-04-12:
+  the central family contract and planner arbitration now tighten the four
+  Access-shadow causal families directly at the certified runtime boundary
+  instead of broad overlap or generic activation. `TradeInvariant`
+  move-local admission now reuses one centralized persistence witness check, so
+  exchange/simplification only stays primary when a fixed target, break, or
+  access anchor survives the trade itself. `CounterplayAxis` now needs one
+  typed counterplay axis plus exact-board entry/target pressure evidence;
+  generic `the opponent still has resources` pictures stay off. 
+  `ConversionFunnel` now needs a real source-to-channel-to-exit witness with
+  continuation and exit burden; static advantage shells stay off or object-only.
+  `PlanRace` now needs dual clocks, explicit own/rival goals, and an ordering
+  witness; bilateral activity alone no longer opens the family. On the planner
+  side, `QuestionPlanner` may now demote `AccessNetwork` from move-local
+  primary to support only when an overlapping same-owner certified
+  `TradeInvariant`, `CounterplayAxis`, `ConversionFunnel`, or `PlanRace` claim
+  proves the more specific residual explanation. The batch-coverage audit
+  tooling is updated in parallel: `StrategicObjectBatchCoverage` now emits
+  family-level `OwnerRate`, `ShadowRate`, `UniqueOwnerRate`, `AxisDiversity`,
+  `StageConcentration`, and `AccessNetworkResidualCount`, plus per-family
+  manual-audit bundles (`top_50`, `middle_20`, `random_20`, `hard_negative_20`)
+  with predeclared board-truth / family-fit / stage-fit verdict fields. This
+  remains trust-hardening only:
+  it narrows overactivation and Access-shadow drift without opening new wording,
+  new planner lanes, renderer semantics, or parallel runtime paths.
 
 ## Current Status
 

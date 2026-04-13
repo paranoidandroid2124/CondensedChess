@@ -14,6 +14,7 @@
 /lila-docker/scripts/ops_auto_deploy.ps1
 /lila-docker/scripts/remove_auto_deploy_task.ps1
 /tools/stockfish/
+/tools/strategic_object/reports/
 
 /lila-docker/repos/lila/modules/llm/docs/active_narrative_runs/
 /lila-docker/repos/lila/modules/llm/docs/real_pgn_eval/

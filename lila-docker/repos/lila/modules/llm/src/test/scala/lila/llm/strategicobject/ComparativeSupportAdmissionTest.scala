@@ -37,7 +37,13 @@ class ComparativeSupportAdmissionTest extends FunSuite:
         case "support" =>
           val supportClaimValue = support.getOrElse(fail(s"${row.id}: expected support claim"))
           assertEquals(supportClaimValue.status, ClaimStatus.SupportOnly)
-          assertEquals(planned.supportClaimIds, List(supportClaimValue.id))
+          assertEquals(
+            planned.supportClaimIds,
+            List(supportClaimValue.id),
+            clue(
+              s"${row.id}: support=${supportClaimValue.id} supportObjects=${supportClaimValue.supportingObjectIds} primary=${primary.id} planned=$planned"
+            )
+          )
         case "none" =>
           assert(support.forall(claim => !planned.supportClaimIds.contains(claim.id)), clue(s"${row.id}: unexpected support admission"))
         case other =>

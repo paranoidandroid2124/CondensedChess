@@ -45,7 +45,7 @@ object StrategicObjectCapabilityScorecardRunner:
       Config(
         outputPath =
           workspaceRoot.resolve(
-            Path.of("tools", "strategic_object", "reports", "StrategicObjectCapabilityScorecard.latest.json")
+            Path.of("tmp", "strategic_object", "reports", "StrategicObjectCapabilityScorecard.latest.json")
           ),
         rowsOutputPath = None,
         families = Set.empty
@@ -98,4 +98,3 @@ object StrategicObjectCapabilityScorecardRunner:
   ): Unit =
     Option(path.getParent).foreach(parent => Files.createDirectories(parent))
     Files.writeString(path, value, StandardCharsets.UTF_8)
-

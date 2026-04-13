@@ -22,18 +22,12 @@ private[strategicobject] object TradeInvariantSimplificationSlice:
       (
         obj.profile match
           case StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, _, preservedFamilies, features) =>
-            exchangeSquares.nonEmpty &&
-              invariantSquares.nonEmpty &&
-              preservedFamilies.nonEmpty &&
-              !preservedFamilies.contains(StrategicObjectFamily.PasserComplex) &&
-              !features.contains(TradeInvariantFeature.PasserAnchor) &&
-              features.intersect(
-                Set(
-                  TradeInvariantFeature.FixedTargetAnchor,
-                  TradeInvariantFeature.BreakAnchor,
-                  TradeInvariantFeature.AccessAnchor
-                )
-              ).nonEmpty
+            TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+              exchangeSquares,
+              invariantSquares,
+              preservedFamilies,
+              features
+            )
           case _ =>
             false
       )

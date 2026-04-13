@@ -41,6 +41,12 @@ enum TradeInvariantFeature:
   case PasserAnchor
   case ReleaseOverlap
 
+enum CounterplayAxisType:
+  case Break
+  case File
+  case Activity
+  case KingExposure
+
 enum TensionFeature:
   case MaintainableContact
   case ReleasePressure
@@ -157,7 +163,8 @@ enum StrategicObjectProfile:
   case CounterplayAxis(
       resourceSquares: List[Square],
       breakSquares: List[Square],
-      pressureSquares: List[Square]
+      pressureSquares: List[Square],
+      typedAxes: Set[CounterplayAxisType]
   )
   case RestrictionShell(
       restrictedSquares: List[Square],
@@ -265,7 +272,7 @@ enum StrategicObjectProfile:
       case StrategicObjectProfile.FixedTargetComplex(_, _, _, _, _)            => StrategicObjectFamily.FixedTargetComplex
       case StrategicObjectProfile.BreakAxis(_, _, _, _, _)                     => StrategicObjectFamily.BreakAxis
       case StrategicObjectProfile.AccessNetwork(_, _, _, _)                    => StrategicObjectFamily.AccessNetwork
-      case StrategicObjectProfile.CounterplayAxis(_, _, _)                     => StrategicObjectFamily.CounterplayAxis
+      case StrategicObjectProfile.CounterplayAxis(_, _, _, _)                  => StrategicObjectFamily.CounterplayAxis
       case StrategicObjectProfile.RestrictionShell(_, _, _)                    => StrategicObjectFamily.RestrictionShell
       case StrategicObjectProfile.MobilityCage(_, _, _)                        => StrategicObjectFamily.MobilityCage
       case StrategicObjectProfile.RedeploymentRoute(_, _, _)                   => StrategicObjectFamily.RedeploymentRoute

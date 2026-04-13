@@ -214,6 +214,7 @@ lazy val llm = module("llm",
     path.endsWith("/src/test/scala/lila/llm/strategicobject/StrategicObjectDeltaProjectorTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/ClaimCertificationTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/QuestionPlannerTest.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/strategicobject/QuestionPlannerAccessArbitrationTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/ComparativeSupportAdmissionTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/TargetFixationAdmissionTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/CurrentPositionFixedTargetProbeTest.scala") ||

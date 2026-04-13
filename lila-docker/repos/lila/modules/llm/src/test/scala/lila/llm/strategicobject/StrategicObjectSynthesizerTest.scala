@@ -326,7 +326,7 @@ class StrategicObjectSynthesizerTest extends FunSuite:
         sourceSquare != breakSquare && targetSquares.nonEmpty
       case (StrategicObjectFamily.AccessNetwork, StrategicObjectProfile.AccessNetwork(lane, route, _, _)) =>
         lane.nonEmpty || route.nonEmpty
-      case (StrategicObjectFamily.CounterplayAxis, StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares)) =>
+      case (StrategicObjectFamily.CounterplayAxis, StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares, typedAxes)) =>
         resourceSquares.nonEmpty || breakSquares.nonEmpty || pressureSquares.nonEmpty
       case (StrategicObjectFamily.RestrictionShell, StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares)) =>
         restrictedSquares.nonEmpty && constraintSquares.nonEmpty

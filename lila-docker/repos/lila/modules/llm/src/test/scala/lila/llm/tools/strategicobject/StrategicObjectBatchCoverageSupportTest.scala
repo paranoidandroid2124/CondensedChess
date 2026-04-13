@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
 import munit.FunSuite
+import play.api.libs.json.*
 
 class StrategicObjectBatchCoverageSupportTest extends FunSuite:
 
@@ -76,6 +77,7 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
     assertEquals(summary.skippedGameCount, 0)
     assert(rows.nonEmpty, clue(rows))
     assert(rows.forall(_.gameKey.contains("catalog-mini")), clue(rows))
+    assert(rows.forall(_.pgnPath.contains(pgnPath.toString)), clue(rows))
     assert(rows.forall(_.playedUci.nonEmpty), clue(rows))
   }
 
@@ -90,7 +92,7 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
     Files.writeString(path, rows, StandardCharsets.UTF_8)
 
     val (inputSummary, inputs) = StrategicObjectBatchCoverageSupport.loadFenJsonl(path)
-    val (report, activations) = StrategicObjectBatchCoverageSupport.report(inputSummary, inputs)
+    val (report, activations, auditRows) = StrategicObjectBatchCoverageSupport.report(inputSummary, inputs)
 
     val access =
       report.families.find(_.family == "AccessNetwork").getOrElse(
@@ -107,14 +109,25 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
 
     assertEquals(report.input.evaluatedSampleCount, 3)
     assert(access.primaryCount >= 1, clue(access))
+    assert(access.ownerRate > 0.0, clue(access))
     assertEquals(access.highestBatchStage, "planner_primary")
     assert(tradeInvariant.primaryCount >= 1, clue(tradeInvariant))
     assertEquals(tradeInvariant.highestBatchStage, "planner_primary")
     assert(counterplay.sampleCount >= 1, clue(counterplay))
+    assert(counterplay.shadowRate >= 0.0, clue(counterplay))
     assert(
       Set("object", "certification", "planner_none", "planner_support").contains(counterplay.highestBatchStage),
       clue(counterplay)
     )
     assert(activations.exists(row => row.family == "AccessNetwork" && row.bestAdmission == "primary"))
     assert(activations.exists(row => row.family == "TradeInvariant" && row.bestAdmission == "primary"))
+    assert(auditRows.exists(row => row.family == "AccessNetwork" && row.auditBucket == "top_50"), clue(auditRows))
+    assert(auditRows.exists(row => row.family == "TradeInvariant" && row.auditBucket == "hard_negative_20"), clue(auditRows))
+
+    val renderedAudit = StrategicObjectBatchCoverageSupport.renderAuditJsonl(auditRows.take(1))
+    val parsedAudit = Json.parse(renderedAudit.trim)
+    assert((parsedAudit \ "boardTruthVerdict").toOption.contains(JsNull), clue(parsedAudit))
+    assert((parsedAudit \ "familyNameFit").toOption.contains(JsNull), clue(parsedAudit))
+    assert((parsedAudit \ "stageFit").toOption.contains(JsNull), clue(parsedAudit))
+    assert((parsedAudit \ "notes").toOption.contains(JsNull), clue(parsedAudit))
   }

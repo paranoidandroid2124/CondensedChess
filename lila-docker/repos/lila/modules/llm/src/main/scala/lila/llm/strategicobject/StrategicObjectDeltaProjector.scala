@@ -209,7 +209,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         Some(if supportBalance >= 2 then StrategicDeltaTag.BreakAccelerated else if supportBalance >= 0 then StrategicDeltaTag.BreakOpened else StrategicDeltaTag.BreakClosed)
       case (StrategicObjectProfile.AccessNetwork(_, route, _, contestedSquares), StrategicMoveTransitionAxis.AccessRouteActivation) =>
         Some(if route.nonEmpty then StrategicDeltaTag.AccessOpened else if contestedSquares.nonEmpty then StrategicDeltaTag.AccessImproved else StrategicDeltaTag.AccessDenied)
-      case (StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, _), StrategicMoveTransitionAxis.CounterplayResourceShift) =>
+      case (StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, _, typedAxes), StrategicMoveTransitionAxis.CounterplayResourceShift) =>
         Some(if breakSquares.nonEmpty then StrategicDeltaTag.CounterplayOpened else if resourceSquares.nonEmpty then StrategicDeltaTag.CounterplayLive else StrategicDeltaTag.CounterplayReduced)
       case (_: StrategicObjectProfile.RestrictionShell, StrategicMoveTransitionAxis.RestrictionImposition) =>
         Some(StrategicDeltaTag.RestrictionTightened)
@@ -219,16 +219,14 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         Some(if mobilityGain.exists(_ > 1) then StrategicDeltaTag.RouteShortened else if mobilityGain.nonEmpty || route.via.nonEmpty then StrategicDeltaTag.RouteOpened else StrategicDeltaTag.RouteBlocked)
       case (StrategicObjectProfile.PasserComplex(_, _, relativeRank, protectedByPawn, escortSquares), StrategicMoveTransitionAxis.PasserAdvance) =>
         Some(if relativeRank >= 5 then StrategicDeltaTag.PasserAccelerated else if protectedByPawn || escortSquares.nonEmpty then StrategicDeltaTag.PasserSupported else StrategicDeltaTag.PasserCreated)
-      case (StrategicObjectProfile.TradeInvariant(_, _, _, preservedFamilies, features), StrategicMoveTransitionAxis.TradeSimplification) =>
+      case (StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, _, preservedFamilies, features), StrategicMoveTransitionAxis.TradeSimplification) =>
         Option.when(
-          features.intersect(
-            Set(
-              TradeInvariantFeature.FixedTargetAnchor,
-              TradeInvariantFeature.BreakAnchor,
-              TradeInvariantFeature.AccessAnchor
-            )
-          ).nonEmpty &&
-            preservedFamilies.nonEmpty
+          TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+            exchangeSquares = exchangeSquares,
+            invariantSquares = invariantSquares,
+            preservedFamilies = preservedFamilies,
+            features = features
+          )
         )(StrategicDeltaTag.TradePreserved)
       case _ =>
         None
@@ -273,7 +271,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case StrategicObjectProfile.AccessNetwork(_, route, _, contestedSquares) =>
         if contestedSquares.nonEmpty || route.nonEmpty then StrategicDeltaTag.AccessImproved
         else StrategicDeltaTag.AccessOpened
-      case StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, _) =>
+      case StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, _, _) =>
         if breakSquares.nonEmpty || resourceSquares.nonEmpty then StrategicDeltaTag.CounterplayLive
         else StrategicDeltaTag.CounterplayReduced
       case StrategicObjectProfile.RestrictionShell(restrictedSquares, _, _) =>
@@ -562,7 +560,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
           StrategicComparativeMetric.BreakAvailability(targetSquares.size, rivalTargetSquares.size),
           StrategicComparativeMetric.BreakSupport(supportBalance, rivalSupportBalance)
         )
-      case (StrategicObjectProfile.BreakAxis(_, _, targetSquares, _, supportBalance), StrategicObjectProfile.CounterplayAxis(_, rivalBreakSquares, rivalPressureSquares)) =>
+      case (StrategicObjectProfile.BreakAxis(_, _, targetSquares, _, supportBalance), StrategicObjectProfile.CounterplayAxis(_, rivalBreakSquares, rivalPressureSquares, _)) =>
         List(
           StrategicComparativeMetric.BreakAvailability(targetSquares.size, rivalBreakSquares.size),
           StrategicComparativeMetric.BreakSupport(supportBalance, rivalPressureSquares.size)
@@ -577,7 +575,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
           StrategicComparativeMetric.EntryUsability(route.toList.flatMap(_.allSquares).size, rivalAccessFiles.size),
           StrategicComparativeMetric.RouteContest(contestedSquares.size, rivalStressedSquares.size + rivalPressureSquares.size)
         )
-      case (StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares), StrategicObjectProfile.CounterplayAxis(rivalResourceSquares, rivalBreakSquares, rivalPressureSquares)) =>
+      case (StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares, _), StrategicObjectProfile.CounterplayAxis(rivalResourceSquares, rivalBreakSquares, rivalPressureSquares, _)) =>
         List(
           StrategicComparativeMetric.ReliefResource(resourceSquares.size + pressureSquares.size, rivalResourceSquares.size + rivalPressureSquares.size),
           StrategicComparativeMetric.BreakPressure(breakSquares.size, rivalBreakSquares.size),
@@ -586,7 +584,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
             distinctFiles((rivalResourceSquares ++ rivalBreakSquares).map(_.file)).size
           )
         )
-      case (StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares), StrategicObjectProfile.BreakAxis(_, _, rivalTargetSquares, _, rivalSupportBalance)) =>
+      case (StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares, _), StrategicObjectProfile.BreakAxis(_, _, rivalTargetSquares, _, rivalSupportBalance)) =>
         List(
           StrategicComparativeMetric.ReliefResource(resourceSquares.size + pressureSquares.size, rivalTargetSquares.size + math.max(rivalSupportBalance, 0)),
           StrategicComparativeMetric.BreakPressure(breakSquares.size, rivalTargetSquares.size),
@@ -952,8 +950,9 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case StrategicObjectProfile.AccessNetwork(_, _, _, contestedSquares) =>
         if contestedSquares.nonEmpty then StrategicComparativeAxis.AccessRouteContestContrast
         else StrategicComparativeAxis.AccessEntryUsabilityContrast
-      case StrategicObjectProfile.CounterplayAxis(_, breakSquares, _) =>
+      case StrategicObjectProfile.CounterplayAxis(_, breakSquares, _, typedAxes) =>
         if breakSquares.nonEmpty then StrategicComparativeAxis.CounterplayBreakPressureContrast
+        else if typedAxes.contains(CounterplayAxisType.Break) then StrategicComparativeAxis.CounterplayBreakPressureContrast
         else StrategicComparativeAxis.CounterplayReliefContrast
       case _: StrategicObjectProfile.RestrictionShell =>
         StrategicComparativeAxis.RestrictionContainmentContrast
@@ -1029,7 +1028,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         distinctSquares(sourceSquare :: breakSquare :: targetSquares)
       case StrategicObjectProfile.AccessNetwork(_, route, _, contestedSquares) =>
         distinctSquares(route.toList.flatMap(_.allSquares) ++ contestedSquares)
-      case StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares) =>
+      case StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares, _) =>
         distinctSquares(resourceSquares ++ breakSquares ++ pressureSquares)
       case StrategicObjectProfile.RestrictionShell(restrictedSquares, contestedSquares, constraintSquares) =>
         distinctSquares(restrictedSquares ++ contestedSquares ++ constraintSquares)
@@ -1066,7 +1065,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         distinctFiles(List(sourceSquare.file, breakSquare.file) ++ targetSquares.map(_.file))
       case StrategicObjectProfile.AccessNetwork(lane, route, _, contestedSquares) =>
         distinctFiles(lane.toList ++ route.toList.flatMap(_.allSquares.map(_.file)) ++ contestedSquares.map(_.file))
-      case StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares) =>
+      case StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares, _) =>
         distinctFiles((resourceSquares ++ breakSquares ++ pressureSquares).map(_.file))
       case StrategicObjectProfile.RestrictionShell(restrictedSquares, contestedSquares, constraintSquares) =>
         distinctFiles((restrictedSquares ++ contestedSquares ++ constraintSquares).map(_.file))
@@ -1231,18 +1230,15 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case _: StrategicObjectProfile.RedeploymentRoute =>
         coreSquares.size >= 2 &&
           primitiveKinds.intersect(Set(PrimitiveKind.DiagonalLaneSeed, PrimitiveKind.LiftCorridorSeed, PrimitiveKind.KnightRouteSeed, PrimitiveKind.RedeploymentPathSeed)).nonEmpty
-      case StrategicObjectProfile.TradeInvariant(exchangeSquares, _, _, preservedFamilies, features) =>
+      case StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, _, preservedFamilies, features) =>
         coreSquares.intersect(exchangeSquares).nonEmpty &&
           primitiveKinds.contains(PrimitiveKind.ExchangeSquare) &&
-          preservedFamilies.nonEmpty &&
-          !features.contains(TradeInvariantFeature.PasserAnchor) &&
-          features.intersect(
-            Set(
-              TradeInvariantFeature.FixedTargetAnchor,
-              TradeInvariantFeature.BreakAnchor,
-              TradeInvariantFeature.AccessAnchor
-            )
-          ).nonEmpty
+          TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+            exchangeSquares = exchangeSquares,
+            invariantSquares = invariantSquares,
+            preservedFamilies = preservedFamilies,
+            features = features
+          )
       case _ =>
         coreSquares.nonEmpty || relationWitnesses.nonEmpty
 
