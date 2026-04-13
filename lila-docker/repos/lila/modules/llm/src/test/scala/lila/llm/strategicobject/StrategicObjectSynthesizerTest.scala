@@ -234,6 +234,14 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     assert(objects.exists(obj => obj.family == StrategicObjectFamily.PlanRace && obj.owner == Color.Black))
   }
 
+  test("same-sector access and passer do not synthesize conversion funnel without exact overlap") {
+    val objects = objectsForFen("6k1/1P6/8/8/8/8/8/2R3K1 w - - 0 1")
+
+    assert(objects.exists(obj => obj.family == StrategicObjectFamily.AccessNetwork && obj.owner == Color.White))
+    assert(objects.exists(obj => obj.family == StrategicObjectFamily.PasserComplex && obj.owner == Color.White))
+    assert(!objects.exists(obj => obj.family == StrategicObjectFamily.ConversionFunnel && obj.owner == Color.White))
+  }
+
   test("hardening near-miss boards keep live support while rejecting weak graph-derived inflation") {
     val fileDuel = objectsForFen("2r3k1/8/8/8/8/8/8/2R3K1 w - - 0 1")
     assert(fileDuel.exists(obj => obj.family == StrategicObjectFamily.KingSafetyShell && obj.owner == Color.White))

@@ -10,6 +10,7 @@ object StrategicObjectBatchCoverageRunner:
       outputPath: Path,
       rowsOutputPath: Option[Path],
       auditOutputPath: Option[Path],
+      manualAuditOutputPath: Option[Path],
       fenJsonl: Option[Path],
       gamesJson: Option[Path],
       catalogJsonl: Option[Path],
@@ -67,6 +68,9 @@ object StrategicObjectBatchCoverageRunner:
     config.auditOutputPath.foreach(path =>
       writeText(path, StrategicObjectBatchCoverageSupport.renderAuditJsonl(auditRows))
     )
+    config.manualAuditOutputPath.foreach(path =>
+      writeText(path, StrategicObjectBatchCoverageSupport.renderAuditJsonl(StrategicObjectBatchCoverageSupport.topManualAuditRows(auditRows)))
+    )
 
     println(
       s"[strategic-object-batch-coverage] wrote ${report.families.size} families / ${rows.size} samples to ${config.outputPath}"
@@ -76,6 +80,9 @@ object StrategicObjectBatchCoverageRunner:
     )
     config.auditOutputPath.foreach(path =>
       println(s"[strategic-object-batch-coverage] wrote audit rows to $path")
+    )
+    config.manualAuditOutputPath.foreach(path =>
+      println(s"[strategic-object-batch-coverage] wrote top manual audit rows to $path")
     )
 
   private def parseArgs(args: List[String]): Either[String, Config] =
@@ -93,6 +100,7 @@ object StrategicObjectBatchCoverageRunner:
               Path.of("tmp", "strategic_object", "reports", "StrategicObjectBatchCoverage.latest.audit.jsonl")
             )
           ),
+        manualAuditOutputPath = None,
         fenJsonl = None,
         gamesJson = None,
         catalogJsonl = None,
@@ -117,6 +125,10 @@ object StrategicObjectBatchCoverageRunner:
           loop(tail, cfg.copy(auditOutputPath = Some(Path.of(head.stripPrefix("--audit-output=")).toAbsolutePath.normalize)))
         case "--audit-output" :: value :: tail =>
           loop(tail, cfg.copy(auditOutputPath = Some(Path.of(value).toAbsolutePath.normalize)))
+        case head :: tail if head.startsWith("--manual-audit-output=") =>
+          loop(tail, cfg.copy(manualAuditOutputPath = Some(Path.of(head.stripPrefix("--manual-audit-output=")).toAbsolutePath.normalize)))
+        case "--manual-audit-output" :: value :: tail =>
+          loop(tail, cfg.copy(manualAuditOutputPath = Some(Path.of(value).toAbsolutePath.normalize)))
         case head :: tail if head.startsWith("--fen-jsonl=") =>
           loop(tail, cfg.copy(fenJsonl = Some(Path.of(head.stripPrefix("--fen-jsonl=")).toAbsolutePath.normalize)))
         case "--fen-jsonl" :: value :: tail =>

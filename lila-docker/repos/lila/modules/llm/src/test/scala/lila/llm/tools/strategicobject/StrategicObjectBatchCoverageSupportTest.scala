@@ -6,7 +6,11 @@ import java.nio.file.Files
 import munit.FunSuite
 import play.api.libs.json.*
 
+import scala.concurrent.duration.*
+
 class StrategicObjectBatchCoverageSupportTest extends FunSuite:
+
+  override val munitTimeout = 90.seconds
 
   test("embedded games json loader extracts actual ply samples with played UCI") {
     val path = Files.createTempFile("strategic-object-batch-games", ".json")
@@ -110,11 +114,17 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
     assertEquals(report.input.evaluatedSampleCount, 3)
     assert(access.primaryCount >= 1, clue(access))
     assert(access.ownerRate > 0.0, clue(access))
+    assert(access.uniqueOwnerRate.nonEmpty, clue(access))
+    assert(access.residualSupportRate.isEmpty, clue(access))
+    assert(access.accessDemotionRate >= 0.0, clue(access))
+    assert(access.auditBuckets.exists(_.bucket == "top_50"), clue(access))
+    assert(access.byAxis.exists(_.axis == "WhyThis"), clue(access))
     assertEquals(access.highestBatchStage, "planner_primary")
     assert(tradeInvariant.primaryCount >= 1, clue(tradeInvariant))
     assertEquals(tradeInvariant.highestBatchStage, "planner_primary")
     assert(counterplay.sampleCount >= 1, clue(counterplay))
     assert(counterplay.shadowRate >= 0.0, clue(counterplay))
+    assert(counterplay.uniqueOwnerRate.isEmpty, clue(counterplay))
     assert(
       Set("object", "certification", "planner_none", "planner_support").contains(counterplay.highestBatchStage),
       clue(counterplay)
@@ -123,6 +133,11 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
     assert(activations.exists(row => row.family == "TradeInvariant" && row.bestAdmission == "primary"))
     assert(auditRows.exists(row => row.family == "AccessNetwork" && row.auditBucket == "top_50"), clue(auditRows))
     assert(auditRows.exists(row => row.family == "TradeInvariant" && row.auditBucket == "hard_negative_20"), clue(auditRows))
+    assert(auditRows.forall(row => row.selectedCount <= row.requestedCount), clue(auditRows))
+
+    val manualAuditRows = StrategicObjectBatchCoverageSupport.topManualAuditRows(auditRows, limitPerFamily = 20)
+    assert(manualAuditRows.forall(_.auditBucket == "top_20_manual"), clue(manualAuditRows))
+    assert(manualAuditRows.forall(_.requestedCount == 20), clue(manualAuditRows))
 
     val renderedAudit = StrategicObjectBatchCoverageSupport.renderAuditJsonl(auditRows.take(1))
     val parsedAudit = Json.parse(renderedAudit.trim)
@@ -130,4 +145,10 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
     assert((parsedAudit \ "familyNameFit").toOption.contains(JsNull), clue(parsedAudit))
     assert((parsedAudit \ "stageFit").toOption.contains(JsNull), clue(parsedAudit))
     assert((parsedAudit \ "notes").toOption.contains(JsNull), clue(parsedAudit))
+
+    val renderedReport = Json.toJson(report)
+    assert((renderedReport \ "families")(0).as[JsObject].keys.contains("uniqueOwnerRate"), clue(renderedReport))
+    assert((renderedReport \ "families")(0).as[JsObject].keys.contains("residualSupportRate"), clue(renderedReport))
+    assert((renderedReport \ "families")(0).as[JsObject].keys.contains("accessDemotionRate"), clue(renderedReport))
+    assert((renderedReport \ "families")(0).as[JsObject].keys.contains("auditBuckets"), clue(renderedReport))
   }

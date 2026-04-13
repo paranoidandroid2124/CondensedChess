@@ -75,7 +75,7 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
     val axis = chooseAxis(contract, claims)
     val primarySelection = claimsForAxis(claims, axis)
     val supportClaims =
-      if primarySelection.primaryClaims.nonEmpty
+      if primarySelection.primaryClaims.nonEmpty || primarySelection.demotedClaims.nonEmpty
       then supportClaimsForAxis(claims, axis, primarySelection.primaryClaims, primarySelection.demotedClaims)
       else Nil
     PlannedQuestion(
@@ -108,9 +108,18 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
 
         if packetOwnedPrimaryClaims.nonEmpty then
           PrimaryClaimSelection(primaryClaims = packetOwnedPrimaryClaims.sortBy(_.id).take(1))
-        else arbitratePrimaryClaims(axis, basePrimaryClaimsForAxis(claims, axis))
+        else
+          arbitratePrimaryClaims(
+            axis,
+            basePrimaryClaimsForAxis(claims, axis),
+            baseSupportClaimsForAxis(claims, axis)
+          )
       case _ =>
-        arbitratePrimaryClaims(axis, basePrimaryClaimsForAxis(claims, axis))
+        arbitratePrimaryClaims(
+          axis,
+          basePrimaryClaimsForAxis(claims, axis),
+          baseSupportClaimsForAxis(claims, axis)
+        )
 
   private def basePrimaryClaimsForAxis(
       claims: List[CertifiedClaim],
@@ -120,6 +129,17 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       .toList
       .flatMap { admission =>
         claims.filter(admission.primaryClaim)
+      }
+      .sortBy(_.id)
+
+  private def baseSupportClaimsForAxis(
+      claims: List[CertifiedClaim],
+      axis: QuestionAxis
+  ): List[CertifiedClaim] =
+    admissionFor(axis)
+      .toList
+      .flatMap { admission =>
+        claims.filter(admission.supportClaim)
       }
       .sortBy(_.id)
 
@@ -138,7 +158,7 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       .toList
       .flatMap { admission =>
         val candidateSupportClaims =
-          dedupeClaims(claims.filter(admission.supportClaim) ++ demotedClaims)
+          dedupeClaims(baseSupportClaimsForAxis(claims, axis) ++ demotedClaims)
         axis match
           case QuestionAxis.WhatChanged =>
             exactSharedTargetComparativeSupport(primaryClaims, candidateSupportClaims).toList
@@ -147,14 +167,6 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
           case _ =>
             candidateSupportClaims
       }
-
-  private val accessShadowSpecificFamilies =
-    Set(
-      StrategicObjectFamily.TradeInvariant,
-      StrategicObjectFamily.CounterplayAxis,
-      StrategicObjectFamily.ConversionFunnel,
-      StrategicObjectFamily.PlanRace
-    )
 
   private val moveLocalPrimaryAxes =
     Set(
@@ -165,17 +177,20 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
 
   private def arbitratePrimaryClaims(
       axis: QuestionAxis,
-      claims: List[CertifiedClaim]
+      primaryClaims: List[CertifiedClaim],
+      supportClaims: List[CertifiedClaim]
   ): PrimaryClaimSelection =
-    if !moveLocalPrimaryAxes.contains(axis) then PrimaryClaimSelection(primaryClaims = claims)
+    if !moveLocalPrimaryAxes.contains(axis) then PrimaryClaimSelection(primaryClaims = primaryClaims)
     else
+      val residualCandidates =
+        dedupeClaims(primaryClaims.filterNot(isAccessNetworkClaim) ++ supportClaims)
       val demotedClaims =
-        claims.filter(claim =>
+        primaryClaims.filter(claim =>
           isAccessNetworkClaim(claim) &&
-            claims.exists(other => provesSpecificResidualExplanation(claim, other))
+            residualCandidates.exists(other => provesSpecificResidualExplanation(claim, other))
         )
       PrimaryClaimSelection(
-        primaryClaims = claims.filterNot(demotedClaims.contains),
+        primaryClaims = primaryClaims.filterNot(demotedClaims.contains),
         demotedClaims = demotedClaims
       )
 
@@ -184,7 +199,7 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       other: CertifiedClaim
   ): Boolean =
     accessClaim.id != other.id &&
-      isSpecificCertifiedCausalClaim(other) &&
+      isSpecificResidualDemotionCandidate(other) &&
       sameClaimOwner(accessClaim, other) &&
       accessClaim.deltaScope == other.deltaScope &&
       (
@@ -201,11 +216,36 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
   ): Boolean =
     claim.delta.exists(_.family == StrategicObjectFamily.AccessNetwork)
 
-  private def isSpecificCertifiedCausalClaim(
+  private def isSpecificResidualDemotionCandidate(
       claim: CertifiedClaim
   ): Boolean =
-    claim.status == ClaimStatus.Certified &&
-      claim.delta.exists(delta => accessShadowSpecificFamilies.contains(delta.family))
+    claim.delta.exists { delta =>
+      delta.family match
+        case StrategicObjectFamily.TradeInvariant =>
+          claim.status == ClaimStatus.Certified && isExactTypedResidualClaim(claim)
+        case StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.PlanRace =>
+          (claim.status == ClaimStatus.Certified || claim.status == ClaimStatus.SupportOnly) &&
+            isExactTypedResidualClaim(claim)
+        case StrategicObjectFamily.ConversionFunnel =>
+          claim.status == ClaimStatus.Certified && isExactTypedResidualClaim(claim)
+        case _ =>
+          false
+    }
+
+  private def isExactTypedResidualClaim(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.hasTypedDelta &&
+      claim.delta.exists(_.projection match
+        case StrategicDeltaProjection.MoveLocal(_, transition) =>
+          transition.relationWitnesses.nonEmpty &&
+            (
+              transition.matchedSquares.nonEmpty ||
+                transition.matchedFiles.nonEmpty
+            )
+        case _ =>
+          false
+      )
 
   private def sameClaimOwner(
       left: CertifiedClaim,

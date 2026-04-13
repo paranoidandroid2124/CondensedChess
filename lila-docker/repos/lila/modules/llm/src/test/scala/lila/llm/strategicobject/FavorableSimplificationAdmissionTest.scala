@@ -14,6 +14,138 @@ class FavorableSimplificationAdmissionTest extends FunSuite:
     assertEquals(rows.map(_.caseType).toSet, Set("exact", "negative", "contrastive", "near_miss", "nasty_negative"))
   }
 
+  test("access-backed persistence does not satisfy the primary trade-invariant witness boundary by itself") {
+    val exchangeSquares = List(Square.E5)
+    val invariantSquares = List(Square.E5)
+    val preservedFamilies = Set(StrategicObjectFamily.AccessNetwork)
+    val features = Set(TradeInvariantFeature.AccessAnchor)
+
+    assertEquals(
+      TradeInvariantPersistenceBoundary.persistenceWitnessCount(
+        exchangeSquares,
+        invariantSquares,
+        preservedFamilies,
+        features
+      ),
+      0
+    )
+    assert(
+      !TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+        exchangeSquares,
+        invariantSquares,
+        preservedFamilies,
+        features
+      )
+    )
+  }
+
+  test("access-only fixed-target simplification needs either queen exchange or deep defender removal") {
+    val exchangeSquares = List(Square.E4)
+    val invariantSquares = List(Square.E4, Square.D5, Square.C6)
+    val preservedFamilies = Set(
+      StrategicObjectFamily.AccessNetwork,
+      StrategicObjectFamily.FixedTargetComplex
+    )
+
+    assert(
+      !TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+        exchangeSquares,
+        invariantSquares,
+        preservedFamilies,
+        Set(
+          TradeInvariantFeature.AccessAnchor,
+          TradeInvariantFeature.FixedTargetAnchor
+        )
+      )
+    )
+    assert(
+      TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+        exchangeSquares,
+        List(Square.E4, Square.D5, Square.C6, Square.B7, Square.A8, Square.H4),
+        preservedFamilies,
+        Set(
+          TradeInvariantFeature.AccessAnchor,
+          TradeInvariantFeature.FixedTargetAnchor,
+          TradeInvariantFeature.QueenExchange
+        )
+      )
+    )
+    assert(
+      TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+        List(Square.D7),
+        List(Square.D7, Square.E6, Square.C6, Square.B5, Square.A4, Square.H5),
+        preservedFamilies,
+        Set(
+          TradeInvariantFeature.AccessAnchor,
+          TradeInvariantFeature.FixedTargetAnchor,
+          TradeInvariantFeature.DeepDefenderRemoval
+        )
+      )
+    )
+    assert(
+      TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+        List(Square.E6),
+        List(Square.E6, Square.D5, Square.C4, Square.B4, Square.A5, Square.H5),
+        preservedFamilies,
+        Set(
+          TradeInvariantFeature.AccessAnchor,
+          TradeInvariantFeature.FixedTargetAnchor,
+          TradeInvariantFeature.ReleaseOverlap
+        )
+      )
+    )
+    assert(
+      !TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+        List(Square.E4),
+        List(Square.E4, Square.D5, Square.C6, Square.B7),
+        preservedFamilies,
+        Set(
+          TradeInvariantFeature.AccessAnchor,
+          TradeInvariantFeature.FixedTargetAnchor,
+          TradeInvariantFeature.QueenExchange
+        )
+      )
+    )
+  }
+
+  test("exchange cascade does not stay primary even with break-backed persistence") {
+    assert(
+      !TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+        exchangeSquares = List(Square.D5),
+        invariantSquares = List(Square.D5, Square.E6, Square.C6),
+        preservedFamilies = Set(
+          StrategicObjectFamily.AccessNetwork,
+          StrategicObjectFamily.FixedTargetComplex,
+          StrategicObjectFamily.BreakAxis
+        ),
+        features = Set(
+          TradeInvariantFeature.AccessAnchor,
+          TradeInvariantFeature.FixedTargetAnchor,
+          TradeInvariantFeature.BreakAnchor,
+          TradeInvariantFeature.ReleaseOverlap,
+          TradeInvariantFeature.ExchangeCascade
+        )
+      )
+    )
+    assert(
+      !TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+        exchangeSquares = List(Square.D5, Square.E6, Square.C6),
+        invariantSquares = List(Square.D5, Square.E6, Square.C6, Square.C5),
+        preservedFamilies = Set(
+          StrategicObjectFamily.AccessNetwork,
+          StrategicObjectFamily.FixedTargetComplex,
+          StrategicObjectFamily.BreakAxis
+        ),
+        features = Set(
+          TradeInvariantFeature.AccessAnchor,
+          TradeInvariantFeature.FixedTargetAnchor,
+          TradeInvariantFeature.BreakAnchor,
+          TradeInvariantFeature.ReleaseOverlap
+        )
+      )
+    )
+  }
+
   rows.foreach { row =>
     test(s"favorable simplification expectation ${row.id}") {
       val truth = truthFor(row)

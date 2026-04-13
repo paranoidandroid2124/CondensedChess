@@ -106,10 +106,22 @@ object StrategicObjectBatchCoverageSupport:
       familySampleCount: Int,
       primaryCount: Int,
       supportCount: Int,
-      highestStage: String
+      highestStage: String,
+      accessOverlapAxisCount: Int,
+      accessDemotedAxisCount: Int,
+      accessDemotionRate: Double
   )
   object AxisActivationSummary:
     given Writes[AxisActivationSummary] = Json.writes[AxisActivationSummary]
+
+  final case class AuditBucketSelectionSummary(
+      bucket: String,
+      requestedCount: Int,
+      availableUniqueCount: Int,
+      selectedCount: Int
+  )
+  object AuditBucketSelectionSummary:
+    given Writes[AuditBucketSelectionSummary] = Json.writes[AuditBucketSelectionSummary]
 
   final case class BatchFamilySummary(
       family: String,
@@ -123,7 +135,11 @@ object StrategicObjectBatchCoverageSupport:
       supportCount: Int,
       ownerRate: Double,
       shadowRate: Double,
-      uniqueOwnerRate: Double,
+      uniqueOwnerRate: Option[Double],
+      residualSupportRate: Option[Double],
+      accessOverlapAxisCount: Int,
+      accessDemotedAxisCount: Int,
+      accessDemotionRate: Double,
       plannerNoneCount: Int,
       certificationOnlyCount: Int,
       deltaOnlyCount: Int,
@@ -132,10 +148,20 @@ object StrategicObjectBatchCoverageSupport:
       highestBatchStage: String,
       axisDiversity: AxisDiversitySummary,
       stageConcentration: StageConcentrationSummary,
-      byAxis: List[AxisActivationSummary]
+      byAxis: List[AxisActivationSummary],
+      auditBuckets: List[AuditBucketSelectionSummary]
   )
   object BatchFamilySummary:
-    given Writes[BatchFamilySummary] = Json.writes[BatchFamilySummary]
+    private val generatedWrites = Json.writes[BatchFamilySummary]
+
+    given Writes[BatchFamilySummary] with
+      def writes(summary: BatchFamilySummary): JsValue =
+        generatedWrites.writes(summary).as[JsObject] ++ Json.obj(
+          "uniqueOwnerRate" ->
+            summary.uniqueOwnerRate.fold[JsValue](JsNull)(value => JsNumber(BigDecimal.decimal(value))),
+          "residualSupportRate" ->
+            summary.residualSupportRate.fold[JsValue](JsNull)(value => JsNumber(BigDecimal.decimal(value)))
+        )
 
   final case class BatchSystemSummary(
       evaluatedSampleCount: Int,
@@ -181,6 +207,9 @@ object StrategicObjectBatchCoverageSupport:
       accessNetworkCoactive: Boolean,
       accessNetworkStage: Option[String],
       accessNetworkAdmission: Option[String],
+      requestedCount: Int,
+      availableUniqueCount: Int,
+      selectedCount: Int,
       boardTruthVerdict: Option[String] = None,
       familyNameFit: Option[String] = None,
       stageFit: Option[String] = None,
@@ -232,7 +261,23 @@ object StrategicObjectBatchCoverageSupport:
       claims: List[CertifiedClaim]
   )
 
-  val schema: String = "chesstory.strategicObject.batchCoverage.v2"
+  private final case class AuditBucketSelection(
+      family: String,
+      bucket: String,
+      requestedCount: Int,
+      availableUniqueCount: Int,
+      rows: List[SampleFamilyActivation]
+  ):
+    def selectedCount: Int = rows.size
+
+  private final case class AuditBundle(
+      rows: List[FamilyAuditRow],
+      summariesByFamily: Map[String, List[AuditBucketSelectionSummary]]
+  )
+
+  private val AccessDemotionAxes = Set("WhyThis", "WhyNow", "WhatMustBeStopped")
+
+  val schema: String = "chesstory.strategicObject.batchCoverage.v5"
 
   def loadFenJsonl(
       path: Path
@@ -406,20 +451,30 @@ object StrategicObjectBatchCoverageSupport:
             observation.sampleId -> observation
         }
         .toMap
+    val accessBySampleAxis =
+      accessPassIndex(observations)
+    val auditBundle =
+      buildAuditBundle(
+        observations = observations,
+        activatedFamilies = observationsByFamily.collect { case (family, rows) if rows.exists(_.bestStage != "absent") => family }.toSet,
+        accessBySample = accessBySample
+      )
     val familySummaries =
       observationsByFamily
         .toList
         .sortBy(_._1)
         .map { case (family, familyRows) =>
-          summarizeFamily(family, familyRows, rows.size, capabilityRef(family), accessBySample)
+          summarizeFamily(
+            family = family,
+            observations = familyRows,
+            totalSamples = rows.size,
+            capability = capabilityRef(family),
+            accessBySample = accessBySample,
+            accessBySampleAxis = accessBySampleAxis,
+            auditBuckets = auditBundle.summariesByFamily.getOrElse(family, Nil)
+          )
         }
         .filterNot(_.sampleCount == 0)
-    val auditRows =
-      buildAuditRows(
-        observations = observations,
-        activatedFamilies = familySummaries.map(_.family).toSet,
-        accessBySample = accessBySample
-      )
 
     (
       BatchCoverageReport(
@@ -436,7 +491,7 @@ object StrategicObjectBatchCoverageSupport:
         families = familySummaries
       ),
       activations,
-      auditRows
+      auditBundle.rows
     )
 
   def renderJsonl(
@@ -448,6 +503,29 @@ object StrategicObjectBatchCoverageSupport:
       rows: List[FamilyAuditRow]
   ): String =
     rows.map(row => Json.stringify(Json.toJson(row))).mkString("", "\n", "\n")
+
+  def topManualAuditRows(
+      rows: List[FamilyAuditRow],
+      limitPerFamily: Int = 20
+  ): List[FamilyAuditRow] =
+    rows
+      .filter(_.auditBucket == "top_50")
+      .groupBy(_.family)
+      .toList
+      .sortBy(_._1)
+      .flatMap { case (_, familyRows) =>
+        val availableUniqueCount =
+          familyRows.headOption.map(_.availableUniqueCount).getOrElse(familyRows.size)
+        val selectedCount = math.min(limitPerFamily, availableUniqueCount)
+        familyRows.take(limitPerFamily).zipWithIndex.map { case (row, index) =>
+          row.copy(
+            auditBucket = "top_20_manual",
+            auditBucketReason = s"manual_top_rank=${index + 1};requested=$limitPerFamily;unique=$availableUniqueCount",
+            requestedCount = limitPerFamily,
+            selectedCount = selectedCount
+          )
+        }
+      }
 
   private def sampleObservationsFor(
       row: BatchInputRow,
@@ -518,16 +596,35 @@ object StrategicObjectBatchCoverageSupport:
       observations: List[SampleFamilyActivation],
       totalSamples: Int,
       capability: StrategicObjectCapabilityScorecardSupport.FamilySummary,
-      accessBySample: Map[String, SampleFamilyActivation]
+      accessBySample: Map[String, SampleFamilyActivation],
+      accessBySampleAxis: Map[(String, String), PassActivation],
+      auditBuckets: List[AuditBucketSelectionSummary]
   ): BatchFamilySummary =
     val activations = observations.filterNot(_.bestStage == "absent")
     val sampleCount = activations.map(_.sampleId).distinct.size
+    val ownerCapable =
+      capability.deliveryStage == "planner_primary" || activations.exists(_.bestAdmission == "primary")
+    val supportResidualCapable =
+      !ownerCapable && activations.exists(isResidualSupportActivation)
+    val surfacedAxisPairs =
+      familySurfacedAxisPairs(activations, ownerCapable)
     val accessOverlapCount =
       activations.count(activation => accessBySample.contains(activation.sampleId))
     val uniqueOwnerCount =
       activations.count(activation =>
         activation.bestAdmission == "primary" &&
           accessBySample.get(activation.sampleId).forall(_.bestAdmission != "primary")
+      )
+    val residualSupportCount =
+      activations.count(activation =>
+        isResidualSupportActivation(activation) &&
+          accessBySample.get(activation.sampleId).forall(_.bestAdmission != "primary")
+      )
+    val accessOverlapAxisCount =
+      surfacedAxisPairs.count(accessBySampleAxis.contains)
+    val accessDemotedAxisCount =
+      surfacedAxisPairs.count(sampleAxis =>
+        accessBySampleAxis.get(sampleAxis).exists(_.admission != "primary")
       )
     val accessResidualCount =
       activations.count(activation =>
@@ -546,7 +643,11 @@ object StrategicObjectBatchCoverageSupport:
       supportCount = activations.count(_.bestAdmission == "support"),
       ownerRate = percent(activations.count(_.bestAdmission == "primary"), sampleCount),
       shadowRate = percent(accessOverlapCount, sampleCount),
-      uniqueOwnerRate = percent(uniqueOwnerCount, sampleCount),
+      uniqueOwnerRate = Option.when(ownerCapable)(percent(uniqueOwnerCount, sampleCount)),
+      residualSupportRate = Option.when(supportResidualCapable)(percent(residualSupportCount, sampleCount)),
+      accessOverlapAxisCount = accessOverlapAxisCount,
+      accessDemotedAxisCount = accessDemotedAxisCount,
+      accessDemotionRate = percent(accessDemotedAxisCount, accessOverlapAxisCount),
       plannerNoneCount = activations.count(_.bestStage == "planner_none"),
       certificationOnlyCount = activations.count(_.bestStage == "certification"),
       deltaOnlyCount = activations.count(_.bestStage == "delta"),
@@ -557,26 +658,80 @@ object StrategicObjectBatchCoverageSupport:
       axisDiversity = summarizeAxisDiversity(activations),
       stageConcentration = summarizeStageConcentration(activations),
       byAxis =
-        if activations.isEmpty then Nil
-        else
-          activations
-            .flatMap(_.axes)
-            .distinct
-            .sorted
-            .map(axis => summarizeAxis(axis, activations.filter(_.axes.contains(axis))))
+        reportedAxes(activations).map(axis =>
+          summarizeAxis(axis, activations.filter(_.axes.contains(axis)), accessBySampleAxis, ownerCapable)
+        ),
+      auditBuckets = auditBuckets
     )
 
   private def summarizeAxis(
       axis: String,
-      rows: List[SampleFamilyActivation]
+      rows: List[SampleFamilyActivation],
+      accessBySampleAxis: Map[(String, String), PassActivation],
+      ownerCapable: Boolean
   ): AxisActivationSummary =
+    val sampleAxisPairs =
+      familySurfacedAxisPairs(rows, ownerCapable).filter(_._2 == axis)
+    val accessOverlapAxisCount = sampleAxisPairs.count(accessBySampleAxis.contains)
+    val accessDemotedAxisCount =
+      sampleAxisPairs.count(sampleAxis =>
+        accessBySampleAxis.get(sampleAxis).exists(_.admission != "primary")
+      )
     AxisActivationSummary(
       axis = axis,
       familySampleCount = rows.map(_.sampleId).distinct.size,
       primaryCount = rows.count(_.bestAdmission == "primary"),
       supportCount = rows.count(_.bestAdmission == "support"),
-      highestStage = rows.maxBy(row => stageRank(row.bestStage)).bestStage
+      highestStage =
+        if rows.nonEmpty then rows.maxBy(row => stageRank(row.bestStage)).bestStage else "absent",
+      accessOverlapAxisCount = accessOverlapAxisCount,
+      accessDemotedAxisCount = accessDemotedAxisCount,
+      accessDemotionRate = percent(accessDemotedAxisCount, accessOverlapAxisCount)
     )
+
+  private def accessPassIndex(
+      observations: List[SampleFamilyActivation]
+  ): Map[(String, String), PassActivation] =
+    observations
+      .collect {
+        case observation if observation.family == StrategicObjectFamily.AccessNetwork.toString &&
+            observation.bestStage != "absent" =>
+          familySampleAxisPairs(List(observation)).flatMap(sampleAxis =>
+            observation.passes
+              .filter(pass => pass.axis == sampleAxis._2)
+              .sortBy(pass => -passObservationRank(pass))
+              .headOption
+              .map(sampleAxis -> _)
+          )
+      }
+      .flatten
+      .groupBy(_._1)
+      .view
+      .mapValues(entries => entries.map(_._2).maxBy(passObservationRank))
+      .toMap
+
+  private def reportedAxes(
+      activations: List[SampleFamilyActivation]
+  ): List[String] =
+    (familySampleAxisPairs(activations).map(_._2) ++ AccessDemotionAxes).distinct.sorted
+
+  private def familySurfacedAxisPairs(
+      rows: List[SampleFamilyActivation],
+      ownerCapable: Boolean
+  ): List[(String, String)] =
+    rows.flatMap { row =>
+      row.passes.collect {
+        case pass
+            if AccessDemotionAxes.contains(pass.axis) &&
+              isMeaningfulSurfacePass(pass, ownerCapable) =>
+          row.sampleId -> pass.axis
+      }
+    }.distinct.sorted
+
+  private def familySampleAxisPairs(
+      rows: List[SampleFamilyActivation]
+  ): List[(String, String)] =
+    rows.flatMap(row => row.axes.map(axis => row.sampleId -> axis)).distinct.sorted
 
   private def summarizeAxisDiversity(
       rows: List[SampleFamilyActivation]
@@ -756,51 +911,71 @@ object StrategicObjectBatchCoverageSupport:
 
     summary.getOrElse(s"profile=$family;objects=${objects.size};deltas=${deltas.size};claims=${claims.size}")
 
-  private def buildAuditRows(
+  private def buildAuditBundle(
       observations: List[SampleFamilyActivation],
       activatedFamilies: Set[String],
       accessBySample: Map[String, SampleFamilyActivation]
-  ): List[FamilyAuditRow] =
+  ): AuditBundle =
     val observationIndex =
       observations.groupBy(_.family).view.mapValues(_.sortBy(_.sampleId)).toMap
 
-    activatedFamilies.toList.sorted.flatMap { family =>
+    val selections =
+      activatedFamilies.toList.sorted.flatMap { family =>
       val familyRows = observationIndex.getOrElse(family, Nil)
       val positives = familyRows.filterNot(_.bestStage == "absent")
       val negatives = familyRows.filter(_.bestStage == "absent")
 
-      val topRows = selectTopAuditRows(positives, 50)
-      val middleRows = selectMiddleAuditRows(positives.diff(topRows), 20)
-      val randomRows = selectRandomAuditRows(positives.diff(topRows).diff(middleRows), 20, family)
-      val hardNegativeRows = selectHardNegativeRows(negatives, 20, accessBySample)
-
-      buildBucketRows(family, "top_50", topRows, accessBySample, (row, index) =>
-        s"top_rank=${index + 1};stage=${row.bestStage};admission=${row.bestAdmission};score=${auditRowRank(row)}"
-      ) ++
-        buildBucketRows(family, "middle_20", middleRows, accessBySample, (row, index) =>
-          s"middle_rank=${index + 1};stage=${row.bestStage};admission=${row.bestAdmission};score=${auditRowRank(row)}"
-        ) ++
-        buildBucketRows(family, "random_20", randomRows, accessBySample, (row, index) =>
-          s"deterministic_random_rank=${index + 1};seed=${stableAuditHash(family, row.sampleId)}"
-        ) ++
-        buildBucketRows(family, "hard_negative_20", hardNegativeRows, accessBySample, (row, index) =>
-          val access = accessBySample.get(row.sampleId)
-          s"family_absent_rank=${index + 1};accessStage=${access.map(_.bestStage).getOrElse("absent")};accessAdmission=${access.map(_.bestAdmission).getOrElse("none")}"
+        List(
+          auditSelection(family, "top_50", 50, selectTopAuditRows(positives, 50)),
+          auditSelection(family, "middle_20", 20, selectMiddleAuditRows(positives, 20)),
+          auditSelection(family, "random_20", 20, selectRandomAuditRows(positives, 20, family)),
+          auditSelection(family, "hard_negative_20", 20, selectHardNegativeRows(negatives, 20, accessBySample))
         )
-    }
+      }
 
-  private def buildBucketRows(
+    AuditBundle(
+      rows =
+        selections.flatMap(selection =>
+          buildBucketRows(selection, accessBySample)
+        ),
+      summariesByFamily =
+        selections
+          .groupBy(_.family)
+          .view
+          .mapValues(_.map(selection =>
+            AuditBucketSelectionSummary(
+              bucket = selection.bucket,
+              requestedCount = selection.requestedCount,
+              availableUniqueCount = selection.availableUniqueCount,
+              selectedCount = selection.selectedCount
+            )
+          ).sortBy(_.bucket))
+          .toMap
+    )
+
+  private def auditSelection(
       family: String,
       bucket: String,
-      rows: List[SampleFamilyActivation],
-      accessBySample: Map[String, SampleFamilyActivation],
-      reason: (SampleFamilyActivation, Int) => String
+      requestedCount: Int,
+      rows: List[SampleFamilyActivation]
+  ): AuditBucketSelection =
+    AuditBucketSelection(
+      family = family,
+      bucket = bucket,
+      requestedCount = requestedCount,
+      availableUniqueCount = rows.distinct.size,
+      rows = rows
+    )
+
+  private def buildBucketRows(
+      selection: AuditBucketSelection,
+      accessBySample: Map[String, SampleFamilyActivation]
   ): List[FamilyAuditRow] =
-    rows.zipWithIndex.map { case (row, index) =>
+    selection.rows.zipWithIndex.map { case (row, index) =>
       val access = accessBySample.get(row.sampleId)
       FamilyAuditRow(
-        auditBucket = bucket,
-        auditBucketReason = reason(row, index),
+        auditBucket = selection.bucket,
+        auditBucketReason = auditBucketReason(selection, row, index, access),
         sampleId = row.sampleId,
         source = row.source,
         sourceKind = row.sourceKind,
@@ -812,7 +987,7 @@ object StrategicObjectBatchCoverageSupport:
         opening = row.opening,
         tags = row.tags,
         mixBucket = row.mixBucket,
-        family = family,
+        family = selection.family,
         bestStage = row.bestStage,
         bestAdmission = row.bestAdmission,
         axes = row.axes,
@@ -822,9 +997,31 @@ object StrategicObjectBatchCoverageSupport:
         familyTriggerSummary = row.familyTriggerSummary,
         accessNetworkCoactive = access.nonEmpty,
         accessNetworkStage = access.map(_.bestStage),
-        accessNetworkAdmission = access.map(_.bestAdmission)
+        accessNetworkAdmission = access.map(_.bestAdmission),
+        requestedCount = selection.requestedCount,
+        availableUniqueCount = selection.availableUniqueCount,
+        selectedCount = selection.selectedCount
       )
     }
+
+  private def auditBucketReason(
+      selection: AuditBucketSelection,
+      row: SampleFamilyActivation,
+      index: Int,
+      access: Option[SampleFamilyActivation]
+  ): String =
+    val suffix = s"requested=${selection.requestedCount};unique=${selection.availableUniqueCount}"
+    selection.bucket match
+      case "top_50" =>
+        s"top_rank=${index + 1};stage=${row.bestStage};admission=${row.bestAdmission};score=${auditRowRank(row)};$suffix"
+      case "middle_20" =>
+        s"middle_rank=${index + 1};stage=${row.bestStage};admission=${row.bestAdmission};score=${auditRowRank(row)};$suffix"
+      case "random_20" =>
+        s"deterministic_random_rank=${index + 1};seed=${stableAuditHash(selection.family, row.sampleId)};$suffix"
+      case "hard_negative_20" =>
+        s"family_absent_rank=${index + 1};accessStage=${access.map(_.bestStage).getOrElse("absent")};accessAdmission=${access.map(_.bestAdmission).getOrElse("none")};$suffix"
+      case other =>
+        s"bucket=$other;rank=${index + 1};$suffix"
 
   private def selectTopAuditRows(
       rows: List[SampleFamilyActivation],
@@ -933,6 +1130,19 @@ object StrategicObjectBatchCoverageSupport:
       case "support" => 2
       case "none"    => 1
       case _          => 0
+
+  private def isResidualSupportActivation(
+      activation: SampleFamilyActivation
+  ): Boolean =
+    activation.bestAdmission != "primary" &&
+      Set("planner_support", "planner_none", "certification").contains(activation.bestStage)
+
+  private def isMeaningfulSurfacePass(
+      pass: PassActivation,
+      ownerCapable: Boolean
+  ): Boolean =
+    if ownerCapable then pass.admission == "primary" || pass.admission == "support"
+    else pass.admission == "support"
 
   private def percent(
       part: Int,

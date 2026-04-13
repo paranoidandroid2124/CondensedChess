@@ -12,12 +12,21 @@ trait StrategicObjectSynthesizer:
 object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
 
   private val Owners = List(Color.White, Color.Black)
+  private val ExactOnlyShadowFamilies =
+    Set(
+      StrategicObjectFamily.TradeInvariant,
+      StrategicObjectFamily.CounterplayAxis,
+      StrategicObjectFamily.ConversionFunnel,
+      StrategicObjectFamily.PlanRace
+    )
 
   private enum ConversionLinkStage:
     case EntryToChannel
     case ChannelToExit
 
   private final case class ConversionLinkWitness(
+      sourceId: String,
+      targetId: String,
       relations: Set[StrategicRelationOperator],
       witnessSquares: List[Square],
       witnessCount: Int
@@ -29,11 +38,19 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
   ): List[StrategicObject] =
     val bank = primitives.normalized
     val refs = bank.all.map(PrimitiveReference.fromPrimitive).map(_.normalized)
+    val boardDirectBase = boardDirectObjects(bank, refs)
+    val counterplay =
+      counterplayAxisObjects(
+        bank,
+        refs,
+        attachRelations(boardDirectBase).map(_.normalized)
+      )
     val boardDirect =
-      boardDirectObjects(bank, refs)
+      admittedBoardDirectObjects(boardDirectBase ++ counterplay)
     val graphDerived =
       graphDerivedObjects(refs, truth, boardDirect)
-    val objects = boardDirect ++ graphDerived
+    val objects =
+      boardDirect ++ graphDerived
 
     attachRelations(objects).map(_.normalized).sortBy(o => (o.family.ordinal, colorIndex(o.owner), o.id))
 
@@ -50,7 +67,6 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
         fixedTargetObjects(bank, refs) ++
         breakAxisObjects(bank, refs) ++
         accessNetworkObjects(bank, refs) ++
-        counterplayAxisObjects(bank, refs) ++
         restrictionShellObjects(bank, refs) ++
         mobilityCageObjects(bank, refs) ++
         redeploymentRouteObjects(bank, refs) ++
@@ -680,7 +696,8 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
 
   private def counterplayAxisObjects(
       bank: PrimitiveBank,
-      refs: List[PrimitiveReference]
+      refs: List[PrimitiveReference],
+      existingObjects: List[StrategicObject]
   ): List[StrategicObject] =
     Owners.flatMap { owner =>
       val resourceSeeds = bank.counterplayResourceSeeds.filter(_.owner == owner)
@@ -716,47 +733,91 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
           val focusSeeds =
             resourceSeeds.filter(seed => focus.contains(seed.square) || seed.pressureSquares.exists(focus.contains))
           val files = distinctFiles(focus.map(_.file))
-          val typedAxes =
-            Set.newBuilder[CounterplayAxisType]
-              .addAll(Option.when(relatedBreaks.exists(axis =>
-                focus.contains(axis.breakSquare) || axis.targetSquares.exists(focus.contains)
-              ))(CounterplayAxisType.Break))
-              .addAll(Option.when(files.size == 1 && focusSeeds.exists(seed => seed.role == Rook || seed.role == chess.Queen))(CounterplayAxisType.File))
-              .addAll(Option.when(focusSeeds.exists(seed => seed.role != Pawn) && focusSeeds.exists(_.pressureSquares.exists(focus.contains)))(CounterplayAxisType.Activity))
-              .result()
-          val continuationWitnessCount =
-            relatedBreaks.count(axis =>
+          val sectorBreaks =
+            relatedBreaks.filter(axis =>
               focus.contains(axis.breakSquare) || axis.targetSquares.exists(focus.contains)
-            ) +
-              relatedReleases.count(release => focus.contains(release.from) || focus.contains(release.target)) +
-              focusSeeds.count(_.pressureSquares.exists(focus.contains))
-          Option.when(
-            contractAllows(
-              StrategicObjectFamily.CounterplayAxis,
-              FamilyGenerationEvidence(
-                primitiveKinds =
-                  Set.newBuilder[PrimitiveKind]
-                    .addOne(PrimitiveKind.CounterplayResourceSeed)
-                    .addAll(Option.when(relatedBreaks.nonEmpty)(PrimitiveKind.BreakCandidate))
-                    .addAll(Option.when(relatedReleases.nonEmpty)(PrimitiveKind.ReleaseCandidate))
-                    .result(),
-                anchorSquares = focus.toSet,
-                contestedSquares = focus.toSet,
-                files = files.toSet,
-                pieceRoles = focusSeeds.map(_.role).toSet,
-                metrics =
-                  FamilyGenerationMetrics(
-                    pressureSquareCount = focus.size,
-                    entryWitnessCount = continuationWitnessCount,
-                    targetWitnessCount = focus.size,
-                    contestedOverlapCount = focus.size,
-                    typedAxisCount = typedAxes.size,
-                    activeFileCount = files.size,
-                    exchangeWitnessCount = relatedReleases.count(_.kind == ReleaseCandidateKind.Exchange)
-                  )
+            )
+          val sectorReleases =
+            relatedReleases.filter(release =>
+              focus.contains(release.from) || focus.contains(release.target)
+            )
+          val rivalGoalRefs =
+            selectRefs(
+              refs,
+              Some(!owner),
+              focus.toSet,
+              files.toSet,
+              Set(
+                PrimitiveKind.TargetSquare,
+                PrimitiveKind.CriticalSquare,
+                PrimitiveKind.AccessRoute,
+                PrimitiveKind.DefendedResource,
+                PrimitiveKind.PasserSeed
               )
             )
-          ) {
+          val rivalGoalSquares =
+            distinctSquares(
+              rivalGoalRefs.flatMap(_.allSquares).filter(square =>
+                focus.contains(square) || files.contains(square.file)
+              )
+            )
+          val rivalGoalWitnessCount =
+            rivalGoalSquares.size + rivalGoalRefs.count(_.lane.exists(files.contains))
+          val fileAxisEligible =
+            files.size == 1 &&
+              focusSeeds.exists(seed => seed.role == Rook || seed.role == chess.Queen) &&
+              rivalGoalRefs.exists(ref =>
+                ref.lane.exists(files.contains) || ref.allSquares.exists(square => files.contains(square.file))
+              )
+          val kingExposureEligible =
+            rivalGoalRefs.exists(_.roles.contains(chess.King)) &&
+              focusSeeds.exists(seed =>
+                seed.role == chess.Bishop || seed.role == chess.Rook || seed.role == chess.Queen
+              )
+          val activityEligible =
+            focusSeeds.exists(seed => seed.role != Pawn) &&
+              focusSeeds.exists(_.pressureSquares.exists(focus.contains)) &&
+              rivalGoalSquares.nonEmpty
+          val typedAxis =
+            Option.when(sectorBreaks.nonEmpty && rivalGoalSquares.nonEmpty)(CounterplayAxisType.Break)
+              .orElse(Option.when(fileAxisEligible)(CounterplayAxisType.File))
+              .orElse(Option.when(kingExposureEligible)(CounterplayAxisType.KingExposure))
+              .orElse(Option.when(activityEligible)(CounterplayAxisType.Activity))
+          val typedAxes = typedAxis.toSet
+          val continuationWitnessCount =
+            sectorBreaks.size +
+              sectorReleases.size +
+              focusSeeds.count(_.pressureSquares.exists(focus.contains))
+          val supportingPrimitives =
+            selectRefs(
+              refs,
+              Some(owner),
+              focus.toSet,
+              files.toSet,
+              Set(
+                PrimitiveKind.CounterplayResourceSeed,
+                PrimitiveKind.BreakCandidate,
+                PrimitiveKind.RouteContestSeed,
+                PrimitiveKind.ReleaseCandidate,
+                PrimitiveKind.HookContactSeed
+              )
+            )
+          val supportingPieces =
+            focusSeeds.map(seed => pieceRef(seed.owner, seed.square, seed.role))
+          val rivals =
+            rivalsFrom(
+              refs,
+              !owner,
+              focus.toSet,
+              files.toSet,
+              Set(
+                PrimitiveKind.TargetSquare,
+                PrimitiveKind.CriticalSquare,
+                PrimitiveKind.AccessRoute,
+                PrimitiveKind.RouteContestSeed
+              )
+            )
+          val candidate =
             mkObject(
               id = objectId(StrategicObjectFamily.CounterplayAxis, owner, Some(sector), focus.headOption, files.toSet),
               family = StrategicObjectFamily.CounterplayAxis,
@@ -767,33 +828,76 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
               profile =
                 StrategicObjectProfile.CounterplayAxis(
                   resourceSquares = resourceSeeds.map(_.square).filter(focus.contains),
-                  breakSquares = relatedBreaks.map(_.breakSquare).filter(focus.contains),
+                  breakSquares = sectorBreaks.map(_.breakSquare).filter(focus.contains),
                   pressureSquares = focus,
                   typedAxes = typedAxes
                 ),
-              supportingPrimitives =
-                selectRefs(
-                  refs,
-                  Some(owner),
-                  focus.toSet,
-                  files.toSet,
-                  Set(
-                    PrimitiveKind.CounterplayResourceSeed,
-                    PrimitiveKind.BreakCandidate,
-                    PrimitiveKind.RouteContestSeed,
-                    PrimitiveKind.ReleaseCandidate,
-                    PrimitiveKind.HookContactSeed
-                  )
-                ),
-              supportingPieces =
-                focusSeeds.map(seed => pieceRef(seed.owner, seed.square, seed.role)),
-              rivals = rivalsFrom(refs, !owner, focus.toSet, files.toSet, Set(PrimitiveKind.TargetSquare, PrimitiveKind.CriticalSquare, PrimitiveKind.AccessRoute, PrimitiveKind.RouteContestSeed)),
+              supportingPrimitives = supportingPrimitives,
+              supportingPieces = supportingPieces,
+              rivals = rivals,
               horizonClass = ObjectHorizonClass.Operational,
               supportBalance = resourceSeeds.size,
               pressureBalance = focus.size,
               mobilityGain = 0,
               tags = Set(StrategicEvidenceTag.Contested)
             )
+          val attachedGraph = attachRelations(existingObjects ++ List(candidate)).map(_.normalized)
+          val attachedById = attachedGraph.map(obj => obj.id -> obj).toMap
+          val exactRelationWitnesses =
+            attachedById
+              .get(candidate.id)
+              .toList
+              .flatMap(current =>
+                CounterplayAxisRivalRelationBoundary.exactRivalRelationWitnesses(current, attachedById)
+              )
+          val exactRelationOperators = exactRelationWitnesses.map(_.operator).toSet
+          val exactRivalFamilies =
+            exactRelationWitnesses.flatMap(witness =>
+              attachedById.get(witness.targetId).map(_.family)
+            ).toSet
+          val exactRivalSupportForTypedAxis =
+            typedAxis match
+              case Some(CounterplayAxisType.KingExposure) =>
+                exactRivalFamilies.contains(StrategicObjectFamily.KingSafetyShell)
+              case Some(_) =>
+                exactRivalFamilies.exists(_ != StrategicObjectFamily.KingSafetyShell)
+              case None =>
+                false
+          Option.when(
+            exactRelationWitnesses.nonEmpty &&
+              exactRivalSupportForTypedAxis &&
+              contractAllows(
+              StrategicObjectFamily.CounterplayAxis,
+              FamilyGenerationEvidence(
+                primitiveKinds =
+                  Set.newBuilder[PrimitiveKind]
+                    .addOne(PrimitiveKind.CounterplayResourceSeed)
+                    .addAll(Option.when(sectorBreaks.nonEmpty)(PrimitiveKind.BreakCandidate))
+                    .addAll(Option.when(sectorReleases.nonEmpty)(PrimitiveKind.ReleaseCandidate))
+                    .result(),
+                rivalFamilies = exactRivalFamilies,
+                relationOperators = exactRelationOperators,
+                anchorSquares = focus.toSet,
+                contestedSquares = focus.toSet,
+                files = files.toSet,
+                pieceRoles = focusSeeds.map(_.role).toSet,
+                metrics =
+                  FamilyGenerationMetrics(
+                    rivalCount = exactRelationWitnesses.map(_.targetId).distinct.size,
+                    pressureSquareCount = focus.size,
+                    entryWitnessCount = continuationWitnessCount,
+                    targetWitnessCount = rivalGoalWitnessCount,
+                    contestedOverlapCount = focus.size,
+                    typedAxisCount = typedAxes.size,
+                    activeFileCount = files.size,
+                    exchangeWitnessCount = sectorReleases.count(_.kind == ReleaseCandidateKind.Exchange),
+                    goalWitnessCount = rivalGoalWitnessCount,
+                    rivalGoalWitnessCount = rivalGoalWitnessCount
+                  )
+              )
+            )
+          ) {
+            candidate
           }
         }
       }.getOrElse(Nil)
@@ -1163,7 +1267,7 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
             objects,
             owner,
             Set(StrategicObjectFamily.BreakAxis, StrategicObjectFamily.AccessNetwork, StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.PasserComplex)
-          ).filter(obj => overlapsGroup(obj, tradeSquares.toSet, files.toSet, Some(sector)))
+          ).filter(obj => overlapsGroupForFamily(obj, tradeSquares.toSet, files.toSet, Some(sector), StrategicObjectFamily.TradeInvariant))
         val preserved =
           uniqueById(
             roots ++
@@ -1186,6 +1290,28 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
             .addAll(Option.when(preserved.exists(_.family == StrategicObjectFamily.AccessNetwork))(TradeInvariantFeature.AccessAnchor))
             .addAll(Option.when(preserved.exists(_.family == StrategicObjectFamily.PasserComplex))(TradeInvariantFeature.PasserAnchor))
             .addAll(Option.when(group.exists(_.releaseKind.nonEmpty))(TradeInvariantFeature.ReleaseOverlap))
+            .addAll(
+              Option.when(
+                group.exists(ref =>
+                  ref.kind == PrimitiveKind.ExchangeSquare &&
+                    ref.roles.contains(chess.Queen)
+                )
+              )(TradeInvariantFeature.QueenExchange)
+            )
+            .addAll(
+              Option.when(
+                group.exists(ref =>
+                  ref.kind == PrimitiveKind.ExchangeSquare &&
+                    ref.roles.exists(_ != Pawn) &&
+                    ref.anchorSquares.exists(square => relativeRank(square, owner) >= 7)
+                )
+              )(TradeInvariantFeature.DeepDefenderRemoval)
+            )
+            .addAll(
+              Option.when(
+                group.count(_.kind == PrimitiveKind.ExchangeSquare) >= 3
+              )(TradeInvariantFeature.ExchangeCascade)
+            )
             .result()
         Option.when(
           contractAllows(
@@ -1250,7 +1376,7 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
             rivals =
               combinedRivals(
                 familyObjects(objects, !owner, Set(StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.FixedTargetComplex))
-                  .filter(obj => overlapsGroup(obj, locusSquares.toSet, locusFiles.toSet, Some(sector))),
+                  .filter(obj => overlapsGroupForFamily(obj, locusSquares.toSet, locusFiles.toSet, Some(sector), StrategicObjectFamily.TradeInvariant)),
                 refs,
                 !owner,
                 locusSquares.toSet,
@@ -1741,14 +1867,27 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
           )
         )
       val connectedChannels =
-        channelObjects.filter(channel => entryObjects.exists(overlapsObject(channel, _)) || exitObjects.exists(overlapsObject(channel, _)))
+        channelObjects.filter(channel => entryObjects.exists(overlapsObjectWithinBoundary(channel, _)) || exitObjects.exists(overlapsObjectWithinBoundary(channel, _)))
       val connectedEntries =
-        entryObjects.filter(entry => connectedChannels.exists(overlapsObject(entry, _)) || exitObjects.exists(overlapsObject(entry, _)))
+        entryObjects.filter(entry => connectedChannels.exists(overlapsObjectWithinBoundary(entry, _)) || exitObjects.exists(overlapsObjectWithinBoundary(entry, _)))
       val connectedExits =
-        exitObjects.filter(exit => connectedChannels.exists(overlapsObject(exit, _)) || connectedEntries.exists(overlapsObject(exit, _)))
+        exitObjects.filter(exit => connectedChannels.exists(overlapsObjectWithinBoundary(exit, _)) || connectedEntries.exists(overlapsObjectWithinBoundary(exit, _)))
       val participants = uniqueById(connectedEntries ++ connectedChannels ++ connectedExits)
       val entryToChannelLinks = conversionLinks(connectedEntries, connectedChannels, ConversionLinkStage.EntryToChannel)
       val channelToExitLinks = conversionLinks(connectedChannels, connectedExits, ConversionLinkStage.ChannelToExit)
+      val entryIds = connectedEntries.map(_.id).toSet
+      val channelIds = connectedChannels.map(_.id).toSet
+      val exitIds = connectedExits.map(_.id).toSet
+      val roleOverlapCount =
+        entryIds.intersect(channelIds).size +
+          entryIds.intersect(exitIds).size +
+          channelIds.intersect(exitIds).size
+      val entryLinkCount =
+        entryToChannelLinks.map(link => (link.sourceId, link.targetId)).distinct.size
+      val exitLinkCount =
+        channelToExitLinks.map(link => (link.sourceId, link.targetId)).distinct.size
+      val nonTradeExitCount =
+        connectedExits.count(_.family != StrategicObjectFamily.TradeInvariant)
       val entrySquares = distinctSquares(connectedEntries.flatMap(objectSquares))
       val channelSquares = distinctSquares(connectedChannels.flatMap(objectSquares))
       val exitSquares = distinctSquares(connectedExits.flatMap(objectSquares))
@@ -1801,6 +1940,10 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
                 FamilyGenerationMetrics(
                   sourceCount = connectedEntries.size,
                   bridgeWitnessCount = connectedChannels.size,
+                  entryLinkCount = entryLinkCount,
+                  exitLinkCount = exitLinkCount,
+                  roleOverlapCount = roleOverlapCount,
+                  nonTradeExitCount = nonTradeExitCount,
                   continuationWitnessCount =
                     entryToChannelLinks.map(_.witnessCount).sum +
                       channelToExitLinks.map(_.witnessCount).sum,
@@ -2322,9 +2465,24 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
   private def overlapsObject(left: StrategicObject, right: StrategicObject): Boolean =
     overlapsGroup(left, objectSquares(right).toSet, objectFiles(right).toSet, Some(right.sector))
 
+  private def overlapsObjectWithinBoundary(left: StrategicObject, right: StrategicObject): Boolean =
+    if requiresExactOnlyBoundary(left.family, right.family) then
+      overlapsGroupExact(left, objectSquares(right).toSet, objectFiles(right).toSet)
+    else overlapsObject(left, right)
+
   private def sharesSquareOrFile(left: StrategicObject, right: StrategicObject): Boolean =
     objectSquares(left).exists(square => objectSquares(right).contains(square)) ||
       objectFiles(left).exists(file => objectFiles(right).contains(file))
+
+  private def overlapsGroupForFamily(
+      obj: StrategicObject,
+      squares: Set[Square],
+      files: Set[File],
+      sector: Option[ObjectSector],
+      family: StrategicObjectFamily
+  ): Boolean =
+    if ExactOnlyShadowFamilies.contains(family) then overlapsGroupExact(obj, squares, files)
+    else overlapsGroup(obj, squares, files, sector)
 
   private def overlapsGroup(
       obj: StrategicObject,
@@ -2335,6 +2493,14 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
     objectSquares(obj).exists(squares.contains) ||
       objectFiles(obj).exists(files.contains) ||
       sector.contains(obj.sector)
+
+  private def overlapsGroupExact(
+      obj: StrategicObject,
+      squares: Set[Square],
+      files: Set[File]
+  ): Boolean =
+    objectSquares(obj).exists(squares.contains) ||
+      objectFiles(obj).exists(files.contains)
 
   private def objectSquares(obj: StrategicObject): List[Square] =
     distinctSquares(
@@ -2395,6 +2561,11 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
       case relation if targetIds.contains(relation.target.objectId) => relation.operator
     }.toSet
 
+  private def admittedBoardDirectObjects(
+      objects: List[StrategicObject]
+  ): List[StrategicObject] =
+    objects.map(_.copy(relations = Nil))
+
   private def conversionLinks(
       sourceObjects: List[StrategicObject],
       targetObjects: List[StrategicObject],
@@ -2422,19 +2593,10 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
             objectSquares(target).filter(square => sharedFiles.contains(square.file))
         )
       else Nil
-    val stageFallbackSquares =
-      stage match
-        case ConversionLinkStage.ChannelToExit
-            if source.family == StrategicObjectFamily.AccessNetwork &&
-              target.family == StrategicObjectFamily.PasserComplex &&
-              source.sector == target.sector =>
-          distinctSquares(objectSquares(source).take(1) ++ objectSquares(target).take(1))
-        case _ =>
-          Nil
     val witnessSquares =
       if sharedSquares.nonEmpty then sharedSquares
       else if sharedFileSquares.nonEmpty then sharedFileSquares
-      else stageFallbackSquares
+      else Nil
     val inferredRelations =
       if explicitRelations.nonEmpty then explicitRelations
       else stage match
@@ -2447,10 +2609,11 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
     val witnessCount =
       if sharedSquares.nonEmpty then 2
       else if sharedFileSquares.nonEmpty then 1
-      else if stageFallbackSquares.nonEmpty then 1
       else 0
 
     ConversionLinkWitness(
+      sourceId = source.id,
+      targetId = target.id,
       relations = inferredRelations,
       witnessSquares = witnessSquares,
       witnessCount = witnessCount
@@ -2485,53 +2648,61 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
       val sharedSquares = objectSquares(current).intersect(objectSquares(other)).nonEmpty
       val sharedFiles = objectFiles(current).intersect(objectFiles(other)).nonEmpty
       val sameSector = current.sector == other.sector
+      val boundedOverlap =
+        sharedSquares || sharedFiles || Option.when(!requiresExactOnlyBoundary(current.family, other.family))(sameSector).getOrElse(false)
       (current.family, other.family) match
         case (StrategicObjectFamily.BreakAxis, StrategicObjectFamily.FixedTargetComplex) if sameOwner && (sharedSquares || sharedFiles) => Some(StrategicRelationOperator.Enables)
         case (StrategicObjectFamily.AccessNetwork, StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.CriticalSquareComplex | StrategicObjectFamily.PasserComplex)
             if sameOwner && (sharedSquares || sharedFiles) => Some(StrategicRelationOperator.Enables)
-        case (StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.RedeploymentRoute, StrategicObjectFamily.AttackScaffold) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+        case (StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.RedeploymentRoute, StrategicObjectFamily.AttackScaffold) if sameOwner && boundedOverlap =>
           Some(StrategicRelationOperator.Enables)
-        case (StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.BreakAxis | StrategicObjectFamily.InitiativeWindow) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+        case (StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.BreakAxis | StrategicObjectFamily.InitiativeWindow) if sameOwner && boundedOverlap =>
           Some(StrategicRelationOperator.Enables)
-        case (StrategicObjectFamily.CriticalSquareComplex, StrategicObjectFamily.AttackScaffold | StrategicObjectFamily.FortressHoldingShell) if (sharedSquares || sharedFiles || sameSector) =>
+        case (StrategicObjectFamily.CriticalSquareComplex, StrategicObjectFamily.AttackScaffold | StrategicObjectFamily.FortressHoldingShell) if boundedOverlap =>
           Some(StrategicRelationOperator.Enables)
         case (StrategicObjectFamily.PieceRoleFitness, StrategicObjectFamily.RedeploymentRoute) if sameOwner && sharedSquares => Some(StrategicRelationOperator.DependsOn)
-        case (StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.DefenderDependencyNetwork) if opposing && (sharedSquares || sharedFiles || sameSector) =>
+        case (StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.DefenderDependencyNetwork) if opposing && boundedOverlap =>
           Some(StrategicRelationOperator.OverloadsOrUndermines)
         case (StrategicObjectFamily.DefenderDependencyNetwork, StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.RestrictionShell | StrategicObjectFamily.CounterplayAxis)
-            if sameOwner && (sharedSquares || sharedFiles || sameSector) => Some(StrategicRelationOperator.DependsOn)
-        case (StrategicObjectFamily.AttackScaffold | StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.BreakAxis, StrategicObjectFamily.InitiativeWindow) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+            if sameOwner && boundedOverlap => Some(StrategicRelationOperator.DependsOn)
+        case (StrategicObjectFamily.AttackScaffold | StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.BreakAxis, StrategicObjectFamily.InitiativeWindow) if sameOwner && boundedOverlap =>
           Some(StrategicRelationOperator.DependsOn)
         case (StrategicObjectFamily.InitiativeWindow, StrategicObjectFamily.AttackScaffold | StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.BreakAxis | StrategicObjectFamily.AccessNetwork)
-            if sameOwner && (sharedSquares || sharedFiles || sameSector) => Some(StrategicRelationOperator.DependsOn)
+            if sameOwner && boundedOverlap => Some(StrategicRelationOperator.DependsOn)
         case (StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.AttackScaffold, StrategicObjectFamily.MaterialInvestmentContract)
-            if sameOwner && (sharedSquares || sharedFiles || sameSector) => Some(StrategicRelationOperator.DependsOn)
+            if sameOwner && boundedOverlap => Some(StrategicRelationOperator.DependsOn)
         case (StrategicObjectFamily.MaterialInvestmentContract, StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.AttackScaffold)
-            if sameOwner && (sharedSquares || sharedFiles || sameSector) => Some(StrategicRelationOperator.DependsOn)
+            if sameOwner && boundedOverlap => Some(StrategicRelationOperator.DependsOn)
         case (StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.RestrictionShell | StrategicObjectFamily.PasserComplex | StrategicObjectFamily.TradeInvariant, StrategicObjectFamily.ConversionFunnel)
-            if sameOwner && (sharedSquares || sharedFiles || sameSector) => Some(StrategicRelationOperator.DependsOn)
+            if sameOwner && boundedOverlap => Some(StrategicRelationOperator.DependsOn)
         case (StrategicObjectFamily.PawnStructureRegime | StrategicObjectFamily.TradeInvariant | StrategicObjectFamily.ConversionFunnel | StrategicObjectFamily.PasserComplex, StrategicObjectFamily.TransitionBridge)
-            if sameOwner && (sharedSquares || sharedFiles || sameSector) => Some(StrategicRelationOperator.Preserves)
+            if sameOwner && boundedOverlap => Some(StrategicRelationOperator.Preserves)
         case (StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.CounterplayAxis) if opposing && (sharedSquares || sharedFiles) => Some(StrategicRelationOperator.Denies)
         case (StrategicObjectFamily.MobilityCage, StrategicObjectFamily.CounterplayAxis) if opposing && sharedSquares => Some(StrategicRelationOperator.Denies)
-        case (StrategicObjectFamily.FortressHoldingShell, StrategicObjectFamily.PasserComplex | StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.AttackScaffold) if opposing && (sharedSquares || sharedFiles || sameSector) =>
+        case (StrategicObjectFamily.FortressHoldingShell, StrategicObjectFamily.PasserComplex | StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.AttackScaffold) if opposing && boundedOverlap =>
           Some(StrategicRelationOperator.Denies)
         case (StrategicObjectFamily.PawnStructureRegime, StrategicObjectFamily.BreakAxis | StrategicObjectFamily.PasserComplex) if sameOwner && (sharedSquares || sharedFiles) => Some(StrategicRelationOperator.Preserves)
-        case (StrategicObjectFamily.TradeInvariant, StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.PasserComplex) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+        case (StrategicObjectFamily.TradeInvariant, StrategicObjectFamily.FixedTargetComplex | StrategicObjectFamily.AccessNetwork | StrategicObjectFamily.PasserComplex) if sameOwner && boundedOverlap =>
           Some(StrategicRelationOperator.Preserves)
-        case (StrategicObjectFamily.TransitionBridge, StrategicObjectFamily.ConversionFunnel | StrategicObjectFamily.PasserComplex) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+        case (StrategicObjectFamily.TransitionBridge, StrategicObjectFamily.ConversionFunnel | StrategicObjectFamily.PasserComplex) if sameOwner && boundedOverlap =>
           Some(StrategicRelationOperator.TransformsTo)
-        case (StrategicObjectFamily.ConversionFunnel, StrategicObjectFamily.PasserComplex | StrategicObjectFamily.TradeInvariant) if sameOwner && (sharedSquares || sharedFiles || sameSector) =>
+        case (StrategicObjectFamily.ConversionFunnel, StrategicObjectFamily.PasserComplex | StrategicObjectFamily.TradeInvariant) if sameOwner && boundedOverlap =>
           Some(StrategicRelationOperator.TransformsTo)
         case (StrategicObjectFamily.PasserComplex, StrategicObjectFamily.PasserComplex) if opposing => Some(StrategicRelationOperator.RacesWith)
-        case (StrategicObjectFamily.PlanRace, StrategicObjectFamily.PlanRace | StrategicObjectFamily.InitiativeWindow | StrategicObjectFamily.PasserComplex) if opposing && (sharedSquares || sharedFiles || sameSector) =>
+        case (StrategicObjectFamily.PlanRace, StrategicObjectFamily.PlanRace | StrategicObjectFamily.InitiativeWindow | StrategicObjectFamily.PasserComplex) if opposing && boundedOverlap =>
           Some(StrategicRelationOperator.RacesWith)
-        case (StrategicObjectFamily.KingSafetyShell, StrategicObjectFamily.CounterplayAxis) if opposing && current.sector == other.sector => Some(StrategicRelationOperator.OverloadsOrUndermines)
-        case (StrategicObjectFamily.AttackScaffold, StrategicObjectFamily.KingSafetyShell) if opposing && (sharedSquares || sharedFiles || sameSector) =>
+        case (StrategicObjectFamily.KingSafetyShell, StrategicObjectFamily.CounterplayAxis) if opposing && boundedOverlap => Some(StrategicRelationOperator.OverloadsOrUndermines)
+        case (StrategicObjectFamily.AttackScaffold, StrategicObjectFamily.KingSafetyShell) if opposing && boundedOverlap =>
           Some(StrategicRelationOperator.OverloadsOrUndermines)
-        case (StrategicObjectFamily.TensionState, StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.BreakAxis) if opposing && (sharedSquares || sharedFiles || sameSector) =>
+        case (StrategicObjectFamily.TensionState, StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.BreakAxis) if opposing && boundedOverlap =>
           Some(StrategicRelationOperator.OverloadsOrUndermines)
         case _ => None
+
+  private def requiresExactOnlyBoundary(
+      currentFamily: StrategicObjectFamily,
+      otherFamily: StrategicObjectFamily
+  ): Boolean =
+    ExactOnlyShadowFamilies.contains(currentFamily) || ExactOnlyShadowFamilies.contains(otherFamily)
 
   private def mkObject(
       id: String,
@@ -2691,6 +2862,12 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
 
   private def routeGeometry(seed: RedeploymentPathSeed): StrategicRouteGeometry =
     StrategicRouteGeometry(seed.origin, List(seed.via), seed.target)
+
+  private def relativeRank(
+      square: Square,
+      color: Color
+  ): Int =
+    if color.white then square.rank.value + 1 else 8 - square.rank.value
 
   private def objectId(
       family: StrategicObjectFamily,

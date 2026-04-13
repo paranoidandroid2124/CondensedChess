@@ -12,6 +12,21 @@ private[strategicobject] object TradeInvariantSimplificationSlice:
       throw new IllegalStateException("missing packet anchor e6")
     )
 
+  def allowsPacketOwnedPrimarySimplification(
+      owner: Color,
+      exchangeSquares: List[Square],
+      invariantSquares: List[Square],
+      preservedFamilies: Set[StrategicObjectFamily],
+      features: Set[TradeInvariantFeature]
+  ): Boolean =
+    owner == packetOwner &&
+      exchangeSquares.contains(packetAnchor) &&
+      invariantSquares.nonEmpty &&
+      preservedFamilies.contains(StrategicObjectFamily.FixedTargetComplex) &&
+      features.contains(TradeInvariantFeature.FixedTargetAnchor) &&
+      !preservedFamilies.contains(StrategicObjectFamily.PasserComplex) &&
+      !features.contains(TradeInvariantFeature.PasserAnchor)
+
   def isPacketOwnedPrimarySimplificationObject(
       obj: StrategicObject
   ): Boolean =
@@ -22,12 +37,19 @@ private[strategicobject] object TradeInvariantSimplificationSlice:
       (
         obj.profile match
           case StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, _, preservedFamilies, features) =>
-            TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+            allowsPacketOwnedPrimarySimplification(
+              obj.owner,
               exchangeSquares,
               invariantSquares,
               preservedFamilies,
               features
-            )
+            ) ||
+              TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
+                exchangeSquares,
+                invariantSquares,
+                preservedFamilies,
+                features
+              )
           case _ =>
             false
       )

@@ -40,6 +40,9 @@ enum TradeInvariantFeature:
   case AccessAnchor
   case PasserAnchor
   case ReleaseOverlap
+  case QueenExchange
+  case DeepDefenderRemoval
+  case ExchangeCascade
 
 enum CounterplayAxisType:
   case Break

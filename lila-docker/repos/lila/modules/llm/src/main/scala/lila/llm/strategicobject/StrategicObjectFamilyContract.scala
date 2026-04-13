@@ -29,6 +29,10 @@ final case class FamilyGenerationMetrics(
     bridgeWitnessCount: Int = 0,
     continuationWitnessCount: Int = 0,
     exitWitnessCount: Int = 0,
+    entryLinkCount: Int = 0,
+    exitLinkCount: Int = 0,
+    roleOverlapCount: Int = 0,
+    nonTradeExitCount: Int = 0,
     deniedEntryCount: Int = 0,
     blockadeCount: Int = 0,
     defendedSquareCount: Int = 0,
@@ -545,14 +549,16 @@ object StrategicObjectFamilyContract:
           evidence.primitiveKinds.intersect(Set(PrimitiveKind.TargetSquare, PrimitiveKind.CriticalSquare)).nonEmpty
       case StrategicObjectFamily.CounterplayAxis =>
         evidence.primitiveKinds.contains(PrimitiveKind.CounterplayResourceSeed) &&
-          evidence.metrics.typedAxisCount > 0 &&
-          evidence.metrics.entryWitnessCount >= 2 &&
-          evidence.metrics.targetWitnessCount > 1 &&
+          evidence.metrics.typedAxisCount == 1 &&
           (
-            evidence.metrics.exchangeWitnessCount > 0 ||
-              evidence.metrics.activeFileCount > 0 ||
-              evidence.metrics.pressureSquareCount >= 3
-          )
+            evidence.metrics.rivalCount > 0 ||
+              evidence.metrics.rivalGoalWitnessCount > 0 ||
+              evidence.rivalFamilies.nonEmpty
+          ) &&
+          evidence.relationOperators.nonEmpty &&
+          evidence.metrics.entryWitnessCount > 0 &&
+          evidence.metrics.targetWitnessCount > 0 &&
+          evidence.metrics.goalWitnessCount > 0
       case StrategicObjectFamily.MobilityCage =>
         evidence.primitiveKinds.contains(PrimitiveKind.PieceRoleIssue) &&
           evidence.metrics.deniedSquareCount > 0 &&
@@ -581,16 +587,14 @@ object StrategicObjectFamilyContract:
         evidence.sourceFamilies.intersect(
           Set(StrategicObjectFamily.FixedTargetComplex, StrategicObjectFamily.TradeInvariant)
         ).nonEmpty &&
-          evidence.destinationFamilies.intersect(
-            Set(
-              StrategicObjectFamily.PasserComplex,
-              StrategicObjectFamily.TradeInvariant,
-              StrategicObjectFamily.DefenderDependencyNetwork
-            )
-          ).nonEmpty &&
+          evidence.destinationFamilies.contains(StrategicObjectFamily.PasserComplex) &&
+          evidence.metrics.roleOverlapCount == 0 &&
+          evidence.metrics.nonTradeExitCount > 0 &&
           evidence.metrics.sourceCount > 0 &&
           evidence.metrics.bridgeWitnessCount > 0 &&
           evidence.metrics.continuationWitnessCount >= 2 &&
+          evidence.metrics.entryLinkCount > 0 &&
+          evidence.metrics.exitLinkCount > 0 &&
           evidence.metrics.exitWitnessCount > 0 &&
           evidence.metrics.goalWitnessCount > 0 &&
           evidence.relationOperators.exists(op =>

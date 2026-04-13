@@ -470,21 +470,26 @@ in `StrategicObjectRoadmap.md`.
   instead of broad overlap or generic activation. `TradeInvariant`
   move-local admission now reuses one centralized persistence witness check, so
   exchange/simplification only stays primary when a fixed target, break, or
-  access anchor survives the trade itself. `CounterplayAxis` now needs one
-  typed counterplay axis plus exact-board entry/target pressure evidence;
-  generic `the opponent still has resources` pictures stay off. 
-  `ConversionFunnel` now needs a real source-to-channel-to-exit witness with
-  continuation and exit burden; static advantage shells stay off or object-only.
-  `PlanRace` now needs dual clocks, explicit own/rival goals, and an ordering
-  witness; bilateral activity alone no longer opens the family. On the planner
-  side, `QuestionPlanner` may now demote `AccessNetwork` from move-local
-  primary to support only when an overlapping same-owner certified
-  `TradeInvariant`, `CounterplayAxis`, `ConversionFunnel`, or `PlanRace` claim
-  proves the more specific residual explanation. The batch-coverage audit
-  tooling is updated in parallel: `StrategicObjectBatchCoverage` now emits
-  family-level `OwnerRate`, `ShadowRate`, `UniqueOwnerRate`, `AxisDiversity`,
-  `StageConcentration`, and `AccessNetworkResidualCount`, plus per-family
-  manual-audit bundles (`top_50`, `middle_20`, `random_20`, `hard_negative_20`)
+  invariant square outside the exchange survives the trade itself; preserved
+  `AccessNetwork` and `AccessAnchor` no longer count as primary persistence
+  credit. `CounterplayAxis` now carries one explicit rival-constrained typed
+  axis at a time and needs a typed relation witness tied to an exact rival goal
+  or rival object; generic sector pressure stays off. `ConversionFunnel` now
+  enforces role-disjoint entry/channel/exit paths, requires both entry-to-
+  channel and channel-to-exit link witnesses, and rejects TradeInvariant-only
+  loops or trade-only exits. `PlanRace` now needs dual clocks, explicit
+  own/rival goals, and an ordering witness; bilateral activity alone no longer
+  opens the family. On the planner side, `QuestionPlanner` may now demote
+  `AccessNetwork` from move-local primary earlier than certified-only
+  competition: overlapping same-owner certified `TradeInvariant` still demotes,
+  while exact typed `CounterplayAxis` / `PlanRace` support-only claims can also
+  demote; `ConversionFunnel` still cannot demote from object-only residue. The
+  batch-coverage audit tooling is updated in parallel: `StrategicObjectBatchCoverage`
+  now emits family-level `OwnerRate`, `ShadowRate`, owner-only
+  `UniqueOwnerRate`, support-residual `ResidualSupportRate`,
+  `AccessDemotionRate`, `AxisDiversity`, `StageConcentration`, and
+  `AccessNetworkResidualCount`, plus per-family manual-audit bundles (`top_50`,
+  `middle_20`, `random_20`, `hard_negative_20`)
   with predeclared board-truth / family-fit / stage-fit verdict fields. This
   remains trust-hardening only:
   it narrows overactivation and Access-shadow drift without opening new wording,
@@ -4716,6 +4721,52 @@ support-only material into portable lesson truth.
    Active behavior
 7. CTH-B reconnaissance/design once trust-maintenance work is no longer the
    active blocker
+
+## 2026-04-13 StrategicObject Batch Follow-up
+
+- `AccessDemotionRate` is now tracked on `sample x axis`, not sample-only:
+  `WhyThis`, `WhyNow`, and `WhatMustBeStopped` demotions are surfaced
+  separately in batch coverage output
+- `AccessDemotionRate` is family-attributed, not generic axis absence:
+  a demotion now counts only when the audited family itself is actually
+  surfaced on that axis at a planner-meaningful stage (`primary` / `support`
+  for owner-capable families, `support` only for support-residual families)
+- `CounterplayAxis` no longer treats synthetic typed relations as sufficient
+  witness: exact rival relation survives only when a live rival object relation
+  and rival reference align on the same object graph edge
+- `CounterplayAxis` contract admission now consumes only exact rival-relation
+  witnesses returned by `CounterplayAxisRivalRelationBoundary`; local
+  typed-axis inference may still pick the axis kind, but it no longer satisfies
+  the relation requirement by itself
+- non-`KingExposure` `CounterplayAxis` claims now also reject king-shell-only
+  rival evidence: if the typed axis is break/file/activity, an exact rival
+  witness must include more than a lone `KingSafetyShell` edge before the
+  family may admit
+- `TradeInvariant` primary admission is now narrower than generic
+  access-backed persistence: primary simplification remains open only when
+  the post-trade residue still carries a break-backed invariant, or when an
+  otherwise access-only fixed-target residue is anchored by a queen exchange or
+  a deep defender removal. Exchange-cascade bundles stay below primary even if
+  they also carry break and release overlap signals.
+- `TradeInvariant` timing ownership is narrower than generic move-local
+  release detection only through the existing exact move-local witness gates;
+  there is no separate TradeInvariant timing override beyond the certified
+  slice and persistence boundary.
+- `TradeInvariant`, `CounterplayAxis`, `ConversionFunnel`, and `PlanRace`
+  now consume an exact-only overlap/relation boundary on the rewrite graph:
+  same-sector fallback remains available to the generic graph elsewhere, but
+  these downstream families no longer gain overlap or relation credit from
+  sector coincidence alone.
+- `ConversionFunnel` no longer receives a synthetic `AccessNetwork ->
+  PasserComplex` same-sector channel-to-exit bridge. Channel and exit linkage
+  now requires exact shared squares/files or an explicit certified relation.
+- `ConversionFunnel` object admission is now bounded to a real passer-exit
+  slice: non-trade exits still must exist, but `TradeInvariant` or
+  `DefenderDependencyNetwork` alone no longer keep the family open without a
+  live `PasserComplex` destination.
+- audit extraction no longer pads missing positives or negatives with duplicate
+  rows; batch coverage now reports requested vs unique counts, and runner output
+  can emit a top-20 manual audit bundle for the next precision pass
 
 ## Maintenance Rules
 
