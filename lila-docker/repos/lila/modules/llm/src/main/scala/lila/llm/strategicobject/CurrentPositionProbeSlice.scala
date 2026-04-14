@@ -5,7 +5,6 @@ private[strategicobject] object CurrentPositionProbeSlice:
   private val fixedTargetSupportIds: Set[String] =
     Set(
       "AccessNetwork-white-queenside-c2-c",
-      "ConversionFunnel-white-wholeboard-a7-abcdefg",
       "DefenderDependencyNetwork-white-center-d4-de"
     )
 

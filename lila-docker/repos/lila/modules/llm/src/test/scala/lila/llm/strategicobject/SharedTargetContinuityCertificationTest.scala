@@ -79,7 +79,6 @@ class SharedTargetContinuityCertificationTest extends FunSuite:
     assertEquals(
       comparativeSupport.supportingObjectIds.toSet,
       Set(
-        "ConversionFunnel-white-wholeboard-b6-bcdefg",
         "DefenderDependencyNetwork-white-kingside-f3-fgh"
       )
     )

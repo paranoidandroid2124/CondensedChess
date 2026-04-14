@@ -14,6 +14,72 @@ class FavorableSimplificationAdmissionTest extends FunSuite:
     assertEquals(rows.map(_.caseType).toSet, Set("exact", "negative", "contrastive", "near_miss", "nasty_negative"))
   }
 
+  test("trade-invariant primary descriptor centralizes packet-owned and general primary reasons") {
+    val packetDescriptor =
+      TradeInvariantPrimaryDescriptor.describe(
+        owner = chess.Color.White,
+        exchangeSquares = List(Square.E6),
+        invariantSquares = List(Square.E6, Square.D5),
+        preservedFamilies = Set(StrategicObjectFamily.FixedTargetComplex),
+        features = Set(TradeInvariantFeature.FixedTargetAnchor)
+      )
+    val breakDescriptor =
+      TradeInvariantPrimaryDescriptor.describe(
+        owner = chess.Color.White,
+        exchangeSquares = List(Square.D5),
+        invariantSquares = List(Square.D5, Square.E6, Square.C6),
+        preservedFamilies = Set(
+          StrategicObjectFamily.AccessNetwork,
+          StrategicObjectFamily.FixedTargetComplex,
+          StrategicObjectFamily.BreakAxis
+        ),
+        features = Set(
+          TradeInvariantFeature.AccessAnchor,
+          TradeInvariantFeature.FixedTargetAnchor,
+          TradeInvariantFeature.BreakAnchor
+        )
+      )
+    val nonPrimaryDescriptor =
+      TradeInvariantPrimaryDescriptor.describe(
+        owner = chess.Color.White,
+        exchangeSquares = List(Square.E4),
+        invariantSquares = List(Square.E4, Square.D5, Square.C6),
+        preservedFamilies = Set(
+          StrategicObjectFamily.AccessNetwork,
+          StrategicObjectFamily.FixedTargetComplex
+        ),
+        features = Set(
+          TradeInvariantFeature.AccessAnchor,
+          TradeInvariantFeature.FixedTargetAnchor
+        )
+      )
+
+    assert(packetDescriptor.primaryEligible, clue(packetDescriptor))
+    assert(packetDescriptor.packetPrimaryEligible, clue(packetDescriptor))
+    assertEquals(
+      packetDescriptor.primaryReason,
+      Some(TradeInvariantPrimaryReason.PacketOwnedFixedTargetSlice)
+    )
+
+    assert(breakDescriptor.primaryEligible, clue(breakDescriptor))
+    assert(!breakDescriptor.packetPrimaryEligible, clue(breakDescriptor))
+    assertEquals(
+      breakDescriptor.primaryReason,
+      Some(TradeInvariantPrimaryReason.BreakBackedInvariant)
+    )
+    assertEquals(
+      breakDescriptor.primaryRelevantPreservedFamilies,
+      Set(
+        StrategicObjectFamily.FixedTargetComplex,
+        StrategicObjectFamily.BreakAxis
+      )
+    )
+
+    assert(!nonPrimaryDescriptor.primaryEligible, clue(nonPrimaryDescriptor))
+    assert(!nonPrimaryDescriptor.packetPrimaryEligible, clue(nonPrimaryDescriptor))
+    assertEquals(nonPrimaryDescriptor.primaryReason, None)
+  }
+
   test("access-backed persistence does not satisfy the primary trade-invariant witness boundary by itself") {
     val exchangeSquares = List(Square.E5)
     val invariantSquares = List(Square.E5)

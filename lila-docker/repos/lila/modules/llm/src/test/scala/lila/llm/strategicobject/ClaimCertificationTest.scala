@@ -74,6 +74,97 @@ class ClaimCertificationTest extends FunSuite:
     assert(claim.delta.nonEmpty, clue("support-only claim should keep typed delta for traceability"))
   }
 
+  test("packet d6 fixed-target claim stamps shared-target continuity and probe-kind metadata") {
+    val row =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d6-exact").getOrElse(
+        fail("expected packet-owned d6 fixed-target row")
+      )
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, PrimitiveExtractionTest.neutralTruthFrame)
+    val deltas =
+      CanonicalStrategicObjectDeltaProjector.project(
+        PrimitiveExtractionTest.neutralContract,
+        PrimitiveExtractionTest.neutralTruthFrame,
+        objects
+      )
+    val claims = CanonicalClaimCertification.certify(PrimitiveExtractionTest.neutralContract, objects, deltas)
+    val claim =
+      claims.find(claim =>
+        claim.status == ClaimStatus.Certified &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+          claim.primaryTag.contains(StrategicDeltaTag.TargetFixed) &&
+          SharedTargetContinuityBoundary.hasPacketContinuity(claim)
+      ).getOrElse(
+        fail("expected packet-owned d6 fixed-target certified claim")
+      )
+
+    assert(claim.plannerMetadata.sharedTargetContinuity, clue(claim))
+    assertEquals(
+      claim.plannerMetadata.currentPositionProbeKind,
+      Some(CertifiedCurrentPositionProbeKind.FixedTarget),
+      clue(claim)
+    )
+  }
+
+  test("exact coordination probe claim stamps coordination probe-kind metadata") {
+    val row =
+      CurrentPositionCoordinationProbeTest.rows.find(_.id == "current-position-coordination-probe-exact").getOrElse(
+        fail("expected exact coordination probe row")
+      )
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, PrimitiveExtractionTest.neutralTruthFrame)
+    val deltas =
+      CanonicalStrategicObjectDeltaProjector.project(
+        PrimitiveExtractionTest.neutralContract,
+        PrimitiveExtractionTest.neutralTruthFrame,
+        objects
+      )
+    val claims = CanonicalClaimCertification.certify(PrimitiveExtractionTest.neutralContract, objects, deltas)
+    val claim =
+      claims.find(claim =>
+        claim.status == ClaimStatus.Certified &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+          claim.primaryTag.contains(StrategicDeltaTag.CoordinationImproved)
+      ).getOrElse(
+        fail("expected certified coordination probe claim")
+      )
+
+    assertEquals(
+      claim.plannerMetadata.currentPositionProbeKind,
+      Some(CertifiedCurrentPositionProbeKind.Coordination),
+      clue(claim)
+    )
+  }
+
+  test("packet favorable simplification claim stamps trade primary and residual specificity metadata") {
+    val row =
+      FavorableSimplificationAdmissionTest.rows.find(_.id == "bounded-favorable-simplification-exact").getOrElse(
+        fail("expected exact favorable simplification row")
+      )
+    val truth = FavorableSimplificationAdmissionTest.truthFor(row)
+    val contract = FavorableSimplificationAdmissionTest.contractFor(row)
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val claim =
+      claims.find(claim =>
+        claim.status == ClaimStatus.Certified &&
+          claim.deltaScope == StrategicDeltaScope.MoveLocal &&
+          claim.delta.exists(TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationDelta)
+      ).getOrElse(
+        fail("expected packet-owned favorable simplification claim")
+      )
+
+    assertEquals(
+      claim.plannerMetadata.tradeInvariantPrimaryClass,
+      Some(TradeInvariantPrimaryReason.PacketOwnedFixedTargetSlice),
+      clue(claim)
+    )
+    assertEquals(
+      claim.plannerMetadata.residualSpecificityClass,
+      Some(CertifiedResidualSpecificityClass.TradeInvariantPrimaryExact),
+      clue(claim)
+    )
+  }
+
   test("stable comparative certification demotes shallow metric burden but keeps strong contrast certified") {
     val row = deltaRow("fixed-target-comparative-contrastive")
     val truth = truthFor(row)

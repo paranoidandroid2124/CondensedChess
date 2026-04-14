@@ -91,12 +91,15 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
       List(
         """{"sampleId":"access-1","source":"test","fen":"6k1/7p/8/8/8/3B4/8/6K1 w - - 0 1","playedUci":"d3h7"}""",
         """{"sampleId":"trade-1","source":"test","fen":"r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13","playedUci":"d4e6"}""",
-        """{"sampleId":"counterplay-1","source":"test","fen":"6k1/8/8/4p3/3P4/2P5/8/6K1 w - - 0 1"}"""
+        """{"sampleId":"counterplay-1","source":"test","fen":"6k1/8/8/4p3/3P4/2P5/8/6K1 w - - 0 1"}""",
+        """{"sampleId":"counterplay-exact","source":"test","fen":"2bk1bnr/4qppp/pr3n2/3B4/3PpB2/7N/1PQ2PPP/R4RK1 w - - 6 17","playedUci":"a1c1"}"""
       ).mkString("", "\n", "\n")
     Files.writeString(path, rows, StandardCharsets.UTF_8)
 
     val (inputSummary, inputs) = StrategicObjectBatchCoverageSupport.loadFenJsonl(path)
     val (report, activations, auditRows) = StrategicObjectBatchCoverageSupport.report(inputSummary, inputs)
+    val (filteredCounterplayReport, filteredCounterplayActivations, _) =
+      StrategicObjectBatchCoverageSupport.report(inputSummary, inputs, Set("CounterplayAxis"))
 
     val access =
       report.families.find(_.family == "AccessNetwork").getOrElse(
@@ -110,8 +113,12 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
       report.families.find(_.family == "CounterplayAxis").getOrElse(
         fail("expected CounterplayAxis batch summary")
       )
+    val filteredCounterplay =
+      filteredCounterplayReport.families.find(_.family == "CounterplayAxis").getOrElse(
+        fail("expected filtered CounterplayAxis batch summary")
+      )
 
-    assertEquals(report.input.evaluatedSampleCount, 3)
+    assertEquals(report.input.evaluatedSampleCount, 4)
     assert(access.primaryCount >= 1, clue(access))
     assert(access.ownerRate > 0.0, clue(access))
     assert(access.uniqueOwnerRate.nonEmpty, clue(access))
@@ -119,18 +126,39 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
     assert(access.accessDemotionRate >= 0.0, clue(access))
     assert(access.auditBuckets.exists(_.bucket == "top_50"), clue(access))
     assert(access.byAxis.exists(_.axis == "WhyThis"), clue(access))
+    assert(access.byPass.exists(pass => pass.scope == "move_local" && pass.ownerCount >= 1), clue(access.byPass))
     assertEquals(access.highestBatchStage, "planner_primary")
     assert(tradeInvariant.primaryCount >= 1, clue(tradeInvariant))
     assertEquals(tradeInvariant.highestBatchStage, "planner_primary")
     assert(counterplay.sampleCount >= 1, clue(counterplay))
     assert(counterplay.shadowRate >= 0.0, clue(counterplay))
     assert(counterplay.uniqueOwnerRate.isEmpty, clue(counterplay))
+    assert(counterplay.byPass.exists(pass => pass.scope == "move_local"), clue(counterplay.byPass))
+    assert(counterplay.byPass.exists(pass => pass.scope == "move_local" && pass.plannerNoneCount >= 0), clue(counterplay.byPass))
     assert(
       Set("object", "certification", "planner_none", "planner_support").contains(counterplay.highestBatchStage),
       clue(counterplay)
     )
+    assertEquals(filteredCounterplay.shadowRate, counterplay.shadowRate, clue(filteredCounterplay))
+    assertEquals(filteredCounterplay.accessOverlapAxisCount, counterplay.accessOverlapAxisCount, clue(filteredCounterplay))
+    assertEquals(filteredCounterplay.accessDemotedAxisCount, counterplay.accessDemotedAxisCount, clue(filteredCounterplay))
+    assert(filteredCounterplayActivations.forall(_.family == "CounterplayAxis"), clue(filteredCounterplayActivations))
     assert(activations.exists(row => row.family == "AccessNetwork" && row.bestAdmission == "primary"))
     assert(activations.exists(row => row.family == "TradeInvariant" && row.bestAdmission == "primary"))
+    val exactCounterplayRow =
+      activations.find(row => row.family == "CounterplayAxis" && row.sampleId == "counterplay-exact").getOrElse(
+        fail("expected exact CounterplayAxis activation row")
+      )
+    assertEquals(
+      exactCounterplayRow.moveLocalBoundary.flatMap(_.blocker),
+      Some("MissingMoveEdgeTouch"),
+      clue(exactCounterplayRow)
+    )
+    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.exactRivalAdmitted), Some(true), clue(exactCounterplayRow))
+    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.moveTouchesCore), Some(false), clue(exactCounterplayRow))
+    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.relationTouch), Some(false), clue(exactCounterplayRow))
+    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.blockedByProvisionalScope), Some(false), clue(exactCounterplayRow))
+    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.blockedByCertification), Some(false), clue(exactCounterplayRow))
     assert(auditRows.exists(row => row.family == "AccessNetwork" && row.auditBucket == "top_50"), clue(auditRows))
     assert(auditRows.exists(row => row.family == "TradeInvariant" && row.auditBucket == "hard_negative_20"), clue(auditRows))
     assert(auditRows.forall(row => row.selectedCount <= row.requestedCount), clue(auditRows))
@@ -151,4 +179,9 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
     assert((renderedReport \ "families")(0).as[JsObject].keys.contains("residualSupportRate"), clue(renderedReport))
     assert((renderedReport \ "families")(0).as[JsObject].keys.contains("accessDemotionRate"), clue(renderedReport))
     assert((renderedReport \ "families")(0).as[JsObject].keys.contains("auditBuckets"), clue(renderedReport))
+    assert((renderedReport \ "families")(0).as[JsObject].keys.contains("byPass"), clue(renderedReport))
+    val renderedExactCounterplay = Json.toJson(exactCounterplayRow)
+    assert((renderedExactCounterplay \ "moveLocalBoundary" \ "blocker").asOpt[String].contains("MissingMoveEdgeTouch"), clue(renderedExactCounterplay))
+    assert((renderedExactCounterplay \ "moveLocalBoundary" \ "exactRivalAdmitted").asOpt[Boolean].contains(true), clue(renderedExactCounterplay))
+    assert((renderedExactCounterplay \ "moveLocalBoundary" \ "blockedByCertification").asOpt[Boolean].contains(false), clue(renderedExactCounterplay))
   }

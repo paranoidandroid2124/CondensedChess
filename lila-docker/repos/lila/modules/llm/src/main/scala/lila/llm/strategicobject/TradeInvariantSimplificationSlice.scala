@@ -4,14 +4,6 @@ import chess.{ Color, Square }
 
 private[strategicobject] object TradeInvariantSimplificationSlice:
 
-  private val packetOwner: Color =
-    Color.White
-
-  private val packetAnchor: Square =
-    Square.fromKey("e6").getOrElse(
-      throw new IllegalStateException("missing packet anchor e6")
-    )
-
   def allowsPacketOwnedPrimarySimplification(
       owner: Color,
       exchangeSquares: List[Square],
@@ -19,40 +11,21 @@ private[strategicobject] object TradeInvariantSimplificationSlice:
       preservedFamilies: Set[StrategicObjectFamily],
       features: Set[TradeInvariantFeature]
   ): Boolean =
-    owner == packetOwner &&
-      exchangeSquares.contains(packetAnchor) &&
-      invariantSquares.nonEmpty &&
-      preservedFamilies.contains(StrategicObjectFamily.FixedTargetComplex) &&
-      features.contains(TradeInvariantFeature.FixedTargetAnchor) &&
-      !preservedFamilies.contains(StrategicObjectFamily.PasserComplex) &&
-      !features.contains(TradeInvariantFeature.PasserAnchor)
+    TradeInvariantPrimaryDescriptor
+      .describe(
+        owner = owner,
+        exchangeSquares = exchangeSquares,
+        invariantSquares = invariantSquares,
+        preservedFamilies = preservedFamilies,
+        features = features
+      )
+      .packetPrimaryEligible
 
   def isPacketOwnedPrimarySimplificationObject(
       obj: StrategicObject
   ): Boolean =
     obj.family == StrategicObjectFamily.TradeInvariant &&
-      obj.owner == packetOwner &&
-      obj.sector == ObjectSector.Center &&
-      obj.anchors.exists(anchor => anchor.squares.contains(packetAnchor)) &&
-      (
-        obj.profile match
-          case StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, _, preservedFamilies, features) =>
-            allowsPacketOwnedPrimarySimplification(
-              obj.owner,
-              exchangeSquares,
-              invariantSquares,
-              preservedFamilies,
-              features
-            ) ||
-              TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
-                exchangeSquares,
-                invariantSquares,
-                preservedFamilies,
-                features
-              )
-          case _ =>
-            false
-      )
+      TradeInvariantPrimaryDescriptor.fromObject(obj).exists(_.packetPrimaryEligible)
 
   def isPacketOwnedPrimarySimplificationDelta(
       delta: StrategicObjectDelta
@@ -70,8 +43,9 @@ private[strategicobject] object TradeInvariantSimplificationSlice:
             _,
             evidenceRefs
           ) =>
-        owner == packetOwner &&
-          changedAnchors.exists(_.squares.contains(packetAnchor)) &&
+        owner == TradeInvariantPrimaryDescriptor.packetOwner &&
+          TradeInvariantPrimaryDescriptor.fromDelta(delta).exists(_.packetPrimaryEligible) &&
+          changedAnchors.exists(_.squares.contains(TradeInvariantPrimaryDescriptor.packetAnchor)) &&
           supportingObjectIds.nonEmpty &&
           witness.isTransitionAware &&
           witness.hasAnchoredEvidence &&

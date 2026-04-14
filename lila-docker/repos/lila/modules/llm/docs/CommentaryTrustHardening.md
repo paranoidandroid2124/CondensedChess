@@ -215,13 +215,16 @@ in `StrategicObjectRoadmap.md`.
     the current-position fixed-target admission now hinges on the exact
     certified support bundle for the preserved B15A c6 slice
     (`AccessNetwork-white-queenside-c2-c`,
-    `ConversionFunnel-white-wholeboard-a7-abcdefg`,
     `DefenderDependencyNetwork-white-center-d4-de`) and the packet-owned d6
     slice (`AccessNetwork-white-center-d1-d`,
     `AccessNetwork-white-center-d6-d-diag`,
     `AccessNetwork-white-center-d7-d-knight`,
     `AccessNetwork-white-queenside-b6-b-diag`) so both exact slices can stay
     open through the same canonical boundary while K03A and K09E stay closed.
+    The earlier c6-side conversion-funnel witness no longer survives after the
+    narrower funnel tightening, so the preserved c6 exact probe is now keyed to
+    the two-object access + defender-dependency bundle rather than the old
+    three-object packet.
     The comparative support side no longer pairs from raw support-square
     overlap; its packet-owned exact descriptor is recorded separately on the
     `P6-B01` continuity note below.
@@ -407,7 +410,7 @@ in `StrategicObjectRoadmap.md`.
   all eight provisional Tier 1 families stay planner `none` and localize at
   `certification`, and no broader comparative-support rollout, new wording,
   renderer behavior, or Tier 2 / Tier 3 widening opens from it.
-- rewrite-local comparative demotion-matrix note on 2026-04-10:
+  - rewrite-local comparative demotion-matrix note on 2026-04-10:
   `QuestionPlanner` now hard-gates `WhatChanged` primary ownership to
   `comparative_primary` only. Support-only comparative evidence and shallow
   comparative rows may remain support/deferred signals, but they cannot
@@ -415,10 +418,11 @@ in `StrategicObjectRoadmap.md`.
   target comparative slice, planner support pairing is now certification-owned
   only: `ClaimCertification` stamps one packet-bounded shared-target
   continuity witness on the `d6` current-position probe, target-fixation
-  lane, and the exact packet-owned comparative-support claim whose descriptor
-  is the two-object bundle
-  (`ConversionFunnel-white-wholeboard-b6-bcdefg`,
-  `DefenderDependencyNetwork-white-kingside-f3-fgh`), and
+  lane, and the exact packet-owned comparative-support claim whose surviving
+  exact descriptor is the single-object defender-dependency witness
+  (`DefenderDependencyNetwork-white-kingside-f3-fgh`); the earlier
+  `ConversionFunnel-white-wholeboard-b6-bcdefg` witness no longer survives on
+  that exact row after the narrower funnel objectization pass, and
   `QuestionPlanner` consumes only that witness for `WhatChanged` support.
   The `d5` contrastive white comparative pair is now a regression check
   outside the witness boundary. Stripping the witness closes packet-owned
@@ -4738,6 +4742,11 @@ support-only material into portable lesson truth.
   witnesses returned by `CounterplayAxisRivalRelationBoundary`; local
   typed-axis inference may still pick the axis kind, but it no longer satisfies
   the relation requirement by itself
+- `CounterplayAxisRivalRelationBoundary` is now the single exact-rival
+  authority for both object admission and move-local relation filtering:
+  synthesizer-side typed-axis vs rival-family admission no longer reimplements
+  a parallel pre-check, and move-local relation files/squares now consume the
+  same exact witness instead of looser fallback geometry
 - non-`KingExposure` `CounterplayAxis` claims now also reject king-shell-only
   rival evidence: if the typed axis is break/file/activity, an exact rival
   witness must include more than a lone `KingSafetyShell` edge before the
@@ -4752,6 +4761,23 @@ support-only material into portable lesson truth.
   release detection only through the existing exact move-local witness gates;
   there is no separate TradeInvariant timing override beyond the certified
   slice and persistence boundary.
+- `TradeInvariantPrimaryDescriptor` now centralizes the current exact
+  move-local primary slice: projector, slice helper, and planner all consume
+  the same backend-only `primaryEligible` / `packetPrimaryEligible` /
+  `primaryReason` result, and non-primary certified trade residue no longer
+  demotes `AccessNetwork` only because it carries the `TradeInvariant` label.
+  `QuestionPlanner` residual arbitration now treats only descriptor-approved
+  exact `TradeInvariant` move-local claims as specific access-shadow
+  competition; access-backed residue that lacks the certified primary
+  descriptor stays unable to reopen move-local demotion by name alone.
+- `ClaimCertification` now stamps planner-only metadata for the currently
+  stabilized exact slices
+  (`sharedTargetContinuity`, `currentPositionProbeKind`,
+  `tradeInvariantPrimaryClass`, `residualSpecificityClass`), and
+  `QuestionPlanner` consumes those certified fields instead of re-deriving
+  probe-kind or residual-specificity semantics from raw delta shape. This
+  keeps the exact-slice contract centralized at certification and avoids a
+  second planner-side semantic verdict over the same claim.
 - `TradeInvariant`, `CounterplayAxis`, `ConversionFunnel`, and `PlanRace`
   now consume an exact-only overlap/relation boundary on the rewrite graph:
   same-sector fallback remains available to the generic graph elsewhere, but

@@ -19,7 +19,6 @@ private[strategicobject] object SharedTargetContinuityBoundary:
 
   private val packetComparativeSupportBundle: Set[String] =
     Set(
-      "ConversionFunnel-white-wholeboard-b6-bcdefg",
       "DefenderDependencyNetwork-white-kingside-f3-fgh"
     )
 
@@ -51,6 +50,25 @@ private[strategicobject] object SharedTargetContinuityBoundary:
       claim: CertifiedClaim
   ): Boolean =
     claim.boundaryWitnesses.contains(packetWitness)
+
+  def projectorSupportObjectIds(
+      obj: StrategicObject,
+      scope: StrategicDeltaScope,
+      projection: StrategicDeltaProjection,
+      defaultSupportObjectIds: List[String],
+      objectsById: Map[String, StrategicObject]
+  ): List[String] =
+    Option
+      .when(
+        isPacketComparativeSupportSlice(
+          obj = obj,
+          scope = scope,
+          projection = projection,
+          defaultSupportObjectIds = defaultSupportObjectIds,
+          objectsById = objectsById
+        )
+      )(packetComparativeSupportBundle.toList.sorted)
+      .getOrElse(defaultSupportObjectIds)
 
   private def packetCurrentPositionClaimIds(
       claims: List[CertifiedClaim]
@@ -225,6 +243,28 @@ private[strategicobject] object SharedTargetContinuityBoundary:
   ): Boolean =
     delta.supportingObjectIds.toSet == packetComparativeSupportBundle
 
+  private def isPacketComparativeSupportSlice(
+      obj: StrategicObject,
+      scope: StrategicDeltaScope,
+      projection: StrategicDeltaProjection,
+      defaultSupportObjectIds: List[String],
+      objectsById: Map[String, StrategicObject]
+  ): Boolean =
+    scope == StrategicDeltaScope.Comparative &&
+      obj.family == StrategicObjectFamily.RestrictionShell &&
+      obj.owner == packetOwner &&
+      packetComparativeSupportBundle.subsetOf(objectsById.keySet) &&
+      defaultSupportObjectIds.nonEmpty &&
+      defaultSupportObjectIds.toSet.subsetOf(packetComparativeSupportBundle) &&
+      restrictionShellTouchesPacketTarget(obj.profile) &&
+      (projection match
+        case StrategicDeltaProjection.Comparative(_, _, witness, _, profile) =>
+          profile.axis == StrategicComparativeAxis.RestrictionContainmentContrast &&
+            witness.axis == StrategicComparativeAxis.RestrictionContainmentContrast &&
+            witness.hasExactCounterpartWitness
+        case _ =>
+          false)
+
   private def isPacketComparativeContinuityPair(
       primaryClaim: CertifiedClaim,
       supportClaim: CertifiedClaim
@@ -233,12 +273,12 @@ private[strategicobject] object SharedTargetContinuityBoundary:
       case (Some(primaryDelta), Some(supportDelta)) =>
         primaryDelta.scope == StrategicDeltaScope.Comparative &&
           supportDelta.scope == StrategicDeltaScope.Comparative &&
-          primaryDelta.family == StrategicObjectFamily.FixedTargetComplex &&
+        primaryDelta.family == StrategicObjectFamily.FixedTargetComplex &&
           supportDelta.family == StrategicObjectFamily.RestrictionShell &&
           primaryDelta.owner == supportDelta.owner &&
           isPacketComparativePrimaryDelta(primaryDelta) &&
           isPacketComparativeSupportDelta(supportDelta) &&
-          comparativeSupportCorroborationCount(supportDelta) >= 2 &&
+          comparativeSupportCorroborationCount(supportDelta) >= packetComparativeSupportBundle.size &&
           primaryTargetSquares(primaryDelta).contains(packetTargetSquare.key)
       case _ =>
         false
@@ -292,6 +332,15 @@ private[strategicobject] object SharedTargetContinuityBoundary:
           .flatMap(_.squares)
           .map(_.key)
           .toSet
+
+  private def restrictionShellTouchesPacketTarget(
+      profile: StrategicObjectProfile
+  ): Boolean =
+    profile match
+      case StrategicObjectProfile.RestrictionShell(restrictedSquares, _, constraintSquares) =>
+        (restrictedSquares ++ constraintSquares).contains(packetTargetSquare)
+      case _ =>
+        false
 
   private def comparativeSupportCorroborationCount(
       delta: StrategicObjectDelta

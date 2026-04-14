@@ -18,6 +18,23 @@ private enum DeltaCertificationBurden:
 enum CertifiedBoundaryWitness:
   case SharedTargetContinuity(targetSquare: Square)
 
+enum CertifiedCurrentPositionProbeKind:
+  case FixedTarget
+  case Coordination
+
+enum CertifiedResidualSpecificityClass:
+  case TradeInvariantPrimaryExact
+  case CounterplayExact
+  case PlanRaceExact
+  case ConversionFunnelExact
+
+final case class CertifiedPlannerMetadata(
+    sharedTargetContinuity: Boolean = false,
+    currentPositionProbeKind: Option[CertifiedCurrentPositionProbeKind] = None,
+    tradeInvariantPrimaryClass: Option[TradeInvariantPrimaryReason] = None,
+    residualSpecificityClass: Option[CertifiedResidualSpecificityClass] = None
+)
+
 final case class CertifiedClaim(
     id: String,
     objectId: String,
@@ -26,7 +43,8 @@ final case class CertifiedClaim(
     readiness: StrategicObjectReadiness,
     delta: Option[StrategicObjectDelta] = None,
     supportingObjectIds: List[String] = Nil,
-    boundaryWitnesses: Set[CertifiedBoundaryWitness] = Set.empty
+    boundaryWitnesses: Set[CertifiedBoundaryWitness] = Set.empty,
+    plannerMetadata: CertifiedPlannerMetadata = CertifiedPlannerMetadata()
 ):
   def primaryTag: Option[StrategicDeltaTag] =
     delta.map(_.primaryTag)
@@ -73,13 +91,15 @@ object CanonicalClaimCertification extends ClaimCertification:
           )
         }
 
-    SharedTargetContinuityBoundary.certify(
-      (claimsFromDeltas ++ deferredClaims)
-        .groupBy(_.id)
-        .values
-        .map(_.head)
-        .toList
-        .sortBy(claim => (claim.objectId, claim.deltaScope.ordinal, claim.status.ordinal))
+    enrichPlannerMetadata(
+      SharedTargetContinuityBoundary.certify(
+        (claimsFromDeltas ++ deferredClaims)
+          .groupBy(_.id)
+          .values
+          .map(_.head)
+          .toList
+          .sortBy(claim => (claim.objectId, claim.deltaScope.ordinal, claim.status.ordinal))
+      )
     )
 
   private def claimId(
@@ -140,6 +160,74 @@ object CanonicalClaimCertification extends ClaimCertification:
     delta.changedAnchors.nonEmpty &&
       delta.evidenceRefs.exists(ref =>
         ref.anchorSquares.nonEmpty || ref.contestedSquares.nonEmpty || ref.lane.nonEmpty
+      )
+
+  private def enrichPlannerMetadata(
+      claims: List[CertifiedClaim]
+  ): List[CertifiedClaim] =
+    claims.map(claim =>
+      claim.copy(
+        plannerMetadata =
+          CertifiedPlannerMetadata(
+            sharedTargetContinuity = SharedTargetContinuityBoundary.hasPacketContinuity(claim),
+            currentPositionProbeKind = currentPositionProbeKind(claim),
+            tradeInvariantPrimaryClass =
+              TradeInvariantPrimaryDescriptor.fromClaim(claim).flatMap(_.primaryReason),
+            residualSpecificityClass = residualSpecificityClass(claim)
+          )
+      )
+    )
+
+  private def currentPositionProbeKind(
+      claim: CertifiedClaim
+  ): Option[CertifiedCurrentPositionProbeKind] =
+    claim.delta.flatMap { delta =>
+      if CurrentPositionProbeSlice.isFixedTargetProbeDelta(delta) then
+        Some(CertifiedCurrentPositionProbeKind.FixedTarget)
+      else if CurrentPositionProbeSlice.isCoordinationProbeDelta(delta) then
+        Some(CertifiedCurrentPositionProbeKind.Coordination)
+      else None
+    }
+
+  private def residualSpecificityClass(
+      claim: CertifiedClaim
+  ): Option[CertifiedResidualSpecificityClass] =
+    claim.delta.flatMap { delta =>
+      delta.family match
+        case StrategicObjectFamily.TradeInvariant
+            if claim.status == ClaimStatus.Certified &&
+              TradeInvariantPrimaryDescriptor.fromClaim(claim).exists(_.primaryEligible) &&
+              isExactTypedResidualClaim(claim) =>
+          Some(CertifiedResidualSpecificityClass.TradeInvariantPrimaryExact)
+        case StrategicObjectFamily.CounterplayAxis
+            if (claim.status == ClaimStatus.Certified || claim.status == ClaimStatus.SupportOnly) &&
+              isExactTypedResidualClaim(claim) =>
+          Some(CertifiedResidualSpecificityClass.CounterplayExact)
+        case StrategicObjectFamily.PlanRace
+            if (claim.status == ClaimStatus.Certified || claim.status == ClaimStatus.SupportOnly) &&
+              isExactTypedResidualClaim(claim) =>
+          Some(CertifiedResidualSpecificityClass.PlanRaceExact)
+        case StrategicObjectFamily.ConversionFunnel
+            if claim.status == ClaimStatus.Certified &&
+              isExactTypedResidualClaim(claim) =>
+          Some(CertifiedResidualSpecificityClass.ConversionFunnelExact)
+        case _ =>
+          None
+    }
+
+  private def isExactTypedResidualClaim(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.hasTypedDelta &&
+      claim.delta.exists(_.projection match
+        case StrategicDeltaProjection.MoveLocal(_, transition) =>
+          transition.relationWitnesses.nonEmpty &&
+            (
+              transition.matchedSquares.nonEmpty ||
+                transition.matchedFiles.nonEmpty
+            )
+        case _ =>
+          false
       )
 
 trait ClaimCertification:

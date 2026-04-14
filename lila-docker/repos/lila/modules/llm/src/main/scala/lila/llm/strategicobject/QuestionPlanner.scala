@@ -104,7 +104,7 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
     axis match
       case QuestionAxis.WhyThis =>
         val packetOwnedPrimaryClaims =
-          claims.filter(TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationClaim)
+          claims.filter(isTradeInvariantPacketPrimaryClaim)
 
         if packetOwnedPrimaryClaims.nonEmpty then
           PrimaryClaimSelection(primaryClaims = packetOwnedPrimaryClaims.sortBy(_.id).take(1))
@@ -156,7 +156,7 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
   ): List[CertifiedClaim] =
     admissionFor(axis)
       .toList
-      .flatMap { admission =>
+      .flatMap { _ =>
         val candidateSupportClaims =
           dedupeClaims(baseSupportClaimsForAxis(claims, axis) ++ demotedClaims)
         axis match
@@ -216,36 +216,20 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
   ): Boolean =
     claim.delta.exists(_.family == StrategicObjectFamily.AccessNetwork)
 
+  private def isTradeInvariantPacketPrimaryClaim(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.status == ClaimStatus.Certified &&
+      claim.deltaScope == StrategicDeltaScope.MoveLocal &&
+      isTypedMoveLocal(claim) &&
+      claim.plannerMetadata.tradeInvariantPrimaryClass.contains(
+        TradeInvariantPrimaryReason.PacketOwnedFixedTargetSlice
+      )
+
   private def isSpecificResidualDemotionCandidate(
       claim: CertifiedClaim
   ): Boolean =
-    claim.delta.exists { delta =>
-      delta.family match
-        case StrategicObjectFamily.TradeInvariant =>
-          claim.status == ClaimStatus.Certified && isExactTypedResidualClaim(claim)
-        case StrategicObjectFamily.CounterplayAxis | StrategicObjectFamily.PlanRace =>
-          (claim.status == ClaimStatus.Certified || claim.status == ClaimStatus.SupportOnly) &&
-            isExactTypedResidualClaim(claim)
-        case StrategicObjectFamily.ConversionFunnel =>
-          claim.status == ClaimStatus.Certified && isExactTypedResidualClaim(claim)
-        case _ =>
-          false
-    }
-
-  private def isExactTypedResidualClaim(
-      claim: CertifiedClaim
-  ): Boolean =
-    claim.hasTypedDelta &&
-      claim.delta.exists(_.projection match
-        case StrategicDeltaProjection.MoveLocal(_, transition) =>
-          transition.relationWitnesses.nonEmpty &&
-            (
-              transition.matchedSquares.nonEmpty ||
-                transition.matchedFiles.nonEmpty
-            )
-        case _ =>
-          false
-      )
+    claim.plannerMetadata.residualSpecificityClass.nonEmpty
 
   private def sameClaimOwner(
       left: CertifiedClaim,
@@ -364,10 +348,6 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
         false
     )
 
-  private enum CurrentPositionProbeKind:
-    case FixedTarget
-    case Coordination
-
   private def exactCurrentPositionProbeSupport(
       primaryClaims: List[CertifiedClaim],
       supportClaims: List[CertifiedClaim]
@@ -379,19 +359,15 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
 
   private def currentPositionProbeKind(
       claim: CertifiedClaim
-  ): Option[CurrentPositionProbeKind] =
-    claim.delta.flatMap { delta =>
-      if CurrentPositionProbeSlice.isFixedTargetProbeDelta(delta) then Some(CurrentPositionProbeKind.FixedTarget)
-      else if CurrentPositionProbeSlice.isCoordinationProbeDelta(delta) then Some(CurrentPositionProbeKind.Coordination)
-      else None
-    }
+  ): Option[CertifiedCurrentPositionProbeKind] =
+    claim.plannerMetadata.currentPositionProbeKind
 
   private def exactSharedTargetComparativeSupport(
       primaryClaims: List[CertifiedClaim],
       supportClaims: List[CertifiedClaim]
   ): Option[CertifiedClaim] =
     val continuityPrimaryClaims =
-      primaryClaims.filter(SharedTargetContinuityBoundary.hasPacketContinuity)
+      primaryClaims.filter(_.plannerMetadata.sharedTargetContinuity)
 
     Option.when(continuityPrimaryClaims.nonEmpty) {
       supportClaims
@@ -420,7 +396,4 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
   ): Boolean =
     claim.status == status &&
       claim.hasTypedDelta &&
-      claim.delta.exists(delta =>
-        CurrentPositionProbeSlice.isFixedTargetProbeDelta(delta) ||
-          CurrentPositionProbeSlice.isCoordinationProbeDelta(delta)
-      )
+      currentPositionProbeKind(claim).nonEmpty

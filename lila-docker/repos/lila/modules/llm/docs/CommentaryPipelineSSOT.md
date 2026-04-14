@@ -1025,13 +1025,22 @@ Current rules:
     `persistence=Stable`, a concrete backend-only owner seed, and no surviving
     suppression/release-risk reason. `QuestionFirstCommentaryPlanner` may
     admit that exact packet only through planner-owned `WhyThis`, and the
+    runtime now centralizes that exact move-local primary classifier in
+    `TradeInvariantPrimaryDescriptor` so projector/planner helpers consume one
+    shared certified result instead of re-spreading packet/general slice OR
+    checks across multiple layers, and the
     released wording must stay one-board / one-trade / one-branch local
     (`This trade keeps the same local edge on e6.` /
     `This favorable simplification keeps the same local edge after the trade on
     e6.`). `same_job_conversion`, `trade_key_defender_relabel`,
     `route_bind_relabel`, `better_endgame_inflation`,
     `support_only_reinflation`, and `B7_drift` remain hard fail-closed, and no
-    new planner question, public schema, or owner family opens with this slice
+    new planner question, public schema, or owner family opens with this slice.
+    The same certified descriptor now also gates rewrite-local move-local
+    access arbitration:
+    only descriptor-approved exact `TradeInvariant` residue may demote
+    overlapping `AccessNetwork`, so family-name-only trade residue no longer
+    reopens move-local demotion on the planner lane
   - `defensive_regrouping` is now triaged as absorbed into
     `prophylactic_move`, not as an independent promotion candidate:
     regrouping-style piece-improvement plans do not gain a distinct exact
@@ -1079,7 +1088,17 @@ Current rules:
     `Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.`
     This lane stays support-only: it may not replace the planner owner, may
     not paraphrase `cpLossVsChosen`, and vanishes when the verified best move
-    is absent.
+    is absent. On the rewrite-local continuity witness, the surviving exact d6
+    comparative-support descriptor is now the single
+    `DefenderDependencyNetwork-white-kingside-f3-fgh` support bundle; the older
+    `ConversionFunnel-white-wholeboard-b6-bcdefg` witness no longer survives on
+    that exact row after funnel tightening. `ClaimCertification` now also
+    stamps planner-only metadata for the current exact slices
+    (`sharedTargetContinuity`, `currentPositionProbeKind`,
+    `tradeInvariantPrimaryClass`, `residualSpecificityClass`), and
+    `QuestionPlanner` consumes those fields for current-position support
+    pairing and access-shadow residual arbitration instead of re-deriving the
+    same slice semantics from delta shape.
     exact `B15A` / `B16B` now open the first planner-owned current-position
     probe on that same cluster when the live FEN proves the exact Carlsbad
     target shape (`white to move`, black pawns on `c6` and `d5`, white pawns

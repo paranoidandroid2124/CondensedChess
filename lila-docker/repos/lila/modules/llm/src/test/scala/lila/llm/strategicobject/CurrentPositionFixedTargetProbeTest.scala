@@ -99,7 +99,6 @@ object CurrentPositionFixedTargetProbeTest:
       "current-position-fixed-target-exact" ->
         Set(
           "AccessNetwork-white-queenside-c2-c",
-          "ConversionFunnel-white-wholeboard-a7-abcdefg",
           "DefenderDependencyNetwork-white-center-d4-de"
         ),
       "current-position-fixed-target-d6-exact" ->

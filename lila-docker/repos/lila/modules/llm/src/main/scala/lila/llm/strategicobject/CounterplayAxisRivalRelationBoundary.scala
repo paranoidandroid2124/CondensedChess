@@ -11,6 +11,16 @@ object CounterplayAxisRivalRelationBoundary:
       sharedFiles: List[File]
   )
 
+  final case class ExactRivalAdmission(
+      witnesses: List[RivalRelationWitness] = Nil,
+      rivalIds: Set[String] = Set.empty,
+      relationOperators: Set[StrategicRelationOperator] = Set.empty,
+      rivalFamilies: Set[StrategicObjectFamily] = Set.empty,
+      typedAxisSupported: Boolean = false
+  ):
+    def admitted: Boolean =
+      witnesses.nonEmpty && typedAxisSupported
+
   def hasExactRivalRelation(
       current: StrategicObject,
       objectsById: Map[String, StrategicObject]
@@ -61,7 +71,30 @@ object CounterplayAxisRivalRelationBoundary:
       current: StrategicObject,
       target: StrategicObject
   ): Boolean =
-    exactRivalRelationWitnesses(current, Map(target.id -> target)).exists(_.targetId == target.id)
+    exactRivalRelationWitnessesTo(current, target).nonEmpty
+
+  def exactRivalRelationWitnessesTo(
+      current: StrategicObject,
+      target: StrategicObject
+  ): List[RivalRelationWitness] =
+    exactRivalRelationWitnesses(current, Map(target.id -> target)).filter(_.targetId == target.id)
+
+  def exactRivalAdmission(
+      current: StrategicObject,
+      objectsById: Map[String, StrategicObject]
+  ): ExactRivalAdmission =
+    val witnesses = exactRivalRelationWitnesses(current, objectsById)
+    val rivalIds = witnesses.map(_.targetId).toSet
+    val rivalFamilies =
+      rivalIds.flatMap(targetId => objectsById.get(targetId).map(_.family))
+
+    ExactRivalAdmission(
+      witnesses = witnesses,
+      rivalIds = rivalIds,
+      relationOperators = witnesses.map(_.operator).toSet,
+      rivalFamilies = rivalFamilies,
+      typedAxisSupported = typedAxisSupport(current.profile, rivalFamilies)
+    )
 
   private def directRivalReferenceSquaresBetween(
       current: StrategicObject,
@@ -110,6 +143,21 @@ object CounterplayAxisRivalRelationBoundary:
         rival.objectId.contains(other.id) ||
           rival.objectFamily.contains(other.family)
       )
+
+  private def typedAxisSupport(
+      profile: StrategicObjectProfile,
+      rivalFamilies: Set[StrategicObjectFamily]
+  ): Boolean =
+    profile match
+      case StrategicObjectProfile.CounterplayAxis(_, _, _, typedAxes) =>
+        typedAxes.exists {
+          case CounterplayAxisType.KingExposure =>
+            rivalFamilies.contains(StrategicObjectFamily.KingSafetyShell)
+          case _ =>
+            rivalFamilies.exists(_ != StrategicObjectFamily.KingSafetyShell)
+        }
+      case _ =>
+        false
 
   private def objectSquares(
       obj: StrategicObject

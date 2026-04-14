@@ -56,29 +56,51 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         val context = deltaContext(obj, objects, objectsById)
         eligibleScopes(contract, truth, obj).flatMap { scope =>
           projectionFor(contract, truth, obj, scope, context).map { projection =>
-            StrategicObjectDelta(
-              objectId = obj.id,
-              family = obj.family,
-              owner = obj.owner,
-              scope = scope,
-              profile = obj.profile,
-              projection = projection,
-              changedAnchors = changedAnchors(obj, scope, projection),
-              supportingObjectIds = context.supportObjects.map(_.id).distinct.sorted.take(4),
-              rivalObjectIds = context.rivalObjects.map(_.id).distinct.sorted.take(4),
-              evidenceRefs = evidenceRefs(obj)
-            )
+              StrategicObjectDelta(
+                objectId = obj.id,
+                family = obj.family,
+                owner = obj.owner,
+                scope = scope,
+                profile = obj.profile,
+                projection = projection,
+                changedAnchors = changedAnchors(obj, scope, projection),
+                supportingObjectIds =
+                  supportingObjectIdsFor(
+                    obj = obj,
+                    scope = scope,
+                    projection = projection,
+                    context = context,
+                    objectsById = objectsById
+                  ),
+                rivalObjectIds = context.rivalObjects.map(_.id).distinct.sorted.take(4),
+                evidenceRefs = evidenceRefs(obj)
+              )
+            }
           }
         }
-      }
       .sortBy(delta => (delta.family.ordinal, colorIndex(delta.owner), delta.objectId, delta.scope.ordinal))
+
+  private def supportingObjectIdsFor(
+      obj: StrategicObject,
+      scope: StrategicDeltaScope,
+      projection: StrategicDeltaProjection,
+      context: DeltaContext,
+      objectsById: Map[String, StrategicObject]
+  ): List[String] =
+    SharedTargetContinuityBoundary.projectorSupportObjectIds(
+      obj = obj,
+      scope = scope,
+      projection = projection,
+      defaultSupportObjectIds = context.supportObjects.map(_.id).distinct.sorted.take(4),
+      objectsById = objectsById
+    )
 
   private def eligibleScopes(
       contract: DecisiveTruthContract,
       truth: MoveTruthFrame,
       obj: StrategicObject
   ): List[StrategicDeltaScope] =
-    if TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationObject(obj) then
+    if TradeInvariantPrimaryDescriptor.fromObject(obj).exists(_.primaryEligible) then
       Option.when(hasTransitionTruth(contract, truth))(StrategicDeltaScope.MoveLocal).toList
     else
       obj.readiness match
@@ -97,7 +119,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       obj: StrategicObject
   ): Boolean =
     StrategicObjectFamily.directDeltaOwners.contains(obj.family) ||
-      TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationObject(obj)
+      TradeInvariantPrimaryDescriptor.fromObject(obj).exists(_.primaryEligible)
 
   private def projectionFor(
       contract: DecisiveTruthContract,
@@ -225,19 +247,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         Some(if relativeRank >= 5 then StrategicDeltaTag.PasserAccelerated else if protectedByPawn || escortSquares.nonEmpty then StrategicDeltaTag.PasserSupported else StrategicDeltaTag.PasserCreated)
       case (StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, _, preservedFamilies, features), StrategicMoveTransitionAxis.TradeSimplification) =>
         Option.when(
-          TradeInvariantSimplificationSlice.allowsPacketOwnedPrimarySimplification(
-            owner = obj.owner,
-            exchangeSquares = exchangeSquares,
-            invariantSquares = invariantSquares,
-            preservedFamilies = preservedFamilies,
-            features = features
-          ) ||
-            TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
-              exchangeSquares = exchangeSquares,
-              invariantSquares = invariantSquares,
-              preservedFamilies = preservedFamilies,
-              features = features
-            )
+          TradeInvariantPrimaryDescriptor.fromObject(obj).exists(_.primaryEligible)
         )(StrategicDeltaTag.TradePreserved)
       case _ =>
         None
@@ -790,27 +800,35 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       context.transitionObjects
         .map(other => other.id -> other)
         .toMap
+    val counterplayAssessment =
+      Option.when(obj.family == StrategicObjectFamily.CounterplayAxis) {
+        CounterplayMoveLocalBoundary.assess(
+          current = obj,
+          move = move,
+          relatedObjects = relatedObjects
+        )
+      }.flatten
     val relationWitnessTriples =
-      obj.relations.collect {
-        case relation
-            if MoveTransitionRelationOps.contains(relation.operator) &&
-              relatedObjects.contains(relation.target.objectId) =>
-          val related = relatedObjects(relation.target.objectId)
-          val exactCounterplayRelation =
-            obj.family != StrategicObjectFamily.CounterplayAxis ||
-              CounterplayAxisRivalRelationBoundary.hasExactRivalRelationTo(obj, related)
-          val relationSquares = moveTouchedSquares(move, relationComparableSquares(obj, related))
-          val relationFiles = moveTouchedFiles(move, relationComparableFiles(obj, related))
-          Option.when(
-            exactCounterplayRelation &&
-              (
+      counterplayAssessment
+        .map(_.relationMatches.map(matchItem =>
+          (matchItem.operator, matchItem.touchedSquares, matchItem.touchedFiles)
+        ))
+        .getOrElse(
+          obj.relations.collect {
+            case relation
+                if MoveTransitionRelationOps.contains(relation.operator) &&
+                  relatedObjects.contains(relation.target.objectId) =>
+              val related = relatedObjects(relation.target.objectId)
+              val relationSquares = moveTouchedSquares(move, relationComparableSquares(obj, related))
+              val relationFiles = moveTouchedFiles(move, relationComparableFiles(obj, related))
+              Option.when(
                 relationSquares.nonEmpty ||
                   (relationFiles.nonEmpty && hasDirectRivalReferenceBetween(obj, related))
+              )(
+                (relation.operator, relationSquares, relationFiles)
               )
-          )(
-            (relation.operator, relationSquares, relationFiles)
-          )
-      }.flatten
+          }.flatten
+        )
     val relationWitnesses = relationWitnessTriples.map(_._1).toSet
     val witness =
       StrategicMoveTransitionWitness(
@@ -1258,21 +1276,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       case StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, _, preservedFamilies, features) =>
         coreSquares.intersect(exchangeSquares).nonEmpty &&
           primitiveKinds.contains(PrimitiveKind.ExchangeSquare) &&
-          (
-            TradeInvariantSimplificationSlice.allowsPacketOwnedPrimarySimplification(
-              owner = obj.owner,
-              exchangeSquares = exchangeSquares,
-              invariantSquares = invariantSquares,
-              preservedFamilies = preservedFamilies,
-              features = features
-            ) ||
-              TradeInvariantPersistenceBoundary.eligibleForPrimarySimplification(
-                exchangeSquares = exchangeSquares,
-                invariantSquares = invariantSquares,
-                preservedFamilies = preservedFamilies,
-                features = features
-              )
-          )
+          TradeInvariantPrimaryDescriptor.fromObject(obj).exists(_.primaryEligible)
       case _ =>
         coreSquares.nonEmpty || relationWitnesses.nonEmpty
 

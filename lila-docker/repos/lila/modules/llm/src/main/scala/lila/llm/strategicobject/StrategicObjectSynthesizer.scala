@@ -843,29 +843,15 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
             )
           val attachedGraph = attachRelations(existingObjects ++ List(candidate)).map(_.normalized)
           val attachedById = attachedGraph.map(obj => obj.id -> obj).toMap
-          val exactRelationWitnesses =
+          val exactRivalAdmission =
             attachedById
               .get(candidate.id)
-              .toList
-              .flatMap(current =>
-                CounterplayAxisRivalRelationBoundary.exactRivalRelationWitnesses(current, attachedById)
+              .map(current =>
+                CounterplayAxisRivalRelationBoundary.exactRivalAdmission(current, attachedById)
               )
-          val exactRelationOperators = exactRelationWitnesses.map(_.operator).toSet
-          val exactRivalFamilies =
-            exactRelationWitnesses.flatMap(witness =>
-              attachedById.get(witness.targetId).map(_.family)
-            ).toSet
-          val exactRivalSupportForTypedAxis =
-            typedAxis match
-              case Some(CounterplayAxisType.KingExposure) =>
-                exactRivalFamilies.contains(StrategicObjectFamily.KingSafetyShell)
-              case Some(_) =>
-                exactRivalFamilies.exists(_ != StrategicObjectFamily.KingSafetyShell)
-              case None =>
-                false
+              .getOrElse(CounterplayAxisRivalRelationBoundary.ExactRivalAdmission())
           Option.when(
-            exactRelationWitnesses.nonEmpty &&
-              exactRivalSupportForTypedAxis &&
+            exactRivalAdmission.admitted &&
               contractAllows(
               StrategicObjectFamily.CounterplayAxis,
               FamilyGenerationEvidence(
@@ -875,15 +861,15 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
                     .addAll(Option.when(sectorBreaks.nonEmpty)(PrimitiveKind.BreakCandidate))
                     .addAll(Option.when(sectorReleases.nonEmpty)(PrimitiveKind.ReleaseCandidate))
                     .result(),
-                rivalFamilies = exactRivalFamilies,
-                relationOperators = exactRelationOperators,
+                rivalFamilies = exactRivalAdmission.rivalFamilies,
+                relationOperators = exactRivalAdmission.relationOperators,
                 anchorSquares = focus.toSet,
                 contestedSquares = focus.toSet,
                 files = files.toSet,
                 pieceRoles = focusSeeds.map(_.role).toSet,
                 metrics =
                   FamilyGenerationMetrics(
-                    rivalCount = exactRelationWitnesses.map(_.targetId).distinct.size,
+                    rivalCount = exactRivalAdmission.rivalIds.size,
                     pressureSquareCount = focus.size,
                     entryWitnessCount = continuationWitnessCount,
                     targetWitnessCount = rivalGoalWitnessCount,

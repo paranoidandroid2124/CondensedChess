@@ -57,6 +57,37 @@ object StrategicObjectBatchCoverageSupport:
   object PassActivation:
     given Writes[PassActivation] = Json.writes[PassActivation]
 
+  final case class ScopedPassActivation(
+      pass: String,
+      scope: String,
+      plannerAxis: String,
+      stage: String,
+      admission: String,
+      certificationStatuses: List[String],
+      objectCount: Int,
+      deltaCount: Int,
+      claimCount: Int
+  )
+  object ScopedPassActivation:
+    given Writes[ScopedPassActivation] = Json.writes[ScopedPassActivation]
+
+  final case class MoveLocalBoundarySummary(
+      blocker: Option[String],
+      exactRivalAdmitted: Boolean,
+      moveTouchesCore: Boolean,
+      relationTouch: Boolean,
+      blockedByProvisionalScope: Boolean,
+      blockedByCertification: Boolean
+  )
+  object MoveLocalBoundarySummary:
+    private val generatedWrites = Json.writes[MoveLocalBoundarySummary]
+
+    given Writes[MoveLocalBoundarySummary] with
+      def writes(summary: MoveLocalBoundarySummary): JsValue =
+        generatedWrites.writes(summary).as[JsObject] ++ Json.obj(
+          "blocker" -> summary.blocker.fold[JsValue](JsNull)(JsString(_))
+        )
+
   final case class SampleFamilyActivation(
       sampleId: String,
       source: String,
@@ -79,10 +110,19 @@ object StrategicObjectBatchCoverageSupport:
       deltaCount: Int,
       claimCount: Int,
       familyTriggerSummary: String,
-      passes: List[PassActivation]
+      moveLocalBoundary: Option[MoveLocalBoundarySummary],
+      passes: List[PassActivation],
+      scopedPasses: List[ScopedPassActivation]
   )
   object SampleFamilyActivation:
-    given Writes[SampleFamilyActivation] = Json.writes[SampleFamilyActivation]
+    private val generatedWrites = Json.writes[SampleFamilyActivation]
+
+    given Writes[SampleFamilyActivation] with
+      def writes(row: SampleFamilyActivation): JsValue =
+        generatedWrites.writes(row).as[JsObject] ++ Json.obj(
+          "moveLocalBoundary" ->
+            row.moveLocalBoundary.fold[JsValue](JsNull)(summary => Json.toJson(summary))
+        )
 
   final case class AxisDiversitySummary(
       combinationCount: Int,
@@ -103,16 +143,38 @@ object StrategicObjectBatchCoverageSupport:
 
   final case class AxisActivationSummary(
       axis: String,
-      familySampleCount: Int,
-      primaryCount: Int,
-      supportCount: Int,
+      passActivationCount: Int,
+      ownerCount: Int,
+      plannerSupportCount: Int,
+      plannerNoneCount: Int,
+      certificationSupportOnlyCount: Int,
+      deltaOnlyCount: Int,
+      objectOnlyCount: Int,
       highestStage: String,
+      passCounts: Map[String, Int],
       accessOverlapAxisCount: Int,
       accessDemotedAxisCount: Int,
       accessDemotionRate: Double
   )
   object AxisActivationSummary:
     given Writes[AxisActivationSummary] = Json.writes[AxisActivationSummary]
+
+  final case class PassScopeSummary(
+      pass: String,
+      scope: String,
+      totalCount: Int,
+      ownerCount: Int,
+      plannerSupportCount: Int,
+      plannerNoneCount: Int,
+      certificationSupportOnlyCount: Int,
+      deltaOnlyCount: Int,
+      objectOnlyCount: Int,
+      absentCount: Int,
+      highestStage: String,
+      plannerAxisCounts: Map[String, Int]
+  )
+  object PassScopeSummary:
+    given Writes[PassScopeSummary] = Json.writes[PassScopeSummary]
 
   final case class AuditBucketSelectionSummary(
       bucket: String,
@@ -132,7 +194,8 @@ object StrategicObjectBatchCoverageSupport:
       gameCount: Int,
       sampleHitRate: Double,
       primaryCount: Int,
-      supportCount: Int,
+      plannerSupportCount: Int,
+      certificationSupportOnlyCount: Int,
       ownerRate: Double,
       shadowRate: Double,
       uniqueOwnerRate: Option[Double],
@@ -141,13 +204,13 @@ object StrategicObjectBatchCoverageSupport:
       accessDemotedAxisCount: Int,
       accessDemotionRate: Double,
       plannerNoneCount: Int,
-      certificationOnlyCount: Int,
       deltaOnlyCount: Int,
       objectOnlyCount: Int,
       accessNetworkResidualCount: Int,
       highestBatchStage: String,
       axisDiversity: AxisDiversitySummary,
       stageConcentration: StageConcentrationSummary,
+      byPass: List[PassScopeSummary],
       byAxis: List[AxisActivationSummary],
       auditBuckets: List[AuditBucketSelectionSummary]
   )
@@ -256,9 +319,17 @@ object StrategicObjectBatchCoverageSupport:
 
   private final case class PassFamilyObservation(
       activation: PassActivation,
+      planned: PlannedQuestion,
+      allObjects: List[StrategicObject],
       objects: List[StrategicObject],
       deltas: List[StrategicObjectDelta],
       claims: List[CertifiedClaim]
+  )
+
+  private final case class PassDescriptor(
+      pass: String,
+      scope: String,
+      deltaScope: StrategicDeltaScope
   )
 
   private final case class AuditBucketSelection(
@@ -276,8 +347,14 @@ object StrategicObjectBatchCoverageSupport:
   )
 
   private val AccessDemotionAxes = Set("WhyThis", "WhyNow", "WhatMustBeStopped")
+  private val passDescriptors =
+    List(
+      PassDescriptor(pass = "WhyThis", scope = "move_local", deltaScope = StrategicDeltaScope.MoveLocal),
+      PassDescriptor(pass = "WhatMattersHere", scope = "position_local", deltaScope = StrategicDeltaScope.PositionLocal),
+      PassDescriptor(pass = "WhatChanged", scope = "comparative", deltaScope = StrategicDeltaScope.Comparative)
+    )
 
-  val schema: String = "chesstory.strategicObject.batchCoverage.v5"
+  val schema: String = "chesstory.strategicObject.batchCoverage.v7"
 
   def loadFenJsonl(
       path: Path
@@ -437,27 +514,29 @@ object StrategicObjectBatchCoverageSupport:
   ): (BatchCoverageReport, List[SampleFamilyActivation], List[FamilyAuditRow]) =
     val capabilityRef =
       StrategicObjectCapabilityScorecardSupport.scorecard().families.map(summary => summary.family -> summary).toMap
-    val observations =
+    val fullObservations =
       rows
         .flatMap(sampleObservationsFor(_, capabilityRef))
+    val observations =
+      fullObservations
         .filter(observation => familiesFilter.isEmpty || familiesFilter.contains(observation.family))
     val activations = observations.filterNot(_.bestStage == "absent")
     val observationsByFamily = observations.groupBy(_.family)
-    val accessBySample =
-      observations
+    val fullAccessBySample =
+      fullObservations
         .collect {
           case observation if observation.family == StrategicObjectFamily.AccessNetwork.toString &&
               observation.bestStage != "absent" =>
             observation.sampleId -> observation
         }
         .toMap
-    val accessBySampleAxis =
-      accessPassIndex(observations)
+    val fullAccessBySampleAxis =
+      accessScopedPassIndex(fullObservations)
     val auditBundle =
       buildAuditBundle(
         observations = observations,
         activatedFamilies = observationsByFamily.collect { case (family, rows) if rows.exists(_.bestStage != "absent") => family }.toSet,
-        accessBySample = accessBySample
+        accessBySample = fullAccessBySample
       )
     val familySummaries =
       observationsByFamily
@@ -469,8 +548,8 @@ object StrategicObjectBatchCoverageSupport:
             observations = familyRows,
             totalSamples = rows.size,
             capability = capabilityRef(family),
-            accessBySample = accessBySample,
-            accessBySampleAxis = accessBySampleAxis,
+            accessBySample = fullAccessBySample,
+            accessBySampleAxis = fullAccessBySampleAxis,
             auditBuckets = auditBundle.summariesByFamily.getOrElse(family, Nil)
           )
         }
@@ -587,7 +666,17 @@ object StrategicObjectBatchCoverageSupport:
               claims = context.claims
             )
           ).getOrElse("absent_on_sample"),
-        passes = activePasses.sortBy(pass => stageRank(pass.stage))
+        moveLocalBoundary =
+          moveLocalBoundarySummary(
+            family = family,
+            playedUci = row.playedUci,
+            passContexts = passContexts
+          ),
+        passes = activePasses.sortBy(pass => stageRank(pass.stage)),
+        scopedPasses =
+          passContexts
+            .map(scopePassActivation)
+            .sortBy(pass => (passOrder(pass.pass), -stageRank(pass.stage), -admissionRank(pass.admission)))
       )
     }
 
@@ -597,7 +686,7 @@ object StrategicObjectBatchCoverageSupport:
       totalSamples: Int,
       capability: StrategicObjectCapabilityScorecardSupport.FamilySummary,
       accessBySample: Map[String, SampleFamilyActivation],
-      accessBySampleAxis: Map[(String, String), PassActivation],
+      accessBySampleAxis: Map[(String, String), ScopedPassActivation],
       auditBuckets: List[AuditBucketSelectionSummary]
   ): BatchFamilySummary =
     val activations = observations.filterNot(_.bestStage == "absent")
@@ -640,7 +729,8 @@ object StrategicObjectBatchCoverageSupport:
       gameCount = activations.flatMap(_.gameKey).distinct.size,
       sampleHitRate = percent(sampleCount, totalSamples),
       primaryCount = activations.count(_.bestAdmission == "primary"),
-      supportCount = activations.count(_.bestAdmission == "support"),
+      plannerSupportCount = activations.count(_.bestStage == "planner_support"),
+      certificationSupportOnlyCount = activations.count(_.bestStage == "certification"),
       ownerRate = percent(activations.count(_.bestAdmission == "primary"), sampleCount),
       shadowRate = percent(accessOverlapCount, sampleCount),
       uniqueOwnerRate = Option.when(ownerCapable)(percent(uniqueOwnerCount, sampleCount)),
@@ -649,7 +739,6 @@ object StrategicObjectBatchCoverageSupport:
       accessDemotedAxisCount = accessDemotedAxisCount,
       accessDemotionRate = percent(accessDemotedAxisCount, accessOverlapAxisCount),
       plannerNoneCount = activations.count(_.bestStage == "planner_none"),
-      certificationOnlyCount = activations.count(_.bestStage == "certification"),
       deltaOnlyCount = activations.count(_.bestStage == "delta"),
       objectOnlyCount = activations.count(_.bestStage == "object"),
       accessNetworkResidualCount = accessResidualCount,
@@ -657,21 +746,55 @@ object StrategicObjectBatchCoverageSupport:
         if activations.nonEmpty then activations.maxBy(row => stageRank(row.bestStage)).bestStage else "absent",
       axisDiversity = summarizeAxisDiversity(activations),
       stageConcentration = summarizeStageConcentration(activations),
+      byPass =
+        passDescriptors.map(descriptor =>
+          summarizePass(
+            descriptor = descriptor,
+            rows = activations
+          )
+        ),
       byAxis =
         reportedAxes(activations).map(axis =>
-          summarizeAxis(axis, activations.filter(_.axes.contains(axis)), accessBySampleAxis, ownerCapable)
+          summarizeAxis(axis, activations, accessBySampleAxis, ownerCapable)
         ),
       auditBuckets = auditBuckets
+    )
+
+  private def summarizePass(
+      descriptor: PassDescriptor,
+      rows: List[SampleFamilyActivation]
+  ): PassScopeSummary =
+    val scopedPasses =
+      rows.flatMap(_.scopedPasses.filter(_.pass == descriptor.pass))
+
+    PassScopeSummary(
+      pass = descriptor.pass,
+      scope = descriptor.scope,
+      totalCount = scopedPasses.size,
+      ownerCount = scopedPasses.count(_.admission == "primary"),
+      plannerSupportCount = scopedPasses.count(_.stage == "planner_support"),
+      plannerNoneCount = scopedPasses.count(_.stage == "planner_none"),
+      certificationSupportOnlyCount = scopedPasses.count(_.stage == "certification"),
+      deltaOnlyCount = scopedPasses.count(_.stage == "delta"),
+      objectOnlyCount = scopedPasses.count(_.stage == "object"),
+      absentCount = scopedPasses.count(_.stage == "absent"),
+      highestStage =
+        if scopedPasses.nonEmpty then scopedPasses.maxBy(pass => stageRank(pass.stage)).stage else "absent",
+      plannerAxisCounts = countBy(scopedPasses.map(_.plannerAxis))
     )
 
   private def summarizeAxis(
       axis: String,
       rows: List[SampleFamilyActivation],
-      accessBySampleAxis: Map[(String, String), PassActivation],
+      accessBySampleAxis: Map[(String, String), ScopedPassActivation],
       ownerCapable: Boolean
   ): AxisActivationSummary =
+    val axisPasses =
+      rows.flatMap(row =>
+        row.scopedPasses.filter(_.plannerAxis == axis)
+      )
     val sampleAxisPairs =
-      familySurfacedAxisPairs(rows, ownerCapable).filter(_._2 == axis)
+      familyScopedSurfacedAxisPairs(rows, ownerCapable).filter(_._2 == axis)
     val accessOverlapAxisCount = sampleAxisPairs.count(accessBySampleAxis.contains)
     val accessDemotedAxisCount =
       sampleAxisPairs.count(sampleAxis =>
@@ -679,27 +802,32 @@ object StrategicObjectBatchCoverageSupport:
       )
     AxisActivationSummary(
       axis = axis,
-      familySampleCount = rows.map(_.sampleId).distinct.size,
-      primaryCount = rows.count(_.bestAdmission == "primary"),
-      supportCount = rows.count(_.bestAdmission == "support"),
+      passActivationCount = axisPasses.size,
+      ownerCount = axisPasses.count(_.admission == "primary"),
+      plannerSupportCount = axisPasses.count(_.stage == "planner_support"),
+      plannerNoneCount = axisPasses.count(_.stage == "planner_none"),
+      certificationSupportOnlyCount = axisPasses.count(_.stage == "certification"),
+      deltaOnlyCount = axisPasses.count(_.stage == "delta"),
+      objectOnlyCount = axisPasses.count(_.stage == "object"),
       highestStage =
-        if rows.nonEmpty then rows.maxBy(row => stageRank(row.bestStage)).bestStage else "absent",
+        if axisPasses.nonEmpty then axisPasses.maxBy(pass => stageRank(pass.stage)).stage else "absent",
+      passCounts = countBy(axisPasses.map(_.pass)),
       accessOverlapAxisCount = accessOverlapAxisCount,
       accessDemotedAxisCount = accessDemotedAxisCount,
       accessDemotionRate = percent(accessDemotedAxisCount, accessOverlapAxisCount)
     )
 
-  private def accessPassIndex(
+  private def accessScopedPassIndex(
       observations: List[SampleFamilyActivation]
-  ): Map[(String, String), PassActivation] =
+  ): Map[(String, String), ScopedPassActivation] =
     observations
       .collect {
         case observation if observation.family == StrategicObjectFamily.AccessNetwork.toString &&
             observation.bestStage != "absent" =>
-          familySampleAxisPairs(List(observation)).flatMap(sampleAxis =>
-            observation.passes
-              .filter(pass => pass.axis == sampleAxis._2)
-              .sortBy(pass => -passObservationRank(pass))
+          familyScopedSurfacedAxisPairs(List(observation), ownerCapable = true).flatMap(sampleAxis =>
+            observation.scopedPasses
+              .filter(pass => pass.plannerAxis == sampleAxis._2)
+              .sortBy(pass => -scopedPassObservationRank(pass))
               .headOption
               .map(sampleAxis -> _)
           )
@@ -707,13 +835,13 @@ object StrategicObjectBatchCoverageSupport:
       .flatten
       .groupBy(_._1)
       .view
-      .mapValues(entries => entries.map(_._2).maxBy(passObservationRank))
+      .mapValues(entries => entries.map(_._2).maxBy(scopedPassObservationRank))
       .toMap
 
   private def reportedAxes(
       activations: List[SampleFamilyActivation]
   ): List[String] =
-    (familySampleAxisPairs(activations).map(_._2) ++ AccessDemotionAxes).distinct.sorted
+    (activations.flatMap(_.scopedPasses.map(_.plannerAxis)) ++ AccessDemotionAxes).distinct.sorted
 
   private def familySurfacedAxisPairs(
       rows: List[SampleFamilyActivation],
@@ -728,10 +856,18 @@ object StrategicObjectBatchCoverageSupport:
       }
     }.distinct.sorted
 
-  private def familySampleAxisPairs(
-      rows: List[SampleFamilyActivation]
+  private def familyScopedSurfacedAxisPairs(
+      rows: List[SampleFamilyActivation],
+      ownerCapable: Boolean
   ): List[(String, String)] =
-    rows.flatMap(row => row.axes.map(axis => row.sampleId -> axis)).distinct.sorted
+    rows.flatMap { row =>
+      row.scopedPasses.collect {
+        case pass
+            if AccessDemotionAxes.contains(pass.plannerAxis) &&
+              isMeaningfulSurfacePass(pass, ownerCapable) =>
+          row.sampleId -> pass.plannerAxis
+      }
+    }.distinct.sorted
 
   private def summarizeAxisDiversity(
       rows: List[SampleFamilyActivation]
@@ -810,21 +946,6 @@ object StrategicObjectBatchCoverageSupport:
       families = families
     )
 
-  private def positionPass(
-      row: BatchInputRow
-  ): PassOutcome =
-    positionPass(row, Set.empty)
-
-  private def comparativePass(
-      row: BatchInputRow
-  ): PassOutcome =
-    comparativePass(row, Set.empty)
-
-  private def movePass(
-      row: BatchInputRow
-  ): PassOutcome =
-    movePass(row, Set.empty)
-
   private def evaluatePass(
       axis: String,
       fen: String,
@@ -873,6 +994,8 @@ object StrategicObjectBatchCoverageSupport:
                 deltaCount = familyDeltas.size,
                 claimCount = familyClaims.size
               ),
+            planned = planned,
+            allObjects = objects,
             objects = familyObjects,
             deltas = familyDeltas,
             claims = familyClaims
@@ -910,6 +1033,89 @@ object StrategicObjectBatchCoverageSupport:
       )
 
     summary.getOrElse(s"profile=$family;objects=${objects.size};deltas=${deltas.size};claims=${claims.size}")
+
+  private def scopePassActivation(
+      observation: PassFamilyObservation
+  ): ScopedPassActivation =
+    val descriptor =
+      passDescriptors.find(_.pass == observation.activation.pass).getOrElse(
+        throw new IllegalArgumentException(s"unsupported scoped pass: ${observation.activation.pass}")
+      )
+    val objectIds = observation.objects.map(_.id).toSet
+    val scopeDeltas = observation.deltas.filter(_.scope == descriptor.deltaScope)
+    val scopeClaims = observation.claims.filter(_.deltaScope == descriptor.deltaScope)
+    val scopeAdmission = admissionFor(observation.planned, scopeClaims)
+    val scopeStage = stageFor(scopeAdmission, scopeClaims, scopeDeltas, objectIds)
+
+    ScopedPassActivation(
+      pass = descriptor.pass,
+      scope = descriptor.scope,
+      plannerAxis = observation.activation.axis,
+      stage = scopeStage,
+      admission = scopeAdmission,
+      certificationStatuses = scopeClaims.map(_.status.toString).distinct.sorted,
+      objectCount = objectIds.size,
+      deltaCount = scopeDeltas.size,
+      claimCount = scopeClaims.size
+    )
+
+  private def moveLocalBoundarySummary(
+      family: String,
+      playedUci: Option[String],
+      passContexts: List[PassFamilyObservation]
+  ): Option[MoveLocalBoundarySummary] =
+    Option.when(
+      family == StrategicObjectFamily.CounterplayAxis.toString &&
+        playedUci.nonEmpty
+    ) {
+      val move = parseMoveTrace(playedUci.get)
+      val assessments =
+        passContexts
+          .find(_.activation.pass == "WhyThis")
+          .toList
+          .flatMap(context =>
+            context.objects
+              .filter(_.family == StrategicObjectFamily.CounterplayAxis)
+              .flatMap(obj =>
+                CounterplayMoveLocalBoundary.assess(
+                  current = obj,
+                  move = move,
+                  relatedObjects = context.allObjects.map(other => other.id -> other).toMap
+                )
+              )
+          )
+
+      assessments
+        .sortBy(assessment => (counterplayBlockerRank(assessment.blocker), assessments.indexOf(assessment)))
+        .headOption
+        .map(assessment =>
+          MoveLocalBoundarySummary(
+            blocker = assessment.blocker.map(_.toString),
+            exactRivalAdmitted = assessment.exactRivalAdmitted,
+            moveTouchesCore = assessment.moveTouchesCore,
+            relationTouch = assessment.relationTouch,
+            blockedByProvisionalScope = assessment.blockedByProvisionalScope,
+            blockedByCertification = assessment.blockedByCertification
+          )
+        )
+    }.flatten
+
+  private def parseMoveTrace(
+      raw: String
+  ): StrategicPlayedMoveTrace =
+    StrategicPlayedMoveTrace(
+      from = Square.fromKey(raw.take(2)).getOrElse(throw new IllegalArgumentException(s"invalid move: $raw")),
+      to = Square.fromKey(raw.slice(2, 4)).getOrElse(throw new IllegalArgumentException(s"invalid move: $raw"))
+    )
+
+  private def counterplayBlockerRank(
+      blocker: Option[CounterplayMoveLocalBlocker]
+  ): Int =
+    blocker match
+      case Some(CounterplayMoveLocalBlocker.ProvisionalScopeClosed) => 0
+      case Some(CounterplayMoveLocalBlocker.MissingMoveEdgeTouch)   => 1
+      case Some(CounterplayMoveLocalBlocker.MissingExactRivalRelation) => 2
+      case None                                                     => 3
 
   private def buildAuditBundle(
       observations: List[SampleFamilyActivation],
@@ -1070,6 +1276,15 @@ object StrategicObjectBatchCoverageSupport:
       activation.deltaCount * 3 +
       activation.objectCount
 
+  private def scopedPassObservationRank(
+      activation: ScopedPassActivation
+  ): Int =
+    stageRank(activation.stage) * 1000 +
+      admissionRank(activation.admission) * 100 +
+      activation.claimCount * 10 +
+      activation.deltaCount * 3 +
+      activation.objectCount
+
   private def auditRowRank(
       row: SampleFamilyActivation
   ): Int =
@@ -1131,6 +1346,13 @@ object StrategicObjectBatchCoverageSupport:
       case "none"    => 1
       case _          => 0
 
+  private def passOrder(
+      pass: String
+  ): Int =
+    passDescriptors.indexWhere(_.pass == pass) match
+      case -1    => Int.MaxValue
+      case index => index
+
   private def isResidualSupportActivation(
       activation: SampleFamilyActivation
   ): Boolean =
@@ -1143,6 +1365,26 @@ object StrategicObjectBatchCoverageSupport:
   ): Boolean =
     if ownerCapable then pass.admission == "primary" || pass.admission == "support"
     else pass.admission == "support"
+
+  private def isMeaningfulSurfacePass(
+      pass: ScopedPassActivation,
+      ownerCapable: Boolean
+  ): Boolean =
+    if ownerCapable then pass.admission == "primary" || pass.admission == "support"
+    else pass.admission == "support"
+
+  private def countBy(
+      values: Iterable[String]
+  ): Map[String, Int] =
+    values
+      .filter(value => value != null)
+      .groupBy(identity)
+      .view
+      .mapValues(_.size)
+      .toMap
+      .toList
+      .sortBy(_._1)
+      .toMap
 
   private def percent(
       part: Int,
