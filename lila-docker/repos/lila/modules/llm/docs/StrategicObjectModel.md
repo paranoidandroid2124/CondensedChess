@@ -68,6 +68,13 @@ Current post-spine frontier:
   - the first reopened favorable-simplification slice is one exact same-task
     `TradeInvariant` move-local `WhyThis` lane keyed to a centralized bounded
     projector predicate, not a broad conversion, task-shift, or endgame lane
+  - `TradeInvariant` strengthening tranche on 2026-04-15 now fixes the
+    official rewrite state as `narrow-owner ceiling confirmed`:
+    same-batch `45 / 360 / max8` remains `164` samples / `3` planner-primary
+    rows / `161` object-only rows, with primary reasons split
+    `2 x BreakBackedInvariant` plus `1 x PacketOwnedFixedTargetSlice`;
+    stronger ownership now requires a new exact-board move-local positive
+    pack, not broader access-shadow persistence
   - Tier 1 provisional comparative re-audit is now passed_with_defer:
     all eight provisional families stay `Provisional`, and family-complete
     shallow comparative rows stay `SupportOnly` / planner `none`
@@ -90,7 +97,9 @@ Current post-spine frontier:
 - the composite chess semantics tranche derived from the blocked vertical
   slices is now landed rather than still pending
 - that tranche has now:
-  - reopened `TradeInvariant` narrowly for primary simplification ownership
+  - reopened `TradeInvariant` narrowly for primary simplification ownership,
+    then ceiling-confirmed that capability as a three-row exact-board
+    narrow-owner pack rather than a broad family reopen
   - closed comparative near-miss fail-closed ownership before continuity
     reruns:
     - certification-owned `WhatChanged` comparative near-miss demotion
@@ -568,6 +577,12 @@ direct move-local owners.
 4. `MaterialInvestmentContract`
 5. `InitiativeWindow`
 6. `ConversionFunnel`
+
+`ConversionFunnel` is canonical only as an exact corridor family:
+its object-layer north-star is a fixed target on the passer lane, an exact
+same-file `AccessNetwork` bridge, and a non-trade `PasserComplex` exit.
+Broad entry/channel/exit unions, trade-only loops, and whole-board
+access-shadow aggregates are not canonical conversion state.
 
 ### Tier 3. Meta / Interpretive Delta Families
 

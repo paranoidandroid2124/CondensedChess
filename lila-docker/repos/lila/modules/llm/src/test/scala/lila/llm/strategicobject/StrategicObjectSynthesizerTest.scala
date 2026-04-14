@@ -11,14 +11,15 @@ class StrategicObjectSynthesizerTest extends FunSuite:
 
   import StrategicObjectSynthesizerTest.*
 
-  test("canonical vocabulary stays full and runtime synthesis reaches all 24 families") {
+  test("canonical vocabulary stays full while frozen families may remain runtime-absent") {
     val synthesizedFamilies =
       rows.flatMap(objectsForRow).map(_.family).toSet
+    val frozenRuntimeFamilies = Set(StrategicObjectFamily.ConversionFunnel)
 
     assertEquals(StrategicObjectFamily.values.length, 24)
     assertEquals(StrategicObjectFamily.boardDirectFamilies.size, 14)
     assertEquals(StrategicObjectFamily.graphDerivedFamilies.size, 10)
-    assertEquals(synthesizedFamilies, StrategicObjectFamily.values.toSet)
+    assertEquals(synthesizedFamilies, StrategicObjectFamily.values.toSet -- frozenRuntimeFamilies)
   }
 
   test("each family has exact, negative, and contrastive fixture coverage") {
@@ -111,7 +112,9 @@ class StrategicObjectSynthesizerTest extends FunSuite:
         StrategicObjectFamily.InitiativeWindow ->
           Set("exact", "contrastive", "negative", "near_miss", "broad_overlap", "initiative_without_overlap", "pressure_without_timing_window"),
         StrategicObjectFamily.DefenderDependencyNetwork ->
-          Set("exact", "contrastive", "negative", "near_miss", "defended_without_pressure", "pressure_without_dependency", "ordinary_defense_not_network")
+          Set("exact", "contrastive", "negative", "near_miss", "defended_without_pressure", "pressure_without_dependency", "ordinary_defense_not_network"),
+        StrategicObjectFamily.ConversionFunnel ->
+          Set("exact", "contrastive", "negative", "near_miss", "broad_overlap")
       )
 
     requiredCaseTypesByFamily.foreach { case (family, requiredCaseTypes) =>
@@ -126,12 +129,18 @@ class StrategicObjectSynthesizerTest extends FunSuite:
     }
   }
 
-  test("fixture bank synthesizes graph-derived families in the object layer") {
+  test("fixture bank synthesizes all non-frozen graph-derived families in the object layer") {
     val synthesized =
       rows.flatMap(objectsForRow).groupBy(_.id).values.map(_.head).toList
+    val frozenGraphFamilies = Set(StrategicObjectFamily.ConversionFunnel)
 
     assert(synthesized.nonEmpty, clue("expected non-empty synthesized fixture bank"))
-    assert(StrategicObjectFamily.graphDerivedFamilies.forall(family => synthesized.exists(_.family == family)))
+    assert(
+      StrategicObjectFamily.graphDerivedFamilies
+        .diff(frozenGraphFamilies)
+        .forall(family => synthesized.exists(_.family == family))
+    )
+    assert(!synthesized.exists(_.family == StrategicObjectFamily.ConversionFunnel))
   }
 
   test("graph-derived objects carry relation and rival richness") {

@@ -498,6 +498,17 @@ in `StrategicObjectRoadmap.md`.
   remains trust-hardening only:
   it narrows overactivation and Access-shadow drift without opening new wording,
   new planner lanes, renderer semantics, or parallel runtime paths.
+- rewrite-local ConversionFunnel salvage note on 2026-04-14:
+  `StrategicObjectSynthesizer` now centralizes `ConversionFunnel` objectization
+  into one exact same-file corridor only: a fixed target ahead of the owner's
+  passer, a file-lane `AccessNetwork` bridge with exact square witnesses on
+  both links, and at most one exact `RestrictionShell` gate confined to the
+  same lane cluster. The earlier broad entry/channel/exit union residue is
+  removed, whole-board access-shadow and trade-loop boards stay absent, and the
+  same-batch `45 / 360 / max8` rerun still yields no delta/certification/planner
+  reopen for the family. This is an official `freeze`, not a latent reopen:
+  no projector loosening, certification loosening, wording expansion, renderer
+  semantics, or other-family widening follows from it.
 
 ## Current Status
 
@@ -4827,6 +4838,11 @@ support-only material into portable lesson truth.
   the same backend-only `primaryEligible` / `packetPrimaryEligible` /
   `primaryReason` result, and non-primary certified trade residue no longer
   demotes `AccessNetwork` only because it carries the `TradeInvariant` label.
+  On 2026-04-15 the same descriptor boundary was aligned across object, delta,
+  and claim classification by resolving against profile trade squares plus the
+  runtime anchors, so the two live break-backed primaries now keep certified
+  `tradeInvariantPrimaryClass=BreakBackedInvariant` instead of losing their
+  primary reason at claim metadata.
   `QuestionPlanner` residual arbitration now treats only descriptor-approved
   exact `TradeInvariant` move-local claims as specific access-shadow
   competition; access-backed residue that lacks the certified primary
@@ -4838,7 +4854,14 @@ support-only material into portable lesson truth.
   `QuestionPlanner` consumes those certified fields instead of re-deriving
   probe-kind or residual-specificity semantics from raw delta shape. This
   keeps the exact-slice contract centralized at certification and avoids a
-  second planner-side semantic verdict over the same claim.
+  second planner-side semantic verdict over the same claim. For
+  `TradeInvariant`, residual exactness stays packet-only:
+  break-backed primaries now retain their certified class for auditability,
+  but only the packet-owned exact slice may stamp
+  `residualSpecificityClass=TradeInvariantPrimaryExact` and demote overlapping
+  `AccessNetwork`. The same-batch `45 / 360 / max8` rerun stays
+  `164 / 3 / 161` with no other-family drift, so the current official state is
+  `TradeInvariant = narrow-owner ceiling confirmed`.
 - `TradeInvariant`, `CounterplayAxis`, `ConversionFunnel`, and `PlanRace`
   now consume an exact-only overlap/relation boundary on the rewrite graph:
   same-sector fallback remains available to the generic graph elsewhere, but

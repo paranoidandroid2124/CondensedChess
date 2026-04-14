@@ -439,6 +439,17 @@ after Tier 1 has a stable object-native delta path:
 5. `InitiativeWindow`
 6. `ConversionFunnel`
 
+`ConversionFunnel` salvage tranche on 2026-04-14 closes as `freeze` on the
+current evidence pack:
+the same-batch `45 / 360 / max8` audit produced 15 object-only rows, but none
+survived exact-board review as a capability-positive continuation slice.
+The canonical runtime boundary is now one centralized exact same-file corridor
+(`FixedTargetComplex` entry ahead of own `PasserComplex`, file-lane
+`AccessNetwork`, optional exact `RestrictionShell` gate, exact square witnesses
+on both links). No delta, certification, or planner reopen follows from this
+freeze result. Future reopening is forbidden unless a new exact positive pack
+passes the same-batch rerun with no broad loosen and no other-family drift.
+
 ### Tier 3. Meta / Interpretive Delta Families
 
 These still belong inside the Phase 5 working universe, but should normally
@@ -850,6 +861,16 @@ the new spine now re-earns one exact same-task `TradeInvariant` move-local
 predicate admits the object at the projector boundary; target-led,
 contrastive, and heavy-piece-release lookalikes remain move-local closed.
 
+`TradeInvariant` strengthening tranche closed on 2026-04-15 as
+`narrow-owner ceiling confirmed`:
+exact-board re-audit defends the current three primaries
+(`2 x BreakBackedInvariant`, `1 x PacketOwnedFixedTargetSlice`), the strongest
+object-only candidates still fail move-local because the played move never
+touches the certified trade-preserving exchange square, and the same-batch
+`45 / 360 / max8` rerun remains `164 / 3 / 161` with no other-family drift.
+Further reopen is blocked unless a new exact-board positive pack promotes
+additional move-local claims without access-shadow relapse or broad loosen.
+
 `P9-A05` current-position coordination probe also passed with defer on 2026-04-09:
 the new spine now re-earns one exact `DevelopmentCoordinationState`
 `WhatMattersHere` slice on `K09A` only; `K09D`, `K09E`, and the
@@ -962,7 +983,9 @@ Current lane note:
 - exact target fixation is now also closed on one fixation-square move-local
   slice
 - bounded favorable simplification is now also closed on one same-task
-  `TradeInvariant` move-local slice
+  `TradeInvariant` move-local slice, and its current rewrite capability is now
+  ceiling-confirmed as a three-row narrow-owner pack rather than an open
+  family-wide frontier
 - the current-position fixed-target tranche is now passed on the same new
   spine with both the preserved `c6` probe and the packet-owned `d6` probe
 - the current-position coordination probe is now also passed (with defer) on
@@ -988,8 +1011,9 @@ Initial expansion priorities:
 - `CounterplayAxis`
 - `AccessNetwork`
 - `TradeInvariant`
-- `ConversionFunnel`
 - `PlanRace`
+- `ConversionFunnel` remains frozen pending a new exact positive pack that
+  passes the same-batch `45 / 360 / max8` rerun with no other-family drift
 
 ## Capability Maturation Map
 

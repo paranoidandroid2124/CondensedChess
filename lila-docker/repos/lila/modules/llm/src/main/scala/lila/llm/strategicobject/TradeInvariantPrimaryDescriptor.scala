@@ -37,7 +37,9 @@ object TradeInvariantPrimaryDescriptor:
       applyPrimarySliceBoundary(
         descriptor,
         owner = obj.owner,
-        anchorSquares = obj.anchors.flatMap(_.squares)
+        boundarySquares =
+          profileBoundarySquares(obj.profile) ++
+            obj.anchors.flatMap(_.squares)
       )
     )
 
@@ -48,7 +50,9 @@ object TradeInvariantPrimaryDescriptor:
       applyPrimarySliceBoundary(
         descriptor,
         owner = delta.owner,
-        anchorSquares = delta.changedAnchors.flatMap(_.squares)
+        boundarySquares =
+          profileBoundarySquares(delta.profile) ++
+            delta.changedAnchors.flatMap(_.squares)
       )
     )
 
@@ -163,11 +167,11 @@ object TradeInvariantPrimaryDescriptor:
   private def applyPrimarySliceBoundary(
       descriptor: TradeInvariantPrimaryDescriptor,
       owner: Color,
-      anchorSquares: List[Square]
+      boundarySquares: List[Square]
   ): TradeInvariantPrimaryDescriptor =
     val onPrimarySliceBoundary =
       owner == packetOwner &&
-        anchorSquares.distinct.contains(packetAnchor)
+        boundarySquares.distinct.contains(packetAnchor)
 
     if onPrimarySliceBoundary then descriptor
     else
@@ -177,3 +181,12 @@ object TradeInvariantPrimaryDescriptor:
         timingPrimaryEligible = false,
         primaryReason = None
       )
+
+  private def profileBoundarySquares(
+      profile: StrategicObjectProfile
+  ): List[Square] =
+    profile match
+      case StrategicObjectProfile.TradeInvariant(exchangeSquares, invariantSquares, _, _, _) =>
+        (exchangeSquares ++ invariantSquares).distinct
+      case _ =>
+        Nil

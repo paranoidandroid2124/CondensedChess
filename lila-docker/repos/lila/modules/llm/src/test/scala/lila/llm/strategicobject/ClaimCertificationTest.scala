@@ -8,6 +8,8 @@ class ClaimCertificationTest extends FunSuite:
 
   private val fileDuelFen = "2r3k1/8/8/8/8/8/8/2R3K1 w - - 0 1"
   private val passerRaceFen = "6k1/2P5/8/8/8/8/5p2/6K1 w - - 0 1"
+  private val breakBackedTradeInvariantFen =
+    "r2qkbnr/1pp2ppb/1n2p2p/p2p4/P2PP3/2N3P1/1PPN1PBP/R1BQK2R w KQkq - 1 9"
 
   test("claim certification preserves typed deltas for stable and provisional claims") {
     val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor("c1c8")
@@ -163,6 +165,33 @@ class ClaimCertificationTest extends FunSuite:
       Some(CertifiedResidualSpecificityClass.TradeInvariantPrimaryExact),
       clue(claim)
     )
+  }
+
+  test("break-backed trade-invariant claim keeps narrow primary reason without packet residual exactness") {
+    val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor("e4d5")
+    val contract = PrimitiveExtractionTest.moveTransitionVisibleContractFor("e4d5")
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(breakBackedTradeInvariantFen, truth)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val claim =
+      claims.find(claim =>
+        claim.status == ClaimStatus.Certified &&
+          claim.deltaScope == StrategicDeltaScope.MoveLocal &&
+          claim.primaryTag.contains(StrategicDeltaTag.TradePreserved) &&
+          claim.plannerMetadata.tradeInvariantPrimaryClass.contains(
+            TradeInvariantPrimaryReason.BreakBackedInvariant
+          )
+      ).getOrElse(
+        fail("expected break-backed trade-invariant claim")
+      )
+
+    assertEquals(claim.delta.map(_.family), Some(StrategicObjectFamily.TradeInvariant), clue(claim))
+    assertEquals(
+      TradeInvariantPrimaryDescriptor.fromClaim(claim).flatMap(_.primaryReason),
+      Some(TradeInvariantPrimaryReason.BreakBackedInvariant),
+      clue(claim)
+    )
+    assertEquals(claim.plannerMetadata.residualSpecificityClass, None, clue(claim))
   }
 
   test("stable comparative certification demotes shallow metric burden but keeps strong contrast certified") {

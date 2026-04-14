@@ -195,8 +195,7 @@ object CanonicalClaimCertification extends ClaimCertification:
     claim.delta.flatMap { delta =>
       delta.family match
         case StrategicObjectFamily.TradeInvariant
-            if claim.status == ClaimStatus.Certified &&
-              TradeInvariantPrimaryDescriptor.fromClaim(claim).exists(_.primaryEligible) &&
+            if TradeInvariantSimplificationSlice.isPacketOwnedPrimarySimplificationClaim(claim) &&
               isExactTypedResidualClaim(claim) =>
           Some(CertifiedResidualSpecificityClass.TradeInvariantPrimaryExact)
         case StrategicObjectFamily.CounterplayAxis

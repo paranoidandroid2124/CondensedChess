@@ -32,6 +32,15 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
       witnessCount: Int
   )
 
+  private final case class ConversionFunnelSlice(
+      entry: StrategicObject,
+      channel: StrategicObject,
+      exit: StrategicObject,
+      gate: Option[StrategicObject],
+      entryLink: ConversionLinkWitness,
+      exitLink: ConversionLinkWitness
+  )
+
   def synthesize(
       primitives: PrimitiveBank,
       truth: MoveTruthFrame
@@ -1852,139 +1861,102 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
             StrategicObjectFamily.DefenderDependencyNetwork
           )
         )
-      val connectedChannels =
-        channelObjects.filter(channel => entryObjects.exists(overlapsObjectWithinBoundary(channel, _)) || exitObjects.exists(overlapsObjectWithinBoundary(channel, _)))
-      val connectedEntries =
-        entryObjects.filter(entry => connectedChannels.exists(overlapsObjectWithinBoundary(entry, _)) || exitObjects.exists(overlapsObjectWithinBoundary(entry, _)))
-      val connectedExits =
-        exitObjects.filter(exit => connectedChannels.exists(overlapsObjectWithinBoundary(exit, _)) || connectedEntries.exists(overlapsObjectWithinBoundary(exit, _)))
-      val participants = uniqueById(connectedEntries ++ connectedChannels ++ connectedExits)
-      val entryToChannelLinks = conversionLinks(connectedEntries, connectedChannels, ConversionLinkStage.EntryToChannel)
-      val channelToExitLinks = conversionLinks(connectedChannels, connectedExits, ConversionLinkStage.ChannelToExit)
-      val entryIds = connectedEntries.map(_.id).toSet
-      val channelIds = connectedChannels.map(_.id).toSet
-      val exitIds = connectedExits.map(_.id).toSet
-      val roleOverlapCount =
-        entryIds.intersect(channelIds).size +
-          entryIds.intersect(exitIds).size +
-          channelIds.intersect(exitIds).size
-      val entryLinkCount =
-        entryToChannelLinks.map(link => (link.sourceId, link.targetId)).distinct.size
-      val exitLinkCount =
-        channelToExitLinks.map(link => (link.sourceId, link.targetId)).distinct.size
-      val nonTradeExitCount =
-        connectedExits.count(_.family != StrategicObjectFamily.TradeInvariant)
-      val entrySquares = distinctSquares(connectedEntries.flatMap(objectSquares))
-      val channelSquares = distinctSquares(connectedChannels.flatMap(objectSquares))
-      val exitSquares = distinctSquares(connectedExits.flatMap(objectSquares))
-      val locusSquares = distinctSquares(entrySquares ++ channelSquares ++ exitSquares)
-      val entryAndChannelFiles =
-        distinctFiles(connectedEntries.flatMap(objectFiles) ++ connectedChannels.flatMap(objectFiles))
-      val exitPathFiles =
-        connectedExits.flatMap(exit =>
-          if
-            exit.family == StrategicObjectFamily.PasserComplex ||
-              exit.family == StrategicObjectFamily.TradeInvariant
-          then objectFiles(exit)
-          else objectFiles(exit).filter(file => entryAndChannelFiles.contains(file))
-        )
-      val files =
-        distinctFiles(entryAndChannelFiles ++ exitPathFiles)
-      val pathWitnessSquares =
-        distinctSquares(
-          entryToChannelLinks.flatMap(_.witnessSquares) ++
-            channelToExitLinks.flatMap(_.witnessSquares)
-        )
-      val funnelRelations =
-        entryToChannelLinks.flatMap(_.relations).toSet ++
-          channelToExitLinks.flatMap(_.relations)
-      val supportingPrimitives =
-        combinedPrimitives(
-          participants,
-          refs,
-          locusSquares.toSet,
-          files.toSet,
-          Set(PrimitiveKind.TargetSquare, PrimitiveKind.AccessRoute, PrimitiveKind.RouteContestSeed, PrimitiveKind.ReleaseCandidate, PrimitiveKind.PasserSeed)
-        )
-      val supportingPieces = combinedPieces(participants, supportingPrimitives)
-      Option.when(
-        connectedEntries.nonEmpty &&
-          connectedChannels.nonEmpty &&
-          connectedExits.nonEmpty &&
-          participants.size >= 3 &&
+      conversionFunnelSlices(entryObjects, channelObjects, exitObjects).flatMap { slice =>
+        val participants = uniqueById(List(slice.entry, slice.channel, slice.exit) ++ slice.gate.toList)
+        val entrySquares = distinctSquares(objectSquares(slice.entry))
+        val channelSquares = distinctSquares(objectSquares(slice.channel) ++ slice.gate.toList.flatMap(objectSquares))
+        val exitSquares = distinctSquares(objectSquares(slice.exit))
+        val locusSquares = distinctSquares(entrySquares ++ channelSquares ++ exitSquares)
+        val files = distinctFiles(participants.flatMap(objectFiles))
+        val pathWitnessSquares =
+          distinctSquares(
+            slice.entryLink.witnessSquares ++
+              slice.exitLink.witnessSquares
+          )
+        val funnelRelations =
+          slice.entryLink.relations ++
+            slice.exitLink.relations
+        val supportingPrimitives =
+          combinedPrimitives(
+            participants,
+            refs,
+            locusSquares.toSet,
+            files.toSet,
+            Set(PrimitiveKind.TargetSquare, PrimitiveKind.AccessRoute, PrimitiveKind.RouteContestSeed, PrimitiveKind.ReleaseCandidate, PrimitiveKind.PasserSeed)
+          )
+        val supportingPieces = combinedPieces(participants, supportingPrimitives)
+        Option.when(
           contractAllows(
             StrategicObjectFamily.ConversionFunnel,
             FamilyGenerationEvidence(
               primitiveKinds = participants.flatMap(_.supportingPrimitives.map(_.kind)).toSet,
-              sourceFamilies = connectedEntries.map(_.family).toSet,
-              destinationFamilies = connectedExits.map(_.family).toSet,
+              sourceFamilies = Set(slice.entry.family),
+              destinationFamilies = Set(slice.exit.family),
               relationOperators = funnelRelations,
               anchorSquares = pathWitnessSquares.toSet,
               contestedSquares = pathWitnessSquares.toSet,
               files = files.toSet,
               metrics =
                 FamilyGenerationMetrics(
-                  sourceCount = connectedEntries.size,
-                  bridgeWitnessCount = connectedChannels.size,
-                  entryLinkCount = entryLinkCount,
-                  exitLinkCount = exitLinkCount,
-                  roleOverlapCount = roleOverlapCount,
-                  nonTradeExitCount = nonTradeExitCount,
-                  continuationWitnessCount =
-                    entryToChannelLinks.map(_.witnessCount).sum +
-                      channelToExitLinks.map(_.witnessCount).sum,
-                  exitWitnessCount = connectedExits.size,
+                  sourceCount = 1,
+                  bridgeWitnessCount = 1,
+                  entryLinkCount = 1,
+                  exitLinkCount = 1,
+                  roleOverlapCount = 0,
+                  nonTradeExitCount = 1,
+                  continuationWitnessCount = slice.entryLink.witnessCount + slice.exitLink.witnessCount,
+                  exitWitnessCount = 1,
                   sharedAnchorCount = pathWitnessSquares.size,
                   goalWitnessCount = exitSquares.size
                 )
             )
           )
-      )(
-        mkObject(
-          id = objectId(StrategicObjectFamily.ConversionFunnel, owner, Some(dominantSector(locusSquares, files)), entrySquares.headOption.orElse(channelSquares.headOption), files.toSet),
-          family = StrategicObjectFamily.ConversionFunnel,
-          owner = owner,
-          locus = StrategicObjectLocus(squares = locusSquares, files = files),
-          sector = Some(dominantSector(locusSquares, files)),
-          anchors =
-            primarySquareAnchors(entrySquares) ++
-              supportSquareAnchors(channelSquares) ++
-              exitSquareAnchors(exitSquares) ++
-              pieceAnchors(supportingPieces, StrategicAnchorRole.Support),
-          profile =
-            StrategicObjectProfile.ConversionFunnel(
-              entrySquares = entrySquares,
-              channelSquares = channelSquares,
-              exitSquares = exitSquares,
-              funnelFiles = files.toSet,
-              features =
-                Set.newBuilder[ConversionFunnelFeature]
-                  .addAll(Option.when(connectedEntries.exists(_.family == StrategicObjectFamily.FixedTargetComplex))(ConversionFunnelFeature.TargetEntry))
-                  .addAll(Option.when(connectedChannels.exists(_.family == StrategicObjectFamily.RestrictionShell))(ConversionFunnelFeature.RestrictionGate))
-                  .addAll(Option.when(connectedEntries.exists(_.family == StrategicObjectFamily.TradeInvariant) || connectedExits.exists(_.family == StrategicObjectFamily.TradeInvariant))(ConversionFunnelFeature.TradeChannel))
-                  .addAll(Option.when(connectedChannels.exists(_.family == StrategicObjectFamily.AccessNetwork))(ConversionFunnelFeature.AccessChannel))
-                  .addAll(Option.when(connectedExits.exists(_.family == StrategicObjectFamily.PasserComplex))(ConversionFunnelFeature.PasserExit))
-                  .result()
-            ),
-          supportingPrimitives = supportingPrimitives,
-          supportingPieces = supportingPieces,
-          rivals =
-            combinedRivals(
-              familyObjects(objects, !owner, Set(StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.PasserComplex))
-                .filter(obj => overlapsGroup(obj, locusSquares.toSet, files.toSet, None)),
-              refs,
-              !owner,
-              locusSquares.toSet,
-              files.toSet,
-              Set(PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.DefendedResource, PrimitiveKind.ReleaseCandidate)
-            ),
-          horizonClass = ObjectHorizonClass.Operational,
-          supportBalance = connectedEntries.size + connectedChannels.size,
-          pressureBalance = connectedExits.size,
-          mobilityGain = 0,
-          tags = Set(StrategicEvidenceTag.Conversion)
+        )(
+          mkObject(
+            id = objectId(StrategicObjectFamily.ConversionFunnel, owner, Some(dominantSector(locusSquares, files)), entrySquares.headOption.orElse(channelSquares.headOption), files.toSet),
+            family = StrategicObjectFamily.ConversionFunnel,
+            owner = owner,
+            locus = StrategicObjectLocus(squares = locusSquares, files = files),
+            sector = Some(dominantSector(locusSquares, files)),
+            anchors =
+              primarySquareAnchors(entrySquares) ++
+                supportSquareAnchors(channelSquares) ++
+                exitSquareAnchors(exitSquares) ++
+                pieceAnchors(supportingPieces, StrategicAnchorRole.Support),
+            profile =
+              StrategicObjectProfile.ConversionFunnel(
+                entrySquares = entrySquares,
+                channelSquares = channelSquares,
+                exitSquares = exitSquares,
+                funnelFiles = files.toSet,
+                features =
+                  Set.newBuilder[ConversionFunnelFeature]
+                    .addOne(ConversionFunnelFeature.TargetEntry)
+                    .addAll(Option.when(slice.gate.nonEmpty)(ConversionFunnelFeature.RestrictionGate))
+                    .addOne(ConversionFunnelFeature.AccessChannel)
+                    .addOne(ConversionFunnelFeature.PasserExit)
+                    .result()
+              ),
+            supportingPrimitives = supportingPrimitives,
+            supportingPieces = supportingPieces,
+            rivals =
+              combinedRivals(
+                familyObjects(objects, !owner, Set(StrategicObjectFamily.CounterplayAxis, StrategicObjectFamily.RestrictionShell, StrategicObjectFamily.PasserComplex))
+                  .filter(obj => overlapsGroup(obj, locusSquares.toSet, files.toSet, None)),
+                refs,
+                !owner,
+                locusSquares.toSet,
+                files.toSet,
+                Set(PrimitiveKind.CounterplayResourceSeed, PrimitiveKind.DefendedResource, PrimitiveKind.ReleaseCandidate)
+              ),
+            horizonClass = ObjectHorizonClass.Operational,
+            supportBalance = participants.size - 1,
+            pressureBalance = 1,
+            mobilityGain = 0,
+            tags = Set(StrategicEvidenceTag.Conversion)
+          )
         )
-      )
+      }
     }
 
   private def fortressHoldingShellObjects(
@@ -2300,7 +2272,7 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
             relatedObjects(
               source,
               objects,
-              Set(StrategicRelationOperator.Preserves, StrategicRelationOperator.TransformsTo),
+              Set(StrategicRelationOperator.Preserves, StrategicRelationOperator.TransformsTo, StrategicRelationOperator.Enables),
               Set(StrategicObjectFamily.ConversionFunnel, StrategicObjectFamily.PasserComplex, StrategicObjectFamily.TradeInvariant)
                 ).nonEmpty
         )
@@ -2604,6 +2576,125 @@ object CanonicalStrategicObjectSynthesizer extends StrategicObjectSynthesizer:
       witnessSquares = witnessSquares,
       witnessCount = witnessCount
     )
+
+  private def conversionFunnelSlices(
+      entryObjects: List[StrategicObject],
+      channelObjects: List[StrategicObject],
+      exitObjects: List[StrategicObject]
+  ): List[ConversionFunnelSlice] =
+    val exactEntries =
+      entryObjects.filter(obj =>
+        conversionEntryTargetSquare(obj).exists(targetSquare =>
+          obj.profile match
+            case StrategicObjectProfile.FixedTargetComplex(_, _, _, fixed, _) => fixed
+            case _                                                            => false
+        )
+      )
+    val exactChannels =
+      channelObjects.filter(channel => conversionChannelLane(channel).nonEmpty)
+    val exactExits =
+      exitObjects.filter(exit => conversionExitPasserSquare(exit).nonEmpty)
+    val gates =
+      channelObjects.filter(_.family == StrategicObjectFamily.RestrictionShell)
+    val entryById = exactEntries.map(obj => obj.id -> obj).toMap
+    val channelById = exactChannels.map(obj => obj.id -> obj).toMap
+    val exitById = exactExits.map(obj => obj.id -> obj).toMap
+
+    conversionLinks(exactEntries, exactChannels, ConversionLinkStage.EntryToChannel)
+      .filter(_.witnessCount > 0)
+      .flatMap(entryLink =>
+        conversionLinks(exactChannels, exactExits, ConversionLinkStage.ChannelToExit)
+          .filter(link => link.witnessCount > 0 && link.sourceId == entryLink.targetId)
+          .flatMap(exitLink =>
+            for
+              entry <- entryById.get(entryLink.sourceId).toList
+              channel <- channelById.get(entryLink.targetId).toList
+              exit <- exitById.get(exitLink.targetId).toList
+              entryTarget <- conversionEntryTargetSquare(entry).toList
+              channelLane <- conversionChannelLane(channel).toList
+              passerSquare <- conversionExitPasserSquare(exit).toList
+              if exactConversionLane(entry, channel, exit, entryTarget, channelLane, passerSquare)
+            yield
+              ConversionFunnelSlice(
+                entry = entry,
+                channel = channel,
+                exit = exit,
+                gate = gates.find(gate => conversionGateSupports(gate, entryTarget.file, entry, channel, exit)),
+                entryLink = entryLink,
+                exitLink = exitLink
+              )
+          )
+      )
+      .groupBy(slice => (slice.entry.id, slice.channel.id, slice.exit.id))
+      .values
+      .map(_.maxBy(_.gate.fold(0)(_ => 1)))
+      .toList
+
+  private def conversionEntryTargetSquare(
+      obj: StrategicObject
+  ): Option[Square] =
+    obj.profile match
+      case StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, fixed, _) if fixed =>
+        Some(targetSquare)
+      case _ =>
+        None
+
+  private def conversionChannelLane(
+      obj: StrategicObject
+  ): Option[File] =
+    obj.profile match
+      case StrategicObjectProfile.AccessNetwork(lane, _, _, _) => lane
+      case _                                                   => None
+
+  private def conversionExitPasserSquare(
+      obj: StrategicObject
+  ): Option[Square] =
+    obj.profile match
+      case StrategicObjectProfile.PasserComplex(passerSquare, _, _, _, _) =>
+        Some(passerSquare)
+      case _ =>
+        None
+
+  private def exactConversionLane(
+      entry: StrategicObject,
+      channel: StrategicObject,
+      exit: StrategicObject,
+      entryTarget: Square,
+      channelLane: File,
+      passerSquare: Square
+  ): Boolean =
+    val laneFiles =
+      distinctFiles(objectFiles(entry) ++ objectFiles(channel) ++ objectFiles(exit))
+    entry.owner == channel.owner &&
+      channel.owner == exit.owner &&
+      entry.id != channel.id &&
+      entry.id != exit.id &&
+      channel.id != exit.id &&
+      entryTarget.file == channelLane &&
+      passerSquare.file == channelLane &&
+      isForwardConversionTarget(entryTarget, passerSquare, entry.owner) &&
+      laneFiles == List(channelLane)
+
+  private def conversionGateSupports(
+      gate: StrategicObject,
+      lane: File,
+      entry: StrategicObject,
+      channel: StrategicObject,
+      exit: StrategicObject
+  ): Boolean =
+    objectFiles(gate).contains(lane) &&
+      distinctFiles(objectFiles(gate) ++ objectFiles(entry) ++ objectFiles(channel) ++ objectFiles(exit)).size <= 2 &&
+      sharesSquareOrFile(gate, entry) &&
+      sharesSquareOrFile(gate, channel) &&
+      sharesSquareOrFile(gate, exit)
+
+  private def isForwardConversionTarget(
+      targetSquare: Square,
+      passerSquare: Square,
+      owner: Color
+  ): Boolean =
+    if owner.white then targetSquare.rank.value > passerSquare.rank.value
+    else targetSquare.rank.value < passerSquare.rank.value
 
   private def contractAllows(
       family: StrategicObjectFamily,

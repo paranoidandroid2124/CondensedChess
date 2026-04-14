@@ -1028,7 +1028,11 @@ Current rules:
     runtime now centralizes that exact move-local primary classifier in
     `TradeInvariantPrimaryDescriptor` so projector/planner helpers consume one
     shared certified result instead of re-spreading packet/general slice OR
-    checks across multiple layers, and the
+    checks across multiple layers. On 2026-04-15 that same boundary was
+    aligned across object, delta, and claim classification by resolving
+    against the profile trade squares plus runtime anchors, so break-backed
+    exact positives now keep the same certified primary reason at claim
+    metadata instead of dropping it after projection, and the
     released wording must stay one-board / one-trade / one-branch local
     (`This trade keeps the same local edge on e6.` /
     `This favorable simplification keeps the same local edge after the trade on
@@ -1098,7 +1102,21 @@ Current rules:
     `tradeInvariantPrimaryClass`, `residualSpecificityClass`), and
     `QuestionPlanner` consumes those fields for current-position support
     pairing and access-shadow residual arbitration instead of re-deriving the
-    same slice semantics from delta shape.
+    same slice semantics from delta shape. For `TradeInvariant`,
+    `tradeInvariantPrimaryClass` now survives on the break-backed exact
+    primaries, but `residualSpecificityClass=TradeInvariantPrimaryExact`
+    remains packet-only, so access demotion does not widen beyond the certified
+    packet slice. The same-batch `45 / 360 / max8` rerun remains
+    `sampleCount=164`, `primaryCount=3`, `objectOnlyCount=161` with no other
+    family drift, so the official rewrite/runtime state is
+    `TradeInvariant = narrow-owner ceiling confirmed`. On the
+    `ConversionFunnel` runtime
+    path itself, `StrategicObjectSynthesizer` now admits only a centralized
+    exact same-file corridor (`FixedTargetComplex` fixed blocker ahead of own
+    `PasserComplex`, file-lane `AccessNetwork`, optional exact
+    `RestrictionShell` gate, exact square witnesses on both links); broad
+    entry/channel/exit unions stay object-absent and the family remains frozen
+    above the object layer.
     exact `B15A` / `B16B` now open the first planner-owned current-position
     probe on that same cluster when the live FEN proves the exact Carlsbad
     target shape (`white to move`, black pawns on `c6` and `d5`, white pawns
