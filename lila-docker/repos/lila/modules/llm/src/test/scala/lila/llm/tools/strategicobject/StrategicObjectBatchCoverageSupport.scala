@@ -71,13 +71,42 @@ object StrategicObjectBatchCoverageSupport:
   object ScopedPassActivation:
     given Writes[ScopedPassActivation] = Json.writes[ScopedPassActivation]
 
+  final case class MoveLocalBoundaryWitnessSummary(
+      targetId: String,
+      operator: String,
+      sharedSquares: List[String],
+      sharedFiles: List[String]
+  )
+  object MoveLocalBoundaryWitnessSummary:
+    given Writes[MoveLocalBoundaryWitnessSummary] = Json.writes[MoveLocalBoundaryWitnessSummary]
+
+  final case class MoveLocalBoundaryMatchSummary(
+      targetId: String,
+      operator: String,
+      touchedSquares: List[String],
+      touchedFiles: List[String]
+  )
+  object MoveLocalBoundaryMatchSummary:
+    given Writes[MoveLocalBoundaryMatchSummary] = Json.writes[MoveLocalBoundaryMatchSummary]
+
   final case class MoveLocalBoundarySummary(
+      objectId: String,
       blocker: Option[String],
       exactRivalAdmitted: Boolean,
       moveTouchesCore: Boolean,
       relationTouch: Boolean,
+      moveWitnessSatisfied: Boolean,
       blockedByProvisionalScope: Boolean,
-      blockedByCertification: Boolean
+      blockedByCertification: Boolean,
+      moveTouchedSquares: List[String],
+      moveTouchedFiles: List[String],
+      relationTouchReason: String,
+      admittedRelationWitnesses: List[MoveLocalBoundaryWitnessSummary],
+      matchedRelationWitnesses: List[MoveLocalBoundaryMatchSummary],
+      moveLocalStage: String,
+      moveLocalAdmission: String,
+      moveLocalDeltaCount: Int,
+      moveLocalClaimCount: Int
   )
   object MoveLocalBoundarySummary:
     private val generatedWrites = Json.writes[MoveLocalBoundarySummary]
@@ -87,6 +116,19 @@ object StrategicObjectBatchCoverageSupport:
         generatedWrites.writes(summary).as[JsObject] ++ Json.obj(
           "blocker" -> summary.blocker.fold[JsValue](JsNull)(JsString(_))
         )
+
+  final case class CounterplayBoundaryAggregateSummary(
+      exactRivalAdmittedCount: Int,
+      moveTouchesCoreCount: Int,
+      relationTouchCount: Int,
+      moveWitnessSatisfiedCount: Int,
+      blockedByProvisionalScopeCount: Int,
+      blockedByCertificationCount: Int,
+      moveLocalDeltaRowCount: Int,
+      moveLocalClaimRowCount: Int
+  )
+  object CounterplayBoundaryAggregateSummary:
+    given Writes[CounterplayBoundaryAggregateSummary] = Json.writes[CounterplayBoundaryAggregateSummary]
 
   final case class SampleFamilyActivation(
       sampleId: String,
@@ -212,7 +254,8 @@ object StrategicObjectBatchCoverageSupport:
       stageConcentration: StageConcentrationSummary,
       byPass: List[PassScopeSummary],
       byAxis: List[AxisActivationSummary],
-      auditBuckets: List[AuditBucketSelectionSummary]
+      auditBuckets: List[AuditBucketSelectionSummary],
+      counterplayBoundary: Option[CounterplayBoundaryAggregateSummary] = None
   )
   object BatchFamilySummary:
     private val generatedWrites = Json.writes[BatchFamilySummary]
@@ -223,7 +266,9 @@ object StrategicObjectBatchCoverageSupport:
           "uniqueOwnerRate" ->
             summary.uniqueOwnerRate.fold[JsValue](JsNull)(value => JsNumber(BigDecimal.decimal(value))),
           "residualSupportRate" ->
-            summary.residualSupportRate.fold[JsValue](JsNull)(value => JsNumber(BigDecimal.decimal(value)))
+            summary.residualSupportRate.fold[JsValue](JsNull)(value => JsNumber(BigDecimal.decimal(value))),
+          "counterplayBoundary" ->
+            summary.counterplayBoundary.fold[JsValue](JsNull)(value => Json.toJson(value))
         )
 
   final case class BatchSystemSummary(
@@ -757,8 +802,27 @@ object StrategicObjectBatchCoverageSupport:
         reportedAxes(activations).map(axis =>
           summarizeAxis(axis, activations, accessBySampleAxis, ownerCapable)
         ),
-      auditBuckets = auditBuckets
+      auditBuckets = auditBuckets,
+      counterplayBoundary = summarizeCounterplayBoundary(family, activations)
     )
+
+  private def summarizeCounterplayBoundary(
+      family: String,
+      rows: List[SampleFamilyActivation]
+  ): Option[CounterplayBoundaryAggregateSummary] =
+    Option.when(family == StrategicObjectFamily.CounterplayAxis.toString) {
+      val boundaries = rows.flatMap(_.moveLocalBoundary)
+      CounterplayBoundaryAggregateSummary(
+        exactRivalAdmittedCount = boundaries.count(_.exactRivalAdmitted),
+        moveTouchesCoreCount = boundaries.count(_.moveTouchesCore),
+        relationTouchCount = boundaries.count(_.relationTouch),
+        moveWitnessSatisfiedCount = boundaries.count(_.moveWitnessSatisfied),
+        blockedByProvisionalScopeCount = boundaries.count(_.blockedByProvisionalScope),
+        blockedByCertificationCount = boundaries.count(_.blockedByCertification),
+        moveLocalDeltaRowCount = boundaries.count(_.moveLocalDeltaCount > 0),
+        moveLocalClaimRowCount = boundaries.count(_.moveLocalClaimCount > 0)
+      )
+    }
 
   private def summarizePass(
       descriptor: PassDescriptor,
@@ -1074,6 +1138,7 @@ object StrategicObjectBatchCoverageSupport:
           .find(_.activation.pass == "WhyThis")
           .toList
           .flatMap(context =>
+            val moveLocalScope = scopePassActivation(context)
             context.objects
               .filter(_.family == StrategicObjectFamily.CounterplayAxis)
               .flatMap(obj =>
@@ -1081,23 +1146,52 @@ object StrategicObjectBatchCoverageSupport:
                   current = obj,
                   move = move,
                   relatedObjects = context.allObjects.map(other => other.id -> other).toMap
-                )
+                ).map(assessment => (obj, assessment, moveLocalScope))
               )
           )
 
       assessments
-        .sortBy(assessment => (counterplayBlockerRank(assessment.blocker), assessments.indexOf(assessment)))
+        .sortBy { case (_, assessment, _) =>
+          (counterplayAssessmentRank(assessment), counterplayBlockerRank(assessment.blocker))
+        }
         .headOption
-        .map(assessment =>
+        .map { case (obj, assessment, moveLocalScope) =>
           MoveLocalBoundarySummary(
+            objectId = obj.id,
             blocker = assessment.blocker.map(_.toString),
             exactRivalAdmitted = assessment.exactRivalAdmitted,
             moveTouchesCore = assessment.moveTouchesCore,
             relationTouch = assessment.relationTouch,
+            moveWitnessSatisfied = assessment.moveWitnessSatisfied,
             blockedByProvisionalScope = assessment.blockedByProvisionalScope,
-            blockedByCertification = assessment.blockedByCertification
+            blockedByCertification = assessment.blockedByCertification,
+            moveTouchedSquares = move.touchedSquares.map(_.key),
+            moveTouchedFiles = move.touchedFiles.map(_.char.toString),
+            relationTouchReason = counterplayRelationTouchReason(assessment),
+            admittedRelationWitnesses =
+              assessment.exactRivalAdmission.witnesses.map(witness =>
+                MoveLocalBoundaryWitnessSummary(
+                  targetId = witness.targetId,
+                  operator = witness.operator.toString,
+                  sharedSquares = witness.sharedSquares.map(_.key),
+                  sharedFiles = witness.sharedFiles.map(_.char.toString)
+                )
+              ),
+            matchedRelationWitnesses =
+              assessment.relationMatches.map(matchItem =>
+                MoveLocalBoundaryMatchSummary(
+                  targetId = matchItem.targetId,
+                  operator = matchItem.operator.toString,
+                  touchedSquares = matchItem.touchedSquares.map(_.key),
+                  touchedFiles = matchItem.touchedFiles.map(_.char.toString)
+                )
+              ),
+            moveLocalStage = moveLocalScope.stage,
+            moveLocalAdmission = moveLocalScope.admission,
+            moveLocalDeltaCount = moveLocalScope.deltaCount,
+            moveLocalClaimCount = moveLocalScope.claimCount
           )
-        )
+        }
     }.flatten
 
   private def parseMoveTrace(
@@ -1112,10 +1206,28 @@ object StrategicObjectBatchCoverageSupport:
       blocker: Option[CounterplayMoveLocalBlocker]
   ): Int =
     blocker match
-      case Some(CounterplayMoveLocalBlocker.ProvisionalScopeClosed) => 0
-      case Some(CounterplayMoveLocalBlocker.MissingMoveEdgeTouch)   => 1
-      case Some(CounterplayMoveLocalBlocker.MissingExactRivalRelation) => 2
-      case None                                                     => 3
+      case None                                                     => 0
+      case Some(CounterplayMoveLocalBlocker.ProvisionalScopeClosed) => 1
+      case Some(CounterplayMoveLocalBlocker.CertificationClosed)    => 2
+      case Some(CounterplayMoveLocalBlocker.MissingMoveEdgeTouch)   => 3
+      case Some(CounterplayMoveLocalBlocker.MissingExactRivalRelation) => 4
+
+  private def counterplayAssessmentRank(
+      assessment: CounterplayMoveLocalAssessment
+  ): Int =
+    if assessment.relationTouch && !assessment.blockedByProvisionalScope && !assessment.blockedByCertification then 0
+    else if assessment.relationTouch then 1
+    else if assessment.moveTouchesCore then 2
+    else if assessment.exactRivalAdmitted then 3
+    else 4
+
+  private def counterplayRelationTouchReason(
+      assessment: CounterplayMoveLocalAssessment
+  ): String =
+    if !assessment.exactRivalAdmitted then "NoExactRivalAdmission"
+    else if assessment.relationTouch then "MatchedAdmittedRivalWitness"
+    else if assessment.moveTouchesCore then "MoveMissedAdmittedRivalWitness"
+    else "MoveMissedCounterplayCore"
 
   private def buildAuditBundle(
       observations: List[SampleFamilyActivation],

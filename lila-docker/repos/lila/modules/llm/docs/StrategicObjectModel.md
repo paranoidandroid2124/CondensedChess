@@ -71,10 +71,21 @@ Current post-spine frontier:
   - Tier 1 provisional comparative re-audit is now passed_with_defer:
     all eight provisional families stay `Provisional`, and family-complete
     shallow comparative rows stay `SupportOnly` / planner `none`
-  - Tier 1 provisional move-local reopen audit is now blocked:
-    all eight provisional families stay `move_local` closed because no
-    family-complete exact-positive plus move-local nasty-negative witness pack
-    exists yet
+  - Tier 1 provisional move-local reopen audit is now closed as
+    `CounterplayAxis = exact RestrictionShell support narrow-go`:
+    all eight provisional families stay `Provisional`, but
+    `CounterplayAxis` now reopens one centralized exact-board positive pack as
+    `MoveLocal` `SupportOnly` / narrow planner support only; the same-batch
+    final rerun now yields 8 reopened rows with an official `8 / 4 / 12`
+    positive / frozen / negative split, the other seven provisional families
+    remain `move_local` closed, and no provisional family gains primary
+    move-local ownership. Official capability authority is fixed by
+    `CounterplayAxis.official-capability-pack.json`; official non-capability
+    authority is fixed by
+    `CounterplayAxis.frozen-out-of-scope-pack.json` and
+    `CounterplayAxis.negative-pack.json`; reopen is forbidden unless a new
+    exact positive evidence pack passes the same-batch `45 games / 360 samples
+    / max8` rerun with no broad loosen and no other family drift
 - the first vertical Phase 8/9 proving tranche is now closed
 - the composite chess semantics tranche derived from the blocked vertical
   slices is now landed rather than still pending
@@ -661,8 +672,10 @@ not change that readiness boundary. The eight provisional Tier 1 direct owners
 `RedeploymentRoute` remain object-valid but delta-conservative:
 
 - all eight stay `Provisional`
-- `MoveLocal` remains closed for all eight families even under forced-stable
-  replay
+- `MoveLocal` remains closed for seven provisional families even under
+  forced-stable replay; `CounterplayAxis` alone now passes one centralized
+  exact-board `RestrictionShell` support pack as `SupportOnly`, but it still
+  stays below primary
 - `Comparative` may reopen only from exact-board counterpart evidence plus a
   typed family profile with at least three metrics
 - provisional-family corpus must now prove exact-board positive, contrastive,
@@ -686,7 +699,17 @@ owners is now exact-board audited rather than motif-driven:
 Current north-star outcome:
 
 - all eight stay `Provisional`
-- all eight keep `move_local` closed on the current rewrite lane
+- `move_local` stays closed by default on the current rewrite lane; only
+  `CounterplayAxis` now passes one centralized exact-board support slice and
+  therefore closes as
+  `CounterplayAxis = exact RestrictionShell support narrow-go`; the official
+  `8 / 4 / 12` positive / frozen / negative pack split is pinned in
+  `CounterplayAxis.official-capability-pack.json`,
+  `CounterplayAxis.frozen-out-of-scope-pack.json`, and
+  `CounterplayAxis.negative-pack.json`, no provisional family gains primary
+  move-local ownership, and no reopen is allowed without a new exact positive
+  evidence pack plus the same-batch `45 / 360 / max8` rerun showing no broad
+  loosen and no other family drift
 - comparative may reopen only from family-aware counterpart witness plus a
   typed comparative metric profile; broad same-sector or same-file rivalry is
   not sufficient

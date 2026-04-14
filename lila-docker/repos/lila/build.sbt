@@ -212,6 +212,7 @@ lazy val llm = module("llm",
     path.endsWith("/src/test/scala/lila/llm/strategicobject/PrimitiveBoundaryTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/StrategicObjectSynthesizerTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/CounterplayAxisRivalRelationBoundaryTest.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/strategicobject/CounterplayAxisClosurePackTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/StrategicObjectDeltaProjectorTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/ClaimCertificationTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/QuestionPlannerTest.scala") ||
@@ -230,6 +231,7 @@ lazy val llm = module("llm",
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectCapabilityScorecardSupportTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageSupport.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageRunner.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/CounterplaySliceProbeRunner.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageSupportTest.scala")
   })
 )

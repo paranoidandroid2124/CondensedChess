@@ -50,6 +50,48 @@ class CounterplayAxisRivalRelationBoundaryTest extends FunSuite:
     )
   }
 
+  test("counterplay move-local witness matches an admitted rival edge even when the rival owns the graph relation") {
+    val counterplay = manualCounterplayObject().copy(relations = Nil)
+    val rival = manualRivalObject().copy(
+      relations =
+        List(
+          StrategicRelation(
+            StrategicRelationOperator.OverloadsOrUndermines,
+            StrategicRelationTarget("white-counterplay", StrategicObjectFamily.CounterplayAxis, Color.White)
+          )
+        )
+    )
+    val move = StrategicPlayedMoveTrace(Square.E4, Square.E5)
+    val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor("e4e5")
+    val contract = PrimitiveExtractionTest.moveTransitionVisibleContractFor("e4e5")
+
+    val assessment =
+      CounterplayMoveLocalBoundary.assess(
+        current = counterplay,
+        move = move,
+        relatedObjects = Map(rival.id -> rival)
+      )
+    val deltas =
+      CanonicalStrategicObjectDeltaProjector.project(contract, truth, List(counterplay, rival))
+
+    assertEquals(assessment.map(_.relationTouch), Some(true), clue(assessment))
+    assertEquals(assessment.flatMap(_.blocker), None, clue(assessment))
+    assert(
+      deltas.exists(delta =>
+        delta.family == StrategicObjectFamily.CounterplayAxis &&
+          delta.scope == StrategicDeltaScope.MoveLocal &&
+          (delta.projection match
+            case StrategicDeltaProjection.MoveLocal(_, witness) =>
+              witness.relationWitnesses.contains(StrategicRelationOperator.OverloadsOrUndermines) &&
+                witness.matchedSquares.contains(Square.E5)
+            case _ =>
+              false
+          )
+      ),
+      clue(deltas)
+    )
+  }
+
   private def manualCounterplayObject(): StrategicObject =
     StrategicObject(
       id = "white-counterplay",

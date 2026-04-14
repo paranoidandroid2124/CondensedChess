@@ -92,7 +92,9 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
         """{"sampleId":"access-1","source":"test","fen":"6k1/7p/8/8/8/3B4/8/6K1 w - - 0 1","playedUci":"d3h7"}""",
         """{"sampleId":"trade-1","source":"test","fen":"r2qr1k1/pp2bpp1/2n1bn1p/3p4/3N4/2N1B1P1/PPQ1PPBP/R4RK1 w - - 4 13","playedUci":"d4e6"}""",
         """{"sampleId":"counterplay-1","source":"test","fen":"6k1/8/8/4p3/3P4/2P5/8/6K1 w - - 0 1"}""",
-        """{"sampleId":"counterplay-exact","source":"test","fen":"2bk1bnr/4qppp/pr3n2/3B4/3PpB2/7N/1PQ2PPP/R4RK1 w - - 6 17","playedUci":"a1c1"}"""
+        """{"sampleId":"counterplay-exact","source":"test","fen":"2bk1bnr/4qppp/pr3n2/3B4/3PpB2/7N/1PQ2PPP/R4RK1 w - - 6 17","playedUci":"a1c1"}""",
+        """{"sampleId":"counterplay-positive","source":"test","fen":"rn2qrk1/pbp1b1pp/1p1p4/3Ppp2/2P5/2NN2P1/PP1QPPBP/R4RK1 w - - 0 13","playedUci":"f2f4"}""",
+        """{"sampleId":"counterplay-near-miss","source":"test","fen":"1r1r2k1/6p1/1qb1p1p1/p1ppPp2/5Q1P/1PP1RN2/P4PP1/1R4K1 w - - 0 25","playedUci":"f3g5"}"""
       ).mkString("", "\n", "\n")
     Files.writeString(path, rows, StandardCharsets.UTF_8)
 
@@ -118,7 +120,7 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
         fail("expected filtered CounterplayAxis batch summary")
       )
 
-    assertEquals(report.input.evaluatedSampleCount, 4)
+    assertEquals(report.input.evaluatedSampleCount, 6)
     assert(access.primaryCount >= 1, clue(access))
     assert(access.ownerRate > 0.0, clue(access))
     assert(access.uniqueOwnerRate.nonEmpty, clue(access))
@@ -151,14 +153,52 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
       )
     assertEquals(
       exactCounterplayRow.moveLocalBoundary.flatMap(_.blocker),
-      Some("MissingMoveEdgeTouch"),
+      Some("ProvisionalScopeClosed"),
       clue(exactCounterplayRow)
     )
     assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.exactRivalAdmitted), Some(true), clue(exactCounterplayRow))
-    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.moveTouchesCore), Some(false), clue(exactCounterplayRow))
-    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.relationTouch), Some(false), clue(exactCounterplayRow))
-    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.blockedByProvisionalScope), Some(false), clue(exactCounterplayRow))
+    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.moveTouchesCore), Some(true), clue(exactCounterplayRow))
+    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.relationTouch), Some(true), clue(exactCounterplayRow))
+    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.moveWitnessSatisfied), Some(true), clue(exactCounterplayRow))
+    assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.blockedByProvisionalScope), Some(true), clue(exactCounterplayRow))
     assertEquals(exactCounterplayRow.moveLocalBoundary.map(_.blockedByCertification), Some(false), clue(exactCounterplayRow))
+    assert(exactCounterplayRow.moveLocalBoundary.exists(_.objectId.nonEmpty), clue(exactCounterplayRow))
+    assert(exactCounterplayRow.moveLocalBoundary.exists(_.admittedRelationWitnesses.nonEmpty), clue(exactCounterplayRow))
+    assert(exactCounterplayRow.moveLocalBoundary.exists(_.matchedRelationWitnesses.nonEmpty), clue(exactCounterplayRow))
+    assertEquals(
+      exactCounterplayRow.moveLocalBoundary.map(_.relationTouchReason),
+      Some("MatchedAdmittedRivalWitness"),
+      clue(exactCounterplayRow)
+    )
+    val positiveCounterplayRow =
+      activations.find(row => row.family == "CounterplayAxis" && row.sampleId == "counterplay-positive").getOrElse(
+        fail("expected positive CounterplayAxis activation row")
+      )
+    assertEquals(positiveCounterplayRow.moveLocalBoundary.flatMap(_.blocker), None, clue(positiveCounterplayRow))
+    assertEquals(positiveCounterplayRow.moveLocalBoundary.map(_.moveWitnessSatisfied), Some(true), clue(positiveCounterplayRow))
+    assertEquals(positiveCounterplayRow.moveLocalBoundary.map(_.blockedByProvisionalScope), Some(false), clue(positiveCounterplayRow))
+    assertEquals(positiveCounterplayRow.moveLocalBoundary.map(_.blockedByCertification), Some(false), clue(positiveCounterplayRow))
+    assert(positiveCounterplayRow.moveLocalBoundary.exists(_.moveLocalDeltaCount > 0), clue(positiveCounterplayRow))
+    assert(positiveCounterplayRow.moveLocalBoundary.exists(_.moveLocalClaimCount > 0), clue(positiveCounterplayRow))
+    val nearMissCounterplayRow =
+      activations.find(row => row.family == "CounterplayAxis" && row.sampleId == "counterplay-near-miss").getOrElse(
+        fail("expected near-miss CounterplayAxis activation row")
+      )
+    assertEquals(
+      nearMissCounterplayRow.moveLocalBoundary.flatMap(_.blocker),
+      Some("MissingMoveEdgeTouch"),
+      clue(nearMissCounterplayRow)
+    )
+    assertEquals(nearMissCounterplayRow.moveLocalBoundary.map(_.moveTouchesCore), Some(false), clue(nearMissCounterplayRow))
+    assertEquals(nearMissCounterplayRow.moveLocalBoundary.map(_.relationTouch), Some(true), clue(nearMissCounterplayRow))
+    assertEquals(nearMissCounterplayRow.moveLocalBoundary.map(_.moveWitnessSatisfied), Some(false), clue(nearMissCounterplayRow))
+    val counterplayBoundary =
+      counterplay.counterplayBoundary.getOrElse(fail("expected counterplay boundary aggregate"))
+    assert(counterplayBoundary.exactRivalAdmittedCount >= 3, clue(counterplayBoundary))
+    assert(counterplayBoundary.moveWitnessSatisfiedCount >= 2, clue(counterplayBoundary))
+    assert(counterplayBoundary.blockedByProvisionalScopeCount >= 1, clue(counterplayBoundary))
+    assertEquals(counterplayBoundary.blockedByCertificationCount, 0, clue(counterplayBoundary))
+    assert(counterplayBoundary.moveLocalClaimRowCount >= 1, clue(counterplayBoundary))
     assert(auditRows.exists(row => row.family == "AccessNetwork" && row.auditBucket == "top_50"), clue(auditRows))
     assert(auditRows.exists(row => row.family == "TradeInvariant" && row.auditBucket == "hard_negative_20"), clue(auditRows))
     assert(auditRows.forall(row => row.selectedCount <= row.requestedCount), clue(auditRows))
@@ -180,8 +220,12 @@ class StrategicObjectBatchCoverageSupportTest extends FunSuite:
     assert((renderedReport \ "families")(0).as[JsObject].keys.contains("accessDemotionRate"), clue(renderedReport))
     assert((renderedReport \ "families")(0).as[JsObject].keys.contains("auditBuckets"), clue(renderedReport))
     assert((renderedReport \ "families")(0).as[JsObject].keys.contains("byPass"), clue(renderedReport))
+    assert((renderedReport \ "families")(0).as[JsObject].keys.contains("counterplayBoundary"), clue(renderedReport))
     val renderedExactCounterplay = Json.toJson(exactCounterplayRow)
-    assert((renderedExactCounterplay \ "moveLocalBoundary" \ "blocker").asOpt[String].contains("MissingMoveEdgeTouch"), clue(renderedExactCounterplay))
+    assert((renderedExactCounterplay \ "moveLocalBoundary" \ "blocker").asOpt[String].contains("ProvisionalScopeClosed"), clue(renderedExactCounterplay))
     assert((renderedExactCounterplay \ "moveLocalBoundary" \ "exactRivalAdmitted").asOpt[Boolean].contains(true), clue(renderedExactCounterplay))
+    assert((renderedExactCounterplay \ "moveLocalBoundary" \ "moveWitnessSatisfied").asOpt[Boolean].contains(true), clue(renderedExactCounterplay))
     assert((renderedExactCounterplay \ "moveLocalBoundary" \ "blockedByCertification").asOpt[Boolean].contains(false), clue(renderedExactCounterplay))
+    assert((renderedExactCounterplay \ "moveLocalBoundary" \ "objectId").asOpt[String].contains("CounterplayAxis-white-queenside-a1-abc"), clue(renderedExactCounterplay))
+    assert((renderedExactCounterplay \ "moveLocalBoundary" \ "relationTouchReason").asOpt[String].contains("MatchedAdmittedRivalWitness"), clue(renderedExactCounterplay))
   }

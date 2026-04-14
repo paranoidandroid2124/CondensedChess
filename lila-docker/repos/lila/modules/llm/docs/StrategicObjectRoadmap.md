@@ -106,9 +106,19 @@ Near-term canonical sequence from the current checkpoint:
      `P5-U01` / `P6-B01` semantics
    - no new infra, doctrine widening, or legacy salvage was needed
 8. only after the continuity closure should any new horizontal gate packets reopen
-9. Tier 1 provisional move-local reopen audit is now blocked:
-   all eight families remain `move_local` closed because no family-complete
-   move-local exact-positive plus move-local nasty-negative burden exists yet
+9. Tier 1 provisional move-local reopen audit is now closed as
+   `CounterplayAxis = exact RestrictionShell support narrow-go`:
+   all eight families remain `Provisional`, `CounterplayAxis` now has one
+   centralized exact-board positive pack that yields same-batch
+   `MoveLocal` `SupportOnly` / narrow planner-support rows without loosening
+   certification, the official pack split is now `8 / 4 / 12` positive /
+   frozen / negative, and the other seven provisional families remain
+   `move_local` closed. Official capability authority is fixed by
+   `CounterplayAxis.official-capability-pack.json`; official non-capability is
+   fixed by `CounterplayAxis.frozen-out-of-scope-pack.json` and
+   `CounterplayAxis.negative-pack.json`; reopen is forbidden unless a new
+   exact positive evidence pack passes the same-batch `45 / 360 / max8` rerun
+   with no broad loosen and no other family drift
 
 Comparative-quality certification is now complete; `P6-A02` is resolved.
 
@@ -570,12 +580,25 @@ Current verdict on this roadmap pass:
 
 Current move-local policy on this pass:
 
-- all eight provisional Tier 1 families remain closed on `move_local`
-- `P5-T02` on 2026-04-09 did not reopen any family:
-  the audit found no family-complete move-local exact-positive survivors and
-  no family-complete move-local nasty-negative resistance rows, so the lane
-  stays blocked on evidence rather than changing projector or certification
-  meaning
+- seven provisional Tier 1 families remain closed on `move_local`
+- `CounterplayAxis` now closes as
+  `exact RestrictionShell support narrow-go` rather than an open frontier:
+  same-batch final rerun on 2026-04-14 yields 8 `MoveLocal` `SupportOnly`
+  claim rows and 7 planner-support rows, 62 additional move-witness rows
+  remain blocked at provisional scope, 0 admitted rows are blocked by
+  certification, and the official pack split is now 8 reopened, 4 frozen
+  out-of-scope rows, and 12 negatives. Official capability authority is fixed
+  by `CounterplayAxis.official-capability-pack.json`; official non-capability
+  authority is fixed by
+  `CounterplayAxis.frozen-out-of-scope-pack.json` and
+  `CounterplayAxis.negative-pack.json`
+- `P5-T02` therefore moves from `blocked` to `go`:
+  the exact `CounterplayAxis` slice passed without projector or certification
+  widening, the remaining frontier is now explicitly separated into frozen
+  out-of-scope vs negative packs rather than left as an open reopen queue, and
+  no future reopening is allowed without a new exact positive evidence pack
+  plus the same-batch `45 / 360 / max8` rerun showing no broad loosen and no
+  other family drift
 
 ## Phase 6. ClaimCertification Rewrite
 
@@ -879,10 +902,13 @@ all eight provisional families stay `Provisional`; the comparative lane now
 has family-complete shallow rows that remain projector-admissible but localize
 at `certification` as `SupportOnly` and stay planner `none`.
 
-`P5-T02` Tier 1 provisional move-local reopen audit is blocked on 2026-04-09:
-all eight provisional families remain `move_local` closed because the current
-corpus still lacks family-complete move-local exact positives and move-local
-nasty-negative resistance.
+`P5-T02` Tier 1 provisional move-local reopen audit is go on 2026-04-14:
+all eight provisional families stay `Provisional`, `CounterplayAxis` now
+materializes 8 same-batch `MoveLocal` `SupportOnly` claim rows from one
+centralized exact-board positive pack, 62 additional move-witness rows now
+localize at provisional scope, the official pack split is `8 / 4 / 12`
+positive / blocked / negative, and the other seven provisional families
+remain `move_local` closed because the corpus is not family-complete.
 
 Comparative-quality certification is now complete.
 
@@ -946,8 +972,11 @@ Current lane note:
   continuity boundary
 - Tier 1 provisional comparative re-audit is now passed_with_defer with all
   eight families staying `Provisional`
-- Tier 1 provisional move-local reopen audit is now blocked with all eight
-  families still move-local closed on the current evidence pack
+- Tier 1 provisional move-local reopen audit is now go for one exact
+  `CounterplayAxis` support slice:
+  `CounterplayAxis` alone passes one centralized exact-board support slice
+  with an official `8 / 4 / 12` pack split, while the other seven provisional
+  families stay move-local closed on the current evidence pack
 
 ## Phase 10. Expansion
 

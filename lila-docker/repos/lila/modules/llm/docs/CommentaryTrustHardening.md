@@ -4747,6 +4747,67 @@ support-only material into portable lesson truth.
   synthesizer-side typed-axis vs rival-family admission no longer reimplements
   a parallel pre-check, and move-local relation files/squares now consume the
   same exact witness instead of looser fallback geometry
+- `CounterplayMoveLocalBoundary` now consumes the admitted rival witness edge
+  directly instead of requiring `current.relations` to point at that rival:
+  same-batch exact rows that touch the admitted rival edge now flip
+  `relationTouch=true`, but the family still remains move-local closed on the
+  rewrite runtime because `CounterplayAxis` stays `Provisional`; the blocker
+  now localizes at `ProvisionalScopeClosed` instead of a false
+  `MissingMoveEdgeTouch`
+- `CounterplayMoveLocalBoundary` now also splits move-local blocker accounting
+  into three independent runtime states:
+  `moveWitnessSatisfied`, `blockedByProvisionalScope`, and
+  `blockedByCertification`.
+  `blockedByCertification` no longer reuses provisional scope closure, so
+  reviewer-visible batch output can distinguish exact move-witness survivors
+  that are still scope-blocked from rows that would actually fail the exact
+  certification burden
+- `CounterplayMoveLocalSlice` is now the only provisional move-local reopen
+  authority for `CounterplayAxis`:
+  `StrategicObjectDeltaProjector` may reopen `MoveLocal` only when that exact
+  positive pack matches, while `ClaimCertification` remains unchanged and
+  still keeps provisional rows below primary
+- same-batch `45 games / 360 samples / max8` rerun on 2026-04-14 now yields
+  8 `CounterplayAxis` `MoveLocal` `SupportOnly` claim rows and 7 planner
+  support rows from that centralized exact pack, with 62 additional
+  move-witness rows now blocked at provisional scope and 0 admitted rows
+  blocked by certification. The final official pack split is 8 reopened
+  positives, 4 frozen out-of-scope rows, and 12 negatives, so
+  `CounterplayAxis` is now officially closed as
+  `exact RestrictionShell support narrow-go` rather than left in a keep-
+  exploring state. Official capability authority is fixed by
+  `CounterplayAxis.official-capability-pack.json`; official non-capability is
+  fixed by `CounterplayAxis.frozen-out-of-scope-pack.json` and
+  `CounterplayAxis.negative-pack.json`. King-shell-only near-miss rows remain
+  fail-closed, and `AccessNetwork` aggregate dominance does not increase on
+  the same batch
+- one additional exact central break row is now promoted on that same
+  boundary:
+  `CounterplayAxis-white-center-d4-de` on
+  `2_19_hjartarson_johann_stefansson_vignir_vatnar_lichess_broadcast_master_classical_33:ply:25`
+  now reopens as `SupportOnly` because the played move lands on the exact
+  `RestrictionShell-black-center-d4-de` denial square while the same move also
+  overlaps a king-shell witness on that square. This remains descriptor-
+  exact only:
+  no family-wide `KingSafetyShell` subset rule, no `TensionState` reopen, and
+  no planner or certification widening follows from it
+- the removed false survivors were exact rival-edge touches that still failed
+  move-local counterplay truth on board:
+  four were `Activity`-only resource pictures without a touched
+  `BreakCandidate` / `ReleaseCandidate`, and the remaining
+  `TensionState`-matched knight reroute still did not justify a released
+  counterplay-support claim on the narrow pack; all five now localize at
+  `ProvisionalScopeClosed` instead of surviving as `blocker=null`
+- `StrategicObjectBatchCoverage` counterplay rows now surface the selected
+  object id, admitted rival witnesses, matched rival witnesses,
+  `relationTouchReason`, and move-local scope stage/admission counts so exact
+  positive slices and near-miss negatives can be audited row-by-row without a
+  broad reopen
+- reopen authority is now closed by rule, not by convention:
+  no session may reopen `CounterplayAxis` from the frozen or negative packs
+  unless it first produces a new exact positive evidence pack and then passes
+  the same-batch `45 games / 360 samples / max8` rerun with no broad loosen,
+  no certification widening, and no other family drift
 - non-`KingExposure` `CounterplayAxis` claims now also reject king-shell-only
   rival evidence: if the typed axis is break/file/activity, an exact rival
   witness must include more than a lone `KingSafetyShell` edge before the

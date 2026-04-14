@@ -1,0 +1,190 @@
+{
+  "family": "CounterplayAxis",
+  "officialStatus": "exact RestrictionShell support narrow-go",
+  "packType": "negative",
+  "batch": {
+    "rawGameCount": 45,
+    "evaluatedSampleCount": 360,
+    "maxPliesPerGame": 8,
+    "rerunDate": "2026-04-14"
+  },
+  "closureRule": "Do not reopen CounterplayAxis without a new exact positive evidence pack plus a same-batch 45/360/max8 rerun that preserves no broad loosen and no other family drift.",
+  "rows": [
+    {
+      "sampleId": "2024_10_27_2_1_akkarakaran_john_veny_laurent_paoli_pierre_twic_master_classical_37:ply:9",
+      "fen": "r2qkbnr/pp1bpppp/2np4/1Bp5/4P3/5N2/PPPP1PPP/RNBQ1RK1 w kq - 2 5",
+      "playedUci": "f1e1",
+      "objectId": "CounterplayAxis-white-center-d5-de",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [],
+      "expectedMoveTouchesCore": true,
+      "expectedRelationTouch": false,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "Move touches counterplay core but misses every admitted rival witness."
+    },
+    {
+      "sampleId": "2024_10_27_2_1_akkarakaran_john_veny_laurent_paoli_pierre_twic_master_classical_37:ply:49",
+      "fen": "6k1/4ppbp/p2p2p1/8/p1rPP3/P3B2P/1P3PP1/3R2K1 w - - 0 25",
+      "playedUci": "d1d3",
+      "objectId": "CounterplayAxis-white-center-d4-de",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [],
+      "expectedMoveTouchesCore": true,
+      "expectedRelationTouch": false,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "Core-touch alone does not reopen without an exact rival-edge match."
+    },
+    {
+      "sampleId": "2024_10_27_2_1_akkarakaran_john_veny_laurent_paoli_pierre_twic_master_classical_37:ply:57",
+      "fen": "8/4pkbp/p7/3p1p2/p1rP4/P1R1B2P/1P3PP1/5K2 w - - 2 29",
+      "playedUci": "f2f4",
+      "objectId": "CounterplayAxis-white-queenside-a4-abc",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [],
+      "expectedMoveTouchesCore": false,
+      "expectedRelationTouch": false,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "A move that misses counterplay core entirely stays negative."
+    },
+    {
+      "sampleId": "2024_10_20_1_16_bryakin_m_diermair_a_twic_master_classical_19:ply:49",
+      "fen": "4r1k1/pq3pp1/r2p1n1p/b1p5/N1P5/1P1Rp1P1/P4PNP/2RQ2K1 w - - 0 25",
+      "playedUci": "d3e3",
+      "objectId": "CounterplayAxis-white-kingside-f2-fh",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [
+        "KingSafetyShell-black-wholeboard-a7-abcdegh",
+        "TensionState-black-mixed-e3-defgh"
+      ],
+      "expectedMoveTouchesCore": false,
+      "expectedRelationTouch": true,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "King-shell and tension overlap without counterplay-core touch remains negative."
+    },
+    {
+      "sampleId": "2024_10_22_9_3_meng_yihan_gusain_h_twic_master_classical_51:ply:49",
+      "fen": "2r1r1k1/2q1bp1p/2bpp1pP/pp4P1/1P2PP2/P3Q3/NKPR4/5BR1 w - - 5 25",
+      "playedUci": "f1e2",
+      "objectId": "CounterplayAxis-white-center-d2-de",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [],
+      "expectedMoveTouchesCore": true,
+      "expectedRelationTouch": false,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "The same game that yields one official positive also contains a fail-closed near miss."
+    },
+    {
+      "sampleId": "2024_10_24_7_5_larino_nieto_d_grieve_harry_twic_master_classical_63:ply:41",
+      "fen": "1r2rk2/3b2p1/1p1q3p/p1p1np2/P2pBN2/1P1P2PP/2P1RPQ1/R5K1 w - - 0 21",
+      "playedUci": "e4d5",
+      "objectId": "CounterplayAxis-white-kingside-f4-fgh",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [
+        "KingSafetyShell-black-wholeboard-a5-abcdefgh"
+      ],
+      "expectedMoveTouchesCore": false,
+      "expectedRelationTouch": true,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "King-shell-only witness remains outside capability."
+    },
+    {
+      "sampleId": "2024_10_27_2_2_fedorchuk_s_clery_n_twic_master_classical_36:ply:49",
+      "fen": "1r1r2k1/6p1/1qb1p1p1/p1ppPp2/5Q1P/1PP1RN2/P4PP1/1R4K1 w - - 0 25",
+      "playedUci": "f3g5",
+      "objectId": "CounterplayAxis-white-center-d5-de",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [
+        "KingSafetyShell-black-wholeboard-a5-acdefg"
+      ],
+      "expectedMoveTouchesCore": false,
+      "expectedRelationTouch": true,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "The exact batch near-miss row stays negative on board truth."
+    },
+    {
+      "sampleId": "2024_10_27_2_2_fedorchuk_s_clery_n_twic_master_classical_36:ply:57",
+      "fen": "1r1rb1k1/6p1/q3p1p1/2p1PpN1/p1Pp3P/1P4R1/P2Q1PP1/1R4K1 w - - 2 29",
+      "playedUci": "g5h3",
+      "objectId": "CounterplayAxis-white-center-d2-de",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [
+        "KingSafetyShell-black-wholeboard-a4-acdefg"
+      ],
+      "expectedMoveTouchesCore": false,
+      "expectedRelationTouch": true,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "A king-shell-only edge touch without counterplay-core touch stays negative."
+    },
+    {
+      "sampleId": "2024_10_22_3_3_tsolakidou_stavroula_goryachkina_a_twic_master_classical_26:ply:9",
+      "fen": "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 1 5",
+      "playedUci": "c1g5",
+      "objectId": "CounterplayAxis-white-center-d4-de",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [
+        "KingSafetyShell-black-wholeboard-a7-abefgh"
+      ],
+      "expectedMoveTouchesCore": false,
+      "expectedRelationTouch": true,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "King-shell-only overlap is not official counterplay capability."
+    },
+    {
+      "sampleId": "2024_10_22_9_4_liu_yan_kong_xiangrui_twic_master_classical_52:ply:33",
+      "fen": "1q1rr1k1/pp1n1pbp/2p2np1/4p3/1PBP4/P1N1PQ1P/3B1PP1/2RR2K1 w - - 0 17",
+      "playedUci": "c4b3",
+      "objectId": "CounterplayAxis-white-center-d4-de",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [
+        "KingSafetyShell-black-wholeboard-a7-abcdef",
+        "TensionState-black-center-d4-cde"
+      ],
+      "expectedMoveTouchesCore": false,
+      "expectedRelationTouch": true,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "King-shell plus tension overlap still fails without counterplay-core touch."
+    },
+    {
+      "sampleId": "2024_10_22_9_8_wang_shixu_b_zhao_yuanhe_twic_master_classical_56:ply:49",
+      "fen": "2r2r2/5p1k/2np2pp/1p2p3/PP1nPP1q/2N1Q2P/6P1/1BR2R1K w - - 0 25",
+      "playedUci": "c3b5",
+      "objectId": "CounterplayAxis-white-center-d5-de",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [
+        "KingSafetyShell-black-wholeboard-b5-bcdefg",
+        "TensionState-black-mixed-e5-defgh"
+      ],
+      "expectedMoveTouchesCore": false,
+      "expectedRelationTouch": true,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "Mixed shell-plus-tension overlap stays negative."
+    },
+    {
+      "sampleId": "2024_10_24_7_5_larino_nieto_d_grieve_harry_twic_master_classical_63:ply:57",
+      "fen": "4rk2/8/1p4qp/p1p1np2/P2p2p1/1P4PP/2P1QPB1/R6K w - - 0 29",
+      "playedUci": "h3h4",
+      "objectId": "CounterplayAxis-white-kingside-f2-fg",
+      "expectedBlocker": "MissingMoveEdgeTouch",
+      "expectedMatchedTargets": [
+        "RestrictionShell-black-kingside-f3-fgh",
+        "TensionState-black-kingside-g4-fgh"
+      ],
+      "expectedMoveTouchesCore": false,
+      "expectedRelationTouch": true,
+      "expectedMoveWitnessSatisfied": false,
+      "expectedMoveLocalClaim": false,
+      "note": "Even exact RestrictionShell overlap is negative when the move misses counterplay core."
+    }
+  ]
+}

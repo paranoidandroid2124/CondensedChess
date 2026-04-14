@@ -54,7 +54,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       .filter(deltaFamilyEligible)
       .flatMap { obj =>
         val context = deltaContext(obj, objects, objectsById)
-        eligibleScopes(contract, truth, obj).flatMap { scope =>
+        eligibleScopes(contract, truth, obj, objectsById).flatMap { scope =>
           projectionFor(contract, truth, obj, scope, context).map { projection =>
               StrategicObjectDelta(
                 objectId = obj.id,
@@ -98,17 +98,30 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
   private def eligibleScopes(
       contract: DecisiveTruthContract,
       truth: MoveTruthFrame,
-      obj: StrategicObject
+      obj: StrategicObject,
+      objectsById: Map[String, StrategicObject]
   ): List[StrategicDeltaScope] =
+    val transitionTruthAvailable = hasTransitionTruth(contract, truth)
+    val transitionMove = Option.when(transitionTruthAvailable)(moveTrace(contract, truth)).flatten
     if TradeInvariantPrimaryDescriptor.fromObject(obj).exists(_.primaryEligible) then
-      Option.when(hasTransitionTruth(contract, truth))(StrategicDeltaScope.MoveLocal).toList
+      Option.when(transitionTruthAvailable)(StrategicDeltaScope.MoveLocal).toList
     else
       obj.readiness match
         case StrategicObjectReadiness.Stable =>
-          Option.when(hasTransitionTruth(contract, truth))(StrategicDeltaScope.MoveLocal).toList ++
+          Option.when(transitionTruthAvailable)(StrategicDeltaScope.MoveLocal).toList ++
             List(StrategicDeltaScope.PositionLocal, StrategicDeltaScope.Comparative)
         case StrategicObjectReadiness.Provisional =>
-          List(StrategicDeltaScope.PositionLocal) ++
+          Option.when(
+            obj.family == StrategicObjectFamily.CounterplayAxis &&
+              transitionMove.exists(move =>
+                CounterplayMoveLocalBoundary
+                  .assess(obj, move, objectsById)
+                  .exists(assessment =>
+                    CounterplayMoveLocalSlice.allowsProvisionalMoveLocal(obj, move, assessment)
+                  )
+              )
+          )(StrategicDeltaScope.MoveLocal).toList ++
+            List(StrategicDeltaScope.PositionLocal) ++
             Option.when(contract.hasVisibleTruth || contract.prefersDecisivePromotion)(
               StrategicDeltaScope.Comparative
             )

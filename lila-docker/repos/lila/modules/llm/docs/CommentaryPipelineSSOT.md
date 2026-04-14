@@ -2420,6 +2420,26 @@ Older narrative update-log style sections are intentionally removed from this
 document. The current-state contract above is the only maintained markdown
 authority for the commentary pipeline.
 
+## Rewrite Cross-Reference
+
+The strategic-object rewrite is governed by `StrategicObjectModel.md` and
+`StrategicObjectRoadmap.md`, not by this commentary SSoT. Current runtime
+cross-reference that matters for commentary-adjacent audits:
+
+- provisional `CounterplayAxis` move-local reopen is now centralized in
+  `modules/llm/src/main/scala/lila/llm/strategicobject/CounterplayMoveLocalBoundary.scala`,
+  `CounterplayMoveLocalSlice.scala`, and
+  `StrategicObjectDeltaProjector.scala`
+- the current rewrite closure is
+  `CounterplayAxis = exact RestrictionShell support narrow-go`
+- official capability / non-capability packs are now fixed under
+  `modules/llm/src/test/resources/strategic-object-corpus/CounterplayAxis.official-capability-pack.json`,
+  `CounterplayAxis.frozen-out-of-scope-pack.json`, and
+  `CounterplayAxis.negative-pack.json`
+- commentary runtime does not own a separate reopen path for that slice; any
+  future reopening must come from the rewrite pack plus rerun gate rather than
+  legacy planner or renderer fallback
+
 ## Reference Files
 
 Primary current-code references:
@@ -2448,6 +2468,9 @@ Primary current-code references:
 - `modules/llm/src/main/scala/lila/llm/analysis/StrategicSentenceRenderer.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackBuilder.scala`
 - `modules/llm/src/main/scala/lila/llm/analysis/StrategyPackSurface.scala`
+- `modules/llm/src/main/scala/lila/llm/strategicobject/CounterplayMoveLocalBoundary.scala`
+- `modules/llm/src/main/scala/lila/llm/strategicobject/CounterplayMoveLocalSlice.scala`
+- `modules/llm/src/main/scala/lila/llm/strategicobject/StrategicObjectDeltaProjector.scala`
 - `modules/llm/src/main/scala/lila/llm/GameChronicleResponse.scala`
 - `modules/llm/src/main/scala/lila/llm/models.scala`
 - `ui/analyse/src/bookmaker.ts`

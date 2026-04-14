@@ -404,7 +404,7 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
     assertEquals(planned.supportClaimIds, List(supportClaim.id))
   }
 
-  test("top CounterplayAxis max8 rows stay support-closed without a move-local rival-edge witness") {
+  test("top CounterplayAxis max8 rows stay support-closed when an exact rival edge is touched but provisional move-local remains closed") {
     val rows =
       List(
         RuntimeSample(
@@ -447,16 +447,17 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
         val accessMoveClaims = accessClaims.filter(_.deltaScope == StrategicDeltaScope.MoveLocal)
         val counterplayMoveClaims = counterplayClaims.filter(_.deltaScope == StrategicDeltaScope.MoveLocal)
         val counterplayNonMoveClaims = counterplayClaims.filterNot(_.deltaScope == StrategicDeltaScope.MoveLocal)
-        val touchedCounterplaySquares =
-          moveTrace(row.playedUci).touchedSquares
+        val move = moveTrace(row.playedUci)
         val ownCounterplayObjects =
           objects.filter(obj =>
             obj.family == StrategicObjectFamily.CounterplayAxis &&
               obj.owner == Color.White
           )
-        val genericCounterplayTouch =
-          ownCounterplayObjects.exists(obj =>
-            touchedCounterplaySquares.intersect(counterplayFocusSquares(obj)).nonEmpty
+        val assessments =
+          ownCounterplayObjects.flatMap(obj =>
+            CounterplayMoveLocalBoundary
+              .assess(obj, move, objects.map(other => other.id -> other).toMap)
+              .map(obj.id -> _)
           )
 
         assert(accessClaims.nonEmpty, clue(row.id))
@@ -471,18 +472,28 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
         )
         RuntimeSampleResult(
           id = row.id,
-          genericCounterplayTouch = genericCounterplayTouch,
+          exactRivalEdgeTouched =
+            assessments.exists { case (_, assessment) =>
+              assessment.exactRivalAdmitted &&
+                assessment.moveTouchesCore &&
+                assessment.relationTouch
+            },
+          provisionalScopeClosed = assessments.exists(_._2.blockedByProvisionalScope),
           counterplayMoveClaimCount = counterplayMoveClaims.size
         )
       }
 
     assert(
-      results.count(result => result.genericCounterplayTouch && result.counterplayMoveClaimCount == 0) >= 3,
+      results.count(result =>
+        result.exactRivalEdgeTouched &&
+          result.provisionalScopeClosed &&
+          result.counterplayMoveClaimCount == 0
+      ) >= 3,
       clue(results)
     )
   }
 
-  test("exact rival-edge counterplay rows localize move-local blockage at the missing move-edge witness") {
+  test("exact rival-edge counterplay rows localize move-local blockage at provisional scope once the admitted rival edge is touched") {
     val rows =
       List(
         RuntimeSample(
@@ -550,11 +561,271 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
       results.count(result =>
         result.exactRivalAdmission &&
           result.moveTouchesCore &&
-          !result.relationTouch &&
-          !result.provisionalScopeClosed
-          && !result.certificationBlocked
+          result.relationTouch &&
+          result.provisionalScopeClosed &&
+          !result.certificationBlocked
       ) >= 3,
       clue(results)
+    )
+  }
+
+  test("exact positive counterplay slice reopens provisional move-local as a support-only claim without planner loosening") {
+    val row =
+      RuntimeSample(
+        id = "counterplay-positive-pack",
+        fen = "rn2qrk1/pbp1b1pp/1p1p4/3Ppp2/2P5/2NN2P1/PP1QPPBP/R4RK1 w - - 0 13",
+        playedUci = "f2f4"
+      )
+
+    val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor(row.playedUci)
+    val contract = PrimitiveExtractionTest.moveTransitionVisibleContractFor(row.playedUci)
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val objectsById = objects.map(obj => obj.id -> obj).toMap
+    val move = moveTrace(row.playedUci)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
+
+    val assessment =
+      objects
+        .filter(_.id == "CounterplayAxis-black-kingside-f4-fg")
+        .flatMap(obj => CounterplayMoveLocalBoundary.assess(obj, move, objectsById))
+        .headOption
+        .getOrElse(fail("expected exact positive CounterplayAxis assessment"))
+
+    val counterplayMoveDeltas =
+      deltas.filter(delta =>
+        delta.objectId == "CounterplayAxis-black-kingside-f4-fg" &&
+          delta.scope == StrategicDeltaScope.MoveLocal
+      )
+    val counterplayMoveClaims =
+      claims.filter(claim =>
+        claim.objectId == "CounterplayAxis-black-kingside-f4-fg" &&
+          claim.deltaScope == StrategicDeltaScope.MoveLocal
+      )
+
+    assertEquals(assessment.exactRivalAdmitted, true, clue(assessment))
+    assertEquals(assessment.moveTouchesCore, true, clue(assessment))
+    assertEquals(assessment.relationTouch, true, clue(assessment))
+    assertEquals(assessment.moveWitnessSatisfied, true, clue(assessment))
+    assertEquals(assessment.blockedByProvisionalScope, false, clue(assessment))
+    assertEquals(assessment.blockedByCertification, false, clue(assessment))
+    assertEquals(assessment.blocker, None, clue(assessment))
+    assert(counterplayMoveDeltas.nonEmpty, clue(counterplayMoveDeltas))
+    assert(counterplayMoveClaims.nonEmpty, clue(counterplayMoveClaims))
+    assert(counterplayMoveClaims.forall(_.status == ClaimStatus.SupportOnly), clue(counterplayMoveClaims))
+    assert(
+      counterplayMoveClaims.flatMap(_.delta).exists(_.projection match
+        case StrategicDeltaProjection.MoveLocal(_, witness) =>
+          witness.matchedSquares.contains(Square.F4) &&
+            witness.relationWitnesses.contains(StrategicRelationOperator.Denies)
+        case _ =>
+          false
+      ),
+      clue(counterplayMoveClaims)
+    )
+    assert(
+      planned.claimIds.intersect(counterplayMoveClaims.map(_.id)).isEmpty,
+      clue(planned)
+    )
+  }
+
+  test("one exact central break row may reopen counterplay move-local support without widening the family") {
+    val row =
+      RuntimeSample(
+        id = "counterplay-central-break-pack",
+        fen = "r1bq1rk1/pp2npp1/4p2p/7n/2BP4/P1N2N2/1P3PPP/R2Q1RK1 w - - 0 13",
+        playedUci = "f3e5"
+      )
+
+    val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor(row.playedUci)
+    val contract = PrimitiveExtractionTest.moveTransitionVisibleContractFor(row.playedUci)
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val objectsById = objects.map(obj => obj.id -> obj).toMap
+    val move = moveTrace(row.playedUci)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
+
+    val assessment =
+      objects
+        .filter(_.id == "CounterplayAxis-white-center-d4-de")
+        .flatMap(obj => CounterplayMoveLocalBoundary.assess(obj, move, objectsById))
+        .headOption
+        .getOrElse(fail("expected exact central CounterplayAxis assessment"))
+
+    val counterplayMoveDeltas =
+      deltas.filter(delta =>
+        delta.objectId == "CounterplayAxis-white-center-d4-de" &&
+          delta.scope == StrategicDeltaScope.MoveLocal
+      )
+    val counterplayMoveClaims =
+      claims.filter(claim =>
+        claim.objectId == "CounterplayAxis-white-center-d4-de" &&
+          claim.deltaScope == StrategicDeltaScope.MoveLocal
+      )
+
+    assertEquals(assessment.exactRivalAdmitted, true, clue(assessment))
+    assertEquals(assessment.moveTouchesCore, true, clue(assessment))
+    assertEquals(assessment.relationTouch, true, clue(assessment))
+    assertEquals(assessment.moveWitnessSatisfied, true, clue(assessment))
+    assertEquals(assessment.blockedByProvisionalScope, false, clue(assessment))
+    assertEquals(assessment.blockedByCertification, false, clue(assessment))
+    assertEquals(assessment.blocker, None, clue(assessment))
+    assertEquals(
+      assessment.relationMatches.map(_.targetId).distinct.sorted,
+      List(
+        "KingSafetyShell-black-wholeboard-a7-abcef",
+        "RestrictionShell-black-center-d4-de"
+      ),
+      clue(assessment)
+    )
+    assert(counterplayMoveDeltas.nonEmpty, clue(counterplayMoveDeltas))
+    assert(counterplayMoveClaims.nonEmpty, clue(counterplayMoveClaims))
+    assert(counterplayMoveClaims.forall(_.status == ClaimStatus.SupportOnly), clue(counterplayMoveClaims))
+    assert(
+      planned.claimIds.intersect(counterplayMoveClaims.map(_.id)).isEmpty,
+      clue(planned)
+    )
+  }
+
+  test("counterplay false survivors stay provisional-scope closed on the exact rival edge instead of reopening move-local") {
+    val rows =
+      List(
+        (
+          RuntimeSample(
+            id = "2024_10_22_3_3_tsolakidou_stavroula_goryachkina_a_twic_master_classical_26:ply:17",
+            fen = "r1bq1rk1/ppp1bpp1/2np1n1p/4p3/P1B1P3/3P1NB1/1PP2PPP/RN1QK2R w KQ - 1 9",
+            playedUci = "a4a5"
+          ),
+          "CounterplayAxis-white-queenside-a4-abc",
+          List("RestrictionShell-black-queenside-a4-abc")
+        ),
+        (
+          RuntimeSample(
+            id = "2024_10_24_6_1_stein_robert_alexakis_dimitris_twic_master_classical_58:ply:41",
+            fen = "2b1k2r/3p1ppp/p5n1/2Np4/4P3/P7/1r2BPPP/R3K2R w KQk - 0 21",
+            playedUci = "c5d3"
+          ),
+          "CounterplayAxis-white-center-d5-de",
+          List("TensionState-black-center-d5-de")
+        ),
+        (
+          RuntimeSample(
+            id = "2024_10_20_1_16_schreiner_pe_subelj_jan_twic_master_classical_18:ply:9",
+            fen = "rnbqkb1r/pp3ppp/4pn2/2pp4/8/5NP1/PPPPPPBP/RNBQ1RK1 w kq - 0 5",
+            playedUci = "d2d4"
+          ),
+          "CounterplayAxis-black-center-d4-de",
+          List("RestrictionShell-white-center-d4-de")
+        ),
+        (
+          RuntimeSample(
+            id = "2_19_hjartarson_johann_stefansson_vignir_vatnar_lichess_broadcast_master_classical_33:ply:49",
+            fen = "5rk1/p1q1npp1/Qp2p2p/3nN3/1P1P4/P7/B4PPP/4R1K1 w - - 5 25",
+            playedUci = "a2c4"
+          ),
+          "CounterplayAxis-black-queenside-b4-bc",
+          List("RestrictionShell-white-queenside-b4-abc")
+        ),
+        (
+          RuntimeSample(
+            id = "bharath_subramaniyam_h_abdilkhair_abilmansur_lichess_broadcast_master_classical_12:ply:41",
+            fen = "3r1rk1/pp2nppp/2bNp3/4P3/q4P2/P1PBQ3/1P4PP/1R3RK1 w - - 7 21",
+            playedUci = "c3c4"
+          ),
+          "CounterplayAxis-black-queenside-a3-abc",
+          List("RestrictionShell-white-queenside-a3-abc")
+        )
+      )
+
+    rows.foreach { case (row, objectId, expectedTargets) =>
+      val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor(row.playedUci)
+      val contract = PrimitiveExtractionTest.moveTransitionVisibleContractFor(row.playedUci)
+      val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+      val objectsById = objects.map(obj => obj.id -> obj).toMap
+      val move = moveTrace(row.playedUci)
+      val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+      val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+
+      val assessment =
+        objects
+          .filter(_.id == objectId)
+          .flatMap(obj => CounterplayMoveLocalBoundary.assess(obj, move, objectsById))
+          .headOption
+          .getOrElse(fail(s"expected exact CounterplayAxis assessment for ${row.id}"))
+
+      val counterplayMoveDeltas =
+        deltas.filter(delta =>
+          delta.objectId == objectId &&
+            delta.scope == StrategicDeltaScope.MoveLocal
+        )
+      val counterplayMoveClaims =
+        claims.filter(claim =>
+          claim.objectId == objectId &&
+            claim.deltaScope == StrategicDeltaScope.MoveLocal
+        )
+
+      assertEquals(assessment.exactRivalAdmitted, true, clue(row.id))
+      assertEquals(assessment.moveTouchesCore, true, clue(row.id))
+      assertEquals(assessment.relationTouch, true, clue(row.id))
+      assertEquals(assessment.moveWitnessSatisfied, true, clue(row.id))
+      assertEquals(assessment.blockedByProvisionalScope, true, clue(assessment))
+      assertEquals(assessment.blockedByCertification, false, clue(assessment))
+      assertEquals(assessment.blocker, Some(CounterplayMoveLocalBlocker.ProvisionalScopeClosed), clue(assessment))
+      assertEquals(assessment.relationMatches.map(_.targetId).distinct, expectedTargets, clue(assessment))
+      assert(counterplayMoveDeltas.isEmpty, clue(counterplayMoveDeltas))
+      assert(counterplayMoveClaims.isEmpty, clue(counterplayMoveClaims))
+    }
+  }
+
+  test("counterplay near-miss rows stay move-local closed when only a king-safety relation is touched") {
+    val row =
+      RuntimeSample(
+        id = "counterplay-near-miss",
+        fen = "1r1r2k1/6p1/1qb1p1p1/p1ppPp2/5Q1P/1PP1RN2/P4PP1/1R4K1 w - - 0 25",
+        playedUci = "f3g5"
+      )
+
+    val truth = PrimitiveExtractionTest.moveTransitionVisibleTruthFrameFor(row.playedUci)
+    val contract = PrimitiveExtractionTest.moveTransitionVisibleContractFor(row.playedUci)
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val objectsById = objects.map(obj => obj.id -> obj).toMap
+    val move = moveTrace(row.playedUci)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+
+    val assessment =
+      objects
+        .filter(_.id == "CounterplayAxis-white-center-d5-de")
+        .flatMap(obj => CounterplayMoveLocalBoundary.assess(obj, move, objectsById))
+        .headOption
+        .getOrElse(fail("expected near-miss CounterplayAxis assessment"))
+
+    val counterplayMoveDeltas =
+      deltas.filter(delta =>
+        delta.objectId == "CounterplayAxis-white-center-d5-de" &&
+          delta.scope == StrategicDeltaScope.MoveLocal
+      )
+    val counterplayMoveClaims =
+      claims.filter(claim =>
+        claim.objectId == "CounterplayAxis-white-center-d5-de" &&
+          claim.deltaScope == StrategicDeltaScope.MoveLocal
+      )
+
+    assertEquals(assessment.exactRivalAdmitted, true, clue(assessment))
+    assertEquals(assessment.moveTouchesCore, false, clue(assessment))
+    assertEquals(assessment.relationTouch, true, clue(assessment))
+    assertEquals(assessment.moveWitnessSatisfied, false, clue(assessment))
+    assertEquals(assessment.blockedByProvisionalScope, false, clue(assessment))
+    assertEquals(assessment.blockedByCertification, false, clue(assessment))
+    assertEquals(assessment.blocker, Some(CounterplayMoveLocalBlocker.MissingMoveEdgeTouch), clue(assessment))
+    assert(counterplayMoveDeltas.isEmpty, clue(counterplayMoveDeltas))
+    assert(counterplayMoveClaims.isEmpty, clue(counterplayMoveClaims))
+    assertEquals(
+      assessment.relationMatches.map(_.targetId).distinct,
+      List("KingSafetyShell-black-wholeboard-a5-acdefg"),
+      clue(assessment)
     )
   }
 
@@ -682,7 +953,7 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
       anchorSquares: List[Square],
       evidenceRefs: List[StrategicDeltaEvidenceRef],
       status: ClaimStatus = ClaimStatus.Certified,
-      metadata: CertifiedPlannerMetadata = CertifiedPlannerMetadata()
+      metadata: CertifiedPlannerMetadata
   ): CertifiedClaim =
     val anchor =
       StrategicObjectAnchor(
@@ -807,15 +1078,6 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
       .find(_.objectId == objectId)
       .getOrElse(fail("expected certified counterplay residual claim"))
 
-  private def counterplayFocusSquares(
-      obj: StrategicObject
-  ): List[Square] =
-    obj.profile match
-      case StrategicObjectProfile.CounterplayAxis(resourceSquares, breakSquares, pressureSquares, _) =>
-        (resourceSquares ++ breakSquares ++ pressureSquares).distinct.sortBy(_.key)
-      case _ =>
-        Nil
-
   private def moveTrace(
       playedUci: String
   ): StrategicPlayedMoveTrace =
@@ -832,7 +1094,8 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
 
   private case class RuntimeSampleResult(
       id: String,
-      genericCounterplayTouch: Boolean,
+      exactRivalEdgeTouched: Boolean,
+      provisionalScopeClosed: Boolean,
       counterplayMoveClaimCount: Int
   )
 

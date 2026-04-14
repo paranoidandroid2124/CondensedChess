@@ -4,6 +4,7 @@ import chess.{ File, Square }
 
 enum CounterplayMoveLocalBlocker:
   case ProvisionalScopeClosed
+  case CertificationClosed
   case MissingExactRivalRelation
   case MissingMoveEdgeTouch
 
@@ -46,7 +47,10 @@ final case class CounterplayMoveLocalAssessment(
     moveTouchesCore && relationTouch
 
   def narrowMoveLocalEligible: Boolean =
-    exactRivalAdmitted && moveWitnessSatisfied
+    exactRivalAdmitted &&
+      moveWitnessSatisfied &&
+      !blockedByProvisionalScope &&
+      !blockedByCertification
 
 object CounterplayMoveLocalBoundary:
 
@@ -70,53 +74,60 @@ object CounterplayMoveLocalBoundary:
           CounterplayAxisRivalRelationBoundary.exactRivalAdmission(current, relatedObjects)
         val moveTouchesCore = touchesCounterplayCore(current, move)
         val relationMatches =
-          current.relations.collect {
-            case relation
-                if MoveTransitionRelationOps.contains(relation.operator) &&
-                  relatedObjects.contains(relation.target.objectId) =>
-              val related = relatedObjects(relation.target.objectId)
-              val rivalWitnesses =
-                CounterplayAxisRivalRelationBoundary
-                  .exactRivalRelationWitnessesTo(current, related)
-                  .filter(_.operator == relation.operator)
+          exactRivalAdmission.witnesses
+            .filter(witness =>
+              MoveTransitionRelationOps.contains(witness.operator) &&
+                relatedObjects.contains(witness.targetId)
+            )
+            .flatMap { witness =>
               val touchedSquares =
-                move.touchedSquares.intersect(rivalWitnesses.flatMap(_.sharedSquares)).distinct.sortBy(_.key)
+                move.touchedSquares.intersect(witness.sharedSquares).distinct.sortBy(_.key)
               val touchedFiles =
-                move.touchedFiles.intersect(rivalWitnesses.flatMap(_.sharedFiles)).distinct.sortBy(_.char.toString)
+                move.touchedFiles.intersect(witness.sharedFiles).distinct.sortBy(_.char.toString)
 
               Option.when(
-                rivalWitnesses.nonEmpty &&
-                  (touchedSquares.nonEmpty || touchedFiles.nonEmpty)
+                touchedSquares.nonEmpty ||
+                  admitsFileOnlyWitness(current, witness, touchedFiles)
               )(
                 CounterplayMoveLocalRelationMatch(
-                  targetId = related.id,
-                  operator = relation.operator,
+                  targetId = witness.targetId,
+                  operator = witness.operator,
                   touchedSquares = touchedSquares,
                   touchedFiles = touchedFiles
                 ).normalized
               )
-          }.flatten
-            .distinct
+            }
+            .groupBy(matchItem => (matchItem.targetId, matchItem.operator))
+            .values
+            .map(matches =>
+              CounterplayMoveLocalRelationMatch(
+                targetId = matches.head.targetId,
+                operator = matches.head.operator,
+                touchedSquares = matches.flatMap(_.touchedSquares),
+                touchedFiles = matches.flatMap(_.touchedFiles)
+              ).normalized
+            )
+            .toList
             .sortBy(matchItem =>
               s"${matchItem.targetId}-${matchItem.operator.toString}-${matchItem.touchedSquares.map(_.key).mkString("-")}-${matchItem.touchedFiles.map(_.char).mkString}"
             )
         val relationTouch = relationMatches.nonEmpty
-        val blockedByProvisionalScope =
-          exactRivalAdmission.admitted &&
-            moveTouchesCore &&
-            relationTouch &&
-            current.readiness == StrategicObjectReadiness.Provisional
+        val moveWitnessSatisfied = moveTouchesCore && relationTouch
         val blockedByCertification =
-          exactRivalAdmission.admitted &&
-            moveTouchesCore &&
-            relationTouch &&
-            current.readiness == StrategicObjectReadiness.Provisional
+          moveWitnessSatisfied &&
+            !hasExactBoardCertificationSupport(current)
+        val blockedByProvisionalScope =
+          moveWitnessSatisfied &&
+            current.readiness == StrategicObjectReadiness.Provisional &&
+            !CounterplayMoveLocalSlice.exactPositiveDescriptorMatched(current, move, relationMatches)
 
         val blocker =
           if !exactRivalAdmission.admitted then Some(CounterplayMoveLocalBlocker.MissingExactRivalRelation)
-          else if !moveTouchesCore || !relationTouch then Some(CounterplayMoveLocalBlocker.MissingMoveEdgeTouch)
+          else if !moveWitnessSatisfied then Some(CounterplayMoveLocalBlocker.MissingMoveEdgeTouch)
           else if blockedByProvisionalScope then
             Some(CounterplayMoveLocalBlocker.ProvisionalScopeClosed)
+          else if blockedByCertification then
+            Some(CounterplayMoveLocalBlocker.CertificationClosed)
           else None
 
         Some(
@@ -147,3 +158,25 @@ object CounterplayMoveLocalBoundary:
           move.touchedFiles.exists(coreFiles.contains)
       case _ =>
         false
+
+  private def admitsFileOnlyWitness(
+      current: StrategicObject,
+      witness: CounterplayAxisRivalRelationBoundary.RivalRelationWitness,
+      touchedFiles: List[File]
+  ): Boolean =
+    touchedFiles.nonEmpty &&
+      witness.sharedSquares.isEmpty &&
+      (current.profile match
+        case StrategicObjectProfile.CounterplayAxis(_, _, _, typedAxes) =>
+          typedAxes.contains(CounterplayAxisType.File)
+        case _ =>
+          false
+      )
+
+  private def hasExactBoardCertificationSupport(
+      current: StrategicObject
+  ): Boolean =
+    current.anchors.nonEmpty &&
+      current.supportingPrimitives.exists(ref =>
+        ref.anchorSquares.nonEmpty || ref.contestedSquares.nonEmpty || ref.lane.nonEmpty
+      )
