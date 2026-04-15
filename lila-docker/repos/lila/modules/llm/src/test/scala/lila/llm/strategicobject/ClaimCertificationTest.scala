@@ -107,6 +107,94 @@ class ClaimCertificationTest extends FunSuite:
     )
   }
 
+  test("quiet positional d6 restriction support stamps fixed-target probe-kind metadata on the exact current-position pack") {
+    val rowIds =
+      List(
+        "current-position-fixed-target-d6-quiet-rook-lift-exact",
+        "current-position-fixed-target-d6-quiet-bishop-lift-exact"
+      )
+
+    rowIds.foreach { rowId =>
+      val row =
+        CurrentPositionFixedTargetProbeTest.rows.find(_.id == rowId).getOrElse(
+          fail(s"expected exact quiet d6 current-position row: $rowId")
+        )
+      val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, PrimitiveExtractionTest.neutralTruthFrame)
+      val deltas =
+        CanonicalStrategicObjectDeltaProjector.project(
+          PrimitiveExtractionTest.neutralContract,
+          PrimitiveExtractionTest.neutralTruthFrame,
+          objects
+        )
+      val claims = CanonicalClaimCertification.certify(PrimitiveExtractionTest.neutralContract, objects, deltas)
+      val supportClaim =
+        claims.find(claim =>
+          claim.objectId == "RestrictionShell-white-center-d4-de" &&
+            claim.deltaScope == StrategicDeltaScope.PositionLocal
+        ).getOrElse(
+          fail(s"expected quiet d6 restriction support claim for $rowId")
+        )
+
+      assertEquals(supportClaim.status, ClaimStatus.SupportOnly, clue(s"$rowId -> $supportClaim"))
+      assertEquals(
+        supportClaim.plannerMetadata.currentPositionProbeKind,
+        Some(CertifiedCurrentPositionProbeKind.FixedTarget),
+        clue(s"$rowId -> $supportClaim")
+      )
+    }
+  }
+
+  test("quiet d4 near-miss restriction support stays outside the current-position probe metadata") {
+    val row =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d4-quiet-near-miss").getOrElse(
+        fail("expected quiet d4 near-miss row")
+      )
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, PrimitiveExtractionTest.neutralTruthFrame)
+    val deltas =
+      CanonicalStrategicObjectDeltaProjector.project(
+        PrimitiveExtractionTest.neutralContract,
+        PrimitiveExtractionTest.neutralTruthFrame,
+        objects
+      )
+    val claims = CanonicalClaimCertification.certify(PrimitiveExtractionTest.neutralContract, objects, deltas)
+    val supportClaim =
+      claims.find(claim =>
+        claim.objectId == "RestrictionShell-white-center-d4-de" &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal
+      ).getOrElse(
+        fail("expected quiet d4 near-miss restriction support claim")
+      )
+
+    assertEquals(supportClaim.status, ClaimStatus.SupportOnly, clue(supportClaim))
+    assertEquals(supportClaim.plannerMetadata.currentPositionProbeKind, None, clue(supportClaim))
+  }
+
+  test("same-shell quiet d7 empty-bundle case keeps restriction support outside current-position probe metadata") {
+    val row =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d7-empty-bundle-nasty-negative").getOrElse(
+        fail("expected quiet d7 empty-bundle nasty-negative row")
+      )
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, PrimitiveExtractionTest.neutralTruthFrame)
+    val deltas =
+      CanonicalStrategicObjectDeltaProjector.project(
+        PrimitiveExtractionTest.neutralContract,
+        PrimitiveExtractionTest.neutralTruthFrame,
+        objects
+      )
+    val claims = CanonicalClaimCertification.certify(PrimitiveExtractionTest.neutralContract, objects, deltas)
+    val supportClaim =
+      claims.find(claim =>
+        claim.objectId == "RestrictionShell-white-center-d4-de" &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal
+      ).getOrElse(
+        fail("expected quiet d7 empty-bundle restriction support claim")
+      )
+
+    assertEquals(supportClaim.status, ClaimStatus.SupportOnly, clue(supportClaim))
+    assertEquals(supportClaim.supportingObjectIds, Nil, clue(supportClaim))
+    assertEquals(supportClaim.plannerMetadata.currentPositionProbeKind, None, clue(supportClaim))
+  }
+
   test("exact coordination probe claim stamps coordination probe-kind metadata") {
     val row =
       CurrentPositionCoordinationProbeTest.rows.find(_.id == "current-position-coordination-probe-exact").getOrElse(

@@ -94,6 +94,22 @@ Near-term canonical sequence from the current checkpoint:
    - the current-position fixed-target tranche now contains both the preserved
      B15A `c6` exact probe and the packet-owned `d6` exact probe on the same
      centralized boundary
+   - the quiet positional salvage tranche on 2026-04-15 strengthens that same
+     boundary only with two extra exact quiet `d6` descriptors plus one exact
+     `RestrictionShell-white-center-d4-de` support descriptor:
+     same-batch `45 / 360 / max8` raises `FixedTargetComplex`
+     `WhatMattersHere / position_local` owner rows `0 -> 2` and
+     `RestrictionShell` `WhatMattersHere / position_local` planner-support
+     rows `0 -> 2`, while family/system aggregates stay flat and the quiet
+     `d4` near-miss remains closed
+   - the descriptor-bound quiet lane generalization tranche on 2026-04-15 is
+     now closed as `descriptor-bound ceiling confirmed`:
+     the smallest boundary-visible structural relaxation leaked
+     `FixedTargetComplex` `WhatMattersHere / position_local` owner rows
+     `2 -> 23` on same-batch `45 / max8`, while
+     `RestrictionShell` planner-support rows stayed `2`; future promotion now
+     requires a new exact-board positive pack or a richer certified target-
+     cluster witness, not looser descriptor matching
 6. `P6-B01` is now passed:
    - exact closure: certification now owns one packet-bounded shared-target
      continuity witness for the `d6` lane across `WhatMattersHere`,
@@ -967,9 +983,12 @@ Suggested order:
    - the exact same-task `TradeInvariant` simplification slice is re-earned
 4. current-position fixed-target probe
    - passed on 2026-04-09
-   - the exact B15A c6 slice and packet-owned d6 slice now reopen only
-     through the certified current-position fixed-target bundle; K03A and K09E
-     stay closed
+   - the exact B15A c6 slice, packet-owned d6 slice, and two additional quiet
+     d6 exact descriptors now reopen only through the certified
+     current-position fixed-target bundle; matching exact
+     `RestrictionShell-white-center-d4-de` support may attach only from the
+     same certified probe kind, while K03A, K09E, and the quiet `d4`
+     near-miss stay closed
 5. current-position coordination probe
    - passed_with_defer on 2026-04-09
    - the exact K09A slice now reopens only through the certified current-position coordination probe; K09D, K09E, and the single-active-piece mirage stay closed
@@ -988,6 +1007,12 @@ Current lane note:
   family-wide frontier
 - the current-position fixed-target tranche is now passed on the same new
   spine with both the preserved `c6` probe and the packet-owned `d6` probe
+- quiet current-position generalization is now ceiling-confirmed as
+  descriptor-bound on the current evidence pack:
+  boundary-visible structural matching leaked cross-axis fixed targets and
+  raised same-batch `45 / max8`
+  `FixedTargetComplex` `WhatMattersHere / position_local` owner rows
+  `2 -> 23` while `RestrictionShell` support stayed fixed at `2`
 - the current-position coordination probe is now also passed (with defer) on
   the same new spine
 - Phase 9 is therefore no longer the active packet frontier by itself, and

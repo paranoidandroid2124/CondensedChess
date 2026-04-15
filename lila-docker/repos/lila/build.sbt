@@ -232,6 +232,7 @@ lazy val llm = module("llm",
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageSupport.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageRunner.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/CounterplaySliceProbeRunner.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/QuietPositionalProbeRunner.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/TradeInvariantSliceProbeRunner.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageSupportTest.scala")
   })

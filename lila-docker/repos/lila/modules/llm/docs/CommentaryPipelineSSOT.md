@@ -1135,6 +1135,23 @@ Current rules:
     (`So the task is to keep the queenside pressure trained on c6 instead of
     rushing a conversion.`) rather than inflating support-only Carlsbad prose
     or reusing move-local `WhyThis` / `WhatChanged`.
+    On 2026-04-15 the same centralized `CurrentPositionProbeSlice` boundary
+    gained two additional exact quiet `d6` descriptors only:
+    (`AccessNetwork-white-center-d2-d`,
+    `AccessNetwork-white-center-d6-d-diag`,
+    `DefenderDependencyNetwork-white-kingside-f3-fgh`) and
+    (`AccessNetwork-white-center-d1-d`,
+    `AccessNetwork-white-center-d6-d-diag`,
+    `AccessNetwork-white-center-d7-d-diag`,
+    `DefenderDependencyNetwork-white-kingside-f3-fgh`).
+    The same boundary also owns one exact
+    `RestrictionShell-white-center-d4-de` current-position support descriptor
+    keyed to `d6/d7/e8` with
+    `DefenderDependencyNetwork-white-kingside-f3-fgh` support.
+    `ClaimCertification` stamps that support-only row with
+    `currentPositionProbeKind=FixedTarget`, and `QuestionPlanner` may surface
+    it only under the matching fixed-target probe; the quiet `d4` near-miss
+    keeps `currentPositionProbeKind=None` and stays outside planner support.
     exact `K09A` now also materializes the second current-position probe on a
     separate exact coordination slice when the live FEN proves
     `white to move`, a white rook on `c1`, an enemy knight on `c6`, at least

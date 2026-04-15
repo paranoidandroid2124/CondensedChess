@@ -228,6 +228,22 @@ in `StrategicObjectRoadmap.md`.
     The comparative support side no longer pairs from raw support-square
     overlap; its packet-owned exact descriptor is recorded separately on the
     `P6-B01` continuity note below.
+    On 2026-04-15, the same centralized current-position boundary gained two
+    additional exact quiet `d6` descriptors only:
+    one via (`AccessNetwork-white-center-d2-d`,
+    `AccessNetwork-white-center-d6-d-diag`,
+    `DefenderDependencyNetwork-white-kingside-f3-fgh`) and one via
+    (`AccessNetwork-white-center-d1-d`,
+    `AccessNetwork-white-center-d6-d-diag`,
+    `AccessNetwork-white-center-d7-d-diag`,
+    `DefenderDependencyNetwork-white-kingside-f3-fgh`).
+    `RestrictionShell` current-position support may now reopen only through a
+    separate exact descriptor on `RestrictionShell-white-center-d4-de` with
+    `DefenderDependencyNetwork-white-kingside-f3-fgh` support and required
+    squares `d6/d7/e8`; `ClaimCertification` stamps that row with
+    `currentPositionProbeKind=FixedTarget`, `QuestionPlanner` may attach it
+    only under the matching fixed-target probe, and the quiet `d4` near-miss
+    remains fail-closed with `currentPositionProbeKind=None`.
   exact `K09A` now materializes the second current-position probe owner on a
   separate exact coordination slice:
   when the live FEN proves `white to move`, a white rook on `c1`, an enemy
@@ -4742,6 +4758,12 @@ support-only material into portable lesson truth.
 - `AccessDemotionRate` is now tracked on `sample x axis`, not sample-only:
   `WhyThis`, `WhyNow`, and `WhatMustBeStopped` demotions are surfaced
   separately in batch coverage output
+- quiet positional salvage tranche on 2026-04-15 stayed trust-bounded:
+  the same-batch `45 / 360 / max8` rerun adds only two
+  `FixedTargetComplex` `WhatMattersHere` owners and the matching two
+  `RestrictionShell` `WhatMattersHere` planner-support rows on the exact quiet
+  `d6` pack, with no family-level aggregate drift and no reopening of the
+  quiet `d4` near-miss
 - `AccessDemotionRate` is family-attributed, not generic axis absence:
   a demotion now counts only when the audited family itself is actually
   surfaced on that axis at a planner-meaningful stage (`primary` / `support`

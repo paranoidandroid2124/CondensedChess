@@ -181,13 +181,7 @@ object CanonicalClaimCertification extends ClaimCertification:
   private def currentPositionProbeKind(
       claim: CertifiedClaim
   ): Option[CertifiedCurrentPositionProbeKind] =
-    claim.delta.flatMap { delta =>
-      if CurrentPositionProbeSlice.isFixedTargetProbeDelta(delta) then
-        Some(CertifiedCurrentPositionProbeKind.FixedTarget)
-      else if CurrentPositionProbeSlice.isCoordinationProbeDelta(delta) then
-        Some(CertifiedCurrentPositionProbeKind.Coordination)
-      else None
-    }
+    claim.delta.flatMap(CurrentPositionProbeSlice.probeKind)
 
   private def residualSpecificityClass(
       claim: CertifiedClaim

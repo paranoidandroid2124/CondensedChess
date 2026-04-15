@@ -10,11 +10,27 @@ class CurrentPositionFixedTargetProbeTest extends FunSuite:
 
   import CurrentPositionFixedTargetProbeTest.*
 
-  test("packet current-position fixed-target corpus covers c6 and d6 exact rows plus negative and near-miss rows") {
-    assertEquals(rows.map(_.caseType).toSet, Set("exact", "negative", "near_miss"))
+  test("packet current-position fixed-target corpus covers exact rows plus boundary-preserving negatives") {
+    assertEquals(rows.map(_.caseType).toSet, Set("exact", "negative", "near_miss", "nasty_negative"))
     assertEquals(
       rows.filter(_.caseType == "exact").map(_.id).toSet,
-      Set("current-position-fixed-target-exact", "current-position-fixed-target-d6-exact")
+      Set(
+        "current-position-fixed-target-exact",
+        "current-position-fixed-target-d6-exact",
+        "current-position-fixed-target-d6-quiet-rook-lift-exact",
+        "current-position-fixed-target-d6-quiet-bishop-lift-exact"
+      )
+    )
+    assertEquals(
+      rows.filter(_.caseType == "nasty_negative").map(_.id).toSet,
+      Set(
+        "current-position-fixed-target-d6-fixed-false-nasty-negative",
+        "current-position-fixed-target-d4-pressure-only-nasty-negative",
+        "current-position-fixed-target-d7-empty-bundle-nasty-negative",
+        "current-position-fixed-target-kingside-f6-structural-leak-nasty-negative",
+        "current-position-fixed-target-queenside-c5-structural-leak-nasty-negative",
+        "current-position-fixed-target-center-e5-structural-leak-nasty-negative"
+      )
     )
   }
 
@@ -38,7 +54,7 @@ class CurrentPositionFixedTargetProbeTest extends FunSuite:
       val localizedStage = localization(planned, objectIds, deltas, positionClaims)
       val debugSummary =
         s"${row.id}: plannerAdmission=$plannerAdmission localization=$localizedStage planned=$planned objectIds=${objectIds.toList.sorted} positionClaims=${positionClaims.map(claim =>
-            s"${claim.status}:${claim.id}:${claim.primaryTag}:support=${claim.supportingObjectIds.sorted.mkString("[", ",", "]")}:delta=${claim.delta
+            s"${claim.status}:${claim.id}:${claim.primaryTag}:probe=${claim.plannerMetadata.currentPositionProbeKind}:support=${claim.supportingObjectIds.sorted.mkString("[", ",", "]")}:delta=${claim.delta
                 .map(delta => s"${delta.family}/${delta.scope}/${delta.primaryTag}/${delta.changedAnchors.size}/${delta.evidenceRefs.size}")
                 .getOrElse("none")}"
           )}"
@@ -59,6 +75,7 @@ class CurrentPositionFixedTargetProbeTest extends FunSuite:
           assert(primaryClaim.delta.exists(_.family == StrategicObjectFamily.FixedTargetComplex), clue(s"${row.id}: expected FixedTargetComplex claim"))
           assert(primaryClaim.delta.exists(_.scope == StrategicDeltaScope.PositionLocal), clue(s"${row.id}: expected position-local claim"))
           assertEquals(primaryClaim.supportingObjectIds.toSet, exactSupportBundleFor(row.id), clue(debugSummary))
+          assertEquals(primaryClaim.plannerMetadata.currentPositionProbeKind, Some(CertifiedCurrentPositionProbeKind.FixedTarget), clue(debugSummary))
           assert(
             primaryClaim.delta.exists(delta =>
               delta.profile match
@@ -69,6 +86,19 @@ class CurrentPositionFixedTargetProbeTest extends FunSuite:
             ),
             clue(s"${row.id}: expected target identity aligned to ${row.anchor.getOrElse("unknown")}")
           )
+        case "keep_current_stage" =>
+          val certifiedClaim =
+            positionClaims.find(claim =>
+              claim.status == ClaimStatus.Certified &&
+                claim.primaryTag.contains(StrategicDeltaTag.TargetFixed)
+            ).getOrElse(
+              fail(s"${row.id}: expected a certified fixed-target claim that stays outside the current-position probe")
+            )
+
+          assert(positionClaims.nonEmpty, clue(s"${row.id}: expected position-local fixed-target claim"))
+          assert(!planned.claimIds.contains(certifiedClaim.id), clue(s"${row.id}: bounded near-miss must stay outside planner primary"))
+          assert(!planned.supportClaimIds.contains(certifiedClaim.id), clue(s"${row.id}: bounded near-miss must stay outside planner support"))
+          assertEquals(certifiedClaim.plannerMetadata.currentPositionProbeKind, None, clue(debugSummary))
         case "none" =>
           assert(positionClaims.forall(claim => !planned.claimIds.contains(claim.id)), clue(s"${row.id}: closed slice must not become primary"))
           assert(positionClaims.forall(claim => !planned.supportClaimIds.contains(claim.id)), clue(s"${row.id}: closed slice must not become support"))
@@ -107,6 +137,19 @@ object CurrentPositionFixedTargetProbeTest:
           "AccessNetwork-white-center-d6-d-diag",
           "AccessNetwork-white-center-d7-d-knight",
           "AccessNetwork-white-queenside-b6-b-diag"
+        ),
+      "current-position-fixed-target-d6-quiet-rook-lift-exact" ->
+        Set(
+          "AccessNetwork-white-center-d2-d",
+          "AccessNetwork-white-center-d6-d-diag",
+          "DefenderDependencyNetwork-white-kingside-f3-fgh"
+        ),
+      "current-position-fixed-target-d6-quiet-bishop-lift-exact" ->
+        Set(
+          "AccessNetwork-white-center-d1-d",
+          "AccessNetwork-white-center-d6-d-diag",
+          "AccessNetwork-white-center-d7-d-diag",
+          "DefenderDependencyNetwork-white-kingside-f3-fgh"
         )
     )
 

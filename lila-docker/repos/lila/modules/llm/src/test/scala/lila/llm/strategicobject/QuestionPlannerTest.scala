@@ -167,7 +167,7 @@ class QuestionPlannerTest extends FunSuite:
     assert(planned.claimIds.forall(id => !scopeOnlyClaims.find(_.id == id).exists(_.deltaScope == StrategicDeltaScope.MoveLocal)))
   }
 
-  test("valid certified ComparativeBalance primary remains eligible for WhatChanged") {
+  test("valid certified comparative primary remains eligible for WhatChanged") {
     val candidateClaims =
       List(
         comparativeClaimsFor("shared-target-support-exact"),
@@ -181,15 +181,20 @@ class QuestionPlannerTest extends FunSuite:
           candidateClaims.find(claim =>
             claim.status == ClaimStatus.Certified &&
               claim.deltaScope == StrategicDeltaScope.Comparative &&
-              claim.primaryTag.contains(StrategicDeltaTag.ComparativeBalance)
+              claim.primaryTag.exists(tag =>
+                Set(
+                  StrategicDeltaTag.ComparativeEdge,
+                  StrategicDeltaTag.ComparativeBalance
+                ).contains(tag)
+              )
           ).map(primary => (candidateContract, candidateClaims, primary))
         }
         .headOption
-        .getOrElse(fail("expected at least one certified ComparativeBalance primary"))
+        .getOrElse(fail("expected at least one certified comparative primary"))
     val planned = CanonicalQuestionPlanner.plan(contract, claims)
 
     assertEquals(planned.axis, QuestionAxis.WhatChanged)
-    assert(planned.claimIds.contains(balancePrimary.id), clue("certified ComparativeBalance primary must remain primary-eligible"))
+    assert(planned.claimIds.contains(balancePrimary.id), clue("certified comparative primary must remain primary-eligible"))
   }
 
   test("planner chooses WhatMattersHere from the packet-owned current-position fixed-target probe") {
@@ -250,6 +255,101 @@ class QuestionPlannerTest extends FunSuite:
       primaryClaim.supportingObjectIds.toSet,
       CurrentPositionFixedTargetProbeTest.exactSupportBundleFor(row.id)
     )
+  }
+
+  test("planner reopens exact quiet d6 restriction support under the current-position fixed-target probe without broadening the slice") {
+    val rowIds =
+      List(
+        "current-position-fixed-target-d6-quiet-rook-lift-exact",
+        "current-position-fixed-target-d6-quiet-bishop-lift-exact"
+      )
+
+    rowIds.foreach { rowId =>
+      val row =
+        CurrentPositionFixedTargetProbeTest.rows.find(_.id == rowId).getOrElse(
+          fail(s"expected quiet d6 current-position row: $rowId")
+        )
+      val truth = PrimitiveExtractionTest.neutralTruthFrame
+      val contract = PrimitiveExtractionTest.neutralContract
+      val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+      val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+      val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+      val planned = CanonicalQuestionPlanner.plan(contract, claims)
+      val objectIds = currentPositionTargetObjectIds(row, objects)
+      val primaryClaim =
+        claims.find(claim =>
+          objectIds.contains(claim.objectId) &&
+            claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+            claim.status == ClaimStatus.Certified
+        ).getOrElse(
+          fail(s"expected quiet d6 primary current-position claim for $rowId")
+        )
+      val supportClaim =
+        claims.find(claim =>
+          claim.objectId == "RestrictionShell-white-center-d4-de" &&
+            claim.deltaScope == StrategicDeltaScope.PositionLocal
+        ).getOrElse(
+          fail(s"expected quiet d6 restriction support claim for $rowId")
+        )
+
+      assertEquals(planned.axis, QuestionAxis.WhatMattersHere, clue(s"$rowId -> $planned"))
+      assert(planned.claimIds.contains(primaryClaim.id), clue(s"$rowId -> $planned"))
+      assert(planned.supportClaimIds.contains(supportClaim.id), clue(s"$rowId -> $planned"))
+      assertEquals(
+        supportClaim.plannerMetadata.currentPositionProbeKind,
+        Some(CertifiedCurrentPositionProbeKind.FixedTarget),
+        clue(s"$rowId -> $supportClaim")
+      )
+    }
+  }
+
+  test("quiet d4 near-miss keeps restriction support outside WhatMattersHere probe admission") {
+    val row =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d4-quiet-near-miss").getOrElse(
+        fail("expected quiet d4 near-miss row")
+      )
+    val truth = PrimitiveExtractionTest.neutralTruthFrame
+    val contract = PrimitiveExtractionTest.neutralContract
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
+    val supportClaim =
+      claims.find(claim =>
+        claim.objectId == "RestrictionShell-white-center-d4-de" &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal
+      ).getOrElse(
+        fail("expected quiet d4 restriction support claim")
+      )
+
+    assertEquals(planned.axis, QuestionAxis.WhatMattersHere, clue(planned))
+    assertEquals(supportClaim.plannerMetadata.currentPositionProbeKind, None, clue(supportClaim))
+    assert(!planned.supportClaimIds.contains(supportClaim.id), clue(planned))
+  }
+
+  test("same-shell quiet d7 empty-bundle case keeps restriction support outside WhatMattersHere admission") {
+    val row =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d7-empty-bundle-nasty-negative").getOrElse(
+        fail("expected quiet d7 empty-bundle nasty-negative row")
+      )
+    val truth = PrimitiveExtractionTest.neutralTruthFrame
+    val contract = PrimitiveExtractionTest.neutralContract
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+    val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+    val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+    val planned = CanonicalQuestionPlanner.plan(contract, claims)
+    val supportClaim =
+      claims.find(claim =>
+        claim.objectId == "RestrictionShell-white-center-d4-de" &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal
+      ).getOrElse(
+        fail("expected quiet d7 empty-bundle restriction support claim")
+      )
+
+    assertEquals(planned.axis, QuestionAxis.WhatMattersHere, clue(planned))
+    assertEquals(supportClaim.supportingObjectIds, Nil, clue(supportClaim))
+    assertEquals(supportClaim.plannerMetadata.currentPositionProbeKind, None, clue(supportClaim))
+    assert(!planned.supportClaimIds.contains(supportClaim.id), clue(planned))
   }
 
   test("planner chooses WhatMattersHere from the packet-owned current-position coordination probe") {

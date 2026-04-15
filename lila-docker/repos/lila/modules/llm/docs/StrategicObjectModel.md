@@ -56,6 +56,23 @@ Current post-spine frontier:
 - the current-position fixed-target tranche now contains both the preserved
   B15A `c6` exact probe and the packet-owned `d6` exact probe on the new
   spine
+- the quiet positional salvage tranche on 2026-04-15 strengthens that same
+  centralized current-position boundary with two additional exact quiet `d6`
+  descriptors and one exact `RestrictionShell-white-center-d4-de`
+  support-only descriptor keyed to the same probe kind; same-batch
+  `45 / 360 / max8` now raises `FixedTargetComplex`
+  `WhatMattersHere / position_local` owner rows from `0` to `2` and
+  `RestrictionShell` `WhatMattersHere / position_local` planner-support rows
+  from `0` to `2`, while the quiet `d4` near-miss remains closed and family /
+  system aggregate counts stay flat
+- the descriptor-bound quiet lane generalization tranche on 2026-04-15 now
+  ceiling-confirms that same boundary: replacing exact quiet-descriptor
+  equality with the smallest boundary-visible structural matcher leaked
+  `FixedTargetComplex` `WhatMattersHere / position_local` owner rows
+  `2 -> 23` on same-batch `45 / max8` while `RestrictionShell`
+  planner-support rows stayed `2`, so the official quiet current-position
+  lane remains descriptor-bound until a new exact-board positive pack proves a
+  richer certified target-cluster boundary
 - one exact current-position coordination probe is now re-earned on the new
   spine (K09A only; K09D/K09E and single-active-piece mirage remain closed)
 - this means:
@@ -137,6 +154,23 @@ Current post-spine frontier:
   the current-position tranche now carries both the preserved B15A `c6` probe
   and the packet-owned `d6` probe, each on the same centralized boundary with
   its own exact support bundle
+- quiet positional salvage tranche on 2026-04-15:
+  `CurrentPositionProbeSlice` now centralizes two additional exact quiet `d6`
+  support bundles and one exact `RestrictionShell-white-center-d4-de`
+  current-position support descriptor; the same-batch `45 / 360 / max8` rerun
+  reopens exactly two `FixedTargetComplex` `WhatMattersHere` owner rows and
+  the matching two `RestrictionShell` `WhatMattersHere` planner-support rows,
+  while the quiet `d4` near-miss keeps `currentPositionProbeKind = None`
+- descriptor-bound quiet lane generalization tranche on 2026-04-15:
+  the smallest boundary-visible relaxation of quiet fixed-target descriptor
+  equality immediately leaked kingside / queenside / center fixed targets
+  (`f6`, `c5`, `e5`) and drove same-batch `45 / max8`
+  `FixedTargetComplex` `WhatMattersHere / position_local` owner rows
+  `2 -> 23` while `RestrictionShell` planner-support rows stayed `2`; the
+  quiet current-position lane is therefore ceiling-confirmed as
+  descriptor-bound on the current evidence pack, with new nasty-negative
+  corpus rows covering fixed-false, pressure-only, empty-bundle, and cross-
+  axis structural leaks
 - `P6-B02-whatchanged-comparative-nearmiss-certification` is `passed`:
   packet-owned near-miss comparative now stays support-only or deferred and
   never owns `WhatChanged` primary
