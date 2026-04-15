@@ -343,17 +343,27 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
     assertEquals(planned.supportClaimIds, List(accessClaim.id))
   }
 
-  test("planner consumes certified probe-kind metadata for current-position admission and support pairing") {
+  test("planner consumes certified probe-kind metadata plus preserved fixed-target cluster witness for current-position admission and support pairing") {
+    val fixedTargetWitness =
+      FixedTargetClusterWitness(
+        focalTargetSquare = Square.D6,
+        clusterSquares = Set(Square.D6, Square.D5),
+        matchingAccessRoutes = Set("AccessNetwork-white-d6"),
+        matchingRestrictionShells = Set("RestrictionShell-white-d6"),
+        matchingDefenderDependencies = Set("DefenderDependencyNetwork-white-d6"),
+        disambiguation = "test-fixed-target-cluster"
+      )
     val primaryClaim =
       positionLocalClaim(
         id = "probe-primary-metadata",
-        objectId = "AccessNetwork-white-d6",
-        family = StrategicObjectFamily.AccessNetwork,
-        profile = StrategicObjectProfile.AccessNetwork(
-          lane = Some(File.D),
-          route = None,
-          roles = Set.empty,
-          contestedSquares = List(Square.D6)
+        objectId = "FixedTargetComplex-white-d6",
+        family = StrategicObjectFamily.FixedTargetComplex,
+        profile = StrategicObjectProfile.FixedTargetComplex(
+          targetSquare = Square.D6,
+          targetOwner = Color.Black,
+          occupantRoles = Set.empty,
+          fixed = true,
+          defended = true
         ),
         primaryTag = StrategicDeltaTag.TargetFixed,
         anchorSquares = List(Square.D6),
@@ -369,6 +379,8 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
           CertifiedPlannerMetadata(
             currentPositionProbeKind = Some(CertifiedCurrentPositionProbeKind.FixedTarget)
           )
+      ).copy(
+        boundaryWitnesses = Set(CertifiedBoundaryWitness.FixedTargetCluster(fixedTargetWitness))
       )
     val supportClaim =
       positionLocalClaim(
@@ -380,7 +392,7 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
           contestedSquares = List(Square.D5),
           constraintSquares = List(Square.D6)
         ),
-        primaryTag = StrategicDeltaTag.TargetFixed,
+        primaryTag = StrategicDeltaTag.RestrictionTightened,
         anchorSquares = List(Square.D6),
         evidenceRefs = List(
           StrategicDeltaEvidenceRef(
@@ -395,10 +407,13 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
           CertifiedPlannerMetadata(
             currentPositionProbeKind = Some(CertifiedCurrentPositionProbeKind.FixedTarget)
           )
+      ).copy(
+        boundaryWitnesses = Set(CertifiedBoundaryWitness.FixedTargetCluster(fixedTargetWitness))
       )
 
     val planned = CanonicalQuestionPlanner.plan(visibleMoveContract, List(primaryClaim, supportClaim))
 
+    assert(FixedTargetClusterWitnessBoundary.sharesClusterWitness(primaryClaim, supportClaim))
     assertEquals(planned.axis, QuestionAxis.WhatMattersHere)
     assertEquals(planned.claimIds, List(primaryClaim.id))
     assertEquals(planned.supportClaimIds, List(supportClaim.id))
@@ -975,7 +990,12 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
           owner = Color.White,
           scope = StrategicDeltaScope.PositionLocal,
           profile = profile,
-          projection = StrategicDeltaProjection.PositionLocal(primaryTag, focalAnchorCount = anchorSquares.size),
+          projection =
+            StrategicDeltaProjection.PositionLocal(
+              primaryTag,
+              focalAnchorCount = anchorSquares.size,
+              witnesses = Set.empty
+            ),
           changedAnchors = List(anchor),
           evidenceRefs = evidenceRefs
         )

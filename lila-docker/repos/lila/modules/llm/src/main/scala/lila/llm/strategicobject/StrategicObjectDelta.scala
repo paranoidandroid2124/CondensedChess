@@ -223,6 +223,18 @@ final case class StrategicComparativeProfile(
   def normalized: StrategicComparativeProfile =
     copy(metrics = metrics.distinct)
 
+final case class FixedTargetClusterWitness(
+    focalTargetSquare: Square,
+    clusterSquares: Set[Square],
+    matchingAccessRoutes: Set[String],
+    matchingRestrictionShells: Set[String],
+    matchingDefenderDependencies: Set[String],
+    disambiguation: String
+)
+
+enum StrategicPositionLocalWitness:
+  case FixedTargetCluster(witness: FixedTargetClusterWitness)
+
 enum StrategicDeltaProjection:
   case MoveLocal(
       change: StrategicDeltaTag,
@@ -230,7 +242,8 @@ enum StrategicDeltaProjection:
   )
   case PositionLocal(
       state: StrategicDeltaTag,
-      focalAnchorCount: Int
+      focalAnchorCount: Int,
+      witnesses: Set[StrategicPositionLocalWitness] = Set.empty
   )
   case Comparative(
       contrast: StrategicDeltaTag,
@@ -243,7 +256,7 @@ enum StrategicDeltaProjection:
   def primaryTag: StrategicDeltaTag =
     this match
       case StrategicDeltaProjection.MoveLocal(change, _)         => change
-      case StrategicDeltaProjection.PositionLocal(state, _)      => state
+      case StrategicDeltaProjection.PositionLocal(state, _, _)   => state
       case StrategicDeltaProjection.Comparative(contrast, _, _, _, _) => contrast
 
   def moveWitness: Option[StrategicMoveTransitionWitness] =
@@ -260,6 +273,11 @@ enum StrategicDeltaProjection:
     this match
       case StrategicDeltaProjection.Comparative(_, _, _, _, profile) => Some(profile)
       case _                                                         => None
+
+  def positionLocalWitnesses: Set[StrategicPositionLocalWitness] =
+    this match
+      case StrategicDeltaProjection.PositionLocal(_, _, witnesses) => witnesses
+      case _                                                       => Set.empty
 
 final case class StrategicDeltaEvidenceRef(
     primitiveKind: PrimitiveKind,
@@ -295,3 +313,5 @@ final case class StrategicObjectDelta(
   def comparativeWitness: Option[StrategicComparativeWitness] = projection.comparativeWitness
 
   def comparativeProfile: Option[StrategicComparativeProfile] = projection.comparativeProfile
+
+  def positionLocalWitnesses: Set[StrategicPositionLocalWitness] = projection.positionLocalWitnesses

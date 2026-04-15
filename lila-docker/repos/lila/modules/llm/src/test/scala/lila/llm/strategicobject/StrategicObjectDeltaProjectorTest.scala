@@ -450,7 +450,7 @@ class StrategicObjectDeltaProjectorTest extends FunSuite:
     delta.projection match
       case StrategicDeltaProjection.MoveLocal(_, witness) =>
         assert(witness.isTransitionAware, clue(s"${row.id}: move-local witness must stay typed"))
-      case StrategicDeltaProjection.PositionLocal(_, focalAnchorCount) =>
+      case StrategicDeltaProjection.PositionLocal(_, focalAnchorCount, _) =>
         assert(focalAnchorCount > 0, clue(s"${row.id}: expected focal anchors"))
       case StrategicDeltaProjection.Comparative(_, _, witness, counterpartObjectIds, profile) =>
         assert(witness.isFamilyAware, clue(s"${row.id}: expected comparative witness"))

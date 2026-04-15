@@ -394,7 +394,7 @@ object CounterplaySliceProbeRunner:
             tag =
               delta.projection match
                 case StrategicDeltaProjection.MoveLocal(change, _)  => change.toString
-                case StrategicDeltaProjection.PositionLocal(state, _) => state.toString
+                case StrategicDeltaProjection.PositionLocal(state, _, _) => state.toString
                 case StrategicDeltaProjection.Comparative(contrast, _, _, _, _) => contrast.toString,
             primitiveKinds =
               delta.projection match

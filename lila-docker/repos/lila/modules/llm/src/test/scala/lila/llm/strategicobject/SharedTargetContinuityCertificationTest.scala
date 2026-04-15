@@ -82,7 +82,15 @@ class SharedTargetContinuityCertificationTest extends FunSuite:
         "DefenderDependencyNetwork-white-kingside-f3-fgh"
       )
     )
-    assertEquals(continuityClaims.map(_.boundaryWitnesses).toSet, Set(Set(packetWitness)))
+    assert(continuityClaims.forall(_.boundaryWitnesses.contains(packetWitness)), clue(continuityClaims.map(claimDebug)))
+    assert(FixedTargetClusterWitnessBoundary.hasClusterWitness(positionClaim), clue(claimDebug(positionClaim)))
+    assertEquals(
+      continuityClaims
+        .filterNot(_.id == positionClaim.id)
+        .map(_.boundaryWitnesses)
+        .toSet,
+      Set(Set(packetWitness))
+    )
     assert(SharedTargetContinuityBoundary.sharesPacketContinuity(comparativePrimary, comparativeSupport))
   }
 

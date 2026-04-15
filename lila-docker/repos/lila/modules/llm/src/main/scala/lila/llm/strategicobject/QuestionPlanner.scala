@@ -352,10 +352,22 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       primaryClaims: List[CertifiedClaim],
       supportClaims: List[CertifiedClaim]
   ): List[CertifiedClaim] =
-    val primaryKinds = primaryClaims.flatMap(currentPositionProbeKind).toSet
-    supportClaims.filter(claim =>
-      currentPositionProbeKind(claim).exists(primaryKinds.contains)
-    )
+    val fixedTargetSupport =
+      supportClaims.filter(supportClaim =>
+        primaryClaims.exists(primaryClaim =>
+          currentPositionProbeKind(primaryClaim).contains(CertifiedCurrentPositionProbeKind.FixedTarget) &&
+            FixedTargetClusterWitnessBoundary.sharesClusterWitness(primaryClaim, supportClaim)
+        )
+      )
+    val coordinationSupport =
+      supportClaims.filter(supportClaim =>
+        currentPositionProbeKind(supportClaim).contains(CertifiedCurrentPositionProbeKind.Coordination) &&
+          primaryClaims.exists(primaryClaim =>
+            currentPositionProbeKind(primaryClaim).contains(CertifiedCurrentPositionProbeKind.Coordination)
+          )
+      )
+
+    dedupeClaims(fixedTargetSupport ++ coordinationSupport)
 
   private def currentPositionProbeKind(
       claim: CertifiedClaim
@@ -396,4 +408,25 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
   ): Boolean =
     claim.status == status &&
       claim.hasTypedDelta &&
-      currentPositionProbeKind(claim).nonEmpty
+      (
+        isFixedTargetCurrentPositionProbe(claim, status) ||
+          isCoordinationCurrentPositionProbe(claim)
+      )
+
+  private def isFixedTargetCurrentPositionProbe(
+      claim: CertifiedClaim,
+      status: ClaimStatus
+  ): Boolean =
+    currentPositionProbeKind(claim).contains(CertifiedCurrentPositionProbeKind.FixedTarget) &&
+      claim.delta.exists(delta =>
+        delta.scope == StrategicDeltaScope.PositionLocal &&
+          (
+            (status == ClaimStatus.Certified && delta.family == StrategicObjectFamily.FixedTargetComplex) ||
+              (status == ClaimStatus.SupportOnly && delta.family == StrategicObjectFamily.RestrictionShell)
+          )
+      )
+
+  private def isCoordinationCurrentPositionProbe(
+      claim: CertifiedClaim
+  ): Boolean =
+    currentPositionProbeKind(claim).contains(CertifiedCurrentPositionProbeKind.Coordination)

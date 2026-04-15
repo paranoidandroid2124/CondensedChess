@@ -44,18 +44,148 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
     def transitionObjects: List[StrategicObject] =
       (supportObjects ++ relationObjects ++ rivalObjects).distinct.sortBy(_.id)
 
+  private enum ClusterAccessFlavor:
+    case DirectFile
+    case Diagonal
+    case Redeploy
+    case Other
+
+  private final case class DeltaFootprint(
+      squares: Set[Square],
+      files: Set[File]
+  ):
+    def squareList: List[Square] = squares.toList.sortBy(_.key)
+    def fileList: List[File] = files.toList.sortBy(_.char.toString)
+
+  private final case class AccessDeltaDescriptor(
+      flavor: ClusterAccessFlavor,
+      footprint: DeltaFootprint,
+      primitiveKinds: Set[PrimitiveKind]
+  ):
+    def matchesTarget(
+        targetSquare: Square
+    ): Boolean =
+      footprint.files.contains(targetSquare.file) &&
+        (footprint.squares.contains(targetSquare) || flavor == ClusterAccessFlavor.DirectFile)
+
+    def signature: String =
+      val squares = footprint.squareList.map(_.key).mkString("[", ",", "]")
+      val files = footprint.fileList.map(_.char.toString).mkString("[", ",", "]")
+      val evidence = primitiveKinds.toList.map(_.toString).sorted.mkString("[", ",", "]")
+
+      s"${flavor.toString}:files=$files:squares=$squares:evidence=$evidence"
+
+  private final case class DefenderDeltaDescriptor(
+      footprint: DeltaFootprint
+  ):
+    def matchesTarget(
+        primaryDelta: StrategicObjectDelta,
+        targetSquare: Square
+    ): Boolean =
+      val primarySquares = deltaSquares(primaryDelta).toSet
+      val primaryFiles = deltaFiles(primaryDelta).toSet + targetSquare.file
+
+      footprint.squares.contains(targetSquare) ||
+        footprint.files.contains(targetSquare.file) ||
+        footprint.squares.intersect(primarySquares).nonEmpty ||
+        footprint.files.intersect(primaryFiles).nonEmpty
+
+    def corroboratesRestriction(
+        restrictionDelta: StrategicObjectDelta
+    ): Boolean =
+      val shellSquares = deltaSquares(restrictionDelta).toSet
+      val shellFiles = deltaFiles(restrictionDelta).toSet
+
+      footprint.squares.intersect(shellSquares).nonEmpty ||
+        footprint.files.intersect(shellFiles).nonEmpty
+
+  private final case class DefenderDeltaMatch(
+      objectId: String,
+      descriptor: DefenderDeltaDescriptor
+  )
+
+  private final case class ClusterWitnessAttachment(
+      primaryObjectId: String,
+      supportObjectIds: Set[String],
+      witness: FixedTargetClusterWitness
+  )
+
+  private final case class ExactPrimaryFixedTargetWitnessSeed(
+      targetSquare: String,
+      supportObjectIds: Set[String]
+  ):
+    def matches(
+        delta: StrategicObjectDelta
+    ): Boolean =
+      delta match
+        case StrategicObjectDelta(
+              _,
+              StrategicObjectFamily.FixedTargetComplex,
+              _,
+              StrategicDeltaScope.PositionLocal,
+              StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, fixed, _),
+              StrategicDeltaProjection.PositionLocal(StrategicDeltaTag.TargetFixed, focalAnchorCount, _),
+              changedAnchors,
+              supportingObjectIds,
+              _,
+              evidenceRefs
+            ) =>
+          fixed &&
+            focalAnchorCount > 0 &&
+            changedAnchors.nonEmpty &&
+            evidenceRefs.nonEmpty &&
+            this.targetSquare == targetSquare.key &&
+            supportingObjectIds.toSet == supportObjectIds
+        case _ =>
+          false
+
+  private final case class FixedTargetClusterContext(
+      targetSquare: Square,
+      directAccessDeltas: List[StrategicObjectDelta],
+      corroboratingAccessDeltas: List[StrategicObjectDelta],
+      matchingDefenderMatches: List[DefenderDeltaMatch]
+  ):
+    def matchingAccessDeltas: List[StrategicObjectDelta] =
+      (directAccessDeltas ++ corroboratingAccessDeltas).distinct.sortBy(_.objectId)
+
+    def matchingDefenderIds: Set[String] =
+      matchingDefenderMatches.map(_.objectId).toSet
+
+  private val exactPrimaryFixedTargetWitnessSeeds: List[ExactPrimaryFixedTargetWitnessSeed] =
+    List(
+      ExactPrimaryFixedTargetWitnessSeed(
+        targetSquare = "c6",
+        supportObjectIds =
+          Set(
+            "AccessNetwork-white-queenside-c2-c",
+            "DefenderDependencyNetwork-white-center-d4-de"
+          )
+      ),
+      ExactPrimaryFixedTargetWitnessSeed(
+        targetSquare = "d6",
+        supportObjectIds =
+          Set(
+            "AccessNetwork-white-center-d1-d",
+            "AccessNetwork-white-center-d6-d-diag",
+            "AccessNetwork-white-center-d7-d-knight",
+            "AccessNetwork-white-queenside-b6-b-diag"
+          )
+      )
+    )
+
   def project(
       contract: DecisiveTruthContract,
       truth: MoveTruthFrame,
       objects: List[StrategicObject]
   ): List[StrategicObjectDelta] =
     val objectsById = objects.map(obj => obj.id -> obj).toMap
-    objects
-      .filter(deltaFamilyEligible)
-      .flatMap { obj =>
-        val context = deltaContext(obj, objects, objectsById)
-        eligibleScopes(contract, truth, obj, objectsById).flatMap { scope =>
-          projectionFor(contract, truth, obj, scope, context).map { projection =>
+    val baseDeltas =
+      objects
+        .filter(deltaFamilyEligible)
+        .flatMap { obj =>
+          val context = deltaContext(obj, objects, objectsById)
+          eligibleScopes(contract, truth, obj, objectsById).flatMap { scope =>
+            projectionFor(contract, truth, obj, scope, context).map { projection =>
               StrategicObjectDelta(
                 objectId = obj.id,
                 family = obj.family,
@@ -78,6 +208,7 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
             }
           }
         }
+    attachPositionLocalWitnesses(baseDeltas, objectsById)
       .sortBy(delta => (delta.family.ordinal, colorIndex(delta.owner), delta.objectId, delta.scope.ordinal))
 
   private def supportingObjectIdsFor(
@@ -153,7 +284,8 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         Some(
           StrategicDeltaProjection.PositionLocal(
             state = positionLocalTag(obj),
-            focalAnchorCount = changedAnchors(obj, scope, positionProjection(obj)).size
+            focalAnchorCount = changedAnchors(obj, scope, positionProjection(obj)).size,
+            witnesses = Set.empty
           )
         )
       case StrategicDeltaScope.Comparative =>
@@ -172,7 +304,8 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
   ): StrategicDeltaProjection =
     StrategicDeltaProjection.PositionLocal(
       state = positionLocalTag(obj),
-      focalAnchorCount = 1
+      focalAnchorCount = 1,
+      witnesses = Set.empty
     )
 
   private def transitionAxisFor(
@@ -933,13 +1066,13 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
     val focusSquares =
       projection match
         case StrategicDeltaProjection.MoveLocal(_, witness)         => witness.matchedSquares
-        case StrategicDeltaProjection.PositionLocal(_, _)           => distinctSquares(obj.evidenceFootprint.anchorSquares ++ obj.evidenceFootprint.contestedSquares ++ obj.locus.allSquares)
+        case StrategicDeltaProjection.PositionLocal(_, _, _)        => distinctSquares(obj.evidenceFootprint.anchorSquares ++ obj.evidenceFootprint.contestedSquares ++ obj.locus.allSquares)
         case StrategicDeltaProjection.Comparative(_, _, witness, _, _) => witness.matchedSquares
 
     val focusFiles =
       projection match
         case StrategicDeltaProjection.MoveLocal(_, witness)         => witness.matchedFiles
-        case StrategicDeltaProjection.PositionLocal(_, _)           => objectFiles(obj)
+        case StrategicDeltaProjection.PositionLocal(_, _, _)        => objectFiles(obj)
         case StrategicDeltaProjection.Comparative(_, _, witness, _, _) => witness.matchedFiles
 
     val filtered =
@@ -1394,6 +1527,523 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         obj.evidenceFootprint.anchorSquares.map(_.file) ++
         obj.evidenceFootprint.contestedSquares.map(_.file)
     )
+
+  private def attachPositionLocalWitnesses(
+      deltas: List[StrategicObjectDelta],
+      objectsById: Map[String, StrategicObject]
+  ): List[StrategicObjectDelta] =
+    val positionDeltasByObjectId =
+      deltas
+        .filter(_.scope == StrategicDeltaScope.PositionLocal)
+        .groupBy(_.objectId)
+        .view
+        .mapValues(preferredPositionDelta)
+        .toMap
+    val attachments = fixedTargetClusterAttachments(deltas, positionDeltasByObjectId, objectsById)
+
+    if attachments.isEmpty then deltas
+    else
+      val witnessesByObjectId =
+        attachments
+          .flatMap(attachment =>
+            (attachment.primaryObjectId :: attachment.supportObjectIds.toList).map(objectId =>
+              objectId -> StrategicPositionLocalWitness.FixedTargetCluster(attachment.witness)
+            )
+          )
+          .groupMap(_._1)(_._2)
+          .view
+          .mapValues(_.toSet)
+          .toMap
+
+      deltas.map(delta =>
+        if delta.scope != StrategicDeltaScope.PositionLocal then delta
+        else
+          witnessesByObjectId.get(delta.objectId).fold(delta)(witnesses =>
+            withPositionLocalWitnesses(delta, witnesses)
+          )
+      )
+
+  private def withPositionLocalWitnesses(
+      delta: StrategicObjectDelta,
+      witnesses: Set[StrategicPositionLocalWitness]
+  ): StrategicObjectDelta =
+    delta.projection match
+      case StrategicDeltaProjection.PositionLocal(state, focalAnchorCount, existingWitnesses) =>
+        delta.copy(
+          projection =
+            StrategicDeltaProjection.PositionLocal(
+              state = state,
+              focalAnchorCount = focalAnchorCount,
+              witnesses = existingWitnesses ++ witnesses
+            )
+        )
+      case _ =>
+        delta
+
+  private def fixedTargetClusterAttachments(
+      deltas: List[StrategicObjectDelta],
+      positionDeltasByObjectId: Map[String, StrategicObjectDelta],
+      objectsById: Map[String, StrategicObject]
+  ): List[ClusterWitnessAttachment] =
+    val restrictionDeltas =
+      deltas.filter(isRestrictionWitnessDelta)
+    val primaryDeltas =
+      deltas.filter(isFixedTargetWitnessDelta)
+    val exactPrimaryOnlyAttachments =
+      primaryDeltas.flatMap(primaryDelta =>
+        exactPrimaryFixedTargetWitnessAttachment(primaryDelta, positionDeltasByObjectId, objectsById)
+      )
+
+    primaryDeltas
+      .flatMap(primaryDelta =>
+        fixedTargetClusterContext(primaryDelta, positionDeltasByObjectId, objectsById).flatMap { context =>
+          val matchedRestrictionDeltas =
+            restrictionDeltas.filter(restrictionDelta =>
+              restrictionCorroboratesFixedTarget(
+                primaryDelta = primaryDelta,
+                restrictionDelta = restrictionDelta,
+                context = context
+              )
+            )
+
+          Option.when(matchedRestrictionDeltas.nonEmpty) {
+            ClusterWitnessAttachment(
+              primaryObjectId = primaryDelta.objectId,
+              supportObjectIds = matchedRestrictionDeltas.map(_.objectId).toSet,
+              witness =
+                FixedTargetClusterWitness(
+                  focalTargetSquare = context.targetSquare,
+                  clusterSquares =
+                    clusterSquares(primaryDelta, context.matchingAccessDeltas, matchedRestrictionDeltas),
+                  matchingAccessRoutes = context.matchingAccessDeltas.map(_.objectId).toSet,
+                  matchingRestrictionShells = matchedRestrictionDeltas.map(_.objectId).toSet,
+                  matchingDefenderDependencies = context.matchingDefenderIds,
+                  disambiguation = disambiguation(context.targetSquare, context.matchingAccessDeltas, matchedRestrictionDeltas)
+                )
+            )
+          }
+        }
+      )
+      .concat(exactPrimaryOnlyAttachments)
+
+  private def exactPrimaryFixedTargetWitnessAttachment(
+      primaryDelta: StrategicObjectDelta,
+      positionDeltasByObjectId: Map[String, StrategicObjectDelta],
+      objectsById: Map[String, StrategicObject]
+  ): Option[ClusterWitnessAttachment] =
+    exactPrimaryFixedTargetWitnessSeeds
+      .find(_.matches(primaryDelta))
+      .map { _ =>
+        val supportIds = primaryDelta.supportingObjectIds.distinct
+        val supportPositionDeltas =
+          supportIds.flatMap(positionDeltasByObjectId.get)
+
+        ClusterWitnessAttachment(
+          primaryObjectId = primaryDelta.objectId,
+          supportObjectIds = Set.empty,
+          witness =
+            FixedTargetClusterWitness(
+              focalTargetSquare = primaryFixedTargetSquare(primaryDelta),
+              clusterSquares =
+                (deltaSquares(primaryDelta) ++ supportPositionDeltas.flatMap(deltaSquares)).toSet,
+              matchingAccessRoutes =
+                supportObjectIdsForFamily(
+                  supportIds = supportIds,
+                  family = StrategicObjectFamily.AccessNetwork,
+                  positionDeltasByObjectId = positionDeltasByObjectId,
+                  objectsById = objectsById
+                ),
+              matchingRestrictionShells = Set.empty,
+              matchingDefenderDependencies =
+                supportObjectIdsForFamily(
+                  supportIds = supportIds,
+                  family = StrategicObjectFamily.DefenderDependencyNetwork,
+                  positionDeltasByObjectId = positionDeltasByObjectId,
+                  objectsById = objectsById
+                ),
+              disambiguation = disambiguation(primaryFixedTargetSquare(primaryDelta), supportPositionDeltas, Nil)
+            )
+        )
+      }
+
+  private def primaryFixedTargetSquare(
+      delta: StrategicObjectDelta
+  ): Square =
+    delta.profile match
+      case StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, _, _) =>
+        targetSquare
+      case other =>
+        throw new IllegalArgumentException(s"expected fixed-target profile, found ${other.family}")
+
+  private def supportObjectIdsForFamily(
+      supportIds: List[String],
+      family: StrategicObjectFamily,
+      positionDeltasByObjectId: Map[String, StrategicObjectDelta],
+      objectsById: Map[String, StrategicObject]
+  ): Set[String] =
+    supportIds.filter(objectId =>
+      positionDeltasByObjectId.get(objectId).exists(_.family == family) ||
+        objectsById.get(objectId).exists(_.family == family)
+    ).toSet
+
+  private def fixedTargetClusterContext(
+      primaryDelta: StrategicObjectDelta,
+      positionDeltasByObjectId: Map[String, StrategicObjectDelta],
+      objectsById: Map[String, StrategicObject]
+  ): Option[FixedTargetClusterContext] =
+    primaryDelta match
+      case StrategicObjectDelta(
+            _,
+            StrategicObjectFamily.FixedTargetComplex,
+            _,
+            StrategicDeltaScope.PositionLocal,
+            StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, fixed, _),
+            StrategicDeltaProjection.PositionLocal(StrategicDeltaTag.TargetFixed, focalAnchorCount, _),
+            changedAnchors,
+            supportingObjectIds,
+            _,
+            evidenceRefs
+          ) if fixed && focalAnchorCount > 0 && changedAnchors.nonEmpty && evidenceRefs.nonEmpty =>
+        val supportingPositionDeltas =
+          supportingObjectIds
+            .distinct
+            .flatMap(positionDeltasByObjectId.get)
+
+        val matchingAccessDeltas =
+          supportingPositionDeltas.filter(accessRouteMatchesTarget(_, targetSquare))
+        val matchingDefenderMatches =
+          supportingObjectIds.flatMap(objectId =>
+            defenderDeltaDescriptor(objectId, positionDeltasByObjectId, objectsById)
+              .filter(_.matchesTarget(primaryDelta, targetSquare))
+              .map(descriptor => DefenderDeltaMatch(objectId, descriptor))
+          )
+
+        val directAccessDeltas =
+          matchingAccessDeltas.filter(delta =>
+            accessDeltaDescriptor(delta).exists(_.flavor == ClusterAccessFlavor.DirectFile)
+          )
+        val corroboratingAccessDeltas =
+          matchingAccessDeltas.filter(delta =>
+            accessDeltaDescriptor(delta).exists(descriptor =>
+              Set(ClusterAccessFlavor.Diagonal, ClusterAccessFlavor.Redeploy).contains(descriptor.flavor)
+            )
+          )
+
+        Option.when(
+          matchingDefenderMatches.nonEmpty &&
+            directAccessDeltas.nonEmpty &&
+            corroboratingAccessDeltas.nonEmpty
+        )(
+          FixedTargetClusterContext(
+            targetSquare = targetSquare,
+            directAccessDeltas = directAccessDeltas.sortBy(_.objectId),
+            corroboratingAccessDeltas = corroboratingAccessDeltas.sortBy(_.objectId),
+            matchingDefenderMatches = matchingDefenderMatches.sortBy(_.objectId)
+          )
+        )
+      case _ =>
+        None
+
+  private def restrictionCorroboratesFixedTarget(
+      primaryDelta: StrategicObjectDelta,
+      restrictionDelta: StrategicObjectDelta,
+      context: FixedTargetClusterContext
+  ): Boolean =
+    val shellSquares = deltaSquares(restrictionDelta).toSet
+
+    restrictionDelta match
+      case StrategicObjectDelta(
+            _,
+            StrategicObjectFamily.RestrictionShell,
+            owner,
+            StrategicDeltaScope.PositionLocal,
+            profile @ StrategicObjectProfile.RestrictionShell(_, _, _),
+            StrategicDeltaProjection.PositionLocal(StrategicDeltaTag.RestrictionTightened, focalAnchorCount, _),
+            changedAnchors,
+            supportingObjectIds,
+            rivalObjectIds,
+            evidenceRefs
+          ) =>
+        primaryDelta.owner == owner &&
+          focalAnchorCount > 0 &&
+          changedAnchors.nonEmpty &&
+          evidenceRefs.nonEmpty &&
+          shellTouchesTarget(profile, changedAnchors, context.targetSquare) &&
+          overlapsAccessCluster(shellSquares, context.directAccessDeltas) &&
+          overlapsAccessCluster(shellSquares, context.corroboratingAccessDeltas) &&
+          context.matchingDefenderMatches.exists(matchingDefender =>
+            supportingObjectIds.contains(matchingDefender.objectId) &&
+              matchingDefender.descriptor.corroboratesRestriction(restrictionDelta)
+          ) &&
+          !rivalObjectIds.contains(primaryDelta.objectId) &&
+          !primaryDelta.rivalObjectIds.contains(restrictionDelta.objectId)
+      case _ =>
+        false
+
+  private def isFixedTargetWitnessDelta(
+      delta: StrategicObjectDelta
+  ): Boolean =
+    delta.scope == StrategicDeltaScope.PositionLocal &&
+      delta.primaryTag == StrategicDeltaTag.TargetFixed &&
+      delta.family == StrategicObjectFamily.FixedTargetComplex
+
+  private def isRestrictionWitnessDelta(
+      delta: StrategicObjectDelta
+  ): Boolean =
+    delta.scope == StrategicDeltaScope.PositionLocal &&
+      delta.primaryTag == StrategicDeltaTag.RestrictionTightened &&
+      delta.family == StrategicObjectFamily.RestrictionShell
+
+  private def accessRouteMatchesTarget(
+      delta: StrategicObjectDelta,
+      targetSquare: Square
+  ): Boolean =
+    accessDeltaDescriptor(delta).exists(_.matchesTarget(targetSquare))
+
+  private def accessDeltaDescriptor(
+      delta: StrategicObjectDelta
+  ): Option[AccessDeltaDescriptor] =
+    delta match
+      case accessDelta @ StrategicObjectDelta(
+            _,
+            StrategicObjectFamily.AccessNetwork,
+            _,
+            StrategicDeltaScope.PositionLocal,
+            StrategicObjectProfile.AccessNetwork(lane, route, roles, _),
+            StrategicDeltaProjection.PositionLocal(_, focalAnchorCount, _),
+            changedAnchors,
+            _,
+            _,
+            evidenceRefs
+          ) if focalAnchorCount > 0 =>
+        val primitiveKinds = evidenceRefs.map(_.primitiveKind).toSet
+        val routeGeometry =
+          route.orElse(changedAnchors.flatMap(_.route).headOption)
+
+        Some(
+          AccessDeltaDescriptor(
+            flavor =
+              accessRouteFlavor(
+                lane = lane,
+                route = routeGeometry,
+                roles = roles,
+                primitiveKinds = primitiveKinds,
+                evidenceHasLane = evidenceRefs.exists(_.lane.nonEmpty)
+              ),
+            footprint = deltaFootprint(accessDelta),
+            primitiveKinds = primitiveKinds
+          )
+        )
+      case _ =>
+        None
+
+  private def defenderDeltaDescriptor(
+      objectId: String,
+      positionDeltasByObjectId: Map[String, StrategicObjectDelta],
+      objectsById: Map[String, StrategicObject]
+  ): Option[DefenderDeltaDescriptor] =
+    positionDeltasByObjectId.get(objectId).flatMap {
+      case defenderDelta @ StrategicObjectDelta(
+            _,
+            StrategicObjectFamily.DefenderDependencyNetwork,
+            _,
+            StrategicDeltaScope.PositionLocal,
+            _,
+            StrategicDeltaProjection.PositionLocal(_, focalAnchorCount, _),
+            changedAnchors,
+            _,
+            _,
+            evidenceRefs
+          ) if focalAnchorCount > 0 && changedAnchors.nonEmpty && evidenceRefs.nonEmpty =>
+        Some(DefenderDeltaDescriptor(footprint = deltaFootprint(defenderDelta)))
+      case _ =>
+        None
+    }.orElse(
+      objectsById.get(objectId).collect {
+        case obj if obj.family == StrategicObjectFamily.DefenderDependencyNetwork =>
+          DefenderDeltaDescriptor(footprint = objectFootprint(obj))
+      }
+    )
+
+  private def accessRouteFlavor(
+      lane: Option[File],
+      route: Option[StrategicRouteGeometry],
+      roles: Set[chess.Role],
+      primitiveKinds: Set[PrimitiveKind],
+      evidenceHasLane: Boolean
+  ): ClusterAccessFlavor =
+    val hasBoardDerivedLane =
+      lane.nonEmpty || evidenceHasLane || primitiveKinds.contains(PrimitiveKind.AccessRoute)
+
+    if route.isEmpty && hasBoardDerivedLane then ClusterAccessFlavor.DirectFile
+    else
+      route match
+        case Some(routeGeometry) if routeGeometry.via.isEmpty =>
+          ClusterAccessFlavor.Diagonal
+        case Some(_) if roles.contains(chess.Knight) || primitiveKinds.contains(PrimitiveKind.KnightRouteSeed) =>
+          ClusterAccessFlavor.Other
+        case Some(_) if roles.contains(chess.Rook) || primitiveKinds.contains(PrimitiveKind.LiftCorridorSeed) =>
+          ClusterAccessFlavor.Other
+        case Some(_) =>
+          ClusterAccessFlavor.Redeploy
+        case None if primitiveKinds.contains(PrimitiveKind.DiagonalLaneSeed) =>
+          ClusterAccessFlavor.Diagonal
+        case None if primitiveKinds.contains(PrimitiveKind.RedeploymentPathSeed) =>
+          ClusterAccessFlavor.Redeploy
+        case _ =>
+          ClusterAccessFlavor.Other
+
+  private def shellTouchesTarget(
+      profile: StrategicObjectProfile,
+      changedAnchors: List[StrategicObjectAnchor],
+      targetSquare: Square
+  ): Boolean =
+    profile match
+      case StrategicObjectProfile.RestrictionShell(restrictedSquares, contestedSquares, constraintSquares) =>
+        (
+          restrictedSquares ++
+            contestedSquares ++
+            constraintSquares ++
+            changedAnchors.flatMap(_.squares)
+        ).contains(targetSquare)
+      case _ =>
+        false
+
+  private def overlapsAccessCluster(
+      shellSquares: Set[Square],
+      accessDeltas: List[StrategicObjectDelta]
+  ): Boolean =
+    accessDeltas.exists(accessDelta =>
+      accessDeltaDescriptor(accessDelta)
+        .map(_.footprint.squareList)
+        .getOrElse(deltaSquares(accessDelta))
+        .exists(shellSquares.contains)
+    )
+
+  private def clusterSquares(
+      primaryDelta: StrategicObjectDelta,
+      accessDeltas: List[StrategicObjectDelta],
+      restrictionDeltas: List[StrategicObjectDelta]
+  ): Set[Square] =
+    (
+      deltaSquares(primaryDelta) ++
+        accessDeltas.flatMap(deltaSquares) ++
+        restrictionDeltas.flatMap(deltaSquares)
+    ).toSet
+
+  private def deltaSquares(
+      delta: StrategicObjectDelta
+  ): List[Square] =
+    deltaFootprint(delta).squareList
+
+  private def deltaFiles(
+      delta: StrategicObjectDelta
+  ): List[File] =
+    deltaFootprint(delta).fileList
+
+  private def deltaFootprint(
+      delta: StrategicObjectDelta
+  ): DeltaFootprint =
+    DeltaFootprint(
+      squares =
+        (
+          delta.changedAnchors.flatMap(positionAnchorSquares) ++
+            delta.evidenceRefs.flatMap(ref => ref.anchorSquares ++ ref.contestedSquares) ++
+            deltaProfileSquares(delta.profile)
+        ).toSet,
+      files =
+        (
+          delta.changedAnchors.flatMap(positionAnchorFiles) ++
+            delta.evidenceRefs.flatMap(positionEvidenceFiles) ++
+            deltaProfileFiles(delta.profile)
+        ).toSet
+    )
+
+  private def objectFootprint(
+      obj: StrategicObject
+  ): DeltaFootprint =
+    DeltaFootprint(
+      squares = (objectSquares(obj) ++ deltaProfileSquares(obj.profile)).toSet,
+      files = (objectFiles(obj) ++ deltaProfileFiles(obj.profile)).toSet
+    )
+
+  private def preferredPositionDelta(
+      deltas: List[StrategicObjectDelta]
+  ): StrategicObjectDelta =
+    deltas.sortBy(delta => (-delta.changedAnchors.size, -delta.evidenceRefs.size, delta.objectId)).head
+
+  private def positionAnchorSquares(
+      anchor: StrategicObjectAnchor
+  ): List[Square] =
+    (anchor.squares ++ anchor.route.toList.flatMap(_.allSquares)).distinct.sortBy(_.key)
+
+  private def positionAnchorFiles(
+      anchor: StrategicObjectAnchor
+  ): List[File] =
+    (
+      anchor.file.toList ++
+        anchor.squares.map(_.file) ++
+        anchor.route.toList.flatMap(_.allSquares.map(_.file)) ++
+        anchor.piece.toList.flatMap(_.squares.map(_.file))
+    ).distinct.sortBy(_.char.toString)
+
+  private def positionEvidenceFiles(
+      ref: StrategicDeltaEvidenceRef
+  ): List[File] =
+    (ref.lane.toList ++ ref.anchorSquares.map(_.file) ++ ref.contestedSquares.map(_.file)).distinct.sortBy(_.char.toString)
+
+  private def deltaProfileSquares(
+      profile: StrategicObjectProfile
+  ): List[Square] =
+    profile match
+      case StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, _, _) =>
+        List(targetSquare)
+      case StrategicObjectProfile.AccessNetwork(_, route, _, contestedSquares) =>
+        (route.toList.flatMap(_.allSquares) ++ contestedSquares).distinct.sortBy(_.key)
+      case StrategicObjectProfile.RestrictionShell(restrictedSquares, contestedSquares, constraintSquares) =>
+        (restrictedSquares ++ contestedSquares ++ constraintSquares).distinct.sortBy(_.key)
+      case StrategicObjectProfile.DefenderDependencyNetwork(defendedSquares, defenderSquares, pressureSquares, _, _) =>
+        (defendedSquares ++ defenderSquares ++ pressureSquares).distinct.sortBy(_.key)
+      case _ =>
+        Nil
+
+  private def deltaProfileFiles(
+      profile: StrategicObjectProfile
+  ): List[File] =
+    profile match
+      case StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, _, _) =>
+        List(targetSquare.file)
+      case StrategicObjectProfile.AccessNetwork(lane, route, _, contestedSquares) =>
+        (lane.toList ++ route.toList.flatMap(_.allSquares.map(_.file)) ++ contestedSquares.map(_.file))
+          .distinct
+          .sortBy(_.char.toString)
+      case StrategicObjectProfile.RestrictionShell(restrictedSquares, contestedSquares, constraintSquares) =>
+        (restrictedSquares ++ contestedSquares ++ constraintSquares).map(_.file).distinct.sortBy(_.char.toString)
+      case StrategicObjectProfile.DefenderDependencyNetwork(defendedSquares, defenderSquares, pressureSquares, _, _) =>
+        (defendedSquares ++ defenderSquares ++ pressureSquares).map(_.file).distinct.sortBy(_.char.toString)
+      case _ =>
+        Nil
+
+  private def disambiguation(
+      targetSquare: Square,
+      accessDeltas: List[StrategicObjectDelta],
+      restrictionDeltas: List[StrategicObjectDelta]
+  ): String =
+    val accessSignature =
+      accessDeltas
+        .flatMap(accessDeltaDescriptor)
+        .map(_.signature)
+        .sorted
+        .mkString("[", ",", "]")
+    val restrictionSignature =
+      restrictionDeltas
+        .map(delta =>
+          s"files=${deltaFiles(delta).map(_.char.toString).mkString("[", ",", "]")}:squares=${deltaSquares(delta).map(_.key).mkString("[", ",", "]")}"
+        )
+        .sorted
+        .mkString("[", ",", "]")
+
+    s"${targetSquare.key}:$accessSignature:$restrictionSignature"
 
   private def distinctSquares(
       squares: List[Square]

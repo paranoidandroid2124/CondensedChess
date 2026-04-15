@@ -144,6 +144,173 @@ class ClaimCertificationTest extends FunSuite:
     }
   }
 
+  test("quiet positional d6 current-position pack shares the same fixed-target cluster witness between owner and restriction support") {
+    val rowIds =
+      List(
+        "current-position-fixed-target-d6-quiet-rook-lift-exact",
+        "current-position-fixed-target-d6-quiet-bishop-lift-exact"
+      )
+
+    rowIds.foreach { rowId =>
+      val row =
+        CurrentPositionFixedTargetProbeTest.rows.find(_.id == rowId).getOrElse(
+          fail(s"expected exact quiet d6 current-position row: $rowId")
+        )
+      val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, PrimitiveExtractionTest.neutralTruthFrame)
+      val deltas =
+        CanonicalStrategicObjectDeltaProjector.project(
+          PrimitiveExtractionTest.neutralContract,
+          PrimitiveExtractionTest.neutralTruthFrame,
+          objects
+        )
+      val claims = CanonicalClaimCertification.certify(PrimitiveExtractionTest.neutralContract, objects, deltas)
+      val primaryClaim =
+        claims.find(claim =>
+          claim.objectId == "FixedTargetComplex-white-center-d6-d" &&
+            claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+            claim.status == ClaimStatus.Certified
+        ).getOrElse(
+          fail(s"expected quiet d6 fixed-target primary claim for $rowId")
+        )
+      val supportClaim =
+        claims.find(claim =>
+          claim.objectId == "RestrictionShell-white-center-d4-de" &&
+            claim.deltaScope == StrategicDeltaScope.PositionLocal
+        ).getOrElse(
+          fail(s"expected quiet d6 restriction support claim for $rowId")
+        )
+
+      assert(FixedTargetClusterWitnessBoundary.hasClusterWitness(primaryClaim), clue(s"$rowId -> $primaryClaim"))
+      assert(FixedTargetClusterWitnessBoundary.hasClusterWitness(supportClaim), clue(s"$rowId -> $supportClaim"))
+      assert(
+        FixedTargetClusterWitnessBoundary.sharesClusterWitness(primaryClaim, supportClaim),
+        clue(s"$rowId -> primary=$primaryClaim support=$supportClaim")
+      )
+    }
+  }
+
+  test("fixed-target cluster witness disambiguation stays board-derived rather than access object-id derived") {
+    val row =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d6-quiet-bishop-lift-exact").getOrElse(
+        fail("expected exact quiet d6 bishop-lift row")
+      )
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, PrimitiveExtractionTest.neutralTruthFrame)
+    val deltas =
+      CanonicalStrategicObjectDeltaProjector.project(
+        PrimitiveExtractionTest.neutralContract,
+        PrimitiveExtractionTest.neutralTruthFrame,
+        objects
+      )
+    val claims = CanonicalClaimCertification.certify(PrimitiveExtractionTest.neutralContract, objects, deltas)
+    val primaryClaim =
+      claims.find(claim =>
+        claim.objectId == "FixedTargetComplex-white-center-d6-d" &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+          claim.status == ClaimStatus.Certified
+      ).getOrElse(
+        fail("expected quiet d6 fixed-target primary claim")
+      )
+    val witness =
+      primaryClaim.boundaryWitnesses.collectFirst {
+        case CertifiedBoundaryWitness.FixedTargetCluster(witness) => witness
+      }.getOrElse(
+        fail(s"expected fixed-target cluster witness for $primaryClaim")
+      )
+
+    assertEquals(witness.focalTargetSquare.key, "d6", clue(witness))
+    assert(
+      witness.matchingAccessRoutes.forall(routeId => !witness.disambiguation.contains(routeId)),
+      clue(witness)
+    )
+    assert(
+      witness.matchingRestrictionShells.forall(shellId => !witness.disambiguation.contains(shellId)),
+      clue(witness)
+    )
+  }
+
+  test("claim certification preserves the projector-owned fixed-target cluster witness without reconstructing it") {
+    val row =
+      CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d6-quiet-bishop-lift-exact").getOrElse(
+        fail("expected exact quiet d6 bishop-lift row")
+      )
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, PrimitiveExtractionTest.neutralTruthFrame)
+    val deltas =
+      CanonicalStrategicObjectDeltaProjector.project(
+        PrimitiveExtractionTest.neutralContract,
+        PrimitiveExtractionTest.neutralTruthFrame,
+        objects
+      )
+    val claims = CanonicalClaimCertification.certify(PrimitiveExtractionTest.neutralContract, objects, deltas)
+    val primaryDelta =
+      deltas.find(delta =>
+        delta.objectId == "FixedTargetComplex-white-center-d6-d" &&
+          delta.scope == StrategicDeltaScope.PositionLocal
+      ).getOrElse(
+        fail("expected quiet d6 fixed-target position-local delta")
+      )
+    val supportDelta =
+      deltas.find(delta =>
+        delta.objectId == "RestrictionShell-white-center-d4-de" &&
+          delta.scope == StrategicDeltaScope.PositionLocal
+      ).getOrElse(
+        fail("expected quiet d6 restriction position-local delta")
+      )
+    val projectorPrimaryWitness =
+      primaryDelta.positionLocalWitnesses.collectFirst {
+        case StrategicPositionLocalWitness.FixedTargetCluster(witness) => witness
+      }.getOrElse(
+        fail(s"expected projector-owned witness on $primaryDelta")
+      )
+    val projectorSupportWitness =
+      supportDelta.positionLocalWitnesses.collectFirst {
+        case StrategicPositionLocalWitness.FixedTargetCluster(witness) => witness
+      }.getOrElse(
+        fail(s"expected projector-owned witness on $supportDelta")
+      )
+    val primaryClaim =
+      claims.find(claim =>
+        claim.objectId == "FixedTargetComplex-white-center-d6-d" &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+          claim.status == ClaimStatus.Certified
+      ).getOrElse(
+        fail("expected quiet d6 fixed-target primary claim")
+      )
+    val supportClaim =
+      claims.find(claim =>
+        claim.objectId == "RestrictionShell-white-center-d4-de" &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal
+      ).getOrElse(
+        fail("expected quiet d6 restriction support claim")
+      )
+    val primaryClaimWitness =
+      primaryClaim.boundaryWitnesses.collectFirst {
+        case CertifiedBoundaryWitness.FixedTargetCluster(witness) => witness
+      }.getOrElse(
+        fail(s"expected fixed-target cluster witness for $primaryClaim")
+      )
+    val supportClaimWitness =
+      supportClaim.boundaryWitnesses.collectFirst {
+        case CertifiedBoundaryWitness.FixedTargetCluster(witness) => witness
+      }.getOrElse(
+        fail(s"expected fixed-target cluster witness for $supportClaim")
+      )
+
+    assert(FixedTargetClusterWitnessBoundary.hasClusterWitness(primaryClaim), clue(primaryClaim))
+    assert(FixedTargetClusterWitnessBoundary.hasClusterWitness(supportClaim), clue(supportClaim))
+    assert(
+      FixedTargetClusterWitnessBoundary.sharesClusterWitness(primaryClaim, supportClaim),
+      clue(s"primary=$primaryClaim support=$supportClaim")
+    )
+    assertEquals(projectorPrimaryWitness, projectorSupportWitness, clue(s"projector primary=$projectorPrimaryWitness support=$projectorSupportWitness"))
+    assertEquals(primaryClaimWitness, projectorPrimaryWitness, clue(s"claim=$primaryClaim projector=$projectorPrimaryWitness"))
+    assertEquals(supportClaimWitness, projectorSupportWitness, clue(s"claim=$supportClaim projector=$projectorSupportWitness"))
+    assertEquals(
+      primaryClaimWitness.matchingDefenderDependencies,
+      Set("DefenderDependencyNetwork-white-kingside-f3-fgh"),
+      clue(primaryClaimWitness)
+    )
+  }
+
   test("quiet d4 near-miss restriction support stays outside the current-position probe metadata") {
     val row =
       CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d4-quiet-near-miss").getOrElse(

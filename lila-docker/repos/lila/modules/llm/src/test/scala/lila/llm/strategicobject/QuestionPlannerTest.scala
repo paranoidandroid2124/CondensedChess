@@ -327,6 +327,48 @@ class QuestionPlannerTest extends FunSuite:
     assert(!planned.supportClaimIds.contains(supportClaim.id), clue(planned))
   }
 
+  test("f6 c5 e5 structural leak bank keeps restriction support outside WhatMattersHere admission") {
+    val rowIds =
+      List(
+        "current-position-fixed-target-kingside-f6-structural-leak-nasty-negative",
+        "current-position-fixed-target-queenside-c5-structural-leak-nasty-negative",
+        "current-position-fixed-target-center-e5-structural-leak-nasty-negative"
+      )
+
+    rowIds.foreach { rowId =>
+      val row =
+        CurrentPositionFixedTargetProbeTest.rows.find(_.id == rowId).getOrElse(
+          fail(s"expected structural-leak nasty-negative row: $rowId")
+        )
+      val truth = PrimitiveExtractionTest.neutralTruthFrame
+      val contract = PrimitiveExtractionTest.neutralContract
+      val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+      val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+      val claims = CanonicalClaimCertification.certify(contract, objects, deltas)
+      val planned = CanonicalQuestionPlanner.plan(contract, claims)
+      val rowOwner = StrategicObjectSynthesizerTest.parseColor(row.owner)
+      val restrictionSupportClaims =
+        claims.filter(claim =>
+          claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+            claim.status == ClaimStatus.SupportOnly &&
+            claim.delta.exists(delta =>
+              delta.family == StrategicObjectFamily.RestrictionShell &&
+                delta.owner == rowOwner
+            )
+        )
+
+      assert(restrictionSupportClaims.nonEmpty, clue(s"$rowId: expected restriction-shell support candidates"))
+      assert(
+        restrictionSupportClaims.forall(_.plannerMetadata.currentPositionProbeKind.isEmpty),
+        clue(s"$rowId: restriction-shell support must stay outside fixed-target probe metadata, claims=$restrictionSupportClaims")
+      )
+      assert(
+        restrictionSupportClaims.forall(claim => !planned.supportClaimIds.contains(claim.id)),
+        clue(s"$rowId: restriction-shell support must stay closed, planned=$planned claims=$restrictionSupportClaims")
+      )
+    }
+  }
+
   test("same-shell quiet d7 empty-bundle case keeps restriction support outside WhatMattersHere admission") {
     val row =
       CurrentPositionFixedTargetProbeTest.rows.find(_.id == "current-position-fixed-target-d7-empty-bundle-nasty-negative").getOrElse(

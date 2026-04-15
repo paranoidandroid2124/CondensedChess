@@ -73,6 +73,56 @@ Current post-spine frontier:
   planner-support rows stayed `2`, so the official quiet current-position
   lane remains descriptor-bound until a new exact-board positive pack proves a
   richer certified target-cluster boundary
+- `FixedTargetClusterWitness` now supplies that richer boundary on 2026-04-15:
+  `CanonicalStrategicObjectDeltaProjector` lowers one typed
+  `PositionLocal` fixed-target cluster witness onto the fixed-target owner and
+  matching `RestrictionShell` support deltas, carrying access-route and
+  defender-dependency ids inside the witness itself; `ClaimCertification`
+  preserves that witness and `QuestionPlanner` reopens support only when owner
+  and support share the preserved witness rather than merely sharing
+  `currentPositionProbeKind`
+- same-batch `45 / 360 / max8` after the witness boundary raises
+  `FixedTargetComplex` `WhatMattersHere / position_local` owner rows
+  `2 -> 7` and `RestrictionShell` planner-support rows `2 -> 7`; non-target
+  family aggregates stay flat, system `supportActivationCount` moves only
+  `9 -> 14`, and the quiet `d4` near-miss plus the `f6` / `c5` / `e5`
+  leak-bank corpus rows stay closed
+- `FixedTargetClusterWitness` access/corroboration de-stringification hardening
+  passed on 2026-04-15: the centralized boundary now derives access lane and
+  corroborating-route flavor from `AccessNetwork` profile / route geometry plus
+  anchor/evidence footprint instead of `objectId` token parsing, and the
+  same-batch witness baseline stays flat (`FixedTargetComplex` owners `7 -> 7`,
+  `RestrictionShell` support `7 -> 7`, system `supportActivationCount`
+  `14 -> 14`) with no family drift and no reopen of the quiet `d4` or
+  `f6` / `c5` / `e5` closed negatives
+- `FixedTargetClusterWitness` defender-leg de-stringification hardening passed
+  on 2026-04-15: `FixedTargetClusterWitnessBoundary` no longer admits the
+  defender leg from `DefenderDependencyNetwork-` prefix parsing; it now
+  reconstructs the defender connector from the certified position-local support
+  graph and the related fixed-target / restriction board footprint inside the
+  same boundary, while `objectId` remains witness bookkeeping only. The
+  same-batch `45 / 360 / max8` rerun stays flat at `FixedTargetComplex`
+  owners `7`, `RestrictionShell` support `7`, and system
+  `supportActivationCount = 14`, with zero family drift, zero row-level
+  admission drift, the five witness-positive batch samples retained, and no
+  reopen of the quiet `d4` or `f6` / `c5` / `e5` closed negatives
+- `PositionLocal` cluster witness projection passed on 2026-04-15:
+  the current-position fixed-target truth boundary now lives on the projector
+  side as a typed `StrategicPositionLocalWitness.FixedTargetCluster` attached
+  to the owner and matched `RestrictionShell` support deltas under
+  `StrategicDeltaProjection.PositionLocal`; `ClaimCertification` only
+  preserves that witness, `QuestionPlanner` only consumes it,
+  `CurrentPositionProbeSlice` now carries coordination only, the packet `d6`
+  continuity lane reads a packet-isolated preserved-witness helper rather than
+  a fixed-target descriptor table, and `FixedTargetClusterWitnessBoundary` is
+  reduced to a preserved-witness reader rather than a reconstruction boundary.
+  The same-batch `45 / 360 / max8` rerun stays flat at `FixedTargetComplex`
+  owners `7`,
+  `RestrictionShell` support `7`, system `supportActivationCount = 14`,
+  `primaryActivationCount = 1444`, and `objectOnlyActivationCount = 522`,
+  with family drift `0`, row-level admission drift `0`, the seven owner/support
+  rows retained, and no reopen of the quiet `d4` or `f6` / `c5` / `e5`
+  closed negatives
 - one exact current-position coordination probe is now re-earned on the new
   spine (K09A only; K09D/K09E and single-active-piece mirage remain closed)
 - this means:
@@ -171,6 +221,16 @@ Current post-spine frontier:
   descriptor-bound on the current evidence pack, with new nasty-negative
   corpus rows covering fixed-false, pressure-only, empty-bundle, and cross-
   axis structural leaks
+- `FixedTargetClusterWitness` tranche on 2026-04-15:
+  a new projector-owned typed `PositionLocal` cluster witness now centralizes
+  `focalTargetSquare`, `clusterSquares`, matching access / restriction /
+  defender ids, and disambiguation on the current-position fixed-target
+  boundary; `ClaimCertification` preserves it and `QuestionPlanner` attaches
+  `RestrictionShell` support only from shared witness identity. Same-batch
+  `45 / 360 / max8` reopens five new exact-board positives together
+  (`FixedTargetComplex` owners `2 -> 7`, `RestrictionShell` support `2 -> 7`)
+  without reopening the quiet `d4` near-miss or the `f6` / `c5` / `e5`
+  leak bank
 - `P6-B02-whatchanged-comparative-nearmiss-certification` is `passed`:
   packet-owned near-miss comparative now stays support-only or deferred and
   never owns `WhatChanged` primary

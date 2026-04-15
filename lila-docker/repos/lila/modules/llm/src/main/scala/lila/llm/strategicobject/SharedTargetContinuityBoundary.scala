@@ -22,6 +22,14 @@ private[strategicobject] object SharedTargetContinuityBoundary:
       "DefenderDependencyNetwork-white-kingside-f3-fgh"
     )
 
+  private val packetCurrentPositionSupportBundle: Set[String] =
+    Set(
+      "AccessNetwork-white-center-d1-d",
+      "AccessNetwork-white-center-d6-d-diag",
+      "AccessNetwork-white-center-d7-d-knight",
+      "AccessNetwork-white-queenside-b6-b-diag"
+    )
+
   private val packetWitness: CertifiedBoundaryWitness =
     CertifiedBoundaryWitness.SharedTargetContinuity(packetTargetSquare)
 
@@ -75,11 +83,40 @@ private[strategicobject] object SharedTargetContinuityBoundary:
   ): Set[String] =
     claims.collect {
       case claim
-          if claim.status == ClaimStatus.Certified &&
-            claim.hasTypedDelta &&
-            claim.delta.exists(CurrentPositionProbeSlice.isPacketOwnedD6FixedTargetProbeDelta) =>
+          if isCertifiedPacketCurrentPositionClaim(claim) =>
         claim.id
     }.toSet
+
+  private def isCertifiedPacketCurrentPositionClaim(
+      claim: CertifiedClaim
+  ): Boolean =
+    claim.status == ClaimStatus.Certified &&
+      claim.hasTypedDelta &&
+      claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+      FixedTargetClusterWitnessBoundary.hasFocalTargetSquare(claim, packetTargetSquare) &&
+      claim.supportingObjectIds.toSet == packetCurrentPositionSupportBundle &&
+      claim.delta.exists {
+        case StrategicObjectDelta(
+              _,
+              StrategicObjectFamily.FixedTargetComplex,
+              owner,
+              StrategicDeltaScope.PositionLocal,
+              StrategicObjectProfile.FixedTargetComplex(targetSquare, _, _, fixed, _),
+              StrategicDeltaProjection.PositionLocal(StrategicDeltaTag.TargetFixed, focalAnchorCount, _),
+              changedAnchors,
+              _,
+              _,
+              evidenceRefs
+            ) =>
+          owner == packetOwner &&
+            targetSquare == packetTargetSquare &&
+            fixed &&
+            focalAnchorCount > 0 &&
+            changedAnchors.nonEmpty &&
+            evidenceRefs.nonEmpty
+        case _ =>
+          false
+      }
 
   private def packetWhyThisClaimIds(
       claims: List[CertifiedClaim]

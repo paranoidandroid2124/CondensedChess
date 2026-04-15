@@ -34,6 +34,56 @@ class CurrentPositionFixedTargetProbeTest extends FunSuite:
     )
   }
 
+  test("projector lowers the fixed-target cluster witness into position-local owner and restriction deltas") {
+    val rowIds =
+      List(
+        "current-position-fixed-target-d6-quiet-rook-lift-exact",
+        "current-position-fixed-target-d6-quiet-bishop-lift-exact"
+      )
+
+    rowIds.foreach { rowId =>
+      val row =
+        rows.find(_.id == rowId).getOrElse(
+          fail(s"expected quiet d6 current-position row: $rowId")
+        )
+      val truth = PrimitiveExtractionTest.neutralTruthFrame
+      val contract = PrimitiveExtractionTest.neutralContract
+      val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, truth)
+      val deltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, objects)
+      val primaryDelta =
+        deltas.find(delta =>
+          delta.objectId == "FixedTargetComplex-white-center-d6-d" &&
+            delta.scope == StrategicDeltaScope.PositionLocal
+        ).getOrElse(
+          fail(s"expected quiet d6 fixed-target position-local delta for $rowId")
+        )
+      val supportDelta =
+        deltas.find(delta =>
+          delta.objectId == "RestrictionShell-white-center-d4-de" &&
+            delta.scope == StrategicDeltaScope.PositionLocal
+        ).getOrElse(
+          fail(s"expected quiet d6 restriction position-local delta for $rowId")
+        )
+      val primaryWitness =
+        primaryDelta.positionLocalWitnesses.collectFirst {
+          case StrategicPositionLocalWitness.FixedTargetCluster(witness) => witness
+        }.getOrElse(
+          fail(s"expected projector-owned fixed-target cluster witness on $primaryDelta")
+        )
+      val supportWitness =
+        supportDelta.positionLocalWitnesses.collectFirst {
+          case StrategicPositionLocalWitness.FixedTargetCluster(witness) => witness
+        }.getOrElse(
+          fail(s"expected projector-owned fixed-target cluster witness on $supportDelta")
+        )
+
+      assertEquals(primaryWitness, supportWitness, clue(s"$rowId -> primary=$primaryDelta support=$supportDelta"))
+      assertEquals(primaryWitness.focalTargetSquare.key, "d6", clue(primaryWitness))
+      assert(primaryWitness.matchingRestrictionShells.contains("RestrictionShell-white-center-d4-de"), clue(primaryWitness))
+      assert(primaryWitness.matchingDefenderDependencies.contains("DefenderDependencyNetwork-white-kingside-f3-fgh"), clue(primaryWitness))
+    }
+  }
+
   rows.foreach { row =>
     test(s"current-position fixed-target expectation ${row.id}") {
       val truth = PrimitiveExtractionTest.neutralTruthFrame

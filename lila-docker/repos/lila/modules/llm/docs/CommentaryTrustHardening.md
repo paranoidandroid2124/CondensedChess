@@ -4764,6 +4764,55 @@ support-only material into portable lesson truth.
   `RestrictionShell` `WhatMattersHere` planner-support rows on the exact quiet
   `d6` pack, with no family-level aggregate drift and no reopening of the
   quiet `d4` near-miss
+- `FixedTargetClusterWitness` follow-through on 2026-04-15 stays trust-bounded
+  only because the truth boundary is now centralized:
+  `CanonicalStrategicObjectDeltaProjector` now decides the fixed-target
+  cluster truth once on `StrategicDeltaProjection.PositionLocal` as a typed
+  witness, `ClaimCertification` only preserves it, and planner support may
+  reopen only from shared preserved witness identity, not from a shared
+  `currentPositionProbeKind` or a standalone `RestrictionShell` descriptor
+- same-batch `45 / 360 / max8` after that witness raises
+  `FixedTargetComplex` `WhatMattersHere / position_local` owner rows
+  `2 -> 7` and `RestrictionShell` planner-support rows `2 -> 7`; non-target
+  family aggregates stay flat, system `supportActivationCount` rises only
+  `9 -> 14`, and the exact quiet `d4` near-miss plus the `f6` / `c5` / `e5`
+  leak-bank corpus rows remain closed
+- witness access/corroboration de-stringification hardening on 2026-04-15
+  keeps that trust gate strict: the boundary no longer infers access lane or
+  corroborating route from `objectId` suffixes, but from `AccessNetwork`
+  profile / route geometry plus certified anchor/evidence footprint, and the
+  same-batch rerun stays `7 / 7` with system
+  `supportActivationCount = 14` and no reopen of the quiet `d4` or
+  `f6` / `c5` / `e5` closed negatives
+- witness defender-leg de-stringification hardening on 2026-04-15 closes the
+  last prefix shortcut in that boundary: `FixedTargetClusterWitnessBoundary`
+  no longer admits the defender leg from `DefenderDependencyNetwork-`
+  name parsing, but from the certified position-local support graph and the
+  reconstructed fixed-target / restriction footprint of the shared connector.
+  The same-batch `45 / 360 / max8` rerun stays `7 / 7`, system
+  `supportActivationCount = 14`, family drift `0`, row-level admission drift
+  `0`, and the five witness-positive batch samples remain admitted while the
+  quiet `d4` plus `f6` / `c5` / `e5` closed negatives stay shut
+- projector-owned `PositionLocal` witness projection on 2026-04-15 keeps that
+  trust boundary narrow after the de-stringification passes:
+  the typed witness now lives on the projector/delta side, not as a
+  certification-side reconstruction attachment, so fixed-target
+  current-position authority no longer survives in a descriptor fallback:
+  `CurrentPositionProbeSlice` now carries coordination only, the packet `d6`
+  continuity lane reads a packet-isolated preserved-witness helper, and
+  `FixedTargetClusterWitnessBoundary` is reduced to reading preserved witness
+  identity only. The same-batch `45 / 360 / max8` rerun stays flat at
+  `FixedTargetComplex` owners `7`, `RestrictionShell` support `7`, system
+  `supportActivationCount = 14`, `primaryActivationCount = 1444`, and
+  `objectOnlyActivationCount = 522`, with family drift `0`, row drift `0`,
+  the seven owner/support rows retained, the five witness-positive samples
+  retained, and no reopen of the quiet `d4` or `f6` / `c5` / `e5`
+  closed negatives
+- trust note on reused boards:
+  the `2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor...:ply:41` board is
+  also the corpus FEN used for the closed `f6` leak-bank nasty-negative, but
+  the admitted batch positive on that board is a different witness-anchored
+  cluster; it does not reopen the closed `f6` target itself
 - `AccessDemotionRate` is family-attributed, not generic axis absence:
   a demotion now counts only when the audited family itself is actually
   surfaced on that axis at a planner-meaningful stage (`primary` / `support`

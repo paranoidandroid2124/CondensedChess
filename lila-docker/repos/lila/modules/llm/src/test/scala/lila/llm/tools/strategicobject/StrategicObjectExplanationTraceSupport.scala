@@ -476,7 +476,7 @@ object StrategicObjectExplanationTraceSupport:
               focalAnchorCount = None,
               metricCount = 0
             )
-          case StrategicDeltaProjection.PositionLocal(state, focalAnchorCount) =>
+          case StrategicDeltaProjection.PositionLocal(state, focalAnchorCount, _) =>
             ProjectionTrace(
               kind = Some("PositionLocal"),
               primaryTag = Some(state.toString),
@@ -514,7 +514,7 @@ object StrategicObjectExplanationTraceSupport:
               counterpartWitnessKinds = Nil,
               counterpartObjectIds = Nil
             )
-          case StrategicDeltaProjection.PositionLocal(_, _) =>
+          case StrategicDeltaProjection.PositionLocal(_, _, _) =>
             WitnessTrace(
               kind = Some("PositionLocal"),
               transitionAware = false,

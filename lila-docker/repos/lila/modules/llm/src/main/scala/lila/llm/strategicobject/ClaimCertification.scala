@@ -17,6 +17,7 @@ private enum DeltaCertificationBurden:
 
 enum CertifiedBoundaryWitness:
   case SharedTargetContinuity(targetSquare: Square)
+  case FixedTargetCluster(witness: FixedTargetClusterWitness)
 
 enum CertifiedCurrentPositionProbeKind:
   case FixedTarget
@@ -71,7 +72,8 @@ object CanonicalClaimCertification extends ClaimCertification:
             status = claimStatus(obj.readiness, burden, delta),
             readiness = obj.readiness,
             delta = Some(delta),
-            supportingObjectIds = delta.supportingObjectIds
+            supportingObjectIds = delta.supportingObjectIds,
+            boundaryWitnesses = certifiedBoundaryWitnesses(delta)
           )
         }
       }
@@ -138,7 +140,7 @@ object CanonicalClaimCertification extends ClaimCertification:
         if exactBoardSupport && witness.hasAnchoredEvidence then DeltaCertificationBurden.Primary
         else if exactBoardSupport && witness.isTransitionAware then DeltaCertificationBurden.SupportOnly
         else DeltaCertificationBurden.Insufficient
-      case StrategicDeltaProjection.PositionLocal(_, focalAnchorCount) =>
+      case StrategicDeltaProjection.PositionLocal(_, focalAnchorCount, _) =>
         if exactBoardSupport && focalAnchorCount > 0 then DeltaCertificationBurden.Primary
         else if delta.changedAnchors.nonEmpty && focalAnchorCount > 0 then DeltaCertificationBurden.SupportOnly
         else DeltaCertificationBurden.Insufficient
@@ -162,6 +164,14 @@ object CanonicalClaimCertification extends ClaimCertification:
         ref.anchorSquares.nonEmpty || ref.contestedSquares.nonEmpty || ref.lane.nonEmpty
       )
 
+  private def certifiedBoundaryWitnesses(
+      delta: StrategicObjectDelta
+  ): Set[CertifiedBoundaryWitness] =
+    delta.positionLocalWitnesses.collect {
+      case StrategicPositionLocalWitness.FixedTargetCluster(witness) =>
+        CertifiedBoundaryWitness.FixedTargetCluster(witness)
+    }
+
   private def enrichPlannerMetadata(
       claims: List[CertifiedClaim]
   ): List[CertifiedClaim] =
@@ -181,7 +191,11 @@ object CanonicalClaimCertification extends ClaimCertification:
   private def currentPositionProbeKind(
       claim: CertifiedClaim
   ): Option[CertifiedCurrentPositionProbeKind] =
-    claim.delta.flatMap(CurrentPositionProbeSlice.probeKind)
+    Option
+      .when(FixedTargetClusterWitnessBoundary.hasClusterWitness(claim))(
+        CertifiedCurrentPositionProbeKind.FixedTarget
+      )
+      .orElse(claim.delta.flatMap(CurrentPositionProbeSlice.probeKind))
 
   private def residualSpecificityClass(
       claim: CertifiedClaim

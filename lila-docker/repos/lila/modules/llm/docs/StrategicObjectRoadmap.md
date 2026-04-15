@@ -110,6 +110,58 @@ Near-term canonical sequence from the current checkpoint:
      `RestrictionShell` planner-support rows stayed `2`; future promotion now
      requires a new exact-board positive pack or a richer certified target-
      cluster witness, not looser descriptor matching
+   - `FixedTargetClusterWitness` passed on 2026-04-15 as that richer witness:
+     `CanonicalStrategicObjectDeltaProjector` now lowers one typed
+     `PositionLocal` fixed-target cluster witness
+     (`focalTargetSquare`, `clusterSquares`, matching access / restriction /
+     defender ids, disambiguation) onto the fixed-target owner and matched
+     `RestrictionShell` support deltas, `ClaimCertification` preserves it, and
+     `QuestionPlanner` attaches `RestrictionShell` `WhatMattersHere` support
+     only when primary and support share that same witness rather than a
+     common `currentPositionProbeKind`
+   - same-batch `45 / 360 / max8` after the witness boundary raises
+      `FixedTargetComplex` `WhatMattersHere / position_local` owner rows
+      `2 -> 7` and `RestrictionShell` planner-support rows `2 -> 7`;
+      non-target family aggregates stay flat, system
+      `supportActivationCount` moves only `9 -> 14`, and the exact quiet `d4`
+      near-miss plus the `f6` / `c5` / `e5` leak-bank corpus rows remain closed
+   - `FixedTargetClusterWitness` access/corroboration de-stringification
+     hardening passed on 2026-04-15: access lane and corroborating-route
+     flavor now come from `AccessNetwork` profile / route geometry plus
+     anchor/evidence footprint rather than `objectId` suffix parsing, and the
+     same-batch rerun stays flat at `FixedTargetComplex` owners `7`,
+     `RestrictionShell` support `7`, and system `supportActivationCount = 14`
+     with no new family drift
+   - `FixedTargetClusterWitness` defender-leg de-stringification hardening
+     passed on 2026-04-15: `FixedTargetClusterWitnessBoundary` no longer uses
+     `DefenderDependencyNetwork-` prefix shortcuts for defender admission.
+     The same boundary now reconstructs the defender connector from the
+     certified position-local support graph and its related fixed-target /
+     restriction footprint, keeping `objectId` as witness bookkeeping only.
+     The same-batch `45 / 360 / max8` rerun remains flat at
+     `FixedTargetComplex` owners `7`, `RestrictionShell` support `7`, and
+     system `supportActivationCount = 14`, with zero family drift, zero
+     row-level admission drift, and the five witness-positive batch samples
+     preserved while the quiet `d4` and `f6` / `c5` / `e5` leak-bank negatives
+     stay closed
+   - `PositionLocal` cluster witness projection passed on 2026-04-15:
+     the current-position fixed-target truth boundary now lives on the
+     projector side as a typed
+     `StrategicPositionLocalWitness.FixedTargetCluster` attached to the owner
+     and matched `RestrictionShell` support deltas under
+     `StrategicDeltaProjection.PositionLocal`; `ClaimCertification` only
+     preserves that witness, `QuestionPlanner` only consumes it,
+     `CurrentPositionProbeSlice` now carries coordination only, the packet `d6`
+     continuity lane reads a packet-isolated preserved-witness helper rather
+     than a fixed-target descriptor table, and
+     `FixedTargetClusterWitnessBoundary` is reduced to a preserved-witness
+     reader rather than a reconstruction boundary. The same-batch
+     `45 / 360 / max8` rerun stays flat at `FixedTargetComplex` owners `7`,
+     `RestrictionShell` support `7`, system `supportActivationCount = 14`,
+     `primaryActivationCount = 1444`, and `objectOnlyActivationCount = 522`,
+     with family drift `0`, row-level admission drift `0`, the seven
+     owner/support rows retained, and no reopen of the quiet `d4` or
+     `f6` / `c5` / `e5` closed negatives
 6. `P6-B01` is now passed:
    - exact closure: certification now owns one packet-bounded shared-target
      continuity witness for the `d6` lane across `WhatMattersHere`,
@@ -1013,6 +1065,17 @@ Current lane note:
   raised same-batch `45 / max8`
   `FixedTargetComplex` `WhatMattersHere / position_local` owner rows
   `2 -> 23` while `RestrictionShell` support stayed fixed at `2`
+- `FixedTargetClusterWitness` is now the only admitted follow-through beyond
+  that descriptor ceiling:
+  five new exact-board same-batch positives reopen both
+  `FixedTargetComplex` owners and `RestrictionShell` support together
+  (`2 -> 7` / `2 -> 7`) only through a shared backend witness, not through any
+  broader descriptor matcher
+- the next current-position follow-through after that witness is now passed on
+  the same boundary:
+  `StrategicDeltaProjection.PositionLocal` carries the typed witness directly,
+  so certification/planner no longer reconstruct fixed-target cluster truth on
+  the current-position path
 - the current-position coordination probe is now also passed (with defer) on
   the same new spine
 - Phase 9 is therefore no longer the active packet frontier by itself, and
