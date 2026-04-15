@@ -215,6 +215,7 @@ lazy val llm = module("llm",
     path.endsWith("/src/test/scala/lila/llm/strategicobject/CounterplayAxisClosurePackTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/StrategicObjectDeltaProjectorTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/ClaimCertificationTest.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/strategicobject/CounterplayRivalBurdenTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/QuestionPlannerTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/QuestionPlannerAccessArbitrationTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/strategicobject/ComparativeSupportAdmissionTest.scala") ||
@@ -231,6 +232,7 @@ lazy val llm = module("llm",
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectCapabilityScorecardSupportTest.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageSupport.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageRunner.scala") ||
+    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/AccessNetworkCandidateBridgeContractRunner.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/CounterplaySliceProbeRunner.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/QuietPositionalProbeRunner.scala") ||
     path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/TradeInvariantSliceProbeRunner.scala") ||

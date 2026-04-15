@@ -1045,6 +1045,24 @@ Current rules:
     only descriptor-approved exact `TradeInvariant` residue may demote
     overlapping `AccessNetwork`, so family-name-only trade residue no longer
     reopens move-local demotion on the planner lane
+    On 2026-04-16, the remaining non-trade `AccessNetwork` move-local
+    arbitration was also centralized behind one backend-only helper
+    (`AccessNetworkBridgeAdmissionBoundary`) with three explicit gates only:
+    `trace-admitted slice`, `route witness retained`, and
+    `contested target retained`. This is a planner-residual hardening only:
+    it does not loosen object matching, add a renderer exception, or create a
+    new trace path. The fixed 20-row
+    `access_network_commentary_leverage_audit_20260416` contract rerun stays
+    unchanged at `anchor_no_candidate = 15`, `off_trace = 2`,
+    `candidate_not_selected = 1`,
+    `candidate_selected_but_suppressed = 1`, and
+    `recovered_without_sample_bridge = 1`, with `promotedSampleIds = []` in
+    `access_network_candidate_bridge_contract.before_after_class_summary.json`
+    and no control drift in
+    `access_network_candidate_bridge_contract.same_batch_aggregate_compare.json`.
+    Current official reading: the committed planner residual boundary is now
+    explicit and fail-closed, but it is not the hidden candidate-bridge
+    admission lane that produced the audited `anchor_no_candidate` rows.
   - `defensive_regrouping` is now triaged as absorbed into
     `prophylactic_move`, not as an independent promotion candidate:
     regrouping-style piece-improvement plans do not gain a distinct exact
@@ -1173,7 +1191,12 @@ Current rules:
     deterministic primary claim plus bounded coda
     (`So the task is to keep the pressure coordinated on c6 until the target
     has to give way.`) rather than inflating support-only coordination wording,
-    move-local explanation, or generic activity praise.
+    move-local explanation, or generic activity praise. On 2026-04-15, that
+    exact coordination truth boundary also moved onto a projector-owned typed
+    `StrategicPositionLocalWitness.CoordinationProbe`; `ClaimCertification`
+    now only preserves that witness, `QuestionPlanner` now only consumes
+    shared preserved witness identity, and `CurrentPositionProbeSlice` is
+    reduced to a preserved-witness reader.
     The slices stay narrow: `K03A` still fails closed on the black-to-move
     sibling, `K09D` now fails closed as activity-only,
     `K09E` remains file-pressure / release-rival dominated, `K09B` / `K09F`
@@ -2463,14 +2486,23 @@ cross-reference that matters for commentary-adjacent audits:
 
 - provisional `CounterplayAxis` move-local reopen is now centralized in
   `modules/llm/src/main/scala/lila/llm/strategicobject/CounterplayMoveLocalBoundary.scala`,
-  `CounterplayMoveLocalSlice.scala`, and
-  `StrategicObjectDeltaProjector.scala`
+  `CounterplayMoveLocalSlice.scala`, `StrategicObjectDeltaProjector.scala`,
+  `ClaimCertification.scala`, and `QuestionPlanner.scala`
 - the current rewrite closure is
   `CounterplayAxis = exact RestrictionShell support narrow-go`
+- the landed owner-led multi-rival runtime now keeps raw rival evidence on the
+  move-local delta witness, stamps certified
+  `counterplayRivalBurden` planner metadata in `ClaimCertification`, and lets
+  `QuestionPlanner` consume only that metadata for `planner_support`
+  attachment; matched rival legs must certify, admitted-but-unmatched rival
+  legs stay context only, and `RestrictionShell` / `TradeInvariant`
+  recoverable lanes are unchanged
 - official capability / non-capability packs are now fixed under
   `modules/llm/src/test/resources/strategic-object-corpus/CounterplayAxis.official-capability-pack.json`,
   `CounterplayAxis.frozen-out-of-scope-pack.json`, and
-  `CounterplayAxis.negative-pack.json`
+  `CounterplayAxis.negative-pack.json`; the live dual-anchor regression
+  fixture now also lives at
+  `modules/llm/src/test/resources/strategic-object-corpus/counterplay-rival-burden-live-universe.jsonl`
 - commentary runtime does not own a separate reopen path for that slice; any
   future reopening must come from the rewrite pack plus rerun gate rather than
   legacy planner or renderer fallback

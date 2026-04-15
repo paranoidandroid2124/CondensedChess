@@ -128,17 +128,19 @@ Near-term canonical sequence from the current checkpoint:
    - `FixedTargetClusterWitness` access/corroboration de-stringification
      hardening passed on 2026-04-15: access lane and corroborating-route
      flavor now come from `AccessNetwork` profile / route geometry plus
-     anchor/evidence footprint rather than `objectId` suffix parsing, and the
-     same-batch rerun stays flat at `FixedTargetComplex` owners `7`,
-     `RestrictionShell` support `7`, and system `supportActivationCount = 14`
-     with no new family drift
+     anchor/evidence footprint rather than `objectId` suffix parsing.
+     Historical provenance-lost note only: the original same-batch rerun was
+     recorded as flat at `FixedTargetComplex` owners `7`,
+     `RestrictionShell` support `7`, and system
+     `supportActivationCount = 14` with no new family drift
    - `FixedTargetClusterWitness` defender-leg de-stringification hardening
      passed on 2026-04-15: `FixedTargetClusterWitnessBoundary` no longer uses
      `DefenderDependencyNetwork-` prefix shortcuts for defender admission.
      The same boundary now reconstructs the defender connector from the
      certified position-local support graph and its related fixed-target /
      restriction footprint, keeping `objectId` as witness bookkeeping only.
-     The same-batch `45 / 360 / max8` rerun remains flat at
+     Historical provenance-lost note only: the original same-batch
+     `45 / 360 / max8` rerun was recorded as flat at
      `FixedTargetComplex` owners `7`, `RestrictionShell` support `7`, and
      system `supportActivationCount = 14`, with zero family drift, zero
      row-level admission drift, and the five witness-positive batch samples
@@ -155,13 +157,34 @@ Near-term canonical sequence from the current checkpoint:
      continuity lane reads a packet-isolated preserved-witness helper rather
      than a fixed-target descriptor table, and
      `FixedTargetClusterWitnessBoundary` is reduced to a preserved-witness
-     reader rather than a reconstruction boundary. The same-batch
-     `45 / 360 / max8` rerun stays flat at `FixedTargetComplex` owners `7`,
-     `RestrictionShell` support `7`, system `supportActivationCount = 14`,
+     reader rather than a reconstruction boundary. Historical provenance-lost
+     note only: the original same-batch `45 / 360 / max8` rerun was recorded
+     as flat at `FixedTargetComplex` owners `7`, `RestrictionShell` support
+     `7`, system `supportActivationCount = 14`,
      `primaryActivationCount = 1444`, and `objectOnlyActivationCount = 522`,
      with family drift `0`, row-level admission drift `0`, the seven
      owner/support rows retained, and no reopen of the quiet `d4` or
      `f6` / `c5` / `e5` closed negatives
+   - fixed-target acceptance provenance reset on 2026-04-15:
+     active local acceptance now uses the recovered canonical
+     `45 / 360 / max8` batch identity plus the tracked artifacts
+     `src/test/resources/strategic-object-corpus/FixedTargetCurrentPosition.batch-identity.json`,
+     `src/test/resources/strategic-object-corpus/FixedTargetCurrentPosition.compare-summary.json`,
+     and
+     `src/test/resources/strategic-object-corpus/FixedTargetCurrentPosition.sampleId-universe-summary.json`.
+     Unsupported historical `7 / 7` owner/support parity remains historical
+     provenance only and is not the active gate
+   - `PositionLocal` coordination witness projection passed on 2026-04-15:
+     the exact `K09A` current-position coordination truth boundary now lives
+     on the projector side as a typed
+     `StrategicPositionLocalWitness.CoordinationProbe` attached to the
+     `DevelopmentCoordinationState` owner under
+     `StrategicDeltaProjection.PositionLocal`; `ClaimCertification` only
+     preserves that witness, `QuestionPlanner` only consumes shared preserved
+     witness identity, `CurrentPositionProbeSlice` is now a preserved-witness
+     reader only, `K09A` stays admitted, and `K09D`, `K09E`, plus the
+     single-active-piece mirage stay closed with no new current-position slice
+     opened
 6. `P6-B01` is now passed:
    - exact closure: certification now owns one packet-bounded shared-target
      continuity witness for the `d6` lane across `WhatMattersHere`,
@@ -187,6 +210,17 @@ Near-term canonical sequence from the current checkpoint:
    `CounterplayAxis.negative-pack.json`; reopen is forbidden unless a new
    exact positive evidence pack passes the same-batch `45 / 360 / max8` rerun
    with no broad loosen and no other family drift
+   - contract-shape follow-through on 2026-04-16 now fixes the next
+     implementation target for that same slice and is now landed in current
+     runtime: live released-claim audit closed
+     `10 recoverable / 7 co-equal dual-anchor / 0 distorted`, all `7`
+     dual-anchor rows sit inside `CounterplayAxis planner_support`, singleton
+     rival-leg encoding fails `2_19 ... :ply:25`, and the approved next-step
+     contract is `owner-led multi-rival support-only` rather than a symmetric
+     contested tuple. `ClaimCertification` now stamps certified co-equal and
+     admitted-unmatched rival legs as planner metadata, `QuestionPlanner`
+     consumes only that metadata for support attachment, and there is still no
+     spillover into `RestrictionShell` / `TradeInvariant` recoverable lanes
 
 Comparative-quality certification is now complete; `P6-A02` is resolved.
 
@@ -671,6 +705,15 @@ Current move-local policy on this pass:
   authority is fixed by
   `CounterplayAxis.frozen-out-of-scope-pack.json` and
   `CounterplayAxis.negative-pack.json`
+- contract-shape follow-through on 2026-04-16 narrows the next step for that
+  same slice without widening current runtime: `CounterplayAxis` support-only
+  release now has one approved contract-study direction,
+  `owner-led multi-rival`, because live exact-board review closed
+  `10 / 7 / 0` recoverable / co-equal-dual-anchor / distorted and all
+  `7` dual-anchor rows sit inside `planner_support`. The canonical blocker
+  against singleton rival encoding is
+  `2_19_hjartarson_johann_stefansson_vignir_vatnar_lichess_broadcast_master_classical_33:ply:25`,
+  while symmetric contested tuple remains deferred for blast-radius reasons
 - `P5-T02` therefore moves from `blocked` to `go`:
   the exact `CounterplayAxis` slice passed without projector or certification
   widening, the remaining frontier is now explicitly separated into frozen

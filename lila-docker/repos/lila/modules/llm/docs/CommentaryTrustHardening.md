@@ -267,7 +267,11 @@ in `StrategicObjectRoadmap.md`.
   move-local explanation, may not reuse support-only
   `mainStrategicPlans` / `strategyPack` prose as the owner claim, and may not
   drift into generic piece-coordination praise, prophylactic shell prose, or a
-  file-pressure rival story.
+  file-pressure rival story. On 2026-04-15, that exact coordination truth
+  boundary also moved onto a projector-owned typed
+  `StrategicPositionLocalWitness.CoordinationProbe`, so certification/planner
+  now preserve and consume witness identity only rather than reconstructing the
+  runtime source.
   The trust boundary stays narrow overall: `K03A` still fails closed on the
   black-to-move sibling, `K09D` now fails closed as activity-only,
   `K09E` still lets the file-pressure / release rival dominate, and generic or
@@ -4780,19 +4784,20 @@ support-only material into portable lesson truth.
 - witness access/corroboration de-stringification hardening on 2026-04-15
   keeps that trust gate strict: the boundary no longer infers access lane or
   corroborating route from `objectId` suffixes, but from `AccessNetwork`
-  profile / route geometry plus certified anchor/evidence footprint, and the
-  same-batch rerun stays `7 / 7` with system
-  `supportActivationCount = 14` and no reopen of the quiet `d4` or
-  `f6` / `c5` / `e5` closed negatives
+  profile / route geometry plus certified anchor/evidence footprint.
+  Historical provenance-lost note only: the original same-batch rerun was
+  recorded as `7 / 7` with system `supportActivationCount = 14` and no reopen
+  of the quiet `d4` or `f6` / `c5` / `e5` closed negatives
 - witness defender-leg de-stringification hardening on 2026-04-15 closes the
   last prefix shortcut in that boundary: `FixedTargetClusterWitnessBoundary`
   no longer admits the defender leg from `DefenderDependencyNetwork-`
   name parsing, but from the certified position-local support graph and the
   reconstructed fixed-target / restriction footprint of the shared connector.
-  The same-batch `45 / 360 / max8` rerun stays `7 / 7`, system
+  Historical provenance-lost note only: the original same-batch
+  `45 / 360 / max8` rerun was recorded as `7 / 7`, system
   `supportActivationCount = 14`, family drift `0`, row-level admission drift
-  `0`, and the five witness-positive batch samples remain admitted while the
-  quiet `d4` plus `f6` / `c5` / `e5` closed negatives stay shut
+  `0`, and the five witness-positive batch samples remained admitted while the
+  quiet `d4` plus `f6` / `c5` / `e5` closed negatives stayed shut
 - projector-owned `PositionLocal` witness projection on 2026-04-15 keeps that
   trust boundary narrow after the de-stringification passes:
   the typed witness now lives on the projector/delta side, not as a
@@ -4801,13 +4806,38 @@ support-only material into portable lesson truth.
   `CurrentPositionProbeSlice` now carries coordination only, the packet `d6`
   continuity lane reads a packet-isolated preserved-witness helper, and
   `FixedTargetClusterWitnessBoundary` is reduced to reading preserved witness
-  identity only. The same-batch `45 / 360 / max8` rerun stays flat at
+  identity only. Historical provenance-lost note only: the original
+  same-batch `45 / 360 / max8` rerun was recorded as flat at
   `FixedTargetComplex` owners `7`, `RestrictionShell` support `7`, system
   `supportActivationCount = 14`, `primaryActivationCount = 1444`, and
   `objectOnlyActivationCount = 522`, with family drift `0`, row drift `0`,
   the seven owner/support rows retained, the five witness-positive samples
   retained, and no reopen of the quiet `d4` or `f6` / `c5` / `e5`
   closed negatives
+- fixed-target acceptance provenance reset on 2026-04-15:
+  unsupported historical `7 / 7` owner/support parity is not an active gate.
+  Active local acceptance now means the recovered canonical `45 / 360 / max8`
+  batch identity plus the checked-in tracked artifacts
+  `src/test/resources/strategic-object-corpus/FixedTargetCurrentPosition.batch-identity.json`,
+  `src/test/resources/strategic-object-corpus/FixedTargetCurrentPosition.compare-summary.json`,
+  and
+  `src/test/resources/strategic-object-corpus/FixedTargetCurrentPosition.sampleId-universe-summary.json`.
+  That tracked gate keeps four exact current-position fixed-target rows
+  admitted, keeps the quiet `d4` near-miss outside probe admission, and keeps
+  the `f6` / `c5` / `e5` structural leak bank closed; unsupported historical
+  claims may stay documented as history, but they do not control current trust
+  signoff
+- projector-owned `PositionLocal` coordination witness projection on
+  2026-04-15 keeps the exact `K09A` coordination lane trust-bounded after the
+  fixed-target boundary cleanup:
+  `CanonicalStrategicObjectDeltaProjector` now lowers a typed
+  `StrategicPositionLocalWitness.CoordinationProbe` onto the exact
+  `DevelopmentCoordinationState` owner, `ClaimCertification` only preserves
+  that witness, and `QuestionPlanner` only reuses shared preserved witness
+  identity. `CurrentPositionProbeSlice` no longer decides coordination
+  descriptor authority from runtime source; `K09A` stays admitted while
+  `K09D`, `K09E`, and the single-active-piece mirage stay closed, and no new
+  current-position coordination slice opens
 - trust note on reused boards:
   the `2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor...:ply:41` board is
   also the corpus FEN used for the closed `f6` leak-bank nasty-negative, but
@@ -4873,6 +4903,36 @@ support-only material into portable lesson truth.
   exact only:
   no family-wide `KingSafetyShell` subset rule, no `TensionState` reopen, and
   no planner or certification widening follows from it
+- live single-anchor contract review on 2026-04-16 now closes the released-
+  claim burden question for the active slice without changing runtime:
+  exact-board audit classified the live universe as
+  `10 recoverable / 7 requires co-equal dual-anchor / 0 distorted`, and all
+  `7` dual-anchor rows are `CounterplayAxis planner_support`; the live
+  `RestrictionShell` and `TradeInvariant` recoverable lanes remain single-
+  anchor
+- canonical trust direction for that slice is now
+  `owner-led multi-rival support-only contract`, runtime landed:
+  the released spine stays one `CounterplayAxis` object plus one certified
+  move-local delta, but one or more matched `RestrictionShell` /
+  `KingSafetyShell` rival legs may bind as co-equal burden inside that same
+  released claim. Admitted-but-unmatched rivals stay contract-visible context
+  only, and omission of any matched rival leg must fail closed rather than
+  salvage to owner-only wording. `ClaimCertification` now stamps
+  `coEqualRivalLegs`, `admittedButUnmatchedRivalLegs`, and
+  `allMatchedRivalLegsMustCertify=true` as planner metadata on the narrow
+  `CounterplayAxis` support slice, while `QuestionPlanner` consumes only that
+  certified metadata and does not reopen matched or unmatched rival legs as
+  separate primary claims
+- `2_19_hjartarson_johann_stefansson_vignir_vatnar_lichess_broadcast_master_classical_33:ply:25`
+  is now the canonical singleton-blocker row for this trust boundary:
+  `RestrictionShell ... Denies` and `KingSafetyShell ...
+  OverloadsOrUndermines` are both matched on the same release board, so any
+  singleton rival-leg contract is under-complete by construction
+- guardrail:
+  do not restate `RestrictionShell` as a bilateral or co-equal release family,
+  do not restate `TradeInvariant` as a rival-led or tuple release family, and
+  do not globalize this slice into a contested-tuple rewrite across other
+  families
 - the removed false survivors were exact rival-edge touches that still failed
   move-local counterplay truth on board:
   four were `Activity`-only resource pictures without a touched
@@ -4918,6 +4978,26 @@ support-only material into portable lesson truth.
   exact `TradeInvariant` move-local claims as specific access-shadow
   competition; access-backed residue that lacks the certified primary
   descriptor stays unable to reopen move-local demotion by name alone.
+  On 2026-04-16, the remaining planner-side `AccessNetwork` residual contract
+  was tightened the same way: `QuestionPlanner` now consults one centralized
+  `AccessNetworkBridgeAdmissionBoundary` helper instead of broad anchor/file/
+  support overlap. That helper admits only when the residual row preserves all
+  three gates together:
+  `trace-admitted slice`, `route witness retained`, and
+  `contested target retained`. The change is trust-hardening only:
+  no matcher loosen, no renderer wording reopen, no row whitelist, and no new
+  candidate-trace path were added. The fixed 20-row
+  `access_network_commentary_leverage_audit_20260416` audit pack confirms the
+  boundary stays fail-closed on the committed runtime path:
+  `anchor_no_candidate` remains `15 / 15` unexplained at this planner lane,
+  `promotedSampleIds = []`, and the four controls
+  (`off_trace`, `candidate_not_selected`,
+  `candidate_selected_but_suppressed`,
+  `recovered_without_sample_bridge`) all retain class with
+  `controlDriftCount = 0`. Official trust reading:
+  this helper removes ad hoc broad overlap from planner demotion semantics, but
+  the audited candidate-bridge suppression tranche still sits upstream of the
+  committed planner boundary and must not be papered over as a planner fix.
 - `ClaimCertification` now stamps planner-only metadata for the currently
   stabilized exact slices
   (`sharedTargetContinuity`, `currentPositionProbeKind`,

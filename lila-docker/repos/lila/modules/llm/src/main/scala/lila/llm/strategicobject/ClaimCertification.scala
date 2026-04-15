@@ -1,6 +1,6 @@
 package lila.llm.strategicobject
 
-import chess.Square
+import chess.{ File, Square }
 
 import lila.llm.analysis.DecisiveTruthContract
 
@@ -18,6 +18,7 @@ private enum DeltaCertificationBurden:
 enum CertifiedBoundaryWitness:
   case SharedTargetContinuity(targetSquare: Square)
   case FixedTargetCluster(witness: FixedTargetClusterWitness)
+  case CoordinationProbe(witness: CoordinationProbeWitness)
 
 enum CertifiedCurrentPositionProbeKind:
   case FixedTarget
@@ -29,11 +30,48 @@ enum CertifiedResidualSpecificityClass:
   case PlanRaceExact
   case ConversionFunnelExact
 
+final case class CertifiedRivalLeg(
+    family: StrategicObjectFamily,
+    objectId: String,
+    operator: StrategicRelationOperator,
+    matchedSquares: List[Square] = Nil,
+    matchedFiles: List[File] = Nil
+):
+  def normalized: CertifiedRivalLeg =
+    copy(
+      matchedSquares = matchedSquares.distinct.sortBy(_.key),
+      matchedFiles = matchedFiles.distinct.sortBy(_.char.toString)
+    )
+
+final case class CertifiedCounterplayRivalBurden(
+    coEqualRivalLegs: List[CertifiedRivalLeg] = Nil,
+    admittedButUnmatchedRivalLegs: List[CertifiedRivalLeg] = Nil,
+    allMatchedRivalLegsMustCertify: Boolean = true
+):
+  def normalized: CertifiedCounterplayRivalBurden =
+    copy(
+      coEqualRivalLegs =
+        coEqualRivalLegs
+          .map(_.normalized)
+          .distinct
+          .sortBy(leg =>
+            s"${leg.objectId}:${leg.family}:${leg.operator}:${leg.matchedSquares.map(_.key).mkString(",")}:${leg.matchedFiles.map(_.char).mkString}"
+          ),
+      admittedButUnmatchedRivalLegs =
+        admittedButUnmatchedRivalLegs
+          .map(_.normalized)
+          .distinct
+          .sortBy(leg =>
+            s"${leg.objectId}:${leg.family}:${leg.operator}:${leg.matchedSquares.map(_.key).mkString(",")}:${leg.matchedFiles.map(_.char).mkString}"
+          )
+    )
+
 final case class CertifiedPlannerMetadata(
     sharedTargetContinuity: Boolean = false,
     currentPositionProbeKind: Option[CertifiedCurrentPositionProbeKind] = None,
     tradeInvariantPrimaryClass: Option[TradeInvariantPrimaryReason] = None,
-    residualSpecificityClass: Option[CertifiedResidualSpecificityClass] = None
+    residualSpecificityClass: Option[CertifiedResidualSpecificityClass] = None,
+    counterplayRivalBurden: Option[CertifiedCounterplayRivalBurden] = None
 )
 
 final case class CertifiedClaim(
@@ -123,7 +161,7 @@ object CanonicalClaimCertification extends ClaimCertification:
           case DeltaCertificationBurden.Insufficient => ClaimStatus.Deferred
       case StrategicObjectReadiness.Provisional =>
         burden match
-          case DeltaCertificationBurden.Primary if CurrentPositionProbeSlice.isCoordinationProbeDelta(delta) =>
+          case DeltaCertificationBurden.Primary if CurrentPositionProbeSlice.hasCoordinationProbeWitness(delta) =>
             ClaimStatus.Certified
           case DeltaCertificationBurden.Primary | DeltaCertificationBurden.SupportOnly =>
             ClaimStatus.SupportOnly
@@ -170,6 +208,8 @@ object CanonicalClaimCertification extends ClaimCertification:
     delta.positionLocalWitnesses.collect {
       case StrategicPositionLocalWitness.FixedTargetCluster(witness) =>
         CertifiedBoundaryWitness.FixedTargetCluster(witness)
+      case StrategicPositionLocalWitness.CoordinationProbe(witness) =>
+        CertifiedBoundaryWitness.CoordinationProbe(witness)
     }
 
   private def enrichPlannerMetadata(
@@ -183,7 +223,8 @@ object CanonicalClaimCertification extends ClaimCertification:
             currentPositionProbeKind = currentPositionProbeKind(claim),
             tradeInvariantPrimaryClass =
               TradeInvariantPrimaryDescriptor.fromClaim(claim).flatMap(_.primaryReason),
-            residualSpecificityClass = residualSpecificityClass(claim)
+            residualSpecificityClass = residualSpecificityClass(claim),
+            counterplayRivalBurden = CounterplayRivalBurdenBoundary.metadata(claim)
           )
       )
     )
@@ -195,7 +236,7 @@ object CanonicalClaimCertification extends ClaimCertification:
       .when(FixedTargetClusterWitnessBoundary.hasClusterWitness(claim))(
         CertifiedCurrentPositionProbeKind.FixedTarget
       )
-      .orElse(claim.delta.flatMap(CurrentPositionProbeSlice.probeKind))
+      .orElse(CurrentPositionProbeSlice.probeKind(claim))
 
   private def residualSpecificityClass(
       claim: CertifiedClaim
@@ -222,7 +263,7 @@ object CanonicalClaimCertification extends ClaimCertification:
           None
     }
 
-  private def isExactTypedResidualClaim(
+  private[strategicobject] def isExactTypedResidualClaim(
       claim: CertifiedClaim
   ): Boolean =
     claim.hasTypedDelta &&
@@ -243,3 +284,77 @@ trait ClaimCertification:
       objects: List[StrategicObject],
       deltas: List[StrategicObjectDelta]
   ): List[CertifiedClaim]
+
+object CounterplayRivalBurdenBoundary:
+
+  def metadata(
+      claim: CertifiedClaim
+  ): Option[CertifiedCounterplayRivalBurden] =
+    Option.when(counterplayNarrowSliceClaim(claim)) {
+      claim.delta
+        .flatMap(_.moveTransition)
+        .flatMap(_.counterplayRivalEvidence)
+        .flatMap(evidence => certifiedBurden(evidence))
+    }.flatten
+
+  def plannerSupportEligible(
+      claims: List[CertifiedClaim],
+      supportClaim: CertifiedClaim
+  ): Boolean =
+    supportClaim.plannerMetadata.counterplayRivalBurden.forall { burden =>
+      !burden.allMatchedRivalLegsMustCertify ||
+      burden.coEqualRivalLegs.forall(leg => matchedRivalLegCertified(claims, leg))
+    }
+
+  private def certifiedBurden(
+      evidence: StrategicCounterplayRivalEvidence
+  ): Option[CertifiedCounterplayRivalBurden] =
+    val matchedLegs =
+      evidence.matchedRivalLegs.map(toCertifiedRivalLeg)
+    val matchedKeys = matchedLegs.map(legKey).toSet
+    val admittedButUnmatchedLegs =
+      evidence.admittedRivalLegs
+        .map(toCertifiedRivalLeg)
+        .filterNot(leg => matchedKeys.contains(legKey(leg)))
+
+    Option.when(matchedLegs.nonEmpty) {
+      CertifiedCounterplayRivalBurden(
+        coEqualRivalLegs = matchedLegs,
+        admittedButUnmatchedRivalLegs = admittedButUnmatchedLegs,
+        allMatchedRivalLegsMustCertify = true
+      ).normalized
+    }
+
+  private def matchedRivalLegCertified(
+      claims: List[CertifiedClaim],
+      leg: CertifiedRivalLeg
+  ): Boolean =
+    claims.exists(claim =>
+      claim.objectId == leg.objectId &&
+        claim.hasTypedDelta &&
+        (claim.status == ClaimStatus.Certified || claim.status == ClaimStatus.SupportOnly) &&
+        claim.delta.exists(_.family == leg.family)
+    )
+
+  private def counterplayNarrowSliceClaim(
+      claim: CertifiedClaim
+  ): Boolean =
+    (claim.status == ClaimStatus.Certified || claim.status == ClaimStatus.SupportOnly) &&
+      claim.delta.exists(_.family == StrategicObjectFamily.CounterplayAxis) &&
+      CanonicalClaimCertification.isExactTypedResidualClaim(claim)
+
+  private def toCertifiedRivalLeg(
+      evidence: StrategicRivalLegEvidence
+  ): CertifiedRivalLeg =
+    CertifiedRivalLeg(
+      family = evidence.family,
+      objectId = evidence.objectId,
+      operator = evidence.operator,
+      matchedSquares = evidence.witnessSquares,
+      matchedFiles = evidence.witnessFiles
+    ).normalized
+
+  private def legKey(
+      leg: CertifiedRivalLeg
+  ): (String, StrategicObjectFamily, StrategicRelationOperator) =
+    (leg.objectId, leg.family, leg.operator)

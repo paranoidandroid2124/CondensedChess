@@ -90,8 +90,9 @@ Current post-spine frontier:
 - `FixedTargetClusterWitness` access/corroboration de-stringification hardening
   passed on 2026-04-15: the centralized boundary now derives access lane and
   corroborating-route flavor from `AccessNetwork` profile / route geometry plus
-  anchor/evidence footprint instead of `objectId` token parsing, and the
-  same-batch witness baseline stays flat (`FixedTargetComplex` owners `7 -> 7`,
+  anchor/evidence footprint instead of `objectId` token parsing. Historical
+  provenance-lost note only: the original same-batch witness baseline was
+  recorded as flat (`FixedTargetComplex` owners `7 -> 7`,
   `RestrictionShell` support `7 -> 7`, system `supportActivationCount`
   `14 -> 14`) with no family drift and no reopen of the quiet `d4` or
   `f6` / `c5` / `e5` closed negatives
@@ -100,12 +101,13 @@ Current post-spine frontier:
   defender leg from `DefenderDependencyNetwork-` prefix parsing; it now
   reconstructs the defender connector from the certified position-local support
   graph and the related fixed-target / restriction board footprint inside the
-  same boundary, while `objectId` remains witness bookkeeping only. The
-  same-batch `45 / 360 / max8` rerun stays flat at `FixedTargetComplex`
-  owners `7`, `RestrictionShell` support `7`, and system
-  `supportActivationCount = 14`, with zero family drift, zero row-level
-  admission drift, the five witness-positive batch samples retained, and no
-  reopen of the quiet `d4` or `f6` / `c5` / `e5` closed negatives
+  same boundary, while `objectId` remains witness bookkeeping only. Historical
+  provenance-lost note only: the original same-batch `45 / 360 / max8` rerun
+  was recorded as flat at `FixedTargetComplex` owners `7`,
+  `RestrictionShell` support `7`, and system `supportActivationCount = 14`,
+  with zero family drift, zero row-level admission drift, the five
+  witness-positive batch samples retained, and no reopen of the quiet `d4` or
+  `f6` / `c5` / `e5` closed negatives
 - `PositionLocal` cluster witness projection passed on 2026-04-15:
   the current-position fixed-target truth boundary now lives on the projector
   side as a typed `StrategicPositionLocalWitness.FixedTargetCluster` attached
@@ -116,13 +118,33 @@ Current post-spine frontier:
   continuity lane reads a packet-isolated preserved-witness helper rather than
   a fixed-target descriptor table, and `FixedTargetClusterWitnessBoundary` is
   reduced to a preserved-witness reader rather than a reconstruction boundary.
-  The same-batch `45 / 360 / max8` rerun stays flat at `FixedTargetComplex`
-  owners `7`,
-  `RestrictionShell` support `7`, system `supportActivationCount = 14`,
-  `primaryActivationCount = 1444`, and `objectOnlyActivationCount = 522`,
-  with family drift `0`, row-level admission drift `0`, the seven owner/support
-  rows retained, and no reopen of the quiet `d4` or `f6` / `c5` / `e5`
-  closed negatives
+  Historical provenance-lost note only: the original same-batch
+  `45 / 360 / max8` rerun was recorded as flat at `FixedTargetComplex`
+  owners `7`, `RestrictionShell` support `7`,
+  system `supportActivationCount = 14`, `primaryActivationCount = 1444`, and
+  `objectOnlyActivationCount = 522`, with family drift `0`, row-level
+  admission drift `0`, the seven owner/support rows retained, and no reopen of
+  the quiet `d4` or `f6` / `c5` / `e5` closed negatives
+- fixed-target acceptance provenance reset on 2026-04-15:
+  active local acceptance is now defined only by the recovered canonical
+  `45 / 360 / max8` batch identity plus the tracked artifacts
+  `src/test/resources/strategic-object-corpus/FixedTargetCurrentPosition.batch-identity.json`,
+  `src/test/resources/strategic-object-corpus/FixedTargetCurrentPosition.compare-summary.json`,
+  and
+  `src/test/resources/strategic-object-corpus/FixedTargetCurrentPosition.sampleId-universe-summary.json`.
+  Unsupported historical `7 / 7` owner/support parity remains documented only
+  as provenance-lost history and is not an active gate or signoff condition
+- `PositionLocal` coordination witness projection passed on 2026-04-15:
+  the exact `K09A` current-position coordination truth boundary now lives on
+  the projector side as a typed
+  `StrategicPositionLocalWitness.CoordinationProbe` attached to the
+  `DevelopmentCoordinationState` owner under
+  `StrategicDeltaProjection.PositionLocal`; `ClaimCertification` only
+  preserves that witness, `QuestionPlanner` only consumes shared preserved
+  witness identity, `CurrentPositionProbeSlice` is reduced to a preserved-
+  witness reader, `K09A` stays admitted, and `K09D`, `K09E`, plus the
+  single-active-piece mirage stay closed with no new current-position slice
+  opened
 - one exact current-position coordination probe is now re-earned on the new
   spine (K09A only; K09D/K09E and single-active-piece mirage remain closed)
 - this means:
@@ -160,6 +182,21 @@ Current post-spine frontier:
     `CounterplayAxis.negative-pack.json`; reopen is forbidden unless a new
     exact positive evidence pack passes the same-batch `45 games / 360 samples
     / max8` rerun with no broad loosen and no other family drift
+  - live contract review and contract-study follow-through on 2026-04-16 now
+    fix the next rewrite direction for that same slice as
+    `CounterplayAxis = owner-led multi-rival support-only contract, runtime
+    landed`: live exact-board audit closed `10` recoverable /
+    `7` co-equal-dual-anchor / `0` distorted across the released-claim
+    universe, and all `7` dual-anchor rows sit inside live
+    `CounterplayAxis planner_support`; the approved contract shape keeps one
+    released `CounterplayAxis` spine while allowing one or more matched
+    `RestrictionShell` / `KingSafetyShell` rival legs to bind as co-equal
+    burden inside that same claim, with unmatched admitted rivals remaining
+    non-causal context only. `ClaimCertification` now stamps that burden as
+    planner metadata and `QuestionPlanner` consumes only the certified
+    metadata for support attachment. `RestrictionShell` and `TradeInvariant`
+    recoverable lanes stay unchanged, and a global contested-tuple rewrite
+    remains out of scope
 - the first vertical Phase 8/9 proving tranche is now closed
 - the composite chess semantics tranche derived from the blocked vertical
   slices is now landed rather than still pending
@@ -619,6 +656,16 @@ Strategic explanation is always delta-bearing.
 - deltas may be move-local, position-local, or branch-comparative
 - if no certified delta survives, the planner must defer or stay support-only
 
+Single-spine release does not force single-leg burden in every narrow support
+slice. The current canonical exception is the live `CounterplayAxis`
+`SupportOnly` move-local slice: one released `CounterplayAxis` object plus one
+released `CounterplayAxis` delta may still bind one or more certified matched
+rival legs as co-equal burden inside that same claim. This extends release
+burden, not release cardinality: `RestrictionShell` / `TradeInvariant`
+recoverable lanes remain single-anchor, unmatched admitted rivals stay
+non-causal context only, and no global contested-tuple rewrite follows from
+this exception.
+
 Readiness constrains this delta principle.
 Delta, certification, and planner layers must consume the canonical object
 readiness rather than re-deriving release confidence from family names,
@@ -819,6 +866,16 @@ Current north-star outcome:
   move-local ownership, and no reopen is allowed without a new exact positive
   evidence pack plus the same-batch `45 / 360 / max8` rerun showing no broad
   loosen and no other family drift
+- the next approved rewrite direction for that same slice is now
+  `owner-led multi-rival support-only contract`, runtime pending:
+  live released-claim audit closed `10 / 7 / 0`
+  recoverable / co-equal-dual-anchor / distorted, all `7` dual-anchor rows
+  live inside `CounterplayAxis planner_support`, and the contract remains one
+  released `CounterplayAxis` object plus one released `CounterplayAxis`
+  move-local delta with matched rival legs bound as co-equal burden only where
+  exact-board support truth requires them. `RestrictionShell` /
+  `TradeInvariant` recoverable lanes stay single-anchor and no global
+  contested-tuple rewrite follows from this narrow exception
 - comparative may reopen only from family-aware counterpart witness plus a
   typed comparative metric profile; broad same-sector or same-file rivalry is
   not sufficient

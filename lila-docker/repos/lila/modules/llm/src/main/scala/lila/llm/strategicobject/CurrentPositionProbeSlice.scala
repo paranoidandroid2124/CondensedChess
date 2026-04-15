@@ -2,38 +2,41 @@ package lila.llm.strategicobject
 
 private[strategicobject] object CurrentPositionProbeSlice:
 
-  private val coordinationProbeObjectIds: Set[String] =
-    Set(
-      "DevelopmentCoordinationState-white-wholeboard-a7-cd"
+  def probeKind(
+      claim: CertifiedClaim
+  ): Option[CertifiedCurrentPositionProbeKind] =
+    Option.when(coordinationProbeWitnesses(claim).nonEmpty)(
+      CertifiedCurrentPositionProbeKind.Coordination
     )
 
   def probeKind(
       delta: StrategicObjectDelta
   ): Option[CertifiedCurrentPositionProbeKind] =
-    if isCoordinationProbeDelta(delta) then
-      Some(CertifiedCurrentPositionProbeKind.Coordination)
-    else None
+    Option.when(coordinationProbeWitnesses(delta).nonEmpty)(
+      CertifiedCurrentPositionProbeKind.Coordination
+    )
 
-  def isCoordinationProbeDelta(
+  def hasCoordinationProbeWitness(
       delta: StrategicObjectDelta
   ): Boolean =
-    delta match
-      case StrategicObjectDelta(
-            objectId,
-            StrategicObjectFamily.DevelopmentCoordinationState,
-            _,
-            StrategicDeltaScope.PositionLocal,
-            _,
-            StrategicDeltaProjection.PositionLocal(StrategicDeltaTag.CoordinationImproved, focalAnchorCount, _),
-            changedAnchors,
-            supportingObjectIds,
-            _,
-            evidenceRefs
-          ) =>
-        coordinationProbeObjectIds.contains(objectId) &&
-          focalAnchorCount > 0 &&
-          supportingObjectIds.isEmpty &&
-          changedAnchors.nonEmpty &&
-          evidenceRefs.nonEmpty
-      case _ =>
-        false
+    coordinationProbeWitnesses(delta).nonEmpty
+
+  def sharesCoordinationProbeWitness(
+      left: CertifiedClaim,
+      right: CertifiedClaim
+  ): Boolean =
+    coordinationProbeWitnesses(left).intersect(coordinationProbeWitnesses(right)).nonEmpty
+
+  private def coordinationProbeWitnesses(
+      delta: StrategicObjectDelta
+  ): Set[CoordinationProbeWitness] =
+    delta.positionLocalWitnesses.collect {
+      case StrategicPositionLocalWitness.CoordinationProbe(witness) => witness
+    }
+
+  private def coordinationProbeWitnesses(
+      claim: CertifiedClaim
+  ): Set[CoordinationProbeWitness] =
+    claim.boundaryWitnesses.collect {
+      case CertifiedBoundaryWitness.CoordinationProbe(witness) => witness
+    }

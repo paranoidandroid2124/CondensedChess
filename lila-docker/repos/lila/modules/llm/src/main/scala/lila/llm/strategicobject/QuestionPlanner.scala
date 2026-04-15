@@ -165,7 +165,7 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
           case QuestionAxis.WhatMattersHere =>
             exactCurrentPositionProbeSupport(primaryClaims, candidateSupportClaims)
           case _ =>
-            candidateSupportClaims
+            exactMoveLocalSupportClaims(claims, candidateSupportClaims)
       }
 
   private val moveLocalPrimaryAxes =
@@ -198,18 +198,8 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       accessClaim: CertifiedClaim,
       other: CertifiedClaim
   ): Boolean =
-    accessClaim.id != other.id &&
-      isSpecificResidualDemotionCandidate(other) &&
-      sameClaimOwner(accessClaim, other) &&
-      accessClaim.deltaScope == other.deltaScope &&
-      (
-        claimAnchorKeys(accessClaim).intersect(claimAnchorKeys(other)).nonEmpty ||
-          claimEvidenceSquares(accessClaim).intersect(claimEvidenceSquares(other)).nonEmpty ||
-          claimEvidenceFiles(accessClaim).intersect(claimEvidenceFiles(other)).nonEmpty ||
-          claimSupportIds(accessClaim).contains(other.objectId) ||
-          claimSupportIds(other).contains(accessClaim.objectId) ||
-          claimSupportIds(accessClaim).intersect(claimSupportIds(other)).nonEmpty
-      )
+    isSpecificResidualDemotionCandidate(other) &&
+      AccessNetworkBridgeAdmissionBoundary.admits(accessClaim, other)
 
   private def isAccessNetworkClaim(
       claim: CertifiedClaim
@@ -230,35 +220,6 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       claim: CertifiedClaim
   ): Boolean =
     claim.plannerMetadata.residualSpecificityClass.nonEmpty
-
-  private def sameClaimOwner(
-      left: CertifiedClaim,
-      right: CertifiedClaim
-  ): Boolean =
-    left.delta.map(_.owner) == right.delta.map(_.owner)
-
-  private def claimAnchorKeys(
-      claim: CertifiedClaim
-  ): Set[String] =
-    claim.delta.toSet
-      .flatMap(_.changedAnchors.flatMap(_.squares.map(_.key)))
-
-  private def claimEvidenceSquares(
-      claim: CertifiedClaim
-  ): Set[String] =
-    claim.delta.toSet
-      .flatMap(_.evidenceRefs.flatMap(ref => ref.anchorSquares.map(_.key) ++ ref.contestedSquares.map(_.key)))
-
-  private def claimEvidenceFiles(
-      claim: CertifiedClaim
-  ): Set[String] =
-    claim.delta.toSet
-      .flatMap(_.evidenceRefs.flatMap(_.lane.map(_.char.toString)))
-
-  private def claimSupportIds(
-      claim: CertifiedClaim
-  ): Set[String] =
-    claim.supportingObjectIds.toSet ++ claim.delta.toSet.flatMap(_.supportingObjectIds)
 
   private def dedupeClaims(
       claims: List[CertifiedClaim]
@@ -361,9 +322,10 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
       )
     val coordinationSupport =
       supportClaims.filter(supportClaim =>
-        currentPositionProbeKind(supportClaim).contains(CertifiedCurrentPositionProbeKind.Coordination) &&
-          primaryClaims.exists(primaryClaim =>
-            currentPositionProbeKind(primaryClaim).contains(CertifiedCurrentPositionProbeKind.Coordination)
+        primaryClaims.exists(primaryClaim =>
+          currentPositionProbeKind(primaryClaim).contains(CertifiedCurrentPositionProbeKind.Coordination) &&
+            currentPositionProbeKind(supportClaim).contains(CertifiedCurrentPositionProbeKind.Coordination) &&
+            CurrentPositionProbeSlice.sharesCoordinationProbeWitness(primaryClaim, supportClaim)
           )
       )
 
@@ -391,6 +353,14 @@ object CanonicalQuestionPlanner extends QuestionPlanner:
         .sortBy(_.id)
         .headOption
     }.flatten
+
+  private def exactMoveLocalSupportClaims(
+      claims: List[CertifiedClaim],
+      supportClaims: List[CertifiedClaim]
+  ): List[CertifiedClaim] =
+    supportClaims.filter(supportClaim =>
+      CounterplayRivalBurdenBoundary.plannerSupportEligible(claims, supportClaim)
+    )
 
   private def isCertifiedCurrentPositionProbe(
       claim: CertifiedClaim

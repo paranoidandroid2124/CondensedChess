@@ -10,26 +10,13 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
 
   test("planner demotes overlapping access-network ownership behind a more specific certified causal claim") {
     val accessClaim =
-      moveLocalClaim(
+      moveLocalRoutedAccessClaim(
         id = "access-overlap",
         objectId = "AccessNetwork-white-e",
-        family = StrategicObjectFamily.AccessNetwork,
-        profile = StrategicObjectProfile.AccessNetwork(
-          lane = Some(File.E),
-          route = None,
-          roles = Set.empty,
-          contestedSquares = List(Square.E5)
-        ),
-        primaryTag = StrategicDeltaTag.AccessOpened,
-        axis = StrategicMoveTransitionAxis.AccessRouteActivation,
-        anchorSquares = List(Square.E5),
-        evidenceRefs = List(
-          StrategicDeltaEvidenceRef(
-            primitiveKind = PrimitiveKind.AccessRoute,
-            anchorSquares = List(Square.E5),
-            contestedSquares = List(Square.E5),
-            lane = Some(File.E)
-          )
+        route = StrategicRouteGeometry(
+          origin = Square.C3,
+          via = List(Square.C4),
+          target = Square.E5
         )
       )
     val counterplayClaim =
@@ -38,23 +25,32 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
         objectId = "CounterplayAxis-white-e5",
         family = StrategicObjectFamily.CounterplayAxis,
         profile = StrategicObjectProfile.CounterplayAxis(
-          resourceSquares = List(Square.E5),
-          breakSquares = List(Square.E5),
-          pressureSquares = List(Square.E5),
+          resourceSquares = List(Square.C4, Square.E5),
+          breakSquares = List(Square.C4, Square.E5),
+          pressureSquares = List(Square.C4, Square.E5),
           typedAxes = Set(CounterplayAxisType.Break)
         ),
         primaryTag = StrategicDeltaTag.CounterplayOpened,
         axis = StrategicMoveTransitionAxis.CounterplayResourceShift,
-        anchorSquares = List(Square.E5),
+        anchorSquares = List(Square.C4, Square.E5),
         evidenceRefs = List(
           StrategicDeltaEvidenceRef(
             primitiveKind = PrimitiveKind.CounterplayResourceSeed,
-            anchorSquares = List(Square.E5),
+            anchorSquares = List(Square.C4),
             contestedSquares = List(Square.E5),
             lane = Some(File.E)
           )
         )
       )
+
+    assertEquals(
+      AccessNetworkBridgeAdmissionBoundary.assess(accessClaim, counterplayClaim),
+      AccessNetworkBridgeAdmissionAssessment(
+        traceAdmittedSlice = true,
+        routeWitnessRetained = true,
+        contestedTargetRetained = true
+      )
+    )
 
     val planned = CanonicalQuestionPlanner.plan(visibleMoveContract, List(accessClaim, counterplayClaim))
 
@@ -64,25 +60,34 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
   }
 
   test("support-only counterplay residual can demote access-network primary into support") {
-    val accessClaim = mkAccessClaim("access-support-demotion", Square.E5, File.E)
+    val accessClaim =
+      moveLocalRoutedAccessClaim(
+        id = "access-support-demotion",
+        objectId = "AccessNetwork-white-e",
+        route = StrategicRouteGeometry(
+          origin = Square.C3,
+          via = List(Square.C4),
+          target = Square.E5
+        )
+      )
     val counterplayClaim =
       moveLocalClaim(
         id = "counterplay-support",
         objectId = "CounterplayAxis-white-e5",
         family = StrategicObjectFamily.CounterplayAxis,
         profile = StrategicObjectProfile.CounterplayAxis(
-          resourceSquares = List(Square.E5),
-          breakSquares = List(Square.E5),
-          pressureSquares = List(Square.E5),
+          resourceSquares = List(Square.C4, Square.E5),
+          breakSquares = List(Square.C4, Square.E5),
+          pressureSquares = List(Square.C4, Square.E5),
           typedAxes = Set(CounterplayAxisType.Break)
         ),
         primaryTag = StrategicDeltaTag.CounterplayOpened,
         axis = StrategicMoveTransitionAxis.CounterplayResourceShift,
-        anchorSquares = List(Square.E5),
+        anchorSquares = List(Square.C4, Square.E5),
         evidenceRefs = List(
           StrategicDeltaEvidenceRef(
             primitiveKind = PrimitiveKind.CounterplayResourceSeed,
-            anchorSquares = List(Square.E5),
+            anchorSquares = List(Square.C4),
             contestedSquares = List(Square.E5),
             lane = Some(File.E)
           )
@@ -96,6 +101,108 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
     assertEquals(planned.claimIds, Nil)
     assert(planned.supportClaimIds.contains(accessClaim.id), clue(planned))
     assert(planned.supportClaimIds.contains(counterplayClaim.id), clue(planned))
+  }
+
+  test("planner keeps access-network primary when residual retains contested target without route witness") {
+    val accessClaim =
+      moveLocalRoutedAccessClaim(
+        id = "access-target-only",
+        objectId = "AccessNetwork-white-e",
+        route = StrategicRouteGeometry(
+          origin = Square.C3,
+          via = List(Square.C4),
+          target = Square.E5
+        )
+      )
+    val counterplayClaim =
+      moveLocalClaim(
+        id = "counterplay-target-only",
+        objectId = "CounterplayAxis-white-e5",
+        family = StrategicObjectFamily.CounterplayAxis,
+        profile = StrategicObjectProfile.CounterplayAxis(
+          resourceSquares = List(Square.E5),
+          breakSquares = List(Square.E5),
+          pressureSquares = List(Square.E5),
+          typedAxes = Set(CounterplayAxisType.Break)
+        ),
+        primaryTag = StrategicDeltaTag.CounterplayOpened,
+        axis = StrategicMoveTransitionAxis.CounterplayResourceShift,
+        anchorSquares = List(Square.E5),
+        evidenceRefs = List(
+          StrategicDeltaEvidenceRef(
+            primitiveKind = PrimitiveKind.CounterplayResourceSeed,
+            anchorSquares = List(Square.E5),
+            contestedSquares = List(Square.E5),
+            lane = Some(File.E)
+          )
+        )
+      )
+
+    assertEquals(
+      AccessNetworkBridgeAdmissionBoundary.assess(accessClaim, counterplayClaim),
+      AccessNetworkBridgeAdmissionAssessment(
+        traceAdmittedSlice = true,
+        routeWitnessRetained = false,
+        contestedTargetRetained = true
+      )
+    )
+
+    val planned = CanonicalQuestionPlanner.plan(visibleMoveContract, List(accessClaim, counterplayClaim))
+
+    assert(planned.claimIds.contains(accessClaim.id), clue(planned))
+    assert(planned.claimIds.contains(counterplayClaim.id), clue(planned))
+    assertEquals(planned.supportClaimIds, Nil)
+  }
+
+  test("planner keeps access-network primary when residual retains route witness without contested target") {
+    val accessClaim =
+      moveLocalRoutedAccessClaim(
+        id = "access-route-only",
+        objectId = "AccessNetwork-white-e",
+        route = StrategicRouteGeometry(
+          origin = Square.C3,
+          via = List(Square.C4),
+          target = Square.E5
+        )
+      )
+    val counterplayClaim =
+      moveLocalClaim(
+        id = "counterplay-route-only",
+        objectId = "CounterplayAxis-white-c4",
+        family = StrategicObjectFamily.CounterplayAxis,
+        profile = StrategicObjectProfile.CounterplayAxis(
+          resourceSquares = List(Square.C4),
+          breakSquares = List(Square.C4),
+          pressureSquares = List(Square.C4),
+          typedAxes = Set(CounterplayAxisType.Break)
+        ),
+        primaryTag = StrategicDeltaTag.CounterplayOpened,
+        axis = StrategicMoveTransitionAxis.CounterplayResourceShift,
+        anchorSquares = List(Square.C4),
+        evidenceRefs = List(
+          StrategicDeltaEvidenceRef(
+            primitiveKind = PrimitiveKind.CounterplayResourceSeed,
+            anchorSquares = List(Square.C4),
+            contestedSquares = List(Square.C4),
+            lane = Some(File.C)
+          )
+        )
+      )
+
+    assertEquals(
+      AccessNetworkBridgeAdmissionBoundary.assess(accessClaim, counterplayClaim),
+      AccessNetworkBridgeAdmissionAssessment(
+        traceAdmittedSlice = true,
+        routeWitnessRetained = true,
+        contestedTargetRetained = false
+      )
+    )
+
+    val planned = CanonicalQuestionPlanner.plan(visibleMoveContract, List(accessClaim, counterplayClaim))
+
+    assert(planned.claimIds.contains(accessClaim.id), clue(planned))
+    assert(planned.claimIds.contains(counterplayClaim.id), clue(planned))
+    assertEquals(planned.supportClaimIds, Nil)
   }
 
   test("planner keeps access-network primary when no specific residual overlap is proven") {
@@ -201,7 +308,16 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
   }
 
   test("support-only plan-race residual can demote access-network primary into support") {
-    val accessClaim = mkAccessClaim("access-plan-race", Square.E5, File.E)
+    val accessClaim =
+      moveLocalRoutedAccessClaim(
+        id = "access-plan-race",
+        objectId = "AccessNetwork-white-e",
+        route = StrategicRouteGeometry(
+          origin = Square.C3,
+          via = List(Square.C4),
+          target = Square.E5
+        )
+      )
     val planRaceClaim =
       moveLocalClaim(
         id = "plan-race-support",
@@ -209,7 +325,7 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
         family = StrategicObjectFamily.PlanRace,
         profile = StrategicObjectProfile.PlanRace(
           rivalOwner = Color.Black,
-          raceSquares = List(Square.E5, Square.E6),
+          raceSquares = List(Square.C4, Square.E5, Square.E6),
           raceFiles = Set(File.E),
           ownGoalSquares = List(Square.E6),
           rivalGoalSquares = List(Square.E4),
@@ -217,11 +333,11 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
         ),
         primaryTag = StrategicDeltaTag.CounterplayOpened,
         axis = StrategicMoveTransitionAxis.CounterplayResourceShift,
-        anchorSquares = List(Square.E5),
+        anchorSquares = List(Square.C4, Square.E5),
         evidenceRefs = List(
           StrategicDeltaEvidenceRef(
             primitiveKind = PrimitiveKind.CounterplayResourceSeed,
-            anchorSquares = List(Square.E5),
+            anchorSquares = List(Square.C4),
             contestedSquares = List(Square.E5),
             lane = Some(File.E)
           )
@@ -282,25 +398,34 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
   }
 
   test("planner consumes certified residual specificity metadata instead of re-deriving move-local exactness") {
-    val accessClaim = mkAccessClaim("access-metadata-residual", Square.E5, File.E)
+    val accessClaim =
+      moveLocalRoutedAccessClaim(
+        id = "access-metadata-residual",
+        objectId = "AccessNetwork-white-e",
+        route = StrategicRouteGeometry(
+          origin = Square.C3,
+          via = List(Square.C4),
+          target = Square.E5
+        )
+      )
     val counterplayClaim =
       moveLocalClaim(
         id = "counterplay-metadata-residual",
         objectId = "CounterplayAxis-white-e5",
         family = StrategicObjectFamily.CounterplayAxis,
         profile = StrategicObjectProfile.CounterplayAxis(
-          resourceSquares = List(Square.E5),
-          breakSquares = List(Square.E5),
-          pressureSquares = List(Square.E5),
+          resourceSquares = List(Square.C4, Square.E5),
+          breakSquares = List(Square.C4, Square.E5),
+          pressureSquares = List(Square.C4, Square.E5),
           typedAxes = Set(CounterplayAxisType.Break)
         ),
         primaryTag = StrategicDeltaTag.CounterplayOpened,
         axis = StrategicMoveTransitionAxis.CounterplayResourceShift,
-        anchorSquares = List(Square.E5),
+        anchorSquares = List(Square.C4, Square.E5),
         evidenceRefs = List(
           StrategicDeltaEvidenceRef(
             primitiveKind = PrimitiveKind.CounterplayResourceSeed,
-            anchorSquares = List(Square.E5),
+            anchorSquares = List(Square.C4),
             contestedSquares = List(Square.E5),
             lane = Some(File.E)
           )
@@ -312,18 +437,18 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
             objectId = "CounterplayAxis-white-e5",
             family = StrategicObjectFamily.CounterplayAxis,
             profile = StrategicObjectProfile.CounterplayAxis(
-              resourceSquares = List(Square.E5),
-              breakSquares = List(Square.E5),
-              pressureSquares = List(Square.E5),
+              resourceSquares = List(Square.C4, Square.E5),
+              breakSquares = List(Square.C4, Square.E5),
+              pressureSquares = List(Square.C4, Square.E5),
               typedAxes = Set(CounterplayAxisType.Break)
             ),
             primaryTag = StrategicDeltaTag.CounterplayOpened,
             axis = StrategicMoveTransitionAxis.CounterplayResourceShift,
-            anchorSquares = List(Square.E5),
+            anchorSquares = List(Square.C4, Square.E5),
             evidenceRefs = List(
               StrategicDeltaEvidenceRef(
                 primitiveKind = PrimitiveKind.CounterplayResourceSeed,
-                anchorSquares = List(Square.E5),
+                anchorSquares = List(Square.C4),
                 contestedSquares = List(Square.E5),
                 lane = Some(File.E)
               )
@@ -870,6 +995,40 @@ class QuestionPlannerAccessArbitrationTest extends FunSuite:
           lane = Some(file)
         )
       )
+    )
+
+  private def moveLocalRoutedAccessClaim(
+      id: String,
+      objectId: String,
+      route: StrategicRouteGeometry,
+      status: ClaimStatus = ClaimStatus.Certified,
+      plannerMetadata: CertifiedPlannerMetadata = CertifiedPlannerMetadata()
+  ): CertifiedClaim =
+    val entrySquare =
+      route.via.lastOption.getOrElse(route.origin)
+    moveLocalClaim(
+      id = id,
+      objectId = objectId,
+      family = StrategicObjectFamily.AccessNetwork,
+      profile = StrategicObjectProfile.AccessNetwork(
+        lane = Some(route.target.file),
+        route = Some(route),
+        roles = Set.empty,
+        contestedSquares = List(route.target)
+      ),
+      primaryTag = StrategicDeltaTag.AccessOpened,
+      axis = StrategicMoveTransitionAxis.AccessRouteActivation,
+      anchorSquares = List(entrySquare, route.target),
+      evidenceRefs = List(
+        StrategicDeltaEvidenceRef(
+          primitiveKind = PrimitiveKind.AccessRoute,
+          anchorSquares = List(entrySquare),
+          contestedSquares = List(route.target),
+          lane = Some(route.target.file)
+        )
+      ),
+      status = status,
+      plannerMetadata = plannerMetadata
     )
 
   private def moveLocalClaim(

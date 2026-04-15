@@ -110,6 +110,11 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
       witness: FixedTargetClusterWitness
   )
 
+  private final case class CoordinationWitnessAttachment(
+      objectId: String,
+      witness: CoordinationProbeWitness
+  )
+
   private final case class ExactPrimaryFixedTargetWitnessSeed(
       targetSquare: String,
       supportObjectIds: Set[String]
@@ -136,6 +141,36 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
             evidenceRefs.nonEmpty &&
             this.targetSquare == targetSquare.key &&
             supportingObjectIds.toSet == supportObjectIds
+        case _ =>
+          false
+
+  private final case class ExactPrimaryCoordinationWitnessSeed(
+      objectId: String
+  ):
+    def matches(
+        delta: StrategicObjectDelta
+    ): Boolean =
+      delta match
+        case StrategicObjectDelta(
+              objectId,
+              StrategicObjectFamily.DevelopmentCoordinationState,
+              _,
+              StrategicDeltaScope.PositionLocal,
+              StrategicObjectProfile.DevelopmentCoordinationState(CoordinationStatus.Leading, _, activeFiles, coordinationSquares),
+              StrategicDeltaProjection.PositionLocal(StrategicDeltaTag.CoordinationImproved, focalAnchorCount, _),
+              changedAnchors,
+              supportingObjectIds,
+              _,
+              evidenceRefs
+            ) =>
+          this.objectId == objectId &&
+            focalAnchorCount > 0 &&
+            supportingObjectIds.isEmpty &&
+            changedAnchors.nonEmpty &&
+            evidenceRefs.nonEmpty &&
+            activeFiles.nonEmpty &&
+            coordinationSquares.nonEmpty &&
+            coordinationFocusSquare(delta).nonEmpty
         case _ =>
           false
 
@@ -170,6 +205,13 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
             "AccessNetwork-white-center-d7-d-knight",
             "AccessNetwork-white-queenside-b6-b-diag"
           )
+      )
+    )
+
+  private val exactPrimaryCoordinationWitnessSeeds: List[ExactPrimaryCoordinationWitnessSeed] =
+    List(
+      ExactPrimaryCoordinationWitnessSeed(
+        objectId = "DevelopmentCoordinationState-white-wholeboard-a7-cd"
       )
     )
 
@@ -991,13 +1033,53 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
               relationWitnessTriples.flatMap(_._3)
           ).take(4),
         relationWitnesses = relationWitnesses,
-        primitiveKinds = anchoredPrimitiveKinds
+        primitiveKinds = anchoredPrimitiveKinds,
+        counterplayRivalEvidence =
+          counterplayAssessment.flatMap(assessment =>
+            counterplayRivalEvidence(assessment, relatedObjects)
+          )
       ).normalized
 
     Option.when(
       witness.isTransitionAware &&
         moveTransitionCoreSatisfied(obj, coreSquares, coreFiles, anchoredPrimitiveKinds, relationWitnesses)
     )(witness)
+
+  private def counterplayRivalEvidence(
+      assessment: CounterplayMoveLocalAssessment,
+      relatedObjects: Map[String, StrategicObject]
+  ): Option[StrategicCounterplayRivalEvidence] =
+    val matchedRivalLegs =
+      assessment.relationMatches.flatMap(matchItem =>
+        relatedObjects.get(matchItem.targetId).map(target =>
+          StrategicRivalLegEvidence(
+            objectId = target.id,
+            family = target.family,
+            operator = matchItem.operator,
+            witnessSquares = matchItem.touchedSquares,
+            witnessFiles = matchItem.touchedFiles
+          )
+        )
+      )
+    val admittedRivalLegs =
+      assessment.exactRivalAdmission.witnesses.flatMap(witness =>
+        relatedObjects.get(witness.targetId).map(target =>
+          StrategicRivalLegEvidence(
+            objectId = target.id,
+            family = target.family,
+            operator = witness.operator,
+            witnessSquares = witness.sharedSquares,
+            witnessFiles = witness.sharedFiles
+          )
+        )
+      )
+
+    Option.when(matchedRivalLegs.nonEmpty || admittedRivalLegs.nonEmpty) {
+      StrategicCounterplayRivalEvidence(
+        matchedRivalLegs = matchedRivalLegs,
+        admittedRivalLegs = admittedRivalLegs
+      ).normalized
+    }
 
   private def moveTrace(
       contract: DecisiveTruthContract,
@@ -1539,17 +1621,21 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         .view
         .mapValues(preferredPositionDelta)
         .toMap
-    val attachments = fixedTargetClusterAttachments(deltas, positionDeltasByObjectId, objectsById)
+    val witnessEntries =
+      fixedTargetClusterAttachments(deltas, positionDeltasByObjectId, objectsById)
+        .flatMap(attachment =>
+          (attachment.primaryObjectId :: attachment.supportObjectIds.toList).map(objectId =>
+            objectId -> StrategicPositionLocalWitness.FixedTargetCluster(attachment.witness)
+          )
+        ) ++
+        exactPrimaryCoordinationWitnessAttachments(deltas).map(attachment =>
+          attachment.objectId -> StrategicPositionLocalWitness.CoordinationProbe(attachment.witness)
+        )
 
-    if attachments.isEmpty then deltas
+    if witnessEntries.isEmpty then deltas
     else
       val witnessesByObjectId =
-        attachments
-          .flatMap(attachment =>
-            (attachment.primaryObjectId :: attachment.supportObjectIds.toList).map(objectId =>
-              objectId -> StrategicPositionLocalWitness.FixedTargetCluster(attachment.witness)
-            )
-          )
+        witnessEntries
           .groupMap(_._1)(_._2)
           .view
           .mapValues(_.toSet)
@@ -1625,6 +1711,82 @@ object CanonicalStrategicObjectDeltaProjector extends StrategicObjectDeltaProjec
         }
       )
       .concat(exactPrimaryOnlyAttachments)
+
+  private def exactPrimaryCoordinationWitnessAttachments(
+      deltas: List[StrategicObjectDelta]
+  ): List[CoordinationWitnessAttachment] =
+    deltas.flatMap(delta =>
+      exactPrimaryCoordinationWitnessSeeds
+        .find(_.matches(delta))
+        .flatMap(_ =>
+          coordinationProbeWitness(delta).map(witness =>
+            CoordinationWitnessAttachment(
+              objectId = delta.objectId,
+              witness = witness
+            )
+          )
+        )
+    )
+
+  private def coordinationProbeWitness(
+      delta: StrategicObjectDelta
+  ): Option[CoordinationProbeWitness] =
+    delta.profile match
+      case StrategicObjectProfile.DevelopmentCoordinationState(_, _, activeFiles, coordinationSquares) =>
+        coordinationFocusSquare(delta).map(focalCoordinationSquare =>
+          val witnessSquares =
+            (coordinationSquares ++ deltaSquares(delta)).toSet
+          val witnessFiles =
+            activeFiles ++ deltaFiles(delta).toSet ++ witnessSquares.map(_.file)
+
+          CoordinationProbeWitness(
+            focalCoordinationSquare = focalCoordinationSquare,
+            coordinationSquares = witnessSquares,
+            activeFiles = witnessFiles,
+            disambiguation =
+              coordinationDisambiguation(
+                focalCoordinationSquare = focalCoordinationSquare,
+                coordinationSquares = witnessSquares,
+                activeFiles = witnessFiles
+              )
+          )
+        )
+      case _ =>
+        None
+
+  private def coordinationFocusSquare(
+      delta: StrategicObjectDelta
+  ): Option[Square] =
+    val anchoredSquares =
+      delta.changedAnchors.flatMap(positionAnchorSquares).distinct.sortBy(_.key)
+    val witnessedSquares =
+      (
+        delta.evidenceRefs.flatMap(ref => ref.anchorSquares ++ ref.contestedSquares)
+      ).distinct.sortBy(_.key)
+    val profileSquares =
+      delta.profile match
+        case StrategicObjectProfile.DevelopmentCoordinationState(_, _, _, coordinationSquares) =>
+          coordinationSquares.distinct.sortBy(_.key)
+        case _ =>
+          Nil
+
+    anchoredSquares.headOption
+      .orElse(profileSquares.find(witnessedSquares.contains))
+      .orElse(witnessedSquares.find(profileSquares.contains))
+      .orElse(witnessedSquares.headOption)
+      .orElse(profileSquares.headOption)
+
+  private def coordinationDisambiguation(
+      focalCoordinationSquare: Square,
+      coordinationSquares: Set[Square],
+      activeFiles: Set[File]
+  ): String =
+    val squareKey =
+      coordinationSquares.toList.sortBy(_.key).map(_.key).mkString("[", ",", "]")
+    val fileKey =
+      activeFiles.toList.sortBy(_.char.toString).map(_.char.toString).mkString("[", ",", "]")
+
+    s"${focalCoordinationSquare.key}:files=$fileKey:squares=$squareKey"
 
   private def exactPrimaryFixedTargetWitnessAttachment(
       primaryDelta: StrategicObjectDelta,

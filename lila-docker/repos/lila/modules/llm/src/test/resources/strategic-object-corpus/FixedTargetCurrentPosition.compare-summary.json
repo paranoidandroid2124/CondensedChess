@@ -1,0 +1,44 @@
+{
+  "family": "FixedTargetComplex",
+  "scope": "PositionLocal",
+  "artifactRole": "active_local_acceptance_compare_summary",
+  "status": "active_local_gate",
+  "batchIdentity": "same-batch 45/360/max8",
+  "expectationCorpus": "current-position-fixed-target-expectations.jsonl",
+  "activeLocalAssertions": [
+    "Four exact current-position fixed-target rows remain admitted as planner-primary.",
+    "The quiet d6 rook-lift and bishop-lift exact rows remain tied to the same preserved fixed-target cluster witness as RestrictionShell-white-center-d4-de support.",
+    "The quiet d4 near-miss remains outside currentPositionProbeKind and outside planner support.",
+    "The f6/c5/e5 structural leak bank remains closed as support-only outside current-position probe admission.",
+    "Unsupported historical 7/7 owner/support parity is not part of the active local gate."
+  ],
+  "exactPrimaryRowIds": [
+    "current-position-fixed-target-exact",
+    "current-position-fixed-target-d6-exact",
+    "current-position-fixed-target-d6-quiet-rook-lift-exact",
+    "current-position-fixed-target-d6-quiet-bishop-lift-exact"
+  ],
+  "boundaryPreservingRows": {
+    "negative": [
+      "current-position-fixed-target-negative"
+    ],
+    "nearMiss": [
+      "current-position-fixed-target-near-miss",
+      "current-position-fixed-target-d4-quiet-near-miss"
+    ],
+    "nastyNegative": [
+      "current-position-fixed-target-d6-fixed-false-nasty-negative",
+      "current-position-fixed-target-d4-pressure-only-nasty-negative",
+      "current-position-fixed-target-d7-empty-bundle-nasty-negative",
+      "current-position-fixed-target-kingside-f6-structural-leak-nasty-negative",
+      "current-position-fixed-target-queenside-c5-structural-leak-nasty-negative",
+      "current-position-fixed-target-center-e5-structural-leak-nasty-negative"
+    ]
+  },
+  "historicalParityClaim": {
+    "ownerRows": 7,
+    "supportRows": 7,
+    "status": "provenance_lost_historical_note"
+  },
+  "activeGateConclusion": "Local acceptance is reproduced from the recovered canonical 45/360/max8 batch identity plus this checked-in compare summary and the tracked sampleId universe summary, not from unsupported historical 7/7 parity."
+}

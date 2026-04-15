@@ -389,6 +389,64 @@ class ClaimCertificationTest extends FunSuite:
       Some(CertifiedCurrentPositionProbeKind.Coordination),
       clue(claim)
     )
+    assert(
+      claim.boundaryWitnesses.exists {
+        case CertifiedBoundaryWitness.CoordinationProbe(_) => true
+        case _                                             => false
+      },
+      clue(claim)
+    )
+  }
+
+  test("claim certification preserves the projector-owned coordination probe witness without reconstructing it") {
+    val row =
+      CurrentPositionCoordinationProbeTest.rows.find(_.id == "current-position-coordination-probe-exact").getOrElse(
+        fail("expected exact coordination probe row")
+      )
+    val objects = StrategicObjectSynthesizerTest.objectsForFen(row.fen, PrimitiveExtractionTest.neutralTruthFrame)
+    val deltas =
+      CanonicalStrategicObjectDeltaProjector.project(
+        PrimitiveExtractionTest.neutralContract,
+        PrimitiveExtractionTest.neutralTruthFrame,
+        objects
+      )
+    val claims = CanonicalClaimCertification.certify(PrimitiveExtractionTest.neutralContract, objects, deltas)
+    val projectorDelta =
+      deltas.find(delta =>
+        delta.family == StrategicObjectFamily.DevelopmentCoordinationState &&
+          delta.scope == StrategicDeltaScope.PositionLocal &&
+          delta.primaryTag == StrategicDeltaTag.CoordinationImproved &&
+          CurrentPositionProbeSlice.hasCoordinationProbeWitness(delta)
+      ).getOrElse(
+        fail("expected projector-owned coordination witness delta")
+      )
+    val projectorWitness =
+      projectorDelta.positionLocalWitnesses.collectFirst {
+        case StrategicPositionLocalWitness.CoordinationProbe(witness) => witness
+      }.getOrElse(
+        fail(s"expected projector-owned coordination witness on $projectorDelta")
+      )
+    val claim =
+      claims.find(claim =>
+        claim.objectId == projectorDelta.objectId &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+          claim.status == ClaimStatus.Certified
+      ).getOrElse(
+        fail("expected certified coordination probe claim")
+      )
+    val claimWitness =
+      claim.boundaryWitnesses.collectFirst {
+        case CertifiedBoundaryWitness.CoordinationProbe(witness) => witness
+      }.getOrElse(
+        fail(s"expected preserved coordination witness on $claim")
+      )
+
+    assertEquals(
+      claim.plannerMetadata.currentPositionProbeKind,
+      Some(CertifiedCurrentPositionProbeKind.Coordination),
+      clue(claim)
+    )
+    assertEquals(claimWitness, projectorWitness, clue(s"claim=$claim projector=$projectorWitness"))
   }
 
   test("packet favorable simplification claim stamps trade primary and residual specificity metadata") {
@@ -697,6 +755,14 @@ class ClaimCertificationTest extends FunSuite:
 
     assert(exactObjectIds.nonEmpty, clue("expected at least one exact coordination object"))
     assert(exactPrimary.nonEmpty, clue(s"expected certified coordination probe claim, got $exactPositionClaims"))
+    assert(
+      exactDeltas.exists(delta =>
+        exactObjectIds.contains(delta.objectId) &&
+          delta.scope == StrategicDeltaScope.PositionLocal &&
+          CurrentPositionProbeSlice.hasCoordinationProbeWitness(delta)
+      ),
+      clue(s"expected preserved coordination witness on exact row, deltas=$exactDeltas")
+    )
 
     val closedRows = CurrentPositionCoordinationProbeTest.rows.filter(_.caseType != "exact")
     closedRows.foreach { row =>
@@ -717,6 +783,23 @@ class ClaimCertificationTest extends FunSuite:
         certifiedCoordination,
         Nil,
         clue(s"${row.id}: expected closed coordination slice, claims=$positionClaims")
+      )
+      assert(
+        deltas.forall(delta =>
+          !objectIds.contains(delta.objectId) ||
+            delta.scope != StrategicDeltaScope.PositionLocal ||
+            !CurrentPositionProbeSlice.hasCoordinationProbeWitness(delta)
+        ),
+        clue(s"${row.id}: closed coordination row must stay outside projector-owned witness, deltas=$deltas")
+      )
+      assert(
+        positionClaims.forall(claim =>
+          claim.boundaryWitnesses.forall {
+            case CertifiedBoundaryWitness.CoordinationProbe(_) => false
+            case _                                             => true
+          }
+        ),
+        clue(s"${row.id}: closed coordination row must stay outside preserved witness, claims=$positionClaims")
       )
     }
   }

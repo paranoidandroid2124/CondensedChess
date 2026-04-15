@@ -94,18 +94,55 @@ enum StrategicMoveTransitionAxis:
   case PasserAdvance
   case TradeSimplification
 
+final case class StrategicRivalLegEvidence(
+    objectId: String,
+    family: StrategicObjectFamily,
+    operator: StrategicRelationOperator,
+    witnessSquares: List[Square] = Nil,
+    witnessFiles: List[File] = Nil
+):
+  def normalized: StrategicRivalLegEvidence =
+    copy(
+      witnessSquares = witnessSquares.distinct.sortBy(_.key),
+      witnessFiles = witnessFiles.distinct.sortBy(_.char.toString)
+    )
+
+final case class StrategicCounterplayRivalEvidence(
+    matchedRivalLegs: List[StrategicRivalLegEvidence] = Nil,
+    admittedRivalLegs: List[StrategicRivalLegEvidence] = Nil
+):
+  def normalized: StrategicCounterplayRivalEvidence =
+    copy(
+      matchedRivalLegs =
+        matchedRivalLegs
+          .map(_.normalized)
+          .distinct
+          .sortBy(leg =>
+            s"${leg.objectId}:${leg.family}:${leg.operator}:${leg.witnessSquares.map(_.key).mkString(",")}:${leg.witnessFiles.map(_.char).mkString}"
+          ),
+      admittedRivalLegs =
+        admittedRivalLegs
+          .map(_.normalized)
+          .distinct
+          .sortBy(leg =>
+            s"${leg.objectId}:${leg.family}:${leg.operator}:${leg.witnessSquares.map(_.key).mkString(",")}:${leg.witnessFiles.map(_.char).mkString}"
+          )
+    )
+
 final case class StrategicMoveTransitionWitness(
     move: StrategicPlayedMoveTrace,
     axis: StrategicMoveTransitionAxis,
     matchedSquares: List[Square] = Nil,
     matchedFiles: List[File] = Nil,
     relationWitnesses: Set[StrategicRelationOperator] = Set.empty,
-    primitiveKinds: Set[PrimitiveKind] = Set.empty
+    primitiveKinds: Set[PrimitiveKind] = Set.empty,
+    counterplayRivalEvidence: Option[StrategicCounterplayRivalEvidence] = None
 ):
   def normalized: StrategicMoveTransitionWitness =
     copy(
       matchedSquares = matchedSquares.distinct.sortBy(_.key),
-      matchedFiles = matchedFiles.distinct.sortBy(_.char.toString)
+      matchedFiles = matchedFiles.distinct.sortBy(_.char.toString),
+      counterplayRivalEvidence = counterplayRivalEvidence.map(_.normalized)
     )
 
   def hasAnchoredEvidence: Boolean =
@@ -232,8 +269,16 @@ final case class FixedTargetClusterWitness(
     disambiguation: String
 )
 
+final case class CoordinationProbeWitness(
+    focalCoordinationSquare: Square,
+    coordinationSquares: Set[Square],
+    activeFiles: Set[File],
+    disambiguation: String
+)
+
 enum StrategicPositionLocalWitness:
   case FixedTargetCluster(witness: FixedTargetClusterWitness)
+  case CoordinationProbe(witness: CoordinationProbeWitness)
 
 enum StrategicDeltaProjection:
   case MoveLocal(

@@ -485,6 +485,62 @@ class QuestionPlannerTest extends FunSuite:
     assert(!planned.supportClaimIds.contains(fixedTargetSupport.id), clue("cross-slice fixed-target support must remain closed under coordination primary"))
   }
 
+  test("whatmattershere coordination support consumes shared preserved witness identity only") {
+    val truth = PrimitiveExtractionTest.neutralTruthFrame
+    val contract = PrimitiveExtractionTest.neutralContract
+    val coordinationRow =
+      CurrentPositionCoordinationProbeTest.rows.find(_.caseType == "exact").getOrElse(
+        fail("expected current-position coordination exact row")
+      )
+    val coordinationObjects = StrategicObjectSynthesizerTest.objectsForFen(coordinationRow.fen, truth)
+    val coordinationDeltas = CanonicalStrategicObjectDeltaProjector.project(contract, truth, coordinationObjects)
+    val coordinationClaims = CanonicalClaimCertification.certify(contract, coordinationObjects, coordinationDeltas)
+    val coordinationIds = currentPositionCoordinationObjectIds(coordinationRow, coordinationObjects)
+    val coordinationPrimary =
+      coordinationClaims.find(claim =>
+        coordinationIds.contains(claim.objectId) &&
+          claim.deltaScope == StrategicDeltaScope.PositionLocal &&
+          claim.status == ClaimStatus.Certified &&
+          claim.primaryTag.contains(StrategicDeltaTag.CoordinationImproved)
+      ).getOrElse(
+        fail("expected certified coordination primary claim")
+      )
+    val coordinationWitness =
+      coordinationPrimary.boundaryWitnesses.collectFirst {
+        case CertifiedBoundaryWitness.CoordinationProbe(witness) => witness
+      }.getOrElse(
+        fail(s"expected preserved coordination witness on $coordinationPrimary")
+      )
+    val sharedSupport =
+      coordinationPrimary.copy(
+        id = s"${coordinationPrimary.id}:shared-support",
+        status = ClaimStatus.SupportOnly
+      )
+    val mismatchedSupport =
+      coordinationPrimary.copy(
+        id = s"${coordinationPrimary.id}:mismatched-support",
+        status = ClaimStatus.SupportOnly,
+        boundaryWitnesses =
+          Set(
+            CertifiedBoundaryWitness.CoordinationProbe(
+              coordinationWitness.copy(
+                disambiguation = s"${coordinationWitness.disambiguation}:mismatch"
+              )
+            )
+          )
+      )
+
+    val planned = CanonicalQuestionPlanner.plan(
+      contract,
+      List(coordinationPrimary, sharedSupport, mismatchedSupport)
+    )
+
+    assertEquals(planned.axis, QuestionAxis.WhatMattersHere)
+    assertEquals(planned.claimIds, List(coordinationPrimary.id))
+    assert(planned.supportClaimIds.contains(sharedSupport.id), clue(planned))
+    assert(!planned.supportClaimIds.contains(mismatchedSupport.id), clue(planned))
+  }
+
   test("planner keeps WhatChanged ahead of the packet-owned current-position probe on mixed boards") {
     val row =
       CurrentPositionFixedTargetProbeTest.rows.find(_.caseType == "exact").getOrElse(
