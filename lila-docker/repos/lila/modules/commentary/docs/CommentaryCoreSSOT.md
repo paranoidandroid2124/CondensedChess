@@ -1,7 +1,7 @@
 # Commentary Core SSOT
 
-This file is the canonical source of truth for the `codex/24-61-3061-structural-experiments`
-branch.
+This file is the canonical source of truth for the
+`codex/24-61-3016+35-structural-experiments` branch.
 
 It supersedes the removed `modules/llm/docs/*` material on this branch.
 
@@ -20,7 +20,7 @@ The branch adopts the following working thesis:
 
 - current `master` is structurally bottlenecked by distributed semantic
   admission, late suppression, and legacy carrier paths
-- current strategic-object rewrite is directionally stronger than `master`, but
+- current strategic-object rewrite was directionally stronger than `master`, but
   still bottlenecked by narrow exact-slice calibration and certification cost
 - therefore the backend should be rebuilt as a new commentary core rather than
   patched as a legacy `llm` subsystem
@@ -35,21 +35,37 @@ The strategy layer is not the owner of truth.
 
 The owner of truth is the certified object/delta layer.
 
-## 24 / 61 / 3061 Experiment Label
+## Count Freeze
 
-This branch intentionally keeps the experimental shorthand `24 / 61 / 3061` in
-its name and planning language.
+The planning discussion started from the shorthand `24 / 61 / 3016+35`.
 
-The transcript that motivated this branch used:
+This branch now freezes the low-layer count as:
 
-- `24` canonical strategy archetypes
-- `61` sub-elements / witness-like descriptors
-- `3016` bare-board root atoms
-- `3051` full-position atoms when auxiliary move-state is included
+- `R0-R3 root atoms = 2856`
+- `Aux state atoms = 35`
+- `root-state vector = 2891`
+- `R4` does not survive as a root tier
+- `break_square` does not survive as a root atom
 
-The branch label keeps `3061` as the experiment token chosen during planning.
-That number is treated here as a branch identity token, not yet as a settled
-formal ontology count.
+The original `3016` count remains useful only as the historical proposal that
+still included `R4`.
+
+The current branch decision is:
+
+- `R0-R3 + Aux` are the root-state layer
+- `R4` is dissolved upward into witness derivation
+- `break_square` is dissolved upward into witness-level break-point payload
+- the descriptor inventory stays fixed at `61`
+
+See [RootAtoms.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/RootAtoms.md)
+and [Witnesses61.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/Witnesses61.md)
+and [RootIndexFreeze.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/RootIndexFreeze.md)
+for the frozen low-layer contract.
+
+Past failure lessons and the current validation charter are fixed in:
+
+- [LegacyFailureTaxonomy.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/LegacyFailureTaxonomy.md)
+- [ValidationMethodology.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/ValidationMethodology.md)
 
 ## Layer Definitions
 
@@ -59,29 +75,69 @@ Root truths are exact-board predicates or direct low-level evidence.
 
 They must not already claim strategy ownership.
 
-Examples from the planning transcript:
+This branch currently keeps only `R0-R3` plus auxiliary move-state in the root
+layer.
 
-- piece placement
-- control
-- open or half-open file state
-- weak square
-- outpost
-- passer or candidate passer
-- lever availability
-- king shelter hole
+Root truth is additionally constrained by these semantic rules:
+
+- `controlled_by` is attacked-square, not legal-move, semantics
+- square-oriented atoms use beneficiary polarity
+- entity-oriented atoms use owner polarity
+- `candidate_passer` counts same-rank adjacent friendly support in its local
+  majority test
+- `loose_piece` is decided by local exchange loss, not raw attacker/defender
+  counts
+- `pinned_piece` includes relative slider pins to a more valuable friendly
+  anchor, not only king pins
+- `trapped_piece` is an extreme high-precision non-pawn atom with zero safe
+  exits under the local safety rule
 
 ### Layer 2: Typed Witnesses
 
-Witnesses compress roots into explanation-bearing but still non-user-facing
-evidence bundles.
+The branch keeps a fixed `61`-descriptor inventory above root truths, but that
+inventory is no longer treated as if every entry were a standalone witness.
 
-Examples from the planning transcript:
+Instead it is split into:
 
-- target witness
-- transformation witness
-- dynamic witness
-- counterplay source witness
-- tactical gateway witness
+- `U-primary`
+  - active deterministic witness instances
+- `U-attached`
+  - deterministic descriptors that require a host
+- `upper-layer`
+  - inventory entries whose actual ownership lives in `O/Δ`, certification, or
+    final projection rather than in raw witness admission
+
+This keeps the historical `61` vocabulary while preventing dissolved `R4`
+verdict words from sneaking back into `U` as if they were exact-board witness
+facts.
+
+#### Attached Witness Boundary Rules
+
+The historical inventory label is not automatically the runtime contract id.
+
+If a legacy inventory label carries comparative or verdict drift, the runtime
+contract may use a narrower witness id while the `61` table keeps the legacy
+label for continuity.
+
+An attached descriptor does not inherit host polarity by default.
+
+If the host is only a neutral scope provider, beneficiary polarity must be
+derived by an explicit root-level rule inside the host-projected scope.
+
+An attached descriptor must not absorb parallel `U-primary` witnesses into its
+payload.
+
+Cross-witness composition begins only above `U`.
+
+Current recorded example:
+
+- inventory label `space gain`
+- runtime contract id `structural_space_claim`
+- anchor `sector`
+- allowed hosts `closed center` and `fixed chain`
+- disallowed hosts `majority/minority asymmetry` and `restriction geometry`
+- the present claim is a beneficiary-controlled connected square set attached
+  to a host-supplied structural frontier
 
 ### Layer 3: Strategic Objects And Deltas
 
@@ -105,14 +161,13 @@ They are not released directly from raw features.
 
 They are derived from certified objects and certified deltas.
 
-Examples:
+### Layer 5: Renderer
 
-- minority attack
-- file penetration
-- weak pawn attack
-- king shelter demolition
-- prophylaxis
-- favorable simplification
+The renderer does not own strategy truth.
+
+It verbalizes already certified claims.
+
+LLM usage, if any survives later, is limited to wording and presentation.
 
 ## Strategy Projection Vocabulary
 
@@ -146,14 +201,6 @@ human-facing projection vocabulary.
 | S23 | king activation / opposition / penetration |
 | S24 | tactical conversion of a prepared target |
 
-### Layer 5: Renderer
-
-The renderer does not own strategy truth.
-
-It verbalizes already certified claims.
-
-LLM usage, if any survives later, is limited to wording and presentation.
-
 ## Transcript-Derived Design Claims
 
 The motivating discussion established the following claims as authoritative for
@@ -161,8 +208,10 @@ this branch.
 
 ### Claim A
 
-`24 x 61 x 3061` is useful as an ontology experiment, but must not be treated as
-an immediate direct strategy classifier.
+`24 x 61 x 3016+35` was a useful ontology proposal, but the current branch no
+longer treats `R4` as root truth.
+
+The living low-layer contract is `24 x 61 x 2856+35`.
 
 ### Claim B
 
@@ -175,7 +224,7 @@ The safe release law is:
 
 ### Claim C
 
-The old `llm` backend should not be preserved just because it exists.
+The old `llm` backend should not be preserved just because it existed.
 
 Its semantics were treated as sufficiently bottlenecked that this branch
 chooses demolition rather than repair.
@@ -213,20 +262,17 @@ It must not bypass certified object/delta ownership.
 
 ## Immediate Construction Priorities
 
-1. define a closed root-truth vocabulary
-2. define a closed typed-witness vocabulary
-3. define canonical object contracts
-4. define delta certification contracts
-5. define strategy projection rules
-6. reconnect surviving frontend/backend seams later
+1. freeze the closed `R0-R3 + Aux` root-state vocabulary
+2. freeze the closed `61`-descriptor inventory and its ownership map
+3. freeze past-failure taxonomy and canonical owner boundaries
+4. freeze large-scale exact-position validation methodology
+5. define canonical object contracts
+6. define delta certification contracts
+7. define strategy projection rules
+8. reconnect surviving frontend/backend seams later
 
 ## Experimental Status
 
 This branch is an intentional demolition and reconstruction branch.
 
 It is not a maintenance branch.
-*** Add File: C:\Codes\CondensedChess\lila-docker\repos\lila\modules\commentary\src\main\scala\lila\commentary\CommentaryCore.scala
-package lila.commentary
-
-/** Marker for the experimental commentary backend reset. */
-object CommentaryCore
