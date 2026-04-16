@@ -111,13 +111,16 @@ This keeps the historical `61` vocabulary while preventing dissolved `R4`
 verdict words from sneaking back into `U` as if they were exact-board witness
 facts.
 
-#### Attached Witness Boundary Rules
+#### Witness Boundary Rules
 
 The historical inventory label is not automatically the runtime contract id.
 
 If a legacy inventory label carries comparative or verdict drift, the runtime
 contract may use a narrower witness id while the `61` table keeps the legacy
 label for continuity.
+
+The same narrowing rule also applies when a legacy `U-primary` row mixes local
+witness meaning with upper-layer wording or with multiple anchor shapes.
 
 An attached descriptor does not inherit host polarity by default.
 
@@ -129,7 +132,7 @@ payload.
 
 Cross-witness composition begins only above `U`.
 
-Current recorded example:
+Current recorded examples:
 
 - inventory label `space gain`
 - runtime contract id `structural_space_claim`
@@ -138,6 +141,38 @@ Current recorded example:
 - disallowed hosts `majority/minority asymmetry` and `restriction geometry`
 - the present claim is a beneficiary-controlled connected square set attached
   to a host-supplied structural frontier
+- inventory label `domination net/restriction geometry`
+- runtime contract id `short_run_slider_gate_restriction`
+- primary anchor `piece-square`
+- anchor target is an enemy `bishop`, `rook`, or `queen`
+- divisor uses `testable_directions`, not all on-board directions
+- local meaning is short-run gate throttling only, not domination or
+  no-counterplay
+- inventory label `counterplay source/break-point`
+- runtime contract id `pawn_push_break_contact_source`
+- primary anchor `piece-square`
+- anchor target is an owner `pawn`
+- contact is push-only; capture-arrival and en-passant are excluded
+- break-point remains payload only and is not a witness id
+- local meaning is strategic pawn-contact source only, not counterplay
+  readiness or initiative
+- inventory label `defender shortage`
+- runtime contract id `duty_bound_defender`
+- primary anchor `piece-square`
+- anchor target is a defender `knight`, `bishop`, `rook`, or `queen`
+- local meaning is a physically bound load-bearing defender, not defender-count
+  shortage or overload-style dependency
+- absolute king pin cases use current attacked-square geometry duty, not legal
+  move generation
+- inventory label `king safety edge`
+- there is no valid `U` runtime witness id for king-safety comparison
+- upper-layer contracts split into `comparative_king_fragility` and
+  `certified_king_safety_edge`
+- lower fragments must be linked to the relevant king theater before they may
+  participate in an upper-layer king-safety comparison
+- `king attack` or attack-map pressure never self-certifies a king-safety edge
+- phase, material, attack-host, and best-defense gates are required before a
+  certified king-safety edge is released
 
 ### Layer 3: Strategic Objects And Deltas
 
