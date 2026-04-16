@@ -79,7 +79,7 @@ lazy val modules = Seq(
   
   // Analysis Pipeline (Level 7)
   security,
-  llm,
+  commentary,
   evalCache,
   
   // Web
@@ -161,7 +161,7 @@ lazy val security = module("security",
 // ============================================================
 
 lazy val analyse = module("analyse",
-  Seq(tree, memo, ui, llm),
+  Seq(tree, memo, ui, commentary),
   tests.bundle
 )
 
@@ -171,7 +171,7 @@ lazy val study = module("study",
 ).dependsOn(common % "test->test")
 
 lazy val accountintel = module("accountintel",
-  Seq(study, llm, memo, db, evalCache),
+  Seq(study, commentary, memo, db, evalCache),
   playWs.bundle ++ tests.bundle ++ Seq(chess.testKit)
 ).dependsOn(common % "test->test")
 
@@ -189,55 +189,9 @@ lazy val beta = module("beta",
 // Analysis Pipeline Modules
 // ============================================================
 
-lazy val llm = module("llm",
+lazy val commentary = module("commentary",
   Seq(db, memo, strategicPuzzle),
   playWs.bundle ++ tests.bundle
-).settings(
-  Compile / unmanagedSources / includeFilter := new SimpleFileFilter(file => {
-    val path = file.getAbsolutePath.replace('\\', '/')
-    path.contains("/src/main/scala/lila/llm/strategicobject/") ||
-    path.endsWith("/src/main/scala/lila/llm/analysis/DecisiveTruth.scala") ||
-    path.endsWith("/src/main/scala/lila/llm/analysis/FactExtractor.scala") ||
-    path.endsWith("/src/main/scala/lila/llm/analysis/PositionAnalyzer.scala") ||
-    path.endsWith("/src/main/scala/lila/llm/analysis/PositionCharacterizer.scala") ||
-    path.endsWith("/src/main/scala/lila/llm/model/Fact.scala") ||
-    path.endsWith("/src/main/scala/lila/llm/model/Motif.scala") ||
-    path.endsWith("/src/main/scala/lila/llm/model/PositionNature.scala") ||
-    path.endsWith("/src/main/scala/lila/llm/model/Variation.scala") ||
-    path.endsWith("/src/main/scala/lila/llm/model/strategic/StrategicModels.scala")
-  }),
-  Test / unmanagedSources / includeFilter := new SimpleFileFilter(file => {
-    val path = file.getAbsolutePath.replace('\\', '/')
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/PrimitiveExtractionTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/PrimitiveBoundaryTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/StrategicObjectSynthesizerTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/CounterplayAxisRivalRelationBoundaryTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/CounterplayAxisClosurePackTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/StrategicObjectDeltaProjectorTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/ClaimCertificationTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/CounterplayRivalBurdenTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/QuestionPlannerTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/QuestionPlannerAccessArbitrationTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/ComparativeSupportAdmissionTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/TargetFixationAdmissionTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/CurrentPositionFixedTargetProbeTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/SharedTargetContinuityCertificationTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/FavorableSimplificationAdmissionTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/strategicobject/ThinShellCertifiedRendererBoundaryTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectExplanationTraceSupport.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectExplanationTraceRunner.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectExplanationTraceSupportTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectCapabilityScorecardSupport.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectCapabilityScorecardRunner.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectCapabilityScorecardSupportTest.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageSupport.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageRunner.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/AccessNetworkCandidateBridgeContractRunner.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/CounterplaySliceProbeRunner.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/QuietPositionalProbeRunner.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/TradeInvariantSliceProbeRunner.scala") ||
-    path.endsWith("/src/test/scala/lila/llm/tools/strategicobject/StrategicObjectBatchCoverageSupportTest.scala")
-  })
 )
 
 lazy val evalCache = module("evalCache",
