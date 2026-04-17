@@ -1,17 +1,22 @@
 # Agent Instructions
 
-For tasks touching the Chesstory commentary-analysis rewrite, first use
-`lila-docker/repos/lila/modules/llm/docs/StrategicObjectModel.md`
-as the canonical north-star, then use
-`lila-docker/repos/lila/modules/llm/docs/StrategicObjectRoadmap.md`
-as the execution roadmap.
+For tasks touching Chesstory commentary-analysis work on this branch, use the
+documents by role, not by old path memory.
 
-The existing commentary docs are legacy migration references, not rewrite
-design authority:
-- `lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md`
-- `lila-docker/repos/lila/modules/llm/docs/CommentaryPipelineSSOT.md`
-- `lila-docker/repos/lila/modules/llm/docs/CommentaryTruthGate.md`
-- `lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md`
+The rewrite north-star docs do not live in the current worktree under
+`modules/llm/docs`; on this branch they are reference snapshots under
+`baseline-head`:
+- `baseline-head/lila-docker/repos/lila/modules/llm/docs/StrategicObjectModel.md`
+- `baseline-head/lila-docker/repos/lila/modules/llm/docs/StrategicObjectRoadmap.md`
+
+The current-branch migration authority lives under
+`lila-docker/repos/lila/modules/commentary/docs`:
+- `Witnesses61.md`
+- `CommentaryCoreSSOT.md`
+- `RootAtoms.md`
+- `LegacyFailureTaxonomy.md`
+- `ValidationMethodology.md`
+- `RootIndexFreeze.md`
 
 Scope includes helper modules and consumption paths across:
 - `strategic`
@@ -29,45 +34,56 @@ Scope includes helper modules and consumption paths across:
 - outline / renderer / API / frontend
 
 Do not redo the full `producer -> carrier/model -> builder -> outline -> renderer -> API -> frontend`
-trace if the request is already answered by the rewrite north-star docs or by a
-legacy migration reference.
+trace if the request is already answered by the current-branch migration docs or
+by the rewrite north-star references.
 
 Use the document roles strictly:
-- `StrategicObjectModel.md`
-  - canonical rewrite north-star
-- `StrategicObjectRoadmap.md`
-  - canonical rewrite execution roadmap
-- `CommentaryProgramMap.md`
-  - legacy current-state map
-- `CommentaryPipelineSSOT.md`
-  - legacy runtime audit
-- `CommentaryTruthGate.md`
-  - legacy signoff / truth gate
-- `CommentaryTrustHardening.md`
-  - legacy trust-risk map and migration blocker reference
-- There is no separate CQF appendix. CQF status and active quality-work handoff
-  for the old system live in `CommentaryProgramMap.md`.
+- `baseline-head/.../StrategicObjectModel.md`
+  - rewrite north-star reference
+- `baseline-head/.../StrategicObjectRoadmap.md`
+  - rewrite execution roadmap reference
+- `modules/commentary/docs/Witnesses61.md`
+  - current 61-row ownership map and row-by-row migration verdict ledger
+- `modules/commentary/docs/CommentaryCoreSSOT.md`
+  - current branch contract / ownership SSoT
+- `modules/commentary/docs/RootAtoms.md`
+  - current lower-root authority
+- `modules/commentary/docs/LegacyFailureTaxonomy.md`
+  - reusable reject / defer / failure-pattern authority
+- `modules/commentary/docs/ValidationMethodology.md`
+  - exact-board validation methodology authority
+- `modules/commentary/docs/RootIndexFreeze.md`
+  - frozen root-index reference when root inventory/index stability matters
 
-Re-audit the legacy commentary docs only if:
+Do not treat old `modules/llm/docs/CommentaryProgramMap.md`,
+`CommentaryPipelineSSOT.md`, `CommentaryTruthGate.md`, or
+`CommentaryTrustHardening.md` paths as current-branch update targets. Those
+files are not present in this worktree and must not be cited as if they were
+live branch authority.
+
+Re-audit the current-branch commentary docs only if:
 - the user explicitly asks for a fresh audit,
-- code changed after the SSoT snapshot in
+- code changed after the relevant snapshot in
+  `lila-docker/repos/lila/modules/commentary/src/main`,
   `lila-docker/repos/lila/modules/llm/src/main`,
   `lila-docker/repos/lila/app/controllers/LlmController.scala`, or
   `lila-docker/repos/lila/ui/analyse/src`,
-- or the task introduces a runtime path not covered by the SSoT.
+- or the task introduces a runtime path not covered by the current branch SSoT.
 
-When changing the legacy audited pipeline, update the legacy SSoT in the same
-change. When changing rewrite direction, update `StrategicObjectModel.md`
-and/or `StrategicObjectRoadmap.md` in the same change.
+When changing current-branch descriptor ownership, exact-slice landing, or
+row-level migration status, update `Witnesses61.md` and `CommentaryCoreSSOT.md`
+in the same change.
 
-When changing trust-relevant behavior, update
-`lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md`
-in the same change. This includes:
-- fallback truth projection or rewrite behavior
-- cross-surface contract consumption
-- support-only carrier exposure that can alter user-facing implication
-- lexicon/template authority boundaries
-- Track 5 lesson-readiness guards or defer rationale
+When changing lower-root vocabulary or exact lower admission rules, update
+`RootAtoms.md` in the same change, and update `RootIndexFreeze.md` too if the
+change affects root inventory/index stability.
+
+When changing reusable reject/defer rationale, update
+`LegacyFailureTaxonomy.md` in the same change if the pattern is branch-wide
+rather than row-local.
+
+When changing validation methodology or what counts as exact board-certified
+evidence, update `ValidationMethodology.md` in the same change.
 
 ## Chess Validation Discipline
 
@@ -212,8 +228,8 @@ follow these rules strictly:
 - New CQF or commentary-analysis helpers must reuse the existing planner/build/
   replay architecture rather than introducing parallel runtime paths.
 - If a cleanup changes audited runtime package paths, update
-  `lila-docker/repos/lila/modules/llm/docs/CommentaryPipelineSSOT.md`
+  `lila-docker/repos/lila/modules/commentary/docs/CommentaryCoreSSOT.md`
   in the same change.
 - If a cleanup changes canonical helper names or directory ownership, update the relevant
-  CQF or truth-gate docs in the same change so a new session does not reintroduce stale
-  rollout-era names.
+  current-branch migration docs in the same change so a new session does not
+  reintroduce stale branch-external names.
