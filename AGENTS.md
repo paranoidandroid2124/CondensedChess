@@ -1,13 +1,8 @@
 # Agent Instructions
 
 For tasks touching Chesstory commentary-analysis work on this branch, use the
-documents by role, not by old path memory.
-
-The rewrite north-star docs do not live in the current worktree under
-`modules/llm/docs`; on this branch they are reference snapshots under
-`baseline-head`:
-- `baseline-head/lila-docker/repos/lila/modules/llm/docs/StrategicObjectModel.md`
-- `baseline-head/lila-docker/repos/lila/modules/llm/docs/StrategicObjectRoadmap.md`
+current worktree documents by role, not by old path memory or branch-external
+snapshots.
 
 The current-branch migration authority lives under
 `lila-docker/repos/lila/modules/commentary/docs`:
@@ -35,13 +30,9 @@ Scope includes helper modules and consumption paths across:
 
 Do not redo the full `producer -> carrier/model -> builder -> outline -> renderer -> API -> frontend`
 trace if the request is already answered by the current-branch migration docs or
-by the rewrite north-star references.
+by the current-branch authority files.
 
 Use the document roles strictly:
-- `baseline-head/.../StrategicObjectModel.md`
-  - rewrite north-star reference
-- `baseline-head/.../StrategicObjectRoadmap.md`
-  - rewrite execution roadmap reference
 - `modules/commentary/docs/Witnesses61.md`
   - current 61-row ownership map and row-by-row migration verdict ledger
 - `modules/commentary/docs/CommentaryCoreSSOT.md`
@@ -55,18 +46,14 @@ Use the document roles strictly:
 - `modules/commentary/docs/RootIndexFreeze.md`
   - frozen root-index reference when root inventory/index stability matters
 
-Do not treat old `modules/llm/docs/CommentaryProgramMap.md`,
-`CommentaryPipelineSSOT.md`, `CommentaryTruthGate.md`, or
-`CommentaryTrustHardening.md` paths as current-branch update targets. Those
-files are not present in this worktree and must not be cited as if they were
-live branch authority.
+Do not cite branch-external or branch-removed documentation as if it were live
+authority for this worktree.
 
 Re-audit the current-branch commentary docs only if:
 - the user explicitly asks for a fresh audit,
 - code changed after the relevant snapshot in
   `lila-docker/repos/lila/modules/commentary/src/main`,
-  `lila-docker/repos/lila/modules/llm/src/main`,
-  `lila-docker/repos/lila/app/controllers/LlmController.scala`, or
+  `lila-docker/repos/lila/app/controllers`, or
   `lila-docker/repos/lila/ui/analyse/src`,
 - or the task introduces a runtime path not covered by the current branch SSoT.
 
@@ -173,9 +160,10 @@ follow these rules strictly:
   similar output directories, but **must not** become source module names.
 
 ### Runtime and test/tooling must not blur together
-- Keep runtime helpers under `modules/llm/src/main/...` in role-based packages.
+- Keep runtime helpers under active `src/main/...` trees in role-based
+  packages.
 - Keep CQF runners, corpus tools, eval scaffolds, and report builders under
-  `modules/llm/src/test/...` in test/tooling packages.
+  active `src/test/...` trees in test/tooling packages.
 - Do **not** create runtime modules whose main purpose is experiment staging,
   report generation, or corpus evaluation.
 - Do **not** mix runtime owner-path logic with test-only evaluation scaffolds.

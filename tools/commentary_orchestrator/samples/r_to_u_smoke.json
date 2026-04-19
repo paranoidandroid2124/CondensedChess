@@ -1,0 +1,53 @@
+{
+  "defaults": {
+    "runner": "mock",
+    "schema_path": "../task_result.schema.json",
+    "max_parallel": 1,
+    "max_attempts": 1
+  },
+  "initial_tasks": ["r_space_frontier"],
+  "tasks": {
+    "r_space_frontier": {
+      "expected_next_tasks": ["u_space_gain_contract"],
+      "prompt": "Validate the first R-level slice and decide whether the first U witness task can start.",
+      "mock": {
+        "sleep_seconds": 0.4,
+        "result": {
+          "status": "completed",
+          "summary": "R-level frontier contract is stable enough to open the first U witness task.",
+          "needs_human": false,
+          "next_tasks": ["u_space_gain_contract"],
+          "artifacts": ["docs/root-frontier-note.md"]
+        }
+      }
+    },
+    "u_space_gain_contract": {
+      "expected_next_tasks": ["u_file_lane_contract"],
+      "prompt": "Define the U-level space gain witness contract as deterministic phi(R).",
+      "mock": {
+        "sleep_seconds": 0.4,
+        "result": {
+          "status": "completed",
+          "summary": "Space gain witness contract is deterministic and can hand off to file lane review.",
+          "needs_human": false,
+          "next_tasks": ["u_file_lane_contract"],
+          "artifacts": ["docs/u-space-gain-contract.md"]
+        }
+      }
+    },
+    "u_file_lane_contract": {
+      "expected_next_tasks": [],
+      "prompt": "Review file lane witness boundaries and close the smoke workflow.",
+      "mock": {
+        "sleep_seconds": 0.2,
+        "result": {
+          "status": "completed",
+          "summary": "File lane witness boundary accepted; smoke workflow complete.",
+          "needs_human": false,
+          "next_tasks": [],
+          "artifacts": ["docs/u-file-lane-contract.md"]
+        }
+      }
+    }
+  }
+}

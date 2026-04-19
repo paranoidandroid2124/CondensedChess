@@ -3,19 +3,28 @@
 This document freezes the `61`-descriptor inventory that sits above the
 `2891`-dimensional root-state vector.
 
-The important correction on this branch is that **the `61` entries are not all
-standalone witness instances**.
+The important correction on this branch is that **the `61` entries are not one
+flat witness class**.
 
-Instead, the inventory is split across three ownership classes:
+Each row now carries one primary owner layer in the frozen staircase:
 
-- `U-primary`
+- `Witness / U-primary`
   - deterministic `phi(R)` witness instances with explicit anchors and payloads
-- `U-attached`
+- `Witness / U-attached`
   - deterministic descriptors that require a host witness or host object
-- `upper-layer`
-  - descriptors that stay in the `61` inventory for continuity, but whose
-    actual truth ownership lives in `O/Δ`, certification, or strategy
-    projection rather than in raw witness admission
+- `Object`
+- `Delta`
+- `Certification`
+- `Projection`
+
+`upper-layer` survives only as a historical umbrella phrase for older review
+notes.
+
+The canonical row map now lives in
+[DescriptorOwnershipMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/DescriptorOwnershipMatrix.md).
+
+The branch-level freeze summary now lives in
+[DecisionFreezeLedger.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/DecisionFreezeLedger.md).
 
 ## Global Contract
 
@@ -131,78 +140,38 @@ Canonical ordering is:
 
 ## Ownership Count
 
-| Ownership | Count |
+Counts are by **primary owner layer per inventory row**.
+
+Split rows still count once.
+
+| Primary owner layer | Count |
 | --- | ---: |
-| `U-primary` | 25 |
-| `U-attached` | 9 |
-| `upper-layer` | 27 |
+| `Witness / U-primary` | 18 |
+| `Witness / U-attached` | 11 |
+| `Object` | 7 |
+| `Delta` | 2 |
+| `Certification` | 10 |
+| `Projection` | 13 |
+| `Renderer` | 0 |
 | `Total descriptor inventory` | 61 |
 
-## Descriptor Ownership Map
+Derived historical rollup:
 
-| Descriptor | Family | Ownership | Formal anchor | Polarity | Notes |
-| --- | --- | --- | --- | --- | --- |
-| `opening-tempo` | U1 | `U-primary` | `board` | `neutral` | legacy inventory label only; the row remains a board-anchored global phase witness on the current branch, but no new canonical runtime descriptor id is reconstituted yet |
-| `middlegame-positional` | U1 | `U-primary` | `board` | `neutral` | legacy inventory label only; the row remains a board-anchored phase witness on the current branch, but no new canonical runtime descriptor id is reconstituted yet; payload uses `contested_sectors`, not evaluative `active` wording |
-| `transition-liquidation` | U1 | `U-primary` | `board` | `neutral` | legacy inventory label only; the row remains a board-anchored global phase witness on the current branch, but no new canonical runtime descriptor id is reconstituted yet |
-| `endgame-race` | U1 | `U-primary` | `board` | `neutral` | legacy inventory label only; the row remains a board-anchored global phase witness on the current branch, with race trigger plus low-material regime as contextual bounds, but no new canonical runtime descriptor id is reconstituted yet |
-| `king attack` | U2 | `upper-layer` | `-` | `-` | legacy projection label only; no admitted `U` runtime contract survives; semantic home is `AttackScaffold`, with attack projection bands and upper attack verdicts remaining distinct |
-| `material gain` | U2 | `U-attached` | `-` | `host` | legacy inventory label only; active runtime contract does not survive; the row remains a host-scoped objective shell and surface/projection vocabulary only |
-| `structural damage` | U2 | `U-attached` | `-` | `host` | legacy inventory label only; active runtime contract does not survive; the row remains a host-scoped objective shell with illustrative lower structural-cause support only |
-| `space gain` | U2 | `U-attached` | `-` | `beneficiary` | legacy inventory label only; runtime contract is `structural_space_claim` |
-| `promotion/passer` | U2 | `upper-layer` | `-` | `-` | legacy inventory label only; no admitted `U` runtime contract survives; exact lower support stays in `passed_pawn_entity_state` and root `candidate_passer`, while broader passer conversion meaning belongs above `U` |
-| `draw/hold` | U2 | `upper-layer` | `-` | `-` | legacy projection label only; no admitted `U` runtime contract survives; certified holding meaning stays in `FortressHoldingShell`, with simplification and result lanes remaining distinct |
-| `center` | U3 | `U-attached` | `-` | `neutral` | legacy inventory label only; active runtime contract does not survive; the row remains a neutral theater shell with central-theater wording only |
-| `kingside` | U3 | `U-attached` | `-` | `neutral` | legacy inventory label only; active runtime contract does not survive; the row remains a neutral theater shell with kingside-theater wording only |
-| `queenside` | U3 | `U-attached` | `-` | `neutral` | legacy inventory label only; active runtime contract does not survive; the row remains a neutral theater shell with queenside-theater wording only |
-| `open/semi-open file` | U3 | `U-primary` | `file` | `neutral` | legacy inventory label only; runtime contract is `file_lane_state`, a pure structural file-state substrate with `open_file_state` and `semi_open_file_state` variants |
-| `diagonal/color complex` | U3 | `U-primary` | `ray` | `neutral` | legacy inventory label only; runtime contract is `diagonal_lane_only`; `color_complex_only` is deferred outside `U` on the current branch |
-| `whole-board` | U3 | `U-attached` | `-` | `neutral` | legacy inventory label only; active runtime contract does not survive; the row remains a neutral theater shell with whole-board wording only |
-| `king shelter` | U4 | `upper-layer` | `-` | `-` | legacy inventory label only; exact local fact stays in root `king_shelter_hole`; shelter-shell meaning belongs above `U` |
-| `weak pawn` | U4 | `U-primary` | `piece-square` | `beneficiary` | legacy inventory label only; runtime contract is `weak_pawn_target_state`, a beneficiary-facing local weak-pawn target class |
-| `passed pawn` | U4 | `U-primary` | `piece-square` | `owner` | legacy inventory label only; runtime contract is `passed_pawn_entity_state`, an owner-side exact-board passed-pawn entity state |
-| `weak square/outpost` | U4 | `U-primary` | `square` | `beneficiary` | legacy inventory label only; runtime contract is `weak_outpost_square_state` with `outpost_square_state` and residual `weak_square_state` variants |
-| `key file/rank` | U4 | `upper-layer` | `-` | `-` | legacy inventory label only; no active `U` runtime survives; file-side meaning is absorbed by `file_lane_state`, while horizontal rank meaning is deferred outside `U` as `horizontal_rank_access` |
-| `bad piece` | U4 | `upper-layer` | `-` | `-` | legacy inventory label only; no active `U` runtime survives; exact-board liabilities stay in narrower witnesses while broad piece-quality meaning belongs above `U` |
-| `loose/overloaded piece` | U4 | `U-primary` | `piece-square` | `beneficiary` | legacy inventory label only; runtime contract is `loose_piece_target_state`; overload meaning is excluded from this row |
-| `development lag` | U4 | `upper-layer` | `-` | `-` | comparative development verdict; not a raw witness |
-| `counterplay source/break-point` | U4 | `U-primary` | `piece-square` | `owner` | legacy inventory label only; runtime contract is `pawn_push_break_contact_source`; `break-point` is payload only and not a witness id |
-| `open center` | U5 | `upper-layer` | `-` | `-` | legacy inventory label only; no active `U` runtime survives; broad central-openness meaning stays above `U` as projection-only vocabulary |
-| `closed center` | U5 | `U-primary` | `sector` | `neutral` | legacy inventory label only; no active narrowed runtime contract survives; the row remains a provisional neutral host-grade central structure placeholder and may still act as allowed host vocabulary for `structural_space_claim` |
-| `fixed chain` | U5 | `U-primary` | `sector` | `neutral` | legacy inventory label only; no active narrowed runtime contract survives; the row remains a provisional neutral host-grade structural placeholder and may still act as allowed host vocabulary for `structural_space_claim` |
-| `majority/minority asymmetry` | U5 | `U-primary` | `sector` | `neutral` | legacy inventory label only; runtime contract is `sector_asymmetry_state`, a pure sector-level pawn-count imbalance trigger with side information in payload |
-| `available lever` | U5 | `U-primary` | `piece-square` | `owner` | legacy inventory label only; runtime contract is `available_lever_trigger` with `single_push_lever_state` and `double_push_lever_state` variants |
-| `opposite-side castling/wing asymmetry` | U5 | `upper-layer` | `-` | `-` | legacy inventory label only; no active `U` runtime survives; mixed castling-provenance and wing-asymmetry meaning belongs above `U` |
-| `rook on open file` | U6 | `U-primary` | `piece-square` | `owner` | legacy inventory label only; runtime contract is `rook_on_open_file_state`, a pure open-file configuration witness |
-| `bishop pair` | U6 | `U-primary` | `board` | `owner` | legacy inventory label only; runtime contract is `bishop_pair_state`, a pure board-anchored bishop-possession configuration |
-| `knight outpost` | U6 | `U-primary` | `piece-square` | `owner` | legacy inventory label only; runtime contract is `knight_on_outpost_square`, a pure owner-side occupancy of an outpost square |
-| `queen-bishop battery` | U6 | `upper-layer` | `-` | `-` | legacy inventory label only; broad battery meaning belongs above `U`; `qb_diagonal_alignment_seed` is deferred primitive/support territory only |
-| `rook lift` | U6 | `upper-layer` | `-` | `-` | legacy inventory label only; broad lift meaning belongs above `U`; any future `lift_corridor_seed` remains deferred and is not yet an active witness |
-| `defender shortage` | U6 | `U-primary` | `piece-square` | `beneficiary` | legacy inventory label only; runtime contract is `duty_bound_defender`; shortage wording is not a witness meaning |
-| `domination net/restriction geometry` | U6 | `U-primary` | `piece-square` | `beneficiary` | legacy inventory label only; runtime contract is `short_run_slider_gate_restriction`; `domination net` is not a witness id |
-| `initiative` | U7 | `upper-layer` | `-` | `-` | persistence and denial verdict, not a raw witness |
-| `development lead` | U7 | `upper-layer` | `-` | `-` | comparative development verdict |
-| `central tension` | U7 | `U-primary` | `sector` | `neutral` | legacy inventory label only; no active narrowed runtime contract survives; the row remains a provisional neutral central contact placeholder and is not host vocabulary for `structural_space_claim` |
-| `mobility edge` | U7 | `upper-layer` | `-` | `-` | comparative verdict |
-| `king safety edge` | U7 | `upper-layer` | `-` | `-` | upper-layer only; `U` runtime ids are forbidden; upper-layer contracts split into `comparative_king_fragility` and `certified_king_safety_edge` |
-| `open line` | U8 | `U-attached` | `-` | `host` | legacy inventory label only; active runtime contract does not survive; the row remains a host-scoped transformation shell with line-opening wording attached above narrower lane/support facts |
-| `exchange defender` | U8 | `upper-layer` | `-` | `-` | legacy projection label only; no admitted `U` runtime contract survives; related exchange and defender-dependency families remain distinct and non-exclusive |
-| `simplify` | U8 | `upper-layer` | `-` | `-` | legacy projection label only; no admitted `U` runtime contract survives; semantic ownership stays in `TradeInvariant`, with simplification projection and adjacent result rows remaining distinct |
-| `create passer` | U8 | `U-attached` | `-` | `host` | legacy inventory label only; active runtime contract does not survive; the row remains a host-scoped transformation shell with passer-creation wording attached above exact support and upper conversion lanes |
-| `improve worst piece` | U8 | `upper-layer` | `-` | `-` | legacy piece-quality projection label only; no admitted `U` runtime contract survives; exact liabilities stay in narrower witnesses while broad improvement meaning remains above `U` |
-| `pin` | U9 | `U-primary` | `ray` | `beneficiary` | legacy inventory label only; runtime contract is `pin`, a beneficiary-side exact pin-line witness with mandatory geometry and normalized absolute/relative variants |
-| `fork` | U9 | `U-primary` | `piece-square` | `beneficiary` | legacy inventory label only; runtime contract is `fork`, a beneficiary-side exact attack-fan witness anchored on the attacking piece-square |
-| `skewer` | U9 | `U-primary` | `ray` | `beneficiary` | legacy inventory label only; runtime contract is `skewer`, a beneficiary-side exact ordered-exposure ray witness with non-king front-target value ordering |
-| `overload` | U9 | `U-primary` | `piece-square` | `beneficiary` | legacy inventory label only; runtime contract is `overload`, a beneficiary-side exact overloaded-defender witness anchored on the defender piece-square |
-| `deflection/decoy` | U9 | `upper-layer` | `-` | `-` | legacy tactical forcing/lure projection label only; no admitted `U` runtime contract survives, and heuristic forcing/removal motifs remain distinct from exact lower tactical rows |
-| `interference` | U9 | `upper-layer` | `-` | `-` | legacy tactical obstruction/line-disruption projection label only; no admitted `U` runtime contract survives, and `Motif.Interference` remains a distinct heuristic sibling |
-| `clearance` | U9 | `upper-layer` | `-` | `-` | legacy tactical line-release projection label only; no admitted `U` runtime contract survives, and baseline-head `Motif.Clearance` remains reference-only rather than an admitted lower fact |
-| `demolition/undermining` | U9 | `upper-layer` | `-` | `-` | legacy tactical removal/support-breaking projection label only; no admitted `U` runtime contract survives, and `Motif.RemovingTheDefender` remains a distinct heuristic sibling |
-| `mate net` | U10 | `upper-layer` | `-` | `-` | conversion verdict |
-| `material harvest` | U10 | `upper-layer` | `-` | `-` | conversion or result verdict |
-| `winning endgame` | U10 | `upper-layer` | `-` | `-` | conversion verdict |
-| `perpetual/fortress` | U10 | `upper-layer` | `-` | `-` | conversion verdict |
-| `promotion race` | U10 | `upper-layer` | `-` | `-` | conversion verdict |
+- former `upper-layer` umbrella = `Object 7 + Delta 2 + Certification 10 + Projection 13 = 32`
+
+## Canonical Owner Matrix
+
+The full row-by-row canonical map is frozen in
+[DescriptorOwnershipMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/DescriptorOwnershipMatrix.md).
+
+This document keeps:
+
+- `U`-layer contract law
+- row-by-row reclassification rationale
+- negative boundaries
+
+Any later occurrence of `upper-layer` in retained review text is historical
+umbrella shorthand only.
 
 ## R4 Absorption Rule
 
@@ -235,86 +204,40 @@ Break-point identity is witness payload derived from:
 
 ## Reviewed High-Risk Verdicts
 
-The current review verdicts for the most dangerous descriptors are:
+The old high-risk review table used the historical `upper-layer` umbrella and is
+no longer the canonical ownership source.
 
-| Descriptor | Verdict |
-| --- | --- |
-| `space gain` | `U-attached` only; runtime contract narrows to `structural_space_claim` |
-| `opening-tempo` | `U-primary` only; the row remains a board-anchored global phase witness on the current branch, but no new canonical runtime descriptor id is reconstituted yet; temporal-family over-admission and phase/posture inflation stay forbidden |
-| `middlegame-positional` | `U-primary` only; the row remains a board-anchored phase witness on the current branch, but no new canonical runtime descriptor id is reconstituted yet; `contested_sectors` stays payload geometry only, and temporal-family over-admission plus phase/posture inflation stay forbidden |
-| `transition-liquidation` | `U-primary` only; the row remains a board-anchored global phase witness on the current branch, but no new canonical runtime descriptor id is reconstituted yet; temporal-family over-admission, `MoveLocal` over-admission, and generic-liquidation broadening stay forbidden |
-| `endgame-race` | `U-primary` only; the row remains a board-anchored global phase witness on the current branch, but no new canonical runtime descriptor id is reconstituted yet; `low-material regime` stays contextual only, and race-family over-admission remains forbidden |
-| `material gain` | `U-attached` shell only; no active runtime contract survives; the row remains host-scoped objective vocabulary only and must not be treated as a truth-owning material-swing predicate |
-| `structural damage` | `U-attached` shell only; no active runtime contract survives; exact lower support stays in structural-cause roots and related lower witnesses, and the row must not absorb them into a required bundle |
-| `promotion/passer` | `upper-layer` only; no admitted `U` runtime contract survives; exact lower support stays in `passed_pawn_entity_state` and root `candidate_passer`, while passer conversion/promotion meaning belongs above `U` |
-| `draw/hold` | `upper-layer` only; no admitted `U` runtime contract survives; the label is legacy projection wording only, with `FortressHoldingShell`, `TradeInvariant`, and upper result rows remaining distinct |
-| `king attack` | `upper-layer` only; no admitted `U` runtime contract survives; the label is legacy projection wording only, with `AttackScaffold`, `S02`/`S03`, and upper attack verdict rows remaining distinct |
-| `simplify` | `upper-layer` only; no admitted `U` runtime contract survives; the label is legacy projection wording only, with `TradeInvariant`, `S19`, and adjacent result/objective rows remaining distinct |
-| `open line` | `U-attached` shell only; no active runtime contract survives; the row remains host-scoped line-opening vocabulary only and must not be treated as a truth-owning lane, access, pressure, or attack witness |
-| `create passer` | `U-attached` shell only; no active runtime contract survives; the row remains host-scoped passer-creation vocabulary only and must not be treated as a truth-owning support, entity, conversion, or result witness |
-| `improve worst piece` | `upper-layer` only; no admitted `U` runtime contract survives; broad piece-quality meaning stays above `U`, while exact liabilities remain in narrower witnesses |
-| `exchange defender` | `upper-layer` only; no admitted `U` runtime contract survives; the label is legacy projection wording only, with exchange/remove-by-trade semantics staying related to but not owned by one canonical upper family |
-| `pin` | `U-primary` only; runtime contract narrows to `pin`; it remains a beneficiary-side exact pin-line witness with mandatory geometry and normalized absolute/relative variants, and must not collapse into `pinned_piece`, `xray_target`, `duty_bound_defender`, or skewer-only geometry |
-| `fork` | `U-primary` only; runtime contract narrows to `fork`; it remains a beneficiary-side exact attack-fan witness anchored on one attacking piece-square, and must not collapse into generic multi-attack scoring, overload, deflection/decoy, or pin/skewer/xray geometry |
-| `skewer` | `U-primary` only; runtime contract narrows to `skewer`; it remains a beneficiary-side exact ordered-exposure ray witness with non-king front-target value ordering, and must not collapse into `pin`, `pinned_piece`, `xray_target`, `duty_bound_defender`, or restriction geometry |
-| `overload` | `U-primary` only; runtime contract narrows to `overload`; it remains a beneficiary-side exact overloaded-defender witness anchored on one enemy non-king defender, and must not collapse into `duty_bound_defender`, `loose_piece_target_state`, `fork`, `deflection/decoy`, or detector-only heuristic scoring |
-| `deflection/decoy` | `upper-layer` only; no admitted `U` runtime contract survives; the merged tactical forcing/lure label remains projection-only because current branch exposes no exact admission path and the heuristic siblings stay distinct |
-| `interference` | `upper-layer` only; no admitted `U` runtime contract survives; the broad obstruction/line-disruption label remains projection-only because current branch exposes no exact admission path and `Motif.Interference` remains a distinct heuristic sibling |
-| `clearance` | `upper-layer` only; no admitted `U` runtime contract survives; the broad tactical line-release label remains projection-only because current branch exposes no exact admission path and baseline-head `Motif.Clearance` remains reference-only rather than an admitted lower fact |
-| `demolition/undermining` | `upper-layer` only; no admitted `U` runtime contract survives; the broad removal/support-breaking label remains projection-only because current branch exposes no exact admission path and `Motif.RemovingTheDefender` remains a distinct heuristic sibling |
-| `diagonal/color complex` | only `diagonal_lane_only` survives as active `U-primary`; `color_complex_only` is deferred outside `U` on the current branch |
-| `king shelter` | `upper-layer` only; no active `U` runtime contract survives; exact local fact stays in root `king_shelter_hole` |
-| `rook lift` | `upper-layer` only; no active `U` runtime contract survives; any future `lift_corridor_seed` remains deferred support/primitive territory, not an admitted witness |
-| `queen-bishop battery` | `upper-layer` only; no active `U` runtime contract survives; `qb_diagonal_alignment_seed` remains deferred primitive/support territory, not an admitted witness |
-| `defender shortage` | `U-primary` only; runtime contract narrows to `duty_bound_defender`; overload-style dependency stays outside this witness |
-| `domination net/restriction geometry` | only `restriction geometry` survives as active `U-primary`; runtime contract narrows to `short_run_slider_gate_restriction` |
-| `majority/minority asymmetry` | `U-primary` only; runtime contract narrows to `sector_asymmetry_state`; it remains a pure count-only sector imbalance trigger with side information in payload |
-| `available lever` | `U-primary` only; runtime contract narrows to `available_lever_trigger`; it remains a pure one-move pawn trigger with active single/double-push variants |
-| `opposite-side castling/wing asymmetry` | `upper-layer` only; no active `U` runtime survives; mixed castling-provenance and wing-asymmetry meaning belongs above `U` |
-| `open center` | `upper-layer` only; no active `U` runtime survives; broad central-openness meaning remains projection-only and uses illustrative lower support material rather than raw witness admission |
-| `closed center` | provisional `U-primary` placeholder only; no active narrowed runtime contract survives; the row remains a neutral host-grade central structure placeholder and may still act as allowed host vocabulary for `structural_space_claim` |
-| `fixed chain` | provisional `U-primary` placeholder only; no active narrowed runtime contract survives; the row remains a neutral host-grade structural placeholder and may still act as allowed host vocabulary for `structural_space_claim` |
-| `central tension` | provisional `U-primary` placeholder only; no active narrowed runtime contract survives; the row remains a neutral central contact placeholder and is not host vocabulary for `structural_space_claim` |
-| `counterplay source/break-point` | `counterplay source` survives as active `U-primary`; runtime contract narrows to `pawn_push_break_contact_source`; `break-point` is payload only |
-| `rook on open file` | `U-primary` only; runtime contract narrows to `rook_on_open_file_state`; pressure, penetration, and king-theater meaning stay outside this witness |
-| `bishop pair` | `U-primary` only; runtime contract narrows to `bishop_pair_state`; evaluative bishop-pair advantage meaning stays outside this witness |
-| `knight outpost` | `U-primary` only; runtime contract narrows to `knight_on_outpost_square`; strategic outpost value meaning stays outside this witness |
-| `weak pawn` | `U-primary` only; runtime contract narrows to `weak_pawn_target_state`; it remains a beneficiary-facing local weak-pawn target class built from `fixed`, `backward`, or `isolated` pawn liability |
-| `passed pawn` | `U-primary` only; runtime contract narrows to `passed_pawn_entity_state`; it remains an owner-side exact-board passed-pawn entity state and does not absorb candidate-passer, promotion, or broader passer-play meaning |
-| `weak square/outpost` | `U-primary` only; runtime contract narrows to `weak_outpost_square_state`; `outpost_square_state` has priority over residual `weak_square_state` to avoid double-count |
-| `loose/overloaded piece` | `U-primary` only; runtime contract narrows to `loose_piece_target_state`; overload meaning leaves this row and stays outside it |
-| `bad piece` | `upper-layer` only; no active `U` runtime contract survives; exact-board liabilities stay in narrower witnesses while broad piece-quality meaning moves above `U` |
-| `key file/rank` | `upper-layer` only; no active `U` runtime contract survives; file-side meaning is absorbed by `file_lane_state`; horizontal rank side is deferred outside `U` as `horizontal_rank_access` |
-| `king safety edge` | `upper-layer` only; do not create a `U` runtime witness; use `comparative_king_fragility` and `certified_king_safety_edge` above `U` |
-| `initiative` | `upper-layer` |
+Use:
 
-### Opening-Tempo Provisional U-Primary Contract
+- [DescriptorOwnershipMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/DescriptorOwnershipMatrix.md)
+  for final owner layer and owner home
+- the row sections below for exact contract law and negative boundaries
+
+### Opening-Tempo Continuity Rehome
 
 The historical inventory label `opening-tempo` survives for `61`-table
 continuity only.
 
-The row remains admitted as `U-primary` on the current branch, but no new
-canonical runtime descriptor id is reconstituted yet.
+The row no longer remains admitted as a live `U-primary` witness on the
+current branch.
 
-The row remains a board-anchored witness with these rules:
+Its continuity meaning now lives above `U`, inside the object-side owner
+`OpeningDevelopmentRegime`.
 
-- primary anchor: `board`
-- polarity: `neutral`
-- local meaning:
-  - exact opening-phase witness only
-  - not an initiative, plan-race, transition-bridge, conversion, or
-    posture-inflation witness
+Current branch rules:
+
+- no active `U` runtime descriptor id survives for this row
+- `phase_gate` remains only an upper release guard, not an admission source
+- opening-development continuity may still project through object-side temporal
+  release, but it must not re-enter `U` as a raw witness
 
 The review conclusion is:
 
-- the rewrite temporal families do not by themselves replace this legacy
-  opening-phase witness
-- `phase_gate` appears only as an upper release guard, not as an admission
-  source for this row
-- current local docs do not expose an exact lower contract sufficient to mint a
-  new runtime id yet
-- the row must not over-admit `InitiativeWindow`, `PlanRace`, or
-  `TransitionBridge`
+- current local docs do not expose an honest exact lower contract sufficient to
+  keep this row in `U`
+- the row therefore leaves `U` rather than surviving as a degenerate phase
+  witness
+- `OpeningDevelopmentRegime` becomes the canonical continuity owner above `U`
 
 Negative boundary:
 
@@ -326,34 +249,31 @@ Negative boundary:
 - using `phase_gate` as the admission source
 - treating the label as an upper-layer projection
 
-### Middlegame-Positional Provisional U-Primary Contract
+### Middlegame-Positional Continuity Rehome
 
 The historical inventory label `middlegame-positional` survives for `61`-table
 continuity only.
 
-The row remains admitted as `U-primary` on the current branch, but no new
-canonical runtime descriptor id is reconstituted yet.
+The row no longer remains admitted as a live `U-primary` witness on the
+current branch.
 
-The row remains a board-anchored witness with these rules:
+Its continuity meaning now lives above `U`, inside the object-side owner
+`DistributedContactRegime`.
 
-- primary anchor: `board`
-- polarity: `neutral`
-- local meaning:
-  - exact middlegame-phase witness only
-  - payload uses `contested_sectors`, not evaluative `active` wording
-  - not an initiative-window, plan-race, transition-bridge, or
-    posture-inflation witness
+Current branch rules:
+
+- no active `U` runtime descriptor id survives for this row
+- `contested_sectors` remains payload geometry only and is not a standalone
+  lower witness
+- middlegame continuity may still use distributed-contact geometry above `U`,
+  but that geometry must not be mistaken for a live `U` discriminator
 
 The review conclusion is:
 
-- the rewrite temporal families do not by themselves replace this legacy
-  middlegame-phase witness
-- `contested_sectors` remains payload geometry only and is not a standalone
-  lower witness
-- current local docs do not expose an exact lower contract sufficient to mint a
-  new runtime id yet
-- the row must not over-admit `InitiativeWindow`, `PlanRace`, or
-  `TransitionBridge`
+- current local docs do not expose an honest exact lower contract sufficient to
+  keep this row in `U`
+- the row therefore leaves `U` rather than surviving as a broad phase proxy
+- `DistributedContactRegime` becomes the canonical continuity owner above `U`
 
 Negative boundary:
 
@@ -366,33 +286,31 @@ Negative boundary:
 - treating the label as evaluative `active` wording
 - treating the label as an upper-layer projection
 
-### Transition-Liquidation Provisional U-Primary Contract
+### Transition-Liquidation Continuity Rehome
 
 The historical inventory label `transition-liquidation` survives for
 `61`-table continuity only.
 
-The row remains admitted as `U-primary` on the current branch, but no new
-canonical runtime descriptor id is reconstituted yet.
+The row no longer remains admitted as a live `U-primary` witness on the
+current branch.
 
-The row remains a board-anchored witness with these rules:
+Its continuity meaning now lives above `U`, inside the delta-side owner
+`TradeCompressionCorridor`.
 
-- primary anchor: `board`
-- polarity: `neutral`
-- local meaning:
-  - exact transition-phase witness only
-  - not a generic liquidation, `TransitionBridge`, `PlanRace`,
-    `InitiativeWindow`, `ConversionFunnel`, or `PasserComplex` witness
+Current branch rules:
+
+- no active `U` runtime descriptor id survives for this row
+- broad generic-liquidation wording remains only a negative boundary
+- transition-compression meaning may still be carried by delta-layer trade
+  corridors, but it must not re-enter `U` as a vague phase witness
 
 The review conclusion is:
 
-- the north-star constrains transition-aware temporal-family over-admission,
-  but does not displace this legacy transition-phase witness
-- current local docs do not expose an exact lower contract sufficient to mint a
-  new runtime id yet
-- broad generic-liquidation wording remains only a negative boundary, not a
-  reason to demote the existing board witness
-- `MoveLocal` is a stricter transition-aware scope projection and remains
-  forbidden as an over-admitted meaning claim here
+- current local docs do not expose an honest exact lower contract sufficient to
+  keep this row in `U`
+- the row therefore leaves `U` rather than surviving as a transition-phase
+  proxy
+- `TradeCompressionCorridor` becomes the canonical continuity owner above `U`
 
 Negative boundary:
 
@@ -409,31 +327,31 @@ Negative boundary:
 - phase/posture inflation across cells
 - treating the label as an upper-layer projection
 
-### Endgame-Race Provisional U-Primary Contract
+### Endgame-Race Continuity Rehome
 
 The historical inventory label `endgame-race` survives for `61`-table
 continuity only.
 
-The row remains admitted as `U-primary` on the current branch, but no new
-canonical runtime descriptor id is reconstituted yet.
+The row no longer remains admitted as a live `U-primary` witness on the
+current branch.
 
-The row remains a board-anchored witness with these rules:
+Its continuity meaning now lives above `U`, inside the object-side owner
+`EndgameRaceScaffold`.
 
-- primary anchor: `board`
-- polarity: `neutral`
-- local meaning:
-  - exact endgame-phase race-trigger witness only
-  - race trigger plus low-material regime only
-  - low-material regime is contextual, not a conversion claim
-  - not a `PlanRace`, `PasserComplex`, `ConversionFunnel`, or `promotion race`
-    witness
+Current branch rules:
+
+- no active `U` runtime descriptor id survives for this row
+- low-material regime remains contextual only and is not a conversion claim
+- race-trigger continuity may still live in object-side race scaffolds, but it
+  must not re-enter `U` as a raw witness
 
 The review conclusion is:
 
-- the north-star constrains temporal/race-family over-admission, but does not
-  displace this legacy endgame-phase witness
-- current local docs do not expose an exact lower contract sufficient to mint a
-  new runtime id yet
+- current local docs do not expose an honest exact lower contract sufficient to
+  keep this row in `U`
+- the row therefore leaves `U` rather than surviving as a low-material phase
+  witness
+- `EndgameRaceScaffold` becomes the canonical continuity owner above `U`
 - `promotion race` is already an upper-layer conversion verdict and must remain
   distinct
 
@@ -1178,7 +1096,7 @@ No admitted `U` runtime contract survives for this label on the current branch.
 The review conclusion is:
 
 - the label is legacy projection wording only
-- `AttackScaffold` is the canonical upper-layer semantic home
+- `AttackScaffold` is the canonical object-layer semantic home
 - `direct piece concentration king attack` and `color-complex king attack`
   remain projection bands only
 - `king_file_diagonal_entry_axis`, `file_lane_state`, `diagonal_lane_only`, and
@@ -1207,7 +1125,7 @@ No admitted `U` runtime contract survives for this label on the current branch.
 The review conclusion is:
 
 - the label is legacy surface transformation wording only
-- `TradeInvariant` is the canonical upper-layer semantic home
+- `TradeInvariant` is the canonical delta-layer semantic home
 - bounded favorable simplification remains a same-task move-local slice only
 - `favorable simplification` remains a projection band only
 - `draw/hold`, `winning endgame`, `perpetual/fortress`, `material gain`, and
@@ -1987,7 +1905,7 @@ Runtime identifiers such as:
 
 are not valid witness ids on this branch.
 
-The row is `upper-layer` only:
+The row is `projection-layer` only:
 
 - legacy tactical forcing / lure label only
 - no exact-board admission of its own
@@ -2044,7 +1962,7 @@ Runtime identifiers such as:
 
 are not valid witness ids on this branch.
 
-The row is `upper-layer` only:
+The row is `projection-layer` only:
 
 - legacy tactical removal / support-breaking label only
 - no exact-board admission of its own
@@ -2100,7 +2018,7 @@ Runtime identifiers such as:
 
 are not valid witness ids on this branch.
 
-The row is `upper-layer` only:
+The row is `projection-layer` only:
 
 - legacy tactical obstruction / line-disruption label only
 - no exact-board admission of its own
@@ -2152,7 +2070,7 @@ Runtime identifiers such as:
 
 are not valid witness ids on this branch.
 
-The row is `upper-layer` only:
+The row is `projection-layer` only:
 
 - legacy tactical line-release label only
 - no exact-board admission of its own
@@ -2234,7 +2152,7 @@ occupied_pressure_duty_square(square) :=
   occupied_by(defender, square)
   and (
     controlled_by(beneficiary, square)
-    or xray_target(defender, square)
+    or xray_target(beneficiary, square)
   )
 
 king_gate_duty_square(square) :=
@@ -2335,13 +2253,12 @@ Negative boundary:
 - central file openness restated as full open-center meaning
 - central break or initiative inferred from openness alone
 
-### Closed Center Provisional U-Primary Placeholder
+### Closed Center Host-Shell Reclassification
 
 The historical inventory label `closed center` remains in the `61` table as a
-provisional `U-primary` row on the current branch.
+`U-attached` host shell on the current branch.
 
-The reviewed narrowing proposal `closed_center_barrier_state` is not admitted
-as an active runtime contract.
+No standalone `U-primary` runtime contract survives for this row.
 
 The current branch rejected that proposal because:
 
@@ -2359,17 +2276,16 @@ are not valid active witness ids on the current branch.
 
 Current boundary status:
 
-- the row remains a neutral host-grade central structure placeholder
-- it may still act as allowed host vocabulary for `structural_space_claim`
+- the row survives only as neutral host vocabulary for `structural_space_claim`
+- it is no longer counted as a `U-primary` blocker
 - it must not be widened into clamp value, break denial, initiative, or
   king-safety meaning
-- a cleaner exact-board slice is still required before any narrowing contract
-  is admitted
+- no standalone exact `closed center` witness survives in `U`
 
-### Fixed Chain Provisional U-Primary Placeholder
+### Fixed Chain Host-Shell Reclassification
 
 The historical inventory label `fixed chain` remains in the `61` table as a
-provisional `U-primary` row on the current branch.
+`U-attached` host shell on the current branch.
 
 The reviewed narrowing proposal `fixed_chain_state` is not admitted as an
 active runtime contract.
@@ -2391,17 +2307,17 @@ are not valid active witness ids on the current branch.
 
 Current boundary status:
 
-- the row remains a neutral host-grade structural placeholder
-- `structural_space_claim` remains the surviving `U-attached` host contract,
-  and `fixed chain` may still act as allowed host vocabulary inside it
+- the row survives only as neutral host vocabulary for `structural_space_claim`
+- it is no longer counted as a `U-primary` blocker
 - it must not be widened into clamp value, break denial, initiative, or
   king-safety meaning
 - it must not be widened into pawn-plan meaning
+- no standalone exact `fixed chain` witness survives in `U`
 
-### Central Tension Provisional U-Primary Placeholder
+### Central Tension Continuity Rehome
 
-The historical inventory label `central tension` remains in the `61` table as a
-provisional `U-primary` row on the current branch.
+The historical inventory label `central tension` remains in the `61` table as
+an object-side continuity row on the current branch.
 
 The reviewed narrowing proposal `central_pawn_contact_state` is not admitted as
 an active runtime contract.
@@ -2423,13 +2339,14 @@ are not valid active witness ids on the current branch.
 
 Current boundary status:
 
-- the row remains a neutral central contact placeholder
+- no standalone `U-primary` witness survives for this row
+- object-side continuity now points to `CentralContactFront`
 - unlike `closed center` and `fixed chain`, it is not host vocabulary for
   `structural_space_claim`
 - it must not be widened into openness, closure, break, space, initiative,
   king-safety, or `TensionState` meaning
-- a cleaner exact-board slice is still required before any narrowing contract
-  is admitted
+- object admission remains deferred until canonical `central-sector mask` and
+  `front-connectivity` helpers are frozen
 
 ### Majority/Minority Asymmetry Narrowing
 

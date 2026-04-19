@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["completed", "retry", "blocked"]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "needs_human": {
+      "type": "boolean"
+    },
+    "next_tasks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "required": ["status", "summary", "needs_human", "next_tasks", "artifacts"],
+  "additionalProperties": false
+}

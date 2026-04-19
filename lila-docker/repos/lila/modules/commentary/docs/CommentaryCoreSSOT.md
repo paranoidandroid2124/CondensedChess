@@ -29,11 +29,12 @@ The branch adopts the following working thesis:
 
 The new commentary backend is modeled as:
 
-`root truths -> typed witnesses -> strategic objects/deltas -> strategy projections -> renderer`
+`root truths -> typed witnesses -> strategic objects -> deltas -> certification -> strategy projections -> renderer`
 
-The strategy layer is not the owner of truth.
+Truth ownership above `U` sits on the `object -> delta -> certification`
+chain.
 
-The owner of truth is the certified object/delta layer.
+`projection` and `renderer` are downstream consumers, not owners of truth.
 
 ## Count Freeze
 
@@ -58,7 +59,12 @@ The current branch decision is:
 - the descriptor inventory stays fixed at `61`
 
 See [RootAtoms.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/RootAtoms.md)
+and [DecisionFreezeLedger.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/DecisionFreezeLedger.md)
 and [Witnesses61.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/Witnesses61.md)
+and [DescriptorOwnershipMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/DescriptorOwnershipMatrix.md)
+and [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md)
+and [StrategySupportSeedInventory.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategySupportSeedInventory.md)
+and [BlockedUPrimaryDiscriminatorInventory.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/BlockedUPrimaryDiscriminatorInventory.md)
 and [RootIndexFreeze.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/RootIndexFreeze.md)
 for the frozen low-layer contract.
 
@@ -94,22 +100,26 @@ Root truth is additionally constrained by these semantic rules:
 
 ### Layer 2: Typed Witnesses
 
-The branch keeps a fixed `61`-descriptor inventory above root truths, but that
-inventory is no longer treated as if every entry were a standalone witness.
+The branch keeps a fixed `61`-descriptor inventory above root truths.
 
-Instead it is split into:
+The canonical primary owner-layer split is now:
 
-- `U-primary`
+- `Witness / U-primary`
   - active deterministic witness instances
-- `U-attached`
+- `Witness / U-attached`
   - deterministic descriptors that require a host
-- `upper-layer`
-  - inventory entries whose actual ownership lives in `O/Δ`, certification, or
-    final projection rather than in raw witness admission
+- `Object`
+  - stable strategic owners built from witnesses
+- `Delta`
+  - move-local or scope-aware change owners built from objects
+- `Certification`
+  - comparative, persistence, denial, and conversion verdict owners
+- `Projection`
+  - human strategy vocabulary only
 
-This keeps the historical `61` vocabulary while preventing dissolved `R4`
-verdict words from sneaking back into `U` as if they were exact-board witness
-facts.
+`upper-layer` survives only as a historical umbrella phrase for older notes.
+
+Renderer owns zero descriptor-inventory rows.
 
 #### Witness Boundary Rules
 
@@ -138,37 +148,29 @@ Cross-witness composition begins only above `U`.
 Current recorded examples:
 
 - inventory label `opening-tempo`
-- the row remains admitted as `U-primary` on the current branch
-- primary anchor `board`
-- local meaning is exact opening-phase witness only
-- the label must not over-admit `InitiativeWindow`, `PlanRace`, or
-  `TransitionBridge`
+- the row leaves `U`
+- continuity meaning lives in `OpeningDevelopmentRegime`
 - `phase_gate` is an upper release guard only and is not an admission source
-- phase/posture inflation across cells remains forbidden
+- exact phase-witness admission does not survive as a runtime contract
 - inventory label `middlegame-positional`
-- the row remains admitted as `U-primary` on the current branch
-- primary anchor `board`
-- local meaning is exact middlegame-phase witness only
-- payload uses `contested_sectors`, not evaluative `active` wording
-- the label must not over-admit `InitiativeWindow`, `PlanRace`, or
-  `TransitionBridge`
-- phase/posture inflation across cells and unproven axis-independence remain
-  forbidden
+- the row leaves `U`
+- continuity meaning lives in `DistributedContactRegime`
+- `contested_sectors` remains payload geometry only and never became a
+  standalone lower witness
+- phase/posture inflation and unproven axis-independence remain forbidden
 - inventory label `transition-liquidation`
-- the row remains admitted as `U-primary` on the current branch
-- primary anchor `board`
-- local meaning is exact transition-phase witness only
-- the label must not over-admit `TransitionBridge`, `MoveLocal`, `PlanRace`,
-  `InitiativeWindow`, `ConversionFunnel`, or `PasserComplex`
+- the row leaves `U`
+- continuity meaning lives in delta-layer `TradeCompressionCorridor`
+- `TransitionBridge`, `MoveLocal`, `PlanRace`, `InitiativeWindow`,
+  `ConversionFunnel`, and `PasserComplex` stay outside raw witness admission
 - generic liquidation only and phase/posture inflation across cells remain
   forbidden
 - inventory label `endgame-race`
-- the row remains admitted as `U-primary` on the current branch
-- primary anchor `board`
-- local meaning is exact endgame-phase race-trigger witness only
+- the row leaves `U`
+- continuity meaning lives in `EndgameRaceScaffold`
 - `low-material regime` stays contextual only and is not a conversion claim
-- the label must not over-admit `PlanRace`, `PasserComplex`,
-  `ConversionFunnel`, or `promotion race`
+- `PlanRace`, `PasserComplex`, `ConversionFunnel`, and `promotion race` remain
+  above `U`
 - phase/posture inflation across cells remains forbidden
 - inventory label `space gain`
 - runtime contract id `structural_space_claim`
@@ -439,9 +441,8 @@ Current recorded examples:
   the current branch
 - the proposed mixed-color `8`-connected barrier topology was too
   motif-specific and under-fired on ordinary closed-center positions
-- the row currently remains a provisional neutral host-grade `U-primary`
-  placeholder rather than an admitted narrowed runtime contract
-- it may still act as allowed host vocabulary for `structural_space_claim`
+- the row no longer remains a `U-primary` placeholder
+- it survives only as neutral host vocabulary for `structural_space_claim`
 - broader clamp, break-denial, initiative, and king-safety readings must stay
   outside this row
 - inventory label `fixed chain`
@@ -451,8 +452,7 @@ Current recorded examples:
   chess chain and too rich relative to current roots
 - the current branch does not certify a cleaner exact-board chain slice as an
   active runtime contract
-- the row currently remains a provisional neutral host-grade `U-primary`
-  placeholder rather than an admitted narrowed runtime contract
+- the row no longer remains a `U-primary` placeholder
 - `structural_space_claim` remains the surviving `U-attached` host contract,
   and `fixed chain` stays allowed host vocabulary inside it
 - broader clamp, break-denial, initiative, king-safety, and pawn-plan readings
@@ -462,8 +462,8 @@ Current recorded examples:
   the current branch
 - the proposed mutual pawn-contact admission was too pawn-specific and
   under-fired on broader central contact states
-- the row currently remains a provisional neutral `U-primary`
-  placeholder rather than an admitted narrowed runtime contract
+- the row no longer remains a `U-primary` placeholder
+- continuity meaning now lives in object-side `CentralContactFront`
 - unlike `closed center` and `fixed chain`, it is not host vocabulary for
   `structural_space_claim`
 - openness, closure, break, space, initiative, king-safety, and `TensionState`
@@ -618,6 +618,8 @@ Current recorded examples:
   shortage or overload-style dependency
 - absolute king pin cases use current attacked-square geometry duty, not legal
   move generation
+- occupied-pressure duty keeps `xray_target` on beneficiary-side polarity to
+  match the attacking-side root contract
 - reviewed lower-fragment id `king_file_diagonal_entry_axis`
 - it is not a new `61` inventory label; it is a host-scoped lower fragment
   below `king safety edge` and `initiative`
@@ -637,35 +639,57 @@ Current recorded examples:
 - phase, material, attack-host, and best-defense gates are required before a
   certified king-safety edge is released
 
-### Layer 3: Strategic Objects And Deltas
+### Layer 3: Strategic Objects
 
 This is the first truth-owning commentary layer.
 
 A strategic object is a stable strategic state unit on the board.
 
-A delta is the certified statement about that object:
+Objects are formed only from witness material.
+
+### Layer 4: Deltas
+
+A delta is the typed change or scope statement about an object:
 
 - what changed because of the move
 - what matters in the current position
-- what compares favorably or unfavorably against alternatives
+- what local or comparative scope now applies
 
-The branch treats this layer as the semantic center of the system.
+`Delta` remains truth-owning.
 
-### Layer 4: Strategy Projections
+### Layer 5: Certification
+
+Certification is where the branch decides whether an object or delta survives as
+actionable, comparative, denial-bearing, or conversion-bearing truth.
+
+This is where best-defense, persistence, superiority, and route-survival burdens
+are paid.
+
+### Layer 6: Strategy Projections
 
 The `24` strategy labels are projection vocabulary only.
 
-They are not released directly from raw features.
+They are not released directly from raw features or raw witnesses.
 
-They are derived from certified objects and certified deltas.
+They are derived only from certified objects and certified deltas.
 
-### Layer 5: Renderer
+### Layer 7: Renderer
 
 The renderer does not own strategy truth.
 
 It verbalizes already certified claims.
 
 LLM usage, if any survives later, is limited to wording and presentation.
+
+### Engine / Probe Sidecar
+
+Engine and probe evidence are not part of `R` and do not participate in witness
+admission.
+
+They are a separate side evidence channel consumed only at:
+
+- `Delta`
+- `Certification`
 
 ## Strategy Projection Vocabulary
 
@@ -699,6 +723,64 @@ human-facing projection vocabulary.
 | S23 | king activation / opposition / penetration |
 | S24 | tactical conversion of a prepared target |
 
+### Strategy Projection Independence Contract
+
+The `24` strategy projections are frozen as projection bands, not as loose
+phrasing buckets.
+
+They must satisfy both of these conditions:
+
+1. semantic independence
+2. lower-layer composability
+
+Semantic independence means:
+
+- each `Sxx` must have at least one minimally distinguishing certified gate,
+  carrier family, or exclusion rule that is not reducible to a single rival
+  `Syy`
+- a projection band may overlap another band on the same position, but it must
+  not collapse into a pure wording variant of that rival band
+- no projection band may be admitted from a legacy inventory label alone
+
+Lower-layer composability means:
+
+- each `Sxx` must be constructible from certified `Object`, `Delta`, or
+  `Certification` carriers, plus admitted `Witness` support where required
+- `Projection` never reaches back into raw root extraction or witness admission
+- `Renderer` never supplies missing semantic input
+
+Many-to-one fan-in is allowed.
+
+One certified carrier family may feed multiple strategy bands.
+
+What is forbidden is zero-carrier projection or projection admission from
+surface wording alone.
+
+The main current independence hot spots are:
+
+- `S02` / `S03` / `S04` in the king-attack cluster
+- `S05` / `S21` in the center-vs-counterplay cluster
+- `S11` / `S13` / `S14` / `S15` / `S16` in the pawn-structure conversion
+  cluster
+- `S17` / `S18` / `S20` in the minor-piece and domination cluster
+- `S19` / `S22` / `S23` / `S24` in the endgame, simplification, and tactical
+  conversion cluster
+
+The boundary freeze for `S01-S24` now lives in
+[StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md).
+
+The currently required future lower/support seed families for blocked strategy
+bands live in
+[StrategySupportSeedInventory.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategySupportSeedInventory.md).
+
+The next projection step is therefore not renderer wording.
+
+It is a carrier-coverage matrix and corpus plan that proves:
+
+- the minimum required certified carriers for each strategy band
+- the optional strengthening carriers for each strategy band
+- the rival bands that must remain separable on exact boards
+
 ## Transcript-Derived Design Claims
 
 The motivating discussion established the following claims as authoritative for
@@ -717,7 +799,9 @@ The safe release law is:
 
 - exact-board evidence first
 - typed witness second
-- certified object/delta third
+- object third
+- delta fourth
+- certification fifth
 - strategy projection only after certification
 
 ### Claim C

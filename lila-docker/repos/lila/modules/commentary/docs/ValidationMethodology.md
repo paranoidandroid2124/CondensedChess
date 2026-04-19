@@ -4,6 +4,9 @@ This document defines how the `commentary` backend will be validated over many
 exact chess positions without falling back into ad hoc reruns and layered
 patches.
 
+The branch-level design-freeze summary lives in
+[DecisionFreezeLedger.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/DecisionFreezeLedger.md).
+
 The goal is not only to know whether a claim is right.
 
 The goal is to know exactly which layer failed:
@@ -11,8 +14,9 @@ The goal is to know exactly which layer failed:
 - root extraction
 - witness admission
 - object composition
-- delta projection
+- delta emission
 - certification
+- projection handoff
 - planner admission
 - surface replay
 
@@ -140,6 +144,37 @@ Primary corpora:
 
 - `certification-expectations.jsonl`
 - engine/probe bundles
+
+Projection and renderer are downstream consumers of certified claims.
+
+They are not truth-owning semantic layers.
+
+### Projection Handoff Validation
+
+Purpose:
+
+- prove that each `S01-S24` band has enough certified lower-layer carrier input
+- prove that rival strategy bands remain semantically separable on exact boards
+
+Checks:
+
+- minimum certified carrier coverage
+- optional carrier strengthening without admission drift
+- rival-band separation on shared tactical or structural positions
+- no projection admission from legacy label, renderer wording, or planner lane
+  alone
+
+Primary corpora:
+
+- `projection-expectations.jsonl`
+- exact-board rival-band near-miss rows
+
+The semantic boundary for this layer is frozen in
+[StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md).
+
+Blocked strategy bands that still need new lower/support seed families before
+live admission are inventoried in
+[StrategySupportSeedInventory.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategySupportSeedInventory.md).
 
 ### Layer 5: Planner Validation
 
