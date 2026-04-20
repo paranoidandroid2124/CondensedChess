@@ -84,6 +84,12 @@ Detailed owner:
 - [Witnesses61.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/Witnesses61.md:1)
 - [DescriptorOwnershipMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/DescriptorOwnershipMatrix.md:34)
 
+Attached implementation freeze:
+
+- active attached runtime ids are frozen to `structural_space_claim` only
+- the remaining `10` attached rows are shell-only and code-frozen out of
+  runtime registration
+
 ## Strategy Boundary Freeze
 
 `S01-S24` is frozen as a projection-band vocabulary, not as a truth-owning
@@ -214,8 +220,8 @@ They are non-regression guardrails for future `U` work:
     exact slice is frozen explicitly
 - `central tension` must not be revived as a raw `U-primary` witness
   - continuity now lives in object-side `CentralContactFront`
-  - object admission remains deferred until canonical `central-sector mask`
-    and `front-connectivity` helpers are frozen
+  - object admission now stays on the frozen `central_sector_mask` and
+    `front_connectivity` helpers rather than on raw posture wording
 
 The practical implementation bans are:
 
@@ -224,6 +230,305 @@ The practical implementation bans are:
 - do not let illustrative lower-support lists harden into required `U` bundles
 - do not let blocked strategy support seeds (`S23`, `S24`) leak downward into
   `U`
+
+## Object 7 Runtime Closure
+
+The branch has now discharged the `Object 7` start gate with live runtime code
+in `modules/commentary/src/main/scala/lila/commentary/strategic`.
+
+The helper and admission laws below stay frozen, but they are no longer design
+only. Current-worktree extraction is live and validated against the exact-board
+object corpus.
+
+Shared helper freeze:
+
+- `sector_mask(sector, square)` follows the canonical file split already
+  implied by `WitnessSector`
+- `contact_square(square)` means a square is either currently `contested` or
+  currently occupied and directly attacked by the opponent of the occupant
+- `front_connectivity(square_a, square_b)` means the two squares lie in the
+  same maximal orthogonally connected component of `contact_square` inside the
+  chosen mask
+- `central_sector_mask(square)` is the extended center band on files `c-f` and
+  ranks `3-6`
+- `king_theater_link(fragment, defending_king)` remains the canonical
+  king-theater gate reused by `AttackScaffold`
+- `KingSafetyShell` stays on `home_shelter_mask` plus its home-wing king proxy
+  rather than the broader `king_theater_link`
+
+Frozen object-side admission helpers:
+
+- `opening_development_window`
+- `distributed_contact_spread`
+- `dual_run_endgame_trigger`
+- `attack_host_core`
+- `fortress_entry_denial_shell`
+- `home_shelter_shell`
+- `central_contact_front_state`
+
+Runtime-closure rule:
+
+- `Object 7` runtime must keep the frozen helper/admission contracts above
+- `object-expectations.jsonl` must carry `exact`, `near_miss`, and
+  `nasty_negative` rows for all seven `Object 7` families
+- `engine-probe-expectations.jsonl` must keep a local Stockfish sanity row for
+  every `Object 7` board; minimum burden is no mate within the configured
+  short horizon, with optional eval bounds for calmness-sensitive rows
+- object admission may not borrow `TradeInvariant`, `promotion_race`, or
+  `certified_king_safety_edge` as direct proof of object presence
+- object admission may not use upper-layer row labels as positive or negative
+  guards; exclusion and admission must stay board-exact
+- shell helpers must define king-centered masks and entry squares explicitly
+- `opening_development_window` keeps home-minor reserve, home-rook reserve,
+  and closed `d/e` files centralized in one helper
+- `fortress_entry_denial_shell` treats same-file and adjacent-file attacker
+  passers as denial pressure
+- `home_shelter_shell` uses a home-wing king proxy on files `c` or `g` so the
+  shell object stays off central or uncastled home-rank kings
+  rather than through prose-only region wording
+- central-contact runtime must choose one canonical qualifying component rather
+  than merge disconnected fronts under one sector identity
+- fortress file-pressure rejection must stay on live shell-entry geometry, not
+  mere neighboring-file major-piece presence
+- live extraction must stay aligned with
+  `CommentaryCoreBoundaryTest`,
+  `StrategicObject7RuleTest`,
+  and
+  `StrategicObjectCorpusRuntimeTest`
+
+## Delta 2 Runtime Closure
+
+`Delta 2` now has live runtime code on the current worktree. The branch has the
+two delta rows registered together and the corridor row remains ordered before
+invariant.
+
+Frozen delta rows:
+
+- `TradeCompressionCorridor`
+- `TradeInvariant`
+
+Shared boundary rules:
+
+- both rows are `move_local` only on the first live slice
+- both rows are `board`-anchored
+- delta truth must be computed from exact before/after positions plus one board-coherent
+  `playedMove`
+- `CommentaryCore` now exposes delta extraction entrypoints for both object
+  extraction input and before/after `Fen` plus `playedMove`
+- fail-closed delta extraction overloads are live
+- both families landed together
+
+Frozen row-specific helper/law contracts:
+
+- `TradeCompressionCorridor`
+  - helper `reciprocal_exchange_corridor`
+  - helper `compressed_trade_window`
+  - helper `trade_compression_transition`
+    - first live slice requires:
+      - a board-coherent non-king capture on the played move
+    - no queens on the after-board
+    - at most `4` total non-king non-pawn pieces on the after-board
+    - one canonical opposing non-king pair that currently attacks each other
+      along one shared file or diagonal corridor on the after-board
+    - the before-board failed either the corridor predicate or the compressed
+      window
+    - forbidden-rival rejection must follow the actual current-worktree
+      `TradeInvariant` first slice, not raw `EndgameRaceScaffold`
+      persistence by itself
+- `TradeInvariant`
+  - helper `bounded_material_reduction`
+  - helper `persistent_object_carrier`
+  - helper `trade_invariant_transition`
+    - first live slice requires:
+      - a board-coherent non-king capture on the played move
+    - total non-king non-pawn material count drops by exactly `1`
+    - one same-family same-anchor object persists from before-board to
+      after-board
+    - the mover-side clear-run carrier must stay continuous across the move:
+      - either the same clear runner remains on the same square
+      - or the moving pawn itself remains the clear runner on its destination
+  - the current-worktree first live slice only admits
+    `EndgameRaceScaffold` persistence on the `board` anchor with mover-side
+    clear-run carrier continuity
+  - `FortressHoldingShell`, `AttackScaffold`, and `KingSafetyShell`
+    generalization remain deferred until separate delta corpus rows exist
+
+Frozen validation scaffold:
+
+- `delta-expectations.jsonl` must now carry:
+  - `exact`
+  - `near_miss`
+  - `nasty_negative`
+  - `move_local_false_witness`
+  rows for both delta families
+- every delta row must keep:
+  - `fenBefore`
+  - `playedMove`
+  - `fenAfter`
+  - `family`
+  - `owner`
+  - `scope`
+  - `deltaTag`
+  - `anchor`
+  - `pressureTarget`
+  - `helpers`
+- `TradeCompressionCorridor` rows must additionally declare the canonical
+  after-board corridor pair when one exists
+- `TradeInvariant` rows must additionally declare the persistent carrier family
+  and anchor for the first live slice
+- every delta row must also declare its forbidden rival family
+- `DeltaExpectationCorpusTest` now asserts live runtime extraction against the
+  delta corpus rows and confirms the board-coherent move-transition contract
+
+Live delta tests:
+
+- `TradeCompressionCorridorRuleTest`
+- `TradeInvariantRuleTest`
+- `StrategicDeltaBoundaryTest`
+- `DeltaExpectationCorpusTest`
+- `CommentaryCoreBoundaryTest`
+
+## Certification Boundary Freeze
+
+Current-worktree certification status:
+
+- docs/scaffold frozen
+- no live runtime package under
+  `modules/commentary/src/main/scala/lila/commentary/certification`
+- `CommentaryCore` must not expose certification helpers until a fail-closed
+  certification extractor exists
+
+Future stable runtime families:
+
+- `DevelopmentComparison`
+- `InitiativeWindow`
+- `MobilityComparison`
+- `ComparativeKingFragility`
+- `CertifiedKingSafetyEdge`
+- `MateNetCertification`
+- `MaterialHarvest`
+- `WinningEndgame`
+- `FortressDrawCertification`
+- `PerpetualCheckHolding`
+- `PromotionRace`
+
+Split-row mapping stays frozen as:
+
+- `development lag` and `development lead` share `DevelopmentComparison`
+- `king safety edge` splits into:
+  - `ComparativeKingFragility`
+  - `CertifiedKingSafetyEdge`
+- `perpetual/fortress` splits into:
+  - `FortressDrawCertification`
+  - `PerpetualCheckHolding`
+
+Certification runtime must consume only:
+
+- `StrategicObjectExtraction`
+- `StrategicDeltaExtraction`
+- explicit engine/probe evidence bundles
+
+Certification runtime may not:
+
+- reopen root or witness admission
+- create projection truth
+- revive `SupportOnly` or `Deferred` rows into planner or renderer truth
+
+## Certification Verdict Freeze
+
+The certification verdict lattice is frozen to:
+
+- `Certified`
+- `SupportOnly`
+- `Deferred`
+- `Rejected`
+
+Meaning:
+
+- `SupportOnly` is a real endpoint
+- `Deferred` is a fail-closed endpoint
+- neither may be revived by planner, projection, or wording
+
+## Certification First-Live Slice Freeze
+
+The current-worktree first live certification slices are intentionally narrow:
+
+- `DevelopmentComparison`:
+  - `OpeningDevelopmentRegime`-backed comparative development superiority only
+- `InitiativeWindow`:
+  - development-led initiative only
+- `MobilityComparison`:
+  - restriction-backed comparative mobility only
+- `ComparativeKingFragility`:
+  - home-wing king-theater asymmetry only
+- `CertifiedKingSafetyEdge`:
+  - `AttackScaffold` plus comparative king fragility plus host/budget/
+    move-order/best-defense burden
+- `MateNetCertification`:
+  - forcing mate-net certification only
+- `MaterialHarvest`:
+  - realized non-king material conversion only
+- `WinningEndgame`:
+  - certified conversion/result verdict only
+- `FortressDrawCertification`:
+  - `FortressHoldingShell`-backed hold certification only
+- `PerpetualCheckHolding`:
+  - stable perpetual-check hold only
+- `PromotionRace`:
+  - promotion-route survival on top of `EndgameRaceScaffold`
+
+These rows must reject their broad rivals:
+
+- `DevelopmentComparison` may not certify from opening regime or phase wording
+  alone
+- `InitiativeWindow` may not certify from `DevelopmentComparison`,
+  `AttackScaffold`, or counterplay wording alone
+- `MobilityComparison` may not certify from restriction or bad-piece wording
+  alone
+- `ComparativeKingFragility` may not certify from `KingSafetyShell`, hole count,
+  or generic attack wording alone
+- `CertifiedKingSafetyEdge` may not certify from `AttackScaffold`,
+  comparative fragility, or phase proxy alone
+- `MateNetCertification` may not certify from attack or mate-threat wording
+  alone
+- `MaterialHarvest` may not certify from `material gain` shell wording,
+  tactical smell, or result wording alone
+- `WinningEndgame` may not certify from `TradeInvariant`,
+  `FortressHoldingShell`, or material-edge wording alone
+- `FortressDrawCertification` may not certify from `FortressHoldingShell`,
+  `TradeInvariant`, or draw wording alone
+- `PerpetualCheckHolding` may not certify from checking-sequence wording,
+  `AttackScaffold`, or draw wording alone
+- `PromotionRace` may not certify from `EndgameRaceScaffold`,
+  `PasserComplex`, or `ConversionFunnel` wording alone
+
+## Certification Validation Scaffold Freeze
+
+- `certification-expectations.jsonl` is now live as a pre-implementation
+  certification scaffold
+- every certification family must carry:
+  - `exact`
+  - `near_miss`
+  - `nasty_negative`
+  - `best_defense_breaks_claim`
+  rows
+- every certification row must declare:
+  - `family`
+  - `owner`
+  - `scope`
+  - `anchor`
+  - `burdenTag`
+  - `helpers`
+  - `requiredSupportFamilies` when the first live slice depends on lower family
+    support
+  - `engineRequirement`
+  - `enginePurposes`
+  - `forbiddenShortcuts`
+- every engine-required certification row must have a matching
+  `engine-probe-expectations.jsonl` row with the same `id`
+- `CertificationExpectationCorpusTest` is the current-worktree scaffold test;
+  no certification runtime extraction claim is allowed before a live
+  certification package exists
 
 ## Engine Boundary Freeze
 
@@ -243,8 +548,31 @@ Engine/probe may not:
 
 Detailed owner:
 
-- [CommentaryCoreSSOT.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentaryCoreSSOT.md:690)
-- [ValidationMethodology.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/ValidationMethodology.md:122)
+- [CommentaryCoreSSOT.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentaryCoreSSOT.md:740)
+
+## External Consumption Evidence
+
+The current worktree now carries external-consumer evidence beyond commentary's
+own witness tests.
+
+- public boundary:
+  [CommentaryCore.scala](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/src/main/scala/lila/commentary/CommentaryCore.scala)
+- tracked external-consumer artifact:
+  [CommentaryCoreBoundaryTest.scala](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/src/test/scala/lila/commentary/CommentaryCoreBoundaryTest.scala)
+- verification ledger:
+  [ExternalConsumptionAuditEvidence.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/ExternalConsumptionAuditEvidence.md)
+
+This discharges the earlier gap where `U-primary 18` had only internal
+commentary-module test evidence.
+
+The same public-boundary evidence now covers the one live `U-attached`
+`structural_space_claim` contract and the live `Delta 2` pair
+`TradeCompressionCorridor` / `TradeInvariant`.
+
+It does **not** upgrade the shell-only attached `10` rows to public-boundary
+runtime.
+
+- [ValidationMethodology.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/ValidationMethodology.md:394)
 
 ## Work Sequencing Freeze
 

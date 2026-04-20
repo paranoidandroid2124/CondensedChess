@@ -88,11 +88,59 @@ Checks:
 Primary corpora:
 
 - `object-expectations.jsonl`
+- `engine-probe-expectations.jsonl` for local Stockfish sanity on the object
+  test positions themselves
 
 This mirrors the strategic-object branch format:
 
 ```json
-{"id":"king-safety-exact","caseType":"exact","fen":"6k1/8/6p1/8/6BP/8/8/6K1 w - - 0 1","expectation":"present","family":"KingSafetyShell","owner":"black","anchor":"g6"}
+{"id":"o7-king-safety-exact","caseType":"exact","fen":"6k1/8/6p1/4B3/8/8/7R/6K1 w - - 0 1","expectation":"present","family":"KingSafetyShell","owner":"black","anchor":"g7","pressureTarget":"adjacent_double_hole","helpers":["home_shelter_shell"]}
+```
+
+Current `Object 7` start-gate rule:
+
+- `object-expectations.jsonl` must carry `exact`, `near_miss`, and
+  `nasty_negative` rows for:
+  - `OpeningDevelopmentRegime`
+  - `DistributedContactRegime`
+  - `EndgameRaceScaffold`
+  - `AttackScaffold`
+  - `FortressHoldingShell`
+  - `KingSafetyShell`
+  - `CentralContactFront`
+- each row must already carry:
+  - `family`
+  - `owner`
+  - `anchor`
+  - `pressureTarget`
+  - `helpers`
+  - `expectation`
+- object rows now bind against live
+  `CommentaryCore.extractStrategicObjects`; scaffold-only object rows are no
+  longer honest on this branch
+- positive object rows must also reject extra same-family identities at the
+  wrong anchor or color; exact-board validation is not satisfied by
+  “expected object present somewhere” if false-positive siblings survive
+- `nasty_negative` rows must pressure the frozen positive law rather than fail
+  only because a trivial prerequisite disappeared
+- object test positions now also bind against
+  `engine-probe-expectations.jsonl`; engine is not object-truth authority, but
+  it must at least certify that the corpus row is not already a trivial
+  short-horizon tactical collapse, and calmness-sensitive rows may carry a
+  coarse eval cap
+- rule-test-only exact boards that are not promoted into
+  `object-expectations.jsonl` must still survive a local Stockfish smoke check;
+  a branch test is not accepted if the FEN itself is engine-rejected because
+  the side-to-move or board legality drifted away from the intended geometry
+- broader negative-first families such as `exact negative`, `false-witness`,
+  and related reinflation checks remain part of branch-wide audit work even
+  when the minimum live runtime corpus stays on `exact` / `near_miss` /
+  `nasty_negative`
+
+Recommended object row shape:
+
+```json
+{"id":"o7-central-contact-exact","caseType":"exact","fen":"4k3/8/8/3pp3/3PP3/3N4/4n3/4K3 w - - 0 1","expectation":"present","family":"CentralContactFront","owner":"neutral","anchor":"center","pressureTarget":"connected_central_front","helpers":["central_sector_mask","contact_square","front_connectivity","central_contact_front_state"],"notes":"The exact front is central, connected, and contributed to by both colors."}
 ```
 
 ### Layer 3: Delta Validation
@@ -104,23 +152,117 @@ Purpose:
   - `position_local`
   - `comparative`
 
+Current-worktree start gate:
+
+- `Delta 2` is frozen to two families:
+  - `TradeCompressionCorridor`
+  - `TradeInvariant`
+- both current-worktree delta families are live and remain `move_local` only
+- both are `board`-anchored
+- delta validation must use exact before/after positions rather than one static
+  board only
+- `TradeInvariant` now has live runtime extraction and remains narrower than
+  the broader future envelope: its live slice admits only
+  `EndgameRaceScaffold` persistence on the `board` anchor with mover-side
+  clear-run carrier continuity
+
 Checks:
 
 - typed delta tag correctness
 - anchor correctness
 - scope correctness
+- board-coherent `fenBefore -> playedMove -> fenAfter` transition correctness
 - false-witness rejection
 - false-rival rejection
+  - `TradeCompressionCorridor` rival rejection must track the actual live
+    `TradeInvariant` first slice rather than raw board-level
+    `EndgameRaceScaffold` persistence
+- row-specific pressure-law correctness:
+  - corridor vs generic liquidation separation for `TradeCompressionCorridor`
+  - compressed-window count gating and canonical-pair uniqueness for
+    `TradeCompressionCorridor`
+  - persistent-carrier vs task-switch separation for `TradeInvariant`
+    - board-level scaffold presence alone is not enough when the mover's
+      clear-run carrier switches to a different pawn
+  - bounded-material-reduction separation from pawn-only captures for
+    `TradeInvariant`
 
 Primary corpora:
 
 - `delta-expectations.jsonl`
 
-This mirrors the strategic-object branch format:
+Each current delta row must carry:
+
+- `id`
+- `caseType`
+- `fenBefore`
+- `playedMove`
+- `fenAfter`
+- `expectation`
+- `family`
+- `owner`
+- `scope`
+- `deltaTag`
+- `anchor`
+- `pressureTarget`
+- `helpers`
+- `forbiddenRivalFamilies`
+- row-specific exact evidence when required:
+  - `canonicalCorridorPairAfter` for `TradeCompressionCorridor`
+  - `persistentCarrierFamily` plus `persistentCarrierAnchor` for
+    `TradeInvariant`
+
+Current-worktree required case types for each delta family:
+
+- `exact`
+- `near_miss`
+- `nasty_negative`
+- `move_local_false_witness`
+
+This mirrors the strategic-object branch format, but delta rows now carry
+before/after exact-board truth explicitly:
 
 ```json
-{"id":"pawn-structure-move-exact","caseType":"exact","fen":"6k1/8/8/4p3/3P4/2P5/8/6K1 w - - 0 1","family":"PawnStructureRegime","scope":"move_local","expectation":"present","deltaTag":"BreakDrivenShift","playedMove":"c3c4"}
+{"id":"delta-trade-invariant-exact","caseType":"exact","fenBefore":"4k3/2n5/3P4/8/6p1/8/4K3/8 w - - 0 1","playedMove":"d6c7","fenAfter":"4k3/2P5/8/8/6p1/8/4K3/8 b - - 0 1","family":"TradeInvariant","owner":"white","scope":"move_local","expectation":"present","deltaTag":"bounded_favorable_simplification","anchor":"board","pressureTarget":"bounded_capture_preserves_endgame_race","helpers":["bounded_material_reduction","persistent_object_carrier","trade_invariant_transition"],"persistentCarrierFamily":"EndgameRaceScaffold","persistentCarrierAnchor":"board","forbiddenRivalFamilies":["TradeCompressionCorridor"]}
 ```
+
+Live delta tests:
+
+- `TradeCompressionCorridorRuleTest`
+- `TradeInvariantRuleTest`
+- `StrategicDeltaBoundaryTest`
+- `DeltaExpectationCorpusTest`
+- `CommentaryCoreBoundaryTest`
+
+Current-worktree delta validation now also keeps these exact-board guards live:
+
+- `TradeCompressionCorridor`
+  - a diagonal exact row, so corridor geometry is not file-only by accident
+  - an exact row with surviving `EndgameRaceScaffold`, so board-level race
+    persistence alone cannot suppress a real corridor transition as a fake
+    `TradeInvariant` rival
+  - a queenless-but-overcrowded negative, so compressed-window validation does
+    not collapse to queen removal alone
+  - a multi-corridor negative, so ambiguous after-board corridor pairs do not
+    pass as canonical transitions
+- `TradeInvariant`
+  - a pawn-capture false witness, so carrier persistence alone does not
+    masquerade as bounded material reduction
+  - a carrier-switch negative, so board-level scaffold survival does not
+    masquerade as same-carrier persistence
+- public delta facade:
+  - an overlapping-board mutual-exclusion assertion, so the public surface
+    cannot co-emit `TradeCompressionCorridor` and `TradeInvariant` on the same
+    move
+  - a corridor-with-race-scaffold assertion, so the public surface does not
+    suppress `TradeCompressionCorridor` merely because the lower carrier object
+    survives while actual `TradeInvariant` continuity fails
+  - corpus-driven `CommentaryCore` extraction parity, so every live delta row is
+    checked through the public delta facade as well as the internal extractor
+- corpus contract completeness:
+  - `DeltaExpectationCorpusTest` now freezes the full per-family
+    `pressureTarget` inventory, so deleting one live pressure-law row and
+    duplicating another cannot slip through on case-type coverage alone
 
 ### Layer 4: Certification Validation
 
@@ -144,6 +286,79 @@ Primary corpora:
 
 - `certification-expectations.jsonl`
 - engine/probe bundles
+
+Current `Certification` start-gate rule:
+
+- `certification-expectations.jsonl` is now a live pre-implementation scaffold
+  rather than an empty placeholder
+- the current frozen certification runtime-family set is:
+  - `DevelopmentComparison`
+  - `InitiativeWindow`
+  - `MobilityComparison`
+  - `ComparativeKingFragility`
+  - `CertifiedKingSafetyEdge`
+  - `MateNetCertification`
+  - `MaterialHarvest`
+  - `WinningEndgame`
+  - `FortressDrawCertification`
+  - `PerpetualCheckHolding`
+  - `PromotionRace`
+- every certification family must now carry:
+  - `exact`
+  - `near_miss`
+  - `nasty_negative`
+  - `best_defense_breaks_claim`
+  rows
+- every certification family must explicitly cover the verdict lattice needed
+  for its first live slice:
+  - `Certified`
+  - `Rejected`
+  - plus `SupportOnly` or `Deferred` where the branch burden intentionally
+    degrades rather than failing outright
+- every certification row must declare:
+  - `family`
+  - `owner`
+  - `scope`
+  - `anchor`
+  - `burdenTag`
+  - `helpers`
+  - `requiredSupportFamilies` when the first live slice depends on lower object,
+    delta, or certification-side support families
+  - `engineRequirement`
+  - `enginePurposes`
+  - `forbiddenShortcuts`
+- every certification row with `engineRequirement = required` must have a
+  matching engine/probe bundle row keyed by the same `id`
+- certification scaffold tests may currently validate:
+  - exact-board FEN parseability
+  - row-family coverage
+  - verdict-lattice coverage
+  - engine/probe bundle linkage
+  - frozen burden/helper/shortcut contracts
+- certification scaffold tests may not yet claim live certification extraction
+  because no certification runtime package is live in `src/main`
+
+Current row-local certification family freeze:
+
+| Family | First live burden | Required support families | Engine purposes | Best-defense downgrade |
+| --- | --- | --- | --- | --- |
+| `DevelopmentComparison` | `development_superiority` | `OpeningDevelopmentRegime` | `comparative_superiority` | `SupportOnly` |
+| `InitiativeWindow` | `counterplay_denial_window` | `DevelopmentComparison` | `counterplay_denial`, `best_defense_survival` | `Deferred` |
+| `MobilityComparison` | `mobility_superiority` | none | `comparative_superiority` | `SupportOnly` |
+| `ComparativeKingFragility` | `king_fragility_asymmetry` | none | `comparative_superiority` | `SupportOnly` |
+| `CertifiedKingSafetyEdge` | `king_safety_edge_certification` | `AttackScaffold`, `ComparativeKingFragility` | `comparative_superiority`, `best_defense_survival` | `Deferred` |
+| `MateNetCertification` | `forcing_mate_net` | none | `best_defense_survival`, `tactical_release_detection` | `Deferred` |
+| `MaterialHarvest` | `realized_material_conversion` | none | `best_defense_survival`, `tactical_release_detection` | `SupportOnly` |
+| `WinningEndgame` | `conversion_result` | none | `best_defense_survival`, `conversion_route_survival` | `Deferred` |
+| `FortressDrawCertification` | `fortress_hold_certification` | `FortressHoldingShell` | `best_defense_survival` | `SupportOnly` |
+| `PerpetualCheckHolding` | `perpetual_check_hold` | none | `best_defense_survival` | `Deferred` |
+| `PromotionRace` | `promotion_route_survival` | `EndgameRaceScaffold` | `best_defense_survival`, `conversion_route_survival` | `Deferred` |
+
+This matrix is now the live row-local exact-board scaffold contract for
+`certification-expectations.jsonl`.
+
+It is no longer acceptable to treat certification as one generic future layer
+without row-local burden and engine-purpose freeze.
 
 Projection and renderer are downstream consumers of certified claims.
 
@@ -340,6 +555,13 @@ Minimum files:
 - `surface-expectations.jsonl`
 - `engine-probe-expectations.jsonl`
 
+The current branch should keep all of these files present even before every
+later-layer extractor is live.
+
+`object-expectations.jsonl` is now a live validation corpus for `Object 7`,
+not a pre-implementation scaffold. Current-worktree object validation is
+carried by `StrategicObjectCorpusRuntimeTest`.
+
 ### Suggested Root Row Shape
 
 The root corpus row should be schema-generic rather than square-only.
@@ -388,8 +610,45 @@ together.
 ### Suggested Certification Row
 
 ```json
-{"id":"cert-fixed-target-d6","caseType":"best_defense_breaks_claim","fen":"r2qk2r/1b1nbppp/pp1ppn2/8/2PQ4/BPN2NP1/P3PPBP/R2R2K1 w kq - 2 11","family":"FixedTargetComplex","scope":"comparative","playedMove":"c4d4","engineRequirement":"required","expectation":"support_only","failureReason":"best_defense_not_beaten"}
+{"id":"cert-certified-king-safety-edge-best-defense","caseType":"best_defense_breaks_claim","fen":"6k1/8/6p1/4B3/8/8/7R/6K1 w - - 0 1","expectation":"deferred","family":"CertifiedKingSafetyEdge","owner":"white","scope":"comparative","anchor":"board","burdenTag":"king_safety_edge_certification","helpers":["attack_host_viability","attacker_budget_present","move_order_relevance_gate","best_defense_survival","major_piece_presence"],"requiredSupportFamilies":["AttackScaffold","ComparativeKingFragility"],"engineRequirement":"required","enginePurposes":["comparative_superiority","best_defense_survival"],"forbiddenShortcuts":["attack_scaffold_alone","comparative_fragility_alone","phase_proxy_only"]}
 ```
+
+## Persisted Audit Evidence Rules
+
+Persisted audit evidence must be durable, tracked, and rerunnable from the
+repository.
+
+What counts:
+
+- a tracked Markdown ledger under `modules/commentary/docs/`
+- a tracked runnable artifact linked from that ledger
+- for exact-board claims, tracked JSONL corpus rows under
+  `modules/commentary/src/test/resources/commentary-corpus/` plus a
+  corpus-driven test under `src/test`
+- for internal exact-board witness claims, a tracked witness-level test under
+  `src/test` is enough only when the wording stays at that internal boundary
+- for boundary/integration claims, a tracked test or tiny consumer under
+  `modules/commentary/src/test` that exercises the same public facade named in
+  the wording
+
+What does **not** count by itself:
+
+- chat output
+- subagent chat output
+- an internal extractor test when the documentation claims a public
+  `CommentaryCore` guarantee
+- `tmp/` or `tmp_*`
+- `target/`
+- orchestrator state directories
+- `.manual-verification/`
+
+Use repository docs to state the authorized wording, and use tracked runnable
+artifacts to carry the proof.
+
+Boundary wording must fail closed too.
+
+If the proof only reaches an internal extractor or scope contract, the docs
+must not widen that into a public `CommentaryCore` contract.
 
 ## Large-Scale Position Sweep Method
 

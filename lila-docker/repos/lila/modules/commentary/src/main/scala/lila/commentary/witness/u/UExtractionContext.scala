@@ -8,9 +8,14 @@ import lila.commentary.root.RootAtomRegistry.*
 import lila.commentary.root.{ RootStateVector }
 import lila.commentary.witness.*
 
-private[u] final case class PawnAdvance(from: Square, to: Square, steps: Int, path: Vector[Square])
+private[commentary] final case class PawnAdvance(
+    from: Square,
+    to: Square,
+    steps: Int,
+    path: Vector[Square]
+)
 
-private[u] final case class UExtractionContext(rootState: RootStateVector):
+private[commentary] final case class UExtractionContext(rootState: RootStateVector):
 
   val board: WitnessBoardView = WitnessBoardView.fromRoot(rootState)
 
@@ -152,7 +157,7 @@ private[u] final case class UExtractionContext(rootState: RootStateVector):
     )
     active.headOption
 
-private[u] final case class WitnessBoardView private (pieceMap: Map[Square, Piece]):
+private[commentary] final case class WitnessBoardView private (pieceMap: Map[Square, Piece]):
 
   val occupied: Bitboard = Bitboard(pieceMap.keys.toList)
 
@@ -279,7 +284,7 @@ private[u] final case class WitnessBoardView private (pieceMap: Map[Square, Piec
       case Queen => square.queenAttacks(occupied)
       case King => square.kingAttacks
 
-private[u] object WitnessBoardView:
+private[commentary] object WitnessBoardView:
 
   def fromRoot(rootState: RootStateVector): WitnessBoardView =
     val placements =

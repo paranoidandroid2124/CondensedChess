@@ -1,0 +1,65 @@
+{"id":"o7-opening-development-exact","maxMatePly":2,"notes":"Opening-window boards must not collapse into an immediate tactical finish under the local Stockfish smoke check."}
+{"id":"o7-opening-development-near-miss","maxMatePly":2,"notes":"Near-miss opening boards must stay free of immediate tactical termination."}
+{"id":"o7-opening-development-nasty-negative","maxMatePly":2,"notes":"Preemption nasty negatives must remain tactically sane."}
+{"id":"o7-distributed-contact-exact","maxMatePly":2,"maxAbsCp":300,"notes":"Distributed-contact exact rows should stay calm enough to test multi-sector contact rather than a large material or tactical edge."}
+{"id":"o7-distributed-contact-near-miss","maxMatePly":2,"maxAbsCp":300,"notes":"Central-only contact near misses should stay calm enough to isolate the missing outer-sector contact boundary."}
+{"id":"o7-distributed-contact-nasty-negative","maxMatePly":2,"notes":"Contested-only distributed fronts must remain tactically sane."}
+{"id":"o7-endgame-race-exact","maxMatePly":2,"notes":"Endgame race rows must not be immediate tactical mates."}
+{"id":"o7-endgame-race-near-miss","maxMatePly":2,"notes":"One-sided runner near misses must remain outside trivial mates."}
+{"id":"o7-endgame-race-nasty-negative","maxMatePly":2,"notes":"Blockaded race negatives must remain outside trivial mates."}
+{"id":"o7-attack-scaffold-exact","maxMatePly":2,"notes":"Attack scaffold boards must show pressure without collapsing into an immediate forced mate."}
+{"id":"o7-attack-scaffold-near-miss","maxMatePly":2,"notes":"Off-theater attack near misses must not be trivial mates."}
+{"id":"o7-attack-scaffold-nasty-negative","maxMatePly":2,"notes":"Carrier-only attack negatives must remain tactically sane."}
+{"id":"o7-fortress-holding-exact","maxMatePly":2,"maxAbsCp":450,"notes":"Fortress exact boards should stay outside immediate mate and outside large tactical eval spikes."}
+{"id":"o7-fortress-holding-near-miss","maxMatePly":2,"maxAbsCp":450,"notes":"Fortress near misses should stay calm enough to test shell occupancy rather than tactics."}
+{"id":"o7-fortress-holding-nasty-negative","maxMatePly":2,"maxAbsCp":450,"notes":"Fortress direct-entry negatives should stay calm enough to isolate the entry-law failure."}
+{"id":"o7-king-safety-exact","maxMatePly":2,"notes":"King-safety exact boards may be sharp, but must not already be an immediate forced mate."}
+{"id":"o7-king-safety-near-miss","maxMatePly":2,"maxAbsCp":550,"notes":"Single-hole near misses should stay calm enough to validate the hole-count boundary rather than a tactical shot."}
+{"id":"o7-king-safety-nasty-negative","maxMatePly":2,"notes":"Non-adjacent-hole negatives must not be immediate mates."}
+{"id":"o7-central-contact-exact","maxMatePly":2,"maxAbsCp":300,"notes":"Central-contact exact rows should stay calm enough to test the connected central front itself rather than a separate eval spike."}
+{"id":"o7-central-contact-near-miss","maxMatePly":2,"notes":"Single-touch central rows must not be immediate mates."}
+{"id":"o7-central-contact-nasty-negative","maxMatePly":2,"notes":"Contested-only central rows must remain tactically sane."}
+{"id":"cert-development-comparison-exact","maxMatePly":8,"notes":"Certification-row engine bundles anchor comparative development verdicts without tying truth to one numeric score."}
+{"id":"cert-development-comparison-near-miss","maxMatePly":8,"notes":"Near-miss development rows still need an engine bundle because comparative certification remains engine-backed."}
+{"id":"cert-development-comparison-nasty-negative","maxMatePly":8,"notes":"Late-development nasty negatives stay linked to engine/probe bundles for comparative sanity."}
+{"id":"cert-development-comparison-best-defense","maxMatePly":8,"notes":"Best-defense development rows must carry an engine bundle for support-only degradation checks."}
+{"id":"cert-initiative-window-exact","maxMatePly":8,"notes":"Initiative-window certification rows need engine bundles for denial and best-defense survival."}
+{"id":"cert-initiative-window-near-miss","maxMatePly":8,"notes":"Near-miss initiative rows remain engine-backed because rival counterplay survival matters."}
+{"id":"cert-initiative-window-nasty-negative","maxMatePly":8,"notes":"Initiative nasty negatives keep engine linkage for counterplay-denial audits."}
+{"id":"cert-initiative-window-best-defense","maxMatePly":8,"notes":"Best-defense initiative rows must preserve engine bundle linkage for deferred fail-closed behavior."}
+{"id":"cert-mobility-comparison-exact","maxMatePly":8,"notes":"Mobility comparison rows need engine bundles for comparative superiority rather than wording alone."}
+{"id":"cert-mobility-comparison-near-miss","maxMatePly":8,"notes":"Near-miss mobility rows stay engine-backed for comparative calibration."}
+{"id":"cert-mobility-comparison-nasty-negative","maxMatePly":8,"notes":"Mobility nasty negatives keep engine bundles for symmetry and false-edge checks."}
+{"id":"cert-mobility-comparison-best-defense","maxMatePly":8,"notes":"Thin mobility edges must carry engine bundles so support-only degradation remains testable."}
+{"id":"cert-comparative-king-fragility-exact","maxMatePly":8,"notes":"Comparative king-fragility rows still carry engine bundles because certification stays comparative."}
+{"id":"cert-comparative-king-fragility-near-miss","maxMatePly":8,"notes":"Near-miss fragility rows remain engine-backed for comparative burden checks."}
+{"id":"cert-comparative-king-fragility-nasty-negative","maxMatePly":8,"notes":"King-fragility nasty negatives keep engine linkage for false asymmetry control."}
+{"id":"cert-comparative-king-fragility-best-defense","maxMatePly":8,"notes":"Support-only comparative king-fragility rows retain engine/probe bundles."}
+{"id":"cert-certified-king-safety-edge-exact","maxMatePly":8,"notes":"Certified king-safety-edge rows require engine bundles for comparative and best-defense burdens."}
+{"id":"cert-certified-king-safety-edge-near-miss","maxMatePly":8,"notes":"Near-miss king-safety-edge rows remain engine-backed to prevent shell-only overclaim."}
+{"id":"cert-certified-king-safety-edge-nasty-negative","maxMatePly":8,"notes":"King-safety-edge nasty negatives keep engine linkage for phase and host-viability separation."}
+{"id":"cert-certified-king-safety-edge-best-defense","maxMatePly":8,"notes":"Deferred king-safety-edge rows must preserve engine bundle linkage for fail-closed best-defense review."}
+{"id":"cert-mate-net-certification-exact","maxMatePly":0,"notes":"Mate-net certification may already be forcing, so the budget allows immediate mating lines."}
+{"id":"cert-mate-net-certification-near-miss","maxMatePly":2,"notes":"Near-miss mate-net rows must stay outside immediate short mates."}
+{"id":"cert-mate-net-certification-nasty-negative","maxMatePly":2,"notes":"Mate-net nasty negatives must stay outside immediate short mates."}
+{"id":"cert-mate-net-certification-best-defense","maxMatePly":2,"notes":"Deferred mate-net rows must not already collapse into a short forced mate."}
+{"id":"cert-material-harvest-exact","maxMatePly":8,"notes":"Material-harvest certification rows stay engine-backed for realized tactical conversion checks."}
+{"id":"cert-material-harvest-near-miss","maxMatePly":8,"notes":"Near-miss material-harvest rows remain engine-backed because tactical realization is burdened."}
+{"id":"cert-material-harvest-nasty-negative","maxMatePly":8,"notes":"Material-harvest nasty negatives keep engine linkage for trade-vs-harvest separation."}
+{"id":"cert-material-harvest-best-defense","maxMatePly":8,"notes":"Support-only material-harvest rows preserve engine bundle linkage for thin-branch review."}
+{"id":"cert-winning-endgame-exact","maxMatePly":8,"notes":"Winning-endgame certification rows require engine bundles for route survival and best defense."}
+{"id":"cert-winning-endgame-near-miss","maxMatePly":8,"notes":"Near-miss winning-endgame rows remain engine-backed because route survival is unresolved."}
+{"id":"cert-winning-endgame-nasty-negative","maxMatePly":8,"notes":"Winning-endgame nasty negatives keep engine linkage for result-vs-advantage separation."}
+{"id":"cert-winning-endgame-best-defense","maxMatePly":8,"notes":"Deferred winning-endgame rows preserve engine bundle linkage for fail-closed route audits."}
+{"id":"cert-fortress-draw-certification-exact","maxMatePly":8,"notes":"Fortress-draw certification rows need engine bundles for hold survival rather than shell wording."}
+{"id":"cert-fortress-draw-certification-near-miss","maxMatePly":8,"notes":"Near-miss fortress rows remain engine-backed because entry resources can break the hold."}
+{"id":"cert-fortress-draw-certification-nasty-negative","maxMatePly":8,"notes":"Fortress nasty negatives keep engine linkage for entry-lane rejection checks."}
+{"id":"cert-fortress-draw-certification-best-defense","maxMatePly":8,"notes":"Support-only fortress rows preserve engine bundles for thin hold branches."}
+{"id":"cert-perpetual-check-holding-exact","maxMatePly":8,"notes":"Perpetual-check-holding rows keep engine bundles for repetition survival rather than attack prose."}
+{"id":"cert-perpetual-check-holding-near-miss","maxMatePly":8,"notes":"Near-miss perpetual rows remain engine-backed because loose checks are not enough."}
+{"id":"cert-perpetual-check-holding-nasty-negative","maxMatePly":8,"notes":"Perpetual nasty negatives keep engine linkage for check-sequence false positives."}
+{"id":"cert-perpetual-check-holding-best-defense","maxMatePly":8,"notes":"Deferred perpetual rows preserve engine bundle linkage for best-defense break checks."}
+{"id":"cert-promotion-race-exact","maxMatePly":8,"notes":"Promotion-race certification rows need engine bundles for route survival over broad race wording."}
+{"id":"cert-promotion-race-near-miss","maxMatePly":8,"notes":"Near-miss promotion-race rows remain engine-backed because one-sided passers are insufficient."}
+{"id":"cert-promotion-race-nasty-negative","maxMatePly":8,"notes":"Promotion-race nasty negatives keep engine linkage for blockade and reply-route checks."}
+{"id":"cert-promotion-race-best-defense","maxMatePly":8,"notes":"Deferred promotion-race rows preserve engine bundle linkage for best-defense route survival review."}

@@ -256,6 +256,254 @@ New-system rule:
 - no family expands across phase/posture cells without its own exact-board
   criticism pack
 
+### 11. Payload Geometry Hardened As Admission
+
+Legacy meaning:
+
+- payload-only geometry or support summaries were silently promoted into
+  admission law
+- the system started treating a descriptive bundle as if it were a certified
+  lower carrier
+
+Observed repeatedly in rewrite review:
+
+- `contested_sectors` treated as if it were a lower witness
+- attractive support lists reused as if they were conjunctive admission bundles
+
+New-system owner:
+
+- witness admission and object generation
+
+New-system rule:
+
+- payload geometry stays payload until a canonical helper is frozen
+- illustrative support lists are never promoted into required admission law
+
+### 12. Carrier-Only Attack Inflation
+
+Legacy meaning:
+
+- one file, diagonal, rook placement, or attack map was narrated as a whole
+  king-attack object
+- geometry-only carriers were allowed to self-certify attack ownership
+
+Observed repeatedly in rewrite review:
+
+- `rook on open file` or `king_file_diagonal_entry_axis` restated as attack
+- battery or rook-lift language treated as attack proof without king-theater
+  linkage
+
+New-system owner:
+
+- object generation and certification boundary
+
+New-system rule:
+
+- attack ownership needs a king-theater-linked carrier plus a distinct
+  vulnerability/support fragment on the same defending king
+- no carrier fragment alone may become `AttackScaffold` or a certified
+  king-safety edge
+
+### 13. Shell Shape False Hold
+
+Legacy meaning:
+
+- a quiet-looking shell or favorable trade picture was narrated as fortress or
+  hold truth
+- static shape was mistaken for denied-entry or blockade survival
+
+Observed repeatedly in rewrite review:
+
+- `draw/hold` wording inferred from shell geometry alone
+- `TradeInvariant` or favorable simplification reused as if it proved a hold
+
+New-system owner:
+
+- object generation and certification boundary
+
+New-system rule:
+
+- `FortressHoldingShell` needs current denied-entry and blockade geometry on
+  the board
+- `TradeInvariant` and `perpetual/fortress` stay distinct; neither may
+  short-circuit the other
+
+### 14. Upper Verdict Back-Projected Into Object Admission
+
+Legacy meaning:
+
+- an object row borrowed an upper-layer verdict as if it were a legal
+  admission or exclusion guard
+- certification wording was reused to decide whether the lower object existed
+
+Observed repeatedly in rewrite review:
+
+- `promotion_race` or `winning endgame` used as a reason to suppress
+  `EndgameRaceScaffold`
+- later-layer labels treated as if they were board-exact blockers
+
+New-system owner:
+
+- object generation and certification boundary
+
+New-system rule:
+
+- object admission must use board-exact predicates only
+- upper-layer verdicts may remain related rows, but they may not become object
+  guards
+
+### 15. Prose Region Masquerading As Geometry
+
+Legacy meaning:
+
+- shell, region, or approach wording sounded precise but had no frozen square
+  mask behind it
+- prose-only locality was mistaken for an exact helper
+
+Observed repeatedly in rewrite review:
+
+- `same shelter region` used without a king-centered mask
+- `local shell` or `immediate approach band` used without explicit entry
+  squares
+
+New-system owner:
+
+- object generation and certification boundary
+
+New-system rule:
+
+- shell and shelter helpers must freeze king-centered masks and square-level
+  entry conditions
+- prose locality may explain a helper, but may not replace its board geometry
+
+### 16. Generic Liquidation Inflated Into Delta Corridor
+
+Legacy meaning:
+
+- any trade-down, capture, or compressed-looking ending was narrated as if it
+  already owned transition-compression semantics
+- a local exchange was mistaken for a canonical delta corridor
+
+Observed repeatedly in rewrite review:
+
+- generic liquidation wording reused as if it proved `TradeCompressionCorridor`
+- quiet file alignment or reciprocal pressure treated as if a real
+  move-local compression transition had already happened
+
+New-system owner:
+
+- delta generation and delta validation boundary
+
+New-system rule:
+
+- `TradeCompressionCorridor` needs both:
+  - a board-coherent non-king capture on the played move
+  - an after-board reciprocal exchange corridor inside a frozen compressed
+    trade window
+- generic liquidation, quiet corridor alignment, and broad transition-storyline
+  wording stay outside delta admission
+
+### 17. Result-Side Simplification Collapsed Into Invariant Lane
+
+Legacy meaning:
+
+- a simplification that merely looked favorable was narrated as if it already
+  preserved the same underlying task
+- result wording or task-switch creation was mistaken for a real trade
+  invariant
+
+Observed repeatedly in rewrite review:
+
+- one good exchange treated as if it proved `TradeInvariant`
+- a move that created a new object or only suggested `winning endgame` / hold
+  value was narrated as if it preserved a pre-existing task
+
+New-system owner:
+
+- delta generation and certification boundary
+
+New-system rule:
+
+- `TradeInvariant` needs both:
+  - bounded material reduction on the played move
+  - one same-family same-anchor object that persists from before-board to
+    after-board
+- result-side wording, task-switch creation, fortress/result verdicts, and
+  projection `S19` wording may support later layers but may not become delta
+  admission
+
+### 18. Comparative Certification Collapsed Into One Local Support
+
+Legacy meaning:
+
+- one local support fragment or one suggestive object was narrated as if it
+  already proved a comparative certification verdict
+- broad superiority wording was mistaken for a real comparative burden
+
+Observed repeatedly in rewrite review:
+
+- development lead inferred from opening posture alone
+- king fragility inferred from shell damage or attack pressure alone
+- mobility edge inferred from restriction geometry alone
+
+New-system owner:
+
+- certification generation and certification validation boundary
+
+New-system rule:
+
+- comparative certification rows need explicit asymmetry or comparison helpers
+- local support may strengthen the row, but may not replace the comparative
+  burden
+
+### 19. Result Certification Borrowed From Lower Carrier Presence
+
+Legacy meaning:
+
+- an object or delta survived and was then treated as if the result-side
+  certification was already proved
+- conversion or hold wording was mistaken for a finished verdict
+
+Observed repeatedly in rewrite review:
+
+- `EndgameRaceScaffold` treated as if it already proved `promotion_race`
+- `FortressHoldingShell` treated as if it already proved fortress draw
+- `TradeInvariant` treated as if it already proved `winning_endgame`
+
+New-system owner:
+
+- certification generation and certification validation boundary
+
+New-system rule:
+
+- lower carrier presence is never enough by itself for a result-side
+  certification
+- certification must still pay best-defense, route-survival, or hold burden as
+  frozen by the row contract
+
+### 20. Raw Engine Score Masquerading As Certified Verdict
+
+Legacy meaning:
+
+- one centipawn number or one shallow engine line was narrated as if it owned
+  the branch truth
+- numeric eval drift was mistaken for a stable certification verdict
+
+Observed repeatedly in rewrite review:
+
+- one favorable engine number reused as if it proved winning endgame
+- one shallow tactical line reused as if it proved mate net or perpetual
+
+New-system owner:
+
+- engine/probe contract and certification validation boundary
+
+New-system rule:
+
+- engine output must be normalized into categorical burden evidence
+- engine/probe is side evidence only
+- numeric eval alone may not create a certification row
+
 ## Global Rules Learned From Legacy Failures
 
 ### Rule 1: No Late Semantic Salvage

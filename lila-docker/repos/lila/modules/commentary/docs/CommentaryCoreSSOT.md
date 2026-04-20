@@ -36,6 +36,60 @@ chain.
 
 `projection` and `renderer` are downstream consumers, not owners of truth.
 
+## Public Consumption Boundary
+
+The current worktree exposes a deliberately narrow public extraction boundary
+at [CommentaryCore.scala](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/src/main/scala/lila/commentary/CommentaryCore.scala).
+
+This boundary currently authorizes external consumption of:
+
+- active `U-primary 18` descriptor ids
+- active `U-attached 1` descriptor id
+- active `Object 7` family ids
+- active `Delta 2` family ids
+- root-backed `U-primary` witness extraction from exact `Fen` or
+  `RootStateVector`
+- root-backed `U-attached` witness extraction from exact `Fen` or
+  `RootStateVector`
+- root-backed strategic-object extraction from exact `Fen` or
+  `RootStateVector`
+- strategic-delta extraction from exact before/after `Fen` pairs or object
+  extractions plus a played move
+- fail-closed extraction for exact-board input discipline on both public
+  witness facades
+- fail-closed extraction for the public strategic-object facade
+- fail-closed extraction for the public strategic-delta facade
+
+The public boundary now publishes only the live `U-attached`
+`structural_space_claim` contract.
+
+It also publishes the seven live strategic-object families through
+`activeObjectFamilyIds` plus the `extractStrategicObjects*` public overloads.
+
+It also publishes the two live strategic-delta families through
+`activeDeltaFamilyIds` plus the `extractStrategicDeltas*` public overloads.
+
+Those object overloads currently return a bundled
+`StrategicObjectExtraction` carrying `rootState`, the primary/attached witness
+snapshots used for extraction, and the extracted strategic objects.
+
+Those delta overloads currently return a bundled
+`StrategicDeltaExtraction` carrying the before/after strategic-object
+extractions, the played move, and the extracted strategic deltas.
+
+The remaining attached `10` rows stay shell-only and remain outside standalone
+public/runtime descriptor registration and extraction. Their host vocabulary may
+still surface only as payload under the live `structural_space_claim` contract.
+
+It does **not** authorize claims that planner, outline, renderer, API, or
+frontend are already wired to the same truth path.
+
+See
+[ExternalConsumptionAuditEvidence.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/ExternalConsumptionAuditEvidence.md)
+and
+[CommentaryCoreBoundaryTest.scala](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/src/test/scala/lila/commentary/CommentaryCoreBoundaryTest.scala)
+for the current-worktree verification boundary.
+
 ## Count Freeze
 
 The planning discussion started from the shorthand `24 / 61 / 3016+35`.
@@ -145,6 +199,15 @@ payload.
 
 Cross-witness composition begins only above `U`.
 
+Current code freeze:
+
+- active attached runtime ids are now frozen to `structural_space_claim` only
+- `material gain`, `structural damage`, `center`, `kingside`, `queenside`,
+  `whole-board`, `closed center`, `fixed chain`, `open line`, and
+  `create passer` are code-frozen shell-only rows
+- `closed center` and `fixed chain` remain host vocabulary only; they are not
+  standalone attached extractors
+
 Current recorded examples:
 
 - inventory label `opening-tempo`
@@ -163,6 +226,25 @@ Current recorded examples:
 - continuity meaning lives in delta-layer `TradeCompressionCorridor`
 - `TransitionBridge`, `MoveLocal`, `PlanRace`, `InitiativeWindow`,
   `ConversionFunnel`, and `PasserComplex` stay outside raw witness admission
+- `TradeCompressionCorridor` is frozen to a `move_local` board-anchored delta
+  only
+- the first live slice must stay on:
+  - `reciprocal_exchange_corridor`
+  - `compressed_trade_window`
+  - `trade_compression_transition`
+  - the first live slice requires:
+    - a board-coherent non-king capture on the played move
+  - no queens on the after-board
+  - at most `4` total non-king non-pawn pieces on the after-board
+  - one canonical opposing non-king pair that currently attacks each other
+    along one shared file or diagonal corridor on the after-board
+  - the before-board failed either the corridor predicate or the compressed
+    window
+  - forbidden-rival rejection must track the actual current-worktree
+    `TradeInvariant` first slice rather than bare board-level
+    `EndgameRaceScaffold` persistence
+- generic liquidation, quiet corridor alignment, and broad transition-storyline
+  wording remain negative only
 - generic liquidation only and phase/posture inflation across cells remain
   forbidden
 - inventory label `endgame-race`
@@ -179,6 +261,20 @@ Current recorded examples:
 - disallowed hosts `majority/minority asymmetry` and `restriction geometry`
 - the present claim is a beneficiary-controlled connected square set attached
   to a host-supplied structural frontier
+- runtime closure is now fixed in code:
+  - `closed center` host requires a connected fixed central frontier that
+    spans both `d` and `e` files and contains fixed pawns from both colors
+  - `fixed chain` host requires a same-color rear-supported fixed-pawn segment
+    of length `>= 2` inside one sector
+  - when several same-owner fixed-chain segments survive in one sector, runtime
+    keeps the strongest segment that yields a live claim
+  - `fixed chain` host is emitted per host owner color and never as a mixed
+    white/black boundary
+  - `frontier_seed` remains `controlled_by(beneficiary, forward(host_boundary))`
+  - `claimed_square_set` is one deterministic strongest connected component of
+    empty beneficiary-controlled sector squares attached to those frontier
+    seeds; occupied frontier squares are not claim squares
+  - presence still requires `|claimed_square_set| >= 2`
 - inventory label `open/semi-open file`
 - runtime contract id `file_lane_state`
 - primary anchor `file`
@@ -191,6 +287,7 @@ Current recorded examples:
 - there is no admitted `U` runtime contract for this label on the current
   branch
 - the row remains a neutral `U-attached` theater shell only
+- code freeze keeps the row outside attached runtime registration
 - exact center meaning stays in narrower structural or helper rows; the label
   must not be widened into `open center`, `closed center`, `central tension`,
   `SpaceClamp`, `FixedTargetComplex`, or `TensionState`
@@ -198,6 +295,7 @@ Current recorded examples:
 - there is no admitted `U` runtime contract for this label on the current
   branch
 - the row remains a neutral `U-attached` theater shell only
+- code freeze keeps the row outside attached runtime registration
 - the label must not leak into `king attack`, `king shelter`, or other
   kingside-specific upper families
 - any assignment to `SpaceClamp`, `FixedTargetComplex`, `TensionState`, or a
@@ -206,6 +304,7 @@ Current recorded examples:
 - there is no admitted `U` runtime contract for this label on the current
   branch
 - the row remains a neutral `U-attached` theater shell only
+- code freeze keeps the row outside attached runtime registration
 - the label must not leak into castling-provenance, `wing_asymmetry_state`, or
   `king attack`
 - any assignment to `SpaceClamp`, `FixedTargetComplex`, `TensionState`, or a
@@ -214,6 +313,7 @@ Current recorded examples:
 - there is no admitted `U` runtime contract for this label on the current
   branch
 - the row remains a neutral `U-attached` theater shell only
+- code freeze keeps the row outside attached runtime registration
 - broad whole-board access-shadow aggregates are not canonical conversion state
 - local scope may not widen into whole-board language without a later dedicated
   matrix
@@ -273,6 +373,7 @@ Current recorded examples:
 - inventory label `structural damage`
 - there is no active runtime contract for this label on the current branch
 - the row remains a `U-attached` host-scoped objective shell only
+- code freeze keeps the row outside attached runtime registration
 - exact lower support remains in structural-cause roots such as:
   - `isolated_pawn(c, s)`
   - `backward_pawn(c, s)`
@@ -286,6 +387,7 @@ Current recorded examples:
 - inventory label `material gain`
 - there is no active runtime contract for this label on the current branch
 - the row remains a `U-attached` host-scoped objective shell only
+- code freeze keeps the row outside attached runtime registration
 - it is surface/projection vocabulary only, not a truth-owning material-swing
   predicate
 - lower examples, if named, are illustrative consequence motifs only
@@ -322,6 +424,26 @@ Current recorded examples:
   witness, transformation owner, object family, or result verdict
 - certified simplification-side semantic ownership stays in `TradeInvariant`
 - bounded favorable simplification remains a same-task move-local slice only
+- `TradeInvariant` is frozen to a `move_local` board-anchored delta only
+- the first live slice must stay on:
+  - `bounded_material_reduction`
+  - `persistent_object_carrier`
+  - `trade_invariant_transition`
+  - the first live slice requires:
+    - a board-coherent non-king capture on the played move
+  - total non-king non-pawn material count drops by exactly `1`
+  - one same-family same-anchor object persists from before-board to
+    after-board
+  - the mover-side clear-run carrier must stay continuous across the move:
+    - either the same clear runner remains on the same square
+    - or the moving pawn itself remains the clear runner on its destination
+- the current-worktree first live slice admits only
+  `EndgameRaceScaffold` persistence on the `board` anchor with mover-side
+  clear-run carrier continuity
+- `FortressHoldingShell`, `AttackScaffold`, and `KingSafetyShell`
+  generalization remain deferred until they carry separate delta corpus rows
+- generic favorable exchange, task-switch creation, and upper result wording
+  remain negative only
 - `favorable simplification` is projection-band vocabulary only
 - `draw/hold`, `winning endgame`, `perpetual/fortress`, `material gain`, and
   `promotion/passer` remain related but distinct rows and must not collapse into
@@ -330,6 +452,7 @@ Current recorded examples:
 - there is no admitted `U` runtime contract for this label on the current
   branch
 - the row remains a `U-attached` host-scoped transformation shell only
+- code freeze keeps the row outside attached runtime registration
 - attachment mode is `host-scoped` and polarity remains `host`
 - exact lower line geometry stays on `open_file_state`,
   `semi_open_file_state`, `rook_on_open_file_state`, and
@@ -341,6 +464,7 @@ Current recorded examples:
 - there is no admitted `U` runtime contract for this label on the current
   branch
 - the row remains a `U-attached` host-scoped transformation shell only
+- code freeze keeps the row outside attached runtime registration
 - attachment mode is `host-scoped` and polarity remains `host`
 - exact lower support stays in `candidate_passer(c, s)`
 - `passed_pawn_entity_state` is downstream entity truth, not lower truth for
@@ -645,7 +769,170 @@ This is the first truth-owning commentary layer.
 
 A strategic object is a stable strategic state unit on the board.
 
-Objects are formed only from witness material.
+Objects are formed from witness material plus exact-board root support routed
+through the shared strategic-object context.
+
+### Object 7 Runtime Contract
+
+The current branch now carries live runtime extraction for the seven `Object`
+homes in `modules/commentary/src/main/scala/lila/commentary/strategic`.
+
+The helper and admission laws below are now implemented and exact-board
+verified. They are no longer scaffold-only design notes.
+
+Shared helpers:
+
+- `occupied(square)` means `exists piece_on(_, _, square)`
+- `sector_mask(sector, square)` follows the canonical file split already
+  implied by `WitnessSector`
+- `contact_square(square)` means `contested(square)` or an occupied square
+  directly attacked by the opponent of the occupant
+- `front_connectivity(square_a, square_b)` means the two squares lie in the
+  same maximal orthogonally connected component of `contact_square` inside the
+  chosen mask
+- `central_sector_mask(square)` is the extended center band on files `c-f` and
+  ranks `3-6`
+- `king_theater_link(fragment, defending_king)` remains the canonical
+  king-theater gate reused unchanged by `AttackScaffold`
+- `KingSafetyShell` reuses `home_shelter_mask` geometry but adds its own
+  home-wing king proxy rather than sharing the full `king_theater_link`
+
+Frozen object homes:
+
+- `OpeningDevelopmentRegime`
+  - helper: `opening_development_window`
+  - present iff:
+    - each side still keeps at least one home-rank bishop or knight on an
+      original start square
+    - at least one side still keeps at least two such minors
+    - each side still keeps at least one home-rank rook on an original corner
+    - neither the `d` file nor the `e` file is open
+    - no live `CentralContactFront`, `DistributedContactRegime`, or
+      `EndgameRaceScaffold` already owns the same board
+  - forbids:
+    - move-count or tempo narration
+    - `phase_gate` admission
+    - release-guard or king-safety wording
+
+- `DistributedContactRegime`
+  - helper: `distributed_contact_spread`
+  - present iff:
+    - both colors already have at least one non-pawn piece off the home rank
+    - at least two distinct `sector_mask` sectors each contain a connected
+      `contact_square` component under `front_connectivity` with at least two
+      squares
+    - every admitted sector component contains both a contested square and an
+      occupied contact square
+    - both colors contribute occupancy or current control to every admitted
+      sector component
+    - one admitted component lies outside the central-only contact band so the
+      row does not collapse into `CentralContactFront`
+  - forbids:
+    - `contested_sectors` as admission proof
+    - one-sector tactical shells narrated as regime continuity
+    - axis-independence claims that are not board-proven
+
+- `EndgameRaceScaffold`
+  - helper: `dual_run_endgame_trigger`
+  - `advanced_run_resource(color, square)` means an owner pawn already sits on
+    or beyond the fifth rank relative to that color; `passed_pawn_entity_state`
+    and root `candidate_passer` remain optional support when present
+  - `forward_run_clear(color, square)` means the immediate next square on that
+    pawn's advance file is empty on the current board
+  - present iff:
+    - no queens remain on the board
+    - both colors have at least one `advanced_run_resource`
+    - each color has at least one such resource with `forward_run_clear` on the
+      current board
+  - forbids:
+    - low-material context alone
+    - one-sided passer presence alone
+    - directly blockaded runner geometry
+    - direct collapse into `promotion_race`, `PasserComplex`, or
+      `ConversionFunnel`
+
+- `AttackScaffold`
+  - helper: `attack_host_core`
+  - present iff one attacking color has at least two distinct
+    `king_theater_link` fragments aimed at the same defending king, where:
+    - at least one fragment is a carrier from
+      `king_file_diagonal_entry_axis`, `rook_on_open_file_state`, or a
+      king-theater-linked `file_lane_state` / `diagonal_lane_only`
+    - at least one fragment is a vulnerability/support fragment from
+      `king_shelter_hole`, `duty_bound_defender`,
+      `short_run_slider_gate_restriction`, `xray_target`, `pinned_piece`, or
+      `loose_piece`
+    - a shelter-hole-only support picture still needs a second distinct carrier
+      fragment; lone local diagonal/file pressure plus holes stays outside the
+      host core
+  - forbids:
+    - attack-map pressure alone
+    - carrier-only admission
+    - self-certification into `certified_king_safety_edge`, `initiative`, or
+      `mate net`
+
+- `FortressHoldingShell`
+  - helper: `fortress_entry_denial_shell`
+  - `fortress_shell_mask(holder_king, square)` means the square lies on the
+    holder king's file or an adjacent file, and on the king's home rank or the
+    next two ranks toward the board center
+  - present iff one holding side shows all of:
+    - no queens remain on the board
+    - the holder king remains on its home rank
+    - at least two friendly occupied non-king squares lie in
+      `fortress_shell_mask`
+    - the attacker occupies no square in `fortress_shell_mask`
+    - the attacker lacks a current file or diagonal entry axis into any square
+      in `fortress_shell_mask`
+    - no open or semi-open file on the holder king file or an adjacent file
+      currently carries an attacker rook or queen into that shell theater by
+      live attack geometry on a shell square
+    - any attacker passed pawn on the holder king file or an adjacent shell
+      file is already blockaded by immediate holder occupancy
+  - forbids:
+    - shell shape alone
+    - `TradeInvariant` alone
+    - `perpetual/fortress` certification alone
+
+- `KingSafetyShell`
+  - helper: `home_shelter_shell`
+  - `home_shelter_mask(defending_king, square)` means the square lies on the
+    defending king file or an adjacent file, and one or two ranks toward the
+    board center from the home edge
+  - present iff:
+    - the defending king remains on its home rank on the current exact-board
+      home-wing proxy file (`c` or `g`), so central or uncastled home-rank
+      kings stay outside this shell object
+    - at least two distinct `king_shelter_hole` squares for the same defender
+      lie inside `home_shelter_mask`
+    - at least one such pair is edge-adjacent inside that mask
+  - forbids:
+    - `king attack` wording alone
+    - generic pressure away from the home shelter
+    - direct collapse into `comparative_king_fragility` or
+      `certified_king_safety_edge`
+
+- `CentralContactFront`
+  - helper: `central_contact_front_state`
+  - present iff one connected `contact_square` component inside
+    `central_sector_mask` contains at least two squares, contains both a
+    contested square and an occupied contact square, and both colors contribute
+    occupancy or current control to that same component
+  - if multiple disconnected qualifying components exist, runtime keeps one
+    canonical strongest component rather than merging disconnected fronts into
+    one sector identity
+  - forbids:
+    - `open center` narration
+    - `closed center` or `fixed chain` host vocabulary
+    - initiative, king-safety, or `TensionState` wording
+
+These contracts are now live in the current worktree.
+
+Current-worktree evidence is carried by
+`StrategicObject7RuleTest`,
+`StrategicObjectCorpusRuntimeTest`,
+and the public-boundary coverage in
+`CommentaryCoreBoundaryTest`.
 
 ### Layer 4: Deltas
 
@@ -657,6 +944,46 @@ A delta is the typed change or scope statement about an object:
 
 `Delta` remains truth-owning.
 
+Current-worktree `Delta 2` now has live runtime code in
+`modules/commentary/src/main/scala/lila/commentary/delta`, with both delta
+families registered together and `TradeCompressionCorridor` ordered before
+`TradeInvariant`.
+
+Frozen family ids:
+
+- `TradeCompressionCorridor`
+- `TradeInvariant`
+
+Runtime boundary:
+
+- current runtime package:
+  `modules/commentary/src/main/scala/lila/commentary/delta`
+- present files:
+  - `TradeCompressionCorridorRule.scala`
+  - `TradeInvariantRule.scala`
+  - `StrategicDeltaModel.scala`
+  - `StrategicDeltaContext.scala`
+  - `StrategicDeltaScopeContract.scala`
+  - `StrategicDeltaRuntime.scala`
+  - `StrategicDeltaExtractor.scala`
+- the public `CommentaryCore` facade exposes `activeDeltaFamilyIds`,
+  `extractStrategicDeltas(...)` overloads from object extractions and from
+  before/after `Fen` plus `playedMove`, and fail-closed delta extraction
+  overloads
+- delta extraction must consume exact before/after position truth rather than a
+  single static board:
+  - before `StrategicObjectExtraction`
+  - after `StrategicObjectExtraction`
+    - one board-coherent `playedMove`
+- `StrategicDeltaExtractor.scala` is live
+- `StrategicDeltaRuntime.scala` registers both families together with corridor
+  before invariant ordering
+- `TradeCompressionCorridorRuleTest`, `TradeInvariantRuleTest`,
+  `StrategicDeltaBoundaryTest`, `DeltaExpectationCorpusTest`, and
+  `CommentaryCoreBoundaryTest` are live
+- `DeltaExpectationCorpusTest` now asserts live runtime extraction against the
+  delta corpus rows
+
 ### Layer 5: Certification
 
 Certification is where the branch decides whether an object or delta survives as
@@ -664,6 +991,243 @@ actionable, comparative, denial-bearing, or conversion-bearing truth.
 
 This is where best-defense, persistence, superiority, and route-survival burdens
 are paid.
+
+### Certification Verdict Lattice
+
+Certification owns four verdict outcomes only:
+
+- `Certified`
+- `SupportOnly`
+- `Deferred`
+- `Rejected`
+
+Meaning:
+
+- `Certified`:
+  - the row's exact-board burden is met at the currently frozen depth and reply
+    standard
+- `SupportOnly`:
+  - the semantic idea remains real on the exact board, but the branch burden is
+    too thin for release as a full verdict
+- `Deferred`:
+  - the row stays fail-closed because best-defense, comparative, or route
+    survival is still reply-incomplete or depth-unstable
+- `Rejected`:
+  - the exact board fails the row's admission or negative boundary outright
+
+Support and deferred are both real endpoints.
+
+They are not planner hints and they are not projection seeds.
+
+### Certification Runtime Boundary Design
+
+Current-worktree status:
+
+- certification is docs-frozen and scaffolded, but not yet live in
+  `src/main`
+- there is no current runtime package under
+  `modules/commentary/src/main/scala/lila/commentary/certification`
+- `CommentaryCore` therefore still stops at:
+  - `U`
+  - `Object`
+  - `Delta`
+
+The first live certification runtime must stay on one canonical package
+boundary:
+
+- `modules/commentary/src/main/scala/lila/commentary/certification`
+
+Planned stable runtime families:
+
+- `DevelopmentComparison`
+- `InitiativeWindow`
+- `MobilityComparison`
+- `ComparativeKingFragility`
+- `CertifiedKingSafetyEdge`
+- `MateNetCertification`
+- `MaterialHarvest`
+- `WinningEndgame`
+- `FortressDrawCertification`
+- `PerpetualCheckHolding`
+- `PromotionRace`
+
+Inventory mapping stays frozen as:
+
+- `development lag` and `development lead` both map to
+  `DevelopmentComparison`
+- `king safety edge` remains one inventory row but splits into:
+  - `ComparativeKingFragility`
+  - `CertifiedKingSafetyEdge`
+- `perpetual/fortress` remains one inventory row but splits into:
+  - `FortressDrawCertification`
+  - `PerpetualCheckHolding`
+
+The future runtime extractor must consume only:
+
+- current `StrategicObjectExtraction`
+- current `StrategicDeltaExtraction`
+- one explicit certification-side engine/probe evidence bundle
+
+It must not reopen raw root or witness admission from inside certification.
+
+The future public facade must stay fail-closed:
+
+- do not add certification convenience helpers that fabricate missing engine
+  evidence from raw FEN alone
+- do not expose a public certification surface before a fail-closed extractor
+  exists
+- no planner, projection, or renderer layer may revive `SupportOnly` or
+  `Deferred` rows
+
+### Certification First-Live Freeze
+
+The certification pre-implementation blockers are closed by narrowing the first
+live slices rather than by opening broad upper prose.
+
+Where a first live slice explicitly depends on a lower object, delta, or
+certification-side support family, the certification scaffold must declare that
+dependency as a `requiredSupportFamilies` contract rather than leaving it as
+prose only.
+
+- `DevelopmentComparison`
+  - scope: `comparative`
+  - anchor: `board`
+  - first live slice: `OpeningDevelopmentRegime`-backed comparative development
+    superiority only
+  - helpers:
+    - `development_balance_count`
+    - `development_gap_floor`
+  - forbids:
+    - `OpeningDevelopmentRegime` alone
+    - `phase_gate`
+    - development wording alone
+
+- `InitiativeWindow`
+  - scope: `comparative`
+  - anchor: `board`
+  - first live slice: development-led initiative only
+  - helpers:
+    - `initiative_window_contract`
+    - `rival_counterplay_source`
+    - `move_order_relevance_gate`
+  - forbids:
+    - `DevelopmentComparison` alone
+    - `AttackScaffold` alone
+    - counterplay wording alone
+
+- `MobilityComparison`
+  - scope: `comparative`
+  - anchor: `board`
+  - first live slice: restriction-backed mobility superiority only
+  - helpers:
+    - `mobility_balance_count`
+    - `mobility_gap_floor`
+    - `restriction_support_gate`
+  - forbids:
+    - restriction geometry alone
+    - space-clamp wording alone
+    - bad-piece wording alone
+
+- `ComparativeKingFragility`
+  - scope: `comparative`
+  - anchor: `board`
+  - first live slice: home-wing king-theater asymmetry only
+  - helpers:
+    - `king_theater_fragility_bundle`
+    - `king_fragility_asymmetry`
+  - forbids:
+    - `KingSafetyShell` alone
+    - hole count alone
+    - attack wording alone
+
+- `CertifiedKingSafetyEdge`
+  - scope: `comparative`
+  - anchor: `board`
+  - first live slice: `AttackScaffold` plus comparative king fragility plus
+    explicit host, budget, move-order, and best-defense burdens
+  - helpers:
+    - `attack_host_viability`
+    - `attacker_budget_present`
+    - `move_order_relevance_gate`
+    - `best_defense_survival`
+    - `major_piece_presence`
+  - forbids:
+    - `AttackScaffold` alone
+    - `ComparativeKingFragility` alone
+    - phase proxy alone
+
+- `MateNetCertification`
+  - scope: `current_position`
+  - anchor: `board`
+  - first live slice: forcing mate-net certification only
+  - helpers:
+    - `mate_net_forcing_window`
+    - `best_defense_survival`
+  - forbids:
+    - `AttackScaffold` alone
+    - certified king-safety edge alone
+    - mate-threat wording alone
+
+- `MaterialHarvest`
+  - scope: `current_position`
+  - anchor: `board`
+  - first live slice: realized non-king material conversion only
+  - helpers:
+    - `material_conversion_realization`
+    - `best_defense_survival`
+  - forbids:
+    - `material gain` shell wording
+    - tactical smell alone
+    - `winning endgame` wording alone
+
+- `WinningEndgame`
+  - scope: `current_position`
+  - anchor: `board`
+  - first live slice: certified conversion/result verdict only
+  - helpers:
+    - `winning_endgame_conversion`
+    - `best_defense_survival`
+  - forbids:
+    - `TradeInvariant` alone
+    - `FortressHoldingShell` alone
+    - material-edge wording alone
+
+- `FortressDrawCertification`
+  - scope: `current_position`
+  - anchor: `board`
+  - first live slice: `FortressHoldingShell`-backed draw certification only
+  - helpers:
+    - `fortress_draw_burden`
+    - `best_defense_survival`
+  - forbids:
+    - `FortressHoldingShell` alone
+    - `TradeInvariant` alone
+    - draw wording alone
+
+- `PerpetualCheckHolding`
+  - scope: `current_position`
+  - anchor: `board`
+  - first live slice: stable perpetual-check hold only
+  - helpers:
+    - `perpetual_check_loop`
+    - `best_defense_survival`
+  - forbids:
+    - checking-sequence wording alone
+    - `AttackScaffold` alone
+    - draw wording alone
+
+- `PromotionRace`
+  - scope: `current_position`
+  - anchor: `board`
+  - first live slice: certified promotion-route survival on top of
+    `EndgameRaceScaffold`
+  - helpers:
+    - `promotion_route_survival`
+    - `best_defense_survival`
+  - forbids:
+    - `EndgameRaceScaffold` alone
+    - `PasserComplex` wording alone
+    - `ConversionFunnel` wording alone
 
 ### Layer 6: Strategy Projections
 

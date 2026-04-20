@@ -1,0 +1,80 @@
+package lila.commentary.validation
+
+import lila.commentary.root.RootExtractor
+
+class CertificationExpectationCorpusTest extends munit.FunSuite:
+
+  private val rows = CertificationExpectationCorpus.loadAll()
+  private val engineProbeRows = EngineProbeExpectationCorpus.loadAll()
+  private val caseTypesByFamily = rows.groupMap(_.family)(_.caseType).view.mapValues(_.toSet).toMap
+  private val expectationsByFamily =
+    rows.groupMap(_.validatedFamily)(_.validatedExpectation).view.mapValues(_.toSet).toMap
+  private val engineProbeIds = engineProbeRows.map(_.id).toSet
+
+  test("certification scaffold carries exact, near_miss, nasty_negative, and best_defense_breaks_claim rows for every certification family"):
+    CertificationExpectationCorpus.requiredFamilies.foreach: family =>
+      val actualCaseTypes = caseTypesByFamily.getOrElse(family, Set.empty)
+      assertEquals(
+        actualCaseTypes,
+        CertificationExpectationCorpus.requiredCaseTypes,
+        clues(s"$family case types = ${actualCaseTypes.toVector.sorted.mkString(",")}")
+      )
+
+  test("certification scaffold carries the frozen verdict coverage for every certification family"):
+    CertificationExpectationCorpus.requiredFamilies.foreach: family =>
+      val actualExpectations = expectationsByFamily.getOrElse(family, Set.empty)
+      val expectedExpectations =
+        CertificationExpectationCorpus.requiredExpectationCoverageByFamily.getOrElse(
+          family,
+          Set.empty
+        )
+      assertEquals(
+        actualExpectations,
+        expectedExpectations,
+        clues(s"$family expectations = ${actualExpectations.toVector.sorted.mkString(",")}")
+      )
+
+  rows.foreach: row =>
+    test(s"certification row parses and matches the frozen certification scaffold for ${row.id}"):
+      row.validatedCaseType
+      row.validatedExpectation
+      row.validatedFamily
+      row.validatedOwner
+      row.validatedScope
+      row.expectedAnchor
+      row.validatedBurdenTag
+      row.validatedHelpers
+      row.validatedRequiredSupportFamilies
+      row.validatedEngineRequirement
+      row.validatedEnginePurposes
+      row.validatedForbiddenShortcuts
+
+      RootExtractor.fromFen(row.normalizedFen).fold(
+        message => fail(s"Row ${row.id} FEN parse failed: $message"),
+        identity
+      )
+
+      assert(
+        engineProbeIds.contains(row.id),
+        clues(s"${row.id} is missing an engine/probe bundle row")
+      )
+
+      row.caseType match
+        case "exact" =>
+          assertEquals(row.expectation, "certified")
+        case "best_defense_breaks_claim" =>
+          assert(
+            Set("support_only", "deferred").contains(row.expectation),
+            clues(s"${row.id} best-defense row must degrade to support_only or deferred")
+          )
+        case "near_miss" | "nasty_negative" =>
+          assertEquals(row.expectation, "rejected")
+        case other =>
+          fail(s"Unhandled certification case type $other")
+
+  test("certification scaffold keeps the layered corpus directory present"):
+    ObjectExpectationCorpus.minimumCorpusFiles.foreach: fileName =>
+      assert(
+        ObjectExpectationCorpus.resourceExists(fileName),
+        clues(s"Missing commentary corpus file $fileName")
+      )
