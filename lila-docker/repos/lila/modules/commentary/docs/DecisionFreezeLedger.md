@@ -105,7 +105,77 @@ The projection freeze means:
 Detailed owner:
 
 - [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md:1)
-- [ValidationMethodology.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/ValidationMethodology.md:149)
+- [ValidationMethodology.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/ValidationMethodology.md:423)
+
+## Projection Start-Ready / Broad-Ready Freeze
+
+This branch now distinguishes three projection states:
+
+- semantic boundary frozen
+- start-ready for projection work
+- blocked for live admission
+
+`start-ready` is a contract state only.
+
+It does **not** mean live projection runtime already exists.
+
+It authorizes narrow first-slice projection work plus corpus authoring only.
+
+It does **not** yet prove broader deployment.
+
+No projection band is `broad-ready` on the current branch yet.
+
+Any future `broad-ready` claim must close both:
+
+- the `coverageAxis` / `coverageBucket` scaffold in
+  [ValidationMethodology.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/ValidationMethodology.md:444)
+- the band-local breadth gates in
+  [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md:214)
+
+Bands already start-ready before the current contract-closure pass:
+
+- `S02`
+- `S03`
+- `S07`
+- `S18`
+- `S19`
+- `S20`
+- `S22`
+
+Bands promoted to start-ready by the current contract-closure pass:
+
+- `S01`
+- `S04`
+- `S05`
+- `S06`
+- `S08`
+- `S09`
+- `S10`
+- `S11`
+- `S12`
+- `S13`
+- `S14`
+- `S15`
+- `S16`
+- `S21`
+
+Bands still not start-ready:
+
+| Band | Exact blocker |
+| --- | --- |
+| `S17` | future lower seed family frozen but not live; exact package is owned by `StrategySupportSeedInventory.md` |
+
+Broad-coverage caution remains highest on:
+
+- `S06`
+- `S10`
+- `S12`
+- `S15`
+
+Detailed owner:
+
+- [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md:205)
+- [ValidationMethodology.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/ValidationMethodology.md:533)
 
 ## Blocked Strategy Bands
 
@@ -115,34 +185,28 @@ Two remain blocked for live admission:
 
 | Band | Current status | Why blocked |
 | --- | --- | --- |
-| `S23 king activation / opposition / penetration` | blocked for live admission | missing exact lower king-activity support seeds |
-| `S24 tactical conversion of a prepared target` | blocked for live admission | missing exact lower prepared-target support seeds |
+| `S23 king activation / opposition / penetration` | blocked for live admission | frozen future king-activity seed family not live; see `StrategySupportSeedInventory.md` |
+| `S24 tactical conversion of a prepared target` | blocked for live admission | frozen future prepared-target seed family not live; see `StrategySupportSeedInventory.md` |
 
 Detailed owner:
 
-- [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md:56)
+- [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md:197)
 
 ## Frozen Future Seed Families
 
-The branch now freezes the required future seed families for the blocked
-strategy bands.
+The branch freezes required future seed families for the unresolved projection
+bands.
 
 These are frozen as required future contracts, not as active runtime contracts.
 
-| Strategy band | Frozen future seeds |
+Detailed seed names, role splits, and negative boundaries are owned by
+`StrategySupportSeedInventory.md`.
+
+| Strategy band | Inventory owner |
 | --- | --- |
-| `S23` | `king_entry_square_seed`, `king_access_route_seed`, `king_opposition_contact_seed` |
-| `S24` | `target_resource_dependency_seed`, `target_attack_convergence_seed` |
-
-The intended role split is:
-
-- `S23`
-  - destination truth
-  - route truth
-  - king-vs-king relation truth
-- `S24`
-  - prepared-resource dependency truth
-  - target-centered attack-convergence truth
+| `S17` | `S17 Seed Family` section |
+| `S23` | `S23 Seed Family` section |
+| `S24` | `S24 Seed Family` section |
 
 Detailed owner:
 
@@ -393,12 +457,14 @@ Live delta tests:
 Current-worktree certification status:
 
 - docs/scaffold frozen
-- no live runtime package under
+- live runtime package under
   `modules/commentary/src/main/scala/lila/commentary/certification`
-- `CommentaryCore` must not expose certification helpers until a fail-closed
-  certification extractor exists
+- `CommentaryCore` now exposes `activeCertificationFamilyIds` plus typed and
+  fail-closed certification extraction helpers because a fail-closed extractor
+  now exists
 
-Future stable runtime families:
+Ownership stays frozen at `10` certification inventory rows mapped to `11`
+runtime families:
 
 - `DevelopmentComparison`
 - `InitiativeWindow`
@@ -426,7 +492,17 @@ Certification runtime must consume only:
 
 - `StrategicObjectExtraction`
 - `StrategicDeltaExtraction`
-- explicit engine/probe evidence bundles
+- explicit certification evidence bundles, with
+  `CertificationEvidenceBundle.empty` as the explicit unbound fail-closed
+  sentinel and any non-empty bundle created by `forObjectExtraction` or
+  `forDeltaExtraction` bound to the same current root state
+- live certification extraction must reject any non-empty evidence bundle
+  whose bound root state does not exactly match the current extraction
+
+Live probe adapter status:
+
+- `CertificationEngineEvidence.fromProbe(...)` remains fail-closed empty
+- probe usage is currently validation-side scaffold only
 
 Certification runtime may not:
 
@@ -469,13 +545,19 @@ The current-worktree first live certification slices are intentionally narrow:
 - `MaterialHarvest`:
   - realized non-king material conversion only
 - `WinningEndgame`:
-  - certified conversion/result verdict only
+  - certified conversion/result verdict only, currently narrowed to a single
+    non-rook-pawn runner with owner king support, owner to move, and no rival
+    pawn counterplay
 - `FortressDrawCertification`:
-  - `FortressHoldingShell`-backed hold certification only
+  - `FortressHoldingShell`-backed hold certification only, with the draw
+    burden still carried by explicit best-defense evidence rather than shell
+    presence alone, and with the validation corpus kept inside explicit
+    drawish `maxAbsCp` budgets
 - `PerpetualCheckHolding`:
   - stable perpetual-check hold only
 - `PromotionRace`:
-  - promotion-route survival on top of `EndgameRaceScaffold`
+  - kings-and-pawns-only clear-run promotion-race certification on top of
+    `EndgameRaceScaffold`, using tempo plus rival-king-distance burden
 
 These rows must reject their broad rivals:
 
@@ -504,8 +586,8 @@ These rows must reject their broad rivals:
 
 ## Certification Validation Scaffold Freeze
 
-- `certification-expectations.jsonl` is now live as a pre-implementation
-  certification scaffold
+- `certification-expectations.jsonl` is now live as a row-local certification
+  scaffold corpus
 - every certification family must carry:
   - `exact`
   - `near_miss`
@@ -524,11 +606,15 @@ These rows must reject their broad rivals:
   - `engineRequirement`
   - `enginePurposes`
   - `forbiddenShortcuts`
+- certification-side support-family presence is satisfied only by a live
+  non-`Rejected` claim of the required family for the same owner polarity
 - every engine-required certification row must have a matching
   `engine-probe-expectations.jsonl` row with the same `id`
-- `CertificationExpectationCorpusTest` is the current-worktree scaffold test;
-  no certification runtime extraction claim is allowed before a live
-  certification package exists
+- `CertificationExpectationCorpusTest` remains the current-worktree scaffold
+  test
+- live certification extraction now exists under the canonical certification
+  package; corpus validation must stay separate from runtime-boundary and
+  explicit-evidence-bundle validation
 
 ## Engine Boundary Freeze
 
@@ -590,6 +676,8 @@ not as a live implementation target.
 
 The following are intentionally not yet live runtime contracts:
 
+- `S17` projection admission
+- `S21` projection admission
 - `S23` live projection admission
 - `S24` live projection admission
 - the future seed families listed above

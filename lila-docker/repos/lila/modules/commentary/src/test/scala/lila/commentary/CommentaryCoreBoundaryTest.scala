@@ -3,6 +3,12 @@ package lila.commentary
 import chess.{ Color, File, Square }
 import chess.format.{ Fen, Uci }
 
+import lila.commentary.certification.{
+  CertificationEvidence,
+  CertificationEvidenceBundle,
+  CertificationEvidencePurpose,
+  CertificationEvidenceStrength
+}
 import lila.commentary.delta.{ StrategicDeltaScope, StrategicDeltaTag }
 import lila.commentary.root.RootExtractor
 import lila.commentary.witness.{
@@ -104,6 +110,24 @@ class CommentaryCoreBoundaryTest extends munit.FunSuite:
       Vector(
         "TradeCompressionCorridor",
         "TradeInvariant"
+      )
+    )
+
+  test("CommentaryCore publishes the frozen certification family ids"):
+    assertEquals(
+      CommentaryCore.activeCertificationFamilyIds,
+      Vector(
+        "DevelopmentComparison",
+        "InitiativeWindow",
+        "MobilityComparison",
+        "ComparativeKingFragility",
+        "CertifiedKingSafetyEdge",
+        "MateNetCertification",
+        "MaterialHarvest",
+        "WinningEndgame",
+        "FortressDrawCertification",
+        "PerpetualCheckHolding",
+        "PromotionRace"
       )
     )
 
@@ -350,4 +374,210 @@ class CommentaryCoreBoundaryTest extends munit.FunSuite:
       CommentaryCore
         .extractStrategicDeltasFromFensFailClosed(beforeFenText, "d6c7", beforeFenText)
         .isLeft
+    )
+
+  test("CommentaryCore exposes typed current-position certification extraction and preserves the current-root-state-bound evidence bundle"):
+    val currentFenText = "r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 3 3"
+    val current =
+      CommentaryCore.extractStrategicObjects(Fen.Full.clean(currentFenText)).fold(message => fail(message), identity)
+    val evidenceBundle =
+      CertificationEvidenceBundle.forObjectExtraction(
+        current,
+        Vector(
+          CertificationEvidence(
+            familyId = lila.commentary.certification.CertificationId("DevelopmentComparison"),
+            color = Color.White,
+            anchor = WitnessAnchor.BoardAnchor,
+            purposeStrengths = Map(
+              CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied
+            ),
+            payload = lila.commentary.witness.WitnessPayload.empty
+          )
+        )
+      )
+
+    val currentPosition =
+      CommentaryCore
+        .extractCertifications(current, evidenceBundle)
+        .fold(message => fail(message), identity)
+    val currentPositionExplicit =
+      CommentaryCore
+        .extractCertifications(current, None, evidenceBundle)
+        .fold(message => fail(message), identity)
+
+    assertEquals(currentPositionExplicit, currentPosition)
+    assertEquals(currentPosition.current, current)
+    assertEquals(currentPosition.delta, None)
+    assertEquals(currentPosition.evidenceBundle, evidenceBundle)
+    assert(!evidenceBundle.isEmpty)
+    assert(evidenceBundle.matches(current.rootState))
+    assertEquals(
+      currentPosition.certifications.contains(
+        "DevelopmentComparison",
+        WitnessAnchor.BoardAnchor,
+        owner = Some(Color.White),
+        verdict = Some(lila.commentary.certification.CertificationVerdict.Certified)
+      ),
+      true
+    )
+
+  test("CommentaryCore preserves the explicit empty sentinel evidence bundle"):
+    val current =
+      CommentaryCore
+        .extractStrategicObjects(Fen.Full.clean("r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 3 3"))
+        .fold(message => fail(message), identity)
+
+    val currentPosition =
+      CommentaryCore
+        .extractCertifications(current, CertificationEvidenceBundle.empty)
+        .fold(message => fail(message), identity)
+    val currentPositionExplicit =
+      CommentaryCore
+        .extractCertifications(current, None, CertificationEvidenceBundle.empty)
+        .fold(message => fail(message), identity)
+
+    assertEquals(currentPositionExplicit, currentPosition)
+    assertEquals(currentPosition.current, current)
+    assertEquals(currentPosition.delta, None)
+    assertEquals(currentPosition.evidenceBundle, CertificationEvidenceBundle.empty)
+    assert(currentPosition.evidenceBundle.isEmpty)
+    assert(currentPosition.evidenceBundle.matches(current.rootState))
+
+  test("CommentaryCore exposes typed transition extraction and keeps delta.after aligned with current extraction"):
+    val beforeFenText = "4k3/2n5/3P4/8/6p1/8/4K3/8 w - - 0 1"
+    val afterFenText = "4k3/2P5/8/8/6p1/8/4K3/8 b - - 0 1"
+    val move = Uci("d6c7").get.asInstanceOf[Uci.Move]
+    val delta =
+      CommentaryCore.extractStrategicDeltas(Fen.Full.clean(beforeFenText), move, Fen.Full.clean(afterFenText))
+        .fold(message => fail(message), identity)
+    val evidenceBundle =
+      CertificationEvidenceBundle.forDeltaExtraction(
+        delta,
+        Vector(
+          CertificationEvidence(
+            familyId = lila.commentary.certification.CertificationId("DevelopmentComparison"),
+            color = Color.White,
+            anchor = WitnessAnchor.BoardAnchor,
+            purposeStrengths = Map(
+              CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied
+            ),
+            payload = lila.commentary.witness.WitnessPayload.empty
+          )
+        )
+      )
+    val transition =
+      CommentaryCore
+        .extractCertifications(delta, evidenceBundle)
+        .fold(message => fail(message), identity)
+    val transitionExplicit =
+      CommentaryCore
+        .extractCertifications(delta.after, Some(delta), evidenceBundle)
+        .fold(message => fail(message), identity)
+
+    assertEquals(transitionExplicit, transition)
+    assertEquals(transition.current, delta.after)
+    assertEquals(transition.delta, Some(delta))
+    assertEquals(transition.evidenceBundle, evidenceBundle)
+    assertEquals(transition.certifications.forFamilyId("DevelopmentComparison").size, 2)
+
+  test("CommentaryCore preserves the live certification mismatch boundary when explicit current does not match delta.after"):
+    val wrongCurrent =
+      CommentaryCore
+        .extractStrategicObjects(Fen.Full.clean("r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/5N2/PPP2PPP/RNBQKB1R w KQkq - 2 3"))
+        .fold(message => fail(message), identity)
+    val delta =
+      CommentaryCore
+        .extractStrategicDeltas(
+          Fen.Full.clean("4k3/2n5/3P4/8/6p1/8/4K3/8 w - - 0 1"),
+          Uci("d6c7").get.asInstanceOf[Uci.Move],
+          Fen.Full.clean("4k3/2P5/8/8/6p1/8/4K3/8 b - - 0 1")
+        )
+        .fold(message => fail(message), identity)
+
+    assertEquals(
+      CommentaryCore.extractCertifications(wrongCurrent, Some(delta), CertificationEvidenceBundle.empty),
+      Left("Certification extraction must use the current object extraction that matches delta.after")
+    )
+
+  test("CommentaryCore rejects stale current-position evidence bundles from a different exact board"):
+    val staleSource =
+      CommentaryCore
+        .extractStrategicObjects(Fen.Full.clean("r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 3 3"))
+        .fold(message => fail(message), identity)
+    val current =
+      CommentaryCore
+        .extractStrategicObjects(Fen.Full.clean("r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/5N2/PPP2PPP/RNBQKB1R w KQkq - 2 3"))
+        .fold(message => fail(message), identity)
+    val staleBundle =
+      CertificationEvidenceBundle.forObjectExtraction(
+        staleSource,
+        Vector(
+          CertificationEvidence(
+            familyId = lila.commentary.certification.CertificationId("DevelopmentComparison"),
+            color = Color.White,
+            purposeStrengths = Map(
+              CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied
+            )
+          )
+        )
+      )
+
+    assertEquals(
+      CommentaryCore.extractCertifications(current, staleBundle),
+      Left("Non-empty certification evidence bundle must be bound to the same current root state")
+    )
+
+  test("CommentaryCore rejects stale transition evidence bundles from a different exact board"):
+    val staleSource =
+      CommentaryCore
+        .extractStrategicObjects(Fen.Full.clean("r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 3 3"))
+        .fold(message => fail(message), identity)
+    val staleBundle =
+      CertificationEvidenceBundle.forObjectExtraction(
+        staleSource,
+        Vector(
+          CertificationEvidence(
+            familyId = lila.commentary.certification.CertificationId("DevelopmentComparison"),
+            color = Color.White,
+            purposeStrengths = Map(
+              CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied
+            )
+          )
+        )
+      )
+    val delta =
+      CommentaryCore
+        .extractStrategicDeltas(
+          Fen.Full.clean("4k3/2n5/3P4/8/6p1/8/4K3/8 w - - 0 1"),
+          Uci("d6c7").get.asInstanceOf[Uci.Move],
+          Fen.Full.clean("4k3/2P5/8/8/6p1/8/4K3/8 b - - 0 1")
+        )
+        .fold(message => fail(message), identity)
+
+    assertEquals(
+      CommentaryCore.extractCertifications(delta, staleBundle),
+      Left("Non-empty certification evidence bundle must be bound to the same current root state")
+    )
+
+  test("CommentaryCore preserves fail-closed exact-board input discipline for certification convenience facades"):
+    val current =
+      CommentaryCore
+        .extractStrategicObjects(Fen.Full.clean("r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/5N2/PPP2PPP/RNBQKB1R w KQkq - 2 3"))
+        .fold(message => fail(message), identity)
+    val delta =
+      CommentaryCore
+        .extractStrategicDeltas(
+          Fen.Full.clean("4k3/2n5/3P4/8/6p1/8/4K3/8 w - - 0 1"),
+          Uci("d6c7").get.asInstanceOf[Uci.Move],
+          Fen.Full.clean("4k3/2P5/8/8/6p1/8/4K3/8 b - - 0 1")
+        )
+        .fold(message => fail(message), identity)
+
+    assertEquals(
+      CommentaryCore.extractCertificationsFailClosed(current, CertificationEvidenceBundle.empty).map(_.current),
+      Right(current)
+    )
+    assertEquals(
+      CommentaryCore.extractCertificationsFailClosed(delta, CertificationEvidenceBundle.empty).map(_.current),
+      Right(delta.after)
     )

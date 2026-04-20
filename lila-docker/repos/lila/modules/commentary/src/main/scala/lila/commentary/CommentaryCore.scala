@@ -2,6 +2,12 @@ package lila.commentary
 
 import chess.format.{ Fen, Uci }
 
+import lila.commentary.certification.{
+  CertificationEvidenceBundle,
+  CertificationExtraction,
+  CertificationExtractor,
+  CertificationScopeContract
+}
 import lila.commentary.delta.{ StrategicDeltaExtraction, StrategicDeltaExtractor, StrategicDeltaScopeContract }
 import lila.commentary.root.RootStateVector
 import lila.commentary.strategic.{
@@ -32,6 +38,9 @@ object CommentaryCore:
 
   val activeDeltaFamilyIds: Vector[String] =
     StrategicDeltaScopeContract.activeDeltaFamilyIds.map(_.value)
+
+  val activeCertificationFamilyIds: Vector[String] =
+    CertificationScopeContract.activeCertificationFamilyIds.map(_.value)
 
   def extractUWitnesses(rootState: RootStateVector): UWitnessExtraction =
     UWitnessExtractor.fromRoot(rootState)
@@ -132,6 +141,37 @@ object CommentaryCore:
         Fen.Full.clean(fenAfter)
       )
     yield extraction
+
+  def extractCertifications(
+      currentExtraction: StrategicObjectExtraction,
+      deltaExtraction: Option[StrategicDeltaExtraction],
+      evidenceBundle: CertificationEvidenceBundle
+  ): Either[String, CertificationExtraction] =
+    CertificationExtractor.fromExtractions(currentExtraction, deltaExtraction, evidenceBundle)
+
+  def extractCertifications(
+      currentExtraction: StrategicObjectExtraction,
+      evidenceBundle: CertificationEvidenceBundle
+  ): Either[String, CertificationExtraction] =
+    CertificationExtractor.fromObjectExtraction(currentExtraction, evidenceBundle)
+
+  def extractCertifications(
+      deltaExtraction: StrategicDeltaExtraction,
+      evidenceBundle: CertificationEvidenceBundle
+  ): Either[String, CertificationExtraction] =
+    CertificationExtractor.fromDeltaExtraction(deltaExtraction, evidenceBundle)
+
+  def extractCertificationsFailClosed(
+      currentExtraction: StrategicObjectExtraction,
+      evidenceBundle: CertificationEvidenceBundle
+  ): Either[String, CertificationExtraction] =
+    CertificationExtractor.fromObjectExtractionFailClosed(currentExtraction, evidenceBundle)
+
+  def extractCertificationsFailClosed(
+      deltaExtraction: StrategicDeltaExtraction,
+      evidenceBundle: CertificationEvidenceBundle
+  ): Either[String, CertificationExtraction] =
+    CertificationExtractor.fromDeltaExtractionFailClosed(deltaExtraction, evidenceBundle)
 
   private def parseMove(playedMove: String): Either[String, Uci.Move] =
     Uci(playedMove) match

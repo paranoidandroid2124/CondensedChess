@@ -72,6 +72,16 @@ class CertificationExpectationCorpusTest extends munit.FunSuite:
         case other =>
           fail(s"Unhandled certification case type $other")
 
+  test("fortress certification rows carry explicit hold-oriented probe budgets"):
+    val probeRowsById = engineProbeRows.map(row => row.id -> row).toMap
+    rows.filter(_.family == "FortressDrawCertification").foreach: row =>
+      val probeRow =
+        probeRowsById.getOrElse(row.id, fail(s"Missing engine/probe row for ${row.id}"))
+      assert(
+        probeRow.maxAbsCp.nonEmpty,
+        clues(s"${row.id} must keep an explicit fortress hold-oriented eval budget")
+      )
+
   test("certification scaffold keeps the layered corpus directory present"):
     ObjectExpectationCorpus.minimumCorpusFiles.foreach: fileName =>
       assert(

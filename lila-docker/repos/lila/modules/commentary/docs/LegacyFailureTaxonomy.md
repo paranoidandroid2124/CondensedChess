@@ -289,7 +289,8 @@ Legacy meaning:
 
 Observed repeatedly in rewrite review:
 
-- `rook on open file` or `king_file_diagonal_entry_axis` restated as attack
+- `rook on open file` or king-theater-linked file/diagonal access geometry
+  restated as attack
 - battery or rook-lift language treated as attack proof without king-theater
   linkage
 
@@ -503,6 +504,8 @@ New-system rule:
 - engine output must be normalized into categorical burden evidence
 - engine/probe is side evidence only
 - numeric eval alone may not create a certification row
+- stale or cross-board evidence bundles may not be replayed onto a different
+  certification extraction; exact-board evidence mismatch fails closed
 
 ## Global Rules Learned From Legacy Failures
 

@@ -1188,8 +1188,9 @@ No admitted `U` runtime contract survives for this label on the current branch.
 
 The review conclusion is:
 
-- the label is legacy projection wording only
-- `FortressHoldingShell` is the canonical certified holding object for any
+- the label is legacy inventory wording only at the descriptor surface
+- it is not itself a `U` runtime contract or standalone object runtime id
+- `FortressHoldingShell` is the canonical object-layer semantic home for any
   surviving hold-side meaning
 - `TradeInvariant` remains a related but distinct simplification lane
 - `neutralization / consolidation / fortress holding` remains a projection band
@@ -1235,12 +1236,14 @@ No admitted `U` runtime contract survives for this label on the current branch.
 
 The review conclusion is:
 
-- the label is legacy projection wording only
+- the label is legacy inventory wording only at the descriptor surface
+- it is not itself a `U` runtime contract or standalone object runtime id
 - `AttackScaffold` is the canonical object-layer semantic home
 - `direct piece concentration king attack` and `color-complex king attack`
   remain projection bands only
-- `king_file_diagonal_entry_axis`, `file_lane_state`, `diagonal_lane_only`, and
-  `rook_on_open_file_state` remain related but distinct lower fragments
+- king-theater-linked file/diagonal access geometry remains documentation
+  shorthand only, while `file_lane_state`, `diagonal_lane_only`, and
+  `rook_on_open_file_state` remain the live lower carriers
 - `certified_king_safety_edge`, `comparative_king_fragility`, `initiative`, and
   `mate net` remain related but distinct upper rows
 - `king attack` never reopens as a `U-attached` host shell or self-certifying
@@ -1262,7 +1265,7 @@ Object-side runtime contract:
 Negative boundary:
 
 - attack-map pressure only
-- `king_file_diagonal_entry_axis` alone
+- king-theater-linked file or diagonal access geometry alone
 - `rook_on_open_file_state` alone
 - local file or diagonal pressure away from the king theater
 - any claim that `king attack` alone proves initiative or king-safety
@@ -1362,7 +1365,7 @@ Certified lower support remains outside this row:
 - `open_file_state`
 - `semi_open_file_state`
 - `rook_on_open_file_state`
-- `king_file_diagonal_entry_axis`
+- `diagonal_lane_only`
 
 The review conclusion is:
 
@@ -1377,7 +1380,7 @@ Negative boundary:
 - `open_file_state` alone
 - `semi_open_file_state` alone
 - `rook_on_open_file_state` alone
-- `king_file_diagonal_entry_axis` alone
+- king-theater-linked file or diagonal access geometry alone
 - open-file pressure only
 - diagonal access only
 - attack ownership
@@ -1536,11 +1539,18 @@ in narrower witnesses or roots. Illustrative support material includes:
 This support list is illustrative, non-exhaustive, and non-conjunctive. It does
 not define a required bundle.
 
+Future `S17` lower support is frozen in `StrategySupportSeedInventory.md`;
+exact band blocker/status is owned by `StrategyProjectionBoundaryMatrix.md`.
+
 Upper-layer owner families include:
 
 - `improve_worst_piece`
 - `minor_piece_liability`
 - `favorable_minor_piece_relation` support only
+
+These labels remain documentation vocabulary only on the current branch.
+
+None is a live `src/main` runtime contract id.
 
 Runtime identifiers such as:
 
@@ -1584,10 +1594,14 @@ The review conclusion is:
   `duty_bound_defender`
 - support-only exact failure material may also include `pinned_piece` and
   `trapped_piece`
+- future `S17` lower support is frozen in `StrategySupportSeedInventory.md`;
+  exact band blocker/status is owned by `StrategyProjectionBoundaryMatrix.md`
 - broad improvement meaning belongs above `U`, alongside
   `improve_worst_piece` and `minor_piece_liability`
 - `favorable_minor_piece_relation(c)` remains broader upstream support and is
   not a lower witness for this row
+- those labels remain documentation vocabulary only on the current branch,
+  not live `src/main` runtime contract ids
 - keeping the label in `U` would collapse liability, value, and
   redeployment-like improvement meaning into one surface bucket
 
@@ -1720,7 +1734,7 @@ Payload is restricted to:
 The payload must not embed or restate parallel witnesses or deferred seeds such as:
 
 - `qb_diagonal_alignment_seed`
-- `king_file_diagonal_entry_axis`
+- king-theater-linked file/diagonal access geometry
 - `weak square/outpost`
 - `king shelter` / `KingSafetyShell` shelter-shell meaning
 - legacy `key file/rank` label
@@ -2433,6 +2447,13 @@ The row leaves `U` because:
 - broad central-openness meaning drifts into central break, initiative, and
   king-safety projection if treated as a raw witness
 
+Current narrow projection handoff stays above `U`:
+
+- `S05` may consume exact central release bundles
+- `S21` may consume an exact central `pawn_push_break_contact_source` only when
+  the same board also carries certified `InitiativeWindow`
+- openness wording alone never admits either band
+
 Runtime identifiers such as:
 
 - `open_center`
@@ -2630,7 +2651,7 @@ Illustrative lower support material includes:
 
 - `castling_rights`
 - `king_shelter_hole`
-- `king_file_diagonal_entry_axis`
+- king-theater-linked file/diagonal access geometry
 - `central tension`
 
 This lower support list is illustrative, non-exhaustive, and non-conjunctive.
@@ -2754,6 +2775,8 @@ are not valid witness ids on this branch.
 - local meaning:
   - an owner pawn has one or more legal push-contact variants that create
     immediate contact against a strategic defender pawn target
+  - the witness is still only a source; narrow `S21` survival admission now
+    requires same-board certified `InitiativeWindow`
 
 The contract is defined from `R` only:
 
@@ -2898,8 +2921,8 @@ witness admission.
 Allowed support-only usage:
 
 - `king_shelter_hole` as exact support evidence
-- `king_shelter_hole` as optional strengthener for
-  `king_file_diagonal_entry_axis`
+- `king_shelter_hole` as optional strengthener for king-theater-linked
+  file/diagonal access geometry
 - shelter wording only above `U` inside king-safety-shell composition
 
 Object-side runtime contract:
@@ -2949,7 +2972,8 @@ are not valid active witness ids on this branch.
   elevated-rook geometry plus generic same-rank mobility
 - meaningful route, access, or attack semantics would immediately overlap with
   `open/semi-open file`, `rook on open file`,
-  `king_file_diagonal_entry_axis`, `king attack`, or upper-layer initiative
+  king-theater-linked file/diagonal access geometry, `king attack`, or
+  upper-layer initiative
 
 The broad `rook lift` meaning belongs above `U`, inside route/access/attack
 composition such as rewrite `RedeploymentRoute`, `AccessNetwork`, or
@@ -3067,7 +3091,7 @@ Allowed lower fragments when `king_theater_link` holds:
   - `diagonal_lane_only`
   - `rook on open file`
 - `duty_bound_defender`
-- `king_file_diagonal_entry_axis`
+- king-theater-linked file/diagonal access geometry
 - `short_run_slider_gate_restriction`
 - `central tension`
 - legacy `king attack` label:
@@ -3116,8 +3140,7 @@ It requires:
 - `comparative_king_fragility` present
 - `attack_host_viability`
 - `attacker_budget_present`
-- `phase_gate`
-- `initiative_or_move_order_relevance`
+- `move_order_relevance_gate`
 - `best_defense_survival`
 
 Material gate:
@@ -3138,30 +3161,25 @@ Support and consequence visibility remain allowed above the owner boundary:
 These phrasings may appear as support or consequence of another owner, but they
 do not create a lower-layer king-safety-edge owner.
 
-### King-Theater Access Fragment
+### King-Theater Access Composition
 
-This branch admits one reviewed lower-fragment contract below upper-layer
-`king safety edge` and `initiative`.
+This branch does not admit a standalone lower-fragment runtime id for
+king-theater file/diagonal entry below upper-layer `king safety edge` and
+`initiative`.
 
-The runtime fragment id is `king_file_diagonal_entry_axis`.
+The older documentation phrase for that entry pattern survives only as
+documentation shorthand.
 
-It is not a historical `61` inventory label and must not be treated as a new
-top-level inventory row.
+It is not a historical `61` inventory label, a new top-level inventory row, or
+an admitted `U-attached` contract.
 
-`king_file_diagonal_entry_axis` is `U-attached` with these rules:
-
-- attachment mode: `host-scoped`
-- standalone: `no`
-- polarity: `beneficiary`
-- local meaning:
-  - a beneficiary file/diagonal lane source forms a lane-linked feeder-entry
-    axis into the defender king ring
-
-Allowed hosts:
+Current-worktree access meaning is represented compositionally through:
 
 - `file_lane_state`
 - `diagonal/color complex`:
   - `diagonal_lane_only`
+- the existing `king_theater_link` gate when upper attack-side consumers certify
+  the same defending king
 
 Disallowed hosts:
 
@@ -3282,14 +3300,18 @@ Deferred outside the current contract:
 The next review wave should continue from the most failure-prone `U-primary`
 descriptors rather than broadening the table first.
 
-## Certification 10 Pre-Implementation Freeze
+## Certification 10 Inventory / 11 Runtime Family Freeze
 
 Current-worktree certification status:
 
 - row ownership is already frozen
-- pre-implementation blockers are now closed in docs and scaffold
-- live certification runtime is still absent from `src/main`
-- certification may start only from the frozen first-live slices below
+- current worktree now carries a live certification runtime under
+  `modules/commentary/src/main/scala/lila/commentary/certification`
+- `CommentaryCore` now publishes `activeCertificationFamilyIds` plus typed
+  `extractCertifications` and `extractCertificationsFailClosed` facades
+- certification still starts only from the frozen first-live slices below
+- ownership stays frozen at `10` certification inventory rows mapped to `11`
+  runtime families
 
 Runtime-family split note:
 
@@ -3357,7 +3379,8 @@ First-live certification rows:
 
 - `material harvest`
   - owner home: `MaterialHarvest`
-  - first live slice: realized non-king material conversion only
+  - first live slice: realized non-king material conversion only, via a
+    current-turn capture that the rival cannot immediately recapture
   - negative boundary:
     - `material gain` shell wording
     - tactical smell alone
@@ -3365,7 +3388,10 @@ First-live certification rows:
 
 - `winning endgame`
   - owner home: `WinningEndgame`
-  - first live slice: certified conversion/result verdict only
+  - first live slice: certified conversion/result verdict only, currently
+    narrowed to a single non-rook-pawn runner with owner king support, owner to
+    move, and no rival pawn counterplay so corner-draw rook-pawn shells and
+    counter-races stay out
   - negative boundary:
     - `TradeInvariant` alone
     - `FortressHoldingShell` alone
@@ -3376,7 +3402,10 @@ First-live certification rows:
     - `FortressDrawCertification`
     - `PerpetualCheckHolding`
   - first live fortress slice:
-    - `FortressHoldingShell`-backed hold certification only
+    - `FortressHoldingShell`-backed hold certification only, with the draw
+      burden still carried by explicit best-defense evidence rather than shell
+      presence alone, and with the validation corpus kept inside explicit
+      drawish `maxAbsCp` budgets
   - first live perpetual slice:
     - stable perpetual-check hold only
   - negative boundary:
@@ -3386,8 +3415,10 @@ First-live certification rows:
 
 - `promotion race`
   - owner home: `PromotionRace`
-  - first live slice: promotion-route survival on top of
-    `EndgameRaceScaffold`
+  - first live slice: kings-and-pawns-only clear-run promotion-race
+    certification on top of `EndgameRaceScaffold`, using tempo plus
+    rival-king-distance burden so non-king interceptors do not masquerade as
+    route survival
   - negative boundary:
     - `EndgameRaceScaffold` alone
     - `PasserComplex` wording alone
@@ -3395,13 +3426,22 @@ First-live certification rows:
 
 Certification-side runtime design is also frozen:
 
-- future runtime package:
+- canonical runtime package:
   `modules/commentary/src/main/scala/lila/commentary/certification`
-- future extractor inputs:
+- live extractor inputs:
   - `StrategicObjectExtraction`
   - `StrategicDeltaExtraction`
-  - explicit engine/probe evidence bundle
-- no certification surface may be added to `CommentaryCore` before a fail-closed
-  extractor exists
+  - explicit certification evidence bundle, with
+    `CertificationEvidenceBundle.empty` as the explicit unbound fail-closed
+    sentinel and any non-empty bundle created by `forObjectExtraction` or
+    `forDeltaExtraction` bound to the same current root state
+  - live certification extraction must reject any non-empty evidence bundle
+    whose bound root state does not exactly match the current extraction
+- live probe adapter status:
+  - `CertificationEngineEvidence.fromProbe(...)` remains fail-closed empty
+  - probe usage is currently validation-side scaffold only
+- live public facade stays fail-closed:
+  - no raw-FEN-only certification convenience helper may fabricate evidence
+  - public certification helpers stay limited to typed extraction entry points
 - `SupportOnly` and `Deferred` remain fail-closed endpoints rather than planner
   or projection seeds

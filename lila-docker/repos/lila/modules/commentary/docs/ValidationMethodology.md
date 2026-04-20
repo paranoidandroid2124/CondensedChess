@@ -289,9 +289,10 @@ Primary corpora:
 
 Current `Certification` start-gate rule:
 
-- `certification-expectations.jsonl` is now a live pre-implementation scaffold
-  rather than an empty placeholder
-- the current frozen certification runtime-family set is:
+- `certification-expectations.jsonl` is now a live row-local certification
+  scaffold corpus rather than an empty placeholder
+- the current branch keeps `10` certification inventory rows mapped to `11`
+  runtime families:
   - `DevelopmentComparison`
   - `InitiativeWindow`
   - `MobilityComparison`
@@ -303,6 +304,18 @@ Current `Certification` start-gate rule:
   - `FortressDrawCertification`
   - `PerpetualCheckHolding`
   - `PromotionRace`
+- the current worktree also carries a live certification runtime under
+  `modules/commentary/src/main/scala/lila/commentary/certification`, with
+  typed `CommentaryCore` entry points that require an explicit certification
+  evidence bundle; `CertificationEvidenceBundle.empty` is the explicit
+  unbound fail-closed sentinel, while any non-empty bundle created by
+  `forObjectExtraction` or `forDeltaExtraction` must be bound to the same
+  current root state
+- live certification extraction must reject any non-empty evidence bundle
+  whose bound root state does not exactly match the current extraction
+- the live runtime does not yet consume a typed probe adapter;
+  `CertificationEngineEvidence.fromProbe(...)` remains fail-closed empty and
+  current probe usage stays in validation-side scaffold tests
 - every certification family must now carry:
   - `exact`
   - `near_miss`
@@ -329,14 +342,20 @@ Current `Certification` start-gate rule:
   - `forbiddenShortcuts`
 - every certification row with `engineRequirement = required` must have a
   matching engine/probe bundle row keyed by the same `id`
+- certification-side support-family presence is satisfied only by a live
+  non-`Rejected` claim of the required family for the same owner polarity
 - certification scaffold tests may currently validate:
   - exact-board FEN parseability
   - row-family coverage
   - verdict-lattice coverage
   - engine/probe bundle linkage
   - frozen burden/helper/shortcut contracts
-- certification scaffold tests may not yet claim live certification extraction
-  because no certification runtime package is live in `src/main`
+- certification scaffold tests alone do not certify live extraction semantics
+- live certification extraction now exists in `src/main` and must be validated
+  separately from the corpus scaffold against the canonical runtime boundary
+  and the explicit evidence-bundle contract
+- live certification extraction must reject any non-empty evidence bundle
+  whose bound root state does not exactly match the current extraction
 
 Current row-local certification family freeze:
 
@@ -356,6 +375,23 @@ Current row-local certification family freeze:
 
 This matrix is now the live row-local exact-board scaffold contract for
 `certification-expectations.jsonl`.
+
+Current result/draw/race hardening reminders:
+
+- `MaterialHarvest` exact admission must stay on a current-turn capture whose
+  destination is not immediately recapturable by the rival.
+- `WinningEndgame` exact admission must keep rook-pawn corner-draw shells below
+  certification and must also keep rival pawn counterplay below certification;
+  the current live slice stays on a single non-rook-pawn runner with owner king
+  support, owner to move, and no rival pawns.
+- `FortressDrawCertification` exact admission must stay shell-backed and
+  explicit-best-defense-burden-backed; shell presence alone is not the draw
+  proof owner, and the validation corpus must keep fortress exact and
+  best-defense rows inside an explicit drawish `maxAbsCp` budget.
+- `PromotionRace` exact admission must not let non-king interceptors masquerade
+  as route survival; the current live slice stays on kings-and-pawns clear-run
+  race boards and uses tempo plus rival-king-distance burden rather than a full
+  universal route proof.
 
 It is no longer acceptable to treat certification as one generic future layer
 without row-local burden and engine-purpose freeze.
@@ -390,6 +426,121 @@ The semantic boundary for this layer is frozen in
 Blocked strategy bands that still need new lower/support seed families before
 live admission are inventoried in
 [StrategySupportSeedInventory.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategySupportSeedInventory.md).
+
+Projection start-ready status is narrower than semantic-boundary freeze.
+
+A band is `start-ready` only when:
+
+- its semantic boundary row is frozen
+- its canonical exact carrier bundle is frozen
+- its required projection corpus shape is frozen
+- its promotion criterion or blocker is explicit
+
+`start-ready` authorizes building the projection scaffold for that band.
+
+It does **not** imply `projection-expectations.jsonl` is already populated in the
+current worktree.
+
+No strategy band is `broad-ready` on the current branch yet.
+
+A future `broad-ready` claim is allowed only when:
+
+- the band is already `start-ready`
+- every required `coverageAxis` / `coverageBucket` pair frozen in
+  `StrategyProjectionBoundaryMatrix.md` is present in
+  `projection-expectations.jsonl`
+- the band's explicit broad-ready blocker is closed
+
+### Projection Core Matrix
+
+Before a band may be claimed projection-complete or broad-ready,
+`projection-expectations.jsonl` must carry:
+
+- `exact`
+- `near_miss`
+  - at least one family-local near-miss where most lower support is present but
+    one admitting alignment or gate law fails
+- `contrastive`
+  - at least one exact-board `contrastive` row for every rival band listed in
+    the same cluster
+- `comparative_false_rival`
+  - at least one exact-board row for every explicitly named rival band in
+    `StrategyProjectionBoundaryMatrix.md`
+- `nasty_negative`
+- `negative`
+
+Additional `negative` rows are required whenever:
+
+- a shell-only attached row or legacy alias survives without the admitting gate
+- a required certification family can degrade to `SupportOnly` or `Deferred`
+- the exact support witnesses are present but the frozen projection gate is not
+- a strengthener is present but the admitting carrier bundle is not
+
+`SupportOnly` and `Deferred` lower claims remain fail-closed here too.
+
+They may strengthen explanation after admission, but they do **not** admit a
+projection band.
+
+For broader deployment, one exact-board row per rival is not enough.
+
+Broad-ready projection validation must also cover:
+
+- route diversity where the same strategic band can arise through multiple exact
+  structures
+- phase or material-regime diversity when the band is known to survive outside
+  one narrow slice
+- repeated same-cluster near-miss pressure so abstract support bundles do not
+  over-admit in wider corpora
+
+These broader-deployment rows are counted only when they carry explicit
+`coverageAxis` / `coverageBucket` tags that match a frozen band-level breadth
+gate.
+
+### Projection Row Shape
+
+Each projection scaffold row must declare:
+
+- `id`
+- `caseType`
+- `fen`
+- `band`
+- `expectation`
+- `owner`
+- `anchor`
+- `requiredWitnessIds`
+- `requiredObjectFamilies`
+- `requiredDeltaFamilies`
+- `requiredCertificationFamilies`
+- `supportShellIds`
+- `optionalStrengtheningFamilies`
+- `supportWitnessIds`
+- `rivalBands`
+- `forbiddenShortcuts`
+- `coverageAxis`
+- `coverageBucket`
+
+For start-ready-only rows, `coverageAxis` and `coverageBucket` may be `null`.
+
+They become mandatory once a row is intended to count toward a future
+`broad-ready` claim.
+
+Recommended row shape:
+
+```json
+{"id":"projection-s05-center-release-exact","caseType":"exact","fen":"r4rk1/pp1b1ppp/2p1pn2/3p4/3P4/2PBPN2/PP3PPP/R2R2K1 w - - 0 1","band":"S05","expectation":"present","owner":"white","anchor":"center","requiredWitnessIds":["available_lever_trigger","pawn_push_break_contact_source"],"requiredObjectFamilies":[],"requiredDeltaFamilies":[],"requiredCertificationFamilies":[],"supportShellIds":["center"],"optionalStrengtheningFamilies":["file_lane_state"],"supportWitnessIds":["center","available_lever_trigger","file_lane_state"],"rivalBands":["S06","S14","S21"],"forbiddenShortcuts":["open_center_wording_only","center_shell_only"],"coverageAxis":null,"coverageBucket":null}
+```
+
+Current contract-closure status:
+
+- `projection-expectations.jsonl` is the required target scaffold for this
+  layer; current `start-ready` status authorizes building it, not assuming it is
+  already populated
+- `broad-ready` remains ungranted branch-wide until the `coverageAxis` /
+  `coverageBucket` scaffold and the band-local breadth gates are both closed
+- start-ready bands and unresolved blockers live in
+  [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md)
+- the current unresolved set is only `S17` (still not start-ready) plus `S23`
+  and `S24` (blocked)
 
 ### Layer 5: Planner Validation
 

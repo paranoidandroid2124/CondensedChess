@@ -65,12 +65,12 @@ Derived historical rollup:
 | `middlegame-positional` | `U1` | `Object` | `DistributedContactRegime` | `contested_sectors`, phase continuity only | object admission now uses `distributed_contact_spread` over `sector_mask` + `front_connectivity`; `contested_sectors` stays payload-only |
 | `transition-liquidation` | `U1` | `Delta` | `TradeCompressionCorridor` | `TradeInvariant`, `MoveLocal`, `TransitionBridge` | live delta contract; runtime registers corridor before invariant and the corridor row remains the canonical delta-side owner |
 | `endgame-race` | `U1` | `Object` | `EndgameRaceScaffold` | `promotion_race`, `PasserComplex` | object admission now uses `dual_run_endgame_trigger` over advanced runners plus current forward-clear geometry; `promotion_race` stays certification-only |
-| `king attack` | `U2` | `Object` | `AttackScaffold` | `S02`, `S03` | object admission now uses `attack_host_core` + `king_theater_link`; lone hole-only support is still insufficient and the label remains a projection alias, not a `U` witness |
+| `king attack` | `U2` | `Object` | `AttackScaffold` | `S02`, `S03` | descriptor row lands on object owner `AttackScaffold`; object admission now uses `attack_host_core` + `king_theater_link`, while the legacy label itself is not a `U` witness or standalone object runtime id |
 | `material gain` | `U2` | `Witness / U-attached` | `material gain` shell | `material_harvest`, `winning_endgame` | code-frozen host-scoped objective shell only |
 | `structural damage` | `U2` | `Witness / U-attached` | `structural damage` shell | lower structural-cause roots | code-frozen host-scoped objective shell only |
 | `space gain` | `U2` | `Witness / U-attached` | `structural_space_claim` | `closed center`, `fixed chain` | runtime-closed attached contract |
-| `promotion/passer` | `U2` | `Projection` | `S15 passer creation` | `PasserComplex`, `ConversionFunnel`, `promotion_race` | projection alias only; no single upper truth owner |
-| `draw/hold` | `U2` | `Object` | `FortressHoldingShell` | `TradeInvariant`, `S22` | object admission now uses `fortress_entry_denial_shell`; same-file attacker rook/queen pressure and same-or-adjacent-file passer pressure still reject, `TradeInvariant` stays optional support, and `perpetual/fortress` stays certification |
+| `promotion/passer` | `U2` | `Projection` | `S15 passer creation` | `PasserComplex`, `ConversionFunnel`, `promotion_race` | projection alias only; current narrow first-slice handoff stays on exact passer-creation bundles built from `create passer` shell + `candidate_passer`, with `PasserComplex` / `ConversionFunnel` still strengthening only |
+| `draw/hold` | `U2` | `Object` | `FortressHoldingShell` | `TradeInvariant`, `S22` | descriptor row lands on object owner `FortressHoldingShell`; object admission now uses `fortress_entry_denial_shell`, while the legacy label itself is not a standalone object runtime id and `perpetual/fortress` stays certification |
 | `center` | `U3` | `Witness / U-attached` | `center` shell | `S05`, `S21` | code-frozen neutral theater shell only |
 | `kingside` | `U3` | `Witness / U-attached` | `kingside` shell | king-theater consumers above `U` | code-frozen neutral theater shell only |
 | `queenside` | `U3` | `Witness / U-attached` | `queenside` shell | wing-play consumers above `U` | code-frozen neutral theater shell only |
@@ -81,17 +81,17 @@ Derived historical rollup:
 | `weak pawn` | `U4` | `Witness / U-primary` | `weak_pawn_target_state` | `fixed` / `backward` / `isolated` roots | beneficiary local liability |
 | `passed pawn` | `U4` | `Witness / U-primary` | `passed_pawn_entity_state` | `candidate_passer` support stays below `U` | owner-side exact entity |
 | `weak square/outpost` | `U4` | `Witness / U-primary` | `weak_outpost_square_state` | `outpost_square_state` priority variant | exact square-row family |
-| `key file/rank` | `U4` | `Projection` | `S09 open or semi-open file penetration` | `file_lane_state`, `horizontal_rank_access` | mixed label survives as projection alias only |
-| `bad piece` | `U4` | `Projection` | `S17 worst-piece improvement / bad-piece exchange` | `minor_piece_liability`, `favorable_minor_piece_relation` support | evaluative piece-quality label only |
+| `key file/rank` | `U4` | `Projection` | `S09 open or semi-open file penetration` | `file_lane_state`, `horizontal_rank_access` | mixed label survives as projection alias only; current narrow first-slice handoff stays on exact lane-entry bundles built from `file_lane_state` plus `rook_on_open_file_state` / `open line` support and same-file continuation, with rank-access still strengthening only |
+| `bad piece` | `U4` | `Projection` | `S17 worst-piece improvement / bad-piece exchange` | anchored liability support from `loose_piece_target_state`, `duty_bound_defender`, `weak_outpost_square_state`, `pinned_piece`, `trapped_piece` | evaluative piece-quality label only; exact `S17` blocker/status is owned by `StrategyProjectionBoundaryMatrix.md`, and the future lower seed family by `StrategySupportSeedInventory.md` |
 | `loose/overloaded piece` | `U4` | `Witness / U-primary` | `loose_piece_target_state` | overload meaning stays outside this row | exact loose-target row |
 | `development lag` | `U4` | `Certification` | `development_comparison` | `S07` | comparative development verdict |
-| `counterplay source/break-point` | `U4` | `Witness / U-primary` | `pawn_push_break_contact_source` | break-point squares stay payload only | exact counterplay-source row |
-| `open center` | `U5` | `Projection` | `S05 central break` | `S21` | projection-only central-openness vocabulary |
+| `counterplay source/break-point` | `U4` | `Witness / U-primary` | `pawn_push_break_contact_source` | break-point squares stay payload only | exact counterplay-source row; narrow `S21` handoff now requires the same board to carry certified `InitiativeWindow`, so source presence alone still does not admit counterplay survival |
+| `open center` | `U5` | `Projection` | `S05 central break` | `S21` | projection-only central-openness vocabulary; current narrow handoff stays on exact central release bundles or exact source-plus-certified-initiative `S21` bundles rather than on openness wording |
 | `closed center` | `U5` | `Witness / U-attached` | `closed center` host shell | `structural_space_claim` | code-frozen host vocabulary only; no standalone exact witness survives |
 | `fixed chain` | `U5` | `Witness / U-attached` | `fixed chain` host shell | `structural_space_claim` | code-frozen host vocabulary only; chain-topology witness does not survive in `U` |
 | `majority/minority asymmetry` | `U5` | `Witness / U-primary` | `sector_asymmetry_state` | `S13` | count-only sector imbalance |
 | `available lever` | `U5` | `Witness / U-primary` | `available_lever_trigger` | `single_push_lever_state`, `double_push_lever_state` | immediate pawn trigger only |
-| `opposite-side castling/wing asymmetry` | `U5` | `Projection` | `S01 opposite-side castling pawn storm` | `S21` | projection alias only; no single upper truth owner |
+| `opposite-side castling/wing asymmetry` | `U5` | `Projection` | `S01 opposite-side castling pawn storm` | `S21` | projection alias only; current narrow first-slice handoff stays on exact same-wing storm bundles, not on castling wording |
 | `rook on open file` | `U6` | `Witness / U-primary` | `rook_on_open_file_state` | `S09` as downstream projection only | exact configuration row |
 | `bishop pair` | `U6` | `Witness / U-primary` | `bishop_pair_state` | `S18` downstream only | pure board configuration |
 | `knight outpost` | `U6` | `Witness / U-primary` | `knight_on_outpost_square` | `S10` downstream only | owner-side occupancy row |
@@ -104,11 +104,11 @@ Derived historical rollup:
 | `central tension` | `U7` | `Object` | `CentralContactFront` | `available_lever_trigger`, `open center`, `S05`, `S21` | object admission now uses `central_contact_front_state` over `central_sector_mask` + `front_connectivity` |
 | `mobility edge` | `U7` | `Certification` | `mobility_comparison` | `S20` | comparative mobility verdict |
 | `king safety edge` | `U7` | `Certification` | `comparative_king_fragility` + `certified_king_safety_edge` | `AttackScaffold`, `S02`, `S03` | split certification row by contract |
-| `open line` | `U8` | `Witness / U-attached` | `open line` shell | `file_lane_state`, `rook_on_open_file_state`, `king_file_diagonal_entry_axis` | code-frozen host-scoped transformation shell only |
-| `exchange defender` | `U8` | `Projection` | `S24 tactical conversion of a prepared target` | `DefenderDependencyNetwork`, `TradeInvariant` | split upper family; label is projection alias only |
+| `open line` | `U8` | `Witness / U-attached` | `open line` shell | `file_lane_state`, `rook_on_open_file_state`, `diagonal_lane_only` | code-frozen host-scoped transformation shell only |
+| `exchange defender` | `U8` | `Projection` | `S24 tactical conversion of a prepared target` | `DefenderDependencyNetwork`, `TradeInvariant` | split upper family; label is projection alias only; exact `S24` blocker/status is owned by `StrategyProjectionBoundaryMatrix.md`, and the future lower seed package by `StrategySupportSeedInventory.md` |
 | `simplify` | `U8` | `Delta` | `TradeInvariant` | `S19` | live delta contract; runtime registers corridor before invariant and `simplify` is the canonical delta-side owner for bounded favorable simplification |
 | `create passer` | `U8` | `Witness / U-attached` | `create passer` shell | `candidate_passer`, `PasserComplex`, `S15` | code-frozen host-scoped transformation shell only |
-| `improve worst piece` | `U8` | `Projection` | `S17 worst-piece improvement / bad-piece exchange` | `improve_worst_piece`, `minor_piece_liability` | broad improvement label remains projection alias |
+| `improve worst piece` | `U8` | `Projection` | `S17 worst-piece improvement / bad-piece exchange` | anchored liability support from `loose_piece_target_state`, `duty_bound_defender`, `weak_outpost_square_state`, `pinned_piece`, `trapped_piece` | broad improvement label remains projection alias; exact `S17` blocker/status is owned by `StrategyProjectionBoundaryMatrix.md`, and the future lower seed family by `StrategySupportSeedInventory.md` |
 | `pin` | `U9` | `Witness / U-primary` | `pin` | exact ray geometry only | admitted exact tactic |
 | `fork` | `U9` | `Witness / U-primary` | `fork` | exact attack-fan geometry only | admitted exact tactic |
 | `skewer` | `U9` | `Witness / U-primary` | `skewer` | exact ordered-exposure geometry only | admitted exact tactic |
@@ -140,7 +140,9 @@ First-live runtime-family plan is frozen to `11` families because:
   - `FortressDrawCertification`
   - `PerpetualCheckHolding`
 
-This is an ownership and runtime-shape note only.
+This is an ownership and runtime-shape note.
 
-It does not claim that a live certification runtime already exists in
-`src/main`.
+Current worktree now carries a live certification runtime in
+`modules/commentary/src/main/scala/lila/commentary/certification`, while
+ownership remains frozen at `10` inventory rows mapped to `11` runtime
+families.

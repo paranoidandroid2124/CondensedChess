@@ -40,6 +40,9 @@ class UScopeContractTest extends munit.FunSuite:
     assertEquals(
       UScopeContract.blockedStrategySeedFamilies,
       Set(
+        "same_piece_liability_anchor_seed",
+        "same_piece_repair_route_seed",
+        "same_piece_exchange_relief_seed",
         "king_entry_square_seed",
         "king_access_route_seed",
         "king_opposition_contact_seed",

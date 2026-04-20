@@ -397,24 +397,29 @@ Current recorded examples:
 - inventory label `draw/hold`
 - there is no admitted `U` runtime contract for this label on the current
   branch
-- the label is legacy projection wording only, not an exact-board witness, host
-  owner, object family, transformation row, or result verdict
-- certified holding-side meaning stays in `FortressHoldingShell`
+- the label is legacy inventory wording at the descriptor surface; it is not
+  itself an exact-board witness, host owner, standalone object runtime id,
+  transformation row, or result verdict
+- the descriptor row's canonical semantic home on this branch is object layer
+  `FortressHoldingShell`
 - bounded favorable simplification stays on the distinct `TradeInvariant` lane
-- `neutralization / consolidation / fortress holding` is projection-band
-  vocabulary only
+- `neutralization / consolidation / fortress holding` remains projection-band
+  vocabulary above that object home
 - `simplify`, `perpetual/fortress`, and `winning endgame` remain related but
   distinct rows and must not collapse into `draw/hold`
 - inventory label `king attack`
 - there is no admitted `U` runtime contract for this label on the current
   branch
-- the label is legacy projection wording only, not an exact-board witness, host
-  shell, object family, or king-safety verdict
-- certified attack-side semantic ownership stays in `AttackScaffold`
+- the label is legacy inventory wording at the descriptor surface; it is not
+  itself an exact-board witness, host shell, standalone object runtime id, or
+  king-safety verdict
+- the descriptor row's canonical semantic home on this branch is object layer
+  `AttackScaffold`
 - `direct piece concentration king attack` and `color-complex king attack`
-  remain projection bands only
-- `king_file_diagonal_entry_axis`, `file_lane_state`, `diagonal_lane_only`, and
-  `rook_on_open_file_state` remain related but distinct lower fragments
+  remain projection bands above that object home
+- king-theater-linked file/diagonal access geometry remains a documentation
+  shorthand only, while `file_lane_state`, `diagonal_lane_only`, and
+  `rook_on_open_file_state` remain the live lower carriers
 - `king safety edge`, `initiative`, and `mate net` remain related but distinct
   upper rows and must not collapse into `king attack`
 - inventory label `simplify`
@@ -456,7 +461,7 @@ Current recorded examples:
 - attachment mode is `host-scoped` and polarity remains `host`
 - exact lower line geometry stays on `open_file_state`,
   `semi_open_file_state`, `rook_on_open_file_state`, and
-  `king_file_diagonal_entry_axis`
+  `diagonal_lane_only`
 - the label must not be treated as a truth-owning lane, access, pressure,
   attack, or simplification witness
 - the shell must not invent explicit certified hosts or a runtime witness id
@@ -513,6 +518,8 @@ Current recorded examples:
   `weak_outpost_square_state`
 - the lower support list is illustrative only; it is not exhaustive and does
   not define a required bundle
+- future `S17` lower support is frozen in `StrategySupportSeedInventory.md`;
+  exact band blocker/status is owned by `StrategyProjectionBoundaryMatrix.md`
 - broad piece-quality meaning belongs above `U`, inside `improve_worst_piece`,
   `minor_piece_liability`, or `favorable_minor_piece_relation` support
 - inventory label `improve worst piece`
@@ -525,6 +532,8 @@ Current recorded examples:
   `duty_bound_defender`
 - support-only exact failure material may also include `pinned_piece` and
   `trapped_piece`
+- future `S17` lower support is frozen in `StrategySupportSeedInventory.md`;
+  exact band blocker/status is owned by `StrategyProjectionBoundaryMatrix.md`
 - broad improvement meaning remains above `U`, alongside `improve_worst_piece`
   and `minor_piece_liability`
 - `favorable_minor_piece_relation(c)` remains broader upstream support, not a
@@ -547,7 +556,7 @@ Current recorded examples:
 - inventory label `opposite-side castling/wing asymmetry`
 - there is no active `U` runtime contract for this label on the current branch
 - lower support examples such as `castling_rights`, `king_shelter_hole`,
-  `king_file_diagonal_entry_axis`, and `central tension` remain
+  king-theater-linked file/diagonal access geometry, and `central tension` remain
   illustrative only, not a required bundle
 - mixed castling-provenance and wing-asymmetry meaning stays above `U`; attack
   race, pawn-storm, initiative, and king-safety readings do not survive as raw
@@ -744,10 +753,13 @@ Current recorded examples:
   move generation
 - occupied-pressure duty keeps `xray_target` on beneficiary-side polarity to
   match the attacking-side root contract
-- reviewed lower-fragment id `king_file_diagonal_entry_axis`
-- it is not a new `61` inventory label; it is a host-scoped lower fragment
-  below `king safety edge` and `initiative`
-- allowed hosts are `file_lane_state` and `diagonal_lane_only`
+- the previous documentation phrase for a king-theater entry axis does not
+  survive as a live runtime id on this branch
+- it is not a new `61` inventory label or an admitted host-scoped lower
+  fragment below `king safety edge` and `initiative`
+- any such access meaning is represented compositionally through
+  `file_lane_state` / `diagonal_lane_only` under the existing
+  `king_theater_link` gate
 - admission core uses king-ring entry plus lane-compatible source and lane
   reach, not generic attacked-square pressure
 - `king_shelter_hole` is a strengthener only, not an entry admission core
@@ -855,8 +867,7 @@ Frozen object homes:
   - helper: `attack_host_core`
   - present iff one attacking color has at least two distinct
     `king_theater_link` fragments aimed at the same defending king, where:
-    - at least one fragment is a carrier from
-      `king_file_diagonal_entry_axis`, `rook_on_open_file_state`, or a
+    - at least one fragment is a carrier from `rook_on_open_file_state` or a
       king-theater-linked `file_lane_state` / `diagonal_lane_only`
     - at least one fragment is a vulnerability/support fragment from
       `king_shelter_hole`, `duty_bound_defender`,
@@ -1023,21 +1034,23 @@ They are not planner hints and they are not projection seeds.
 
 Current-worktree status:
 
-- certification is docs-frozen and scaffolded, but not yet live in
-  `src/main`
-- there is no current runtime package under
+- certification is now live in `src/main` on one canonical package boundary:
   `modules/commentary/src/main/scala/lila/commentary/certification`
-- `CommentaryCore` therefore still stops at:
-  - `U`
-  - `Object`
-  - `Delta`
+- `CommentaryCore` now exposes:
+  - `activeCertificationFamilyIds`
+  - typed `extractCertifications(...)`
+  - typed `extractCertificationsFailClosed(...)`
+- those public helpers require a current `StrategicObjectExtraction` or
+  `StrategicDeltaExtraction` plus one explicit certification-side engine/probe
+  evidence bundle
 
-The first live certification runtime must stay on one canonical package
+The live certification runtime stays on one canonical package
 boundary:
 
 - `modules/commentary/src/main/scala/lila/commentary/certification`
 
-Planned stable runtime families:
+Ownership stays frozen at `10` certification inventory rows mapped to `11`
+runtime families:
 
 - `DevelopmentComparison`
 - `InitiativeWindow`
@@ -1062,32 +1075,49 @@ Inventory mapping stays frozen as:
   - `FortressDrawCertification`
   - `PerpetualCheckHolding`
 
-The future runtime extractor must consume only:
+The live runtime extractor consumes only:
 
 - current `StrategicObjectExtraction`
 - current `StrategicDeltaExtraction`
-- one explicit certification-side engine/probe evidence bundle
+- one explicit certification evidence bundle; `CertificationEvidenceBundle.empty`
+  is the explicit unbound fail-closed sentinel, while any non-empty bundle
+  created by `forObjectExtraction` or `forDeltaExtraction` must be bound to
+  the same current root state
+- live certification extraction must reject any non-empty evidence bundle
+  whose bound root state does not exactly match the current extraction
+
+The live runtime does not yet consume a typed probe adapter:
+
+- `CertificationEngineEvidence.fromProbe(...)` stays fail-closed empty until a
+  real adapter lands
+- current probe usage remains a validation-side scaffold, not runtime truth
+  ownership
 
 It must not reopen raw root or witness admission from inside certification.
 
-The future public facade must stay fail-closed:
+The live public facade stays fail-closed:
 
-- do not add certification convenience helpers that fabricate missing engine
-  evidence from raw FEN alone
-- do not expose a public certification surface before a fail-closed extractor
-  exists
+- do not add certification convenience helpers that fabricate missing
+  certification evidence from raw FEN alone
+- keep the public certification surface limited to typed object/delta extraction
+  entry points with an explicit certification evidence bundle, where
+  `CertificationEvidenceBundle.empty` is the explicit unbound fail-closed
+  sentinel and any non-empty bundle must stay exact-position-bound
 - no planner, projection, or renderer layer may revive `SupportOnly` or
   `Deferred` rows
 
 ### Certification First-Live Freeze
 
-The certification pre-implementation blockers are closed by narrowing the first
-live slices rather than by opening broad upper prose.
+The live certification boundary stays narrow by freezing the first live slices
+rather than opening broad upper prose.
 
 Where a first live slice explicitly depends on a lower object, delta, or
 certification-side support family, the certification scaffold must declare that
 dependency as a `requiredSupportFamilies` contract rather than leaving it as
 prose only.
+
+Certification-side support-family presence is satisfied only by a live
+non-`Rejected` claim of the required family for the same owner polarity.
 
 - `DevelopmentComparison`
   - scope: `comparative`
@@ -1114,6 +1144,9 @@ prose only.
     - `DevelopmentComparison` alone
     - `AttackScaffold` alone
     - counterplay wording alone
+  - current projection handoff:
+    - may certify narrow `S21` only when the same board also carries an exact
+      owner `pawn_push_break_contact_source`
 
 - `MobilityComparison`
   - scope: `comparative`
@@ -1171,7 +1204,8 @@ prose only.
 - `MaterialHarvest`
   - scope: `current_position`
   - anchor: `board`
-  - first live slice: realized non-king material conversion only
+  - first live slice: realized non-king material conversion only, via a
+    current-turn capture that the rival cannot immediately recapture
   - helpers:
     - `material_conversion_realization`
     - `best_defense_survival`
@@ -1183,7 +1217,10 @@ prose only.
 - `WinningEndgame`
   - scope: `current_position`
   - anchor: `board`
-  - first live slice: certified conversion/result verdict only
+  - first live slice: certified conversion/result verdict only, currently
+    narrowed to a single non-rook-pawn runner with owner king support, owner to
+    move, and no rival pawn counterplay so corner-draw rook-pawn shells and
+    counter-races stay out
   - helpers:
     - `winning_endgame_conversion`
     - `best_defense_survival`
@@ -1195,7 +1232,10 @@ prose only.
 - `FortressDrawCertification`
   - scope: `current_position`
   - anchor: `board`
-  - first live slice: `FortressHoldingShell`-backed draw certification only
+  - first live slice: `FortressHoldingShell`-backed hold certification only,
+    with the draw burden still carried by explicit best-defense evidence rather
+    than by shell presence alone; the validation corpus also keeps the slice on
+    drawish exact boards via explicit fortress `maxAbsCp` budgets
   - helpers:
     - `fortress_draw_burden`
     - `best_defense_survival`
@@ -1219,8 +1259,10 @@ prose only.
 - `PromotionRace`
   - scope: `current_position`
   - anchor: `board`
-  - first live slice: certified promotion-route survival on top of
-    `EndgameRaceScaffold`
+  - first live slice: kings-and-pawns-only clear-run promotion-race
+    certification on top of `EndgameRaceScaffold`, using tempo plus
+    rival-king-distance burden so non-king interceptors do not masquerade as
+    route survival
   - helpers:
     - `promotion_route_survival`
     - `best_defense_survival`
@@ -1344,6 +1386,54 @@ It is a carrier-coverage matrix and corpus plan that proves:
 - the minimum required certified carriers for each strategy band
 - the optional strengthening carriers for each strategy band
 - the rival bands that must remain separable on exact boards
+
+Current projection handoff status on this worktree is now frozen as:
+
+- already start-ready before the current closure pass:
+  - `S02`
+  - `S03`
+  - `S07`
+  - `S18`
+  - `S19`
+  - `S20`
+  - `S22`
+- promoted to start-ready by the current closure pass:
+  - `S01`
+  - `S04`
+  - `S05`
+  - `S06`
+  - `S08`
+  - `S09`
+  - `S10`
+  - `S11`
+  - `S12`
+  - `S13`
+  - `S14`
+  - `S15`
+  - `S16`
+  - `S21`
+- unresolved projection status is owned by
+  `StrategyProjectionBoundaryMatrix.md`
+- current unresolved rows:
+  - `S17` still not start-ready
+  - `S23` blocked
+  - `S24` blocked
+
+This status split is contract-only.
+
+It authorizes narrow first-slice projection work plus projection-corpus
+authoring only.
+
+It does **not** make projection live runtime or prove broader deployment.
+
+No projection band is `broad-ready` on the current branch yet.
+
+The methodology owner is `ValidationMethodology.md`; band-local breadth gates
+are owned by `StrategyProjectionBoundaryMatrix.md`.
+
+Current broader-coverage caution remains highest on `S06`, `S10`, `S12`, and
+`S15` until the projection corpus proves route and near-miss coverage beyond
+the present exact slices.
 
 ## Transcript-Derived Design Claims
 

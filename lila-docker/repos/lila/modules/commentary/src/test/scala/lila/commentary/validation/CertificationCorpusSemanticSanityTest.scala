@@ -1,5 +1,12 @@
 package lila.commentary.validation
 
+import chess.{ Position, Queen, Rook, Square as ChessSquare }
+import chess.format.Fen
+import chess.variant
+
+import lila.commentary.strategic.StrategicObjectExtractor
+import lila.commentary.witness.u.UExtractionContext
+
 class CertificationCorpusSemanticSanityTest extends munit.FunSuite:
 
   private val rows = CertificationExpectationCorpus.loadAll().map(row => row.id -> row).toMap
@@ -67,6 +74,52 @@ class CertificationCorpusSemanticSanityTest extends munit.FunSuite:
     val end = square(to)
     math.abs(start.file - end.file) <= 1 && math.abs(start.rank - end.rank) <= 1
 
+  private def hasRenewableHeavyPieceCheckingCycle(id: String): Boolean =
+    val fen = rows.getOrElse(id, fail(s"Missing certification row $id")).fen
+    val extraction =
+      StrategicObjectExtractor.fromFen(Fen.Full.clean(fen)).fold(message => fail(message), identity)
+    val lowLevel = UExtractionContext(extraction.rootState)
+    val sideToMove =
+      lowLevel.sideToMove.getOrElse(fail(s"Missing side-to-move for $id"))
+    val position = Position(lowLevel.board.toBoard, variant.Standard, sideToMove)
+
+    checkingMoves(legalMoves(position), position.board.pieceAt)
+      .exists: move =>
+        val defenderReplies = legalMoves(move.after.position)
+        defenderReplies.nonEmpty &&
+          defenderReplies.forall(reply =>
+            checkingMoves(legalMoves(reply.after.position), reply.after.position.board.pieceAt).nonEmpty
+          )
+
+  private def hasHeavyPieceCheckingMove(id: String): Boolean =
+    val fen = rows.getOrElse(id, fail(s"Missing certification row $id")).fen
+    val extraction =
+      StrategicObjectExtractor.fromFen(Fen.Full.clean(fen)).fold(message => fail(message), identity)
+    val lowLevel = UExtractionContext(extraction.rootState)
+    val sideToMove =
+      lowLevel.sideToMove.getOrElse(fail(s"Missing side-to-move for $id"))
+    val position = Position(lowLevel.board.toBoard, variant.Standard, sideToMove)
+
+    checkingMoves(legalMoves(position), position.board.pieceAt).nonEmpty
+
+  private def legalMoves(position: Position): Vector[chess.Move] =
+    ChessSquare.all
+      .filter(square => position.pieceAt(square).exists(_.color == position.color))
+      .flatMap(position.generateMovesAt)
+      .sortBy(move => (move.orig.value, move.dest.value))
+      .toVector
+
+  private def checkingMoves(
+      moves: Vector[chess.Move],
+      pieceAt: chess.Square => Option[chess.Piece]
+  ): Vector[chess.Move] =
+    moves.filter: move =>
+      pieceAt(move.orig).exists(piece =>
+        (piece.role == Queen || piece.role == Rook) &&
+          move.after.check.yes &&
+          legalMoves(move.after.position).nonEmpty
+      )
+
   test("material-harvest nasty and best-defense rows stay on defended or equal-trade boards"):
     val nastyBoard = boardOf("cert-material-harvest-nasty-negative")
     assertEquals(nastyBoard("d5"), 'r')
@@ -77,29 +130,35 @@ class CertificationCorpusSemanticSanityTest extends munit.FunSuite:
 
     val supportBoard = boardOf("cert-material-harvest-best-defense")
     assertEquals(supportBoard("d5"), 'n')
-    assertEquals(supportBoard("e6"), 'k')
+    assertEquals(supportBoard("e8"), 'k')
     assertEquals(supportBoard("d4"), 'R')
     assert(rookAttacks("d4", "d5", supportBoard))
-    assert(kingAttacks("e6", "d5"))
+    assert(!kingAttacks("e8", "d5"))
 
-  test("winning-endgame best-defense row keeps the passer out of immediate capture"):
+  test("winning-endgame best-defense row keeps the passer supported and out of immediate capture"):
     val board = boardOf("cert-winning-endgame-best-defense")
-    assertEquals(board("e7"), 'k')
-    assertEquals(board("d5"), 'K')
-    assertEquals(board("c6"), 'P')
-    assert(!kingAttacks("e7", "c6"))
-    assert(kingAttacks("d5", "c6"))
+    assertEquals(board("f8"), 'k')
+    assertEquals(board("f6"), 'K')
+    assertEquals(board("e6"), 'P')
+    assert(!kingAttacks("f8", "e6"))
+    assert(kingAttacks("f6", "e6"))
 
-  test("perpetual rows show a present check and an explicit follow-up checking geometry"):
-    val exactBoard = boardOf("cert-perpetual-check-holding-exact")
-    assertEquals(exactBoard("h7"), 'k')
-    assertEquals(exactBoard("c2"), 'Q')
-    assert(queenAttacks("c2", "h7", exactBoard))
-    assert(queenAttacks("h7", "g8", exactBoard - "h7"))
-    assert(queenAttacks("c8", "h8", exactBoard))
+  test("perpetual exact row keeps a heavy-piece checking move whose every defender reply renews the check"):
+    assert(hasRenewableHeavyPieceCheckingCycle("cert-perpetual-check-holding-exact"))
 
+  test("perpetual near-miss row keeps a heavy-piece check but loses the renewal loop on at least one defender reply"):
+    assert(hasHeavyPieceCheckingMove("cert-perpetual-check-holding-near-miss"))
+    assert(!hasRenewableHeavyPieceCheckingCycle("cert-perpetual-check-holding-near-miss"))
+
+  test("perpetual nasty-negative row keeps a check but every defender reply breaks the renewal loop"):
+    assert(hasHeavyPieceCheckingMove("cert-perpetual-check-holding-nasty-negative"))
+    assert(!hasRenewableHeavyPieceCheckingCycle("cert-perpetual-check-holding-nasty-negative"))
+
+  test("perpetual best-defense row also keeps the current explicit defender break lane"):
     val deferredBoard = boardOf("cert-perpetual-check-holding-best-defense")
     assertEquals(deferredBoard("e8"), 'r')
-    assertEquals(deferredBoard("h7"), 'k')
-    assertEquals(deferredBoard("c2"), 'Q')
-    assert(queenAttacks("c2", "h7", deferredBoard))
+    assertEquals(deferredBoard("g8"), 'k')
+    assertEquals(deferredBoard("f2"), 'Q')
+    assertEquals(deferredBoard("g1"), 'K')
+    assert(queenAttacks("f2", "f8", deferredBoard))
+    assert(rookAttacks("e8", "e2", deferredBoard))
