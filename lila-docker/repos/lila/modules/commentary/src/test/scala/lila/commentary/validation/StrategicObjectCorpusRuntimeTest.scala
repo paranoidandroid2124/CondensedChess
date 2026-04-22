@@ -82,7 +82,8 @@ class StrategicObjectCorpusRuntimeTest extends munit.FunSuite:
         assert(openingDevelopmentWindow(context))
         assert(
           objects.forFamilyId("DistributedContactRegime").nonEmpty ||
-            objects.forFamilyId("CentralContactFront").nonEmpty
+            objects.forFamilyId("CentralContactFront").nonEmpty ||
+            objects.forFamilyId("EndgameRaceScaffold").nonEmpty
         )
       case "multi_sector_contact" =>
         val admitted = distributedContactComponents(context)

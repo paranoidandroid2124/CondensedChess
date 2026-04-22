@@ -1,10 +1,10 @@
 package lila.commentary.certification
 
 import chess.{ Color, Position }
-import chess.variant
 
-import lila.commentary.delta.StrategicDeltaExtraction
-import lila.commentary.strategic.{ StrategicObjectContext, StrategicObjectExtraction }
+import lila.commentary.delta.{ StrategicDeltaExtraction, StrategicDeltaExtractor }
+import lila.commentary.root.RootPositionSupport
+import lila.commentary.strategic.{ StrategicObjectContext, StrategicObjectExtraction, StrategicObjectExtractor }
 import lila.commentary.witness.WitnessAnchor
 import lila.commentary.witness.u.UExtractionContext
 
@@ -37,7 +37,7 @@ private[commentary] final case class CertificationContext(
     legalMoves(color).size
 
   def legalMoves(color: Color): Vector[chess.Move] =
-    val position = Position(board.toBoard, variant.Standard, color)
+    val position = positionFor(color)
     board
       .squaresOf(color)
       .flatMap(position.generateMovesAt)
@@ -50,6 +50,11 @@ private[commentary] final case class CertificationContext(
   ): Option[CertificationEvidenceClaim] =
     evidence.evidenceFor(familyId, color, anchor)
 
+  private def positionFor(color: Color): Position =
+    RootPositionSupport
+      .positionFor(objectExtraction.rootState, color)
+      .fold(message => throw IllegalStateException(message), identity)
+
 object CertificationContext:
 
   def build(
@@ -57,16 +62,28 @@ object CertificationContext:
       evidence: CertificationEvidenceBundle,
       deltaExtraction: Option[StrategicDeltaExtraction] = None
   ): Either[String, CertificationContext] =
-    deltaExtraction match
-      case Some(delta) if delta.after.rootState != objectExtraction.rootState =>
-        Left("Certification extraction must use the current object extraction that matches delta.after")
-      case _ if evidence.isEmpty || evidence.matches(objectExtraction.rootState) =>
-        Right(
-          CertificationContext(
-            objectExtraction = objectExtraction,
-            evidence = evidence,
-            deltaExtraction = deltaExtraction
-          )
-        )
-      case _ =>
-        Left("Non-empty certification evidence bundle must be bound to the same current root state")
+    val validatedDelta =
+      deltaExtraction match
+        case Some(delta) if delta.after.rootState != objectExtraction.rootState =>
+          Left("Certification extraction must use the current object extraction that matches delta.after")
+        case Some(delta) =>
+          StrategicDeltaExtractor.validateCanonical(delta).map(Some(_))
+        case None => Right(None)
+
+    for
+      canonicalCurrent <- StrategicObjectExtractor
+        .validateCanonical(objectExtraction)
+        .left
+        .map(message => s"Certification current extraction canonicalization failed: $message")
+      canonicalDelta <- validatedDelta
+      _ <- Either.cond(
+        evidence.isEmpty || evidence.matches(canonicalCurrent.rootState),
+        (),
+        "Non-empty certification evidence bundle must be bound to the same current root state"
+      )
+      _ <- RootPositionSupport.exactPosition(canonicalCurrent.rootState)
+    yield CertificationContext(
+      objectExtraction = canonicalCurrent,
+      evidence = evidence,
+      deltaExtraction = canonicalDelta
+    )

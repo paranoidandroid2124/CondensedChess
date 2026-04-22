@@ -51,3 +51,13 @@ object StrategicObjectScopeContract:
       outOfScope.isEmpty,
       s"Out-of-scope strategic object family ids: ${outOfScope.mkString(", ")}"
     )
+
+  private[strategic] def requireExactActiveObjectFamilyIds(
+      familyIds: IterableOnce[StrategicObjectId]
+  ): Unit =
+    val normalizedFamilyIds = familyIds.iterator.toVector
+    requireActiveObjectFamilyIds(normalizedFamilyIds)
+    require(
+      normalizedFamilyIds == activeObjectFamilyIds,
+      s"Strategic object runtime must register exactly ${activeObjectFamilyIds.map(_.value).mkString(", ")} in frozen order"
+    )

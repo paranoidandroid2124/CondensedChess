@@ -14,30 +14,12 @@ private[strategic] object DistributedContactRegimeRule extends StrategicObjectRu
       context: StrategicObjectContext,
       _extractedSoFar: StrategicObjectSet
   ): Vector[StrategicObject] =
-    val whiteDeveloped = hasNonPawnDevelopmentOffHomeRank(context, Color.White)
-    val blackDeveloped = hasNonPawnDevelopmentOffHomeRank(context, Color.Black)
-
-    val admittedComponents =
-      Vector(WitnessSector.Queenside, WitnessSector.Center, WitnessSector.Kingside).flatMap: sector =>
-        contactComponents(context, square => sectorMask(sector, square))
-          .filter(component =>
-            component.squares.size >= 2 &&
-              component.contestedSquares.nonEmpty &&
-              component.occupiedContactSquares.nonEmpty &&
-              component.contributingColors == Set(Color.White, Color.Black)
-          )
-          .map(component => sector -> component)
+    val admittedComponents = distributedContactRegimeComponents(context)
 
     val admittedSectors = admittedComponents.map(_._1).distinct
     val admittedSquares = admittedComponents.flatMap(_._2.squares).distinct.sortBy(_.value)
-    val hasOutsideCenterBand = admittedComponents.exists(_._2.liesOutsideCenterSector)
 
-    Option.when(
-      whiteDeveloped &&
-        blackDeveloped &&
-        admittedSectors.size >= 2 &&
-        hasOutsideCenterBand
-    )(
+    Option.when(admittedComponents.nonEmpty)(
       neutral(
         anchor = WitnessAnchor.BoardAnchor,
         payload = WitnessPayload(

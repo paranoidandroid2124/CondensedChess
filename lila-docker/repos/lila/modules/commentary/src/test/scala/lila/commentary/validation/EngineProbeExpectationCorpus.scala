@@ -6,7 +6,7 @@ import play.api.libs.json.*
 private[validation] object EngineProbeExpectationCorpus:
 
   val resourcePath = "/commentary-corpus/engine-probe-expectations.jsonl"
-  val supportedLayers: Set[String] = Set("object", "certification")
+  val supportedLayers: Set[String] = Set("object", "certification", "root")
 
   final case class Row(
       id: String,
@@ -20,7 +20,10 @@ private[validation] object EngineProbeExpectationCorpus:
         layer
           .map(_.trim)
           .filter(_.nonEmpty)
-          .getOrElse(if id.startsWith("cert-") then "certification" else "object")
+          .getOrElse:
+            if id.startsWith("cert-") then "certification"
+            else if id.startsWith("r-") then "root"
+            else "object"
       require(
         supportedLayers.contains(inferred),
         s"Unsupported engine-probe layer $inferred for $id"

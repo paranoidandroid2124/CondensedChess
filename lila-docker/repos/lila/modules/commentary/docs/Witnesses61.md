@@ -62,6 +62,53 @@ The current branch freezes the following `U`-layer rules.
     upper-layer wording may narrow to one active runtime contract and one
     primary anchor
 
+## U Broad-Validation Boundary
+
+U broad validation is not a new semantic layer.
+
+It freezes confidence for the current deterministic `U = phi(R)` contracts only:
+
+- active `U-primary 18`
+- active `U-attached 1`
+  - `structural_space_claim`
+
+Shell-only rows, host-vocabulary rows, and above-`U` rows are negative-boundary
+material. They may prove rejection or legal attachment, but they must not become
+standalone U descriptors.
+
+Current U `broad-confidence-green` descriptors:
+
+- `available_lever_trigger`
+- `bishop_pair_state`
+- `diagonal_lane_only`
+- `duty_bound_defender`
+- `file_lane_state`
+- `fork`
+- `knight_on_outpost_square`
+- `loose_piece_target_state`
+- `overload`
+- `pawn_push_break_contact_source`
+- `passed_pawn_entity_state`
+- `pin`
+- `rook_on_open_file_state`
+- `sector_asymmetry_state`
+- `short_run_slider_gate_restriction`
+- `skewer`
+- `structural_space_claim`
+- `weak_outpost_square_state`
+- `weak_pawn_target_state`
+
+The formal U corpus `witness-expectations.jsonl` has `218` descriptor-local
+broad rows, and the current broad audit is owned by
+`UBroadCoverageMatrix.scala` plus its tracked
+`u-coverage-matrix.md` snapshot.
+Future formal rows must use active runtime `descriptorId` values and close
+descriptor-local counts plus frozen `coverageAxis` / `coverageBucket` breadth
+tags; aggregate corpus size is not enough to promote U.
+Because Root is now 25/25 `broad-confidence-green`, every listed U root
+dependency gate is closed; no live U descriptor remains `thin` or root-blocked
+under the current descriptor-local broad corpus.
+
 ## Anchor Grammar
 
 `U-primary` descriptors may use only these primary anchor types:
@@ -1539,8 +1586,8 @@ in narrower witnesses or roots. Illustrative support material includes:
 This support list is illustrative, non-exhaustive, and non-conjunctive. It does
 not define a required bundle.
 
-Future `S17` lower support is frozen in `StrategySupportSeedInventory.md`;
-exact band blocker/status is owned by `StrategyProjectionBoundaryMatrix.md`.
+Live `S17` lower support seeds are owned by `StrategySupportSeedInventory.md`;
+exact band start-ready status is owned by `StrategyProjectionBoundaryMatrix.md`.
 
 Upper-layer owner families include:
 
@@ -1594,8 +1641,8 @@ The review conclusion is:
   `duty_bound_defender`
 - support-only exact failure material may also include `pinned_piece` and
   `trapped_piece`
-- future `S17` lower support is frozen in `StrategySupportSeedInventory.md`;
-  exact band blocker/status is owned by `StrategyProjectionBoundaryMatrix.md`
+- live `S17` lower support seeds are owned by `StrategySupportSeedInventory.md`;
+  exact band start-ready status is owned by `StrategyProjectionBoundaryMatrix.md`
 - broad improvement meaning belongs above `U`, alongside
   `improve_worst_piece` and `minor_piece_liability`
 - `favorable_minor_piece_relation(c)` remains broader upstream support and is
@@ -1629,15 +1676,26 @@ The file-side meaning is absorbed by the existing `file_lane_state` family:
 - `open_file_state`
 - `semi_open_file_state`
 
-The horizontal-rank side is deferred outside `U` as:
+The broad horizontal-rank side remains outside `U` as future projection
+vocabulary:
 
 - `horizontal_rank_access`
+
+The current branch has one live lower support slice below projection:
+
+- `rank_corridor_state_seed` for `S25`
+
+That seed is not a `U` witness. It is admitted only as a Witness-boundary
+support seed for legal current-board cross-wing rank switching by a rook or
+queen, with matching projection evidence.
 
 No runtime identifiers such as:
 
 - `key_file`
 - `key_rank`
 - `key_file_rank`
+- `horizontal_rank_access`
+- `rank_corridor_state_seed`
 
 are valid active `U` witness ids on this branch.
 
@@ -1649,14 +1707,17 @@ Why no active `U` contract survives:
 - `key` wording imports usefulness rather than exact-board witness meaning
 - the file-side truth is already covered by the neutral substrate family
   `file_lane_state`
-- the horizontal-rank side drifts into access/route meaning rather than a clean
-  single-anchor `U-primary` witness
+- the broad horizontal-rank side drifts into access/route meaning rather than a
+  clean single-anchor `U-primary` witness; the only current live slice is the
+  separate `S25` support seed
 
 Negative boundary:
 
 - a quiet open file restated as `key`
 - a horizontal rank corridor restated as file substrate
 - access/route usefulness released as a raw `U` witness
+- `rank_corridor_state_seed` released without same-source, same-entry, same-kind
+  `S25` projection evidence
 
 ### Diagonal/Color Complex Narrowing
 
@@ -2979,9 +3040,13 @@ The broad `rook lift` meaning belongs above `U`, inside route/access/attack
 composition such as rewrite `RedeploymentRoute`, `AccessNetwork`, or
 `AttackScaffold`.
 
+The current `S25` support seed does not revive `rook lift`. It admits only
+legal current-board cross-wing rank switching through `rank_corridor_state_seed`
+plus matching projection evidence; it carries no move-history lift provenance.
+
 Any future `lift corridor seed` belongs to deferred primitive/support territory
-only. It is not yet an admitted root schema and it is not an active `U`
-witness on this branch.
+only. It is not an admitted root schema and it is not an active `U` witness on
+this branch.
 
 Negative boundary:
 
@@ -2992,6 +3057,7 @@ Negative boundary:
 - open-file or semi-open-file restatement only
 - access-lane or king-attack restatement
 - initiative, release, or hidden tactical release wording
+- `S25` rank-corridor seed used as generic rook-lift wording
 
 ### Queen-Bishop Battery Reclassification
 
@@ -3445,3 +3511,36 @@ Certification-side runtime design is also frozen:
   - public certification helpers stay limited to typed extraction entry points
 - `SupportOnly` and `Deferred` remain fail-closed endpoints rather than planner
   or projection seeds
+
+### Projection Wave-4 Coverage Rows Note
+
+The current worktree now has executable broad-ready coverage rows for the
+king-attack projection family `S01` / `S02` / `S03` / `S04`.
+
+Authority remains split:
+
+- semantic row boundaries and broad-ready bucket names are owned by
+  `StrategyProjectionBoundaryMatrix.md`
+- executable freeze gates, lower-carrier ownership labels, helper laws, exact
+  validation scaffold names, and coverage-only runtime separation are owned by
+  `StrategyProjectionCoverageContract.scala`
+- corpus row parsing/counting is owned by `ProjectionExpectationCorpus.scala`
+  and `ProjectionExpectationCorpusTest`
+
+This is broad-ready coverage completion only. `projection-expectations.jsonl`
+now has countable `S01`, `S02`, `S03`, and `S04` rows, and
+`ProjectionExpectationCorpus` includes them in the broad-ready coverage gate.
+The rows remain coverage-only and unsupported by live
+`StrategyProjectionAdmission`.
+
+Lower ownership stays outside projection truth:
+
+- `S01` uses exact owner pawn-contact witnesses plus object/certification
+  support on the same defending king; castling context is non-proof
+- `S02` uses direct king-ring concentration as projection validation, while
+  `AttackScaffold` / king-safety certification remain lower support
+- `S03` uses king-theater `diagonal_lane_only` plus lower certification support;
+  `bishop_pair_state` remains non-admitting support/contrast
+- `S04` uses same-defender `KingSafetyShell` plus shell-payload or support-break
+  breach and same-defender king-safety deterioration; `KingSafetyShell` alone
+  remains below demolition

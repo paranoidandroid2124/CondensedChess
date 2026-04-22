@@ -9,8 +9,10 @@ import lila.commentary.certification.{
   CertificationEvidencePurpose,
   CertificationEvidenceStrength
 }
-import lila.commentary.delta.{ StrategicDeltaScope, StrategicDeltaTag }
+import lila.commentary.delta.{ StrategicDeltaScope, StrategicDeltaSet, StrategicDeltaTag }
 import lila.commentary.root.RootExtractor
+import lila.commentary.witness.WitnessSet
+import lila.commentary.strategic.StrategicObjectSet
 import lila.commentary.witness.{
   WitnessAnchor,
   WitnessDescriptorId,
@@ -129,6 +131,12 @@ class CommentaryCoreBoundaryTest extends munit.FunSuite:
         "PerpetualCheckHolding",
         "PromotionRace"
       )
+    )
+
+  test("CommentaryCore publishes the projection start-ready band ids without exposing live projection extraction"):
+    assertEquals(
+      CommentaryCore.strategyProjectionStartReadyBandIds,
+      Vector("S17", "S23", "S24", "S25")
     )
 
   test("CommentaryCore exposes a closed-center structural_space_claim through the public rootState, Fen, and String attached facades"):
@@ -376,6 +384,56 @@ class CommentaryCoreBoundaryTest extends munit.FunSuite:
         .isLeft
     )
 
+  test("CommentaryCore public delta facades accept legal black castling transitions with exact auxiliary state"):
+    val beforeFenText = "r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1"
+    val afterFenText = "r4rk1/8/8/8/8/8/8/R3K2R w KQ - 1 2"
+    val move = Uci("e8g8").get.asInstanceOf[Uci.Move]
+    val beforeExtraction =
+      CommentaryCore.extractStrategicObjects(Fen.Full.clean(beforeFenText)).fold(message => fail(message), identity)
+    val afterExtraction =
+      CommentaryCore.extractStrategicObjects(Fen.Full.clean(afterFenText)).fold(message => fail(message), identity)
+
+    val fromObjects =
+      CommentaryCore
+        .extractStrategicDeltas(beforeExtraction, afterExtraction, move)
+        .fold(message => fail(message), identity)
+    val fromFens =
+      CommentaryCore
+        .extractStrategicDeltas(Fen.Full.clean(beforeFenText), move, Fen.Full.clean(afterFenText))
+        .fold(message => fail(message), identity)
+    val fromStrings =
+      CommentaryCore
+        .extractStrategicDeltasFromFens(beforeFenText, "e8g8", afterFenText)
+        .fold(message => fail(message), identity)
+
+    assertEquals(fromObjects.deltas, fromFens.deltas)
+    assertEquals(fromFens.deltas, fromStrings.deltas)
+
+  test("CommentaryCore public delta facades accept legal black en passant transitions with exact auxiliary state"):
+    val beforeFenText = "4k3/8/8/8/3Pp3/8/8/4K3 b - d3 0 1"
+    val afterFenText = "4k3/8/8/8/8/3p4/8/4K3 w - - 0 2"
+    val move = Uci("e4d3").get.asInstanceOf[Uci.Move]
+    val beforeExtraction =
+      CommentaryCore.extractStrategicObjects(Fen.Full.clean(beforeFenText)).fold(message => fail(message), identity)
+    val afterExtraction =
+      CommentaryCore.extractStrategicObjects(Fen.Full.clean(afterFenText)).fold(message => fail(message), identity)
+
+    val fromObjects =
+      CommentaryCore
+        .extractStrategicDeltas(beforeExtraction, afterExtraction, move)
+        .fold(message => fail(message), identity)
+    val fromFens =
+      CommentaryCore
+        .extractStrategicDeltas(Fen.Full.clean(beforeFenText), move, Fen.Full.clean(afterFenText))
+        .fold(message => fail(message), identity)
+    val fromStrings =
+      CommentaryCore
+        .extractStrategicDeltasFromFens(beforeFenText, "e4d3", afterFenText)
+        .fold(message => fail(message), identity)
+
+    assertEquals(fromObjects.deltas, fromFens.deltas)
+    assertEquals(fromFens.deltas, fromStrings.deltas)
+
   test("CommentaryCore exposes typed current-position certification extraction and preserves the current-root-state-bound evidence bundle"):
     val currentFenText = "r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 3 3"
     val current =
@@ -479,6 +537,53 @@ class CommentaryCoreBoundaryTest extends munit.FunSuite:
     assertEquals(transition.delta, Some(delta))
     assertEquals(transition.evidenceBundle, evidenceBundle)
     assertEquals(transition.certifications.forFamilyId("DevelopmentComparison").size, 2)
+
+  test("CommentaryCore rejects forged strategic delta payloads on certification entrypoints"):
+    val beforeFenText = "4k3/2n5/3P4/8/6p1/8/4K3/8 w - - 0 1"
+    val afterFenText = "4k3/2P5/8/8/6p1/8/4K3/8 b - - 0 1"
+    val move = Uci("d6c7").get.asInstanceOf[Uci.Move]
+    val delta =
+      CommentaryCore.extractStrategicDeltas(Fen.Full.clean(beforeFenText), move, Fen.Full.clean(afterFenText))
+        .fold(message => fail(message), identity)
+    val forged = delta.copy(deltas = StrategicDeltaSet.empty)
+
+    val fromDeltaOnly =
+      CommentaryCore.extractCertifications(forged, CertificationEvidenceBundle.empty)
+    val fromExplicitCurrent =
+      CommentaryCore.extractCertifications(forged.after, Some(forged), CertificationEvidenceBundle.empty)
+
+    assert(
+      fromDeltaOnly.left.exists(_.contains("canonical exact-board delta set")),
+      clues(fromDeltaOnly)
+    )
+    assert(
+      fromExplicitCurrent.left.exists(_.contains("canonical exact-board delta set")),
+      clues(fromExplicitCurrent)
+    )
+
+  test("CommentaryCore rejects forged canonical object carriers on raw delta and certification entrypoints"):
+    val beforeFenText = "4k3/2n5/3P4/8/6p1/8/4K3/8 w - - 0 1"
+    val afterFenText = "4k3/2P5/8/8/6p1/8/4K3/8 b - - 0 1"
+    val move = Uci("d6c7").get.asInstanceOf[Uci.Move]
+    val canonicalDelta =
+      CommentaryCore.extractStrategicDeltas(Fen.Full.clean(beforeFenText), move, Fen.Full.clean(afterFenText))
+        .fold(message => fail(message), identity)
+    val forgedBefore = canonicalDelta.before.copy(primaryWitnesses = WitnessSet.empty)
+    val forgedCurrent = canonicalDelta.after.copy(objects = StrategicObjectSet.empty)
+
+    val deltaResult =
+      CommentaryCore.extractStrategicDeltas(forgedBefore, canonicalDelta.after, move)
+    val certificationResult =
+      CommentaryCore.extractCertifications(forgedCurrent, CertificationEvidenceBundle.empty)
+
+    assert(
+      deltaResult.left.exists(_.contains("Before object extraction canonicalization failed")),
+      clues(deltaResult)
+    )
+    assert(
+      certificationResult.left.exists(_.contains("Certification current extraction canonicalization failed")),
+      clues(certificationResult)
+    )
 
   test("CommentaryCore preserves the live certification mismatch boundary when explicit current does not match delta.after"):
     val wrongCurrent =

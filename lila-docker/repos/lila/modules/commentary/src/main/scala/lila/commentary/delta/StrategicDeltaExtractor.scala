@@ -42,3 +42,16 @@ object StrategicDeltaExtractor:
       afterExtraction <- StrategicObjectExtractor.fromFenFailClosed(fenAfter)
       extraction <- fromExtractions(beforeExtraction, afterExtraction, playedMove)
     yield extraction
+
+  def validateCanonical(
+      extraction: StrategicDeltaExtraction
+  ): Either[String, StrategicDeltaExtraction] =
+    StrategicDeltaContext
+      .build(extraction.before, extraction.after, extraction.playedMove)
+      .flatMap: context =>
+        val canonical = StrategicInternalDeltaRuntime.extract(context)
+        Either.cond(
+          canonical == extraction.deltas,
+          extraction,
+          "Strategic delta extraction must carry the canonical exact-board delta set"
+        )

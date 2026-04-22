@@ -58,7 +58,13 @@ class RootExtractorCorpusTest extends munit.FunSuite:
       )
 
   test("root coverage matrix artifact stays in sync with the corpus"):
-    assertEquals(RootCoverageMatrix.loadArtifact().trim, RootCoverageMatrix.render(rows).trim)
+    def normalizeSnapshot(value: String): String =
+      value.replace("\r\n", "\n").stripSuffix("\n")
+
+    assertEquals(
+      normalizeSnapshot(RootCoverageMatrix.loadArtifact()),
+      normalizeSnapshot(RootCoverageMatrix.render(rows))
+    )
 
   private def actualIndicesForRow(row: RootExpectationCorpus.Row, vector: RootStateVector): Vector[Int] =
     row.rootSchema.family match

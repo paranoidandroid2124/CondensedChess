@@ -12,33 +12,13 @@ private[strategic] object CentralContactFrontRule extends StrategicObjectRule:
       context: StrategicObjectContext,
       extractedSoFar: StrategicObjectSet
   ): Vector[StrategicObject] =
-    selectCanonicalComponent(
-      contactComponents(context, centralSectorMask).filter(isCentralContactFrontComponent)
-    ).map { component =>
+    centralContactFrontComponent(context).map { component =>
         neutral(
           anchor = WitnessAnchor.SectorAnchor(WitnessSector.Center),
           payload = componentPayload(component),
           support = componentSupport(context, component)
         )
       }.toVector
-
-  private[strategic] def selectCanonicalComponent(
-      components: Vector[ContactComponent]
-  ): Option[ContactComponent] =
-    components.sortBy(component =>
-      (
-        -component.squares.size,
-        -component.contestedSquares.size,
-        -component.occupiedContactSquares.size,
-        component.squares.head.value
-      )
-    ).headOption
-
-  private def isCentralContactFrontComponent(component: ContactComponent): Boolean =
-    component.squares.size >= 2 &&
-      component.contestedSquares.nonEmpty &&
-      component.occupiedContactSquares.nonEmpty &&
-      component.contributingColors.size == 2
 
   private def componentPayload(component: ContactComponent): WitnessPayload =
     WitnessPayload(

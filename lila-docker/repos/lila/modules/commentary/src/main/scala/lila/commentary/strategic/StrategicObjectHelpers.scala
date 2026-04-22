@@ -2,7 +2,7 @@ package lila.commentary.strategic
 
 import scala.collection.mutable
 
-import chess.{ Bishop, Color, File, Knight, Queen, Rank, Rook, Square }
+import chess.{ Bishop, Color, File, Knight, Pawn, Queen, Rank, Rook, Square }
 
 import lila.commentary.root.RootAtomRegistry.{ SchemaId, canonicalColors, canonicalSquares }
 import lila.commentary.witness.{ Witness, WitnessAnchor, WitnessDirection, WitnessPayload, WitnessSector, WitnessSupport, WitnessValue }
@@ -24,6 +24,13 @@ private[commentary] final case class EntryAxis(
   lazy val feederSquares: Vector[Square] = feederEntryPairs.map(_._1).distinct.sortBy(_.value)
   lazy val entrySquares: Vector[Square] = feederEntryPairs.map(_._2).distinct.sortBy(_.value)
   lazy val targetSquares: Vector[Square] = (feederSquares ++ entrySquares).distinct.sortBy(_.value)
+
+private[commentary] final case class EndgameRaceSnapshot(
+    whiteAdvancedRunSquares: Vector[Square],
+    blackAdvancedRunSquares: Vector[Square],
+    whiteClearRunSquares: Vector[Square],
+    blackClearRunSquares: Vector[Square]
+)
 
 private[commentary] object StrategicObjectHelpers:
 
@@ -152,6 +159,66 @@ private[commentary] object StrategicObjectHelpers:
       blackMajorReserve &&
       !isOpenFile(context, File.D) &&
       !isOpenFile(context, File.E)
+
+  def centralContactFrontComponent(
+      context: StrategicObjectContext
+  ): Option[ContactComponent] =
+    contactComponents(context, centralSectorMask)
+      .filter(isCentralContactFrontComponent)
+      .sortBy(component =>
+        (
+          -component.squares.size,
+          -component.contestedSquares.size,
+          -component.occupiedContactSquares.size,
+          component.squares.head.value
+        )
+      )
+      .headOption
+
+  def distributedContactRegimeComponents(
+      context: StrategicObjectContext
+  ): Vector[(WitnessSector, ContactComponent)] =
+    val whiteDeveloped = hasNonPawnDevelopmentOffHomeRank(context, Color.White)
+    val blackDeveloped = hasNonPawnDevelopmentOffHomeRank(context, Color.Black)
+    val admittedComponents =
+      Option.when(whiteDeveloped && blackDeveloped):
+        Vector(WitnessSector.Queenside, WitnessSector.Center, WitnessSector.Kingside).flatMap: sector =>
+          contactComponents(context, square => sectorMask(sector, square))
+            .filter(isDistributedContactComponent)
+            .map(component => sector -> component)
+      .getOrElse(Vector.empty)
+
+    val admittedSectors = admittedComponents.map(_._1).distinct
+    val hasOutsideCenterBand = admittedComponents.exists(_._2.liesOutsideCenterSector)
+
+    Option.when(admittedSectors.size >= 2 && hasOutsideCenterBand)(admittedComponents).getOrElse(Vector.empty)
+
+  def endgameRaceScaffoldSnapshot(
+      context: StrategicObjectContext
+  ): Option[EndgameRaceSnapshot] =
+    val whiteAdvancedRunSquares = context.activePieceSquares(Color.White, Pawn).filter: square =>
+      square.rank >= Rank.Fifth
+    val blackAdvancedRunSquares = context.activePieceSquares(Color.Black, Pawn).filter: square =>
+      square.rank <= Rank.Fourth
+    val whiteClearRunSquares =
+      whiteAdvancedRunSquares.filter(square => forwardRunClear(context, Color.White, square))
+    val blackClearRunSquares =
+      blackAdvancedRunSquares.filter(square => forwardRunClear(context, Color.Black, square))
+
+    Option.when(
+      noQueensRemain(context) &&
+        whiteAdvancedRunSquares.nonEmpty &&
+        blackAdvancedRunSquares.nonEmpty &&
+        whiteClearRunSquares.nonEmpty &&
+        blackClearRunSquares.nonEmpty
+    )(
+      EndgameRaceSnapshot(
+        whiteAdvancedRunSquares = whiteAdvancedRunSquares,
+        blackAdvancedRunSquares = blackAdvancedRunSquares,
+        whiteClearRunSquares = whiteClearRunSquares,
+        blackClearRunSquares = blackClearRunSquares
+      )
+    )
 
   def isAdvancedRunResource(context: StrategicObjectContext, color: Color, square: Square): Boolean =
     val passedWitnessPresent =
@@ -483,3 +550,15 @@ private[commentary] object StrategicObjectHelpers:
     context.primaryWitnessesFor("file_lane_state").exists: witness =>
       witness.anchor == WitnessAnchor.FileAnchor(file) &&
         witness.variant.exists(_.value == "open_file_state")
+
+  private def isCentralContactFrontComponent(component: ContactComponent): Boolean =
+    component.squares.size >= 2 &&
+      component.contestedSquares.nonEmpty &&
+      component.occupiedContactSquares.nonEmpty &&
+      component.contributingColors.size == 2
+
+  private def isDistributedContactComponent(component: ContactComponent): Boolean =
+    component.squares.size >= 2 &&
+      component.contestedSquares.nonEmpty &&
+      component.occupiedContactSquares.nonEmpty &&
+      component.contributingColors == Set(Color.White, Color.Black)

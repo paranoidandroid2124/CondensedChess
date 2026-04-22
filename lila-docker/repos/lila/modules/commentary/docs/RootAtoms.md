@@ -41,6 +41,43 @@ Root extraction is closed under these rules:
 - local tactical safety checks are allowed only when explicitly part of an atom
   definition, such as `trapped_piece`
 
+## Root Broad-Confidence-Green Boundary
+
+`broad-confidence-green` at root does **not** widen any atom beyond its frozen
+exact meaning.
+
+It means only that the same narrow exact atom survives across many exact-board
+buckets relevant to that atom, stays fail-closed outside those buckets, and is
+not accidentally validated by a confounded FEN.
+
+Engine remains forbidden as a truth owner here.
+
+If engine is used at all for root breadth work, it is only a confound filter.
+
+A future `broad-confidence-green-candidate (sbt-pending)` label is an audit
+state only. It does not change root vocabulary or atom meaning; it means a
+schema has frozen the bucket/corpus/probe evidence but still lacks a serial
+`sbt` extractor and engine-scaffold run. No schema is promoted out of that
+state without replacing the label with final `broad-confidence-green` in the
+matrix and status docs.
+
+Broad-validation risk classes are frozen as:
+
+| Risk class | Schemas |
+| --- | --- |
+| `deterministic / no-engine broad validation` | `piece_on`, `controlled_by`, `pawn_controlled_by`, `contested`, `open_file`, `half_open_file`, `king_ring_square`, `isolated_pawn`, `doubled_file`, `fixed_pawn`, `lever_available`, `side_to_move`, `castling_rights`, `en_passant_state` |
+| `structural / engine-optional sanity` | `weak_square`, `backward_pawn`, `passed_pawn`, `loose_piece`, `pinned_piece`, `overloaded_piece`, `xray_target` |
+| `structural / engine-required confound filter` | `outpost_square`, `candidate_passer`, `trapped_piece`, `king_shelter_hole` |
+
+The live schema-local breadth buckets, minimum floors, and current audit status
+are owned by:
+
+- `modules/commentary/src/test/scala/lila/commentary/root/RootCoverageMatrix.scala`
+
+The tracked markdown snapshot must remain synchronized with that renderer:
+
+- `modules/commentary/src/test/resources/commentary-corpus/root-coverage-matrix.md`
+
 ## Polarity Ledger
 
 Color polarity is schema-class dependent rather than globally uniform.
@@ -189,6 +226,10 @@ Supportability means:
 
 `candidate_passer(c,s)` uses the pawn's own file plus adjacent files as a
 forward cone.
+
+This cone/balance rule is the atom's frozen exact meaning, not a
+`broad-confidence-green` expansion. Broad validation may only add exact-board
+contexts that satisfy or fail this same rule.
 
 Enemy opposition in that cone contains only squares ahead of the pawn toward
 promotion.

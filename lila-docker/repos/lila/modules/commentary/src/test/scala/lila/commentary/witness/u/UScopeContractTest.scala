@@ -47,7 +47,8 @@ class UScopeContractTest extends munit.FunSuite:
         "king_access_route_seed",
         "king_opposition_contact_seed",
         "target_resource_dependency_seed",
-        "target_attack_convergence_seed"
+        "target_attack_convergence_seed",
+        "rank_corridor_state_seed"
       )
     )
 

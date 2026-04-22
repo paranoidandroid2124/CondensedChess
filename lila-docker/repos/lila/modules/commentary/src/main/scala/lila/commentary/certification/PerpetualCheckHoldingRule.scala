@@ -1,11 +1,29 @@
 package lila.commentary.certification
 
-import chess.{ Color, Queen, Rook }
+import chess.{ Color, Position, Queen, Rook, Square }
+
+import scala.collection.mutable
 
 import lila.commentary.certification.CertificationHelpers.*
+import lila.commentary.root.RootPositionSupport
 import lila.commentary.witness.{ WitnessPayload, WitnessValue }
 
 private[certification] object PerpetualCheckHoldingRule extends CertificationRule:
+
+  private val MaxRenewalStates = 512
+
+  private final case class RenewalLine(checkingPieceSquares: Set[Square], checkingTargets: Set[Square]):
+    def merge(other: RenewalLine): RenewalLine =
+      RenewalLine(
+        checkingPieceSquares ++ other.checkingPieceSquares,
+        checkingTargets ++ other.checkingTargets
+      )
+
+  private object RenewalLine:
+    val empty: RenewalLine = RenewalLine(Set.empty, Set.empty)
+
+    def fromMove(move: chess.Move): RenewalLine =
+      RenewalLine(Set(move.orig), Set(move.dest))
 
   val familyId: CertificationId = CertificationId("PerpetualCheckHolding")
   val scope: CertificationScope = CertificationScope.CurrentPosition
@@ -36,22 +54,42 @@ private[certification] object PerpetualCheckHoldingRule extends CertificationRul
       context: CertificationContext,
       color: Color
   ): Option[(Vector[chess.Square], Vector[chess.Square])] =
-    checkingMoves(context.legalMoves(color), context.current.pieceAt)
-      .find: move =>
-        val defenderReplies = legalMoves(move.after.position)
-        defenderReplies.nonEmpty &&
-          defenderReplies.forall(reply => checkingMoves(legalMoves(reply.after.position), reply.after.position.board.pieceAt).nonEmpty)
-      .map: move =>
-        val defenderReplies = legalMoves(move.after.position)
-        val renewalMoves =
-          defenderReplies.flatMap(reply =>
-            checkingMoves(legalMoves(reply.after.position), reply.after.position.board.pieceAt)
-          )
+    RootPositionSupport
+      .positionFor(context.objectExtraction.rootState, color)
+      .toOption
+      .flatMap(position => forcedRenewalFrom(position, Set.empty, mutable.Map.empty))
+      .map: line =>
         val checkingPieceSquares =
-          (Vector(move.orig) ++ renewalMoves.map(_.orig)).distinct.sortBy(_.value)
+          line.checkingPieceSquares.toVector.sortBy(_.value)
         val checkingTargets =
-          (Vector(move.dest) ++ renewalMoves.map(_.dest)).distinct.sortBy(_.value)
+          line.checkingTargets.toVector.sortBy(_.value)
         checkingPieceSquares -> checkingTargets
+
+  private def forcedRenewalFrom(
+      position: Position,
+      visiting: Set[String],
+      memo: mutable.Map[String, Option[RenewalLine]]
+  ): Option[RenewalLine] =
+    val key = positionKey(position)
+    if visiting.contains(key) then Some(RenewalLine.empty)
+    else if memo.size > MaxRenewalStates then None
+    else if memo.contains(key) then memo(key)
+    else
+      val result =
+        checkingMoves(legalMoves(position), position.board.pieceAt)
+        .iterator
+        .map: move =>
+          val defenderReplies = legalMoves(move.after.position)
+          if defenderReplies.isEmpty then None
+          else
+            val nextVisiting = visiting + key
+            defenderReplies.foldLeft(Option(RenewalLine.fromMove(move))):
+              case (Some(acc), reply) =>
+                forcedRenewalFrom(reply.after.position, nextVisiting, memo).map(acc.merge)
+              case (None, _) => None
+        .collectFirst { case Some(line) => line }
+      memo.update(key, result)
+      result
 
   private def checkingMoves(
       moves: Vector[chess.Move],
@@ -63,3 +101,12 @@ private[certification] object PerpetualCheckHoldingRule extends CertificationRul
           move.after.check.yes &&
           legalMoves(move.after.position).nonEmpty
       )
+
+  private def positionKey(position: Position): String =
+    val pieces =
+      Square.all
+        .flatMap(square => position.pieceAt(square).map(piece => s"${square.key}:${piece.color}:${piece.role}"))
+        .mkString(",")
+    val enPassant =
+      position.enPassantSquare.map(_.key).getOrElse("-")
+    s"$pieces|${position.color}|${position.history.castles.value}|$enPassant"

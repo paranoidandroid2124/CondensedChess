@@ -25,6 +25,7 @@ class RootExtractorInputTest extends munit.FunSuite:
     "black pawn on eighth rank" -> "4k2p/8/8/8/8/8/8/4K3 w - - 0 1",
     "en passant rank contradicts side to move" -> "4k3/8/8/1p6/8/8/8/4K3 w - b3 0 1",
     "en passant history contradicts board" -> "4k3/8/8/8/8/8/8/4K3 w - b6 0 1",
+    "duplicate castling right" -> "4k3/8/8/8/8/8/8/4K2R w KK - 0 1",
     "castling right without rook" -> "4k3/8/8/8/8/8/8/4K3 w K - 0 1",
     "castling right without king on home square" -> "4k3/8/8/8/8/8/8/R5KR w Q - 0 1"
   )

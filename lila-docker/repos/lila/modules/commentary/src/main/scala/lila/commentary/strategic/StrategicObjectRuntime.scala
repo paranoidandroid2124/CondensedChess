@@ -40,22 +40,22 @@ private[strategic] trait StrategicObjectRule:
 
 private[strategic] object StrategicInternalRuntime:
 
-  private def validateRegisteredRules(
+  private[strategic] def validateRegisteredRules(
       candidateRules: IterableOnce[StrategicObjectRule]
   ): Vector[StrategicObjectRule] =
     val rules = candidateRules.iterator.toVector
-    StrategicObjectScopeContract.requireActiveObjectFamilyIds(rules.map(_.familyId))
+    StrategicObjectScopeContract.requireExactActiveObjectFamilyIds(rules.map(_.familyId))
     rules
 
   private val rules: Vector[StrategicObjectRule] = validateRegisteredRules(
     Vector(
-      CentralContactFrontRule,
+      OpeningDevelopmentRegimeRule,
       DistributedContactRegimeRule,
       EndgameRaceScaffoldRule,
-      OpeningDevelopmentRegimeRule,
       AttackScaffoldRule,
       FortressHoldingShellRule,
-      KingSafetyShellRule
+      KingSafetyShellRule,
+      CentralContactFrontRule
     )
   )
 

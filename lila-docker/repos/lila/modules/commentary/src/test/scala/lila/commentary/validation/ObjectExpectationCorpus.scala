@@ -106,6 +106,7 @@ private[validation] object ObjectExpectationCorpus:
     "object-expectations.jsonl",
     "delta-expectations.jsonl",
     "certification-expectations.jsonl",
+    "projection-expectations.jsonl",
     "planner-expectations.jsonl",
     "surface-expectations.jsonl",
     "engine-probe-expectations.jsonl"

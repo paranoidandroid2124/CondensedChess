@@ -9,11 +9,17 @@ import lila.commentary.certification.{
   CertificationScopeContract
 }
 import lila.commentary.delta.{ StrategicDeltaExtraction, StrategicDeltaExtractor, StrategicDeltaScopeContract }
+import lila.commentary.projection.StrategyProjectionScopeContract
 import lila.commentary.root.RootStateVector
 import lila.commentary.strategic.{
   StrategicObjectExtraction,
   StrategicObjectExtractor,
   StrategicObjectScopeContract
+}
+import lila.commentary.witness.seed.{
+  StrategySupportSeedExtraction,
+  StrategySupportSeedExtractor,
+  StrategySupportSeedScopeContract
 }
 import lila.commentary.witness.u.{
   UAttachedExtraction,
@@ -41,6 +47,15 @@ object CommentaryCore:
 
   val activeCertificationFamilyIds: Vector[String] =
     CertificationScopeContract.activeCertificationFamilyIds.map(_.value)
+
+  val strategySupportSeedContractIds: Vector[String] =
+    StrategySupportSeedScopeContract.allowedSeedIds.map(_.value)
+
+  val liveStrategySupportSeedIds: Vector[String] =
+    StrategySupportSeedExtractor.liveSeedIds.map(_.value)
+
+  val strategyProjectionStartReadyBandIds: Vector[String] =
+    StrategyProjectionScopeContract.startReadyBandIds.map(_.value)
 
   def extractUWitnesses(rootState: RootStateVector): UWitnessExtraction =
     UWitnessExtractor.fromRoot(rootState)
@@ -73,6 +88,25 @@ object CommentaryCore:
       fen: String
   ): Either[String, UAttachedExtraction] =
     extractUAttachedWitnessesFailClosed(Fen.Full.clean(fen))
+
+  def extractStrategySupportSeeds(rootState: RootStateVector): StrategySupportSeedExtraction =
+    StrategySupportSeedExtractor.fromRoot(rootState)
+
+  def extractStrategySupportSeeds(fen: Fen.Full): Either[String, StrategySupportSeedExtraction] =
+    StrategySupportSeedExtractor.fromFen(fen)
+
+  def extractStrategySupportSeedsFromFen(fen: String): Either[String, StrategySupportSeedExtraction] =
+    extractStrategySupportSeeds(Fen.Full.clean(fen))
+
+  def extractStrategySupportSeedsFailClosed(
+      fen: Fen.Full
+  ): Either[String, StrategySupportSeedExtraction] =
+    StrategySupportSeedExtractor.fromFenFailClosed(fen)
+
+  def extractStrategySupportSeedsFromFenFailClosed(
+      fen: String
+  ): Either[String, StrategySupportSeedExtraction] =
+    extractStrategySupportSeedsFailClosed(Fen.Full.clean(fen))
 
   def extractStrategicObjects(rootState: RootStateVector): StrategicObjectExtraction =
     StrategicObjectExtractor.fromRoot(rootState)

@@ -13,7 +13,7 @@ private[strategic] object OpeningDevelopmentRegimeRule extends StrategicObjectRu
       context: StrategicObjectContext,
       extractedSoFar: StrategicObjectSet
   ): Vector[StrategicObject] =
-    if preemptedByLiveBoardOwner(extractedSoFar) then Vector.empty
+    if preemptedByLiveBoardOwner(context) then Vector.empty
     else
       val whiteHomeMinors = retainedHomeMinors(context, Color.White)
       val blackHomeMinors = retainedHomeMinors(context, Color.Black)
@@ -42,10 +42,10 @@ private[strategic] object OpeningDevelopmentRegimeRule extends StrategicObjectRu
         )
       ).toVector
 
-  private def preemptedByLiveBoardOwner(extractedSoFar: StrategicObjectSet): Boolean =
-    extractedSoFar.forFamilyId("CentralContactFront").nonEmpty ||
-      extractedSoFar.contains("DistributedContactRegime", WitnessAnchor.BoardAnchor, None) ||
-      extractedSoFar.contains("EndgameRaceScaffold", WitnessAnchor.BoardAnchor, None)
+  private def preemptedByLiveBoardOwner(context: StrategicObjectContext): Boolean =
+    centralContactFrontComponent(context).nonEmpty ||
+      distributedContactRegimeComponents(context).nonEmpty ||
+      endgameRaceScaffoldSnapshot(context).nonEmpty
 
   private def rootIndicesForHomeMinors(
       context: StrategicObjectContext,

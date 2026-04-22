@@ -51,6 +51,279 @@ Primary corpora:
 - `root-expectations.jsonl`
 - deterministic unit tests
 
+### Root Broad-Confidence-Green
+
+`broad-confidence-green` at root is narrower than count-freeze, symmetry
+coverage, or a single exact/near-miss pair.
+
+It means one schema-local claim only:
+
+- the same narrow exact root atom survives across many exact-board buckets that
+  are relevant to that atom
+- the schema still fails closed outside those buckets
+- confounded FENs do not get to count as broad-confidence evidence
+- engine never becomes the owner of root truth
+
+Current root `broad-confidence-green` set:
+
+- `piece_on`
+- `controlled_by`
+- `pawn_controlled_by`
+- `contested`
+- `open_file`
+- `half_open_file`
+- `king_ring_square`
+- `weak_square`
+- `isolated_pawn`
+- `backward_pawn`
+- `doubled_file`
+- `candidate_passer`
+- `fixed_pawn`
+- `en_passant_state`
+- `lever_available`
+- `loose_piece`
+- `overloaded_piece`
+- `outpost_square`
+- `pinned_piece`
+- `passed_pawn`
+- `trapped_piece`
+- `xray_target`
+- `king_shelter_hole`
+- `side_to_move`
+- `castling_rights`
+
+A future root promotion is allowed only when:
+
+- the schema's intended exact meaning remains unchanged from
+  [RootAtoms.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/RootAtoms.md)
+- the live corpus closes every schema-local breadth bucket frozen in
+  `root-coverage-matrix.md`
+- the schema's minimum corpus floor is met by exact-board rows rather than by
+  symmetry alone
+- required fail-closed case families are present for that risk class
+- engine-required schemas also carry their confound filter rows and those rows
+  stay green without redefining the atom
+
+All non-listed root schemas remain below `broad-confidence-green` until their
+own schema-local buckets and floors are closed.
+
+The canonical per-schema owner for counts, breadth buckets, floors, status, and
+blockers is:
+
+- `modules/commentary/src/test/scala/lila/commentary/root/RootCoverageMatrix.scala`
+
+The tracked markdown snapshot consumed by doc readers must stay UTF-8
+text-equivalent to that renderer output after newline normalization:
+
+- `modules/commentary/src/test/resources/commentary-corpus/root-coverage-matrix.md`
+
+### Root Risk-Class Rule
+
+Root broad validation is frozen to three risk classes:
+
+- `deterministic / no-engine broad validation`
+  - exact local board law is already narrow enough that engine adds no truth
+  - broad promotion still needs multiple exact-board buckets plus fail-closed
+    negatives when the schema is easy to over-admit
+- `structural / engine-optional sanity`
+  - the atom remains root-owned and exact-board, but some wider corpus rows may
+    need calmness screening when material or tactical skew would make the row
+    non-representative
+  - engine may reject a row as confounded, but it may not certify the atom
+- `structural / engine-required confound filter`
+  - the atom stays root-owned, but broad-counting rows are not accepted unless
+    they also survive an explicit confound filter
+  - current worktree owner set:
+    - `outpost_square`
+    - `candidate_passer`
+    - `trapped_piece`
+    - `king_shelter_hole`
+
+### Root Engine Confound Policy
+
+Engine/probe is still not part of the root layer.
+
+At root it may be used only to reject a corpus row as confounded when the row is
+supposed to validate a narrow structural atom but the board is instead dominated
+by some unrelated tactical or material event.
+
+Allowed root confound rejections are:
+
+- immediate forced mate
+- large unrelated eval spike
+- severe material skew that makes the structural slice meaningless
+- tactical release dominating what is supposed to be a structural exact slice
+
+Root engine sanity may not:
+
+- create a root atom
+- replace the extractor's exact-board law
+- promote a schema on centipawn strength alone
+
+Current required root-engine sanity contracts:
+
+| Schema | Runnable engine check now | Additional row-selection guard still curated manually |
+| --- | --- | --- |
+| `outpost_square` | `maxMatePly = 2`; `maxAbsCp = 250` | reject queen-or-rook-equivalent material-cliff rows and tactical-release rows unless the declared bucket explicitly says otherwise |
+| `candidate_passer` | `maxMatePly = 2`; `maxAbsCp = 300` | reject queen-or-rook-equivalent material-cliff rows and tactical-release rows unless the declared bucket explicitly says otherwise |
+| `trapped_piece` | `maxMatePly = 2` for selected exact trap rows; `maxAbsCp = 350` only for selected fail-closed rows | reject rows where the trapped side is already in a gross material cliff, and reject tactical-release rows unless the declared bucket explicitly says otherwise; exact trap rows may have large cp when that value is intrinsic to the trapped piece itself |
+| `king_shelter_hole` | `maxMatePly = 2`; `maxAbsCp = 300` | reject rows where home-shelter meaning is dead because both sides lack enough non-pawn force, and reject tactical-release rows |
+
+The current runnable scaffold proves only the numeric engine budgets above plus
+probe-row presence/coverage. Material-cliff, force-retention, and
+tactical-release exclusions remain audit-side row curation rules until a richer
+root probe schema exists.
+
+Selected `r-*` rows now exist in `engine-probe-expectations.jsonl` for all four
+engine-required schemas, so the root engine-confound scaffold is live on the
+current branch.
+
+Those rows do **not** grant root `broad-confidence-green` by themselves.
+They only prove that calm exact and fail-closed probe rows exist for the four
+schemas; each schema still needs its remaining schema-local bucket and corpus
+floor closure from `RootCoverageMatrix.scala`, plus serial extractor/probe test
+execution before final promotion.
+The current scaffold is selective rather than exhaustive over every existing
+engine-required root corpus row.
+
+If an engine-required root schema is later promoted to
+`broad-confidence-green`, the selected probe buckets used for that promotion
+must themselves be frozen in `RootCoverageMatrix.scala` and owned by tests,
+rather than being implied from a generic one-exact / one-fail-closed scaffold
+alone.
+
+`candidate_passer` is now `broad-confidence-green`: 14 exact-board rows close
+the polarity, phase, topology, support-shape, under-supported, and
+already-passed negative buckets, and every bucket has a selected root
+engine-probe row that stays within `maxMatePly = 2` and `maxAbsCp = 300`.
+
+`loose_piece` is now `broad-confidence-green`: 12 exact-board rows close
+polarity, pawn/minor/rook/queen family, undefended and
+nominally-defended-but-losing exact exchange states, stably-defended
+fail-closed rows, and mixed/heavy material regimes. Engine remains optional for
+this schema and did not define the atom.
+
+`overloaded_piece` is now `broad-confidence-green`: 9 exact-board rows close
+white/black polarity, minor/rook/queen defender families, two-target and
+three-plus defensive burdens, minor-pair/minor-rook/three-minor target mixes,
+and one-target fail-closed rows. Engine remains optional only as a confound
+filter; the atom is owned by the exact board condition that removing the
+defender leaves at least two friendly non-king targets under enemy attacker
+majority.
+
+`xray_target` is now `broad-confidence-green`: 9 exact-board rows close
+white/black polarity, rook/bishop/queen slider families, file/diagonal/rank
+geometry, own/enemy blocker ownership, and target-absent/two-blocker
+fail-closed rows. Engine remains optional only as a confound filter; the atom is
+owned by the exact board condition that a beneficiary slider has line geometry
+to an enemy non-king target with exactly one occupied blocker between them.
+
+`trapped_piece` is now `broad-confidence-green`: 10 exact-board rows close
+minor/rook/queen family, zero-safe/all-exits-lose/one-exit fail-closed modes,
+white/black polarity, and king/pawn category rejection. The selected root
+engine-probe buckets for this engine-required schema stay outside immediate
+mate; selected fail-closed rows also stay within `maxAbsCp = 350`. Exact
+trap-row cp magnitude is not capped when it is intrinsic to the trapped piece
+itself, because engine remains a confound filter only and does not define the
+atom.
+
+`king_shelter_hole` is now `broad-confidence-green`: 11 exact-board rows close
+opening/middlegame phase, white/black defender-home masks, center/wing shield
+files, exact home-shelter holes, pawn-cover and no-access fail-closed rows, and
+out-of-regime rejection. The selected root engine-probe buckets stay outside
+immediate mate and within `maxAbsCp = 300`, so engine remains a confound filter
+for calm home-shelter rows rather than a root-truth owner.
+
+`side_to_move` is now `broad-confidence-green`: 4 exact-board rows close both
+literal FEN side states across opening and sparse board contexts. This is a
+deterministic no-engine schema; engine evidence is not relevant to the atom.
+
+`piece_on` is now `broad-confidence-green`: 10 exact-board rows close pawn,
+minor, rook, queen, and king role buckets across white/black polarity and
+center/edge square topology. This is a deterministic no-engine schema; literal
+occupancy remains exact root truth.
+
+`controlled_by` is now `broad-confidence-green`: 10 exact-board rows close
+pawn, knight, bishop, rook, queen, and king attacker families across
+white/black polarity, center/edge/corner source topology, and empty/occupied
+target buckets. This is a deterministic no-engine schema; attacked-square
+membership remains exact board truth rather than legal-move wording.
+
+`contested` is now `broad-confidence-green`: 8 exact-board rows close open-file
+rook overlap, blocked-file overlap, knight, rook-rank, bishop, queen, occupied
+and empty overlap buckets, plus a disjoint-kings fail-closed row. This is a
+deterministic no-engine schema; overlap of the two attacked-square masks remains
+the atom.
+
+`open_file` is now `broad-confidence-green`: 4 exact-board rows close all-open
+and mixed-board contexts, center/edge/all-files topology, and isolated/clustered
+open-file buckets. This is a deterministic no-engine schema; pawn absence on the
+file remains exact root truth.
+
+`half_open_file` is now `broad-confidence-green`: 6 exact-board rows close
+white/black ownership, edge/center topology, single/stacked rival-pawn layouts,
+and own-pawn-restored near-miss buckets. This is a deterministic no-engine
+schema; own-pawn absence plus rival-pawn presence remains exact root truth.
+
+`king_ring_square` is now `broad-confidence-green`: 6 exact-board rows close
+white/black polarity, corner/wing/center king-file contexts, and
+orthogonal/diagonal ring-square adjacency buckets. This is a deterministic
+no-engine schema; king-adjacent square membership remains exact root truth.
+
+`weak_square` is now `broad-confidence-green`: 9 exact-board rows close
+white/black polarity, center/edge topology, empty and beneficiary-occupied
+states, minor/heavy exploitation regimes, and challenge-restored fail-closed
+rows. Engine remains optional only as a confound filter; the atom is still owned
+by enemy-territory, no enemy-pawn challenge, and beneficiary piece exploitation
+on the exact board.
+
+`pawn_controlled_by` is now `broad-confidence-green`: 6 exact-board rows close
+white/black polarity, center/edge pawn-attack targets, and dual-polarity
+near-miss rows. This is a deterministic no-engine schema; pawn attack geometry
+remains exact root truth.
+
+`isolated_pawn` is now `broad-confidence-green`: 6 exact-board rows close
+edge/center files, home/advanced ranks, white/black polarity, and
+neighbor-restored fail-closed rows. This is a deterministic no-engine schema.
+
+`doubled_file` is now `broad-confidence-green`: 7 exact-board rows close
+edge/center files, adjacent/split pawn stacks, white/black polarity, and
+non-doubled fail-closed rows. This is a deterministic no-engine schema.
+
+`fixed_pawn` is now `broad-confidence-green`: 6 exact-board rows close
+white/black polarity, edge/center files, and single-stop/mutual-chain fixed-pawn
+shapes. This is a deterministic no-engine schema.
+
+`lever_available` is now `broad-confidence-green`: 7 exact-board rows close
+single/double pushes, edge/center files, left/right contact directions,
+white/black polarity, and blocked-push fail-closed rows. This is a
+deterministic no-engine schema.
+
+`castling_rights` is now `broad-confidence-green`: 8 exact-board rows close
+none, single-side, same-color, cross-color, and full-rights states, while
+duplicate and orphan castling fields fail closed at the root input boundary. This
+is a deterministic no-engine schema; the legal FEN auxiliary state remains exact
+root truth.
+
+### Root Corpus Floor Policy
+
+Root breadth promotion is cell-local, not one branch-wide score.
+
+The schema-local floor is frozen per schema in `RootCoverageMatrix.scala` and
+mirrored in `root-coverage-matrix.md`.
+
+Current policy:
+
+- deterministic schemas need enough rows to close their literal topology/state
+  buckets, not just one seed exact
+- structural schemas need enough rows to close both positive and fail-closed
+  buckets for the same narrow meaning
+- finite auxiliary families still need breadth by state family, not just one
+  representative row
+- until root rows carry explicit row-local bucket tags, the frozen bucket list
+  in `RootCoverageMatrix.scala` remains the promotion owner; any non-listed
+  schema stays outside root `broad-confidence-green`
+
 ### Layer 1: Witness Validation
 
 Purpose:
@@ -72,6 +345,90 @@ Primary corpora:
 - `witness-expectations.jsonl`
 - witness-level near-miss rows
 
+### U Broad-Validation Contract
+
+`broad-confidence-green` at `U` is descriptor-local.
+
+It does not broaden a descriptor label into strategic prose. It means only that
+the same deterministic `U = phi(R)` witness law survives across the descriptor's
+exact-board buckets, keeps the same anchor/polarity/payload contract, and fails
+closed at its negative boundaries.
+
+The live `U` broad scope is frozen to:
+
+- active `U-primary 18`
+- active `U-attached 1`
+  - `structural_space_claim`
+
+Shell-only, host-vocabulary, and above-`U` rows are negative-boundary material.
+They may appear in tests only to prove non-admission or legal host attachment.
+They must not become standalone `U` runtime descriptors.
+
+Current U broad owner:
+
+- `modules/commentary/src/test/scala/lila/commentary/witness/u/UBroadCoverageMatrix.scala`
+
+Tracked snapshot:
+
+- `modules/commentary/src/test/resources/commentary-corpus/u-coverage-matrix.md`
+
+Current audit result:
+
+- `witness-expectations.jsonl` has completed the current descriptor-local broad
+  corpus coverage for every live U descriptor
+- formal U corpus rows are descriptor-local and must use runtime
+  `descriptorId` values from the active U inventory, `caseType` in
+  `exact|near_miss|nasty_negative`, `expectation` in `present|absent`, and
+  descriptor-local `coverageAxis` / `coverageBucket` tags from the frozen
+  breadth buckets
+- existing `U` rule tests are useful local evidence, but they are not a formal
+  broad corpus
+- Root dependency gates are closed by the current 25/25 Root
+  `broad-confidence-green` result
+- current U `broad-confidence-green` descriptors:
+  - `available_lever_trigger`
+  - `bishop_pair_state`
+  - `diagonal_lane_only`
+  - `duty_bound_defender`
+  - `file_lane_state`
+  - `fork`
+  - `knight_on_outpost_square`
+  - `loose_piece_target_state`
+  - `overload`
+  - `pawn_push_break_contact_source`
+  - `passed_pawn_entity_state`
+  - `pin`
+  - `rook_on_open_file_state`
+  - `sector_asymmetry_state`
+  - `short_run_slider_gate_restriction`
+  - `skewer`
+  - `structural_space_claim`
+  - `weak_outpost_square_state`
+  - `weak_pawn_target_state`
+- current formal U corpus row count is `218`
+- no live U descriptor remains `thin` or root-blocked under the current
+  descriptor-local broad corpus
+
+Promotion requires all of:
+
+- formal witness corpus rows for the descriptor
+- descriptor-local corpus counts matching the U broad matrix, not just one
+  aggregate row count
+- exact, near-miss, and nasty-negative buckets required by the descriptor's
+  risk class
+- minimum corpus floor and frozen breadth-bucket closure for the descriptor
+- stable anchor, polarity, variant, and payload invariants
+- no shell-only or above-`U` row admitted as a runtime descriptor
+- every required root dependency is already root `broad-confidence-green`
+  - if a listed dependency is not green, the descriptor remains thin/blocked
+    until the root gate closes or the U descriptor contract is narrowed to remove
+    that dependency
+
+Engine/probe remains forbidden as `U` truth.
+
+If a row needs engine sanity, it belongs to root confound filtering or to
+Object/Certification validation. It may not create or promote a `U` witness.
+
 ### Layer 2: Object Validation
 
 Purpose:
@@ -88,8 +445,8 @@ Checks:
 Primary corpora:
 
 - `object-expectations.jsonl`
-- `engine-probe-expectations.jsonl` for local Stockfish sanity on the object
-  test positions themselves
+- `engine-probe-expectations.jsonl` for local Stockfish sanity on the object,
+  certification, and selected root confound-filter positions themselves
 
 This mirrors the strategic-object branch format:
 
@@ -168,10 +525,21 @@ Current-worktree start gate:
 
 Checks:
 
+- supplied `StrategicObjectExtraction` carriers must be canonical:
+  - `before` and `after` witness/object payloads must exactly match the live
+    object extractor output for their root states
 - typed delta tag correctness
 - anchor correctness
 - scope correctness
-- board-coherent `fenBefore -> playedMove -> fenAfter` transition correctness
+- exact auxiliary-state-preserving
+  `fenBefore -> playedMove -> fenAfter` transition correctness:
+  - side to move must match the moving piece
+  - castling rights must survive or clear exactly as the move requires
+  - en-passant availability must be rehydrated from the root aux state rather
+    than guessed from piece placement alone
+  - legal castling and legal en-passant transitions must be accepted
+  - board-coherent but wrong-side or aux-mismatched transitions must fail
+    closed
 - false-witness rejection
 - false-rival rejection
   - `TradeCompressionCorridor` rival rejection must track the actual live
@@ -259,6 +627,15 @@ Current-worktree delta validation now also keeps these exact-board guards live:
     survives while actual `TradeInvariant` continuity fails
   - corpus-driven `CommentaryCore` extraction parity, so every live delta row is
     checked through the public delta facade as well as the internal extractor
+- transition hardening:
+  - a wrong-side-move negative, so piece-coherent board drift alone cannot pass
+    as an exact delta transition
+  - a legal-castling exact row, so delta validation does not reject auxiliary
+    state carrying moves just because the king moved more than one file
+  - a legal-en-passant exact row, so delta validation does not reject captures
+    whose captured pawn is not on the landing square
+  - an after-state aux-mismatch negative, so piece-placement parity alone does
+    not masquerade as exact transition truth
 - corpus contract completeness:
   - `DeltaExpectationCorpusTest` now freezes the full per-family
     `pressureTarget` inventory, so deleting one live pressure-law row and
@@ -281,6 +658,18 @@ Checks:
 - comparative burden sufficiency
 - support-only containment
 - deferred fail-closed behavior
+- supplied `StrategicObjectExtraction` carriers must be canonical:
+  - current witness/object payload must exactly match the live object extractor
+    output for the current root state
+- supplied delta extractions, when present, must be canonical:
+  - exact before/after/move validation must still pass
+  - the carried delta set must exactly equal the canonical delta runtime
+    result for that transition
+- legal-move reconstruction must consume the root aux state:
+  - castling rights must not be invented from open geometry alone
+  - current-turn en-passant captures must survive when the root carries them
+  - comparative move counts must not silently drop side/castling/en-passant
+    state on rebuild
 
 Primary corpora:
 
@@ -311,6 +700,10 @@ Current `Certification` start-gate rule:
   unbound fail-closed sentinel, while any non-empty bundle created by
   `forObjectExtraction` or `forDeltaExtraction` must be bound to the same
   current root state
+- any supplied `StrategicDeltaExtraction` must also be canonical:
+  - exact before/after/move validation must still pass
+  - the carried `deltas` set must exactly match the canonical delta runtime
+    result for that transition
 - live certification extraction must reject any non-empty evidence bundle
   whose bound root state does not exactly match the current extraction
 - the live runtime does not yet consume a typed probe adapter;
@@ -392,6 +785,10 @@ Current result/draw/race hardening reminders:
   as route survival; the current live slice stays on kings-and-pawns clear-run
   race boards and uses tempo plus rival-king-distance burden rather than a full
   universal route proof.
+- certification legal-move rebuild now also stays exact-board with respect to
+  side-to-move, castling rights, and current en-passant availability; runtime
+  and boundary tests must keep both no-rights-castling negatives and exact
+  en-passant positives live
 
 It is no longer acceptable to treat certification as one generic future layer
 without row-local burden and engine-purpose freeze.
@@ -404,7 +801,7 @@ They are not truth-owning semantic layers.
 
 Purpose:
 
-- prove that each `S01-S24` band has enough certified lower-layer carrier input
+- prove that each `S01-S25` band has enough certified lower-layer carrier input
 - prove that rival strategy bands remain semantically separable on exact boards
 
 Checks:
@@ -423,8 +820,8 @@ Primary corpora:
 The semantic boundary for this layer is frozen in
 [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md).
 
-Blocked strategy bands that still need new lower/support seed families before
-live admission are inventoried in
+Strategy bands whose start-ready handoff depends on explicit lower/support seed
+families are inventoried in
 [StrategySupportSeedInventory.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategySupportSeedInventory.md).
 
 Projection start-ready status is narrower than semantic-boundary freeze.
@@ -436,14 +833,22 @@ A band is `start-ready` only when:
 - its required projection corpus shape is frozen
 - its promotion criterion or blocker is explicit
 
-`start-ready` authorizes building the projection scaffold for that band.
+`start-ready` authorizes building the projection runtime for that band.
 
-It does **not** imply `projection-expectations.jsonl` is already populated in the
-current worktree.
+For `S17`, `S23`, `S24`, and `S25`, `projection-expectations.jsonl` is now
+populated with exact, near-miss, nasty-negative, and
+`comparative_false_rival` rows that exercise the frozen admission scaffold.
 
-No strategy band is `broad-ready` on the current branch yet.
+No coverage-complete-only strategy band is broad-deployed or live as runtime
+projection on the current branch. The staged wave-1, wave-2, wave-3, wave-4,
+wave-5, and wave-6 set
+`S01`, `S02`, `S03`, `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`,
+`S12`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`,
+`S23`, `S24`, and `S25` is coverage-complete only under the current JSONL/test
+broad-coverage gates. `S17`, `S23`, `S24`, and `S25` keep only their existing
+narrow live admission slices.
 
-A future `broad-ready` claim is allowed only when:
+A future live-deployment `broad-ready` claim is allowed only when:
 
 - the band is already `start-ready`
 - every required `coverageAxis` / `coverageBucket` pair frozen in
@@ -451,23 +856,175 @@ A future `broad-ready` claim is allowed only when:
   `projection-expectations.jsonl`
 - the band's explicit broad-ready blocker is closed
 
+Coverage-only rows close the executable broad coverage gate without satisfying
+this live-deployment prerequisite. Coverage completion is not live projection
+runtime admission.
+
+Wave-7 closes the global freeze owner split: `StrategyProjectionCoverageContract`
+is the executable owner for coverage gates, lower-carrier ownership,
+helper/admission laws, and exact-board validation scaffolds for every
+`S01-S25` band. `ProjectionExpectationCorpus.requiredCoveragePairsFor` derives
+from that contract, and `ProjectionExpectationCorpusTest` asserts that the
+contract-owned key sets match the staged corpus bands exactly. The runtime
+boundary remains fail-closed because `StrategyProjectionAdmission` admits only
+`StrategyProjectionScopeContract.startReadyBandIds` (`S17`, `S23`, `S24`, and
+`S25`) and rejects every `StrategyProjectionCoverageContract.coverageOnlyBandIds`
+entry.
+
+This is executable, not just documentary: `ProjectionExpectationCorpusTest`
+computes missing required coverage pairs from the JSONL corpus and keeps the
+current branch runtime fail-closed even when those pairs are complete.
+The coverage-presence counter is not raw tag counting: positive route, scope,
+durability, access, creation, and suppression buckets count only `exact` /
+`admitted` rows; same-cluster near-miss buckets count only rejected near-miss
+or contrastive or `comparative_false_rival` rows; shortcut-negative buckets
+count only rejected nasty-negative or negative rows.
+
+The current staged wave-1 executable broad-ready gate-band set is
+`S06` / `S09` / `S10` / `S12` / `S20` / `S23` / `S25`.
+
+The wave-7 global closure set is exactly `S01`, `S02`, `S03`, `S04`, `S05`,
+`S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`, `S16`,
+`S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and `S25`. The current
+JSONL corpus reports that full set as coverage-complete for the staged wave-1,
+wave-2, wave-3, wave-4, wave-5, and wave-6 broad gates. This is
+corpus/validation-only: those bands do not become broad-deployed or newly live
+as runtime projection admission bands.
+
+`S17`, `S18`, `S19`, `S22`, and `S24` now have executable wave-2 broad coverage
+rows in `projection-expectations.jsonl`, with the frozen gates owned by
+`StrategyProjectionCoverageContract` and `StrategyProjectionCoverageContractTest`.
+This adds countable `coverageAxis` / `coverageBucket` rows only; it does not
+expand live projection admission:
+
+- `S17` and `S24` keep their existing start-ready admission scaffolds
+- `S18`, `S19`, and `S22` are coverage-only at this boundary and remain
+  fail-closed for `StrategyProjectionAdmission`
+- the five-band coverage set passes the normal coverage-presence burden above
+
+`S05`, `S07`, `S08`, and `S21` now have executable initiative / release /
+counterplay broad-ready coverage rows. Their gates are owned by
+`StrategyProjectionCoverageContract` and verified by
+`StrategyProjectionCoverageContractTest` plus `ProjectionExpectationCorpusTest`.
+This closes the wave-3 coverage-completion gate:
+
+- `S05`: exact central release requires same-anchor `available_lever_trigger`
+  and `pawn_push_break_contact_source` with a `center_pawn_target`, plus the
+  `central_axis_continuation` validation law; `CentralContactFront`,
+  `InitiativeWindow`, and central file support are support-only here
+- `S07`: exact initiative conversion requires `DevelopmentComparison` plus
+  certified `InitiativeWindow` for the same owner; `OpeningDevelopmentRegime`
+  and development wording do not admit the projection band
+- `S08`: denial must be tied to an exact rival release source being suppressed;
+  `InitiativeWindow` alone is not a projection denial claim
+- `S21`: counterplay survival requires exact owner
+  `pawn_push_break_contact_source` plus same-board certified `InitiativeWindow`;
+  source presence alone, deferred initiative, open-center wording, and
+  asymmetry wording remain fail-closed
+
+These four bands are broad-ready coverage-only bands. Their required coverage
+pairs are counted by `ProjectionExpectationCorpus.requiredCoveragePairsFor`,
+`coveragePairsByBand`, `missingRequiredCoveragePairsByBand`, and
+`bandsWithCompleteBroadReadyCoverage`. `StrategyProjectionAdmission` still
+rejects them as unsupported live admission bands.
+
+`S01`, `S02`, `S03`, and `S04` now have executable wave-4 king-attack
+broad-ready coverage rows. Their gates are owned by
+`StrategyProjectionCoverageContract` and verified by
+`StrategyProjectionCoverageContractTest` plus `ProjectionExpectationCorpusTest`.
+This closes the wave-4 coverage-completion gate only:
+
+- `S01`: same-wing owner contact plus same-defender attack and certified
+  king-safety edge; castling-side context and wing-shell wording remain
+  fail-closed
+- `S02`: direct king-ring concentration; `AttackScaffold`, lane support, or
+  king-attack wording alone cannot admit the projection band
+- `S03`: king-facing `diagonal_lane_only` plus same-king fragility and
+  certified king-safety edge; bishop-pair state and non-king diagonal pressure
+  remain fail-closed
+- `S04`: same-defender `KingSafetyShell`, shell-payload or support-break
+  breach, and same-defender certified king-safety deterioration; shell-only
+  weakness and generic attack pressure remain fail-closed
+
+These four bands are broad-ready coverage-only bands. Their required coverage
+pairs are counted by `ProjectionExpectationCorpus.requiredCoveragePairsFor`,
+`coveragePairsByBand`, `missingRequiredCoveragePairsByBand`, and
+`bandsWithCompleteBroadReadyCoverage`. `StrategyProjectionAdmission` still
+rejects them as unsupported live admission bands.
+
+`S11`, `S13`, and `S14` now have executable pawn-target /
+structural-damage broad-ready coverage rows. Their gates are owned by
+`StrategyProjectionCoverageContract` and verified by
+`StrategyProjectionCoverageContractTest` plus `ProjectionExpectationCorpusTest`.
+This closes the wave-5 coverage-completion gate only:
+
+- `S11` exact validation must keep `weak_pawn_target_state`, pressure or
+  repeated pressure, and the current fixed-pawn persistence proof on the same
+  weak-pawn square;
+  weak-pawn presence alone and target swaps by prose stay non-counting
+- `S13` exact validation must keep `sector_asymmetry_state`, same-sector
+  `available_lever_trigger`, and same-anchor `pawn_push_break_contact_source`
+  tied to a target role recomputed from the exact board as `phalanx_edge_target`
+  or `structurally_burdened_target`; raw asymmetry or a pre-existing weak pawn
+  alone stays non-counting
+- `S14` exact validation must keep base-contact lever/source on the same anchor
+  and recompute the contact target as `chain_base_target`; fixed-chain and
+  structural-damage shell vocabulary remain context only
+
+These three bands are broad-ready coverage-only bands, not live admission
+bands. Their required coverage pairs are counted by
+`ProjectionExpectationCorpus.requiredCoveragePairsFor`, `coveragePairsByBand`,
+`missingRequiredCoveragePairsByBand`, and `bandsWithCompleteBroadReadyCoverage`.
+`StrategyProjectionAdmission` still rejects them as unsupported live admission
+bands.
+
+For the wave-2 five-band coverage set, exact validation stays board-bound:
+
+- `S17`: exact same-piece liability, same-piece repair or exchange relief, and
+  same-piece relief evidence
+- `S18`: exact `bishop_pair_state` substrate plus certified conversion burden;
+  bishop-pair or minor-edge wording alone is negative
+- `S19`: exact `TradeInvariant` transition from before/after FEN plus played
+  move; countable material or hold rows must also certify the same exact task
+  endpoint through `MaterialHarvest` or `FortressDrawCertification`, while
+  result-only simplification remains non-counting until a same-task lower law
+  exists
+- `S22`: exact `FortressHoldingShell` or perpetual-check support plus certified
+  hold evidence; shell or draw wording alone is negative
+- `S24`: exact same target piece-square across dependency, convergence,
+  forcing realization, and conversion certification; raw tactic or trade/result
+  wording alone is negative
+
+`S15` and `S16` are wave-6 broad-ready coverage-only bands, not live admission
+bands. `S15` route admission remains per-position disjunctive, while broad-ready
+coverage proves both `s13_wing_damage` and `s14_chain_base` plus exact
+false-rival boundaries against `S13`, `S14`, and `S16`. `S16` broad-ready
+coverage proves `blockade_hold`, `restriction_hold`, and `non_losing_race`, and
+every positive suppression row binds enemy passer truth to certified race or
+hold proof.
+
+For `S25`, the current broad-ready route bucket is only
+`rank_access_route = cross_wing_rank_switch`; wider horizontal-rank meanings
+remain future scope and do not count yet.
+
 ### Projection Core Matrix
 
 Before a band may be claimed projection-complete or broad-ready,
-`projection-expectations.jsonl` must carry:
+`projection-expectations.jsonl` must carry countable rows for each frozen
+`coverageAxis` / `coverageBucket` pair owned by that band:
 
-- `exact`
-- `near_miss`
-  - at least one family-local near-miss where most lower support is present but
-    one admitting alignment or gate law fails
-- `contrastive`
-  - at least one exact-board `contrastive` row for every rival band listed in
-    the same cluster
-- `comparative_false_rival`
-  - at least one exact-board row for every explicitly named rival band in
+- positive route, scope, durability, access, creation, and suppression buckets require
+  `exact` / `admitted` rows
+- same-cluster near-miss buckets require rejected `near_miss`, `contrastive`,
+  or `comparative_false_rival` rows
+  - include an exact-board row for every explicitly named rival band in
     `StrategyProjectionBoundaryMatrix.md`
-- `nasty_negative`
-- `negative`
+- shortcut-negative buckets require rejected `nasty_negative` or `negative`
+  rows
+
+`negative` is an allowed shortcut-negative row class, not an additional
+mandatory row class when the frozen shortcut bucket is already covered by a
+rejected `nasty_negative` row.
 
 Additional `negative` rows are required whenever:
 
@@ -524,23 +1081,45 @@ For start-ready-only rows, `coverageAxis` and `coverageBucket` may be `null`.
 They become mandatory once a row is intended to count toward a future
 `broad-ready` claim.
 
+A non-null `coverageAxis` / `coverageBucket` pair counts toward coverage only
+when the row's `caseType` and `expectation` satisfy that axis's burden:
+
+- positive route/scope/durability/access/creation/release/initiative/denial/
+  survival axis: `exact` + `admitted`
+- same-cluster near-miss axis: rejected `near_miss`, `contrastive`, or
+  `comparative_false_rival`
+- shortcut-negative axis: rejected `nasty_negative` or `negative`
+
+Current start-ready admission rows may additionally declare runtime companion
+fields such as `admissionPath`, `requiredSupportSeedIds`, `evidenceClaims`,
+and S25 rank-access payload fields such as `entrySquare` and `corridorKind`.
+Those fields are optional extensions to the documented projection row shape and
+do not count as broad-ready coverage by themselves.
+
+Delta-backed projection coverage rows may additionally declare `fenBefore`,
+`playedMove`, and `fenAfter`. These three fields are all-or-nothing and are
+validated through the live exact delta extractor before a required delta family
+such as `TradeInvariant` may count as lower-carrier evidence.
+
 Recommended row shape:
 
 ```json
-{"id":"projection-s05-center-release-exact","caseType":"exact","fen":"r4rk1/pp1b1ppp/2p1pn2/3p4/3P4/2PBPN2/PP3PPP/R2R2K1 w - - 0 1","band":"S05","expectation":"present","owner":"white","anchor":"center","requiredWitnessIds":["available_lever_trigger","pawn_push_break_contact_source"],"requiredObjectFamilies":[],"requiredDeltaFamilies":[],"requiredCertificationFamilies":[],"supportShellIds":["center"],"optionalStrengtheningFamilies":["file_lane_state"],"supportWitnessIds":["center","available_lever_trigger","file_lane_state"],"rivalBands":["S06","S14","S21"],"forbiddenShortcuts":["open_center_wording_only","center_shell_only"],"coverageAxis":null,"coverageBucket":null}
+{"id":"projection-s05-center-release-exact","caseType":"exact","fen":"r4rk1/pp1b1ppp/2p1pn2/3p4/3P4/2PBPN2/PP3PPP/R2R2K1 w - - 0 1","band":"S05","expectation":"admitted","owner":"white","anchor":"center","requiredWitnessIds":["available_lever_trigger","pawn_push_break_contact_source"],"requiredObjectFamilies":[],"requiredDeltaFamilies":[],"requiredCertificationFamilies":[],"supportShellIds":["center"],"optionalStrengtheningFamilies":["file_lane_state"],"supportWitnessIds":["center","available_lever_trigger","file_lane_state"],"rivalBands":["S06","S14","S21"],"forbiddenShortcuts":["open_center_wording_only","center_shell_only"],"coverageAxis":"center_release_route","coverageBucket":"center_pawn_target"}
 ```
 
 Current contract-closure status:
 
 - `projection-expectations.jsonl` is the required target scaffold for this
-  layer; current `start-ready` status authorizes building it, not assuming it is
-  already populated
-- `broad-ready` remains ungranted branch-wide until the `coverageAxis` /
-  `coverageBucket` scaffold and the band-local breadth gates are both closed
+  layer; current `S17`/`S23`/`S24`/`S25` start-ready status is tied to the
+  populated rows and `ProjectionExpectationCorpusTest`
+- live/runtime broad deployment remains ungranted branch-wide; the current test
+  suite reports the wave-7 global closure set as complete broad-coverage bands
+  from the JSONL corpus
 - start-ready bands and unresolved blockers live in
   [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md)
-- the current unresolved set is only `S17` (still not start-ready) plus `S23`
-  and `S24` (blocked)
+- the previous unresolved `S17`/`S23`/`S24` blockers and the new `S25`
+  start-ready candidate are closed at the
+  start-ready boundary; live projection runtime is still a later layer task
 
 ### Layer 5: Planner Validation
 
@@ -611,12 +1190,15 @@ mixed corpus.
 
 Engine evidence is not part of the root-state vector.
 
-It is a separate validation channel consumed at delta and certification time.
+It is a separate validation channel consumed at root broad-validation confound
+filtering time, delta time, and certification time.
 
 ### Engine Evidence Uses
 
 Engine or probe evidence is required for:
 
+- root broad-validation confound rejection for engine-required structural
+  schemas
 - best-defense survival
 - move-local persistence
 - comparative superiority
@@ -755,7 +1337,7 @@ together.
 ### Suggested Witness Row
 
 ```json
-{"id":"u-weak-pawn-c6","caseType":"exact","fen":"r1bqrnk1/1p2bppp/2p2n2/p2p2B1/3P4/P1NBP3/1PQ1NPPP/1R3RK1 b - - 0 12","descriptor":"weak pawn","owner":"white","expectation":"present","requiredRoots":["fixed_pawn:black:c6","half_open_file:white:c"],"forbiddenRoots":[]}
+{"id":"u-weak-pawn-d4","caseType":"exact","fen":"4k3/8/8/3p4/3P4/8/8/4K3 w - - 0 1","descriptorId":"weak_pawn_target_state","owner":"black","expectation":"present","coverageAxis":"weakness_tag","coverageBucket":"fixed","requiredRoots":["piece_on:white:pawn:d4","fixed_pawn:white:d4"],"forbiddenRoots":["passed_pawn:white:d4"]}
 ```
 
 ### Suggested Certification Row

@@ -39,6 +39,16 @@ object StrategicObjectExtractor:
       val message = Option(error.getMessage).filter(_.nonEmpty).getOrElse(error.getClass.getSimpleName)
       s"Strategic object extraction failed closed: $message"
 
+  def validateCanonical(
+      extraction: StrategicObjectExtraction
+  ): Either[String, StrategicObjectExtraction] =
+    fromRootFailClosed(extraction.rootState).flatMap: canonical =>
+      Either.cond(
+        canonical == extraction,
+        extraction,
+        "Strategic object extraction must carry the canonical root-bound witness/object payload"
+      )
+
   def fromFen(fen: Fen.Full): Either[String, StrategicObjectExtraction] =
     RootExtractor.fromFen(fen).map(fromRoot)
 

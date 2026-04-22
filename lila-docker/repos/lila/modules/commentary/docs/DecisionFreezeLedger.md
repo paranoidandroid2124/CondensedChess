@@ -33,8 +33,9 @@ The macro semantic staircase is frozen as:
 
 Engine / probe is not a layer.
 
-It is a separate side evidence channel consumed only at:
+It is a separate side evidence channel consumed only in validation-side checks at:
 
+- `Root` broad-validation confound filtering for selected engine-required rows
 - `Delta`
 - `Certification`
 
@@ -57,6 +58,91 @@ The historical `3016` proposal is not the live root contract anymore.
 Detailed owner:
 
 - [CommentaryCoreSSOT.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentaryCoreSSOT.md:39)
+
+## Root Broad-Confidence-Green Freeze
+
+  Current root `broad-confidence-green` set:
+
+  - `piece_on`
+  - `controlled_by`
+  - `pawn_controlled_by`
+  - `contested`
+  - `open_file`
+  - `half_open_file`
+  - `king_ring_square`
+  - `weak_square`
+  - `isolated_pawn`
+  - `backward_pawn`
+  - `doubled_file`
+  - `candidate_passer`
+  - `fixed_pawn`
+  - `en_passant_state`
+  - `lever_available`
+  - `loose_piece`
+  - `overloaded_piece`
+  - `outpost_square`
+  - `pinned_piece`
+  - `passed_pawn`
+  - `trapped_piece`
+  - `xray_target`
+  - `king_shelter_hole`
+  - `side_to_move`
+  - `castling_rights`
+
+A future root `broad-confidence-green` claim must close all of:
+
+- the schema-local breadth buckets and minimum floor frozen in
+  `RootCoverageMatrix.scala` and mirrored in `root-coverage-matrix.md`
+- the unchanged exact schema meaning frozen in
+  [RootAtoms.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/RootAtoms.md)
+- the root engine-confound rule in
+  [ValidationMethodology.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/ValidationMethodology.md)
+
+Current root status freeze:
+
+  - `broad-confidence-green`:
+    - `piece_on`
+    - `controlled_by`
+    - `pawn_controlled_by`
+    - `contested`
+    - `open_file`
+    - `half_open_file`
+    - `king_ring_square`
+    - `weak_square`
+    - `isolated_pawn`
+    - `backward_pawn`
+    - `doubled_file`
+    - `candidate_passer`
+    - `fixed_pawn`
+    - `en_passant_state`
+    - `lever_available`
+    - `loose_piece`
+    - `overloaded_piece`
+    - `outpost_square`
+    - `pinned_piece`
+    - `passed_pawn`
+    - `trapped_piece`
+    - `xray_target`
+    - `king_shelter_hole`
+    - `side_to_move`
+    - `castling_rights`
+- no root schema remains `thin` under the current R broad-validation contract
+
+Root engine use stays validation-side only.
+
+It may reject a confounded row, but it may not create or widen a root atom.
+
+`outpost_square`, `candidate_passer`, `trapped_piece`, and
+`king_shelter_hole` are the engine-required root schemas currently promoted to
+`broad-confidence-green`.
+
+Their green claims remain tied to the selected root `r-*` probe buckets frozen
+in `RootCoverageMatrix.scala`, not to exhaustive engine probing of every row for
+the schema.
+
+No engine-required root schema remains in `close` after the
+`king_shelter_hole` promotion. Any future engine-required root expansion must
+still close schema-local buckets and selected calm-probe rows before promotion.
 
 ## 61 Ownership Freeze
 
@@ -92,7 +178,7 @@ Attached implementation freeze:
 
 ## Strategy Boundary Freeze
 
-`S01-S24` is frozen as a projection-band vocabulary, not as a truth-owning
+`S01-S25` is frozen as a projection-band vocabulary, not as a truth-owning
 layer.
 
 The projection freeze means:
@@ -123,7 +209,13 @@ It authorizes narrow first-slice projection work plus corpus authoring only.
 
 It does **not** yet prove broader deployment.
 
-No projection band is `broad-ready` on the current branch yet.
+No coverage-complete-only projection band is broad-deployed or live as runtime
+projection on the current branch. The staged wave-1 through wave-6 set `S01`, `S02`, `S03`,
+`S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`,
+`S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and
+`S25` is coverage-complete only under the current JSONL/test broad-coverage
+gates. `S17`, `S23`, `S24`, and `S25` retain only their already-authored narrow
+live admission slices.
 
 Any future `broad-ready` claim must close both:
 
@@ -132,22 +224,70 @@ Any future `broad-ready` claim must close both:
 - the band-local breadth gates in
   [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md:214)
 
-Bands already start-ready before the current contract-closure pass:
+The band-local breadth gates are now frozen for `S01-S25`.
+`StrategyProjectionCoverageContract` is the global executable owner for the
+row-specific coverage gates, lower-carrier ownership, helper/admission laws,
+and exact-validation scaffold for every `S01-S25` band.
 
+This is a gate freeze plus executable corpus-coverage state only. It does not
+promote any coverage-only band to live runtime projection or broad deployment.
+The projection corpus validator now computes the missing required bucket pairs
+for the staged wave-1 through wave-6 executable gate-band set (`S01`, `S02`,
+`S03`, `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`,
+`S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`,
+and `S25`) from the JSONL corpus and keeps this state executable rather than
+implied.
+It also counts coverage only when the row burden matches the coverage axis, so
+positive route buckets cannot be filled by rejected rows and negative buckets
+cannot be filled by admitted positives.
+Current JSONL coverage now completes `S01`, `S02`, `S03`, `S04`, `S05`, `S06`,
+`S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`, `S16`, `S17`,
+`S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and `S25` against those frozen
+staged gates.
+That completion is corpus/validation-only and does not add live runtime
+projection admission or broad deployment for those bands; for `S17`, `S23`,
+`S24`, and `S25` it does not widen the existing narrow live admission slices.
+
+The previous high-risk broad blocker set is closed at gate-decision level:
+
+- `S06` restriction-route and same-cluster near-miss buckets are frozen, and
+  initial matching coverage rows are present.
+- `S10` is explicitly knight-only for current-branch broad scope; non-knight
+  occupancy requires a later lower-support freeze.
+- `S12` local access-route and same-cluster near-miss buckets are frozen, and
+  initial matching coverage rows are present.
+- `S15` route-completeness is frozen as per-position disjunction but
+  broad-coverage conjunction over `s13_wing_damage` and `s14_chain_base`, with
+  false-rival coverage against `S13`, `S14`, and `S16`.
+- `S16` suppression completeness is frozen as broad-coverage conjunction over
+  `blockade_hold`, `restriction_hold`, and `non_losing_race`, with certified
+  race or hold proof required before suppression can count.
+
+These closures do not count as live admission by themselves.
+`S06`, `S10`, `S12`, `S15`, and `S16` now have separate matching corpus rows.
+`S15` and `S16` are completed wave-6 broad-ready coverage-only bands, not live
+runtime admission bands. `S09`, `S20`, and `S23` are staged into wave 1
+alongside `S06`, `S10`, `S12`, and `S25`; `S09`, `S23`, and `S25` now have
+matching coverage rows, while `S25` remains limited to
+`rank_access_route = cross_wing_rank_switch` for current broad counting.
+
+Executable start-ready projection bands in the current runtime scaffold:
+
+- `S17`
+- `S23`
+- `S24`
+- `S25`
+
+Coverage-complete but still fail-closed for live projection admission:
+
+- all non-`S17`/`S23`/`S24`/`S25` `S01-S25` bands, including:
+- `S01`
 - `S02`
 - `S03`
-- `S07`
-- `S18`
-- `S19`
-- `S20`
-- `S22`
-
-Bands promoted to start-ready by the current contract-closure pass:
-
-- `S01`
 - `S04`
 - `S05`
 - `S06`
+- `S07`
 - `S08`
 - `S09`
 - `S10`
@@ -155,22 +295,24 @@ Bands promoted to start-ready by the current contract-closure pass:
 - `S12`
 - `S13`
 - `S14`
+- `S18`
+- `S19`
+- `S20`
+- `S21`
 - `S15`
 - `S16`
-- `S21`
+- `S22`
 
-Bands still not start-ready:
+All non-`S17`/`S23`/`S24`/`S25` S-bands remain outside
+`StrategyProjectionAdmission` unless a later runtime boundary explicitly adds
+them. The current closure proves the runtime start-ready scaffold only for
+`S17` / `S23` / `S24` / `S25` and proves staged wave-1 through wave-6 JSONL
+coverage gates for `S01-S25`; it is not a branch-wide live-admission green
+list.
 
-| Band | Exact blocker |
-| --- | --- |
-| `S17` | future lower seed family frozen but not live; exact package is owned by `StrategySupportSeedInventory.md` |
-
-Broad-coverage caution remains highest on:
-
-- `S06`
-- `S10`
-- `S12`
-- `S15`
+Broad-coverage corpus debt for the staged wave-1 through wave-6 projection
+clusters is closed. Any future debt is outside the current frozen broad-ready
+gate set.
 
 Detailed owner:
 
@@ -181,23 +323,23 @@ Detailed owner:
 
 Most strategy bands have a frozen boundary.
 
-Two remain blocked for live admission:
+No S17/S23/S24/S25 blocker remains at the start-ready handoff boundary.
 
-| Band | Current status | Why blocked |
-| --- | --- | --- |
-| `S23 king activation / opposition / penetration` | blocked for live admission | frozen future king-activity seed family not live; see `StrategySupportSeedInventory.md` |
-| `S24 tactical conversion of a prepared target` | blocked for live admission | frozen future prepared-target seed family not live; see `StrategySupportSeedInventory.md` |
+This does not mean live projection runtime exists. It means the missing
+admission companions and exact validation scaffold are now frozen through
+`StrategyProjectionAdmission` and `projection-expectations.jsonl`.
 
 Detailed owner:
 
 - [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md:197)
 
-## Frozen Future Seed Families
+## Live Strategy Support Seed Families
 
-The branch freezes required future seed families for the unresolved projection
-bands.
+The branch tracks required seed families for projection bands whose lower
+support needed explicit runtime contracts.
 
-These are frozen as required future contracts, not as active runtime contracts.
+`S17`, `S23`, `S24`, and `S25` seeds are now live Witness-boundary support
+seeds.
 
 Detailed seed names, role splits, and negative boundaries are owned by
 `StrategySupportSeedInventory.md`.
@@ -207,6 +349,7 @@ Detailed seed names, role splits, and negative boundaries are owned by
 | `S17` | `S17 Seed Family` section |
 | `S23` | `S23 Seed Family` section |
 | `S24` | `S24 Seed Family` section |
+| `S25` | `S25 Seed Family` section |
 
 Detailed owner:
 
@@ -262,6 +405,67 @@ Implication:
 - after the current rehome discharge, the effective `U` blocker count is
   treated as `0`
 
+## U Broad-Validation Freeze
+
+U broad validation is now frozen as a separate confidence contract from U
+implementation start.
+
+Current U broad scope:
+
+- active `U-primary 18`
+- active `U-attached 1`
+  - `structural_space_claim`
+
+Current U broad status:
+
+- `broad-confidence-green`:
+  - `available_lever_trigger`
+  - `bishop_pair_state`
+  - `diagonal_lane_only`
+  - `duty_bound_defender`
+  - `file_lane_state`
+  - `fork`
+  - `knight_on_outpost_square`
+  - `loose_piece_target_state`
+  - `overload`
+  - `pawn_push_break_contact_source`
+  - `passed_pawn_entity_state`
+  - `pin`
+  - `rook_on_open_file_state`
+  - `sector_asymmetry_state`
+  - `short_run_slider_gate_restriction`
+  - `skewer`
+  - `structural_space_claim`
+  - `weak_outpost_square_state`
+  - `weak_pawn_target_state`
+- all live U descriptor R dependency gates are closed by the Root 25/25
+  `broad-confidence-green` result
+- no live U descriptor remains `thin` or root-blocked under the current
+  descriptor-local broad corpus
+
+The owner for the broad audit table is:
+
+- `modules/commentary/src/test/scala/lila/commentary/witness/u/UBroadCoverageMatrix.scala`
+
+The tracked snapshot is:
+
+- `modules/commentary/src/test/resources/commentary-corpus/u-coverage-matrix.md`
+
+The formal U corpus owner is:
+
+- `modules/commentary/src/test/resources/commentary-corpus/witness-expectations.jsonl`
+
+That corpus has `218` descriptor-local broad rows. Existing U rule tests
+remain unit-level evidence only and do not promote any descriptor to U
+`broad-confidence-green`. Formal rows must use active runtime `descriptorId`
+values and satisfy descriptor-local counts plus frozen `coverageAxis` /
+`coverageBucket` breadth tags in the U broad matrix; aggregate corpus size alone
+is not a promotion signal.
+
+Engine remains outside U truth. U may consume only deterministic root-state
+facts and formulas over `R`; engine sanity belongs to root confound filtering or
+Object/Certification validation.
+
 ## Upper-to-U Backflow Findings
 
 The branch now explicitly records the upper-layer backflow findings that were
@@ -292,8 +496,7 @@ The practical implementation bans are:
 - do not use `phase_gate` as `U` admission
 - do not treat `contested_sectors` as a standalone lower witness
 - do not let illustrative lower-support lists harden into required `U` bundles
-- do not let blocked strategy support seeds (`S23`, `S24`) leak downward into
-  `U`
+- do not let strategy support seeds (`S17`, `S23`, `S24`) leak downward into `U`
 
 ## Object 7 Runtime Closure
 
@@ -667,23 +870,45 @@ The branch sequencing is now:
 1. freeze root, witness, ownership, and strategy boundaries
 2. finish `U` work without reopening projection semantics
 3. implement future lower/support seeds for blocked strategy bands
-4. only then allow blocked `S` bands to become live projections
+4. only then allow formerly blocked `S` bands to become start-ready projection
+   implementation targets
 
 This means `S` is currently frozen mainly as boundary and dependency inventory,
 not as a live implementation target.
+
+## Projection Coverage Broad-Ready Boundary
+
+The initiative / release / counterplay blocker closure for `S05`, `S07`,
+`S08`, and `S21` is now a broad-ready coverage closure only.
+
+It freezes:
+
+- row-specific burden gates
+- shared helper laws
+- lower-carrier ownership
+- exact validation scaffold counting over authored JSONL rows
+- fail-closed separation from live `StrategyProjectionAdmission`
+
+It authors broad-ready JSONL rows and adds the bands to the broad-ready
+coverage-completion gate, but it does not add live runtime projection admission
+for these bands. The executable owner is
+`StrategyProjectionCoverageContract`, with parity tests in
+`StrategyProjectionCoverageContractTest` and `ProjectionExpectationCorpusTest`.
 
 ## Not Yet Frozen As Live Runtime
 
 The following are intentionally not yet live runtime contracts:
 
-- `S17` projection admission
-- `S21` projection admission
-- `S23` live projection admission
-- `S24` live projection admission
-- the future seed families listed above
-- full projection carrier corpora
+- `S05`, `S07`, `S08`, and `S21` projection admission
+- all coverage-complete-only projection bands outside the narrow live
+  `S17` / `S23` / `S24` / `S25` start-ready slices
+- broad projection carrier corpora
 - planner ranking between competing strategy bands
 - renderer wording policy beyond current projection boundaries
+
+`S17`, `S23`, `S24`, and `S25` keep their existing narrow live admission
+contracts only. The broad-ready coverage freeze for any of those bands must not
+be read as a wider live projection extraction or carrier runtime contract.
 
 ## How To Use This Ledger
 

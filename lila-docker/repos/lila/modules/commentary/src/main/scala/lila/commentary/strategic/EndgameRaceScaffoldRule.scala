@@ -14,38 +14,23 @@ private[strategic] object EndgameRaceScaffoldRule extends StrategicObjectRule:
       context: StrategicObjectContext,
       _extractedSoFar: StrategicObjectSet
   ): Vector[StrategicObject] =
-    val whiteAdvancedRunResources = advancedRunResources(context, Color.White)
-    val blackAdvancedRunResources = advancedRunResources(context, Color.Black)
-    val whiteClearResources = whiteAdvancedRunResources.filter(square => forwardRunClear(context, Color.White, square))
-    val blackClearResources = blackAdvancedRunResources.filter(square => forwardRunClear(context, Color.Black, square))
-
-    Option.when(
-      noQueensRemain(context) &&
-        whiteAdvancedRunResources.nonEmpty &&
-        blackAdvancedRunResources.nonEmpty &&
-        whiteClearResources.nonEmpty &&
-        blackClearResources.nonEmpty
-    )(
+    endgameRaceScaffoldSnapshot(context).map { snapshot =>
       neutral(
         anchor = WitnessAnchor.BoardAnchor,
         payload = WitnessPayload(
-          "white_advanced_run_squares" -> WitnessValue.SquareListValue(whiteAdvancedRunResources),
-          "black_advanced_run_squares" -> WitnessValue.SquareListValue(blackAdvancedRunResources),
-          "white_clear_run_squares" -> WitnessValue.SquareListValue(whiteClearResources),
-          "black_clear_run_squares" -> WitnessValue.SquareListValue(blackClearResources)
+          "white_advanced_run_squares" -> WitnessValue.SquareListValue(snapshot.whiteAdvancedRunSquares),
+          "black_advanced_run_squares" -> WitnessValue.SquareListValue(snapshot.blackAdvancedRunSquares),
+          "white_clear_run_squares" -> WitnessValue.SquareListValue(snapshot.whiteClearRunSquares),
+          "black_clear_run_squares" -> WitnessValue.SquareListValue(snapshot.blackClearRunSquares)
         ),
         support = support(
           indices =
-            whiteAdvancedRunResources.flatMap(square => advancedRunRootIndices(context, Color.White, square)) ++
-              blackAdvancedRunResources.flatMap(square => advancedRunRootIndices(context, Color.Black, square)),
-          targetSquares = whiteClearResources ++ blackClearResources
+            snapshot.whiteAdvancedRunSquares.flatMap(square => advancedRunRootIndices(context, Color.White, square)) ++
+              snapshot.blackAdvancedRunSquares.flatMap(square => advancedRunRootIndices(context, Color.Black, square)),
+          targetSquares = snapshot.whiteClearRunSquares ++ snapshot.blackClearRunSquares
         )
       )
-    ).toVector
-
-  private def advancedRunResources(context: StrategicObjectContext, color: Color): Vector[Square] =
-    context.activePieceSquares(color, Pawn).filter: square =>
-      if color.white then square.rank >= chess.Rank.Fifth else square.rank <= chess.Rank.Fourth
+    }.toVector
 
   private def advancedRunRootIndices(
       context: StrategicObjectContext,
