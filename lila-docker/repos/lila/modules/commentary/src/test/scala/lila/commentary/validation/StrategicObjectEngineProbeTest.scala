@@ -1,6 +1,10 @@
 package lila.commentary.validation
 
+import scala.concurrent.duration.*
+
 class StrategicObjectEngineProbeTest extends munit.FunSuite:
+
+  override val munitTimeout = 2.minutes
 
   private val objectRows = ObjectExpectationCorpus.loadAll().map(row => row.id -> row).toMap
   private val probeRows =

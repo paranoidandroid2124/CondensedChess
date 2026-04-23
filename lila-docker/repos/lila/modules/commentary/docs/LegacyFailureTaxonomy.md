@@ -508,6 +508,49 @@ New-system rule:
 - numeric eval alone may not create a certification row
 - stale or cross-board evidence bundles may not be replayed onto a different
   certification extraction; exact-board evidence mismatch fails closed
+- Engine E certification evidence freeze: Engine E is certification evidence
+  only, not a `Root/U/Object/Delta/Sxx truth owner`
+- `CertificationEngineEvidenceContract` is the typed admission boundary; raw
+  eval/PV dumps are not evidence until exact FEN, node identity, freshness,
+  depth, MultiPV, score, and legal-PV checks pass
+- `CertificationEngineRuntimeIntake` may normalize optional analyse/backend
+  packets into the typed contract, but missing, rejected, inactive-family,
+  invalid-owner, invalid-UCI, stale, or insufficient packets leave the base
+  certification path unchanged rather than upgrading truth
+- illegal PV replay, truncated PV replay, stale search state, mate-as-centipawn
+  conversion, and undeclared best-defense / conversion / persistence purposes
+  fail closed
+- scoreless bounded claims, duplicate bounded claims, duplicate MultiPV first
+  moves for best-defense, and unbound or cross-board eval-swing baselines fail
+  closed
+- eval-swing baselines with stale or mismatched node/ply binding fail closed
+- root-state equivalence is not enough for Engine E identity; normalized
+  full-FEN strings, including clock fields, must match
+
+### 21. Reference Context Inflated Into Truth
+
+Legacy meaning:
+
+- source-backed names, examples, or study labels sounded authoritative and were
+  treated as if they proved the current board
+- an opening label, motif tag, endgame-study name, or retrieved example became
+  a current-position claim without paying the exact-board carrier burden
+
+New-system owner:
+
+- source-context validation and the later consuming layer
+
+New-system rule:
+
+- opening rows are context, line identity, or statistics only
+- motif tags need an exact-board detector carrier
+- endgame-study labels need exact material, placement, and relation
+  applicability before they become context
+- endgame-study context is not win, draw, loss, forced-conversion, or
+  forced-line evidence
+- retrieved examples and snippets are non-authoritative references only
+- game-context and endgame result-service family inputs are rejected by the
+  current source-context schema and deferred to separate lanes
 
 ## Global Rules Learned From Legacy Failures
 

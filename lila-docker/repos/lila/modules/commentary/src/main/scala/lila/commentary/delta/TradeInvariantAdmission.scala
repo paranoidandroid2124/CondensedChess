@@ -16,7 +16,7 @@ private[delta] object TradeInvariantAdmission:
     "trade_invariant_transition"
   )
 
-  def firstSliceEvidence(
+  def admissionCarrierEvidence(
       context: StrategicDeltaContext,
       moverColor: Color
   ): Option[CarrierEvidence] =

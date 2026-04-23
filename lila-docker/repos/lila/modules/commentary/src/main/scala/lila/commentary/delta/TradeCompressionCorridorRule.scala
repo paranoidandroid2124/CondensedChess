@@ -51,7 +51,7 @@ private[delta] object TradeCompressionCorridorRule extends StrategicDeltaRule:
     !reciprocalExchangeCorridorShape(before)
 
   private def forbiddenTradeInvariantRival(context: StrategicDeltaContext): Boolean =
-    context.moverColor.exists(color => TradeInvariantAdmission.firstSliceEvidence(context, color).nonEmpty)
+    context.moverColor.exists(color => TradeInvariantAdmission.admissionCarrierEvidence(context, color).nonEmpty)
 
   private def compressedTradeWindow(
       boardContext: lila.commentary.strategic.StrategicObjectContext

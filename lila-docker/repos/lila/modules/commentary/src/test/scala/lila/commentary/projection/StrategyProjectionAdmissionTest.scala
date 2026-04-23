@@ -2,39 +2,58 @@ package lila.commentary.projection
 
 import chess.{ Color, Square }
 import chess.format.{ Fen, Uci }
+import scala.util.Try
 
 import lila.commentary.CommentaryCore
 import lila.commentary.certification.{
+  Certification,
+  CertificationBurdenTag,
   CertificationEvidence,
   CertificationEvidenceBundle,
   CertificationEvidencePurpose,
   CertificationEvidenceStrength,
-  CertificationId
+  CertificationId,
+  CertificationExtractor,
+  CertificationScope,
+  CertificationVerdict
 }
 import lila.commentary.delta.{ StrategicDeltaExtraction, StrategicDeltaExtractor }
-import lila.commentary.strategic.StrategicObjectExtractor
-import lila.commentary.witness.{ WitnessAnchor, WitnessPayload, WitnessValue }
+import lila.commentary.strategic.{
+  StrategicObject,
+  StrategicObjectExtraction,
+  StrategicObjectExtractor,
+  StrategicObjectId,
+  StrategicObjectSet
+}
+import lila.commentary.witness.{ WitnessAnchor, WitnessDescriptorId, WitnessPayload, WitnessSupport, WitnessValue }
 import lila.commentary.witness.seed.StrategySupportSeedExtractor
 
 class StrategyProjectionAdmissionTest extends munit.FunSuite:
 
-  test("S05/S06/S07/S08/S11/S13/S14/S15/S16/S17/S18/S19/S21/S22/S23/S24/S25 projection rows expose start-ready admission contracts"):
+  test("S01/S02/S03/S04/S05/S06/S07/S08/S09/S10/S11/S12/S13/S14/S15/S16/S17/S18/S19/S20/S21/S22/S23/S24/S25 projection rows expose start-ready admission contracts"):
     assertEquals(
       StrategyProjectionScopeContract.startReadyBandIds.map(_.value),
-      Vector("S05", "S06", "S07", "S08", "S11", "S13", "S14", "S15", "S16", "S17", "S18", "S19", "S21", "S22", "S23", "S24", "S25")
+      Vector("S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S10", "S11", "S12", "S13", "S14", "S15", "S16", "S17", "S18", "S19", "S20", "S21", "S22", "S23", "S24", "S25")
     )
     assertEquals(
       CommentaryCore.strategyProjectionStartReadyBandIds,
-      Vector("S05", "S06", "S07", "S08", "S11", "S13", "S14", "S15", "S16", "S17", "S18", "S19", "S21", "S22", "S23", "S24", "S25")
+      Vector("S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S10", "S11", "S12", "S13", "S14", "S15", "S16", "S17", "S18", "S19", "S20", "S21", "S22", "S23", "S24", "S25")
     )
     assertEquals(
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view.mapValues(_.map(_.value)).toMap,
         Map(
+          "S01" -> Vector("king_wing_storm_route_certified"),
+          "S02" -> Vector("king_ring_concentration_route_certified"),
+          "S03" -> Vector("diagonal_king_attack_route_certified"),
+          "S04" -> Vector("king_shelter_breach_route_certified"),
           "S05" -> Vector("center_release_route_certified"),
           "S06" -> Vector("space_bind_restriction_route_certified"),
-          "S07" -> Vector("initiative_conversion_route_certified"),
-          "S08" -> Vector("counterplay_denial_route_certified"),
-          "S11" -> Vector("weak_pawn_target_pressure_persistence_certified"),
+        "S07" -> Vector("initiative_conversion_route_certified"),
+        "S08" -> Vector("counterplay_denial_route_certified"),
+        "S09" -> Vector("file_penetration_route_certified"),
+        "S10" -> Vector("outpost_occupation_route_certified"),
+        "S11" -> Vector("weak_pawn_target_pressure_persistence_certified"),
+        "S12" -> Vector("local_access_superiority_route_certified"),
           "S13" -> Vector("wing_damage_route_certified"),
           "S14" -> Vector("chain_base_contact_route_certified"),
           "S15" -> Vector("passer_creation_route_certified"),
@@ -49,12 +68,829 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
           "trade_invariant_material_simplification_certified",
           "trade_invariant_hold_simplification_certified"
         ),
+        "S20" -> Vector("mobility_domination_route_certified"),
         "S21" -> Vector("counterplay_survival_route_certified"),
         "S22" -> Vector("fortress_hold_certified", "perpetual_hold_certified"),
         "S23" -> Vector("king_entry_conversion_certified", "king_opposition_certified"),
         "S24" -> Vector("same_target_forcing_realization", "same_target_conversion_certified"),
         "S25" -> Vector("rank_access_consequence_certified")
       )
+    )
+
+  test("S01 admits only exact same-anchor king-wing storm route with certified same-king support"):
+    val s01 = StrategyProjectionBandId("S01")
+    val storm = seedExtraction("6k1/6pp/8/6p1/3B1p2/8/Q3P1RP/6K1 w - - 0 1")
+    val certification = kingSafetyEdgeEvidenceFor(storm, Color.White)
+
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        storm,
+        s01Evidence(storm, "h2", "g5", "g8", "same_wing_contact"),
+        Color.White,
+        certification
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        storm,
+        s01Evidence(storm, "h2", "g5", "g8", "attack_edge_same_king"),
+        Color.White,
+        certification
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(s01, storm, StrategyProjectionEvidence.empty, Color.White, certification),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        storm,
+        s01Evidence(storm, "h2", "g5", "g8", "same_wing_contact"),
+        Color.White
+      ),
+      Right(false),
+      clues("S01 evidence cannot prove admission without same-board CertifiedKingSafetyEdge support")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        storm,
+        s01Evidence(storm, "h2", "f4", "g8", "same_wing_contact"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        storm,
+        s01Evidence(storm, "g2", "g5", "g8", "same_wing_contact"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        storm,
+        s01Evidence(storm, "h2", "g5", "h8", "same_wing_contact"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        storm,
+        s01Evidence(storm, "h2", "g5", "g8", "castling_side_only"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+
+  test("S01 rejects same-cluster rivals, shortcut negatives, optional strengthening, and stale evidence"):
+    val s01 = StrategyProjectionBandId("S01")
+    val storm = seedExtraction("6k1/6pp/8/6p1/3B1p2/8/Q3P1RP/6K1 w - - 0 1")
+    val s05Rival = seedExtraction("6k1/6pp/5n2/3pp3/3PP3/5N2/2P3PP/6K1 w - - 0 1")
+    val s21Rival = seedExtraction("r1bqkbnr/p1ppp3/2n5/6p1/2P1P3/2N2N2/PP1P1PPP/R2QKB1R w KQkq - 0 1")
+    val centerEdgeRival = seedExtraction("6k1/6pp/8/8/3B1p2/8/4P1R1/6K1 w - - 0 1")
+    val castlingSideOnly = seedExtraction("7k/8/8/7p/8/8/6P1/6K1 w - - 0 1")
+    val wingShellOnly = seedExtraction("6k1/8/6p1/4B3/8/8/7R/6K1 w - - 0 1")
+    val stale = seedExtraction("7k/8/8/7p/8/8/6P1/6K1 w - - 0 1")
+    val certification = kingSafetyEdgeEvidenceFor(storm, Color.White)
+
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        s05Rival,
+        s01Evidence(s05Rival, "c2", "d5", "g8", "same_wing_contact"),
+        Color.White,
+        kingSafetyEdgeEvidenceFor(s05Rival, Color.White)
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        centerEdgeRival,
+        s01Evidence(centerEdgeRival, "e2", "f4", "g8", "same_wing_contact"),
+        Color.White,
+        kingSafetyEdgeEvidenceFor(centerEdgeRival, Color.White)
+      ),
+      Right(false),
+      clues("S01 must not absorb c-f center-edge pawn contact that belongs to the S05 center-release boundary")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        s21Rival,
+        s01Evidence(s21Rival, "h2", "g5", "e8", "same_wing_contact"),
+        Color.White,
+        initiativeWindowEvidenceFor(s21Rival, Color.White)
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        castlingSideOnly,
+        s01Evidence(castlingSideOnly, "g2", "h5", "h8", "same_wing_contact"),
+        Color.White,
+        kingSafetyEdgeEvidenceFor(castlingSideOnly, Color.White)
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        wingShellOnly,
+        s01Evidence(wingShellOnly, "e2", "f4", "g8", "same_wing_contact"),
+        Color.White,
+        kingSafetyEdgeEvidenceFor(wingShellOnly, Color.White)
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        wingShellOnly,
+        StrategyProjectionEvidence.empty,
+        Color.White,
+        kingSafetyEdgeEvidenceFor(wingShellOnly, Color.White)
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s01,
+        storm,
+        s01Evidence(stale, "g2", "h5", "h8", "same_wing_contact"),
+        Color.White,
+        certification
+      ),
+      Left("Strategy projection admission rejected stale evidence bundle")
+    )
+    assert(
+      StrategyProjectionAdmission
+        .admits(
+          s01,
+          storm,
+          s01Evidence(storm, "h2", "g5", "g8", "same_wing_contact"),
+          Color.White,
+          kingSafetyEdgeEvidenceFor(stale, Color.White)
+        )
+        .left
+        .exists(_.contains("stale certification evidence"))
+    )
+
+  test("S02 admits only exact same-king king-ring concentration route with mirrored runtime evidence"):
+    val s02 = StrategyProjectionBandId("S02")
+    val exact = seedExtraction("6k1/6pp/8/8/3B4/8/6R1/6K1 w - - 0 1")
+    val certification = kingSafetyEdgeEvidenceFor(exact, Color.White)
+
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s02,
+        exact,
+        s02Evidence(exact, "g8", Vector("d4"), Vector("g7"), "direct_piece_concentration"),
+        Color.White,
+        certification
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s02,
+        exact,
+        s02Evidence(exact, "g8", Vector("d4"), Vector("g7"), "lane_strengthened_concentration"),
+        Color.White,
+        certification
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(s02, exact, StrategyProjectionEvidence.empty, Color.White, certification),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s02,
+        exact,
+        s02Evidence(exact, "g8", Vector("d4"), Vector("g7"), "direct_piece_concentration"),
+        Color.White
+      ),
+      Right(false),
+      clues("S02 projection evidence cannot admit without same-board CertifiedKingSafetyEdge support")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s02,
+        exact,
+        s02Evidence(exact, "h8", Vector("d4"), Vector("g7"), "direct_piece_concentration"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s02,
+        exact,
+        s02Evidence(exact, "g8", Vector("d4", "g2"), Vector("g7"), "direct_piece_concentration"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s02,
+        exact,
+        s02Evidence(exact, "g8", Vector("d4"), Vector("h8"), "direct_piece_concentration"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s02,
+        exact,
+        s02Evidence(exact, "g8", Vector("d4"), Vector("g7"), "diagonal_attack_rival_shortcut"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+
+  test("S02 carrier targets exclude AttackScaffold support-only target squares"):
+    val exact = seedExtraction("6k1/6pp/8/8/3B4/8/6R1/6K1 w - - 0 1")
+    val current = StrategicObjectExtractor.fromRoot(exact.rootState)
+    val defendingKing = squareFromKey("g8")
+    val carrierSource = squareFromKey("d4")
+    val carrierTarget = squareFromKey("g7")
+    val supportOnlyTarget = squareFromKey("h7")
+    val syntheticCurrent = StrategicObjectExtraction(
+      rootState = current.rootState,
+      primaryWitnesses = current.primaryWitnesses,
+      attachedWitnesses = current.attachedWitnesses,
+      objects = StrategicObjectSet(
+        Vector(
+          StrategicObject(
+            familyId = StrategicObjectId("AttackScaffold"),
+            anchor = WitnessAnchor.SquareAnchor(defendingKing),
+            color = Some(Color.White),
+            payload = WitnessPayload(
+              "king_square" -> WitnessValue.SquareValue(defendingKing),
+              "carrier_fragment_ids" -> WitnessValue.TokenListValue(Vector("diagonal_lane_only")),
+              "carrier_source_squares" -> WitnessValue.SquareListValue(Vector(carrierSource)),
+              "carrier_squares" -> WitnessValue.SquareListValue(Vector(carrierSource, carrierTarget)),
+              "support_fragment_ids" -> WitnessValue.TokenListValue(Vector("loose_piece")),
+              "support_squares" -> WitnessValue.SquareListValue(Vector(supportOnlyTarget))
+            ),
+            support = WitnessSupport.empty
+              .addTargetSquare(carrierSource)
+              .addTargetSquare(carrierTarget)
+              .addTargetSquare(supportOnlyTarget)
+          )
+        )
+      )
+    )
+    val syntheticCertification = Certification(
+      familyId = CertificationId("CertifiedKingSafetyEdge"),
+      scope = CertificationScope.Comparative,
+      burdenTag = CertificationBurdenTag("king_safety_edge_certification"),
+      verdict = CertificationVerdict.Certified,
+      anchor = WitnessAnchor.BoardAnchor,
+      color = Color.White,
+      payload = WitnessPayload(
+        "attacked_king_ring_squares" -> WitnessValue.SquareListValue(Vector(carrierTarget, supportOnlyTarget))
+      ),
+      support = WitnessSupport.empty
+    )
+
+    val carriers = invokeS02KingRingConcentrationCarriers(syntheticCurrent, syntheticCertification, Color.White)
+    val carrierTargetSets =
+      carriers.map(_.productElement(2).asInstanceOf[Set[Square]].map(_.key))
+
+    assertEquals(
+      carrierTargetSets.exists(_.contains(supportOnlyTarget.key)),
+      false,
+      clues("S02 must not promote AttackScaffold support-only squares into king-ring concentration targets")
+    )
+    assertEquals(carrierTargetSets.exists(_ == Set(carrierTarget.key)), true)
+
+  test("S02 rejects same-cluster rivals, shortcut negatives, optional strengthening, and stale evidence"):
+    val s02 = StrategyProjectionBandId("S02")
+    val exact = seedExtraction("6k1/6pp/8/8/3B4/8/6R1/6K1 w - - 0 1")
+    val s03Rival = seedExtraction("6k1/8/6p1/8/3B4/8/6R1/6K1 w - - 0 1")
+    val s04Rival = seedExtraction("6k1/8/6p1/4B3/8/8/7R/6K1 w - - 0 1")
+    val s09Rival = seedExtraction("6k1/8/8/8/8/8/4R3/6K1 w - - 0 1")
+    val labelOnly = seedExtraction("6k1/8/8/8/8/8/4R3/6K1 w - - 0 1")
+    val stale = seedExtraction("6k1/8/6p1/8/3B4/8/6R1/6K1 w - - 0 1")
+    val certification = kingSafetyEdgeEvidenceFor(exact, Color.White)
+
+    Vector(s03Rival, s04Rival, s09Rival, labelOnly).foreach: extraction =>
+      assertEquals(
+        StrategyProjectionAdmission.admits(
+          s02,
+          extraction,
+          s02Evidence(extraction, "g8", Vector("d4"), Vector("g7"), "direct_piece_concentration"),
+          Color.White,
+          kingSafetyEdgeEvidenceFor(extraction, Color.White)
+        ),
+        Right(false)
+      )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s02,
+        exact,
+        s02Evidence(exact, "g8", Vector("d4"), Vector("g7"), "lane_strengthened_concentration"),
+        Color.White,
+        CertificationEvidenceBundle.empty
+      ),
+      Right(false),
+      clues("S02 lane strengthening is not an admission proof without the exact lower certification carrier")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s02,
+        exact,
+        s02Evidence(stale, "g8", Vector("d4"), Vector("g7"), "direct_piece_concentration"),
+        Color.White,
+        certification
+      ),
+      Left("Strategy projection admission rejected stale evidence bundle")
+    )
+    assert(
+      StrategyProjectionAdmission
+        .admits(
+          s02,
+          exact,
+          s02Evidence(exact, "g8", Vector("d4"), Vector("g7"), "direct_piece_concentration"),
+          Color.White,
+          kingSafetyEdgeEvidenceFor(stale, Color.White)
+        )
+        .left
+        .exists(_.contains("stale certification evidence"))
+    )
+
+  test("S03 admits only exact same-king diagonal attack routes with mirrored runtime evidence"):
+    val s03 = StrategyProjectionBandId("S03")
+    val exact = seedExtraction("6k1/8/6p1/8/3B4/8/6R1/6K1 w - - 0 1")
+    val certification = kingSafetyEdgeEvidenceFor(exact, Color.White)
+
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(exact, "g8", "d4", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+        Color.White,
+        certification
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(exact, "g8", "d4", Vector("g7", "h8"), "fragility_linked_diagonal"),
+        Color.White,
+        certification
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(s03, exact, StrategyProjectionEvidence.empty, Color.White, certification),
+      Right(false),
+      clues("S03 lower carriers cannot admit without live projection evidence")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(exact, "g8", "d4", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+        Color.White
+      ),
+      Right(false),
+      clues("S03 projection evidence cannot admit without same-board certified lower support")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(exact, "h8", "d4", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(exact, "g8", "g2", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(exact, "g8", "d4", Vector("h8"), "king_facing_diagonal_entry"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(exact, "g8", "d4", Vector("g7", "h8"), "concentration_rival_shortcut"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(exact, "g8", "d4", Vector("g7", "h8"), "king_facing_diagonal_entry", owner = Color.Black),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+
+  test("S03 rejects same-cluster rivals, shortcut negatives, support-only proof, and stale evidence"):
+    val s03 = StrategyProjectionBandId("S03")
+    val exact = seedExtraction("6k1/8/6p1/8/3B4/8/6R1/6K1 w - - 0 1")
+    val s02Rival = seedExtraction("6k1/6pp/8/8/3B4/8/6R1/6K1 w - - 0 1")
+    val s12Rival = seedExtraction("6k1/8/7p/8/8/8/8/2B3K1 w - - 0 1")
+    val bishopPairOnly = seedExtraction("4k3/8/8/8/8/8/6B1/2B1K3 w - - 0 1")
+    val nonKingDiagonal = seedExtraction("4k3/8/7p/8/8/8/8/2B1K3 w - - 0 1")
+    val scaffoldCertificationNoDiagonal =
+      seedExtraction("6k1/6n1/8/8/8/8/6QR/6K1 w - - 0 1")
+    val stale = seedExtraction("6k1/6pp/8/8/3B4/8/6R1/6K1 w - - 0 1")
+    val certification = kingSafetyEdgeEvidenceFor(exact, Color.White)
+    val noDiagonalCertification = kingSafetyEdgeEvidenceFor(scaffoldCertificationNoDiagonal, Color.White)
+
+    Vector(s02Rival, s12Rival, bishopPairOnly, nonKingDiagonal).foreach: extraction =>
+      assertEquals(
+        StrategyProjectionAdmission.admits(
+          s03,
+          extraction,
+          s03Evidence(extraction, "g8", "d4", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+          Color.White,
+          kingSafetyEdgeEvidenceFor(extraction, Color.White)
+        ),
+        Right(false)
+      )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(exact, "g8", "d4", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+        Color.White,
+        CertificationEvidenceBundle.empty
+      ),
+      Right(false),
+      clues("S03 attack-scaffold-only proof attempt cannot admit without certified lower support")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        StrategyProjectionEvidence.empty,
+        Color.White,
+        certification
+      ),
+      Right(false),
+      clues("S03 certification-support-only proof attempt cannot admit without live projection evidence")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        nonKingDiagonal,
+        s03Evidence(nonKingDiagonal, "g8", "d4", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+        Color.White,
+        kingSafetyEdgeEvidenceFor(nonKingDiagonal, Color.White)
+      ),
+      Right(false),
+      clues("S03 diagonal plus certification without same-defending-king scaffold cannot admit")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        scaffoldCertificationNoDiagonal,
+        s03Evidence(scaffoldCertificationNoDiagonal, "g8", "g2", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+        Color.White,
+        noDiagonalCertification
+      ),
+      Right(false),
+      clues("S03 scaffold plus certification without exact king-theater diagonal entry cannot admit")
+    )
+    assert(
+      StrategicObjectExtractor
+        .fromRoot(scaffoldCertificationNoDiagonal.rootState)
+        .objects
+        .forFamilyId("AttackScaffold")
+        .exists(_.color.contains(Color.White)),
+      clues("S03 nasty negative must contain real AttackScaffold support")
+    )
+    val noDiagonalCertifications =
+      CertificationExtractor
+        .fromObjectExtractionFailClosed(
+          StrategicObjectExtractor.fromRoot(scaffoldCertificationNoDiagonal.rootState),
+          noDiagonalCertification
+        )
+        .fold(message => fail(message), identity)
+        .claims
+    assert(
+      noDiagonalCertifications
+        .forFamilyId("ComparativeKingFragility")
+        .exists(cert => cert.owner.contains(Color.White) && cert.verdict == CertificationVerdict.Certified) &&
+        noDiagonalCertifications
+          .forFamilyId("CertifiedKingSafetyEdge")
+          .exists(cert => cert.owner.contains(Color.White) && cert.verdict == CertificationVerdict.Certified),
+      clues("S03 nasty negative must contain certified lower support")
+    )
+    val blackKingRing =
+      lila.commentary.witness.u.UExtractionContext(scaffoldCertificationNoDiagonal.rootState)
+        .kingRingSquaresFor(Color.Black)
+        .toSet
+    val diagonalWitnesses =
+      lila.commentary.witness.u.UWitnessExtractor
+        .fromRoot(scaffoldCertificationNoDiagonal.rootState)
+        .witnesses
+        .forDescriptorId(WitnessDescriptorId("diagonal_lane_only"))
+    assert(
+      diagonalWitnesses.forall(witness => witness.support.targetSquares.toSet.intersect(blackKingRing).isEmpty),
+      clues("S03 nasty negative must not contain a king-theater diagonal lane carrier")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(exact, "g8", "d4", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+        Color.White,
+        certificationEvidenceFor(exact, "ComparativeKingFragility", Color.White)
+      ),
+      Right(false),
+      clues("S03 ComparativeKingFragility support alone is not projection proof")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(exact, "g8", "d4", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+        Color.White,
+        certificationEvidenceFor(exact, "CertifiedKingSafetyEdge", Color.White)
+      ),
+      Right(false),
+      clues("S03 CertifiedKingSafetyEdge support alone is not projection proof")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s03,
+        exact,
+        s03Evidence(stale, "g8", "d4", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+        Color.White,
+        certification
+      ),
+      Left("Strategy projection admission rejected stale evidence bundle")
+    )
+    assert(
+      StrategyProjectionAdmission
+        .admits(
+          s03,
+          exact,
+          s03Evidence(exact, "g8", "d4", Vector("g7", "h8"), "king_facing_diagonal_entry"),
+          Color.White,
+          kingSafetyEdgeEvidenceFor(stale, Color.White)
+        )
+        .left
+        .exists(_.contains("stale certification evidence"))
+    )
+
+  test("S09 admits only exact same-file penetration routes with mirrored runtime evidence"):
+    val s09 = StrategyProjectionBandId("S09")
+    val openEntry = seedExtraction("6k1/pppp1ppp/8/8/8/8/PPPPRPPP/6K1 w - - 0 1")
+    val semiOpenEntry = seedExtraction("6k1/pppppppp/8/8/8/8/PPPPRPPP/6K1 w - - 0 1")
+    val sameFilePenetration = seedExtraction("6k1/8/8/8/8/8/4R3/6K1 w - - 0 1")
+    val fileAndRankAccess = seedExtraction("6k1/8/8/8/R7/8/8/6K1 w - - 0 1")
+    val blackSameFilePenetration = seedExtraction("6k1/4r3/8/8/8/8/8/6K1 b - - 0 1")
+
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        openEntry,
+        s09Evidence(openEntry, "e2", "e7", "open_file_entry"),
+        Color.White
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        semiOpenEntry,
+        s09Evidence(semiOpenEntry, "e2", "e6", "semi_open_file_entry"),
+        Color.White
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        sameFilePenetration,
+        s09Evidence(sameFilePenetration, "e2", "e7", "same_file_penetration"),
+        Color.White
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        fileAndRankAccess,
+        s09Evidence(fileAndRankAccess, "a4", "a7", "same_file_penetration"),
+        Color.White
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        blackSameFilePenetration,
+        s09Evidence(blackSameFilePenetration, "e7", "e4", "same_file_penetration", owner = Color.Black),
+        Color.Black
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        StrategyProjectionBandId("S02"),
+        fileAndRankAccess,
+        s09Evidence(fileAndRankAccess, "a4", "a7", "same_file_penetration"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        StrategyProjectionBandId("S23"),
+        fileAndRankAccess,
+        s09Evidence(fileAndRankAccess, "a4", "a7", "same_file_penetration"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        StrategyProjectionBandId("S25"),
+        fileAndRankAccess,
+        s09Evidence(fileAndRankAccess, "a4", "a7", "same_file_penetration"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        fileAndRankAccess,
+        s25Evidence(fileAndRankAccess, "a4", "f4", "cross_wing_rank_switch"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(s09, openEntry, StrategyProjectionEvidence.empty, Color.White),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        openEntry,
+        s09Evidence(openEntry, "e2", "e7", "semi_open_file_entry"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        openEntry,
+        s09Evidence(openEntry, "e2", "d7", "open_file_entry"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        openEntry,
+        s09Evidence(openEntry, "d2", "e7", "open_file_entry"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        openEntry,
+        s09Evidence(openEntry, "e2", "e7", "open_file_entry", owner = Color.Black),
+        Color.White
+      ),
+      Right(false)
+    )
+
+  test("S09 rejects adjacent rivals, shortcuts, support-only proof, and stale evidence"):
+    val s09 = StrategyProjectionBandId("S09")
+    val openEntry = seedExtraction("6k1/pppp1ppp/8/8/8/8/PPPPRPPP/6K1 w - - 0 1")
+    val stale = seedExtraction("6k1/8/8/8/8/8/4R3/6K1 w - - 0 1")
+    val kingAttackRival = seedExtraction("6k1/6pp/8/8/8/8/6Q1/6K1 w - - 0 1")
+    val kingActivityRival = seedExtraction("6k1/8/8/3p4/5K2/8/8/8 w - - 0 1")
+    val rankAccessRival = seedExtraction("6k1/8/8/n7/R7/8/8/6K1 w - - 0 1")
+    val fileSubstrateOnly = seedExtraction("6k1/pppp1ppp/8/8/8/8/PPPP1PPP/6K1 w - - 0 1")
+    val rookOnFileOnly = seedExtraction("6k1/pppppppp/8/8/8/8/PPPPPPPP/4R1K1 w - - 0 1")
+    val attackSupportOnly = seedExtraction("6k1/6pp/8/8/8/8/5Q2/6K1 w - - 0 1")
+
+    Vector(
+      kingAttackRival,
+      kingActivityRival,
+      rankAccessRival,
+      fileSubstrateOnly,
+      rookOnFileOnly,
+      attackSupportOnly
+    ).foreach: extraction =>
+      assertEquals(
+        StrategyProjectionAdmission.admits(
+          s09,
+          extraction,
+          s09Evidence(extraction, "e2", "e7", "open_file_entry"),
+          Color.White
+        ),
+        Right(false)
+      )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        rankAccessRival,
+        s09Evidence(rankAccessRival, "a4", "a7", "open_file_entry"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        openEntry,
+        s09Evidence(stale, "e2", "e7", "same_file_penetration"),
+        Color.White
+      ),
+      Left("Strategy projection admission rejected stale evidence bundle")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        openEntry,
+        s09Evidence(
+          openEntry,
+          "e2",
+          "e7",
+          "open_file_entry",
+          extraPayload = Vector("certification_family" -> WitnessValue.Token("MaterialHarvest"))
+        ),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s09,
+        openEntry,
+        StrategyProjectionEvidence.empty,
+        Color.White,
+        certificationEvidenceFor(
+          openEntry,
+          "MaterialHarvest",
+          Color.White,
+          purposes = Map(CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied)
+        )
+      ),
+      Right(false)
     )
 
   test("S06 admits only exact structural-space bind routes with same-anchor evidence"):
@@ -418,6 +1254,165 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
     assert(
       StrategyProjectionAdmission
         .admits(s08, current, currentEvidence, Color.White, staleCertification)
+        .left
+        .exists(_.contains("stale certification evidence"))
+    )
+
+  test("S04 admits only exact same-defender shelter-breach routes with mirrored runtime evidence"):
+    val s04 = StrategyProjectionBandId("S04")
+    val exact = seedExtraction("6k1/8/6p1/4B3/8/8/7R/6K1 w - - 0 1")
+    val certification = kingSafetyEdgeEvidenceFor(exact, Color.White)
+
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s04,
+        exact,
+        s04Evidence(exact, "g8", "g7", Vector("f6", "h6", "g7", "h7"), "shell_payload_breach"),
+        Color.White,
+        certification
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s04,
+        exact,
+        s04Evidence(exact, "g8", "g7", Vector("f6", "h6", "g7", "h7"), "support_break_breach"),
+        Color.White,
+        certification
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(s04, exact, StrategyProjectionEvidence.empty, Color.White, certification),
+      Right(false),
+      clues("S04 lower shell plus certification support cannot admit without live projection evidence")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s04,
+        exact,
+        s04Evidence(exact, "g8", "g7", Vector("f6", "h6", "g7", "h7"), "shell_payload_breach"),
+        Color.White
+      ),
+      Right(false),
+      clues("S04 projection evidence cannot admit without same-board CertifiedKingSafetyEdge support")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s04,
+        exact,
+        s04Evidence(exact, "h8", "g7", Vector("f6", "h6", "g7", "h7"), "shell_payload_breach"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s04,
+        exact,
+        s04Evidence(exact, "g8", "h7", Vector("f6", "h6", "g7", "h7"), "shell_payload_breach"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s04,
+        exact,
+        s04Evidence(exact, "g8", "g7", Vector("g7"), "shell_payload_breach"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s04,
+        exact,
+        s04Evidence(exact, "g8", "g7", Vector("f6", "h6", "g7", "h7"), "generic_attack_pressure"),
+        Color.White,
+        certification
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s04,
+        exact,
+        s04Evidence(exact, "g8", "g7", Vector("f6", "h6", "g7", "h7"), "shell_payload_breach", owner = Color.Black),
+        Color.White,
+        certification
+      ),
+      Right(false),
+      clues("S04 projection evidence with the wrong owner must not admit")
+    )
+
+  test("S04 rejects same-cluster rivals, shortcut negatives, optional strengthening, and stale evidence"):
+    val s04 = StrategyProjectionBandId("S04")
+    val exact = seedExtraction("6k1/8/6p1/4B3/8/8/7R/6K1 w - - 0 1")
+    val s01Rival = seedExtraction("6k1/6pp/8/6p1/3B1p2/8/Q3P1RP/6K1 w - - 0 1")
+    val s02Rival = seedExtraction("6k1/6pp/8/8/3B4/8/6R1/6K1 w - - 0 1")
+    val s03Rival = seedExtraction("6k1/8/6p1/8/3B4/8/6R1/6K1 w - - 0 1")
+    val s24Rival = seedExtraction("4k3/5ppp/8/3n4/3R4/8/5PPP/4K3 w - - 0 1")
+    val wordingOnly = seedExtraction("6k1/8/6p1/4B1N1/8/8/8/6K1 w - - 0 1")
+    val genericPressure = seedExtraction("6k1/8/8/8/8/8/4R3/6K1 w - - 0 1")
+    val certification = kingSafetyEdgeEvidenceFor(exact, Color.White)
+
+    Vector(s01Rival, s02Rival, s03Rival, s24Rival, wordingOnly, genericPressure).foreach: extraction =>
+      assertEquals(
+        StrategyProjectionAdmission.admits(
+          s04,
+          extraction,
+          s04Evidence(extraction, "g8", "g7", Vector("f6", "h6", "g7", "h7"), "shell_payload_breach"),
+          Color.White,
+          kingSafetyEdgeEvidenceFor(extraction, Color.White)
+        ),
+        Right(false)
+      )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s04,
+        exact,
+        StrategyProjectionEvidence.empty,
+        Color.White,
+        certification
+      ),
+      Right(false),
+      clues("S04 certification-only proof attempt cannot admit without live projection evidence")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s04,
+        wordingOnly,
+        s04Evidence(wordingOnly, "g8", "g7", Vector("f6", "h6", "g7", "h7"), "support_break_breach"),
+        Color.White,
+        CertificationEvidenceBundle.empty
+      ),
+      Right(false),
+      clues("S04 optional strengthening or shell wording cannot replace certified same-board breach support")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s04,
+        exact,
+        s04Evidence(s01Rival, "g8", "g7", Vector("f6", "h6", "g7", "h7"), "shell_payload_breach"),
+        Color.White,
+        certification
+      ),
+      Left("Strategy projection admission rejected stale evidence bundle")
+    )
+    assert(
+      StrategyProjectionAdmission
+        .admits(
+          s04,
+          exact,
+          s04Evidence(exact, "g8", "g7", Vector("f6", "h6", "g7", "h7"), "shell_payload_breach"),
+          Color.White,
+          kingSafetyEdgeEvidenceFor(s01Rival, Color.White)
+        )
         .left
         .exists(_.contains("stale certification evidence"))
     )
@@ -1810,6 +2805,388 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
       Right(false)
     )
 
+  test("S20 admits only exact same-board mobility domination routes with matching evidence"):
+    val s20 = StrategyProjectionBandId("S20")
+    val mobilityRestriction = seedExtraction("8/8/1nQ3n1/4p3/3b2K1/8/1k6/8 w - - 0 1")
+    val defenderStarvation = seedExtraction("3q2k1/7p/2Q2n2/6B1/8/3B4/8/4K3 w - - 0 1")
+    val spaceClampRival = seedExtraction("4k3/8/8/3ppN2/3PP3/7B/8/4K3 w - - 0 1")
+    val weakSquareRival = seedExtraction("6k1/8/3P4/3rB3/5P2/8/8/6K1 w - - 0 1")
+    val liabilityRival = seedExtraction("6kb/5Npp/8/8/8/8/8/4K3 b - - 0 1")
+    val mobilityOnly = seedExtraction("6k1/8/8/8/8/8/6N1/6K1 w - - 0 1")
+    val restrictionOnly = seedExtraction("6k1/8/1P6/1rB5/3P4/8/8/6K1 w - - 0 1")
+
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s20,
+        mobilityRestriction,
+        s20Evidence(mobilityRestriction, "d4", "mobility_plus_restriction"),
+        Color.White,
+        certificationEvidenceFor(
+          mobilityRestriction,
+          "MobilityComparison",
+          Color.White,
+          purposes = Map(CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied)
+        )
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s20,
+        defenderStarvation,
+        s20Evidence(defenderStarvation, "f6", "defender_starvation"),
+        Color.White,
+        certificationEvidenceFor(
+          defenderStarvation,
+          "MobilityComparison",
+          Color.White,
+          purposes = Map(CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied)
+        )
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s20,
+        mobilityRestriction,
+        s20Evidence(mobilityRestriction, "d4", "defender_starvation"),
+        Color.White,
+        certificationEvidenceFor(
+          mobilityRestriction,
+          "MobilityComparison",
+          Color.White,
+          purposes = Map(CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied)
+        )
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s20,
+        defenderStarvation,
+        s20Evidence(defenderStarvation, "f6", "defender_starvation", supportWitnessId = "short_run_slider_gate_restriction"),
+        Color.White,
+        certificationEvidenceFor(
+          defenderStarvation,
+          "MobilityComparison",
+          Color.White,
+          purposes = Map(CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied)
+        )
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s20,
+        mobilityRestriction,
+        StrategyProjectionEvidence.empty,
+        Color.White,
+        certificationEvidenceFor(
+          mobilityRestriction,
+          "MobilityComparison",
+          Color.White,
+          purposes = Map(CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied)
+        )
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s20,
+        spaceClampRival,
+        s20Evidence(spaceClampRival, "f5", "mobility_plus_restriction"),
+        Color.White,
+        CertificationEvidenceBundle.empty
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s20,
+        weakSquareRival,
+        s20Evidence(weakSquareRival, "e5", "mobility_plus_restriction"),
+        Color.White,
+        CertificationEvidenceBundle.empty
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s20,
+        liabilityRival,
+        s20Evidence(liabilityRival, "h8", "defender_starvation"),
+        Color.White,
+        CertificationEvidenceBundle.empty
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s20,
+        mobilityOnly,
+        s20Evidence(mobilityOnly, "g2", "mobility_plus_restriction"),
+        Color.White,
+        CertificationEvidenceBundle.empty
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s20,
+        restrictionOnly,
+        s20Evidence(restrictionOnly, "b5", "mobility_plus_restriction"),
+        Color.White,
+        CertificationEvidenceBundle.empty
+      ),
+      Right(false)
+    )
+
+  test("S10 admits only exact same-anchor knight outpost occupation routes with matching evidence"):
+    val s10 = StrategyProjectionBandId("S10")
+    val knightOnly = seedExtraction("4k3/8/8/3N4/8/2P5/8/4K3 w - - 0 1")
+    val evictionDenied = seedExtraction("4k3/2p5/2P5/3N4/8/2P5/8/4K3 w - - 0 1")
+    val s12WeakSquareRival = seedExtraction("6k1/8/3P4/3rB3/5P2/8/8/6K1 w - - 0 1")
+    val goodPieceOnly = seedExtraction("4k3/8/8/3N4/8/8/8/4K3 w - - 0 1")
+    val nonDurableOccupancy = seedExtraction("4k3/8/2p5/3N4/8/8/8/4K3 w - - 0 1")
+    val nonKnightOccupancy = seedExtraction("4k3/8/8/3B4/8/2P5/8/4K3 w - - 0 1")
+
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s10,
+        knightOnly,
+        s10Evidence(knightOnly, "d5", "knight_only_outpost_occupancy"),
+        Color.White
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s10,
+        evictionDenied,
+        s10Evidence(evictionDenied, "d5", "same_anchor_eviction_denial"),
+        Color.White
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s10,
+        knightOnly,
+        s10Evidence(knightOnly, "d5", "same_anchor_eviction_denial"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s10,
+        knightOnly,
+        StrategyProjectionEvidence.empty,
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s10,
+        s12WeakSquareRival,
+        s10Evidence(s12WeakSquareRival, "e5", "knight_only_outpost_occupancy"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s10,
+        goodPieceOnly,
+        s10Evidence(goodPieceOnly, "d5", "knight_only_outpost_occupancy"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s10,
+        nonDurableOccupancy,
+        s10Evidence(nonDurableOccupancy, "d5", "knight_only_outpost_occupancy"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s10,
+        nonKnightOccupancy,
+        s10Evidence(nonKnightOccupancy, "d5", "knight_only_outpost_occupancy"),
+        Color.White
+      ),
+      Right(false)
+    )
+
+  test("S12 admits only exact local weak-square or diagonal access routes with matching evidence"):
+    val s12 = StrategyProjectionBandId("S12")
+    val weakRoute = seedExtraction("6k1/8/3P4/3rB3/5P2/8/8/6K1 w - - 0 1")
+    val diagonalRoute = seedExtraction("7k/8/1P6/1rB5/3P4/8/8/6K1 w - - 0 1")
+
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        weakRoute,
+        s12Evidence(weakRoute, "e5", "weak_square_route", "weak_outpost_square_state", "d5"),
+        Color.White
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        diagonalRoute,
+        s12Evidence(diagonalRoute, "c5", "diagonal_lane_route", "diagonal_lane_only", "b5"),
+        Color.White
+      ),
+      Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(s12, weakRoute, StrategyProjectionEvidence.empty, Color.White),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        weakRoute,
+        s12Evidence(weakRoute, "e5", "diagonal_wording_only", "diagonal_lane_only", "d5"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        weakRoute,
+        s12Evidence(weakRoute, "e5", "weak_square_route", "weak_outpost_square_state", "e5"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        diagonalRoute,
+        s12Evidence(diagonalRoute, "c5", "diagonal_lane_route", "weak_outpost_square_state", "b5"),
+        Color.White
+      ),
+      Right(false)
+    )
+
+  test("S12 rejects adjacent false rivals, shortcuts, optional strengthening, and stale evidence"):
+    val s12 = StrategyProjectionBandId("S12")
+    val weakRoute = seedExtraction("6k1/8/3P4/3rB3/5P2/8/8/6K1 w - - 0 1")
+    val staleSource = seedExtraction("7k/8/1P6/1rB5/3P4/8/8/6K1 w - - 0 1")
+    val s03Rival = seedExtraction("7k/8/8/8/8/2B5/8/6K1 b - - 0 1")
+    val s03KingRingDiagonalRival = seedExtraction("6k1/8/1P6/1rB5/3P4/8/8/6K1 w - - 0 1")
+    val s10Rival = seedExtraction("4k3/2p1p3/8/3N4/2P1P3/8/8/4K3 w - - 0 1")
+    val s20Rival = seedExtraction("6kq/5Npp/8/8/8/8/8/4K3 b - - 0 1")
+    val diagonalWordingOnly = seedExtraction("6k1/8/8/8/8/2B5/8/6K1 w - - 0 1")
+    val weakWordingOnly = seedExtraction("4k3/8/8/3p4/8/3P4/8/4K3 w - - 0 1")
+
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        s03Rival,
+        s12Evidence(s03Rival, "c3", "diagonal_lane_route", "diagonal_lane_only", "c3"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        s03KingRingDiagonalRival,
+        s12Evidence(s03KingRingDiagonalRival, "c5", "diagonal_lane_route", "diagonal_lane_only", "b5"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        s10Rival,
+        s12Evidence(s10Rival, "d5", "weak_square_route", "weak_outpost_square_state", "d5"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        s20Rival,
+        s12Evidence(s20Rival, "f7", "weak_square_route", "weak_outpost_square_state", "h8"),
+        Color.White,
+        certificationEvidenceFor(s20Rival, "MobilityComparison", Color.White)
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        diagonalWordingOnly,
+        s12Evidence(diagonalWordingOnly, "c3", "diagonal_lane_route", "diagonal_lane_only", "c3"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        weakWordingOnly,
+        s12Evidence(weakWordingOnly, "d5", "weak_square_route", "weak_outpost_square_state", "d5"),
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        weakRoute,
+        s12Evidence(staleSource, "c5", "diagonal_lane_route", "diagonal_lane_only", "b5"),
+        Color.White
+      ),
+      Left("Strategy projection admission rejected stale evidence bundle")
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        weakRoute,
+        s12Evidence(
+          weakRoute,
+          "e5",
+          "weak_square_route",
+          "weak_outpost_square_state",
+          "d5",
+          certificationFamily = Some("MobilityComparison")
+        ),
+        Color.White,
+        certificationEvidenceFor(weakRoute, "MobilityComparison", Color.White)
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        s12,
+        weakRoute,
+        s12Evidence(
+          weakRoute,
+          "e5",
+          "weak_square_route",
+          "weak_outpost_square_state",
+          "d5",
+          extraPayloadEntries = Vector("object_family" -> WitnessValue.Token("AttackScaffold"))
+        ),
+        Color.White
+      ),
+      Right(false)
+    )
+
   test("S18 rejects same-cluster rivals, shortcut negatives, and wrong material anchors"):
     val s18 = StrategyProjectionBandId("S18")
     val s12Rival = seedExtraction("6k1/8/3P4/3rB3/5P2/8/8/6K1 w - - 0 1")
@@ -2358,7 +3735,22 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         bandId = StrategyProjectionBandId("S23"),
         kind = StrategyProjectionEvidenceKind("king_entry_conversion_certified"),
         owner = Color.White,
-        anchor = squareAnchor("e5")
+        anchor = squareAnchor("e5"),
+        payload = WitnessPayload(
+          "entry_square" -> WitnessValue.SquareValue(squareFromKey("e5"))
+        )
+      )
+    )
+    val wrongEntryEvidence = evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionBandId("S23"),
+        kind = StrategyProjectionEvidenceKind("king_entry_conversion_certified"),
+        owner = Color.White,
+        anchor = squareAnchor("e5"),
+        payload = WitnessPayload(
+          "entry_square" -> WitnessValue.SquareValue(squareFromKey("e4"))
+        )
       )
     )
 
@@ -2371,6 +3763,15 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
       ),
       Right(true)
     )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        StrategyProjectionBandId("S23"),
+        extraction,
+        wrongEntryEvidence,
+        Color.White
+      ),
+      Right(false)
+    )
 
   test("S23 admits direct opposition only with an opposition-specific evidence claim"):
     val fen = "8/8/4k3/8/4K3/8/8/8 b - - 0 1"
@@ -2382,7 +3783,22 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         bandId = StrategyProjectionBandId("S23"),
         kind = StrategyProjectionEvidenceKind("king_opposition_certified"),
         owner = Color.White,
-        anchor = squareAnchor("e5")
+        anchor = squareAnchor("e5"),
+        payload = WitnessPayload(
+          "contact_square" -> WitnessValue.SquareValue(squareFromKey("e5"))
+        )
+      )
+    )
+    val wrongContactEvidence = evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionBandId("S23"),
+        kind = StrategyProjectionEvidenceKind("king_opposition_certified"),
+        owner = Color.White,
+        anchor = squareAnchor("e5"),
+        payload = WitnessPayload(
+          "contact_square" -> WitnessValue.SquareValue(squareFromKey("e4"))
+        )
       )
     )
 
@@ -2403,6 +3819,15 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         Color.White
       ),
       Right(true)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        StrategyProjectionBandId("S23"),
+        extraction,
+        wrongContactEvidence,
+        Color.White
+      ),
+      Right(false)
     )
 
   test("S24 admits only when dependency, convergence, forcing, and conversion all share one target"):
@@ -2459,7 +3884,7 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
     )
 
   test("S25 admits only when rank corridor evidence names the same source, entry, and corridor kind"):
-    val fen = "6k1/8/8/8/R7/8/8/6K1 w - - 0 1"
+    val fen = "6k1/8/8/n7/R7/8/8/6K1 w - - 0 1"
     val extraction = seedExtraction(fen)
     val sameCorridorEvidence = evidenceFor(
       extraction,
@@ -2514,6 +3939,20 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         )
       )
     )
+    val extraPayloadEvidence = evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionBandId("S25"),
+        kind = StrategyProjectionEvidenceKind("rank_access_consequence_certified"),
+        owner = Color.White,
+        anchor = pieceAnchor("a4"),
+        payload = WitnessPayload(
+          "corridor_kind" -> WitnessValue.Token("cross_wing_rank_switch"),
+          "entry_square" -> WitnessValue.SquareValue(squareFromKey("f4")),
+          "certification_family" -> WitnessValue.Token("RankAccessConsequence")
+        )
+      )
+    )
 
     assertEquals(
       StrategyProjectionAdmission.admits(
@@ -2556,6 +3995,15 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         StrategyProjectionBandId("S25"),
         extraction,
         wrongAnchorEvidence,
+        Color.White
+      ),
+      Right(false)
+    )
+    assertEquals(
+      StrategyProjectionAdmission.admits(
+        StrategyProjectionBandId("S25"),
+        extraction,
+        extraPayloadEvidence,
         Color.White
       ),
       Right(false)
@@ -2906,6 +4354,55 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         .exists(_.contains("stale certification evidence"))
     )
 
+  test("S20 projection admission rejects stale projection and certification evidence"):
+    val current = seedExtraction("8/8/1nQ3n1/4p3/3b2K1/8/1k6/8 w - - 0 1")
+    val staleSource = seedExtraction("3q2k1/7p/2Q2n2/6B1/8/3B4/8/4K3 w - - 0 1")
+    val currentEvidence = s20Evidence(current, "d4", "mobility_plus_restriction")
+    val staleEvidence = s20Evidence(staleSource, "f6", "defender_starvation")
+    val currentCertification =
+      certificationEvidenceFor(
+        current,
+        "MobilityComparison",
+        Color.White,
+        purposes = Map(CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied)
+      )
+    val staleCertification =
+      certificationEvidenceFor(
+        staleSource,
+        "MobilityComparison",
+        Color.White,
+        purposes = Map(CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied)
+      )
+
+    assert(
+      StrategyProjectionAdmission
+        .admits(StrategyProjectionBandId("S20"), current, staleEvidence, Color.White, currentCertification)
+        .left
+        .exists(_.contains("stale evidence bundle"))
+    )
+    assert(
+      StrategyProjectionAdmission
+        .admits(StrategyProjectionBandId("S20"), current, currentEvidence, Color.White, staleCertification)
+        .left
+        .exists(_.contains("stale certification evidence"))
+    )
+
+  test("S10 projection admission rejects stale projection evidence"):
+    val current = seedExtraction("4k3/8/8/3N4/8/2P5/8/4K3 w - - 0 1")
+    val staleSource = seedExtraction("4k3/2p5/2P5/3N4/8/2P5/8/4K3 w - - 0 1")
+
+    assert(
+      StrategyProjectionAdmission
+        .admits(
+          StrategyProjectionBandId("S10"),
+          current,
+          s10Evidence(staleSource, "d5", "same_anchor_eviction_denial"),
+          Color.White
+        )
+        .left
+        .exists(_.contains("stale evidence bundle"))
+    )
+
   test("S22 projection admission rejects stale certified hold evidence"):
     val current = seedExtraction("7k/6pp/8/8/8/4K3/3N4/8 w - - 0 1")
     val staleSource = seedExtraction("7k/6pp/8/8/8/4K3/8/3N4 w - - 0 1")
@@ -3174,6 +4671,182 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
       )
     )
 
+  private def s01Evidence(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      contactSourceSquare: String,
+      targetSquare: String,
+      defendingKingSquare: String,
+      kingWingStormRoute: String,
+      owner: Color = Color.White
+  ): StrategyProjectionEvidence =
+    val source = squareFromKey(contactSourceSquare)
+    val target = squareFromKey(targetSquare)
+    val defendingKing = squareFromKey(defendingKingSquare)
+    evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionBandId("S01"),
+        kind = StrategyProjectionEvidenceKind("king_wing_storm_route_certified"),
+        owner = owner,
+        anchor = WitnessAnchor.PieceSquareAnchor(source),
+        payload = WitnessPayload(
+          "contact_source_square" -> WitnessValue.SquareValue(source),
+          "target_square" -> WitnessValue.SquareValue(target),
+          "defending_king_square" -> WitnessValue.SquareValue(defendingKing),
+          "king_wing_storm_route" -> WitnessValue.Token(kingWingStormRoute),
+          "certification_family" -> WitnessValue.Token("CertifiedKingSafetyEdge")
+        )
+      )
+    )
+
+  private def s02Evidence(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      defendingKingSquare: String,
+      sourceSquares: Vector[String],
+      kingRingTargetSquares: Vector[String],
+      kingRingConcentrationRoute: String,
+      owner: Color = Color.White
+  ): StrategyProjectionEvidence =
+    val defendingKing = squareFromKey(defendingKingSquare)
+    evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionScopeContract.S02,
+        kind = StrategyProjectionScopeContract.KingRingConcentrationRouteCertified,
+        owner = owner,
+        anchor = WitnessAnchor.SquareAnchor(defendingKing),
+        payload = WitnessPayload(
+          "defending_king_square" -> WitnessValue.SquareValue(defendingKing),
+          "source_squares" -> WitnessValue.SquareListValue(sourceSquares.map(squareFromKey)),
+          "king_ring_target_squares" -> WitnessValue.SquareListValue(kingRingTargetSquares.map(squareFromKey)),
+          "king_ring_concentration_route" -> WitnessValue.Token(kingRingConcentrationRoute),
+          "certification_family" -> WitnessValue.Token("CertifiedKingSafetyEdge")
+        )
+      )
+    )
+
+  private def s03Evidence(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      defendingKingSquare: String,
+      diagonalSourceSquare: String,
+      diagonalEndpointSquares: Vector[String],
+      diagonalKingAttackRoute: String,
+      owner: Color = Color.White
+  ): StrategyProjectionEvidence =
+    val defendingKing = squareFromKey(defendingKingSquare)
+    val diagonalSource = squareFromKey(diagonalSourceSquare)
+    evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionBandId("S03"),
+        kind = StrategyProjectionEvidenceKind("diagonal_king_attack_route_certified"),
+        owner = owner,
+        anchor = WitnessAnchor.SquareAnchor(defendingKing),
+        payload = WitnessPayload(
+          "defending_king_square" -> WitnessValue.SquareValue(defendingKing),
+          "diagonal_source_square" -> WitnessValue.SquareValue(diagonalSource),
+          "diagonal_endpoint_squares" -> WitnessValue.SquareListValue(diagonalEndpointSquares.map(squareFromKey)),
+          "diagonal_king_attack_route" -> WitnessValue.Token(diagonalKingAttackRoute),
+          "certification_family" -> WitnessValue.Token("CertifiedKingSafetyEdge")
+        )
+      )
+    )
+
+  private def s04Evidence(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      defendingKingSquare: String,
+      shellAnchorSquare: String,
+      breachSquares: Vector[String],
+      kingShelterBreachRoute: String,
+      owner: Color = Color.White
+  ): StrategyProjectionEvidence =
+    val defendingKing = squareFromKey(defendingKingSquare)
+    val shellAnchor = squareFromKey(shellAnchorSquare)
+    evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionScopeContract.S04,
+        kind = StrategyProjectionScopeContract.KingShelterBreachRouteCertified,
+        owner = owner,
+        anchor = WitnessAnchor.SquareAnchor(defendingKing),
+        payload = WitnessPayload(
+          "defending_king_square" -> WitnessValue.SquareValue(defendingKing),
+          "shell_anchor_square" -> WitnessValue.SquareValue(shellAnchor),
+          "breach_squares" -> WitnessValue.SquareListValue(breachSquares.map(squareFromKey)),
+          "king_shelter_breach_route" -> WitnessValue.Token(kingShelterBreachRoute),
+          "certification_family" -> WitnessValue.Token("CertifiedKingSafetyEdge")
+        )
+      )
+    )
+
+  private def invokeS02KingRingConcentrationCarriers(
+      current: StrategicObjectExtraction,
+      certification: Certification,
+      owner: Color
+  ): Vector[Product] =
+    val method =
+      StrategyProjectionAdmission.getClass.getDeclaredMethods
+        .find(method =>
+          method.getName.contains("s02KingRingConcentrationCarriers") &&
+            method.getParameterTypes.toVector == Vector(
+              classOf[StrategicObjectExtraction],
+              classOf[Certification],
+              classOf[Color]
+            )
+        )
+        .getOrElse(fail("missing S02 carrier builder"))
+    method.setAccessible(true)
+    method.invoke(StrategyProjectionAdmission, current, certification, owner).asInstanceOf[Vector[Product]]
+
+  private def s09Evidence(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      sourceSquare: String,
+      entrySquare: String,
+      filePenetrationRoute: String,
+      extraPayload: Vector[(String, WitnessValue)] = Vector.empty,
+      owner: Color = Color.White
+  ): StrategyProjectionEvidence =
+    val source = squareFromKey(sourceSquare)
+    val entry = squareFromKey(entrySquare)
+    evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionScopeContract.S09,
+        kind = StrategyProjectionScopeContract.FilePenetrationRouteCertified,
+        owner = owner,
+        anchor = WitnessAnchor.PieceSquareAnchor(source),
+        payload = WitnessPayload.from(
+          Vector(
+            "route_anchor_square" -> WitnessValue.SquareValue(source),
+            "entry_square" -> WitnessValue.SquareValue(entry),
+            "file_penetration_route" -> WitnessValue.Token(filePenetrationRoute)
+          ) ++ extraPayload
+        )
+      )
+    )
+
+  private def s25Evidence(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      sourceSquare: String,
+      entrySquare: String,
+      corridorKind: String
+  ): StrategyProjectionEvidence =
+    val source = squareFromKey(sourceSquare)
+    val entry = squareFromKey(entrySquare)
+    evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionBandId("S25"),
+        kind = StrategyProjectionEvidenceKind("rank_access_consequence_certified"),
+        owner = Color.White,
+        anchor = WitnessAnchor.PieceSquareAnchor(source),
+        payload = WitnessPayload(
+          "corridor_kind" -> WitnessValue.Token(corridorKind),
+          "entry_square" -> WitnessValue.SquareValue(entry)
+        )
+      )
+    )
+
   private def s21Evidence(
       extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
       contactSourceSquare: String,
@@ -3198,6 +4871,152 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         )
       )
     )
+
+  private def s20Evidence(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      routeAnchorSquare: String,
+      dominationRoute: String,
+      certificationFamily: String = "MobilityComparison",
+      supportWitnessId: String = ""
+  ): StrategyProjectionEvidence =
+    val routeAnchor = squareFromKey(routeAnchorSquare)
+    val witnessId =
+      if supportWitnessId.nonEmpty then supportWitnessId
+      else if dominationRoute == "defender_starvation" then "duty_bound_defender"
+      else "short_run_slider_gate_restriction"
+    evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionBandId("S20"),
+        kind = StrategyProjectionEvidenceKind("mobility_domination_route_certified"),
+        owner = Color.White,
+        anchor = WitnessAnchor.PieceSquareAnchor(routeAnchor),
+        payload = WitnessPayload(
+          "route_anchor_square" -> WitnessValue.SquareValue(routeAnchor),
+          "domination_route" -> WitnessValue.Token(dominationRoute),
+          "support_witness_id" -> WitnessValue.Token(witnessId),
+          "support_target_squares" -> WitnessValue.SquareListValue(
+            s20SupportTargetSquares(extraction, witnessId, routeAnchor)
+          ),
+          "certification_family" -> WitnessValue.Token(certificationFamily)
+        )
+      )
+    )
+
+  private def s20SupportTargetSquares(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      supportWitnessId: String,
+      routeAnchor: Square
+  ): Vector[Square] =
+    Try(StrategicObjectExtractor.fromRoot(extraction.rootState)).toOption.toVector
+      .flatMap(_.primaryWitnesses.all)
+      .filter(witness =>
+        witness.descriptorId == WitnessDescriptorId(supportWitnessId) &&
+          witness.anchor == WitnessAnchor.PieceSquareAnchor(routeAnchor)
+      )
+      .flatMap(_.support.targetSquares)
+      .distinct
+      .sortBy(_.value)
+
+  private def s10Evidence(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      routeAnchorSquare: String,
+      outpostOccupationRoute: String
+  ): StrategyProjectionEvidence =
+    val routeAnchor = squareFromKey(routeAnchorSquare)
+    evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionBandId("S10"),
+        kind = StrategyProjectionEvidenceKind("outpost_occupation_route_certified"),
+        owner = Color.White,
+        anchor = WitnessAnchor.PieceSquareAnchor(routeAnchor),
+        payload = WitnessPayload(
+          "route_anchor_square" -> WitnessValue.SquareValue(routeAnchor),
+          "outpost_square" -> WitnessValue.SquareValue(routeAnchor),
+          "outpost_occupation_route" -> WitnessValue.Token(outpostOccupationRoute)
+        )
+      )
+    )
+
+  private def s12Evidence(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      routeAnchorSquare: String,
+      accessRoute: String,
+      accessWitnessId: String,
+      restrictionAnchorSquare: String,
+      weakOutpostState: String = "outpost",
+      certificationFamily: Option[String] = None,
+      extraPayloadEntries: Vector[(String, WitnessValue)] = Vector.empty
+  ): StrategyProjectionEvidence =
+    val routeAnchor = squareFromKey(routeAnchorSquare)
+    val restrictionAnchor = squareFromKey(restrictionAnchorSquare)
+    val payloadEntries =
+      Vector(
+        "route_anchor_square" -> WitnessValue.SquareValue(routeAnchor),
+        "access_route" -> WitnessValue.Token(accessRoute),
+        "access_witness_id" -> WitnessValue.Token(accessWitnessId),
+        "support_witness_id" -> WitnessValue.Token("short_run_slider_gate_restriction"),
+        "support_target_squares" -> WitnessValue.SquareListValue(
+          s12RestrictionSupportTargetSquares(extraction, restrictionAnchor)
+        ),
+        "restriction_anchor_square" -> WitnessValue.SquareValue(restrictionAnchor),
+        "local_access_superiority" -> WitnessValue.Token("route_with_restriction")
+      ) ++
+        (if accessRoute == "weak_square_route" then
+           Vector(
+             "weak_outpost_square" -> WitnessValue.SquareValue(routeAnchor),
+             "weak_outpost_state" -> WitnessValue.Token(weakOutpostState)
+           )
+         else
+           Vector(
+             "diagonal_source_square" -> WitnessValue.SquareValue(routeAnchor),
+             "diagonal_endpoint_squares" -> WitnessValue.SquareListValue(s12DiagonalEndpointSquares(extraction, routeAnchor))
+           )
+        ) ++
+        certificationFamily.toVector.map(family => "certification_family" -> WitnessValue.Token(family)) ++
+        extraPayloadEntries
+    evidenceFor(
+      extraction,
+      StrategyProjectionEvidenceClaim(
+        bandId = StrategyProjectionBandId("S12"),
+        kind = StrategyProjectionEvidenceKind("local_access_superiority_route_certified"),
+        owner = Color.White,
+        anchor = WitnessAnchor.SquareAnchor(routeAnchor),
+        payload = WitnessPayload.from(payloadEntries)
+      )
+    )
+
+  private def s12RestrictionSupportTargetSquares(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      restrictionAnchor: Square
+  ): Vector[Square] =
+    Try(StrategicObjectExtractor.fromRoot(extraction.rootState)).toOption.toVector
+      .flatMap(_.primaryWitnesses.all)
+      .filter(witness =>
+        witness.descriptorId == WitnessDescriptorId("short_run_slider_gate_restriction") &&
+          witness.anchor == WitnessAnchor.PieceSquareAnchor(restrictionAnchor)
+      )
+      .flatMap(_.support.targetSquares)
+      .distinct
+      .sortBy(_.value)
+
+  private def s12DiagonalEndpointSquares(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      routeAnchor: Square
+  ): Vector[Square] =
+    Try(StrategicObjectExtractor.fromRoot(extraction.rootState)).toOption.toVector
+      .flatMap(current => current.primaryWitnesses.all ++ current.attachedWitnesses.all)
+      .filter(_.descriptorId == WitnessDescriptorId("diagonal_lane_only"))
+      .filter(witness =>
+        witness.payload
+          .get("source_piece_squares")
+          .collect { case WitnessValue.SquareListValue(squares) => squares.contains(routeAnchor) }
+          .contains(true)
+      )
+      .flatMap(_.payload.get("endpoint_squares").collect { case WitnessValue.SquareListValue(squares) => squares }.toVector.flatten)
+      .distinct
+      .sortBy(_.value)
 
   private def s13Evidence(
       extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
@@ -3362,6 +5181,31 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
           color = owner,
           purposeStrengths = Map(
             CertificationEvidencePurpose.CounterplayDenial -> CertificationEvidenceStrength.Satisfied,
+            CertificationEvidencePurpose.BestDefenseSurvival -> CertificationEvidenceStrength.Satisfied
+          )
+        )
+      )
+    )
+
+  private def kingSafetyEdgeEvidenceFor(
+      extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,
+      owner: Color
+  ): CertificationEvidenceBundle =
+    val current = StrategicObjectExtractor.fromRoot(extraction.rootState)
+    CertificationEvidenceBundle.forObjectExtraction(
+      current,
+      Vector(
+        CertificationEvidence(
+          familyId = CertificationId("ComparativeKingFragility"),
+          color = owner,
+          purposeStrengths =
+            Map(CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied)
+        ),
+        CertificationEvidence(
+          familyId = CertificationId("CertifiedKingSafetyEdge"),
+          color = owner,
+          purposeStrengths = Map(
+            CertificationEvidencePurpose.ComparativeSuperiority -> CertificationEvidenceStrength.Satisfied,
             CertificationEvidencePurpose.BestDefenseSurvival -> CertificationEvidenceStrength.Satisfied
           )
         )

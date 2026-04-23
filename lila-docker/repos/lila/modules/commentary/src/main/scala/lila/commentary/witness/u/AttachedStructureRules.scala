@@ -230,12 +230,13 @@ private[u] object StructuralSpaceClaimRule extends UScopedAttachedRule:
       beneficiaryColor: Color,
       sector: WitnessSector,
   ): Option[StructuralClaimCandidate] =
-    val frontierSeeds = attachedFrontierSeeds(context, beneficiaryColor, sector, host.boundaryPawnSquares)
+    val boundaryAdvanceSquares =
+      attachedBoundaryAdvanceSquares(context, beneficiaryColor, sector, host.boundaryPawnSquares)
     val attachedComponents =
-      attachedClaimComponents(context, beneficiaryColor, sector, frontierSeeds)
+      attachedClaimComponents(context, beneficiaryColor, sector, boundaryAdvanceSquares)
 
     attachedComponents
-      .map(component => component -> attachedSeedsForComponent(component, frontierSeeds))
+      .map(component => component -> attachedSeedsForComponent(component, boundaryAdvanceSquares))
       .filter { case (component, _) => component.size >= 2 }
       .sortBy { case (component, attachedSeeds) =>
         (
@@ -254,7 +255,7 @@ private[u] object StructuralSpaceClaimRule extends UScopedAttachedRule:
         )
       }
 
-  private def attachedFrontierSeeds(
+  private def attachedBoundaryAdvanceSquares(
       context: UExtractionContext,
       beneficiaryColor: Color,
       sector: WitnessSector,
@@ -271,7 +272,7 @@ private[u] object StructuralSpaceClaimRule extends UScopedAttachedRule:
       context: UExtractionContext,
       beneficiaryColor: Color,
       sector: WitnessSector,
-      frontierSeeds: Vector[Square]
+      boundaryAdvanceSquares: Vector[Square]
   ): Vector[Vector[Square]] =
     val claimSquares =
       sectorSquares(sector).filter(square =>
@@ -288,14 +289,14 @@ private[u] object StructuralSpaceClaimRule extends UScopedAttachedRule:
 
     connectedComponents(claimSquares, adjacency)
       .map(_.toVector.sortBy(_.value))
-      .filter(component => attachedSeedsForComponent(component, frontierSeeds).nonEmpty)
+      .filter(component => attachedSeedsForComponent(component, boundaryAdvanceSquares).nonEmpty)
       .sortBy(component => (-component.size, component.head.value))
 
   private def attachedSeedsForComponent(
       component: Vector[Square],
-      frontierSeeds: Vector[Square]
+      boundaryAdvanceSquares: Vector[Square]
   ): Vector[Square] =
-    frontierSeeds.filter(seed =>
+    boundaryAdvanceSquares.filter(seed =>
       component.exists(square =>
         square == seed || square.kingAttacks.contains(seed)
       )

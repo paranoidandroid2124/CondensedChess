@@ -1,6 +1,6 @@
 package lila.commentary.projection
 
-import chess.{ Bishop, Color, File, Pawn, Position, Rank, Square }
+import chess.{ Bishop, Color, File, King, Pawn, Position, Queen, Rank, Rook, Square }
 import chess.variant
 
 import scala.util.Try
@@ -14,7 +14,7 @@ import lila.commentary.certification.{
 }
 import lila.commentary.delta.{ StrategicDelta, StrategicDeltaExtraction, StrategicDeltaExtractor }
 import lila.commentary.strategic.{ StrategicObject, StrategicObjectExtraction, StrategicObjectExtractor }
-import lila.commentary.witness.{ Witness, WitnessAnchor, WitnessDescriptorId, WitnessSector, WitnessValue }
+import lila.commentary.witness.{ Witness, WitnessAnchor, WitnessDescriptorId, WitnessPayload, WitnessSector, WitnessValue }
 import lila.commentary.witness.u.{ UExtractionContext, UWitnessExtractor }
 import lila.commentary.witness.seed.{
   StrategySupportSeed,
@@ -42,11 +42,18 @@ object StrategyProjectionAdmission:
     else
       validatedDeltaEvidence(extraction, deltaExtraction).map: canonicalDelta =>
         bandId.value match
+          case "S01" => admitsS01(extraction, evidence, owner, certificationEvidence)
+          case "S02" => admitsS02(extraction, evidence, owner, certificationEvidence)
+          case "S03" => admitsS03(extraction, evidence, owner, certificationEvidence)
+          case "S04" => admitsS04(extraction, evidence, owner, certificationEvidence)
           case "S05" => admitsS05(extraction, evidence, owner)
           case "S06" => admitsS06(extraction, evidence, owner, certificationEvidence)
           case "S07" => admitsS07(extraction, evidence, owner, certificationEvidence)
           case "S08" => admitsS08(extraction, evidence, owner, certificationEvidence)
+          case "S09" => admitsS09(extraction, evidence, owner)
+          case "S10" => admitsS10(extraction, evidence, owner)
           case "S11" => admitsS11(extraction, evidence, owner)
+          case "S12" => admitsS12(extraction, evidence, owner)
           case "S13" => admitsS13(extraction, evidence, owner)
           case "S14" => admitsS14(extraction, evidence, owner)
           case "S15" => admitsS15(extraction, evidence, owner)
@@ -54,12 +61,427 @@ object StrategyProjectionAdmission:
           case "S17" => admitsS17(extraction, evidence, owner)
           case "S18" => admitsS18(extraction, evidence, owner, certificationEvidence)
           case "S19" => admitsS19(extraction, evidence, owner, certificationEvidence, canonicalDelta)
+          case "S20" => admitsS20(extraction, evidence, owner, certificationEvidence)
           case "S21" => admitsS21(extraction, evidence, owner, certificationEvidence)
           case "S22" => admitsS22(extraction, evidence, owner, certificationEvidence)
           case "S23" => admitsS23(extraction, evidence, owner)
           case "S24" => admitsS24(extraction, evidence, owner)
           case "S25" => admitsS25(extraction, evidence, owner)
           case other => throw MatchError(other)
+
+  private final case class S01KingWingStormCarrier(
+      contactSource: Square,
+      target: Square,
+      defendingKing: Square,
+      kingWingStormRoute: String
+  )
+
+  private def admitsS01(
+      extraction: StrategySupportSeedExtraction,
+      evidence: StrategyProjectionEvidence,
+      owner: Color,
+      certificationEvidence: CertificationEvidenceBundle
+  ): Boolean =
+    currentObjectExtraction(extraction).exists: current =>
+      val witnessExtraction = UWitnessExtractor.fromRoot(extraction.rootState)
+      val context = UExtractionContext(extraction.rootState)
+      certifiedClaim(current, certificationEvidence, "CertifiedKingSafetyEdge", owner).exists: certification =>
+        certification.verdict == CertificationVerdict.Certified &&
+          certification.support.targetSquares.nonEmpty &&
+          s01KingWingStormCarriers(current, witnessExtraction, context, owner).exists: carrier =>
+            evidence
+              .evidenceFor(
+                StrategyProjectionScopeContract.S01,
+                StrategyProjectionScopeContract.KingWingStormRouteCertified,
+                owner,
+                WitnessAnchor.PieceSquareAnchor(carrier.contactSource)
+              )
+              .exists(claim => s01EvidenceBindsCarrierAndTask(claim, carrier))
+
+  private def s01KingWingStormCarriers(
+      current: StrategicObjectExtraction,
+      witnessExtraction: lila.commentary.witness.u.UWitnessExtraction,
+      context: UExtractionContext,
+      owner: Color
+  ): Vector[S01KingWingStormCarrier] =
+    val defender = !owner
+    context.activePieceSquares(defender, King).flatMap: defendingKing =>
+      breakContactPairs(witnessExtraction, owner).flatMap: (source, target) =>
+        Option.when(
+          hasAvailableLeverTrigger(witnessExtraction, owner, source, target) &&
+            isNonCenterFile(source) &&
+            isNonCenterFile(target) &&
+            sectorOf(target.file) == sectorOf(defendingKing.file) &&
+            sectorOf(source.file) == sectorOf(defendingKing.file) &&
+            isWingSector(sectorOf(target.file)) &&
+            hasAttackScaffoldForDefendingKing(current, owner, defendingKing)
+        )(
+          Vector(
+            S01KingWingStormCarrier(source, target, defendingKing, "same_wing_contact"),
+            S01KingWingStormCarrier(source, target, defendingKing, "attack_edge_same_king")
+          )
+        )
+      .flatten
+    .distinct
+      .sortBy(carrier =>
+        (
+          carrier.contactSource.value,
+          carrier.target.value,
+          carrier.defendingKing.value,
+          carrier.kingWingStormRoute
+        )
+      )
+
+  private def hasAttackScaffoldForDefendingKing(
+      current: StrategicObjectExtraction,
+      owner: Color,
+      defendingKing: Square
+  ): Boolean =
+    current.objects.forFamilyId("AttackScaffold").exists(obj =>
+      obj.color.contains(owner) &&
+        obj.anchor == WitnessAnchor.SquareAnchor(defendingKing)
+    )
+
+  private def s01EvidenceBindsCarrierAndTask(
+      claim: StrategyProjectionEvidenceClaim,
+      carrier: S01KingWingStormCarrier
+  ): Boolean =
+    claim.anchor == WitnessAnchor.PieceSquareAnchor(carrier.contactSource) &&
+      payloadFieldsExactly(claim.payload, S01EvidenceFields) &&
+      square(claim.payload, "contact_source_square").contains(carrier.contactSource) &&
+      square(claim.payload, "target_square").contains(carrier.target) &&
+      square(claim.payload, "defending_king_square").contains(carrier.defendingKing) &&
+      token(claim.payload, "king_wing_storm_route").contains(carrier.kingWingStormRoute) &&
+      token(claim.payload, "certification_family").contains("CertifiedKingSafetyEdge")
+
+  private val S01EvidenceFields: Set[String] =
+    Set(
+      "contact_source_square",
+      "target_square",
+      "defending_king_square",
+      "king_wing_storm_route",
+      "certification_family"
+    )
+
+  private final case class S02KingRingConcentrationCarrier(
+      defendingKing: Square,
+      sourceSquares: Set[Square],
+      kingRingTargets: Set[Square],
+      kingRingConcentrationRoute: String
+  )
+
+  private def admitsS02(
+      extraction: StrategySupportSeedExtraction,
+      evidence: StrategyProjectionEvidence,
+      owner: Color,
+      certificationEvidence: CertificationEvidenceBundle
+  ): Boolean =
+    currentObjectExtraction(extraction).exists: current =>
+      certifiedClaim(current, certificationEvidence, "CertifiedKingSafetyEdge", owner).exists: certification =>
+        certification.verdict == CertificationVerdict.Certified &&
+          s02KingRingConcentrationCarriers(current, certification, owner).exists: carrier =>
+            evidence
+              .evidenceFor(
+                StrategyProjectionScopeContract.S02,
+                StrategyProjectionScopeContract.KingRingConcentrationRouteCertified,
+                owner,
+                WitnessAnchor.SquareAnchor(carrier.defendingKing)
+              )
+              .exists(claim => s02EvidenceBindsCarrierAndTask(claim, carrier))
+
+  private def s02KingRingConcentrationCarriers(
+      current: StrategicObjectExtraction,
+      certification: Certification,
+      owner: Color
+  ): Vector[S02KingRingConcentrationCarrier] =
+    val context = UExtractionContext(current.rootState)
+    current.objects.forFamilyId("AttackScaffold").flatMap: obj =>
+      obj.anchor match
+        case WitnessAnchor.SquareAnchor(defendingKing)
+            if obj.color.contains(owner) &&
+              square(obj.payload, "king_square").contains(defendingKing) &&
+              !hasDefenderKingSafetyShell(current, !owner, defendingKing) =>
+          val sourceSquares = squareList(obj.payload, "carrier_source_squares").toSet
+          val scaffoldTargets =
+            squareList(obj.payload, "carrier_squares").toSet -- sourceSquares
+          val certifiedTargets =
+            squareList(certification.payload, "attacked_king_ring_squares").toSet
+          val targetSquares =
+            certifiedTargets
+              .intersect(scaffoldTargets)
+              .filter(target => context.hasPieceOn(!owner, Pawn, target))
+          Option.when(sourceSquares.nonEmpty && targetSquares.nonEmpty)(
+            Vector(S02KingRingConcentrationCarrier(
+                defendingKing,
+                sourceSquares,
+                targetSquares,
+                "direct_piece_concentration"
+              )) ++
+              Option.when(tokenList(obj.payload, "carrier_fragment_ids").contains("diagonal_lane_only"))(
+              S02KingRingConcentrationCarrier(
+                defendingKing,
+                sourceSquares,
+                targetSquares,
+                "lane_strengthened_concentration"
+              )
+            )
+          ).toVector.flatten
+        case _ => Vector.empty
+    .distinct
+      .sortBy(carrier =>
+        s"${carrier.defendingKing.value}|${carrier.kingRingConcentrationRoute}|${carrier.sourceSquares.toVector.sortBy(_.value).map(_.key).mkString("+")}|${carrier.kingRingTargets.toVector.sortBy(_.value).map(_.key).mkString("+")}"
+      )
+
+  private def hasDefenderKingSafetyShell(
+      current: StrategicObjectExtraction,
+      defender: Color,
+      defendingKing: Square
+  ): Boolean =
+    current.objects.forFamilyId("KingSafetyShell").exists(obj =>
+      obj.color.contains(defender) &&
+        square(obj.payload, "king_square").contains(defendingKing)
+    )
+
+  private def s02EvidenceBindsCarrierAndTask(
+      claim: StrategyProjectionEvidenceClaim,
+      carrier: S02KingRingConcentrationCarrier
+  ): Boolean =
+    claim.anchor == WitnessAnchor.SquareAnchor(carrier.defendingKing) &&
+      payloadFieldsExactly(claim.payload, S02EvidenceFields) &&
+      square(claim.payload, "defending_king_square").contains(carrier.defendingKing) &&
+      sameSquareSet(squareList(claim.payload, "source_squares"), carrier.sourceSquares) &&
+      sameSquareSet(squareList(claim.payload, "king_ring_target_squares"), carrier.kingRingTargets) &&
+      token(claim.payload, "king_ring_concentration_route").contains(carrier.kingRingConcentrationRoute) &&
+      token(claim.payload, "certification_family").contains("CertifiedKingSafetyEdge")
+
+  private val S02EvidenceFields: Set[String] =
+    Set(
+      "defending_king_square",
+      "source_squares",
+      "king_ring_target_squares",
+      "king_ring_concentration_route",
+      "certification_family"
+    )
+
+  private final case class S03DiagonalKingAttackCarrier(
+      defendingKing: Square,
+      diagonalSource: Square,
+      diagonalEndpointSquares: Set[Square],
+      diagonalKingAttackRoute: String
+  )
+
+  private def admitsS03(
+      extraction: StrategySupportSeedExtraction,
+      evidence: StrategyProjectionEvidence,
+      owner: Color,
+      certificationEvidence: CertificationEvidenceBundle
+  ): Boolean =
+    currentObjectExtraction(extraction).exists: current =>
+      val comparativeFragility =
+        certifiedClaim(current, certificationEvidence, "ComparativeKingFragility", owner)
+      val certifiedEdge =
+        certifiedClaim(current, certificationEvidence, "CertifiedKingSafetyEdge", owner)
+      comparativeFragility.exists(_.verdict == CertificationVerdict.Certified) &&
+        certifiedEdge.exists(_.verdict == CertificationVerdict.Certified) &&
+        s03DiagonalKingAttackCarriers(current, UExtractionContext(extraction.rootState), owner).exists: carrier =>
+          evidence
+            .evidenceFor(
+              StrategyProjectionScopeContract.S03,
+              StrategyProjectionScopeContract.DiagonalKingAttackRouteCertified,
+              owner,
+              WitnessAnchor.SquareAnchor(carrier.defendingKing)
+            )
+            .exists(claim => s03EvidenceBindsCarrierAndTask(claim, carrier))
+
+  private def s03DiagonalKingAttackCarriers(
+      current: StrategicObjectExtraction,
+      context: UExtractionContext,
+      owner: Color
+  ): Vector[S03DiagonalKingAttackCarrier] =
+    val defender = !owner
+    val kingRing = context.kingRingSquaresFor(defender).toSet
+    context.activePieceSquares(defender, King).flatMap: defendingKing =>
+      allObjectWitnesses(current)
+        .filter(_.descriptorId == WitnessDescriptorId("diagonal_lane_only"))
+        .flatMap: witness =>
+          squareList(witness.payload, "source_piece_squares").flatMap: source =>
+            val kingTheaterEntries =
+              (witness.support.targetSquares.toSet ++ squareList(witness.payload, "endpoint_squares").toSet)
+                .filter(square => kingRing.contains(square) && context.pieceAt(square).isEmpty)
+            Option
+              .when(
+                s03OwnerDiagonalSource(context, owner, source) &&
+                  kingTheaterEntries.nonEmpty &&
+                  hasAttackScaffoldForDefendingKing(current, owner, defendingKing)
+              ):
+                Vector(
+                  S03DiagonalKingAttackCarrier(
+                    defendingKing,
+                    source,
+                    kingTheaterEntries,
+                    "king_facing_diagonal_entry"
+                  ),
+                  S03DiagonalKingAttackCarrier(
+                    defendingKing,
+                    source,
+                    kingTheaterEntries,
+                    "fragility_linked_diagonal"
+                  )
+                )
+              .getOrElse(Vector.empty)
+    .distinct
+      .sortBy(carrier =>
+        (
+          carrier.defendingKing.value,
+          carrier.diagonalSource.value,
+          carrier.diagonalKingAttackRoute,
+          carrier.diagonalEndpointSquares.toVector.map(_.value).sorted.mkString(",")
+        )
+      )
+
+  private def s03OwnerDiagonalSource(context: UExtractionContext, owner: Color, source: Square): Boolean =
+    context.pieceAt(source).exists(piece =>
+      piece.color == owner &&
+        (piece.role == Bishop || piece.role == Queen)
+    )
+
+  private def s03EvidenceBindsCarrierAndTask(
+      claim: StrategyProjectionEvidenceClaim,
+      carrier: S03DiagonalKingAttackCarrier
+  ): Boolean =
+    claim.anchor == WitnessAnchor.SquareAnchor(carrier.defendingKing) &&
+      payloadFieldsExactly(claim.payload, S03EvidenceFields) &&
+      square(claim.payload, "defending_king_square").contains(carrier.defendingKing) &&
+      square(claim.payload, "diagonal_source_square").contains(carrier.diagonalSource) &&
+      sameSquareSet(squareList(claim.payload, "diagonal_endpoint_squares"), carrier.diagonalEndpointSquares) &&
+      token(claim.payload, "diagonal_king_attack_route").contains(carrier.diagonalKingAttackRoute) &&
+      token(claim.payload, "certification_family").contains("CertifiedKingSafetyEdge")
+
+  private val S03EvidenceFields: Set[String] =
+    Set(
+      "defending_king_square",
+      "diagonal_source_square",
+      "diagonal_endpoint_squares",
+      "diagonal_king_attack_route",
+      "certification_family"
+    )
+
+  private final case class S04KingShelterBreachCarrier(
+      defendingKing: Square,
+      shellAnchor: Square,
+      breachSquares: Set[Square],
+      kingShelterBreachRoute: String
+  )
+
+  private def admitsS04(
+      extraction: StrategySupportSeedExtraction,
+      evidence: StrategyProjectionEvidence,
+      owner: Color,
+      certificationEvidence: CertificationEvidenceBundle
+  ): Boolean =
+    currentObjectExtraction(extraction).exists: current =>
+      certifiedClaim(current, certificationEvidence, "CertifiedKingSafetyEdge", owner).exists: certification =>
+        certification.verdict == CertificationVerdict.Certified &&
+          s04KingShelterBreachCarriers(current, certification, owner).exists: carrier =>
+            evidence
+              .evidenceFor(
+                StrategyProjectionScopeContract.S04,
+                StrategyProjectionScopeContract.KingShelterBreachRouteCertified,
+                owner,
+                WitnessAnchor.SquareAnchor(carrier.defendingKing)
+              )
+              .exists(claim => s04EvidenceBindsCarrierAndTask(claim, carrier))
+
+  private def s04KingShelterBreachCarriers(
+      current: StrategicObjectExtraction,
+      certification: Certification,
+      owner: Color
+  ): Vector[S04KingShelterBreachCarrier] =
+    val defender = !owner
+    current.objects.forFamilyId("KingSafetyShell").flatMap: shell =>
+      shell.anchor match
+        case WitnessAnchor.SquareAnchor(shellAnchor)
+            if shell.color.contains(defender) =>
+          square(shell.payload, "king_square").toVector.flatMap: defendingKing =>
+            val shellTargets = shell.support.targetSquares.toSet
+            val certifiedTargets = certification.support.targetSquares.toSet
+            val breachSquares = shellTargets.intersect(certifiedTargets)
+            Option
+              .when(
+                shellTargets.nonEmpty &&
+                  breachSquares.nonEmpty &&
+                  contextHasKing(current, defender, defendingKing) &&
+                  sameSquareSet(squareList(shell.payload, "home_shelter_holes"), shellTargets)
+              ):
+                val shellPayload =
+                  S04KingShelterBreachCarrier(
+                    defendingKing,
+                    shellAnchor,
+                    breachSquares,
+                    "shell_payload_breach"
+                  )
+                val supportBreak =
+                  Option
+                    .when(hasDiagonalSupportBreakOnBreach(current, owner, breachSquares))(
+                      S04KingShelterBreachCarrier(
+                        defendingKing,
+                        shellAnchor,
+                        breachSquares,
+                        "support_break_breach"
+                      )
+                    )
+                    .toVector
+                shellPayload +: supportBreak
+              .getOrElse(Vector.empty)
+        case _ => Vector.empty
+    .distinct
+      .sortBy(carrier =>
+        (
+          carrier.defendingKing.value,
+          carrier.shellAnchor.value,
+          carrier.kingShelterBreachRoute,
+          carrier.breachSquares.toVector.map(_.value).sorted.mkString(",")
+        )
+      )
+
+  private def hasDiagonalSupportBreakOnBreach(
+      current: StrategicObjectExtraction,
+      owner: Color,
+      breachSquares: Set[Square]
+  ): Boolean =
+    val context = UExtractionContext(current.rootState)
+    allObjectWitnesses(current)
+      .filter(_.descriptorId == WitnessDescriptorId("diagonal_lane_only"))
+      .exists: witness =>
+        val sources = squareList(witness.payload, "source_piece_squares")
+        val targets =
+          witness.support.targetSquares.toSet ++ squareList(witness.payload, "endpoint_squares").toSet
+        sources.exists(source => s03OwnerDiagonalSource(context, owner, source)) &&
+          targets.intersect(breachSquares).nonEmpty
+
+  private def contextHasKing(current: StrategicObjectExtraction, color: Color, square: Square): Boolean =
+    UExtractionContext(current.rootState).hasPieceOn(color, King, square)
+
+  private def s04EvidenceBindsCarrierAndTask(
+      claim: StrategyProjectionEvidenceClaim,
+      carrier: S04KingShelterBreachCarrier
+  ): Boolean =
+    claim.anchor == WitnessAnchor.SquareAnchor(carrier.defendingKing) &&
+      payloadFieldsExactly(claim.payload, S04EvidenceFields) &&
+      square(claim.payload, "defending_king_square").contains(carrier.defendingKing) &&
+      square(claim.payload, "shell_anchor_square").contains(carrier.shellAnchor) &&
+      sameSquareSet(squareList(claim.payload, "breach_squares"), carrier.breachSquares) &&
+      token(claim.payload, "king_shelter_breach_route").contains(carrier.kingShelterBreachRoute) &&
+      token(claim.payload, "certification_family").contains("CertifiedKingSafetyEdge")
+
+  private val S04EvidenceFields: Set[String] =
+    Set(
+      "defending_king_square",
+      "shell_anchor_square",
+      "breach_squares",
+      "king_shelter_breach_route",
+      "certification_family"
+    )
 
   private final case class S05CenterReleaseCarrier(
       contactSource: Square,
@@ -87,7 +509,7 @@ object StrategyProjectionAdmission:
       current: lila.commentary.witness.u.UWitnessExtraction,
       owner: Color
   ): Vector[S05CenterReleaseCarrier] =
-    pawnPushBreakContactSourceTargetPairs(current, owner).flatMap: (source, target) =>
+    breakContactPairs(current, owner).flatMap: (source, target) =>
       Option.when(
         isCenterFile(source) &&
           isCenterFile(target) &&
@@ -334,7 +756,7 @@ object StrategyProjectionAdmission:
       context: UExtractionContext,
       owner: Color
   ): Vector[S08DenialCarrier] =
-    pawnPushBreakContactSourceTargetPairs(current, !owner).flatMap: (source, target) =>
+    breakContactPairs(current, !owner).flatMap: (source, target) =>
       Option
         .when(hasS08RivalReleaseReserve(context, !owner))(target)
         .flatMap(s08DenialRouteFor)
@@ -362,6 +784,386 @@ object StrategyProjectionAdmission:
       square(claim.payload, "target_square").contains(carrier.target) &&
       token(claim.payload, "counterplay_denial_route").contains(carrier.counterplayDenialRoute) &&
       token(claim.payload, "certification_family").contains("InitiativeWindow")
+
+  private final case class S09FilePenetrationCarrier(
+      source: Square,
+      entry: Square,
+      filePenetrationRoute: String
+  )
+
+  private def admitsS09(
+      extraction: StrategySupportSeedExtraction,
+      evidence: StrategyProjectionEvidence,
+      owner: Color
+  ): Boolean =
+    val current = UWitnessExtractor.fromRoot(extraction.rootState)
+    val context = UExtractionContext(extraction.rootState)
+    s09FilePenetrationCarriers(current, context, owner).exists: carrier =>
+      evidence
+        .evidenceFor(
+          StrategyProjectionScopeContract.S09,
+          StrategyProjectionScopeContract.FilePenetrationRouteCertified,
+          owner,
+          WitnessAnchor.PieceSquareAnchor(carrier.source)
+        )
+        .exists(claim => s09EvidenceBindsCarrierAndTask(claim, carrier))
+
+  private def s09FilePenetrationCarriers(
+      current: lila.commentary.witness.u.UWitnessExtraction,
+      context: UExtractionContext,
+      owner: Color
+  ): Vector[S09FilePenetrationCarrier] =
+    current.witnesses
+      .forDescriptorId(WitnessDescriptorId("file_lane_state"))
+      .flatMap: witness =>
+        val fileOption =
+          witness.anchor match
+            case WitnessAnchor.FileAnchor(file) => Some(file)
+            case _                             => None
+        fileOption.toVector.flatMap: file =>
+          val sources = context.activePieceSquares(owner, Rook).filter(_.file == file)
+          sources.flatMap: source =>
+            val clearEntrySquares =
+              s09ForwardClearSquares(context, owner, source).filter(s09OpponentHalf(owner, _))
+            token(witness.payload, "state") match
+              case Some("open") if hasS09RookOnOpenFile(current, owner, source) =>
+                val openRoutes =
+                  clearEntrySquares.map(entry =>
+                    S09FilePenetrationCarrier(source, entry, "open_file_entry")
+                  )
+                val penetrationRoutes =
+                  Option
+                    .when(context.activePieceSquares(!owner, Pawn).isEmpty):
+                      clearEntrySquares.map(entry =>
+                        S09FilePenetrationCarrier(source, entry, "same_file_penetration")
+                      )
+                    .getOrElse(Vector.empty)
+                openRoutes ++ penetrationRoutes
+              case Some("semi_open")
+                  if color(witness.payload, "open_for_color").contains(owner) &&
+                    s09FirstForwardBlocker(context, owner, source).exists(square =>
+                      context.pieceAt(square).exists(piece => piece.color == !owner && piece.role == Pawn)
+                    ) =>
+                clearEntrySquares.map(entry =>
+                  S09FilePenetrationCarrier(source, entry, "semi_open_file_entry")
+                )
+              case _ => Vector.empty
+      .distinct
+      .sortBy(carrier => (carrier.source.value, carrier.entry.value, carrier.filePenetrationRoute))
+
+  private def s09ForwardClearSquares(
+      context: UExtractionContext,
+      owner: Color,
+      source: Square
+  ): Vector[Square] =
+    val builder = Vector.newBuilder[Square]
+    var next = context.forwardSquare(owner, source)
+    var blocked = false
+    while next.nonEmpty && !blocked do
+      val square = next.get
+      if context.pieceAt(square).isEmpty then
+        builder += square
+        next = context.forwardSquare(owner, square)
+      else blocked = true
+    builder.result()
+
+  private def s09FirstForwardBlocker(
+      context: UExtractionContext,
+      owner: Color,
+      source: Square
+  ): Option[Square] =
+    var next = context.forwardSquare(owner, source)
+    var blocker = Option.empty[Square]
+    while next.nonEmpty && blocker.isEmpty do
+      val square = next.get
+      if context.pieceAt(square).nonEmpty then blocker = Some(square)
+      else next = context.forwardSquare(owner, square)
+    blocker
+
+  private def s09OpponentHalf(owner: Color, square: Square): Boolean =
+    if owner.white then square.rank.value >= Rank.Fifth.value
+    else square.rank.value <= Rank.Fourth.value
+
+  private def hasS09RookOnOpenFile(
+      current: lila.commentary.witness.u.UWitnessExtraction,
+      owner: Color,
+      source: Square
+  ): Boolean =
+    current.witnesses.all.exists(witness =>
+      witness.descriptorId == WitnessDescriptorId("rook_on_open_file_state") &&
+        witness.color.contains(owner) &&
+        witness.anchor == WitnessAnchor.PieceSquareAnchor(source) &&
+        square(witness.payload, "rook_square").contains(source)
+    )
+
+  private def s09EvidenceBindsCarrierAndTask(
+      claim: StrategyProjectionEvidenceClaim,
+      carrier: S09FilePenetrationCarrier
+  ): Boolean =
+    claim.anchor == WitnessAnchor.PieceSquareAnchor(carrier.source) &&
+      payloadFieldsExactly(claim.payload, S09EvidenceFields) &&
+      square(claim.payload, "route_anchor_square").contains(carrier.source) &&
+      square(claim.payload, "entry_square").contains(carrier.entry) &&
+      token(claim.payload, "file_penetration_route").contains(carrier.filePenetrationRoute)
+
+  private val S09EvidenceFields: Set[String] =
+    Set("route_anchor_square", "entry_square", "file_penetration_route")
+
+  private final case class S10OutpostCarrier(
+      routeAnchor: Square,
+      outpostSquare: Square,
+      sameAnchorEvictionDenied: Boolean
+  )
+
+  private def admitsS10(
+      extraction: StrategySupportSeedExtraction,
+      evidence: StrategyProjectionEvidence,
+      owner: Color
+  ): Boolean =
+    currentObjectExtraction(extraction).exists: current =>
+      s10OutpostCarriers(current, UExtractionContext(extraction.rootState), owner).exists: carrier =>
+        evidence
+          .evidenceFor(
+            StrategyProjectionScopeContract.S10,
+            StrategyProjectionScopeContract.OutpostOccupationRouteCertified,
+            owner,
+            WitnessAnchor.PieceSquareAnchor(carrier.routeAnchor)
+          )
+          .exists(claim => s10EvidenceBindsCarrierAndTask(claim, carrier))
+
+  private def s10OutpostCarriers(
+      current: StrategicObjectExtraction,
+      context: UExtractionContext,
+      owner: Color
+  ): Vector[S10OutpostCarrier] =
+    val outpostSquares =
+      current.primaryWitnesses
+        .forDescriptorId(WitnessDescriptorId("weak_outpost_square_state"))
+        .collect:
+          case witness
+              if witness.color.contains(owner) &&
+                token(witness.payload, "state").contains("outpost") =>
+            witness.anchor match
+              case WitnessAnchor.SquareAnchor(anchorSquare)
+                  if square(witness.payload, "square").contains(anchorSquare) =>
+                Some(anchorSquare)
+              case _ => None
+        .flatten
+        .toSet
+    current.primaryWitnesses
+      .forDescriptorId(WitnessDescriptorId("knight_on_outpost_square"))
+      .flatMap: witness =>
+        pieceAnchorSquare(witness).toVector.flatMap: routeAnchor =>
+          Option.when(
+            witness.color.contains(owner) &&
+              witness.support.targetSquares.contains(routeAnchor) &&
+              outpostSquares.contains(routeAnchor)
+          )(
+            S10OutpostCarrier(
+              routeAnchor,
+              routeAnchor,
+              s10SameAnchorEvictionDenied(context, owner, routeAnchor)
+            )
+          ).toVector
+      .distinct
+      .sortBy(_.routeAnchor.value)
+
+  private def s10SameAnchorEvictionDenied(
+      context: UExtractionContext,
+      owner: Color,
+      outpostSquare: Square
+  ): Boolean =
+    s10EnemyChallengeSquares(owner, outpostSquare).exists(context.hasPieceOn(owner, Pawn, _))
+
+  private def s10EnemyChallengeSquares(owner: Color, outpostSquare: Square): Vector[Square] =
+    val challengeRankDelta = if owner.white then 1 else -1
+    val targetRank = outpostSquare.rank.value + challengeRankDelta
+    Option
+      .when(targetRank >= Rank.First.value && targetRank <= Rank.Eighth.value):
+        Vector(-1, 1).flatMap: fileDelta =>
+          val targetFile = outpostSquare.file.value + fileDelta
+          Option.when(targetFile >= File.A.value && targetFile <= File.H.value):
+            Square(File(targetFile).get, Rank(targetRank).get)
+      .getOrElse(Vector.empty)
+
+  private def s10EvidenceBindsCarrierAndTask(
+      claim: StrategyProjectionEvidenceClaim,
+      carrier: S10OutpostCarrier
+  ): Boolean =
+    claim.anchor == WitnessAnchor.PieceSquareAnchor(carrier.routeAnchor) &&
+      square(claim.payload, "route_anchor_square").contains(carrier.routeAnchor) &&
+      square(claim.payload, "outpost_square").contains(carrier.outpostSquare) &&
+      token(claim.payload, "outpost_occupation_route").exists: route =>
+        route == "knight_only_outpost_occupancy" ||
+          (route == "same_anchor_eviction_denial" && carrier.sameAnchorEvictionDenied)
+
+  private final case class S12AccessCarrier(
+      routeAnchor: Square,
+      accessRoute: String,
+      accessWitnessId: String,
+      restrictionAnchorSquare: Square,
+      supportTargetSquares: Set[Square],
+      weakOutpostState: Option[String],
+      diagonalEndpointSquares: Set[Square]
+  )
+
+  private def admitsS12(
+      extraction: StrategySupportSeedExtraction,
+      evidence: StrategyProjectionEvidence,
+      owner: Color
+  ): Boolean =
+    currentObjectExtraction(extraction).exists: current =>
+      s12AccessCarriers(current, UExtractionContext(extraction.rootState), owner).exists: carrier =>
+        evidence
+          .evidenceFor(
+            StrategyProjectionScopeContract.S12,
+            StrategyProjectionScopeContract.LocalAccessSuperiorityRouteCertified,
+            owner,
+            WitnessAnchor.SquareAnchor(carrier.routeAnchor)
+          )
+          .exists(claim => s12EvidenceBindsCarrierAndTask(claim, carrier))
+
+  private def s12AccessCarriers(
+      current: StrategicObjectExtraction,
+      context: UExtractionContext,
+      owner: Color
+  ): Vector[S12AccessCarrier] =
+    val restrictions =
+      current.primaryWitnesses
+        .forDescriptorId(WitnessDescriptorId("short_run_slider_gate_restriction"))
+        .filter(_.color.contains(owner))
+        .flatMap: witness =>
+          pieceAnchorSquare(witness).map(anchor => witness -> anchor)
+
+    val weakCarriers =
+      current.primaryWitnesses
+        .forDescriptorId(WitnessDescriptorId("weak_outpost_square_state"))
+        .filter(witness =>
+          witness.color.contains(owner) &&
+            token(witness.payload, "state").exists(state => state == "weak" || state == "outpost")
+        )
+        .flatMap: witness =>
+          square(witness.payload, "square").toVector.flatMap: routeAnchor =>
+            restrictions
+              .filter((restriction, _) => s12RestrictionSupportsRoute(restriction, routeAnchor))
+              .map: (restriction, restrictionAnchor) =>
+                S12AccessCarrier(
+                  routeAnchor = routeAnchor,
+                  accessRoute = "weak_square_route",
+                  accessWitnessId = "weak_outpost_square_state",
+                  restrictionAnchorSquare = restrictionAnchor,
+                  supportTargetSquares = restriction.support.targetSquares.toSet,
+                  weakOutpostState = token(witness.payload, "state"),
+                  diagonalEndpointSquares = Set.empty
+                )
+
+    val diagonalEndpointsBySource =
+      allObjectWitnesses(current)
+        .filter(_.descriptorId == WitnessDescriptorId("diagonal_lane_only"))
+        .flatMap: witness =>
+          squareList(witness.payload, "source_piece_squares").map: routeAnchor =>
+            routeAnchor -> squareList(witness.payload, "endpoint_squares")
+        .groupMap(_._1)(_._2)
+        .view
+        .mapValues(_.flatten.toSet)
+        .toMap
+
+    val diagonalCarriers =
+      diagonalEndpointsBySource.toVector.flatMap: (routeAnchor, endpoints) =>
+        Option
+          .when(
+            s12OwnerDiagonalSource(context, owner, routeAnchor) &&
+              !s12DiagonalTouchesEnemyKingTheater(context, owner, routeAnchor) &&
+              endpoints.nonEmpty
+          ):
+            restrictions
+              .filter((restriction, _) => s12RestrictionSupportsRoute(restriction, routeAnchor))
+              .map: (restriction, restrictionAnchor) =>
+                S12AccessCarrier(
+                  routeAnchor = routeAnchor,
+                  accessRoute = "diagonal_lane_route",
+                  accessWitnessId = "diagonal_lane_only",
+                  restrictionAnchorSquare = restrictionAnchor,
+                  supportTargetSquares = restriction.support.targetSquares.toSet,
+                  weakOutpostState = None,
+                  diagonalEndpointSquares = endpoints
+                )
+          .getOrElse(Vector.empty)
+
+    (weakCarriers ++ diagonalCarriers)
+      .filter(_.supportTargetSquares.nonEmpty)
+      .distinct
+      .sortBy(carrier =>
+        (
+          carrier.routeAnchor.value,
+          carrier.accessRoute,
+          carrier.restrictionAnchorSquare.value,
+          carrier.supportTargetSquares.toVector.map(_.value).sorted.mkString(",")
+        )
+      )
+
+  private def allObjectWitnesses(current: StrategicObjectExtraction): Vector[Witness] =
+    (current.primaryWitnesses.all ++ current.attachedWitnesses.all).distinct
+
+  private def s12OwnerDiagonalSource(context: UExtractionContext, owner: Color, source: Square): Boolean =
+    context.pieceAt(source).exists(piece =>
+      piece.color == owner &&
+        (piece.role == Bishop || piece.role == Queen)
+    )
+
+  private def s12DiagonalTouchesEnemyKingTheater(context: UExtractionContext, owner: Color, source: Square): Boolean =
+    context.activePieceSquares(!owner, King).exists(king => context.board.attacksSquare(source, king)) ||
+      context.kingRingSquaresFor(!owner).exists(square => context.board.attacksSquare(source, square))
+
+  private def s12RestrictionSupportsRoute(restriction: Witness, routeAnchor: Square): Boolean =
+    restriction.support.targetSquares.contains(routeAnchor)
+
+  private val S12CommonEvidenceFields: Set[String] =
+    Set(
+      "route_anchor_square",
+      "access_route",
+      "access_witness_id",
+      "support_witness_id",
+      "support_target_squares",
+      "restriction_anchor_square",
+      "local_access_superiority"
+    )
+
+  private val S12WeakEvidenceFields: Set[String] =
+    S12CommonEvidenceFields ++ Set("weak_outpost_square", "weak_outpost_state")
+
+  private val S12DiagonalEvidenceFields: Set[String] =
+    S12CommonEvidenceFields ++ Set("diagonal_source_square", "diagonal_endpoint_squares")
+
+  private def payloadFieldsExactly(payload: WitnessPayload, expectedFields: Set[String]): Boolean =
+    payload.entries.map(_._1).toSet == expectedFields
+
+  private def s12EvidenceBindsCarrierAndTask(
+      claim: StrategyProjectionEvidenceClaim,
+      carrier: S12AccessCarrier
+  ): Boolean =
+    claim.anchor == WitnessAnchor.SquareAnchor(carrier.routeAnchor) &&
+      square(claim.payload, "route_anchor_square").contains(carrier.routeAnchor) &&
+      token(claim.payload, "access_route").contains(carrier.accessRoute) &&
+      token(claim.payload, "access_witness_id").contains(carrier.accessWitnessId) &&
+      token(claim.payload, "support_witness_id").contains("short_run_slider_gate_restriction") &&
+      square(claim.payload, "restriction_anchor_square").contains(carrier.restrictionAnchorSquare) &&
+      sameSquareSet(squareList(claim.payload, "support_target_squares"), carrier.supportTargetSquares) &&
+      token(claim.payload, "local_access_superiority").contains("route_with_restriction") &&
+      (carrier.weakOutpostState match
+        case Some(state) =>
+          payloadFieldsExactly(claim.payload, S12WeakEvidenceFields) &&
+            square(claim.payload, "weak_outpost_square").contains(carrier.routeAnchor) &&
+            token(claim.payload, "weak_outpost_state").contains(state) &&
+            square(claim.payload, "diagonal_source_square").isEmpty &&
+            squareList(claim.payload, "diagonal_endpoint_squares").isEmpty
+        case None =>
+          payloadFieldsExactly(claim.payload, S12DiagonalEvidenceFields) &&
+            square(claim.payload, "diagonal_source_square").contains(carrier.routeAnchor) &&
+            sameSquareSet(squareList(claim.payload, "diagonal_endpoint_squares"), carrier.diagonalEndpointSquares) &&
+            square(claim.payload, "weak_outpost_square").isEmpty &&
+            token(claim.payload, "weak_outpost_state").isEmpty
+      )
 
   private final case class S21SurvivalCarrier(
       contactSource: Square,
@@ -394,7 +1196,7 @@ object StrategyProjectionAdmission:
       current: lila.commentary.witness.u.UWitnessExtraction,
       owner: Color
   ): Vector[S21SurvivalCarrier] =
-    pawnPushBreakContactSourceTargetPairs(current, owner).flatMap: (source, target) =>
+    breakContactPairs(current, owner).flatMap: (source, target) =>
       if isNonCenterFile(source) && isCenterFile(target) then
         Vector(S21SurvivalCarrier(source, target, "center_source_survives"))
       else if isNonCenterFile(source) && isNonCenterFile(target) then
@@ -505,7 +1307,7 @@ object StrategyProjectionAdmission:
       owner: Color
   ): Vector[S13DamageCarrier] =
     val defender = !owner
-    pawnPushBreakContactSourceTargetPairs(current, owner).flatMap: (source, target) =>
+    breakContactPairs(current, owner).flatMap: (source, target) =>
       val sector = sectorOf(target.file)
       Option.when(
         isWingSector(sector) &&
@@ -562,7 +1364,7 @@ object StrategyProjectionAdmission:
       owner: Color
   ): Vector[S14ChainBaseCarrier] =
     val defender = !owner
-    pawnPushBreakContactSourceTargetPairs(current, owner).flatMap: (source, target) =>
+    breakContactPairs(current, owner).flatMap: (source, target) =>
       val forwardSupportSquares = chainBaseForwardSupportSquares(context, defender, target)
       Option.when(
         isNonCenterFile(target) &&
@@ -735,7 +1537,7 @@ object StrategyProjectionAdmission:
           ),
           Option.when(
             blocker.exists(square =>
-              hasOwnerShortRunRestrictionOnBlocker(uCurrent, owner, square) &&
+              hasBlockerRestriction(uCurrent, owner, square) &&
                 certifiedPerpetual.nonEmpty
             )
           )(
@@ -776,7 +1578,7 @@ object StrategyProjectionAdmission:
       .distinct
       .sortBy(_.value)
 
-  private def hasOwnerShortRunRestrictionOnBlocker(
+  private def hasBlockerRestriction(
       current: lila.commentary.witness.u.UWitnessExtraction,
       owner: Color,
       blocker: Square
@@ -810,7 +1612,7 @@ object StrategyProjectionAdmission:
         case None          => square(claim.payload, "blocker_square").isEmpty
       )
 
-  private def pawnPushBreakContactSourceTargetPairs(
+  private def breakContactPairs(
       current: lila.commentary.witness.u.UWitnessExtraction,
       owner: Color
   ): Vector[(Square, Square)] =
@@ -999,7 +1801,7 @@ object StrategyProjectionAdmission:
             owner,
             WitnessAnchor.SquareAnchor(entrySquare)
           )
-          .nonEmpty
+          .exists(claim => s23EntryMatches(claim, entrySquare))
 
   private def admitsKingOpposition(
       extraction: StrategySupportSeedExtraction,
@@ -1008,6 +1810,8 @@ object StrategyProjectionAdmission:
   ): Boolean =
     seeds(extraction, StrategySupportSeedScopeContract.S23KingOppositionContact, owner)
       .exists(seed =>
+        seed.anchor.isInstanceOf[WitnessAnchor.SquareAnchor] &&
+          token(seed.payload, "relation").contains("direct_opposition") &&
         evidence
           .evidenceFor(
             StrategyProjectionScopeContract.S23,
@@ -1015,8 +1819,33 @@ object StrategyProjectionAdmission:
             owner,
             seed.anchor
           )
-          .nonEmpty
+          .exists(claim => s23OppositionMatches(claim, seed.anchor))
       )
+
+  private def s23EntryMatches(
+      claim: StrategyProjectionEvidenceClaim,
+      entrySquare: Square
+  ): Boolean =
+    claim.anchor == WitnessAnchor.SquareAnchor(entrySquare) &&
+      payloadFieldsExactly(claim.payload, S23EntryEvidenceFields) &&
+      square(claim.payload, "entry_square").contains(entrySquare)
+
+  private def s23OppositionMatches(
+      claim: StrategyProjectionEvidenceClaim,
+      contactAnchor: WitnessAnchor
+  ): Boolean =
+    contactAnchor match
+      case WitnessAnchor.SquareAnchor(contactSquare) =>
+        claim.anchor == contactAnchor &&
+          payloadFieldsExactly(claim.payload, S23OppositionEvidenceFields) &&
+          square(claim.payload, "contact_square").contains(contactSquare)
+      case _ => false
+
+  private val S23EntryEvidenceFields: Set[String] =
+    Set("entry_square")
+
+  private val S23OppositionEvidenceFields: Set[String] =
+    Set("contact_square")
 
   private def admitsS24(
       extraction: StrategySupportSeedExtraction,
@@ -1070,9 +1899,13 @@ object StrategyProjectionAdmission:
           )
           .exists: claim =>
             entrySquare.nonEmpty &&
+              payloadFieldsExactly(claim.payload, S25EvidenceFields) &&
               entrySquare == square(claim.payload, "entry_square") &&
               corridorKind.contains("cross_wing_rank_switch") &&
               corridorKind == token(claim.payload, "corridor_kind")
+
+  private val S25EvidenceFields: Set[String] =
+    Set("entry_square", "corridor_kind")
 
   private def admitsS22(
       extraction: StrategySupportSeedExtraction,
@@ -1264,6 +2097,72 @@ object StrategyProjectionAdmission:
               )
           )
 
+  private final case class S20DominationCarrier(
+      routeAnchor: Square,
+      dominationRoute: String,
+      supportWitnessId: String,
+      supportTargetSquares: Set[Square]
+  )
+
+  private def admitsS20(
+      extraction: StrategySupportSeedExtraction,
+      evidence: StrategyProjectionEvidence,
+      owner: Color,
+      certificationEvidence: CertificationEvidenceBundle
+  ): Boolean =
+    currentObjectExtraction(extraction).exists: current =>
+      certifiedClaim(current, certificationEvidence, "MobilityComparison", owner).exists: certification =>
+        certification.verdict == CertificationVerdict.Certified &&
+          certification.anchor == WitnessAnchor.BoardAnchor &&
+          certification.support.targetSquares.nonEmpty &&
+          s20DominationCarriers(current, owner).exists: carrier =>
+            carrier.supportTargetSquares.subsetOf(certification.support.targetSquares.toSet) &&
+              evidence
+                .evidenceFor(
+                  StrategyProjectionScopeContract.S20,
+                  StrategyProjectionScopeContract.MobilityDominationRouteCertified,
+                  owner,
+                  WitnessAnchor.PieceSquareAnchor(carrier.routeAnchor)
+                )
+                .exists(claim => s20EvidenceBindsCarrierAndTask(claim, carrier))
+
+  private def s20DominationCarriers(
+      current: StrategicObjectExtraction,
+      owner: Color
+  ): Vector[S20DominationCarrier] =
+    val routeByWitnessId =
+      Map(
+        WitnessDescriptorId("short_run_slider_gate_restriction") -> "mobility_plus_restriction",
+        WitnessDescriptorId("duty_bound_defender") -> "defender_starvation"
+      )
+    current.primaryWitnesses.all
+      .flatMap: witness =>
+        routeByWitnessId.get(witness.descriptorId).toVector.flatMap: route =>
+          pieceAnchorSquare(witness).toVector.flatMap: routeAnchor =>
+            Option
+              .when(witness.color.contains(owner) && witness.support.targetSquares.nonEmpty)(
+                S20DominationCarrier(
+                  routeAnchor,
+                  route,
+                  witness.descriptorId.value,
+                  witness.support.targetSquares.toSet
+                )
+              )
+              .toVector
+      .distinct
+      .sortBy(carrier => (carrier.routeAnchor.value, carrier.dominationRoute, carrier.supportWitnessId))
+
+  private def s20EvidenceBindsCarrierAndTask(
+      claim: StrategyProjectionEvidenceClaim,
+      carrier: S20DominationCarrier
+  ): Boolean =
+    claim.anchor == WitnessAnchor.PieceSquareAnchor(carrier.routeAnchor) &&
+      square(claim.payload, "route_anchor_square").contains(carrier.routeAnchor) &&
+      token(claim.payload, "domination_route").contains(carrier.dominationRoute) &&
+      token(claim.payload, "support_witness_id").contains(carrier.supportWitnessId) &&
+      token(claim.payload, "certification_family").contains("MobilityComparison") &&
+      sameSquareSet(squareList(claim.payload, "support_target_squares"), carrier.supportTargetSquares)
+
   private def admitsFortressHold(
       current: StrategicObjectExtraction,
       evidence: StrategyProjectionEvidence,
@@ -1397,6 +2296,9 @@ object StrategyProjectionAdmission:
 
   private def square(payload: lila.commentary.witness.WitnessPayload, field: String): Option[Square] =
     payload.get(field).collect { case WitnessValue.SquareValue(value) => value }
+
+  private def color(payload: lila.commentary.witness.WitnessPayload, field: String): Option[Color] =
+    payload.get(field).collect { case WitnessValue.ColorValue(value) => value }
 
   private def tokenList(payload: lila.commentary.witness.WitnessPayload, field: String): Vector[String] =
     payload.get(field).collect { case WitnessValue.TokenListValue(values) => values }.getOrElse(Vector.empty)

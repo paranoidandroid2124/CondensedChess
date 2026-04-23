@@ -214,31 +214,27 @@ object CertificationEvidence:
       payload = payload
     )
 
-type CertificationEngineEvidence = CertificationEvidence
+opaque type CertificationEngineEvidence = CertificationEvidence
 object CertificationEngineEvidence:
 
   val empty: CertificationEngineEvidence = CertificationEvidence.empty
 
-  def forObjectExtraction(
-      current: StrategicObjectExtraction,
-      claims: IterableOnce[CertificationEvidenceClaim]
+  private[certification] def fromBoundedContract(
+      evidence: CertificationEvidenceBundle
   ): CertificationEngineEvidence =
-    CertificationEvidence.forObjectExtraction(current, claims)
+    evidence
 
-  def forDeltaExtraction(
-      delta: StrategicDeltaExtraction,
-      claims: IterableOnce[CertificationEvidenceClaim]
-  ): CertificationEngineEvidence =
-    CertificationEvidence.forDeltaExtraction(delta, claims)
-
-  def apply(
-      familyId: CertificationId,
-      color: Color,
-      anchor: WitnessAnchor = WitnessAnchor.BoardAnchor,
-      purposeStrengths: Map[CertificationEvidencePurpose, CertificationEvidenceStrength],
-      payload: WitnessPayload = WitnessPayload.empty
-  ): CertificationEvidenceClaim =
-    CertificationEvidence(familyId, color, anchor, purposeStrengths, payload)
+  extension (evidence: CertificationEngineEvidence)
+    def asBundle: CertificationEvidenceBundle = evidence
+    def all: Vector[CertificationEvidenceClaim] = evidence.all
+    def isEmpty: Boolean = evidence.isEmpty
+    def matches(rootState: RootStateVector): Boolean = evidence.matches(rootState)
+    def evidenceFor(
+        familyId: CertificationId,
+        owner: Color,
+        anchor: WitnessAnchor = WitnessAnchor.BoardAnchor
+    ): Option[CertificationEvidenceClaim] =
+      evidence.evidenceFor(familyId, owner, anchor)
 
   /** Fail-closed placeholder until a typed probe adapter lands. */
   def fromProbe(probe: Any): CertificationEngineEvidence =

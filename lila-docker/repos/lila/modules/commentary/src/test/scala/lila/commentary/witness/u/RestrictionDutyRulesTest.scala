@@ -26,12 +26,17 @@ class RestrictionDutyRulesTest extends munit.FunSuite:
 
   test("short-run slider gate restriction needs partial throttling, not full entrapment"):
     val positiveFen = "6k1/8/3P4/3rB3/5P2/8/8/6K1 w - - 0 1"
+    val diagonalPositiveFen = "6k1/8/1P6/1rB5/3P4/8/8/6K1 w - - 0 1"
     val fullTrapFen = "6k1/8/3P4/2PrB3/2KQ1P2/8/8/8 w - - 0 1"
 
     val witness =
       findPieceSquare(positiveFen, "short_run_slider_gate_restriction", "d5", Some(Color.White)).getOrElse(fail("missing slider restriction"))
 
     assertEquals(witness.anchor, WitnessAnchor.PieceSquareAnchor(chess.Square.fromKey("d5").get))
+    assertEquals(witness.support.targetSquares.map(_.key), Vector("e5", "d6"))
+    val diagonalWitness =
+      findPieceSquare(diagonalPositiveFen, "short_run_slider_gate_restriction", "b5", Some(Color.White)).getOrElse(fail("missing diagonal slider restriction"))
+    assertEquals(diagonalWitness.support.targetSquares.map(_.key), Vector("c5", "b6"))
     assert(findPieceSquare(fullTrapFen, "short_run_slider_gate_restriction", "d5", Some(Color.White)).isEmpty)
 
   test("short-run slider gate restriction rejects self-blocked, edge-shortened, uncontrolled blocker, and remote-wall near misses"):

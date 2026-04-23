@@ -84,6 +84,29 @@ still surface only as payload under the live `structural_space_claim` contract.
 It does **not** authorize claims that planner, outline, renderer, API, or
 frontend are already wired to the same truth path.
 
+## Source Context Boundary
+
+Offline source-context validation for opening, motif, endgame-study, and
+retrieval references is frozen in
+[SourceContextContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/SourceContextContract.md).
+
+This is a test/tooling contract only.
+
+It does not add a public `CommentaryCore` facade and does not make external
+source rows Root, U, Object, Delta, Certification, or Sxx truth owners.
+
+Game-context source input is deferred to a separate lane. Clock, rating, time-control,
+repetition, tournament, study-chapter, draw-offer, and human-risk context are
+outside the current source-context contract.
+
+Endgame result-service source input is deferred. Result-table storage, probing,
+result-distance fields, and remote fallback are outside the current
+source-context contract.
+
+Endgame-study context is admitted only as named-pattern applicability with exact
+material and placement rules. It does not own win, draw, loss, best move,
+forced-line, or conversion truth.
+
 See
 [ExternalConsumptionAuditEvidence.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/ExternalConsumptionAuditEvidence.md)
 and
@@ -1156,8 +1179,10 @@ boundary:
 
 - `modules/commentary/src/main/scala/lila/commentary/certification`
 
-Ownership stays frozen at `10` certification inventory rows mapped to `11`
-runtime families:
+The 61-row descriptor ownership ledger still counts the historical
+certification-owned descriptor rows by row, but the current live certification
+registry exposes `12 active certification families` through
+`CertificationScopeContract.activeCertificationFamilyIds`:
 
 - `DevelopmentComparison`
 - `InitiativeWindow`
@@ -1170,6 +1195,7 @@ runtime families:
 - `FortressDrawCertification`
 - `PerpetualCheckHolding`
 - `PromotionRace`
+- `SpaceBindRestrictionCertification`
 
 Inventory mapping stays frozen as:
 
@@ -1203,12 +1229,80 @@ The live runtime extractor consumes only:
   - current en-passant availability
   This state must not be guessed from piece placement or board geometry alone.
 
-The live runtime does not yet consume a typed probe adapter:
+The live runtime has a certification-only Engine E intake adapter:
 
 - `CertificationEngineEvidence.fromProbe(...)` stays fail-closed empty until a
-  real adapter lands
-- current probe usage remains a validation-side scaffold, not runtime truth
-  ownership
+  raw-probe adapter lands
+- `CertificationEngineRuntimeIntake` is the current analyse/backend packet
+  intake model; it normalizes runtime packet fields into
+  `EngineEvidencePacket` and then delegates to
+  `CertificationEngineEvidenceContract`
+- current certification Engine E admission does not consume UI/API raw probe
+  sidecars; those sidecars may exist elsewhere in the product, but they are not
+  certification evidence until normalized through the typed contract below
+
+### Engine E certification evidence freeze
+
+Engine E is certification evidence only. It is not a
+`Root/U/Object/Delta/Sxx truth owner`, and it must not create, widen, or promote
+root facts, U witnesses, strategic objects, deltas, projection bands, renderer
+wording, or Sxx runtime admission.
+
+The frozen live admission boundary for typed E evidence is
+`CertificationEngineEvidenceContract` in the certification package.
+`CertificationEngineRuntimeIntake` may accept an optional analyse/backend
+runtime packet, normalize it into an `EngineEvidencePacket`, and delegate to
+that contract. It may produce a `CertificationEvidenceBundle` only after exact
+FEN, node identity, freshness, depth, MultiPV, score, and legal-PV checks pass
+for the same current extraction.
+In short: exact FEN, node identity, freshness, depth, MultiPV, score, and legal-PV checks are the live intake gate.
+
+Packet identity is exact-board:
+
+- object-backed evidence binds to the requested exact normalized full-FEN
+  string, including halfmove/fullmove clock fields, plus expected `nodeId` and
+  `ply`; `StrategicObjectExtraction` remains root-state-bound, so the
+  requested full-FEN is the clock-field authority for live intake
+- delta-backed evidence must additionally bind `beforeFen`, `playedMove`, and
+  `afterFen`; both endpoint FEN strings must match the requested normalized
+  full-FEN strings, and the move and both endpoint boards must match the
+  canonical `StrategicDeltaExtraction`
+- transition-bound packets are rejected on the object path
+
+Freshness and search state are fail-closed:
+
+- incomplete search, stale `generatedAtEpochMs` beyond `maxAgeMs`, insufficient
+  realized depth, insufficient `MultiPV`, or too-short PV lines are rejected
+- best-defense and reply-branch claims require at least `MultiPV 3` with
+  distinct first moves
+- raw probe objects remain untrusted; `CertificationEngineEvidence.fromProbe`
+  still returns `CertificationEvidenceBundle.empty`
+
+Score normalization is typed:
+
+- centipawn and mate scores are separate domains
+- side-to-move scores are normalized through the bound FEN's side to move before
+  applying owner-side burdens
+- eval-swing and conversion burdens require typed thresholds; a mate score must
+  not masquerade as centipawns
+- scoreless bounded claims are rejected
+- eval-swing claims require a bound, fresh, same-engine-config baseline packet
+  whose FEN matches the transition `beforeFen`; an unbound baseline is not
+  evidence
+- eval-swing baselines must also bind node/ply: if a transition `beforeNode` is
+  supplied it must match exactly, otherwise the baseline ply must immediately
+  precede the transition packet ply
+- inactive certification family ids, unknown purpose/strength keys, invalid
+  owner colors, and invalid UCI PV moves are rejected during runtime intake
+
+PV legality is exact-board:
+
+- every PV line must replay legally from the bound FEN
+- illegal continuations and truncation below the claim's `minPvPlies` fail
+  closed
+- best-defense, eval-shift, conversion, or persistence claims may be admitted
+  only when the bounded claim declares its purpose and its typed score/PV
+  burden passes
 
 It must not reopen raw root or witness admission from inside certification.
 
@@ -1216,10 +1310,20 @@ The live public facade stays fail-closed:
 
 - do not add certification convenience helpers that fabricate missing
   certification evidence from raw FEN alone
+- `CertificationEngineEvidence` is an opaque Engine E evidence facade and
+  exposes no direct claim constructors; E-named evidence creation must go
+  through `CertificationEngineEvidenceContract` or the fail-closed
+  `fromProbe(...)` placeholder
 - keep the public certification surface limited to typed object/delta extraction
   entry points with an explicit certification evidence bundle, where
   `CertificationEvidenceBundle.empty` is the explicit unbound fail-closed
   sentinel and any non-empty bundle must stay exact-position-bound
+- missing, rejected, or insufficient runtime E packets leave the existing
+  object/delta/certification path on the base evidence bundle; they do not
+  fabricate a stronger certification
+- projection runtime admission consumes only certified lower carriers and an
+  externally supplied same-root `CertificationEvidenceBundle`; projection does
+  not consume Engine E directly
 - no planner, projection, or renderer layer may revive `SupportOnly` or
   `Deferred` rows
 
@@ -1271,6 +1375,24 @@ non-`Rejected` claim of the required family for the same owner polarity.
   - scope: `comparative`
   - anchor: `board`
   - first live slice: restriction-backed mobility superiority only
+  - S20 live projection admission:
+    - `mobility_domination_route_certified` is the live projection
+      evidence-kind name in
+      `StrategyProjectionScopeContract.requiredEvidenceKindsByBand`
+    - row-specific burden is enforced as
+      `domination_route_requires_certified_same_board_mobility_comparison`,
+      `mobility_plus_restriction_requires_same_owner_short_run_slider_gate_restriction`,
+      `defender_starvation_requires_same_owner_duty_bound_defender`,
+      and
+      `same_task_projection_evidence_must_mirror_s20_route_owner_anchor_and_support`
+    - `Certification:MobilityComparison(lower_truth_owner_not_projection_truth)`
+      remains the lower certification owner; projection only mirrors the route
+      after runtime revalidates the same board, owner, route, anchor, support
+      witness, and support squares
+    - `space_access_liability_or_lower_certification_alone_is_non_admitting`
+      and
+      `wrong_owner_wrong_anchor_wrong_route_stale_or_support_only_evidence_is_non_admitting`
+      are live admission blockers
   - helpers:
     - `mobility_balance_count`
     - `mobility_gap_floor`
@@ -1513,11 +1635,18 @@ Current projection handoff status on this worktree is now frozen as:
 
 - live-runtime start-ready rows, owned by `StrategyProjectionScopeContract` and
   `StrategyProjectionAdmission`:
+  - `S01`
+  - `S02`
+  - `S03`
+  - `S04`
   - `S05`
   - `S06`
   - `S07`
   - `S08`
+  - `S09`
+  - `S10`
   - `S11`
+  - `S12`
   - `S13`
   - `S14`
   - `S15`
@@ -1525,6 +1654,7 @@ Current projection handoff status on this worktree is now frozen as:
   - `S17`
   - `S18`
   - `S19`
+  - `S20`
   - `S21`
   - `S22`
   - `S23`
@@ -1541,12 +1671,89 @@ Current projection handoff status on this worktree is now frozen as:
     non-admitting
   - coverage rows remain countable, but only exact same-anchor route evidence is
     runtime authority
-- wave-7 global coverage freeze owner:
+- S09 live runtime admission is part of that explicit live set and is owned by
+  `StrategyProjectionAdmission` and `StrategyProjectionCoverageContract`:
+  - required evidence name:
+    `file_penetration_route_certified`
+  - row burden is frozen as
+    `file_penetration_route_requires_owner_file_lane_state`,
+    `file_penetration_route_requires_same_file_entry_or_penetration_consequence`,
+    `same_task_projection_evidence_must_mirror_s09_owner_file_source_entry_and_route`,
+    `s02_attack_s23_king_activity_s25_rank_access_or_optional_strengthening_is_non_admitting`,
+    and
+    `wrong_file_wrong_source_wrong_entry_wrong_route_stale_or_support_only_evidence_is_non_admitting`
+  - lower carrier truth stays in `Witness:file_lane_state` and
+    `Witness:rook_on_open_file_state`; the projection evidence companion is
+    recorded as `ProjectionEvidence:file_penetration_route_certified`
+  - `CertificationSupportOnly:MaterialHarvest|WinningEndgame` and
+    `SupportOnly:AttackScaffold|CertifiedKingSafetyEdge` remain support-only
+    and must not become projection truth owners
+  - exact validation scaffold includes
+    `wrong_file_wrong_source_wrong_entry_wrong_route_stale_or_support_only_evidence_not_counted`
+    and
+    `support_only_attack_shell_or_certification_only_not_counted`
+  - runtime boundary remains narrow: broad S09 coverage rows are countable, but
+    only rows carrying exact `file_penetration_route_certified` evidence are
+    live admission authority; `S02`, `S23`, and `S25` adjacent rivals retain
+    their independent meanings, `S01` keeps its separate exact
+    `king_wing_storm_route_certified` branch, `S02` keeps its separate
+    `king_ring_concentration_route_certified` branch, `S03` keeps its separate
+    `diagonal_king_attack_route_certified` branch, and `S04` keeps its separate
+    exact `king_shelter_breach_route_certified` branch
+- S10 live runtime admission is part of that explicit live set and is owned by
+  `StrategyProjectionAdmission` and `StrategyProjectionCoverageContract`:
+  - required evidence name `outpost_occupation_route_certified`
+  - exact lower burden is same-anchor `weak_outpost_square_state` with
+    same-anchor `knight_on_outpost_square`; lower weak-outpost witness truth
+    stays below projection truth
+  - exact same-anchor route evidence must mirror the same anchor, same outpost
+    square, and `knight_only_outpost_occupancy` or
+    `same_anchor_eviction_denial`
+  - exact S12 access rows remain non-admitting
+  - coverage rows remain countable, but only exact same-anchor outpost route
+    evidence is runtime authority
+- S12 has narrow live runtime admission for exact local access-superiority:
+  - `S12` is listed in
+    `StrategyProjectionScopeContract.startReadyBandIds` and
+    `StrategyProjectionScopeContract.requiredEvidenceKindsByBand`
+  - live evidence name:
+    `local_access_superiority_route_certified`
+  - row-specific burden is frozen as
+    `access_route_requires_same_anchor_weak_outpost_or_diagonal_lane`,
+    `access_route_requires_support_linked_short_run_restriction_reinforcement`,
+    `local_access_superiority_requires_same_owner_anchor_route_and_support`,
+    `same_task_projection_evidence_must_mirror_s12_owner_anchor_route_and_support`,
+    `s03_diagonal_attack_s10_outpost_s20_mobility_or_optional_strengthening_is_non_admitting`,
+    and
+    `wrong_owner_wrong_anchor_wrong_route_stale_or_support_only_evidence_is_non_admitting`
+  - lower carrier truth stays below projection:
+    `weak_outpost_square_state` or king-independent `diagonal_lane_only`, plus
+    support-linked `short_run_slider_gate_restriction`; `MobilityComparison` is
+    `CertificationSupportOnly:MobilityComparison(non_truth_owner)` and
+    optional `knight_on_outpost_square` remains support/rival context only
+  - exact validation proves
+    `projection_evidence_mirrors_s12_owner_anchor_route_and_support`,
+    `wrong_owner_wrong_anchor_wrong_route_stale_or_support_only_evidence_not_counted`,
+    and S03/S10/S20 false-rival rejection
+  - runtime boundary remains narrow: broad S12 coverage rows are countable, but
+    only rows carrying exact `local_access_superiority_route_certified` evidence
+    are live admission authority; coverage-only rows and adjacent non-live bands
+    remain fail-closed
+- S01-S25 projection coverage owner:
   `StrategyProjectionCoverageContract` owns the row-specific coverage gates,
   lower-carrier ownership, helper/admission laws, and exact-validation
   scaffolds for every `S01-S25` band, with
-  `globalClosureBroadReadyCoverageBandIds` fixed to exactly that full range
-- current S05/S06/S07/S08/S11/S13/S14/S15/S16/S17/S18/S19/S21/S22/S23/S24/S25 blockers are closed at the runtime start-ready handoff boundary:
+  `allProjectionBandIds` fixed to exactly that full range
+- current S01/S02/S03/S04/S05/S06/S07/S08/S09/S10/S11/S12/S13/S14/S15/S16/S17/S18/S19/S20/S21/S22/S23/S24/S25 blockers are closed at the runtime start-ready handoff boundary:
+  - `S01` has same-anchor king-wing storm admission evidence and projection
+    validation scaffold, with lower truth supplied by current
+    `available_lever_trigger`, current `pawn_push_break_contact_source`,
+    same-defending-king `AttackScaffold`, and certified same-owner
+    `CertifiedKingSafetyEdge`
+  - `S03` has same-king diagonal attack admission evidence and projection
+    validation scaffold, with lower truth supplied by current king-theater
+    `diagonal_lane_only`, same-defending-king `AttackScaffold`, and certified
+    same-owner `ComparativeKingFragility` plus `CertifiedKingSafetyEdge`
   - `S05` has same-anchor center-release admission evidence and projection
     validation scaffold, with lower truth supplied by current
     `available_lever_trigger` plus current `pawn_push_break_contact_source` on
@@ -1602,23 +1809,25 @@ explicit admission branches.
 Executable live projection admission remains the narrower
 `StrategyProjectionScopeContract` / `StrategyProjectionAdmission` surface. On
 the current worktree that live-admission surface is still limited to
-`S05`, `S06`, `S07`, `S08`, `S11`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S21`, `S22`, `S23`, `S24`, and `S25`. Other rows named
+`S01`, `S02`, `S03`, `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and `S25`. Other rows named
 start-ready, promoted, or coverage-complete above are semantic / corpus-handoff
-statuses unless they are explicitly added to that runtime admission surface. Every other
-`S01-S25` band is coverage-only: its exact-board corpus rows close the
-broad-ready coverage gate, but it must stay outside live admission.
+statuses unless they are explicitly added to that runtime admission surface.
+Rows outside that explicit `S01-S25` live set stay outside live admission, and
+within `S01-S25` only the exact narrow admission slices are runtime authority;
+their broad exact-board corpus rows remain countability authority and do not
+widen runtime.
 
 No coverage-complete-only projection band is broad-deployed or live as runtime
-projection on the current branch. `S05`, `S06`, `S07`, `S08`, `S11`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`,
-`S21`, `S22`, `S23`, `S24`, and `S25` keep only their already-authored narrow live admission
+projection on the current branch. `S01`, `S02`, `S03`, `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`,
+`S20`, `S21`, `S22`, `S23`, `S24`, and `S25` keep only their already-authored narrow live admission
 slices.
 
 `S01`, `S02`, `S03`, `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`,
 `S12`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`,
-`S23`, `S24`, and `S25` are now coverage-complete against their current staged
-wave-1 through wave-6 broad-ready gate buckets. That status is
+`S23`, `S24`, and `S25` are now coverage-complete against their current clustered
+positional-access through passer creation/suppression coverage gate buckets. That status is
 corpus/validation-only and does not add broad runtime projection admission or broad
-deployment for those bands; for `S05`, `S06`, `S07`, `S08`, `S11`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S21`,
+deployment for those bands; for `S01`, `S02`, `S03`, `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`,
 `S22`, `S23`, `S24`, and `S25` it does not widen their existing narrow live admission
 slices.
 
@@ -1690,13 +1899,13 @@ That contract freezes:
 - fail-closed separation between broad coverage candidates and live
   `StrategyProjectionAdmission`
 
-This coverage closure does not make the cluster broad-deployed. `S05`, `S06`, `S07`, `S08`, `S11`, `S13`,
-`S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S21`, `S22`, `S23`, `S24`, and `S25` keep narrow
+This coverage closure does not make the cluster broad-deployed. `S01`, `S02`, `S03`, `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`,
+`S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and `S25` keep narrow
 live start-ready admission companions; adjacent coverage-only rows remain
 fail-closed.
 
 The initiative / release / counterplay cluster `S05` / `S07` / `S08` / `S21`
-now has executable broad-ready coverage in
+now has executable coverage-complete rows in
 `modules/commentary/src/main/scala/lila/commentary/projection/StrategyProjectionCoverageContract.scala`.
 That contract freezes:
 
@@ -1752,44 +1961,121 @@ That contract freezes:
 
 `ProjectionExpectationCorpus.requiredCoveragePairsFor`,
 `coveragePairsByBand`, `missingRequiredCoveragePairsByBand`, and
-`bandsWithCompleteBroadReadyCoverage` now count `S05`, `S07`, `S08`, and `S21`
-as completed broad-ready coverage bands once the exact-board JSONL rows are
+`bandsWithCompleteCoverage` now count `S05`, `S07`, `S08`, and `S21`
+as completed coverage-complete bands once the exact-board JSONL rows are
 loaded.
 
 The king-attack family `S01` / `S02` / `S03` / `S04` now has executable
-broad-ready coverage rows in
+coverage-complete rows in
 `modules/commentary/src/main/scala/lila/commentary/projection/StrategyProjectionCoverageContract.scala`.
-The JSONL rows are authored and countable. This is coverage completion only and
-does not expand live `StrategyProjectionAdmission`. That contract freezes:
+The JSONL rows are authored and countable. `S01`, `S02`, `S03`, and `S04` also
+have narrow live runtime admission branches. That contract freezes:
 
 - row-specific coverage burdens for same-wing storm, direct king-ring
   concentration, king-facing diagonal attack, and same-king shelter breach
 - shared helper laws:
-  - `S01` requires same-wing contact plus same-defender attack / king-safety
-    carriers; castling context is not proof
-  - `S02` requires direct king-ring concentration; `AttackScaffold` and lane
-    support cannot become projection truth owners by themselves
+  - `S01` requires non-center same-wing contact plus same-defender attack / king-safety
+    carriers; castling context is not proof. Its live freeze names
+    `king_wing_storm_route_certified` as exact projection evidence, with
+    `same_task_projection_evidence_must_mirror_s01_source_target_defending_king_and_route_law`
+    and
+    `s05_center_release_or_s21_counterplay_survival_is_not_s01_storm_law`
+    enforced at admission
+  - `S02` requires direct king-ring concentration; `AttackScaffold`,
+    `CertifiedKingSafetyEdge`, and lane support cannot become projection truth
+    owners by themselves. Its live freeze names
+    `king_ring_concentration_requires_same_defending_king_attack_scaffold`,
+    `king_ring_concentration_requires_certified_same_owner_king_safety_edge`,
+    `same_task_projection_evidence_must_mirror_s02_owner_defending_king_ring_targets_source_set_and_route`,
+    `s03_diagonal_s04_shell_s09_file_penetration_or_optional_strengthening_is_non_admitting`,
+    and
+    `wrong_owner_wrong_king_wrong_targets_wrong_sources_wrong_route_stale_or_support_only_evidence_is_non_admitting`;
+    `king_ring_concentration_route_certified` is live-allowed only for S02 and
+    must mirror the same defending king, source set, king-ring target set, and
+    route
   - `S03` requires king-theater `diagonal_lane_only` plus same-king fragility
     and king-safety certification; bishop-pair state remains support/contrast
+    only. Its live freeze is exact and non-broad:
+    `diagonal_king_attack_requires_king_theater_diagonal_lane`,
+    `diagonal_king_attack_requires_same_defending_king_attack_scaffold`,
+    `diagonal_king_attack_requires_comparative_fragility_and_certified_edge`,
+    `same_task_projection_evidence_must_mirror_s03_owner_defending_king_diagonal_source_entry_squares_and_route`,
+    `s02_concentration_s12_local_access_bishop_pair_or_non_king_diagonal_is_non_admitting`,
+    and
+    `attack_scaffold_certification_diagonal_only_stale_or_wrong_task_evidence_is_non_admitting`.
+    The live evidence kind `diagonal_king_attack_route_certified` is present in
+    `StrategyProjectionScopeContract.requiredEvidenceKindsByBand` only for S03
+    and must mirror the same owner, defending king, diagonal source, king-ring
+    entry/endpoints, and route. Stale, wrong-owner, wrong-king, wrong-source,
+    wrong-route, object-only, certification-only, bishop-pair-only, S02
+    concentration, and S12 local-access rows remain fail-closed. Lower carriers
+    remain `ObjectSupportOnly:AttackScaffold(non_truth_owner)` and
+    `CertificationSupportOnly:ComparativeKingFragility|CertifiedKingSafetyEdge(non_truth_owner)`.
   - `S04` requires same-king shell breach from the `KingSafetyShell` payload or
     a same-king support-break route plus same-defender king-safety
-    deterioration; `KingSafetyShell` alone is support only
+    deterioration; `KingSafetyShell` is required defender lower object support
+    for S04 positives, not optional strengthening or projection-owned truth.
+    The support-break broad row also declares exact diagonal-lane support, while
+    `shell_payload_and_support_break_use_distinct_declared_support_burdens`.
+    Its live freeze names
+    `king_shelter_breach_requires_same_defender_king_safety_shell`,
+    `king_shelter_breach_requires_shell_payload_or_support_break_route`,
+    `king_shelter_breach_requires_same_defender_certified_king_safety_edge`,
+    `same_task_projection_evidence_must_mirror_s04_owner_defending_king_shell_anchor_breach_squares_and_route`,
+    `s01_storm_s02_concentration_s03_diagonal_s24_tactic_or_optional_strengthening_is_non_admitting`,
+    and
+    `wrong_owner_wrong_defender_wrong_shell_wrong_route_stale_or_support_only_evidence_is_non_admitting`
+    as the row-specific live-admission burden
 - lower-carrier ownership as witness, object-support, certification-support,
   support-only, or projection-validation ownership; S-layer projection does not
-  own lower Object / Delta / Certification truth
+  own lower Object / Delta / Certification truth. For S01,
+  `ObjectSupportOnly:AttackScaffold(non_truth_owner)` and
+  `CertificationSupportOnly:CertifiedKingSafetyEdge(non_truth_owner)` remain
+  lower support; live `ProjectionEvidence:king_wing_storm_route_certified`
+  admits only when the exact same non-center source, target, defending king, and route are
+  mirrored
+- for S03, `ObjectSupportOnly:AttackScaffold(non_truth_owner)` and
+  `CertificationSupportOnly:ComparativeKingFragility|CertifiedKingSafetyEdge(non_truth_owner)`
+  remain lower support; live
+  `ProjectionEvidence:diagonal_king_attack_route_certified` admits only when
+  the exact same owner, defending king, diagonal source, entry/endpoints, and
+  route are mirrored
+- for S04,
+  `ObjectSupportOnly:KingSafetyShell(non_truth_owner)`,
+  `CertificationSupportOnly:CertifiedKingSafetyEdge(non_truth_owner)`, and
+  `SupportOnly:AttackScaffold|ComparativeKingFragility|same_anchor_contact_target`
+  remain lower support. `ProjectionValidation:shell_payload_breach|support_break_breach(same_defender_king)`
+  is the route-validation burden, and
+  `ProjectionEvidence:king_shelter_breach_route_certified`
+  admits only after exact current-board recomputation of the same owner,
+  defending king, shell anchor, breach squares, route, and certification family
 - exact validation scaffold names for all four rows, with same-board carrier
   checks in `ProjectionExpectationCorpusTest`
-- fail-closed runtime separation: these four bands are broad-ready coverage-only
-  bands and remain unsupported by live
-  `StrategyProjectionAdmission`
+- fail-closed runtime separation: S01 is live only through its exact
+  same-anchor `king_wing_storm_route_certified` branch. S02 is live only
+  through exact same-king `king_ring_concentration_route_certified` evidence.
+  S03 is live only through exact same-king
+  `diagonal_king_attack_route_certified` evidence. S04 is live only through
+  exact same-defender `king_shelter_breach_route_certified` evidence; broad S04
+  coverage rows remain countable, but evidence-empty, stale, wrong-owner,
+  wrong-defender, wrong-shell, wrong-route, support-only, optional
+  strengthening, and adjacent S01/S02/S03/S24 rows remain fail-closed.
+  S02's runtime boundary rejects stale evidence,
+  lower object/certification support as projection truth, optional
+  strengthening alone, and adjacent S03/S04/S09 rows without S02 projection
+  evidence.
+  S01's runtime boundary rejects wrong source,
+  wrong target, wrong defending king, wrong route, stale evidence,
+  support-only lower bundles, center-edge release, S05 center-release rivals,
+  S21 counterplay rivals, castling-shell shortcuts, and optional strengthening.
 
 `ProjectionExpectationCorpus.requiredCoveragePairsFor`, `coveragePairsByBand`,
 `missingRequiredCoveragePairsByBand`, and
-`bandsWithCompleteBroadReadyCoverage` now count the exact-board S01-S04 rows as
-completed broad-ready coverage once `projection-expectations.jsonl` is loaded.
+`bandsWithCompleteCoverage` now count the exact-board S01-S04 rows as
+completed coverage-complete once `projection-expectations.jsonl` is loaded.
 
 The pawn-target / structural-damage cluster `S11` / `S13` / `S14` now has an
-executable broad-ready coverage gate in
+executable coverage-complete gate in
 `modules/commentary/src/main/scala/lila/commentary/projection/StrategyProjectionCoverageContract.scala`.
 The JSONL rows are authored and countable. `S11`, `S13`, and `S14` also have
 narrow live `StrategyProjectionAdmission` slices. The
@@ -1855,7 +2141,7 @@ has no further forward chain continuation, while `base_contact_continuation`
 is admitted only when the forward-supported pawn itself supports the next
 defender pawn on the exact board.
 
-S13 now has a live runtime-admission freeze executable in
+S13 now has a live runtime-admission contract executable in
 `StrategyProjectionCoverageContract`, `StrategyProjectionScopeContract`, and
 `StrategyProjectionAdmission`. This closes the live promotion boundary for the
 row-specific burden, helper/law, lower-carrier ownership, exact validation
@@ -1901,7 +2187,7 @@ scaffold, runtime boundary, and projection evidence kind:
   projection evidence; stale evidence, optional strengthening, and adjacent
   S11/S14/S15 rivals remain non-admitting.
 
-S11 has a live runtime-admission freeze executable in
+S11 has a live runtime-admission contract executable in
 `StrategyProjectionCoverageContract`, `StrategyProjectionScopeContract`, and
 `StrategyProjectionAdmission`:
 
@@ -1928,7 +2214,7 @@ S11 has a live runtime-admission freeze executable in
   `MobilityComparison` and `InitiativeWindow` are support-only and must not
   become S11 projection truth owners
 
-S15 now has a live runtime-admission freeze executable in
+S15 now has a live runtime-admission contract executable in
 `StrategyProjectionCoverageContract`, `StrategyProjectionScopeContract`, and
 `StrategyProjectionAdmission`:
 
@@ -1961,17 +2247,17 @@ S15 now has a live runtime-admission freeze executable in
 
 `ProjectionExpectationCorpus.requiredCoveragePairsFor` and
 `coveragePairsByBand`, `missingRequiredCoveragePairsByBand`, and
-`bandsWithCompleteBroadReadyCoverage` now count `S11`, `S13`, and `S14` as
-completed broad-ready coverage once the exact-board JSONL rows are loaded.
+`bandsWithCompleteCoverage` now count `S11`, `S13`, and `S14` as
+completed coverage-complete once the exact-board JSONL rows are loaded.
 
 The passer creation / passer suppression pair `S15` / `S16` now has executable
-wave-6 broad-ready coverage rows in `projection-expectations.jsonl`, with the
+passer creation/suppression coverage-complete rows in `projection-expectations.jsonl`, with the
 gate contract in
 `modules/commentary/src/main/scala/lila/commentary/projection/StrategyProjectionCoverageContract.scala`.
 S15 and S16 also have narrow live `StrategyProjectionAdmission` branches. The
 contract freezes:
 
-- row-specific broad-ready coverage burdens:
+- row-specific coverage-complete burdens:
   - `S15` creation requires both broad coverage buckets
     `s13_wing_damage` and `s14_chain_base`, even though live per-position
     admission may use either route. In every exact route, the
@@ -2004,7 +2290,7 @@ contract freezes:
   `StrategyProjectionScopeContract.requiredEvidenceKindsByBand`
 - S16 live projection evidence kind freeze:
   `passer_suppression_route_certified` is frozen in
-  `StrategyProjectionCoverageContract.projectionEvidenceKindFreezeByBand` and
+  `StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand` and
   is the only S16 entry in
   `StrategyProjectionScopeContract.requiredEvidenceKindsByBand`; the live
   branch revalidates the same enemy passer and route-specific proof without
@@ -2019,19 +2305,20 @@ The methodology owner is `ValidationMethodology.md`; band-local breadth gates
 for `S01-S25` are now frozen in `StrategyProjectionBoundaryMatrix.md`.
 
 The projection corpus validator computes required bucket presence for the
-wave-7 global closure set over the staged wave-1, wave-2, wave-3, wave-4,
-wave-5, and wave-6 completed executable gate-band rows (`S01`, `S02`, `S03`,
+S01-S25 projection coverage closure set over the clustered positional-access, conversion/hold/target, initiative/release/counterplay, king-attack,
+pawn-structure, and passer creation/suppression completed executable gate-band rows (`S01`, `S02`, `S03`,
 `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`,
 `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and
 `S25`) from the JSONL corpus. It currently reports all twenty-five completed
-staged bands as coverage-complete.
+clustered bands as coverage-complete.
 Coverage counting is axis-burdened: positive route buckets require
 `exact` / `admitted` rows, while near-miss and shortcut-negative buckets require
 their corresponding rejected row classes.
-The wave-4 set (`S01`, `S02`, `S03`, and `S04`), wave-5 set (`S11`, `S13`,
-and `S14`), and wave-6 set (`S15` and `S16`) are executable and counted as
-complete broad-ready coverage. `S11`, `S13`, and `S14` in that wave-5 set have
-narrow live runtime admission branches. `S15` and `S16` in wave 6 also have
+The king-attack set (`S01`, `S02`, `S03`, and `S04`), pawn-structure set (`S11`, `S13`,
+and `S14`), and passer creation/suppression set (`S15` and `S16`) are executable and counted as
+complete coverage. `S01`, `S02`, `S03`, and `S04` in that king-attack
+set have narrow live runtime admission branches. `S11`, `S13`, and `S14` in
+that pawn-structure set have narrow live runtime admission branches. `S15` and `S16` in passer creation/suppression also have
 narrow live runtime admission branches. S16 is in
 `StrategyProjectionScopeContract.startReadyBandIds`, has the
 `passer_suppression_route_certified` evidence entry in
@@ -2041,28 +2328,40 @@ only exact current-board same-enemy-passer suppression routes and does not let
 hold/race certification or object shells become projection truth owners.
 
 The previous broad blocker set `S06`, `S10`, `S12`, and `S15` is closed at
-gate-decision level only. `S10` is knight-only for current-branch broad scope,
-and `S15` uses disjunctive per-position route admission but conjunctive
+gate-decision level only. `S10` is now narrow live only for same-anchor
+knight-outpost occupation routes with `outpost_occupation_route_certified`
+evidence, remains knight-only for current-branch scope, and does not widen
+into generic weak-square access or non-knight outpost claims. `S15` uses disjunctive per-position route admission but conjunctive
 broad-coverage over both frozen creation routes plus `S13` / `S14` / `S16`
 false-rival separation and candidate-only / shell-only / existing-passer /
-split-anchor negatives. `S15` and `S16` are now staged as completed wave-6
+split-anchor negatives. `S15` and `S16` are now clustered as completed passer creation/suppression
 coverage bands, with both promoted to narrow live admission. `S09`, `S20`, `S23`, and
-`S25` are tracked in wave 1 alongside `S06`,
+`S25` are tracked in positional-access alongside `S06`,
 `S10`, and `S12`; `S25` remains limited to the `cross_wing_rank_switch`
 rank-access route for the current broad gate, while wider rank-access meanings
 remain future scope.
 
-Current broader-coverage corpus debt is closed by the wave-7 global closure over
-the staged wave-1 through wave-6 clusters: `S01`, `S02`, `S03`, `S04`, `S05`,
+Current broader-coverage corpus debt is closed by the S01-S25 projection coverage closure over
+the clustered positional-access through passer creation/suppression clusters: `S01`, `S02`, `S03`, `S04`, `S05`,
 `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`, `S16`,
 `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and `S25` have
 exact-board route, same-cluster near-miss / false-rival, and shortcut-negative
 coverage against the current frozen gates.
 That still does not make them broad-deployed or newly live as runtime projection
-bands. `S15` remains narrow-by-design live only for same-candidate creation
-routes, and `S16` remains narrow-by-design live only for same-enemy-passer
+bands. `S10` remains narrow-by-design live only for same-anchor knight-outpost
+occupation routes with `outpost_occupation_route_certified` evidence mirrored
+to the same anchor and outpost square. `S15` remains narrow-by-design live only
+for same-candidate creation routes, and `S16` remains narrow-by-design live only for same-enemy-passer
 suppression routes with `passer_suppression_route_certified` evidence mirrored
 to the route-specific proof.
+S20 is additionally live-admitted only for the exact mobility-domination slice:
+`same_board_mobility_certification_and_support_witness_law`,
+`same_task_projection_evidence_must_mirror_s20_route_owner_anchor_and_support_law`,
+`mobility_comparison_is_lower_certification_not_projection_truth_owner_law`,
+`future_projection_evidence_mirrors_route_owner_anchor_and_support`, and
+`wrong_owner_wrong_anchor_wrong_route_stale_or_support_only_evidence_not_counted`
+are enforced by `StrategyProjectionAdmission`; adjacent coverage-only rows
+remain unsupported unless they have their own explicit live branch.
 
 ## Transcript-Derived Design Claims
 

@@ -3,6 +3,8 @@
 /.bsp/
 /.bloop/
 /.metals/
+**/.bsp/
+**/.scala-build/
 /.pnpm-store/
 /bin/flair/download-flair.sh
 /bin/flair/emoji.txt
@@ -79,3 +81,8 @@ a12_*.txt
 compile*.txt
 fen_*.txt
 /modules/llm/tmp/
+
+# Commentary opening source local data
+/tmp/commentary-opening/
+/modules/commentary/.local/opening/
+/modules/commentary/src/test/resources/commentary-corpus/generated-opening/

@@ -18,7 +18,7 @@ private[delta] object TradeInvariantRule extends StrategicDeltaRule:
   ): Vector[StrategicDelta] =
     for
       moverColor <- context.moverColor.toVector
-      carrierEvidence <- TradeInvariantAdmission.firstSliceEvidence(context, moverColor).toVector
+      carrierEvidence <- TradeInvariantAdmission.admissionCarrierEvidence(context, moverColor).toVector
       if tradeInvariantTransition(extractedSoFar)
     yield buildDelta(moverColor, context, carrierEvidence)
 

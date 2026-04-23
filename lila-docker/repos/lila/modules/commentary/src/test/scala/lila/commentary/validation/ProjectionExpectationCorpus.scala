@@ -19,44 +19,44 @@ private[validation] object ProjectionExpectationCorpus:
 
   val resourcePath = "/commentary-corpus/projection-expectations.jsonl"
 
-  val runtimeAdmissionBands: Set[String] =
+  val liveAdmissionBands: Set[String] =
     StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
-  val closedLegacyBroadBlockerBands: Set[String] =
-    Set("S06", "S10", "S12")
-  val laterBroadReadyCoverageGateBands: Set[String] =
+  val legacyRuntimeExceptionBands: Set[String] =
     Set.empty
-  val stagedWave1BroadReadyCoverageGateBands: Set[String] =
-    StrategyProjectionCoverageContract.foundationBroadReadyCoverageBandIds.map(_.value).toSet
-  val stagedWave2BroadReadyCoverageGateBands: Set[String] =
-    StrategyProjectionCoverageContract.broadCoverageCandidateBandIds.map(_.value).toSet
-  val stagedWave3BroadReadyCoverageGateBands: Set[String] =
-    StrategyProjectionCoverageContract.initiativeReleaseCoverageFreezeBandIds.map(_.value).toSet
-  val stagedWave4BroadReadyCoverageGateBands: Set[String] =
-    StrategyProjectionCoverageContract.kingAttackCoverageFreezeBandIds.map(_.value).toSet
-  val stagedWave5BroadReadyCoverageGateBands: Set[String] =
-    StrategyProjectionCoverageContract.pawnTargetStructuralDamageCoverageFreezeBandIds.map(_.value).toSet
-  val stagedWave6BroadReadyCoverageGateBands: Set[String] =
-    StrategyProjectionCoverageContract.passerCreationSuppressionCoverageFreezeBandIds.map(_.value).toSet
-  val globalClosureBroadReadyCoverageGateBands: Set[String] =
-    StrategyProjectionCoverageContract.globalClosureBroadReadyCoverageBandIds.map(_.value).toSet
-  val broadReadyCoverageGateBands: Set[String] =
-    stagedWave1BroadReadyCoverageGateBands ++
-      stagedWave2BroadReadyCoverageGateBands ++
-      stagedWave3BroadReadyCoverageGateBands ++
-      stagedWave4BroadReadyCoverageGateBands ++
-      stagedWave5BroadReadyCoverageGateBands ++
-      stagedWave6BroadReadyCoverageGateBands
-  val pendingCoverageFreezeGateBands: Set[String] =
+  val deferredCoverageGateBands: Set[String] =
     Set.empty
-  val coverageFreezeGateBands: Set[String] =
-    broadReadyCoverageGateBands ++ pendingCoverageFreezeGateBands
+  val positionalAccessCoverageBands: Set[String] =
+    StrategyProjectionCoverageContract.positionalAccessBandIds.map(_.value).toSet
+  val conversionHoldTargetCoverageBands: Set[String] =
+    StrategyProjectionCoverageContract.conversionHoldTargetBandIds.map(_.value).toSet
+  val initiativeReleaseCounterplayCoverageBands: Set[String] =
+    StrategyProjectionCoverageContract.initiativeReleaseCounterplayBandIds.map(_.value).toSet
+  val kingAttackCoverageBands: Set[String] =
+    StrategyProjectionCoverageContract.kingAttackBandIds.map(_.value).toSet
+  val pawnStructureDamageCoverageBands: Set[String] =
+    StrategyProjectionCoverageContract.pawnStructureDamageBandIds.map(_.value).toSet
+  val passerCreationSuppressionCoverageBands: Set[String] =
+    StrategyProjectionCoverageContract.passerCreationSuppressionBandIds.map(_.value).toSet
+  val allCoverageBands: Set[String] =
+    StrategyProjectionCoverageContract.allProjectionBandIds.map(_.value).toSet
+  val countableCoverageBands: Set[String] =
+    positionalAccessCoverageBands ++
+      conversionHoldTargetCoverageBands ++
+      initiativeReleaseCounterplayCoverageBands ++
+      kingAttackCoverageBands ++
+      pawnStructureDamageCoverageBands ++
+      passerCreationSuppressionCoverageBands
+  val pendingCoverageGateBands: Set[String] =
+    Set.empty
+  val coverageGateBands: Set[String] =
+    countableCoverageBands ++ pendingCoverageGateBands
   val requiredBands: Vector[String] =
-    (runtimeAdmissionBands ++ coverageFreezeGateBands).toVector.sorted
-  val broadReadyCaseTypes: Set[String] =
+    (liveAdmissionBands ++ coverageGateBands).toVector.sorted
+  val coverageCaseTypes: Set[String] =
     Set("exact", "near_miss", "contrastive", "comparative_false_rival", "nasty_negative", "negative")
-  val requiredStartReadyCaseTypes: Set[String] =
+  val requiredRuntimeCaseTypes: Set[String] =
     Set("exact", "near_miss", "nasty_negative", "comparative_false_rival")
-  val requiredCaseTypes: Set[String] = broadReadyCaseTypes
+  val requiredCaseTypes: Set[String] = coverageCaseTypes
   val requiredExpectations: Set[String] = Set("admitted", "rejected")
   val requiredOwners: Set[String] = Set("white", "black")
   val requiredEvidenceKindsByBand: Map[String, Set[String]] =
@@ -114,7 +114,7 @@ private[validation] object ProjectionExpectationCorpus:
     "S25" -> Set("S02", "S03", "S04", "S09", "S12", "S23", "S24")
   )
 
-  final case class BroadReadyCoverageGate(axis: String, buckets: Set[String]):
+  final case class CoverageGateSpec(axis: String, buckets: Set[String]):
     require(axis.matches("^[a-z][a-z0-9_]*$"), s"Invalid projection coverage axis $axis")
     require(buckets.nonEmpty, s"Projection coverage axis $axis must have at least one bucket")
     require(
@@ -124,73 +124,73 @@ private[validation] object ProjectionExpectationCorpus:
 
     def pairs: Set[(String, String)] = buckets.map(axis -> _)
 
-  private val wave1BroadReadyCoverageGatesByBand: Map[String, Vector[BroadReadyCoverageGate]] =
+  private val positionalAccessCoverageGateSpecsByBand: Map[String, Vector[CoverageGateSpec]] =
     StrategyProjectionCoverageContract.coverageGatesByBand.view
-      .filterKeys(stagedWave1BroadReadyCoverageGateBands.contains)
-      .mapValues(gates => gates.map(gate => BroadReadyCoverageGate(gate.axis, gate.buckets.toSet)))
+      .filterKeys(positionalAccessCoverageBands.contains)
+      .mapValues(gates => gates.map(gate => CoverageGateSpec(gate.axis, gate.buckets.toSet)))
       .toMap
 
-  private val wave2BroadReadyCoverageGatesByBand: Map[String, Vector[BroadReadyCoverageGate]] =
+  private val conversionHoldTargetCoverageGateSpecsByBand: Map[String, Vector[CoverageGateSpec]] =
     StrategyProjectionCoverageContract.coverageGatesByBand.view
-      .filterKeys(stagedWave2BroadReadyCoverageGateBands.contains)
-      .mapValues(gates => gates.map(gate => BroadReadyCoverageGate(gate.axis, gate.buckets.toSet)))
+      .filterKeys(conversionHoldTargetCoverageBands.contains)
+      .mapValues(gates => gates.map(gate => CoverageGateSpec(gate.axis, gate.buckets.toSet)))
       .toMap
 
-  private val wave3BroadReadyCoverageGatesByBand: Map[String, Vector[BroadReadyCoverageGate]] =
+  private val initiativeReleaseCounterplayCoverageGateSpecsByBand: Map[String, Vector[CoverageGateSpec]] =
     StrategyProjectionCoverageContract.coverageGatesByBand.view
-      .filterKeys(stagedWave3BroadReadyCoverageGateBands.contains)
-      .mapValues(gates => gates.map(gate => BroadReadyCoverageGate(gate.axis, gate.buckets.toSet)))
+      .filterKeys(initiativeReleaseCounterplayCoverageBands.contains)
+      .mapValues(gates => gates.map(gate => CoverageGateSpec(gate.axis, gate.buckets.toSet)))
       .toMap
 
-  private val wave4BroadReadyCoverageGatesByBand: Map[String, Vector[BroadReadyCoverageGate]] =
+  private val kingAttackCoverageGateSpecsByBand: Map[String, Vector[CoverageGateSpec]] =
     StrategyProjectionCoverageContract.coverageGatesByBand.view
-      .filterKeys(stagedWave4BroadReadyCoverageGateBands.contains)
-      .mapValues(gates => gates.map(gate => BroadReadyCoverageGate(gate.axis, gate.buckets.toSet)))
+      .filterKeys(kingAttackCoverageBands.contains)
+      .mapValues(gates => gates.map(gate => CoverageGateSpec(gate.axis, gate.buckets.toSet)))
       .toMap
 
-  private val wave5BroadReadyCoverageGatesByBand: Map[String, Vector[BroadReadyCoverageGate]] =
+  private val pawnStructureDamageCoverageGateSpecsByBand: Map[String, Vector[CoverageGateSpec]] =
     StrategyProjectionCoverageContract.coverageGatesByBand.view
-      .filterKeys(stagedWave5BroadReadyCoverageGateBands.contains)
-      .mapValues(gates => gates.map(gate => BroadReadyCoverageGate(gate.axis, gate.buckets.toSet)))
+      .filterKeys(pawnStructureDamageCoverageBands.contains)
+      .mapValues(gates => gates.map(gate => CoverageGateSpec(gate.axis, gate.buckets.toSet)))
       .toMap
 
-  private val wave6BroadReadyCoverageGatesByBand: Map[String, Vector[BroadReadyCoverageGate]] =
+  private val passerCreationSuppressionCoverageGateSpecsByBand: Map[String, Vector[CoverageGateSpec]] =
     StrategyProjectionCoverageContract.coverageGatesByBand.view
-      .filterKeys(stagedWave6BroadReadyCoverageGateBands.contains)
-      .mapValues(gates => gates.map(gate => BroadReadyCoverageGate(gate.axis, gate.buckets.toSet)))
+      .filterKeys(passerCreationSuppressionCoverageBands.contains)
+      .mapValues(gates => gates.map(gate => CoverageGateSpec(gate.axis, gate.buckets.toSet)))
       .toMap
 
-  private val pendingCoverageFreezeGatesByBand: Map[String, Vector[BroadReadyCoverageGate]] =
+  private val pendingCoverageGatesByBand: Map[String, Vector[CoverageGateSpec]] =
     StrategyProjectionCoverageContract.coverageGatesByBand.view
-      .filterKeys(pendingCoverageFreezeGateBands.contains)
-      .mapValues(gates => gates.map(gate => BroadReadyCoverageGate(gate.axis, gate.buckets.toSet)))
+      .filterKeys(pendingCoverageGateBands.contains)
+      .mapValues(gates => gates.map(gate => CoverageGateSpec(gate.axis, gate.buckets.toSet)))
       .toMap
 
-  val broadReadyCoverageGatesByBand: Map[String, Vector[BroadReadyCoverageGate]] =
-    wave1BroadReadyCoverageGatesByBand ++
-      wave2BroadReadyCoverageGatesByBand ++
-      wave3BroadReadyCoverageGatesByBand ++
-      wave4BroadReadyCoverageGatesByBand ++
-      wave5BroadReadyCoverageGatesByBand ++
-      wave6BroadReadyCoverageGatesByBand
-  val coverageFreezeGatesByBand: Map[String, Vector[BroadReadyCoverageGate]] =
-    broadReadyCoverageGatesByBand ++ pendingCoverageFreezeGatesByBand
+  val countableCoverageGatesByBand: Map[String, Vector[CoverageGateSpec]] =
+    positionalAccessCoverageGateSpecsByBand ++
+      conversionHoldTargetCoverageGateSpecsByBand ++
+      initiativeReleaseCounterplayCoverageGateSpecsByBand ++
+      kingAttackCoverageGateSpecsByBand ++
+      pawnStructureDamageCoverageGateSpecsByBand ++
+      passerCreationSuppressionCoverageGateSpecsByBand
+  val allCoverageGatesByBand: Map[String, Vector[CoverageGateSpec]] =
+    countableCoverageGatesByBand ++ pendingCoverageGatesByBand
 
   require(
-    broadReadyCoverageGatesByBand.keySet == broadReadyCoverageGateBands,
-    "Projection broad-ready closure gates must match the executable gate-band set"
+    countableCoverageGatesByBand.keySet == countableCoverageBands,
+    "Projection countable coverage gates must match the executable coverage-band set"
   )
   require(
-    broadReadyCoverageGateBands == globalClosureBroadReadyCoverageGateBands,
-    "Projection broad-ready global closure must match the staged executable gate-band set"
+    countableCoverageBands == allCoverageBands,
+    "Projection countable coverage bands must match the complete executable band set"
   )
   require(
-    coverageFreezeGatesByBand.keySet == coverageFreezeGateBands,
-    "Projection coverage freeze gates must match the executable freeze-band set"
+    allCoverageGatesByBand.keySet == coverageGateBands,
+    "Projection coverage gates must match the executable coverage-band set"
   )
 
   def requiredCoveragePairsFor(band: String): Set[(String, String)] =
-    coverageFreezeGatesByBand.getOrElse(band, Vector.empty).flatMap(_.pairs).toSet
+    allCoverageGatesByBand.getOrElse(band, Vector.empty).flatMap(_.pairs).toSet
 
   private val admittedCoverageAxes: Set[String] =
     Set(
@@ -238,21 +238,21 @@ private[validation] object ProjectionExpectationCorpus:
 
   def missingRequiredCoveragePairsByBand(rows: Iterable[Row]): Map[String, Set[(String, String)]] =
     val present = coveragePairsByBand(rows)
-    broadReadyCoverageGateBands.flatMap: band =>
+    countableCoverageBands.flatMap: band =>
       val missing = requiredCoveragePairsFor(band) -- present.getOrElse(band, Set.empty)
       Option.when(missing.nonEmpty)(band -> missing)
     .toMap
 
-  def missingCoverageFreezePairsByBand(rows: Iterable[Row]): Map[String, Set[(String, String)]] =
+  def missingCoverageGatePairsByBand(rows: Iterable[Row]): Map[String, Set[(String, String)]] =
     val present = coveragePairsByBand(rows)
-    coverageFreezeGateBands.flatMap: band =>
+    coverageGateBands.flatMap: band =>
       val missing = requiredCoveragePairsFor(band) -- present.getOrElse(band, Set.empty)
       Option.when(missing.nonEmpty)(band -> missing)
     .toMap
 
-  def bandsWithCompleteBroadReadyCoverage(rows: Iterable[Row]): Set[String] =
+  def bandsWithCompleteCoverage(rows: Iterable[Row]): Set[String] =
     val missing = missingRequiredCoveragePairsByBand(rows).keySet
-    broadReadyCoverageGateBands.filterNot(missing.contains)
+    countableCoverageBands.filterNot(missing.contains)
 
   final case class EvidenceClaimRow(
       kind: String,
@@ -260,12 +260,34 @@ private[validation] object ProjectionExpectationCorpus:
       reliefKind: Option[String],
       corridorKind: Option[String],
       entrySquare: Option[String],
+      contactSquare: Option[String],
       targetSquare: Option[String],
+      sourceSquares: List[String],
+      kingRingTargetSquares: List[String],
       contactSourceSquare: Option[String],
+      defendingKingSquare: Option[String],
+      shellAnchorSquare: Option[String],
+      breachSquares: List[String],
+      kingWingStormRoute: Option[String],
+      kingRingConcentrationRoute: Option[String],
+      diagonalKingAttackRoute: Option[String],
+      kingShelterBreachRoute: Option[String],
       centerReleaseRoute: Option[String],
+      filePenetrationRoute: Option[String],
       initiativeConversionRoute: Option[String],
       counterplayDenialRoute: Option[String],
       counterplaySurvivalRoute: Option[String],
+      outpostOccupationRoute: Option[String],
+      accessRoute: Option[String],
+      accessWitnessId: Option[String],
+      localAccessSuperiority: Option[String],
+      weakOutpostSquare: Option[String],
+      weakOutpostState: Option[String],
+      diagonalSourceSquare: Option[String],
+      diagonalEndpointSquares: List[String],
+      dominationRoute: Option[String],
+      supportWitnessId: Option[String],
+      supportTargetSquares: List[String],
       spaceBindRoute: Option[String],
       routeAnchorSquare: Option[String],
       structuralSector: Option[String],
@@ -293,11 +315,38 @@ private[validation] object ProjectionExpectationCorpus:
           reliefKind.toVector.map(kind => "relief_kind" -> WitnessValue.Token(kind)) ++
           corridorKind.toVector.map(kind => "corridor_kind" -> WitnessValue.Token(kind)) ++
           entrySquare.toVector.map(square => "entry_square" -> WitnessValue.SquareValue(parseSquare(square))) ++
+          contactSquare.toVector.map(square => "contact_square" -> WitnessValue.SquareValue(parseSquare(square))) ++
           targetSquare.toVector.map(square => "target_square" -> WitnessValue.SquareValue(parseSquare(square))) ++
+          Option.when(sourceSquares.nonEmpty)(
+            "source_squares" -> WitnessValue.SquareListValue(sourceSquares.map(parseSquare).toVector)
+          ).toVector ++
+          Option.when(kingRingTargetSquares.nonEmpty)(
+            "king_ring_target_squares" -> WitnessValue.SquareListValue(kingRingTargetSquares.map(parseSquare).toVector)
+          ).toVector ++
           contactSourceSquare.toVector.map(square =>
             "contact_source_square" -> WitnessValue.SquareValue(parseSquare(square))
           ) ++
+          defendingKingSquare.toVector.map(square =>
+            "defending_king_square" -> WitnessValue.SquareValue(parseSquare(square))
+          ) ++
+          shellAnchorSquare.toVector.map(square =>
+            "shell_anchor_square" -> WitnessValue.SquareValue(parseSquare(square))
+          ) ++
+          Option.when(breachSquares.nonEmpty)(
+            "breach_squares" -> WitnessValue.SquareListValue(breachSquares.map(parseSquare).toVector)
+          ).toVector ++
+          kingWingStormRoute.toVector.map(route => "king_wing_storm_route" -> WitnessValue.Token(route)) ++
+          kingRingConcentrationRoute.toVector.map(route =>
+            "king_ring_concentration_route" -> WitnessValue.Token(route)
+          ) ++
+          diagonalKingAttackRoute.toVector.map(route =>
+            "diagonal_king_attack_route" -> WitnessValue.Token(route)
+          ) ++
+          kingShelterBreachRoute.toVector.map(route =>
+            "king_shelter_breach_route" -> WitnessValue.Token(route)
+          ) ++
           centerReleaseRoute.toVector.map(route => "center_release_route" -> WitnessValue.Token(route)) ++
+          filePenetrationRoute.toVector.map(route => "file_penetration_route" -> WitnessValue.Token(route)) ++
           initiativeConversionRoute.toVector.map(route =>
             "initiative_conversion_route" -> WitnessValue.Token(route)
           ) ++
@@ -307,6 +356,29 @@ private[validation] object ProjectionExpectationCorpus:
           counterplaySurvivalRoute.toVector.map(route =>
             "counterplay_survival_route" -> WitnessValue.Token(route)
           ) ++
+          outpostOccupationRoute.toVector.map(route =>
+            "outpost_occupation_route" -> WitnessValue.Token(route)
+          ) ++
+          accessRoute.toVector.map(route => "access_route" -> WitnessValue.Token(route)) ++
+          accessWitnessId.toVector.map(witnessId => "access_witness_id" -> WitnessValue.Token(witnessId)) ++
+          localAccessSuperiority.toVector.map(value =>
+            "local_access_superiority" -> WitnessValue.Token(value)
+          ) ++
+          weakOutpostSquare.toVector.map(square =>
+            "weak_outpost_square" -> WitnessValue.SquareValue(parseSquare(square))
+          ) ++
+          weakOutpostState.toVector.map(state => "weak_outpost_state" -> WitnessValue.Token(state)) ++
+          diagonalSourceSquare.toVector.map(square =>
+            "diagonal_source_square" -> WitnessValue.SquareValue(parseSquare(square))
+          ) ++
+          Option.when(diagonalEndpointSquares.nonEmpty)(
+            "diagonal_endpoint_squares" -> WitnessValue.SquareListValue(diagonalEndpointSquares.map(parseSquare).toVector)
+          ).toVector ++
+          dominationRoute.toVector.map(route => "domination_route" -> WitnessValue.Token(route)) ++
+          supportWitnessId.toVector.map(witnessId => "support_witness_id" -> WitnessValue.Token(witnessId)) ++
+          Option.when(supportTargetSquares.nonEmpty)(
+            "support_target_squares" -> WitnessValue.SquareListValue(supportTargetSquares.map(parseSquare).toVector)
+          ).toVector ++
           spaceBindRoute.toVector.map(route => "space_bind_route" -> WitnessValue.Token(route)) ++
           routeAnchorSquare.toVector.map(square =>
             "route_anchor_square" -> WitnessValue.SquareValue(parseSquare(square))
@@ -498,7 +570,7 @@ private[validation] object ProjectionExpectationCorpus:
         s"Row $id declares duplicate evidence kinds: ${normalized.mkString(", ")}"
       )
       if normalized.isEmpty then
-        if expectation == "admitted" && runtimeAdmissionBands.contains(validatedBand.value) then
+        if expectation == "admitted" && liveAdmissionBands.contains(validatedBand.value) then
           require(
             normalized.nonEmpty,
             s"Row $id admitted runtime projection rows must declare exact evidence"
@@ -612,12 +684,34 @@ private[validation] object ProjectionExpectationCorpus:
       reliefKind <- (json \ "reliefKind").validateOpt[String]
       corridorKind <- (json \ "corridorKind").validateOpt[String]
       entrySquare <- (json \ "entrySquare").validateOpt[String]
+      contactSquare <- (json \ "contactSquare").validateOpt[String]
       targetSquare <- (json \ "targetSquare").validateOpt[String]
+      sourceSquares <- (json \ "sourceSquares").validateOpt[List[String]]
+      kingRingTargetSquares <- (json \ "kingRingTargetSquares").validateOpt[List[String]]
       contactSourceSquare <- (json \ "contactSourceSquare").validateOpt[String]
+      defendingKingSquare <- (json \ "defendingKingSquare").validateOpt[String]
+      shellAnchorSquare <- (json \ "shellAnchorSquare").validateOpt[String]
+      breachSquares <- (json \ "breachSquares").validateOpt[List[String]]
+      kingWingStormRoute <- (json \ "kingWingStormRoute").validateOpt[String]
+      kingRingConcentrationRoute <- (json \ "kingRingConcentrationRoute").validateOpt[String]
+      diagonalKingAttackRoute <- (json \ "diagonalKingAttackRoute").validateOpt[String]
+      kingShelterBreachRoute <- (json \ "kingShelterBreachRoute").validateOpt[String]
       centerReleaseRoute <- (json \ "centerReleaseRoute").validateOpt[String]
+      filePenetrationRoute <- (json \ "filePenetrationRoute").validateOpt[String]
       initiativeConversionRoute <- (json \ "initiativeConversionRoute").validateOpt[String]
       counterplayDenialRoute <- (json \ "counterplayDenialRoute").validateOpt[String]
       counterplaySurvivalRoute <- (json \ "counterplaySurvivalRoute").validateOpt[String]
+      outpostOccupationRoute <- (json \ "outpostOccupationRoute").validateOpt[String]
+      accessRoute <- (json \ "accessRoute").validateOpt[String]
+      accessWitnessId <- (json \ "accessWitnessId").validateOpt[String]
+      localAccessSuperiority <- (json \ "localAccessSuperiority").validateOpt[String]
+      weakOutpostSquare <- (json \ "weakOutpostSquare").validateOpt[String]
+      weakOutpostState <- (json \ "weakOutpostState").validateOpt[String]
+      diagonalSourceSquare <- (json \ "diagonalSourceSquare").validateOpt[String]
+      diagonalEndpointSquares <- (json \ "diagonalEndpointSquares").validateOpt[List[String]]
+      dominationRoute <- (json \ "dominationRoute").validateOpt[String]
+      supportWitnessId <- (json \ "supportWitnessId").validateOpt[String]
+      supportTargetSquares <- (json \ "supportTargetSquares").validateOpt[List[String]]
       spaceBindRoute <- (json \ "spaceBindRoute").validateOpt[String]
       routeAnchorSquare <- (json \ "routeAnchorSquare").validateOpt[String]
       structuralSector <- (json \ "structuralSector").validateOpt[String]
@@ -645,12 +739,34 @@ private[validation] object ProjectionExpectationCorpus:
       reliefKind = reliefKind,
       corridorKind = corridorKind,
       entrySquare = entrySquare,
+      contactSquare = contactSquare,
       targetSquare = targetSquare,
+      sourceSquares = sourceSquares.getOrElse(Nil),
+      kingRingTargetSquares = kingRingTargetSquares.getOrElse(Nil),
       contactSourceSquare = contactSourceSquare,
+      defendingKingSquare = defendingKingSquare,
+      shellAnchorSquare = shellAnchorSquare,
+      breachSquares = breachSquares.getOrElse(Nil),
+      kingWingStormRoute = kingWingStormRoute,
+      kingRingConcentrationRoute = kingRingConcentrationRoute,
+      diagonalKingAttackRoute = diagonalKingAttackRoute,
+      kingShelterBreachRoute = kingShelterBreachRoute,
       centerReleaseRoute = centerReleaseRoute,
+      filePenetrationRoute = filePenetrationRoute,
       initiativeConversionRoute = initiativeConversionRoute,
       counterplayDenialRoute = counterplayDenialRoute,
       counterplaySurvivalRoute = counterplaySurvivalRoute,
+      outpostOccupationRoute = outpostOccupationRoute,
+      accessRoute = accessRoute,
+      accessWitnessId = accessWitnessId,
+      localAccessSuperiority = localAccessSuperiority,
+      weakOutpostSquare = weakOutpostSquare,
+      weakOutpostState = weakOutpostState,
+      diagonalSourceSquare = diagonalSourceSquare,
+      diagonalEndpointSquares = diagonalEndpointSquares.getOrElse(Nil),
+      dominationRoute = dominationRoute,
+      supportWitnessId = supportWitnessId,
+      supportTargetSquares = supportTargetSquares.getOrElse(Nil),
       spaceBindRoute = spaceBindRoute,
       routeAnchorSquare = routeAnchorSquare,
       structuralSector = structuralSector,

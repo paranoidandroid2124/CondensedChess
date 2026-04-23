@@ -1,0 +1,1 @@
+{"id":"motif-tag-only-reject","sourceId":"lichess-puzzles","motifId":"fork","fen":"4k3/8/8/8/8/8/4N3/4K3 w - - 0 1","sourceTags":["fork"],"expectation":"rejected","rejectReason":"source_tag_without_detector","negativeBoundaries":["motif_label_only_not_admitted"]}

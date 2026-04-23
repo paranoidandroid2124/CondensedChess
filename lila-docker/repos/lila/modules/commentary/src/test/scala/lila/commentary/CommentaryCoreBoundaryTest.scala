@@ -137,7 +137,7 @@ class CommentaryCoreBoundaryTest extends munit.FunSuite:
   test("CommentaryCore publishes the projection start-ready band ids without exposing live projection extraction"):
     assertEquals(
       CommentaryCore.strategyProjectionStartReadyBandIds,
-      Vector("S05", "S06", "S07", "S08", "S11", "S13", "S14", "S15", "S16", "S17", "S18", "S19", "S21", "S22", "S23", "S24", "S25")
+      Vector("S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S10", "S11", "S12", "S13", "S14", "S15", "S16", "S17", "S18", "S19", "S20", "S21", "S22", "S23", "S24", "S25")
     )
 
   test("CommentaryCore exposes a closed-center structural_space_claim through the public rootState, Fen, and String attached facades"):
