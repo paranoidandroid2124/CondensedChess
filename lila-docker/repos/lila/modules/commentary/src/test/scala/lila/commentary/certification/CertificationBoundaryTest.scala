@@ -14,7 +14,7 @@ import lila.commentary.witness.WitnessSet
 class CertificationBoundaryTest extends munit.FunSuite:
 
   test("CertificationScopeContract freezes the certification family inventory"):
-    assertEquals(CertificationScopeContract.frozenCertificationInventoryRowCount, 10)
+    assertEquals(CertificationScopeContract.frozenCertificationInventoryRowCount, 12)
     assertEquals(
       CertificationScopeContract.activeCertificationFamilyIds.map(_.value),
       Vector(
@@ -28,7 +28,8 @@ class CertificationBoundaryTest extends munit.FunSuite:
         "WinningEndgame",
         "FortressDrawCertification",
         "PerpetualCheckHolding",
-        "PromotionRace"
+        "PromotionRace",
+        "SpaceBindRestrictionCertification"
       )
     )
     assertEquals(

@@ -13,7 +13,6 @@ import lila.commentary.projection.{
 import lila.commentary.witness.{ WitnessAnchor, WitnessPayload, WitnessValue }
 import lila.commentary.witness.seed.StrategySupportSeedId
 
-import play.api.libs.functional.syntax.*
 import play.api.libs.json.*
 
 private[validation] object ProjectionExpectationCorpus:
@@ -23,7 +22,7 @@ private[validation] object ProjectionExpectationCorpus:
   val runtimeAdmissionBands: Set[String] =
     StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
   val closedLegacyBroadBlockerBands: Set[String] =
-    Set("S06", "S10", "S12", "S15")
+    Set("S06", "S10", "S12")
   val laterBroadReadyCoverageGateBands: Set[String] =
     Set.empty
   val stagedWave1BroadReadyCoverageGateBands: Set[String] =
@@ -101,7 +100,7 @@ private[validation] object ProjectionExpectationCorpus:
     "S11" -> Set("S13", "S14"),
     "S12" -> Set("S03", "S10", "S20"),
     "S13" -> Set("S11", "S14", "S15"),
-    "S14" -> Set("S05", "S11", "S13"),
+    "S14" -> Set("S05", "S11", "S13", "S15"),
     "S15" -> Set("S13", "S14", "S16"),
     "S16" -> Set("S15", "S22", "S23"),
     "S17" -> Set("S18", "S20"),
@@ -260,13 +259,89 @@ private[validation] object ProjectionExpectationCorpus:
       anchor: String,
       reliefKind: Option[String],
       corridorKind: Option[String],
-      entrySquare: Option[String]
+      entrySquare: Option[String],
+      targetSquare: Option[String],
+      contactSourceSquare: Option[String],
+      centerReleaseRoute: Option[String],
+      initiativeConversionRoute: Option[String],
+      counterplayDenialRoute: Option[String],
+      counterplaySurvivalRoute: Option[String],
+      spaceBindRoute: Option[String],
+      routeAnchorSquare: Option[String],
+      structuralSector: Option[String],
+      structuralHostId: Option[String],
+      outpostSquare: Option[String],
+      restrictionAnchorSquare: Option[String],
+      creationRoute: Option[String],
+      suppressionRoute: Option[String],
+      passerSquare: Option[String],
+      blockerSquare: Option[String],
+      damageRoute: Option[String],
+      chainBaseRoute: Option[String],
+      chainBaseForwardSquares: List[String],
+      damageSector: Option[String],
+      pressureRoute: Option[String],
+      persistenceKind: Option[String],
+      pressureSourceSquares: List[String],
+      certificationFamily: Option[String],
+      activeBishopSquare: Option[String],
+      bishopMemberSquares: List[String],
+      conversionTargetSquares: List[String]
   ):
     def toRuntimeClaim(row: Row): StrategyProjectionEvidenceClaim =
       val payloadEntries =
-        reliefKind.toVector.map(kind => "relief_kind" -> WitnessValue.Token(kind)) ++
+          reliefKind.toVector.map(kind => "relief_kind" -> WitnessValue.Token(kind)) ++
           corridorKind.toVector.map(kind => "corridor_kind" -> WitnessValue.Token(kind)) ++
-          entrySquare.toVector.map(square => "entry_square" -> WitnessValue.SquareValue(parseSquare(square)))
+          entrySquare.toVector.map(square => "entry_square" -> WitnessValue.SquareValue(parseSquare(square))) ++
+          targetSquare.toVector.map(square => "target_square" -> WitnessValue.SquareValue(parseSquare(square))) ++
+          contactSourceSquare.toVector.map(square =>
+            "contact_source_square" -> WitnessValue.SquareValue(parseSquare(square))
+          ) ++
+          centerReleaseRoute.toVector.map(route => "center_release_route" -> WitnessValue.Token(route)) ++
+          initiativeConversionRoute.toVector.map(route =>
+            "initiative_conversion_route" -> WitnessValue.Token(route)
+          ) ++
+          counterplayDenialRoute.toVector.map(route =>
+            "counterplay_denial_route" -> WitnessValue.Token(route)
+          ) ++
+          counterplaySurvivalRoute.toVector.map(route =>
+            "counterplay_survival_route" -> WitnessValue.Token(route)
+          ) ++
+          spaceBindRoute.toVector.map(route => "space_bind_route" -> WitnessValue.Token(route)) ++
+          routeAnchorSquare.toVector.map(square =>
+            "route_anchor_square" -> WitnessValue.SquareValue(parseSquare(square))
+          ) ++
+          structuralSector.toVector.map(sector => "structural_sector" -> WitnessValue.Token(sector)) ++
+          structuralHostId.toVector.map(host => "structural_host_id" -> WitnessValue.Token(host)) ++
+          outpostSquare.toVector.map(square => "outpost_square" -> WitnessValue.SquareValue(parseSquare(square))) ++
+          restrictionAnchorSquare.toVector.map(square =>
+            "restriction_anchor_square" -> WitnessValue.SquareValue(parseSquare(square))
+          ) ++
+          creationRoute.toVector.map(route => "creation_route" -> WitnessValue.Token(route)) ++
+          suppressionRoute.toVector.map(route => "suppression_route" -> WitnessValue.Token(route)) ++
+          passerSquare.toVector.map(square => "passer_square" -> WitnessValue.SquareValue(parseSquare(square))) ++
+          blockerSquare.toVector.map(square => "blocker_square" -> WitnessValue.SquareValue(parseSquare(square))) ++
+          damageRoute.toVector.map(route => "damage_route" -> WitnessValue.Token(route)) ++
+          chainBaseRoute.toVector.map(route => "chain_base_route" -> WitnessValue.Token(route)) ++
+          Option.when(chainBaseForwardSquares.nonEmpty)(
+            "chain_base_forward_squares" -> WitnessValue.SquareListValue(chainBaseForwardSquares.map(parseSquare).toVector)
+          ).toVector ++
+          damageSector.toVector.map(sector => "damage_sector" -> WitnessValue.Token(sector)) ++
+          pressureRoute.toVector.map(route => "pressure_route" -> WitnessValue.Token(route)) ++
+          persistenceKind.toVector.map(kind => "persistence_kind" -> WitnessValue.Token(kind)) ++
+          Option.when(pressureSourceSquares.nonEmpty)(
+            "pressure_source_squares" -> WitnessValue.SquareListValue(pressureSourceSquares.map(parseSquare).toVector)
+          ).toVector ++
+          certificationFamily.toVector.map(family => "certification_family" -> WitnessValue.Token(family)) ++
+          activeBishopSquare.toVector.map(square =>
+            "active_bishop_square" -> WitnessValue.SquareValue(parseSquare(square))
+          ) ++
+          Option.when(bishopMemberSquares.nonEmpty)(
+            "bishop_member_squares" -> WitnessValue.SquareListValue(bishopMemberSquares.map(parseSquare).toVector)
+          ).toVector ++
+          Option.when(conversionTargetSquares.nonEmpty)(
+            "conversion_target_squares" -> WitnessValue.SquareListValue(conversionTargetSquares.map(parseSquare).toVector)
+          ).toVector
       StrategyProjectionEvidenceClaim(
         bandId = row.validatedBand,
         kind = StrategyProjectionEvidenceKind(kind),
@@ -530,14 +605,74 @@ private[validation] object ProjectionExpectationCorpus:
       )
       normalized
 
-  private given Reads[EvidenceClaimRow] =
-    (
-      (__ \ "kind").read[String] and
-        (__ \ "anchor").read[String] and
-        (__ \ "reliefKind").readNullable[String] and
-        (__ \ "corridorKind").readNullable[String] and
-        (__ \ "entrySquare").readNullable[String]
-    )(EvidenceClaimRow.apply)
+  private given Reads[EvidenceClaimRow] = Reads: json =>
+    for
+      kind <- (json \ "kind").validate[String]
+      anchor <- (json \ "anchor").validate[String]
+      reliefKind <- (json \ "reliefKind").validateOpt[String]
+      corridorKind <- (json \ "corridorKind").validateOpt[String]
+      entrySquare <- (json \ "entrySquare").validateOpt[String]
+      targetSquare <- (json \ "targetSquare").validateOpt[String]
+      contactSourceSquare <- (json \ "contactSourceSquare").validateOpt[String]
+      centerReleaseRoute <- (json \ "centerReleaseRoute").validateOpt[String]
+      initiativeConversionRoute <- (json \ "initiativeConversionRoute").validateOpt[String]
+      counterplayDenialRoute <- (json \ "counterplayDenialRoute").validateOpt[String]
+      counterplaySurvivalRoute <- (json \ "counterplaySurvivalRoute").validateOpt[String]
+      spaceBindRoute <- (json \ "spaceBindRoute").validateOpt[String]
+      routeAnchorSquare <- (json \ "routeAnchorSquare").validateOpt[String]
+      structuralSector <- (json \ "structuralSector").validateOpt[String]
+      structuralHostId <- (json \ "structuralHostId").validateOpt[String]
+      outpostSquare <- (json \ "outpostSquare").validateOpt[String]
+      restrictionAnchorSquare <- (json \ "restrictionAnchorSquare").validateOpt[String]
+      creationRoute <- (json \ "creationRoute").validateOpt[String]
+      suppressionRoute <- (json \ "suppressionRoute").validateOpt[String]
+      passerSquare <- (json \ "passerSquare").validateOpt[String]
+      blockerSquare <- (json \ "blockerSquare").validateOpt[String]
+      damageRoute <- (json \ "damageRoute").validateOpt[String]
+      chainBaseRoute <- (json \ "chainBaseRoute").validateOpt[String]
+      chainBaseForwardSquares <- (json \ "chainBaseForwardSquares").validateOpt[List[String]]
+      damageSector <- (json \ "damageSector").validateOpt[String]
+      pressureRoute <- (json \ "pressureRoute").validateOpt[String]
+      persistenceKind <- (json \ "persistenceKind").validateOpt[String]
+      pressureSourceSquares <- (json \ "pressureSourceSquares").validateOpt[List[String]]
+      certificationFamily <- (json \ "certificationFamily").validateOpt[String]
+      activeBishopSquare <- (json \ "activeBishopSquare").validateOpt[String]
+      bishopMemberSquares <- (json \ "bishopMemberSquares").validateOpt[List[String]]
+      conversionTargetSquares <- (json \ "conversionTargetSquares").validateOpt[List[String]]
+    yield EvidenceClaimRow(
+      kind = kind,
+      anchor = anchor,
+      reliefKind = reliefKind,
+      corridorKind = corridorKind,
+      entrySquare = entrySquare,
+      targetSquare = targetSquare,
+      contactSourceSquare = contactSourceSquare,
+      centerReleaseRoute = centerReleaseRoute,
+      initiativeConversionRoute = initiativeConversionRoute,
+      counterplayDenialRoute = counterplayDenialRoute,
+      counterplaySurvivalRoute = counterplaySurvivalRoute,
+      spaceBindRoute = spaceBindRoute,
+      routeAnchorSquare = routeAnchorSquare,
+      structuralSector = structuralSector,
+      structuralHostId = structuralHostId,
+      outpostSquare = outpostSquare,
+      restrictionAnchorSquare = restrictionAnchorSquare,
+      creationRoute = creationRoute,
+      suppressionRoute = suppressionRoute,
+      passerSquare = passerSquare,
+      blockerSquare = blockerSquare,
+      damageRoute = damageRoute,
+      chainBaseRoute = chainBaseRoute,
+      chainBaseForwardSquares = chainBaseForwardSquares.getOrElse(Nil),
+      damageSector = damageSector,
+      pressureRoute = pressureRoute,
+      persistenceKind = persistenceKind,
+      pressureSourceSquares = pressureSourceSquares.getOrElse(Nil),
+      certificationFamily = certificationFamily,
+      activeBishopSquare = activeBishopSquare,
+      bishopMemberSquares = bishopMemberSquares.getOrElse(Nil),
+      conversionTargetSquares = conversionTargetSquares.getOrElse(Nil)
+    )
 
   private given Reads[Row] = Reads: json =>
     for

@@ -25,7 +25,8 @@ private[certification] object CertificationInternalRuntime:
       WinningEndgameRule,
       FortressDrawCertificationRule,
       PerpetualCheckHoldingRule,
-      PromotionRaceRule
+      PromotionRaceRule,
+      SpaceBindRestrictionCertificationRule
     )
   )
 

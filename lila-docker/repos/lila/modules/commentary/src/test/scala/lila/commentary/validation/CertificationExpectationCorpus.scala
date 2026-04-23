@@ -22,7 +22,8 @@ private[validation] object CertificationExpectationCorpus:
     "WinningEndgame",
     "FortressDrawCertification",
     "PerpetualCheckHolding",
-    "PromotionRace"
+    "PromotionRace",
+    "SpaceBindRestrictionCertification"
   )
 
   val requiredCaseTypes: Set[String] =
@@ -41,7 +42,8 @@ private[validation] object CertificationExpectationCorpus:
     "WinningEndgame" -> Set("current_position"),
     "FortressDrawCertification" -> Set("current_position"),
     "PerpetualCheckHolding" -> Set("current_position"),
-    "PromotionRace" -> Set("current_position")
+    "PromotionRace" -> Set("current_position"),
+    "SpaceBindRestrictionCertification" -> Set("current_position")
   )
   val requiredBurdenTagsByFamily: Map[String, String] = Map(
     "DevelopmentComparison" -> "development_superiority",
@@ -54,7 +56,8 @@ private[validation] object CertificationExpectationCorpus:
     "WinningEndgame" -> "conversion_result",
     "FortressDrawCertification" -> "fortress_hold_certification",
     "PerpetualCheckHolding" -> "perpetual_check_hold",
-    "PromotionRace" -> "promotion_route_survival"
+    "PromotionRace" -> "promotion_route_survival",
+    "SpaceBindRestrictionCertification" -> "space_bind_persistence"
   )
   val requiredHelpersByFamily: Map[String, Set[String]] = Map(
     "DevelopmentComparison" -> Set("development_balance_count", "development_gap_floor"),
@@ -84,7 +87,12 @@ private[validation] object CertificationExpectationCorpus:
     "WinningEndgame" -> Set("winning_endgame_conversion", "best_defense_survival"),
     "FortressDrawCertification" -> Set("fortress_draw_burden", "best_defense_survival"),
     "PerpetualCheckHolding" -> Set("perpetual_check_loop", "best_defense_survival"),
-    "PromotionRace" -> Set("promotion_route_survival", "best_defense_survival")
+    "PromotionRace" -> Set("promotion_route_survival", "best_defense_survival"),
+    "SpaceBindRestrictionCertification" -> Set(
+      "structural_space_host",
+      "same_anchor_restriction_route",
+      "best_defense_survival"
+    )
   )
   val requiredSupportFamiliesByFamily: Map[String, Set[String]] = Map(
     "DevelopmentComparison" -> Set("OpeningDevelopmentRegime"),
@@ -106,7 +114,8 @@ private[validation] object CertificationExpectationCorpus:
     "WinningEndgame" -> Set("best_defense_survival", "conversion_route_survival"),
     "FortressDrawCertification" -> Set("best_defense_survival"),
     "PerpetualCheckHolding" -> Set("best_defense_survival"),
-    "PromotionRace" -> Set("best_defense_survival", "conversion_route_survival")
+    "PromotionRace" -> Set("best_defense_survival", "conversion_route_survival"),
+    "SpaceBindRestrictionCertification" -> Set("best_defense_survival", "tactical_release_detection")
   )
   val requiredForbiddenShortcutsByFamily: Map[String, Set[String]] = Map(
     "DevelopmentComparison" -> Set(
@@ -163,6 +172,12 @@ private[validation] object CertificationExpectationCorpus:
       "endgame_race_scaffold_alone",
       "passer_complex_wording",
       "conversion_funnel_wording"
+    ),
+    "SpaceBindRestrictionCertification" -> Set(
+      "structural_space_claim_alone",
+      "mobility_comparison_only",
+      "center_release_rival_shortcut",
+      "outpost_without_space_host"
     )
   )
   val requiredExpectationCoverageByFamily: Map[String, Set[String]] = Map(
@@ -176,7 +191,8 @@ private[validation] object CertificationExpectationCorpus:
     "WinningEndgame" -> Set("certified", "rejected", "deferred"),
     "FortressDrawCertification" -> Set("certified", "rejected", "support_only"),
     "PerpetualCheckHolding" -> Set("certified", "rejected", "deferred"),
-    "PromotionRace" -> Set("certified", "rejected", "deferred")
+    "PromotionRace" -> Set("certified", "rejected", "deferred"),
+    "SpaceBindRestrictionCertification" -> Set("certified", "rejected", "support_only")
   )
 
   final case class Row(

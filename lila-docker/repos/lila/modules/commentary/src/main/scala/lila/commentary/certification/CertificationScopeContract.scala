@@ -2,7 +2,7 @@ package lila.commentary.certification
 
 object CertificationScopeContract:
 
-  val frozenCertificationInventoryRowCount: Int = 10
+  val frozenCertificationInventoryRowCount: Int = 12
 
   val frozenCertificationFamilyIds: Vector[CertificationFamilyId] = Vector(
     CertificationFamilyId("DevelopmentComparison"),
@@ -15,7 +15,8 @@ object CertificationScopeContract:
     CertificationFamilyId("WinningEndgame"),
     CertificationFamilyId("FortressDrawCertification"),
     CertificationFamilyId("PerpetualCheckHolding"),
-    CertificationFamilyId("PromotionRace")
+    CertificationFamilyId("PromotionRace"),
+    CertificationFamilyId("SpaceBindRestrictionCertification")
   )
 
   val activeCertificationFamilyIds: Vector[CertificationFamilyId] =
@@ -28,8 +29,8 @@ object CertificationScopeContract:
   private val activeFamilyIdValues: Set[String] = activeCertificationFamilyIds.map(_.value).toSet
 
   require(
-    activeCertificationFamilyIds.size == 11,
-    s"Expected exactly 11 active certification families, found ${activeCertificationFamilyIds.size}"
+    activeCertificationFamilyIds.size == 12,
+    s"Expected exactly 12 active certification families, found ${activeCertificationFamilyIds.size}"
   )
   require(
     activeCertificationFamilyIds.distinct.size == activeCertificationFamilyIds.size,

@@ -27,6 +27,8 @@ blocked on missing lower support:
   `StrategyProjectionAdmission`
 - `S25 horizontal rank access` has a live Witness-boundary support seed and is
   now start-ready through `StrategyProjectionAdmission`
+- `S06 space bind / restriction` has live runtime admission for the narrow
+  exact-board route and a support-only lower certification carrier.
 
 ## Global Rules
 
@@ -39,12 +41,41 @@ blocked on missing lower support:
   they remain support-only until their owning band freezes the required
   certification/admission companion and projection validation package.
 
+## S06 Live Support Freeze
+
+`S06` does not introduce a new live support seed. Its live freeze records the
+lower carriers that runtime admission binds without making any of them
+projection truth owners.
+
+The lower support side is limited to exact current-board facts already owned
+below projection:
+
+- `structural_space_claim` as the broad lower witness that a restriction shell
+  exists on the current board
+- same-host outpost or short-run restriction support, such as a concrete
+  `knight_on_outpost_square` attacking the structural host claim or a local
+  slider-gate restriction touching that claim, when it names the same board
+  anchor as the projected bind
+- `SpaceBindRestrictionCertification` as support-only lower certification,
+  never as the S-layer truth owner
+
+The live projection evidence name is
+`space_bind_restriction_route_certified`. `StrategyProjectionAdmission` admits
+`S06` only when that evidence mirrors the exact route anchor, structural host,
+route kind, route-host link, and outpost or restriction square already present
+on the current board and certified by the support-only lower certification.
+
+The exact negative boundary is part of the freeze: exact S05 center-release and
+exact S20 domination false-rival rows, `MobilityComparison` alone, wrong-anchor
+restriction evidence, stale evidence, or shortcut space wording are not S06
+runtime admission proof.
+
 ## S17 Seed Family
 
-`S17` is start-ready for projection implementation, not live projection runtime.
-The start-ready admission companion is `liability_relief_certified` evidence
-bound to the same piece as the live liability anchor and to a matching
-`repair_route` or `exchange_relief` seed.
+`S17` has narrow live projection runtime admission. The runtime admission
+companion is `liability_relief_certified` evidence bound to the same piece as
+the live liability anchor and to a matching `repair_route` or
+`exchange_relief` seed.
 
 Existing rows such as `loose_piece_target_state`, `duty_bound_defender`,
 `weak_outpost_square_state`, `pinned_piece`, and `trapped_piece` identify
@@ -72,7 +103,7 @@ same-piece exchange that removes that liability.
 - `same_piece_exchange_relief_seed` gives `S17` exact same-piece exchange-relief
   truth that cannot be reduced to simplification or tactics.
 
-Any later `S17` projection admission should admit only from either:
+Current `S17` projection admission admits only from either:
 
 - `same_piece_liability_anchor_seed` plus
   `same_piece_repair_route_seed`, or
@@ -84,10 +115,9 @@ exact rival rows.
 
 ## S23 Seed Family
 
-`S23` is start-ready for projection implementation, not live projection runtime.
-The start-ready admission companion is either same-entry
-`king_entry_conversion_certified` evidence or same-contact
-`king_opposition_certified` evidence.
+`S23` has narrow live projection runtime admission. The runtime admission
+companion is either same-entry `king_entry_conversion_certified` evidence or
+same-contact `king_opposition_certified` evidence.
 
 Existing rows such as `endgame-race`, `whole-board`, `file_lane_state`, or
 `winning_endgame` are related context only.
@@ -109,7 +139,7 @@ They do not identify a king route, king-entry square, or opposition relation.
 - `king_opposition_contact_seed` gives `S23` the king-vs-king relation truth
   that cannot be reduced to route or lane language.
 
-Any later `S23` projection admission should admit from either:
+Current `S23` projection admission admits from either:
 
 - `king_opposition_contact_seed` plus endgame certification, or
 - `king_entry_square_seed` plus `king_access_route_seed` plus entry or
@@ -117,8 +147,8 @@ Any later `S23` projection admission should admit from either:
 
 ## S24 Seed Family
 
-`S24` is start-ready for projection implementation, not live projection runtime.
-The start-ready admission companion requires same-target
+`S24` has narrow live projection runtime admission. The runtime admission
+companion requires same-target
 `same_target_forcing_realization` and `same_target_conversion_certified`
 evidence on the target named by the live dependency and convergence seeds.
 

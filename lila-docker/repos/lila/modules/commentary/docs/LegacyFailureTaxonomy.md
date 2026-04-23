@@ -328,6 +328,8 @@ New-system rule:
   the board
 - `TradeInvariant` and `perpetual/fortress` stay distinct; neither may
   short-circuit the other
+- a `SupportOnly` or `Deferred` hold certification may remain explanatory
+  support, but it must not become projection admission
 
 ### 14. Upper Verdict Back-Projected Into Object Admission
 

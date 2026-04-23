@@ -568,6 +568,17 @@ Current runtime closure:
 - each emitted witness keeps one deterministic strongest connected attached
   component instead of unioning disconnected islands
 
+S06 live runtime admission consumes `structural_space_claim` only as lower
+witness support. The projection evidence name
+`space_bind_restriction_route_certified` is live only for exact current-board
+same-host route evidence. The outpost must attack the structural host claim, or
+the short-run restriction gate must touch that claim, and the support-only lower
+certification is `SpaceBindRestrictionCertification` with the matching
+`route_host_links` payload. The runtime branch must reject exact S05
+center-release and exact S20 domination false-rival boards;
+`structural_space_claim`, `MobilityComparison`, `InitiativeWindow`, and
+`SpaceBindRestrictionCertification` must not become projection truth owners.
+
 Negative boundary:
 
 - single-square forward post
@@ -1078,7 +1089,79 @@ Negative boundary:
 - candidate passer only
 - weak square only
 - outpost square only
+
+S11 projection handoff note:
+
+- `weak_pawn_target_state` is lower witness truth only
+- S11 live admission uses no support seed, Object, Delta, or Certification
+  truth-owner carrier
+- same-target pressure and fixed-pawn persistence are projection-validation
+  carriers, not new U-layer witness meaning
+- the live evidence kind is
+  `weak_pawn_target_pressure_persistence_certified`, bound to the same target,
+  route, attacker squares, and fixed-pawn persistence
 - pawn-quality projection above the exact target class
+
+S13 projection live admission note:
+
+- S13 uses no support seed, Object, Delta, or Certification truth-owner carrier
+- lower witness carriers are `sector_asymmetry_state`, same-wing-sector
+  `available_lever_trigger`, and same-anchor
+  `pawn_push_break_contact_source`
+- exact-board projection-validation roles are non-chain-base
+  `phalanx_edge_target` and `structurally_burdened_target`;
+  `weak_pawn_target_state` and `file_lane_state` remain support-only
+- S13 is live only when `StrategyProjectionAdmission` revalidates the current
+  lower carrier and matching `wing_damage_route_certified` evidence on the same
+  source, target, sector, and route
+- row-specific burden is frozen as
+  `wing_damage_route_requires_same_sector_asymmetry_and_same_anchor_contact_source`,
+  `wing_damage_route_excludes_center_sector_targets`,
+  `phalanx_edge_route_requires_recomputed_phalanx_edge_target`,
+  `phalanx_edge_route_excludes_chain_base_targets`,
+  `burdened_target_route_requires_recomputed_structurally_burdened_target`,
+  `projection_evidence_mirrors_owner_source_target_sector_and_damage_route`,
+  and
+  `asymmetry_weak_pawn_adjacent_rival_or_optional_strengthening_is_non_admitting`
+- live evidence kind is `wing_damage_route_certified`, and it is the only S13
+  entry in `StrategyProjectionScopeContract.requiredEvidenceKindsByBand`
+
+S14 projection live admission note:
+
+- S14 is in `StrategyProjectionScopeContract.startReadyBandIds`, has the live
+  `requiredEvidenceKindsByBand` entry `chain_base_contact_route_certified`,
+  and `StrategyProjectionAdmission` must revalidate the exact current-board
+  carrier before admitting it
+- lower witness carriers are `Witness:available_lever_trigger(base_contact)`
+  and `Witness:pawn_push_break_contact_source(same_anchor_chain_base_target)`
+- exact-board projection-validation ownership is
+  `ProjectionValidation:non_center_chain_base_target_recomputed|base_contact_continuation`;
+  `SupportOnly:weak_pawn_target_state|structural_damage_shell|fixed_chain_context`
+  stays context, not truth ownership
+- row-specific burden is frozen as
+  `chain_base_route_requires_same_anchor_lever_and_contact_source`,
+  `chain_base_route_requires_recomputed_non_center_chain_base_target`,
+  `base_contact_continuation_requires_same_source_target_pair`,
+  `projection_evidence_mirrors_owner_source_target_and_chain_base_route`, and
+  `fixed_chain_structural_shell_adjacent_rival_or_optional_strengthening_is_non_admitting`
+- live evidence kind is `chain_base_contact_route_certified`; projection
+  evidence must mirror the same contact source, target, chain-base route token,
+  and exact chain-base forward support squares. `base_contact_continuation`
+  additionally requires that the target's forward-supported pawn supports the
+  next defender pawn on the same board, so route identity is recomputed rather
+  than accepted from the evidence token alone
+- helper and scaffold tokens are `same_anchor_chain_base_contact_law`,
+  `non_center_chain_base_role_recomputed_from_exact_board_law`,
+  `base_contact_must_bind_same_source_and_target_law`,
+  `same_task_projection_evidence_must_mirror_s14_source_target_and_route_law`,
+  `fixed_chain_or_structural_damage_shell_is_not_truth_owner_law`,
+  `base_contact_lever_and_break_contact_present`,
+  `contact_target_role_is_non_center_chain_base`,
+  `base_contact_continuation_same_anchor_present`,
+  `fixed_chain_or_structural_damage_shell_only_not_counted`, and
+  `stale_or_adjacent_runtime_evidence_not_counted_before_live_admission`
+- adjacent S05/S11/S13/S15 rivals, stale evidence, optional strengthening, and
+  lower Object / Delta / Certification families remain non-admitting
 
 ### Passed Pawn Narrowing
 
@@ -1475,6 +1558,7 @@ Negative boundary:
 - `candidate_passer(c, s)` alone
 - `passed_pawn_entity_state` alone
 - `promotion/passer` row alone
+- `create passer` shell alone
 - passer conversion meaning
 - route/access meaning
 - result meaning
@@ -2511,8 +2595,14 @@ The row leaves `U` because:
 Current narrow projection handoff stays above `U`:
 
 - `S05` may consume exact central release bundles
-- `S21` may consume an exact central `pawn_push_break_contact_source` only when
-  the same board also carries certified `InitiativeWindow`
+- S05's live admission freeze is closed only at the projection boundary:
+  `center_release_route_certified` is the frozen live evidence kind, and the
+  row admits only when that evidence mirrors the same center-file source,
+  center-file target, and center-release route in `StrategyProjectionAdmission`
+- `S21` live runtime admission consumes an exact central or far-wing
+  `pawn_push_break_contact_source` only when the same board also carries
+  certified `InitiativeWindow` and `counterplay_survival_route_certified`
+  evidence mirrors the same owner source, target, route, and certification
 - openness wording alone never admits either band
 
 Runtime identifiers such as:
@@ -2836,8 +2926,10 @@ are not valid witness ids on this branch.
 - local meaning:
   - an owner pawn has one or more legal push-contact variants that create
     immediate contact against a strategic defender pawn target
-  - the witness is still only a source; narrow `S21` survival admission now
-    requires same-board certified `InitiativeWindow`
+  - the witness is still only a source; S21 live admission requires a
+    non-center owner source, same-board certified `InitiativeWindow`, plus
+    `counterplay_survival_route_certified` mirroring, and certified
+    `InitiativeWindow` alone is not S21 proof
 
 The contract is defined from `R` only:
 
@@ -3408,6 +3500,20 @@ First-live certification rows:
 - `initiative`
   - owner home: `InitiativeWindow`
   - first live slice: development-led initiative only
+  - S07 live runtime admission:
+    - `initiative_conversion_route_certified` is the live projection evidence
+      kind in `StrategyProjectionScopeContract`
+    - `OpeningDevelopmentRegime` is support-only
+    - `DevelopmentComparison` and certified `InitiativeWindow` remain lower
+      Certification truth owners
+    - S07 admits only exact board-anchored `development_led_window` or
+      `move_right_window` evidence; S08 is a separate live rival-source denial
+      branch
+    - S08 live runtime admission uses
+      `counterplay_denial_route_certified` for same rival source, target, and
+      denial route proof; wrong-source/wrong-target/wrong-route/stale-evidence
+      rejection remains fail-closed, and `InitiativeWindow` remains lower
+      Certification support, not projection truth
   - negative boundary:
     - `DevelopmentComparison` alone
     - `AttackScaffold` alone
@@ -3544,3 +3650,198 @@ Lower ownership stays outside projection truth:
 - `S04` uses same-defender `KingSafetyShell` plus shell-payload or support-break
   breach and same-defender king-safety deterioration; `KingSafetyShell` alone
   remains below demolition
+
+### Projection S15 Runtime Admission Note
+
+The current worktree has narrow live runtime projection admission for S15
+passer creation. S15 has left the coverage-only set only for exact
+same-candidate creation routes:
+
+- exact lower support truth stays in root `candidate_passer(c, s)`
+- `create passer` is shell support only and is not a witness truth owner
+- S15 positive live admission requires the same candidate pawn to be the
+  contact source for either the recomputed S13 wing-damage route or the
+  recomputed S14 chain-base route
+- `passer_creation_route_certified` is the live projection evidence kind in
+  `StrategyProjectionScopeContract.requiredEvidenceKindsByBand`; it must mirror
+  the candidate/contact source, target, creation route, and route-specific
+  S13/S14 carrier fields
+- `PasserComplex`, `ConversionFunnel`, and `PromotionRace` remain support-only
+  or upper consequences and cannot prove S15 admission
+- negative rows cover candidate-only, create-passer-shell-only,
+  existing-passer-only, split-anchor creation route, and adjacent S13/S14/S16
+  false-rival boundaries
+
+The `StrategyProjectionAdmission` branch recomputes the exact current-board
+lower carriers before admitting. Stale evidence, optional strengthening,
+candidate-only support, create-passer-shell-only support, existing-passer-only
+positions, split anchors, and adjacent S13/S14/S16 rivals remain fail-closed.
+
+### Projection S16 Runtime Admission Note
+
+The current worktree has narrow live runtime projection admission for S16
+passer suppression. S16 has left the coverage-only set only for exact
+same-enemy-passer suppression routes.
+
+Authority remains split:
+
+- enemy `passed_pawn_entity_state` is the exact current-board entity carrier
+- blockade, restriction, and non-losing race are route-specific
+  projection-validation burdens
+- `short_run_slider_gate_restriction` is support only unless bound to the same
+  current-board owner route package by the S16 branch
+- `PromotionRace`, `FortressDrawCertification`, and
+  `PerpetualCheckHolding` remain lower Certification truth owners or support
+  proofs; they are not S-layer projection truth owners
+- `FortressHoldingShell` and `EndgameRaceScaffold` remain lower Object support
+  only and cannot admit S16 by themselves
+
+The frozen S16 burden names are:
+
+- `suppression_route_requires_same_enemy_passed_pawn_anchor`
+- `blockade_route_requires_owner_blocker_on_enemy_passer_front_square`
+- `restriction_hold_route_requires_same_enemy_passer_blocker_owner_restriction_and_certified_hold`
+- `race_route_requires_enemy_passer_and_same_board_non_losing_race_certification`
+- `projection_evidence_mirrors_enemy_passer_route_and_route_specific_proof`
+- `enemy_passer_blocker_restriction_hold_race_or_adjacent_rival_alone_is_non_admitting`
+
+The frozen live S16 evidence name is
+`passer_suppression_route_certified`. It is recorded in
+`StrategyProjectionCoverageContract.projectionEvidenceKindFreezeByBand` and is
+the only S16 entry in
+`StrategyProjectionScopeContract.requiredEvidenceKindsByBand`.
+`StrategyProjectionAdmission` must revalidate the exact current-board lower
+carrier before admitting:
+
+- `blockade_hold` requires an owner blocker on the enemy passer's front square
+  plus certified `FortressDrawCertification` whose support targets the same
+  passer/blocker shell
+- `restriction_hold` requires the same enemy passer/blocker relation, the
+  blocker square exposed in owner `short_run_slider_gate_restriction` support
+  on the same current board, and certified `PerpetualCheckHolding`
+- `non_losing_race` requires certified `PromotionRace` whose support targets
+  include the same enemy passed-pawn square
+
+The runtime boundary must keep enemy passer presence alone, blocker pictures,
+restriction support alone, hold/race certification alone, optional
+strengthening, stale evidence, and adjacent S15/S22/S23 rival rows fail-closed.
+
+### Projection S18 Runtime Admission Note
+
+The current worktree has narrow live runtime projection admission for S18
+minor conversion. S18 has left the coverage-only set, but only for exact
+current-board bishop-pair conversion routes.
+
+Authority remains split:
+
+- `bishop_pair_state` remains the exact current-board witness substrate, and
+  live S18 admission requires at least one same-owner bishop-pair member off the
+  home rank
+- S18 names no support seed, object, or delta carrier at this boundary
+- `InitiativeWindow`, `MobilityComparison`, and `MaterialHarvest` remain lower
+  certification truth owners; `WinningEndgame` is a support-only future carrier
+  because current lower law cannot certify it on a board that still has bishops
+- projection evidence names are live admission companions and do not own lower
+  truth
+
+The frozen S18 burden names are:
+
+- `initiative_route_requires_bishop_pair_state_and_same_board_initiative_window`
+- `structure_route_requires_bishop_pair_state_and_same_board_mobility_comparison`
+- `material_route_requires_bishop_pair_member_material_harvest`
+- `projection_evidence_mirrors_conversion_family_targets_and_bishop_pair`
+- `relation_only_optional_strengthening_or_adjacent_rival_is_non_admitting`
+
+The frozen live S18 projection evidence-kind names are:
+
+- `bishop_pair_initiative_conversion_certified`
+- `bishop_pair_structure_conversion_certified`
+- `bishop_pair_material_conversion_certified`
+
+The shared helper and exact-scaffold freeze is current-board and exact-position
+only: `same_current_board_bishop_pair_conversion_law`,
+`s18_projection_evidence_same_task_same_target_law`,
+`conversion_certification_is_lower_truth_owner_law`,
+`active_bishop_pair_member_present`,
+`same_current_board_conversion_certification_present`,
+`projection_evidence_mirrors_conversion_family_targets_and_bishop_pair`,
+`material_conversion_bishop_pair_member_capture_present`,
+`initiative_or_structure_conversion_support_targets_present`, and
+`bishop_pair_minor_edge_or_optional_strengthening_only_not_counted`.
+Adjacent S17/S12/S20 truth, optional `DevelopmentComparison` or
+`short_run_slider_gate_restriction`, and favorable-minor wording remain
+non-admitting support or rival context.
+
+### Projection S19 Runtime Admission Note
+
+The current worktree has narrow live runtime projection admission for S19
+favorable simplification. S19 has left the coverage-only set, but only for the
+exact delta-backed slices below.
+
+Authority remains split:
+
+- `TradeInvariant` is the delta-layer truth owner for the exact before/move/after
+  simplification task
+- `MaterialHarvest` and `FortressDrawCertification` remain certification truth
+  owners for their own exact endpoints
+- `FortressHoldingShell` remains object support only
+- S19 projection evidence names are live runtime admission companions, but they
+  do not own lower truth
+
+The frozen S19 burden names are:
+
+- `material_route_requires_canonical_trade_invariant_and_same_move_material_harvest`
+- `hold_route_requires_canonical_trade_invariant_and_post_trade_fortress_certification`
+- `result_only_material_only_or_adjacent_rival_is_non_admitting`
+
+The live S19 projection evidence-kind names are:
+
+- `trade_invariant_material_simplification_certified`
+- `trade_invariant_hold_simplification_certified`
+
+Exact validation requires the material route to bind
+`MaterialHarvest.capture_from` / `capture_to` to the exact `TradeInvariant`
+played move on the move board. Hold admission requires the post-trade board,
+certified `FortressDrawCertification`, and `FortressHoldingShell` support
+overlapping the trade target square. Hold and prepared-target rival rows must
+expose their own lower truth without becoming S19 truth.
+
+### Projection S22 Runtime Admission Note
+
+The current worktree now has narrow live runtime projection admission for `S22`.
+This is not a broad coverage expansion and does not make projection the truth
+owner for lower carriers.
+
+Authority remains split:
+
+- semantic S-row meaning and adjacent-rival boundaries are owned by
+  `StrategyProjectionBoundaryMatrix.md`
+- live runtime scope and fail-closed admission are owned by
+  `StrategyProjectionScopeContract.scala` and
+  `StrategyProjectionAdmission.scala`
+- row-specific burden freezes, lower-carrier ownership labels, helper laws,
+  exact validation scaffold names, and coverage-only runtime separation are
+  owned by `StrategyProjectionCoverageContract.scala`
+- corpus row parsing/counting and exact-board S22 parity are owned by
+  `ProjectionExpectationCorpus.scala` and `ProjectionExpectationCorpusTest`
+
+The row has left the coverage-only set. Its live slice is limited to:
+
+- same-root `FortressHoldingShell` plus certified `FortressDrawCertification`
+  bound to the same holder king and `fortress_hold_certified` projection
+  evidence on that holder-king anchor, with lower certification proof supplied
+  by a same-root `CertificationEvidenceBundle`
+- certified current-board `PerpetualCheckHolding` plus
+  `perpetual_hold_certified` projection evidence on the board anchor, with
+  lower certification proof supplied by a same-root `CertificationEvidenceBundle`
+
+Negative boundary remains exact-board and fail-closed:
+
+- `TradeInvariant` is optional adjacent S19 support only
+- king activity / entry material remains adjacent S23 support only
+- `FortressHoldingShell` alone, checking-sequence wording, draw wording,
+  `SupportOnly`, `Deferred`, stale projection evidence, and stale lower
+  certification evidence remain non-admitting
+- lower `Object`, `Delta`, and `Certification` carriers remain their own truth
+  owners; S22 projection evidence is only a same-root admission companion and
+  must not fabricate certification best-defense proof

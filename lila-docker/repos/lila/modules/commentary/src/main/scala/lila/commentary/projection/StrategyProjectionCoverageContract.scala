@@ -128,13 +128,21 @@ object StrategyProjectionCoverageContract:
     ),
     "S14" -> Vector(
       CoverageGate("chain_base_route", Vector("chain_base_target", "base_contact_continuation")),
-      CoverageGate("same_cluster_near_miss", Vector("vs_s05", "vs_s11", "vs_s13")),
+      CoverageGate("same_cluster_near_miss", Vector("vs_s05", "vs_s11", "vs_s13", "vs_s15")),
       CoverageGate("shortcut_negative", Vector("fixed_chain_only", "generic_structural_damage"))
     ),
     "S15" -> Vector(
       CoverageGate("creation_route", Vector("s13_wing_damage", "s14_chain_base")),
       CoverageGate("same_cluster_near_miss", Vector("vs_s13", "vs_s14", "vs_s16")),
-      CoverageGate("shortcut_negative", Vector("candidate_passer_only", "existing_passer_entity_only"))
+      CoverageGate(
+        "shortcut_negative",
+        Vector(
+          "candidate_passer_only",
+          "create_passer_shell_only",
+          "existing_passer_entity_only",
+          "split_anchor_creation_route"
+        )
+      )
     ),
     "S16" -> Vector(
       CoverageGate("suppression_route", Vector("blockade_hold", "restriction_hold", "non_losing_race")),
@@ -149,7 +157,7 @@ object StrategyProjectionCoverageContract:
     "S18" -> Vector(
       CoverageGate(
         "minor_edge_conversion_route",
-        Vector("bishop_pair_to_initiative", "bishop_pair_to_structure", "bishop_pair_to_material_or_endgame")
+        Vector("bishop_pair_to_initiative", "bishop_pair_to_structure", "bishop_pair_to_material")
       ),
       CoverageGate("same_cluster_near_miss", Vector("vs_s12", "vs_s17", "vs_s20")),
       CoverageGate("shortcut_negative", Vector("bishop_pair_state_only", "minor_edge_label_only"))
@@ -170,7 +178,10 @@ object StrategyProjectionCoverageContract:
     "S22" -> Vector(
       CoverageGate("hold_route", Vector("fortress_draw_hold", "perpetual_hold")),
       CoverageGate("same_cluster_near_miss", Vector("vs_s19", "vs_s23")),
-      CoverageGate("shortcut_negative", Vector("draw_wording_only", "fortress_shell_only"))
+      CoverageGate(
+        "shortcut_negative",
+        Vector("draw_wording_only", "fortress_shell_only", "checking_sequence_wording", "perpetual_deferred")
+      )
     ),
     "S23" -> Vector(
       CoverageGate("king_activity_route", Vector("same_entry_route", "same_contact_opposition")),
@@ -232,13 +243,16 @@ object StrategyProjectionCoverageContract:
       "Witness:available_lever_trigger",
       "Witness:pawn_push_break_contact_source(center_pawn_target)",
       "ProjectionValidation:central_axis_continuation",
-      "SupportOnly:CentralContactFront|InitiativeWindow|file_lane_state"
+      "ObjectSupportOnly:CentralContactFront(non_truth_owner)",
+      "CertificationSupportOnly:InitiativeWindow(non_truth_owner)",
+      "SupportOnly:file_lane_state"
     ),
     "S06" -> Vector(
       "Witness:structural_space_claim",
       "Witness:knight_on_outpost_square|short_run_slider_gate_restriction",
       "ProjectionValidation:restriction_route",
       "CertificationSupportOnly:MobilityComparison|InitiativeWindow",
+      "CertificationSupportOnly:SpaceBindRestrictionCertification(non_truth_owner)",
       "SupportOnly:weak_outpost_square_state"
     ),
     "S07" -> Vector(
@@ -247,8 +261,9 @@ object StrategyProjectionCoverageContract:
       "ObjectSupportOnly:OpeningDevelopmentRegime"
     ),
     "S08" -> Vector(
-      "Certification:InitiativeWindow",
-      "ProjectionValidation:rival_break_source_suppressed|rival_counterplay_source_suppressed",
+      "CertificationSupportOnly:InitiativeWindow(non_truth_owner)",
+      "WitnessSupportOnly:pawn_push_break_contact_source(rival_source_not_truth_owner)",
+      "ProjectionValidation:counterplay_denial_route_certified(rival_source_target_route)",
       "SupportOnly:MobilityComparison|short_run_slider_gate_restriction"
     ),
     "S09" -> Vector(
@@ -269,13 +284,16 @@ object StrategyProjectionCoverageContract:
       "Witness:pawn_push_break_contact_source",
       "Certification:InitiativeWindow",
       "CertificationSupportOnly:DevelopmentComparison",
-      "SupportOnly:available_lever_trigger|center|sector_asymmetry_state"
+      "SupportOnly:available_lever_trigger|center|sector_asymmetry_state|AttackScaffold|EndgameRaceScaffold"
     ),
     "S11" -> Vector(
       "Witness:weak_pawn_target_state(same_target)",
       "ProjectionValidation:same_target_fixation|same_target_repeated_pressure",
       "ProjectionValidation:same_target_persistence_proof",
-      "CertificationSupportOnly:MobilityComparison|InitiativeWindow"
+      "WitnessSeed:None",
+      "Object:None",
+      "Delta:None",
+      "CertificationSupportOnly:MobilityComparison|InitiativeWindow(non_truth_owner)"
     ),
     "S12" -> Vector(
       "Witness:weak_outpost_square_state|diagonal_lane_only",
@@ -286,22 +304,23 @@ object StrategyProjectionCoverageContract:
     ),
     "S13" -> Vector(
       "Witness:sector_asymmetry_state",
-      "Witness:available_lever_trigger(same_sector)",
-      "Witness:pawn_push_break_contact_source(same_anchor_stronger_mass_target)",
-      "ProjectionValidation:phalanx_edge_target|structurally_burdened_target",
+      "Witness:available_lever_trigger(same_wing_sector)",
+      "Witness:pawn_push_break_contact_source(same_anchor_stronger_wing_mass_target)",
+      "ProjectionValidation:wing_sector_non_chain_base_phalanx_edge_target|structurally_burdened_target",
       "SupportOnly:weak_pawn_target_state|file_lane_state"
     ),
     "S14" -> Vector(
       "Witness:available_lever_trigger(base_contact)",
       "Witness:pawn_push_break_contact_source(same_anchor_chain_base_target)",
-      "ProjectionValidation:chain_base_target_recomputed|base_contact_continuation",
+      "ProjectionValidation:non_center_chain_base_target_recomputed|base_contact_continuation",
       "SupportOnly:weak_pawn_target_state|structural_damage_shell|fixed_chain_context"
     ),
     "S15" -> Vector(
       "Root:candidate_passer(same_owner_pawn)",
-      "ShellSupportOnly:create_passer",
-      "ProjectionValidation:s13_wing_damage|s14_chain_base",
-      "CertificationSupportOnly:PromotionRace",
+      "ShellSupportOnly:create_passer(non_truth_owner)",
+      "ProjectionValidation:same_candidate_s13_wing_damage|same_candidate_s14_chain_base",
+      "ProjectionEvidence:passer_creation_route_certified",
+      "CertificationSupportOnly:PromotionRace(non_truth_owner)",
       "SupportOnly:PasserComplex|ConversionFunnel"
     ),
     "S16" -> Vector(
@@ -317,9 +336,13 @@ object StrategyProjectionCoverageContract:
       "ProjectionEvidence:liability_relief_certified"
     ),
     "S18" -> Vector(
-      "Witness:bishop_pair_state",
-      "Certification:InitiativeWindow|MobilityComparison|MaterialHarvest|WinningEndgame",
-      "SupportOnly:favorable_minor_piece_relation"
+      "Witness:bishop_pair_state(same_owner_current_board_substrate)",
+      "WitnessSeed:None",
+      "Object:None",
+      "Delta:None",
+      "Certification:InitiativeWindow|MobilityComparison|MaterialHarvest(same_current_board_lower_truth_owner)",
+      "CertificationSupportOnly:WinningEndgame(future_non_live_s18_carrier)",
+      "SupportOnly:favorable_minor_piece_relation|DevelopmentComparison|short_run_slider_gate_restriction"
     ),
     "S19" -> Vector(
       "Delta:TradeInvariant",
@@ -333,8 +356,8 @@ object StrategyProjectionCoverageContract:
       "SupportOnly:structural_space_claim|weak_outpost_square_state|same_piece_liability_anchor_seed"
     ),
     "S22" -> Vector(
-      "Object:FortressHoldingShell",
-      "Certification:FortressDrawCertification|PerpetualCheckHolding",
+      "Object:FortressHoldingShell(same_holder_support_only)",
+      "Certification:FortressDrawCertification|PerpetualCheckHolding(certified_hold_only)",
       "DeltaSupportOnly:TradeInvariant"
     ),
     "S23" -> Vector(
@@ -359,20 +382,27 @@ object StrategyProjectionCoverageContract:
   val helperLawsByBand: Map[String, Vector[String]] = Map(
     "S05" -> Vector(
       "same_anchor_contact_target_law:center_pawn_target",
-      "central_axis_continuation_law"
+      "central_axis_continuation_law",
+      "same_task_projection_evidence_must_mirror_s05_source_target_and_center_release_route_law",
+      "central_contact_front_initiative_or_file_support_is_not_truth_owner_law"
     ),
     "S06" -> Vector(
       "structural_space_plus_outpost_or_restriction_law",
+      "same_anchor_host_restriction_and_persistence_law",
       "mobility_comparison_is_support_not_space_law",
       "space_wording_without_anchor_is_non_admitting_law"
     ),
     "S07" -> Vector(
-      "development_comparison_plus_initiative_window_law",
-      "move_right_window_law"
+      "same_owner_development_comparison_plus_initiative_window_law",
+      "move_right_window_law",
+      "same_task_projection_evidence_must_bind_s07_owner_board_and_route_law",
+      "initiative_window_is_lower_certification_not_projection_truth_owner_law"
     ),
     "S08" -> Vector(
       "exact_rival_release_source_denial_law",
-      "initiative_window_is_support_not_denial_by_itself"
+      "same_rival_source_target_and_denial_route_law",
+      "initiative_window_is_support_not_denial_by_itself",
+      "mobility_or_restriction_support_is_not_s08_denial_truth_law"
     ),
     "S09" -> Vector(
       "same_file_lane_penetration_law",
@@ -385,12 +415,17 @@ object StrategyProjectionCoverageContract:
       "non_knight_outpost_scope_deferred_law"
     ),
     "S21" -> Vector(
-      "owner_source_plus_same_board_initiative_law",
-      "source_presence_is_not_survival_law"
+      "non_center_owner_source_plus_same_board_initiative_law",
+      "same_task_projection_evidence_must_mirror_s21_source_target_route_and_initiative_law",
+      "initiative_window_is_not_counterplay_survival_truth_owner_law",
+      "source_presence_is_not_survival_law",
+      "pawn_storm_center_release_or_rival_denial_is_not_counterplay_survival_law"
     ),
     "S11" -> Vector(
       "same_weak_pawn_target_identity_law",
       "pressure_bundle_is_not_weak_pawn_truth_law",
+      "fixed_pawn_persistence_is_current_board_carrier_not_certification_truth_law",
+      "same_task_projection_evidence_must_mirror_s11_target_pressure_and_persistence_law",
       "target_swap_by_prose_is_non_admitting_law"
     ),
     "S12" -> Vector(
@@ -401,17 +436,22 @@ object StrategyProjectionCoverageContract:
     "S13" -> Vector(
       "same_sector_asymmetry_plus_contact_source_law",
       "wing_damage_target_role_recomputed_from_exact_board_law",
+      "phalanx_edge_target_excludes_chain_base_law",
+      "center_sector_damage_is_not_wing_damage_law",
+      "same_task_projection_evidence_must_mirror_s13_source_target_sector_and_route_law",
       "asymmetry_or_preexisting_weak_pawn_is_not_damage_law"
     ),
     "S14" -> Vector(
       "same_anchor_chain_base_contact_law",
-      "chain_base_role_recomputed_from_exact_board_law",
+      "non_center_chain_base_role_recomputed_from_exact_board_law",
+      "base_contact_must_bind_same_source_and_target_law",
+      "same_task_projection_evidence_must_mirror_s14_source_target_and_route_law",
       "fixed_chain_or_structural_damage_shell_is_not_truth_owner_law"
     ),
     "S15" -> Vector(
-      "same_candidate_passer_creation_route_law",
+      "same_candidate_passer_contact_source_route_law",
       "per_position_creation_route_disjunction_broad_coverage_conjunction_law",
-      "candidate_or_existing_passer_is_not_creation_law",
+      "candidate_create_shell_existing_passer_or_split_anchor_is_not_creation_law",
       "upper_passer_consequence_is_not_truth_owner_law"
     ),
     "S16" -> Vector(
@@ -426,7 +466,9 @@ object StrategyProjectionCoverageContract:
       "bad_piece_wording_is_not_relief_law"
     ),
     "S18" -> Vector(
-      "bishop_pair_plus_conversion_law",
+      "same_current_board_bishop_pair_conversion_law",
+      "s18_projection_evidence_same_task_same_target_law",
+      "conversion_certification_is_lower_truth_owner_law",
       "minor_edge_relation_without_conversion_is_non_admitting_law",
       "weak_square_liability_or_mobility_rival_is_not_conversion_law"
     ),
@@ -442,7 +484,10 @@ object StrategyProjectionCoverageContract:
     ),
     "S22" -> Vector(
       "fortress_or_perpetual_certified_hold_law",
+      "same_holder_fortress_shell_and_certification_law",
+      "perpetual_cycle_must_be_certified_law",
       "shell_or_draw_wording_is_not_hold_law",
+      "support_only_or_deferred_hold_is_not_projection_admission_law",
       "trade_or_king_activity_rival_is_not_hold_law"
     ),
     "S23" -> Vector(
@@ -511,24 +556,34 @@ object StrategyProjectionCoverageContract:
       "available_lever_trigger_present",
       "pawn_push_break_contact_source_center_target_present",
       "central_axis_continuation_present",
+      "projection_evidence_mirrors_same_source_target_and_center_release_route",
+      "wrong_source_wrong_target_or_wrong_axis_not_counted",
+      "stale_or_adjacent_runtime_evidence_not_counted_before_live_admission",
       "open_center_wording_or_center_shell_only_not_counted"
     ),
     "S06" -> Vector(
       "structural_space_claim_present",
       "outpost_or_short_run_restriction_present",
       "same_anchor_restriction_route_present",
+      "same_route_host_link_present",
+      "exact_s05_center_release_and_exact_s20_domination_false_rivals_not_counted",
+      "structural_space_only_wrong_anchor_or_missing_persistence_not_counted",
+      "stale_or_unmatched_s06_evidence_not_counted_in_live_admission",
       "space_or_mobility_wording_only_not_counted"
     ),
     "S07" -> Vector(
       "development_comparison_certified",
       "initiative_window_certified",
       "move_right_window_bound_to_exact_board",
+      "projection_evidence_same_board_route_present",
       "development_or_initiative_wording_only_not_counted"
     ),
     "S08" -> Vector(
       "initiative_window_certified",
       "rival_release_source_suppressed_present",
       "denial_route_bound_to_exact_board",
+      "projection_evidence_mirrors_rival_source_target_and_denial_route",
+      "wrong_source_wrong_target_wrong_route_or_stale_evidence_not_counted",
       "no_counterplay_wording_or_initiative_window_only_not_counted"
     ),
     "S09" -> Vector(
@@ -547,6 +602,7 @@ object StrategyProjectionCoverageContract:
       "weak_pawn_target_same_square_present",
       "same_target_pressure_or_repeated_pressure_present",
       "same_target_persistence_proof_present",
+      "pressure_without_fixed_persistence_not_counted",
       "target_swap_by_prose_not_counted"
     ),
     "S12" -> Vector(
@@ -558,20 +614,24 @@ object StrategyProjectionCoverageContract:
     "S13" -> Vector(
       "sector_asymmetry_present",
       "same_sector_lever_and_break_contact_present",
-      "contact_target_role_is_phalanx_edge_or_structurally_burdened",
-      "weak_pawn_or_asymmetry_only_not_counted"
+      "wing_sector_damage_route_present",
+      "contact_target_role_is_non_chain_base_phalanx_edge_or_structurally_burdened",
+      "weak_pawn_or_asymmetry_only_not_counted",
+      "stale_or_adjacent_runtime_evidence_not_counted_before_live_admission"
     ),
     "S14" -> Vector(
       "base_contact_lever_and_break_contact_present",
-      "contact_target_role_is_chain_base",
+      "contact_target_role_is_non_center_chain_base",
       "base_contact_continuation_same_anchor_present",
-      "fixed_chain_or_structural_damage_shell_only_not_counted"
+      "fixed_chain_or_structural_damage_shell_only_not_counted",
+      "stale_or_adjacent_runtime_evidence_not_counted_before_live_admission"
     ),
     "S15" -> Vector(
       "candidate_passer_same_anchor_present",
-      "same_board_s13_or_s14_creation_route_present",
+      "same_candidate_s13_or_s14_creation_route_present",
       "broad_coverage_requires_both_creation_route_buckets",
-      "candidate_or_existing_passer_only_not_counted"
+      "candidate_create_shell_existing_passer_or_split_anchor_only_not_counted",
+      "live_passer_creation_evidence_same_candidate_present"
     ),
     "S16" -> Vector(
       "enemy_passed_pawn_same_anchor_present",
@@ -587,9 +647,12 @@ object StrategyProjectionCoverageContract:
     ),
     "S18" -> Vector(
       "bishop_pair_state_present",
-      "conversion_certification_present",
       "active_bishop_pair_member_present",
-      "bishop_pair_or_minor_edge_label_only_not_counted"
+      "same_current_board_conversion_certification_present",
+      "projection_evidence_mirrors_conversion_family_targets_and_bishop_pair",
+      "material_conversion_bishop_pair_member_capture_present",
+      "initiative_or_structure_conversion_support_targets_present",
+      "bishop_pair_minor_edge_or_optional_strengthening_only_not_counted"
     ),
     "S19" -> Vector(
       "trade_invariant_delta_companion_present",
@@ -606,14 +669,16 @@ object StrategyProjectionCoverageContract:
     "S21" -> Vector(
       "pawn_push_break_contact_source_present",
       "initiative_window_certified_same_board",
-      "center_or_far_wing_source_survives",
-      "break_source_or_deferred_initiative_only_not_counted"
+      "non_center_source_to_center_target_or_far_wing_source_survives",
+      "projection_evidence_mirrors_owner_source_target_route_and_initiative",
+      "break_source_initiative_only_deferred_initiative_or_adjacent_rival_not_counted"
     ),
     "S22" -> Vector(
       "fortress_holding_shell_or_perpetual_cycle_present",
       "certified_hold_verdict_present",
-      "hold_evidence_bound_to_exact_board",
-      "draw_wording_or_fortress_shell_only_not_counted"
+      "fortress_hold_bound_to_same_holder_king",
+      "perpetual_hold_bound_to_current_board_cycle",
+      "draw_wording_fortress_shell_checking_sequence_or_deferred_hold_not_counted"
     ),
     "S23" -> Vector(
       "king_entry_square_and_access_route_same_entry_present",
@@ -637,6 +702,151 @@ object StrategyProjectionCoverageContract:
 
   val coverageOnlyBandIds: Vector[StrategyProjectionBandId] =
     frozenCoverageBandIds.filterNot(StrategyProjectionScopeContract.isStartReadyBandId)
+
+  val rowSpecificAdmissionBurdenFreezeByBand: Map[String, Vector[String]] = Map(
+    "S05" -> Vector(
+      "center_release_route_requires_same_anchor_lever_and_contact_source",
+      "center_release_route_requires_recomputed_center_pawn_target",
+      "central_axis_continuation_requires_same_source_target_pair",
+      "projection_evidence_mirrors_owner_source_target_and_center_release_route",
+      "open_center_wording_center_shell_support_object_optional_strengthening_or_adjacent_rival_is_non_admitting"
+    ),
+    "S06" -> Vector(
+      "space_bind_route_requires_structural_space_claim",
+      "space_bind_route_requires_same_anchor_outpost_or_short_run_restriction",
+      "space_bind_route_requires_space_bind_restriction_certification",
+      "space_bind_certification_requires_same_route_host_link",
+      "same_task_projection_evidence_must_mirror_s06_route_anchor_host_and_restriction",
+      "s05_center_release_s20_domination_or_mobility_certification_alone_is_non_admitting",
+      "wrong_anchor_wrong_sector_stale_or_shortcut_evidence_is_non_admitting"
+    ),
+    "S07" -> Vector(
+      "initiative_conversion_route_requires_opening_development_regime_and_same_owner_development_comparison",
+      "initiative_conversion_route_requires_same_owner_certified_initiative_window",
+      "projection_evidence_must_bind_same_owner_board_and_initiative_conversion_route",
+      "development_only_initiative_only_s08_denial_or_optional_strengthening_is_non_admitting"
+    ),
+    "S08" -> Vector(
+      "denial_route_requires_same_board_certified_initiative_window",
+      "denial_route_requires_exact_rival_pawn_push_break_contact_source",
+      "projection_evidence_must_bind_rival_source_target_and_denial_route",
+      "initiative_window_mobility_restriction_s07_s21_s20_or_wording_only_is_non_admitting",
+      "stale_evidence_wrong_source_wrong_target_or_wrong_route_is_non_admitting"
+    ),
+    "S11" -> Vector(
+      "target_pressure_route_requires_same_square_weak_pawn_target_and_owner_pressure",
+      "fixation_route_requires_current_fixed_pawn_persistence_on_same_target",
+      "repeated_pressure_route_requires_two_owner_attackers_on_same_target",
+      "projection_evidence_mirrors_weak_pawn_target_pressure_and_persistence",
+      "weak_pawn_only_target_swap_adjacent_rival_or_optional_strengthening_is_non_admitting"
+    ),
+    "S13" -> Vector(
+      "wing_damage_route_requires_same_sector_asymmetry_and_same_anchor_contact_source",
+      "wing_damage_route_excludes_center_sector_targets",
+      "phalanx_edge_route_requires_recomputed_phalanx_edge_target",
+      "phalanx_edge_route_excludes_chain_base_targets",
+      "burdened_target_route_requires_recomputed_structurally_burdened_target",
+      "projection_evidence_mirrors_owner_source_target_sector_and_damage_route",
+      "asymmetry_weak_pawn_adjacent_rival_or_optional_strengthening_is_non_admitting"
+    ),
+    "S14" -> Vector(
+      "chain_base_route_requires_same_anchor_lever_and_contact_source",
+      "chain_base_route_requires_recomputed_non_center_chain_base_target",
+      "base_contact_continuation_requires_same_source_target_pair",
+      "projection_evidence_mirrors_owner_source_target_and_chain_base_route",
+      "fixed_chain_structural_shell_adjacent_rival_or_optional_strengthening_is_non_admitting"
+    ),
+    "S15" -> Vector(
+      "creation_route_requires_same_owner_candidate_passer_anchor",
+      "s13_route_requires_same_candidate_contact_source_and_recomputed_wing_damage_target",
+      "s14_route_requires_same_candidate_contact_source_and_recomputed_chain_base_target",
+      "projection_evidence_mirrors_candidate_source_target_and_creation_route",
+      "candidate_shell_existing_passer_split_anchor_optional_strengthening_or_adjacent_rival_is_non_admitting"
+    ),
+    "S16" -> Vector(
+      "suppression_route_requires_same_enemy_passed_pawn_anchor",
+      "blockade_route_requires_owner_blocker_on_enemy_passer_front_square",
+      "restriction_hold_route_requires_same_enemy_passer_blocker_owner_restriction_and_certified_hold",
+      "race_route_requires_enemy_passer_and_same_board_non_losing_race_certification",
+      "projection_evidence_mirrors_enemy_passer_route_and_route_specific_proof",
+      "enemy_passer_blocker_restriction_hold_race_or_adjacent_rival_alone_is_non_admitting"
+    ),
+    "S18" -> Vector(
+      "initiative_route_requires_bishop_pair_state_and_same_board_initiative_window",
+      "structure_route_requires_bishop_pair_state_and_same_board_mobility_comparison",
+      "material_route_requires_bishop_pair_member_material_harvest",
+      "projection_evidence_mirrors_conversion_family_targets_and_bishop_pair",
+      "relation_only_optional_strengthening_or_adjacent_rival_is_non_admitting"
+    ),
+    "S19" -> Vector(
+      "material_route_requires_canonical_trade_invariant_and_same_move_material_harvest",
+      "hold_route_requires_canonical_trade_invariant_and_post_trade_fortress_certification",
+      "result_only_material_only_or_adjacent_rival_is_non_admitting"
+    ),
+    "S21" -> Vector(
+      "counterplay_survival_route_requires_owner_break_contact_source",
+      "counterplay_survival_route_requires_certified_same_board_initiative_window",
+      "counterplay_survival_projection_evidence_must_mirror_source_target_route_and_certification",
+      "source_only_initiative_only_deferred_or_adjacent_rival_is_non_admitting"
+    ),
+    "S22" -> Vector(
+      "fortress_route_requires_same_holder_shell_and_certified_fortress_hold",
+      "perpetual_route_requires_certified_perpetual_check_hold",
+      "support_only_or_deferred_hold_verdict_is_non_admitting"
+    )
+  )
+
+  val preLiveAdmissionBurdenFreezeByBand: Map[String, Vector[String]] = Map.empty
+
+  val preLiveProjectionEvidenceKindFreezeByBand: Map[String, Vector[StrategyProjectionEvidenceKind]] = Map.empty
+
+  val preLiveRuntimeBoundaryFreezeByBand: Map[String, Vector[String]] = Map.empty
+
+  val projectionEvidenceKindFreezeByBand: Map[String, Vector[StrategyProjectionEvidenceKind]] = Map(
+    "S05" -> Vector(
+      StrategyProjectionEvidenceKind("center_release_route_certified")
+    ),
+    "S06" -> Vector(
+      StrategyProjectionEvidenceKind("space_bind_restriction_route_certified")
+    ),
+    "S07" -> Vector(
+      StrategyProjectionEvidenceKind("initiative_conversion_route_certified")
+    ),
+    "S08" -> Vector(
+      StrategyProjectionEvidenceKind("counterplay_denial_route_certified")
+    ),
+    "S11" -> Vector(
+      StrategyProjectionEvidenceKind("weak_pawn_target_pressure_persistence_certified")
+    ),
+    "S13" -> Vector(
+      StrategyProjectionEvidenceKind("wing_damage_route_certified")
+    ),
+    "S14" -> Vector(
+      StrategyProjectionEvidenceKind("chain_base_contact_route_certified")
+    ),
+    "S15" -> Vector(
+      StrategyProjectionEvidenceKind("passer_creation_route_certified")
+    ),
+    "S16" -> Vector(
+      StrategyProjectionEvidenceKind("passer_suppression_route_certified")
+    ),
+    "S18" -> Vector(
+      StrategyProjectionEvidenceKind("bishop_pair_initiative_conversion_certified"),
+      StrategyProjectionEvidenceKind("bishop_pair_structure_conversion_certified"),
+      StrategyProjectionEvidenceKind("bishop_pair_material_conversion_certified")
+    ),
+    "S19" -> Vector(
+      StrategyProjectionEvidenceKind("trade_invariant_material_simplification_certified"),
+      StrategyProjectionEvidenceKind("trade_invariant_hold_simplification_certified")
+    ),
+    "S21" -> Vector(
+      StrategyProjectionEvidenceKind("counterplay_survival_route_certified")
+    ),
+    "S22" -> Vector(
+      StrategyProjectionEvidenceKind("fortress_hold_certified"),
+      StrategyProjectionEvidenceKind("perpetual_hold_certified")
+    )
+  )
 
   def requiredCoveragePairsFor(band: String): Set[(String, String)] =
     coverageGatesByBand.getOrElse(band, Vector.empty).flatMap(_.pairs).toSet
@@ -663,29 +873,57 @@ object StrategyProjectionCoverageContract:
     "Every frozen coverage band must declare an exact validation scaffold"
   )
   require(
+    rowSpecificAdmissionBurdenFreezeByBand.keySet == Set("S05", "S06", "S07", "S08", "S11", "S13", "S14", "S15", "S16", "S18", "S19", "S21", "S22"),
+    "S05/S06/S07/S08/S11/S13/S14/S15/S16/S18/S19/S21/S22 row-specific admission burden freezes are current"
+  )
+  require(
+    projectionEvidenceKindFreezeByBand.keySet == rowSpecificAdmissionBurdenFreezeByBand.keySet,
+    "Projection evidence freezes must match row-specific admission burden freezes"
+  )
+  require(
+    projectionEvidenceKindFreezeByBand.forall: (band, kinds) =>
+      val bandId = StrategyProjectionBandId(band)
+      if StrategyProjectionScopeContract.isStartReadyBandId(bandId) then
+        StrategyProjectionScopeContract.requiredEvidenceKindsByBand.getOrElse(band, Vector.empty) == kinds
+      else !StrategyProjectionScopeContract.requiredEvidenceKindsByBand.contains(band),
+    "Projection evidence freezes must match live admission only for start-ready bands"
+  )
+  require(
+    preLiveAdmissionBurdenFreezeByBand.isEmpty,
+    "No pre-live projection admission freezes remain in this scaffold"
+  )
+  require(
+    preLiveProjectionEvidenceKindFreezeByBand.keySet == preLiveAdmissionBurdenFreezeByBand.keySet,
+    "Pre-live projection evidence kind freezes must match pre-live admission burden freezes"
+  )
+  require(
+    preLiveRuntimeBoundaryFreezeByBand.keySet == preLiveAdmissionBurdenFreezeByBand.keySet,
+    "Pre-live runtime boundary freezes must match pre-live admission burden freezes"
+  )
+  require(
+    preLiveAdmissionBurdenFreezeByBand.keySet.forall: band =>
+      coverageOnlyBandIds.exists(_.value == band) &&
+        !StrategyProjectionScopeContract.startReadyBandIds.exists(_.value == band) &&
+        !StrategyProjectionScopeContract.requiredEvidenceKindsByBand.contains(band),
+    "Pre-live admission freezes must stay coverage-only and outside live required evidence"
+  )
+  require(
+    preLiveProjectionEvidenceKindFreezeByBand.forall: (band, kinds) =>
+      val bandId = StrategyProjectionBandId(band)
+      kinds.nonEmpty && kinds.forall(kind => !StrategyProjectionScopeContract.isAllowedEvidenceKind(bandId, kind)),
+    "Pre-live evidence kinds are frozen names only and must not be live-allowed before start-ready promotion"
+  )
+  require(
     coverageOnlyBandIds.map(_.value) ==
       Vector(
-        "S06",
         "S09",
         "S10",
         "S12",
         "S20",
-        "S18",
-        "S19",
-        "S22",
-        "S05",
-        "S07",
-        "S08",
-        "S21",
         "S01",
         "S02",
         "S03",
-        "S04",
-        "S11",
-        "S13",
-        "S14",
-        "S15",
-        "S16"
+        "S04"
       ),
     "All non-runtime broad-ready projection bands are coverage-only here and must not enter live admission"
   )

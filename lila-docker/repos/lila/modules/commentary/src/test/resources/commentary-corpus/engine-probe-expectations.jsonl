@@ -100,3 +100,7 @@
 {"id":"r-king-shelter-hole-black-d2-center-pawn-cover-near-miss","layer":"root","maxMatePly":2,"maxAbsCp":300,"notes":"Black-polarity center-shield pawn-cover near misses must keep pawn cover as the rejection cause."}
 {"id":"r-king-shelter-hole-white-out-of-regime-nasty-negative","layer":"root","maxMatePly":2,"maxAbsCp":300,"notes":"Out-of-regime negatives must stay calm enough that the home-shelter regime boundary remains explanatory."}
 {"id":"r-king-shelter-hole-white-d7-center-middlegame","layer":"root","maxMatePly":2,"maxAbsCp":300,"notes":"Middlegame center-shield exact rows must stay calm enough that phase breadth does not borrow an unrelated eval spike."}
+{"id":"cert-space-bind-restriction-exact","maxMatePly":2,"notes":"Space-bind restriction certification exact rows preserve non-mate engine sanity while projection truth remains the exact lower carrier, not a numeric eval budget."}
+{"id":"cert-space-bind-restriction-center-release-near-miss","maxMatePly":2,"maxAbsCp":300,"notes":"S06 center-release near misses must stay tactically calm while missing the structural-space restriction bundle."}
+{"id":"cert-space-bind-restriction-mobility-only-nasty-negative","maxMatePly":2,"notes":"Mobility-only S06 certification negatives must not be immediate tactical mates."}
+{"id":"cert-space-bind-restriction-best-defense","maxMatePly":2,"notes":"Space-bind best-defense rows keep the same exact lower carrier and non-mate engine sanity but require explicit survival evidence before certification."}

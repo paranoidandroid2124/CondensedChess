@@ -835,18 +835,30 @@ A band is `start-ready` only when:
 
 `start-ready` authorizes building the projection runtime for that band.
 
-For `S17`, `S23`, `S24`, and `S25`, `projection-expectations.jsonl` is now
-populated with exact, near-miss, nasty-negative, and
-`comparative_false_rival` rows that exercise the frozen admission scaffold.
+For `S05`, `S06`, `S07`, `S08`, `S11`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S21`, `S22`, `S23`, `S24`, and `S25`,
+`projection-expectations.jsonl` is now populated with exact, near-miss,
+nasty-negative, and where applicable `comparative_false_rival` rows that
+exercise the frozen admission scaffold.
 
 No coverage-complete-only strategy band is broad-deployed or live as runtime
 projection on the current branch. The staged wave-1, wave-2, wave-3, wave-4,
 wave-5, and wave-6 set
 `S01`, `S02`, `S03`, `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`,
 `S12`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`,
-`S23`, `S24`, and `S25` is coverage-complete only under the current JSONL/test
-broad-coverage gates. `S17`, `S23`, `S24`, and `S25` keep only their existing
-narrow live admission slices.
+`S23`, `S24`, and `S25` is coverage-complete under the current JSONL/test
+broad-coverage gates. `S05`, `S06`, `S07`, `S08`, `S11`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S21`, `S22`, `S23`, `S24`, and `S25` keep
+only their existing narrow live admission slices; the remaining
+coverage-complete rows stay non-live.
+
+S06 live runtime admission is a narrow exact-board closure. The required
+evidence kind is `space_bind_restriction_route_certified`, and admission must
+prove `structural_space_claim`, an outpost or short-run restriction linked to
+that same structural host, support-only `SpaceBindRestrictionCertification`
+with a matching `route_host_links` payload, same-task evidence mirroring of
+route / anchor / host / restriction, exact S05 center-release and exact S20
+domination false-rival rejection, and stale / wrong-anchor evidence rejection.
+`MobilityComparison`, `InitiativeWindow`, and the lower certification remain
+support-only lower carriers, not projection truth owners.
 
 A future live-deployment `broad-ready` claim is allowed only when:
 
@@ -867,9 +879,9 @@ helper/admission laws, and exact-board validation scaffolds for every
 from that contract, and `ProjectionExpectationCorpusTest` asserts that the
 contract-owned key sets match the staged corpus bands exactly. The runtime
 boundary remains fail-closed because `StrategyProjectionAdmission` admits only
-`StrategyProjectionScopeContract.startReadyBandIds` (`S17`, `S23`, `S24`, and
-`S25`) and rejects every `StrategyProjectionCoverageContract.coverageOnlyBandIds`
-entry.
+`StrategyProjectionScopeContract.startReadyBandIds` (`S05`, `S06`, `S07`, `S08`, `S11`, `S13`, `S14`,
+`S15`, `S16`, `S17`, `S18`, `S19`, `S21`, `S22`, `S23`, `S24`, and `S25`) and rejects every
+`StrategyProjectionCoverageContract.coverageOnlyBandIds` entry.
 
 This is executable, not just documentary: `ProjectionExpectationCorpusTest`
 computes missing required coverage pairs from the JSONL corpus and keeps the
@@ -888,19 +900,24 @@ The wave-7 global closure set is exactly `S01`, `S02`, `S03`, `S04`, `S05`,
 `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and `S25`. The current
 JSONL corpus reports that full set as coverage-complete for the staged wave-1,
 wave-2, wave-3, wave-4, wave-5, and wave-6 broad gates. This is
-corpus/validation-only: those bands do not become broad-deployed or newly live
-as runtime projection admission bands.
+corpus/validation-only: those bands do not become broad-deployed, and live
+runtime admission remains limited to explicit `startReadyBandIds` rather than
+being granted by coverage completion alone.
 
-`S17`, `S18`, `S19`, `S22`, and `S24` now have executable wave-2 broad coverage
-rows in `projection-expectations.jsonl`, with the frozen gates owned by
+The current runtime-start-ready subset (`S05`, `S06`, `S07`, `S08`, `S11`, `S13`, `S14`, `S15`, `S16`,
+`S17`, `S18`, `S19`, `S21`, `S22`, `S23`, `S24`, and `S25`) and the S15/S16 wave-6
+coverage split have executable broad coverage rows in
+`projection-expectations.jsonl`, with the frozen gates owned by
 `StrategyProjectionCoverageContract` and `StrategyProjectionCoverageContractTest`.
-This adds countable `coverageAxis` / `coverageBucket` rows only; it does not
-expand live projection admission:
+This adds countable `coverageAxis` / `coverageBucket` rows while keeping live
+projection admission limited to explicit narrow branches:
 
-- `S17` and `S24` keep their existing start-ready admission scaffolds
-- `S18`, `S19`, and `S22` are coverage-only at this boundary and remain
-  fail-closed for `StrategyProjectionAdmission`
-- the five-band coverage set passes the normal coverage-presence burden above
+- `S05`, `S06`, `S07`, `S08`, `S11`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S21`, `S22`, `S23`, `S24`, and
+  `S25` keep start-ready admission scaffolds
+- S16 rows remain countable broad coverage rows, but live admission is limited
+  to exact same-enemy-passer suppression routes with
+  `passer_suppression_route_certified` evidence
+- the coverage set passes the normal coverage-presence burden above
 
 `S05`, `S07`, `S08`, and `S21` now have executable initiative / release /
 counterplay broad-ready coverage rows. Their gates are owned by
@@ -909,24 +926,53 @@ counterplay broad-ready coverage rows. Their gates are owned by
 This closes the wave-3 coverage-completion gate:
 
 - `S05`: exact central release requires same-anchor `available_lever_trigger`
-  and `pawn_push_break_contact_source` with a `center_pawn_target`, plus the
-  `central_axis_continuation` validation law; `CentralContactFront`,
-  `InitiativeWindow`, and central file support are support-only here
+  and `pawn_push_break_contact_source` with a center-file source, center-file
+  target, and a `center_release_route_certified` claim whose route is
+  `center_pawn_target` or `central_axis_continuation`; `CentralContactFront`,
+  `InitiativeWindow`, and central file support are support-only here. Wrong
+  source, wrong target, wrong route, stale evidence, adjacent S06/S14/S21
+  evidence, open-center wording, center shell, `CentralContactFront`,
+  `InitiativeWindow`, and optional file support remain fail-closed.
 - `S07`: exact initiative conversion requires `DevelopmentComparison` plus
   certified `InitiativeWindow` for the same owner; `OpeningDevelopmentRegime`
-  and development wording do not admit the projection band
+  is support-only and development wording does not admit the projection band.
+  S07 live runtime admission names `initiative_conversion_route_certified` as
+  the board-anchored projection evidence kind in live
+  `StrategyProjectionScopeContract.requiredEvidenceKindsByBand`. The route task
+  is limited to `development_led_window` or `move_right_window`, and lower
+  `DevelopmentComparison` / `InitiativeWindow` certification truth must not
+  become S-layer projection truth.
 - `S08`: denial must be tied to an exact rival release source being suppressed;
-  `InitiativeWindow` alone is not a projection denial claim
+  `InitiativeWindow` alone is not a projection denial claim. S08 live runtime
+  admission uses `counterplay_denial_route_certified`; evidence mirrors the
+  same rival source, target, and denial route, the same board must not carry an
+  owner-side S21 survival carrier, and wrong-source, wrong-target, wrong-route,
+  and stale evidence are rejected. `InitiativeWindow` remains lower
+  Certification support, not projection truth.
 - `S21`: counterplay survival requires exact owner
-  `pawn_push_break_contact_source` plus same-board certified `InitiativeWindow`;
-  source presence alone, deferred initiative, open-center wording, and
-  asymmetry wording remain fail-closed
+  non-center `pawn_push_break_contact_source` plus same-board certified
+  `InitiativeWindow`;
+  source presence alone, certified `InitiativeWindow` alone, deferred
+  initiative, center-source/center-target S05-shaped release, open-center
+  wording, and asymmetry wording remain fail-closed.
+  S21 live runtime admission uses
+  `counterplay_survival_route_certified` for same
+  owner/source/target/route/certification mirroring without making
+  `InitiativeWindow` the projection truth owner
 
-These four bands are broad-ready coverage-only bands. Their required coverage
-pairs are counted by `ProjectionExpectationCorpus.requiredCoveragePairsFor`,
-`coveragePairsByBand`, `missingRequiredCoveragePairsByBand`, and
-`bandsWithCompleteBroadReadyCoverage`. `StrategyProjectionAdmission` still
-rejects them as unsupported live admission bands.
+`S05`, `S07`, `S08`, and `S21` are narrow live admission bands and remain
+countable in the broad coverage corpus. S08 runtime evidence is limited to
+`counterplay_denial_route_certified` and same rival source, target, and denial
+route proof.
+Their required coverage pairs are counted by
+`ProjectionExpectationCorpus.requiredCoveragePairsFor`, `coveragePairsByBand`,
+`missingRequiredCoveragePairsByBand`, and `bandsWithCompleteBroadReadyCoverage`.
+`StrategyProjectionAdmission` admits S07 only with exact
+`initiative_conversion_route_certified` evidence plus same-owner certified
+DevelopmentComparison / InitiativeWindow lower support; S08 admits only with
+exact `counterplay_denial_route_certified` evidence plus same-board
+InitiativeWindow lower support, while S21 rejects source-only,
+initiative-only, stale, or adjacent-rival rows fail-closed.
 
 `S01`, `S02`, `S03`, and `S04` now have executable wave-4 king-attack
 broad-ready coverage rows. Their gates are owned by
@@ -956,52 +1002,186 @@ rejects them as unsupported live admission bands.
 structural-damage broad-ready coverage rows. Their gates are owned by
 `StrategyProjectionCoverageContract` and verified by
 `StrategyProjectionCoverageContractTest` plus `ProjectionExpectationCorpusTest`.
-This closes the wave-5 coverage-completion gate only:
+This closes the wave-5 coverage-completion gate for all three rows and the
+narrow S11/S13/S14 runtime-admission gates:
 
 - `S11` exact validation must keep `weak_pawn_target_state`, pressure or
   repeated pressure, and the current fixed-pawn persistence proof on the same
   weak-pawn square;
   weak-pawn presence alone and target swaps by prose stay non-counting
-- `S13` exact validation must keep `sector_asymmetry_state`, same-sector
+- S11 runtime validation must also keep the live admission freeze exact-board
+  and fail-closed:
+  `target_pressure_route_requires_same_square_weak_pawn_target_and_owner_pressure`,
+  `fixation_route_requires_current_fixed_pawn_persistence_on_same_target`,
+  `repeated_pressure_route_requires_two_owner_attackers_on_same_target`,
+  `projection_evidence_mirrors_weak_pawn_target_pressure_and_persistence`,
+  `weak_pawn_only_target_swap_adjacent_rival_or_optional_strengthening_is_non_admitting`,
+  `fixed_pawn_persistence_is_current_board_carrier_not_certification_truth_law`,
+  `same_task_projection_evidence_must_mirror_s11_target_pressure_and_persistence_law`,
+  and `pressure_without_fixed_persistence_not_counted`. The live evidence kind
+  is `weak_pawn_target_pressure_persistence_certified`; it is the only S11 entry
+  in `StrategyProjectionScopeContract.requiredEvidenceKindsByBand`.
+- `S13` exact validation must keep `sector_asymmetry_state`, same-wing-sector
   `available_lever_trigger`, and same-anchor `pawn_push_break_contact_source`
   tied to a target role recomputed from the exact board as `phalanx_edge_target`
-  or `structurally_burdened_target`; raw asymmetry or a pre-existing weak pawn
-  alone stays non-counting
-- `S14` exact validation must keep base-contact lever/source on the same anchor
-  and recompute the contact target as `chain_base_target`; fixed-chain and
-  structural-damage shell vocabulary remain context only
+  or `structurally_burdened_target`; for live S13 admission, a phalanx-edge
+  surface that is also a chain-base target stays S14-adjacent and
+  non-counting. Raw asymmetry or a pre-existing weak pawn alone stays
+  non-counting. Its live admission freeze names
+  `wing_damage_route_requires_same_sector_asymmetry_and_same_anchor_contact_source`,
+  `wing_damage_route_excludes_center_sector_targets`,
+  `phalanx_edge_route_requires_recomputed_phalanx_edge_target`,
+  `phalanx_edge_route_excludes_chain_base_targets`,
+  `burdened_target_route_requires_recomputed_structurally_burdened_target`,
+  `projection_evidence_mirrors_owner_source_target_sector_and_damage_route`,
+  and
+  `asymmetry_weak_pawn_adjacent_rival_or_optional_strengthening_is_non_admitting`.
+  The live projection evidence kind is `wing_damage_route_certified`, and it is
+  the S13 entry in `StrategyProjectionScopeContract.requiredEvidenceKindsByBand`.
+- `S13` helper and scaffold tokens are
+  `same_sector_asymmetry_plus_contact_source_law`,
+  `wing_damage_target_role_recomputed_from_exact_board_law`,
+  `phalanx_edge_target_excludes_chain_base_law`,
+  `center_sector_damage_is_not_wing_damage_law`,
+  `same_task_projection_evidence_must_mirror_s13_source_target_sector_and_route_law`,
+  `asymmetry_or_preexisting_weak_pawn_is_not_damage_law`,
+  `sector_asymmetry_present`,
+  `same_sector_lever_and_break_contact_present`,
+  `wing_sector_damage_route_present`,
+  `contact_target_role_is_non_chain_base_phalanx_edge_or_structurally_burdened`,
+  `weak_pawn_or_asymmetry_only_not_counted`, and
+  `stale_or_adjacent_runtime_evidence_not_counted_before_live_admission`.
+  These keep stale evidence, adjacent `S11` / `S14` / `S15` rivals, optional
+  `weak_pawn_target_state` / `file_lane_state` strengthening, and Object /
+  Delta / Certification truth-owner leakage out of S13 admission.
+- `S14` exact validation must keep base-contact lever/source on the same anchor,
+  require the same source/target pair for the base-contact continuation,
+  recompute the contact target as a non-center `chain_base_target`, and admit
+  `base_contact_continuation` only when the target's forward-supported pawn
+  itself supports the next defender pawn on the exact board;
+  fixed-chain and structural-damage shell vocabulary remain context only. Its
+  live admission freeze names
+  `chain_base_route_requires_same_anchor_lever_and_contact_source`,
+  `chain_base_route_requires_recomputed_non_center_chain_base_target`,
+  `base_contact_continuation_requires_same_source_target_pair`,
+  `projection_evidence_mirrors_owner_source_target_and_chain_base_route`, and
+  `fixed_chain_structural_shell_adjacent_rival_or_optional_strengthening_is_non_admitting`.
+  The live evidence kind is `chain_base_contact_route_certified`, and it is the
+  S14 entry in `StrategyProjectionScopeContract.requiredEvidenceKindsByBand`.
+  Its helper/law and scaffold tokens are `same_anchor_chain_base_contact_law`,
+  `non_center_chain_base_role_recomputed_from_exact_board_law`,
+  `base_contact_must_bind_same_source_and_target_law`,
+  `same_task_projection_evidence_must_mirror_s14_source_target_and_route_law`,
+  `fixed_chain_or_structural_damage_shell_is_not_truth_owner_law`,
+  `base_contact_lever_and_break_contact_present`,
+  `contact_target_role_is_non_center_chain_base`,
+  `base_contact_continuation_same_anchor_present`,
+  `fixed_chain_or_structural_damage_shell_only_not_counted`, and
+  `stale_or_adjacent_runtime_evidence_not_counted_before_live_admission`.
+  Lower ownership remains
+  `Witness:available_lever_trigger(base_contact)`,
+  `Witness:pawn_push_break_contact_source(same_anchor_chain_base_target)`,
+  `ProjectionValidation:non_center_chain_base_target_recomputed|base_contact_continuation`,
+  and `SupportOnly:weak_pawn_target_state|structural_damage_shell|fixed_chain_context`;
+  no support seed, Object, Delta, or Certification family is an S14 projection
+  truth owner. Runtime admission also requires projection evidence to mirror
+  the contact source, target, chain-base route token, and exact chain-base
+  forward support squares; a chain-base-target row cannot be relabeled as a
+  base-contact-continuation row by evidence token alone.
 
-These three bands are broad-ready coverage-only bands, not live admission
-bands. Their required coverage pairs are counted by
+S13's live slice is executable only for exact current-board same-wing-sector
+wing-damage routes. S14's live slice is executable only for exact current-board
+same-anchor non-center chain-base contact routes. All three rows' required
+coverage pairs are counted by
 `ProjectionExpectationCorpus.requiredCoveragePairsFor`, `coveragePairsByBand`,
 `missingRequiredCoveragePairsByBand`, and `bandsWithCompleteBroadReadyCoverage`.
-`StrategyProjectionAdmission` still rejects them as unsupported live admission
-bands.
+Adjacent S05/S11/S13/S15 rivals, stale evidence, and optional strengthening
+remain fail-closed; S15 admits only through its explicit same-candidate
+creation branch, and S16 admits only through its explicit same-enemy-passer
+suppression branch.
 
 For the wave-2 five-band coverage set, exact validation stays board-bound:
 
 - `S17`: exact same-piece liability, same-piece repair or exchange relief, and
   same-piece relief evidence
-- `S18`: exact `bishop_pair_state` substrate plus certified conversion burden;
-  bishop-pair or minor-edge wording alone is negative
+- `S18`: exact same-owner current-board `bishop_pair_state` substrate with at
+  least one active bishop-pair member plus certified conversion burden;
+  bishop-pair or minor-edge wording alone is negative. The live runtime
+  admission freeze names no support seed, object, or delta carrier for S18, and
+  lower certification remains the truth owner:
+  `InitiativeWindow`, `MobilityComparison`, or `MaterialHarvest`.
+  `WinningEndgame` is support-only future carrier because current lower law
+  cannot certify it on a board that still has bishops. The frozen burden names are
+  `initiative_route_requires_bishop_pair_state_and_same_board_initiative_window`,
+  `structure_route_requires_bishop_pair_state_and_same_board_mobility_comparison`,
+  `material_route_requires_bishop_pair_member_material_harvest`,
+  `projection_evidence_mirrors_conversion_family_targets_and_bishop_pair`, and
+  `relation_only_optional_strengthening_or_adjacent_rival_is_non_admitting`.
+  The frozen live projection evidence-kind names are
+  `bishop_pair_initiative_conversion_certified`,
+  `bishop_pair_structure_conversion_certified`, and
+  `bishop_pair_material_conversion_certified`; they exactly match
+  `StrategyProjectionScopeContract.requiredEvidenceKindsByBand` for S18. Exact
+  validation remains board-bound through
+  `s18_projection_evidence_same_task_same_target_law`,
+  `active_bishop_pair_member_present`,
+  `same_current_board_conversion_certification_present`,
+  `projection_evidence_mirrors_conversion_family_targets_and_bishop_pair`,
+  `material_conversion_bishop_pair_member_capture_present`,
+  `initiative_or_structure_conversion_support_targets_present`, and
+  `bishop_pair_minor_edge_or_optional_strengthening_only_not_counted`.
 - `S19`: exact `TradeInvariant` transition from before/after FEN plus played
   move; countable material or hold rows must also certify the same exact task
   endpoint through `MaterialHarvest` or `FortressDrawCertification`, while
-  result-only simplification remains non-counting until a same-task lower law
-  exists
-- `S22`: exact `FortressHoldingShell` or perpetual-check support plus certified
-  hold evidence; shell or draw wording alone is negative
+  result-only simplification remains non-counting without a same-task lower law.
+  The live admission freeze names the burden as
+  `material_route_requires_canonical_trade_invariant_and_same_move_material_harvest`,
+  `hold_route_requires_canonical_trade_invariant_and_post_trade_fortress_certification`,
+  and `result_only_material_only_or_adjacent_rival_is_non_admitting`.
+  `MaterialHarvest` must expose `capture_from` / `capture_to` matching the exact
+  `TradeInvariant` played move; S22/S24 rival rows must expose their own exact
+  lower truth without becoming S19 truth. S19 projection evidence-kind names are
+  live as `trade_invariant_material_simplification_certified` and
+  `trade_invariant_hold_simplification_certified`; those evidence claims are
+  admission companions only and do not replace `TradeInvariant`,
+  `MaterialHarvest`, `FortressDrawCertification`, or `FortressHoldingShell` as
+  lower truth owners.
+- `S22`: same-holder exact `FortressHoldingShell` plus certified
+  `FortressDrawCertification`, or certified current-board
+  `PerpetualCheckHolding`; shell, draw wording, loose checking-sequence wording,
+  exact S19 `TradeInvariant` rival truth, or `SupportOnly` / `Deferred` hold
+  evidence is negative unless the same-root S22 evidence kind and lower
+  object/certification revalidation both pass from an externally supplied
+  same-root `CertificationEvidenceBundle`
 - `S24`: exact same target piece-square across dependency, convergence,
   forcing realization, and conversion certification; raw tactic or trade/result
   wording alone is negative
 
-`S15` and `S16` are wave-6 broad-ready coverage-only bands, not live admission
-bands. `S15` route admission remains per-position disjunctive, while broad-ready
-coverage proves both `s13_wing_damage` and `s14_chain_base` plus exact
-false-rival boundaries against `S13`, `S14`, and `S16`. `S16` broad-ready
-coverage proves `blockade_hold`, `restriction_hold`, and `non_losing_race`, and
-every positive suppression row binds enemy passer truth to certified race or
-hold proof.
+`S15` and `S16` are wave-6 broad-ready coverage bands. S15 now has narrow live
+admission: per-position admission remains disjunctive over `s13_wing_damage`
+or `s14_chain_base`, while broad-ready coverage proves both route buckets plus
+exact false-rival boundaries against `S13`, `S14`, and `S16`. The S15
+exact-board law is same-candidate: the `candidate_passer` root pawn must be the
+same pawn as the S13/S14 contact source, while create-passer shell-only,
+candidate-only, existing-passer-only, and split-anchor route rows remain
+rejected. The S15 evidence kind `passer_creation_route_certified` is live in
+`StrategyProjectionScopeContract.requiredEvidenceKindsByBand`, but it is only
+an admission companion and does not own lower root or certification truth.
+`S16` now has narrow live admission. Its broad-ready coverage proves
+`blockade_hold`, `restriction_hold`, and `non_losing_race`, and every positive
+suppression row binds enemy passer truth to exact same-board blockade,
+restriction, and certified race/hold proof without making the certification
+itself the passer truth owner. For `blockade_hold`, the fortress certification
+support must target the same passer/blocker shell. For `restriction_hold`, the blocker must be an
+owner `short_run_slider_gate_restriction` gate square rather than an unrelated
+restriction elsewhere on the board. Live admission uses
+`passer_suppression_route_certified` evidence to mirror the same enemy
+passed-pawn anchor, route token, route-specific blocker when applicable, and
+same-board certified hold/race support. That evidence name is the only S16
+entry in `StrategyProjectionScopeContract.requiredEvidenceKindsByBand`, so
+S16 admits only through the exact same-enemy-passer branch and remains
+fail-closed for enemy-passer-only, blocker-picture-only, stale evidence, and
+adjacent S15/S22/S23 rival rows.
 
 For `S25`, the current broad-ready route bucket is only
 `rank_access_route = cross_wing_rank_switch`; wider horizontal-rank meanings
@@ -1104,22 +1284,22 @@ such as `TradeInvariant` may count as lower-carrier evidence.
 Recommended row shape:
 
 ```json
-{"id":"projection-s05-center-release-exact","caseType":"exact","fen":"r4rk1/pp1b1ppp/2p1pn2/3p4/3P4/2PBPN2/PP3PPP/R2R2K1 w - - 0 1","band":"S05","expectation":"admitted","owner":"white","anchor":"center","requiredWitnessIds":["available_lever_trigger","pawn_push_break_contact_source"],"requiredObjectFamilies":[],"requiredDeltaFamilies":[],"requiredCertificationFamilies":[],"supportShellIds":["center"],"optionalStrengtheningFamilies":["file_lane_state"],"supportWitnessIds":["center","available_lever_trigger","file_lane_state"],"rivalBands":["S06","S14","S21"],"forbiddenShortcuts":["open_center_wording_only","center_shell_only"],"coverageAxis":"center_release_route","coverageBucket":"center_pawn_target"}
+{"id":"projection-s05-center-release-exact","caseType":"exact","fen":"6k1/6pp/5n2/3pp3/3PP3/5N2/2P3PP/6K1 w - - 0 1","band":"S05","expectation":"admitted","owner":"white","anchor":"center","requiredWitnessIds":["available_lever_trigger","pawn_push_break_contact_source"],"requiredObjectFamilies":["CentralContactFront"],"requiredDeltaFamilies":[],"requiredCertificationFamilies":[],"supportShellIds":["center"],"optionalStrengtheningFamilies":["InitiativeWindow","file_lane_state"],"supportWitnessIds":["available_lever_trigger"],"rivalBands":["S06","S14","S21"],"forbiddenShortcuts":["open_center_wording_only","center_shell_only"],"coverageAxis":"center_release_route","coverageBucket":"center_pawn_target","admissionPath":"center_pawn_target","requiredSupportSeedIds":[],"evidenceClaims":[{"kind":"center_release_route_certified","anchor":"square:d5","targetSquare":"d5","contactSourceSquare":"c2","centerReleaseRoute":"center_pawn_target"}]}
 ```
 
 Current contract-closure status:
 
 - `projection-expectations.jsonl` is the required target scaffold for this
-  layer; current `S17`/`S23`/`S24`/`S25` start-ready status is tied to the
-  populated rows and `ProjectionExpectationCorpusTest`
+  layer; current `S05`/`S06`/`S07`/`S08`/`S11`/`S13`/`S14`/`S15`/`S16`/`S17`/`S18`/`S19`/`S21`/`S22`/`S23`/`S24`/`S25` start-ready status is tied to
+  the populated rows and `ProjectionExpectationCorpusTest`
 - live/runtime broad deployment remains ungranted branch-wide; the current test
   suite reports the wave-7 global closure set as complete broad-coverage bands
   from the JSONL corpus
 - start-ready bands and unresolved blockers live in
   [StrategyProjectionBoundaryMatrix.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/StrategyProjectionBoundaryMatrix.md)
-- the previous unresolved `S17`/`S23`/`S24` blockers and the new `S25`
-  start-ready candidate are closed at the
-  start-ready boundary; live projection runtime is still a later layer task
+- the previous unresolved `S05`/`S13`/`S14`/`S17`/`S18`/`S19`/`S22`/`S23`/`S24` blockers and the `S25`
+  start-ready candidate are closed at the start-ready boundary; their live
+  runtime admission remains narrow and does not grant broad deployment
 
 ### Layer 5: Planner Validation
 
