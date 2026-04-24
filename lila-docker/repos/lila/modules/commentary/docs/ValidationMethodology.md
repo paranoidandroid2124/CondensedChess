@@ -1,4 +1,4 @@
-# Validation Methodology
+﻿# Validation Methodology
 
 This document defines how the `commentary` backend will be validated over many
 exact chess positions without falling back into ad hoc reruns and layered
@@ -28,6 +28,40 @@ The methodology inherits three strict lessons from the previous branches.
 2. best-defense matters whenever the claim is persistence-bearing,
    denial-bearing, or comparative
 3. replay surfaces must consume carried contracts, not recomposed meaning
+
+Source-context validation adds a separate metadata gate. Opening move-stat
+sources are admitted only when manifest scope, use, license, provenance,
+checksum, storage policy, and parser version are explicit. Online trend and
+master reference statistics are context references, not exact-board truth:
+they may not create claims about optimal moves, theoretical truth, forced lines,
+results, or engine evidence. Master reference rows additionally require
+attribution/share-alike notice, OTB/online scope, player-level policy, date
+window, time-control scope,
+dedupe policy, annotation policy, and per-position sample-size threshold before
+any local-only ingest can be treated as a valid source statistic.
+Opening source consumption adds one more executable metadata gate:
+`OpeningContextCandidate` fixtures must preserve exact `positionKey` and source
+taxonomy identity, keep master-reference and online-trend vectors separate,
+downgrade or suppress below-threshold master rows, reject pipeline-smoke-only
+input, and defer specific game citation to retrieval.
+
+Endgame study source-context validation is exact-board context validation, not
+oracle validation. Study labels are admitted only when `materialClass`,
+`sideToMove`, placement rules, and relation rules are all satisfied by
+FEN-derived board evidence. The admitted labels may carry human-known technical
+pattern context and candidate-plan tokens, but they must not claim win, draw,
+loss, forced conversion, tablebase/Syzygy truth, WDL/DTZ/DTM, best moves, or
+Sxx admission. Labels that need pawn-race calculation, fortress certification,
+tempo-route proof, or tablebase-style result evidence remain deferred until a
+separate exact-board certification owner exists.
+The exact-board helper also checks piece ownership where material identity
+depends on it: rook-pawn-vs-rook requires one rook for each side, and wrong
+rook-pawn bishop context requires the bishop to belong to the pawn side.
+Opposition rows require empty king lines for the declared opposition relation,
+and Vancura/Lucena subcontexts require their declared rook geometry relation
+rather than material counts alone.
+Accepted endgame fixture refs must pair `endgame-study:<studyId>:applicable`
+with `endgame-study-applicability:<fixture-id>`.
 
 ## Canonical Validation Ladder
 
@@ -1092,11 +1126,11 @@ only the exact S01, S02, S03, and S04 live-runtime slices:
   `ObjectSupportOnly:AttackScaffold(non_truth_owner)` and
   `CertificationSupportOnly:ComparativeKingFragility|CertifiedKingSafetyEdge(non_truth_owner)`.
 - `S04`: same-defender `KingSafetyShell`, shell-payload or support-break
-  breach, and same-defender certified king-safety deterioration; shell-only
-  weakness and generic attack pressure remain fail-closed. Positive S04 broad
-  rows must declare `KingSafetyShell` as required defender lower object support,
-  not optional strengthening; the support-break row must additionally declare
-  exact diagonal-lane support, so
+  breach, and same-owner `CertifiedKingSafetyEdge` bound to that defender
+  shell; shell-only weakness and generic attack pressure remain fail-closed.
+  Positive S04 broad rows must declare `KingSafetyShell` as required defender
+  lower object support, not optional strengthening; the support-break row must
+  additionally declare exact diagonal-lane support, so
   `shell_payload_and_support_break_use_distinct_declared_support_burdens`.
   Its live validation scaffold now additionally freezes
   `same_task_projection_evidence_must_mirror_s04_owner_defending_king_shell_anchor_breach_squares_and_route`,
@@ -1115,7 +1149,8 @@ only through exact same-anchor `king_wing_storm_route_certified` rows and S02
 only through exact same-king `king_ring_concentration_route_certified` rows;
 S03 only through exact same-king `diagonal_king_attack_route_certified` rows;
 S04 only through exact same-defender `king_shelter_breach_route_certified`
-rows. S04 coverage rows remain countable, but any evidence-empty, stale,
+rows with same-owner `CertifiedKingSafetyEdge` support. S04 coverage rows
+remain countable, but any evidence-empty, stale,
 wrong-owner, wrong-defender, wrong-shell, wrong-route, support-only,
 shell-only, certification-only, attack-scaffold-only,
 optional-strengthening-only, S01 storm, S02 concentration, S03 diagonal attack,
@@ -1430,6 +1465,8 @@ Current contract-closure status:
 Purpose:
 
 - prove that only certified typed deltas choose primary question lanes
+- prove that synthesis/editor selection chooses lead/support/context/suppress
+  only from already admitted typed claims
 
 Checks:
 
@@ -1439,16 +1476,241 @@ Checks:
 - `WhyNow`
 - `WhatMustBeStopped`
 - `planner_none`
+- `CommentaryOutline`
+- `ClaimBucket`
+- `SuppressionReason`
+- `wordingStrengthCap`
 
 Primary corpora:
 
 - `planner-expectations.jsonl`
+
+Current selector contract:
+
+- owned by
+  [CommentarySelectionContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentarySelectionContract.md)
+- executable model under `lila.commentary.selection`
+- synthetic selector contract rows in `planner-expectations.jsonl`
+- renderer safety scaffold rows in `surface-expectations.jsonl`
+- upstream exact-board truth remains owned by Root, Object, Delta,
+  Certification, and Sxx admission tests; selector rows validate outline
+  bucketing/suppression for typed inputs and do not replace FEN/PGN-backed
+  source proof
+
+Selection rules:
+
+- exact-board admitted typed claims are considered before context
+- lead bucket priority is `mustLead > shouldLead > canLead`; impact score and
+  `novelty` are same-bucket tie-breaks only
+- Engine E only reaches selection through Certification
+- `EngineCertification` refs require same-root `Certification` evidence with
+  matching owner, anchor, route, and scope before they can influence selection
+- unscoped `Certification`, `EngineCertification`, or engine-certified board
+  reason refs fail closed before ranking
+- raw engine evidence is suppressed with `raw_engine_only` and
+  `no_board_reason`
+- raw engine lower carriers are suppressed on both Sxx Projection claims and
+  non-Projection board claims
+- source/retrieval context cannot become current-position truth
+- source/retrieval refs cannot serve as board-claim evidence
+- S24 is not the generic tactic owner
+- S24 must carry both `same_target_forcing_realization` and
+  `same_target_conversion_certified`
+- Sxx lower carriers must carry owner, anchor, route, and scope binding
+- ambiguous side-to-move, owner, beneficiary, or defender fails closed
+- duplicate suppression is scoped to competing Sxx projections
+- renderer requests cannot upgrade `wordingStrengthCap`
+
+Current runtime-expansion selection rows add the S07/S08/S21
+initiative/release/counterplay cluster:
+
+- exact admitted S07 initiative conversion can be selected as `shouldLead`
+- nonredundant S21 counterplay survival can remain `support`
+- adjacent S08 release-denial rivals can be suppressed with `rival_band`
+- support-only InitiativeWindow, raw-engine initiative shortcuts, source
+  context, and wrong owner/anchor/route/scope inputs fail closed
+- renderer strength requests against this cluster still produce
+  `renderer_not_allowed`
+
+Current runtime-expansion selection rows also add the S15/S16 passer
+creation/suppression cluster with S13/S14 structural support:
+
+- exact admitted S15 can be selected as `shouldLead` only when same-owner
+  Root `candidate_passer` and Witness same-candidate creation-route lower
+  support are bound on frozen `s13_wing_damage` or `s14_chain_base` routes
+- exact admitted S16 can be selected as `shouldLead` only when same-enemy
+  defender-owned enemy Witness `passed_pawn_entity_state` and route-specific
+  same-owner certification support are bound: `FortressDrawCertification` for
+  `blockade_hold`, `short_run_slider_gate_restriction` plus
+  `PerpetualCheckHolding` for `restriction_hold`, and `PromotionRace` for
+  `non_losing_race`
+- S13/S14 support for S15 requires same owner, candidate anchor, and scope
+- S13/S14 remain support and do not become S15 truth owners, even when their
+  impact score is higher than the admitted S15 claim
+- existing-passer-only, blocker-shell-only, split-anchor, forged carrier-kind,
+  unsupported-route, wrong owner/anchor/route/scope, ambiguous or incoherent
+  beneficiary/defender/side-to-move rival bindings, S16 self-owned passer
+  suppression, raw-engine, source-context, retrieval, and renderer-strength
+  shortcuts fail closed
+
+Current runtime-expansion selection rows also add the S17/S18/S19/S22
+conversion/simplification/hold cluster:
+
+- exact admitted S17 can be selected as `shouldLead` only when same-owner
+  Witness `same_piece_liability_anchor_seed`, typed
+  `same_piece_repair_route_seed` or `same_piece_exchange_relief_seed` lower
+  support, and `liability_relief_certified` projection evidence are bound
+- exact admitted S18 can be selected as `shouldLead` only when same-owner
+  Witness `bishop_pair_state` and route-specific Certification support are
+  bound for `bishop_pair_to_initiative`, `bishop_pair_to_structure`, or
+  `bishop_pair_to_material`
+- exact admitted S19 can be selected as `shouldLead` only when same-owner Delta
+  `TradeInvariant` and route-specific Certification support are bound for
+  `trade_invariant_to_material` or `trade_invariant_to_hold`
+- exact admitted S22 can be selected as `shouldLead` only when same-owner
+  certified `fortress_draw_hold` or `perpetual_hold` support is bound
+- declared Projection evidence must be bound to the same owner, anchor, route,
+  and scope as the selected S17/S18/S19/S22 claim
+- S19 remains below same-owner/anchor/scope S17 liability-relief, S18
+  bishop-pair conversion, and S22 hold ownership
+- conversion claims remain below certified hold unless result/material impact
+  and the `bishop_pair_to_material` route with bound
+  `bishop_pair_material_conversion_certified` evidence justify conversion
+- generic relief wording, unbacked conversion, wrong owner/anchor/route/scope,
+  raw-engine, source-context, retrieval, and renderer-strength shortcuts fail
+  closed
+
+Current runtime-expansion selection rows also add the S01/S02/S03/S04
+king-attack cluster:
+
+- exact admitted S01 can be selected as `shouldLead` only when same-owner
+  Witness `available_lever_trigger`, Witness
+  `pawn_push_break_contact_source`, Object `AttackScaffold`, Certification
+  `CertifiedKingSafetyEdge`, and bound `king_wing_storm_route_certified`
+  projection evidence are present on frozen `same_wing_contact` or
+  `attack_edge_same_king` routes
+- exact admitted S02 can be selected as `shouldLead` only when same-owner
+  Object `AttackScaffold`, Certification `CertifiedKingSafetyEdge`, and bound
+  `king_ring_concentration_route_certified` projection evidence are present on
+  frozen `direct_piece_concentration` or `lane_strengthened_concentration`
+  routes
+- exact admitted S03 can be selected as `shouldLead` only when same-owner
+  Witness `diagonal_lane_only`, Object `AttackScaffold`, Certification
+  `ComparativeKingFragility`, Certification `CertifiedKingSafetyEdge`, and
+  bound `diagonal_king_attack_route_certified` projection evidence are present
+  on frozen `king_facing_diagonal_entry` or `fragility_linked_diagonal` routes
+- exact admitted S04 can be selected as `shouldLead` only when same-owner
+  Certification `CertifiedKingSafetyEdge`, defender-owned Object
+  `KingSafetyShell`, and bound `king_shelter_breach_route_certified`
+  projection evidence are present on frozen `shell_payload_breach` or
+  `support_break_breach` routes; `support_break_breach` also requires
+  same-owner Witness `diagonal_lane_only`
+- owner, defending king anchor, defender, route, and scope must stay clear;
+  king-attack projection fails closed when `owner` and `defender` identify the
+  same side
+- same-king S01/S02/S03/S04 claims remain nonredundant when route or anchor
+  keeps exact storm, concentration, diagonal attack, and shelter-breach claims
+  distinct
+- certified result/conversion owners may outrank king-attack projections, but
+  raw engine eval cannot
+- generic attack wording, king-side vibes, source/retrieval motif tags, wrong
+  owner/anchor/route/scope, raw-engine, and renderer-strength shortcuts fail
+  closed
+
+Current runtime-expansion selection rows also add the engine-certified eval
+swing versus board-explainable Sxx conflict boundary:
+
+- raw engine eval swing is always suppressed with `raw_engine_only` and
+  `no_board_reason`
+- bounded `EngineCertification` can influence ranking only through a
+  Certification-layer claim with same-root `Certification` evidence and a
+  same-binding typed Root, Witness, Object, or Delta board reason
+- engine-certified eval swing without that board reason is suppressed with
+  `no_board_reason`
+- board-explainable admitted Sxx can beat a larger opaque engine-certified
+  eval swing
+- engine-certified result/material Certification can beat Sxx only when the
+  result/material impact and same-binding typed board reason justify it
+- stale, wrong-node, wrong-FEN, wrong-route, and wrong-engine-config
+  `EngineCertification` refs are suppressed before ranking with
+  `stale_evidence`, `wrong_owner`, `wrong_anchor`, `wrong_route`, or
+  `scope_mismatch`
+- MultiPV ambiguity cannot become best-defense or lead explanation after
+  Certification rejection; mate/cp comparison cannot become a scalar ranking
+  shortcut unless normalized by the certification contract
+- renderer/surface rows freeze that eval swing cannot be upgraded into best
+  move, winning, or forced-result wording
+
+Current runtime-expansion selection rows also add source-context fallback
+breadth:
+
+- opening context can be emitted as `contextOnly` only when no exact-board
+  lead exists; it cannot become best move, theory truth, forced line, result,
+  or current-position proof; canonical fallback requires
+  `opening-position:*:canonical`, while `opening-position:*:ambiguous` is
+  suppressed
+- endgame-study context can be emitted as `contextOnly` only with exact
+  material/placement applicability matched between `endgame-study:*:applicable`
+  and `endgame-study-applicability:*`; result-language and forced-conversion
+  shortcuts are suppressed
+- retrieval can be emitted only as non-authoritative reference context and
+  stays marked with `retrieval_non_authoritative`; retrieval similarity keys
+  are closed per `similarityKind`, exact-position keys must match the row
+  `positionKey`, opening pawn-structure tokens must match the example FEN,
+  motif/endgame refs must resolve to local fixture refs and match the declared
+  motif/study plus row FEN when cross-source validation is available, and
+  retrieval truth-promotion ids are suppressed
+- motif tags require exact detector carrier evidence before they are usable
+  context; `motif-example:*` must match `motif-detector-carrier:*`, deferred
+  motif ids such as `back_rank_mate` remain suppressed, and tags alone,
+  mismatched carriers, or truth/Sxx/result/engine shortcut ids are suppressed
+  with `forbidden_shortcut` and `no_board_reason`
+- exact-board leads keep source rows bounded to support/context and prevent
+  source rows from becoming lead truth
+- ambiguous opening transpositions are suppressed with
+  `ambiguous_transposition`
+- gameContext, practicality, tablebase, and endgame result-service families
+  remain deferred or rejected with `forbidden_shortcut`
+- renderer/surface rows freeze that source context cannot be upgraded into
+  current-position truth, best move, result, forced line, or theory-proof
+  wording
+- global closure rows freeze that every `S01-S25` start-ready band can be
+  selected when it is already admitted with exact owner, anchor, route, scope,
+  row-specific lower-carrier role shape, and its frozen allowed projection
+  evidence kind. This proves selector breadth only; projection admission,
+  cluster-specific rival handling, and suppression laws remain owned by their
+  lower contracts and targeted selection rows.
+- global closure keeps S06 tied to same-route
+  `SpaceBindRestrictionCertification`, and S16 tied to route-specific
+  `FortressDrawCertification`, `PerpetualCheckHolding`, or `PromotionRace`
+  support, matching the current projection authority.
+- selection rival rows must be executable without preloaded suppression hints:
+  S07/S08 and S15/S16 `rival_band` is derived by the selector from typed
+  admitted claims.
+- source-context rows reject opening best-move, theory-truth,
+  current-position-proof, forced-line, and result-style refs before selected
+  context evidence is emitted.
+- selected source-context payloads are capped at `context_only`, and no
+  selected claim payload may carry a stronger cap than the computed outline
+  `wordingStrengthCap`.
+- safe selected source-context rows carry `source_context_only` or
+  `retrieval_non_authoritative` as soft context reasons on the selected item,
+  not as suppressed claims. `suppressedClaims` remains reserved for rows the
+  renderer must not revive.
 
 ### Layer 6: Surface Validation
 
 Purpose:
 
 - prove that replay or wrapper surfaces do not reinflate weakened truth
+- freeze that renderer/surface code cannot strengthen a selector outline or
+  `CommentaryPlan`
+- prove that the outline builder maps selector-owned structure without adding
+  meaning before renderer prose exists
+- prove that the renderer contract maps `CommentaryPlan` into structured
+  role-based render output with deterministic role fragments only, and without
+  broad chess narration, API wiring, frontend wiring, raw engine intake, or raw
+  source truth
 
 Checks:
 
@@ -1456,10 +1718,129 @@ Checks:
 - support-only non-revival
 - deferred non-revival
 - whole-game wrapper leak checks
+- `renderer_not_allowed`
+- `wordingStrengthCap` preservation
+- selected claim payload cap clamping, with source context capped at
+  `context_only`
+- no renderer-side lead admission
+- no renderer-side ranking
+- no renderer-side source-truth conversion
+- no renderer-side suppression discard
+- no renderer-side raw-engine rendering
+- no renderer-side unpaired `EngineCertification` rendering
+- no renderer-side board-reason-unbacked `EngineCertification` rendering
+- no renderer-side evidence invention
+- no renderer-side publication of plan-wide evidence without unblocked public
+  selected-claim ownership
+- no renderer-side opening `master_reference` / `online_trend` merge
+- blocked claims remain non-public suppression metadata by default
+- selected-plus-blocked malformed plans cannot revive the blocked claim through
+  public blocks, public evidence refs, or public boundary metadata
+- hidden and no-commentary plans stay silent without fallback chess narration
+  or public evidence refs
+- no outline-builder lead selection, support reranking, source-truth
+  promotion, suppressed-claim revival, evidence recomputation, or
+  wording-strength upgrade
+- selected source-context `softReasons` preserved as context boundary metadata
+- context-only outlines remain no-main context-only plans
+- empty selected commentary sections produce a `noCommentary` plan while
+  preserving blocked claims and evidence references
+- opening source context stays structured; `master_reference` and
+  `online_trend` references are not merged, and specific-game citation remains
+  retrieval-lane material
+- opening source-context refs carrying specific game, player, event, URL, or
+  raw HTTP citation material fail closed before context fallback
 
 Primary corpora:
 
 - `surface-expectations.jsonl`
+
+Executable owner:
+
+- `modules/commentary/src/main/scala/lila/commentary/selection/CommentaryOutlineBuilder.scala`
+- `modules/commentary/src/test/scala/lila/commentary/selection/CommentaryOutlineBuilderContractTest.scala`
+- `modules/commentary/src/main/scala/lila/commentary/render/CommentaryRenderer.scala`
+- `modules/commentary/src/test/scala/lila/commentary/render/CommentaryRendererContractTest.scala`
+
+Contract authority:
+
+- `modules/commentary/docs/CommentaryOutlineBuilderContract.md`
+- `modules/commentary/docs/CommentaryRendererContract.md`
+
+## Backend Commentary Seam Validation
+
+The backend seam validation freezes the first future-frontend-facing structured
+request/response contract without opening frontend UI, API controller wiring,
+live source integration, or model-authored prose generation.
+
+Validation checks:
+
+- exact-board `currentFen` intake fails closed before any render output
+- optional `beforeFen` and `playedMove` are all-or-nothing and validate through
+  the existing fail-closed delta path
+- optional `RuntimeEnginePacket` is accepted only by
+  `CertificationEngineRuntimeIntake`
+- `EngineEvidencePacket`, raw eval, raw PV, centipawn, mate, and engine labels
+  are not response evidence
+- accepted engine intake without matching bounded engine evidence refs by
+  canonical id, owner, and anchor cannot unlock `EngineCertification` claims
+- engine-intake debug reasons are sanitized keys, not raw certification
+  validation messages
+- response `status` mirrors `CommentaryRender.status` for valid requests
+- malformed input returns `invalidRequest` plus silent
+  `RenderStatus.NoCommentary`
+- public payload carries `CommentaryRender` blocks, evidence refs, boundaries,
+  wording, and no-commentary state without requiring frontend reranking
+- blocked claims and suppression reasons are hidden by default
+- debug/internal metadata is explicitly separate, server-owned, and cannot
+  revive blocked claims
+- opening source context remains context-only; `master_reference` and
+  `online_trend` refs stay separate
+- no admitted claim produces no fallback broad chess narration
+- JSON request/response round trip preserves stable role/status keys
+
+Executable owner:
+
+- `modules/commentary/src/main/scala/lila/commentary/api/CommentaryBackendSeam.scala`
+- `modules/commentary/src/test/scala/lila/commentary/api/CommentaryBackendSeamContractTest.scala`
+
+Contract authority:
+
+- `modules/commentary/docs/CommentaryBackendSeamContract.md`
+
+## Minimal Frontend Bridge Validation
+
+The minimal frontend bridge validation freezes the adapter-only analyse-side
+contract for consuming backend `CommentaryResponse` / `CommentaryRender`
+payloads before a frontend rewrite.
+
+Validation checks:
+
+- request building emits only `currentFen`, optional paired `beforeFen` /
+  `playedMove`, `nodeId`, `ply`, and optional `enginePacket`
+- raw source context and opening candidate fields are not accepted as request
+  truth
+- public decoding returns only public render blocks, public evidence refs,
+  public boundaries, and wording cap
+- `internal`, blocked claims, suppressions, engine-intake diagnostics, and
+  invalid-input reasons are not exposed as public display data
+- `noCommentary`, `hidden`, `negative_only`, and `invalidRequest` are silent
+  public states
+- `contextOnly` remains non-authoritative display and the bridge adds no
+  best-move, theory-truth, forced-line, result, or engine wording
+- stale `currentFen`, `nodeId`, or `ply` after the async response is discarded
+  as `stale_node`
+- the bridge does not rank, admit, suppress, revive, reinterpret, merge source
+  rankings, render raw engine values, or upgrade wording
+
+Executable owner:
+
+- `ui/analyse/src/chesstory/commentaryBridge.ts`
+- `ui/analyse/tests/commentaryBridge.test.ts`
+
+Contract authority:
+
+- `modules/commentary/docs/CommentaryFrontendBridgeContract.md`
 
 ## Source Context Validation
 
@@ -1472,6 +1853,10 @@ The current executable owner is:
 
 - `modules/commentary/src/test/scala/lila/commentary/source/SourceContextCorpus.scala`
 - `modules/commentary/src/test/scala/lila/commentary/source/SourceContextCorpusTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/source/opening/OpeningSourceToolingTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/source/opening/OpeningSourceConsumptionTest.scala`
+- `modules/commentary/src/test/tooling/retrieval/retrieval_quality_index.py`
+- `modules/commentary/src/test/tooling/retrieval/retrieval_quality_index_test.py`
 
 The current fixture files are:
 
@@ -1480,12 +1865,15 @@ The current fixture files are:
 - `opening-positions.jsonl`
 - `opening-move-stats.jsonl`
 - `opening-themes.jsonl`
+- `opening-aliases.jsonl`
+- `opening-context-candidates.jsonl`
 - `motif-examples.jsonl`
 - `motif-reject-fixtures.jsonl`
 - `endgame-studies.jsonl`
 - `endgame-study-fixtures.jsonl`
 - `endgame-study-reject-fixtures.jsonl`
 - `retrieval-examples.jsonl`
+- `retrieval-reject-fixtures.jsonl`
 
 Validation rules:
 
@@ -1498,16 +1886,79 @@ Validation rules:
   context
 - opening candidates remain statistics or references, not best-move or theory
   truth
+- opening display/context aliases must preserve the exact taxonomy source row;
+  unsupported Anti-Meran wording remains rejected rather than leaking through
+  a generic Meran row
+- opening trend-stat source rows require recent year/month, matching
+  `yearMonth`, bucket metadata, `ratedOnly`, parser version, checksum, and
+  local-only generated storage
 - ambiguous opening transpositions are downgraded rather than indexed as
   canonical
 - motif tags require exact-board detector carriers before they can count as a
-  motif example
+  motif example; admitted motif fixture FENs must still emit their declared
+  U/root/certification carrier through the current backend extractors
+- the frozen motif source contract validates `MotifExample` rows only as
+  source/context/test-tooling material: admitted rows must bind
+  `motif-example:<id>` to `motif-detector-carrier:<id>`, declare
+  `displayName`, `involvedSquares`, strict `sourceRefs`, and
+  `negativeBoundaries`, reject unknown top-level and nested carrier fields, and
+  keep `currentPositionClaim=false`
+- admitted motif ids are limited to `loose_piece`, `pin`, `fork`, `skewer`,
+  `overload`, `trapped_piece`, `mate_net`, and `perpetual_check`; `mate_net`
+  and `perpetual_check` require certification carriers
+- `discovered_attack`, `deflection`, `back_rank`, `clearance`, and
+  `interference` remain deferred/helper-required motif ids until an exact
+  current-branch detector contract exists
 - endgame-study labels require exact material, placement, and relation
   evidence before they can become context
 - endgame-study context cannot claim win, draw, loss, forced conversion, or
   forced line
-- retrieval snippets remain non-authoritative examples and cannot become
-  current-position truth
+- admitted endgame-study source fixtures currently cover Lucena, Philidor,
+  Vancura, basic opposition, distant opposition, wrong rook pawn with wrong
+  bishop, and active rook behind the passed pawn; outside passer, fortress,
+  rook on seventh, triangulation, corresponding squares, shouldering,
+  breakthrough, and reserve tempo remain deferred
+- accepted endgame-study fixtures must bind exact-board applicability refs, and
+  reject fixtures must still parse as exact clean FENs before they can count as
+  negative evidence
+- retrieval examples remain non-authoritative source-backed references and
+  cannot become current-position truth. Accepted rows must carry
+  `retrievalId`, `sourceId`, `sourceRef`, exact FEN, normalized `positionKey`,
+  matching `sideToMove`, typed `similarityKey`, `similarityScore`,
+  `similarityKind`, `matchedFeatures`, `sourceQuality`, optional citation
+  metadata with license/attribution when present, `snippetRole`,
+  `currentPositionClaim=false`, `authority=retrieval_example`, tags, and
+  negative boundaries. Reject rows cover missing source/provenance keys,
+  FEN/position-key/side-to-move mismatch, low similarity, duplicate source
+  refs, truth/result/best/forced wording, coded result/proof tokens such as
+  WDL, DTZ, DTM, `1-0`, `0-1`, or `1/2-1/2` in proof-bearing fields,
+  result-as-claim leakage, same-opening wrong-structure false positives
+  including token-consistent wrong structure, exact-position rows with false
+  optional opening structure, motif tag without exact carrier, borrowed
+  motif/endgame refs, mixed-feature attempts to bypass or omit the same
+  family-specific FEN/ref checks, truth-bearing `retrievalId`/`sourceRef`
+  evidence ids, and unknown fields.
+- retrieval quality index tooling is validated as local-only test/tooling output:
+  `retrieval_quality_index.py` may generate `retrieval-index.jsonl`,
+  `retrieval-rejects.jsonl`, and `retrieval-summary.json` only below
+  `tmp/commentary-opening/retrieval/`. The quality report records total,
+  accepted, rejected-by-reason, duplicate source-ref, duplicate normalized
+  similarity-evidence, low-similarity, exact/feature split, and citation
+  completeness counts. It also records a `qualityReport` with the local
+  quality decision, high-quality accepted count, low-confidence/suppressed
+  count, display-candidate count, source-quality comparison, nasty-negative
+  reject results, validator-reason reject counts, and the retrieval
+  consumption policy. Nasty-negative quality buckets are counted from
+  validator reasons, not fixture-facing labels, so reject fixtures cannot
+  inflate a validator boundary they did not actually hit. These generated files
+  are ignored local artifacts, not runtime inputs. Accepted quality rows require
+  license and attribution fields; reject-ledger rows keep fixture
+  `rejectReason` as report `reason` and store local validator detail separately
+  as `validatorReason`.
+- retrieval quality audit passes only when `displayCandidateCount=0`, retrieval
+  remains an optional citation/example layer, default prose stays game/player/
+  event/result silent, and retrieval never outranks master-reference
+  statistics, source statistics, or certification.
 
 ## Corpus Taxonomy
 
@@ -1646,9 +2097,9 @@ Every engine-backed validation row should carry or derive:
 - `variationHash`
 - `engineConfigFingerprint`
 
-The old branch already used this shape in
-`lila-docker/repos/lila/modules/llm/src/main/scala/lila/llm/model/ProbeModel.scala`
-and `ProbeDetector.scala`.
+Current-worktree validation authority is the commentary certification and
+probe scaffold under `modules/commentary`; branch-external probe paths are not
+live authority for this worktree.
 
 ### Depth And MultiPV Policy
 

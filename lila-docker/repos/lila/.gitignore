@@ -70,6 +70,8 @@ instance.lock
 .lila-cli
 
 *.log
+__pycache__/
+*.pyc
 compile_errors*.txt
 .tmp_sf_in.txt
 

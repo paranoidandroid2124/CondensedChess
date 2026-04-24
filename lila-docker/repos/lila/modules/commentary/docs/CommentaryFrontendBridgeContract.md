@@ -1,0 +1,142 @@
+# Commentary Frontend Bridge Contract
+
+`CommentaryFrontendBridgeContract` freezes the minimal frontend bridge before
+any product UI rewrite.
+
+It opens only a disposable analyse-side adapter/hook for `CommentaryRender`
+transport. It does not open a new analysis panel, polished UI, frontend
+rewrite, source live integration, LLM prose generation, or local chess meaning
+creation.
+
+Short form: no product UI.
+
+## Adapter Scope
+
+The first bridge lives in:
+
+- `ui/analyse/src/chesstory/commentaryBridge.ts`
+
+The executable scaffold lives in:
+
+- `ui/analyse/tests/commentaryBridge.test.ts`
+
+The bridge exposes stable adapter functions:
+
+- `buildCommentaryRequest`
+- `decodePublicCommentaryRender`
+- `fetchCommentaryRender`
+
+These are request/response helpers only. They are not a view component and do
+not own presentation layout.
+
+## Request
+
+`buildCommentaryRequest` may send only the backend `CommentaryRequest` fields:
+
+- `currentFen`
+- optional paired `beforeFen`
+- optional paired `playedMove`
+- `nodeId`
+- `ply`
+- optional `enginePacket`
+
+The frontend request must not include selector claims, source rows,
+`OpeningContextCandidate`, opening fixture JSON, blocked/suppression hints,
+wording-strength requests, debug/internal toggles, or generated text.
+
+If `beforeFen` or `playedMove` is missing, the adapter omits both. The backend
+remains the authority for transition validation.
+
+`enginePacket` is passed only as certification runtime intake for the backend
+seam. The bridge must not display raw engine packet fields as text or public
+evidence.
+
+## Response
+
+`decodePublicCommentaryRender` consumes the backend `CommentaryResponse` and
+returns either:
+
+- a public render payload copied from public `CommentaryRender` fields, or
+- an empty state.
+
+Public fields are:
+
+- response/render status
+- render `schemaVersion`
+- public render blocks
+- block `wordingStrength`
+- block `evidenceIds`
+- public evidence refs
+- public boundaries
+- public wording cap
+- public `forbiddenTerms` metadata carried by render text and wording
+
+Internal fields are not public:
+
+- `internal`
+- internal suppressions
+- engine intake status and reason
+- invalid request reason
+- any blocked/suppressed claim metadata
+
+The bridge must not expose `internal` on the public display payload.
+
+## Forbidden Frontend Responsibilities
+
+The frontend bridge must not rank claims.
+
+The frontend bridge must not admit claims.
+
+The frontend bridge must not revive suppressed or blocked claims.
+
+The frontend bridge must not promote source, opening, motif, endgame-study, or
+retrieval context to current-position truth.
+
+The frontend bridge must not merge `master_reference` and `online_trend`
+rankings.
+
+The frontend bridge must not render raw engine eval, PV, centipawn, mate,
+depth, or engine labels as commentary.
+
+The frontend bridge must not upgrade wording.
+
+The frontend bridge must not create best-move, theory-truth, forced-line,
+result, winning, drawing, or oracle wording.
+
+The frontend bridge may show or hide backend render blocks only.
+
+## Status Handling
+
+The bridge treats these states as silent public output:
+
+- backend `invalidRequest`
+- response `noCommentary = true`
+- render `status = noCommentary`
+- wording `maxStrength = hidden`
+- wording `maxStrength = negative_only`
+
+`contextOnly` may display backend context blocks only as non-authoritative
+context. The bridge must not add theory, best-move, forced-line, result, or
+engine wording around those blocks.
+
+## Stale Node Handling
+
+`fetchCommentaryRender` binds a request to the current exact node identity:
+
+- `currentFen`
+- `nodeId`
+- `ply`
+
+After the response returns, the adapter checks the current node identity again.
+If `currentFen`, `nodeId`, or `ply` changed, the response is discarded as
+`stale_node` and no public blocks are exposed.
+
+Wrong-ply, stale-node, and engine mismatch states are fail-closed display
+states. They must not trigger local reinterpretation.
+
+## Future UI Rewrite Boundary
+
+The bridge is intentionally replaceable. A future frontend rewrite may consume
+the same backend `CommentaryResponse`, but it must still treat
+`CommentaryRender` as final display data and must not move ranking, admission,
+suppression, source truth, or engine interpretation into the frontend.

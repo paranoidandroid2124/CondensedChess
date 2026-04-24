@@ -113,6 +113,271 @@ and
 [CommentaryCoreBoundaryTest.scala](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/src/test/scala/lila/commentary/CommentaryCoreBoundaryTest.scala)
 for the current-worktree verification boundary.
 
+## Selection Boundary
+
+The first synthesis/editor selection contract is frozen in
+[CommentarySelectionContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentarySelectionContract.md).
+
+It introduces structured selector data only:
+
+- `CommentaryClaim`
+- `ClaimImpact`
+- `ClaimBucket`
+- `SelectedClaim`
+- `SuppressedClaim`
+- `SuppressionReason`
+- `EvidenceRef`
+- `CommentaryOutline`
+- `WordingStrength`
+
+This does not open renderer, API, or frontend wiring.
+
+Selection consumes already admitted typed claims from the current branch
+pipeline. It may choose `mustLead`, `shouldLead`, `canLead`, `support`,
+`contextOnly`, or `suppress`, but it must not create chess truth. Engine E only
+reaches selection through Certification; an `EngineCertification` evidence ref
+is selectable only when same-root `Certification` evidence with matching owner,
+anchor, route, and scope is also present. Missing scope on the claim,
+Certification ref, EngineCertification ref, or engine-certified board reason
+fails closed before ranking. Source context remains context-only
+unless an exact-board lead is already selected, and even then it remains
+non-authoritative. Source context refs cannot serve as board-claim evidence.
+Raw engine refs cannot be smuggled through another layer or through Sxx lower
+carriers, and they cannot be hidden as lower carriers on non-Projection board
+claims. Sxx lower carriers must carry owner, anchor, route, and scope binding.
+S24 is not the generic tactic owner and requires both same-target
+forcing and same-target conversion evidence at selection. Selected claim
+payloads are clamped to the computed outline `wordingStrengthCap`; selected
+source-context payloads remain capped at `context_only`.
+Lead bucket priority is frozen as `mustLead > shouldLead > canLead`; impact
+axes, including `novelty`, rank claims only inside the selected lead bucket.
+Duplicate suppression is scoped to competing Sxx projections; lower Object,
+Delta, and Certification carrier/support claims are not duplicate-suppressed
+just because they share an owner, anchor, route, and scope key.
+
+The current selection runtime expansion covers the S07/S08/S21
+initiative/release/counterplay rival cluster. It consumes only already
+admitted Projection, Certification, Engine, and SourceContext claims. Exact S07
+initiative conversion may lead, nonredundant S21 counterplay survival may
+support, adjacent S08 rivals can be suppressed with `rival_band`, and
+support-only, raw-engine, source-context, wrong-binding, and renderer-strength
+shortcuts remain fail-closed.
+
+Selection also covers the S15/S16 passer creation/suppression cluster with
+S13/S14 structural support. It consumes already admitted S13/S14/S15/S16 typed
+Projection claims only. Exact S15 can lead only when the same-owner
+Root `candidate_passer` and Witness same-candidate creation-route lower support
+are bound to the selected candidate anchor on frozen `s13_wing_damage` or
+`s14_chain_base` routes. Exact S16 can lead only when the defender-owned enemy
+Witness `passed_pawn_entity_state` and route-specific same-owner certification
+support are bound: `FortressDrawCertification` for `blockade_hold`,
+`short_run_slider_gate_restriction` plus `PerpetualCheckHolding` for
+`restriction_hold`, and `PromotionRace` for `non_losing_race`.
+S13/S14 can support S15 only with the same owner, candidate anchor, and scope;
+they remain support and do not become S15 truth owners, even when their impact
+score is higher than the admitted S15 claim. Existing-passer-only,
+blocker-shell-only, split-anchor, forged carrier-kind, unsupported-route,
+S16 self-owned passer suppression where `owner` and `defender` name the same
+side, ambiguous or incoherent side/beneficiary/defender rival bindings,
+raw-engine, source-context,
+retrieval, and renderer-strength shortcuts remain fail-closed.
+
+Selection also covers the S17/S18/S19/S22 conversion/simplification/hold
+cluster. It consumes already admitted S17/S18/S19/S22 typed Projection claims
+only. Exact S17 can lead only with same-owner Witness
+`same_piece_liability_anchor_seed`, typed `same_piece_repair_route_seed` or
+`same_piece_exchange_relief_seed` support, and `liability_relief_certified`
+projection evidence. Exact S18 can lead only with same-owner Witness
+`bishop_pair_state` and route-specific Certification support for
+`bishop_pair_to_initiative`, `bishop_pair_to_structure`, or
+`bishop_pair_to_material`. Exact S19 can lead only with same-owner Delta
+`TradeInvariant` and route-specific Certification support for
+`trade_invariant_to_material` or `trade_invariant_to_hold`. Exact S22 can lead
+only with same-owner certified `fortress_draw_hold` or `perpetual_hold`
+support. Declared Projection evidence must be bound to the same owner, anchor,
+route, and scope as the S17/S18/S19/S22 claim. S19 cannot steal
+same-owner/anchor/scope S17 liability-relief, S18 bishop-pair conversion, or
+S22 hold ownership. Conversion claims remain below certified hold unless
+result/material impact and the `bishop_pair_to_material` route with bound
+`bishop_pair_material_conversion_certified` evidence justify conversion.
+Generic relief wording, unbacked conversion, wrong-binding, raw-engine,
+source-context, retrieval, and renderer-strength shortcuts remain fail-closed.
+
+Selection also covers the S01/S02/S03/S04 king-attack cluster. It consumes
+already admitted S01/S02/S03/S04 typed Projection claims only. Exact S01 can
+lead only with same-owner Witness `available_lever_trigger`, Witness
+`pawn_push_break_contact_source`, Object `AttackScaffold`, Certification
+`CertifiedKingSafetyEdge`, bound `king_wing_storm_route_certified` projection
+evidence, and a frozen `same_wing_contact` or `attack_edge_same_king` route.
+Exact S02 can lead only with same-owner Object `AttackScaffold`,
+Certification `CertifiedKingSafetyEdge`, bound
+`king_ring_concentration_route_certified` projection evidence, and a frozen
+`direct_piece_concentration` or `lane_strengthened_concentration` route. Exact
+S03 can lead only with same-owner Witness `diagonal_lane_only`, Object
+`AttackScaffold`, Certification `ComparativeKingFragility`, Certification
+`CertifiedKingSafetyEdge`, bound `diagonal_king_attack_route_certified`
+projection evidence, and a frozen `king_facing_diagonal_entry` or
+`fragility_linked_diagonal` route. Exact S04 can lead only with defender-owned
+Object `KingSafetyShell`, same-owner Certification `CertifiedKingSafetyEdge`,
+bound `king_shelter_breach_route_certified` projection evidence, and a frozen
+`shell_payload_breach` or `support_break_breach` route. The
+`support_break_breach` route also requires same-owner Witness
+`diagonal_lane_only`. Owner, defending king anchor, defender, route, and scope
+must remain clear; king-attack projection fails closed when `owner` and
+`defender` identify the same side. S01 storm, S02 concentration, S03
+diagonal lane, and S04 shelter breach remain distinct when route or anchor
+differs. Certified result/conversion owners may outrank king-attack projection;
+raw engine, generic attack wording, source/retrieval motif tags, wrong-binding,
+and renderer-strength shortcuts remain fail-closed.
+
+Selection also covers the engine-certified eval swing versus board-explainable
+Sxx conflict boundary. Raw engine eval swing is always suppressed. Bounded
+`EngineCertification` can influence ranking only inside a Certification-layer
+claim that also carries same-root `Certification` evidence and a same-binding
+typed Root, Witness, Object, or Delta board reason. An engine-certified eval
+swing without that board reason is `no_board_reason` and cannot become lead,
+even if its numeric swing is larger than an admitted Sxx projection.
+Board-explainable admitted Sxx can therefore beat opaque engine swing.
+Engine-certified result/material Certification can beat Sxx only when
+result/material impact, same-root Certification, and same-binding typed board
+reason justify the `mustLead` bucket. Stale, wrong-node, wrong-FEN,
+wrong-route, wrong-engine-config, MultiPV ambiguity, and untyped mate/cp score
+boundaries remain fail-closed before ranking. The renderer still cannot turn
+eval swing into best-move, winning, or forced-result wording.
+
+Selection also covers context-only fallback breadth for source-context rows.
+Opening, motif, endgame-study, and retrieval remain sidecar context only, not
+Root, U, Object, Delta, Certification, or Sxx truth owners. Opening context can
+enter `contextOnly` only when no exact-board lead exists and never as
+best-move, theory-truth, forced-line, result, or current-position proof.
+Endgame-study context requires exact material/placement applicability and
+cannot claim win, draw, loss, forced line, or forced conversion. Motif context
+requires an exact detector carrier; motif tags alone are suppressed. Retrieval
+remains non-authoritative example context. Ambiguous opening transpositions,
+retrieval truth-promotion, endgame result-language shortcuts, gameContext,
+practicality, tablebase, and endgame result-service source families remain
+fail-closed with typed suppression reasons such as `source_context_only`,
+`ambiguous_transposition`, `retrieval_non_authoritative`,
+`forbidden_shortcut`, and `no_board_reason`. Selector fallback derives those
+hard reasons from source-row evidence ids: canonical opening refs must use
+`opening-position:*:canonical`, motif refs must match
+`motif-example:*` to `motif-detector-carrier:*`, endgame-study refs must match
+`endgame-study:*:applicable` to `endgame-study-applicability:*`, and retrieval
+refs must stay `retrieval-example:*` without truth-promotion ids. When an
+opening source-context ref carries specific game, player, event, URL, or raw
+HTTP citation material, it remains retrieval-lane material and fails closed
+before context fallback. When an exact-board lead exists, source context may only remain bounded
+support/context and cannot outrank the lead. Renderer strength still cannot
+convert source context into current-position truth.
+Safe selected source context carries soft selector reasons such as
+`source_context_only` or `retrieval_non_authoritative` on the selected context
+item. It is not duplicated in `suppressedClaims`; that field is reserved for
+claims the renderer must not revive.
+
+The renderer contract is frozen in
+[CommentaryRendererContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentaryRendererContract.md).
+The renderer consumes only `CommentaryPlan`, not raw selector claims, raw
+engine packets, or raw source rows. It must not upgrade `wordingStrengthCap`,
+admit a lead, rank claims, convert source context to truth, interpret raw
+engine, merge opening source vectors, infer missing evidence, or discard
+suppression reasons.
+
+The outline-builder contract is frozen in
+[CommentaryOutlineBuilderContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentaryOutlineBuilderContract.md).
+`CommentaryOutlineBuilder` is a stable structured mapper from selector-owned
+`CommentaryOutline` to `CommentaryPlan`. It may map `lead` to `main`,
+`support` to `support`, `context` to `context`, `contrast` to `contrast`,
+`suppressedClaims` to `blocked`, `evidenceRefs` to `evidence`, and
+`wordingStrengthCap` to `wordingRules.maxStrength`. It must not select, rank,
+admit, suppress, revive, reinterpret evidence, promote source context, merge
+opening source vectors, upgrade wording strength, generate renderer prose, or
+define API/frontend payload shape. If no lead, support, context, or contrast
+exists, the resulting plan is `noCommentary`; blocked do-not-say material and
+evidence references are still carried.
+
+The first renderer executable implementation maps `CommentaryPlan` into
+structured role-based output only:
+
+- `CommentaryRenderer`
+- `CommentaryRender`
+- `RenderBlock`
+- `RenderRole`
+- `RenderStatus`
+- `RenderText`
+- `RenderEvidenceRef`
+- `RenderBoundary`
+- `RenderSuppression`
+- `RenderWording`
+
+It emits only deterministic role fragments: `Primary`, `Support`, `Context`,
+and `Contrast`. It does not generate broad chess narration, and it does not open
+API/frontend wiring. `main` becomes a primary block, `support` becomes
+supporting blocks, `context` remains non-authoritative context, `contrast`
+remains contrast, and `blocked` is retained only as non-public suppression
+metadata by default.
+`RawEngine` refs are not public render evidence; `EngineCertification` refs are
+public render evidence only when the ref is directly owned by a public
+Certification-layer selected claim and same-binding `Certification` evidence is
+also present in `plan.evidence` with a same-binding typed board reason. Public
+render evidence is limited to refs that are both present in `plan.evidence` and
+directly referenced by an unblocked public selected claim; plan-wide evidence
+without public selected-claim ownership remains non-public. If a
+malformed plan puts the same claim in a selected section and `blocked`, the
+blocked entry wins and the public block is not emitted. `NoCommentary` and
+`hidden` renders emit no public blocks and no public evidence refs.
+
+The backend commentary seam contract is frozen in
+[CommentaryBackendSeamContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentaryBackendSeamContract.md).
+`CommentaryBackendSeam` defines the stable backend request/response boundary
+for future frontend consumption without opening frontend wiring, product UI, or
+live source integration. The request shape is `CommentaryRequest`: `currentFen`,
+optional `beforeFen`, optional `playedMove`, `nodeId`, `ply`, optional
+`RuntimeEnginePacket` for certification runtime intake only, and an ignored
+caller `debug` field. The response shape is `CommentaryResponse`: status, public-safe
+`CommentaryRender`, `noCommentary`, and optional debug/internal metadata.
+Malformed FEN or invalid transition input fails closed to `invalidRequest` plus
+a silent `RenderStatus.NoCommentary` render. Public responses hide blocked and
+suppression metadata by default; internal diagnostics are exposed only through
+the server-owned debug entrypoint, not by caller request flags. The seam composes exact-board intake, optional
+certification runtime intake, selection, outline builder, and renderer. It does
+not expose raw engine, pass raw engine packets or raw played-move strings to
+claim production, serialize raw engine rejection details, accept
+`EngineEvidencePacket` directly, accept raw source rows as truth, merge opening
+source vectors, upgrade wording strength, or require frontend
+reranking/reinterpretation. Accepted engine intake is still not a truth owner:
+`EngineCertification` refs survive this seam only when they match bounded
+engine evidence refs produced by the accepted certification runtime intake
+result by canonical id, owner, and anchor.
+
+The minimal frontend bridge contract is frozen in
+[CommentaryFrontendBridgeContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentaryFrontendBridgeContract.md).
+`ui/analyse/src/chesstory/commentaryBridge.ts` is an adapter-only bridge for
+future analyse consumption of backend `CommentaryResponse` / `CommentaryRender`
+payloads. It does not create product UI, an analysis panel, frontend rewrite,
+source live integration, or generated prose. It can build the stable backend
+request fields, decode public `CommentaryRender` fields, and discard stale
+node/ply/FEN responses. It must not rank, admit, revive suppressed material,
+promote source context, render raw engine values, merge opening source vectors,
+send debug/internal toggles, or upgrade wording strength. `noCommentary`, `hidden`, `negative_only`,
+`invalidRequest`, and stale-node states remain silent public output.
+
+Selection global closure is now executable for the full `S01-S25`
+start-ready set owned by `StrategyProjectionScopeContract`. Each band has a
+selection outcome when the claim is already admitted as a typed Projection with
+exact owner, anchor, route, scope, row-specific lower-carrier role shape, and
+its frozen allowed projection evidence kind. This closure is selection-only: it
+does not add a new projection admission law, does not make support rows truth
+owners, and does not weaken the cluster-specific rival/suppression tests for
+S24, S13/S14/S15, S17/S18/S19/S22, king-attack, Engine E, or source context.
+Selection derives S07/S08 and S15/S16 `rival_band` suppression itself rather
+than relying on preloaded suppression hints, and opening context rejects
+best-move, theory-truth, current-position-proof, forced-line, or result-style
+source refs before they can enter selected context evidence.
+The global selection closure keeps S06 tied to same-route
+`SpaceBindRestrictionCertification`, and S16 tied to route-specific
+`FortressDrawCertification`, `PerpetualCheckHolding`, or `PromotionRace`
+support, matching the current projection authority.
+
 ## Count Freeze
 
 The planning discussion started from the shorthand `24 / 61 / 3016+35`.
@@ -1526,7 +1791,8 @@ The renderer does not own strategy truth.
 
 It verbalizes already certified claims.
 
-LLM usage, if any survives later, is limited to wording and presentation.
+Model-authored wording, if any survives later, is limited to presentation and
+cannot own strategy truth.
 
 ### Engine / Probe Sidecar
 
@@ -2012,9 +2278,10 @@ have narrow live runtime admission branches. That contract freezes:
     remain `ObjectSupportOnly:AttackScaffold(non_truth_owner)` and
     `CertificationSupportOnly:ComparativeKingFragility|CertifiedKingSafetyEdge(non_truth_owner)`.
   - `S04` requires same-king shell breach from the `KingSafetyShell` payload or
-    a same-king support-break route plus same-defender king-safety
-    deterioration; `KingSafetyShell` is required defender lower object support
-    for S04 positives, not optional strengthening or projection-owned truth.
+    a same-king support-break route plus same-owner `CertifiedKingSafetyEdge`
+    bound to that defender shell; `KingSafetyShell` is required defender lower
+    object support for S04 positives, not optional strengthening or
+    projection-owned truth.
     The support-break broad row also declares exact diagonal-lane support, while
     `shell_payload_and_support_break_use_distinct_declared_support_burdens`.
     Its live freeze names
@@ -2056,8 +2323,9 @@ have narrow live runtime admission branches. That contract freezes:
   through exact same-king `king_ring_concentration_route_certified` evidence.
   S03 is live only through exact same-king
   `diagonal_king_attack_route_certified` evidence. S04 is live only through
-  exact same-defender `king_shelter_breach_route_certified` evidence; broad S04
-  coverage rows remain countable, but evidence-empty, stale, wrong-owner,
+  exact same-defender `king_shelter_breach_route_certified` evidence with
+  same-owner `CertifiedKingSafetyEdge` support; broad S04 coverage rows remain
+  countable, but evidence-empty, stale, wrong-owner,
   wrong-defender, wrong-shell, wrong-route, support-only, optional
   strengthening, and adjacent S01/S02/S03/S24 rows remain fail-closed.
   S02's runtime boundary rejects stale evidence,
