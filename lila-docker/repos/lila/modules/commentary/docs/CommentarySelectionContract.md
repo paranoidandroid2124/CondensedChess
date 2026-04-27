@@ -35,6 +35,47 @@ emit a context-only outline.
 claim carrying only source or retrieval refs is suppressed with
 `source_context_only` and `no_board_reason`.
 
+Prepared variation evidence is frozen separately in
+[VariationEvidenceContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/VariationEvidenceContract.md).
+Selection may carry `PreparedVariationEvidence` only as a public-safe
+line-proof object already bound to an admitted exact-board claim. It suppresses
+raw-style, unbound, stale-shaped, source-context-owned, and raw-engine-owned
+variation evidence before outline. Prepared variation evidence may affect only
+evidence carriage and wording caps; it does not create Root, U, Object, Delta,
+Certification, Projection, source-context, best-move, forced-line, result, or
+oracle truth.
+Defender-resource, release-risk, hold, conversion, simplification,
+persistence, failed-tempting-move, and premature-move roles are evidence roles,
+not new claim owners. A proof marked `internal_only`, a proof without bounded
+same-binding provenance, or a proof whose provenance is raw engine/source
+context is suppressed before outline. Failed-tempting-move and premature-move
+evidence is negative/support evidence only and cannot by itself become the lead
+or a main recommendation.
+Opening source context may include move-order, pawn-break, development-lag,
+file-ownership, king-safety, transposition, compensation, and master/online
+divergence sequence references. These remain `SourceContext` evidence refs.
+An `opening-line-test:*:context` ref may point at a public-safe variation proof
+id, but selection admits the actual proof only from the separately admitted
+exact-board claim that owns `PreparedVariationEvidence`.
+Motif source context may likewise carry `motif-line-context:*` and
+`motif-line-test:*:context` refs after exact detector carrier parity. These
+refs remain `SourceContext` evidence and cannot admit or rank a proof; the
+actual `PreparedVariationEvidence` must come from the exact-board claim.
+Endgame-study context may carry `endgame-technique:*` and
+`endgame-line-test:*:context` refs only after exact material, placement,
+relation, and side-to-move applicability. These refs remain `SourceContext`
+evidence and cannot admit or rank a proof, result, forced conversion, or
+tablebase-style verdict; the actual `PreparedVariationEvidence` must come from
+the exact-board claim.
+Retrieval context may carry `retrieval-illustration:*` and
+`retrieval-line-test:*:context` refs only as optional illustrative context.
+These refs remain `SourceContext` evidence and cannot admit or rank a proof,
+recommend a move, transfer a retrieved game result to the current position, or
+turn player/event/result metadata into a verdict. The actual
+`PreparedVariationEvidence` must come from the exact-board claim, and
+display-candidate citation remains deferred until a renderer citation contract
+exists.
+
 S24 is not the generic tactic owner. S24 covers same-target forcing/realization
 projection only. A concrete tactic, forced conversion, or blunder lead must be
 owned by the actual current exact-board or transition family that admitted it.
@@ -111,6 +152,16 @@ Allowed lead sources:
 
 For S24, the allowed projection evidence must include both
 `same_target_forcing_realization` and `same_target_conversion_certified`.
+
+The backend producer handoff for runtime Sxx claims is
+`StrategyProjectionAdmissionResult`. Only results produced by
+`StrategyProjectionAdmission.admit` and marked `admitted` may become
+Projection-layer `CommentaryClaim`s. The producer does not infer Sxx admission
+from a band id, prose label, broad concept, selector-shaped claim, source row,
+raw engine packet, or prepared variation evidence. The typed result must bind
+source root to current root, carry same-binding exact lower carrier refs, expose
+only allowed projection evidence kinds, keep an exact scope, and preserve a
+bounded wording cap.
 
 Sxx lower carriers must be exact typed refs with owner, anchor, route, and
 scope binding. Unbound lower carriers are not enough to admit a Projection
@@ -438,8 +489,12 @@ to Certification-layer claims and adds selection-layer checks for:
 
 The sixth runtime expansion slice adds context-only fallback breadth for
 opening, motif, endgame-study, and retrieval source-context families. It does
-not open source ingestion, renderer prose, API, or frontend wiring. It consumes
-only already prepared source-context rows and adds selection-layer checks for:
+not open raw source ingestion, renderer prose, API, or frontend wiring. Source
+family internals must first normalize through `SourceContextAdapter` to
+`SourceContextCandidate`; the selector side sees that candidate only through
+`SourceContextClaimBoundary`, which emits only `ClaimLayer.SourceContext`
+claims. The selector consumes only those already prepared source-context claims
+and adds selection-layer checks for:
 
 - opening context selected as `contextOnly` only when no exact-board lead
   exists; opening context never becomes best-move, theory-truth, forced-line,
@@ -448,13 +503,23 @@ only already prepared source-context rows and adds selection-layer checks for:
   `opening-position:*:ambiguous`
 - motif examples selected as `contextOnly` only when a `motif-example:*`
   source ref matches an exact `motif-detector-carrier:*` evidence ref
+- motif line-test refs retained only as source context after that exact
+  source/carrier parity, never as proof ownership
 - endgame-study context selected as `contextOnly` only when a bound exact
   `endgame-study-applicability:*` material/placement carrier matches the
-  `endgame-study:*:applicable` source ref; study context cannot claim win,
-  draw, loss, forced line, or forced conversion
+  `endgame-study:*:applicable` source ref; Phase 4 fixture ids may differ from
+  study ids only when the exact carrier route metadata binds the fixture to the
+  study id and carries `scope=exact_endgame_applicability`; unverified or
+  scope-less fixture ids are suppressed; study context cannot claim win, draw,
+  loss, forced line, or forced conversion
+- endgame technique refs retained only as source context after that exact
+  applicability, never as proof or result ownership
 - retrieval selected only as non-authoritative reference context; retrieval
   snippets require `retrieval-example:*` source refs and never become
   current-position truth
+- retrieval illustration and line-test refs retained only as source context,
+  never as proof ownership, recommendation, verdict, or display-candidate
+  citation
 - source context downgraded to support/context when an exact-board lead exists
   and never outranking that lead
 - ambiguous opening transpositions suppressed with
@@ -463,6 +528,10 @@ only already prepared source-context rows and adds selection-layer checks for:
   `forbidden_shortcut` and `no_board_reason`
 - motif detector-carrier id mismatch suppressed with `forbidden_shortcut` and
   `no_board_reason`
+- deferred/helper-required motif ids and certification-only motif shortcuts
+  without a certified carrier suppressed before they can enter line explanation
+- deferred endgame-study tokens, result/oracle wording, and forced-conversion
+  technique shortcuts suppressed before they can enter line explanation
 - gameContext, practicality, tablebase, and endgame result-service source
   families staying deferred or rejected with `forbidden_shortcut`
 - renderer-strength shortcuts staying fail-closed; renderer cannot turn source
@@ -477,6 +546,9 @@ Synthetic selector and surface contract rows live in:
 Executable contract tests live in:
 
 - `modules/commentary/src/test/scala/lila/commentary/selection/CommentarySelectionContractTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/selection/PreparedVariationEvidenceContractTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/source/SourceContextAdapterContractTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/selection/SourceContextClaimBoundaryTest.scala`
 
 The rows are executable parity fixtures for selector inputs and expected
 outline buckets/reasons. They do not replace upstream FEN/PGN-backed
@@ -502,8 +574,15 @@ The selector contract tests cover:
 - context-only output is allowed only when no stronger exact-board lead exists
 - opening context-only fallback is non-authoritative
 - motif context-only fallback requires a matching detector carrier
-- endgame-study context-only fallback requires exact applicability
+- motif line-test context requires a matching detector carrier and remains
+  non-authoritative support/context
+- endgame-study context-only fallback requires exact applicability, including
+  route-bound study/fixture reconciliation when ids differ
+- endgame technique line-test context requires exact applicability and remains
+  non-authoritative support/context
 - retrieval context-only fallback remains non-authoritative reference
+- retrieval illustration line-test context remains subordinate to exact-board
+  variation evidence and cannot transfer proof from the retrieved example
 - exact-board lead bounds source context to support/context
 - ambiguous opening transpositions are suppressed
 - motif tags without detector carrier are suppressed
@@ -550,6 +629,10 @@ The selector contract tests cover:
 - opening source-context fallback rejects extra best-move, theory-truth,
   current-position-proof, forced-line, or result-style source refs even when a
   canonical opening-position ref is also present
+- normalized source-context handoff shape emits only source-context claims
+  capped at `context_only`; selection does not consume raw source-family rows
+- adapter rejects source-family forbidden claims before selection sees a
+  normalized candidate
 - renderer cannot upgrade `wordingStrengthCap`
 - selected claims cannot carry a stronger cap than the computed outline cap;
   source-context selected claims remain capped at `context_only`

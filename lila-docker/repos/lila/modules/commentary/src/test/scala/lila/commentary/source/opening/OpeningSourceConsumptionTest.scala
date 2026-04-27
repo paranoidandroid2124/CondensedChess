@@ -1,5 +1,6 @@
 package lila.commentary.source.opening
 
+import lila.commentary.source.{ OpeningSequenceContext, OpeningSequenceContextRole }
 import play.api.libs.json.Json
 
 class OpeningSourceConsumptionTest extends munit.FunSuite:
@@ -32,6 +33,23 @@ class OpeningSourceConsumptionTest extends munit.FunSuite:
     assertEquals(validated.confidence, OpeningConfidence.Usable)
     assert(validated.boundaries.exists(_.value == "move_stats_are_reference_only"))
     assert(validated.boundaries.exists(_.value == "no_specific_game_citation"))
+
+  test("opening sequence context is structured context and may link to line tests only as context"):
+    val candidate = consumptionCandidates.find(_.candidateId == "open-context-catalan-master-online").getOrElse(fail("missing consumption fixture"))
+    val validated = OpeningConsumptionContract.validateCandidate(candidate, manifests, lines, aliases, moveStats).fold(message => fail(message.reason), identity)
+
+    assertEquals(
+      validated.sequenceContexts.map(_.role),
+      Vector(
+        OpeningSequenceContextRole.MoveOrder,
+        OpeningSequenceContextRole.PawnBreak,
+        OpeningSequenceContextRole.MasterOnlineDivergence
+      )
+    )
+    assertEquals(validated.sequenceContexts.flatMap(_.linkedVariationProofIds), Vector("line-proof-catalan-e4-break"))
+    assert(validated.sequenceContexts.forall(_.boundaries.contains("opening_sequence_context_only")))
+    assert(validated.sequenceContexts.exists(_.boundaries.contains("line_test_link_is_not_proof")))
+    assert(validated.sequenceContexts.forall(context => !context.boundaries.exists(_.contains("best"))))
 
   test("source selection uses master_reference primary and online_trend secondary without merging rankings"):
     val candidate = build(
@@ -68,6 +86,15 @@ class OpeningSourceConsumptionTest extends munit.FunSuite:
   test("pipeline_smoke alone cannot create a product consumption candidate"):
     val rejected = build(Vector(stat("smoke-only", smokeSource.sourceId, "d1a4", 1200, 0.34))).left.getOrElse(fail("expected rejection"))
     assert(rejected.reason.contains("no product candidate"), rejected.reason)
+
+    val taxonomySource = manifests.find(_.sourceUse.contains("taxonomy_reference")).getOrElse(fail("missing taxonomy source"))
+    val taxonomyRejected = build(Vector(stat("taxonomy-only", taxonomySource.sourceId, "d1a4", 1200, 0.34))).left.getOrElse(fail("expected rejection"))
+    assert(
+      taxonomyRejected.reason.contains("sourceUse") ||
+        taxonomyRejected.reason.contains("aggregateUse") ||
+        taxonomyRejected.reason.contains("product consumption"),
+      taxonomyRejected.reason
+    )
 
   test("opening context requires exact position key and taxonomy row"):
     val noKey = OpeningConsumptionContract.buildCandidate(
@@ -226,6 +253,19 @@ class OpeningSourceConsumptionTest extends munit.FunSuite:
     val engineBoundary = consumptionCandidates.head.copy(boundaries = consumptionCandidates.head.boundaries :+ OpeningContextBoundary("engine_context"))
     val engineRejected = OpeningConsumptionContract.validateCandidate(engineBoundary, manifests, lines, aliases, moveStats).left.getOrElse(fail("expected rejection"))
     assert(engineRejected.reason.contains("truth wording"), engineRejected.reason)
+
+    val sequenceTruth = consumptionCandidates.head.copy(
+      sequenceContexts = Vector(
+        OpeningSequenceContext(
+          role = OpeningSequenceContextRole.MoveOrder,
+          ref = "theory_truth_move_order",
+          linkedVariationProofIds = Vector.empty,
+          boundaries = Vector("opening_sequence_context_only")
+        )
+      )
+    )
+    val sequenceRejected = OpeningConsumptionContract.validateCandidate(sequenceTruth, manifests, lines, aliases, moveStats).left.getOrElse(fail("expected rejection"))
+    assert(sequenceRejected.reason.contains("sequence context"), sequenceRejected.reason)
 
   test("primary and secondary stat vectors reject sourceUse swaps"):
     val candidate = consumptionCandidates.head

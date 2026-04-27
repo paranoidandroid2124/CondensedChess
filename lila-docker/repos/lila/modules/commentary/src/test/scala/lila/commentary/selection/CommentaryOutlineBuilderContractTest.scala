@@ -260,5 +260,6 @@ class CommentaryOutlineBuilderContractTest extends munit.FunSuite:
       contrast = contrast,
       suppressedClaims = suppressedClaims,
       evidenceRefs = evidenceRefs,
+      variationEvidence = Vector.empty,
       wordingStrengthCap = wordingStrengthCap
     )

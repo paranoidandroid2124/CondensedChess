@@ -15,6 +15,10 @@ final case class PlanEvidence(
     ref: EvidenceRef
 )
 
+final case class PlanVariationEvidence(
+    proof: PreparedVariationEvidence
+)
+
 final case class PlanSection(
     role: PlanRole,
     claims: Vector[SelectedClaim],
@@ -37,6 +41,7 @@ final case class CommentaryPlan(
     contrast: PlanSection,
     blocked: Vector[BlockedClaim],
     evidence: Vector[PlanEvidence],
+    variationEvidence: Vector[PlanVariationEvidence],
     wordingRules: WordingRules
 ):
   def noCommentary: Boolean =
@@ -61,5 +66,6 @@ object CommentaryOutlineBuilder:
       contrast = PlanSection(PlanRole.Contrast, outline.contrast),
       blocked = outline.suppressedClaims.map(suppressed => BlockedClaim(suppressed.claim, suppressed.reasons)),
       evidence = outline.evidenceRefs.map(PlanEvidence.apply),
+      variationEvidence = outline.variationEvidence.map(PlanVariationEvidence.apply),
       wordingRules = WordingRules(outline.wordingStrengthCap)
     )

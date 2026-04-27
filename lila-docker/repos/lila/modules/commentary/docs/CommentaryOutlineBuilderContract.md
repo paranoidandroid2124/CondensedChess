@@ -72,6 +72,20 @@ The mapping is lossless and selector-preserving:
 `CommentaryOutlineBuilder` must copy `evidenceRefs` from the outline itself.
 It must not recompute evidence from selected claims or lower carriers.
 
+Prepared variation evidence maps losslessly from selector-owned
+`CommentaryOutline.variationEvidence` to
+`CommentaryPlan.variationEvidence` as `PlanVariationEvidence`. The builder
+must not infer a new line, extend a continuation, reinterpret the proof purpose,
+reinterpret defender-resource / failed-tempting-move / release-risk / hold /
+conversion / simplification / persistence roles, raise the wording cap, or
+convert a line proof into chess meaning.
+Source-context line-test refs such as `opening-line-test:*:context`,
+`motif-line-test:*:context`, `endgame-line-test:*:context`, and
+`retrieval-line-test:*:context` remain ordinary context evidence refs. The
+builder must not resolve those refs into
+`PlanVariationEvidence`; only selector-owned `PreparedVariationEvidence` from
+an exact-board claim may enter the plan variation-evidence field.
+
 ## Context Boundary
 
 Selected source context remains context only.
@@ -142,6 +156,41 @@ vectors. The builder must not merge, rank, or compare them.
 
 Specific game, player, event, or URL citation remains a retrieval-lane concern,
 not an opening-source fact.
+
+## Endgame Context Boundary
+
+Endgame-study context remains structured context only.
+
+Endgame technique refs must not become:
+
+- win, draw, or loss claims
+- forced conversion
+- tablebase, Syzygy, WDL, DTZ, DTM, or oracle truth
+- current-position proof
+- prepared variation evidence ownership
+
+The builder may carry selected `endgame-technique:*` and
+`endgame-line-test:*:context` evidence refs, but it must not infer technique
+meaning, method prose, exceptions, or defender-resource/hold lines from them.
+
+## Retrieval Context Boundary
+
+Retrieval context remains optional illustrative/example context only.
+
+Retrieval illustration refs must not become:
+
+- current-position proof
+- recommendation
+- verdict
+- game-result evidence
+- player, event, or citation display
+- prepared variation evidence ownership
+
+The builder may carry selected `retrieval-illustration:*` and
+`retrieval-line-test:*:context` evidence refs, but it must not infer a
+comparable line, similar plan, theme, citation prose, or claim transfer from
+them. Public line evidence, if present, must already be selector-owned
+`PreparedVariationEvidence` from an exact-board claim.
 
 ## Executable Validation
 

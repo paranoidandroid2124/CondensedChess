@@ -83,6 +83,118 @@ enum SourceContextKind(val key: String):
   case EndgameStudy extends SourceContextKind("endgameStudy")
   case Retrieval extends SourceContextKind("retrieval")
 
+enum VariationMoveRole(val key: String):
+  case GameMove extends VariationMoveRole("game_move")
+  case CandidateMove extends VariationMoveRole("candidate_move")
+  case DefenderResource extends VariationMoveRole("defender_resource")
+  case Continuation extends VariationMoveRole("continuation")
+
+enum VariationProofPurpose(val key: String):
+  case Holds extends VariationProofPurpose("holds")
+  case Fails extends VariationProofPurpose("fails")
+  case ReleasesCounterplay extends VariationProofPurpose("releases_counterplay")
+  case Simplifies extends VariationProofPurpose("simplifies")
+  case PreservesPressure extends VariationProofPurpose("preserves_pressure")
+  case DeniesResource extends VariationProofPurpose("denies_resource")
+
+enum VariationEvidenceRole(val key: String):
+  case DefenderResource extends VariationEvidenceRole("defender_resource")
+  case FailedTemptingMove extends VariationEvidenceRole("failed_tempting_move")
+  case ReleaseRisk extends VariationEvidenceRole("release_risk")
+  case Hold extends VariationEvidenceRole("hold")
+  case Conversion extends VariationEvidenceRole("conversion")
+  case Persistence extends VariationEvidenceRole("persistence")
+  case PrematureMove extends VariationEvidenceRole("premature_move")
+  case Simplification extends VariationEvidenceRole("simplification")
+
+enum VariationTestResult(val key: String):
+  case ResourceWorks extends VariationTestResult("resource_works")
+  case ResourceFails extends VariationTestResult("resource_fails")
+  case ReleasesCounterplay extends VariationTestResult("releases_counterplay")
+  case DoesNotRestoreCounterplay extends VariationTestResult("does_not_restore_counterplay")
+  case DefensiveHold extends VariationTestResult("defensive_hold")
+  case MovePremature extends VariationTestResult("move_premature")
+  case Simplifies extends VariationTestResult("simplifies")
+  case Converts extends VariationTestResult("converts")
+  case PressurePersists extends VariationTestResult("pressure_persists")
+
+enum VariationSurfaceAllowance(val key: String):
+  case PublicLine extends VariationSurfaceAllowance("public_line")
+  case BoundaryOnly extends VariationSurfaceAllowance("boundary_only")
+  case InternalOnly extends VariationSurfaceAllowance("internal_only")
+
+final case class VariationMove(
+    san: String,
+    uci: String
+):
+  require(san.trim.nonEmpty, "VariationMove SAN must be non-empty")
+  require(uci.trim.nonEmpty, "VariationMove UCI must be non-empty")
+
+final case class PreparedVariationBoundary(
+    depthFloor: Int,
+    realizedDepth: Int,
+    multiPv: Int,
+    freshnessChecked: Boolean,
+    legalReplayChecked: Boolean,
+    baselineChecked: Boolean
+):
+  def publicSafe: Boolean =
+    depthFloor > 0 &&
+      realizedDepth >= depthFloor &&
+      multiPv > 0 &&
+      freshnessChecked &&
+      legalReplayChecked
+
+final case class PreparedVariationDebug(
+    variationHash: Option[String] = None,
+    engineConfigFingerprint: Option[String] = None,
+    rawPacketId: Option[String] = None,
+    rawLineIndex: Option[Int] = None
+)
+
+final case class PreparedVariationEvidence(
+    proofId: String,
+    boundClaimId: String,
+    startFen: String,
+    owner: String,
+    defender: Option[String],
+    anchor: String,
+    route: String,
+    scope: String,
+    role: VariationEvidenceRole = VariationEvidenceRole.Persistence,
+    moveRole: VariationMoveRole,
+    lineSan: Vector[String],
+    lineUci: Vector[String],
+    playedMove: Option[VariationMove] = None,
+    candidateMove: Option[VariationMove] = None,
+    defenderResource: Option[VariationMove] = None,
+    continuation: Vector[VariationMove] = Vector.empty,
+    testedMove: Option[VariationMove] = None,
+    testedLine: Vector[VariationMove] = Vector.empty,
+    replyLine: Vector[VariationMove] = Vector.empty,
+    resourceLine: Vector[VariationMove] = Vector.empty,
+    testResult: VariationTestResult = VariationTestResult.PressurePersists,
+    proves: String,
+    proofPurpose: VariationProofPurpose,
+    provenanceRefs: Vector[EvidenceRef] = Vector.empty,
+    boundary: PreparedVariationBoundary,
+    wordingCap: WordingStrength,
+    surfaceAllowance: VariationSurfaceAllowance = VariationSurfaceAllowance.PublicLine,
+    publicSafe: Boolean,
+    debug: Option[PreparedVariationDebug] = None
+):
+  require(proofId.trim.nonEmpty, "Prepared variation proof id must be non-empty")
+  require(boundClaimId.trim.nonEmpty, "Prepared variation bound claim id must be non-empty")
+  require(startFen.trim.nonEmpty, "Prepared variation start FEN must be non-empty")
+  require(owner.trim.nonEmpty, "Prepared variation owner must be non-empty")
+  require(anchor.trim.nonEmpty, "Prepared variation anchor must be non-empty")
+  require(route.trim.nonEmpty, "Prepared variation route must be non-empty")
+  require(scope.trim.nonEmpty, "Prepared variation scope must be non-empty")
+  require(proves.trim.nonEmpty, "Prepared variation proof token must be non-empty")
+
+  def withWordingCap(cap: WordingStrength): PreparedVariationEvidence =
+    copy(wordingCap = WordingStrength.weaker(wordingCap, cap))
+
 final case class EvidenceRef(
     kind: EvidenceRefKind,
     id: String,
@@ -148,7 +260,8 @@ final case class CommentaryClaim(
     exactBoardBound: Boolean = false,
     wordingStrengthCap: WordingStrength = WordingStrength.QualifiedSupport,
     suppressionHints: Vector[SuppressionReason] = Vector.empty,
-    sourceContextKind: Option[SourceContextKind] = None
+    sourceContextKind: Option[SourceContextKind] = None,
+    variationEvidence: Vector[PreparedVariationEvidence] = Vector.empty
 ):
   require(id.trim.nonEmpty, "CommentaryClaim id must be non-empty")
 
@@ -170,6 +283,7 @@ final case class CommentaryOutline(
     contrast: Vector[SelectedClaim],
     suppressedClaims: Vector[SuppressedClaim],
     evidenceRefs: Vector[EvidenceRef],
+    variationEvidence: Vector[PreparedVariationEvidence],
     wordingStrengthCap: WordingStrength
 )
 
@@ -204,10 +318,29 @@ object ClaimSelector:
     val cap =
       lead
         .map(_.claim.wordingStrengthCap)
-        .orElse(Option.when(classified.exists((claim, reasons) => isContext(claim) && usableSourceContext(claim, reasons)))(WordingStrength.ContextOnly))
+        .orElse(
+          Option.when(
+            classified.exists((claim, reasons) =>
+              isContext(claim) &&
+                usableSourceContext(claim, reasons) &&
+                sourceContextLineTestsSatisfied(claim, lead.toVector.map(_.claim) ++ supportClaims)
+            )
+          )(WordingStrength.ContextOnly)
+        )
         .getOrElse(WordingStrength.Hidden)
+    val lineTestSuppressed =
+      classified.collect {
+        case (claim, reasons)
+            if isContext(claim) &&
+              usableSourceContext(claim, reasons) &&
+              !sourceContextLineTestsSatisfied(claim, lead.toVector.map(_.claim) ++ supportClaims) =>
+          SuppressedClaim(claim, Vector(SuppressionReason.ForbiddenShortcut, SuppressionReason.NoBoardReason))
+      }
     val contextClaims =
-      classified.collect { case (claim, reasons) if isContext(claim) && usableSourceContext(claim, reasons) =>
+      classified.collect { case (claim, reasons)
+          if isContext(claim) &&
+            usableSourceContext(claim, reasons) &&
+            sourceContextLineTestsSatisfied(claim, lead.toVector.map(_.claim) ++ supportClaims) =>
         SelectedClaim(
           clampSelectedClaim(claim, WordingStrength.ContextOnly),
           if lead.isEmpty then ClaimBucket.ContextOnly else ClaimBucket.Support,
@@ -239,13 +372,22 @@ object ClaimSelector:
       lead = selectedLead,
       support = support,
       contrast = Vector.empty,
-      suppressedClaims = baseSuppressed ++ duplicateSuppressed ++ supportSuppressed ++ rendererSuppressed,
+      suppressedClaims = baseSuppressed ++ lineTestSuppressed ++ duplicateSuppressed ++ supportSuppressed ++ rendererSuppressed,
       evidenceRefs = (selectedLead.toVector.flatMap(_.claim.evidenceRefs) ++ support.flatMap(_.claim.evidenceRefs) ++ contextClaims.flatMap(_.claim.evidenceRefs)).distinct,
+      variationEvidence =
+        (selectedLead.toVector ++ support ++ contextClaims)
+          .flatMap(_.claim.variationEvidence)
+          .filter(publicSafeVariationEvidence)
+          .distinct,
       wordingStrengthCap = cap
     )
 
   private def clampSelectedClaim(claim: CommentaryClaim, cap: WordingStrength): CommentaryClaim =
-    claim.copy(wordingStrengthCap = WordingStrength.weaker(claim.wordingStrengthCap, cap))
+    val effectiveCap = WordingStrength.weaker(claim.wordingStrengthCap, cap)
+    claim.copy(
+      wordingStrengthCap = effectiveCap,
+      variationEvidence = claim.variationEvidence.map(_.withWordingCap(effectiveCap))
+    )
 
   private def suppressionReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
     val statusReasons =
@@ -266,7 +408,76 @@ object ClaimSelector:
           boardClaimReasons(claim)
     val admissibleHints =
       claim.suppressionHints.filterNot(_ == SuppressionReason.RivalBand)
-    (statusReasons ++ layerReasons ++ admissibleHints).distinct
+    (statusReasons ++ layerReasons ++ variationEvidenceReasons(claim) ++ admissibleHints).distinct
+
+  private def variationEvidenceReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
+    if claim.variationEvidence.isEmpty then Vector.empty
+    else
+      claim.layer match
+        case ClaimLayer.SourceContext =>
+          Vector(SuppressionReason.SourceContextOnly, SuppressionReason.ForbiddenShortcut, SuppressionReason.NoBoardReason)
+        case ClaimLayer.Engine =>
+          Vector(SuppressionReason.RawEngineOnly, SuppressionReason.NoBoardReason)
+        case _ =>
+          val unsafe = claim.variationEvidence.exists(proof => !publicSafeVariationEvidenceForClaim(claim, proof))
+          if unsafe then Vector(SuppressionReason.RawEngineOnly, SuppressionReason.NoBoardReason)
+          else if claim.variationEvidence.forall(negativeOnlyVariationEvidence) then Vector(SuppressionReason.SupportOnly)
+          else Vector.empty
+
+  private def publicSafeVariationEvidence(proof: PreparedVariationEvidence): Boolean =
+    proof.publicSafe &&
+      proof.surfaceAllowance != VariationSurfaceAllowance.InternalOnly &&
+      proof.boundary.publicSafe &&
+      proof.lineSan.nonEmpty &&
+      proof.lineSan.size == proof.lineUci.size &&
+      proof.lineSan.forall(_.trim.nonEmpty) &&
+      proof.lineUci.forall(_.trim.nonEmpty) &&
+      publicSafeVariationProvenance(proof) &&
+      !containsForbiddenVariationProofToken(proof.proves)
+
+  private def publicSafeVariationEvidenceForClaim(
+      claim: CommentaryClaim,
+      proof: PreparedVariationEvidence
+  ): Boolean =
+    publicSafeVariationEvidence(proof) &&
+      proof.boundClaimId == claim.id &&
+      claim.owner.contains(proof.owner) &&
+      claim.anchor.contains(proof.anchor) &&
+      claim.route.contains(proof.route) &&
+      claim.scope.contains(proof.scope) &&
+      proof.defender.forall(defender => claim.defender.contains(defender))
+
+  private def publicSafeVariationProvenance(proof: PreparedVariationEvidence): Boolean =
+    proof.provenanceRefs.nonEmpty &&
+      proof.provenanceRefs.forall: ref =>
+        ref.kind != EvidenceRefKind.RawEngine &&
+          ref.kind != EvidenceRefKind.SourceContext &&
+          ref.owner.contains(proof.owner) &&
+          ref.anchor.contains(proof.anchor) &&
+          ref.route.contains(proof.route) &&
+          ref.scope.contains(proof.scope)
+
+  private def negativeOnlyVariationEvidence(proof: PreparedVariationEvidence): Boolean =
+    proof.role == VariationEvidenceRole.FailedTemptingMove ||
+      proof.role == VariationEvidenceRole.PrematureMove ||
+      proof.testResult == VariationTestResult.MovePremature ||
+      proof.wordingCap == WordingStrength.NegativeOnly
+
+  private def containsForbiddenVariationProofToken(value: String): Boolean =
+    val normalized = normalizedToken(value)
+    Vector(
+      "best",
+      "forced",
+      "winning",
+      "drawing",
+      "drawn",
+      "result",
+      "oracle",
+      "engine",
+      "raw_pv",
+      "eval",
+      "theory_truth"
+    ).exists(normalized.contains)
 
   private def sourceContextReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
     val base = Vector(SuppressionReason.SourceContextOnly)
@@ -291,7 +502,7 @@ object ClaimSelector:
     else Vector(SuppressionReason.ForbiddenShortcut, SuppressionReason.NoBoardReason)
 
   private def containsForbiddenMotifContextToken(id: String): Boolean =
-    val normalized = id.toLowerCase.replace('-', '_').replace(':', '_')
+    val normalized = normalizedToken(id)
     val forbiddenTokens = Set(
       "discovered_attack",
       "deflection",
@@ -323,17 +534,7 @@ object ClaimSelector:
     val rankingMerge =
       sourceIds.exists(containsMergedOpeningRankingToken)
     val truthPromotion =
-      sourceIds.exists(id =>
-        id.contains(":best-move") ||
-          id.contains(":theory-truth") ||
-          id.contains(":current-position-proof") ||
-          id.contains(":current-position-truth") ||
-          id.contains(":forced-line") ||
-          id.contains(":result") ||
-          id.contains(":win") ||
-          id.contains(":draw") ||
-          id.contains(":loss")
-      )
+      sourceIds.exists(containsForbiddenOpeningContextToken)
     Vector(
       Option.when(ambiguous)(SuppressionReason.AmbiguousTransposition),
       Option.when(rankingMerge || truthPromotion || citationLeak || !hasCanonicalPosition)(SuppressionReason.ForbiddenShortcut),
@@ -341,34 +542,52 @@ object ClaimSelector:
     ).flatten
 
   private def containsMergedOpeningRankingToken(id: String): Boolean =
-    val normalized = id.toLowerCase.replace('-', '_')
+    val normalized = normalizedToken(id)
     normalized.contains("master_reference") && normalized.contains("online_trend")
 
+  private def containsForbiddenOpeningContextToken(id: String): Boolean =
+    val normalized = normalizedToken(id)
+    Vector(
+      "best",
+      "recommend",
+      "recommendation",
+      "theory",
+      "truth",
+      "current_position_proof",
+      "current_position_truth",
+      "forced",
+      "result",
+      "engine",
+      "oracle",
+      "winning",
+      "drawing",
+      "wdl",
+      "dtz",
+      "dtm",
+      "pipeline_smoke",
+      "taxonomy_reference",
+      "draw_offer",
+      "repetition",
+      "tournament",
+      "rating",
+      "time_control",
+      "game_context",
+      "play_environment"
+    ).exists(normalized.contains)
+
   private def containsOpeningSpecificCitationToken(id: String): Boolean =
-    val normalized = id.toLowerCase.replace('-', '_')
+    val normalized = normalizedToken(id)
     val citationTokens = Vector(
-      "game:",
-      "gameid:",
-      "game_id:",
-      "gameurl:",
-      "game_url:",
-      "player:",
-      "playerurl:",
-      "player_url:",
-      "event:",
-      "eventurl:",
-      "event_url:",
-      "game=",
-      "gameid=",
-      "game_id=",
-      "gameurl=",
-      "game_url=",
-      "player=",
-      "playerurl=",
-      "player_url=",
-      "event=",
-      "eventurl=",
-      "event_url="
+      "game_id",
+      "gameid",
+      "gameurl",
+      "game_url",
+      "player",
+      "playerurl",
+      "player_url",
+      "event",
+      "eventurl",
+      "event_url"
     )
     normalized.contains("http://") ||
       normalized.contains("https://") ||
@@ -381,20 +600,21 @@ object ClaimSelector:
         case id if id.startsWith("endgame-study:") && id.endsWith(":applicable") =>
           id.stripPrefix("endgame-study:").stripSuffix(":applicable")
     val applicabilityIds =
-      exactBoardIds(claim).collect:
-        case id if id.startsWith("endgame-study-applicability:") =>
-          id.stripPrefix("endgame-study-applicability:")
+      exactBoardRefs(claim).collect:
+        case ref if ref.id.startsWith("endgame-study-applicability:") =>
+          ref.id.stripPrefix("endgame-study-applicability:") -> ref.route
     val hasApplicability =
-      studyIds.exists(studyId => applicabilityIds.contains(studyId))
-    val resultLanguage =
-      sourceIds.exists(id =>
-        id.contains(":result") ||
-          id.contains(":win") ||
-          id.contains(":draw") ||
-          id.contains(":loss") ||
-          id.contains(":forced-line") ||
-          id.contains(":forced-conversion")
+      studyIds.exists(studyId =>
+        applicabilityIds.exists((id, route) =>
+          route.contains(studyId) &&
+            exactBoardRefs(claim).exists(ref =>
+              ref.id == s"endgame-study-applicability:$id" &&
+                ref.scope.contains("exact_endgame_applicability")
+            )
+        )
       )
+    val resultLanguage =
+      sourceIds.exists(containsForbiddenEndgameContextToken)
     Vector(
       Option.when(resultLanguage || !hasApplicability)(SuppressionReason.ForbiddenShortcut),
       Option.when(resultLanguage || !hasApplicability)(SuppressionReason.NoBoardReason)
@@ -405,16 +625,79 @@ object ClaimSelector:
     val hasRetrievalExample =
       sourceIds.exists(_.startsWith("retrieval-example:"))
     val truthPromotion =
-      sourceIds.exists(id =>
-        id.contains("current-position-truth") ||
-          id.contains("truth-promotion") ||
-          id.contains(":truth")
-      )
+      sourceIds.exists(containsForbiddenRetrievalContextToken)
     Vector(
       Some(SuppressionReason.RetrievalNonAuthoritative),
       Option.when(truthPromotion || !hasRetrievalExample)(SuppressionReason.ForbiddenShortcut),
       Option.when(truthPromotion || !hasRetrievalExample)(SuppressionReason.NoBoardReason)
     ).flatten
+
+  private def containsForbiddenEndgameContextToken(id: String): Boolean =
+    val normalized = normalizedToken(id)
+    Vector(
+      "win",
+      "draw",
+      "loss",
+      "result",
+      "oracle",
+      "wdl",
+      "dtz",
+      "dtm",
+      "forced",
+      "conversion",
+      "tablebase"
+    ).exists(normalized.contains) ||
+      Set(
+        "outside_passer",
+        "fortress_pattern",
+        "rook_on_seventh",
+        "triangulation",
+        "corresponding_squares",
+        "shouldering",
+        "breakthrough",
+        "reserve_tempo"
+      ).exists(normalized.contains)
+
+  private def containsForbiddenRetrievalContextToken(id: String): Boolean =
+    val normalized = normalizedToken(id)
+    Vector(
+      "current_position_truth",
+      "current_position_proof",
+      "truth_promotion",
+      "truth",
+      "recommendation",
+      "recommend",
+      "verdict",
+      "game_result",
+      "result_metadata",
+      "display_candidate",
+      "display_player",
+      "display_event",
+      "display_result",
+      "famous_player"
+    ).exists(normalized.contains)
+
+  private def sourceContextLineTestsSatisfied(
+      claim: CommentaryClaim,
+      selectedBoardClaims: Vector[CommentaryClaim]
+  ): Boolean =
+    val linkedProofIds = sourceContextIds(claim).flatMap(lineTestProofId)
+    linkedProofIds.isEmpty || {
+      val publicProofIds =
+        selectedBoardClaims
+          .flatMap(_.variationEvidence)
+          .filter(publicSafeVariationEvidence)
+          .map(_.proofId)
+          .toSet
+      linkedProofIds.forall(publicProofIds.contains)
+    }
+
+  private def lineTestProofId(ref: String): Option[String] =
+    val parts = ref.split(":").toVector
+    Option.when(parts.size == 3 && parts(1).trim.nonEmpty && parts(2) == "context" && parts.head.endsWith("-line-test"))(parts(1).trim)
+
+  private def normalizedToken(value: String): String =
+    value.toLowerCase.replace('-', '_').replace(':', '_').replace(' ', '_').replace('+', '_')
 
   private def hasSourceDetectorCarrier(claim: CommentaryClaim): Boolean =
     val motifIds =
@@ -435,6 +718,10 @@ object ClaimSelector:
   private def exactBoardIds(claim: CommentaryClaim): Vector[String] =
     (claim.evidenceRefs ++ claim.lowerCarrierRefs).collect:
       case ref if ref.kind == EvidenceRefKind.ExactBoard => ref.id
+
+  private def exactBoardRefs(claim: CommentaryClaim): Vector[EvidenceRef] =
+    (claim.evidenceRefs ++ claim.lowerCarrierRefs).collect:
+      case ref if ref.kind == EvidenceRefKind.ExactBoard => ref
 
   private def projectionReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
     val exactReasons = boardClaimReasons(claim)

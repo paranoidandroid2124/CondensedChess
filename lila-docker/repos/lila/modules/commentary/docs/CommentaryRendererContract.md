@@ -18,6 +18,11 @@ It must not consume:
 - `EngineEvidencePacket`
 - raw source rows as truth
 - opening source fixture rows or `OpeningContextCandidate` JSON directly
+- motif source fixture rows, detector rows, or source tags directly
+- endgame-study fixture rows, placement/relation evidence rows, or outcome
+  fields directly
+- retrieval example rows, snippets, player/event/result metadata, or raw
+  citation rows directly
 
 The renderer is a surface mapper. It does not select, rank, admit, suppress,
 revive, reinterpret evidence, promote source context, merge opening source
@@ -37,6 +42,9 @@ The stable contract names are:
 - `RenderBoundary`
 - `RenderSuppression`
 - `RenderWording`
+- `RenderVariationEvidence`
+- `RenderVariationBoundary`
+- `RenderVariationMove`
 
 `CommentaryRender` is structured-block-first. Text is a leaf field on a block,
 not the contract itself.
@@ -67,6 +75,8 @@ The mapping is plan-preserving:
 - `plan.contrast -> RenderRole.Contrast`
 - `plan.blocked -> RenderSuppression(public = false)`
 - eligible public refs from `plan.evidence -> RenderEvidenceRef`
+- selected public-safe line proofs from
+  `plan.variationEvidence -> RenderVariationEvidence`
 - `plan.wordingRules.maxStrength -> RenderWording.maxStrength`
 
 The renderer must preserve section order:
@@ -82,6 +92,19 @@ Public `RenderEvidenceRef` output is stricter than raw `plan.evidence`: a ref
 must already be present in `plan.evidence` and must also be directly referenced
 by an unblocked public selected claim. This prevents plan-wide or malformed
 evidence from becoming public without selected-claim ownership.
+
+Public `RenderVariationEvidence` output is similarly stricter than raw
+`plan.variationEvidence`: a proof must be public-safe, must be bound to an
+unblocked rendered claim, and must carry only the public subset frozen in
+[VariationEvidenceContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/VariationEvidenceContract.md).
+The renderer must not serialize `PreparedVariationDebug`. It may serialize
+public-safe evidence role, tested move/line, reply/resource line, restrained
+test result, bounded provenance refs, and surface allowance, but only as
+structured fields. Public `RenderVariationEvidence` requires
+`surfaceAllowance = public_line`; `boundary_only` proofs remain non-rendered
+line evidence in this scaffold. It must filter `internal_only`,
+raw-engine-provenance, source-context-provenance, unbounded, stale, illegal, or
+overclaim-token line proofs.
 
 ## Wording Strength
 
@@ -117,6 +140,19 @@ The renderer must not:
 - upgrade `wordingStrengthCap`
 - convert source, opening, motif, endgame-study, or retrieval context to truth
 - interpret raw engine evidence
+- turn prepared variation evidence into book-style prose
+- turn defender-resource or failed-tempting-move evidence into a main
+  recommendation
+- turn opening sequence context or `opening-line-test:*:context` refs into
+  opening prose, theory claims, recommendations, or proof ownership
+- turn motif line context or `motif-line-test:*:context` refs into motif prose,
+  threat claims, forcing claims, recommendations, or proof ownership
+- turn endgame technique context or `endgame-line-test:*:context` refs into
+  technique prose, result claims, forced-conversion claims, tablebase/oracle
+  claims, recommendations, or proof ownership
+- turn retrieval illustration context or `retrieval-line-test:*:context` refs
+  into current-position proof, recommendations, verdicts, game-result
+  evidence, citation display, or proof ownership
 - create best-move, theory-truth, forced-line, result, winning, drawing, or
   oracle wording
 - merge `master_reference` and `online_trend` rankings
@@ -144,6 +180,55 @@ rerank them into one candidate order.
 
 Specific game, player, event, and game URL citation remains retrieval-lane
 material. It is not opening aggregate context.
+
+## Source And Motif Boundary
+
+Motif source context is structured context only. The renderer may preserve
+selected `motif-example:*`, `motif-detector-carrier:*`, `motif-line-context:*`,
+and `motif-line-test:*:context` evidence refs that already survived selection,
+but it must not render raw motif rows, detector internals, source tags, or
+label-only motif prose.
+
+If public-safe line evidence is rendered beside motif context, it must come
+from `RenderVariationEvidence` owned by the exact-board claim. The motif
+context ref does not authorize best, forced, result, threat, mate, perpetual,
+or engine wording.
+
+## Source And Endgame Boundary
+
+Endgame-study context is structured context only. Study labels and technique
+refs frame technique after exact applicability; they do not prove win, draw,
+loss, forced conversion, tablebase/Syzygy/WDL/DTZ/DTM truth, or oracle truth.
+
+The renderer may preserve selected `endgame-study:*:applicable`,
+`endgame-study-applicability:*`, `endgame-technique:*`, and
+`endgame-line-test:*:context` evidence refs that already survived selection,
+but it must not render raw endgame rows, placement or relation evidence arrays,
+candidate plans, outcome fields, or label-only technique prose.
+
+If public-safe line evidence is rendered beside endgame context, it must come
+from `RenderVariationEvidence` owned by the exact-board claim. The endgame
+context ref does not authorize result, forced conversion, tablebase, oracle,
+best-move, or engine wording.
+
+## Source And Retrieval Boundary
+
+Retrieval context is optional illustrative/example context only. It may remain
+selected as non-authoritative context, but it is not proof of the current
+position and does not outrank exact-board variation evidence, source
+statistics, or certification.
+
+The renderer may preserve selected `retrieval-example:*`,
+`retrieval-illustration:*`, and `retrieval-line-test:*:context` evidence refs
+that already survived selection, but it must not render raw retrieval rows,
+snippets, player names, event names, game URLs, result metadata, citation
+metadata, or display-candidate shortcuts.
+
+If public-safe line evidence is rendered beside retrieval context, it must
+come from `RenderVariationEvidence` owned by the exact-board claim. The
+retrieval context ref does not authorize recommendation, verdict,
+current-position proof, result, best-move, forced-line, theory, or engine
+wording.
 
 ## Engine Boundary
 
@@ -214,6 +299,9 @@ The scaffold validates:
 - source/opening context non-authority
 - raw engine filtering
 - bounded `Certification` / `EngineCertification` evidence handling
+- public-safe prepared variation evidence carriage
+- internal prepared variation debug filtering
+- raw retrieval row, citation metadata, and internal proof-packet filtering
 - no evidence invention from claim-local refs outside `plan.evidence`
 - no merge of opening `master_reference` and `online_trend` refs
 - deterministic role fragments only, with no chess narration

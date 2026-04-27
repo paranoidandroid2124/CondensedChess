@@ -13,6 +13,7 @@ import lila.commentary.certification.{
   CertificationVerdict
 }
 import lila.commentary.delta.{ StrategicDelta, StrategicDeltaExtraction, StrategicDeltaExtractor }
+import lila.commentary.selection.WordingStrength
 import lila.commentary.strategic.{ StrategicObject, StrategicObjectExtraction, StrategicObjectExtractor }
 import lila.commentary.witness.{ Witness, WitnessAnchor, WitnessDescriptorId, WitnessPayload, WitnessSector, WitnessValue }
 import lila.commentary.witness.u.{ UExtractionContext, UWitnessExtractor }
@@ -24,6 +25,72 @@ import lila.commentary.witness.seed.{
 }
 
 object StrategyProjectionAdmission:
+
+  def admit(
+      projectionId: String,
+      bandId: StrategyProjectionBandId,
+      extraction: StrategySupportSeedExtraction,
+      currentRootState: lila.commentary.root.RootStateVector,
+      evidence: StrategyProjectionEvidence,
+      owner: Color,
+      beneficiary: Option[Color],
+      defender: Option[Color],
+      anchor: WitnessAnchor,
+      route: String,
+      scope: String,
+      lowerCarrierRefs: Vector[StrategyProjectionCarrierRef],
+      wordingStrengthCap: WordingStrength = WordingStrength.QualifiedSupport,
+      certificationEvidence: CertificationEvidenceBundle = CertificationEvidenceBundle.empty,
+      deltaExtraction: Option[StrategicDeltaExtraction] = None
+  ): StrategyProjectionAdmissionResult =
+    val selectedEvidenceClaims =
+      evidence.all.filter(claim => claim.bandId == bandId && claim.owner == owner && claim.anchor == anchor)
+    val boundEvidence =
+      StrategyProjectionEvidence.forSeedExtraction(extraction, selectedEvidenceClaims)
+    val admissionDecision =
+      admits(
+        bandId = bandId,
+        extraction = extraction,
+        evidence = boundEvidence,
+        owner = owner,
+        certificationEvidence = certificationEvidence,
+        deltaExtraction = deltaExtraction
+      )
+    val decision =
+      admissionDecision.map(admitted =>
+        admitted &&
+          selectedEvidenceClaims.nonEmpty &&
+          selectedEvidenceClaims.exists(claim => payloadContainsToken(claim.payload, route))
+      )
+    val evidenceKinds =
+      selectedEvidenceClaims.map(_.kind)
+    StrategyProjectionAdmissionResult.fromDecision(
+      projectionId = projectionId,
+      bandId = bandId,
+      sourceRootState = extraction.rootState,
+      currentRootState = currentRootState,
+      evidenceKinds = evidenceKinds,
+      owner = owner,
+      beneficiary = beneficiary,
+      defender = defender,
+      anchor = anchor,
+      route = route,
+      scope = scope,
+      lowerCarrierRefs = lowerCarrierRefs,
+      wordingStrengthCap = wordingStrengthCap,
+      decision = decision
+    )
+
+  private def payloadContainsToken(payload: WitnessPayload, token: String): Boolean =
+    payload.entries.exists((_, value) => valueContainsToken(value, token))
+
+  private def valueContainsToken(value: WitnessValue, token: String): Boolean =
+    value match
+      case WitnessValue.Token(value)              => value == token
+      case WitnessValue.TokenListValue(values)    => values.contains(token)
+      case WitnessValue.ListValue(values)         => values.exists(valueContainsToken(_, token))
+      case WitnessValue.ObjectValue(payload)      => payloadContainsToken(payload, token)
+      case _                                      => false
 
   def admits(
       bandId: StrategyProjectionBandId,

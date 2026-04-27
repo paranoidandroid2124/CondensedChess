@@ -1,9 +1,22 @@
 ﻿# Source Context Contract
 
-This document freezes the offline source-context contract for opening,
-motif, endgame-study, and retrieval reference data.
+This document freezes the source-context contract for opening, motif,
+endgame-study, and retrieval reference data.
 
-It does not open a live planner, renderer, API, or frontend path.
+It does not open raw source ingestion, a live planner, renderer prose, API
+controller wiring, or frontend wiring. The runtime adapter boundary is
+`SourceContextAdapter`, which normalizes source-family inputs into
+`SourceContextCandidate`. The runtime handoff is then either direct
+`SourceContextCandidate` to `CommentaryClaim` conversion through
+`SourceContextClaimBoundary`, or the same conversion via the backend private
+`EvidenceClaimHandoff.sourceContext` field. That backend field accepts only
+already-normalized candidates; it is not a raw source-row payload, live lookup,
+controller contract, or frontend input. `SourceContextCandidate.candidateId`
+must be public-safe because it can become a public render `claimId`; source,
+debug, result, player, event, URL, or raw metadata must stay in non-public
+source rows and must not be encoded into candidate ids. Selection, outline, and
+renderer safety rules still decide whether that prepared context is emitted.
+Source family internals remain upstream of that normalized handoff.
 
 The contract is deliberately sidecar-only:
 
@@ -11,6 +24,11 @@ The contract is deliberately sidecar-only:
   applicability, or similar examples
 - source rows must not become Root, U, Object, Delta, Certification, or Sxx
   truth owners
+- source rows must not become prepared variation evidence or line-proof owners
+- opening, motif, endgame-study, and retrieval rows may link to public-safe line-test proof
+  ids only as `opening-line-test:*:context`, `motif-line-test:*:context`, or
+  `endgame-line-test:*:context`, or `retrieval-line-test:*:context` references;
+  the proof itself must still come from a separately admitted exact-board claim
 - any current-position claim still needs the existing exact-board carrier for
   its layer
 - selector output may use source rows only as `contextOnly` or as context after
@@ -228,6 +246,7 @@ generate renderer-ready prose and does not connect to a live adapter. A valid
 - optional display/context alias
 - `primaryReferenceStats`
 - `secondaryTrendStats`
+- `sequenceContexts`
 - `confidence`
 - `boundaries`
 - `sourceRefs`
@@ -249,6 +268,15 @@ Source selection is fixed:
 are never merged. If both sources cover a position and disagree, the candidate
 may carry a source-context disagreement boundary only.
 
+`sequenceContexts` are structured context for book-style sequence explanation.
+Allowed roles are `move_order`, `pawn_break`, `development_lag`,
+`file_ownership`, `king_safety`, `transposition`, `compensation`, and
+`master_online_divergence`. Each sequence context must carry
+`opening_sequence_context_only`. A line-test link must carry
+`line_test_link_is_not_proof` and may point only at a public-safe variation
+proof id prepared elsewhere. The opening context row does not own that proof,
+does not contribute proof provenance, and does not make a recommendation.
+
 Confidence is bounded by the master source's
 `perPositionSampleSizeThreshold`. Master-reference rows below that threshold
 are weak or suppressed; this is expected because the current local
@@ -263,7 +291,8 @@ particular game.
 Opening consumption fails closed when any required exact position key,
 taxonomy row, source-use metadata, candidate boundary, or alias taxonomy link is
 missing. Strongest-move, theory-truth, forced-line, result, engine, or
-result-service wording rejects the candidate.
+result-service wording rejects the candidate. The same forbidden wording policy
+applies to sequence context refs, linked proof ids, and sequence boundaries.
 
 ## Motif
 
@@ -290,10 +319,10 @@ An admitted motif example must bind:
 A motif tag without detector carrier fails closed. A motif label alone must not
 admit a projection band or current-position claim.
 
-The frozen source-context motif schema is `MotifExample` plus
-`MotifCarrierRef`. It is a test/tooling schema only and does not create a live
-source-context adapter, `CommentaryCore` facade, synthesis path, renderer path,
-API payload, or frontend contract.
+The frozen source-context motif storage schema is `MotifExample` plus
+`MotifCarrierRef`. Runtime consumption goes through `SourceContextAdapter` into
+`SourceContextCandidate`; it does not create a `CommentaryCore` facade,
+synthesis path, renderer prose path, controller payload, or frontend contract.
 
 `MotifCarrierRef.ref` must be shaped as:
 
@@ -306,6 +335,25 @@ Each accepted example must also include exactly one matching motif source ref:
 This parity mirrors the selector fallback boundary and prevents a source row
 from borrowing a detector from another example or another board.
 Additional `motif-example:*` refs on the same row fail closed.
+
+Runtime-prepared motif line context may add only source-context refs shaped as:
+
+- `motif-line-context:<role>:<context-ref>`
+- `motif-line-test:<prepared-proof-id>:context`
+
+Allowed line-context roles are `attacked_target`, `restricted_piece`,
+`pinned_defender`, `overloaded_defender`, `trapped_piece`, `natural_resource`,
+`failed_resource`, `held_resource`, and `partial_resource`.
+
+These refs may describe what the source context is about, such as an attacked
+target, restricted piece, pinned or overloaded defender, natural resource,
+failed resource, held resource, or partial resource. They are not proof,
+provenance, current-board truth, Sxx admission, or renderer prose. If a motif
+line context links to a prepared proof id, its boundary must include both
+`motif_line_context_only` and `line_test_link_is_not_proof`; the actual
+`PreparedVariationEvidence` must be owned by a separately admitted exact-board
+claim. Source-context motif claims must carry no prepared variation evidence of
+their own.
 
 Both the top-level `MotifExample` object and the nested `MotifCarrierRef`
 object reject unknown fields. This is deliberate: source-context rows may not
@@ -354,7 +402,9 @@ Current admitted motif ids are:
 `mate_net` and `perpetual_check` are certification-only motif mappings. Their
 source rows may provide a human-facing pattern name only after the exact
 certification carrier exists. The source row still does not claim mate, draw,
-result, forced line, or best move.
+result, forced line, or best move. The runtime `SourceContextAdapter` remains
+fail-closed for these motifs until the normalized input can carry an exact
+certification carrier rather than a string `carrierKind` label alone.
 
 Deferred or helper-required motif ids are:
 
@@ -374,6 +424,8 @@ Motif rows must reject:
 - wrong-board or cross-example detector refs
 - mismatched `motifId` / detector-carrier pairs
 - unknown motif ids
+- line contexts without exact source/carrier parity
+- line-test links without `line_test_link_is_not_proof`
 - unknown fields
 - missing `involvedSquares`
 - missing `negativeBoundaries`
@@ -417,6 +469,35 @@ Accepted fixture rows bind their source context to exact-board evidence refs:
 
 - `endgame-study:<studyId>:applicable`
 - `endgame-study-applicability:<fixture-id>`
+
+Runtime adapter intake must not manufacture applicability from a free fixture
+id. Endgame source input is admissible only after the exact fixture
+material/placement/relation/side-to-move checks have already passed; the
+prepared exact ref then carries `scope=exact_endgame_applicability` and
+`route=<studyId>`. Unverified or scope-less fixture ids fail closed before
+selection.
+
+Runtime-prepared endgame technique context may add only source-context refs
+shaped as:
+
+- `endgame-technique:<role>:<context-ref>`
+- `endgame-line-test:<prepared-proof-id>:context`
+
+Allowed technique roles are `opposition`, `checking_distance`,
+`rook_activity`, `pawn_ending_transition_risk`, `wrong_exchange`,
+`bridge_setup`, `third_rank_setup`, `side_checking_setup`,
+`method_exception`, `defender_resource`, and `hold_line`.
+
+These refs frame technique only: opposition, checking distance, rook activity
+or passivity, pawn-ending transition risk, wrong exchange, bridge setup,
+third-rank setup, side-checking setup, method/exception, defender resource, or
+hold line. They are not result truth, tablebase truth, forced conversion,
+provenance, current-board truth, or renderer prose. If an endgame technique
+context links to a prepared proof id, its boundary must include both
+`endgame_technique_context_only` and `line_test_link_is_not_proof`; the actual
+`PreparedVariationEvidence` must be owned by a separately admitted exact-board
+claim. Source-context endgame claims must carry no prepared variation evidence
+of their own.
 
 Reject fixtures must also carry exact clean FENs; malformed boards are not
 allowed to count as negative evidence.
@@ -480,6 +561,12 @@ tablebase/oracle candidate-plan wording, and rows without exact material or
 applicability rules. Nasty negatives include wrong rook ownership, defender-owned
 wrong bishops, loose Lucena rook geometry, and Vancura-shaped side-rank rooks
 that are not actually checking from the side.
+Runtime technique context additionally rejects deferred study tokens such as
+`outside_passer`, `fortress_pattern`, `rook_on_seventh`, `triangulation`,
+`corresponding_squares`, `shouldering`, `breakthrough`, and `reserve_tempo`;
+result/oracle/forced-conversion wording; line-test links without
+`line_test_link_is_not_proof`; and any attempt to use technique context as
+line-proof ownership.
 
 ## Retrieval
 
@@ -571,6 +658,26 @@ metadata only; it is not a current-position verdict and must not influence
 claim admission. If a row carries citation metadata, license and attribution
 fields must be present.
 
+Runtime-prepared retrieval illustration context may add only source-context refs
+shaped as:
+
+- `retrieval-illustration:<role>:<context-ref>`
+- `retrieval-line-test:<prepared-proof-id>:context`
+
+Allowed illustration roles are `comparable_line`, `similar_plan_sequence`,
+`theme_example`, and `citation_context`.
+
+These refs may say only that the retrieved row is a comparable example, shares
+a plan sequence, demonstrates a theme, or carries bounded citation context.
+They are not proof, provenance, current-board truth, recommendation, verdict,
+game-result evidence, or renderer prose. If retrieval illustration context
+links to a prepared proof id, its boundary must include both
+`retrieval_illustration_context_only` and `line_test_link_is_not_proof`; the
+actual `PreparedVariationEvidence` must be owned by a separately admitted
+exact-board claim. Source-context retrieval claims must carry no prepared
+variation evidence of their own. `displayCandidate` remains false/deferred
+until a renderer citation contract explicitly admits display-safe citation.
+
 Retrieval examples fail closed when:
 
 - `sourceId` or `sourceRef` is missing
@@ -588,6 +695,9 @@ Retrieval examples fail closed when:
   forced, engine, oracle, current-position-proof language, or coded
   result/proof tokens such as WDL, DTZ, DTM, `1-0`, `0-1`, or `1/2-1/2`
 - game result is used as a current-position claim
+- illustration context uses result/verdict/recommendation/display wording
+- line-test links omit `line_test_link_is_not_proof`
+- `displayCandidate=true`
 - opening similarity has the same opening family but lacks FEN-matched structure
   evidence
 - motif similarity has a tag but no exact known detector-carrier ref, or borrows
@@ -610,25 +720,38 @@ The selection runtime may use these rows only as `contextOnly` when no stronger
 exact-board lead exists, or as bounded context/support after an exact-board
 lead is selected.
 
+Prepared variation evidence remains outside the source-context adapter and
+claim-boundary path. Source-context candidates carrying line-proof or raw PV
+meaning are suppressed before outline rather than converted into board truth.
+
 Opening fallback requires an active canonical `opening-position:*:canonical`
 source ref and remains non-authoritative. `opening-position:*:ambiguous` rows
 are downgraded or suppressed with `ambiguous_transposition`.
 
 Motif fallback requires a `motif-example:*` source ref whose motif id matches
-an exact `motif-detector-carrier:*` evidence ref. A motif source tag without
-that carrier, with a mismatched carrier, with truth/Sxx/result/engine shortcut
-wording, or with a deferred/helper-required motif id such as `back_rank_mate`,
-is suppressed with `forbidden_shortcut` and `no_board_reason`.
+an exact `motif-detector-carrier:*` evidence ref. Optional
+`motif-line-context:*` and `motif-line-test:*:context` refs remain
+source-context evidence only. A motif source tag without that carrier, with a
+mismatched carrier, with truth/Sxx/result/engine shortcut wording, with an
+unsafe line-context boundary, or with a deferred/helper-required motif id such
+as `back_rank_mate`, is suppressed with `forbidden_shortcut` and
+`no_board_reason`.
 
 Endgame-study fallback requires an `endgame-study:*:applicable` source ref
 whose study id matches an exact `endgame-study-applicability:*` material and
-placement carrier. Result-language, tablebase, or forced-conversion shortcuts
-are suppressed.
+placement carrier. Runtime-prepared candidates may bind a Phase 4 fixture id to
+its study id only through exact carrier route metadata with
+`scope=exact_endgame_applicability`; unbound, unverified, or scope-less fixture
+ids do not satisfy selector fallback. Result-language, tablebase, or
+forced-conversion wording fails closed. Optional `endgame-technique:*` and
+`endgame-line-test:*:context` refs remain source-context evidence only.
 
 Retrieval fallback requires a `retrieval-example:*` source ref, remains
 non-authoritative reference context, and carries
 `retrieval_non_authoritative`. Current-position truth or truth-promotion
-retrieval ids are suppressed.
+retrieval ids are suppressed. Optional `retrieval-illustration:*` and
+`retrieval-line-test:*:context` refs remain source-context evidence only; they
+do not allow claim transfer from a retrieved game to the current board.
 
 ## Retrieval Quality Tooling
 
@@ -696,6 +819,8 @@ facts.
 The runnable source-context owners are:
 
 - `SourceContextCorpusTest`
+- `SourceContextAdapterContractTest`
+- `SourceContextClaimBoundaryTest`
 - `OpeningSourceToolingTest`
 - `OpeningSourceConsumptionTest`
 - `retrieval_quality_index_test.py`
@@ -703,6 +828,12 @@ The runnable source-context owners are:
 They currently check:
 
 - expected fixture files exist
+- source-family inputs normalize only through `SourceContextAdapter`, and
+  forbidden family claims are rejected before selection
+- prepared runtime source-context candidates convert only to source-context
+  `CommentaryClaim`s capped at `context_only`
+- `SourceContextCandidate` is the normalized handoff shape; selection does not
+  consume raw opening, motif, endgame-study, or retrieval rows
 - active and deferred family classification
 - license/provenance rejection
 - opening position-key and candidate leakage rejection
@@ -710,8 +841,9 @@ They currently check:
 - opening display/context alias taxonomy preservation
 - 2013 game aggregate smoke-source boundary and trend-stat metadata rejection
 - transposition downgrade behavior
-- motif detector-carrier requirement, strict source/carrier parity, nested
-  unknown-field rejection, and current backend extractor parity
+- motif detector-carrier requirement, strict source/carrier parity, motif
+  line-context/source proof-link containment, nested unknown-field rejection,
+  and current backend extractor parity
 - Lucena, Philidor, Vancura, basic opposition, distant opposition, wrong rook
   pawn, and rook-behind-passed-pawn applicability requirements
 - endgame-study non-result boundary
@@ -720,7 +852,7 @@ They currently check:
   containment, license/attribution requirements for citations, duplicate
   `sourceRef` rejection, low-similarity rejection, truth-wording rejection,
   game-result metadata containment, same-opening wrong-structure rejection,
-  motif-tag-only rejection, unknown-field rejection, and non-authoritative
-  boundary
+  motif-tag-only rejection, illustration line-test containment, display
+  candidate deferral, unknown-field rejection, and non-authoritative boundary
 - retrieval quality indexing, citation/provenance, similarity, and local-only
   reporting

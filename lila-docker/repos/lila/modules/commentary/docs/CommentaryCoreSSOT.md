@@ -132,6 +132,26 @@ It introduces structured selector data only:
 
 This does not open renderer, API, or frontend wiring.
 
+Runtime backend claim production is split by evidence boundary. The default
+backend seam calls `EvidenceClaimProducer`, which composes the narrow
+`ExactBoardClaimProducer` with an empty higher-evidence handoff. Exact-board
+claims may come only from sanitized current Object extraction and optional
+same-current Delta extraction. Higher-layer runtime claims require a private
+sanitized `EvidenceClaimHandoff`: same-current `CertificationExtraction`,
+typed `StrategyProjectionAdmissionResult` values, or normalized
+`SourceContextCandidate` values. Projection claims may be emitted only from an
+admitted `StrategyProjectionAdmissionResult` produced by
+`StrategyProjectionAdmission.admit`, which runs the exact Sxx-specific
+admission law, binds the result to the current root, carries same-binding exact
+lower carrier refs, exposes only allowed projection evidence kinds, and clamps
+wording strength. Claim-shaped Sxx candidates are still accepted only as a
+legacy unsafe handoff field and remain ignored by the producer. This handoff is not a
+frontend/request payload, not live source lookup, and not a raw engine/source
+escape hatch. Accepted engine intake status alone cannot create a claim; raw
+source rows cannot create a claim; prepared variation evidence cannot create a
+claim. Explicit injected backend `claimProvider`s still override the default
+producer path for contract tests and controlled future producer paths.
+
 Selection consumes already admitted typed claims from the current branch
 pipeline. It may choose `mustLead`, `shouldLead`, `canLead`, `support`,
 `contextOnly`, or `suppress`, but it must not create chess truth. Engine E only
@@ -252,8 +272,13 @@ enter `contextOnly` only when no exact-board lead exists and never as
 best-move, theory-truth, forced-line, result, or current-position proof.
 Endgame-study context requires exact material/placement applicability and
 cannot claim win, draw, loss, forced line, or forced conversion. Motif context
-requires an exact detector carrier; motif tags alone are suppressed. Retrieval
-remains non-authoritative example context. Ambiguous opening transpositions,
+requires exact detector carrier parity; motif tags alone are suppressed, and
+motif line-test refs remain source-context links rather than proof ownership.
+`mate_net` and `perpetual_check` require certification carriers, while
+deferred/helper-required motifs remain blocked until their exact helper/carrier
+exists; the current runtime adapter blocks those certification-only motifs
+until that exact certification carrier is part of the normalized input.
+Retrieval remains non-authoritative example context. Ambiguous opening transpositions,
 retrieval truth-promotion, endgame result-language shortcuts, gameContext,
 practicality, tablebase, and endgame result-service source families remain
 fail-closed with typed suppression reasons such as `source_context_only`,
@@ -263,7 +288,21 @@ hard reasons from source-row evidence ids: canonical opening refs must use
 `opening-position:*:canonical`, motif refs must match
 `motif-example:*` to `motif-detector-carrier:*`, endgame-study refs must match
 `endgame-study:*:applicable` to `endgame-study-applicability:*`, and retrieval
-refs must stay `retrieval-example:*` without truth-promotion ids. When an
+refs must stay `retrieval-example:*` without truth-promotion ids. Optional
+`retrieval-illustration:*` and `retrieval-line-test:*:context` refs are
+source-context links only; they cannot transfer proof from a retrieved game,
+recommend a move, create a verdict, expose game result/player/event metadata,
+or own prepared variation evidence. The current
+runtime reconciliation boundary is `SourceContextAdapter` to
+`SourceContextCandidate` to `SourceContextClaimBoundary`. The adapter normalizes
+source-family inputs and rejects forbidden family claims before selection;
+`SourceContextClaimBoundary` converts normalized candidates into
+`ClaimLayer.SourceContext` claims only. This path does not parse raw source rows
+inside Phase 3, create board truth, open controller/product frontend wiring, or
+bypass selector fallback. Source-family internals stay on the
+adapter/source-context side of that boundary. Endgame-study Phase 4 fixture ids
+may differ from study ids only when the normalized exact applicability carrier
+is route-bound to the study id; unbound fixture ids remain fail-closed. When an
 opening source-context ref carries specific game, player, event, URL, or raw
 HTTP citation material, it remains retrieval-lane material and fails closed
 before context fallback. When an exact-board lead exists, source context may only remain bounded
@@ -295,6 +334,93 @@ define API/frontend payload shape. If no lead, support, context, or contrast
 exists, the resulting plan is `noCommentary`; blocked do-not-say material and
 evidence references are still carried.
 
+The public-safe prepared variation evidence contract is frozen in
+[VariationEvidenceContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/VariationEvidenceContract.md).
+That contract now also defines the internal `CandidateLineEvidence` boundary
+under `lila.commentary.line`. Candidate line evidence is the stable
+branch/probe-tree evidence shape before lowering to public-safe prepared
+variation evidence. It may preserve root alternatives, child defender branches,
+candidate rank, MultiPV index, branch id, optional parent branch id, start FEN,
+node id, ply, side to move, SAN/UCI lines, requested and realized depth,
+freshness, engine fingerprint, legal replay status, provenance kind, source
+hint refs, surface allowance, wording cap, explicit failure reasons when
+rejected, and a prepared-variation target link. It is not a public prose
+object, not a renderer/backend payload, and not a truth owner by itself. Source
+hints are non-proof metadata, retrieval is not a current-position candidate
+source, and failed/premature/release-risk roles remain internal/deferred at the
+candidate-line boundary.
+`CandidateLineNormalizer` is the backend-owned exact-FEN UCI-to-SAN replay
+boundary for this internal evidence. It may normalize raw UCI PV fixtures into
+`CandidateLineEvidence`, but it must not create claims, lower to public
+prepared variation evidence, wire controller/frontend payloads, schedule child
+probes, cache output, or expose raw PV through renderer/backend public JSON.
+`CandidateLinePacketHandoff` is the internal sanitized multi-packet handoff for
+candidate-line evidence. It can bind one root packet to the current FEN/node/ply
+and attach child defender-resource or defender-reply packets only when their
+parent branch id exists, their node/ply matches the declared parent prefix, and
+their start FEN matches exact replay of that prefix. Duplicate root branch ids
+fail closed before child binding, and source-hint provenance remains non-proof
+metadata rather than engine proof provenance. It delegates line replay to
+`CandidateLineNormalizer` and does not change public request/response shape,
+lower to `PreparedVariationEvidence`, schedule probes, create claims, or open
+renderer prose.
+`CandidateLineEvidenceLowering` is now the deterministic V3d internal lowering
+boundary from sanitized candidate-line trees to public-safe
+`PreparedVariationEvidence`. It consumes only `CandidateLineEvidence` plus an
+explicit exact-board claim binding and keeps the public response shape
+unchanged. The frozen policy is depth floor `16`, preferred target depth `18`,
+strong/cache target depth `20`, root MultiPV default target `3`, accepted root
+MultiPV `2-3` with hard cap `3`, child MultiPV default `1`, accepted child
+MultiPV `1-2` with hard cap `2`, and child defender replies considered only
+for top-two root candidates unless third-root child proof is explicitly
+enabled. Rank `1` root evidence lowers to main candidate line evidence, rank
+`2` to alternative line evidence, and rank `3` to context line evidence.
+Failed, premature, release-risk, source-hint, stale, shallow, illegal,
+internal-only, incomplete, duplicate-rank, or duplicate-MultiPV-index candidate
+evidence remains non-public. Public proof ids are stable lowering-owned line
+ids and must not expose internal branch ids, parent branch ids, ranks, or
+MultiPV indexes. Raw-engine, source-context, unbound, or mismatched binding
+provenance fails closed before prepared evidence is emitted.
+It adds typed `PreparedVariationEvidence` carriage through selection, outline,
+plan, renderer, and backend response as a bounded line-proof object. It does
+not expose raw engine PV packets, raw source rows, evals, mate scores, engine
+configuration fingerprints, variation hashes, or debug fields, and it does not
+create Root, U, Object, Delta, Certification, Projection, source-context,
+best-move, forced-line, result, winning, drawn, or oracle truth.
+The same contract now covers defender-resource, failed-tempting-move,
+release-risk, hold, conversion, simplification, and persistence line-test
+roles. These roles require exact-board legal/fresh/depth-bounded line evidence
+plus same-binding provenance, and failed tempting or premature move evidence
+remains negative/support-only rather than a main recommendation.
+Opening source context may now carry structured sequence refs for move order,
+pawn breaks, development lag, file ownership, king safety, transposition,
+restrained compensation, and master/online divergence. These refs are
+source-context material only. They may link to a prepared proof id as
+`opening-line-test:*:context`, but they do not own the proof and do not expose
+raw opening rows, source frequencies, theory claims, or recommendations.
+Motif source context may carry `motif-line-context:*` refs and
+`motif-line-test:*:context` links for attacked/restricted pieces, defender
+resources, failed resources, held resources, and partial resources only after
+detector carrier parity. These refs are context only; the prepared variation
+proof must remain on the exact-board claim, and renderer/backend output must
+not expose raw motif rows or internal proof packets.
+Endgame-study context may carry `endgame-technique:*` refs and
+`endgame-line-test:*:context` links for opposition, checking distance, rook
+activity, pawn-ending transition risk, wrong exchange, bridge setup,
+third-rank setup, side-checking setup, method/exception, defender resource, or
+hold line only after exact material/placement/relation/side-to-move
+applicability. These refs are context only; the prepared variation proof must
+remain on the exact-board claim, and renderer/backend output must not expose
+raw endgame rows, outcome fields, tablebase-style verdicts, or internal proof
+packets.
+Retrieval source context may carry `retrieval-illustration:*` refs and
+`retrieval-line-test:*:context` links for comparable lines, similar plan
+sequences, theme examples, or bounded citation context. These refs are context
+only; the prepared variation proof must remain on the exact-board claim, and
+renderer/backend output must not expose raw retrieval rows, snippets,
+player/event/result metadata, display candidates, citation metadata, or
+internal proof packets.
+
 The first renderer executable implementation maps `CommentaryPlan` into
 structured role-based output only:
 
@@ -308,6 +434,9 @@ structured role-based output only:
 - `RenderBoundary`
 - `RenderSuppression`
 - `RenderWording`
+- `RenderVariationEvidence`
+- `RenderVariationBoundary`
+- `RenderVariationMove`
 
 It emits only deterministic role fragments: `Primary`, `Support`, `Context`,
 and `Contrast`. It does not generate broad chess narration, and it does not open
@@ -338,8 +467,22 @@ caller `debug` field. The response shape is `CommentaryResponse`: status, public
 Malformed FEN or invalid transition input fails closed to `invalidRequest` plus
 a silent `RenderStatus.NoCommentary` render. Public responses hide blocked and
 suppression metadata by default; internal diagnostics are exposed only through
-the server-owned debug entrypoint, not by caller request flags. The seam composes exact-board intake, optional
-certification runtime intake, selection, outline builder, and renderer. It does
+the server-owned debug entrypoint, not by caller request flags. The seam
+composes exact-board intake, optional certification runtime intake,
+`EvidenceClaimProducer`, selection, outline builder, and renderer. The
+producer composes the narrow `ExactBoardClaimProducer` with typed
+certification, projection-admission, and source-context handoffs. It may emit
+only bounded Object claims for current
+material/piece-inventory and immediate-check facts, plus bounded Delta claims
+for last-move, capture, and pawn-transition facts from a validated transition.
+Those Delta claims require the transition after-state to match the current
+extraction root state, and the backend seam rejects board-equivalent but
+full-FEN-clock-stale transition endpoints before claim production.
+Projection claims require typed admitted `StrategyProjectionAdmissionResult`
+input; Sxx labels, broad chess concepts, and claim-shaped projection candidates
+do not create claims. It does not create engine, prepared-variation,
+candidate-line, best, forced, result, theory, recommendation, or oracle claims.
+The seam does
 not expose raw engine, pass raw engine packets or raw played-move strings to
 claim production, serialize raw engine rejection details, accept
 `EngineEvidencePacket` directly, accept raw source rows as truth, merge opening

@@ -31,6 +31,97 @@ object RenderEvidenceRef:
   def from(ref: EvidenceRef): RenderEvidenceRef =
     RenderEvidenceRef(ref.kind, ref.id, ref.owner, ref.anchor, ref.route, ref.scope)
 
+final case class RenderVariationMove(
+    san: String,
+    uci: String
+)
+
+object RenderVariationMove:
+  def from(move: VariationMove): RenderVariationMove =
+    RenderVariationMove(move.san, move.uci)
+
+final case class RenderVariationBoundary(
+    depthFloor: Int,
+    realizedDepth: Int,
+    multiPv: Int,
+    freshnessChecked: Boolean,
+    legalReplayChecked: Boolean,
+    baselineChecked: Boolean
+)
+
+object RenderVariationBoundary:
+  def from(boundary: PreparedVariationBoundary): RenderVariationBoundary =
+    RenderVariationBoundary(
+      depthFloor = boundary.depthFloor,
+      realizedDepth = boundary.realizedDepth,
+      multiPv = boundary.multiPv,
+      freshnessChecked = boundary.freshnessChecked,
+      legalReplayChecked = boundary.legalReplayChecked,
+      baselineChecked = boundary.baselineChecked
+    )
+
+final case class RenderVariationEvidence(
+    proofId: String,
+    boundClaimId: String,
+    startFen: String,
+    owner: String,
+    defender: Option[String],
+    anchor: String,
+    route: String,
+    scope: String,
+    role: VariationEvidenceRole,
+    moveRole: VariationMoveRole,
+    lineSan: Vector[String],
+    lineUci: Vector[String],
+    playedMove: Option[RenderVariationMove],
+    candidateMove: Option[RenderVariationMove],
+    defenderResource: Option[RenderVariationMove],
+    continuation: Vector[RenderVariationMove],
+    testedMove: Option[RenderVariationMove],
+    testedLine: Vector[RenderVariationMove],
+    replyLine: Vector[RenderVariationMove],
+    resourceLine: Vector[RenderVariationMove],
+    testResult: VariationTestResult,
+    proves: String,
+    proofPurpose: VariationProofPurpose,
+    provenanceRefs: Vector[RenderEvidenceRef],
+    boundary: RenderVariationBoundary,
+    wordingCap: WordingStrength,
+    surfaceAllowance: VariationSurfaceAllowance
+)
+
+object RenderVariationEvidence:
+  def from(proof: PreparedVariationEvidence): RenderVariationEvidence =
+    RenderVariationEvidence(
+      proofId = proof.proofId,
+      boundClaimId = proof.boundClaimId,
+      startFen = proof.startFen,
+      owner = proof.owner,
+      defender = proof.defender,
+      anchor = proof.anchor,
+      route = proof.route,
+      scope = proof.scope,
+      role = proof.role,
+      moveRole = proof.moveRole,
+      lineSan = proof.lineSan,
+      lineUci = proof.lineUci,
+      playedMove = proof.playedMove.map(RenderVariationMove.from),
+      candidateMove = proof.candidateMove.map(RenderVariationMove.from),
+      defenderResource = proof.defenderResource.map(RenderVariationMove.from),
+      continuation = proof.continuation.map(RenderVariationMove.from),
+      testedMove = proof.testedMove.map(RenderVariationMove.from),
+      testedLine = proof.testedLine.map(RenderVariationMove.from),
+      replyLine = proof.replyLine.map(RenderVariationMove.from),
+      resourceLine = proof.resourceLine.map(RenderVariationMove.from),
+      testResult = proof.testResult,
+      proves = proof.proves,
+      proofPurpose = proof.proofPurpose,
+      provenanceRefs = proof.provenanceRefs.map(RenderEvidenceRef.from),
+      boundary = RenderVariationBoundary.from(proof.boundary),
+      wordingCap = proof.wordingCap,
+      surfaceAllowance = proof.surfaceAllowance
+    )
+
 final case class RenderBoundary(
     claimId: String,
     reason: SuppressionReason
@@ -54,6 +145,7 @@ final case class RenderBlock(
     text: RenderText,
     wordingStrength: WordingStrength,
     evidenceIds: Vector[String],
+    variationEvidenceIds: Vector[String],
     boundaries: Vector[RenderBoundary],
     nonAuthoritative: Boolean
 )
@@ -63,6 +155,7 @@ final case class CommentaryRender(
     status: RenderStatus,
     blocks: Vector[RenderBlock],
     evidenceRefs: Vector[RenderEvidenceRef],
+    variationEvidence: Vector[RenderVariationEvidence],
     boundaries: Vector[RenderBoundary],
     suppressions: Vector[RenderSuppression],
     wording: RenderWording
@@ -70,7 +163,7 @@ final case class CommentaryRender(
 
 object CommentaryRendererContract:
 
-  val SchemaVersion = 1
+  val SchemaVersion = 2
 
   def render(plan: CommentaryPlan): CommentaryRender =
     val wording = renderWording(plan.wordingRules.maxStrength)
@@ -102,6 +195,7 @@ object CommentaryRendererContract:
       status = status,
       blocks = publicBlocks,
       evidenceRefs = if status == RenderStatus.NoCommentary then Vector.empty else renderEvidence(plan),
+      variationEvidence = if status == RenderStatus.NoCommentary then Vector.empty else renderVariationEvidence(plan, publicBlocks),
       boundaries = publicBoundaries,
       suppressions = suppressions,
       wording = wording
@@ -122,6 +216,7 @@ object CommentaryRendererContract:
           text = RenderText(publicText = None, forbiddenTerms = forbiddenTermsFor(selected.claim, strength)),
           wordingStrength = strength,
           evidenceIds = evidenceIdsFor(plan, selected.claim),
+          variationEvidenceIds = variationEvidenceIdsFor(plan, selected.claim),
           boundaries = section.boundaries
             .filter(_.claimId == selected.claim.id)
             .map(boundary => RenderBoundary(boundary.claimId, boundary.reason)),
@@ -164,6 +259,82 @@ object CommentaryRendererContract:
       .filter(ref => renderableEvidence(ref, plan, publicCertificationClaimRefs))
       .filter(ref => !blockedRefs.contains(ref) || publicClaimRefs.contains(ref))
       .toSet
+
+  private def renderVariationEvidence(
+      plan: CommentaryPlan,
+      publicBlocks: Vector[RenderBlock]
+  ): Vector[RenderVariationEvidence] =
+    val publicClaimIds = publicBlocks.map(_.claimId).toSet
+    publicVariationEvidence(plan, publicClaimMap(plan, publicClaimIds)).map(RenderVariationEvidence.from)
+
+  private def variationEvidenceIdsFor(plan: CommentaryPlan, claim: CommentaryClaim): Vector[String] =
+    publicVariationEvidence(plan, Map(claim.id -> claim)).map(_.proofId)
+
+  private def publicVariationEvidence(
+      plan: CommentaryPlan,
+      publicClaims: Map[String, CommentaryClaim]
+  ): Vector[PreparedVariationEvidence] =
+    val blockedClaimIds = plan.blocked.map(_.claim.id).toSet
+    plan.variationEvidence
+      .map(_.proof)
+      .filter(proof => publicClaims.contains(proof.boundClaimId))
+      .filter(proof => !blockedClaimIds.contains(proof.boundClaimId))
+      .filter(proof => publicClaims.get(proof.boundClaimId).exists(claim => variationProofBoundToClaim(proof, claim)))
+      .filter(renderableVariationEvidence)
+      .distinct
+
+  private def publicClaimMap(plan: CommentaryPlan, publicClaimIds: Set[String]): Map[String, CommentaryClaim] =
+    val blockedClaimIds = plan.blocked.map(_.claim.id).toSet
+    publicSections(plan)
+      .flatMap(_.claims)
+      .map(_.claim)
+      .filter(claim => publicClaimIds.contains(claim.id) && !blockedClaimIds.contains(claim.id))
+      .map(claim => claim.id -> claim)
+      .toMap
+
+  private def variationProofBoundToClaim(
+      proof: PreparedVariationEvidence,
+      claim: CommentaryClaim
+  ): Boolean =
+    proof.boundClaimId == claim.id &&
+      claim.owner.contains(proof.owner) &&
+      claim.anchor.contains(proof.anchor) &&
+      claim.route.contains(proof.route) &&
+      claim.scope.contains(proof.scope) &&
+      proof.defender.forall(defender => claim.defender.contains(defender))
+
+  private def renderableVariationEvidence(proof: PreparedVariationEvidence): Boolean =
+    proof.publicSafe &&
+      proof.surfaceAllowance == VariationSurfaceAllowance.PublicLine &&
+      proof.boundary.publicSafe &&
+      proof.lineSan.nonEmpty &&
+      proof.lineSan.size == proof.lineUci.size &&
+      proof.lineSan.forall(_.trim.nonEmpty) &&
+      proof.lineUci.forall(_.trim.nonEmpty) &&
+      proof.provenanceRefs.nonEmpty &&
+      proof.provenanceRefs.forall(renderableVariationProvenance) &&
+      !containsForbiddenVariationProofToken(proof.proves)
+
+  private def renderableVariationProvenance(ref: EvidenceRef): Boolean =
+    ref.kind != EvidenceRefKind.RawEngine &&
+      ref.kind != EvidenceRefKind.SourceContext &&
+      bounded(ref)
+
+  private def containsForbiddenVariationProofToken(value: String): Boolean =
+    val normalized = value.toLowerCase.replace('-', '_').replace(':', '_').replace(' ', '_')
+    Vector(
+      "best",
+      "forced",
+      "winning",
+      "drawing",
+      "drawn",
+      "result",
+      "oracle",
+      "engine",
+      "raw_pv",
+      "eval",
+      "theory_truth"
+    ).exists(normalized.contains)
 
   private def publicSections(plan: CommentaryPlan): Vector[PlanSection] =
     plan.main.toVector ++ Vector(plan.support, plan.context, plan.contrast)

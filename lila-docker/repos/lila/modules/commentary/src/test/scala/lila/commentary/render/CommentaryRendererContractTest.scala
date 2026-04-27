@@ -447,6 +447,30 @@ class CommentaryRendererContractTest extends munit.FunSuite:
     assertEquals(render.evidenceRefs, Vector.empty)
     assertEquals(render.blocks.head.evidenceIds, Vector.empty)
 
+  test("renderer filters variation evidence whose binding disagrees with rendered claim"):
+    val lead = selected("line-owner", ClaimLayer.Certification, ClaimBucket.MustLead)
+    val wrongOwnerProof =
+      safeVariationProof("line-owner").copy(
+        owner = "black",
+        provenanceRefs = Vector(EvidenceRef(EvidenceRefKind.Certification, "CertifiedLine", Some("black"), Some("board"), Some("route"), Some("position_local")))
+      )
+    val wrongRouteProof =
+      safeVariationProof("line-owner").copy(
+        proofId = "line-proof-wrong-route",
+        route = "other_route",
+        provenanceRefs = Vector(EvidenceRef(EvidenceRefKind.Certification, "CertifiedLine", Some("white"), Some("board"), Some("other_route"), Some("position_local")))
+      )
+    val plan = planWith(
+      main = Some(section(PlanRole.Main, lead)),
+      variationEvidence = Vector(PlanVariationEvidence(wrongOwnerProof), PlanVariationEvidence(wrongRouteProof)),
+      maxStrength = WordingStrength.AssertiveCertified
+    )
+
+    val render = CommentaryRendererContract.render(plan)
+
+    assertEquals(render.variationEvidence, Vector.empty)
+    assertEquals(render.blocks.head.variationEvidenceIds, Vector.empty)
+
   test("renderer contract docs and surface corpus keep executable names"):
     val contractDoc = Files.readString(Paths.get("modules/commentary/docs/CommentaryRendererContract.md"))
     val coreDoc = Files.readString(Paths.get("modules/commentary/docs/CommentaryCoreSSOT.md"))
@@ -491,6 +515,7 @@ class CommentaryRendererContractTest extends munit.FunSuite:
       contrast: PlanSection = PlanSection(PlanRole.Contrast, Vector.empty),
       blocked: Vector[BlockedClaim] = Vector.empty,
       evidence: Vector[PlanEvidence] = Vector.empty,
+      variationEvidence: Vector[PlanVariationEvidence] = Vector.empty,
       maxStrength: WordingStrength
   ): CommentaryPlan =
     CommentaryPlan(
@@ -500,6 +525,7 @@ class CommentaryRendererContractTest extends munit.FunSuite:
       contrast = contrast,
       blocked = blocked,
       evidence = evidence,
+      variationEvidence = variationEvidence,
       wordingRules = WordingRules(maxStrength)
     )
 
@@ -533,4 +559,39 @@ class CommentaryRendererContractTest extends munit.FunSuite:
       ),
       bucket,
       softReasons
+    )
+
+  private def safeVariationProof(boundClaimId: String): PreparedVariationEvidence =
+    PreparedVariationEvidence(
+      proofId = "line-proof-safe",
+      boundClaimId = boundClaimId,
+      startFen = "r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 3 3",
+      owner = "white",
+      defender = Some("black"),
+      anchor = "board",
+      route = "route",
+      scope = "position_local",
+      moveRole = VariationMoveRole.CandidateMove,
+      lineSan = Vector("Nf6", "Bb5"),
+      lineUci = Vector("g8f6", "f1b5"),
+      candidateMove = Some(VariationMove("Nf6", "g8f6")),
+      continuation = Vector(VariationMove("Bb5", "f1b5")),
+      role = VariationEvidenceRole.Persistence,
+      testedMove = Some(VariationMove("Nf6", "g8f6")),
+      testedLine = Vector(VariationMove("Nf6", "g8f6"), VariationMove("Bb5", "f1b5")),
+      testResult = VariationTestResult.PressurePersists,
+      proves = "pressure_preserved",
+      proofPurpose = VariationProofPurpose.PreservesPressure,
+      boundary = PreparedVariationBoundary(
+        depthFloor = 16,
+        realizedDepth = 18,
+        multiPv = 2,
+        freshnessChecked = true,
+        legalReplayChecked = true,
+        baselineChecked = false
+      ),
+      wordingCap = WordingStrength.QualifiedSupport,
+      provenanceRefs = Vector(EvidenceRef(EvidenceRefKind.Certification, "CertifiedLine", Some("white"), Some("board"), Some("route"), Some("position_local"))),
+      surfaceAllowance = VariationSurfaceAllowance.PublicLine,
+      publicSafe = true
     )

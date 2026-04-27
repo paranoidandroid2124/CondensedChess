@@ -32,6 +32,9 @@ The following files and code are allowed to be committed:
 
 - opening rows in the shared source manifest schema and small manifest fixtures
 - opening line, position, move-stat, theme, and reject fixture schemas
+- opening sequence-context fixtures that describe move-order, pawn-break,
+  development-lag, file-ownership, king-safety, transposition, compensation,
+  or master/online divergence context without creating recommendations
 - tiny validator fixtures under
   `modules/commentary/src/test/resources/commentary-corpus/`
 - offline parser and index-builder source code when it is test/tooling code
@@ -258,6 +261,13 @@ rankings stay separate. The default educational source policy is:
 
 - use `master_reference` as the primary educational reference statistic
 - use `online_trend` only as secondary trend/context evidence
+
+Opening sequence context is stored as context metadata, not as product prose.
+It may link to a public-safe variation proof id only through a context boundary
+such as `line_test_link_is_not_proof`; raw opening rows, raw move-stat rows,
+and source frequencies remain outside renderer/backend public payloads.
+`pipeline_smoke` is validator data only, and `taxonomy_reference` is identity
+only; neither source use can produce product candidates.
 - keep `pipeline_smoke` excluded from product trend/reference reporting
 - require engine or certification evidence for strongest-move, objective,
   forced-line, or result claims

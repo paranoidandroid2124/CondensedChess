@@ -383,7 +383,12 @@ class CommentarySelectionContractTest extends munit.FunSuite:
       .copy(
         evidenceRefs = Vector(
           EvidenceRef(EvidenceRefKind.SourceContext, "endgame-study:lucena-reference:applicable"),
-          EvidenceRef(EvidenceRefKind.ExactBoard, "endgame-study-applicability:lucena-reference")
+          EvidenceRef(
+            EvidenceRefKind.ExactBoard,
+            "endgame-study-applicability:lucena-reference",
+            route = Some("lucena-reference"),
+            scope = Some("exact_endgame_applicability")
+          )
         )
       )
     val contextOnly = ClaimSelector.select(Vector(lucenaReference))
@@ -1150,7 +1155,12 @@ class CommentarySelectionContractTest extends munit.FunSuite:
       .copy(
         evidenceRefs = Vector(
           EvidenceRef(EvidenceRefKind.SourceContext, "endgame-study:lucena:applicable"),
-          EvidenceRef(EvidenceRefKind.ExactBoard, "endgame-study-applicability:lucena")
+          EvidenceRef(
+            EvidenceRefKind.ExactBoard,
+            "endgame-study-applicability:lucena",
+            route = Some("lucena"),
+            scope = Some("exact_endgame_applicability")
+          )
         )
       )
     val retrieval = sourceClaim("retrieval-reference-only", SourceContextKind.Retrieval)

@@ -1,14 +1,17 @@
 package lila.commentary.api
 
 import chess.format.Fen
+import chess.Pawn
 import play.api.libs.json.*
 
 import scala.util.control.NonFatal
 
 import lila.commentary.CommentaryCore
 import lila.commentary.certification.{ CertificationEngineRuntimeIntake, CertificationEvidenceClaim, EngineNodeIdentity }
+import lila.commentary.claim.{ EvidenceClaimHandoff, EvidenceClaimProducer }
 import lila.commentary.delta.StrategicDeltaExtraction
 import lila.commentary.render.*
+import lila.commentary.root.RootPositionSupport
 import lila.commentary.selection.*
 import lila.commentary.strategic.StrategicObjectExtraction
 
@@ -119,9 +122,44 @@ final class CommentaryBackendSeam private (
       case (Some(beforeFen), Some(playedMove)) =>
         CommentaryCore
           .extractStrategicDeltasFromFensFailClosed(beforeFen, playedMove, currentFen.value)
-          .map(delta => ValidTransition(Some(Fen.Full.clean(beforeFen): Fen.Full), Some(delta)))
+          .flatMap: delta =>
+            val cleanBeforeFen = Fen.Full.clean(beforeFen): Fen.Full
+            validateTransitionClocks(cleanBeforeFen, currentFen, delta)
+              .map(_ => ValidTransition(Some(cleanBeforeFen), Some(delta)))
       case _ =>
         Left("beforeFen and playedMove must be supplied together")
+
+  private def validateTransitionClocks(
+      beforeFen: Fen.Full,
+      afterFen: Fen.Full,
+      delta: StrategicDeltaExtraction
+  ): Either[String, Unit] =
+    for
+      beforeClock <- fenClock(beforeFen)
+      afterClock <- fenClock(afterFen)
+      beforePosition <- RootPositionSupport.exactPosition(delta.before.rootState)
+      exactMove <- beforePosition.move(delta.playedMove).left.map(_.toString)
+      movingPiece <- beforePosition.board.pieceAt(delta.playedMove.orig).toRight("missing transition moving piece")
+      expectedHalfMove = if movingPiece.role == Pawn || exactMove.capture.nonEmpty then 0 else beforeClock.halfMove + 1
+      expectedFullMove = if beforeClock.sideToMove == "b" then beforeClock.fullMove + 1 else beforeClock.fullMove
+      _ <- Either.cond(
+        afterClock.halfMove == expectedHalfMove && afterClock.fullMove == expectedFullMove,
+        (),
+        "transition full-FEN clock mismatch"
+      )
+    yield ()
+
+  private def fenClock(fen: Fen.Full): Either[String, FenClock] =
+    fen.value.trim.split("\\s+").toVector match
+      case Vector(_, sideToMove, _, _, halfMove, fullMove) =>
+        for
+          half <- halfMove.toIntOption.toRight("invalid halfmove clock")
+          full <- fullMove.toIntOption.toRight("invalid fullmove clock")
+          _ <- Either.cond(sideToMove == "w" || sideToMove == "b", (), "invalid side-to-move field")
+          _ <- Either.cond(half >= 0 && full > 0, (), "invalid FEN clock value")
+        yield FenClock(sideToMove, half, full)
+      case _ =>
+        Left("expected full FEN with clock fields")
 
   private def intakeEngine(valid: ValidRequest): Option[BackendEngineIntake] =
     valid.requestEnginePacket.map: packet =>
@@ -215,6 +253,7 @@ final class CommentaryBackendSeam private (
         contrast = PlanSection(PlanRole.Contrast, Vector.empty),
         blocked = Vector.empty,
         evidence = Vector.empty,
+        variationEvidence = Vector.empty,
         wordingRules = WordingRules(WordingStrength.Hidden)
       )
     )
@@ -233,6 +272,12 @@ final class CommentaryBackendSeam private (
   private final case class ValidTransition(
       beforeFen: Option[Fen.Full],
       deltaExtraction: Option[StrategicDeltaExtraction]
+  )
+
+  private final case class FenClock(
+      sideToMove: String,
+      halfMove: Int,
+      fullMove: Int
   )
 
   private final case class BackendEngineIntake(
@@ -259,7 +304,10 @@ final class CommentaryBackendSeam private (
 object CommentaryBackendSeam:
 
   private val default =
-    new CommentaryBackendSeam(_ => Vector.empty, () => System.currentTimeMillis())
+    new CommentaryBackendSeam(
+      input => EvidenceClaimProducer.produce(input.currentExtraction, input.deltaExtraction, EvidenceClaimHandoff.empty),
+      () => System.currentTimeMillis()
+    )
 
   def render(request: CommentaryRequest): CommentaryResponse =
     default.render(request)
@@ -273,6 +321,15 @@ object CommentaryBackendSeam:
   ): CommentaryBackendSeam =
     new CommentaryBackendSeam(claimProvider, nowEpochMs)
 
+  def withEvidenceHandoffProvider(
+      evidenceHandoffProvider: CommentaryPipelineInput => EvidenceClaimHandoff,
+      nowEpochMs: () => Long = () => System.currentTimeMillis()
+  ): CommentaryBackendSeam =
+    new CommentaryBackendSeam(
+      input => EvidenceClaimProducer.produce(input.currentExtraction, input.deltaExtraction, evidenceHandoffProvider(input)),
+      nowEpochMs
+    )
+
 object CommentaryApiJson:
 
   given Format[CommentaryResponseStatus] =
@@ -284,10 +341,19 @@ object CommentaryApiJson:
   given Format[WordingStrength] = enumFormat(WordingStrength.values, _.key, "WordingStrength")
   given Format[EvidenceRefKind] = enumFormat(EvidenceRefKind.values, _.key, "EvidenceRefKind")
   given Format[SuppressionReason] = enumFormat(SuppressionReason.values, _.key, "SuppressionReason")
+  given Format[VariationMoveRole] = enumFormat(VariationMoveRole.values, _.key, "VariationMoveRole")
+  given Format[VariationProofPurpose] = enumFormat(VariationProofPurpose.values, _.key, "VariationProofPurpose")
+  given Format[VariationEvidenceRole] = enumFormat(VariationEvidenceRole.values, _.key, "VariationEvidenceRole")
+  given Format[VariationTestResult] = enumFormat(VariationTestResult.values, _.key, "VariationTestResult")
+  given Format[VariationSurfaceAllowance] =
+    enumFormat(VariationSurfaceAllowance.values, _.key, "VariationSurfaceAllowance")
 
   given Format[EvidenceRef] = Json.format[EvidenceRef]
   given Format[RenderText] = Json.format[RenderText]
   given Format[RenderEvidenceRef] = Json.format[RenderEvidenceRef]
+  given Format[RenderVariationMove] = Json.format[RenderVariationMove]
+  given Format[RenderVariationBoundary] = Json.format[RenderVariationBoundary]
+  given Format[RenderVariationEvidence] = Json.format[RenderVariationEvidence]
   given Format[RenderBoundary] = Json.format[RenderBoundary]
   given Format[RenderSuppression] = Json.format[RenderSuppression]
   given Format[RenderWording] = Json.format[RenderWording]

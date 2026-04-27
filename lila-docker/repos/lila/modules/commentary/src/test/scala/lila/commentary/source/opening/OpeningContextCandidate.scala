@@ -1,5 +1,6 @@
 package lila.commentary.source.opening
 
+import lila.commentary.source.{ OpeningSequenceContext, OpeningSequenceContextRole }
 import play.api.libs.json.*
 
 enum OpeningConfidence(val key: String):
@@ -185,6 +186,7 @@ final case class OpeningContextCandidate(
     sourceSelection: OpeningSourceSelection,
     primaryReferenceStats: Vector[OpeningReferenceStats],
     secondaryTrendStats: Vector[OpeningReferenceStats],
+    sequenceContexts: Vector[OpeningSequenceContext] = Vector.empty,
     confidence: OpeningConfidence,
     boundaries: Vector[OpeningContextBoundary],
     sourceRefs: Vector[String]
@@ -199,11 +201,13 @@ object OpeningContextCandidate:
     "sourceSelection",
     "primaryReferenceStats",
     "secondaryTrendStats",
+    "sequenceContexts",
     "confidence",
     "boundaries",
     "sourceRefs"
   )
   private val sourceSelectionFields = Set("primarySourceUse", "secondarySourceUses", "suppressedSourceUses", "mergedRankings")
+  private val sequenceContextFields = Set("role", "ref", "linkedVariationProofIds", "boundaries")
 
   def fromJson(json: JsValue): OpeningContextCandidate =
     rejectUnknownFields(json, allowedFields, "Opening context candidate")
@@ -219,6 +223,7 @@ object OpeningContextCandidate:
       sourceSelection = parseSourceSelection((json \ "sourceSelection").getOrElse(Json.obj())),
       primaryReferenceStats = (json \ "primaryReferenceStats").asOpt[Vector[JsValue]].getOrElse(Vector.empty).map(OpeningReferenceStats.fromJson),
       secondaryTrendStats = (json \ "secondaryTrendStats").asOpt[Vector[JsValue]].getOrElse(Vector.empty).map(OpeningReferenceStats.fromJson),
+      sequenceContexts = (json \ "sequenceContexts").asOpt[Vector[JsValue]].getOrElse(Vector.empty).map(parseSequenceContext),
       confidence = confidence,
       boundaries = stringValues(json, "boundaries").map(OpeningContextBoundary.apply),
       sourceRefs = stringValues(json, "sourceRefs")
@@ -231,6 +236,19 @@ object OpeningContextCandidate:
       secondarySourceUses = stringValues(json, "secondarySourceUses"),
       suppressedSourceUses = stringValues(json, "suppressedSourceUses"),
       mergedRankings = (json \ "mergedRankings").asOpt[Boolean].getOrElse(false)
+    )
+
+  private def parseSequenceContext(json: JsValue): OpeningSequenceContext =
+    rejectUnknownFields(json, sequenceContextFields, "Opening sequence context")
+    val role =
+      OpeningSequenceContextRole
+        .fromKey(textValue(json, "role").getOrElse(""))
+        .getOrElse(throw IllegalArgumentException("unsupported opening sequence context role"))
+    OpeningSequenceContext(
+      role = role,
+      ref = textValue(json, "ref").getOrElse(""),
+      linkedVariationProofIds = stringValues(json, "linkedVariationProofIds"),
+      boundaries = stringValues(json, "boundaries")
     )
 
 object OpeningConsumptionContract:
@@ -302,6 +320,7 @@ object OpeningConsumptionContract:
       _ <- validateIdentity(candidate.openingIdentity, line)
       _ <- validateCandidateAlias(candidate.displayAlias, candidate.openingIdentity, aliases, lines, manifests)
       _ <- validateStats(candidate.primaryReferenceStats, candidate.secondaryTrendStats, manifests, candidate.positionKey, moveStats)
+      _ <- validateSequenceContexts(candidate.sequenceContexts)
       _ <- validateSourceSelection(candidate, moveStats, manifests)
       _ <- Either.cond(
         candidate.confidence == chooseCandidateConfidence(candidate.primaryReferenceStats, candidate.secondaryTrendStats),
@@ -363,6 +382,7 @@ object OpeningConsumptionContract:
           ),
           primaryReferenceStats = primary,
           secondaryTrendStats = secondary,
+          sequenceContexts = Vector.empty,
           confidence = confidence,
           boundaries = boundaries.result().distinctBy(_.value),
           sourceRefs =
@@ -551,6 +571,42 @@ object OpeningConsumptionContract:
     val text = s"${stat.statId} ${stat.candidateKind} ${stat.authority}".toLowerCase
     val forbidden = Vector("best", "theory", "forced", "result", "objective", "engine", "oracle", "winning", "drawn")
     Either.cond(!forbidden.exists(text.contains), (), OpeningConsumptionReject(s"opening stat ${stat.statId} contains truth wording"))
+
+  private def validateSequenceContexts(sequenceContexts: Vector[OpeningSequenceContext]): Either[OpeningConsumptionReject, Unit] =
+    val allowedBoundaries = Set(
+      "opening_sequence_context_only",
+      "line_test_link_is_not_proof",
+      "source_disagreement_context_only",
+      "compensation_context_only"
+    )
+    sequenceContexts.foldLeft[Either[OpeningConsumptionReject, Unit]](Right(())): (acc, context) =>
+      acc.flatMap: _ =>
+        val values = Vector(context.ref) ++ context.linkedVariationProofIds ++ context.boundaries
+        val forbidden = values.exists(containsForbiddenSequenceToken)
+        for
+          _ <- Either.cond(context.ref.trim.nonEmpty, (), OpeningConsumptionReject("opening sequence context must carry a ref"))
+          _ <- Either.cond(!forbidden, (), OpeningConsumptionReject("opening sequence context contains truth wording"))
+          _ <- Either.cond(
+            context.boundaries.contains("opening_sequence_context_only"),
+            (),
+            OpeningConsumptionReject("opening sequence context must stay context-only")
+          )
+          _ <- Either.cond(
+            context.linkedVariationProofIds.isEmpty || context.boundaries.contains("line_test_link_is_not_proof"),
+            (),
+            OpeningConsumptionReject("opening sequence context line-test link must be marked not proof")
+          )
+          _ <- Either.cond(
+            context.boundaries.forall(allowedBoundaries.contains),
+            (),
+            OpeningConsumptionReject("opening sequence context uses unsupported boundary")
+          )
+        yield ()
+
+  private def containsForbiddenSequenceToken(value: String): Boolean =
+    val normalized = value.toLowerCase.replace('-', '_').replace(':', '_').replace(' ', '_')
+    Vector("best", "theory", "truth", "forced", "result", "engine", "oracle", "winning", "drawing", "drawn", "loss", "wdl", "dtz", "dtm")
+      .exists(normalized.contains)
 
   private def validateSourceRefs(candidate: OpeningContextCandidate): Either[OpeningConsumptionReject, Unit] =
     val forbiddenPrefixes = Vector(

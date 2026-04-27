@@ -67,6 +67,7 @@ Public fields are:
 - block `wordingStrength`
 - block `evidenceIds`
 - public evidence refs
+- public prepared variation evidence, when present
 - public boundaries
 - public wording cap
 - public `forbiddenTerms` metadata carried by render text and wording
@@ -97,6 +98,17 @@ rankings.
 
 The frontend bridge must not render raw engine eval, PV, centipawn, mate,
 depth, or engine labels as commentary.
+
+The frontend bridge must not turn `RenderVariationEvidence` into book-style
+prose, best-move claims, forced-line claims, result claims, or engine/oracle
+proof. It may only pass through or hide backend-prepared public fields.
+Defender-resource and failed-tempting-move fields remain structured evidence
+only; the bridge must not turn them into a recommendation, best-defense claim,
+or result claim.
+Opening sequence context and `opening-line-test:*:context` refs remain
+pass-through source context only. The bridge must not render raw opening rows,
+frequencies, move-order rows, theory claims, or source-derived
+recommendations.
 
 The frontend bridge must not upgrade wording.
 

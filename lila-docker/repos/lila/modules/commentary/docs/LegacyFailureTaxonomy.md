@@ -543,12 +543,22 @@ New-system owner:
 New-system rule:
 
 - opening rows are context, line identity, or statistics only
-- motif tags need an exact-board detector carrier
+- motif tags need exact-board detector carrier parity; motif line-test links
+  are context links only and cannot own prepared line evidence
+- `mate_net` and `perpetual_check` motif context needs a certification carrier;
+  deferred/helper-required motif families remain deferred until their helper
+  exists
 - endgame-study labels need exact material, placement, and relation
   applicability before they become context
 - endgame-study context is not win, draw, loss, forced-conversion, or
   forced-line evidence
+- endgame technique line-test links are context links only; they need exact
+  applicability and cannot own prepared line evidence, tablebase truth, or an
+  oracle verdict
 - retrieved examples and snippets are non-authoritative references only
+- retrieval illustration line-test links are context links only; they cannot
+  own prepared line evidence, transfer current-position proof, recommend a
+  move, create a verdict, or use game result/player/event metadata as evidence
 - game-context and endgame result-service family inputs are rejected by the
   current source-context schema and deferred to separate lanes
 

@@ -10,6 +10,7 @@ import lila.commentary.api.CommentaryApiJson.given
 class CommentaryBackendSeamContractTest extends munit.FunSuite:
 
   private val validFen = "r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 3 3"
+  private val bareKingsFen = "8/8/8/8/8/8/4k3/7K w - - 0 1"
   private val nodeId = "mainline:0"
 
   private def assert(condition: => Boolean)(using loc: munit.Location): Unit =
@@ -185,7 +186,7 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
 
   test("raw source context fields in request JSON are ignored and cannot become render truth"):
     val rawSourceJson = Json.obj(
-      "currentFen" -> validFen,
+      "currentFen" -> bareKingsFen,
       "nodeId" -> nodeId,
       "ply" -> 0,
       "openingContextCandidate" -> Json.obj(
@@ -203,7 +204,7 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
     assertEquals(response.render.evidenceRefs, Vector.empty)
 
   test("no admitted claim returns noCommentary without fallback prose"):
-    val response = CommentaryBackendSeam.render(request())
+    val response = CommentaryBackendSeam.render(request(currentFen = bareKingsFen))
 
     assertEquals(response.status, CommentaryResponseStatus.NoCommentary)
     assertEquals(response.render.status, RenderStatus.NoCommentary)
