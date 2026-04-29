@@ -42,7 +42,8 @@ final case class CommentaryPlan(
     blocked: Vector[BlockedClaim],
     evidence: Vector[PlanEvidence],
     variationEvidence: Vector[PlanVariationEvidence],
-    wordingRules: WordingRules
+    wordingRules: WordingRules,
+    annotationSelections: Vector[PlanAnnotationSelection] = Vector.empty
 ):
   def noCommentary: Boolean =
     main.isEmpty &&
@@ -67,5 +68,6 @@ object CommentaryOutlineBuilder:
       blocked = outline.suppressedClaims.map(suppressed => BlockedClaim(suppressed.claim, suppressed.reasons)),
       evidence = outline.evidenceRefs.map(PlanEvidence.apply),
       variationEvidence = outline.variationEvidence.map(PlanVariationEvidence.apply),
-      wordingRules = WordingRules(outline.wordingStrengthCap)
+      wordingRules = WordingRules(outline.wordingStrengthCap),
+      annotationSelections = outline.annotationSelections
     )

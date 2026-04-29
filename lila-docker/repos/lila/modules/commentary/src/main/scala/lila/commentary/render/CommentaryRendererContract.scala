@@ -13,6 +13,26 @@ enum RenderStatus(val key: String):
   case ContextOnly extends RenderStatus("contextOnly")
   case NoCommentary extends RenderStatus("noCommentary")
 
+enum RenderLineRole(val key: String):
+  case Resource extends RenderLineRole("resource")
+  case Caution extends RenderLineRole("caution")
+  case Hold extends RenderLineRole("hold")
+  case Conversion extends RenderLineRole("conversion")
+  case Pressure extends RenderLineRole("pressure")
+  case Simplification extends RenderLineRole("simplification")
+
+object RenderLineRole:
+  def from(role: VariationEvidenceRole): RenderLineRole =
+    role match
+      case VariationEvidenceRole.DefenderResource => RenderLineRole.Resource
+      case VariationEvidenceRole.FailedTemptingMove => RenderLineRole.Caution
+      case VariationEvidenceRole.PrematureMove => RenderLineRole.Caution
+      case VariationEvidenceRole.ReleaseRisk => RenderLineRole.Caution
+      case VariationEvidenceRole.Hold => RenderLineRole.Hold
+      case VariationEvidenceRole.Conversion => RenderLineRole.Conversion
+      case VariationEvidenceRole.Persistence => RenderLineRole.Pressure
+      case VariationEvidenceRole.Simplification => RenderLineRole.Simplification
+
 final case class RenderText(
     publicText: Option[String],
     forbiddenTerms: Vector[String]
@@ -69,7 +89,7 @@ final case class RenderVariationEvidence(
     anchor: String,
     route: String,
     scope: String,
-    role: VariationEvidenceRole,
+    role: RenderLineRole,
     moveRole: VariationMoveRole,
     lineSan: Vector[String],
     lineUci: Vector[String],
@@ -82,7 +102,6 @@ final case class RenderVariationEvidence(
     replyLine: Vector[RenderVariationMove],
     resourceLine: Vector[RenderVariationMove],
     testResult: VariationTestResult,
-    proves: String,
     proofPurpose: VariationProofPurpose,
     provenanceRefs: Vector[RenderEvidenceRef],
     boundary: RenderVariationBoundary,
@@ -101,7 +120,7 @@ object RenderVariationEvidence:
       anchor = proof.anchor,
       route = proof.route,
       scope = proof.scope,
-      role = proof.role,
+      role = RenderLineRole.from(proof.role),
       moveRole = proof.moveRole,
       lineSan = proof.lineSan,
       lineUci = proof.lineUci,
@@ -114,7 +133,6 @@ object RenderVariationEvidence:
       replyLine = proof.replyLine.map(RenderVariationMove.from),
       resourceLine = proof.resourceLine.map(RenderVariationMove.from),
       testResult = proof.testResult,
-      proves = proof.proves,
       proofPurpose = proof.proofPurpose,
       provenanceRefs = proof.provenanceRefs.map(RenderEvidenceRef.from),
       boundary = RenderVariationBoundary.from(proof.boundary),
@@ -318,6 +336,7 @@ object CommentaryRendererContract:
   private def renderableVariationProvenance(ref: EvidenceRef): Boolean =
     ref.kind != EvidenceRefKind.RawEngine &&
       ref.kind != EvidenceRefKind.SourceContext &&
+      EvidenceRef.isPublicSafeProvenanceId(ref.id) &&
       bounded(ref)
 
   private def containsForbiddenVariationProofToken(value: String): Boolean =

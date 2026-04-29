@@ -83,6 +83,48 @@ enum SourceContextKind(val key: String):
   case EndgameStudy extends SourceContextKind("endgameStudy")
   case Retrieval extends SourceContextKind("retrieval")
 
+enum PlanAnnotationFrameKind(val key: String):
+  case Opening extends PlanAnnotationFrameKind("opening")
+  case Motif extends PlanAnnotationFrameKind("motif")
+  case EndgameStudy extends PlanAnnotationFrameKind("endgameStudy")
+  case Retrieval extends PlanAnnotationFrameKind("retrieval")
+
+object PlanAnnotationFrameKind:
+  def fromSourceContextKind(kind: SourceContextKind): PlanAnnotationFrameKind =
+    kind match
+      case SourceContextKind.Opening => Opening
+      case SourceContextKind.Motif => Motif
+      case SourceContextKind.EndgameStudy => EndgameStudy
+      case SourceContextKind.Retrieval => Retrieval
+
+enum PlanAnnotationStrength(val key: String):
+  case Strong extends PlanAnnotationStrength("strong")
+
+final case class PlanAnnotationFrame(
+    kind: PlanAnnotationFrameKind,
+    proofId: String,
+    sourceRefIds: Vector[String]
+):
+  require(proofId.trim.nonEmpty, "Plan annotation frame proof id must be non-empty")
+  require(sourceRefIds.nonEmpty, "Plan annotation frame source refs must be non-empty")
+  require(sourceRefIds.forall(_.trim.nonEmpty), "Plan annotation frame source refs must be non-empty")
+
+final case class PlanAnnotationSelection(
+    claimId: String,
+    primaryProofId: String,
+    companionProofIds: Vector[String],
+    supportProofIds: Vector[String],
+    negativeProofIds: Vector[String],
+    sourceFrames: Vector[PlanAnnotationFrame],
+    strength: PlanAnnotationStrength,
+    wordingCap: WordingStrength
+):
+  require(claimId.trim.nonEmpty, "Plan annotation claim id must be non-empty")
+  require(primaryProofId.trim.nonEmpty, "Plan annotation primary proof id must be non-empty")
+  require(companionProofIds.forall(_.trim.nonEmpty), "Plan annotation companion proof ids must be non-empty")
+  require(supportProofIds.forall(_.trim.nonEmpty), "Plan annotation support proof ids must be non-empty")
+  require(negativeProofIds.forall(_.trim.nonEmpty), "Plan annotation negative proof ids must be non-empty")
+
 enum VariationMoveRole(val key: String):
   case GameMove extends VariationMoveRole("game_move")
   case CandidateMove extends VariationMoveRole("candidate_move")
@@ -205,6 +247,24 @@ final case class EvidenceRef(
 ):
   require(id.trim.nonEmpty, "EvidenceRef id must be non-empty")
 
+object EvidenceRef:
+  def isPublicSafeProvenanceId(id: String): Boolean =
+    val trimmed = id.trim
+    trimmed.matches("^[A-Za-z0-9][A-Za-z0-9_-]*$") && !containsInternalProvenanceToken(trimmed)
+
+  private def containsInternalProvenanceToken(id: String): Boolean =
+    val normalized = id.toLowerCase.replace('-', '_').replace(':', '_').replace(' ', '_')
+    Vector(
+      "branch_id",
+      "branchid",
+      "parent_branch",
+      "root_candidate",
+      "candidate_probe",
+      "cache_key",
+      "cachekey",
+      "probe_payload"
+    ).exists(normalized.contains)
+
 final case class ClaimImpact(
     resultMaterialImpact: Int = 0,
     forcedness: Int = 0,
@@ -284,7 +344,8 @@ final case class CommentaryOutline(
     suppressedClaims: Vector[SuppressedClaim],
     evidenceRefs: Vector[EvidenceRef],
     variationEvidence: Vector[PreparedVariationEvidence],
-    wordingStrengthCap: WordingStrength
+    wordingStrengthCap: WordingStrength,
+    annotationSelections: Vector[PlanAnnotationSelection] = Vector.empty
 )
 
 object ClaimSelector:
@@ -367,19 +428,21 @@ object ClaimSelector:
             )
           )
         case _ => Vector.empty
-    CommentaryOutline(
+    val outline =
+      CommentaryOutline(
       context = contextClaims,
       lead = selectedLead,
       support = support,
       contrast = Vector.empty,
       suppressedClaims = baseSuppressed ++ lineTestSuppressed ++ duplicateSuppressed ++ supportSuppressed ++ rendererSuppressed,
       evidenceRefs = (selectedLead.toVector.flatMap(_.claim.evidenceRefs) ++ support.flatMap(_.claim.evidenceRefs) ++ contextClaims.flatMap(_.claim.evidenceRefs)).distinct,
-      variationEvidence =
-        (selectedLead.toVector ++ support ++ contextClaims)
-          .flatMap(_.claim.variationEvidence)
-          .filter(publicSafeVariationEvidence)
-          .distinct,
+      variationEvidence = Vector.empty,
       wordingStrengthCap = cap
+    )
+    val lineSelection = CandidateLineSelection.select(outline)
+    outline.copy(
+      variationEvidence = CandidateLineSelection.publicVariationEvidenceFor(lineSelection),
+      annotationSelections = CandidateLineSelection.annotationSelectionsFor(lineSelection)
     )
 
   private def clampSelectedClaim(claim: CommentaryClaim, cap: WordingStrength): CommentaryClaim =
@@ -425,59 +488,21 @@ object ClaimSelector:
           else Vector.empty
 
   private def publicSafeVariationEvidence(proof: PreparedVariationEvidence): Boolean =
-    proof.publicSafe &&
-      proof.surfaceAllowance != VariationSurfaceAllowance.InternalOnly &&
-      proof.boundary.publicSafe &&
-      proof.lineSan.nonEmpty &&
-      proof.lineSan.size == proof.lineUci.size &&
-      proof.lineSan.forall(_.trim.nonEmpty) &&
-      proof.lineUci.forall(_.trim.nonEmpty) &&
-      publicSafeVariationProvenance(proof) &&
-      !containsForbiddenVariationProofToken(proof.proves)
+    PublicVariationEvidenceSafety.publicSafe(proof)
 
   private def publicSafeVariationEvidenceForClaim(
       claim: CommentaryClaim,
       proof: PreparedVariationEvidence
   ): Boolean =
-    publicSafeVariationEvidence(proof) &&
-      proof.boundClaimId == claim.id &&
-      claim.owner.contains(proof.owner) &&
-      claim.anchor.contains(proof.anchor) &&
-      claim.route.contains(proof.route) &&
-      claim.scope.contains(proof.scope) &&
-      proof.defender.forall(defender => claim.defender.contains(defender))
-
-  private def publicSafeVariationProvenance(proof: PreparedVariationEvidence): Boolean =
-    proof.provenanceRefs.nonEmpty &&
-      proof.provenanceRefs.forall: ref =>
-        ref.kind != EvidenceRefKind.RawEngine &&
-          ref.kind != EvidenceRefKind.SourceContext &&
-          ref.owner.contains(proof.owner) &&
-          ref.anchor.contains(proof.anchor) &&
-          ref.route.contains(proof.route) &&
-          ref.scope.contains(proof.scope)
+    PublicVariationEvidenceSafety.publicSafeForClaim(claim, proof)
 
   private def negativeOnlyVariationEvidence(proof: PreparedVariationEvidence): Boolean =
     proof.role == VariationEvidenceRole.FailedTemptingMove ||
       proof.role == VariationEvidenceRole.PrematureMove ||
+      proof.role == VariationEvidenceRole.ReleaseRisk ||
       proof.testResult == VariationTestResult.MovePremature ||
+      proof.testResult == VariationTestResult.ReleasesCounterplay ||
       proof.wordingCap == WordingStrength.NegativeOnly
-
-  private def containsForbiddenVariationProofToken(value: String): Boolean =
-    val normalized = normalizedToken(value)
-    Vector(
-      "best",
-      "forced",
-      "winning",
-      "drawing",
-      "drawn",
-      "result",
-      "oracle",
-      "engine",
-      "raw_pv",
-      "eval",
-      "theory_truth"
-    ).exists(normalized.contains)
 
   private def sourceContextReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
     val base = Vector(SuppressionReason.SourceContextOnly)
@@ -681,20 +706,24 @@ object ClaimSelector:
       claim: CommentaryClaim,
       selectedBoardClaims: Vector[CommentaryClaim]
   ): Boolean =
-    val linkedProofIds = sourceContextIds(claim).flatMap(lineTestProofId)
-    linkedProofIds.isEmpty || {
+    val lineTestRefs = sourceContextIds(claim).filter(isLineTestRef)
+    val linkedProofIds = lineTestRefs.flatMap(ref => lineTestProofId(ref, claim.sourceContextKind))
+    lineTestRefs.isEmpty || {
       val publicProofIds =
         selectedBoardClaims
           .flatMap(_.variationEvidence)
           .filter(publicSafeVariationEvidence)
           .map(_.proofId)
           .toSet
-      linkedProofIds.forall(publicProofIds.contains)
+      linkedProofIds.size == lineTestRefs.size && linkedProofIds.forall(publicProofIds.contains)
     }
 
-  private def lineTestProofId(ref: String): Option[String] =
-    val parts = ref.split(":").toVector
-    Option.when(parts.size == 3 && parts(1).trim.nonEmpty && parts(2) == "context" && parts.head.endsWith("-line-test"))(parts(1).trim)
+  private def isLineTestRef(ref: String): Boolean =
+    PublicVariationEvidenceSafety.isAllowedLineTestRef(ref) ||
+      ref.split(":").headOption.exists(_.endsWith("-line-test"))
+
+  private def lineTestProofId(ref: String, kind: Option[SourceContextKind]): Option[String] =
+    kind.flatMap(PublicVariationEvidenceSafety.lineTestProofIdForKind(ref, _))
 
   private def normalizedToken(value: String): String =
     value.toLowerCase.replace('-', '_').replace(':', '_').replace(' ', '_').replace('+', '_')

@@ -1741,11 +1741,12 @@ Purpose:
 - freeze that renderer/surface code cannot strengthen a selector outline or
   `CommentaryPlan`
 - prove that the outline builder maps selector-owned structure without adding
-  meaning before renderer prose exists
+  meaning before renderer writing
 - prove that the renderer contract maps `CommentaryPlan` into structured
-  role-based render output with deterministic role fragments only, and without
-  broad chess narration, API wiring, frontend wiring, raw engine intake, or raw
-  source truth
+  role-based render output, uses closed English line comments only from
+  `LineCommentaryPlan` when available for a primary block, and otherwise falls
+  back to deterministic role fragments without broad chess narration, API
+  wiring, frontend wiring, raw engine intake, or raw source truth
 
 Checks:
 
@@ -1768,6 +1769,11 @@ Checks:
 - no renderer-side publication of plan-wide evidence without unblocked public
   selected-claim ownership
 - no renderer-side opening `master_reference` / `online_trend` merge
+- no renderer-side English prose from raw claims, prepared variation evidence,
+  source rows, engine/PV, probe/cache objects, or lower Object/Delta/
+  Certification/Sxx state
+- no renderer-side English fallback for missing main/result notes,
+  unsupported meanings, support-only input, or caution-only input
 - blocked claims remain non-public suppression metadata by default
 - selected-plus-blocked malformed plans cannot revive the blocked claim through
   public blocks, public evidence refs, or public boundary metadata
@@ -1869,6 +1875,12 @@ Validation checks:
   truth
 - public decoding returns only public render blocks, public evidence refs,
   public boundaries, and wording cap
+- public variation evidence uses only renderer-public line roles (`resource`,
+  `caution`, `hold`, `conversion`, `pressure`, `simplification`) and does not
+  expose the lower prepared `proves` token
+- prose-empty backend blocks remain public only when they carry public evidence
+  ids or public variation evidence ids; the bridge must not invent fallback
+  text
 - `internal`, blocked claims, suppressions, engine-intake diagnostics, and
   invalid-input reasons are not exposed as public display data
 - `noCommentary`, `hidden`, `negative_only`, and `invalidRequest` are silent
@@ -1884,6 +1896,13 @@ Executable owner:
 
 - `ui/analyse/src/chesstory/commentaryBridge.ts`
 - `ui/analyse/tests/commentaryBridge.test.ts`
+
+The internal candidate-line pipeline contract is also covered by:
+
+- `modules/commentary/src/test/scala/lila/commentary/line/CandidateLineProofCacheContractTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/line/CandidateLineAssemblyProviderContractTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/line/CandidateChildProbeIntegrationContractTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/api/CandidateLinePipelineContractTest.scala`
 
 Contract authority:
 
@@ -2148,6 +2167,9 @@ does not upgrade the verdict.
 Prepared variation evidence is a downstream public-safe line-proof contract,
 not raw Engine E. The live contract is frozen in
 [VariationEvidenceContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/VariationEvidenceContract.md).
+Lower prepared evidence may retain internal roles and the internal `proves`
+token, but validation of public render/backend/bridge output requires
+renderer-public line roles only and no public `proves` field.
 Internal candidate line evidence now has a separate pre-lowering contract:
 `CandidateLineEvidence` in `lila.commentary.line`. It is the branch/probe-tree
 evidence container for root alternatives, child defender branches, and defender
@@ -2174,27 +2196,142 @@ create `CommentaryClaim`, does not lower to `PreparedVariationEvidence`, does
 not schedule child probes, and does not expose raw PV through renderer/backend
 JSON.
 `CandidateLinePacketHandoff` validates the multi-packet branch tree boundary
-before any future probe orchestration exists. Root packets must bind to the
-current FEN/node/ply, and duplicate root branch ids fail closed because child
-parent identity would be ambiguous. Child packets remain internal and are
-accepted only when their parent branch id exists, their role is a
-defender-resource or defender-reply role, their node/ply binding matches the
-declared parent prefix, and their start FEN is the exact board reached by
-replaying that prefix from the current FEN. Invalid child packets are local
-rejected evidence and do not discard valid root evidence; invalid root binding
-fails closed for the entire candidate-line tree. Source-hint provenance remains
-non-proof metadata through this handoff and cannot be promoted to engine
-proof-owner provenance.
+after V3e probe orchestration has produced internal root/child packet
+candidates. Root packets must bind to the current FEN/node/ply, and duplicate
+root branch ids fail closed because child parent identity would be ambiguous.
+Child packets remain internal and are accepted only when their parent branch id
+exists, their role is a defender-resource or defender-reply role, their
+node/ply binding matches the declared parent prefix, and their start FEN is
+the exact board reached by replaying that prefix from the current FEN. Invalid
+child packets are local rejected evidence and do not discard valid root
+evidence; invalid root binding fails closed for the entire candidate-line tree.
+Source-hint provenance remains non-proof metadata through this handoff and
+cannot be promoted to engine proof-owner provenance.
+`CandidateProbePlan` is the internal orchestration/cache contract. It
+plans but does not execute engine probes. The default root request is
+Stockfish-style candidate exploration at `MultiPV 3`, target depth `18`, and
+floor `16`; the strong/cache target remains depth `20`. Child defender-resource
+requests are derived only after sanitized root `CandidateLineEvidence` exists,
+use the exact FEN after the parent candidate prefix, and request `MultiPV 2`
+at target depth `18` with floor `16`. By default only root ranks `1` and `2`
+get child defender-resource requests; rank `3` stays alternative/context unless
+an explicit expanded budget is supplied or a valid strong/cache target-depth-20
+cache hit is revalidated. Child scheduling consumes only public-line-eligible
+root evidence at the configured floor, so shallow, stale, illegal, source-hint,
+or invalid-rank root evidence cannot spawn defender probes. The main candidate
+cannot be promoted as a strong line explanation without a valid
+defender-resource child. Failed tempting/natural lines remain public default
+off because no exact natural/tempting definition is frozen here.
+`CandidateProbeCacheKey` must prevent stale or wrong-position reuse by binding
+the normalized full FEN, variant, node/ply consumption binding, engine
+fingerprint, target/floor/realized depth, MultiPV, role, parent branch
+id/prefix and parent root rank for child probes, normalized first move or prefix
+when applicable, and freshness window. A cache hit remains provenance only until revalidated for
+FEN, variant, binding, freshness, depth floor, MultiPV, engine fingerprint,
+role, parent branch/prefix, parent root rank, and the required target-depth policy. Rank `3`
+cache reuse requires target depth `20`; a target-depth-18 cache entry is
+insufficient even though normal child engine requests target depth `18`.
+Source rows, source context, and retrieval may not populate the proof cache and
+may not propose current-position candidate branches.
+`CandidateLineProofCache` is the internal validation facade for candidate-line
+proof-cache reuse. It is not the generic eval/source/retrieval cache and has no
+production persistence backend at this boundary. A stored entry may be read
+only as a typed `CandidateProbeCacheLookupResult` after existing
+`CandidateProbeCacheEntry` revalidation accepts the exact request binding.
+Writes are committed only through the provider/adapter-owned receipt path for
+accepted engine-probe results whose key matches the completed payload; the
+facade does not accept arbitrary caller-constructed
+`CandidateProbeCacheWriteCandidate` values. Source, retrieval,
+revalidated-cache, stale, shallow, wrong-FEN, wrong-variant, wrong-node/ply,
+wrong-engine, wrong-depth, wrong-MultiPV, wrong-role, wrong-parent-prefix, or
+forged payload candidates fail closed before storage. Cache hits are consumed
+as provenance only and do not emit new write candidates.
+`CandidateProbeControlledAdapter` is the execution-adjacent adapter, not an
+executor. It consumes already completed external probe payloads and cache lookup
+results, converts only accepted/revalidated root and child payloads into
+`CandidateLinePacket` inputs, returns cache write candidates for later storage
+only after accepted completed probe results, and leaves source/retrieval rows
+outside the proof cache. Missing or invalid root input fails closed to no
+candidate-line evidence; invalid child input does not discard valid root
+evidence. Cache lookup payloads must match the effective revalidated request and
+cache entry key before use. The adapter may assemble internal
+`PreparedVariationEvidence` only by calling the frozen lowering boundary with
+an explicit same-claim binding; it does not create claims, prose, public
+request fields, or public response fields.
+`CandidateLineAssemblyProvider` is the internal-only live-provider contract
+around that adapter. It accepts exact `currentFen`, `nodeId`, `ply`,
+`variant`, engine fingerprint, budget, typed completed root/child probe
+payloads, an optional internal proof-cache facade for cache lookup, and an optional explicit
+`CandidateLineEvidenceLowering.Binding` when prepared evidence is expected.
+It derives root `MultiPV 3` and child `MultiPV 2` requests through
+`CandidateProbePlan`, reads valid cache hits through the facade when supplied,
+does not expose direct root/child cache-hit input fields, delegates to
+`CandidateProbeControlledAdapter`, and writes back only through
+the returned provider/adapter-owned cache receipt; it does not execute
+Stockfish, call WASM, perform source lookup, does not add production cache
+persistence, does not wire controller routes, does not open product frontend
+UI, does not create claims, does not write prose, and does not expose raw
+probe/cache/PV internals publicly. Rank `3` child proof remains closed by
+default and opens only through strong/cache depth `20` or an explicit expanded
+budget.
+`CandidateRootProbeIntegration` is the internal root probe integration
+boundary for exact-board validation of completed root probe payloads and
+revalidated proof-cache root hits. It is not an engine executor and not a
+public request shape. The validated policy is root `MultiPV 3`, target depth
+`18`, floor `16`, exact current FEN/node/ply/variant binding, backend-owned
+engine fingerprint, and backend-owned SAN replay through the existing
+normalizer/provider path. Valid root input must yield exactly three
+public-line-eligible root candidates. The boundary returns the unsatisfied
+next child defender-resource requests for accepted root ranks `1` and `2`
+only, at child `MultiPV 2`, target depth `18`, and floor `16`; rank `3` stays
+cache/expanded-budget only and is not scheduled by the default root
+integration path. Explicit lowering binding may lower eligible root evidence
+through existing lowering policy, while missing binding yields no prepared
+evidence. Valid proof-cache root hits may satisfy the root path without fresh
+root payloads and without new cache writes. Wrong FEN/node/ply/variant/engine,
+stale payloads, depth `15`, root MultiPV/count `2` or `4`, duplicate first
+move, illegal or malformed PV, source/retrieval/root-hint provenance, and
+raw/untrusted root shape fail closed to no child requests, no prepared
+evidence, and no cache commit.
+`CandidateChildProbeIntegration` is the internal child probe integration
+boundary for exact-board validation of completed child probe payloads and
+revalidated proof-cache child hits corresponding to the root stage's planned
+requests. It consumes exact current context and a valid root payload or
+proof-cache root hit, and delegates only through the existing provider,
+controlled adapter, normalizer, proof-cache, and lowering boundaries. Valid
+child payloads for root ranks `1` and `2` produce defender-resource
+`CandidateLineEvidence`, satisfy their planned requests, may lower to
+`PreparedVariationEvidence` only with an explicit binding, and may emit
+provider/adapter-owned cache writes only when they are accepted completed
+probe results. Missing children leave their planned requests unsatisfied.
+Invalid child payloads fail closed locally: valid root evidence remains, the
+child is omitted from the integration result, no child proof lowers, no child
+cache write is committed, and the planned request remains unsatisfied. A
+valid proof-cache child hit may satisfy a planned child request without fresh
+payload or new write. Rank `3` direct child payloads remain rejected by
+default; rank `3` cache reuse stays behind the existing strong target-depth-20
+policy. Public backend/render JSON remains free of child probe/cache payloads,
+parent prefixes, branch ids, engine fingerprints, cache keys, provider names,
+and adapter internals.
+The analyse `buildCompletedProbeBridgePayload` helper is validation-scoped as
+an adapter-only payload sanitizer. It is not a public request field, not a
+controller/API route, not product UI, not engine execution, and not SAN
+authority. Validation for this helper is limited to exact identity/binding
+presence, root `MultiPV 3`, child `MultiPV 2`, depth floor `16`, completed
+flag, deep-copy isolation, raw/display/prose/debug/source field stripping, and
+basic non-empty UCI move shape. Legal replay, SAN, best-defense meaning, and
+candidate-line proof admission remain backend exact-board responsibilities.
 `CandidateLineEvidenceLowering` is the exact pre-selection lowering boundary
 from internal candidate-line evidence to public-safe prepared variation
 evidence. It consumes only sanitized `CandidateLineEvidence` plus an explicit
 same-claim binding; it does not orchestrate probes, replay SAN, validate raw
 packets, use cache, create claims, or write prose. The frozen lowering policy
 is depth floor `16`, preferred target depth `18`, strong/cache target depth
-`20`, root MultiPV default target `3`, accepted root MultiPV range `2-3`, root
-hard cap `3`, child MultiPV default `1`, accepted child MultiPV range `1-2`,
-child hard cap `2`, and child defender replies considered only for the top
-two root candidates unless a caller explicitly enables third-root child proof.
+`20`, root MultiPV public-safe target exactly `3`, accepted root MultiPV range
+`3`, root hard cap `3`, child MultiPV public-safe target exactly `2`, accepted
+child MultiPV range `2`, child hard cap `2`, and child defender replies
+considered only for the top two root candidates unless a caller explicitly
+enables third-root child proof.
 Root rank `1` lowers to main candidate line evidence; rank `2` lowers to
 alternative line evidence; rank `3` lowers to context line evidence by
 default. Failed, premature, release-risk, source-hint, stale, shallow,
@@ -2214,6 +2351,105 @@ selected line-proof object without adding meaning, and renderer/backend expose
 only the public subset. Raw PV packets, raw source rows, engine config
 fingerprints, variation hashes, evals, mate scores, and debug fields remain
 internal.
+`CandidateLineSelection` validates the post-outline cross-family line
+selection model without widening truth ownership. `ClaimSelector` now consumes
+that selected public result for `CommentaryOutline.variationEvidence`. It can
+promote a strong primary line only from a selected lead exact-board claim that
+owns both a candidate/root-style prepared proof and a
+defender-resource/defender-reply prepared proof bound to the same claim.
+Candidate-only proof remains weak/context and non-public; SourceContext,
+retrieval, and RawEngine proof ownership fails closed; opening, motif,
+endgame-study, and retrieval line-test refs can only annotate an already
+selected exact-board proof id; retrieval remains illustrative; failed tempting,
+premature, and release-risk lines remain negative/support only and public only
+inside an existing strong selected set; no safe line set means no line
+selection and no fallback caption. The same validation now covers the
+language-neutral annotation handoff: a strong selected set exposes
+`PlanAnnotationSelection` through outline and plan with proof ids, coarse source
+frame kinds, source ref ids as metadata, `PlanAnnotationStrength.Strong`, and a
+wording cap only; candidate-only weak lines expose no annotation handoff.
+Builder validation proves the handoff is copied without reranking,
+source-string chess parsing, phrase templates, or prose. The executable owners
+are `CandidateLineSelectionContractTest` and
+`CommentaryOutlineBuilderContractTest`.
+`BookAnnotationPlanner` validates the renderer-side language-neutral
+annotation planning boundary. It consumes `CommentaryPlan` only and proves that
+structured units require an unblocked admitted exact-board main claim, a
+same-claim strong annotation selection, a public-line candidate/root primary
+proof, and at least one public-line defender-resource or defender-reply
+companion proof. Candidate-only, defender-only, blocked, unsafe/internal,
+source-only, retrieval-only, `boundary_only`, `internal_only`, missing-proof,
+and unmatched-frame cases fail closed to stable boundaries. Support and
+negative proof ids appear only inside an existing strong primary unit; failed
+tempting, premature, and release-risk proofs cannot become primary units.
+Retrieval frames remain illustrative and non-authoritative, and planner output
+contains no final English prose, phrase-template, sentence, or public text
+fields. The executable owner is `BookAnnotationPlannerContractTest`.
+`LineCommentaryPlannerContractTest` validates the renderer-side line
+commentary skeleton boundary. It consumes only `BookAnnotationPlan` and proves
+that one valid unit can yield structured main-line, defensive-resource, and
+restrained line-result notes without final prose fields. The current closed
+line-result table is `persistence/pressure_persists`,
+`defender_resource/does_not_restore_counterplay`,
+`defender_resource/resource_fails`, `defender_resource/resource_works`,
+`hold/defensive_hold`, `simplification/simplifies`,
+`conversion/simplifies`, and `conversion/converts`. Empty unit sets, wording
+caps below `qualified_support`, empty main lines, unsupported results, and
+role/result mismatches do not create fallback notes; unsupported or mismatched
+rows create only fail-closed line boundaries. Defensive-resource notes remain
+structural only. V7d validation adds support/caution skeleton checks:
+`BookAnnotationPlannerContractTest` proves that structured support/caution
+line details are carried only behind an already-admitted strong unit from
+public-safe same-claim prepared lines, that weak candidate-only lines carry
+none, and that `boundary_only`, `internal_only`, raw/source provenance, stale
+boundary, and illegal boundary support/negative proofs fail closed before
+creating units or support/caution details. `LineCommentaryPlannerContractTest`
+proves that `supporting_line` and
+`caution` notes come only from those structured details, not from
+support/negative ids alone, and that unsupported, mismatched, or low-cap
+primary units do not surface support/caution notes. Caution skeletons remain
+separate support-only notes, never primary recommendations or line-result
+notes, and no natural/tempting wording or raw source refs surface. Source
+frames are not used to create note meaning. The test also validates that
+existing source frames can attach only coarse non-authoritative contexts
+(`opening`, `pattern`, `endgame`, `example`) to already-admitted notes, that
+authoritative or unsupported source frames do not create context or notes, and
+that raw source ref ids and forbidden recommendation/result/proof wording do
+not surface. The skeleton does not require raw claims, source rows, or engine
+data.
+`EnglishLineCommentaryContractTest` validates the first renderer-side English
+line-comment writer. It consumes only `LineCommentaryPlan`, requires a
+main-line note and compatible line-result note, emits at most one compact
+comment per annotation id, maps only the closed safe `LineNoteMeaning` result
+phrases, and keeps missing main/result, unsupported meanings, caution-only, and
+support-only inputs silent. The test also proves support/caution sentences
+append only behind an existing main comment and only with the same primary
+proof id as the main/result pair, source contexts do not create prose claims,
+forbidden wording and source/internal/proof ids stay out of the comment text,
+blank SAN tokens fail closed, Black-move SAN ellipses are preserved, and
+punctuation remains clean. The
+renderer integration check in `CommentaryRendererContractTest` proves that
+`CommentaryRenderer.render` uses that English comment for a safe annotated
+primary block and keeps deterministic role labels when the annotation handoff
+is absent.
+`PublicVariationEvidenceSafety` keeps claim selection, line selection, and
+renderer-side annotation planning on the same public proof-id, provenance,
+binding, and source line-test parsing rules. Validation covers
+branch/cache/probe-shaped proof ids against `ClaimSelector` source-context
+admission, `CandidateLineSelection` selected line output, and
+`BookAnnotationPlanner` annotation-unit admission so the gates cannot drift.
+The backend seam may consume an internal
+`CandidateProbeControlledAdapter.AssemblyResult` only after the controlled
+adapter has already lowered sanitized candidate-line evidence with an explicit
+binding. The assembly is an attach-only side input, not a field on
+`CommentaryPipelineInput`, and claim production must not be able to observe it.
+The seam must produce claims and apply engine-certification fail-closed
+filtering before invoking the assembly provider; then it attaches prepared
+proofs to existing filtered claims by `boundClaimId` and relies on the existing
+selection, outline, and renderer filters for claim-binding and public-surface
+checks. Missing assembly, assembly without prepared proofs, mismatched binding,
+or assembly without claims must leave the public render silent for variation
+evidence and must not create a claim.
 
 Opening sequence context is validated as source context only. Move-order,
 pawn-break, development-lag, file-ownership, king-safety, transposition,

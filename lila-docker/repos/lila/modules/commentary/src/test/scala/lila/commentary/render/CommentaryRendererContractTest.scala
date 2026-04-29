@@ -72,6 +72,59 @@ class CommentaryRendererContractTest extends munit.FunSuite:
       assert(!text.toLowerCase.contains("result"))
       assert(!text.toLowerCase.contains("winning"))
 
+  test("renderer uses safe English line commentary for annotated primary block only"):
+    val lead = selected("line-owner", ClaimLayer.Certification, ClaimBucket.MustLead)
+    val primaryProof =
+      safeVariationProof("line-owner").copy(
+        proofId = "candidate-main",
+        lineSan = Vector("Nf6", "Ng5"),
+        lineUci = Vector("g8f6", "f3g5"),
+        candidateMove = Some(VariationMove("Nf6", "g8f6")),
+        continuation = Vector(VariationMove("Ng5", "f3g5")),
+        replyLine = Vector(VariationMove("Ng5", "f3g5"))
+      )
+    val defenderProof =
+      safeVariationProof("line-owner").copy(
+        proofId = "defender-resource",
+        role = VariationEvidenceRole.DefenderResource,
+        moveRole = VariationMoveRole.DefenderResource,
+        lineSan = Vector("...Qb6", "Qd2"),
+        lineUci = Vector("d8b6", "d1d2"),
+        defenderResource = Some(VariationMove("...Qb6", "d8b6")),
+        resourceLine = Vector(VariationMove("...Qb6", "d8b6"), VariationMove("Qd2", "d1d2")),
+        replyLine = Vector(VariationMove("Ng5", "f3g5")),
+        testResult = VariationTestResult.DoesNotRestoreCounterplay,
+        proves = "defender_resource_does_not_restore_counterplay",
+        proofPurpose = VariationProofPurpose.DeniesResource
+      )
+    val plan =
+      planWith(
+        main = Some(section(PlanRole.Main, lead)),
+        variationEvidence = Vector(primaryProof, defenderProof).map(PlanVariationEvidence.apply),
+        annotationSelections = Vector(
+          PlanAnnotationSelection(
+            claimId = "line-owner",
+            primaryProofId = "candidate-main",
+            companionProofIds = Vector("defender-resource"),
+            supportProofIds = Vector.empty,
+            negativeProofIds = Vector.empty,
+            sourceFrames = Vector.empty,
+            strength = PlanAnnotationStrength.Strong,
+            wordingCap = WordingStrength.QualifiedSupport
+          )
+        ),
+        maxStrength = WordingStrength.QualifiedSupport
+      )
+
+    val render = CommentaryRenderer.render(plan)
+    val fallback = CommentaryRenderer.render(plan.copy(annotationSelections = Vector.empty))
+
+    assertEquals(
+      render.blocks.map(_.text.publicText),
+      Vector(Some("After Nf6 Ng5, ...Qb6 Qd2 is met by Ng5, and pressure remains in the line."))
+    )
+    assertEquals(fallback.blocks.map(_.text.publicText), Vector(Some("Primary")))
+
   test("minimal renderer does not emit role fragments for negative-only blocks"):
     val plan = planWith(
       main = Some(section(PlanRole.Main, selected(
@@ -471,6 +524,98 @@ class CommentaryRendererContractTest extends munit.FunSuite:
     assertEquals(render.variationEvidence, Vector.empty)
     assertEquals(render.blocks.head.variationEvidenceIds, Vector.empty)
 
+  test("renderer exposes only sanitized public line roles and no proof tokens for variation evidence"):
+    val lead = selected("line-owner", ClaimLayer.Certification, ClaimBucket.MustLead)
+    val proofs = Vector(
+      safeVariationProof("line-owner").copy(
+        proofId = "line-resource",
+        role = VariationEvidenceRole.DefenderResource,
+        moveRole = VariationMoveRole.DefenderResource,
+        testResult = VariationTestResult.ResourceFails,
+        proves = "resource_fails_in_line",
+        proofPurpose = VariationProofPurpose.DeniesResource
+      ),
+      safeVariationProof("line-owner").copy(
+        proofId = "line-failed",
+        role = VariationEvidenceRole.FailedTemptingMove,
+        testResult = VariationTestResult.MovePremature,
+        proves = "tempting_move_fails",
+        proofPurpose = VariationProofPurpose.Fails,
+        wordingCap = WordingStrength.NegativeOnly
+      ),
+      safeVariationProof("line-owner").copy(
+        proofId = "line-premature",
+        role = VariationEvidenceRole.PrematureMove,
+        testResult = VariationTestResult.MovePremature,
+        proves = "move_is_premature",
+        proofPurpose = VariationProofPurpose.Fails,
+        wordingCap = WordingStrength.NegativeOnly
+      ),
+      safeVariationProof("line-owner").copy(
+        proofId = "line-release",
+        role = VariationEvidenceRole.ReleaseRisk,
+        testResult = VariationTestResult.ReleasesCounterplay,
+        proves = "line_releases_counterplay",
+        proofPurpose = VariationProofPurpose.ReleasesCounterplay
+      ),
+      safeVariationProof("line-owner").copy(
+        proofId = "line-hold",
+        role = VariationEvidenceRole.Hold,
+        testResult = VariationTestResult.DefensiveHold,
+        proves = "defense_holds",
+        proofPurpose = VariationProofPurpose.Holds
+      ),
+      safeVariationProof("line-owner").copy(
+        proofId = "line-conversion",
+        role = VariationEvidenceRole.Conversion,
+        testResult = VariationTestResult.Converts,
+        proves = "bounded_conversion_continues",
+        proofPurpose = VariationProofPurpose.Simplifies
+      ),
+      safeVariationProof("line-owner").copy(
+        proofId = "line-persistence",
+        role = VariationEvidenceRole.Persistence,
+        testResult = VariationTestResult.PressurePersists,
+        proves = "pressure_preserved",
+        proofPurpose = VariationProofPurpose.PreservesPressure
+      ),
+      safeVariationProof("line-owner").copy(
+        proofId = "line-simplification",
+        role = VariationEvidenceRole.Simplification,
+        testResult = VariationTestResult.Simplifies,
+        proves = "bounded_simplification",
+        proofPurpose = VariationProofPurpose.Simplifies
+      )
+    )
+    val plan = planWith(
+      main = Some(section(PlanRole.Main, lead)),
+      variationEvidence = proofs.map(PlanVariationEvidence.apply),
+      maxStrength = WordingStrength.QualifiedSupport
+    )
+
+    val render = CommentaryRendererContract.render(plan)
+    val publicSurface =
+      render.variationEvidence.map(_.role.key).mkString(" ") +
+        render.variationEvidence.flatMap(_.productElementNames).mkString(" ") +
+        render.variationEvidence.mkString(" ")
+
+    assertEquals(
+      render.variationEvidence.map(_.role),
+      Vector(
+        RenderLineRole.Resource,
+        RenderLineRole.Caution,
+        RenderLineRole.Caution,
+        RenderLineRole.Caution,
+        RenderLineRole.Hold,
+        RenderLineRole.Conversion,
+        RenderLineRole.Pressure,
+        RenderLineRole.Simplification
+      )
+    )
+    assert(!publicSurface.contains("failed_tempting_move"), clues(publicSurface))
+    assert(!publicSurface.toLowerCase.contains("tempting"), clues(publicSurface))
+    assert(!publicSurface.contains("proves"), clues(publicSurface))
+
   test("renderer contract docs and surface corpus keep executable names"):
     val contractDoc = Files.readString(Paths.get("modules/commentary/docs/CommentaryRendererContract.md"))
     val coreDoc = Files.readString(Paths.get("modules/commentary/docs/CommentaryCoreSSOT.md"))
@@ -482,11 +627,15 @@ class CommentaryRendererContractTest extends munit.FunSuite:
       "RenderBlock",
       "RenderRole",
       "RenderStatus",
+      "RenderLineRole",
       "RenderText",
       "RenderEvidenceRef",
       "RenderBoundary",
       "RenderSuppression",
       "RenderWording",
+      "EnglishLineCommentary",
+      "EnglishLineCommentaryWriter",
+      "EnglishLineCommentaryContractTest.scala",
       "CommentaryPlan only",
       "RawEngine",
       "master_reference",
@@ -516,6 +665,7 @@ class CommentaryRendererContractTest extends munit.FunSuite:
       blocked: Vector[BlockedClaim] = Vector.empty,
       evidence: Vector[PlanEvidence] = Vector.empty,
       variationEvidence: Vector[PlanVariationEvidence] = Vector.empty,
+      annotationSelections: Vector[PlanAnnotationSelection] = Vector.empty,
       maxStrength: WordingStrength
   ): CommentaryPlan =
     CommentaryPlan(
@@ -526,7 +676,8 @@ class CommentaryRendererContractTest extends munit.FunSuite:
       blocked = blocked,
       evidence = evidence,
       variationEvidence = variationEvidence,
-      wordingRules = WordingRules(maxStrength)
+      wordingRules = WordingRules(maxStrength),
+      annotationSelections = annotationSelections
     )
 
   private def section(role: PlanRole, claims: SelectedClaim*): PlanSection =

@@ -33,6 +33,9 @@ The stable output types are:
 - `PlanRole`
 - `PlanEvidence`
 - `PlanBoundary`
+- `PlanAnnotationSelection`
+- `PlanAnnotationFrame`
+- `PlanAnnotationStrength`
 - `WordingRules`
 - `BlockedClaim`
 
@@ -44,6 +47,8 @@ The stable plan sections are:
 - `contrast`
 - `blocked`
 - `evidence`
+- `variationEvidence`
+- `annotationSelections`
 - `wordingRules`
 
 `CommentaryPlan.noCommentary` is true when the selected commentary sections
@@ -67,6 +72,8 @@ The mapping is lossless and selector-preserving:
 - selector `contrast` maps to `contrast`
 - selector `suppressedClaims` maps to `blocked`
 - selector `evidenceRefs` maps to `evidence`
+- selector `variationEvidence` maps to `variationEvidence`
+- selector `annotationSelections` maps to `annotationSelections`
 - selector `wordingStrengthCap` maps to `wordingRules.maxStrength`
 
 `CommentaryOutlineBuilder` must copy `evidenceRefs` from the outline itself.
@@ -85,6 +92,14 @@ Source-context line-test refs such as `opening-line-test:*:context`,
 builder must not resolve those refs into
 `PlanVariationEvidence`; only selector-owned `PreparedVariationEvidence` from
 an exact-board claim may enter the plan variation-evidence field.
+
+Language-neutral annotation selections map losslessly from
+`CommentaryOutline.annotationSelections` to
+`CommentaryPlan.annotationSelections`. The builder must not reorder proof ids,
+rerank support/negative ids, parse source line-test ref strings into chess
+meaning, add source frames, raise the wording cap, or generate phrase templates
+or English prose. A candidate-only weak line remains absent because selection
+leaves the annotation handoff empty.
 
 ## Context Boundary
 
@@ -197,6 +212,12 @@ them. Public line evidence, if present, must already be selector-owned
 Executable validation lives in:
 
 - `modules/commentary/src/test/scala/lila/commentary/selection/CommentaryOutlineBuilderContractTest.scala`
+
+The executable validation proves that the builder copies sections, blocked
+material, evidence refs, prepared variation evidence, wording caps, soft source
+boundaries, and selector-owned annotation handoff without reinterpretation. It
+also proves source frame refs remain metadata only and candidate-only weak
+lines produce no public annotation handoff.
 
 The corpus rows that freeze the planner/surface boundary live in:
 

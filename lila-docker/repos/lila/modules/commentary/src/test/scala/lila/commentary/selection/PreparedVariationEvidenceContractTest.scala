@@ -16,17 +16,103 @@ class PreparedVariationEvidenceContractTest extends munit.FunSuite:
   private val route = Some("pressure_route")
   private val scope = Some("position_local")
 
-  test("safe prepared variation evidence passes through selection into outline plan"):
-    val claim = boardClaim(claimId, Vector(safeProof(claimId)))
+  test("safe strong prepared variation evidence passes through selection into outline plan"):
+    val claim = boardClaim(claimId, strongLineProofs(claimId))
 
     val outline = ClaimSelector.select(Vector(claim))
     val plan = CommentaryOutlineBuilder.build(outline)
 
     assertEquals(outline.lead.map(_.claim.id), Some(claimId))
-    assertEquals(outline.variationEvidence.map(_.proofId), Vector("line-proof-safe"))
-    assertEquals(plan.variationEvidence.map(_.proof.proofId), Vector("line-proof-safe"))
+    assertEquals(outline.variationEvidence.map(_.proofId), Vector("line-proof-safe", "line-proof-defender"))
+    assertEquals(plan.variationEvidence.map(_.proof.proofId), Vector("line-proof-safe", "line-proof-defender"))
     assertEquals(plan.variationEvidence.head.proof.proves, "pressure_preserved")
-    assertEquals(plan.main.toVector.flatMap(_.claims).flatMap(_.claim.variationEvidence).map(_.proofId), Vector("line-proof-safe"))
+    assertEquals(plan.main.toVector.flatMap(_.claims).flatMap(_.claim.variationEvidence).map(_.proofId), Vector("line-proof-safe", "line-proof-defender"))
+
+  test("candidate-only prepared variation evidence stays on the selected claim but not public outline evidence"):
+    val claim = boardClaim(claimId, Vector(safeProof(claimId)))
+
+    val outline = ClaimSelector.select(Vector(claim))
+    val plan = CommentaryOutlineBuilder.build(outline)
+    val render = CommentaryRenderer.render(plan)
+
+    assertEquals(outline.lead.map(_.claim.id), Some(claimId))
+    assertEquals(outline.lead.toVector.flatMap(_.claim.variationEvidence).map(_.proofId), Vector("line-proof-safe"))
+    assertEquals(outline.variationEvidence, Vector.empty)
+    assertEquals(plan.variationEvidence, Vector.empty)
+    assertEquals(render.variationEvidence, Vector.empty)
+    assertEquals(render.blocks.head.variationEvidenceIds, Vector.empty)
+
+  test("support and negative proofs emit only when a selected strong line exists"):
+    val strongLead =
+      boardClaim(claimId, Vector(safeProof(claimId), defenderProof(claimId), failedProof(claimId)))
+    val support =
+      boardClaim("support-line-claim", Vector(supportProof("support-line-claim")))
+        .copy(impact = ClaimImpact(resultMaterialImpact = 20, evidenceConfidence = 60, boardExplainability = 60))
+    val strongOutline = ClaimSelector.select(Vector(strongLead, support))
+    val weakOutline = ClaimSelector.select(Vector(boardClaim(claimId, Vector(safeProof(claimId))), support))
+
+    assertEquals(
+      strongOutline.variationEvidence.map(_.proofId),
+      Vector("line-proof-safe", "line-proof-defender", "support-line-proof", "failed-line-proof")
+    )
+    assertEquals(weakOutline.lead.map(_.claim.id), Some(claimId))
+    assertEquals(weakOutline.support.map(_.claim.id), Vector("support-line-claim"))
+    assertEquals(weakOutline.variationEvidence, Vector.empty)
+
+  test("source line-test refs can select context but cannot render a weak candidate-only proof"):
+    val claim = boardClaim(claimId, Vector(safeProof(claimId)))
+    val context = sourceLineTestClaim("opening-line-test-context", "line-proof-safe")
+
+    val outline = ClaimSelector.select(Vector(claim, context))
+    val render = CommentaryRenderer.render(CommentaryOutlineBuilder.build(outline))
+
+    assertEquals(outline.lead.map(_.claim.id), Some(claimId))
+    assertEquals(outline.context.map(_.claim.id), Vector("opening-line-test-context"))
+    assertEquals(outline.variationEvidence, Vector.empty)
+    assertEquals(render.variationEvidence, Vector.empty)
+    assertEquals(render.blocks.flatMap(_.variationEvidenceIds), Vector.empty)
+
+  test("release-risk-only variation evidence is support-only and cannot lead or render"):
+    val releaseRisk =
+      safeProof("release-risk-only").copy(
+        proofId = "release-risk-line",
+        boundClaimId = "release-risk-only",
+        role = VariationEvidenceRole.ReleaseRisk,
+        testResult = VariationTestResult.ReleasesCounterplay,
+        proves = "line_releases_counterplay",
+        proofPurpose = VariationProofPurpose.ReleasesCounterplay
+      )
+
+    val outline = ClaimSelector.select(Vector(boardClaim("release-risk-only", Vector(releaseRisk))))
+    val plan = CommentaryOutlineBuilder.build(outline)
+    val render = CommentaryRenderer.render(plan)
+
+    assertEquals(outline.lead, None)
+    assertEquals(plan.main, None)
+    assertEquals(outline.variationEvidence, Vector.empty)
+    assertEquals(render.variationEvidence, Vector.empty)
+    assertEquals(render.blocks.flatMap(_.variationEvidenceIds), Vector.empty)
+    assertSuppressed(outline, "release-risk-only", SuppressionReason.SupportOnly)
+
+  test("internal-shaped source line-test proof ids do not admit context or leak publicly"):
+    val unsafeProofId = "branch-id-cache-key-probe-payload"
+    val claim =
+      boardClaim(claimId, Vector(safeProof(claimId).copy(proofId = unsafeProofId), defenderProof(claimId)))
+    val context = sourceLineTestClaim("opening-internal-line-test-context", unsafeProofId)
+
+    val outline = ClaimSelector.select(Vector(claim, context))
+    val render = CommentaryRenderer.render(CommentaryOutlineBuilder.build(outline))
+    val seam = CommentaryBackendSeam.withClaimProvider(_ => Vector(claim, context))
+    val response = seam.renderDebug(request())
+    val publicText = Json.toJson(render).toString + Json.toJson(response.render).toString
+
+    assertEquals(outline.context, Vector.empty)
+    assertEquals(outline.variationEvidence, Vector.empty)
+    assertEquals(render.variationEvidence, Vector.empty)
+    assertEquals(response.render.variationEvidence, Vector.empty)
+    assert(!publicText.contains(unsafeProofId), clues(publicText))
+    assertSuppressed(outline, claimId, SuppressionReason.RawEngineOnly)
+    assertSuppressed(outline, claimId, SuppressionReason.NoBoardReason)
 
   test("unsafe raw-style prepared variation evidence is suppressed before outline"):
     val unsafe = safeProof(claimId).copy(
@@ -50,7 +136,7 @@ class PreparedVariationEvidenceContractTest extends munit.FunSuite:
 
   test("outline carries prepared variation evidence without inferring new meaning"):
     val originalImpact = ClaimImpact(evidenceConfidence = 40, boardExplainability = 35)
-    val original = boardClaim(claimId, Vector(safeProof(claimId))).copy(impact = originalImpact)
+    val original = boardClaim(claimId, strongLineProofs(claimId)).copy(impact = originalImpact)
 
     val plan = CommentaryOutlineBuilder.build(ClaimSelector.select(Vector(original)))
 
@@ -72,14 +158,14 @@ class PreparedVariationEvidenceContractTest extends munit.FunSuite:
         )
       )
     )
-    val plan = CommentaryOutlineBuilder.build(ClaimSelector.select(Vector(boardClaim(claimId, Vector(proof)))))
+    val plan = CommentaryOutlineBuilder.build(ClaimSelector.select(Vector(boardClaim(claimId, Vector(proof, defenderProof(claimId))))))
     val render = CommentaryRenderer.render(plan)
 
-    assertEquals(render.variationEvidence.map(_.proofId), Vector("line-proof-safe"))
+    assertEquals(render.variationEvidence.map(_.proofId), Vector("line-proof-safe", "line-proof-defender"))
     assertEquals(render.variationEvidence.head.lineSan, Vector("Nf6", "Ng5"))
     assertEquals(render.variationEvidence.head.boundary.legalReplayChecked, true)
     assertEquals(render.variationEvidence.head.boundary.freshnessChecked, true)
-    assertEquals(render.blocks.head.variationEvidenceIds, Vector("line-proof-safe"))
+    assertEquals(render.blocks.head.variationEvidenceIds, Vector("line-proof-safe", "line-proof-defender"))
     val renderedText = Json.toJson(render).toString
     assert(!renderedText.contains("debug-hash"), clues(renderedText))
     assert(!renderedText.contains("stockfish-private-config"), clues(renderedText))
@@ -96,13 +182,13 @@ class PreparedVariationEvidenceContractTest extends munit.FunSuite:
         )
       )
     )
-    val seam = CommentaryBackendSeam.withClaimProvider(_ => Vector(boardClaim(claimId, Vector(proof))))
+    val seam = CommentaryBackendSeam.withClaimProvider(_ => Vector(boardClaim(claimId, Vector(proof, defenderProof(claimId)))))
 
     val response = seam.renderDebug(request())
     val responseText = Json.toJson(response).toString
 
     assertEquals(response.status, CommentaryResponseStatus.Rendered)
-    assertEquals(response.render.variationEvidence.map(_.proofId), Vector("line-proof-safe"))
+    assertEquals(response.render.variationEvidence.map(_.proofId), Vector("line-proof-safe", "line-proof-defender"))
     assertEquals(response.render.suppressions, Vector.empty)
     assert(!responseText.contains("internal-hash"), clues(responseText))
     assert(!responseText.contains("internal-engine-config"), clues(responseText))
@@ -171,17 +257,17 @@ class PreparedVariationEvidenceContractTest extends munit.FunSuite:
       )
 
     val safeRender = CommentaryRenderer.render(
-      CommentaryOutlineBuilder.build(ClaimSelector.select(Vector(boardClaim(claimId, Vector(defenderResource)))))
+      CommentaryOutlineBuilder.build(ClaimSelector.select(Vector(boardClaim(claimId, Vector(safeProof(claimId), defenderResource)))))
     )
-    val staleOutline = ClaimSelector.select(Vector(boardClaim(claimId, Vector(staleResource))))
-    val illegalOutline = ClaimSelector.select(Vector(boardClaim(claimId, Vector(illegalResource))))
-    val unboundOutline = ClaimSelector.select(Vector(boardClaim(claimId, Vector(unboundProvenance))))
+    val staleOutline = ClaimSelector.select(Vector(boardClaim(claimId, Vector(safeProof(claimId), staleResource))))
+    val illegalOutline = ClaimSelector.select(Vector(boardClaim(claimId, Vector(safeProof(claimId), illegalResource))))
+    val unboundOutline = ClaimSelector.select(Vector(boardClaim(claimId, Vector(safeProof(claimId), unboundProvenance))))
 
-    assertEquals(safeRender.variationEvidence.map(_.proofId), Vector("defender-resource-line"))
-    assertEquals(safeRender.variationEvidence.head.role, VariationEvidenceRole.DefenderResource)
-    assertEquals(safeRender.variationEvidence.head.testResult, VariationTestResult.ResourceFails)
-    assertEquals(safeRender.variationEvidence.head.resourceLine.map(_.uci), Vector("d8b6", "d1d2"))
-    assertEquals(safeRender.variationEvidence.head.provenanceRefs.map(_.id), Vector("CertifiedLine"))
+    assertEquals(safeRender.variationEvidence.map(_.proofId), Vector("line-proof-safe", "defender-resource-line"))
+    assertEquals(safeRender.variationEvidence.last.role, RenderLineRole.Resource)
+    assertEquals(safeRender.variationEvidence.last.testResult, VariationTestResult.ResourceFails)
+    assertEquals(safeRender.variationEvidence.last.resourceLine.map(_.uci), Vector("d8b6", "d1d2"))
+    assertEquals(safeRender.variationEvidence.last.provenanceRefs.map(_.id), Vector("CertifiedLine"))
     assertEquals(staleOutline.variationEvidence, Vector.empty)
     assertSuppressed(staleOutline, claimId, SuppressionReason.RawEngineOnly)
     assertEquals(illegalOutline.variationEvidence, Vector.empty)
@@ -252,11 +338,11 @@ class PreparedVariationEvidenceContractTest extends munit.FunSuite:
         )
       )
     )
-    val seam = CommentaryBackendSeam.withClaimProvider(_ => Vector(boardClaim(claimId, Vector(proof))))
+    val seam = CommentaryBackendSeam.withClaimProvider(_ => Vector(boardClaim(claimId, Vector(safeProof(claimId), proof))))
     val response = seam.renderDebug(request())
     val responseText = Json.toJson(response).toString
 
-    assertEquals(response.render.variationEvidence.map(_.role), Vector(VariationEvidenceRole.DefenderResource))
+    assertEquals(response.render.variationEvidence.map(_.role), Vector(RenderLineRole.Pressure, RenderLineRole.Resource))
     assert(!responseText.contains("defender-debug-hash"), clues(responseText))
     assert(!responseText.contains("defender-engine-config"), clues(responseText))
     assert(!responseText.contains("defender-raw-packet"), clues(responseText))
@@ -308,7 +394,7 @@ class PreparedVariationEvidenceContractTest extends munit.FunSuite:
       lineUci = Vector("g8f6", "f3g5"),
       playedMove = None,
       candidateMove = Some(VariationMove("Nf6", "g8f6")),
-      defenderResource = Some(VariationMove("Ng5", "f3g5")),
+      defenderResource = None,
       continuation = Vector(VariationMove("Ng5", "f3g5")),
       role = VariationEvidenceRole.Persistence,
       testedMove = Some(VariationMove("Nf6", "g8f6")),
@@ -330,6 +416,55 @@ class PreparedVariationEvidenceContractTest extends munit.FunSuite:
       provenanceRefs = Vector(EvidenceRef(EvidenceRefKind.Certification, "CertifiedLine", owner, anchor, route, scope)),
       surfaceAllowance = VariationSurfaceAllowance.PublicLine,
       publicSafe = true
+    )
+
+  private def defenderProof(boundClaimId: String): PreparedVariationEvidence =
+    safeProof(boundClaimId).copy(
+      proofId = "line-proof-defender",
+      role = VariationEvidenceRole.DefenderResource,
+      moveRole = VariationMoveRole.DefenderResource,
+      defenderResource = Some(VariationMove("...Qb6", "d8b6")),
+      resourceLine = Vector(VariationMove("...Qb6", "d8b6"), VariationMove("Qd2", "d1d2")),
+      testResult = VariationTestResult.DoesNotRestoreCounterplay,
+      proves = "defender_resource_does_not_restore_counterplay",
+      proofPurpose = VariationProofPurpose.DeniesResource
+    )
+
+  private def strongLineProofs(boundClaimId: String): Vector[PreparedVariationEvidence] =
+    Vector(safeProof(boundClaimId), defenderProof(boundClaimId))
+
+  private def supportProof(boundClaimId: String): PreparedVariationEvidence =
+    safeProof(boundClaimId).copy(
+      proofId = "support-line-proof",
+      role = VariationEvidenceRole.Conversion,
+      moveRole = VariationMoveRole.Continuation,
+      candidateMove = None,
+      continuation = Vector(VariationMove("Bb5", "f1b5")),
+      testResult = VariationTestResult.Converts,
+      proves = "bounded_conversion_continues",
+      proofPurpose = VariationProofPurpose.Simplifies
+    )
+
+  private def failedProof(boundClaimId: String): PreparedVariationEvidence =
+    safeProof(boundClaimId).copy(
+      proofId = "failed-line-proof",
+      role = VariationEvidenceRole.FailedTemptingMove,
+      wordingCap = WordingStrength.NegativeOnly,
+      testResult = VariationTestResult.MovePremature,
+      proves = "tempting_move_fails",
+      proofPurpose = VariationProofPurpose.Fails
+    )
+
+  private def sourceLineTestClaim(id: String, proofId: String): CommentaryClaim =
+    SourceContextClaimBoundary.toClaim(
+      SourceContextCandidate(
+        candidateId = id,
+        kind = SourceContextKind.Opening,
+        sourceRefs = Vector(
+          "opening-position:catalan-main:canonical",
+          s"opening-line-test:$proofId:context"
+        )
+      )
     )
 
   private def assertSuppressed(outline: CommentaryOutline, claimId: String, reason: SuppressionReason): Unit =

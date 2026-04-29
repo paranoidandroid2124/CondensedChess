@@ -10,6 +10,7 @@ import lila.commentary.CommentaryCore
 import lila.commentary.certification.{ CertificationEngineRuntimeIntake, CertificationEvidenceClaim, EngineNodeIdentity }
 import lila.commentary.claim.{ EvidenceClaimHandoff, EvidenceClaimProducer }
 import lila.commentary.delta.StrategicDeltaExtraction
+import lila.commentary.line.CandidateProbeControlledAdapter
 import lila.commentary.render.*
 import lila.commentary.root.RootPositionSupport
 import lila.commentary.selection.*
@@ -64,6 +65,7 @@ final case class CommentaryPipelineInput(
 
 final class CommentaryBackendSeam private (
     claimProvider: CommentaryPipelineInput => Vector[CommentaryClaim],
+    candidateLineAssemblyProvider: CommentaryPipelineInput => Option[CandidateProbeControlledAdapter.AssemblyResult],
     nowEpochMs: () => Long
 ):
 
@@ -93,7 +95,10 @@ final class CommentaryBackendSeam private (
           deltaExtraction = valid.deltaExtraction,
           engineIntake = engineIntake.map(_.metadata)
         )
-        val claims = failClosedEngineClaims(claimProvider(input), engineIntake)
+        val producedClaims = claimProvider(input)
+        val engineFilteredClaims = failClosedEngineClaims(producedClaims, engineIntake)
+        val candidateLineAssembly = candidateLineAssemblyProvider(input)
+        val claims = attachPreparedVariationEvidence(engineFilteredClaims, candidateLineAssembly)
         val outline = ClaimSelector.select(claims)
         val plan = CommentaryOutlineBuilder.build(outline)
         val rendered = CommentaryRenderer.render(plan)
@@ -209,6 +214,22 @@ final class CommentaryBackendSeam private (
         engineRefs.forall(ref => intake.evidenceRefs.exists(_.matches(ref)))
     )
 
+  private def attachPreparedVariationEvidence(
+      claims: Vector[CommentaryClaim],
+      candidateLineAssembly: Option[CandidateProbeControlledAdapter.AssemblyResult]
+  ): Vector[CommentaryClaim] =
+    val preparedByClaim =
+      candidateLineAssembly.toVector
+        .flatMap(_.preparedVariationEvidence)
+        .groupBy(_.boundClaimId)
+    if preparedByClaim.isEmpty then claims
+    else
+      claims.map: claim =>
+        preparedByClaim.get(claim.id) match
+          case None => claim
+          case Some(prepared) =>
+            claim.copy(variationEvidence = (claim.variationEvidence ++ prepared).distinct)
+
   private def engineEvidenceRef(claim: CertificationEvidenceClaim): BackendEngineEvidenceRef =
     val owner = if claim.owner.white then "white" else "black"
     BackendEngineEvidenceRef(
@@ -306,6 +327,7 @@ object CommentaryBackendSeam:
   private val default =
     new CommentaryBackendSeam(
       input => EvidenceClaimProducer.produce(input.currentExtraction, input.deltaExtraction, EvidenceClaimHandoff.empty),
+      _ => None,
       () => System.currentTimeMillis()
     )
 
@@ -319,7 +341,14 @@ object CommentaryBackendSeam:
       claimProvider: CommentaryPipelineInput => Vector[CommentaryClaim],
       nowEpochMs: () => Long = () => System.currentTimeMillis()
   ): CommentaryBackendSeam =
-    new CommentaryBackendSeam(claimProvider, nowEpochMs)
+    new CommentaryBackendSeam(claimProvider, _ => None, nowEpochMs)
+
+  def withClaimProviderAndCandidateLineAssembly(
+      claimProvider: CommentaryPipelineInput => Vector[CommentaryClaim],
+      candidateLineAssemblyProvider: CommentaryPipelineInput => Option[CandidateProbeControlledAdapter.AssemblyResult],
+      nowEpochMs: () => Long = () => System.currentTimeMillis()
+  ): CommentaryBackendSeam =
+    new CommentaryBackendSeam(claimProvider, candidateLineAssemblyProvider, nowEpochMs)
 
   def withEvidenceHandoffProvider(
       evidenceHandoffProvider: CommentaryPipelineInput => EvidenceClaimHandoff,
@@ -327,6 +356,7 @@ object CommentaryBackendSeam:
   ): CommentaryBackendSeam =
     new CommentaryBackendSeam(
       input => EvidenceClaimProducer.produce(input.currentExtraction, input.deltaExtraction, evidenceHandoffProvider(input)),
+      _ => None,
       nowEpochMs
     )
 
@@ -338,12 +368,12 @@ object CommentaryApiJson:
     enumFormat(CommentaryEngineIntakeStatus.values, _.key, "CommentaryEngineIntakeStatus")
   given Format[RenderRole] = enumFormat(RenderRole.values, _.key, "RenderRole")
   given Format[RenderStatus] = enumFormat(RenderStatus.values, _.key, "RenderStatus")
+  given Format[RenderLineRole] = enumFormat(RenderLineRole.values, _.key, "RenderLineRole")
   given Format[WordingStrength] = enumFormat(WordingStrength.values, _.key, "WordingStrength")
   given Format[EvidenceRefKind] = enumFormat(EvidenceRefKind.values, _.key, "EvidenceRefKind")
   given Format[SuppressionReason] = enumFormat(SuppressionReason.values, _.key, "SuppressionReason")
   given Format[VariationMoveRole] = enumFormat(VariationMoveRole.values, _.key, "VariationMoveRole")
   given Format[VariationProofPurpose] = enumFormat(VariationProofPurpose.values, _.key, "VariationProofPurpose")
-  given Format[VariationEvidenceRole] = enumFormat(VariationEvidenceRole.values, _.key, "VariationEvidenceRole")
   given Format[VariationTestResult] = enumFormat(VariationTestResult.values, _.key, "VariationTestResult")
   given Format[VariationSurfaceAllowance] =
     enumFormat(VariationSurfaceAllowance.values, _.key, "VariationSurfaceAllowance")

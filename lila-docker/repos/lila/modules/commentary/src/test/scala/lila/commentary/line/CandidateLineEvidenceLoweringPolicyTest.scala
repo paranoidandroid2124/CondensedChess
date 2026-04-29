@@ -29,10 +29,10 @@ class CandidateLineEvidenceLoweringPolicyTest extends munit.FunSuite:
     )
 
   test("depth 16 candidate line lowers and depth 15 fails closed"):
-    val depth16 = lower(Vector(root(rank = 1, realizedDepth = 16, multiPv = 2), root(rank = 2, branchId = "root-candidate-2", multiPv = 2, multiPvIndex = 2)))
-    val depth15 = lower(Vector(root(rank = 1, realizedDepth = 15, multiPv = 2), root(rank = 2, branchId = "root-candidate-2", multiPv = 2, multiPvIndex = 2)))
+    val depth16 = lower(rootSet(realizedDepth = 16))
+    val depth15 = lower(rootSet(realizedDepth = 15))
 
-    assertEquals(depth16.map(_.proofId), Vector("prepared-line-claim-line-1", "prepared-line-claim-line-2"))
+    assertEquals(depth16.map(_.proofId), Vector("prepared-line-claim-line-1", "prepared-line-claim-line-2", "prepared-line-claim-line-3"))
     assertEquals(depth16.head.boundary.depthFloor, 16)
     assertEquals(depth16.head.boundary.realizedDepth, 16)
     assertEquals(depth15, Vector.empty)
@@ -57,24 +57,48 @@ class CandidateLineEvidenceLoweringPolicyTest extends munit.FunSuite:
     val duplicateRank =
       lower(
         Vector(
-          root(rank = 1, branchId = "root-candidate-1", multiPv = 2, multiPvIndex = 1),
-          root(rank = 1, branchId = "root-candidate-duplicate", multiPv = 2, multiPvIndex = 2),
-          root(rank = 2, branchId = "root-candidate-2", multiPv = 2, multiPvIndex = 2)
+          root(rank = 1, branchId = "root-candidate-1", multiPvIndex = 1),
+          root(rank = 1, branchId = "root-candidate-duplicate", multiPvIndex = 2),
+          root(rank = 3, branchId = "root-candidate-3", multiPvIndex = 3)
         )
       )
     val duplicateMultiPvIndex =
       lower(
         Vector(
-          root(rank = 1, branchId = "root-candidate-1", multiPv = 2, multiPvIndex = 1),
-          root(rank = 2, branchId = "root-candidate-2", multiPv = 2, multiPvIndex = 1)
+          root(rank = 1, branchId = "root-candidate-1", multiPvIndex = 1),
+          root(rank = 2, branchId = "root-candidate-2", multiPvIndex = 1),
+          root(rank = 3, branchId = "root-candidate-3", multiPvIndex = 3)
         )
       )
 
     assertEquals(duplicateRank, Vector.empty)
     assertEquals(duplicateMultiPvIndex, Vector.empty)
 
+  test("permuted root rank and MultiPV index pairs fail closed before lowering"):
+    val proofs =
+      lower(
+        Vector(
+          root(rank = 1, branchId = "root-candidate-1", multiPvIndex = 3),
+          root(rank = 2, branchId = "root-candidate-2", multiPvIndex = 2),
+          root(rank = 3, branchId = "root-candidate-3", multiPvIndex = 1)
+        )
+      )
+
+    assertEquals(proofs, Vector.empty)
+
   test("root MultiPV 1 does not lower as full candidate-line exploration"):
     val proofs = lower(Vector(root(rank = 1, multiPv = 1)))
+
+    assertEquals(proofs, Vector.empty)
+
+  test("root MultiPV 2 does not lower at public-safe candidate-line boundary"):
+    val proofs =
+      lower(
+        Vector(
+          root(rank = 1, branchId = "root-candidate-1", multiPv = 2, multiPvIndex = 1),
+          root(rank = 2, branchId = "root-candidate-2", multiPv = 2, multiPvIndex = 2)
+        )
+      )
 
     assertEquals(proofs, Vector.empty)
 
@@ -96,8 +120,9 @@ class CandidateLineEvidenceLoweringPolicyTest extends munit.FunSuite:
     val proofs =
       lower(
         Vector(
-          root(rank = 1, branchId = "root-candidate-1", multiPv = 2, multiPvIndex = 1),
-          root(rank = 2, branchId = parent.value, multiPv = 2, multiPvIndex = 2),
+          root(rank = 1, branchId = "root-candidate-1", multiPvIndex = 1),
+          root(rank = 2, branchId = parent.value, multiPvIndex = 2),
+          root(rank = 3, branchId = "root-candidate-3", multiPvIndex = 3),
           child(
             branchId = "defender-reply-1",
             parentBranchId = parent,
@@ -120,9 +145,19 @@ class CandidateLineEvidenceLoweringPolicyTest extends munit.FunSuite:
       )
     val replies = proofs.filter(_.role == VariationEvidenceRole.DefenderResource)
 
-    assertEquals(replies.map(_.proofId), Vector("prepared-line-claim-line-3", "prepared-line-claim-line-4"))
+    assertEquals(replies.map(_.proofId), Vector("prepared-line-claim-line-4", "prepared-line-claim-line-5"))
     assertEquals(replies.map(_.resourceLine.map(_.uci)), Vector(Vector("a7a6", "f1a4"), Vector("g8f6", "e1g1")))
     assertEquals(replies.map(_.boundary.multiPv), Vector(2, 2))
+
+  test("child MultiPV 1 does not lower at public-safe candidate-line boundary"):
+    val parent = CandidateBranchId("root-candidate-1")
+    val proofs =
+      lower(
+        rootSet() :+
+          child(branchId = "defender-reply-under-budget", parentBranchId = parent, multiPv = 1, multiPvIndex = 1)
+      )
+
+    assertEquals(proofs.count(_.role == VariationEvidenceRole.DefenderResource), 0)
 
   test("child evidence for rank 3 root is ignored unless explicitly allowed"):
     val rank3 = CandidateBranchId("root-candidate-3")
@@ -153,13 +188,13 @@ class CandidateLineEvidenceLoweringPolicyTest extends munit.FunSuite:
 
   test("child evidence without publicLineEligibleAt fails closed"):
     val parent = CandidateBranchId("root-candidate-1")
+    val roots =
+      rootSet().map:
+        case line if line.branchId == CandidateBranchId("root-candidate-1") => line.copy(branchId = parent)
+        case line                                                           => line
     val proofs =
       lower(
-        Vector(
-          root(rank = 1, branchId = parent.value, multiPv = 2, multiPvIndex = 1),
-          root(rank = 2, branchId = "root-candidate-2", multiPv = 2, multiPvIndex = 2),
-          child(branchId = "shallow-child", parentBranchId = parent, realizedDepth = 15)
-        )
+        roots :+ child(branchId = "shallow-child", parentBranchId = parent, realizedDepth = 15)
       )
 
     assertEquals(proofs.count(_.role == VariationEvidenceRole.DefenderResource), 0)
@@ -182,7 +217,7 @@ class CandidateLineEvidenceLoweringPolicyTest extends munit.FunSuite:
     assertEquals(proofs, Vector.empty)
 
   test("source-context or raw-engine binding provenance cannot lower as public-safe proof owner"):
-    val evidence = Vector(root(rank = 1, multiPv = 2), root(rank = 2, branchId = "root-candidate-2", multiPv = 2, multiPvIndex = 2))
+    val evidence = rootSet()
     val sourceBinding =
       binding.copy(
         provenanceRef = EvidenceRef(EvidenceRefKind.SourceContext, "retrieval-line-test:example:context", owner, anchor, route, scope)
@@ -199,6 +234,24 @@ class CandidateLineEvidenceLoweringPolicyTest extends munit.FunSuite:
     assertEquals(CandidateLineEvidenceLowering.lower(evidence, sourceBinding, nowEpochMs), Vector.empty)
     assertEquals(CandidateLineEvidenceLowering.lower(evidence, rawEngineBinding, nowEpochMs), Vector.empty)
     assertEquals(CandidateLineEvidenceLowering.lower(evidence, unboundBinding, nowEpochMs), Vector.empty)
+
+  test("unsafe certification provenance ids fail closed before public prepared variation evidence"):
+    val evidence = rootSet()
+    val branchIdBinding =
+      binding.copy(
+        provenanceRef = EvidenceRef(EvidenceRefKind.Certification, "branchId:root-candidate-1", owner, anchor, route, scope)
+      )
+    val cacheKeyBinding =
+      binding.copy(
+        provenanceRef = EvidenceRef(EvidenceRefKind.Certification, "cacheKey:rank3-depth18", owner, anchor, route, scope)
+      )
+
+    assertEquals(CandidateLineEvidenceLowering.lower(evidence, branchIdBinding, nowEpochMs), Vector.empty)
+    assertEquals(CandidateLineEvidenceLowering.lower(evidence, cacheKeyBinding, nowEpochMs), Vector.empty)
+    assertEquals(
+      CandidateLineEvidenceLowering.lower(evidence, binding, nowEpochMs).map(_.provenanceRefs.map(_.id).distinct),
+      Vector(Vector("CertifiedLine"), Vector("CertifiedLine"), Vector("CertifiedLine"))
+    )
 
   test("failed premature and release-risk candidate roles cannot lower as lead recommendation"):
     val proofs =
@@ -217,7 +270,7 @@ class CandidateLineEvidenceLoweringPolicyTest extends munit.FunSuite:
     assertEquals(proofs.exists(_.proofId.contains("release-risk-candidate")), false)
 
   test("raw packet PV and internal CandidateLineEvidence fields do not appear in public backend render JSON"):
-    val proof = lower(Vector(root(rank = 1, multiPv = 2), root(rank = 2, branchId = "root-candidate-2", multiPv = 2, multiPvIndex = 2))).head
+    val proof = lower(rootSet()).head
     val seam = CommentaryBackendSeam.withClaimProvider(_ => Vector(boardClaim(Vector(proof))))
     val response = seam.renderDebug(request())
     val responseText = Json.toJson(response).toString
@@ -244,6 +297,13 @@ class CandidateLineEvidenceLoweringPolicyTest extends munit.FunSuite:
 
   private def lower(evidence: Vector[CandidateLineEvidence]): Vector[PreparedVariationEvidence] =
     CandidateLineEvidenceLowering.lower(evidence, binding = binding, nowEpochMs = nowEpochMs)
+
+  private def rootSet(realizedDepth: Int = 18): Vector[CandidateLineEvidence] =
+    Vector(
+      root(rank = 1, branchId = "root-candidate-1", multiPvIndex = 1, realizedDepth = realizedDepth),
+      root(rank = 2, branchId = "root-candidate-2", multiPvIndex = 2, realizedDepth = realizedDepth),
+      root(rank = 3, branchId = "root-candidate-3", multiPvIndex = 3, realizedDepth = realizedDepth)
+    )
 
   private def root(
       branchId: String = "root-candidate-1",
@@ -274,7 +334,7 @@ class CandidateLineEvidenceLoweringPolicyTest extends munit.FunSuite:
       parentBranchId: CandidateBranchId,
       rank: Int = 1,
       multiPvIndex: Int = 1,
-      multiPv: Int = 1,
+      multiPv: Int = 2,
       realizedDepth: Int = 18,
       lineSan: Vector[String] = Vector("a6", "Ba4"),
       lineUci: Vector[String] = Vector("a7a6", "f1a4")

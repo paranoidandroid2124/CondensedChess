@@ -37,6 +37,7 @@ The stable contract names are:
 - `RenderBlock`
 - `RenderRole`
 - `RenderStatus`
+- `RenderLineRole`
 - `RenderText`
 - `RenderEvidenceRef`
 - `RenderBoundary`
@@ -45,6 +46,23 @@ The stable contract names are:
 - `RenderVariationEvidence`
 - `RenderVariationBoundary`
 - `RenderVariationMove`
+- `BookAnnotationPlanner`
+- `BookAnnotationPlan`
+- `BookAnnotationUnit`
+- `BookAnnotationBoundary`
+- `BookAnnotationWordingRules`
+- `LineCommentaryPlanner`
+- `LineCommentaryPlan`
+- `LineNote`
+- `LineNoteKind`
+- `LineNoteMeaning`
+- `LineSupport`
+- `LineCaution`
+- `LineCommentaryDetail`
+- `LineCommentaryBoundary`
+- `EnglishLineCommentary`
+- `EnglishLineComment`
+- `EnglishLineCommentaryWriter`
 
 `CommentaryRender` is structured-block-first. Text is a leaf field on a block,
 not the contract itself.
@@ -55,7 +73,13 @@ The contracted render statuses are:
 - `contextOnly`
 - `noCommentary`
 
-The minimal renderer emits only short deterministic role fragments:
+`CommentaryRendererContract.render` remains the lower deterministic structured
+contract and emits no public prose. `CommentaryRenderer.render` may replace a
+primary block's public text with a closed English line comment when the
+annotation path produces one for that block's claim id.
+
+When no safe English line comment exists, the renderer falls back to short
+deterministic role fragments:
 
 - `Primary`
 - `Support`
@@ -63,7 +87,7 @@ The minimal renderer emits only short deterministic role fragments:
 - `Contrast`
 
 These fragments are display labels, not chess claims. The renderer does not
-emit broad chess narration or generated prose.
+emit broad chess narration or generated/model-authored prose.
 
 ## Section Mapping
 
@@ -77,6 +101,8 @@ The mapping is plan-preserving:
 - eligible public refs from `plan.evidence -> RenderEvidenceRef`
 - selected public-safe line proofs from
   `plan.variationEvidence -> RenderVariationEvidence`
+- safe primary line comments from
+  `plan.annotationSelections -> BookAnnotationPlanner -> LineCommentaryPlanner -> EnglishLineCommentaryWriter -> RenderText.publicText`
 - `plan.wordingRules.maxStrength -> RenderWording.maxStrength`
 
 The renderer must preserve section order:
@@ -97,14 +123,23 @@ Public `RenderVariationEvidence` output is similarly stricter than raw
 `plan.variationEvidence`: a proof must be public-safe, must be bound to an
 unblocked rendered claim, and must carry only the public subset frozen in
 [VariationEvidenceContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/VariationEvidenceContract.md).
-The renderer must not serialize `PreparedVariationDebug`. It may serialize
-public-safe evidence role, tested move/line, reply/resource line, restrained
-test result, bounded provenance refs, and surface allowance, but only as
-structured fields. Public `RenderVariationEvidence` requires
-`surfaceAllowance = public_line`; `boundary_only` proofs remain non-rendered
-line evidence in this scaffold. It must filter `internal_only`,
-raw-engine-provenance, source-context-provenance, unbounded, stale, illegal, or
-overclaim-token line proofs.
+The lower `PreparedVariationEvidence` may retain internal
+`VariationEvidenceRole` values and its internal `proves` token, but the
+renderer public payload must not expose either field directly.
+`RenderVariationEvidence.role` is the renderer-public `RenderLineRole` with
+only these keys: `resource`, `caution`, `hold`, `conversion`, `pressure`, and
+`simplification`. Internal `defender_resource` maps to `resource`; internal
+`failed_tempting_move`, `premature_move`, and `release_risk` map to
+`caution`; internal `persistence` maps to `pressure`; the other supported
+roles keep their chess-friendly public names. The renderer must not serialize
+`PreparedVariationDebug` or the prepared `proves` token. It may serialize
+tested move/line, reply/resource line, restrained test result, bounded
+provenance refs, proof purpose, and surface allowance, but only as structured
+fields. Public `RenderVariationEvidence` requires `surfaceAllowance =
+public_line`; `boundary_only` proofs remain non-rendered line evidence in this
+scaffold. It must filter `internal_only`, raw-engine-provenance,
+source-context-provenance, unbounded, stale, illegal, or overclaim-token line
+proofs.
 
 ## Wording Strength
 
@@ -140,7 +175,9 @@ The renderer must not:
 - upgrade `wordingStrengthCap`
 - convert source, opening, motif, endgame-study, or retrieval context to truth
 - interpret raw engine evidence
-- turn prepared variation evidence into book-style prose
+- turn prepared variation evidence directly into book-style prose
+- turn `BookAnnotationPlan` directly into English prose or public text
+- turn source contexts or source-frame metadata into English chess claims
 - turn defender-resource or failed-tempting-move evidence into a main
   recommendation
 - turn opening sequence context or `opening-line-test:*:context` refs into
@@ -230,6 +267,133 @@ retrieval context ref does not authorize recommendation, verdict,
 current-position proof, result, best-move, forced-line, theory, or engine
 wording.
 
+## Book Annotation Planner Boundary
+
+`BookAnnotationPlanner` is a renderer-side language-neutral planner under
+`lila.commentary.render.annotation`. It consumes `CommentaryPlan` only and
+emits structured `BookAnnotationPlan` data only. It does not wire controller
+routes, API fields, frontend UI, live source lookup, Stockfish/WASM execution,
+cache persistence, phrase templates, or English prose.
+
+`BookAnnotationPlan` contains:
+
+- `BookAnnotationUnit` values for strong exact-board annotation units
+- `BookAnnotationBoundary` values for fail-closed reasons
+- `BookAnnotationWordingRules` carrying wording caps only
+
+Strong unit creation requires an unblocked selected main claim that is
+admitted, exact-board-bound, and not source, engine, or renderer owned. The
+matching `PlanAnnotationSelection` must bind to the same claim, its primary
+proof id must resolve to a public-safe candidate/root proof on that claim, and
+at least one companion proof id must resolve to a public-safe
+defender-resource or defender-reply proof on that claim. All proofs must pass
+the same public proof-id, provenance, binding, boundary, and
+`surfaceAllowance = public_line` checks used by line selection and public
+rendering.
+
+Candidate-only, defender-only, source-only/retrieval-only, blocked-claim,
+`boundary_only`, `internal_only`, raw-engine/source-provenance, unmatched
+source-frame, unsafe/internal proof-id, and missing-proof inputs fail closed to
+boundaries rather than units. Support and negative proof ids may appear only on
+an existing strong primary unit. Failed tempting, premature, and release-risk
+proofs cannot become primary units. Retrieval frames remain illustrative,
+non-authoritative metadata only.
+
+Planner units carry structured data only: claim id, SAN/UCI line, resource and
+reply moves, proof role, test result, source-frame metadata, wording cap, and
+proof ids. They must not contain final sentence, template, phrase, or public
+text fields.
+
+## Line Commentary Planner Boundary
+
+`LineCommentaryPlanner` is the renderer-side skeleton planner under
+`lila.commentary.render.annotation`. It consumes `BookAnnotationPlan` only and
+emits structured `LineCommentaryPlan` data only. It does not consume
+`CommentaryPlan`, raw claims, source rows, engine data, controller/API routes,
+frontend UI, live source lookup, Stockfish/WASM execution, cache persistence,
+or lower-layer meaning.
+
+`LineCommentaryPlan` contains `LineNote` values plus fail-closed
+`LineCommentaryBoundary` values. The initial skeleton may emit only:
+
+- a main-line note from `BookAnnotationUnit.lineSan`
+- a defensive-resource note when the unit already carries resource or reply
+  moves
+- a line-result note only for this closed role/result table:
+- optional coarse `LineContext` hints on already-admitted notes only, mapped
+  from existing `BookAnnotationSourceFrame.kind` as `Opening` -> `opening`,
+  `Motif` -> `pattern`, `EndgameStudy` -> `endgame`, and `Retrieval` ->
+  `example`
+
+| `BookAnnotationUnit.proofRole` | `BookAnnotationUnit.testResult` | `LineNoteMeaning` |
+| --- | --- | --- |
+| `persistence` | `pressure_persists` | `pressure_persists` |
+| `defender_resource` | `does_not_restore_counterplay` | `does_not_restore_counterplay` |
+| `defender_resource` | `resource_fails` | `resource_fails` |
+| `defender_resource` | `resource_works` | `resource_works` |
+| `hold` | `defensive_hold` | `defensive_hold` |
+| `simplification` | `simplifies` | `simplifies` |
+| `conversion` | `simplifies` | `simplifies` |
+| `conversion` | `converts` | `converts` |
+
+If the book annotation plan has no units, the effective wording cap is below
+`qualified_support`, the main line is empty, the result is unsupported, or the
+role/result pair is outside the table, the line planner must not invent
+fallback notes. Defensive-resource notes are structural only and do not create
+result meaning by themselves. Source frames from `BookAnnotationUnit` are not
+meaning input for this skeleton. They may supply only non-authoritative context
+hints to notes that already exist; source-only frames, authoritative frames, and
+malformed frames must not create notes, prose, citation display, recommendations,
+theory, result meaning, or proof ownership. The line skeleton does not expose
+raw `sourceRefIds`. V7d adds separate line-scoped support/caution skeletons
+from `BookAnnotationUnit.supportingLines` and
+`BookAnnotationUnit.cautionLines`. These details may carry only SAN/UCI,
+tested, reply, and resource line payloads already present in admitted
+public-safe prepared support/negative lines behind the strong unit. Support
+details may mirror the closed safe result table above when role/result matches.
+Caution details are limited to early-move, premature-move, and
+releases-counterplay caution kinds from the explicit negative role/result
+pairs. Support/negative ids alone do not create notes, missing detail line data
+fails closed, and caution notes must remain separate support-only skeletons
+instead of primary line/result notes. Natural/tempting wording,
+recommendations, final sentence, template, phrase, or public text fields remain
+closed.
+
+## English Line Commentary Boundary
+
+`EnglishLineCommentaryWriter` is the first language-specific writer under
+`lila.commentary.render.annotation`. It consumes `LineCommentaryPlan` only and
+emits `EnglishLineCommentary` with at most one `EnglishLineComment` per
+annotation id.
+
+An English comment requires a usable `main_line` note and a compatible
+`line_result` note. A defensive-resource note may add a compact resource/reply
+clause only when both lines are present. Without the required main/result pair,
+the writer emits no comment and no one-move fallback caption.
+
+The closed result phrase table is:
+
+| `LineNoteMeaning` | Public phrase |
+| --- | --- |
+| `pressure_persists` | `pressure remains in the line` |
+| `does_not_restore_counterplay` | `counterplay does not return in the line` |
+| `resource_fails` | `the resource fails in the line` |
+| `resource_works` | `the resource works in the line` |
+| `defensive_hold` | `the defense holds in the line` |
+| `simplifies` | `the position simplifies in the line` |
+| `converts` | `the line converts into a clearer continuation` |
+
+Unsupported meanings emit no comment. Support notes may append short
+`In {line}, ...` sentences only after the main comment exists. Caution notes
+may append short `By contrast, ...` sentences only after the main comment
+exists and only when the detail note is bound to the same primary proof id as
+the main/result pair; caution never becomes the main sentence. The writer must not use
+natural, tempting, best, only, forced, winning, drawn, decisive, refutes,
+engine-says, theory-proves, tablebase, or oracle wording, and it must not
+surface source refs, proof ids, raw/internal ids, or blank SAN tokens in the
+comment text. SAN tokens, including Black-move ellipses such as `...Qb6`, are
+preserved in public prose.
+
 ## Engine Boundary
 
 The renderer may carry only bounded `Certification` evidence refs already
@@ -287,7 +451,13 @@ Executable validation lives in:
 
 - `modules/commentary/src/main/scala/lila/commentary/render/CommentaryRenderer.scala`
 - `modules/commentary/src/main/scala/lila/commentary/render/CommentaryRendererContract.scala`
+- `modules/commentary/src/main/scala/lila/commentary/render/annotation/BookAnnotationPlanner.scala`
+- `modules/commentary/src/main/scala/lila/commentary/render/annotation/LineCommentaryPlanner.scala`
+- `modules/commentary/src/main/scala/lila/commentary/render/annotation/EnglishLineCommentary.scala`
 - `modules/commentary/src/test/scala/lila/commentary/render/CommentaryRendererContractTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/render/annotation/BookAnnotationPlannerContractTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/render/annotation/LineCommentaryPlannerContractTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/render/annotation/EnglishLineCommentaryContractTest.scala`
 - `modules/commentary/src/test/resources/commentary-corpus/surface-expectations.jsonl`
 
 The scaffold validates:
@@ -304,4 +474,13 @@ The scaffold validates:
 - raw retrieval row, citation metadata, and internal proof-packet filtering
 - no evidence invention from claim-local refs outside `plan.evidence`
 - no merge of opening `master_reference` and `online_trend` refs
-- deterministic role fragments only, with no chess narration
+- deterministic role fragments as fallback labels when no safe English line
+  comment exists
+- renderer-side book annotation planning from `CommentaryPlan` only, with
+  structured units/boundaries/caps and no book-style prose
+- renderer-side line commentary skeleton planning from `BookAnnotationPlan`
+  only, with structured notes/boundaries and no final English prose
+- renderer-side English line commentary writing from `LineCommentaryPlan` only,
+  with a closed phrase table, no lower evidence/source/probe/cache inputs, no
+  unsupported-meaning fallback, support/caution appendage behind an existing
+  main comment only, and grammar/forbidden-word guards

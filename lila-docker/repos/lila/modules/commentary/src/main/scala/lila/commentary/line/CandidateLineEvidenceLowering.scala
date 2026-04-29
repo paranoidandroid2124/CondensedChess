@@ -16,7 +16,13 @@ object CandidateLineEvidenceLowering:
       childMultiPvMax: Int,
       childParentRankLimit: Int,
       allowThirdRootChildProof: Boolean
-  )
+  ):
+    require(rootMultiPvDefaultTarget == 3, "Public-safe root MultiPV is frozen to 3")
+    require(rootMultiPvMin == rootMultiPvDefaultTarget, "Public-safe root MultiPV minimum is frozen to 3")
+    require(rootMultiPvMax == rootMultiPvDefaultTarget, "Public-safe root MultiPV maximum is frozen to 3")
+    require(childMultiPvDefault == 2, "Public-safe child MultiPV is frozen to 2")
+    require(childMultiPvMin == childMultiPvDefault, "Public-safe child MultiPV minimum is frozen to 2")
+    require(childMultiPvMax == childMultiPvDefault, "Public-safe child MultiPV maximum is frozen to 2")
 
   object Policy:
     val Default: Policy =
@@ -25,10 +31,10 @@ object CandidateLineEvidenceLowering:
         preferredTargetDepth = 18,
         strongTargetDepth = 20,
         rootMultiPvDefaultTarget = 3,
-        rootMultiPvMin = 2,
+        rootMultiPvMin = 3,
         rootMultiPvMax = 3,
-        childMultiPvDefault = 1,
-        childMultiPvMin = 1,
+        childMultiPvDefault = 2,
+        childMultiPvMin = 2,
         childMultiPvMax = 2,
         childParentRankLimit = 2,
         allowThirdRootChildProof = false
@@ -85,13 +91,12 @@ object CandidateLineEvidenceLowering:
     if !rootMultiPvAccepted then Vector.empty
     else
       val expectedRanks = (1 to rootCandidates.head.multiPv).toVector
-      val expectedIndexes = expectedRanks
-      val candidateRanks = rootCandidates.map(_.rank)
-      val candidateIndexes = rootCandidates.map(_.multiPvIndex)
+      val expectedRankIndexPairs = expectedRanks.map(index => index -> index)
+      val candidateRankIndexPairs =
+        rootCandidates.map(line => line.rank -> line.multiPvIndex).sortBy(_._1)
       val deterministicRootSet =
         rootCandidates.size == rootCandidates.head.multiPv &&
-          candidateRanks.sorted == expectedRanks &&
-          candidateIndexes.sorted == expectedIndexes
+          candidateRankIndexPairs == expectedRankIndexPairs
       val publicRoots =
         rootCandidates
           .filter(line => line.rank >= 1 && line.rank <= policy.rootMultiPvMax)
@@ -224,6 +229,7 @@ object CandidateLineEvidenceLowering:
     val ref = binding.provenanceRef
     ref.kind != EvidenceRefKind.RawEngine &&
       ref.kind != EvidenceRefKind.SourceContext &&
+      EvidenceRef.isPublicSafeProvenanceId(ref.id) &&
       ref.owner.contains(binding.owner) &&
       ref.anchor.contains(binding.anchor) &&
       ref.route.contains(binding.route) &&

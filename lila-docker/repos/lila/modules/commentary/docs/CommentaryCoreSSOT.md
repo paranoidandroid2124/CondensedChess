@@ -36,6 +36,164 @@ chain.
 
 `projection` and `renderer` are downstream consumers, not owners of truth.
 
+## Interim Vertical-Slice Progress Record
+
+The `V` labels used in current coordination notes mean "vertical slice". They
+are orchestration labels only and must not become source package, class, object,
+or runtime contract names.
+
+The current intermediate roadmap is:
+
+- `V1`: exact-board Object/Delta claim producer.
+  - Status: complete for the minimum bounded current-board and transition
+    slice.
+- `V2`: Certification, Projection, and Source-context claim producer boundary.
+  - Status: complete at producer-boundary level. Projection consumption is
+    enabled only for typed admitted `StrategyProjectionAdmissionResult` values;
+    source context enters only through normalized source-context handoff.
+- `V3`: candidate-line evidence internal infrastructure.
+  - Status: complete as internal infrastructure, with `V3a` through `V3j`
+    complete as coordination sub-slices:
+    - `V3a`: `CandidateLineEvidence` internal contract.
+    - `V3b`: backend exact-FEN UCI-to-SAN line normalizer.
+    - `V3c`: sanitized root/child multi-packet handoff.
+    - `V3d`: `CandidateLineEvidence` to public-safe
+      `PreparedVariationEvidence` lowering policy.
+    - `V3e`: internal probe orchestration and cache policy boundary.
+    - `V3f`: controlled external probe/cache adapter.
+    - `V3g`: internal backend seam integration of prepared variation evidence.
+    - `V3h`: minimal analyse frontend bridge pass-through for public
+      `RenderVariationEvidence`.
+    - `V3i`: internal candidate-line pipeline contract from sanitized
+      probe/cache payloads through backend render and bridge pass-through.
+    - `V3j`: full closeout audit and targeted verification of the internal
+      candidate-line infrastructure.
+  - Next: `V4`, live candidate-line integration beyond the internal seam.
+    Public route/controller wiring and product frontend remain closed.
+- `V4`: live candidate-line integration beyond the internal seam.
+  - Status: internal provider boundary started. `V4a` adds the
+    `CandidateLineAssemblyProvider` completed-probe/cache provider around the
+    controlled adapter.
+  - Status: `V4b` adds the stable internal `CandidateLineProofCache` facade
+    and deterministic in-memory contract implementation for candidate-line
+    proof-cache reads/writes. Actual Stockfish/WASM execution, production cache
+    persistence backend, public controller transport, product frontend UI, and
+    prose remain deferred.
+  - Status: `V4c` adds the internal `CandidateRootProbeIntegration` root-intake
+    boundary for completed root probe payloads and valid proof-cache root hits.
+    It returns internal assembly plus next child probe requests only. Actual
+    Stockfish/WASM execution, controller/public API transport, product frontend
+    UI, claim creation, prose, and raw probe exposure remain deferred.
+  - Status: `V4d` adds the internal `CandidateChildProbeIntegration`
+    child-intake boundary for completed child probe payloads and valid
+    proof-cache child hits corresponding to the root stage's planned child
+    requests. It returns internal assembly plus satisfied/unsatisfied child
+    requests. Actual Stockfish/WASM execution, controller/public API
+    transport, product frontend UI, claim creation, prose, and raw child
+    probe/cache exposure remain deferred.
+  - Status: `V4e` adds the minimal analyse-side completed-probe payload helper
+    `buildCompletedProbeBridgePayload`. It prepares a sanitized JSON-safe
+    adapter object for future local engine completion handoff only. It is not
+    a `CommentaryRequest` field and does not open controller/API route wiring,
+    product frontend UI, Stockfish/WASM execution, cache persistence, claims,
+    prose, or frontend SAN authority.
+- `V5`: cross-family line selection across engine line evidence, projection,
+  opening, motif, endgame, and retrieval context.
+  - Status: first contract/model boundary introduced as
+    `CandidateLineSelection`. It consumes already selected outline
+    claims/context plus public-safe `PreparedVariationEvidence` only.
+  - Status: `ClaimSelector` now uses `CandidateLineSelection` to filter public
+    `CommentaryOutline.variationEvidence` to the selected strong line set. It
+    still does not create claims, normalize SAN, run probes, consult
+    cache/source lookup, write prose, or expose branch/cache/probe internals.
+- `V6`: book-style annotation prose contract.
+  - Status: language-neutral annotation planning is started. The current slice
+    carries selector-owned `PlanAnnotationSelection` from
+    `CandidateLineSelection` through `CommentaryOutline` into
+    `CommentaryPlan`, and adds renderer-side `BookAnnotationPlanner` from
+    `CommentaryPlan` to structured `BookAnnotationPlan`. English prose,
+    phrase templates, controller/API route wiring, frontend UI, source live
+    lookup, Stockfish/WASM execution, and cache persistence remain closed.
+- `V7`: book-style English renderer implementation.
+  - Status: `V7a` starts only the minimum safe renderer-side line commentary
+    skeleton. `LineCommentaryPlanner` consumes `BookAnnotationPlan` only and
+    emits structured `LineCommentaryPlan` / `LineNote` data for main-line,
+    defensive-resource, and restrained line-result notes. Final English prose,
+    phrase templates, controller/API route wiring, frontend UI, live source
+    lookup, Stockfish/WASM execution, cache persistence, and lower-layer
+    meaning changes remain closed.
+  - Status: `V7b` extends only the closed renderer-side line-result table for
+    already-carried `BookAnnotationUnit` role/result pairs:
+    `persistence/pressure_persists`,
+    `defender_resource/does_not_restore_counterplay`,
+    `defender_resource/resource_fails`,
+    `defender_resource/resource_works`, `hold/defensive_hold`,
+    `simplification/simplifies`, `conversion/simplifies`, and
+    `conversion/converts`. Support/caution detail skeletons are handled only by
+    the narrower V7d boundary below.
+  - Status: `V7c` adds restrained `LineContext` hints to already-admitted
+    `LineNote` values only. Existing `BookAnnotationSourceFrame.kind` values
+    may map to coarse non-authoritative contexts: `Opening` -> `opening`,
+    `Motif` -> `pattern`, `EndgameStudy` -> `endgame`, and `Retrieval` ->
+    `example`. Source frames do not create notes, source authority, source
+    prose, citations, recommendations, theory, result meaning, or proof
+    ownership; authoritative or malformed frames attach no context.
+  - Status: `V7d` carries support/caution line skeletons only from
+    already-admitted public-safe prepared support/negative lines behind an
+    admitted strong `BookAnnotationUnit`. `BookAnnotationUnit.supportingLines`
+    and `BookAnnotationUnit.cautionLines` carry only SAN/UCI/tested/reply/
+    resource line payloads plus closed support/caution kinds. Missing detail
+    line data fails closed for that detail. `LineCommentaryPlanner` may emit
+    separate `supporting_line` and `caution` notes from those structured
+    details only; support/negative ids alone do not create notes. Caution
+    details never become primary line/result notes, use no natural/tempting
+    wording, and do not create recommendations.
+  - Status: `V7e` adds the first closed English line-comment writer above the
+    skeleton. `EnglishLineCommentaryWriter` consumes `LineCommentaryPlan` only,
+    groups by annotation id, requires a main-line note plus compatible
+    line-result note, uses only the closed `LineNoteMeaning` phrase table, and
+    emits at most one compact book-style comment per annotation. It may append
+    support/caution sentences only behind that main comment. Missing main/result
+    notes, unsupported meanings, caution-only, and support-only inputs remain
+    silent. `CommentaryRenderer.render` may use the English comment for the
+    primary block claim id; deterministic role labels remain fallback. The
+    lower `CommentaryRendererContract.render` remains the deterministic
+    structured public contract.
+- `V8`: backend controller/API wiring.
+  - Status: not started.
+- `V9`: product frontend UI.
+  - Status: not started.
+- `V10`: full aggregate validation and release hardening.
+  - Status: not started.
+
+This record is intentionally descriptive. The authoritative runtime names
+remain the stable role-based contracts documented below, such as
+`ExactBoardClaimProducer`, `EvidenceClaimProducer`,
+`CandidateLineEvidence`, `CandidateLineNormalizer`,
+`CandidateLinePacketHandoff`, `CandidateProbePlan`,
+`CandidateLineProofCache`, `CandidateProbeControlledAdapter`,
+`CandidateLineAssemblyProvider`, `CandidateRootProbeIntegration`,
+`CandidateChildProbeIntegration`, `CandidateLineEvidenceLowering`, and
+`CandidateLineSelection`.
+`BookAnnotationPlanner` is the renderer-side language-neutral annotation
+planner over `CommentaryPlan` only; it emits structured units and boundaries,
+not prose.
+`LineCommentaryPlanner` is the renderer-side line-commentary skeleton planner
+over `BookAnnotationPlan` only; it emits structured notes, optional
+non-authoritative context hints, and boundaries, not final English prose.
+`EnglishLineCommentaryWriter` is the renderer-side English writer over
+`LineCommentaryPlan` only; it emits compact comments from closed note meanings,
+not from claims, prepared evidence, source rows, probes, caches, or lower
+Object/Delta/Certification/Sxx state.
+The V3g internal seam is `CommentaryBackendSeam` taking an optional
+`CandidateProbeControlledAdapter.AssemblyResult` as an attach-only side input
+after normal claim production and engine-certification fail-closed filtering
+have already run. `CommentaryPipelineInput` remains untainted by candidate-line
+assembly, and the assembly provider is invoked after `claimProvider`, so claim
+production cannot observe it directly or through shared callback state. The
+seam attaches only already-lowered `PreparedVariationEvidence` to matching
+existing filtered claims by `boundClaimId`.
+
 ## Public Consumption Boundary
 
 The current worktree exposes a deliberately narrow public extraction boundary
@@ -174,6 +332,86 @@ axes, including `novelty`, rank claims only inside the selected lead bucket.
 Duplicate suppression is scoped to competing Sxx projections; lower Object,
 Delta, and Certification carrier/support claims are not duplicate-suppressed
 just because they share an owner, anchor, route, and scope key.
+
+`CandidateLineSelection` is the stable cross-family line-selection model
+boundary. It consumes `CommentaryOutline` after claim selection and may choose
+structured line explanation decisions over already public-safe
+`PreparedVariationEvidence`. A strong primary line can come only from the
+selected lead exact-board claim and only when the same bound claim has both a
+main/root candidate-style proof and a defender-resource/defender-reply style
+proof. A candidate/root proof without defender-resource proof remains
+weak/context only and is not emitted as public outline variation evidence.
+`CommentaryOutline.variationEvidence` is the selected strong public set:
+primary proof, its defender/resource companion proofs, and selected
+support/negative proofs only when a strong primary exists. Source-context,
+retrieval, and raw-engine owned proofs cannot own or select a line. Opening,
+motif, endgame-study, and retrieval line-test refs may annotate only proof ids
+already selected from an exact-board claim; retrieval remains illustrative
+only. Failed tempting, premature, and release-risk proofs remain
+negative/support evidence and cannot become the primary recommendation. Empty
+safe line sets remain silent.
+`CommentaryOutline.annotationSelections` is the strong-only
+language-neutral annotation handoff. It carries `PlanAnnotationSelection`
+values with claim id, primary proof id, companion/support/negative proof ids,
+coarse source frame kinds (`opening`, `motif`, `endgameStudy`, `retrieval`),
+source line-test ref ids as metadata, `PlanAnnotationStrength.Strong`, and a
+wording cap. It is absent for candidate-only weak lines and must not contain
+phrase templates, English prose, source-ref chess parsing, or new truth
+ownership.
+`BookAnnotationPlanner` consumes `CommentaryPlan` only and may produce a
+structured `BookAnnotationUnit` only when the selected main claim is unblocked,
+admitted, exact-board-bound, non-source, non-engine, non-renderer, has a
+same-claim strong annotation selection, has a public-line candidate/root
+primary proof, and has at least one public-line defender-resource or
+defender-reply companion proof. Candidate-only, defender-only, blocked,
+source-only, retrieval-only, `boundary_only`, `internal_only`, unsafe/internal
+proof-id, missing-proof, raw-provenance, and unmatched-frame cases fail closed
+to `BookAnnotationBoundary`. Support/negative proof ids are carried only on an
+existing strong unit; failed tempting, premature, and release-risk proofs
+cannot become primary units. Retrieval frames remain illustrative metadata.
+The planner emits no English prose, phrase templates, controller/API fields,
+frontend UI, source lookup, engine execution, or cache persistence.
+`LineCommentaryPlanner` consumes `BookAnnotationPlan` only and may produce
+structured `LineNote` values from `BookAnnotationUnit.lineSan`, already-carried
+resource/reply moves, and the closed safe result table:
+`persistence/pressure_persists`,
+`defender_resource/does_not_restore_counterplay`,
+`defender_resource/resource_fails`, `defender_resource/resource_works`,
+`hold/defensive_hold`, `simplification/simplifies`,
+`conversion/simplifies`, and `conversion/converts`. Empty unit sets, low
+wording caps, empty main lines, unsupported results, and role/result
+mismatches create no fallback notes. Defensive-resource notes remain
+structural only and do not create result meaning by themselves.
+V7d may carry separate support/caution skeleton details from already-admitted
+support/negative prepared lines behind the same strong unit. These details are
+line-scoped only: `supportingLines` may mirror the closed safe result table
+when the prepared line role/result matches, and `cautionLines` may represent
+only early-move, premature-move, or releases-counterplay caution kinds from the
+explicit negative role/result pairs. Missing detail line payloads fail closed,
+and support/negative ids alone do not create notes. Caution skeletons do not
+become primary line/result notes and must not use natural/tempting wording.
+Source frames are not parsed into line meaning; they may attach only
+coarse non-authoritative `LineContext` hints (`opening`, `pattern`, `endgame`,
+`example`) to notes that already exist. Raw `sourceRefIds` are not exposed by
+the line skeleton. The line skeleton emits no final English prose, phrase
+templates, controller/API fields, frontend UI, source lookup, engine
+execution, cache persistence, or lower-layer meaning.
+`EnglishLineCommentaryWriter` sits strictly above that skeleton. It consumes
+only `LineCommentaryPlan`, requires both a main-line note and a compatible
+line-result note, maps the closed safe `LineNoteMeaning` values to short
+English result phrases, and emits no fallback comment for unsupported or
+detail-only inputs. Source contexts remain non-authoritative metadata and do
+not create prose claims. Support/caution notes can append short sentences only
+after the strong main comment exists and only when they are bound to the same
+primary proof id as the main/result pair; caution never becomes the main
+comment. SAN tokens, including Black-move ellipses, are preserved.
+`CommentaryRenderer.render` may use this comment for a primary block claim id,
+while deterministic role labels remain fallback.
+`PublicVariationEvidenceSafety` is the package-private commentary helper
+shared by `ClaimSelector`, `CandidateLineSelection`, and
+`BookAnnotationPlanner` for public proof-id safety, prepared proof safety,
+claim binding, and source line-test proof-id parsing, so internal
+branch/cache/probe-shaped tokens fail consistently across these gates.
 
 The current selection runtime expansion covers the S07/S08/S21
 initiative/release/counterplay rival cluster. It consumes only already
@@ -326,13 +564,15 @@ The outline-builder contract is frozen in
 `CommentaryOutlineBuilder` is a stable structured mapper from selector-owned
 `CommentaryOutline` to `CommentaryPlan`. It may map `lead` to `main`,
 `support` to `support`, `context` to `context`, `contrast` to `contrast`,
-`suppressedClaims` to `blocked`, `evidenceRefs` to `evidence`, and
-`wordingStrengthCap` to `wordingRules.maxStrength`. It must not select, rank,
-admit, suppress, revive, reinterpret evidence, promote source context, merge
-opening source vectors, upgrade wording strength, generate renderer prose, or
-define API/frontend payload shape. If no lead, support, context, or contrast
-exists, the resulting plan is `noCommentary`; blocked do-not-say material and
-evidence references are still carried.
+`suppressedClaims` to `blocked`, `evidenceRefs` to `evidence`,
+`variationEvidence` to `variationEvidence`, `annotationSelections` to
+`annotationSelections`, and `wordingStrengthCap` to
+`wordingRules.maxStrength`. It must not select, rank, admit, suppress, revive,
+reinterpret evidence, promote source context, merge opening source vectors,
+parse source line-test refs into chess meaning, upgrade wording strength,
+generate renderer prose, or define API/frontend payload shape. If no lead,
+support, context, or contrast exists, the resulting plan is `noCommentary`;
+blocked do-not-say material and evidence references are still carried.
 
 The public-safe prepared variation evidence contract is frozen in
 [VariationEvidenceContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/VariationEvidenceContract.md).
@@ -364,29 +604,134 @@ metadata rather than engine proof provenance. It delegates line replay to
 `CandidateLineNormalizer` and does not change public request/response shape,
 lower to `PreparedVariationEvidence`, schedule probes, create claims, or open
 renderer prose.
-`CandidateLineEvidenceLowering` is now the deterministic V3d internal lowering
+`CandidateProbePlan` is the internal candidate probe orchestration and
+cache boundary under `lila.commentary.line`. It freezes the backend/internal
+plan shape only: root request `MultiPV 3`, target depth `18`, public floor
+`16`, strong/cache target depth `20`, child defender-resource requests for root
+ranks `1` and `2` at `MultiPV 2`, and rank `3` child proof only from explicit
+expanded budget or revalidated strong/cache target-depth-20 cache. It derives
+child starts from public-line-eligible sanitized root `CandidateLineEvidence`
+by exact replay of the parent candidate prefix and then feeds accepted packets
+through `CandidateLinePacketHandoff`. Shallow, stale, illegal, source-hint, or
+invalid-rank root evidence cannot spawn child probe requests. Cache keys
+must bind normalized full FEN, variant, node/ply consumption binding, engine
+fingerprint, target/floor/realized depth, MultiPV, role, parent branch/prefix,
+parent root rank for child probes, normalized first move/prefix when applicable,
+and freshness; cache hits remain
+provenance until revalidated, target-depth-18 cache entries do not open the
+rank-3 default child path, and proof cache cannot be populated from source
+rows, source context, or retrieval. This boundary does not run Stockfish, call
+frontend WASM, look up sources, create `CommentaryClaim`, lower evidence, write
+prose, or change public request/response shape. A main candidate without
+defender resource remains insufficient for strong line explanation promotion,
+and natural/tempting wording remains deferred/public-default-off.
+`CandidateLineProofCache` is the stable internal cache facade for candidate-line
+proof entries. It mediates reads and writes only for
+`CandidateProbeCacheKey` / `CandidateProbeRequest`-derived proof entries and
+does not reuse the generic eval, source, or retrieval cache. Reads return
+typed `CandidateProbeCacheLookupResult` values only after the existing
+`CandidateProbeCacheEntry.revalidateFor` logic accepts the request binding.
+Writes are committed only through the provider/adapter-owned receipt path for
+accepted engine-probe results whose key exactly matches the completed payload;
+ordinary callers cannot populate the cache by handing the facade an arbitrary
+`CandidateProbeCacheWriteCandidate`. Source-context, retrieval, source-row,
+revalidated-cache, stale, under-depth, wrong-FEN, wrong-variant,
+wrong-node/ply, wrong-engine, wrong-depth, wrong-MultiPV, wrong-role, and
+wrong-parent-prefix entries fail closed before storage. Cache hits are never
+rewritten as new writes. The current implementation is deterministic in-memory
+only for contract tests and optional internal provider wiring; production
+persistence remains deferred.
+`CandidateProbeControlledAdapter` is the internal adapter that consumes
+already completed external probe payloads and revalidated cache lookup results.
+It converts accepted root/child payloads into existing candidate-line packets,
+assembles them through `CandidateLinePacketHandoff`, may lower sanitized
+candidate evidence through `CandidateLineEvidenceLowering` when supplied an
+explicit binding, and returns cache write candidates for accepted completed
+probe results only. Cache lookup payloads must match the effective revalidated
+request and cache entry key before use. It does not execute Stockfish/WASM,
+persist cache, perform live source lookup, create `CommentaryClaim`, generate
+prose, or change public request/response shape. Rank `3` child cache reuse
+stays behind strong/cache target depth `20` unless an explicit expanded budget
+is supplied.
+`CandidateLineAssemblyProvider` is the internal-only provider boundary for
+completed candidate-line probes and proof-cache hits. It accepts exact
+`currentFen`, `nodeId`, `ply`, `variant`, server-owned engine fingerprint,
+budget, typed completed root/child payloads, an optional internal
+`CandidateLineProofCache` facade for cache lookup, and an optional explicit
+`CandidateLineEvidenceLowering.Binding` when prepared evidence is expected. It
+derives the root `MultiPV 3` request and child `MultiPV 2` requests through
+`CandidateProbePlan`, reads facade cache hits when supplied, does not expose
+direct root/child cache-hit input fields, delegates to
+`CandidateProbeControlledAdapter`, writes back only through the returned
+provider/adapter-owned cache receipt, and returns only
+`CandidateProbeControlledAdapter.AssemblyResult`. It does not execute
+Stockfish, call WASM, perform source lookup, does not add a production cache
+persistence backend, does not wire controller routes, does not open product
+frontend UI, does not create `CommentaryClaim`, does not write prose, and does
+not expose raw probe/cache/PV internals publicly. Rank `3` child proof remains
+closed by default except via strong/cache depth `20` or explicit expanded
+budget.
+`CandidateRootProbeIntegration` is the internal-only root probe intake boundary
+for a completed root probe payload from a future local executor or for a
+revalidated proof-cache root hit. It uses the backend-owned root request policy
+of `MultiPV 3`, target depth `18`, floor `16`, exact current FEN/node/ply/
+variant, and backend-owned engine fingerprint. Backend SAN remains authoritative
+through the existing normalizer/provider path. A valid root input yields three
+public-line-eligible internal root `CandidateLineEvidence` values and returns
+the unsatisfied next child defender-resource requests for root ranks `1` and
+`2` only, at child `MultiPV 2`, target depth `18`, and floor `16`. Rank `3`
+is not scheduled by the default root integration path and remains cache/
+expanded-budget only. Prepared variation evidence is emitted only when an
+explicit lowering binding is supplied and only through
+`CandidateLineEvidenceLowering`. Cache hits can satisfy the root path but do
+not emit new writes. Wrong FEN/node/ply/variant/engine, stale, shallow,
+wrong-count root `MultiPV`, duplicate first move, malformed or illegal PV,
+source/retrieval/root-hint provenance, and raw/untrusted root shape fail
+closed to no child requests, no prepared evidence, and no cache commit.
+`CandidateChildProbeIntegration` is the internal-only child probe intake
+boundary for completed child payloads and proof-cache child hits corresponding
+to the root stage's planned child requests. It consumes exact current context
+and a valid root payload or proof-cache root hit, delegates only through the
+existing provider, controlled adapter, normalizer, proof-cache, and lowering
+boundaries, and returns internal assembly plus satisfied and unsatisfied child
+requests. Default live child scheduling remains root ranks `1` and `2` only at
+child `MultiPV 2`, target depth `18`, and floor `16`; rank `3` direct child
+payloads remain closed by default while strong target-depth-20 cache hits can
+satisfy the existing cache-only path. Invalid child payloads fail closed for
+that child only: valid root evidence remains, no child proof lowers, no child
+cache write is committed, and the request remains unsatisfied. The boundary
+does not execute Stockfish/WASM, wire controller or product UI, create claims,
+write prose, or expose raw child probe/cache internals publicly.
+`CandidateLineEvidenceLowering` is now the deterministic internal lowering
 boundary from sanitized candidate-line trees to public-safe
 `PreparedVariationEvidence`. It consumes only `CandidateLineEvidence` plus an
 explicit exact-board claim binding and keeps the public response shape
 unchanged. The frozen policy is depth floor `16`, preferred target depth `18`,
-strong/cache target depth `20`, root MultiPV default target `3`, accepted root
-MultiPV `2-3` with hard cap `3`, child MultiPV default `1`, accepted child
-MultiPV `1-2` with hard cap `2`, and child defender replies considered only
-for top-two root candidates unless third-root child proof is explicitly
-enabled. Rank `1` root evidence lowers to main candidate line evidence, rank
+strong/cache target depth `20`, root MultiPV public-safe target exactly `3`
+with hard cap `3`, child MultiPV public-safe target exactly `2` with hard cap
+`2`, and child defender replies considered only for top-two root candidates
+unless third-root child proof is explicitly enabled. Rank `1` root evidence
+lowers to main candidate line evidence, rank
 `2` to alternative line evidence, and rank `3` to context line evidence.
 Failed, premature, release-risk, source-hint, stale, shallow, illegal,
-internal-only, incomplete, duplicate-rank, or duplicate-MultiPV-index candidate
-evidence remains non-public. Public proof ids are stable lowering-owned line
-ids and must not expose internal branch ids, parent branch ids, ranks, or
-MultiPV indexes. Raw-engine, source-context, unbound, or mismatched binding
-provenance fails closed before prepared evidence is emitted.
+internal-only, incomplete, duplicate-rank, duplicate-MultiPV-index,
+under-budget root, or under-budget child candidate evidence remains non-public.
+Public proof ids are stable lowering-owned line ids and must not expose
+internal branch ids, parent branch ids, ranks, or MultiPV indexes. Raw-engine,
+source-context, unbound, or mismatched binding provenance fails closed before
+prepared evidence is emitted.
 It adds typed `PreparedVariationEvidence` carriage through selection, outline,
 plan, renderer, and backend response as a bounded line-proof object. It does
 not expose raw engine PV packets, raw source rows, evals, mate scores, engine
 configuration fingerprints, variation hashes, or debug fields, and it does not
 create Root, U, Object, Delta, Certification, Projection, source-context,
 best-move, forced-line, result, winning, drawn, or oracle truth.
+Lower prepared evidence may retain internal `VariationEvidenceRole` values and
+the prepared `proves` token for selector/planner authority. Public render and
+bridge payloads are stricter: `RenderVariationEvidence.role` is the
+renderer-public `RenderLineRole` (`resource`, `caution`, `hold`, `conversion`,
+`pressure`, `simplification`) and `RenderVariationEvidence` does not expose
+`proves`.
 The same contract now covers defender-resource, failed-tempting-move,
 release-risk, hold, conversion, simplification, and persistence line-test
 roles. These roles require exact-board legal/fresh/depth-bounded line evidence
@@ -429,6 +774,7 @@ structured role-based output only:
 - `RenderBlock`
 - `RenderRole`
 - `RenderStatus`
+- `RenderLineRole`
 - `RenderText`
 - `RenderEvidenceRef`
 - `RenderBoundary`
@@ -438,9 +784,14 @@ structured role-based output only:
 - `RenderVariationBoundary`
 - `RenderVariationMove`
 
-It emits only deterministic role fragments: `Primary`, `Support`, `Context`,
-and `Contrast`. It does not generate broad chess narration, and it does not open
-API/frontend wiring. `main` becomes a primary block, `support` becomes
+`CommentaryRendererContract.render` remains the lower deterministic structured
+contract. `CommentaryRenderer.render` may place the closed English line comment
+from `EnglishLineCommentaryWriter` into a primary block's `RenderText.publicText`
+when the annotation path has produced a safe comment for that claim id. Without
+that handoff it falls back to deterministic role fragments: `Primary`,
+`Support`, `Context`, and `Contrast`. It does not generate broad chess
+narration or model-authored prose, and it does not open API/frontend wiring.
+`main` becomes a primary block, `support` becomes
 supporting blocks, `context` remains non-authoritative context, `contrast`
 remains contrast, and `blocked` is retained only as non-public suppression
 metadata by default.
@@ -499,10 +850,32 @@ future analyse consumption of backend `CommentaryResponse` / `CommentaryRender`
 payloads. It does not create product UI, an analysis panel, frontend rewrite,
 source live integration, or generated prose. It can build the stable backend
 request fields, decode public `CommentaryRender` fields, and discard stale
-node/ply/FEN responses. It must not rank, admit, revive suppressed material,
-promote source context, render raw engine values, merge opening source vectors,
-send debug/internal toggles, or upgrade wording strength. `noCommentary`, `hidden`, `negative_only`,
-`invalidRequest`, and stale-node states remain silent public output.
+node/ply/FEN responses. It also preserves backend-prepared public
+`RenderVariationEvidence` when present by copying only the renderer-owned
+public line-proof fields and keeping structured blocks that have public
+evidence ids or variation evidence ids even before prose text exists. The
+bridge type accepts only renderer-public line roles (`resource`, `caution`,
+`hold`, `conversion`, `pressure`, `simplification`) and does not copy the
+prepared `proves` token. Raw candidate-line/probe/cache/debug fields remain
+ignored. It must not rank, admit, revive suppressed material, promote source
+context, render raw engine values, merge opening source vectors, send
+debug/internal toggles, invent fallback text, or upgrade wording strength.
+`noCommentary`, `hidden`, `negative_only`, `invalidRequest`, and stale-node
+states remain silent public output.
+The same bridge now includes `buildCompletedProbeBridgePayload`, an
+adapter-only completed-probe payload sanitizer for future local engine results.
+It copies only exact current identity, engine fingerprint, optional budget,
+probe requests, completed root/child probe payloads, UCI lines, rank/MultiPV/
+depth/freshness/completion fields, and child parent branch/prefix metadata. It
+strips SAN hints, eval/mate/centipawn data, raw PV/text, source rows,
+retrieval snippets, display labels, debug/internal fields, prose,
+recommendations, verdicts, results, and theory fields. It fails closed for
+missing identity or binding, root MultiPV other than `3`, child MultiPV other
+than `2`, realized depth below `16`, incomplete probes, and empty or
+malformed-looking UCI lines. This helper does not change `CommentaryRequest`,
+does not wire a public controller/API route, does not execute Stockfish/WASM,
+does not persist cache, does not create claims or prose, and does not validate
+legality or SAN; backend exact-FEN UCI replay remains authoritative.
 
 Selection global closure is now executable for the full `S01-S25`
 start-ready set owned by `StrategyProjectionScopeContract`. Each band has a

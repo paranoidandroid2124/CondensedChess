@@ -76,6 +76,38 @@ turn player/event/result metadata into a verdict. The actual
 display-candidate citation remains deferred until a renderer citation contract
 exists.
 
+`CandidateLineSelection` freezes the post-outline line explanation boundary and
+is now used by `ClaimSelector` to decide public `CommentaryOutline`
+variation-evidence carriage. It consumes `CommentaryOutline` only after claim
+selection and selects over already public-safe `PreparedVariationEvidence`
+attached to already selected claims/context. It must not create claims,
+normalize SAN, run probes/cache/source lookup, write prose, or expose
+branch/cache/probe/debug internals. Strong primary line explanation requires a
+candidate-style proof and a defender-resource/defender-reply style proof bound
+to the same selected exact-board lead claim. Candidate-only proof remains
+weak/context only and is not emitted as public outline variation evidence.
+The same strong-only decision may produce a language-neutral
+`PlanAnnotationSelection` handoff on `CommentaryOutline.annotationSelections`.
+That handoff carries proof ids, coarse source frame kinds (`opening`, `motif`,
+`endgameStudy`, `retrieval`), raw source line-test ref ids as metadata,
+`PlanAnnotationStrength.Strong`, and the selected wording cap only. It does
+not contain phrase templates, English prose, source-string chess parsing, or
+new admission meaning. Candidate-only weak lines produce no public annotation
+handoff, and support/negative proof ids can appear there only when the strong
+primary exists.
+Source-context, retrieval, and raw-engine owned proofs cannot select or own a
+line. Opening, motif, endgame-study, and retrieval line-test refs can annotate
+only a proof id already selected from an exact-board claim; retrieval remains
+illustrative. Failed tempting, premature, and release-risk proofs are
+negative/support only and cannot become the primary recommendation. With no
+safe exact-board strong line set, public outline variation evidence is
+empty/silent.
+`PublicVariationEvidenceSafety` is the shared package-private selector helper
+for public-safe prepared proof checks and source line-test proof-id parsing.
+`ClaimSelector` and `CandidateLineSelection` must use the same proof-id and
+provenance-token rejection rules so branch/cache/probe/debug handles cannot
+enter selected lines or source context refs through only one boundary.
+
 S24 is not the generic tactic owner. S24 covers same-target forcing/realization
 projection only. A concrete tactic, forced conversion, or blunder lead must be
 owned by the actual current exact-board or transition family that admitted it.
@@ -275,7 +307,9 @@ CommentaryOutline(
   contrast,
   suppressedClaims,
   evidenceRefs,
-  wordingStrengthCap
+  variationEvidence,
+  wordingStrengthCap,
+  annotationSelections
 )
 ```
 
@@ -292,6 +326,19 @@ separators carried from lower validation.
 `suppressedClaims` records every suppressed claim plus typed reasons.
 
 `evidenceRefs` records structured evidence handles, not prose snippets.
+
+`variationEvidence` records only the `CandidateLineSelection` public strong
+line set. It includes the primary proof, its defender/resource companion proof
+ids as proof objects, and selected support/negative proofs only when a strong
+primary exists. It does not blindly copy every selected claim proof. Selected
+claim payloads still retain their clamped `claim.variationEvidence` for payload
+integrity.
+
+`annotationSelections` records the language-neutral annotation handoff selected
+by `CandidateLineSelection`. It is empty unless the strong primary condition is
+met. It carries proof ids and coarse source frame metadata only; downstream
+planner/renderer code must not rerank, reinterpret, parse source ref strings
+into chess meaning, or invent prose from this field.
 
 `wordingStrengthCap` is computed before rendering. The current executable
 values are:
@@ -323,7 +370,9 @@ It maps selector-owned structure into stable sections:
 - `contrast -> contrast`
 - `suppressedClaims -> blocked`
 - `evidenceRefs -> evidence`
+- `variationEvidence -> variationEvidence`
 - `wordingStrengthCap -> wordingRules.maxStrength`
+- `annotationSelections -> annotationSelections`
 
 The builder does not select, rank, admit, suppress, revive, reinterpret, or
 generate prose.
@@ -547,6 +596,7 @@ Executable contract tests live in:
 
 - `modules/commentary/src/test/scala/lila/commentary/selection/CommentarySelectionContractTest.scala`
 - `modules/commentary/src/test/scala/lila/commentary/selection/PreparedVariationEvidenceContractTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/selection/CandidateLineSelectionContractTest.scala`
 - `modules/commentary/src/test/scala/lila/commentary/source/SourceContextAdapterContractTest.scala`
 - `modules/commentary/src/test/scala/lila/commentary/selection/SourceContextClaimBoundaryTest.scala`
 
@@ -641,6 +691,17 @@ The selector contract tests cover:
 - selected source context records `source_context_only` or
   `retrieval_non_authoritative` as a soft context reason, not as a suppressed
   claim
+- cross-family candidate line selection requires same-claim candidate plus
+  defender-resource proof for strong primary public explanation, filters
+  `CommentaryOutline.variationEvidence` to that selected strong line set, keeps
+  candidate-only proof weak/context and non-public, blocks SourceContext and
+  RawEngine proof ownership, uses source line-test refs only as annotations of
+  selected exact-board proof ids, exposes a strong-only language-neutral
+  `PlanAnnotationSelection` handoff through outline/plan without prose or
+  source-string chess parsing, keeps retrieval illustrative, keeps failed
+  tempting/premature/release-risk proof non-primary, returns silence for
+  retrieval-only/source-only line tests, and strips internal debug handles from
+  the public model result
 
 Current surface rows are renderer safety scaffolds only. They freeze that the
 renderer cannot admit a lead, rank claims, convert source context to truth,

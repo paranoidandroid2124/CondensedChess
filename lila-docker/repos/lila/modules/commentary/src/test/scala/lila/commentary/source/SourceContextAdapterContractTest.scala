@@ -1,7 +1,7 @@
 package lila.commentary.source
 
 import lila.commentary.api.{ CommentaryApiJson, CommentaryBackendSeam, CommentaryRequest }
-import lila.commentary.render.{ CommentaryRenderer, RenderStatus }
+import lila.commentary.render.{ CommentaryRenderer, RenderLineRole, RenderStatus }
 import lila.commentary.selection.*
 import play.api.libs.json.Json
 
@@ -66,12 +66,12 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
 
     assertEquals(outline.lead.map(_.claim.id), Some(boardClaim.id))
     assertEquals(outline.context.map(_.claim.id), Vector("adapter-catalan-sequence-context"))
-    assertEquals(outline.variationEvidence.map(_.proofId), Vector(proofId))
+    assert(outline.variationEvidence.map(_.proofId).contains(proofId))
     assertEquals(openingClaim.variationEvidence, Vector.empty)
     assert(openingClaim.evidenceRefs.exists(_.id == s"opening-line-test:$proofId:context"))
     assert(openingClaim.evidenceRefs.exists(_.id == "opening-sequence:pawn_break:e2e4_break_context"))
     assert(openingClaim.evidenceRefs.forall(_.kind == EvidenceRefKind.SourceContext))
-    assertEquals(render.variationEvidence.map(_.proofId), Vector(proofId))
+    assert(render.variationEvidence.map(_.proofId).contains(proofId))
     assertEquals(render.variationEvidence.flatMap(_.provenanceRefs).map(_.kind).toSet, Set(EvidenceRefKind.Certification))
     assert(render.evidenceRefs.exists(_.id == s"opening-line-test:$proofId:context"))
 
@@ -256,9 +256,9 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
     assert(motifClaim.evidenceRefs.exists(_.id == "motif-line-context:pinned_defender:pinned_defender_e2"))
     assert(motifClaim.evidenceRefs.exists(_.id == "motif-line-context:held_resource:resource_holds_as_context"))
     assert(motifClaim.evidenceRefs.exists(ref => ref.kind == EvidenceRefKind.ExactBoard && ref.id == "motif-detector-carrier:motif-pin-example"))
-    assertEquals(render.variationEvidence.map(_.proofId), Vector(proofId))
-    assertEquals(render.variationEvidence.map(_.role), Vector(VariationEvidenceRole.DefenderResource))
-    assertEquals(render.variationEvidence.map(_.testResult), Vector(VariationTestResult.ResourceFails))
+    assert(render.variationEvidence.map(_.proofId).contains(proofId))
+    assert(render.variationEvidence.map(_.role).contains(RenderLineRole.Resource))
+    assert(render.variationEvidence.map(_.testResult).contains(VariationTestResult.ResourceFails))
     assert(render.blocks.flatMap(_.text.forbiddenTerms).contains("best"))
     assert(!render.blocks.flatMap(_.text.publicText).mkString(" ").contains("pin"))
 
@@ -425,9 +425,9 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
     assert(endgameClaim.evidenceRefs.exists(_.id == "endgame-technique:third_rank_setup:third_rank_setup_context"))
     assert(endgameClaim.evidenceRefs.exists(_.id == "endgame-technique:checking_distance:checking_distance_context"))
     assert(endgameClaim.evidenceRefs.exists(ref => ref.kind == EvidenceRefKind.ExactBoard && ref.id == "endgame-study-applicability:study-philidor-context"))
-    assertEquals(render.variationEvidence.map(_.proofId), Vector(proofId))
-    assertEquals(render.variationEvidence.map(_.role), Vector(VariationEvidenceRole.Hold))
-    assertEquals(render.variationEvidence.map(_.testResult), Vector(VariationTestResult.DefensiveHold))
+    assert(render.variationEvidence.map(_.proofId).contains(proofId))
+    assert(render.variationEvidence.map(_.role).contains(RenderLineRole.Hold))
+    assert(render.variationEvidence.map(_.testResult).contains(VariationTestResult.DefensiveHold))
     assert(!render.blocks.flatMap(_.text.publicText).mkString(" ").contains("Philidor"))
 
   test("endgame adapter requires exact applicability verification before route binding"):
@@ -594,7 +594,7 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
     assert(retrievalClaim.evidenceRefs.exists(_.id == s"retrieval-line-test:$proofId:context"))
     assert(retrievalClaim.evidenceRefs.exists(_.id == "retrieval-illustration:comparable_line:catalan_example_sequence"))
     assert(retrievalClaim.evidenceRefs.exists(_.id == "retrieval-illustration:theme_example:queenside_tension_theme"))
-    assertEquals(render.variationEvidence.map(_.proofId), Vector(proofId))
+    assert(render.variationEvidence.map(_.proofId).contains(proofId))
     assert(!render.blocks.flatMap(_.text.publicText).mkString(" ").contains("broadcast"))
 
   test("source line-test context is suppressed without matching public-safe variation proof"):
@@ -797,7 +797,7 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
     val json = Json.toJson(response).toString
 
     assertEquals(response.render.status, RenderStatus.Rendered)
-    assertEquals(response.render.variationEvidence.map(_.proofId), Vector(proofId))
+    assert(response.render.variationEvidence.map(_.proofId).contains(proofId))
     assert(!json.contains("primaryReferenceStats"))
     assert(!json.contains("secondaryTrendStats"))
     assert(!json.contains("moveOrder"))
@@ -834,7 +834,7 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
     val json = Json.toJson(response).toString
 
     assertEquals(response.render.status, RenderStatus.Rendered)
-    assertEquals(response.render.variationEvidence.map(_.proofId), Vector(proofId))
+    assert(response.render.variationEvidence.map(_.proofId).contains(proofId))
     assert(!json.contains("detectorCarrier"))
     assert(!json.contains("sourceTags"))
     assert(!json.contains("motif-examples"))
@@ -872,7 +872,7 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
     val json = Json.toJson(response).toString
 
     assertEquals(response.render.status, RenderStatus.Rendered)
-    assertEquals(response.render.variationEvidence.map(_.proofId), Vector(proofId))
+    assert(response.render.variationEvidence.map(_.proofId).contains(proofId))
     assert(!json.contains("placementEvidence"))
     assert(!json.contains("relationEvidence"))
     assert(!json.contains("candidatePlans"))
@@ -909,7 +909,7 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
     val json = Json.toJson(response).toString
 
     assertEquals(response.render.status, RenderStatus.Rendered)
-    assertEquals(response.render.variationEvidence.map(_.proofId), Vector(proofId))
+    assert(response.render.variationEvidence.map(_.proofId).contains(proofId))
     assert(!json.contains("gameMetadata"))
     assert(!json.contains("players"))
     assert(!json.contains("event"))
@@ -989,6 +989,42 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
           wordingCap = WordingStrength.QualifiedSupport,
           surfaceAllowance = VariationSurfaceAllowance.PublicLine,
           publicSafe = true
+        ),
+        PreparedVariationEvidence(
+          proofId = s"$proofId-defender",
+          boundClaimId = "cert-catalan-e4-break",
+          startFen = validFen,
+          owner = owner,
+          defender = Some("black"),
+          anchor = anchor,
+          route = route,
+          scope = scope,
+          role = VariationEvidenceRole.DefenderResource,
+          moveRole = VariationMoveRole.DefenderResource,
+          lineSan = Vector("...c5", "Nf3"),
+          lineUci = Vector("c7c5", "g1f3"),
+          defenderResource = Some(VariationMove("...c5", "c7c5")),
+          testedMove = Some(VariationMove("...c5", "c7c5")),
+          testedLine = Vector(VariationMove("...c5", "c7c5"), VariationMove("Nf3", "g1f3")),
+          replyLine = Vector(VariationMove("Nf3", "g1f3")),
+          resourceLine = Vector(VariationMove("...c5", "c7c5"), VariationMove("Nf3", "g1f3")),
+          testResult = VariationTestResult.ResourceWorks,
+          proves = "defender_resource_available",
+          proofPurpose = VariationProofPurpose.DeniesResource,
+          provenanceRefs = Vector(
+            EvidenceRef(EvidenceRefKind.Certification, "cert-catalan-e4-break", Some(owner), Some(anchor), Some(route), Some(scope))
+          ),
+          boundary = PreparedVariationBoundary(
+            depthFloor = 12,
+            realizedDepth = 16,
+            multiPv = 2,
+            freshnessChecked = true,
+            legalReplayChecked = true,
+            baselineChecked = true
+          ),
+          wordingCap = WordingStrength.QualifiedSupport,
+          surfaceAllowance = VariationSurfaceAllowance.PublicLine,
+          publicSafe = true
         )
       )
     )
@@ -1016,6 +1052,41 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
         EvidenceRef(EvidenceRefKind.Certification, "cert-pin-resource-test", Some(owner), Some(anchor), Some(route), Some(scope))
       ),
       variationEvidence = Vector(
+        PreparedVariationEvidence(
+          proofId = s"$proofId-candidate",
+          boundClaimId = "cert-pin-resource-test",
+          startFen = validFen,
+          owner = owner,
+          defender = Some("black"),
+          anchor = anchor,
+          route = route,
+          scope = scope,
+          role = VariationEvidenceRole.Persistence,
+          moveRole = VariationMoveRole.CandidateMove,
+          lineSan = Vector("Re1", "...Re7"),
+          lineUci = Vector("e2e1", "e8e7"),
+          candidateMove = Some(VariationMove("Re1", "e2e1")),
+          testedMove = Some(VariationMove("Re1", "e2e1")),
+          testedLine = Vector(VariationMove("Re1", "e2e1"), VariationMove("...Re7", "e8e7")),
+          replyLine = Vector(VariationMove("...Re7", "e8e7")),
+          testResult = VariationTestResult.PressurePersists,
+          proves = "pressure_persists_after_pin_move",
+          proofPurpose = VariationProofPurpose.PreservesPressure,
+          provenanceRefs = Vector(
+            EvidenceRef(EvidenceRefKind.Certification, "cert-pin-resource-test", Some(owner), Some(anchor), Some(route), Some(scope))
+          ),
+          boundary = PreparedVariationBoundary(
+            depthFloor = 12,
+            realizedDepth = 18,
+            multiPv = 3,
+            freshnessChecked = true,
+            legalReplayChecked = true,
+            baselineChecked = true
+          ),
+          wordingCap = WordingStrength.QualifiedSupport,
+          surfaceAllowance = VariationSurfaceAllowance.PublicLine,
+          publicSafe = true
+        ),
         PreparedVariationEvidence(
           proofId = proofId,
           boundClaimId = "cert-pin-resource-test",
@@ -1087,6 +1158,41 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
         EvidenceRef(EvidenceRefKind.Certification, "cert-philidor-third-rank-hold", Some(owner), Some(anchor), Some(route), Some(scope))
       ),
       variationEvidence = Vector(
+        PreparedVariationEvidence(
+          proofId = s"$proofId-candidate",
+          boundClaimId = "cert-philidor-third-rank-hold",
+          startFen = endgameFen,
+          owner = owner,
+          defender = Some("white"),
+          anchor = anchor,
+          route = route,
+          scope = scope,
+          role = VariationEvidenceRole.Persistence,
+          moveRole = VariationMoveRole.CandidateMove,
+          lineSan = Vector("...Re3+", "Kc4"),
+          lineUci = Vector("e3e4", "d4c4"),
+          candidateMove = Some(VariationMove("...Re3+", "e3e4")),
+          testedMove = Some(VariationMove("...Re3+", "e3e4")),
+          testedLine = Vector(VariationMove("...Re3+", "e3e4"), VariationMove("Kc4", "d4c4")),
+          replyLine = Vector(VariationMove("Kc4", "d4c4")),
+          testResult = VariationTestResult.PressurePersists,
+          proves = "pressure_persists_in_hold_line",
+          proofPurpose = VariationProofPurpose.PreservesPressure,
+          provenanceRefs = Vector(
+            EvidenceRef(EvidenceRefKind.Certification, "cert-philidor-third-rank-hold", Some(owner), Some(anchor), Some(route), Some(scope))
+          ),
+          boundary = PreparedVariationBoundary(
+            depthFloor = 12,
+            realizedDepth = 18,
+            multiPv = 3,
+            freshnessChecked = true,
+            legalReplayChecked = true,
+            baselineChecked = true
+          ),
+          wordingCap = WordingStrength.QualifiedSupport,
+          surfaceAllowance = VariationSurfaceAllowance.PublicLine,
+          publicSafe = true
+        ),
         PreparedVariationEvidence(
           proofId = proofId,
           boundClaimId = "cert-philidor-third-rank-hold",
@@ -1202,6 +1308,42 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
                 rawLineIndex = Some(3)
               )
             )
+        ),
+        PreparedVariationEvidence(
+          proofId = s"$proofId-defender",
+          boundClaimId = "cert-retrieval-illustration-line",
+          startFen = validFen,
+          owner = owner,
+          defender = Some("black"),
+          anchor = anchor,
+          route = route,
+          scope = scope,
+          role = VariationEvidenceRole.DefenderResource,
+          moveRole = VariationMoveRole.DefenderResource,
+          lineSan = Vector("...c5", "Nf3"),
+          lineUci = Vector("c7c5", "g1f3"),
+          defenderResource = Some(VariationMove("...c5", "c7c5")),
+          testedMove = Some(VariationMove("...c5", "c7c5")),
+          testedLine = Vector(VariationMove("...c5", "c7c5"), VariationMove("Nf3", "g1f3")),
+          replyLine = Vector(VariationMove("Nf3", "g1f3")),
+          resourceLine = Vector(VariationMove("...c5", "c7c5"), VariationMove("Nf3", "g1f3")),
+          testResult = VariationTestResult.ResourceWorks,
+          proves = "defender_resource_available",
+          proofPurpose = VariationProofPurpose.DeniesResource,
+          provenanceRefs = Vector(
+            EvidenceRef(EvidenceRefKind.Certification, "cert-retrieval-illustration-line", Some(owner), Some(anchor), Some(route), Some(scope))
+          ),
+          boundary = PreparedVariationBoundary(
+            depthFloor = 12,
+            realizedDepth = 16,
+            multiPv = 2,
+            freshnessChecked = true,
+            legalReplayChecked = true,
+            baselineChecked = true
+          ),
+          wordingCap = WordingStrength.QualifiedSupport,
+          surfaceAllowance = VariationSurfaceAllowance.PublicLine,
+          publicSafe = true
         )
       )
     )

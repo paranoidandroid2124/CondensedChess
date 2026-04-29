@@ -3,15 +3,18 @@ package lila.commentary.api
 import play.api.libs.json.Json
 
 import lila.commentary.certification.CertificationEngineRuntimeIntake
-import lila.commentary.render.{ RenderRole, RenderStatus }
+import lila.commentary.line.*
+import lila.commentary.render.{ RenderLineRole, RenderRole, RenderStatus }
 import lila.commentary.selection.*
 import lila.commentary.api.CommentaryApiJson.given
 
 class CommentaryBackendSeamContractTest extends munit.FunSuite:
 
   private val validFen = "r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 3 3"
+  private val initialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   private val bareKingsFen = "8/8/8/8/8/8/4k3/7K w - - 0 1"
   private val nodeId = "mainline:0"
+  private val nowEpochMs = 20_000L
 
   private def assert(condition: => Boolean)(using loc: munit.Location): Unit =
     super.assert(condition, clues(""))
@@ -184,6 +187,234 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
     assertEquals(response.render.evidenceRefs.exists(_.id.contains("merged")), false)
     assertEquals(response.render.wording.maxStrength, WordingStrength.ContextOnly)
 
+  test("internal candidate-line assembly prepared evidence reaches backend render response"):
+    val assembly = candidateAssembly()
+    val seam =
+      CommentaryBackendSeam.withClaimProviderAndCandidateLineAssembly(
+        _ => Vector(candidateBoundClaim("backend-line-claim")),
+        _ => Some(assembly),
+        nowEpochMs = () => nowEpochMs
+      )
+
+    val response = seam.render(request(currentFen = initialFen))
+    val responseText = Json.toJson(response).toString
+
+    assertEquals(response.status, CommentaryResponseStatus.Rendered)
+    assertEquals(response.render.variationEvidence.map(_.boundClaimId).distinct, Vector("backend-line-claim"))
+    assertEquals(response.render.variationEvidence.map(_.role).count(_ == RenderLineRole.Pressure), 1)
+    assertEquals(response.render.variationEvidence.map(_.role).count(_ == RenderLineRole.Resource), 4)
+    assertEquals(response.render.variationEvidence.head.lineUci, Vector("e2e4", "e7e5"))
+    assertEquals(response.render.blocks.head.variationEvidenceIds, response.render.variationEvidence.map(_.proofId))
+    Vector(
+      "CandidateLineEvidence",
+      "CandidateProbeResultPayload",
+      "CandidateProbeControlledAdapter",
+      "root-candidate-1",
+      "branchId",
+      "parentBranchId",
+      "multiPvIndex",
+      "engineFingerprint",
+      "stockfish-backend-seam",
+      "rawLines",
+      "cacheKey"
+    ).foreach(token => assert(!responseText.contains(token), clues(token, responseText)))
+
+  test("same request without internal candidate-line assembly preserves existing claim render behavior"):
+    val seam =
+      CommentaryBackendSeam.withClaimProviderAndCandidateLineAssembly(
+        _ => Vector(candidateBoundClaim("backend-line-claim")),
+        _ => None,
+        nowEpochMs = () => nowEpochMs
+      )
+
+    val response = seam.render(request(currentFen = initialFen))
+
+    assertEquals(response.status, CommentaryResponseStatus.Rendered)
+    assertEquals(response.render.blocks.map(_.claimId), Vector("backend-line-claim"))
+    assertEquals(response.render.variationEvidence, Vector.empty)
+
+  test("candidate-line assembly without prepared variation evidence does not change render output"):
+    val assemblyWithoutPrepared = candidateAssembly().copy(preparedVariationEvidence = Vector.empty)
+    val seam =
+      CommentaryBackendSeam.withClaimProviderAndCandidateLineAssembly(
+        _ => Vector(candidateBoundClaim("backend-line-claim")),
+        _ => Some(assemblyWithoutPrepared),
+        nowEpochMs = () => nowEpochMs
+      )
+
+    val response = seam.render(request(currentFen = initialFen))
+
+    assertEquals(response.status, CommentaryResponseStatus.Rendered)
+    assertEquals(response.render.blocks.map(_.claimId), Vector("backend-line-claim"))
+    assertEquals(response.render.variationEvidence, Vector.empty)
+
+  test("mismatched prepared variation binding from candidate assembly is suppressed and not rendered"):
+    val mismatchedAssembly = candidateAssembly(bindingOwner = "black", bindingDefender = Some("white"))
+    val seam =
+      CommentaryBackendSeam.withClaimProviderAndCandidateLineAssembly(
+        _ => Vector(candidateBoundClaim("backend-line-claim")),
+        _ => Some(mismatchedAssembly),
+        nowEpochMs = () => nowEpochMs
+      )
+
+    val response = seam.renderDebug(request(currentFen = initialFen))
+
+    assertEquals(response.render.variationEvidence, Vector.empty)
+    assertEquals(response.render.blocks.exists(_.claimId == "backend-line-claim"), false)
+    assert(response.internal.exists(_.suppressions.exists(_.claimId == "backend-line-claim")))
+
+  test("candidate-line assembly evidence alone does not create CommentaryClaim"):
+    val seam =
+      CommentaryBackendSeam.withClaimProviderAndCandidateLineAssembly(
+        _ => Vector.empty,
+        _ => Some(candidateAssembly()),
+        nowEpochMs = () => nowEpochMs
+      )
+
+    val response = seam.render(request(currentFen = initialFen))
+
+    assertEquals(response.status, CommentaryResponseStatus.NoCommentary)
+    assertEquals(response.render.blocks, Vector.empty)
+    assertEquals(response.render.variationEvidence, Vector.empty)
+
+  test("claimProvider cannot observe candidate-line assembly to create claims"):
+    var observedProductFields = Vector.empty[String]
+    var observedAssembly = false
+    val seam =
+      CommentaryBackendSeam.withClaimProviderAndCandidateLineAssembly(
+        input =>
+          observedProductFields = input.productElementNames.toVector
+          observedAssembly =
+            input.productIterator.exists:
+              case Some(_: CandidateProbeControlledAdapter.AssemblyResult) => true
+              case _ => false
+          if observedAssembly then Vector(candidateBoundClaim("backend-line-claim")) else Vector.empty,
+        _ => Some(candidateAssembly()),
+        nowEpochMs = () => nowEpochMs
+      )
+
+    val response = seam.render(request(currentFen = initialFen))
+
+    assertEquals(observedAssembly, false)
+    assertEquals(observedProductFields.contains("candidateLineAssembly"), false)
+    assertEquals(response.status, CommentaryResponseStatus.NoCommentary)
+    assertEquals(response.render.blocks, Vector.empty)
+    assertEquals(response.render.variationEvidence, Vector.empty)
+
+  test("claimProvider runs before candidate-line assembly provider"):
+    var assemblyProviderAlreadyRan = false
+    val seam =
+      CommentaryBackendSeam.withClaimProviderAndCandidateLineAssembly(
+        _ =>
+          if assemblyProviderAlreadyRan then Vector(candidateBoundClaim("backend-line-claim")) else Vector.empty,
+        _ =>
+          assemblyProviderAlreadyRan = true
+          Some(candidateAssembly()),
+        nowEpochMs = () => nowEpochMs
+      )
+
+    val response = seam.render(request(currentFen = initialFen))
+
+    assertEquals(assemblyProviderAlreadyRan, true)
+    assertEquals(response.status, CommentaryResponseStatus.NoCommentary)
+    assertEquals(response.render.blocks, Vector.empty)
+    assertEquals(response.render.variationEvidence, Vector.empty)
+
+  test("public request JSON ignores candidate-line seam fields and response omits raw internals"):
+    val rawRequest = Json.obj(
+      "currentFen" -> bareKingsFen,
+      "nodeId" -> nodeId,
+      "ply" -> 0,
+      "candidateLineAssembly" -> Json.obj(
+        "candidateLineEvidence" -> Json.arr(Json.obj("branchId" -> "root-candidate-1")),
+        "preparedVariationEvidence" -> Json.arr(Json.obj("proofId" -> "backend-line-claim-line-1")),
+        "cacheWrites" -> Json.arr(Json.obj("cacheKey" -> "secret-cache-key"))
+      ),
+      "rootProbeResult" -> Json.obj("engineFingerprint" -> "stockfish-backend-seam"),
+      "lineSeamDebug" -> Json.obj("rawPv" -> Json.arr("e2e4"))
+    )
+
+    val response = CommentaryBackendSeam.renderDebug(rawRequest.as[CommentaryRequest])
+    val json = Json.toJson(response).toString
+
+    assertEquals(response.status, CommentaryResponseStatus.NoCommentary)
+    Vector(
+      "candidateLineAssembly",
+      "candidateLineEvidence",
+      "preparedVariationEvidence",
+      "rootProbeResult",
+      "stockfish-backend-seam",
+      "secret-cache-key",
+      "rawPv",
+      "lineSeamDebug"
+    ).foreach(token => assert(!json.contains(token), clues(token, json)))
+
+  test("public request JSON ignores completed-probe helper-shaped root and child payload fields"):
+    val rawRequest = Json.obj(
+      "currentFen" -> bareKingsFen,
+      "nodeId" -> nodeId,
+      "ply" -> 0,
+      "completedProbePayload" -> Json.obj(
+        "rootProbe" -> Json.obj(
+          "engineFingerprint" -> "stockfish-completed-probe",
+          "completed" -> true,
+          "multiPv" -> 3,
+          "lines" -> Json.arr(Json.obj("rank" -> 1, "multiPvIndex" -> 1, "uci" -> Json.arr("e2e4")))
+        ),
+        "childProbes" -> Json.arr(
+          Json.obj(
+            "parentBranchId" -> "root-candidate-1",
+            "parentUciPrefix" -> Json.arr("e2e4"),
+            "parentRootRank" -> 1,
+            "lines" -> Json.arr(Json.obj("rank" -> 1, "multiPvIndex" -> 1, "uci" -> Json.arr("e7e5")))
+          )
+        ),
+        "probeRequests" -> Json.arr(Json.obj("role" -> "root_candidate"))
+      ),
+      "rootProbe" -> Json.obj("engineFingerprint" -> "stockfish-root-probe"),
+      "childProbes" -> Json.arr(Json.obj("parentBranchId" -> "root-candidate-1")),
+      "probeRequests" -> Json.arr(Json.obj("role" -> "defender_resource")),
+      "candidateLineRootProbe" -> Json.obj("cacheKey" -> "secret-root-cache"),
+      "candidateLineChildProbe" -> Json.obj("cacheKey" -> "secret-child-cache")
+    )
+
+    val decoded = rawRequest.as[CommentaryRequest]
+    val response = CommentaryBackendSeam.renderDebug(decoded)
+    val json = Json.toJson(response).toString
+
+    assertEquals(decoded, request(currentFen = bareKingsFen))
+    assertEquals(response.status, CommentaryResponseStatus.NoCommentary)
+    Vector(
+      "completedProbePayload",
+      "rootProbe",
+      "childProbes",
+      "probeRequests",
+      "candidateLineRootProbe",
+      "candidateLineChildProbe",
+      "stockfish-completed-probe",
+      "stockfish-root-probe",
+      "root-candidate-1",
+      "secret-root-cache",
+      "secret-child-cache"
+    ).foreach(token => assert(!json.contains(token), clues(token, json)))
+
+  test("CommentaryRequest source shape has no public completed-probe or candidate-line request fields"):
+    val source = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/src/main/scala/lila/commentary/api/CommentaryBackendSeam.scala"))
+    val requestStart = source.indexOf("final case class CommentaryRequest(")
+    val requestEnd = source.indexOf("enum CommentaryResponseStatus", requestStart)
+    val requestShape = source.substring(requestStart, requestEnd)
+
+    Vector(
+      "completedProbePayload",
+      "rootProbe",
+      "childProbes",
+      "probeRequests",
+      "candidateLineRootProbe",
+      "candidateLineChildProbe",
+      "CandidateProbeResultPayload",
+      "CandidateLineEvidence"
+    ).foreach(token => assert(!requestShape.contains(token), clues(token, requestShape)))
+
   test("raw source context fields in request JSON are ignored and cannot become render truth"):
     val rawSourceJson = Json.obj(
       "currentFen" -> bareKingsFen,
@@ -302,6 +533,134 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
       evidenceRefs = Vector(EvidenceRef(EvidenceRefKind.Delta, "api-safe-delta", Some("white"), Some("board"), Some("api_safe_route"), Some("position_local"))),
       exactBoardBound = true,
       wordingStrengthCap = WordingStrength.QualifiedSupport
+    )
+
+  private def candidateBoundClaim(id: String): CommentaryClaim =
+    CommentaryClaim(
+      id = id,
+      layer = ClaimLayer.Certification,
+      status = ClaimStatus.Admitted,
+      owner = Some("white"),
+      beneficiary = Some("white"),
+      defender = Some("black"),
+      sideToMove = Some("white"),
+      anchor = Some("board"),
+      route = Some("pressure_route"),
+      scope = Some("position_local"),
+      impact = ClaimImpact(resultMaterialImpact = 60, evidenceConfidence = 80, boardExplainability = 70),
+      evidenceRefs = Vector(candidateBinding("backend-line-claim").provenanceRef),
+      exactBoardBound = true,
+      wordingStrengthCap = WordingStrength.QualifiedSupport
+    )
+
+  private def candidateAssembly(
+      bindingOwner: String = "white",
+      bindingDefender: Option[String] = Some("black")
+  ): CandidateProbeControlledAdapter.AssemblyResult =
+    val binding = candidateBinding("backend-line-claim", bindingOwner, bindingDefender)
+    val rootEvidence =
+      CandidateProbeControlledAdapter
+        .rootPacketFrom(candidateRootPayload, CandidateLineProvenanceKind.EngineRoot)
+        .toVector
+        .flatMap(packet =>
+          CandidateLinePacketHandoff.normalize(
+            CandidateLinePacketHandoffInput(initialFen, nodeId, 0, packet),
+            nowEpochMs
+          )
+        )
+    val childRequests = CandidateProbePlan.childStage(rootEvidence, nowEpochMs = nowEpochMs).requests
+    CandidateProbeControlledAdapter.assemble(
+      CandidateProbeControlledAdapter.Input(
+        currentFen = initialFen,
+        nodeId = nodeId,
+        ply = 0,
+        variant = "standard",
+        rootRequest = candidateRootRequest,
+        rootProbeResult = Some(candidateRootPayload),
+        rootCacheHit = None,
+        childRequests = childRequests,
+        childProbeResults = childRequests.map(request =>
+          CandidateProbeResultPayload(
+            request = request,
+            lines = childLinesFor(request),
+            realizedDepth = 18,
+            generatedAtEpochMs = 10_000L,
+            maxAgeMs = 20_000L
+          )
+        ),
+        childCacheHits = Vector.empty,
+        loweringBinding = Some(binding),
+        nowEpochMs = nowEpochMs,
+        budget = CandidateProbeBudget.Default,
+        loweringPolicy = CandidateLineEvidenceLowering.Policy.Default
+      )
+    )
+
+  private def childLinesFor(request: CandidateProbeRequest): Vector[CandidateProbeResultLine] =
+    request.parentBranchId.map(_.value) match
+      case Some("root-candidate-1") =>
+        Vector(
+          candidatePayloadLine("defender-resource-e4-1", Vector("c7c5", "g1f3"), rank = 1, multiPvIndex = 1),
+          candidatePayloadLine("defender-resource-e4-2", Vector("e7e5", "g1f3"), rank = 2, multiPvIndex = 2)
+        )
+      case Some("root-candidate-2") =>
+        Vector(
+          candidatePayloadLine("defender-resource-d4-1", Vector("d7d5", "c2c4"), rank = 1, multiPvIndex = 1),
+          candidatePayloadLine("defender-resource-d4-2", Vector("g8f6", "c2c4"), rank = 2, multiPvIndex = 2)
+        )
+      case _ => Vector.empty
+
+  private def candidateBinding(
+      boundClaimId: String,
+      owner: String = "white",
+      defender: Option[String] = Some("black")
+  ): CandidateLineEvidenceLowering.Binding =
+    val route = Some("pressure_route")
+    val scope = Some("position_local")
+    CandidateLineEvidenceLowering.Binding(
+      boundClaimId = boundClaimId,
+      owner = owner,
+      defender = defender,
+      anchor = "board",
+      route = route.get,
+      scope = scope.get,
+      provenanceRef = EvidenceRef(
+        EvidenceRefKind.Certification,
+        "CertifiedLine",
+        Some(owner),
+        Some("board"),
+        route,
+        scope
+      )
+    )
+
+  private def candidateRootRequest: CandidateProbeRequest =
+    CandidateProbePlan.rootStage(initialFen, nodeId, 0, "standard", "stockfish-backend-seam").requests.head
+
+  private def candidateRootPayload: CandidateProbeResultPayload =
+    CandidateProbeResultPayload(
+      request = candidateRootRequest,
+      lines = Vector(
+        candidatePayloadLine("root-candidate-1", Vector("e2e4", "e7e5"), rank = 1, multiPvIndex = 1),
+        candidatePayloadLine("root-candidate-2", Vector("d2d4", "d7d5"), rank = 2, multiPvIndex = 2),
+        candidatePayloadLine("root-candidate-3", Vector("g1f3", "g8f6"), rank = 3, multiPvIndex = 3)
+      ),
+      realizedDepth = 18,
+      generatedAtEpochMs = 10_000L,
+      maxAgeMs = 20_000L
+    )
+
+  private def candidatePayloadLine(
+      branchId: String,
+      uciLine: Vector[String],
+      rank: Int,
+      multiPvIndex: Int
+  ): CandidateProbeResultLine =
+    CandidateProbeResultLine(
+      branchId = CandidateBranchId(branchId),
+      rank = rank,
+      multiPvIndex = multiPvIndex,
+      uciLine = uciLine
     )
 
   private def engineCertifiedLead(

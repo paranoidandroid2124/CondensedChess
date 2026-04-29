@@ -158,8 +158,10 @@ object CandidateLinePacketHandoff:
       engineKind: CandidateLineProvenanceKind
   ): CandidateLineProvenance =
     val kind =
-      if provenance.kind == CandidateLineProvenanceKind.SourceHint then CandidateLineProvenanceKind.SourceHint
-      else engineKind
+      provenance.kind match
+        case CandidateLineProvenanceKind.SourceHint => CandidateLineProvenanceKind.SourceHint
+        case CandidateLineProvenanceKind.Cache      => CandidateLineProvenanceKind.Cache
+        case _                                      => engineKind
     CandidateLineProvenance(kind, provenance.sourceHintRefs)
 
   private def fenAfterPrefix(startFen: String, startPly: Int, prefix: Vector[String]): Option[String] =

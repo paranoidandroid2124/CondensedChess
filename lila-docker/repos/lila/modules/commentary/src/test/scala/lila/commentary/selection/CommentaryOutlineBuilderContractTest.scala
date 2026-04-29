@@ -215,6 +215,53 @@ class CommentaryOutlineBuilderContractTest extends munit.FunSuite:
     assertEquals(plan.evidence.map(_.ref), outlineEvidence)
     assert(!plan.evidence.exists(_.ref.id == "claim-local-ref"))
 
+  test("annotation selection is copied from outline to plan without reranking or source reinterpretation"):
+    val annotation =
+      PlanAnnotationSelection(
+        claimId = "lead-claim",
+        primaryProofId = "primary-proof",
+        companionProofIds = Vector("z-companion", "a-companion"),
+        supportProofIds = Vector("support-proof"),
+        negativeProofIds = Vector("release-risk-proof"),
+        sourceFrames = Vector(
+          PlanAnnotationFrame(
+            kind = PlanAnnotationFrameKind.Opening,
+            proofId = "primary-proof",
+            sourceRefIds = Vector("opening-line-test:primary-proof:context")
+          ),
+          PlanAnnotationFrame(
+            kind = PlanAnnotationFrameKind.Retrieval,
+            proofId = "support-proof",
+            sourceRefIds = Vector("retrieval-line-test:support-proof:context")
+          )
+        ),
+        strength = PlanAnnotationStrength.Strong,
+        wordingCap = WordingStrength.QualifiedSupport
+      )
+    val outline = outlineWith(
+      lead = Some(selectedClaim("lead-claim", ClaimLayer.Certification, ClaimBucket.MustLead)),
+      annotationSelections = Vector(annotation),
+      wordingStrengthCap = WordingStrength.QualifiedSupport
+    )
+
+    val plan = CommentaryOutlineBuilder.build(outline)
+
+    assertEquals(plan.annotationSelections, Vector(annotation))
+    assertEquals(plan.annotationSelections.head.companionProofIds, Vector("z-companion", "a-companion"))
+    assertEquals(
+      plan.annotationSelections.flatMap(_.sourceFrames.flatMap(_.sourceRefIds)),
+      Vector("opening-line-test:primary-proof:context", "retrieval-line-test:support-proof:context")
+    )
+
+  test("candidate-only weak line remains absent from public annotation handoff"):
+    val claim = exactBoardClaim("weak-line-claim", Vector(candidateProof("candidate-only-proof", "weak-line-claim")))
+
+    val outline = ClaimSelector.select(Vector(claim))
+    val plan = CommentaryOutlineBuilder.build(outline)
+
+    assertEquals(outline.annotationSelections, Vector.empty)
+    assertEquals(plan.annotationSelections, Vector.empty)
+
   private def selectedClaim(
       id: String,
       layer: ClaimLayer,
@@ -251,6 +298,7 @@ class CommentaryOutlineBuilderContractTest extends munit.FunSuite:
       contrast: Vector[SelectedClaim] = Vector.empty,
       suppressedClaims: Vector[SuppressedClaim] = Vector.empty,
       evidenceRefs: Vector[EvidenceRef] = Vector.empty,
+      annotationSelections: Vector[PlanAnnotationSelection] = Vector.empty,
       wordingStrengthCap: WordingStrength
   ): CommentaryOutline =
     CommentaryOutline(
@@ -261,5 +309,81 @@ class CommentaryOutlineBuilderContractTest extends munit.FunSuite:
       suppressedClaims = suppressedClaims,
       evidenceRefs = evidenceRefs,
       variationEvidence = Vector.empty,
+      annotationSelections = annotationSelections,
       wordingStrengthCap = wordingStrengthCap
+    )
+
+  private val validFen = "r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/2N2N2/PPP2PPP/R1BQKB1R b KQkq - 3 3"
+
+  private def exactBoardClaim(id: String, proofs: Vector[PreparedVariationEvidence]): CommentaryClaim =
+    CommentaryClaim(
+      id = id,
+      layer = ClaimLayer.Certification,
+      status = ClaimStatus.Admitted,
+      owner = Some("white"),
+      beneficiary = Some("white"),
+      defender = Some("black"),
+      sideToMove = Some("white"),
+      anchor = Some("board"),
+      route = Some("pressure_route"),
+      scope = Some("position_local"),
+      impact = ClaimImpact(resultMaterialImpact = 60, persistenceAfterDefense = 80, evidenceConfidence = 80, boardExplainability = 70),
+      evidenceRefs = Vector(
+        EvidenceRef(
+          EvidenceRefKind.Certification,
+          "CertifiedLine",
+          Some("white"),
+          Some("board"),
+          Some("pressure_route"),
+          Some("position_local")
+        )
+      ),
+      exactBoardBound = true,
+      wordingStrengthCap = WordingStrength.QualifiedSupport,
+      variationEvidence = proofs
+    )
+
+  private def candidateProof(proofId: String, boundClaimId: String): PreparedVariationEvidence =
+    PreparedVariationEvidence(
+      proofId = proofId,
+      boundClaimId = boundClaimId,
+      startFen = validFen,
+      owner = "white",
+      defender = Some("black"),
+      anchor = "board",
+      route = "pressure_route",
+      scope = "position_local",
+      moveRole = VariationMoveRole.CandidateMove,
+      lineSan = Vector("Nf6", "Ng5"),
+      lineUci = Vector("g8f6", "f3g5"),
+      candidateMove = Some(VariationMove("Nf6", "g8f6")),
+      continuation = Vector(VariationMove("Ng5", "f3g5")),
+      role = VariationEvidenceRole.Persistence,
+      testedMove = Some(VariationMove("Nf6", "g8f6")),
+      testedLine = Vector(VariationMove("Nf6", "g8f6"), VariationMove("Ng5", "f3g5")),
+      replyLine = Vector(VariationMove("Ng5", "f3g5")),
+      testResult = VariationTestResult.PressurePersists,
+      proves = "pressure_preserved",
+      proofPurpose = VariationProofPurpose.PreservesPressure,
+      provenanceRefs = Vector(
+        EvidenceRef(
+          EvidenceRefKind.Certification,
+          "CertifiedLine",
+          Some("white"),
+          Some("board"),
+          Some("pressure_route"),
+          Some("position_local")
+        )
+      ),
+      boundary = PreparedVariationBoundary(
+        depthFloor = 18,
+        realizedDepth = 20,
+        multiPv = 3,
+        freshnessChecked = true,
+        legalReplayChecked = true,
+        baselineChecked = true
+      ),
+      wordingCap = WordingStrength.QualifiedSupport,
+      surfaceAllowance = VariationSurfaceAllowance.PublicLine,
+      publicSafe = true
     )
