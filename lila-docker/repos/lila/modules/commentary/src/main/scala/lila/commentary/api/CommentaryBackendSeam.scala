@@ -3,6 +3,7 @@ package lila.commentary.api
 import chess.format.Fen
 import chess.Pawn
 import play.api.libs.json.*
+import java.time.Instant
 
 import scala.util.control.NonFatal
 
@@ -10,7 +11,7 @@ import lila.commentary.CommentaryCore
 import lila.commentary.certification.{ CertificationEngineRuntimeIntake, CertificationEvidenceClaim, EngineNodeIdentity }
 import lila.commentary.claim.{ EvidenceClaimHandoff, EvidenceClaimProducer }
 import lila.commentary.delta.StrategicDeltaExtraction
-import lila.commentary.line.CandidateProbeControlledAdapter
+import lila.commentary.line.*
 import lila.commentary.render.*
 import lila.commentary.root.RootPositionSupport
 import lila.commentary.selection.*
@@ -24,6 +25,85 @@ final case class CommentaryRequest(
     ply: Int,
     enginePacket: Option[CertificationEngineRuntimeIntake.RuntimeEnginePacket] = None,
     debug: Boolean = false
+)
+
+final case class CommentaryCompletedProbeCurrent(
+    currentFen: String,
+    nodeId: String,
+    ply: Int,
+    variant: String
+)
+
+final case class CommentaryCompletedProbeBudget(
+    rootMultiPv: Int,
+    childMultiPv: Int,
+    depthFloor: Int,
+    rootTargetDepth: Option[Int] = None,
+    childTargetDepth: Option[Int] = None,
+    maxAgeMillis: Option[Long] = None
+)
+
+final case class CommentaryCompletedProbeRequest(
+    role: String,
+    currentFen: String,
+    nodeId: String,
+    ply: Int,
+    variant: String,
+    multiPv: Int,
+    requestedDepth: Int,
+    depthFloor: Int,
+    parentBranchId: Option[String] = None,
+    parentUciPrefix: Option[Vector[String]] = None,
+    parentRootRank: Option[Int] = None
+)
+
+final case class CommentaryCompletedProbeLine(
+    rank: Int,
+    multiPvIndex: Int,
+    multiPv: Int,
+    uci: Vector[String]
+)
+
+final case class CommentaryCompletedRootProbe(
+    currentFen: String,
+    nodeId: String,
+    ply: Int,
+    variant: String,
+    engineFingerprint: String,
+    requestedDepth: Int,
+    realizedDepth: Int,
+    multiPv: Int,
+    generatedAt: String,
+    maxAgeMillis: Long,
+    completed: Boolean,
+    lines: Vector[CommentaryCompletedProbeLine]
+)
+
+final case class CommentaryCompletedChildProbe(
+    currentFen: String,
+    nodeId: String,
+    ply: Int,
+    variant: String,
+    engineFingerprint: String,
+    parentBranchId: String,
+    parentUciPrefix: Vector[String],
+    parentRootRank: Int,
+    requestedDepth: Int,
+    realizedDepth: Int,
+    multiPv: Int,
+    generatedAt: String,
+    maxAgeMillis: Long,
+    completed: Boolean,
+    lines: Vector[CommentaryCompletedProbeLine]
+)
+
+final case class CommentaryCompletedProbePayload(
+    current: CommentaryCompletedProbeCurrent,
+    engineFingerprint: String,
+    budget: Option[CommentaryCompletedProbeBudget] = None,
+    probeRequests: Vector[CommentaryCompletedProbeRequest],
+    rootProbe: CommentaryCompletedRootProbe,
+    childProbes: Vector[CommentaryCompletedChildProbe] = Vector.empty
 )
 
 enum CommentaryResponseStatus(val key: String):
@@ -60,23 +140,34 @@ final case class CommentaryPipelineInput(
     beforeFen: Option[Fen.Full],
     currentExtraction: StrategicObjectExtraction,
     deltaExtraction: Option[StrategicDeltaExtraction],
-    engineIntake: Option[CommentaryEngineIntake]
+    engineIntake: Option[CommentaryEngineIntake],
+    completedProbe: Option[CommentaryCompletedProbePayload]
 )
 
 final class CommentaryBackendSeam private (
     claimProvider: CommentaryPipelineInput => Vector[CommentaryClaim],
-    candidateLineAssemblyProvider: CommentaryPipelineInput => Option[CandidateProbeControlledAdapter.AssemblyResult],
+    candidateLineAssemblyProvider: (CommentaryPipelineInput, Vector[CommentaryClaim]) => Option[CandidateProbeControlledAdapter.AssemblyResult],
     nowEpochMs: () => Long
 ):
 
   def render(request: CommentaryRequest): CommentaryResponse =
-    renderWithDebug(request, includeDebug = false)
+    renderWithDebug(request, completedProbe = None, includeDebug = false)
 
   def renderDebug(request: CommentaryRequest): CommentaryResponse =
-    renderWithDebug(request, includeDebug = true)
+    renderWithDebug(request, completedProbe = None, includeDebug = true)
 
-  private def renderWithDebug(request: CommentaryRequest, includeDebug: Boolean): CommentaryResponse =
-    validate(request) match
+  private[api] def renderInternal(
+      request: CommentaryRequest,
+      completedProbe: Option[CommentaryCompletedProbePayload]
+  ): CommentaryResponse =
+    renderWithDebug(request, completedProbe, includeDebug = false)
+
+  private def renderWithDebug(
+      request: CommentaryRequest,
+      completedProbe: Option[CommentaryCompletedProbePayload],
+      includeDebug: Boolean
+  ): CommentaryResponse =
+    validate(request, completedProbe) match
       case Left(reason) =>
         response(
           status = CommentaryResponseStatus.InvalidRequest,
@@ -93,11 +184,12 @@ final class CommentaryBackendSeam private (
           beforeFen = valid.beforeFen,
           currentExtraction = valid.currentExtraction,
           deltaExtraction = valid.deltaExtraction,
-          engineIntake = engineIntake.map(_.metadata)
+          engineIntake = engineIntake.map(_.metadata),
+          completedProbe = valid.completedProbe
         )
         val producedClaims = claimProvider(input)
         val engineFilteredClaims = failClosedEngineClaims(producedClaims, engineIntake)
-        val candidateLineAssembly = candidateLineAssemblyProvider(input)
+        val candidateLineAssembly = candidateLineAssemblyProvider(input, engineFilteredClaims)
         val claims = attachPreparedVariationEvidence(engineFilteredClaims, candidateLineAssembly)
         val outline = ClaimSelector.select(claims)
         val plan = CommentaryOutlineBuilder.build(outline)
@@ -110,13 +202,24 @@ final class CommentaryBackendSeam private (
           invalidReason = None
         )
 
-  private def validate(request: CommentaryRequest): Either[String, ValidRequest] =
+  private def validate(
+      request: CommentaryRequest,
+      completedProbe: Option[CommentaryCompletedProbePayload]
+  ): Either[String, ValidRequest] =
     for
       node <- safe(EngineNodeIdentity(request.nodeId, request.ply))
       currentFen <- Right(Fen.Full.clean(request.currentFen): Fen.Full)
       currentExtraction <- CommentaryCore.extractStrategicObjectsFailClosed(currentFen)
       transition <- validateTransition(request, currentFen)
-    yield ValidRequest(node, currentFen, currentExtraction, transition.beforeFen, transition.deltaExtraction, request.enginePacket)
+    yield ValidRequest(
+      node,
+      currentFen,
+      currentExtraction,
+      transition.beforeFen,
+      transition.deltaExtraction,
+      request.enginePacket,
+      completedProbe
+    )
 
   private def validateTransition(
       request: CommentaryRequest,
@@ -285,7 +388,8 @@ final class CommentaryBackendSeam private (
       currentExtraction: StrategicObjectExtraction,
       beforeFen: Option[Fen.Full],
       deltaExtraction: Option[StrategicDeltaExtraction],
-      enginePacket: Option[CertificationEngineRuntimeIntake.RuntimeEnginePacket]
+      enginePacket: Option[CertificationEngineRuntimeIntake.RuntimeEnginePacket],
+      completedProbe: Option[CommentaryCompletedProbePayload]
   ):
     def requestEnginePacket: Option[CertificationEngineRuntimeIntake.RuntimeEnginePacket] =
       enginePacket
@@ -324,10 +428,12 @@ final class CommentaryBackendSeam private (
 
 object CommentaryBackendSeam:
 
+  private val proofCache = CandidateLineProofCache.InMemory.empty
+
   private val default =
     new CommentaryBackendSeam(
       input => EvidenceClaimProducer.produce(input.currentExtraction, input.deltaExtraction, EvidenceClaimHandoff.empty),
-      _ => None,
+      defaultCandidateLineAssembly,
       () => System.currentTimeMillis()
     )
 
@@ -337,18 +443,31 @@ object CommentaryBackendSeam:
   def renderDebug(request: CommentaryRequest): CommentaryResponse =
     default.renderDebug(request)
 
+  private[api] def renderInternal(
+      request: CommentaryRequest,
+      completedProbe: Option[CommentaryCompletedProbePayload]
+  ): CommentaryResponse =
+    default.renderInternal(request, completedProbe)
+
   def withClaimProvider(
       claimProvider: CommentaryPipelineInput => Vector[CommentaryClaim],
       nowEpochMs: () => Long = () => System.currentTimeMillis()
   ): CommentaryBackendSeam =
-    new CommentaryBackendSeam(claimProvider, _ => None, nowEpochMs)
+    new CommentaryBackendSeam(claimProvider, (_, _) => None, nowEpochMs)
+
+  def withClaimProviderAndCandidateLineAssembly(
+      claimProvider: CommentaryPipelineInput => Vector[CommentaryClaim],
+      candidateLineAssemblyProvider: (CommentaryPipelineInput, Vector[CommentaryClaim]) => Option[CandidateProbeControlledAdapter.AssemblyResult],
+      nowEpochMs: () => Long = () => System.currentTimeMillis()
+  ): CommentaryBackendSeam =
+    new CommentaryBackendSeam(claimProvider, candidateLineAssemblyProvider, nowEpochMs)
 
   def withClaimProviderAndCandidateLineAssembly(
       claimProvider: CommentaryPipelineInput => Vector[CommentaryClaim],
       candidateLineAssemblyProvider: CommentaryPipelineInput => Option[CandidateProbeControlledAdapter.AssemblyResult],
-      nowEpochMs: () => Long = () => System.currentTimeMillis()
+      nowEpochMs: () => Long
   ): CommentaryBackendSeam =
-    new CommentaryBackendSeam(claimProvider, candidateLineAssemblyProvider, nowEpochMs)
+    new CommentaryBackendSeam(claimProvider, (input, _) => candidateLineAssemblyProvider(input), nowEpochMs)
 
   def withEvidenceHandoffProvider(
       evidenceHandoffProvider: CommentaryPipelineInput => EvidenceClaimHandoff,
@@ -356,9 +475,210 @@ object CommentaryBackendSeam:
   ): CommentaryBackendSeam =
     new CommentaryBackendSeam(
       input => EvidenceClaimProducer.produce(input.currentExtraction, input.deltaExtraction, evidenceHandoffProvider(input)),
-      _ => None,
+      (_, _) => None,
       nowEpochMs
     )
+
+  private def defaultCandidateLineAssembly(
+      input: CommentaryPipelineInput,
+      claims: Vector[CommentaryClaim]
+  ): Option[CandidateProbeControlledAdapter.AssemblyResult] =
+    input.completedProbe.flatMap: payload =>
+      completedProbeAssemblyInput(input, claims, payload, proofCache)
+        .map(CandidateLineAssemblyProvider.assemble)
+        .map(stripRootOnlyPublicVariationEvidence)
+
+  private def stripRootOnlyPublicVariationEvidence(
+      result: CandidateProbeControlledAdapter.AssemblyResult
+  ): CandidateProbeControlledAdapter.AssemblyResult =
+    val hasDefenderResource =
+      result.preparedVariationEvidence.exists(evidence =>
+        evidence.role == VariationEvidenceRole.DefenderResource ||
+          evidence.moveRole == VariationMoveRole.DefenderResource
+      )
+    if hasDefenderResource then result
+    else result.copy(preparedVariationEvidence = Vector.empty)
+
+  private[api] def completedProbeAssemblyInput(
+      input: CommentaryPipelineInput,
+      claims: Vector[CommentaryClaim],
+      payload: CommentaryCompletedProbePayload,
+      cache: CandidateLineProofCache
+  ): Option[CandidateLineAssemblyProvider.Input] =
+    for
+      budget <- completedProbeBudget(payload.budget)
+      _ <- Option.when(payloadCurrentMatches(input, payload.current))(())
+      _ <- Option.when(payload.engineFingerprint.trim.nonEmpty)(())
+      rootRequest <- CandidateProbePlan
+        .rootStage(input.currentFen.value, input.node.nodeId, input.node.ply, payload.current.variant, payload.engineFingerprint.trim, budget)
+        .requests
+        .headOption
+      rootPayload <- completedRootPayload(payload.rootProbe, rootRequest)
+      childPayloads <- completedChildPayloads(input, rootPayload, payload.childProbes, budget)
+    yield CandidateLineAssemblyProvider.Input(
+      currentFen = input.currentFen.value,
+      nodeId = input.node.nodeId,
+      ply = input.node.ply,
+      variant = payload.current.variant,
+      engineFingerprint = payload.engineFingerprint.trim,
+      budget = budget,
+      completedRootProbe = Some(rootPayload),
+      completedChildProbes = childPayloads,
+      loweringBinding = loweringBinding(claims),
+      nowEpochMs = System.currentTimeMillis(),
+      proofCache = Some(cache)
+    )
+
+  private def completedProbeBudget(
+      maybeBudget: Option[CommentaryCompletedProbeBudget]
+  ): Option[CandidateProbeBudget] =
+    safeOption:
+      maybeBudget match
+        case None => CandidateProbeBudget.Default
+        case Some(budget) =>
+          CandidateProbeBudget(
+            rootMultiPv = budget.rootMultiPv,
+            childMultiPv = budget.childMultiPv,
+            targetDepth = budget.rootTargetDepth.getOrElse(18),
+            floorDepth = budget.depthFloor,
+            strongCacheTargetDepth = budget.rootTargetDepth.getOrElse(18).max(20),
+            childRootRankLimit = 2,
+            allowExpandedThirdRootChildProbe = false,
+            allowThirdRootChildFromCache = true
+          )
+
+  private def payloadCurrentMatches(input: CommentaryPipelineInput, current: CommentaryCompletedProbeCurrent): Boolean =
+    current.currentFen == input.currentFen.value &&
+      current.nodeId == input.node.nodeId &&
+      current.ply == input.node.ply &&
+      current.variant.trim.nonEmpty
+
+  private def completedRootPayload(
+      root: CommentaryCompletedRootProbe,
+      request: CandidateProbeRequest
+  ): Option[CandidateProbeResultPayload] =
+    for
+      generatedAt <- epochMillis(root.generatedAt)
+      _ <- Option.when(
+        root.completed &&
+          root.currentFen == request.startFen &&
+          root.nodeId == request.nodeId &&
+          root.ply == request.ply &&
+          root.variant == request.variant &&
+          root.engineFingerprint == request.engineFingerprint &&
+          root.requestedDepth == request.targetDepth &&
+          root.multiPv == request.multiPv
+      )(())
+      lines <- completedLines(root.lines, request.multiPv, "root-candidate")
+    yield CandidateProbeResultPayload(
+      request = request,
+      lines = lines,
+      realizedDepth = root.realizedDepth,
+      generatedAtEpochMs = generatedAt,
+      maxAgeMs = root.maxAgeMillis,
+      completed = true
+    )
+
+  private def completedChildPayloads(
+      input: CommentaryPipelineInput,
+      rootPayload: CandidateProbeResultPayload,
+      childDtos: Vector[CommentaryCompletedChildProbe],
+      budget: CandidateProbeBudget
+  ): Option[Vector[CandidateProbeResultPayload]] =
+    val rootPacket = CandidateProbeControlledAdapter.rootPacketFrom(rootPayload, CandidateLineProvenanceKind.EngineRoot)
+    val rootEvidence =
+      rootPacket.toVector.flatMap(packet =>
+        CandidateLinePacketHandoff.normalize(
+          CandidateLinePacketHandoffInput(input.currentFen.value, input.node.nodeId, input.node.ply, packet),
+          nowEpochMs = System.currentTimeMillis()
+        )
+      )
+    val requests =
+      CandidateProbePlan.childStage(rootEvidence, budget = budget, nowEpochMs = System.currentTimeMillis()).requests
+    val payloads =
+      childDtos.flatMap: dto =>
+        requests
+          .find(request =>
+            request.parentRootRank.contains(dto.parentRootRank) &&
+              request.parentBranchId.exists(_.value == dto.parentBranchId) &&
+              request.parentLinePrefix == dto.parentUciPrefix.map(_.trim.toLowerCase) &&
+              request.startFen == dto.currentFen &&
+              request.nodeId == dto.nodeId &&
+              request.ply == dto.ply &&
+              request.variant == dto.variant &&
+              request.engineFingerprint == dto.engineFingerprint &&
+              request.targetDepth == dto.requestedDepth &&
+              request.multiPv == dto.multiPv
+          )
+          .flatMap(request => completedChildPayload(dto, request))
+    Option.when(payloads.size == childDtos.size)(payloads)
+
+  private def completedChildPayload(
+      child: CommentaryCompletedChildProbe,
+      request: CandidateProbeRequest
+  ): Option[CandidateProbeResultPayload] =
+    for
+      generatedAt <- epochMillis(child.generatedAt)
+      _ <- Option.when(child.completed)(())
+      lines <- completedLines(child.lines, request.multiPv, s"defender-resource-${request.parentRootRank.getOrElse(0)}")
+    yield CandidateProbeResultPayload(
+      request = request,
+      lines = lines,
+      realizedDepth = child.realizedDepth,
+      generatedAtEpochMs = generatedAt,
+      maxAgeMs = child.maxAgeMillis,
+      completed = true
+    )
+
+  private def completedLines(
+      lines: Vector[CommentaryCompletedProbeLine],
+      multiPv: Int,
+      idPrefix: String
+  ): Option[Vector[CandidateProbeResultLine]] =
+    val expected = (1 to multiPv).toVector
+    val rankPairs = lines.map(line => line.rank -> line.multiPvIndex).sortBy(_._1)
+    Option.when(lines.size == multiPv && rankPairs == expected.map(index => index -> index)):
+      lines.sortBy(_.rank).map: line =>
+        CandidateProbeResultLine(
+          branchId = CandidateBranchId(s"$idPrefix-${line.rank}"),
+          rank = line.rank,
+          multiPvIndex = line.multiPvIndex,
+          uciLine = line.uci
+        )
+
+  private def loweringBinding(claims: Vector[CommentaryClaim]): Option[CandidateLineEvidenceLowering.Binding] =
+    claims
+      .filter(claim => claim.status == ClaimStatus.Admitted && claim.exactBoardBound)
+      .flatMap: claim =>
+        claim.evidenceRefs
+          .find(ref =>
+            ref.kind != EvidenceRefKind.RawEngine &&
+              ref.kind != EvidenceRefKind.SourceContext &&
+              EvidenceRef.isPublicSafeProvenanceId(ref.id) &&
+              ref.owner.isDefined &&
+              ref.anchor.isDefined &&
+              ref.route.isDefined &&
+              ref.scope.isDefined
+          )
+          .map(ref =>
+            CandidateLineEvidenceLowering.Binding(
+              boundClaimId = claim.id,
+              owner = ref.owner.get,
+              defender = claim.defender,
+              anchor = ref.anchor.get,
+              route = ref.route.get,
+              scope = ref.scope.get,
+              provenanceRef = ref
+            )
+          )
+      .headOption
+
+  private def epochMillis(raw: String): Option[Long] =
+    raw.trim.toLongOption.orElse(safeOption(Instant.parse(raw.trim).toEpochMilli))
+
+  private def safeOption[A](body: => A): Option[A] =
+    try Some(body)
+    catch case NonFatal(_) => None
 
 object CommentaryApiJson:
 
@@ -454,6 +774,17 @@ object CommentaryApiJson:
     Json.format[CertificationEngineRuntimeIntake.RuntimeCertificationClaim]
   given Format[CertificationEngineRuntimeIntake.RuntimeEnginePacket] =
     Json.format[CertificationEngineRuntimeIntake.RuntimeEnginePacket]
+
+  given Format[CommentaryCompletedProbeCurrent] = Json.format[CommentaryCompletedProbeCurrent]
+  given Format[CommentaryCompletedProbeBudget] =
+    Json.using[Json.WithDefaultValues].format[CommentaryCompletedProbeBudget]
+  given Format[CommentaryCompletedProbeRequest] =
+    Json.using[Json.WithDefaultValues].format[CommentaryCompletedProbeRequest]
+  given Format[CommentaryCompletedProbeLine] = Json.format[CommentaryCompletedProbeLine]
+  given Format[CommentaryCompletedRootProbe] = Json.format[CommentaryCompletedRootProbe]
+  given Format[CommentaryCompletedChildProbe] = Json.format[CommentaryCompletedChildProbe]
+  given Format[CommentaryCompletedProbePayload] =
+    Json.using[Json.WithDefaultValues].format[CommentaryCompletedProbePayload]
 
   given Format[CommentaryEngineIntake] = Json.format[CommentaryEngineIntake]
   given Format[CommentaryInternalMetadata] = Json.format[CommentaryInternalMetadata]

@@ -121,6 +121,7 @@ final class LilaComponents(
   lazy val analyse: Analyse = wire[Analyse]
   lazy val auth: Auth = wire[Auth]
   lazy val betaFeedback: BetaFeedback = wire[BetaFeedback]
+  lazy val commentary: Commentary = wire[Commentary]
   lazy val editor: Editor = wire[Editor]
   lazy val explorerProxy: ExplorerProxy = wire[ExplorerProxy]
   lazy val importer: Importer = wire[Importer]
@@ -131,9 +132,7 @@ final class LilaComponents(
   lazy val study: Study = wire[Study]
   lazy val user: User = wire[User]
   lazy val userAnalysis: UserAnalysis = wire[UserAnalysis]
-  lazy val llmApi = env.llm.api
   lazy val api = env.apiC
-  lazy val llm: LlmController = wire[LlmController]
 
   val router: Router = wire[_root_.router.router.Routes]
 

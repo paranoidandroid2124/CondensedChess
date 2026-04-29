@@ -60,7 +60,6 @@ final class UserAnalysis(
         Ok.snip(
           views.analyse.embed.userAnalysis(
             payload.data,
-            bookmaker = payload.pov.game.variant.standard || payload.pov.game.variant.chess960,
             inlinePgn = payload.inlinePgn
           )
         )

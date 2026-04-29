@@ -31,11 +31,10 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
       withForecast: Boolean = false,
       inlinePgn: Option[String] = None,
       importHistory: Option[JsObject] = None,
-      narrative: Option[Frag] = None
+      commentaryLocalProbe: Boolean = false
   )(using ctx: Context): Page =
     Page("Analysis")
       .css("analyse.free")
-      .css("llm.widget")
       .css((pov.game.variant == Crazyhouse).option("analyse.zh"))
       .css(withForecast.option("analyse.forecast"))
       .csp(bits.cspExternalEngine.compose(_.withExternalAnalysisApis))
@@ -45,7 +44,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
           Json
             .obj(
               "data" -> data,
-              "bookmaker" -> (pov.game.variant.standard || pov.game.variant.chess960)
+              "commentaryLocalProbe" -> commentaryLocalProbe
             )
             .add("inlinePgn", inlinePgn)
             .add("importHistory", importHistory) ++
@@ -57,12 +56,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
         description = "Analyse chess positions and variations on an interactive chess board"
       )
       .flag(_.zoom):
-        main(
-          cls := List(
-            "analyse" -> true,
-            "analyse--bookmaker" -> (pov.game.variant.standard || pov.game.variant.chess960)
-          )
-        )(
+        main(cls := "analyse")(
           pov.game.synthetic.option(
             st.aside(cls := "analyse__side")(
               lila.ui.bits.mselect(
@@ -79,17 +73,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
                       href := routes.UserAnalysis.parseArg(v.key.value)
                     )(v.variantTrans())
               ),
-              pov.game.variant.chess960.option(chess960selector(chess960PositionNum)),
-              (pov.game.variant.standard || pov.game.variant.chess960).option(
-                fieldset(
-                  cls := "analyse__bookmaker toggle-box toggle-box--toggle",
-                  id := "bookmaker-field",
-                  attr("data-bookmaker") := "true"
-                )(
-                  legend(tabindex := 0)("Bookmaker"),
-                  div(cls := "analyse__bookmaker-text")(narrative)
-                )
-              )
+              pov.game.variant.chess960.option(chess960selector(chess960PositionNum))
             )
           ),
           div(cls := "analyse__board main-board")(chessgroundBoard),

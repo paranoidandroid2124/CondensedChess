@@ -1,14 +1,17 @@
 # Commentary Frontend Bridge Contract
 
-`CommentaryFrontendBridgeContract` freezes the minimal frontend bridge before
-any product UI rewrite.
+`CommentaryFrontendBridgeContract` freezes the minimal frontend bridge and the
+first display-only analyse product surface.
 
-It opens only a disposable analyse-side adapter/hook for `CommentaryRender`
-transport. It does not open a new analysis panel, polished UI, frontend
-rewrite, source live integration, LLM prose generation, or local chess meaning
-creation.
+It opens an analyse-side adapter for `CommentaryRender` transport, a compact
+move explanation panel that consumes that adapter, and an optional
+non-production local Stockfish probe adapter that can supply completed root/
+child probe payloads to the internal backend handoff. It does not open source
+live integration, LLM prose generation, local chess meaning creation, or
+frontend authority over commentary truth.
 
-Short form: no product UI.
+Short form: display only. The frontend may show backend-prepared public text
+and public-safe line notation; it may not create commentary.
 
 ## Adapter Scope
 
@@ -16,19 +19,37 @@ The first bridge lives in:
 
 - `ui/analyse/src/chesstory/commentaryBridge.ts`
 
+The first display-only product surface lives in:
+
+- `ui/analyse/src/chesstory/moveExplanation.ts`
+- `ui/analyse/src/chesstory/moveExplanationView.ts`
+
+The optional local-probe adapter lives in:
+
+- `ui/analyse/src/chesstory/localProbe.ts`
+
 The executable scaffold lives in:
 
 - `ui/analyse/tests/commentaryBridge.test.ts`
+- `ui/analyse/tests/moveExplanation.test.ts`
+- `ui/analyse/tests/localProbe.test.ts`
 
 The bridge exposes stable adapter functions:
 
 - `buildCommentaryRequest`
-- `buildCompletedProbeBridgePayload`
 - `decodePublicCommentaryRender`
 - `fetchCommentaryRender`
 
 These are request/response helpers only. They are not a view component and do
 not own presentation layout.
+
+`moveExplanation.ts` and `moveExplanationView.ts` are presentation consumers
+only. They do not own request schema, truth production, ranking, admission,
+suppression, SAN generation, or prose generation. `localProbe.ts` may run the
+existing local ceval engine to obtain root `MultiPV 3` and first-two-candidate
+child `MultiPV 2` UCI lines at the frozen depth budget, but it may only package
+them as internal completed-probe input. The backend still replays exact FEN/UCI
+and is the SAN/proof authority.
 
 ## Request
 
@@ -43,7 +64,12 @@ not own presentation layout.
 
 The frontend request must not include selector claims, source rows,
 `OpeningContextCandidate`, opening fixture JSON, blocked/suppression hints,
-wording-strength requests, debug/internal toggles, or generated text.
+wording-strength requests, completed-probe payloads, debug/internal toggles,
+or generated text. Completed root/child probe payloads are internal backend
+provider inputs only and not public controller/API route fields. The optional
+local-probe path sends them only to
+`POST /internal/commentary/render-local-probe`, never through
+`buildCommentaryRequest` or `POST /api/commentary/render`.
 
 If `beforeFen` or `playedMove` is missing, the adapter omits both. The backend
 remains the authority for transition validation.
@@ -51,41 +77,6 @@ remains the authority for transition validation.
 `enginePacket` is passed only as certification runtime intake for the backend
 seam. The bridge must not display raw engine packet fields as text or public
 evidence.
-
-## Completed-Probe Payload Helper
-
-`buildCompletedProbeBridgePayload` is a completed-probe payload helper only.
-It prepares a sanitized JSON-safe object for a future local engine execution
-handoff, but it is not a `CommentaryRequest` field, not a public controller or
-API route field, not product UI, not Stockfish execution, and not SAN
-authority.
-It is not a public controller or API route field and not SAN authority.
-
-The helper may copy only typed completed-probe bridge fields:
-
-- exact current node identity: `currentFen`, `nodeId`, `ply`, and `variant`
-- engine fingerprint
-- optional budget shape
-- probe requests
-- completed root probe payload
-- completed child probe payloads
-- UCI line arrays
-- rank, MultiPV index, and MultiPV count
-- requested and realized depth
-- `generatedAt`, `maxAgeMillis`, and `completed`
-- child parent branch id, parent UCI prefix, and parent root rank
-
-The helper strips display, raw engine, source, debug, and prose-like material:
-SAN hints, eval/centipawn/mate fields, raw PV strings or text, best-move
-fields, display engine labels, source rows, retrieval snippets, debug/internal
-fields, prose, recommendations, verdicts, result fields, and theory fields.
-
-The helper performs only basic payload-shape checks. It does not validate chess
-legality and it does not validate or produce SAN. Backend exact-FEN UCI replay
-and SAN generation remain authoritative. The helper fails closed by returning
-`null` when exact node identity or required probe binding is missing, root
-MultiPV is not `3`, child MultiPV is not `2`, realized depth is below `16`, a
-probe is not completed, or a UCI line is empty or malformed-looking.
 
 ## Response
 
@@ -177,6 +168,49 @@ The frontend bridge must not create best-move, theory-truth, forced-line,
 result, winning, drawing, or oracle wording.
 
 The frontend bridge may show or hide backend render blocks only.
+
+## Display-Only Product Surface
+
+The move explanation surface posts to the existing public endpoint by default:
+
+- `POST /api/commentary/render`
+
+When the explicit local probe mode is enabled, it may instead call:
+
+- `POST /internal/commentary/render-local-probe`
+
+That internal route receives a wrapper `{ request, completedProbe }`; the
+nested `request` must still be the clean `CommentaryRequest` subset. The
+frontend may construct this provider only when the server-provided analyse
+configuration marks local probing as available and the URL explicitly requests
+local probe mode. If local probe construction fails, or if the internal
+response has no public line evidence tied to a visible block, the surface
+remains silent rather than requesting fallback public prose.
+
+It must call the bridge through `fetchCommentaryRender` and
+`buildCommentaryRequest` semantics. Its current-node identity is:
+
+- `currentFen = ctrl.node.fen`
+- `nodeId = ctrl.path || "root"`
+- `ply = ctrl.node.ply`
+
+It may include `beforeFen` and `playedMove` only as a pair when the previous
+node exists and the current node carries a played move.
+
+Late or overlapping responses must not overwrite a newer current-node state.
+`invalidRequest`, `noCommentary`, `hidden`, `negative_only`, stale-node, and
+request-error states remain quiet public output.
+
+The view may render:
+
+- backend-prepared block `RenderText.publicText`, in backend block order
+- compact player labels such as `Move note`, `Line`, `Context`, and `Reply`
+- public SAN notation from decoded public variation evidence when the evidence
+  is tied to the block and has `surfaceAllowance = public_line`
+
+The view must not render proof ids, claim ids, evidence labels, internal ids,
+boundaries, UCI-only raw PV, depth, eval, engine labels, cache/probe fields, or
+debug/internal metadata.
 
 ## Status Handling
 

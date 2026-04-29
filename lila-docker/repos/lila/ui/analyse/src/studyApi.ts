@@ -1,5 +1,4 @@
 import { defaultInit, ensureOk, jsonHeader, xhrHeader } from 'lib/xhr';
-import { validateNotebookDossier, type NotebookDossierV1 } from './notebookDossier';
 
 export type StudyRef = {
   id: string;
@@ -118,25 +117,6 @@ export function forceVariationNode(ref: StudyRef, path: string, force: boolean):
 
 export function setNodeComment(ref: StudyRef, path: string, text: string): Promise<NodeResponse> {
   return postJson(`/api/study/${ref.id}/${ref.chapterId}/comment`, { path, text });
-}
-
-export type BookmakerSyncPayload = {
-  commentPath: string;
-  originPath: string;
-  commentary: string;
-  variations: any[];
-  maxLines?: number;
-  maxPlies?: number;
-};
-
-export function bookmakerSync(ref: StudyRef, payload: BookmakerSyncPayload): Promise<void> {
-  return postNoContent(`/api/study/${ref.id}/${ref.chapterId}/bookmaker-sync`, payload);
-}
-
-export function setNotebookDossier(studyId: string, dossier: NotebookDossierV1): Promise<void> {
-  const errors = validateNotebookDossier(dossier);
-  if (errors.length) throw new Error(`Invalid notebook dossier payload: ${errors.join(' | ')}`);
-  return postNoContent(`/api/study/${studyId}/notebook-dossier`, dossier);
 }
 
 export function createStudyFromAnalysis(payload: { pgn: string; orientation?: string }): Promise<CreateStudyResponse> {

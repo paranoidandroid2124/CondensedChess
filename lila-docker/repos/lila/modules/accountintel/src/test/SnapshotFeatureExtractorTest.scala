@@ -2,8 +2,6 @@ package lila.accountintel
 
 import lila.accountintel.AccountIntel.*
 import lila.accountintel.primitive.SnapshotFeatureExtractor
-import lila.llm.MoveEval
-import lila.llm.model.strategic.VariationLine
 
 class SnapshotFeatureExtractorTest extends munit.FunSuite:
 
@@ -31,7 +29,7 @@ class SnapshotFeatureExtractorTest extends munit.FunSuite:
     MoveEval(8, -97, None, variations = List(VariationLine(List("d8h4"), -97)))
   )
 
-  test("extractor attaches llm primitives and keeps eval-backed snapshot rows when evals exist"):
+  test("extractor attaches local analysis primitives and keeps eval-backed snapshot rows when evals exist"):
     val result =
       SnapshotFeatureExtractor.extract(
         "ych24",
@@ -95,3 +93,46 @@ class SnapshotFeatureExtractorTest extends munit.FunSuite:
     assert(result.isRight)
     val parsed = result.toOption.get.parsedGames.head
     assertEquals(parsed.openingFamily, "King's Indian Defense")
+
+  test("extractor does not mark favorable subject-perspective eval swings as collapse"):
+    val pgn =
+      """[Event "Fixture"]
+        |[Site "https://lichess.org/black-subject"]
+        |[Date "2026.03.17"]
+        |[White "opp"]
+        |[Black "ych24"]
+        |[Result "0-1"]
+        |[Variant "Standard"]
+        |[Opening "Sicilian Defense"]
+        |
+        |1. e4 c5 2. Nf3 d6 3. d4 cxd4 0-1
+        |""".stripMargin
+    val favorableForBlack = List(
+      MoveEval(1, 300, None, variations = List(VariationLine(List("e2e4"), 300))),
+      MoveEval(2, -350, None, variations = List(VariationLine(List("c7c5"), -350))),
+      MoveEval(3, -420, None, variations = List(VariationLine(List("g1f3"), -420))),
+      MoveEval(4, -620, None, variations = List(VariationLine(List("d7d6"), -620)))
+    )
+
+    val result =
+      SnapshotFeatureExtractor.extract(
+        "ych24",
+        List(
+          ExternalGame(
+            provider = "lichess",
+            gameId = "g-black-favorable",
+            playedAt = "2026-03-17 00:00",
+            white = "opp",
+            black = "ych24",
+            result = "0-1",
+            sourceUrl = Some("https://lichess.org/black-subject"),
+            pgn = pgn,
+            moveEvals = favorableForBlack
+          )
+        )
+      )
+
+    assert(result.isRight)
+    val rows = result.toOption.get.featureRows
+    assert(rows.nonEmpty)
+    assert(rows.forall(_.collapseAnalysis.forall(_.rootCause != "evaluation swing")))

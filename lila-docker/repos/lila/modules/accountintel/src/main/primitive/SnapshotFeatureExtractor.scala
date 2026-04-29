@@ -8,15 +8,6 @@ import lila.tree.ParseImport
 import lila.accountintel.*
 import lila.accountintel.AccountIntel.*
 import lila.accountintel.opening.CanonicalOpeningBook
-import lila.llm.{ MoveEval, PgnAnalysisHelper }
-import lila.llm.analysis.{
-  CausalCollapseAnalyzer,
-  CommentaryEngine,
-  GameNarrativeOrchestrator,
-  PlanStateTracker
-}
-import lila.llm.model.CollapseAnalysis
-import lila.llm.model.strategic.{ EndgamePatternState, StrategicSalience, VariationLine }
 
 object SnapshotFeatureExtractor:
 
@@ -89,43 +80,18 @@ object SnapshotFeatureExtractor:
       events: List[DecisionEvent],
       moveEvalsByPly: Map[Int, MoveEval]
   ): List[SnapshotFeatureRow] =
-    val (rows, _, _) =
-      events
-        .sortBy(_.ply)
-        .foldLeft(
-          (List.empty[SnapshotFeatureRow], PlanStateTracker.empty, Option.empty[EndgamePatternState])
-        ) { case ((acc, planTracker, prevEgState), event) =>
-          val vars = chooseVariations(event, moveEvalsByPly.get(event.ply))
-          val analysis =
-            CommentaryEngine.assessExtended(
-              fen = event.fen,
-              variations = vars,
-              playedMove = Some(event.playedUci),
-              opening = Some(game.openingName),
-              phase = None,
-              ply = event.ply,
-              prevMove = Some(event.playedUci),
-              prevPlanContinuity = planTracker.getContinuity(event.subjectColor),
-              evalDeltaCp = evalDeltaCp(moveEvalsByPly, event.ply),
-              prevEndgameState = prevEgState
-            )
-
-          analysis match
-            case Some(data) =>
-              val nextTracker = planTracker.update(
-                movingColor = event.subjectColor,
-                ply = event.ply,
-                primaryPlan = data.plans.headOption,
-                secondaryPlan = data.plans.lift(1),
-                sequence = data.planSequence
-              )
-              val nextEgState = EndgamePatternState.evolve(prevEgState, data.endgameFeatures, event.ply)
-              val enriched = data.copy(planContinuity = nextTracker.getContinuity(event.subjectColor))
-              (acc :+ toFeatureRow(event, enriched, collapse = None), nextTracker, nextEgState)
-            case None =>
-              (acc, planTracker, prevEgState)
-        }
-    rows
+    events
+      .sortBy(_.ply)
+      .map: event =>
+        val vars = chooseVariations(event, moveEvalsByPly.get(event.ply))
+        val analysis =
+          assessEvent(
+            event = event,
+            game = game,
+            variations = vars,
+            evalDelta = evalDeltaCp(moveEvalsByPly, event.ply, game.subjectColor)
+          )
+        toFeatureRow(event, analysis, collapse = None)
 
   private def attachCollapseBacktrace(
       game: ParsedGame,
@@ -134,50 +100,28 @@ object SnapshotFeatureExtractor:
   ): List[SnapshotFeatureRow] =
     if rows.isEmpty || moveEvalsByPly.isEmpty then rows
     else
-      val plyDataByPly =
-        PgnAnalysisHelper.extractPlyData(game.external.pgn).toOption.getOrElse(Nil).map(p => p.ply -> p).toMap
       val collapses =
-        GameNarrativeOrchestrator
-          .selectKeyMoments(game.external.moveEvals)
-          .flatMap: moment =>
-            if moment.momentType == "Blunder" || moment.momentType == "SustainedPressure" then
-              for
-                plyData <- plyDataByPly.get(moment.ply).toList
-                eval <- moveEvalsByPly.get(moment.ply).toList
-                analysis <- CommentaryEngine
-                  .assessExtended(
-                    fen = plyData.fen,
-                    variations = eval.getVariations,
-                    playedMove = Some(plyData.playedUci),
-                    opening = Some(game.openingName),
-                    phase = None,
-                    ply = plyData.ply,
-                    prevMove = Some(plyData.playedUci)
-                  )
-                  .toList
-                collapse <- CausalCollapseAnalyzer
-                  .analyze(moment.ply, game.external.moveEvals, analysis)
-                  .toList
-              yield moment.ply -> collapse
-            else Nil
-
-      collapses.foldLeft(rows) { case (acc, (blunderPly, collapse)) =>
+        moveEvalsByPly.toList
+          .sortBy(_._1)
+          .sliding(2)
+          .collect:
+            case List((prevPly, prevEval), (ply, currentEval))
+                if evalScore(currentEval, game.subjectColor) - evalScore(prevEval, game.subjectColor) <= -450 =>
+              ply -> CollapseAnalysis("evaluation swing", (prevPly - 2).max(1))
+          .toList
+      collapses.foldLeft(rows) { case (acc, (swingPly, collapse)) =>
         acc.map: row =>
-          if
+          val insideWindow =
             row.gameId == game.external.gameId &&
               row.ply >= collapse.earliestPreventablePly &&
-              row.ply <= blunderPly
-          then
-            val rootCauseTag = normalizeLabel(collapse.rootCause)
-            val collapseBoost =
-              if row.quiet then 0.92
-              else 0.78
+              row.ply <= swingPly
+          if insideWindow then
             row.copy(
-              labels = (row.labels :+ rootCauseTag).distinct,
-              preventabilityScore = row.preventabilityScore.max(collapseBoost),
-              branchingScore = row.branchingScore.max(if row.quiet then 0.78 else 0.68),
+              labels = (row.labels :+ normalizeLabel(collapse.rootCause)).distinct,
+              preventabilityScore = row.preventabilityScore.max(if row.quiet then 0.86 else 0.72),
+              branchingScore = row.branchingScore.max(if row.quiet then 0.76 else 0.64),
               earliestPreventablePly = Some(collapse.earliestPreventablePly),
-              collapseMomentPly = Some(blunderPly),
+              collapseMomentPly = Some(swingPly),
               collapseAnalysis = Some(collapse)
             )
           else row
@@ -268,7 +212,7 @@ object SnapshotFeatureExtractor:
 
   private def toFeatureRow(
       event: DecisionEvent,
-      analysis: lila.llm.model.ExtendedAnalysisData,
+      analysis: ExtendedAnalysisData,
       collapse: Option[CollapseAnalysis]
   ): SnapshotFeatureRow =
     val structureFamily = structureFamilyFor(analysis, event.game)
@@ -287,7 +231,7 @@ object SnapshotFeatureExtractor:
           analysis.planAlignment.fold(0.0)(_ => 0.18) +
           analysis.planSequence.fold(0.0)(_ => 0.12) +
           Option.when(analysis.planHypotheses.nonEmpty)(0.12).getOrElse(0.0) +
-          Option.when(analysis.planAlignment.flatMap(_.narrativeIntent).isDefined)(0.08).getOrElse(0.0)
+          Option.when(analysis.planAlignment.flatMap(_.planIntent).isDefined)(0.08).getOrElse(0.0)
       ).min(1.0)
     val preventabilityScore =
       (
@@ -343,8 +287,8 @@ object SnapshotFeatureExtractor:
       transitionType = analysis.planSequence.map(_.transitionType.toString),
       strategicSalienceHigh = analysis.strategicSalience == StrategicSalience.High,
       planAlignmentBand = analysis.planAlignment.map(_.band.toString),
-      planIntent = analysis.planAlignment.flatMap(_.narrativeIntent),
-      planRisk = analysis.planAlignment.flatMap(_.narrativeRisk),
+      planIntent = analysis.planAlignment.flatMap(_.planIntent),
+      planRisk = analysis.planAlignment.flatMap(_.planRisk),
       hypothesisThemes = analysis.planHypotheses.map(_.themeL1).filterNot(_ == "unknown").distinct,
       integratedTension = analysis.nature.tension,
       earliestPreventablePly = collapse.map(_.earliestPreventablePly),
@@ -408,14 +352,71 @@ object SnapshotFeatureExtractor:
           )
         )
 
-  private def evalDeltaCp(moveEvalsByPly: Map[Int, MoveEval], ply: Int): Option[Int] =
+  private def assessEvent(
+      event: DecisionEvent,
+      game: ParsedGame,
+      variations: List[VariationLine],
+      evalDelta: Option[Int]
+  ): ExtendedAnalysisData =
+    val evidenceCodes = event.triggerHints.map(normalizeLabel)
+    val transitionType =
+      if event.triggerHints.contains("tension_release") then "ForcedPivot"
+      else if event.triggerHints.contains("pawn_structure_mutation") then "NaturalShift"
+      else if event.triggerHints.contains("major_simplification") then "Simplification"
+      else if event.triggerHints.contains("file_commitment") then "Opportunistic"
+      else "Continuation"
+    val offPlan =
+      evalDelta.exists(delta => delta <= -180) ||
+        event.triggerHints.exists(Set("tension_release", "pawn_structure_mutation", "major_simplification"))
+    val tension =
+      (
+        0.42 +
+          Option.when(event.triggerHints.contains("tension_release"))(0.18).getOrElse(0.0) +
+          Option.when(event.triggerHints.contains("pawn_structure_mutation"))(0.12).getOrElse(0.0) +
+          Option.when(variations.size >= 2)(0.1).getOrElse(0.0) +
+          evalDelta.fold(0.0)(delta => (-delta).max(0).min(450).toDouble / 3000.0)
+      ).min(1.0)
+    val theme =
+      if game.openingFamily.toLowerCase.contains("sicilian") then "counterplay"
+      else if game.openingFamily.toLowerCase.contains("king") then "king safety"
+      else if event.triggerHints.contains("file_commitment") then "open file"
+      else "center"
+    ExtendedAnalysisData(
+      fen = event.fen,
+      structureProfile = Some(StructureProfile(game.openingFamily, evidenceCodes)),
+      planAlignment = Some(
+        PlanAlignment(
+          band = if offPlan then "OffPlan" else "Playable",
+          reasonCodes = event.triggerHints,
+          planIntent = Some(intentFor(event, game)),
+          planRisk = Option.when(offPlan)("timing")
+        )
+      ),
+      planHypotheses = List(PlanHypothesis(planName = intentFor(event, game), themeL1 = theme)),
+      planSequence = Some(PlanSequence(transitionType)),
+      nature = PositionNature(tension),
+      strategicSalience =
+        if tension >= 0.62 || offPlan then StrategicSalience.High
+        else StrategicSalience.Normal,
+      plans = List(intentFor(event, game))
+    )
+
+  private def intentFor(event: DecisionEvent, game: ParsedGame): String =
+    if event.triggerHints.contains("tension_release") then "resolve central tension"
+    else if event.triggerHints.contains("pawn_structure_mutation") then "shape the pawn structure"
+    else if event.triggerHints.contains("major_simplification") then "simplify the position"
+    else if event.triggerHints.contains("file_commitment") then "use the open file"
+    else s"play around ${game.openingFamily}"
+
+  private def evalDeltaCp(moveEvalsByPly: Map[Int, MoveEval], ply: Int, subjectColor: Color): Option[Int] =
     for
-      prev <- moveEvalsByPly.get(ply - 1).map(evalScore)
-      curr <- moveEvalsByPly.get(ply).map(evalScore)
+      prev <- moveEvalsByPly.get(ply - 1).map(evalScore(_, subjectColor))
+      curr <- moveEvalsByPly.get(ply).map(evalScore(_, subjectColor))
     yield curr - prev
 
-  private def evalScore(eval: MoveEval): Int =
-    eval.mate.map(m => if m > 0 then 10000 - m else -10000 + m).getOrElse(eval.cp)
+  private def evalScore(eval: MoveEval, subjectColor: Color): Int =
+    val whiteScore = eval.mate.map(m => if m > 0 then 10000 - m else -10000 + m).getOrElse(eval.cp)
+    if subjectColor.white then whiteScore else -whiteScore
 
   private def movingPiece(position: Position, uci: String): Option[Piece] =
     squareFromUci(uci.take(2)).flatMap(position.board.pieceAt)
@@ -458,7 +459,7 @@ object SnapshotFeatureExtractor:
     if uci.length >= 4 then Square.fromKey(uci.slice(2, 4)) else None
 
   private def structureFamilyFor(
-      analysis: lila.llm.model.ExtendedAnalysisData,
+      analysis: ExtendedAnalysisData,
       game: ParsedGame
   ): String =
     analysis.structureProfile
@@ -477,22 +478,7 @@ object SnapshotFeatureExtractor:
         chosen.map(s => RepPos(s, snaps.find(_.ply == s.ply - 1).map(_.san)))
 
   private def snapshots(pgn: String): Either[String, List[PlySnap]] =
-    Parser.mainline(PgnStr(pgn)) match
-      case Left(err) => Left(err.value)
-      case Right(parsed) =>
-        val game = parsed.toGame
-        val replay = Replay.makeReplay(game, parsed.moves)
-        Right(replay.replay.chronoMoves.zipWithIndex.map { case (move, idx) =>
-          val ply = game.ply.value + idx + 1
-          val before = if idx == 0 then game.position else replay.replay.chronoMoves.take(idx).last.after
-          PlySnap(
-            ply = ply,
-            fen = Fen.write(before, Ply(ply - 1).fullMoveNumber).value,
-            san = move.toSanStr.toString,
-            uci = move.toUci.uci,
-            color = before.color
-          )
-        })
+    PgnPlyParser.extract(pgn)
 
   private def subjectResult(result: String, color: Color): SubjectResult =
     result match

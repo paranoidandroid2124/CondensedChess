@@ -4,8 +4,6 @@ import chess.Color
 
 import lila.accountintel.AccountIntel.*
 import lila.accountintel.snapshot.DecisionSnapshotDetector
-import lila.llm.analysis.CommentaryEngine
-import lila.llm.model.strategic.VariationLine
 
 class DecisionSnapshotDetectorTest extends munit.FunSuite:
 
@@ -28,15 +26,23 @@ class DecisionSnapshotDetectorTest extends munit.FunSuite:
   )
 
   private val analysis =
-    CommentaryEngine
-      .assessExtended(
-        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-        variations = List(VariationLine(List("d2d4"), 0)),
-        playedMove = Some("d2d4"),
-        ply = 1,
-        prevMove = Some("d2d4")
-      )
-      .get
+    ExtendedAnalysisData(
+      fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      structureProfile = Some(StructureProfile("Carlsbad", List("center"))),
+      planAlignment = Some(
+        PlanAlignment(
+          band = "OffPlan",
+          reasonCodes = List("center"),
+          planIntent = Some("keep central tension"),
+          planRisk = Some("timing")
+        )
+      ),
+      planHypotheses = List(PlanHypothesis("keep central tension", "center")),
+      planSequence = Some(PlanSequence("NaturalShift")),
+      nature = PositionNature(0.8),
+      strategicSalience = StrategicSalience.High,
+      plans = List("keep central tension")
+    )
 
   private def row(
       ply: Int,

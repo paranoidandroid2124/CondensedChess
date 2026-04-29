@@ -462,17 +462,6 @@
     grid-column-gap: var(---atlas-shell-block-gap);
     grid-row-gap: var(---atlas-shell-block-gap);
     padding: var(---atlas-shell-block-gap) var(---atlas-shell-gutter-x);
-
-    &--bookmaker {
-      grid-template-columns: minmax(14rem, 18rem) minmax(20rem, 1fr) minmax(17rem, 24rem);
-      grid-template-areas:
-        'sidebar sidebar sidebar'
-        'side board tools'
-        'side controls tools'
-        'side under tools'
-        'round-training round-training round-training'
-        'chat chat uchat';
-    }
   }
 
   @include mq-at-least-col3 {
@@ -487,16 +476,6 @@
       'round-training round-training'
       'chat uchat';
 
-    &--bookmaker {
-      grid-template-columns: minmax(16rem, 21rem) minmax(28rem, 1fr) minmax(20rem, 27rem);
-      grid-template-areas:
-        'sidebar sidebar sidebar'
-        'side board tools'
-        'side controls tools'
-        'side under tools'
-        'round-training round-training round-training'
-        'chat chat uchat';
-    }
   }
 
   &__sidebar {
@@ -850,6 +829,71 @@
       background: rgba(23, 35, 41, 0.08);
     }
 
+    .move-explanation {
+      display: grid;
+      gap: 0.65rem;
+      padding: 0.85rem 1rem;
+      border-top: 1px solid rgba(23, 35, 41, 0.1);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.76) 0%, rgba(246, 239, 228, 0.86) 100%);
+    }
+
+    .move-explanation__head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+
+      strong {
+        color: var(--atlas-text);
+        font-family: 'Merriweather', 'Georgia', serif;
+        font-size: 0.9rem;
+      }
+    }
+
+    .move-explanation__blocks {
+      display: grid;
+      gap: 0.55rem;
+    }
+
+    .move-explanation__block {
+      display: grid;
+      gap: 0.28rem;
+      min-width: 0;
+      padding: 0.68rem 0.72rem;
+      border: 1px solid rgba(23, 35, 41, 0.1);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.66);
+    }
+
+    .move-explanation__label {
+      color: var(--atlas-accent-strong);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      line-height: 1.25;
+      text-transform: uppercase;
+    }
+
+    .move-explanation__text,
+    .move-explanation__line {
+      margin: 0;
+      color: var(--atlas-text);
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+
+    .move-explanation__line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.42rem;
+      align-items: baseline;
+      color: var(--atlas-muted);
+
+      san {
+        color: var(--atlas-text);
+        font-weight: 700;
+      }
+    }
+
     .analyse__workspace-dock {
       border-top: 1px solid rgba(23, 35, 41, 0.08);
       background:
@@ -956,25 +1000,6 @@
     background: linear-gradient(180deg, var(--atlas-surface) 0%, #f8eedc 100%) !important;
     padding: 0.85rem;
     animation: atlas-rise 0.58s ease both;
-
-    #bookmaker-field {
-      background: transparent;
-      border: none;
-      margin: 0;
-      padding: 0;
-
-      legend {
-        border: 1px solid rgba(166, 85, 39, 0.34);
-        background: rgba(166, 85, 39, 0.1);
-        color: var(--atlas-accent-strong);
-        border-radius: 999px;
-        letter-spacing: 0.05em;
-        text-transform: uppercase;
-        font-size: 0.72rem;
-        font-weight: 700;
-        padding: 0.18rem 0.7rem;
-      }
-    }
   }
 
   &__underboard {
@@ -1544,40 +1569,6 @@
     }
   }
 
-  .bookmaker-thinking-hud {
-    margin-top: 1rem;
-    padding: 1rem;
-    min-height: 6.2rem;
-    border-radius: 12px;
-    border: 1px solid rgba(23, 35, 41, 0.14);
-    background:
-      linear-gradient(135deg, rgba(166, 85, 39, 0.1), rgba(166, 85, 39, 0)), rgba(255, 255, 255, 0.58);
-
-    .hud-content {
-      .hud-stage {
-        color: var(--atlas-muted);
-      }
-
-      .hud-icon {
-        color: var(--atlas-accent);
-      }
-
-      .hud-text {
-        color: var(--atlas-text);
-        font-family: 'Source Sans 3', 'Noto Sans', sans-serif;
-        font-weight: 600;
-      }
-
-      .hud-stream {
-        color: #2f404a;
-      }
-
-      .hud-caret {
-        color: var(--atlas-accent);
-      }
-    }
-  }
-
   .mchat {
     margin-top: 0;
   }
@@ -1851,18 +1842,6 @@ html.dark {
     --atlas-accent-strong: #ffd1a8;
     --atlas-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
 
-    .bookmaker-thinking-hud {
-      border-color: rgba(240, 167, 109, 0.18);
-      background:
-        linear-gradient(135deg, rgba(240, 167, 109, 0.14), rgba(240, 167, 109, 0)),
-        rgba(18, 28, 36, 0.92);
-
-      .hud-content {
-        .hud-stream {
-          color: #d6e2ec;
-        }
-      }
-    }
   }
 }
 

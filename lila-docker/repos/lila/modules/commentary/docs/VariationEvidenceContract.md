@@ -310,20 +310,11 @@ does not execute Stockfish/WASM, wire controllers or product UI, create
 branch ids, engine fingerprints, cache keys, cache writes, provider names, or
 adapter internals publicly.
 
-`buildCompletedProbeBridgePayload` is the minimal analyse-side completed-probe
-payload helper for a future local executor handoff. It can copy only exact
-node identity, engine fingerprint, optional budget shape, typed probe requests,
-completed root/child probe payloads, UCI lines, rank/MultiPV/depth/freshness
-completion fields, and child parent branch/prefix metadata into a JSON-safe
-adapter object. It is not `CommentaryRequest`, not controller/API route
-wiring, not product UI, not Stockfish/WASM execution, not cache persistence,
-not a claim/prose path, and not SAN authority. The backend normalizer remains
-the exact-FEN UCI replay and SAN source of truth. The helper fails closed
-locally for missing identity or binding, wrong root/child MultiPV, depth below
-`16`, incomplete probes, and empty or malformed-looking UCI lines; it strips
-SAN hints, eval/mate/centipawn data, raw PV/text, source rows, retrieval
-snippets, display labels, debug/internal fields, prose, recommendations,
-verdicts, results, and theory fields.
+Public analyse input must not send completed-probe payloads to the commentary
+route. Completed root/child probe payloads are internal provider inputs only;
+they remain outside `CommentaryRequest`, controller/API route input, product
+UI, and frontend SAN authority. The backend normalizer remains the exact-FEN
+UCI replay and SAN source of truth.
 
 `CandidateLineEvidenceLowering` is the deterministic internal boundary that
 lowers sanitized `CandidateLineEvidence` into public-safe
@@ -821,13 +812,14 @@ The tests prove:
 - the minimal frontend bridge preserves public `RenderVariationEvidence` when
   present, including structured backend line blocks that have public evidence
   ids but no prose text yet, and omits raw candidate-line/probe/cache fields
-- the completed-probe bridge payload helper builds a copied sanitized payload
-  only from typed future local engine completion fields, keeps it out of
-  `buildCommentaryRequest`, strips raw display/source/debug/prose/verdict
-  fields, fails closed for wrong identity, wrong MultiPV, depth `15`, missing
-  child binding, and empty or malformed-looking UCI, and remains a payload
-  helper only rather than public controller/API route, product UI,
-  Stockfish/WASM execution, or SAN authority
+- public analyse input does not send completed-probe payloads to the commentary
+  route; completed root/child payloads remain internal provider inputs only
+  and outside `buildCommentaryRequest`, the public controller/API route, and
+  frontend SAN authority. The optional non-production local-probe adapter may
+  run local Stockfish/ceval to produce root `MultiPV 3` and child `MultiPV 2`
+  UCI payloads, but those payloads enter only through the internal local-probe
+  transport and are replayed/normalized by the backend before any public
+  `RenderVariationEvidence` exists
 - claim production cannot observe the internal candidate-line assembly side
   input
 - claim production and engine-certification fail-closed filtering happen before

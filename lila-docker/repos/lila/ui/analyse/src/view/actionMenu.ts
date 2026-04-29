@@ -118,9 +118,9 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
       workspaceSwitchCard(
         'Engine panel',
         engineUnavailable ? 'Engine guidance is unavailable in this position.' : 'Show engine lines beside the move tree.',
-        ctrl.showEnginePanel(),
+        ctrl.showCeval(),
         next => {
-          ctrl.setShowEnginePanel(next);
+          ctrl.showCeval(next);
           closeMenu();
         },
         engineUnavailable,
@@ -136,7 +136,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
       ),
       workspaceSwitchCard(
         'On-board cues',
-        'Draw move annotations and review cues directly over the board.',
+        'Draw move annotations directly over the board.',
         ctrl.possiblyShowMoveAnnotationsOnBoard(),
         next => {
           ctrl.togglePossiblyShowMoveAnnotationsOnBoard(next);
@@ -155,7 +155,7 @@ function boardWorkspaceView(ctrl: AnalyseCtrl, closeMenu: () => void): VNode[] {
         renderVariationOpacityRange(ctrl, 'Line emphasis'),
       ),
     ]),
-    workspaceSection('Orientation', 'Reset perspective without leaving the review shell.', [
+    workspaceSection('Orientation', 'Reset perspective without leaving analysis.', [
       workspaceActionRow([
         workspaceAction(
           'Flip board',

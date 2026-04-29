@@ -91,12 +91,6 @@ The current intermediate roadmap is:
     requests. Actual Stockfish/WASM execution, controller/public API
     transport, product frontend UI, claim creation, prose, and raw child
     probe/cache exposure remain deferred.
-  - Status: `V4e` adds the minimal analyse-side completed-probe payload helper
-    `buildCompletedProbeBridgePayload`. It prepares a sanitized JSON-safe
-    adapter object for future local engine completion handoff only. It is not
-    a `CommentaryRequest` field and does not open controller/API route wiring,
-    product frontend UI, Stockfish/WASM execution, cache persistence, claims,
-    prose, or frontend SAN authority.
 - `V5`: cross-family line selection across engine line evidence, projection,
   opening, motif, endgame, and retrieval context.
   - Status: first contract/model boundary introduced as
@@ -160,11 +154,111 @@ The current intermediate roadmap is:
     lower `CommentaryRendererContract.render` remains the deterministic
     structured public contract.
 - `V8`: backend controller/API wiring.
-  - Status: not started.
+  - Status: backend controller/API wiring is open only for the narrow public
+    render transport. `POST /api/commentary/render` maps to
+    `controllers.Commentary.render`, registered from `app/Lila.scala` through
+    the existing MacWire controller pattern. The controller is thin: it decodes
+    through the existing `CommentaryRequest` shape via
+    `CommentaryPublicJsonTransport`, which calls `CommentaryBackendSeam.render`,
+    not `renderDebug`. Caller-supplied `debug` remains ignored by the public
+    route and cannot expose `internal`.
+    `CommentaryPublicJsonTransport` owns the public JSON guard. It lowercases
+    field names and removes separators before matching, then rejects
+    completed-probe, root/child probe, probe request, candidate-line assembly,
+    branch id, parent id/prefix, cache key, source row,
+    caller-supplied/internal proof id/proves, and raw probe/cache-shaped
+    transport fields at top level or nested under `enginePacket`. Valid typed
+    `RuntimeEnginePacket` fields such as `engineConfigFingerprint` and
+    `pvLines` remain accepted as certification runtime intake. The public
+    route remains closed to product frontend proof fields, public
+    completed-probe transport, live source lookup, cache persistence, prose
+    changes, and frontend SAN authority.
 - `V9`: product frontend UI.
-  - Status: not started.
+  - Status: first move-focused analyse product surface plus local-probe
+    integration is open. The stable runtime names are `moveExplanation.ts`,
+    `moveExplanationView.ts`, and `localProbe.ts`. `AnalyseCtrl` refreshes the
+    surface from exact current node identity (`currentFen`, `nodeId`, `ply`) on
+    path changes. By default it posts only through `POST /api/commentary/render`
+    via `commentaryBridge.ts`. When explicit local probe mode is enabled, it
+    first requires the server-provided analyse config to mark local probing as
+    available, then runs the existing local ceval/Stockfish path for root
+    `MultiPV 3` at target depth `18` with floor `16`, then child defender
+    probes for the first two root candidates at `MultiPV 2`, packages only
+    completed UCI lines beside a clean move request subset with no nested
+    `enginePacket` or `debug`, and sends that wrapper to the non-production
+    internal route
+    `POST /internal/commentary/render-local-probe`. The backend
+    remains the exact FEN/UCI replay, SAN, proof, and claim authority. The
+    surface may show backend-owned `RenderText.publicText` and public SAN line
+    notation decoded as public variation evidence. It does not parse sources,
+    create claims, rank/admit/suppress, generate chess prose, or expose
+    debug/internal/probe/cache/raw PV, depth, eval, or engine-label fields. If
+    local probe construction fails or the internal response has no public line
+    evidence tied to a visible block, output remains quiet.
+    In production mode the internal route is rejected before a JSON body parser
+    is installed.
 - `V10`: full aggregate validation and release hardening.
-  - Status: not started.
+  - Status: V10 commentary-path validation and hardening completed for the
+    current move-focused product slice. Broad checks covered commentary module
+    tests, backend compile, controller route registration, public/local-probe
+    transport boundaries, frontend typecheck, move-explanation frontend tests,
+    retrieval quality tooling, and whitespace checks. Two boundary defects were
+    fixed: the non-production local-probe transport now rejects nested
+    `enginePacket` / `debug` request fields, and the internal local-probe
+    controller rejects production mode before installing the JSON body parser.
+    Visible aggregate UI test drift remains outside this commentary V10
+    acceptance because it is tied to unrelated legacy/account-intel surfaces,
+    not to the move commentary path.
+
+Post-`V10` product ambition record:
+
+These items are recorded as future product-quality directions, not as live
+runtime authority and not as permission to reopen lower Object, Delta,
+Certification, Sxx, source, or renderer meaning contracts.
+
+- Game review pass:
+  - Future goal: walk a whole game and select the moves that deserve notes.
+  - Boundary: do not annotate every move by default and do not create broad
+    fallback prose for quiet or unproved positions.
+- Critical moment selection:
+  - Future goal: choose decision points, turning points, missed resources,
+    candidate-line divergence, and repeated strategic patterns from existing
+    exact-board evidence.
+  - Boundary: selection value does not create new chess truth.
+- Source-enriched annotation:
+  - Future goal: use opening, motif, endgame-study, and retrieval context to
+    make already-proved line annotations more readable.
+  - Boundary: source rows remain context only and never become theory,
+    recommendation, current-position proof, result, or forced-line authority.
+- Plan continuity / long arc:
+  - Future goal: connect the same target, file, piece, king shell, passer, or
+    simplification route across multiple plies when exact evidence remains
+    bound throughout the line.
+  - Boundary: no invented long-form strategic story when continuity evidence
+    is absent or stale.
+- Book-style English refinement:
+  - Future goal: improve rhythm, concision, and chess-player readability of the
+    existing English commentary layer.
+  - Boundary: prose refinement may only express meanings already present in
+    the selected plan/annotation/line evidence.
+- Acceptance corpus:
+  - Future goal: run large real PGN/FEN sweeps and evaluate quality by exact
+    cell, including correctness, usefulness, silence discipline, and player
+    readability.
+  - Boundary: one aggregate score must not hide weak opening, middlegame,
+    transition, endgame, quiet-position, or counterplay cells.
+- Product UX layer:
+  - Future goal: turn the move note path into player-facing review products
+    such as decision points, recurring patterns, weak spots, training cards,
+    example games, and study export.
+  - Boundary: UI labels and product groupings do not upgrade evidence or
+    create new claim authority.
+- Production engine operations:
+  - Future goal: harden WASM availability, timeout behavior, queueing, cache
+    reuse, mobile behavior, and non-disruptive coexistence with the normal
+    analyse engine.
+  - Boundary: engine output remains raw input until backend exact FEN/UCI/SAN
+    replay and proof binding have accepted it.
 
 This record is intentionally descriptive. The authoritative runtime names
 remain the stable role-based contracts documented below, such as
@@ -175,6 +269,14 @@ remain the stable role-based contracts documented below, such as
 `CandidateLineAssemblyProvider`, `CandidateRootProbeIntegration`,
 `CandidateChildProbeIntegration`, `CandidateLineEvidenceLowering`, and
 `CandidateLineSelection`.
+`CommentaryPublicJsonTransport` is the stable public JSON transport boundary
+above `CommentaryBackendSeam`: it parses only `CommentaryRequest`, calls the
+public `render` entrypoint, rejects normalized internal request field names,
+and returns sanitized bad-request JSON.
+`CommentaryLocalProbeJsonTransport` is the non-production local-probe JSON
+transport boundary: it parses a `{ request, completedProbe }` wrapper, calls
+`CommentaryBackendSeam.renderInternal`, returns the same public
+`CommentaryResponse` shape, and remains separate from `CommentaryRequest`.
 `BookAnnotationPlanner` is the renderer-side language-neutral annotation
 planner over `CommentaryPlan` only; it emits structured units and boundaries,
 not prose.
@@ -809,7 +911,8 @@ blocked entry wins and the public block is not emitted. `NoCommentary` and
 The backend commentary seam contract is frozen in
 [CommentaryBackendSeamContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentaryBackendSeamContract.md).
 `CommentaryBackendSeam` defines the stable backend request/response boundary
-for future frontend consumption without opening frontend wiring, product UI, or
+now reachable through the narrow public backend route
+`POST /api/commentary/render` without opening frontend wiring, product UI, or
 live source integration. The request shape is `CommentaryRequest`: `currentFen`,
 optional `beforeFen`, optional `playedMove`, `nodeId`, `ply`, optional
 `RuntimeEnginePacket` for certification runtime intake only, and an ignored
@@ -818,7 +921,20 @@ caller `debug` field. The response shape is `CommentaryResponse`: status, public
 Malformed FEN or invalid transition input fails closed to `invalidRequest` plus
 a silent `RenderStatus.NoCommentary` render. Public responses hide blocked and
 suppression metadata by default; internal diagnostics are exposed only through
-the server-owned debug entrypoint, not by caller request flags. The seam
+the server-owned debug entrypoint, not by caller request flags. The public route
+calls only `CommentaryPublicJsonTransport.renderJson`, which parses through
+`CommentaryRequest` and then calls `CommentaryBackendSeam.render`;
+`renderDebug` remains server-owned diagnostic code and is not routed. The
+transport guard normalizes request field names by lowercasing and removing
+separators, then rejects completed-probe, probe/cache, candidate-line,
+branch/parent id or prefix, source row, caller-supplied/internal proof
+id/proves, and raw internal-shaped JSON before request decoding, so unknown
+future probe-shaped transport cannot be silently interpreted. Valid typed
+`RuntimeEnginePacket` fields, including `engineConfigFingerprint` and
+`pvLines`, remain accepted only as certification runtime intake. Renderer-owned
+public `RenderVariationEvidence.proofId` remains allowed in responses as a
+stable line-proof id; request proof fields and the lower `proves` token remain
+non-public. The seam
 composes exact-board intake, optional certification runtime intake,
 `EvidenceClaimProducer`, selection, outline builder, and renderer. The
 producer composes the narrow `ExactBoardClaimProducer` with typed
@@ -845,12 +961,17 @@ result by canonical id, owner, and anchor.
 
 The minimal frontend bridge contract is frozen in
 [CommentaryFrontendBridgeContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentaryFrontendBridgeContract.md).
-`ui/analyse/src/chesstory/commentaryBridge.ts` is an adapter-only bridge for
-future analyse consumption of backend `CommentaryResponse` / `CommentaryRender`
-payloads. It does not create product UI, an analysis panel, frontend rewrite,
-source live integration, or generated prose. It can build the stable backend
-request fields, decode public `CommentaryRender` fields, and discard stale
-node/ply/FEN responses. It also preserves backend-prepared public
+`ui/analyse/src/chesstory/commentaryBridge.ts` is the adapter bridge for
+analyse consumption of backend `CommentaryResponse` / `CommentaryRender`
+payloads. `ui/analyse/src/chesstory/moveExplanation.ts` and
+`ui/analyse/src/chesstory/moveExplanationView.ts` are the first product
+consumers, and remain display-only. They do not create a frontend rewrite,
+source live integration, local chess meaning, engine execution, completed-probe
+transport, or generated prose. The bridge can build the stable backend request
+fields, decode public `CommentaryRender` fields, and discard stale
+node/ply/FEN responses. The move explanation controller adds only request
+sequencing so late responses cannot overwrite newer node state. The bridge also
+preserves backend-prepared public
 `RenderVariationEvidence` when present by copying only the renderer-owned
 public line-proof fields and keeping structured blocks that have public
 evidence ids or variation evidence ids even before prose text exists. The
@@ -861,22 +982,11 @@ ignored. It must not rank, admit, revive suppressed material, promote source
 context, render raw engine values, merge opening source vectors, send
 debug/internal toggles, invent fallback text, or upgrade wording strength.
 `noCommentary`, `hidden`, `negative_only`, `invalidRequest`, and stale-node
-states remain silent public output.
-The same bridge now includes `buildCompletedProbeBridgePayload`, an
-adapter-only completed-probe payload sanitizer for future local engine results.
-It copies only exact current identity, engine fingerprint, optional budget,
-probe requests, completed root/child probe payloads, UCI lines, rank/MultiPV/
-depth/freshness/completion fields, and child parent branch/prefix metadata. It
-strips SAN hints, eval/mate/centipawn data, raw PV/text, source rows,
-retrieval snippets, display labels, debug/internal fields, prose,
-recommendations, verdicts, results, and theory fields. It fails closed for
-missing identity or binding, root MultiPV other than `3`, child MultiPV other
-than `2`, realized depth below `16`, incomplete probes, and empty or
-malformed-looking UCI lines. This helper does not change `CommentaryRequest`,
-does not wire a public controller/API route, does not execute Stockfish/WASM,
-does not persist cache, does not create claims or prose, and does not validate
-legality or SAN; backend exact-FEN UCI replay remains authoritative.
-
+states remain silent public output. The move explanation view may show only
+backend-owned `RenderText.publicText` plus public SAN line notation from
+decoded public variation evidence tied to the displayed block; it must not
+display proof ids, claim ids, internal ids, boundaries, UCI-only raw PV, depth,
+eval, engine labels, cache/probe fields, or debug/internal metadata.
 Selection global closure is now executable for the full `S01-S25`
 start-ready set owned by `StrategyProjectionScopeContract`. Each band has a
 selection outcome when the claim is already admitted as a typed Projection with

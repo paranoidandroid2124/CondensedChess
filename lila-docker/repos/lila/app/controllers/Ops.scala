@@ -170,13 +170,6 @@ final class Ops(env: lila.app.Env) extends LilaController(env):
       Ok.page(views.ops.metrics(metricsSnapshot, bindings, capabilities))
   }
 
-  def commentary(limit: Int) = Secure(_.OpsViewer) { ctx ?=> _ ?=>
-    val capabilities = currentCapabilities
-    val normalizedLimit = limit.max(1).min(50)
-    val snapshot = env.llm.api.commentaryOpsSnapshot(normalizedLimit)
-    Ok.page(views.ops.commentary(snapshot, normalizedLimit, capabilities))
-  }
-
   def updateStatus(id: UserStr) = SecureBody(_.OpsMemberWrite) { ctx ?=> me ?=>
     val bound = statusForm.bindFromRequest()
     bound.fold(

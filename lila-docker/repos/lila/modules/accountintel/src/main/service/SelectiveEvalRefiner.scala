@@ -2,7 +2,7 @@ package lila.accountintel.service
 
 import lila.accountintel.*
 import lila.accountintel.AccountIntel.*
-import lila.llm.PgnAnalysisHelper
+import lila.accountintel.primitive.PgnPlyParser
 
 private[accountintel] case class SelectiveEvalRefinement(
     clusters: List[SnapshotCluster],
@@ -106,8 +106,8 @@ final class SelectiveEvalRefiner(
         .distinctBy(_.external.gameId)
     games.map: game =>
       game.external.gameId ->
-        PgnAnalysisHelper
-          .extractPlyData(game.external.pgn)
+        PgnPlyParser
+          .extract(game.external.pgn)
           .toOption
           .getOrElse(Nil)
           .map(p => p.ply -> p.fen)

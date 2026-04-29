@@ -15,14 +15,12 @@ type Action =
   | 'last'
   | 'scrub-help'
   | 'opening-explorer'
-  | 'narrative'
   | 'menu'
   | 'analysis';
 
 export function renderControls(ctrl: AnalyseCtrl) {
   const canJumpPrev = ctrl.path !== '',
     canJumpNext = !!ctrl.node.children[0];
-  const reviewShell = ctrl.isReviewShell();
 
   return hl(
     'div.analyse__controls.analyse-controls',
@@ -36,7 +34,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
       ),
     },
     [
-      ctrl.isCevalAllowed() && (!reviewShell || displayColumns() === 1) && renderAnalysisToggle(ctrl),
+      ctrl.isCevalAllowed() && renderAnalysisToggle(ctrl),
       hl('div.jumps', [
         !isMobileUi() && jumpButton(licon.JumpFirst, 'first', canJumpPrev),
         jumpButton(licon.LessThan, 'prev', canJumpPrev),
@@ -51,7 +49,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
         'button.fbt',
         {
           attrs: {
-            title: reviewShell ? 'Opening explorer' : 'Opening explorer and Tablebase',
+            title: 'Opening explorer and Tablebase',
             'data-act': 'opening-explorer',
           },
           class: {
@@ -61,26 +59,11 @@ export function renderControls(ctrl: AnalyseCtrl) {
         },
         [icon(licon.Book as any)],
       ),
-      !reviewShell &&
-        ctrl.narrative &&
-        hl(
-          'button.fbt',
-          {
-            attrs: {
-              title: 'Game Chronicle',
-              'data-act': 'narrative',
-            },
-            class: {
-              active: ctrl.activeControlBarTool() === 'narrative',
-            },
-            },
-          [icon(licon.BubbleSpeech as any)],
-        ),
       hl(
         'button.fbt',
         {
           class: { active: ctrl.activeControlBarTool() === 'action-menu' },
-          attrs: { title: reviewShell ? 'Board view and settings' : 'Menu', 'data-act': 'menu' },
+          attrs: { title: 'Menu', 'data-act': 'menu' },
         },
         [icon(licon.Hamburger as any)],
       ),
@@ -89,7 +72,7 @@ export function renderControls(ctrl: AnalyseCtrl) {
 }
 
 function renderAnalysisToggle(ctrl: AnalyseCtrl): VNode {
-  const active = ctrl.isReviewShell() ? ctrl.showEnginePanel() : ctrl.showCeval(),
+  const active = ctrl.showCeval(),
     latent = active && !!ctrl.activeControlBarTool(),
     showLabel = displayColumns() > 1;
   return hl(
@@ -127,17 +110,13 @@ function clickControl(ctrl: AnalyseCtrl, e: PointerEvent) {
   else if (action === 'last') control.last(ctrl);
   else if (action === 'scrub-help') scrubHelp(ctrl);
   else if (action === 'opening-explorer') ctrl.toggleExplorer();
-  else if (action === 'narrative') ctrl.toggleNarrative();
   else if (action === 'menu') ctrl.toggleActionMenu();
   else if (action === 'analysis') {
     if (ctrl.activeControlBarTool()) {
       ctrl.explorer.disable();
-      ctrl.narrative?.enabled(false);
       ctrl.actionMenu(false);
-      if (ctrl.isReviewShell()) ctrl.setReviewUtilityPanel(null);
     }
-    if (ctrl.isReviewShell()) ctrl.setShowEnginePanel(!ctrl.showEnginePanel());
-    else ctrl.showCeval(!ctrl.showCeval());
+    ctrl.showCeval(!ctrl.showCeval());
   }
   ctrl.redraw();
 }

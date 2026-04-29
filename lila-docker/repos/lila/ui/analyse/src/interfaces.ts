@@ -108,7 +108,6 @@ export interface StudyView {
   chapters: StudyChapterSummary[];
   url?: string;
   visibility?: string;
-  notebookDossier?: unknown;
 }
 
 export interface ServerEvalData {
@@ -198,10 +197,10 @@ export interface AnalyseOpts {
     enhance: EnhanceOpts;
     instance?: any;
   };
-  bookmaker?: boolean;
   inlinePgn?: string;
   importHistory?: ImportHistoryView;
   externalEngineEndpoint: string;
+  commentaryLocalProbe?: boolean;
   embed?: boolean;
   socketUrl?: string;
   socketVersion?: number;

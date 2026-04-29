@@ -3,10 +3,14 @@
 This document freezes the first backend request/response seam for structured
 commentary output.
 
-It does not open frontend wiring, polished product UI, live source integration,
-or model-authored prose generation.
+It opens the narrow public backend controller transport at
+`POST /api/commentary/render` and a separate non-production local-probe
+transport at `POST /internal/commentary/render-local-probe`. It does not open
+live source integration, production cache persistence, public completed-probe
+transport, or model-authored prose generation.
 
-Short form: no frontend wiring, no source live integration.
+Short form: public route stays narrow; local Stockfish probe payloads are
+internal/non-production handoff only; no source live integration.
 
 ## Request
 
@@ -20,6 +24,16 @@ Short form: no frontend wiring, no source live integration.
 - optional `enginePacket`
 - optional `debug` field is ignored by the public render entrypoint
 
+The public transport accepts only this request shape.
+`CommentaryPublicJsonTransport` normalizes JSON field names by lowercasing and
+removing separators before matching. Its guard rejects completed-probe,
+root/child probe, probe request, candidate-line assembly, branch id, parent
+id/prefix, cache key, source row, caller-supplied/internal proof id/proves,
+and raw probe/cache-shaped fields before `CommentaryRequest` decoding. A
+caller cannot smuggle those fields through separator or case variants at top
+level or nested inside `enginePacket`; they are not interpreted as future
+transport hints and do not appear in bad-request JSON.
+
 `currentFen` is mandatory and must parse through the existing exact-board
 fail-closed extraction path. `beforeFen` and `playedMove` are all-or-nothing:
 if one is supplied without the other, the request is invalid. When both are
@@ -31,6 +45,11 @@ path and the request `currentFen` is the after-position.
 runtime input to the existing certification intake boundary. The backend seam
 does not accept `EngineEvidencePacket` directly and does not expose raw engine
 PV, eval, mate score, centipawns, or engine labels as render evidence.
+Valid runtime-intake fields such as `engineConfigFingerprint` and `pvLines`
+remain accepted by the public transport guard as typed certification intake;
+candidate-line `engineFingerprint`, raw PV/line/probe fields, probe/cache
+fields, branch/parent ids, source rows, internal payloads, and caller proof
+fields remain rejected request input.
 
 The request does not accept raw selector claims, raw source rows, opening
 fixture JSON, or `OpeningContextCandidate` JSON from the frontend.
@@ -46,10 +65,14 @@ accepted from request JSON. `CandidateRootProbeIntegration` input/result
 objects are also internal-only and are not accepted from request JSON.
 `CandidateChildProbeIntegration` input/result objects are also internal-only
 and are not accepted from request JSON.
-A frontend-side completed-probe bridge payload prepared by
-`buildCompletedProbeBridgePayload` is likewise adapter-only staging data. It is
-not a `CommentaryRequest` field, not public controller/API route input, and not
-accepted by this seam.
+Caller-supplied public `completedProbe` payloads are likewise not accepted by
+the public route. Completed root/child probe payloads can enter only through
+server-owned internal provider boundaries after exact request binding,
+including the non-production local-probe transport that wraps a clean
+move request subset (`currentFen`, `nodeId`, `ply`, and optional paired
+`beforeFen` / `playedMove` only) beside a completed-probe payload and then
+calls `CommentaryBackendSeam.renderInternal`. Nested `enginePacket`, `debug`,
+and future public transport fields are rejected before request decoding.
 
 ## Response
 
@@ -68,6 +91,10 @@ If public-safe prepared variation evidence is present, the response carries
 only the renderer-owned `RenderVariationEvidence` subset. Internal
 `PreparedVariationDebug`, raw engine packets, raw PV details, source rows, and
 raw source snippets remain non-public.
+Renderer-owned public `RenderVariationEvidence.proofId` may remain in the
+response as the stable public line-proof identifier. This does not allow
+caller-supplied or internal request `proofId` / `proves` fields, and the lower
+prepared `proves` token is not public response payload.
 Public-safe defender-resource, failed-tempting-move, release-risk, hold,
 conversion, simplification, and persistence evidence may cross the seam only
 as bounded structured line-proof fields. The seam does not convert them into
@@ -119,6 +146,22 @@ input returns `invalidRequest` plus a silent `CommentaryRender` with
 ## Public And Internal Metadata
 
 The default response is public-safe.
+
+The public controller calls only `CommentaryPublicJsonTransport.renderJson`,
+which parses `CommentaryRequest` and calls `CommentaryBackendSeam.render`; it
+does not call `renderDebug`. Caller-supplied request `debug` is ignored by the
+public route and never enables `internal`.
+
+The local-probe controller calls only `CommentaryLocalProbeJsonTransport` and
+is gated to non-production mode. Its request wrapper is not a public
+`CommentaryRequest` extension: the public transport still rejects the same
+`completedProbe` shape. The local-probe transport returns the same public
+`CommentaryResponse` shape only when public local-probe line evidence is tied
+to a visible block; otherwise it returns silent `noCommentary`. It does not
+accept nested `enginePacket` or `debug`, and it does not expose raw root/child
+packets, branch ids, engine fingerprints, cache keys, or debug metadata.
+In production mode, the controller rejects the route through an empty-body
+`Open` action before the JSON body parser is installed.
 
 Public `render.suppressions` is empty by default. Blocked do-not-say material,
 suppression reasons, rejected raw-engine shortcuts, and invalid-input reasons
@@ -334,7 +377,11 @@ remains silent.
 
 Executable validation lives in:
 
+- `app/controllers/Commentary.scala`
+- `src/test/scala/controllers/CommentaryTest.scala`
+- `modules/commentary/src/main/scala/lila/commentary/api/CommentaryPublicJsonTransport.scala`
 - `modules/commentary/src/main/scala/lila/commentary/api/CommentaryBackendSeam.scala`
+- `modules/commentary/src/test/scala/lila/commentary/api/CommentaryPublicJsonTransportContractTest.scala`
 - `modules/commentary/src/test/scala/lila/commentary/line/CandidateLineProofCacheContractTest.scala`
 - `modules/commentary/src/test/scala/lila/commentary/line/CandidateLineAssemblyProviderContractTest.scala`
 - `modules/commentary/src/test/scala/lila/commentary/line/CandidateRootProbeIntegrationContractTest.scala`
@@ -345,6 +392,17 @@ Executable validation lives in:
 The scaffold validates:
 
 - valid exact-board request returns structured `CommentaryRender`
+- the public `POST /api/commentary/render` route maps to the thin controller
+- the public transport decodes only `CommentaryRequest` JSON and calls the public
+  `render` entrypoint
+- caller-supplied `debug = true` does not expose `internal`
+- public transport bad-request JSON is sanitized and does not echo missing fields,
+  parse errors, or blocked probe/cache/source internals
+- probe/cache/internal-shaped fields, including separator and case variants at
+  top level or nested under `enginePacket`, are rejected before they can be
+  silently reinterpreted
+- valid typed `RuntimeEnginePacket` JSON containing `engineConfigFingerprint`
+  and `pvLines` is not rejected by the public transport guard
 - malformed FEN fails closed
 - stale or wrong-node engine packet does not render engine evidence
 - absent, rejected, or accepted-with-empty engine intake cannot unlock
@@ -383,9 +441,6 @@ The scaffold validates:
   adapter, exact-FEN SAN normalization, lowering, backend seam attachment,
   selection, outline, renderer, and public response only as bound
   `RenderVariationEvidence`
-- the analyse completed-probe bridge helper stays outside `CommentaryRequest`
-  and public route wiring while copying only sanitized future local executor
-  fields and failing closed before any backend public seam accepts the payload
 - claim production cannot observe candidate-line assembly
 - claim production runs before the candidate-line assembly provider
 - missing assembly or assembly without prepared evidence leaves existing

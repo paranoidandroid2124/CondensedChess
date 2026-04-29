@@ -398,21 +398,70 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
       "secret-child-cache"
     ).foreach(token => assert(!json.contains(token), clues(token, json)))
 
-  test("CommentaryRequest source shape has no public completed-probe or candidate-line request fields"):
+  test("internal completed-probe payload can attach line evidence only after defender-resource evidence exists"):
+    val rootOnly =
+      CommentaryBackendSeam.renderInternal(
+        request(
+          currentFen = afterE4Fen,
+          beforeFen = Some(initialFen),
+          playedMove = Some("e2e4"),
+          ply = 1
+        ),
+        Some(completedProbePayload(includeChild = false))
+      )
+    val withChild =
+      CommentaryBackendSeam.renderInternal(
+        request(
+          currentFen = afterE4Fen,
+          beforeFen = Some(initialFen),
+          playedMove = Some("e2e4"),
+          ply = 1
+        ),
+        Some(completedProbePayload(includeChild = true))
+      )
+    val json = Json.toJson(withChild).toString
+
+    assertEquals(rootOnly.render.variationEvidence, Vector.empty)
+    assertEquals(withChild.status, CommentaryResponseStatus.Rendered)
+    assert(withChild.render.variationEvidence.exists(_.role == RenderLineRole.Resource))
+    assert(withChild.render.variationEvidence.forall(_.boundClaimId.startsWith("exact-transition-")))
+    Vector("parentBranchId", "root-candidate", "engineFingerprint", "cacheKey", "rawPv", "CandidateLineEvidence").foreach: token =>
+      assert(!json.contains(token), clues(token, json))
+
+  test("internal completed child probe with wrong parent branch id cannot lower public line evidence"):
+    val payload = completedProbePayload(includeChild = true)
+    val response =
+      CommentaryBackendSeam.renderInternal(
+        request(
+          currentFen = afterE4Fen,
+          beforeFen = Some(initialFen),
+          playedMove = Some("e2e4"),
+          ply = 1
+        ),
+        Some(payload.copy(childProbes = payload.childProbes.map(_.copy(parentBranchId = "caller-forged-parent-branch"))))
+      )
+
+    assertEquals(response.render.variationEvidence, Vector.empty)
+
+  test("CommentaryRequest source shape excludes completed-probe and internal candidate-line types"):
     val source = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/src/main/scala/lila/commentary/api/CommentaryBackendSeam.scala"))
     val requestStart = source.indexOf("final case class CommentaryRequest(")
-    val requestEnd = source.indexOf("enum CommentaryResponseStatus", requestStart)
+    val requestEnd = source.indexOf("final case class CommentaryCompletedProbeCurrent", requestStart)
     val requestShape = source.substring(requestStart, requestEnd)
 
     Vector(
-      "completedProbePayload",
-      "rootProbe",
-      "childProbes",
-      "probeRequests",
       "candidateLineRootProbe",
       "candidateLineChildProbe",
       "CandidateProbeResultPayload",
-      "CandidateLineEvidence"
+      "CandidateLineEvidence",
+      "CandidateProbeControlledAdapter",
+      "CandidateLinePacket"
+    ).foreach(token => assert(!requestShape.contains(token), clues(token, requestShape)))
+    Vector(
+      "completedProbe",
+      "CommentaryCompletedProbePayload",
+      "CommentaryCompletedRootProbe",
+      "CommentaryCompletedChildProbe"
     ).foreach(token => assert(!requestShape.contains(token), clues(token, requestShape)))
 
   test("raw source context fields in request JSON are ignored and cannot become render truth"):
@@ -483,7 +532,7 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
     assertEquals((responseJson \ "render" \ "blocks" \ 0 \ "role").as[String], "primary")
     assertEquals((responseJson \ "render" \ "suppressions").as[Vector[String]], Vector.empty)
 
-  test("contract docs name the backend seam and forbid frontend/source live wiring"):
+  test("contract docs name the backend seam and keep public route separate from local probe"):
     val contract = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/CommentaryBackendSeamContract.md"))
     val core = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/CommentaryCoreSSOT.md"))
     val validation = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/ValidationMethodology.md"))
@@ -495,7 +544,8 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
       "CommentaryRender",
       "RuntimeEnginePacket",
       "no source live integration",
-      "no frontend wiring"
+      "public route stays narrow",
+      "internal/non-production handoff"
     ).foreach(token => assert(contract.contains(token), token))
     assert(core.contains("CommentaryBackendSeamContract.md"))
     assert(validation.contains("CommentaryBackendSeamContractTest.scala"))
@@ -503,18 +553,95 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
   private def request(
       currentFen: String = validFen,
       enginePacket: Option[CertificationEngineRuntimeIntake.RuntimeEnginePacket] = None,
+      beforeFen: Option[String] = None,
+      playedMove: Option[String] = None,
       debug: Boolean = false,
       nodeId: String = nodeId,
       ply: Int = 0
   ): CommentaryRequest =
     CommentaryRequest(
       currentFen = currentFen,
-      beforeFen = None,
-      playedMove = None,
+      beforeFen = beforeFen,
+      playedMove = playedMove,
       nodeId = nodeId,
       ply = ply,
       enginePacket = enginePacket,
       debug = debug
+    )
+
+  private val afterE4Fen =
+    "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+
+  private def completedProbePayload(includeChild: Boolean): CommentaryCompletedProbePayload =
+    val generatedAt = System.currentTimeMillis().toString
+    CommentaryCompletedProbePayload(
+      current = CommentaryCompletedProbeCurrent(afterE4Fen, nodeId, 1, "standard"),
+      engineFingerprint = "stockfish-completed-probe-contract",
+      budget = Some(
+        CommentaryCompletedProbeBudget(
+          rootMultiPv = 3,
+          childMultiPv = 2,
+          depthFloor = 16,
+          rootTargetDepth = Some(18),
+          childTargetDepth = Some(18),
+          maxAgeMillis = Some(30_000L)
+        )
+      ),
+      probeRequests = Vector(
+        CommentaryCompletedProbeRequest(
+          role = "root_candidate",
+          currentFen = afterE4Fen,
+          nodeId = nodeId,
+          ply = 1,
+          variant = "standard",
+          multiPv = 3,
+          requestedDepth = 18,
+          depthFloor = 16
+        )
+      ),
+      rootProbe = CommentaryCompletedRootProbe(
+        currentFen = afterE4Fen,
+        nodeId = nodeId,
+        ply = 1,
+        variant = "standard",
+        engineFingerprint = "stockfish-completed-probe-contract",
+        requestedDepth = 18,
+        realizedDepth = 18,
+        multiPv = 3,
+        generatedAt = generatedAt,
+        maxAgeMillis = 30_000L,
+        completed = true,
+        lines = Vector(
+          CommentaryCompletedProbeLine(1, 1, 3, Vector("e7e5", "g1f3")),
+          CommentaryCompletedProbeLine(2, 2, 3, Vector("c7c5", "g1f3")),
+          CommentaryCompletedProbeLine(3, 3, 3, Vector("e7e6", "d2d4"))
+        )
+      ),
+      childProbes =
+        if !includeChild then Vector.empty
+        else
+          Vector(
+            CommentaryCompletedChildProbe(
+              currentFen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+              nodeId = nodeId,
+              ply = 2,
+              variant = "standard",
+              engineFingerprint = "stockfish-completed-probe-contract",
+              parentBranchId = "root-candidate-1",
+              parentUciPrefix = Vector("e7e5"),
+              parentRootRank = 1,
+              requestedDepth = 18,
+              realizedDepth = 18,
+              multiPv = 2,
+              generatedAt = generatedAt,
+              maxAgeMillis = 30_000L,
+              completed = true,
+              lines = Vector(
+                CommentaryCompletedProbeLine(1, 1, 2, Vector("g1f3", "b8c6")),
+                CommentaryCompletedProbeLine(2, 2, 2, Vector("d2d4", "e5d4"))
+              )
+            )
+          )
     )
 
   private def boardLead(id: String): CommentaryClaim =

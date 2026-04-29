@@ -28,7 +28,8 @@ object analyse:
         pov,
         chess960PositionNum = chess960PositionNum,
         inlinePgn = inlinePgn,
-        importHistory = importHistory
+        importHistory = importHistory,
+        commentaryLocalProbe = UiEnv.env.mode.notProd
       )
 
     def keyboardHelp =
@@ -65,20 +66,19 @@ object analyse:
     def lpv(@unused pgn: Any, @unused board: Boolean = true, @unused title: String = "") = emptyFrag
     def userAnalysis(
         data: play.api.libs.json.JsObject,
-        bookmaker: Boolean,
         inlinePgn: Option[String] = None
     )(using EmbedContext) =
       val cfg =
         Json
           .obj(
             "data" -> data,
-            "bookmaker" -> bookmaker,
-            "embed" -> true
+            "embed" -> true,
+            "commentaryLocalProbe" -> false
           )
           .add("inlinePgn", inlinePgn) ++ analyseUi.explorerAndCevalConfig
       views.base.embed.site(
         title = "Analysis board",
-        cssKeys = List("analyse.free", "llm.widget"),
+        cssKeys = List("analyse.free"),
         pageModule = Some(analyseUi.bits.analyseModule("userAnalysis", cfg)),
         csp = analyseUi.bits.cspExternalEngine.compose(_.withExternalAnalysisApis)
       )(analyseUi.bits.embedUserAnalysisBody)

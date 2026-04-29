@@ -1,4 +1,4 @@
-﻿# Validation Methodology
+# Validation Methodology
 
 This document defines how the `commentary` backend will be validated over many
 exact chess positions without falling back into ad hoc reruns and layered
@@ -1839,6 +1839,13 @@ Validation checks:
 - response `status` mirrors `CommentaryRender.status` for valid requests
 - malformed input returns `invalidRequest` plus silent
   `RenderStatus.NoCommentary`
+- public transport request guarding normalizes field names by lowercasing and
+  removing separators, rejects completed-probe, probe, cache, candidate-line,
+  source-row, internal, and proof request fields at top level and under
+  `enginePacket`, and returns sanitized bad-request JSON
+- valid typed `RuntimeEnginePacket` request fields such as
+  `engineConfigFingerprint` and `pvLines` are not rejected by the public
+  transport guard
 - public payload carries `CommentaryRender` blocks, evidence refs, boundaries,
   wording, and no-commentary state without requiring frontend reranking
 - blocked claims and suppression reasons are hidden by default
@@ -1855,17 +1862,20 @@ Validation checks:
 Executable owner:
 
 - `modules/commentary/src/main/scala/lila/commentary/api/CommentaryBackendSeam.scala`
+- `modules/commentary/src/main/scala/lila/commentary/api/CommentaryPublicJsonTransport.scala`
 - `modules/commentary/src/test/scala/lila/commentary/api/CommentaryBackendSeamContractTest.scala`
+- `modules/commentary/src/test/scala/lila/commentary/api/CommentaryPublicJsonTransportContractTest.scala`
 
 Contract authority:
 
 - `modules/commentary/docs/CommentaryBackendSeamContract.md`
 
-## Minimal Frontend Bridge Validation
+## Minimal Frontend Bridge And Product Surface Validation
 
-The minimal frontend bridge validation freezes the adapter-only analyse-side
-contract for consuming backend `CommentaryResponse` / `CommentaryRender`
-payloads before a frontend rewrite.
+The minimal frontend bridge and product surface validation freezes the
+analyse-side contract for consuming backend `CommentaryResponse` /
+`CommentaryRender` payloads. The product surface is display-only and remains a
+consumer of backend-prepared public render data.
 
 Validation checks:
 
@@ -1889,13 +1899,40 @@ Validation checks:
   best-move, theory-truth, forced-line, result, or engine wording
 - stale `currentFen`, `nodeId`, or `ply` after the async response is discarded
   as `stale_node`
+- the move explanation controller posts through `/api/commentary/render` by
+  default via the existing bridge, uses exact current node identity, sends
+  `beforeFen` / `playedMove` only as a pair, and prevents late responses from
+  replacing newer node output
+- the optional local probe path builds root `MultiPV 3` plus first-two-root
+  child `MultiPV 2` completed-probe payloads from local ceval/Stockfish only
+  when enabled by server-provided analyse config and explicitly requested by
+  URL; it sends only to the internal non-production endpoint, keeps the nested
+  request to `currentFen`, `nodeId`, `ply`, optional paired `beforeFen` /
+  `playedMove`, and no nested `enginePacket` / `debug`, reuses an in-memory
+  local cache only for fresh matching probe requests, and stays silent rather
+  than falling back to public prose when evidence is incomplete or not tied to
+  visible public line evidence; production mode rejects the internal route
+  before installing the JSON body parser
+- the move explanation view renders backend block public text in block order,
+  may show public SAN line notation only from decoded public variation
+  evidence tied to the block, and stays empty for `noCommentary`,
+  `invalidRequest`, `hidden`, `negative_only`, stale-node, and request-error
+  states
 - the bridge does not rank, admit, suppress, revive, reinterpret, merge source
   rankings, render raw engine values, or upgrade wording
+- the product surface does not expose proof ids, claim ids, internal ids,
+  boundaries, UCI-only raw PV, depth, eval, engine labels, cache/probe fields,
+  or debug/internal metadata
 
 Executable owner:
 
 - `ui/analyse/src/chesstory/commentaryBridge.ts`
+- `ui/analyse/src/chesstory/localProbe.ts`
+- `ui/analyse/src/chesstory/moveExplanation.ts`
+- `ui/analyse/src/chesstory/moveExplanationView.ts`
 - `ui/analyse/tests/commentaryBridge.test.ts`
+- `ui/analyse/tests/localProbe.test.ts`
+- `ui/analyse/tests/moveExplanation.test.ts`
 
 The internal candidate-line pipeline contract is also covered by:
 
@@ -2313,14 +2350,6 @@ default; rank `3` cache reuse stays behind the existing strong target-depth-20
 policy. Public backend/render JSON remains free of child probe/cache payloads,
 parent prefixes, branch ids, engine fingerprints, cache keys, provider names,
 and adapter internals.
-The analyse `buildCompletedProbeBridgePayload` helper is validation-scoped as
-an adapter-only payload sanitizer. It is not a public request field, not a
-controller/API route, not product UI, not engine execution, and not SAN
-authority. Validation for this helper is limited to exact identity/binding
-presence, root `MultiPV 3`, child `MultiPV 2`, depth floor `16`, completed
-flag, deep-copy isolation, raw/display/prose/debug/source field stripping, and
-basic non-empty UCI move shape. Legal replay, SAN, best-defense meaning, and
-candidate-line proof admission remain backend exact-board responsibilities.
 `CandidateLineEvidenceLowering` is the exact pre-selection lowering boundary
 from internal candidate-line evidence to public-safe prepared variation
 evidence. It consumes only sanitized `CandidateLineEvidence` plus an explicit

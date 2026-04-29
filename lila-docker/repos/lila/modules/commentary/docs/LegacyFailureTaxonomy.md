@@ -175,8 +175,8 @@ New-system rule:
 
 Legacy meaning:
 
-- an uncertified or downgraded claim came back stronger on Chronicle, Bookmaker,
-  Active, wrapper, or whole-game surfaces
+- an uncertified or downgraded claim came back stronger on a legacy, active,
+  wrapper, or whole-game surface
 
 Observed repeatedly in trust hardening:
 

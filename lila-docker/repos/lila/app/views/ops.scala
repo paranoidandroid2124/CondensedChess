@@ -6,13 +6,11 @@ import java.time.{ Instant, ZoneId }
 import java.time.format.DateTimeFormatter
 
 import play.api.data.Form
-import play.api.libs.json.Json
 
 import lila.app.UiEnv.{ *, given }
 import lila.app.OpenBetaBindingStatus
 import lila.core.perm.Permission
 import lila.core.user.{ RoleDbKey, UserTier }
-import lila.llm.analysis.CommentaryOpsBoard
 import lila.ops.*
 
 object ops:
@@ -84,13 +82,6 @@ object ops:
           href := routes.Ops.metrics.url,
           if active == "metrics" then attr("aria-current") := "page" else emptyFrag
         )("Metrics")
-      ),
-      Option.when(capabilities.canViewOpsViewer)(
-        a(
-          cls := List("is-active" -> (active == "commentary")),
-          href := routes.Ops.commentary().url,
-          if active == "commentary" then attr("aria-current") := "page" else emptyFrag
-        )("Commentary Ops")
       )
     )
 
@@ -196,13 +187,6 @@ object ops:
                   capabilities.canViewOpsViewer,
                   if capabilities.canViewOpsViewer then Some(a(cls := "ops-button primary", href := routes.Ops.metrics.url)("Open Metrics")) else None,
                   if capabilities.canViewOpsViewer then None else Some("Metrics requires Ops viewer.")
-                ),
-                surfaceCard(
-                  "Commentary Ops",
-                  "Inspect commentary/runtime diagnostics, fallback rates, and recent samples.",
-                  capabilities.canViewOpsViewer,
-                  if capabilities.canViewOpsViewer then Some(a(cls := "ops-button primary", href := routes.Ops.commentary().url)("Open Commentary Ops")) else None,
-                  if capabilities.canViewOpsViewer then None else Some("Commentary Ops requires Ops viewer.")
                 )
               )
             ),
@@ -213,7 +197,7 @@ object ops:
                 capabilityRow("Member write", capabilities.canWriteMembers, "Run account status, email, password reset, session, 2FA, and plan actions."),
                 capabilityRow("Managed role grant", capabilities.canGrantManagedRoles, "Update curated ops/member bundles and toggles."),
                 capabilityRow("Advanced member ops", capabilities.canUseAdvanced, "Preview and apply raw permission changes."),
-                capabilityRow("Ops viewer", capabilities.canViewOpsViewer, "Open metrics and commentary boards.")
+                capabilityRow("Ops viewer", capabilities.canViewOpsViewer, "Open metrics boards.")
               )
             )
           ),
@@ -855,7 +839,7 @@ object ops:
             div(cls := "ops-card")(
               h2("Metric families"),
               p(cls := "ops-subtitle")(
-                "Grouped by namespace so operators can scan JVM, process, HTTP, and commentary-related metrics without reading the raw dump first."
+                "Grouped by namespace so operators can scan JVM, process, HTTP, and application-specific metrics without reading the raw dump first."
               ),
               if snapshot.sections.nonEmpty then
                 div(cls := "ops-metric-sections")(
@@ -887,170 +871,10 @@ object ops:
               p(cls := "ops-subtitle")("Use the operator account for read-only inspection here, then jump back into Member Ops for account actions."),
               div(cls := "ops-actions")(
                 a(cls := "ops-button secondary", href := routes.Ops.landing.url)("Open Overview"),
-                Option.when(capabilities.canReadMembers)(a(cls := "ops-button secondary", href := routes.Ops.members.url)("Open Member Ops")),
-                Option.when(capabilities.canViewOpsViewer)(a(cls := "ops-button secondary", href := routes.Ops.commentary().url)("Open Commentary Ops"))
-              )
-            )
-          )
-        )
-      )
-
-  def commentary(snapshot: CommentaryOpsBoard.Snapshot, limit: Int, capabilities: OpsCapabilities)(using ctx: Context): lila.ui.Page =
-    pageShell("Commentary Ops"):
-      frag(
-        div(cls := "ops-hero")(
-          div(
-            h1(cls := "ops-title")("Commentary Ops"),
-            p(cls := "ops-subtitle")(
-              "Read-only operator board for Game Chronicle and commentary-analysis runtime behavior. Use this page to inspect throughput, fallback behavior, prompt usage, and recent captured samples."
-            )
-          ),
-          div(cls := "ops-badges")(
-            badge(s"${snapshot.recentSamples.size} samples"),
-            badge(s"Limit $limit"),
-            badge(renderInstant(Instant.ofEpochMilli(snapshot.generatedAtMs)))
-          )
-        ),
-        opsNav("commentary", capabilities),
-        flashMessages,
-        div(cls := "ops-main")(
-          div(cls := "ops-card")(
-            h2("How to use this page"),
-            div(cls := "ops-kv")(
-              div(cls := "ops-kv-item")(
-                strong("Access"),
-                span("Sign in as an operator account and open /ops/commentary.")
-              ),
-              div(cls := "ops-kv-item")(
-                strong("Purpose"),
-                span("This page is a diagnostic board. It does not change models or prompts; it only shows current behavior and recent captures.")
-              ),
-              div(cls := "ops-kv-item")(
-                strong("GUI scope"),
-                span("Use it to inspect compare rates, fallback rates, active-note routing, and prompt usage before going deeper into logs or GCP dashboards.")
-              ),
-              div(cls := "ops-kv-item")(
-                strong("Raw data"),
-                span("The full snapshot is rendered below as JSON as well, so the operator can cross-check the summarized cards.")
-              )
-            )
-          ),
-          div(cls := "ops-card")(
-            h2("Summary"),
-            p(cls := "ops-subtitle")(
-              "Rates with no underlying observations are shown as no data instead of looking healthy by default."
-            ),
-            div(cls := "ops-summary-grid")(
-              statCard("Bookmaker requests", snapshot.bookmaker.requests.toString),
-              statCard("Bookmaker fallback", percentageOrNoData(snapshot.bookmaker.polishFallbackRate, snapshot.bookmaker.polishAttempts, "attempts")),
-              statCard("Full-game consistency", percentageOrNoData(snapshot.fullgame.compareConsistencyRate, snapshot.fullgame.compareObserved)),
-              statCard("Active attach rate", percentageOrNoData(snapshot.active.attachRate, snapshot.active.attempts, "attempts"))
-            )
-          ),
-          div(cls := "ops-grid")(
-            div(cls := "ops-main")(
-              div(cls := "ops-card")(
-                h2("Bookmaker"),
-                renderKeyValues(
-                  "Requests" -> snapshot.bookmaker.requests.toString,
-                  "Polish attempts" -> snapshot.bookmaker.polishAttempts.toString,
-                  "Polish accepted" -> snapshot.bookmaker.polishAccepted.toString,
-                  "Fallback rate" -> percentageOrNoData(snapshot.bookmaker.polishFallbackRate, snapshot.bookmaker.polishAttempts, "attempts"),
-                  "Soft repair any" -> percentageOrNoData(snapshot.bookmaker.softRepairAnyRate, snapshot.bookmaker.polishAccepted, "accepted"),
-                  "Soft repair material" -> percentageOrNoData(snapshot.bookmaker.softRepairMaterialRate, snapshot.bookmaker.polishAccepted, "accepted"),
-                  "Compare observed" -> snapshot.bookmaker.compareObserved.toString,
-                  "Compare consistency" -> percentageOrNoData(snapshot.bookmaker.compareConsistencyRate, snapshot.bookmaker.compareObserved),
-                  "Average cost USD" -> usd(snapshot.bookmaker.avgCostUsd)
-                )
-              ),
-              div(cls := "ops-card")(
-                h2("Full game"),
-                renderKeyValues(
-                  "Compare observed" -> snapshot.fullgame.compareObserved.toString,
-                  "Compare consistency" -> percentageOrNoData(snapshot.fullgame.compareConsistencyRate, snapshot.fullgame.compareObserved),
-                  "Repair attempts" -> snapshot.fullgame.repairAttempts.toString,
-                  "Repair bypassed" -> snapshot.fullgame.repairBypassed.toString,
-                  "Soft repair applied" -> snapshot.fullgame.softRepairApplied.toString,
-                  "Merged retry skipped" -> snapshot.fullgame.mergedRetrySkipped.toString
-                ),
-                h3("Invalid reason counts"),
-                renderStringLongTable(snapshot.fullgame.invalidReasonCounts)
-              ),
-              div(cls := "ops-card")(
-                h2("Active note / Game Chronicle"),
-                renderKeyValues(
-                  "Selected moments" -> snapshot.active.selectedMoments.toString,
-                  "Attempts" -> snapshot.active.attempts.toString,
-                  "Attached" -> snapshot.active.attached.toString,
-                  "Omitted" -> snapshot.active.omitted.toString,
-                  "Primary accepted" -> snapshot.active.primaryAccepted.toString,
-                  "Repair attempts" -> snapshot.active.repairAttempts.toString,
-                  "Repair recovered" -> snapshot.active.repairRecovered.toString,
-                  "Attach rate" -> percentageOrNoData(snapshot.active.attachRate, snapshot.active.attempts, "attempts"),
-                  "Thesis agreement" -> percentageOrNoData(snapshot.active.thesisAgreementRate, snapshot.active.primaryAccepted, "accepted"),
-                  "Dossier attach" -> percentageOrNoData(snapshot.active.dossierAttachRate, snapshot.active.selectedMoments, "selected"),
-                  "Dossier compare" -> percentageOrNoData(snapshot.active.dossierCompareRate, snapshot.active.attached, "attached"),
-                  "Dossier route ref" -> percentageOrNoData(snapshot.active.dossierRouteRefRate, snapshot.active.attached, "attached"),
-                  "Dossier ref failure" -> percentageOrNoData(snapshot.active.dossierReferenceFailureRate, snapshot.active.attached, "attached"),
-                  "Provider" -> snapshot.active.provider.getOrElse("-"),
-                  "Configured model" -> snapshot.active.configuredModel.getOrElse("-"),
-                  "Fallback model" -> snapshot.active.fallbackModel.getOrElse("-"),
-                  "Reasoning effort" -> snapshot.active.reasoningEffort.getOrElse("-")
-                ),
-                h3("Observed models"),
-                renderStringLongTable(snapshot.active.observedModelDistribution),
-                h3("Omit reasons"),
-                renderStringLongTable(snapshot.active.omitReasons),
-                h3("Warning reasons"),
-                renderStringLongTable(snapshot.active.warningReasons),
-                h3("Route counters"),
-                renderKeyValues(
-                  "Redeploy" -> snapshot.active.routeRedeployCount.toString,
-                  "Move ref" -> snapshot.active.routeMoveRefCount.toString,
-                  "Hidden safety" -> snapshot.active.routeHiddenSafetyCount.toString,
-                  "Toward only" -> snapshot.active.routeTowardOnlyCount.toString,
-                  "Exact surface" -> snapshot.active.routeExactSurfaceCount.toString,
-                  "Opponent hidden" -> snapshot.active.routeOpponentHiddenCount.toString
-                )
-              ),
-              div(cls := "ops-card")(
-                h2("Prompt usage"),
-                renderPromptUsage(snapshot.promptUsage)
-              ),
-              div(cls := "ops-card")(
-                h2("Recent samples"),
-                if snapshot.recentSamples.nonEmpty then
-                  div(cls := "ops-sample-list")(
-                    snapshot.recentSamples.map: sample =>
-                      div(cls := "ops-sample-item")(
-                        div(cls := "ops-timeline-head")(
-                          div(
-                            strong(sample.kind),
-                            div(cls := "ops-timeline-meta")(renderInstant(Instant.ofEpochMilli(sample.capturedAtMs)))
-                          )
-                        ),
-                        renderStringStringTable(sample.fields)
-                      )
-                  )
-                else div(cls := "ops-empty")("No samples recorded yet.")
-              ),
-              div(cls := "ops-card")(
-                h2("Raw snapshot"),
-                pre(cls := "ops-code")(code(Json.prettyPrint(Json.toJson(snapshot))))
-              )
-            ),
-            div(cls := "ops-side")(
-              div(cls := "ops-card")(
-              h2("Operator flow"),
-              p(cls := "ops-subtitle")("Use this page for read-only diagnostics, then jump to Metrics or Member Ops as needed."),
-              div(cls := "ops-actions")(
-                a(cls := "ops-button secondary", href := routes.Ops.landing.url)("Open Overview"),
-                a(cls := "ops-button secondary", href := routes.Ops.metrics.url)("Open Metrics"),
                 Option.when(capabilities.canReadMembers)(a(cls := "ops-button secondary", href := routes.Ops.members.url)("Open Member Ops"))
               )
             )
           )
-        )
         )
       )
 
@@ -1140,84 +964,6 @@ object ops:
         )
     )
 
-  private def renderKeyValues(entries: (String, String)*) =
-    if entries.nonEmpty then
-      div(cls := "ops-kv")(
-        entries.map:
-          case (labelText, valueText) =>
-          div(cls := "ops-kv-item")(
-            strong(labelText),
-            span(valueText)
-          )
-      )
-    else div(cls := "ops-empty")("No values recorded.")
-
-  private def renderStringLongTable(entries: Map[String, Long]) =
-    if entries.nonEmpty then
-      div(cls := "ops-table-wrap")(
-        table(cls := "ops-table ops-table--compact")(
-          thead(tr(th("Key"), th("Value"))),
-          tbody(
-            entries.toList.sortBy(_._1).map:
-              case (key, value) =>
-              tr(
-                td(attr("data-label") := "Key")(key),
-                td(attr("data-label") := "Value")(value.toString)
-              )
-          )
-        )
-      )
-    else div(cls := "ops-empty")("No counters recorded.")
-
-  private def renderStringStringTable(entries: Map[String, String]) =
-    if entries.nonEmpty then
-      div(cls := "ops-table-wrap")(
-        table(cls := "ops-table ops-table--compact")(
-          thead(tr(th("Field"), th("Value"))),
-          tbody(
-            entries.toList.sortBy(_._1).map:
-              case (key, value) =>
-              tr(
-                td(attr("data-label") := "Field")(key),
-                td(attr("data-label") := "Value")(value)
-              )
-          )
-        )
-      )
-    else div(cls := "ops-empty")("No fields captured.")
-
-  private def renderPromptUsage(entries: Map[String, CommentaryOpsBoard.PromptUsageMetrics]) =
-    if entries.nonEmpty then
-      div(cls := "ops-table-wrap")(
-        table(cls := "ops-table ops-table--compact")(
-          thead(
-            tr(
-              th("Prompt"),
-              th("Attempts"),
-              th("Cache hits"),
-              th("Prompt tokens"),
-              th("Cached tokens"),
-              th("Completion tokens"),
-              th("Estimated cost")
-            )
-          ),
-          tbody(
-            entries.toList.sortBy(_._1).map:
-              case (key, usage) =>
-              tr(
-                td(attr("data-label") := "Prompt")(strong(key)),
-                td(attr("data-label") := "Attempts")(usage.attempts.toString),
-                td(attr("data-label") := "Cache hits")(usage.cacheHits.toString),
-                td(attr("data-label") := "Prompt tokens")(usage.promptTokens.toString),
-                td(attr("data-label") := "Cached tokens")(usage.cachedTokens.toString),
-                td(attr("data-label") := "Completion tokens")(usage.completionTokens.toString),
-                td(attr("data-label") := "Estimated cost")(usd(usage.estimatedCostUsd))
-              )
-          )
-        )
-      )
-    else div(cls := "ops-empty")("No prompt usage recorded yet.")
-
   private def renderMetricNamespaceTable(sections: List[OpsMetricSection]) =
     div(cls := "ops-table-wrap")(
       table(cls := "ops-table ops-table--compact")(
@@ -1261,16 +1007,6 @@ object ops:
         )
       )
     )
-
-  private def percentage(value: Double): String =
-    f"${value * 100}%.1f%%"
-
-  private def percentageOrNoData(value: Double, observed: Long, basisLabel: String = "observed"): String =
-    if observed > 0 then percentage(value)
-    else s"No data (0 $basisLabel)"
-
-  private def usd(value: Double): String =
-    f"$$${value}%.4f"
 
   private def renderBindingTable(bindings: List[OpenBetaBindingStatus]) =
     if bindings.nonEmpty then

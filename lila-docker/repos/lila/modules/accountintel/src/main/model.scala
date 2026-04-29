@@ -2,9 +2,6 @@ package lila.accountintel
 
 import chess.Color
 import chess.format.pgn.PgnStr
-import lila.llm.MoveEval
-import lila.llm.model.CollapseAnalysis
-import lila.llm.model.ExtendedAnalysisData
 import play.api.libs.json.*
 
 import java.time.Instant
@@ -370,6 +367,69 @@ object AccountIntel:
       sourceUrl: Option[String],
       pgn: String,
       moveEvals: List[MoveEval] = Nil
+  )
+
+  case class VariationLine(
+      moves: List[String],
+      scoreCp: Int,
+      mate: Option[Int] = None
+  )
+
+  case class MoveEval(
+      ply: Int,
+      cp: Int,
+      mate: Option[Int],
+      pv: List[String] = Nil,
+      variations: List[VariationLine] = Nil
+  ):
+    def getVariations: List[VariationLine] =
+      if variations.nonEmpty then variations
+      else pv.headOption.map(move => VariationLine(List(move), cp, mate)).toList
+
+  enum StrategicSalience:
+    case Normal, High
+
+  case class StructureProfile(
+      primary: String,
+      evidenceCodes: List[String] = Nil
+  )
+
+  case class PlanAlignment(
+      band: String,
+      reasonCodes: List[String] = Nil,
+      planIntent: Option[String] = None,
+      planRisk: Option[String] = None
+  )
+
+  case class PlanHypothesis(
+      planName: String,
+      themeL1: String
+  )
+
+  case class PlanSequence(
+      transitionType: String
+  )
+
+  case class PositionNature(
+      tension: Double
+  )
+
+  case class ExtendedAnalysisData(
+      fen: String,
+      structureProfile: Option[StructureProfile] = None,
+      planAlignment: Option[PlanAlignment] = None,
+      planHypotheses: List[PlanHypothesis] = Nil,
+      planSequence: Option[PlanSequence] = None,
+      nature: PositionNature = PositionNature(0d),
+      strategicSalience: StrategicSalience = StrategicSalience.Normal,
+      endgameFeatures: Option[String] = None,
+      planContinuity: Option[String] = None,
+      plans: List[String] = Nil
+  )
+
+  case class CollapseAnalysis(
+      rootCause: String,
+      earliestPreventablePly: Int
   )
 
   private[accountintel] enum SubjectResult:

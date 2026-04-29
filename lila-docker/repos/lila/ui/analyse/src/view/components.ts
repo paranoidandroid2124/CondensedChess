@@ -15,13 +15,11 @@ import {
 import { playable } from 'lib/game';
 import { displayColumns, isMobile } from 'lib/device';
 import * as materialView from 'lib/game/view/material';
-import { renderBoardPreview } from 'lib/view/boardPreview';
 
-import { boardSettingsView, view as actionMenu } from './actionMenu';
-import explorerView, { renderExplorerPanel } from '../explorer/explorerView';
-import { narrativeView } from '../narrative/narrativeView';
+import { view as actionMenu } from './actionMenu';
+import explorerView from '../explorer/explorerView';
+import { view as moveExplanationView } from '../chesstory/moveExplanationView';
 import { view as forkView } from '../fork';
-import { reviewView } from '../review/view';
 import renderClocks from './clocks';
 import * as control from '../control';
 import * as chessground from '../ground';
@@ -37,13 +35,6 @@ import serverSideUnderboard from '../serverSideUnderboard';
 import pgnImport, { renderPgnError } from '../pgnImport';
 import { normalizeInlinePgn } from '../pgnPipeline';
 import { storage } from 'lib/storage';
-import {
-  notebookDossierOverviewKindLabel,
-  notebookDossierProductLabel,
-  parseNotebookDossier,
-  type NotebookSectionV1,
-  type SectionCardV1,
-} from '../notebookDossier';
 
 export interface ViewContext {
   ctrl: AnalyseCtrl;
@@ -98,8 +89,6 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
         'has-players': !!playerBars,
         'gamebook-play': !!gamebookPlayView,
         'analyse-hunter': ctrl.opts.hunter,
-        'analyse--bookmaker': !!ctrl.opts.bookmaker && !ctrl.isReviewShell(),
-        'analyse--review-shell': ctrl.isReviewShell(),
         'analyse--notebook': ctrl.isStudy(),
       },
     },
@@ -108,7 +97,6 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
 }
 
 function renderSidebar(ctrl: AnalyseCtrl): VNode | undefined {
-  if (ctrl.isReviewShell()) return;
   return hl(
     'div.analyse__sidebar',
     workspaceTools(ctrl).map(tool =>
@@ -132,7 +120,7 @@ function renderSidebar(ctrl: AnalyseCtrl): VNode | undefined {
   );
 }
 
-type WorkspaceToolId = 'opening-explorer' | 'narrative' | 'action-menu';
+type WorkspaceToolId = 'opening-explorer' | 'action-menu';
 type NotebookGlyphKind = 'notebook' | 'bookmark' | 'page' | 'section';
 
 type WorkspaceTool = {
@@ -214,8 +202,6 @@ function notebookGlyphForTool(tool: WorkspaceTool): NotebookGlyphKind {
   switch (tool.id) {
     case 'opening-explorer':
       return 'bookmark';
-    case 'narrative':
-      return 'page';
     default:
       return 'section';
   }
@@ -236,22 +222,6 @@ function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
       open: ctrl.toggleExplorer,
     },
   ];
-
-  if (ctrl.narrative) {
-    tools.push({
-      id: 'narrative',
-      label: 'Guided Review',
-      summary: ctrl.narrative.loading()
-        ? 'Guided review is running'
-        : ctrl.narrative.data()
-          ? 'Resume guided review'
-          : 'Review this game',
-      icon: licon.BubbleSpeech,
-      active: ctrl.activeControlBarTool() === 'narrative',
-      busy: ctrl.narrative.loading(),
-      open: ctrl.toggleNarrative,
-    });
-  }
 
   tools.push({
     id: 'action-menu',
@@ -274,7 +244,7 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
       hl(
         'span',
         activeTool
-          ? 'Jump between openings, guided review, and board controls without leaving the move list.'
+          ? 'Jump between openings and board controls without leaving the move list.'
           : 'Keep the move list anchored and open the tool you need beside it.',
       ),
     ]),
@@ -311,70 +281,19 @@ function renderWorkspaceDock(ctrl: AnalyseCtrl): VNode {
 }
 
 export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embeddedVideo?: LooseVNode) {
-  const showCeval = ctrl.isCevalAllowed() && (ctrl.isReviewShell() ? ctrl.reviewPrimaryTab() === 'engine' : ctrl.showCeval());
-  if (ctrl.isReviewShell()) {
-    const boardPreview = renderBoardPreview(
-      { fen: ctrl.node.fen, uci: ctrl.node.uci },
-      ctrl.getOrientation(),
-      'div.analyse-review__mobile-board',
-    );
-    return hl('div.analyse__tools.analyse__tools--review', [
-      hl(
-        'section.analyse-review__mobile-board-rail',
-        {
-          hook: {
-            insert: vnode => syncReviewMobileRailHeight(vnode.elm as HTMLElement),
-            update: (_, vnode) => syncReviewMobileRailHeight(vnode.elm as HTMLElement),
-          },
-        },
-        [
-        hl('div.analyse-review__mobile-board-copy', [
-          hl('strong', ctrl.reviewSurfaceMode() === 'review' ? 'Guided Review board' : 'Full Analysis board'),
-          hl(
-            'span',
-            ctrl.node.ply > 0
-              ? `Current position around move ${plyToTurn(ctrl.node.ply)}. This compact rail keeps the board in view while the tools pane scrolls.`
-              : 'Start position. This compact rail keeps the board in view while the tools pane scrolls.',
-          ),
-        ]),
-        boardPreview,
-        ],
-      ),
-      allowVideo && embeddedVideo,
-      hl('div.analyse-review__workspace-shell', [
-        reviewView(ctrl, {
-          cevalNode: showCeval ? cevalView.renderCeval(ctrl) : undefined,
-          pvsNode: showCeval ? cevalView.renderPvs(ctrl) : undefined,
-          moveListNode: renderMoveList(ctrl, concealOf),
-          forkNode: forkView(ctrl, concealOf),
-          explorerNode: renderExplorerPanel(ctrl, { force: true, closable: false }),
-          boardSettingsNodes: boardSettingsView(ctrl, { closeOnChange: false, mode: 'workspace' }),
-          importNode: renderInputs(ctrl),
-        }),
-      ]),
-    ]);
-  }
-  const narrativeEnabled = !!ctrl.narrative?.enabled();
-  const narrativeNode = ctrl.narrative ? narrativeView(ctrl.narrative) : null;
-  const activeTool = narrativeEnabled
-    ? narrativeNode || explorerView(ctrl)
-    : explorerView(ctrl) || narrativeNode;
+  const showCeval = ctrl.isCevalAllowed() && ctrl.showCeval();
+  const activeTool = explorerView(ctrl);
   return hl('div.analyse__tools', [
     allowVideo && embeddedVideo,
     showCeval && cevalView.renderCeval(ctrl),
     showCeval && cevalView.renderPvs(ctrl),
     renderMoveList(ctrl, concealOf),
+    moveExplanationView(ctrl.moveExplanation),
     forkView(ctrl, concealOf),
     displayColumns() > 1 && renderWorkspaceDock(ctrl),
     activeTool,
     ctrl.actionMenu() && actionMenu(ctrl),
   ]);
-}
-
-function syncReviewMobileRailHeight(elm: HTMLElement): void {
-  const shell = elm.closest('.analyse--review-shell') as HTMLElement | null;
-  if (!shell) return;
-  shell.style.setProperty('--review-mobile-rail-height', `${Math.ceil(elm.getBoundingClientRect().height)}px`);
 }
 
 export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewContext, skipInfo = false) {
@@ -417,7 +336,6 @@ export function renderBoard({ ctrl, playerBars, playerStrips, gaugeOn }: ViewCon
 }
 
 export function renderUnderboard({ ctrl }: ViewContext) {
-  if (ctrl.isReviewShell()) return;
   return hl(
     'div.analyse__underboard',
     {
@@ -544,22 +462,6 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
             },
             [icon(licon.Reload as any), ' Reset draft'],
           ),
-        hl(
-          'button.button.button-thin.bottom-action.text',
-          {
-            attrs: {
-              title:
-                pgnInspection.status === 'ready'
-                  ? 'Analyze the staged PGN without importing it first.'
-                  : 'Runs deeper on-device WASM scan; may take longer for full PGNs.',
-              disabled: pgnInspection.status === 'invalid',
-            },
-            hook: bind('click', () => {
-              void ctrl.openNarrative(pgnInspection.status === 'ready' ? draftPgn : undefined);
-            }),
-          },
-          [icon(licon.Book as any), ' Review this game'],
-        ),
       ]),
       renderInlineStatus(
         pgnInspection.headline,
@@ -596,139 +498,6 @@ function renderNotebookPanelCover(title: string, subtitle: string, detail: strin
       hl('span.copyables__study-cover-subtitle', subtitle),
       hl('span.copyables__study-cover-detail', detail),
     ]),
-  ]);
-}
-
-function renderDossierEvidenceLine(
-  evidence: { strength: string; supportingGames: number; totalSampledGames: number },
-  extra?: string,
-): VNode {
-  const parts = [`${evidence.supportingGames}/${evidence.totalSampledGames} games`, evidence.strength];
-  if (extra) parts.push(extra);
-  return hl('span.copyables__study-dossier-meta', parts.join(' • '));
-}
-
-function renderDossierTag(label: string): VNode {
-  return hl('span.copyables__study-dossier-tag', label);
-}
-
-function renderDossierCard(card: SectionCardV1): VNode {
-  switch (card.cardKind) {
-    case 'opening_map':
-      return hl('article.copyables__study-card.copyables__study-card--opening', [
-        hl('div.copyables__study-card-head', [hl('strong', card.title), renderDossierEvidenceLine(card.evidence)]),
-        hl('span.copyables__study-card-kicker', `${card.openingFamily} • ${card.side}`),
-        hl('p.copyables__study-card-copy', card.story),
-        hl('div.copyables__study-dossier-tags', card.structureLabels.map(renderDossierTag)),
-      ]);
-    case 'anchor_position':
-      return hl('article.copyables__study-card.copyables__study-card--anchor', [
-        hl('div.copyables__study-card-head', [hl('strong', card.title), renderDossierEvidenceLine(card.evidence, `ply ${card.moveContext.ply}`)]),
-        hl('span.copyables__study-card-kicker', card.claim),
-        hl('p.copyables__study-card-copy', card.explanation),
-        hl('div.copyables__study-card-block', [
-          hl('span.copyables__study-card-label', 'Question'),
-          hl('p', card.questionPrompt),
-        ]),
-        hl('div.copyables__study-card-block', [
-          hl('span.copyables__study-card-label', 'Recommended plan'),
-          hl('strong', card.recommendedPlan.label),
-          hl('p', card.recommendedPlan.summary),
-          card.recommendedPlan.candidateMoves?.length
-            ? hl(
-                'div.copyables__study-dossier-tags',
-                card.recommendedPlan.candidateMoves.map(move => renderDossierTag(move.san || move.uci || move.note || 'candidate')),
-              )
-            : null,
-        ]),
-        card.antiPattern
-          ? hl('div.copyables__study-card-block', [
-              hl('span.copyables__study-card-label', 'Avoid'),
-              hl('strong', card.antiPattern.label),
-              hl('p', card.antiPattern.summary),
-            ])
-          : null,
-        card.strategicTags.length ? hl('div.copyables__study-dossier-tags', card.strategicTags.map(renderDossierTag)) : null,
-      ]);
-    case 'exemplar_game':
-      return hl('article.copyables__study-card.copyables__study-card--example', [
-        hl('div.copyables__study-card-head', [
-          hl('strong', card.title),
-          hl('span.copyables__study-dossier-meta', `${card.game.white} vs ${card.game.black} • ${card.game.result}`),
-        ]),
-        hl('span.copyables__study-card-kicker', card.whyItMatters),
-        hl('p.copyables__study-card-copy', card.narrative),
-        hl('div.copyables__study-card-block', [
-          hl('span.copyables__study-card-label', 'Takeaway'),
-          hl('p', card.takeaway),
-        ]),
-      ]);
-    case 'action_item':
-      return hl('article.copyables__study-card.copyables__study-card--action', [
-        hl('div.copyables__study-card-head', [hl('strong', card.title)]),
-        hl('p.copyables__study-card-copy', card.instruction),
-        hl('div.copyables__study-card-block', [
-          hl('span.copyables__study-card-label', 'Success marker'),
-          hl('p', card.successMarker),
-        ]),
-      ]);
-    case 'checklist':
-      return hl('article.copyables__study-card.copyables__study-card--checklist', [
-        hl('div.copyables__study-card-head', [hl('strong', card.title)]),
-        hl(
-          'div.copyables__study-checklist',
-          card.items.map(item =>
-            hl('div.copyables__study-checklist-item', [
-              hl('span.copyables__study-checklist-priority', item.priority),
-              hl('div', [hl('strong', item.label), item.reason ? hl('span', item.reason) : null]),
-            ]),
-          ),
-        ),
-      ]);
-  }
-}
-
-function renderDossierSection(section: NotebookSectionV1): VNode {
-  return hl(`section.copyables__study-section.copyables__study-section--${section.kind}`, [
-    hl('div.copyables__study-section-head', [
-      hl('div', [hl('strong', section.title), hl('span', section.summary)]),
-      hl('span.copyables__study-dossier-meta', `${section.kind.replace(/_/g, ' ')} • ${section.status}`),
-    ]),
-    section.evidence ? renderDossierEvidenceLine(section.evidence) : null,
-    hl('div.copyables__study-section-cards', section.cards.map(renderDossierCard)),
-  ]);
-}
-
-function renderNotebookDossierSurface(raw: unknown): VNode | null {
-  const dossier = parseNotebookDossier(raw);
-  if (!dossier) return null;
-
-  return hl('div.copyables__study-dossier', [
-    hl('div.copyables__study-dossier-head', [
-      hl('div.copyables__study-dossier-copy', [
-        hl('span.copyables__study-eyebrow', notebookDossierProductLabel(dossier.productKind)),
-        hl('strong', dossier.headline),
-        hl('span.copyables__study-subline', dossier.summary),
-      ]),
-      hl('div.analyse-review__summary-grid.copyables__study-dossier-summary', [
-        compactSummaryCard(`${dossier.source.sampledGameCount}`, 'sampled games'),
-        compactSummaryCard(`${dossier.sections.length}`, 'sections'),
-        compactSummaryCard(dossier.status, 'status'),
-      ]),
-    ]),
-    hl(
-      'div.copyables__study-overview-grid',
-      dossier.overview.cards.map(card =>
-        hl('article.copyables__study-overview-card', [
-          hl('span.copyables__study-card-label', notebookDossierOverviewKindLabel(card.kind)),
-          hl('strong', card.headline),
-          hl('p', card.summary),
-          renderDossierEvidenceLine(card.evidence),
-          card.tags?.length ? hl('div.copyables__study-dossier-tags', card.tags.map(renderDossierTag)) : null,
-        ]),
-      ),
-    ),
-    hl('div.copyables__study-sections', dossier.sections.map(renderDossierSection)),
   ]);
 }
 
@@ -798,15 +567,12 @@ function renderStudyWorkspacePanel(ctrl: AnalyseCtrl): VNode | null {
       studyFeaturePill('section', 'Use the section navigator above'),
       studyFeaturePill('bookmark', 'Share the exact section link'),
     ]),
-    renderNotebookDossierSurface(study.notebookDossier),
   ]);
 }
 
 function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
   const busy = ctrl.studyCreateBusy();
   const needsAuth = ctrl.studyNeedsAuth();
-  const transferCount = ctrl.studyTransferCountValue();
-  const narrativeReady = ctrl.hasNarrativeStudyBrief();
   const error = ctrl.studyCreateErrorText();
 
   return hl('section.copyables__study.copyables__study--launch', [
@@ -814,7 +580,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
       renderNotebookPanelCover(
         'Untitled notebook',
         'First section from analysis',
-        narrativeReady ? 'Guided review brief ready' : 'Add commentary as you go',
+        'Add notes as you go',
       ),
       hl('div.copyables__study-copy', [
         hl('span.copyables__study-eyebrow', 'Research notebook'),
@@ -850,15 +616,13 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     ]),
     hl('div.analyse-review__summary-grid.copyables__study-summary', [
       compactSummaryCard('PGN + move tree', 'base'),
-      compactSummaryCard('Saved explanations', 'saved lines'),
-      compactSummaryCard(narrativeReady ? 'Guided review brief included' : 'Guided review brief optional', 'section intro'),
+      compactSummaryCard('Main line + branches', 'analysis tree'),
+      compactSummaryCard('Move notes supported', 'section notes'),
     ]),
     renderStudyStatusCard(
       busy
-        ? transferCount > 0
-          ? `Creating the new notebook and moving ${transferCount} saved explanation${transferCount === 1 ? '' : 's'}.`
-          : 'Creating the new notebook shell from the current PGN.'
-        : 'Saved move explanations that already exist in this shell will be carried into the new notebook when possible.',
+        ? 'Creating the new notebook shell from the current PGN.'
+        : 'Create a notebook section from this PGN, then add notes to key moves as you review.',
       busy ? 'info' : 'success',
     ),
     error ? renderStudyStatusCard(error, 'error') : null,
@@ -866,7 +630,6 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
       studyFeaturePill('page', 'Move-by-move notes'),
       studyFeaturePill('section', 'Branches stay explorable'),
       studyFeaturePill('bookmark', 'Shareable section URL'),
-      narrativeReady ? studyFeaturePill('notebook', 'Guided review brief') : null,
     ]),
   ]);
 }

@@ -749,42 +749,6 @@ $label-width: 5ch;
     margin-top: 0.9rem;
   }
 
-  &__bookmaker-card {
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    min-height: 0;
-
-    .analyse__bookmaker-text {
-      position: relative;
-      min-height: 0;
-      overflow: auto;
-    }
-
-    .bookmaker-state {
-      margin-top: 0;
-    }
-  }
-
-  &__bookmaker-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    color: var(--review-text-muted);
-
-    strong {
-      font-size: 0.78rem;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      color: var(--review-accent);
-    }
-  }
-
-  &__bookmaker-note {
-    margin: 0;
-  }
-
   &__details-drawer {
     summary {
       cursor: pointer;
@@ -1049,48 +1013,14 @@ $label-width: 5ch;
     }
   }
 
-  .narrative-moment.active,
-  .narrative-collapse-card.active {
-    border-color: rgba($c-primary, 0.5);
-    box-shadow: 0 0 0 1px rgba($c-primary, 0.2);
-  }
-
   h2,
   h3,
   strong {
     color: var(--review-text);
   }
 
-  // Contrast-safe review shell overrides for narrative and DNA surfaces
-  // that otherwise inherit colors from dark-theme contexts.
-  .narrative-moment,
-  .narrative-variation,
-  .narrative-branch-dossier,
-  .narrative-decision-compare,
-  .narrative-evidence-card {
-    color: var(--review-text);
-    background: var(--review-surface-soft);
-    border-color: var(--review-border);
-  }
-
-  .narrative-review {
-    margin: 0;
-    color: var(--review-text);
-    background: var(--review-review-bg);
-    border-color: var(--review-border);
-  }
-
-  .narrative-review-summary,
-  .narrative-prose,
-  .narrative-branch-dossier__value,
-  .narrative-branch-dossier__detail-value,
-  .narrative-decision-compare__headline,
-  .narrative-decision-compare__secondary,
-  .narrative-signal-row-value,
-  .narrative-evidence-question,
-  .narrative-evidence-why,
-  .narrative-evidence-branch span,
-  .narrative-move,
+  // Contrast-safe review shell overrides for DNA surfaces that otherwise
+  // inherit colors from dark-theme contexts.
   .dna-section-title,
   .dna-bar-label,
   .dna-cell-interval,
@@ -1099,154 +1029,17 @@ $label-width: 5ch;
     color: var(--review-text);
   }
 
-  .narrative-review-metric {
-    background: var(--review-neutral-chip-bg);
-    border-color: var(--review-neutral-chip-border);
-    color: var(--review-neutral-chip-text);
-    opacity: 1;
-
-    &.blunder {
-      background: var(--review-danger-bg);
-      border-color: var(--review-danger-border);
-      color: var(--review-danger-text);
-    }
-
-    &.missed {
-      background: var(--review-warning-bg);
-      border-color: var(--review-warning-border);
-      color: var(--review-warning-text);
-    }
-  }
-
-  .narrative-review-track,
   .dna-bar-track,
   .timeline-track {
     background: var(--review-track-bg);
     border-color: var(--review-border);
   }
 
-  .narrative-review-marker,
   .timeline-marker {
     background: var(--review-surface);
     border-color: var(--review-accent);
   }
 
-  .narrative-themes,
-  .narrative-concepts {
-    margin-bottom: 0;
-  }
-
-  .narrative-theme,
-  .narrative-concept,
-  .narrative-badge.type {
-    background: var(--review-info-bg);
-    border-color: var(--review-info-border);
-    color: var(--review-info-text);
-    opacity: 1;
-  }
-
-  .narrative-side {
-    opacity: 1;
-
-    &.white {
-      color: var(--review-text-muted);
-    }
-
-    &.black {
-      color: var(--review-text-subtle);
-    }
-  }
-
-  .narrative-badge.salience {
-    &.high {
-      background: var(--review-info-bg);
-      border-color: var(--review-info-border);
-      color: var(--review-info-text);
-    }
-
-    &.low {
-      background: var(--review-low-bg);
-      border-color: var(--review-low-border);
-      color: var(--review-text-muted);
-      opacity: 1;
-      font-weight: 600;
-    }
-  }
-
-  .narrative-badge.branch {
-    background: var(--review-success-bg);
-    border-color: var(--review-success-border);
-    color: var(--review-success-text);
-  }
-
-  .narrative-active-plan-box,
-  .narrative-strategic-note-box {
-    background: var(--review-success-surface);
-    border-color: var(--review-success-surface-border);
-  }
-
-  .narrative-signal-box {
-    background: var(--review-info-surface);
-    border-color: var(--review-info-surface-border);
-  }
-
-  .narrative-evidence-box {
-    background: var(--review-warning-surface);
-    border-color: var(--review-warning-surface-border);
-  }
-
-  .narrative-branch-dossier {
-    background: var(--review-dossier-surface);
-  }
-
-  .narrative-decision-compare {
-    background: var(--review-compare-surface);
-    border-color: var(--review-compare-border);
-
-    &[open] {
-      background: var(--review-compare-surface-open);
-    }
-  }
-
-  .narrative-strategic-note-title,
-  .narrative-branch-dossier__title,
-  .narrative-signal-chip.preserved,
-  .narrative-evidence-status--resolved,
-  .narrative-plan-theme-text {
-    color: var(--review-success-text);
-  }
-
-  .narrative-signal-title,
-  .narrative-branch-dossier__gap,
-  .narrative-decision-compare__gap,
-  .narrative-variation-score {
-    color: var(--review-info-text);
-  }
-
-  .narrative-evidence-title,
-  .narrative-collapse-value.cause,
-  .narrative-signal-chip.latent,
-  .narrative-evidence-status--pending,
-  .narrative-evidence-status--question_only {
-    color: var(--review-warning-text);
-  }
-
-  .narrative-collapse-title {
-    color: var(--review-danger-text);
-  }
-
-  .narrative-decision-compare__kicker,
-  .narrative-decision-compare__detail-label,
-  .narrative-signal-label,
-  .narrative-signal-row-label,
-  .narrative-branch-dossier__label,
-  .narrative-branch-dossier__detail-label,
-  .narrative-plan-label,
-  .narrative-plan-detail,
-  .narrative-collapse-label,
-  .narrative-variation-tags,
-  .narrative-variation-moves .narrative-move-number,
-  .narrative-evidence-meta,
   .dna-stat-label,
   .dna-bar-count,
   .dna-collapse-table th,
@@ -1257,60 +1050,6 @@ $label-width: 5ch;
   .timeline-labels {
     color: var(--review-text-muted);
     opacity: 1;
-  }
-
-  .narrative-decision-compare__move {
-    background: var(--review-neutral-chip-bg);
-    color: var(--review-neutral-chip-text);
-  }
-
-  .narrative-decision-compare__move--engine,
-  .narrative-signal-chip {
-    background: var(--review-info-bg);
-    border-color: var(--review-info-border);
-    color: var(--review-info-text);
-  }
-
-  .narrative-decision-compare__move--deferred {
-    background: var(--review-warning-bg);
-    border-color: var(--review-warning-border);
-    color: var(--review-warning-text);
-  }
-
-  .narrative-signal-chip.latent {
-    background: var(--review-warning-bg);
-    border-color: var(--review-warning-border);
-    color: var(--review-warning-text);
-  }
-
-  .narrative-signal-chip.preserved {
-    background: var(--review-success-bg);
-    border-color: var(--review-success-border);
-    color: var(--review-success-text);
-  }
-
-  .narrative-decision-compare__move-label {
-    color: var(--review-text-muted);
-    opacity: 1;
-  }
-
-  .narrative-evidence-status {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.18rem 0.45rem;
-    border-radius: 999px;
-    border: 1px solid currentColor;
-    background: var(--review-surface);
-    opacity: 1;
-  }
-
-  .narrative-collapse-card {
-    background: var(--review-collapse-surface);
-    border-color: var(--review-collapse-border);
-  }
-
-  .narrative-collapse-value.patch-line {
-    color: var(--review-accent);
   }
 
   .dna-stat-card {

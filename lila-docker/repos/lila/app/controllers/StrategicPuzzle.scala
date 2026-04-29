@@ -4,7 +4,6 @@ import play.api.libs.json.*
 import play.api.mvc.*
 
 import lila.app.*
-import lila.llm.UserFacingPayloadSanitizer
 import lila.strategicPuzzle.StrategicPuzzle.*
 
 final class StrategicPuzzle(
@@ -30,7 +29,7 @@ final class StrategicPuzzle(
       .bootstrapById(id, ctx.me.map(_.userId))
       .map:
         _.fold(NotFound(Json.obj("error" -> "That strategic puzzle is no longer available.")))(payload =>
-          JsonOk(Json.toJson(UserFacingPayloadSanitizer.sanitize(payload)))
+          JsonOk(Json.toJson(payload))
         )
 
   def next = Open:
@@ -39,7 +38,7 @@ final class StrategicPuzzle(
       .nextBootstrap(ctx.me.map(_.userId), excludeId)
       .map:
         _.fold(NotFound(Json.obj("error" -> "No live strategic puzzle is ready right now.")))(payload =>
-          JsonOk(Json.toJson(UserFacingPayloadSanitizer.sanitize(payload)))
+          JsonOk(Json.toJson(payload))
         )
 
   def complete(id: String) = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
@@ -58,7 +57,7 @@ final class StrategicPuzzle(
     )
 
   private def renderPage(payload: BootstrapPayload)(using Context): Fu[Result] =
-    Ok.page(views.pages.strategicPuzzlePage(UserFacingPayloadSanitizer.sanitize(payload)))
+    Ok.page(views.pages.strategicPuzzlePage(payload))
 
   private def renderEmptyPage(using Context): Fu[Result] =
     Ok.page(views.pages.strategicPuzzleEmpty())

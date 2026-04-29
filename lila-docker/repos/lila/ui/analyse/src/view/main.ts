@@ -7,7 +7,6 @@ import crazyView from '../crazy/crazyView';
 import type AnalyseCtrl from '../ctrl';
 import forecastView from '../forecast/forecastView';
 import { view as keyboardView } from '../keyboard';
-import { bookmakerToggleBox } from '../bookmaker';
 
 import { viewContext, renderBoard, renderMain, renderTools, renderUnderboard } from './components';
 import { boardRectSig } from './boardRect';
@@ -40,17 +39,15 @@ function analyseView(ctrl: AnalyseCtrl): VNode {
   return renderMain(
     ctx,
     ctrl.keyboardHelp && keyboardView(ctrl),
-    renderSide(ctrl),
     renderBoard(ctx),
     crazyView(ctrl, ctrl.topColor(), 'top'),
     renderTools(ctx),
     crazyView(ctrl, ctrl.bottomColor(), 'bottom'),
     renderControls(ctrl),
     renderUnderboard(ctx),
-    !ctrl.isReviewShell() && trainingView(ctrl),
-    !ctrl.isReviewShell() && ctrl.forecast && forecastView(ctrl, ctrl.forecast),
+    trainingView(ctrl),
+    ctrl.forecast && forecastView(ctrl, ctrl.forecast),
     !ctrl.synthetic &&
-    !ctrl.isReviewShell() &&
     playable(ctrl.data) &&
     hl(
       'div.back-to-game',
@@ -66,26 +63,6 @@ function analyseView(ctrl: AnalyseCtrl): VNode {
       ),
     ),
   );
-}
-
-function renderSide(ctrl: AnalyseCtrl): VNode | undefined {
-  if (!ctrl.opts.bookmaker) return;
-  if (ctrl.isReviewShell()) return;
-
-  return hl('aside.analyse__side', {
-    hook: {
-      insert: () => bookmakerToggleBox(ctrl),
-      update: () => bookmakerToggleBox(ctrl),
-    },
-  }, [
-    hl(
-      'fieldset.analyse__bookmaker.toggle-box.toggle-box--toggle.empty',
-      {
-        attrs: { id: 'bookmaker-field' },
-      },
-      [hl('legend', { attrs: { tabindex: '0' } }, 'Explain This Move'), hl('div.analyse__bookmaker-text')],
-    ),
-  ]);
 }
 
 function resizeHandler(ctrl: AnalyseCtrl) {

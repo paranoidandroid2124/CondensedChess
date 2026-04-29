@@ -52,7 +52,7 @@ object support:
               st.section(cls := "legal-section")(
                 h2("Open Beta Feedback"),
                 p(
-                  "If you just used Strategic Puzzle, Game Chronicle, or another core analysis surface, you can tell us whether it already feels worth paying for and optionally join the paid-plan waitlist."
+                  "If you just used Strategic Puzzle, Guided Review, or another core analysis surface, you can tell us whether it already feels worth paying for and optionally join the paid-plan waitlist."
                 ),
                 div(cls := "legal-actions")(
                   a(
@@ -81,8 +81,7 @@ object support:
                 h2("Current Access Policy"),
                 p("Support helps sustain the service, but access still follows the product's current login, quota, and fair-use controls."),
                 ul(
-                  li("Anonymous full-game review is currently limited to 1 Game Chronicle request per day per IP."),
-                  li("Signed-in free access is currently limited to 1 full-game review per day and 100 Bookmaker move requests per day."),
+                  li("Anonymous and signed-in beta access may use different daily limits by surface."),
                   li("Additional burst or fair-use controls may apply on higher-access beta tiers."),
                   li("Support does not bypass safety, abuse-prevention, or quota controls.")
                 )

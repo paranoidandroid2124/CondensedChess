@@ -5,12 +5,21 @@ import { fileURLToPath } from 'node:url';
 
 const componentsTs = readFileSync(fileURLToPath(new URL('../src/view/components.ts', import.meta.url)), 'utf8');
 const ctrlTs = readFileSync(fileURLToPath(new URL('../src/ctrl.ts', import.meta.url)), 'utf8');
+const interfacesTs = readFileSync(fileURLToPath(new URL('../src/interfaces.ts', import.meta.url)), 'utf8');
 const keyboardTs = readFileSync(fileURLToPath(new URL('../src/keyboard.ts', import.meta.url)), 'utf8');
 const analyseFreeScss = readFileSync(fileURLToPath(new URL('../css/_analyse.free.scss', import.meta.url)), 'utf8');
 const analyseLayoutScss = readFileSync(fileURLToPath(new URL('../css/_layout.scss', import.meta.url)), 'utf8');
 const chesstoryScss = readFileSync(fileURLToPath(new URL('../css/_chesstory.scss', import.meta.url)), 'utf8');
 const studyIndexScss = readFileSync(fileURLToPath(new URL('../css/study/_index.scss', import.meta.url)), 'utf8');
 const routes = readFileSync(fileURLToPath(new URL('../../../conf/routes', import.meta.url)), 'utf8');
+const analyseUiScala = readFileSync(
+  fileURLToPath(new URL('../../../modules/analyse/src/main/ui/AnalyseUi.scala', import.meta.url)),
+  'utf8',
+);
+const analyseViewScala = readFileSync(
+  fileURLToPath(new URL('../../../app/views/analyse.scala', import.meta.url)),
+  'utf8',
+);
 const userAnalysisController = readFileSync(
   fileURLToPath(new URL('../../../app/controllers/UserAnalysis.scala', import.meta.url)),
   'utf8',
@@ -82,21 +91,6 @@ const topNavScala = readFileSync(
   'utf8',
 );
 const importerView = readFileSync(fileURLToPath(new URL('../../../app/views/importer.scala', import.meta.url)), 'utf8');
-const narrativeCtrlTs = readFileSync(
-  fileURLToPath(new URL('../src/narrative/narrativeCtrl.ts', import.meta.url)),
-  'utf8',
-);
-const bookmakerTs = readFileSync(fileURLToPath(new URL('../src/bookmaker.ts', import.meta.url)), 'utf8');
-const narrativeViewTs = readFileSync(
-  fileURLToPath(new URL('../src/narrative/narrativeView.ts', import.meta.url)),
-  'utf8',
-);
-const reviewViewTs = readFileSync(fileURLToPath(new URL('../src/review/view.ts', import.meta.url)), 'utf8');
-const controlsTs = readFileSync(fileURLToPath(new URL('../src/view/controls.ts', import.meta.url)), 'utf8');
-const signalFormattingTs = readFileSync(
-  fileURLToPath(new URL('../src/chesstory/signalFormatting.ts', import.meta.url)),
-  'utf8',
-);
 
 describe('frontend audit regressions', () => {
   test('FEN workspace binds Enter to the relaunch path', () => {
@@ -147,6 +141,32 @@ describe('frontend audit regressions', () => {
     assert.match(componentsTs, /const submitPgnDraft = \(\) => \{/);
     assert.match(componentsTs, /\[icon\(licon\.PlayTriangle as any\), ' Import PGN'\]/);
     assert.doesNotMatch(componentsTs, /!isMobile\(\)\s*&&[\s\S]{0,240}Import PGN/);
+  });
+
+  test('notebook launch panel does not promise saved explanation transfer', () => {
+    const launchPanel = extractBetween(componentsTs, 'function renderStudyLaunchPanel', 'type FenDraftInspection');
+
+    assert.doesNotMatch(launchPanel, /studyTransferCountValue/);
+    assert.doesNotMatch(launchPanel, /saved explanation/i);
+    assert.doesNotMatch(launchPanel, /saved lines/i);
+    assert.doesNotMatch(ctrlTs, /studyTransferCount/);
+    assert.match(launchPanel, /PGN \+ move tree/);
+    assert.match(launchPanel, /Branches stay explorable/);
+  });
+
+  test('analysis server shell no longer renders bookmaker bootstrap UI', () => {
+    const analyseOptsBlock = extractBetween(interfacesTs, 'export interface AnalyseOpts', 'export interface JustCaptured');
+
+    assert.doesNotMatch(analyseUiScala, /"bookmaker"\s*->/);
+    assert.doesNotMatch(analyseUiScala, /analyse--bookmaker/);
+    assert.doesNotMatch(analyseUiScala, /analyse__bookmaker/);
+    assert.doesNotMatch(analyseUiScala, /data-bookmaker/);
+    assert.doesNotMatch(analyseUiScala, /bookmaker-field/);
+    assert.doesNotMatch(analyseUiScala, /Bookmaker/);
+    assert.doesNotMatch(analyseViewScala, /"bookmaker"\s*->/);
+    assert.doesNotMatch(analyseViewScala, /bookmaker:\s*Boolean/);
+    assert.doesNotMatch(userAnalysisController, /bookmaker\s*=/);
+    assert.doesNotMatch(analyseOptsBlock, /bookmaker\?:/);
   });
 
   test('strategic puzzle next navigation restores prior puzzle state through browser history', () => {
@@ -211,62 +231,6 @@ describe('frontend audit regressions', () => {
     assert.match(chesstoryScss, /\.notebook-shell > \.analyse \{[\s\S]*?padding: 0;/);
     assert.match(strategicPuzzleScss, /var\(---cs-workspace-max-width/);
     assert.doesNotMatch(strategicPuzzleScss, /width: min\(100%, 1460px\)/);
-  });
-
-  test('Game Chronicle can analyze a staged PGN draft and no longer nukes direct URLs for engine selection', () => {
-    assert.match(componentsTs, /void ctrl\.openNarrative\(pgnInspection\.status === 'ready' \? draftPgn : undefined\);/);
-    assert.match(narrativeCtrlTs, /fetchNarrative = async \(pgnOverride\?: string \| null\) => \{/);
-    assert.match(narrativeCtrlTs, /const pgn = stagedPgn && stagedPgn !== currentPgn \? stagedPgn : currentPgn;/);
-    assert.match(ctrlTs, /url\.searchParams\.delete\('engine'\);/);
-    assert.match(ctrlTs, /window\.history\.replaceState\(window\.history\.state, '', `\$\{url\.pathname\}\$\{url\.search\}\$\{url\.hash\}`\);/);
-    assert.doesNotMatch(ctrlTs, /site\.redirect\('\/analysis'\)/);
-  });
-
-  test('Game Chronicle persists across refresh for the same analysis context', () => {
-    assert.match(narrativeCtrlTs, /const NARRATIVE_SESSION_STORAGE_KEY = 'analyse\.game-chronicle\.session\.v2';/);
-    assert.match(narrativeCtrlTs, /syncPersistedNarrative = \(\): void => \{/);
-    assert.match(narrativeCtrlTs, /this\.persistNarrativeResponse\(response, pgnOverride\);/);
-    assert.match(narrativeCtrlTs, /tempStorage\.set\(NARRATIVE_SESSION_STORAGE_KEY, JSON\.stringify\(entries\)\);/);
-    assert.match(ctrlTs, /this\.narrative\.syncPersistedNarrative\(\);/);
-    assert.match(ctrlTs, /this\.narrative\?\.syncPersistedNarrative\(\);/);
-  });
-
-  test('review shell keeps import primary and moves utilities out of the main tab row', () => {
-    assert.match(reviewViewTs, /\{ tab: 'import', label: 'Import PGN' \}/);
-    assert.doesNotMatch(reviewViewTs, /\{ tab: 'reference', label: 'Reference' \}/);
-    assert.match(reviewViewTs, /renderUtilityPanel\(ctrl, nodes\)/);
-    assert.match(reviewViewTs, /'Opening Explorer'/);
-    assert.match(reviewViewTs, /'Close panel'/);
-    assert.doesNotMatch(reviewViewTs, /Reference sections/);
-    assert.match(reviewViewTs, /Paste a PGN or jump by FEN without leaving this analysis shell\./);
-    assert.match(reviewViewTs, /'Turn On Engine'/);
-    assert.match(reviewViewTs, /Use the engine switch in the header above to start local Stockfish/);
-    assert.match(reviewViewTs, /cleanNarrativeSurfaceLabel/);
-    assert.match(reviewViewTs, /bindPreviewHover/);
-    assert.match(reviewViewTs, /analyse-review__tabs-head/);
-    assert.match(controlsTs, /fbt--engine-toggle/);
-    assert.match(controlsTs, /title: reviewShell \? 'Opening explorer' : 'Opening explorer and Tablebase'/);
-    assert.match(controlsTs, /title: reviewShell \? 'Board view and settings' : 'Menu'/);
-    assert.match(controlsTs, /showLabel = displayColumns\(\) > 1/);
-    assert.match(componentsTs, /analyse-review__engine-stack/);
-    assert.match(componentsTs, /analyse-review__hover-preview-wrap/);
-    assert.match(componentsTs, /'Open recent games'/);
-    assert.match(analyseFreeScss, /&__next-actions[\s\S]*?> :last-child:nth-child\(odd\)[\s\S]*?grid-column: 1 \/ -1/);
-    assert.match(analyseFreeScss, /&__hover-preview-wrap/);
-    assert.match(analyseFreeScss, /&__utility/);
-    assert.match(componentsTs, /const notebookUrl =/);
-    assert.match(componentsTs, /notebookTarget\.pathname \+ notebookTarget\.search === window\.location\.pathname \+ window\.location\.search/);
-  });
-
-  test('review shell state migrates from v1 reference tabs to v2 utility panels', () => {
-    assert.match(ctrlTs, /const legacyReviewStateStorageKey = 'analyse\.review-shell\.v1';/);
-    assert.match(ctrlTs, /const reviewStateStorageKey = 'analyse\.review-shell\.v2';/);
-    assert.match(ctrlTs, /storedPrimaryTab === 'reference'/);
-    assert.match(ctrlTs, /storedReferenceTab === 'import'/);
-    assert.match(ctrlTs, /storedReferenceTab === 'explorer' \|\| storedReferenceTab === 'board'/);
-    assert.match(ctrlTs, /utilityPanel: null/);
-    assert.match(ctrlTs, /this\.setReviewUtilityPanel\(this\.reviewUtilityPanel\(\) === 'explorer' \? null : 'explorer'\)/);
-    assert.match(ctrlTs, /this\.setReviewUtilityPanel\(this\.reviewUtilityPanel\(\) === 'board' \? null : 'board'\)/);
   });
 
   test('recent games intake stays utility-first on the index page', () => {
@@ -382,54 +346,6 @@ describe('frontend audit regressions', () => {
     assert.match(journalView, /"The journal root stays as an archive landing so each published note has a single article URL\."/);
   });
 
-  test('narrative surface labels are cleaned before rendering review chips and badges', () => {
-    assert.match(signalFormattingTs, /export function cleanNarrativeSurfaceLabel/);
-    assert.match(signalFormattingTs, /export function cleanNarrativeProseText/);
-    assert.match(signalFormattingTs, /export function summarizeReviewMomentProse/);
-    assert.match(signalFormattingTs, /replace\(\/\\\*\\\*\/g, ''\)/);
-    assert.match(signalFormattingTs, /Played Line/);
-    assert.match(reviewViewTs, /cleanNarrativeProseText\(data\.intro\)/);
-    assert.match(reviewViewTs, /compact: true/);
-    assert.match(reviewViewTs, /Turn on local engine from the header above/);
-  });
-
-  test('bookmaker fallback guard still blocks internal commentary leak tokens', () => {
-    assert.match(bookmakerTs, /PlayableByPV\|PlayedPV\|return vector\|cash out/i);
-    assert.match(bookmakerTs, /engine-coupled continuation/);
-  });
-
-  test('bookmaker and chronicle default support surfaces use the compact player-facing panel with collapsed details', () => {
-    assert.match(bookmakerTs, /buildCompactSupportSurface/);
-    assert.match(bookmakerTs, /bookmaker-strategic-summary__title">Support/);
-    assert.match(bookmakerTs, /<details class="bookmaker-strategic-summary__details">/);
-    assert.match(bookmakerTs, /Advanced details/);
-
-    assert.match(narrativeViewTs, /buildCompactSupportSurface/);
-    assert.match(narrativeViewTs, /const decisionComparison = digest\?\.decisionComparison;/);
-    assert.doesNotMatch(narrativeViewTs, /narrativeFallbackDecisionComparison/);
-    assert.match(narrativeViewTs, /h3\.narrative-signal-title', 'Support'/);
-    assert.match(narrativeViewTs, /details\.narrative-advanced-details/);
-    assert.match(narrativeViewTs, /summary\.narrative-advanced-details__summary', 'Advanced details'/);
-  });
-
-  test('decision comparison surfaces only read canonical comparative digest fields for the new exact lane', () => {
-    const bookmakerDecisionBlock = extractBetween(
-      bookmakerTs,
-      'function renderDecisionCompareStrip(',
-      'type BookmakerStrategySurface = {',
-    );
-    const narrativeDecisionBlock = extractBetween(
-      narrativeViewTs,
-      'function narrativeDecisionMoveStrip(',
-      'function narrativeDecisionMoveChip(',
-    );
-
-    assert.match(bookmakerDecisionBlock, /comparison\?\.comparativeConsequence\?\.trim\(\) \? comparison\?\.comparedMove/);
-    assert.match(bookmakerDecisionBlock, /renderBookmakerMoveChip\('Compared'/);
-    assert.match(narrativeDecisionBlock, /comparison\.comparativeConsequence[\s\S]*narrativeDecisionMoveChip\('Compared'/);
-    assert.doesNotMatch(bookmakerDecisionBlock, /topEngineMove/);
-    assert.doesNotMatch(narrativeDecisionBlock, /topEngineMove/);
-  });
 });
 
 function extractBetween(source: string, start: string, end: string): string {

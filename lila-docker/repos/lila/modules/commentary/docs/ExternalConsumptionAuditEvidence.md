@@ -143,5 +143,5 @@ Local corroboration for those audit conclusions lives at:
 - [routes](/C:/Codes/CondensedChess/lila-docker/repos/lila/conf/routes:46)
 - [Main.scala](/C:/Codes/CondensedChess/lila-docker/repos/lila/app/controllers/Main.scala:165)
 - [Ops.scala](/C:/Codes/CondensedChess/lila-docker/repos/lila/app/controllers/Ops.scala:173)
-- [LlmController.scala](/C:/Codes/CondensedChess/lila-docker/repos/lila/app/controllers/LlmController.scala:216)
+- Removed legacy commentary controller path.
 - [build.sbt](/C:/Codes/CondensedChess/lila-docker/repos/lila/build.sbt:163)

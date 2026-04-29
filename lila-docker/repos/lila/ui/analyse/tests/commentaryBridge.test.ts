@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
-  buildCompletedProbeBridgePayload,
   buildCommentaryRequest,
   decodePublicCommentaryRender,
   fetchCommentaryRender,
@@ -19,13 +18,12 @@ const currentNode: CommentaryBridgeNodeIdentity = {
 
 describe('minimal commentary frontend bridge', () => {
   test('builds only the backend CommentaryRequest fields from exact node input', () => {
-    const completedProbePayload = completedProbeInput();
     const request = buildCommentaryRequest({
       current: currentNode,
       beforeFen: 'r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/5N2/PPP2PPP/RNBQKB1R w KQkq - 2 3',
       playedMove: 'b1c3',
       enginePacket: { nodeId: 'mainline:0', ply: 5, rawEval: 'must not display' },
-      completedProbePayload,
+      completedProbe: { rootProbe: { lines: [['e2e4']] } },
       debug: true,
       ignoredSourceContext: { truthClaim: 'best move' },
     } as any);
@@ -41,7 +39,7 @@ describe('minimal commentary frontend bridge', () => {
     assert.equal(request.currentFen, currentNode.currentFen);
     assert.equal(request.nodeId, currentNode.nodeId);
     assert.equal(request.ply, currentNode.ply);
-    assert.equal((request as any).completedProbePayload, undefined);
+    assert.equal((request as any).completedProbe, undefined);
     assert.equal((request as any).debug, undefined);
     assert.equal((request as any).ignoredSourceContext, undefined);
   });
@@ -53,7 +51,7 @@ describe('minimal commentary frontend bridge', () => {
         nodeId: currentNode.nodeId,
         ply: currentNode.ply,
         rawEval: 'allowed certification intake',
-        completedProbePayload: completedProbeInput(),
+        completedProbePayload: { rootProbe: { lines: [['e2e4']] } },
       },
     });
 
@@ -70,7 +68,7 @@ describe('minimal commentary frontend bridge', () => {
         cache: {
           CandidateLineEvidence: {
             parentBranchId: 'root-rank-1',
-            probeRequests: completedProbeInput().probeRequests,
+            probeRequests: [{ role: 'root_candidate' }],
           },
         },
       },
@@ -101,7 +99,7 @@ describe('minimal commentary frontend bridge', () => {
       { 'candidate-line': { rawEval: 'wrapper must still be rejected' } },
       { 'completed-probe': { depth: 18 } },
       { completed_probe: { depth: 18 } },
-      { wrapper: { probe_payload: { rootProbe: completedProbeInput().rootProbe } } },
+      { wrapper: { probe_payload: { rootProbe: { lines: [['e2e4']] } } } },
       { nested: { 'cache-key': 'candidate-line-cache' } },
       { nested: { internal_payload: { suppressions: [] } } },
     ]) {
@@ -110,282 +108,18 @@ describe('minimal commentary frontend bridge', () => {
     }
   });
 
-  test('builds a sanitized copied completed-probe bridge payload for root and child probes', () => {
-    const input = completedProbeInput();
-    const payload = buildCompletedProbeBridgePayload(input);
-
-    assert.deepEqual(payload, {
-      current: { ...currentNode, variant: 'standard' },
-      engineFingerprint: 'stockfish-local:16:nnue',
-      budget: {
-        rootMultiPv: 3,
-        childMultiPv: 2,
-        depthFloor: 16,
-        rootTargetDepth: 18,
-        childTargetDepth: 18,
-        maxAgeMillis: 60000,
-      },
-      probeRequests: [
-        {
-          role: 'root_candidate',
-          currentFen: currentNode.currentFen,
-          nodeId: currentNode.nodeId,
-          ply: currentNode.ply,
-          variant: 'standard',
-          multiPv: 3,
-          requestedDepth: 18,
-          depthFloor: 16,
-        },
-        {
-          role: 'defender_resource',
-          currentFen: childStartFen,
-          nodeId: 'mainline:0/e2e4',
-          ply: 6,
-          variant: 'standard',
-          multiPv: 2,
-          requestedDepth: 18,
-          depthFloor: 16,
-          parentBranchId: 'root-rank-1',
-          parentUciPrefix: ['e2e4'],
-          parentRootRank: 1,
-        },
-      ],
-      rootProbe: {
-        currentFen: currentNode.currentFen,
-        nodeId: currentNode.nodeId,
-        ply: currentNode.ply,
-        variant: 'standard',
-        engineFingerprint: 'stockfish-local:16:nnue',
-        requestedDepth: 18,
-        realizedDepth: 18,
-        multiPv: 3,
-        generatedAt: '2026-04-29T00:00:00.000Z',
-        maxAgeMillis: 60000,
-        completed: true,
-        lines: [
-          { rank: 1, multiPvIndex: 1, multiPv: 3, uci: ['e2e4', 'e7e5'] },
-          { rank: 2, multiPvIndex: 2, multiPv: 3, uci: ['d2d4', 'd7d5'] },
-          { rank: 3, multiPvIndex: 3, multiPv: 3, uci: ['g1f3', 'g8f6'] },
-        ],
-      },
-      childProbes: [
-        {
-          currentFen: childStartFen,
-          nodeId: 'mainline:0/e2e4',
-          ply: 6,
-          variant: 'standard',
-          engineFingerprint: 'stockfish-local:16:nnue',
-          parentBranchId: 'root-rank-1',
-          parentUciPrefix: ['e2e4'],
-          parentRootRank: 1,
-          requestedDepth: 18,
-          realizedDepth: 18,
-          multiPv: 2,
-          generatedAt: '2026-04-29T00:00:01.000Z',
-          maxAgeMillis: 60000,
-          completed: true,
-          lines: [
-            { rank: 1, multiPvIndex: 1, multiPv: 2, uci: ['e7e5', 'g1f3'] },
-            { rank: 2, multiPvIndex: 2, multiPv: 2, uci: ['c7c5', 'g1f3'] },
-          ],
-        },
-      ],
-    });
-  });
-
-  test('completed-probe payload helper strips display raw source debug and verdict fields', () => {
-    const payload = buildCompletedProbeBridgePayload(completedProbeInput({
-      rootProbe: {
-        san: ['e4'],
-        evalCp: 42,
-        centipawn: 42,
-        mate: null,
-        rawPv: 'e2e4 e7e5',
-        rawText: 'info depth 18 score cp 42',
-        bestMove: 'e2e4',
-        engineLabel: 'Stockfish display label',
-        sourceRows: [{ id: 'opening-row' }],
-        retrievalSnippets: ['source text'],
-        debug: { raw: true },
-        internal: { cache: 'secret' },
-        prose: 'Play e4.',
-        recommendation: 'best',
-        verdict: 'winning',
-        result: '1-0',
-        theory: 'main line',
-      },
-      childProbes: [
-        {
-          sanHints: ['...e5'],
-          eval: 'equal',
-          sourceRow: { id: 'child-source' },
-          debugInfo: 'secret',
-          prose: 'Black answers.',
-          recommendation: 'best defense',
-          verdict: 'draw',
-          result: '1/2-1/2',
-        },
-      ],
-    }));
-
-    assert.notEqual(payload, null);
-    const serialized = JSON.stringify(payload);
-    for (const forbiddenKey of [
-      '"san"',
-      '"sanHints"',
-      '"eval"',
-      '"evalCp"',
-      '"centipawn"',
-      '"mate"',
-      '"rawPv"',
-      '"rawText"',
-      '"bestMove"',
-      '"engineLabel"',
-      '"sourceRows"',
-      '"sourceRow"',
-      '"retrievalSnippets"',
-      '"debug"',
-      '"debugInfo"',
-      '"internal"',
-      '"prose"',
-      '"recommendation"',
-      '"verdict"',
-      '"result"',
-      '"theory"',
-    ])
-      assert.doesNotMatch(serialized, new RegExp(forbiddenKey, 'i'));
-  });
-
-  test('completed-probe payload helper fails closed on wrong identity policy depth and UCI shape', () => {
-    const cases = [
-      completedProbeInput({ current: { nodeId: 'other-node' } }),
-      completedProbeInput({ rootProbe: { currentFen: '8/8/8/8/8/8/8/8 w - - 0 1' } }),
-      completedProbeInput({ rootProbe: { engineFingerprint: '' } }),
-      completedProbeInput({ rootProbe: { completed: false } }),
-      completedProbeInput({ rootProbe: { multiPv: 2, lines: rootLines(2) } }),
-      completedProbeInput({ rootProbe: { multiPv: 4, lines: rootLines(4) } }),
-      completedProbeInput({ childProbes: [{ multiPv: 1, lines: childLines(1) }] }),
-      completedProbeInput({ childProbes: [{ multiPv: 3, lines: childLines(3) }] }),
-      completedProbeInput({ rootProbe: { realizedDepth: 15 } }),
-      completedProbeInput({ childProbes: [{ realizedDepth: 15 }] }),
-      completedProbeInput({ rootProbe: { lines: [{ rank: 1, multiPvIndex: 1, multiPv: 3, uci: [] }] } }),
-      completedProbeInput({ rootProbe: { lines: [{ rank: 1, multiPvIndex: 1, multiPv: 3, uci: ['e2-e4'] }] } }),
-      completedProbeInput({ childProbes: [{ parentBranchId: '' }] }),
-      completedProbeInput({ childProbes: [{ parentUciPrefix: [] }] }),
-    ];
-
-    for (const input of cases) assert.equal(buildCompletedProbeBridgePayload(input), null);
-  });
-
-  test('completed-probe payload helper fails closed on permuted root rank MultiPV pairs', () => {
-    assert.equal(
-      buildCompletedProbeBridgePayload(completedProbeInput({
-        rootProbe: {
-          lines: [
-            { rank: 1, multiPvIndex: 2, multiPv: 3, uci: ['e2e4', 'e7e5'] },
-            { rank: 2, multiPvIndex: 1, multiPv: 3, uci: ['d2d4', 'd7d5'] },
-            { rank: 3, multiPvIndex: 3, multiPv: 3, uci: ['g1f3', 'g8f6'] },
-          ],
-        },
-      })),
-      null,
-    );
-  });
-
-  test('completed-probe payload helper fails closed on permuted child rank MultiPV pairs', () => {
-    assert.equal(
-      buildCompletedProbeBridgePayload(completedProbeInput({
-        childProbes: [
-          {
-            lines: [
-              { rank: 1, multiPvIndex: 2, multiPv: 2, uci: ['e7e5', 'g1f3'] },
-              { rank: 2, multiPvIndex: 1, multiPv: 2, uci: ['c7c5', 'g1f3'] },
-            ],
-          },
-        ],
-      })),
-      null,
-    );
-  });
-
-  test('completed-probe payload helper fails closed when root probe request does not match current exactly', () => {
-    const rootRequest = completedProbeInput().probeRequests[0];
-    const cases = [
-      { ...rootRequest, currentFen: '8/8/8/8/8/8/8/8 w - - 0 1' },
-      { ...rootRequest, nodeId: 'other-node' },
-      { ...rootRequest, ply: currentNode.ply + 1 },
-      { ...rootRequest, variant: 'chess960' },
-      { ...rootRequest, multiPv: 2 },
-      { ...rootRequest, requestedDepth: 17 },
-      { ...rootRequest, depthFloor: 17 },
-    ];
-
-    for (const probeRequest of cases)
-      assert.equal(
-        buildCompletedProbeBridgePayload(completedProbeInput({ probeRequests: [probeRequest, completedProbeInput().probeRequests[1]] })),
-        null,
-      );
-  });
-
-  test('completed-probe payload helper fails closed when child probe requests do not match sanitized child probes', () => {
-    const childRequest = completedProbeInput().probeRequests[1];
-    const cases = [
-      { ...childRequest, currentFen: currentNode.currentFen },
-      { ...childRequest, nodeId: currentNode.nodeId },
-      { ...childRequest, ply: currentNode.ply },
-      { ...childRequest, variant: 'chess960' },
-      { ...childRequest, multiPv: 3 },
-      { ...childRequest, requestedDepth: 17 },
-      { ...childRequest, depthFloor: 17 },
-      { ...childRequest, parentBranchId: 'other-branch' },
-      { ...childRequest, parentUciPrefix: ['d2d4'] },
-      { ...childRequest, parentRootRank: 2 },
-    ];
-
-    for (const probeRequest of cases)
-      assert.equal(
-        buildCompletedProbeBridgePayload(completedProbeInput({ probeRequests: [completedProbeInput().probeRequests[0], probeRequest] })),
-        null,
-      );
-  });
-
-  test('completed-probe payload helper fails closed when a sanitized child probe has no request', () => {
-    assert.equal(buildCompletedProbeBridgePayload(completedProbeInput({ probeRequests: [completedProbeInput().probeRequests[0]] })), null);
-  });
-
-  test('completed-probe payload helper treats only undefined or null childProbes as absent', () => {
-    for (const childProbes of [false, 0, ''] as const) {
-      const input = completedProbeInput();
-      (input as any).childProbes = childProbes;
-      (input as any).probeRequests = [completedProbeInput().probeRequests[0]];
-
-      assert.equal(buildCompletedProbeBridgePayload(input), null);
+  test('omits enginePacket for proof raw PV and source-row field variants', () => {
+    for (const enginePacket of [
+      { proofId: 'caller-proof' },
+      { proves: 'best_move' },
+      { rawPv: 'e2e4 e7e5' },
+      { raw_lines: ['e2e4'] },
+      { rawProbe: { lines: ['e2e4'] } },
+      { sourceRow: { verdict: 'best' } },
+    ]) {
+      const request = buildCommentaryRequest({ current: currentNode, enginePacket });
+      assert.equal(request.enginePacket, undefined);
     }
-
-    assert.notEqual(
-      buildCompletedProbeBridgePayload({ ...completedProbeInput(), childProbes: undefined, probeRequests: [completedProbeInput().probeRequests[0]] }),
-      null,
-    );
-    assert.notEqual(
-      buildCompletedProbeBridgePayload({ ...completedProbeInput(), childProbes: null, probeRequests: [completedProbeInput().probeRequests[0]] }),
-      null,
-    );
-  });
-
-  test('completed-probe payload helper deep-copies mutable source arrays', () => {
-    const input = completedProbeInput();
-    const payload = buildCompletedProbeBridgePayload(input);
-    assert.notEqual(payload, null);
-
-    input.rootProbe.lines[0].uci[0] = 'a2a3';
-    input.childProbes![0].parentUciPrefix[0] = 'a2a3';
-    input.childProbes![0].lines[0].uci.push('a7a6');
-    input.probeRequests![1].parentUciPrefix![0] = 'a2a3';
-
-    assert.deepEqual(payload.rootProbe.lines[0].uci, ['e2e4', 'e7e5']);
-    assert.deepEqual(payload.childProbes[0].parentUciPrefix, ['e2e4']);
-    assert.deepEqual(payload.childProbes[0].lines[0].uci, ['e7e5', 'g1f3']);
-    assert.deepEqual(payload.probeRequests[1].parentUciPrefix, ['e2e4']);
   });
 
   test('keeps response display public-only and never exposes internal suppressions', () => {
@@ -668,8 +402,8 @@ describe('minimal commentary frontend bridge', () => {
       current: currentNode,
       enginePacket: {
         rawEval: 'allowed certification intake',
-        rootProbe: completedProbeInput().rootProbe,
-        childProbes: completedProbeInput().childProbes,
+        rootProbe: { lines: [['e2e4']] },
+        childProbes: [{ lines: [['e7e5']] }],
         cacheKey: 'candidate-line-cache',
       },
       getCurrent: () => currentNode,
@@ -683,7 +417,7 @@ describe('minimal commentary frontend bridge', () => {
     assert.doesNotMatch(JSON.stringify(sentRequest), /rootProbe|childProbes|cacheKey|completedProbePayload|CandidateLineEvidence/);
   });
 
-  test('frontend bridge contract docs freeze adapter-only scope and forbidden responsibilities', () => {
+  test('frontend bridge contract docs freeze display-only scope and forbidden responsibilities', () => {
     const contract = readFileSync(
       fileURLToPath(new URL('../../../modules/commentary/docs/CommentaryFrontendBridgeContract.md', import.meta.url)),
       'utf8',
@@ -698,12 +432,19 @@ describe('minimal commentary frontend bridge', () => {
       'buildCommentaryRequest',
       'decodePublicCommentaryRender',
       'fetchCommentaryRender',
-      'buildCompletedProbeBridgePayload',
-      'completed-probe payload helper only',
-      'not a public controller or API route field',
-      'not product UI',
-      'not Stockfish execution',
-      'not SAN authority',
+      'first display-only analyse product surface',
+      'moveExplanation.ts',
+      'moveExplanationView.ts',
+      'POST /api/commentary/render',
+      'backend-prepared block `RenderText.publicText`',
+      'public SAN notation',
+      'Late or overlapping responses must not overwrite',
+      'completed-probe payloads',
+      'not public controller/API route fields',
+      'localProbe.ts',
+      'server-provided analyse',
+      'frontend authority over commentary truth',
+      'SAN generation',
       'schemaVersion',
       'evidenceIds',
       'forbiddenTerms',
@@ -711,7 +452,7 @@ describe('minimal commentary frontend bridge', () => {
       'must not admit',
       'must not revive',
       'must not upgrade wording',
-      'no product UI',
+      'must not render proof ids',
     ])
       assert.match(contract, new RegExp(token));
     assert.match(core, /CommentaryFrontendBridgeContract\.md/);
@@ -806,123 +547,4 @@ function publicVariationEvidence() {
     wordingCap: 'qualified_support',
     surfaceAllowance: 'public_line',
   };
-}
-
-const childStartFen = 'r1bqkbnr/pppp1ppp/2n5/4p3/4P3/2N2N2/PPPP1PPP/R1BQKB1R b KQkq - 0 3';
-
-function completedProbeInput(overrides: any = {}) {
-  const current = { ...currentNode, variant: 'standard', ...(overrides.current || {}) };
-  const rootProbe = {
-    currentFen: currentNode.currentFen,
-    nodeId: currentNode.nodeId,
-    ply: currentNode.ply,
-    variant: 'standard',
-    engineFingerprint: 'stockfish-local:16:nnue',
-    requestedDepth: 18,
-    realizedDepth: 18,
-    multiPv: 3,
-    generatedAt: '2026-04-29T00:00:00.000Z',
-    maxAgeMillis: 60000,
-    completed: true,
-    lines: rootLines(3),
-    ...(overrides.rootProbe || {}),
-  };
-  const childProbes =
-    overrides.childProbes === undefined
-      ? [
-          {
-            currentFen: childStartFen,
-            nodeId: 'mainline:0/e2e4',
-            ply: 6,
-            variant: 'standard',
-            engineFingerprint: 'stockfish-local:16:nnue',
-            parentBranchId: 'root-rank-1',
-            parentUciPrefix: ['e2e4'],
-            parentRootRank: 1,
-            requestedDepth: 18,
-            realizedDepth: 18,
-            multiPv: 2,
-            generatedAt: '2026-04-29T00:00:01.000Z',
-            maxAgeMillis: 60000,
-            completed: true,
-            lines: childLines(2),
-          },
-        ]
-      : [
-          {
-            currentFen: childStartFen,
-            nodeId: 'mainline:0/e2e4',
-            ply: 6,
-            variant: 'standard',
-            engineFingerprint: 'stockfish-local:16:nnue',
-            parentBranchId: 'root-rank-1',
-            parentUciPrefix: ['e2e4'],
-            parentRootRank: 1,
-            requestedDepth: 18,
-            realizedDepth: 18,
-            multiPv: 2,
-            generatedAt: '2026-04-29T00:00:01.000Z',
-            maxAgeMillis: 60000,
-            completed: true,
-            lines: childLines(2),
-            ...(overrides.childProbes[0] || {}),
-          },
-        ];
-  return {
-    current,
-    engineFingerprint: 'stockfish-local:16:nnue',
-    budget: {
-      rootMultiPv: 3,
-      childMultiPv: 2,
-      depthFloor: 16,
-      rootTargetDepth: 18,
-      childTargetDepth: 18,
-      maxAgeMillis: 60000,
-      ...(overrides.budget || {}),
-    },
-    probeRequests: overrides.probeRequests || [
-      {
-        role: 'root_candidate',
-        currentFen: currentNode.currentFen,
-        nodeId: currentNode.nodeId,
-        ply: currentNode.ply,
-        variant: 'standard',
-        multiPv: 3,
-        requestedDepth: 18,
-        depthFloor: 16,
-      },
-      {
-        role: 'defender_resource',
-        currentFen: childStartFen,
-        nodeId: 'mainline:0/e2e4',
-        ply: 6,
-        variant: 'standard',
-        multiPv: 2,
-        requestedDepth: 18,
-        depthFloor: 16,
-        parentBranchId: 'root-rank-1',
-        parentUciPrefix: ['e2e4'],
-        parentRootRank: 1,
-      },
-    ],
-    rootProbe,
-    childProbes,
-  };
-}
-
-function rootLines(multiPv: number) {
-  return [
-    { rank: 1, multiPvIndex: 1, multiPv, uci: ['e2e4', 'e7e5'] },
-    { rank: 2, multiPvIndex: 2, multiPv, uci: ['d2d4', 'd7d5'] },
-    { rank: 3, multiPvIndex: 3, multiPv, uci: ['g1f3', 'g8f6'] },
-    { rank: 4, multiPvIndex: 4, multiPv, uci: ['c2c4', 'g8f6'] },
-  ].slice(0, multiPv);
-}
-
-function childLines(multiPv: number) {
-  return [
-    { rank: 1, multiPvIndex: 1, multiPv, uci: ['e7e5', 'g1f3'] },
-    { rank: 2, multiPvIndex: 2, multiPv, uci: ['c7c5', 'g1f3'] },
-    { rank: 3, multiPvIndex: 3, multiPv, uci: ['g8f6', 'g1f3'] },
-  ].slice(0, multiPv);
 }

@@ -162,12 +162,6 @@ final class Main(
           Ok(data)
     else NotFound("Invalid prometheus key")
 
-  def commentaryOps(key: String, limit: Int) = Anon:
-    if key == env.web.config.prometheusKey
-    then Ok(Json.toJson(env.llm.api.commentaryOpsSnapshot(limit.max(1).min(50))))
-    else NotFound("Invalid commentary ops key")
-
-
   def devAsset(@scala.annotation.unused v: String, path: String, file: String) = assetsC.at(path, file)
 
   private def healthChecks =
@@ -183,12 +177,7 @@ final class Main(
           required = true,
           detail = if mongoReady then "query_ok" else "query_failed"
         ),
-        Main.mailerCheck(env.config, env.mailer.mailer.canSend, required = requiredInProd),
-        Main.llmCheck(
-          openAiEnabled = env.llm.openAiClient.isEnabled,
-          geminiEnabled = env.llm.geminiClient.isEnabled,
-          required = requiredInProd
-        )
+        Main.mailerCheck(env.config, env.mailer.mailer.canSend, required = requiredInProd)
       ) ++ bindingStatuses.flatMap(Main.bindingHealthCheck(_, requiredInProd))
 
   private def mongoHealth =
@@ -258,15 +247,6 @@ object Main:
       else if missing.nonEmpty then s"missing:${missing.mkString(",")}"
       else "configured"
     HealthCheck("mailer", ok = ok, required = required, detail = detail)
-
-  def llmCheck(openAiEnabled: Boolean, geminiEnabled: Boolean, required: Boolean): HealthCheck =
-    val ok = openAiEnabled || geminiEnabled
-    val detail =
-      if openAiEnabled && geminiEnabled then "openai+gemini"
-      else if openAiEnabled then "openai"
-      else if geminiEnabled then "gemini"
-      else "disabled"
-    HealthCheck("llm", ok = ok, required = required, detail = detail)
 
   def bindingHealthCheck(
       status: OpenBetaBindingStatus,

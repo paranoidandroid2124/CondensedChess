@@ -43,7 +43,6 @@ POST  /auth/token/:token               controllers.Auth.loginWithTokenPost(token
 GET   /ops                             controllers.Ops.landing
 GET   /ops/members                     controllers.Ops.members
 GET   /ops/metrics                     controllers.Ops.metrics
-GET   /ops/commentary                  controllers.Ops.commentary(limit: Int ?= 20)
 GET   /ops/members/:id                 controllers.Ops.member(id: UserStr, advanced: Boolean ?= false)
 GET   /ops/members/:id/audit           controllers.Ops.audit(id: UserStr, page: Int ?= 1)
 GET   /ops/members/:id/plan-ledger     controllers.Ops.planLedger(id: UserStr)
@@ -92,8 +91,6 @@ POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/delete-node controllers.Study.dele
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/promote controllers.Study.promoteNode(id: StudyId, chapterId: StudyChapterId)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/force-variation controllers.Study.forceVariationNode(id: StudyId, chapterId: StudyChapterId)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/comment controllers.Study.setNodeComment(id: StudyId, chapterId: StudyChapterId)
-POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/bookmaker-sync controllers.Study.bookmakerSync(id: StudyId, chapterId: StudyChapterId)
-POST  /api/study/$id<\w{8}>/notebook-dossier controllers.Study.setNotebookDossier(id: StudyId)
 
 # User Analysis
 GET   /analysis/help                   controllers.UserAnalysis.help
@@ -106,14 +103,10 @@ GET   /embed/analysis                  controllers.UserAnalysis.embed
 # Explorer Proxy (authenticated upstream relay)
 GET   /api/explorer/:db                controllers.ExplorerProxy.opening(db: String)
 
-# LLM Analysis
-POST  /api/llm/game-analysis-local     controllers.LlmController.analyzeGameLocal
-POST  /api/llm/game-analysis-async     controllers.LlmController.analyzeGameAsync
-GET   /api/llm/game-analysis-async/:jobId controllers.LlmController.analyzeGameAsyncStatus(jobId)
-POST  /api/llm/bookmaker-position      controllers.LlmController.bookmakerPosition
-GET   /api/llm/opening/masters          controllers.LlmController.openingMasters(fen: String)
-GET   /api/llm/opening/master-pgn/:id   controllers.LlmController.openingMasterPgn(id)
-GET   /api/llm/defeat-dna              controllers.LlmController.defeatDna
+# Commentary
+POST  /api/commentary/render           controllers.Commentary.renderCommentary
+POST  /internal/commentary/render-local-probe controllers.Commentary.renderLocalProbeCommentary
+
 GET   /support                         controllers.Main.support
 GET   /plan                            controllers.Main.plan
 GET   /beta-feedback                   controllers.BetaFeedback.formPage(surface: String ?= "general", feature: String ?= "", entrypoint: String ?= "", returnTo: String ?= "", notify: Boolean ?= false)
@@ -162,7 +155,6 @@ GET   /robots.txt                      controllers.Main.robots
 GET   /healthz                         controllers.Main.healthz
 GET   /livez                           controllers.Main.livez
 GET   /prometheus-metrics/:key         controllers.Main.prometheusMetrics(key)
-GET   /internal/commentary-ops/:key    controllers.Main.commentaryOps(key, limit: Int ?= 20)
 
 GET   /contact                         controllers.Main.contact
 GET   /privacy                         controllers.Main.privacy

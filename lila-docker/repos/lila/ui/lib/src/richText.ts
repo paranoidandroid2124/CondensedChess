@@ -67,7 +67,7 @@ export const expandMentions = (html: string): string => html.replace(userPattern
 
 export function enrichText(text: string, allowNewlines = true): string {
   let html = autolink(escapeHtml(text), toLink);
-  // Support Markdown-style emphasis used by the Bookmaker prompt (**...**).
+  // Support Markdown-style emphasis in user-facing rich text (**...**).
   html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   if (allowNewlines) html = html.replace(newLineRegex, '<br>');
   return html;

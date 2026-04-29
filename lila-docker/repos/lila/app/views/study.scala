@@ -2,8 +2,6 @@ package views
 
 import play.api.libs.json.{ JsObject, Json }
 
-import scala.util.Try
-
 import lila.app.UiEnv
 import lila.app.UiEnv.*
 import lila.study.{ Chapter, Study }
@@ -27,10 +25,6 @@ object study:
       )
     )
 
-  private def notebookDossierJson(study: Study): Option[JsObject] =
-    study.notebookDossier.flatMap: raw =>
-      Try(Json.parse(raw).as[JsObject]).toOption
-
   private def notebookLede(study: Study, chapter: Chapter): String =
     s"Working inside ${study.name.value}. The board below stays scoped to ${chapter.name.value}, and the rail lets you jump across saved sections without losing context."
 
@@ -51,8 +45,7 @@ object study:
     def chapter(data: JsObject, study: Study, chapter: Chapter, canWrite: Boolean, chapters: List[Chapter.IdName])(
         using ctx: Context
     ): Page =
-      val dossierJson = notebookDossierJson(study)
-      val studyCfgBase =
+      val studyCfg =
         Json.obj(
           "id" -> study.id.value,
           "chapterId" -> chapter.id.value,
@@ -69,12 +62,10 @@ object study:
             )
           )
         )
-      val studyCfg = dossierJson.fold(studyCfgBase)(dossier => studyCfgBase ++ Json.obj("notebookDossier" -> dossier))
       val cfg =
         Json
           .obj(
             "data" -> data,
-            "bookmaker" -> (chapter.setup.variant.standard || chapter.setup.variant.chess960),
             "study" -> studyCfg
           ) ++ analyseUi.explorerAndCevalConfig
 

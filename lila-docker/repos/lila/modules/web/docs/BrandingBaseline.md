@@ -12,7 +12,6 @@ Date: 2026-02-18
 - Previous branding pass touched files: `34` (`git show --stat -1 e809325a`).
 - jQuery direct DOM call occurrences (`$('`) in first-party analysis/site/lib: `123`.
 - Key file line counts:
-  - `ui/analyse/src/bookmaker.ts`: `532` lines
   - `ui/site/src/topBar.ts`: `118` lines
   - `modules/web/src/main/ui/layout.scala`: `199` lines
 
