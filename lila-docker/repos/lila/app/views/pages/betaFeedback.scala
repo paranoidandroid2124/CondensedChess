@@ -89,7 +89,7 @@ object betaFeedback:
                     id := "feature",
                     name := "feature",
                     value := feedbackForm("feature").value.getOrElse(""),
-                    placeholder := "Full PGN review, post-game repair, strategic puzzle pack..."
+                    placeholder := "Move explanation, PGN import flow, strategic puzzle pack..."
                   ),
                   p(cls := "legal-note")("Optional. Use this when a specific feature or prompt triggered the feedback request.")
                 ),

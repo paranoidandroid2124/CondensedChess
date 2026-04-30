@@ -844,12 +844,44 @@ object ClaimSelector:
       Option.when(claim.anchor.exists(_.trim.isEmpty) || claim.anchor.isEmpty && requiresAnchor(claim))(SuppressionReason.WrongAnchor),
       Option.when(claim.route.exists(_.trim.isEmpty) || claim.route.isEmpty && requiresRoute(claim))(SuppressionReason.WrongRoute),
       Option.when(claim.scope.exists(_.trim.isEmpty) || claim.scope.isEmpty && requiresScope(claim))(SuppressionReason.ScopeMismatch),
+      Option.when(claim.layer == ClaimLayer.Object && claim.route.contains("tactical_liability"))(SuppressionReason.ForbiddenShortcut),
       Option.when(claim.evidenceRefs.isEmpty)(SuppressionReason.NoBoardReason)
     ).flatten
     (directReasons ++
       evidenceRefReasons(claim, claim.evidenceRefs) ++
+      moveLocalLooseCarrierReasons(claim) ++
       boardClaimLowerCarrierShortcutReasons(claim) ++
       engineCertificationBoundaryReasons(claim)).distinct
+
+  private def moveLocalLooseCarrierReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
+    if claim.layer == ClaimLayer.Delta && claim.route.contains("moved_piece_left_loose") then
+      val hasTransitionEvidence =
+        claim.evidenceRefs.exists(ref =>
+          ref.kind == EvidenceRefKind.Delta &&
+            ref.id == "moved_piece_left_loose_transition" &&
+            sameClaimBinding(claim, ref)
+        )
+      val hasBoundLooseRoot =
+        claim.lowerCarrierRefs.exists(ref =>
+          ref.kind == EvidenceRefKind.Root &&
+            ref.id == "loose_piece" &&
+            sameClaimBinding(claim, ref)
+        )
+      val hasImmediateCaptureCarrier =
+        claim.lowerCarrierRefs.exists(ref =>
+          ref.kind == EvidenceRefKind.Object &&
+            ref.id == "immediate_capture" &&
+            sameClaimBinding(claim, ref)
+        )
+      Vector(
+        Option.when(!hasTransitionEvidence)(SuppressionReason.ForbiddenShortcut),
+        Option.when(!hasTransitionEvidence)(SuppressionReason.NoBoardReason),
+        Option.when(!hasBoundLooseRoot)(SuppressionReason.ForbiddenShortcut),
+        Option.when(!hasBoundLooseRoot)(SuppressionReason.NoBoardReason),
+        Option.when(!hasImmediateCaptureCarrier)(SuppressionReason.ForbiddenShortcut),
+        Option.when(!hasImmediateCaptureCarrier)(SuppressionReason.NoBoardReason)
+      ).flatten
+    else Vector.empty
 
   private def boardClaimLowerCarrierShortcutReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
     claim.lowerCarrierRefs.flatMap: ref =>
@@ -1757,5 +1789,9 @@ object ClaimSelector:
     if claim.layer == ClaimLayer.Certification &&
       (claim.impact.resultMaterialImpact >= 80 || claim.impact.forcedness >= 80 || claim.impact.immediacy >= 80)
     then ClaimBucket.MustLead
+    else if claim.layer == ClaimLayer.Delta && isGenericTransitionClaim(claim) then ClaimBucket.CanLead
     else if claim.layer == ClaimLayer.Delta || claim.layer == ClaimLayer.Projection then ClaimBucket.ShouldLead
     else ClaimBucket.CanLead
+
+  private def isGenericTransitionClaim(claim: CommentaryClaim): Boolean =
+    claim.route.exists(route => route == "last_move_transition" || route == "pawn_structure_transition")

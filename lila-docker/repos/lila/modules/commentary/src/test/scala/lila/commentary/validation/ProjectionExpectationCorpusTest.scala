@@ -1553,14 +1553,10 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
               !admittedS03Fens.contains(row.normalizedFen),
               clues(s"${row.id} must not reuse an admitted S03 board for a scaffold-without-diagonal negative")
             )
-            assert(
+            assertEquals(
               hasObjectFamily(row, "AttackScaffold"),
-              clues(s"${row.id} must expose real AttackScaffold support")
-            )
-            assert(
-              hasCertifiedFamily(row, "ComparativeKingFragility") &&
-                hasCertifiedFamily(row, "CertifiedKingSafetyEdge"),
-              clues(s"${row.id} must expose real certified lower support")
+              false,
+              clues(s"${row.id} must not let loose geometry-only pressure recreate AttackScaffold support")
             )
             val defenderKingRing = exactUContext(row).kingRingSquaresFor(!row.validatedOwner).toSet
             val diagonalWitnesses =
@@ -3583,7 +3579,13 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         row.validatedRequiredCertificationFamilies.nonEmpty ||
         row.validatedOptionalStrengtheningFamilies.nonEmpty ||
         row.validatedSupportWitnessIds.nonEmpty
-    assert(hasDeclaredCarrier, clues(s"${row.id} must declare at least one exact lower carrier"))
+    val explicitlyNegativeCarrierAbsence =
+      row.countableCoveragePair.contains("shortcut_negative" -> "attack_scaffold_only") &&
+        row.expectation == "rejected"
+    assert(
+      hasDeclaredCarrier || explicitlyNegativeCarrierAbsence,
+      clues(s"${row.id} must declare at least one exact lower carrier")
+    )
 
     val allWitnesses = currentWitnesses(row)
     row.validatedRequiredWitnessIds.foreach: witnessId =>
@@ -3635,11 +3637,12 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
             row.validatedRequiredWitnessIds.toSet.contains("pawn_push_break_contact_source"),
           clues(s"${row.id} S01 storm route must require both lever and break-contact witnesses")
         )
-        assert(
-          row.validatedRequiredObjectFamilies.contains("AttackScaffold") &&
-            row.validatedRequiredCertificationFamilies.contains("CertifiedKingSafetyEdge"),
-          clues(s"${row.id} S01 storm route must stay tied to same-king attack scaffold plus certified edge")
-        )
+        if row.expectation == "admitted" then
+          assert(
+            row.validatedRequiredObjectFamilies.contains("AttackScaffold") &&
+              row.validatedRequiredCertificationFamilies.contains("CertifiedKingSafetyEdge"),
+            clues(s"${row.id} admitted S01 storm route must stay tied to same-king attack scaffold plus certified edge")
+          )
         assert(
           ownerBreakContactTargetSquares(row).exists(isKingWing),
           clues(s"${row.id} S01 storm route must expose a same-wing pawn contact target")
@@ -3650,14 +3653,27 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
             row.validatedRequiredCertificationFamilies.contains("CertifiedKingSafetyEdge"),
           clues(s"${row.id} S02 route must require attack scaffold plus certified king-safety edge")
         )
+        if row.expectation == "admitted" then
+          assert(
+            hasS02LooseBoundAttackScaffold(row),
+            clues(s"${row.id} admitted S02 route must bind loose scaffold support to the public source/target pair")
+          )
       case ("diagonal_attack_route", _) =>
         assert(
-          row.validatedRequiredWitnessIds.contains("diagonal_lane_only") &&
-            row.validatedRequiredObjectFamilies.contains("AttackScaffold") &&
-            row.validatedRequiredCertificationFamilies.contains("ComparativeKingFragility") &&
-            row.validatedRequiredCertificationFamilies.contains("CertifiedKingSafetyEdge"),
-          clues(s"${row.id} S03 route must require exact diagonal lane, attack scaffold, comparative fragility, and certified king-safety support")
+          row.validatedRequiredWitnessIds.contains("diagonal_lane_only"),
+          clues(s"${row.id} S03 route must require exact diagonal lane support")
         )
+        if row.expectation == "admitted" then
+          assert(
+            row.validatedRequiredObjectFamilies.contains("AttackScaffold") &&
+              row.validatedRequiredCertificationFamilies.contains("ComparativeKingFragility") &&
+              row.validatedRequiredCertificationFamilies.contains("CertifiedKingSafetyEdge"),
+            clues(s"${row.id} admitted S03 route must require attack scaffold, comparative fragility, and certified king-safety support")
+          )
+          assert(
+            hasS03LooseBoundAttackScaffold(row),
+            clues(s"${row.id} admitted S03 route must bind loose scaffold support to the diagonal source/endpoints")
+          )
       case ("shelter_breach_route", _) =>
         val shellTargets = defenderObjectSupportTargetSquares(row, "KingSafetyShell")
         val certifiedTargets = certifiedSupportTargetSquares(row, "CertifiedKingSafetyEdge")
@@ -3665,11 +3681,15 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           row.validatedRequiredObjectFamilies.contains("KingSafetyShell") &&
             !row.validatedOptionalStrengtheningFamilies.contains("KingSafetyShell") &&
             hasDefenderObject("KingSafetyShell") &&
-            row.validatedRequiredCertificationFamilies.contains("CertifiedKingSafetyEdge") &&
-            shellTargets.nonEmpty &&
-            certifiedTargets.intersect(shellTargets).nonEmpty,
-          clues(s"${row.id} S04 route must tie breach burden to defender KingSafetyShell plus certified edge")
+            shellTargets.nonEmpty,
+          clues(s"${row.id} S04 route must tie breach burden to defender KingSafetyShell")
         )
+        if row.expectation == "admitted" then
+          assert(
+            row.validatedRequiredCertificationFamilies.contains("CertifiedKingSafetyEdge") &&
+              certifiedTargets.intersect(shellTargets).nonEmpty,
+            clues(s"${row.id} admitted S04 route must tie breach burden to certified edge")
+          )
         row.coverageBucket.foreach:
           case "shell_payload_breach" =>
             assertEquals(
@@ -3722,13 +3742,13 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         )
       case ("shortcut_negative", "support_only_shell_or_certification") =>
         assert(
-          hasDefenderObject("KingSafetyShell") && hasCertifiedFamily(row, "CertifiedKingSafetyEdge"),
-          clues(s"${row.id} support-only negative must carry exact shell and certification support")
+          hasDefenderObject("KingSafetyShell"),
+          clues(s"${row.id} support-only negative must carry exact shell support")
         )
         assertEquals(
           hasKingPressureCoverageOwnCarrier(row),
-          true,
-          clues(s"${row.id} support-only negative must demonstrate lower S04 support without projection proof")
+          false,
+          clues(s"${row.id} support-only shell negative must stay below the S04 certified projection carrier")
         )
         assertEquals(
           row.evidenceClaimsForRuntime,
@@ -3737,8 +3757,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         )
       case ("shortcut_negative", "forged_wrong_shell_evidence") =>
         assert(
-          hasKingPressureCoverageOwnCarrier(row),
-          clues(s"${row.id} wrong-shell negative must carry the live lower support it is trying to forge")
+          hasDefenderObject("KingSafetyShell"),
+          clues(s"${row.id} wrong-shell negative must carry the exact shell support it is trying to forge")
         )
         assertEquals(
           row.evidenceClaimsForRuntime.nonEmpty,
@@ -3747,8 +3767,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         )
       case ("shortcut_negative", "forged_wrong_route_evidence") =>
         assert(
-          hasKingPressureCoverageOwnCarrier(row),
-          clues(s"${row.id} wrong-route negative must carry the live lower support it is trying to forge")
+          hasDefenderObject("KingSafetyShell"),
+          clues(s"${row.id} wrong-route negative must carry the exact shell support it is trying to forge")
         )
         assertEquals(
           row.evidenceClaimsForRuntime.nonEmpty,
@@ -4623,6 +4643,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           row.validatedRequiredCertificationFamilies.contains("CertifiedKingSafetyEdge") &&
           hasObjectFamily(row, "AttackScaffold") &&
           hasCertifiedFamily(row, "CertifiedKingSafetyEdge") &&
+          hasS02LooseBoundAttackScaffold(row) &&
           !hasDefenderObjectFamily(row, "KingSafetyShell")
       case "S03" =>
         row.validatedRequiredWitnessIds.contains("diagonal_lane_only") &&
@@ -4632,7 +4653,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           hasOwnerWitness(row, "diagonal_lane_only") &&
           hasObjectFamily(row, "AttackScaffold") &&
           hasCertifiedFamily(row, "ComparativeKingFragility") &&
-          hasCertifiedFamily(row, "CertifiedKingSafetyEdge")
+          hasCertifiedFamily(row, "CertifiedKingSafetyEdge") &&
+          hasS03LooseBoundAttackScaffold(row)
       case "S04" =>
         val shellTargets = defenderObjectSupportTargetSquares(row, "KingSafetyShell")
         row.validatedRequiredObjectFamilies.contains("KingSafetyShell") &&
@@ -4697,6 +4719,57 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       .filter(obj => obj.color.forall(_ == row.validatedOwner))
       .flatMap(_.support.targetSquares)
       .toSet
+
+  private def hasS02LooseBoundAttackScaffold(row: ProjectionExpectationCorpus.Row): Boolean =
+    row.evidenceClaims
+      .find(_.kind == "king_ring_concentration_route_certified")
+      .exists: claim =>
+        val defendingKing = claim.defendingKingSquare.flatMap(squareFromKey)
+        val sources = claim.sourceSquares.flatMap(squareFromKey).toSet
+        val targets = claim.kingRingTargetSquares.flatMap(squareFromKey).toSet
+        defendingKing.exists(king =>
+          sources.nonEmpty &&
+            targets.nonEmpty &&
+            hasLooseBoundAttackScaffold(row, king, sources, targets)
+        )
+
+  private def hasS03LooseBoundAttackScaffold(row: ProjectionExpectationCorpus.Row): Boolean =
+    row.evidenceClaims
+      .find(_.kind == "diagonal_king_attack_route_certified")
+      .exists: claim =>
+        val defendingKing = claim.defendingKingSquare.flatMap(squareFromKey)
+        val sources = claim.diagonalSourceSquare.toVector.flatMap(squareFromKey).toSet
+        val targets = claim.diagonalEndpointSquares.flatMap(squareFromKey).toSet
+        defendingKing.exists(king =>
+          sources.nonEmpty &&
+            targets.nonEmpty &&
+            hasLooseBoundAttackScaffold(row, king, sources, targets)
+        )
+
+  private def hasLooseBoundAttackScaffold(
+      row: ProjectionExpectationCorpus.Row,
+      defendingKing: Square,
+      sources: Set[Square],
+      targets: Set[Square]
+  ): Boolean =
+    val context = exactUContext(row)
+    objectExtractionFromFen(row.fen).objects
+      .forFamilyId("AttackScaffold")
+      .exists: obj =>
+        obj.color.contains(row.validatedOwner) &&
+          obj.anchor == WitnessAnchor.SquareAnchor(defendingKing) &&
+          objectSquareList(obj, "carrier_source_squares").toSet.intersect(sources).nonEmpty &&
+          objectSquareList(obj, "loose_support_squares").toSet.intersect(targets).exists: target =>
+            sources.exists(source => context.board.attacksSquare(source, target))
+
+  private def objectSquareList(
+      obj: lila.commentary.strategic.StrategicObject,
+      field: String
+  ): Vector[Square] =
+    obj.payload.get(field).collect { case WitnessValue.SquareListValue(values) => values }.getOrElse(Vector.empty)
+
+  private def squareFromKey(key: String): Option[Square] =
+    Square.fromKey(key)
 
   private def defenderObjectSupportTargetSquares(row: ProjectionExpectationCorpus.Row, familyId: String): Set[Square] =
     objectExtractionFromFen(row.fen).objects

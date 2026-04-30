@@ -92,21 +92,21 @@ object EnglishLineCommentaryWriter:
 
   private def resultPhrase(meaning: LineNoteMeaning): Option[String] =
     meaning match
-      case LineNoteMeaning.PressurePersists => Some("pressure remains in the line")
-      case LineNoteMeaning.DoesNotRestoreCounterplay => Some("counterplay does not return in the line")
-      case LineNoteMeaning.ResourceFails => Some("the resource fails in the line")
-      case LineNoteMeaning.ResourceWorks => Some("the resource works in the line")
-      case LineNoteMeaning.DefensiveHold => Some("the defense holds in the line")
-      case LineNoteMeaning.Simplifies => Some("the position simplifies in the line")
-      case LineNoteMeaning.Converts => Some("the line converts into a clearer continuation")
+      case LineNoteMeaning.PressurePersists => Some("the pressure stays on")
+      case LineNoteMeaning.DoesNotRestoreCounterplay => Some("counterplay still does not return")
+      case LineNoteMeaning.ResourceFails => Some("the defensive try falls short")
+      case LineNoteMeaning.ResourceWorks => Some("the defensive idea works")
+      case LineNoteMeaning.DefensiveHold => Some("the defense holds")
+      case LineNoteMeaning.Simplifies => Some("the position simplifies")
+      case LineNoteMeaning.Converts => Some("the continuation becomes clearer")
       case _ => None
 
   private def cautionPhrase(meaning: LineNoteMeaning): Option[String] =
     meaning match
       case LineNoteMeaning.EarlyMoveCaution | LineNoteMeaning.PrematureMove =>
-        Some("is premature in the line")
+        Some("comes too early")
       case LineNoteMeaning.ReleasesCounterplay =>
-        Some("releases counterplay in the line")
+        Some("lets counterplay return")
       case _ => None
 
   private def sanLine(tokens: Vector[String]): Option[String] =

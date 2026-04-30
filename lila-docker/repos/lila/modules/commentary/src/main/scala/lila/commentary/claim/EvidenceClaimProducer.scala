@@ -107,7 +107,7 @@ object EvidenceClaimProducer:
         anchor = Some(anchorKey),
         route = Some(routeKey),
         scope = Some(scopeKey),
-        impact = ClaimImpact(evidenceConfidence = 45, boardExplainability = 35, pedagogicalClarity = 30),
+        impact = certificationImpact(certification),
         evidenceRefs = Vector(
           EvidenceRef(
             kind = EvidenceRefKind.Certification,
@@ -142,6 +142,23 @@ object EvidenceClaimProducer:
       "MaterialHarvest",
       "SpaceBindRestrictionCertification"
     ).contains(familyId)
+
+  private def certificationImpact(certification: Certification): ClaimImpact =
+    certification.familyId.value match
+      case "MaterialHarvest" =>
+        ClaimImpact(
+          resultMaterialImpact = 85,
+          immediacy = 75,
+          evidenceConfidence = 55,
+          boardExplainability = 50,
+          pedagogicalClarity = 40
+        )
+      case "CertifiedKingSafetyEdge" =>
+        ClaimImpact(forcedness = 55, evidenceConfidence = 55, boardExplainability = 50, pedagogicalClarity = 40)
+      case "InitiativeWindow" =>
+        ClaimImpact(persistenceAfterDefense = 55, evidenceConfidence = 55, boardExplainability = 45, pedagogicalClarity = 40)
+      case _ =>
+        ClaimImpact(evidenceConfidence = 45, boardExplainability = 35, pedagogicalClarity = 30)
 
   private def projectionClaims(
       currentExtraction: StrategicObjectExtraction,

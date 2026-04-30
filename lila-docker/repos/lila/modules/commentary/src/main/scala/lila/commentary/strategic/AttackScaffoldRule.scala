@@ -1,6 +1,6 @@
 package lila.commentary.strategic
 
-import chess.Color
+import chess.{ Color, Square }
 
 import lila.commentary.root.RootAtomRegistry.SchemaId
 import lila.commentary.witness.{ WitnessAnchor, WitnessPayload, WitnessValue }
@@ -18,17 +18,24 @@ private[strategic] object AttackScaffoldRule extends StrategicObjectRule:
       val defender = !attacker
       context.board.kingSquare(defender).toVector.flatMap: kingSquare =>
         val carriers = carrierFragments(context, attacker, defender)
-        val supports = supportFragments(context, attacker, defender)
+        val supports = supportFragments(context, attacker, defender, carriers)
         val holeOnlySupport = supports.nonEmpty && supports.forall(_.kind == "king_shelter_hole")
+        val supportKinds = supports.map(_.kind).toSet
+        val pinnedAndShelterOnlySupport =
+          supportKinds.nonEmpty && supportKinds.subsetOf(Set("king_shelter_hole", "pinned_piece"))
         val carrierAdmissionUnits = carriers.map(_.admissionUnit).distinct.sorted
         val carrierSourceSquares = carriers.flatMap(_.sourceSquares).distinct.sortBy(_.value)
         val carrierSquares = carriers.flatMap(_.squares).distinct.sortBy(_.value)
+        val carrierEntrySquares = carrierSquares.filterNot(carrierSourceSquares.toSet)
         val supportSquares = supports.flatMap(_.squares).distinct.sortBy(_.value)
+        val looseSupportSquares = supportSquaresFor(supports, "loose_piece")
+        val pinnedSupportSquares = supportSquaresFor(supports, "pinned_piece")
 
         Option.when(
           carriers.nonEmpty &&
             supports.nonEmpty &&
-            (!holeOnlySupport || carrierAdmissionUnits.size >= 2)
+            (!holeOnlySupport || carrierAdmissionUnits.size >= 2 || carrierEntrySquares.size >= 2) &&
+            !pinnedAndShelterOnlySupport
         )(
           owned(
             color = attacker,
@@ -41,7 +48,9 @@ private[strategic] object AttackScaffoldRule extends StrategicObjectRule:
               "carrier_source_squares" -> WitnessValue.SquareListValue(carrierSourceSquares),
               "support_fragment_ids" -> WitnessValue.TokenListValue(supports.map(_.kind).distinct.sorted),
               "carrier_squares" -> WitnessValue.SquareListValue(carrierSquares),
-              "support_squares" -> WitnessValue.SquareListValue(supportSquares)
+              "support_squares" -> WitnessValue.SquareListValue(supportSquares),
+              "loose_support_squares" -> WitnessValue.SquareListValue(looseSupportSquares),
+              "pinned_support_squares" -> WitnessValue.SquareListValue(pinnedSupportSquares)
             ),
             support = support(
               indices = (carriers.flatMap(_.rootIndices) ++ supports.flatMap(_.rootIndices)).distinct.sorted,
@@ -57,6 +66,9 @@ private[strategic] object AttackScaffoldRule extends StrategicObjectRule:
       squares: Vector[chess.Square],
       rootIndices: Vector[Int]
   )
+
+  private def supportSquaresFor(supports: Vector[AttackFragment], kind: String): Vector[Square] =
+    supports.filter(_.kind == kind).flatMap(_.squares).distinct.sortBy(_.value)
 
   private def carrierFragments(
       context: StrategicObjectContext,
@@ -105,7 +117,8 @@ private[strategic] object AttackScaffoldRule extends StrategicObjectRule:
   private def supportFragments(
       context: StrategicObjectContext,
       attacker: Color,
-      defender: Color
+      defender: Color,
+      carriers: Vector[AttackFragment]
   ): Vector[AttackFragment] =
     val theaterMask = kingRingAndShelterMask(context, defender)
 
@@ -155,20 +168,20 @@ private[strategic] object AttackScaffoldRule extends StrategicObjectRule:
       .filter(_.squares.nonEmpty)
 
     val xrayFragments =
-      Option.when(rootSquares(context, SchemaId.XrayTarget, attacker).exists(theaterMask.contains)):
-        val squares = rootSquares(context, SchemaId.XrayTarget, attacker).filter(theaterMask.contains)
-        AttackFragment(
-          kind = "xray_target",
-          admissionUnit = "support:xray_target",
-          sourceSquares = Vector.empty,
-          squares = squares,
-          rootIndices = rootIndicesForSquares(context, SchemaId.XrayTarget, attacker, squares)
-        )
-      .toVector
+      // A standing x-ray root does not prove that this king-attack carrier created,
+      // released, or currently owns the target relation.
+      Vector.empty[AttackFragment]
 
     val pinnedFragments =
-      Option.when(rootSquares(context, SchemaId.PinnedPiece, defender).exists(theaterMask.contains)):
-        val squares = rootSquares(context, SchemaId.PinnedPiece, defender).filter(theaterMask.contains)
+      val squares =
+        absolutePinCarrierBoundSupportSquares(
+          context,
+          attacker,
+          defender,
+          carriers,
+          rootSquares(context, SchemaId.PinnedPiece, defender).filter(theaterMask.contains)
+        )
+      Option.when(squares.nonEmpty):
         AttackFragment(
           kind = "pinned_piece",
           admissionUnit = "support:pinned_piece",
@@ -179,8 +192,13 @@ private[strategic] object AttackScaffoldRule extends StrategicObjectRule:
       .toVector
 
     val looseFragments =
-      Option.when(rootSquares(context, SchemaId.LoosePiece, defender).exists(theaterMask.contains)):
-        val squares = rootSquares(context, SchemaId.LoosePiece, defender).filter(theaterMask.contains)
+      val squares =
+        directCarrierBoundTacticalSupportSquares(
+          context,
+          carriers,
+          rootSquares(context, SchemaId.LoosePiece, defender).filter(theaterMask.contains)
+        )
+      Option.when(squares.nonEmpty):
         AttackFragment(
           kind = "loose_piece",
           admissionUnit = "support:loose_piece",
@@ -192,6 +210,42 @@ private[strategic] object AttackScaffoldRule extends StrategicObjectRule:
 
     (holeFragments ++ dutyFragments ++ restrictionFragments ++ xrayFragments ++ pinnedFragments ++ looseFragments)
       .sortBy(fragment => (fragment.squares.head.value, fragment.kind))
+
+  private def directCarrierBoundTacticalSupportSquares(
+      context: StrategicObjectContext,
+      carriers: Vector[AttackFragment],
+      squares: Vector[Square]
+  ): Vector[Square] =
+    squares
+      .filter(square => carriers.exists(carrier => carrierSourceDirectlyAttacks(context, carrier, square)))
+      .distinct
+      .sortBy(_.value)
+
+  private def absolutePinCarrierBoundSupportSquares(
+      context: StrategicObjectContext,
+      attacker: Color,
+      defender: Color,
+      carriers: Vector[AttackFragment],
+      squares: Vector[Square]
+  ): Vector[Square] =
+    val carrierSources = carriers.flatMap(_.sourceSquares).toSet
+    context.board.kingSquare(defender).toVector.flatMap: kingSquare =>
+      squares.filter: square =>
+        context.primaryWitnessesFor("pin").exists: witness =>
+          witness.color.contains(attacker) &&
+            context.token(witness.payload, "pin_mode").contains("absolute_king_pin") &&
+            witnessSquares(witness.payload, "attacker_square").exists(carrierSources.contains) &&
+            witnessSquares(witness.payload, "blocker_square").contains(square) &&
+            witnessSquares(witness.payload, "anchor_square").contains(kingSquare)
+    .distinct
+      .sortBy(_.value)
+
+  private def carrierSourceDirectlyAttacks(
+      context: StrategicObjectContext,
+      carrier: AttackFragment,
+      square: Square
+  ): Boolean =
+    carrier.sourceSquares.exists(source => context.board.attacksSquare(source, square))
 
   private def carrierAdmissionUnit(
       kind: String,

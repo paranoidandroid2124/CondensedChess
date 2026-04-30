@@ -88,3 +88,6 @@ fen_*.txt
 /tmp/commentary-opening/
 /modules/commentary/.local/opening/
 /modules/commentary/src/test/resources/commentary-corpus/generated-opening/
+
+# Commentary diagnostic/audit local artifacts
+/tmp/commentary-diagnostic/

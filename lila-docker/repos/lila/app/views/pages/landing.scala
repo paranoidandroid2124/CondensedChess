@@ -40,10 +40,10 @@ object landing:
                     h1(
                       "One position can become a pattern,",
                       br,
-                      span("an explanation, and a full review.")
+                      span("an explanation, and a board study.")
                     ),
                     p(cls := "hero-summary")(
-                      "Chesstory turns games into recurring patterns, board-linked explanations, strategic puzzles, and full analysis when you want the whole line."
+                      "Chesstory turns games into recurring patterns, board-linked explanations, strategic puzzles, and direct analysis when you want the whole line."
                     ),
                     div(cls := "hero-support-copy")(
                       p(
@@ -51,7 +51,7 @@ object landing:
                       )
                     ),
                     div(cls := "hero-cta")(
-                      a(href := sampleAnalysisUrl, cls := "btn-primary")("Open a sample review"),
+                      a(href := sampleAnalysisUrl, cls := "btn-primary")("Open a sample analysis"),
                       a(href := accountIntelUrl, cls := "btn-secondary")("See account patterns"),
                       a(href := pgnImportUrl, cls := "btn-secondary")("Start from PGN")
                     ),
@@ -87,13 +87,13 @@ object landing:
                           )
                         ),
                         st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--review")(
-                          p(cls := "hero-surface-kicker")("Guided Review"),
-                          h3(cls := "hero-surface-title")("Why this move mattered"),
+                          p(cls := "hero-surface-kicker")("Move Explanation"),
+                          h3(cls := "hero-surface-title")("Why this position matters"),
                           p(cls := "hero-surface-copy")(
-                            "The same position becomes a selected moment with a forward-looking explanation."
+                            "The same position can be read through the current board and exact evidence."
                           ),
                           p(cls := "hero-artifact-proof")(
-                            "Output: moment, repair clue, and what to remember."
+                            "Output: board-linked evidence and a bounded explanation."
                           )
                         ),
                         st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--move")(
@@ -131,7 +131,7 @@ object landing:
                     p(cls := "section-kicker")("What Chesstory produces"),
                     h2("Four artifacts that already exist in the product"),
                     p(
-                      "Chesstory does not promise a coaching persona. It gives you recurring positions, move explanations, strategic puzzles, and a full analysis shell."
+                      "Chesstory does not promise a coaching persona. It gives you recurring positions, move explanations, strategic puzzles, and a direct analysis shell."
                     )
                   ),
                   div(cls := "product-grid")(
@@ -143,15 +143,15 @@ object landing:
                     ),
                     st.article(cls := "feature-card artifact-card")(
                       p(cls := "feature-kicker")("Artifact 02"),
-                      h3("Guided Review"),
-                      p("Review one game through selected moments, repair clues, and a concise takeaway."),
-                      p(cls := "artifact-card__proof")("Use it when you want the game explained before opening the full tree.")
+                      h3("Move Explanation"),
+                      p("Ask for commentary on the current position through selected exact-board evidence."),
+                      p(cls := "artifact-card__proof")("Use it when the current board needs a bounded explanation.")
                     ),
                     st.article(cls := "feature-card artifact-card")(
                       p(cls := "feature-kicker")("Artifact 03"),
                       h3("Explain This Move"),
                       p("Ask for commentary on the current move only when the current position needs more context."),
-                      p(cls := "artifact-card__proof")("Use it when one decision matters more than a whole-game report.")
+                      p(cls := "artifact-card__proof")("Use it when one decision matters more than opening every branch.")
                     ),
                     st.article(cls := "feature-card artifact-card")(
                       p(cls := "feature-kicker")("Artifact 04"),
@@ -191,7 +191,7 @@ object landing:
                           )
                         ),
                         div(cls := "story-stage-footer")(
-                          a(href := sampleAnalysisUrl, cls := "btn-secondary")("Open the sample review"),
+                          a(href := sampleAnalysisUrl, cls := "btn-secondary")("Open the sample analysis"),
                           a(href := strategicPuzzleUrl, cls := "btn-text")("Open Strategic Puzzle")
                         )
                       )
@@ -208,12 +208,12 @@ object landing:
                       ),
                       st.article(cls := "timeline-card story-card")(
                         p(cls := "story-card__label")("Explanation"),
-                        h3("Guided Review turns that board into a moment that can be read"),
+                        h3("Move Explanation keeps that board readable"),
                         p(cls := "story-card__copy")(
-                          "The same position becomes a selected moment with why it mattered, the best chance to fix it, and a short takeaway."
+                          "The same position stays tied to exact-board evidence, current-node context, and bounded commentary."
                         ),
-                        p(cls := "story-card__proof")("Output: one moment, one reason, and a board-first review shell."),
-                        a(href := sampleAnalysisUrl, cls := "story-card__link")("Open a sample review")
+                        p(cls := "story-card__proof")("Output: one board, one bounded reason, and direct analysis."),
+                        a(href := sampleAnalysisUrl, cls := "story-card__link")("Open a sample analysis")
                       ),
                       st.article(cls := "timeline-card story-card")(
                         p(cls := "story-card__label")("Strategic Puzzle"),
@@ -228,7 +228,7 @@ object landing:
                         p(cls := "story-card__label")("Full Analysis"),
                         h3("Full Analysis keeps the board and tree available when you need them"),
                         p(cls := "story-card__copy")(
-                          "When the guided explanation is not enough, continue on the same board with the move list, engine, explorer, and current-node explanation."
+                          "When the current explanation is not enough, continue on the same board with the move list, engine, explorer, and current-node explanation."
                         ),
                         p(cls := "story-card__proof")("Output: board, tree, current node, and direct move explanation."),
                         a(href := analysisUrl, cls := "story-card__link")("Open full analysis")
@@ -264,15 +264,15 @@ object landing:
                     st.article(cls := "feature-card entry-card")(
                       p(cls := "feature-kicker")("Entry 02"),
                       h3("PGN"),
-                      p("Paste a game and go straight to Guided Review, then keep Full Analysis one click away."),
+                      p("Paste a game and go straight to the board, then keep Move Explanation one click away."),
                       p(cls := "entry-card__proof")("Best when you already know which game you want to understand."),
                       div(cls := "entry-card__chips sample-chip-row")(
-                        span("Guided Review"),
-                        span("Sample review"),
+                        span("Move Explanation"),
+                        span("Sample analysis"),
                         span("PGN import")
                       ),
                       div(cls := "entry-card__actions")(
-                        a(href := sampleAnalysisUrl, cls := "btn-secondary")("Open a sample review"),
+                        a(href := sampleAnalysisUrl, cls := "btn-secondary")("Open a sample analysis"),
                         a(href := pgnImportUrl, cls := "btn-text")("Start from PGN")
                       )
                     ),
@@ -310,8 +310,8 @@ object landing:
                         strong("Recurring positions, openings, evidence games")
                       ),
                       div(cls := "truth-row")(
-                        span("Guided Review"),
-                        strong("Selected moments, repair clue, what to remember")
+                        span("Move Explanation"),
+                        strong("On-demand exact-board commentary for the current node")
                       ),
                       div(cls := "truth-row")(
                         span("Explain This Move"),
@@ -332,7 +332,7 @@ object landing:
                     ),
                     div(cls := "truth-boundaries")(
                       p("Explain This Move is on demand."),
-                      p("Guided Review starts from the game you provide."),
+                      p("Imported games start from the board and move list."),
                       p("Full Analysis stays available when you want the board and tree directly.")
                     ),
                     div(cls := "quality-pills")(
@@ -341,7 +341,7 @@ object landing:
                       span("Study-ready")
                     ),
                     div(cls := "quality-actions truth-actions")(
-                      a(href := sampleAnalysisUrl, cls := "btn-primary final-cta")("Open a sample review"),
+                      a(href := sampleAnalysisUrl, cls := "btn-primary final-cta")("Open a sample analysis"),
                       a(href := analysisUrl, cls := "btn-secondary final-cta")("Open full analysis")
                     )
                   )

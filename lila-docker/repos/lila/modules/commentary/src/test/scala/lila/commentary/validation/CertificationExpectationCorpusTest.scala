@@ -63,9 +63,14 @@ class CertificationExpectationCorpusTest extends munit.FunSuite:
         case "exact" =>
           assertEquals(row.expectation, "certified")
         case "best_defense_breaks_claim" =>
+          val allowed =
+            if row.family == "CertifiedKingSafetyEdge" then Set("rejected")
+            else Set("support_only", "deferred")
           assert(
-            Set("support_only", "deferred").contains(row.expectation),
-            clues(s"${row.id} best-defense row must degrade to support_only or deferred")
+            allowed.contains(row.expectation),
+            clues(
+              s"${row.id} best-defense row must degrade to ${allowed.toVector.sorted.mkString(" or ")}"
+            )
           )
         case "near_miss" | "nasty_negative" =>
           assertEquals(row.expectation, "rejected")

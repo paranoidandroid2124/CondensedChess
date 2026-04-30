@@ -205,8 +205,13 @@ extraction. It does not consume source rows, raw engine packets, raw engine
 PV/eval, projection evidence, prepared variation evidence, or candidate lines.
 
 The default seam now calls `EvidenceClaimProducer`, which composes the
-exact-board producer with an empty sanitized higher-evidence handoff. A private
-`EvidenceClaimHandoff` may carry already-bounded `CertificationExtraction`,
+exact-board producer with a sanitized higher-evidence handoff. If optional
+engine input is accepted by `CertificationEngineRuntimeIntake`, the resulting
+same-root `CertificationEvidenceBundle` may be extracted into a
+`CertificationExtraction` and passed through that handoff. Rejected, stale,
+wrong-node, wrong-FEN, illegal-PV, or empty engine intake contributes no
+higher claim. A private `EvidenceClaimHandoff` may carry already-bounded
+`CertificationExtraction`,
 typed `StrategyProjectionAdmissionResult` values, legacy projection claim
 candidates, and normalized `SourceContextCandidate` values. It is not a
 frontend/request payload and it is not a live source lookup path.

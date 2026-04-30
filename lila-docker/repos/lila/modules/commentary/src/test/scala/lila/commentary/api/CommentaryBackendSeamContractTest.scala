@@ -163,6 +163,71 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
     assertEquals(boundedAccepted.status, CommentaryResponseStatus.Rendered)
     assertEquals(boundedAccepted.render.evidenceRefs.exists(ref => ref.kind == EvidenceRefKind.EngineCertification && ref.id == canonicalEngineRef), true)
 
+  test("default backend feeds accepted material certification evidence into public claims"):
+    val fen = "4k3/5ppp/8/3n4/3R4/8/5PPP/4K3 w - - 0 1"
+    val now = System.currentTimeMillis()
+    val response =
+      CommentaryBackendSeam.renderDebug(
+        request(
+          currentFen = fen,
+          enginePacket = Some(
+            enginePacket(packetNodeId = nodeId, fen = fen).copy(
+              multiPv = 3,
+              generatedAtEpochMs = now,
+              maxAgeMs = 60_000L,
+              pvLines = Vector(Vector("d4d5"), Vector("d4d1"), Vector("d4a4")),
+              claims = Vector(materialHarvestRuntimeClaim())
+            )
+          )
+        )
+      )
+
+    assertEquals(response.status, CommentaryResponseStatus.Rendered)
+    assertEquals(response.internal.flatMap(_.engineIntake.map(_.status)), Some(CommentaryEngineIntakeStatus.Accepted))
+    assert(
+      response.render.evidenceRefs.exists(ref => ref.kind == EvidenceRefKind.Certification && ref.id == "MaterialHarvest"),
+      clues(response.render.evidenceRefs, response.internal)
+    )
+    assert(response.render.blocks.exists(_.evidenceIds.contains("MaterialHarvest")))
+
+  test("public response for accepted engine intake hides raw engine packet details"):
+    val fen = "4k3/5ppp/8/3n4/3R4/8/5PPP/4K3 w - - 0 1"
+    val now = System.currentTimeMillis()
+    val response =
+      CommentaryBackendSeam.render(
+        request(
+          currentFen = fen,
+          enginePacket = Some(
+            enginePacket(packetNodeId = nodeId, fen = fen).copy(
+              multiPv = 3,
+              generatedAtEpochMs = now,
+              maxAgeMs = 60_000L,
+              engineConfigFingerprint = "public-leak-contract-engine",
+              pvLines = Vector(Vector("d4d5"), Vector("d4d1"), Vector("d4a4")),
+              claims = Vector(materialHarvestRuntimeClaim())
+            )
+          )
+        )
+      )
+    val json = Json.toJson(response).toString
+
+    assertEquals(response.status, CommentaryResponseStatus.Rendered)
+    Vector(
+      "requestedDepth",
+      "realizedDepth",
+      "multiPv",
+      "generatedAtEpochMs",
+      "maxAgeMs",
+      "engineConfigFingerprint",
+      "public-leak-contract-engine",
+      "pvLines",
+      "scorePerspective",
+      "centipawns",
+      "mateIn",
+      "debug",
+      "engineIntake"
+    ).foreach(token => assert(!json.contains(token), clues(token, json)))
+
   test("opening source context remains context-only and keeps master and online refs separate"):
     val opening = CommentaryClaim(
       id = "api-opening-context",
@@ -398,7 +463,7 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
       "secret-child-cache"
     ).foreach(token => assert(!json.contains(token), clues(token, json)))
 
-  test("internal completed-probe payload can attach line evidence only after defender-resource evidence exists"):
+  test("internal completed-probe payload cannot attach line evidence to support-only transition carriers"):
     val rootOnly =
       CommentaryBackendSeam.renderInternal(
         request(
@@ -423,8 +488,7 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
 
     assertEquals(rootOnly.render.variationEvidence, Vector.empty)
     assertEquals(withChild.status, CommentaryResponseStatus.Rendered)
-    assert(withChild.render.variationEvidence.exists(_.role == RenderLineRole.Resource))
-    assert(withChild.render.variationEvidence.forall(_.boundClaimId.startsWith("exact-transition-")))
+    assertEquals(withChild.render.variationEvidence, Vector.empty)
     Vector("parentBranchId", "root-candidate", "engineFingerprint", "cacheKey", "rawPv", "CandidateLineEvidence").foreach: token =>
       assert(!json.contains(token), clues(token, json))
 
@@ -829,6 +893,20 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
       purposes = Map("comparative_superiority" -> "satisfied"),
       minDepth = 18,
       minMultiPv = 1,
+      minPvPlies = 1,
+      requiredScore = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtLeast(50))
+    )
+
+  private def materialHarvestRuntimeClaim(): CertificationEngineRuntimeIntake.RuntimeCertificationClaim =
+    CertificationEngineRuntimeIntake.RuntimeCertificationClaim(
+      familyId = "MaterialHarvest",
+      owner = "white",
+      purposes = Map(
+        "best_defense_survival" -> "satisfied",
+        "tactical_release_detection" -> "satisfied"
+      ),
+      minDepth = 18,
+      minMultiPv = 3,
       minPvPlies = 1,
       requiredScore = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtLeast(50))
     )

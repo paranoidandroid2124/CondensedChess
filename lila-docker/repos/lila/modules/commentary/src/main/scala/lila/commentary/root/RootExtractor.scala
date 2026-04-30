@@ -349,12 +349,15 @@ object RootExtractor:
 
     private def isXrayTarget(color: Color, square: Square): Boolean =
       position.pieceAt(square).exists: target =>
-        target.color == !color && target.role != King &&
+        target.color == !color && highValueXrayTarget(target.role) &&
           sliderSquaresOf(color).exists: sliderSquare =>
             position.pieceAt(sliderSquare).exists: slider =>
               slider.color == color &&
                 sliderCanUseLine(slider.role, sliderSquare, square) &&
                 (Bitboard.between(sliderSquare, square) & board.occupied).count == 1
+
+    private def highValueXrayTarget(role: Role): Boolean =
+      role == Rook || role == Queen
 
     private def isKingShelterHole(beneficiary: Color, square: Square): Boolean =
       val defender = !beneficiary

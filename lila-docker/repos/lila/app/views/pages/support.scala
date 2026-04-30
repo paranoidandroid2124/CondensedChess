@@ -52,7 +52,7 @@ object support:
               st.section(cls := "legal-section")(
                 h2("Open Beta Feedback"),
                 p(
-                  "If you just used Strategic Puzzle, Guided Review, or another core analysis surface, you can tell us whether it already feels worth paying for and optionally join the paid-plan waitlist."
+                  "If you just used Strategic Puzzle, Move Explanation, or another core analysis surface, you can tell us whether it already feels worth paying for and optionally join the paid-plan waitlist."
                 ),
                 div(cls := "legal-actions")(
                   a(

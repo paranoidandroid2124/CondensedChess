@@ -189,10 +189,10 @@ These atoms are intentionally narrower than their prose chess meanings.
 | `backward_pawn(c,s)` | color `c` pawn on `s` cannot receive effective forward support from adjacent friendly pawns, its front advance square is denied by stable enemy control or direct enemy blockade, and it becomes a long-term pressure target |
 | `candidate_passer(c,s)` | color `c` pawn on `s` is not yet passed, can still advance into an empty front square, and its local three-file pawn balance satisfies `support >= opposition`, where same-rank adjacent friendly pawns already count as support for the first advance |
 | `fixed_pawn(c,s)` | color `c` pawn on `s` has its stop square occupied by an enemy pawn, so the blockage is structural rather than a removable piece block |
-| `loose_piece(c,s)` | the non-king color `c` piece on `s` loses material under the immediate local static exchange on its current square, even if a nominal defender exists |
+| `loose_piece(c,s)` | the non-king color `c` piece on `s` loses material under the immediate local static exchange on its current square, even if a nominal defender exists; this is a local exchange predicate, not a public claim that the side to move has an immediate capture |
 | `pinned_piece(c,s)` | the non-king color `c` piece on `s` is the sole blocker on an enemy slider line to its own king or to a more valuable friendly piece, so moving it concedes the line |
 | `trapped_piece(c,s)` | every legal move of the non-king non-pawn color `c` piece on `s` leads to immediate capture or a negative local static exchange, or the attacked piece has no legal move at all, so it has zero safe exits under the local safety rule |
-| `xray_target(c,s)` | a real target on `s` sits behind a blocker on a rook, bishop, or queen attack line and becomes tactically exposed if that blocker is removed |
+| `xray_target(c,s)` | a real high-value rook or queen target on `s` sits behind a blocker on a rook, bishop, or queen attack line and becomes tactically exposed if that blocker is removed |
 | `lever_available(c,s)` | the color `c` pawn on `s` can legally advance one square, or legally double-push from its home rank through an empty intermediate square, and from its arrival square immediately attack an enemy pawn |
 | `king_shelter_hole(c,s)` | `s` lies inside the defending king's home-shelter mask, the defender lacks pawn cover on `s`, and the attacking side attacks or can access `s` with pieces |
 
@@ -263,12 +263,29 @@ empty-square-only gate.
 It is true only if the opponent's best immediate legal capture sequence on `s`
 wins material under the local static exchange recursion.
 
+This atom is not the same contract as an immediate capture opportunity. A
+public current-board capture claim needs an explicit legal side-to-move capture
+onto the loose square and a separate Object claim route such as
+`immediate_capture`.
+
 ### Pinned Piece Line Contract
 
 `pinned_piece(c,s)` includes both:
 
 - absolute king pins
 - relative line pins to a more valuable friendly anchor behind the blocker
+
+The root is a standing line fact. Public wording still needs a richer
+claim/witness payload that identifies why the side to move can use it; the root
+alone is support, not move-causal proof.
+
+### X-Ray Target Boundary
+
+`xray_target(c,s)` is restricted to high-value rook or queen targets. Minor
+pieces and pawns behind a blocker are treated as broad line-pressure smells,
+not root-level x-ray targets. Home-rank pawn geometry behind a blocker,
+including start-position style slider/pawn/blocker patterns, fails closed at
+extraction rather than entering a public tactical path.
 
 ### King Shelter Mask
 

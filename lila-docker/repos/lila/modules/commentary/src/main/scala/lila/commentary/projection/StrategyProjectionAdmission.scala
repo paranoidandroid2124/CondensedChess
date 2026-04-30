@@ -181,7 +181,14 @@ object StrategyProjectionAdmission:
             sectorOf(target.file) == sectorOf(defendingKing.file) &&
             sectorOf(source.file) == sectorOf(defendingKing.file) &&
             isWingSector(sectorOf(target.file)) &&
-            hasAttackScaffoldForDefendingKing(current, owner, defendingKing)
+            hasAttackScaffoldForDefendingKingBoundToSourceAndTarget(
+              current,
+              UExtractionContext(current.rootState),
+              owner,
+              defendingKing,
+              source,
+              target
+            )
         )(
           Vector(
             S01KingWingStormCarrier(source, target, defendingKing, "same_wing_contact"),
@@ -199,15 +206,30 @@ object StrategyProjectionAdmission:
         )
       )
 
-  private def hasAttackScaffoldForDefendingKing(
+  private def hasAttackScaffoldForDefendingKingBoundToSourceAndTarget(
       current: StrategicObjectExtraction,
+      context: UExtractionContext,
       owner: Color,
-      defendingKing: Square
+      defendingKing: Square,
+      source: Square,
+      target: Square
   ): Boolean =
     current.objects.forFamilyId("AttackScaffold").exists(obj =>
       obj.color.contains(owner) &&
-        obj.anchor == WitnessAnchor.SquareAnchor(defendingKing)
+        obj.anchor == WitnessAnchor.SquareAnchor(defendingKing) &&
+        square(obj.payload, "king_square").contains(defendingKing) &&
+        squareList(obj.payload, "carrier_source_squares").contains(source) &&
+        squareList(obj.payload, "loose_support_squares").contains(target) &&
+        context.board.attacksSquare(source, target)
     )
+
+  private def attackScaffoldLooseSupportSquares(
+      obj: StrategicObject,
+      supportFragmentId: String
+  ): Set[Square] =
+    if tokenList(obj.payload, "support_fragment_ids").contains(supportFragmentId) then
+      squareList(obj.payload, s"${supportFragmentId.stripSuffix("_piece")}_support_squares").toSet
+    else Set.empty
 
   private def s01EvidenceBindsCarrierAndTask(
       claim: StrategyProjectionEvidenceClaim,
@@ -277,18 +299,25 @@ object StrategyProjectionAdmission:
             certifiedTargets
               .intersect(scaffoldTargets)
               .filter(target => context.hasPieceOn(!owner, Pawn, target))
-          Option.when(sourceSquares.nonEmpty && targetSquares.nonEmpty)(
+          val looseSupportTargets =
+            attackScaffoldLooseSupportSquares(obj, "loose_piece")
+              .intersect(targetSquares)
+              .filter(target => sourceSquares.exists(source => context.board.attacksSquare(source, target)))
+          Option.when(
+            sourceSquares.nonEmpty &&
+              looseSupportTargets.nonEmpty
+          )(
             Vector(S02KingRingConcentrationCarrier(
                 defendingKing,
                 sourceSquares,
-                targetSquares,
+                looseSupportTargets,
                 "direct_piece_concentration"
               )) ++
               Option.when(tokenList(obj.payload, "carrier_fragment_ids").contains("diagonal_lane_only"))(
               S02KingRingConcentrationCarrier(
                 defendingKing,
                 sourceSquares,
-                targetSquares,
+                looseSupportTargets,
                 "lane_strengthened_concentration"
               )
             )
@@ -375,23 +404,31 @@ object StrategyProjectionAdmission:
             val kingTheaterEntries =
               (witness.support.targetSquares.toSet ++ squareList(witness.payload, "endpoint_squares").toSet)
                 .filter(square => kingRing.contains(square) && context.pieceAt(square).isEmpty)
+            val looseBoundKingTheaterEntries =
+              attackScaffoldLooseSupportSquaresBoundToSourceAndTargets(
+                current,
+                context,
+                owner,
+                defendingKing,
+                source,
+                kingTheaterEntries
+              )
             Option
               .when(
                 s03OwnerDiagonalSource(context, owner, source) &&
-                  kingTheaterEntries.nonEmpty &&
-                  hasAttackScaffoldForDefendingKing(current, owner, defendingKing)
+                  looseBoundKingTheaterEntries.nonEmpty
               ):
                 Vector(
                   S03DiagonalKingAttackCarrier(
                     defendingKing,
                     source,
-                    kingTheaterEntries,
+                    looseBoundKingTheaterEntries,
                     "king_facing_diagonal_entry"
                   ),
                   S03DiagonalKingAttackCarrier(
                     defendingKing,
                     source,
-                    kingTheaterEntries,
+                    looseBoundKingTheaterEntries,
                     "fragility_linked_diagonal"
                   )
                 )
@@ -411,6 +448,28 @@ object StrategyProjectionAdmission:
       piece.color == owner &&
         (piece.role == Bishop || piece.role == Queen)
     )
+
+  private def attackScaffoldLooseSupportSquaresBoundToSourceAndTargets(
+      current: StrategicObjectExtraction,
+      context: UExtractionContext,
+      owner: Color,
+      defendingKing: Square,
+      source: Square,
+      targets: Set[Square]
+  ): Set[Square] =
+    current.objects.forFamilyId("AttackScaffold").flatMap: obj =>
+      Option
+        .when(
+          obj.color.contains(owner) &&
+            obj.anchor == WitnessAnchor.SquareAnchor(defendingKing) &&
+            square(obj.payload, "king_square").contains(defendingKing) &&
+            squareList(obj.payload, "carrier_source_squares").contains(source)
+        ):
+          attackScaffoldLooseSupportSquares(obj, "loose_piece")
+            .intersect(targets)
+            .filter(target => context.board.attacksSquare(source, target))
+        .getOrElse(Set.empty)
+    .toSet
 
   private def s03EvidenceBindsCarrierAndTask(
       claim: StrategyProjectionEvidenceClaim,

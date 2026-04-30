@@ -185,7 +185,7 @@ private[validation] object CertificationExpectationCorpus:
     "InitiativeWindow" -> Set("certified", "rejected", "deferred"),
     "MobilityComparison" -> Set("certified", "rejected", "support_only"),
     "ComparativeKingFragility" -> Set("certified", "rejected", "support_only"),
-    "CertifiedKingSafetyEdge" -> Set("certified", "rejected", "deferred"),
+    "CertifiedKingSafetyEdge" -> Set("certified", "rejected"),
     "MateNetCertification" -> Set("certified", "rejected", "deferred"),
     "MaterialHarvest" -> Set("certified", "rejected", "support_only"),
     "WinningEndgame" -> Set("certified", "rejected", "deferred"),

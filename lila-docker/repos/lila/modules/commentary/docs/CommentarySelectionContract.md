@@ -152,7 +152,19 @@ The executable bucket keys are:
 material/forcing claims.
 
 `shouldLead` is for admitted strategic deltas or admitted Sxx projections with
-exact lower carrier/evidence.
+exact lower carrier/evidence. Generic transition carriers such as
+`last_move_transition` and `pawn_structure_transition` remain exact evidence,
+but they are `SupportOnly`; they must not become a generic primary block.
+Narrow validated-transition tactical slices such as moved non-pawn piece left
+loose and legal non-slider royal fork may remain `shouldLead` because they bind
+the selected public ref to `move_local` exact-board evidence. The
+moved-piece-left-loose slice is selector-admissible only with a bound Delta
+`moved_piece_left_loose_transition` evidence ref plus bound `loose_piece` and
+`immediate_capture` lower carriers on the same owner, anchor, route, and scope;
+a root-only loose ref is suppressed as a shortcut. Standing
+position-local tactical roots may render as public board facts but must not be
+treated as move-causal claims; in transition contexts they are `SupportOnly`
+and cannot mask move-bound line evidence.
 
 `canLead` is for lower-impact admitted board claims.
 

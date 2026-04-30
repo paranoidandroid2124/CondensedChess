@@ -36,6 +36,22 @@ class EvidenceClaimProducerContractTest extends munit.FunSuite:
     assert(claims.filter(_.layer == ClaimLayer.Certification).forall(_.exactBoardBound))
     assert(claims.filter(_.layer == ClaimLayer.Certification).forall(_.lowerCarrierRefs.exists(_.kind == EvidenceRefKind.ExactBoard)))
 
+  test("MaterialHarvest certification carries material and immediacy impact for practical mistakes"):
+    val current = objectExtraction(startingFen)
+    val materialClaim =
+      EvidenceClaimProducer
+        .produce(
+          current,
+          None,
+          EvidenceClaimHandoff(certification = Some(certificationExtraction(current, family = "MaterialHarvest")))
+        )
+        .find(_.id == "certification-material-harvest-white-board")
+        .getOrElse(fail("expected MaterialHarvest certification claim"))
+
+    assert(materialClaim.impact.resultMaterialImpact >= 80)
+    assert(materialClaim.impact.immediacy >= 70)
+    assert(materialClaim.impact.boardExplainability >= 45)
+
   test("stale certification extraction and raw engine packet cannot create certification claims"):
     val current = objectExtraction(startingFen)
     val stale = objectExtraction(afterE4Fen)
@@ -140,7 +156,7 @@ class EvidenceClaimProducerContractTest extends munit.FunSuite:
     val outline = ClaimSelector.select(claims)
     assert(outline.lead.exists(_.claim.id == projectionClaim.id))
 
-  test("admitted typed projection result may carry defender-owned exact lower carrier when the band requires it"):
+  test("deferred shelter-breach projection result cannot create a public projection claim"):
     val current = objectExtraction(kingShelterBreachFen)
     val admission = kingShelterBreachAdmission(current)
     val claims =
@@ -149,32 +165,9 @@ class EvidenceClaimProducerContractTest extends munit.FunSuite:
         None,
         EvidenceClaimHandoff(projectionAdmissions = Vector(admission))
       )
-    val projectionClaim =
-      claims
-        .find(claim => claim.layer == ClaimLayer.Projection && claim.band.contains("S04"))
-        .getOrElse(fail("expected admitted S04 projection claim"))
 
-    assertEquals(projectionClaim.owner, Some("white"))
-    assertEquals(projectionClaim.defender, Some("black"))
-    assertEquals(projectionClaim.route, Some("shell_payload_breach"))
-    assertEquals(projectionClaim.scope, Some("position_local"))
-    assert(
-      projectionClaim.lowerCarrierRefs.exists(ref =>
-        ref.kind == EvidenceRefKind.Object &&
-          ref.id == "KingSafetyShell" &&
-          ref.owner.contains("black") &&
-          ref.anchor.contains("g8") &&
-          ref.route.contains("shell_payload_breach") &&
-          ref.scope.contains("position_local")
-      )
-    )
-    assert(
-      projectionClaim.lowerCarrierRefs.exists(ref =>
-        ref.kind == EvidenceRefKind.Certification &&
-          ref.id == "CertifiedKingSafetyEdge" &&
-          ref.owner.contains("white")
-      )
-    )
+    assertEquals(admission.admitted, false)
+    assertEquals(claims.exists(claim => claim.layer == ClaimLayer.Projection && claim.band.contains("S04")), false)
 
   test("typed projection admission cannot detach caller metadata from the Sxx evidence carrier that passed"):
     val current = objectExtraction(centerReleaseFen)

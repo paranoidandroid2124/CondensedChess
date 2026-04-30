@@ -256,11 +256,12 @@ the polarity, phase, topology, support-shape, under-supported, and
 already-passed negative buckets, and every bucket has a selected root
 engine-probe row that stays within `maxMatePly = 2` and `maxAbsCp = 300`.
 
-`loose_piece` is now `broad-confidence-green`: 12 exact-board rows close
+`loose_piece` is now `broad-confidence-green`: 13 exact-board rows close
 polarity, pawn/minor/rook/queen family, undefended and
 nominally-defended-but-losing exact exchange states, stably-defended
-fail-closed rows, and mixed/heavy material regimes. Engine remains optional for
-this schema and did not define the atom.
+fail-closed rows, mixed/heavy material regimes, and an equal-exchange
+`nasty_negative` anti-case. Engine remains optional for this schema and did not
+define the atom.
 
 `overloaded_piece` is now `broad-confidence-green`: 9 exact-board rows close
 white/black polarity, minor/rook/queen defender families, two-target and
@@ -270,12 +271,15 @@ filter; the atom is owned by the exact board condition that removing the
 defender leaves at least two friendly non-king targets under enemy attacker
 majority.
 
-`xray_target` is now `broad-confidence-green`: 9 exact-board rows close
+`xray_target` is now `broad-confidence-green`: 11 exact-board rows close
 white/black polarity, rook/bishop/queen slider families, file/diagonal/rank
 geometry, own/enemy blocker ownership, and target-absent/two-blocker
-fail-closed rows. Engine remains optional only as a confound filter; the atom is
-owned by the exact board condition that a beneficiary slider has line geometry
-to an enemy non-king target with exactly one occupied blocker between them.
+minor-target fail-closed rows plus a same-color target `nasty_negative`
+anti-case. Engine remains optional only as a confound filter; the atom is owned
+by the exact board condition that a beneficiary slider has line geometry to an
+enemy rook or queen target with exactly one occupied blocker between them.
+Minor-piece targets are treated as broad line-pressure smells and fail closed
+at the `xray_target` root boundary.
 
 `trapped_piece` is now `broad-confidence-green`: 10 exact-board rows close
 minor/rook/queen family, zero-safe/all-exits-lose/one-exit fail-closed modes,
@@ -820,7 +824,7 @@ Current row-local certification family freeze:
 | `InitiativeWindow` | `counterplay_denial_window` | `DevelopmentComparison` | `counterplay_denial`, `best_defense_survival` | `Deferred` |
 | `MobilityComparison` | `mobility_superiority` | none | `comparative_superiority` | `SupportOnly` |
 | `ComparativeKingFragility` | `king_fragility_asymmetry` | none | `comparative_superiority` | `SupportOnly` |
-| `CertifiedKingSafetyEdge` | `king_safety_edge_certification` | `AttackScaffold`, `ComparativeKingFragility` | `comparative_superiority`, `best_defense_survival` | `Deferred` |
+| `CertifiedKingSafetyEdge` | `king_safety_edge_certification` | `AttackScaffold`, `ComparativeKingFragility` | `comparative_superiority`, `best_defense_survival` | `Rejected` |
 | `MateNetCertification` | `forcing_mate_net` | none | `best_defense_survival`, `tactical_release_detection` | `Deferred` |
 | `MaterialHarvest` | `realized_material_conversion` | none | `best_defense_survival`, `tactical_release_detection` | `SupportOnly` |
 | `WinningEndgame` | `conversion_result` | none | `best_defense_survival`, `conversion_route_survival` | `Deferred` |
@@ -1131,22 +1135,29 @@ only the exact S01, S02, S03, and S04 live-runtime slices:
   object/certification support-only bundles remain non-admitting.
 - `S02`: direct king-ring concentration; `AttackScaffold`,
   `CertifiedKingSafetyEdge`, lane support, or king-attack wording alone cannot
-  admit the projection band. The live exact validation scaffold now includes
+  admit the projection band. The scaffold must expose `loose_support_squares`
+  on a public king-ring target that is directly attacked by one of the public
+  source squares. The live exact validation scaffold now includes
   `same_task_projection_evidence_must_mirror_s02_owner_defending_king_ring_targets_source_set_and_route`,
+  `loose_scaffold_support_must_bind_to_s02_source_and_target`,
   `wrong_owner_wrong_king_wrong_targets_wrong_sources_wrong_route_stale_or_support_only_evidence_not_counted`,
   and the evidence name `king_ring_concentration_route_certified`; the live
   branch admits only when the evidence mirrors the same defending king, source
-  set, king-ring target set, and route
+  set, king-ring target set, and route, and the bound loose square is in that
+  target set
 - `S03`: king-facing `diagonal_lane_only` plus same-king fragility and
   certified king-safety edge; bishop-pair state and non-king diagonal pressure
-  remain fail-closed. The live validation scaffold additionally freezes
+  remain fail-closed. The same `AttackScaffold` must expose loose support on a
+  public diagonal endpoint directly attacked by the public diagonal source. The
+  live validation scaffold additionally freezes
   `attack_scaffold_only`, `certification_support_only`,
   `diagonal_certification_without_scaffold`, and
   `scaffold_certification_without_diagonal` as exact-board nasty negatives.
   `diagonal_king_attack_route_certified` is the live evidence kind only for
   S03; stale, wrong-owner, wrong-king, wrong-source, wrong-route, support-only,
   object-only, certification-only, S02 concentration, and S12 access rows stay
-  fail-closed unless exact S03 evidence mirrors the current-board carrier.
+  fail-closed unless exact S03 evidence mirrors the current-board carrier and
+  its loose-bound source/endpoint support.
   The exact lower carriers remain support-only:
   `ObjectSupportOnly:AttackScaffold(non_truth_owner)` and
   `CertificationSupportOnly:ComparativeKingFragility|CertifiedKingSafetyEdge(non_truth_owner)`.
@@ -1166,15 +1177,23 @@ only the exact S01, S02, S03, and S04 live-runtime slices:
   owner, defending king, shell anchor, breach squares, route, and
   `CertifiedKingSafetyEdge`
 
-S01, S02, S03, and S04 exact rows now have separate live admission slices. Their required coverage pairs are
-counted by `ProjectionExpectationCorpus.requiredCoveragePairsFor`,
+S01, S02, S03, and S04 exact rows now have separate coverage slices. In the
+current corpus, S02 keeps admitted exact rows after AttackScaffold
+false-positive hardening, while S01, S03, and S04 exact rows are deferred route
+reservations until stronger support binding exists. Selector tests may still
+pass synthetic already-admitted S01/S03/S04 claims to verify downstream
+ranking, but those tests do not grant current admission production. Their
+required coverage pairs are counted by `ProjectionExpectationCorpus.requiredCoveragePairsFor`,
 `coveragePairsByBand`, `missingRequiredCoveragePairsByBand`, and
-`bandsWithCompleteCoverage`. `StrategyProjectionAdmission` admits S01
-only through exact same-anchor `king_wing_storm_route_certified` rows and S02
-only through exact same-king `king_ring_concentration_route_certified` rows;
-S03 only through exact same-king `diagonal_king_attack_route_certified` rows;
-S04 only through exact same-defender `king_shelter_breach_route_certified`
-rows with same-owner `CertifiedKingSafetyEdge` support. S04 coverage rows
+`bandsWithCompleteCoverage`. `StrategyProjectionAdmission` admits S02
+only through exact same-king `king_ring_concentration_route_certified` rows
+whose public source/target pair is loose-bound in the same `AttackScaffold`;
+S01 and S03 evidence rows remain fail-closed unless their future scaffold
+contract binds the public route carrier to the support square;
+S04 requires exact same-defender `king_shelter_breach_route_certified`
+rows with same-owner `CertifiedKingSafetyEdge` support, and current corpus
+coverage rows remain deferred unless that live branch revalidates the exact
+same-defender carrier. S04 coverage rows
 remain countable, but any evidence-empty, stale,
 wrong-owner, wrong-defender, wrong-shell, wrong-route, support-only,
 shell-only, certification-only, attack-scaffold-only,
@@ -1615,19 +1634,28 @@ king-attack cluster:
   projection evidence are present on frozen `same_wing_contact` or
   `attack_edge_same_king` routes
 - exact admitted S02 can be selected as `shouldLead` only when same-owner
-  Object `AttackScaffold`, Certification `CertifiedKingSafetyEdge`, and bound
+  Object `AttackScaffold`, loose-bound scaffold support on the public
+  king-ring target directly attacked by a public source, Certification
+  `CertifiedKingSafetyEdge`, and bound
   `king_ring_concentration_route_certified` projection evidence are present on
   frozen `direct_piece_concentration` or `lane_strengthened_concentration`
   routes
+- S01, S03, and S04 are currently deferred at the admission/corpus layer unless
+  stronger support binding exists; selector tests with synthetic already-admitted
+  claims verify only downstream ranking and non-redundancy. Geometry,
+  shelter-hole, duty, or synthetic diagnostic probe support alone is not enough
 - exact admitted S03 can be selected as `shouldLead` only when same-owner
-  Witness `diagonal_lane_only`, Object `AttackScaffold`, Certification
-  `ComparativeKingFragility`, Certification `CertifiedKingSafetyEdge`, and
-  bound `diagonal_king_attack_route_certified` projection evidence are present
-  on frozen `king_facing_diagonal_entry` or `fragility_linked_diagonal` routes
-- exact admitted S04 can be selected as `shouldLead` only when same-owner
+  Witness `diagonal_lane_only`, Object `AttackScaffold` with loose-bound
+  support on the public diagonal endpoint directly attacked by the public
+  diagonal source, Certification `ComparativeKingFragility`, Certification
+  `CertifiedKingSafetyEdge`, and bound
+  `diagonal_king_attack_route_certified` projection evidence are present on
+  frozen `king_facing_diagonal_entry` or `fragility_linked_diagonal` routes
+- exact admitted S04 can be selected as `shouldLead` only after a future
+  stronger `AttackScaffold` support contract is added on top of same-owner
   Certification `CertifiedKingSafetyEdge`, defender-owned Object
   `KingSafetyShell`, and bound `king_shelter_breach_route_certified`
-  projection evidence are present on frozen `shell_payload_breach` or
+  projection evidence on frozen `shell_payload_breach` or
   `support_break_breach` routes; `support_break_breach` also requires
   same-owner Witness `diagonal_lane_only`
 - owner, defending king anchor, defender, route, and scope must stay clear;
@@ -2601,7 +2629,7 @@ together.
 ### Suggested Certification Row
 
 ```json
-{"id":"cert-certified-king-safety-edge-best-defense","caseType":"best_defense_breaks_claim","fen":"6k1/8/6p1/4B3/8/8/7R/6K1 w - - 0 1","expectation":"deferred","family":"CertifiedKingSafetyEdge","owner":"white","scope":"comparative","anchor":"board","burdenTag":"king_safety_edge_certification","helpers":["attack_host_viability","attacker_budget_present","move_order_relevance_gate","best_defense_survival","major_piece_presence"],"requiredSupportFamilies":["AttackScaffold","ComparativeKingFragility"],"engineRequirement":"required","enginePurposes":["comparative_superiority","best_defense_survival"],"forbiddenShortcuts":["attack_scaffold_alone","comparative_fragility_alone","phase_proxy_only"]}
+{"id":"cert-certified-king-safety-edge-best-defense","caseType":"best_defense_breaks_claim","fen":"6k1/8/6p1/4B3/8/8/7R/6K1 w - - 0 1","expectation":"rejected","family":"CertifiedKingSafetyEdge","owner":"white","scope":"comparative","anchor":"board","burdenTag":"king_safety_edge_certification","helpers":["attack_host_viability","attacker_budget_present","move_order_relevance_gate","best_defense_survival","major_piece_presence"],"requiredSupportFamilies":["AttackScaffold","ComparativeKingFragility"],"engineRequirement":"required","enginePurposes":["comparative_superiority","best_defense_survival"],"forbiddenShortcuts":["attack_scaffold_alone","comparative_fragility_alone","phase_proxy_only"]}
 ```
 
 ## Persisted Audit Evidence Rules
@@ -2645,6 +2673,224 @@ must not widen that into a public `CommentaryCore` contract.
 
 The system should be evaluated on many positions by exact cell, not by one
 global score.
+
+Post-`V10` player-facing review/report tooling is currently deactivated in
+this worktree. Large sweeps should restart as lower-layer diagnostics before
+they are used for any product-facing note selection. A valid diagnostic row
+must preserve exact move identity (`beforeFen`, `currentFen`, `playedMove`,
+and available node/ply metadata) and record the complete lower path: admitted
+Root/Witness/Object/Delta/Certification facts, rejected or support-only facts,
+transition and continuation binding, selected public claim identity, renderer
+specificity, and any stale or missing inputs. Stockfish WASM evaluation/PV may
+be attached for audit and triage, but it does not create Root, Witness, Object,
+Delta, Certification, source, renderer, API, frontend, or product-note
+authority.
+
+The removed review/report artifacts had useful failure signals but were not an
+acceptance layer. Counts that separate large-loss detection from public text,
+public evidence, and line evidence can help find gaps only if the row also
+explains which lower layer failed: input identity, lower extraction, admission,
+claim production, selection ranking, renderer wording, or stale engine/PV
+triage. A row with only engine/PV line data remains an audit row, not an
+accepted player-facing explanation.
+
+Future sweep tooling may still compute mover-perspective winning-chance delta
+from exact best/played score pairs for triage. Raw centipawn loss should remain
+only an auxiliary fallback for rows without score-pair data, because saturated
+winning positions can show large raw cp drops without a meaningful practical
+change. That severity signal is not enough to select a note. Selection must
+wait for a concrete lower claim with exact board evidence and false-positive
+guards appropriate to the phenomenon class.
+Standing position-local tactical roots such as `loose_piece`, `pinned_piece`,
+and `xray_target` are extractor-shape facts, not public opportunity claims and
+not move-causal proof. A tactical board ref may become a move-local public
+claim only through a validated transition slice, currently including the narrow
+moved non-pawn piece left loose slice and the legal non-slider royal fork slice.
+The moved-piece-left-loose slice is validated only when exact replay proves
+same-piece movement, the moved piece is neither pawn nor king, the origin was
+not already `loose_piece` before the move, the destination is `loose_piece`
+after the move, and a legal side-to-move immediate capture on that destination
+is carried as a separate `immediate_capture` lower fact. A root-only
+`loose_piece` ref, or a moved piece that was already loose before the move, is a
+false-positive anti-case rather than a public move-local reason.
+The same support-only discipline applies before projection/certification
+consumption: `AttackScaffold` may use `loose_piece` only when a scaffold carrier
+source directly attacks the loose square, and it preserves
+`loose_support_squares` so S02/S03 projection consumers must bind that exact
+support square to their public source/target or diagonal source/endpoint. It may use `pinned_piece` only through a
+same-owner absolute `pin` witness bound to the carrier source, blocker square,
+and defending king, and may not use `xray_target` as admission support until a
+separate carrier-bound x-ray recomputation contract exists. An unbound standing
+tactical smell in the same king theater is false-positive audit material, not
+an `AttackScaffold` admission support fragment. Pinned-plus-shelter-only and
+single-entry shelter geometry are likewise anti-cases, not host-core proof.
+The corresponding large-corpus audit runner is
+`lila.commentary.diagnostic.AttackScaffoldImpactReportRunner`. Its row totals
+are diagnostic fanout counts, not independent chess positions, so any report
+must prefer the unique-FEN ledgers it writes:
+`attack-scaffold-source-status-ledger.jsonl`,
+`attack-scaffold-dropped-source-ledger.jsonl`, and
+`attack-scaffold-current-residual-ledger.jsonl`. A source `AttackScaffold` row
+that no longer re-extracts as current `AttackScaffold` is a
+`current_contract_dropped_not_false_positive_proof` audit row until the old
+source payload, owner, carrier, support, and route have been reconciled.
+In transition rows, standing position-local tactical roots must remain
+`SupportOnly`; a diagnostic row should report
+`admission:standing_tactical_only` rather than count the root as a move
+explanation. A current-board opportunity may be public only through a separate
+claim contract such as `immediate_capture`, which requires a legal
+side-to-move capture onto a same-square `loose_piece` target. That still does
+not prove that the last move created or missed the tactic. Exact mate-in-one is
+current-board owned and may support king-safety wording because the mate is
+legal-move board truth, not raw engine mate/PV truth. Plain `immediate_check`
+remains public board text only.
+
+The lower diagnostic baseline is tracked in
+`modules/commentary/src/test/resources/commentary-corpus/lower-diagnostic-sample.jsonl`
+and exercised by `lila.commentary.diagnostic.LowerDiagnosticSampleCorpusTest`.
+It is a small exact-board guardrail corpus, not a product acceptance report and
+not a substitute for future large sweeps.
+
+The large lower diagnostic runner is
+`lila.commentary.diagnostic.LowerDiagnosticReportRunner`. Its default input is
+the current tracked Fen-backed lower corpus (`root`, `witness`, `object`,
+`delta`, `certification`, and `projection` expectation JSONL files). It writes
+diagnostic-only `summary.json`, `traces.jsonl`, `handoff-groups.jsonl`, and
+`false-positive-audit-sample.jsonl` artifacts under caller-supplied `tmp`
+output directories. It may also read external generated JSONL with aliases
+such as `sampleId`, `fen`, `ply`, and `playedUci`, but generated files remain
+non-authority inputs. If an external row has a played move token without
+`beforeFen`, the row must be classified as
+`transition:missing_before_for_played_move`; current-position roots in that row
+are audit smells only and must not be counted as move-causal admission.
+
+The reconstruction runner is
+`lila.commentary.diagnostic.LowerDiagnosticReconstructionRunner`. It writes
+diagnostic-only `reconstruction-summary.json`, `reconstruction-traces.jsonl`,
+`replayable-transitions.jsonl`, `unreconstructable-rows.jsonl`, and
+`ambiguous-transitions.jsonl`. External materialized rows must preserve replay
+metadata such as `source`, `gameKey`, `pgnPath`, `playedUci`, `opening`,
+`mixBucket`, `tags`, and `axes` where present. A row with `playedUci` but no
+`beforeFen` is `unreconstructable` for move-causal admission until PGN/node
+replay supplies a legal `beforeFen` whose played move reaches `currentFen`.
+
+The source verification runner is
+`lila.commentary.diagnostic.LowerDiagnosticSourceVerificationRunner`. It is the
+source-authority gate for external transition corpora: a transition is source
+verified only when every row sharing the transition key is internally
+consistent and the recovered PGN replay matches `beforeFen`, `playedMove`, and
+`currentFen`. Existing PGN file paths are not enough. Parse failures, missing
+plies, before/current FEN mismatches, played-move mismatches, missing files, and
+duplicate transition conflicts are all source-blocked states. Downstream
+tactical audit may still list those rows as diagnostic backlog, but it must not
+count them as source-verified eligible admission candidates.
+
+The high-risk tactical audit runner is
+`lila.commentary.diagnostic.LowerDiagnosticHighRiskTacticalAuditRunner`. Its
+`uniqueTransitions` field is a schema-transition audit-row count; reports must
+also read `uniqueTransitionKeys` and `multiSchemaTransitionKeys` before making
+corpus claims. The runner threads source verification into each
+`loose_piece`, `pinned_piece`, and `xray_target` row and keeps
+`publicClaimReadiness = not_ready_for_public_claim` for all rows. `loose_piece`
+rows carry legal capture, defender, and exchange-gain payloads, with touched
+classification computed only from created loose facts. Standing loose facts
+touched by the move are reported separately and do not route the row into the
+created-touched capture slice. `pinned_piece` rows carry pinner, pinned piece,
+anchor, absolute/relative pin kind, geometry, line squares, before-line state,
+and played-move relation. `xray_target` rows carry slider, blocker, target,
+geometry, line squares, before-line state, and played-move relation. These
+payloads make the audit reviewable; they do not convert the root into public
+truth.
+
+The serial audit plan runner is
+`lila.commentary.diagnostic.LowerDiagnosticSerialAuditPlanRunner`. Each slice
+must report both total diagnostic rows and source-verified eligible rows. If
+source verification is zero, the loose-touched, loose-non-touch, pinned-created,
+and xray-created slices remain blocked work queues, not public explanation
+backlog. The intended audit order is source PGN verification first, then
+created loose touched-anchor capture audit, created loose non-touch causality
+audit, created pin geometry audit, created x-ray geometry audit, pre-existing
+anti-case guards, and only then trapped/overloaded follow-up.
+
+The phase-3 bottleneck runner is
+`lila.commentary.diagnostic.LowerDiagnosticBottleneckRunner`. It consumes the
+same tracked or external diagnostic input and writes diagnostic-only
+`phase3-summary.json`, `bottlenecks.jsonl`, and `fourth-phase-slices.jsonl`.
+The bottleneck report must separate:
+
+- `input_reconstruction`: rows where exact transition identity is missing or
+  invalid
+- `standing_board_fact_only`: current-board tactical facts without replayable
+  `beforeFen` and `playedMove`
+- `root_witness_schema`: tactical source schemas with no corresponding tracked
+  tactical root fact
+- `exact_transition_admission`: replayable transition rows only
+- `selection_line` and `positive_control`: selector handoff and existing green
+  controls
+
+`exact_transition_admission` is valid only when the row is replayable. Current
+standing tactical roots must remain `standing_board_fact_only` with
+`transition_context_required`; they cannot be handed to 4th-phase admission work
+as exact transition slices. Phase-3 handoff slices must also carry
+`countsByCaseType` and `countsByExpectation` so that positive rows and
+false-positive anti-cases are visible before any lower-layer slice expansion.
+
+The projection impact runner is
+`lila.commentary.diagnostic.KingAttackProjectionImpactReportRunner`. It must
+separate actual source-carried projection evidence from diagnostic probe
+eligibility. Rows without source `projectionEvidenceClaims` or
+`projectionEvidence` remain `blocked_missing_projection_evidence`; synthetic
+certification/projection evidence generated from runtime carriers may only be
+reported as `diagnostic_probe_admitted_not_actual_public_admission`. Its
+`king-attack-projection-probe-admitted-fen-ledger.jsonl` file is the preferred
+audit surface because materialized external rows can repeat the same exact FEN
+across many source schemas.
+
+Current-only standing tactical rows require an additional static audit before
+any product-facing interpretation. `LowerDiagnosticStandingAuditRunner` writes
+diagnostic-only `standing-audit-summary.json` and `standing-audit-rows.jsonl`
+for the `standing_board_fact_only` population. It also writes
+`standing-tactical-summary.json`, `standing-tactical-ledger.jsonl`, and
+`standing-tactical-samples.md` as reproducible ledger views over the same row
+classification. The audit separates at least:
+
+- over-broad home-pawn `xray_target` rows, including start-position style
+  slider/pawn/blocker geometry; the current root boundary rejects this bucket
+  at extraction, so the expected tracked count is zero
+- selected static tactical claims whose owner is not the side to move
+- incidental tactical smells on rows whose source schema is unrelated
+- negative or near-miss fixtures that nevertheless carry tactical roots
+- immediate-capture static facts that may need stronger current-board wording
+  but still cannot become move-causal without `beforeFen` and `playedMove`
+- plausible static tactical fixtures that remain context-missing
+
+These tags are audit labels, not admission permissions. A row tagged
+`immediate_capture_static_fact` may justify the dedicated current-board
+`immediate_capture` claim contract when the legal side-to-move capture and
+same-square loose-piece carrier are present; it still does not prove that the
+last move created or missed the tactic.
+
+The current tracked standing audit snapshot has 286 `standing_board_fact_only`
+rows and zero `overbroad_home_pawn_xray` rows. This is a false-positive
+boundary result, not a product commentary acceptance result.
+
+The chess action runner is
+`lila.commentary.diagnostic.LowerDiagnosticChessActionRunner`. It writes
+diagnostic-only `chess-action-summary.json`, `chess-action-items.jsonl`,
+`transition-slice-handoff.jsonl`, and `chess-action-report.md`. These artifacts
+translate lower diagnostic bottlenecks into ordered chess-engineering work
+items. They are not acceptance reports and do not create runtime admission:
+`input_reconstruction` stays blocked, `exact_transition_slice` is the only
+immediate move-local admission backlog, `root_witness_contract` is taxonomy
+work only, current-board `immediate_capture` remains non-move-causal, and
+standing tactical smells remain support-only unless exact transition identity
+is added.
+
+Future sweep summaries should include cell-local counts such as
+`phase | moveBucket | materialRegime`, but aggregate pass counts alone are not
+acceptance. They must also report the layer-local failure reason so that lower
+claim/admission/root-witness gaps are not hidden behind renderer or product
+bucket labels.
 
 Recommended sweep axes:
 

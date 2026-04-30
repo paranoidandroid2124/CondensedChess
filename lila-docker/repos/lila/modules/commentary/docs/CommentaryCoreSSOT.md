@@ -216,15 +216,39 @@ These items are recorded as future product-quality directions, not as live
 runtime authority and not as permission to reopen lower Object, Delta,
 Certification, Sxx, source, or renderer meaning contracts.
 
-- Game review pass:
+- Whole-game review/report pass:
   - Future goal: walk a whole game and select the moves that deserve notes.
   - Boundary: do not annotate every move by default and do not create broad
     fallback prose for quiet or unproved positions.
+  - Current status: deferred. There is no live post-`V10` runtime review/report
+    layer in this worktree. Whole-game note selection must not be rebuilt until
+    the lower claim/admission/root-witness path can expose complete,
+    move-local, exact-board evidence traces for the relevant phenomenon
+    classes.
+  - Required lower trace before reintroduction: exact input identity
+    (`beforeFen`, `currentFen`, `playedMove`, and move metadata where present),
+    admitted Root/Witness/Object/Delta/Certification facts, any transition or
+    continuation binding, selected public claim identity, renderer specificity,
+    and negative/suppressed alternatives when false-positive control depends on
+    them. Engine evidence may help audit or triage those rows only after exact
+    move identity is verified; it remains certification evidence and never the
+    public claim owner.
+  - Temporary report buckets such as player-facing note names, severity,
+    reason-family counts, and silent/covered totals are not current runtime
+    authority and are not acceptance proxies. They may return only after the
+    lower trace above is explicit enough to distinguish true lower admission
+    gaps from renderer wording gaps, selection ranking gaps, stale input, and
+    engine/PV-only diagnoses.
+  - `Better Plan` text may be carried only when already public-bound wording is
+    supplied by lower evidence. A future review/report layer must not invent a
+    plan from a raw engine move or SAN token.
 - Critical moment selection:
   - Future goal: choose decision points, turning points, missed resources,
     candidate-line divergence, and repeated strategic patterns from existing
     exact-board evidence.
-  - Boundary: selection value does not create new chess truth.
+  - Boundary: selection value does not create new chess truth. `Critical
+    Moment` is a priority label over an already selected board-backed
+    `Decision Point`; it is not a separate truth owner.
 - Source-enriched annotation:
   - Future goal: use opening, motif, endgame-study, and retrieval context to
     make already-proved line annotations more readable.
@@ -247,6 +271,12 @@ Certification, Sxx, source, or renderer meaning contracts.
     readability.
   - Boundary: one aggregate score must not hide weak opening, middlegame,
     transition, endgame, quiet-position, or counterplay cells.
+  - Current preparation: post-`V10` review/report quality tooling is removed
+    from this worktree. Future corpus tooling should restart as lower-layer
+    diagnostics first: classify exact-board phenomena, record admitted and
+    rejected lower facts, and only then ask whether any product note should be
+    selected. Generated local reports remain test/tooling evidence only and do
+    not become runtime claim, renderer, API, source, or frontend authority.
 - Product UX layer:
   - Future goal: turn the move note path into player-facing review products
     such as decision points, recurring patterns, weak spots, training cards,
@@ -394,10 +424,14 @@ This does not open renderer, API, or frontend wiring.
 
 Runtime backend claim production is split by evidence boundary. The default
 backend seam calls `EvidenceClaimProducer`, which composes the narrow
-`ExactBoardClaimProducer` with an empty higher-evidence handoff. Exact-board
+`ExactBoardClaimProducer` with a sanitized higher-evidence handoff. Exact-board
 claims may come only from sanitized current Object extraction and optional
-same-current Delta extraction. Higher-layer runtime claims require a private
-sanitized `EvidenceClaimHandoff`: same-current `CertificationExtraction`,
+same-current Delta extraction. When `CertificationEngineRuntimeIntake` accepts
+a bounded engine packet, the seam may feed the resulting same-root
+`CertificationEvidenceBundle` through `CertificationExtractor` and into that
+handoff; rejected or empty engine intake still contributes no higher claims.
+Other higher-layer runtime claims require a private sanitized
+`EvidenceClaimHandoff`: same-current `CertificationExtraction`,
 typed `StrategyProjectionAdmissionResult` values, or normalized
 `SourceContextCandidate` values. Projection claims may be emitted only from an
 admitted `StrategyProjectionAdmissionResult` produced by
@@ -431,6 +465,28 @@ payloads are clamped to the computed outline `wordingStrengthCap`; selected
 source-context payloads remain capped at `context_only`.
 Lead bucket priority is frozen as `mustLead > shouldLead > canLead`; impact
 axes, including `novelty`, rank claims only inside the selected lead bucket.
+Generic transition carriers (`last_move_transition` and non-capture
+`pawn_structure_transition`) are exact evidence but are emitted as
+`SupportOnly`, so they do not mask a concrete selected current-board reason
+and do not create a generic primary-block product note.
+Standing position-local tactical roots are lower support facts, not public
+opportunity claims and not move-causal claims. The generic
+`tactical_liability` route is selector-forbidden as a lead route. Tactical
+board refs may become move-local public claims only through narrow
+validated-transition slices such as a moved non-pawn left loose or a legal
+non-slider royal fork. The moved-piece-left-loose slice is not admitted from a
+root ref alone: it requires exact replay, same-piece origin/destination
+identity, a non-pawn/non-king moved piece, no pre-existing `loose_piece` fact on
+the moved piece at the origin, a bound Delta evidence id
+`moved_piece_left_loose_transition`, a bound `loose_piece` lower carrier, and a
+bound `immediate_capture` lower carrier proving a legal side-to-move capture on
+the destination. A current-board opportunity may be public only through a
+dedicated exact-board Object route, currently the bounded `immediate_capture`
+contract: the side to move must have a legal capture onto a non-king target
+that is also a same-square `loose_piece` lower carrier. Plain
+`immediate_check` is also public board text only; exact mate-in-one may support
+king-safety wording because the mate is legal-move board truth, not raw engine
+mate/PV truth.
 Duplicate suppression is scoped to competing Sxx projections; lower Object,
 Delta, and Certification carrier/support claims are not duplicate-suppressed
 just because they share an owner, anchor, route, and scope key.
@@ -564,23 +620,38 @@ Generic relief wording, unbacked conversion, wrong-binding, raw-engine,
 source-context, retrieval, and renderer-strength shortcuts remain fail-closed.
 
 Selection also covers the S01/S02/S03/S04 king-attack cluster. It consumes
-already admitted S01/S02/S03/S04 typed Projection claims only. Exact S01 can
-lead only with same-owner Witness `available_lever_trigger`, Witness
-`pawn_push_break_contact_source`, Object `AttackScaffold`, Certification
-`CertifiedKingSafetyEdge`, bound `king_wing_storm_route_certified` projection
-evidence, and a frozen `same_wing_contact` or `attack_edge_same_king` route.
+already admitted S01/S02/S03/S04 typed Projection claims only; selector tests
+that pass synthetic admitted claims verify downstream ranking and
+non-redundancy, not current admission production. Current large-corpus
+false-positive hardening keeps the corpus S01, S03, and S04 exact rows deferred
+unless their `AttackScaffold` support is stronger than geometry/shelter/duty
+alone. Their frozen route names remain reserved, but diagnostic probe evidence
+is not public admission. An exact S01 public claim would still require
+same-owner Witness `available_lever_trigger`, Witness
+`pawn_push_break_contact_source`, Certification `CertifiedKingSafetyEdge`,
+bound `king_wing_storm_route_certified` projection evidence, a frozen
+`same_wing_contact` or `attack_edge_same_king` route, and a future scaffold
+contract binding the pawn contact source and target to the attack host.
 Exact S02 can lead only with same-owner Object `AttackScaffold`,
-Certification `CertifiedKingSafetyEdge`, bound
+Certification `CertifiedKingSafetyEdge`, a loose-bound scaffold support
+fragment whose `loose_support_squares` intersects the public king-ring target
+set and is directly attacked by one of the public source squares, bound
 `king_ring_concentration_route_certified` projection evidence, and a frozen
 `direct_piece_concentration` or `lane_strengthened_concentration` route. Exact
 S03 can lead only with same-owner Witness `diagonal_lane_only`, Object
-`AttackScaffold`, Certification `ComparativeKingFragility`, Certification
-`CertifiedKingSafetyEdge`, bound `diagonal_king_attack_route_certified`
-projection evidence, and a frozen `king_facing_diagonal_entry` or
-`fragility_linked_diagonal` route. Exact S04 can lead only with defender-owned
-Object `KingSafetyShell`, same-owner Certification `CertifiedKingSafetyEdge`,
-bound `king_shelter_breach_route_certified` projection evidence, and a frozen
-`shell_payload_breach` or `support_break_breach` route. The
+`AttackScaffold` carrying loose-bound support whose loose square is one of the
+public diagonal endpoints and is directly attacked by the public diagonal
+source, Certification
+`ComparativeKingFragility`, Certification `CertifiedKingSafetyEdge`, bound
+`diagonal_king_attack_route_certified` projection evidence, and a frozen
+`king_facing_diagonal_entry` or `fragility_linked_diagonal` route. The current
+corpus keeps S03 deferred unless that loose-bound scaffold support is present.
+Exact S04 still requires defender-owned Object `KingSafetyShell`, same-owner
+Certification `CertifiedKingSafetyEdge`, bound
+`king_shelter_breach_route_certified` projection evidence, and a frozen
+`shell_payload_breach` or `support_break_breach` route; the current corpus rows
+remain deferred until the shelter-breach support contract is strong enough for
+public admission. The
 `support_break_breach` route also requires same-owner Witness
 `diagonal_lane_only`. Owner, defending king anchor, defender, route, and scope
 must remain clear; king-attack projection fails closed when `owner` and
@@ -907,6 +978,15 @@ without public selected-claim ownership remains non-public. If a
 malformed plan puts the same claim in a selected section and `blocked`, the
 blocked entry wins and the public block is not emitted. `NoCommentary` and
 `hidden` renders emit no public blocks and no public evidence refs.
+The renderer may use a closed family fallback for already-selected public
+evidence ids such as `MaterialHarvest`, `CertifiedKingSafetyEdge`,
+`InitiativeWindow`, `same_target_forcing_realization`,
+`liability_relief_certified`, structure/passers ids such as
+`weak_pawn_target_pressure_persistence_certified`, endgame ids such as
+`fortress_hold_certified`, and piece-activity ids such as
+`mobility_domination_route_certified`. These fallbacks are player-facing labels
+over selected bounded evidence only; they do not create new Certification,
+Projection, engine, or line truth.
 
 The backend commentary seam contract is frozen in
 [CommentaryBackendSeamContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentaryBackendSeamContract.md).
@@ -939,9 +1019,16 @@ composes exact-board intake, optional certification runtime intake,
 `EvidenceClaimProducer`, selection, outline builder, and renderer. The
 producer composes the narrow `ExactBoardClaimProducer` with typed
 certification, projection-admission, and source-context handoffs. It may emit
-only bounded Object claims for current
-material/piece-inventory and immediate-check facts, plus bounded Delta claims
-for last-move, capture, and pawn-transition facts from a validated transition.
+only bounded Object claims for current material/piece-inventory, immediate
+check, exact mate-in-one, support-only tactical-liability root facts
+(`loose_piece`, `pinned_piece`, `overloaded_piece`, `trapped_piece`, and
+`xray_target`), and the separate current-board `immediate_capture` contract
+when a legal side-to-move capture lands on a locally loose piece. It may also
+emit bounded Delta claims for last-move, capture, pawn-transition,
+`moved_piece_left_loose_transition`, and legal non-slider royal fork facts from
+a validated transition. The moved-piece-left-loose Delta claim must carry its
+`loose_piece` and `immediate_capture` facts as lower carriers rather than
+renaming the root fact as the public claim owner.
 Those Delta claims require the transition after-state to match the current
 extraction root state, and the backend seam rejects board-equivalent but
 full-FEN-clock-stale transition endpoints before claim production.
@@ -958,6 +1045,11 @@ reranking/reinterpretation. Accepted engine intake is still not a truth owner:
 `EngineCertification` refs survive this seam only when they match bounded
 engine evidence refs produced by the accepted certification runtime intake
 result by canonical id, owner, and anchor.
+Accepted engine intake may, however, provide the same-root certification
+evidence bundle that lets existing certification families such as
+`MaterialHarvest` become ordinary bounded Certification claims through the
+standard producer path. This does not bypass certification verdicts, public
+family allowlists, selection board-reason rules, or renderer evidence filters.
 
 The minimal frontend bridge contract is frozen in
 [CommentaryFrontendBridgeContract.md](/C:/Codes/CondensedChess/lila-docker/repos/lila/modules/commentary/docs/CommentaryFrontendBridgeContract.md).
@@ -1065,6 +1157,8 @@ Root truth is additionally constrained by these semantic rules:
   counts
 - `pinned_piece` includes relative slider pins to a more valuable friendly
   anchor, not only king pins
+- `xray_target` is a high-value rook/queen target behind exactly one blocker,
+  not a generic one-blocker line to any non-pawn piece
 - `trapped_piece` is an extreme high-precision non-pawn atom with zero safe
   exits under the local safety rule
 
@@ -1883,9 +1977,22 @@ Frozen object homes:
       `king_shelter_hole`, `duty_bound_defender`,
       `short_run_slider_gate_restriction`, `xray_target`, `pinned_piece`, or
       `loose_piece`
-    - a shelter-hole-only support picture still needs a second distinct carrier
-      fragment; lone local diagonal/file pressure plus holes stays outside the
-      host core
+    - `loose_piece` is admission support only when an existing carrier source
+      directly attacks the loose square; the admitted object payload preserves
+      the exact `loose_support_squares` so projection consumers can bind the
+      support to their public source/target rather than accepting scaffold-wide
+      smell
+    - `pinned_piece` is admission support only through a same-owner `pin`
+      witness whose attacker square is a carrier source, whose blocker is the
+      support square, and whose anchor is the defending king
+    - `xray_target` remains support-only until a separate carrier-bound x-ray
+      recomputation contract exists; a standing x-ray root in the same king
+      theater is not `AttackScaffold` support
+    - shelter-hole-only support still needs either a second distinct carrier
+      admission unit or at least two carrier entry squares; lone local
+      diagonal/file pressure plus holes stays outside the host core
+    - pinned-plus-shelter without a direct loose/certified support fragment is
+      not enough to create the host core
   - forbids:
     - attack-map pressure alone
     - carrier-only admission
@@ -2637,15 +2744,18 @@ Current projection handoff status on this worktree is now frozen as:
   scaffolds for every `S01-S25` band, with
   `allProjectionBandIds` fixed to exactly that full range
 - current S01/S02/S03/S04/S05/S06/S07/S08/S09/S10/S11/S12/S13/S14/S15/S16/S17/S18/S19/S20/S21/S22/S23/S24/S25 blockers are closed at the runtime start-ready handoff boundary:
-  - `S01` has same-anchor king-wing storm admission evidence and projection
-    validation scaffold, with lower truth supplied by current
-    `available_lever_trigger`, current `pawn_push_break_contact_source`,
-    same-defending-king `AttackScaffold`, and certified same-owner
-    `CertifiedKingSafetyEdge`
-  - `S03` has same-king diagonal attack admission evidence and projection
-    validation scaffold, with lower truth supplied by current king-theater
-    `diagonal_lane_only`, same-defending-king `AttackScaffold`, and certified
-    same-owner `ComparativeKingFragility` plus `CertifiedKingSafetyEdge`
+  - `S01` keeps only reserved same-anchor king-wing storm projection evidence
+    and validation scaffolds; public admission is deferred unless the future
+    `AttackScaffold` contract binds the pawn contact source and target to the
+    same host rather than reusing unrelated king-attack support
+  - `S02` has same-king king-ring concentration admission evidence and
+    projection validation scaffold, but live admission additionally requires the
+    same `AttackScaffold` to expose `loose_support_squares` on the public
+    king-ring target set directly attacked by one of the public source squares
+  - `S03` keeps reserved same-king diagonal attack evidence and validation
+    scaffolds; public admission is deferred unless the same `AttackScaffold`
+    loose support binds to the public diagonal source and endpoint rather than
+    unrelated scaffold-wide tactical smell
   - `S05` has same-anchor center-release admission evidence and projection
     validation scaffold, with lower truth supplied by current
     `available_lever_trigger` plus current `pawn_push_break_contact_source` on
@@ -2879,12 +2989,14 @@ have narrow live runtime admission branches. That contract freezes:
     `king_ring_concentration_requires_same_defending_king_attack_scaffold`,
     `king_ring_concentration_requires_certified_same_owner_king_safety_edge`,
     `same_task_projection_evidence_must_mirror_s02_owner_defending_king_ring_targets_source_set_and_route`,
+    `loose_scaffold_support_must_bind_to_s02_source_and_target`,
     `s03_diagonal_s04_shell_s09_file_penetration_or_optional_strengthening_is_non_admitting`,
     and
     `wrong_owner_wrong_king_wrong_targets_wrong_sources_wrong_route_stale_or_support_only_evidence_is_non_admitting`;
     `king_ring_concentration_route_certified` is live-allowed only for S02 and
     must mirror the same defending king, source set, king-ring target set, and
-    route
+    route, and the loose support square must be a public target square directly
+    attacked by a public source square
   - `S03` requires king-theater `diagonal_lane_only` plus same-king fragility
     and king-safety certification; bishop-pair state remains support/contrast
     only. Its live freeze is exact and non-broad:
@@ -2892,13 +3004,16 @@ have narrow live runtime admission branches. That contract freezes:
     `diagonal_king_attack_requires_same_defending_king_attack_scaffold`,
     `diagonal_king_attack_requires_comparative_fragility_and_certified_edge`,
     `same_task_projection_evidence_must_mirror_s03_owner_defending_king_diagonal_source_entry_squares_and_route`,
+    `loose_scaffold_support_must_bind_to_s03_diagonal_source_and_endpoint`,
     `s02_concentration_s12_local_access_bishop_pair_or_non_king_diagonal_is_non_admitting`,
     and
     `attack_scaffold_certification_diagonal_only_stale_or_wrong_task_evidence_is_non_admitting`.
     The live evidence kind `diagonal_king_attack_route_certified` is present in
     `StrategyProjectionScopeContract.requiredEvidenceKindsByBand` only for S03
     and must mirror the same owner, defending king, diagonal source, king-ring
-    entry/endpoints, and route. Stale, wrong-owner, wrong-king, wrong-source,
+    entry/endpoints, and route; the scaffold loose support must be one of those
+    endpoints and must be directly attacked by the diagonal source. Stale,
+    wrong-owner, wrong-king, wrong-source,
     wrong-route, object-only, certification-only, bishop-pair-only, S02
     concentration, and S12 local-access rows remain fail-closed. Lower carriers
     remain `ObjectSupportOnly:AttackScaffold(non_truth_owner)` and
@@ -2946,7 +3061,8 @@ have narrow live runtime admission branches. That contract freezes:
   checks in `ProjectionExpectationCorpusTest`
 - fail-closed runtime separation: S01 is live only through its exact
   same-anchor `king_wing_storm_route_certified` branch. S02 is live only
-  through exact same-king `king_ring_concentration_route_certified` evidence.
+  through exact same-king `king_ring_concentration_route_certified` evidence
+  whose source/target pair is also loose-bound in the same `AttackScaffold`.
   S03 is live only through exact same-king
   `diagonal_king_attack_route_certified` evidence. S04 is live only through
   exact same-defender `king_shelter_breach_route_certified` evidence with

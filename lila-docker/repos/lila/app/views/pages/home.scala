@@ -39,7 +39,7 @@ object home:
             st.section(cls := "home-section")(
               div(cls := "home-section-head")(
                 strong("Recent analyses"),
-                span("Resume recent analysis snapshots in Guided Review by default, or open the same game in Full Analysis when you need the whole board.")
+                span("Resume recent analysis snapshots on the board, with move explanation available when you need it.")
               ),
               if data.recentAnalyses.nonEmpty then
                 div(cls := "home-card-grid home-card-grid--analysis")(
@@ -95,13 +95,13 @@ object home:
         val supportLine =
           List(entry.opening, entry.variant.filterNot(v => entry.opening.contains(v))).flatten.mkString(" • ")
         st.article(cls := "home-continue-card")(
-          p(cls := "home-continue-card__eyebrow")("Continue Guided Review"),
+          p(cls := "home-continue-card__eyebrow")("Continue Analysis"),
           h2(cls := "home-continue-card__title")(entry.title),
           p(cls := "home-continue-card__summary")(recentAnalysisMeta(entry)),
           supportLine.nonEmpty.option(p(cls := "home-continue-card__support")(supportLine)),
           div(cls := "home-continue-card__actions")(
-            a(href := importedAnalysisUrl(entry._id, "review"), cls := "button button-fat")("Continue Guided Review"),
-            a(href := importedAnalysisUrl(entry._id, "raw"), cls := "button button-metal")("Open full analysis")
+            a(href := importedAnalysisUrl(entry._id, "raw"), cls := "button button-fat")("Continue analysis"),
+            a(href := analysisIndexUrl("raw"), cls := "button button-metal")("Open analysis home")
           )
         )
       case Main.HomeContinueCard.PatternReport(job) =>
@@ -156,7 +156,7 @@ object home:
   private def renderRecentAnalysis(entry: lila.analyse.ImportHistory.Analysis): Frag =
     val supportLine =
       List(entry.opening, entry.variant.filterNot(v => entry.opening.contains(v))).flatten.mkString(" • ")
-    a(href := importedAnalysisUrl(entry._id, "review"), cls := "home-card home-card--analysis")(
+    a(href := importedAnalysisUrl(entry._id, "raw"), cls := "home-card home-card--analysis")(
       div(cls := "home-card__badges")(
         entry.provider.map(providerBadge),
         span(cls := s"home-pill home-pill--${sourceBadgeTone(entry.sourceType)}")(sourceTypeLabel(entry.sourceType))

@@ -47,7 +47,10 @@ class RootExtractorCorpusTest extends munit.FunSuite:
       SchemaId.OutpostSquare,
       SchemaId.CandidatePasser,
       SchemaId.KingShelterHole,
-      SchemaId.TrappedPiece
+      SchemaId.TrappedPiece,
+      SchemaId.LoosePiece,
+      SchemaId.PinnedPiece,
+      SchemaId.XrayTarget
     )
 
     highRiskSchemas.foreach: schemaId =>
@@ -56,6 +59,17 @@ class RootExtractorCorpusTest extends munit.FunSuite:
         requiredCaseTypes.subsetOf(actualCaseTypes),
         s"$schemaId case types = ${actualCaseTypes.toVector.sorted.mkString(",")}"
       )
+
+  test("xray target rejects start-position home pawn geometry"):
+    val vector = RootExtractor.fromFen(chess.format.Fen.Full.clean("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1")).fold(fail(_), identity)
+
+    assertEquals(vector.squareMask64(SchemaId.XrayTarget, color = Some(chess.Color.White)).getOrElse(0L), 0L)
+    assertEquals(vector.squareMask64(SchemaId.XrayTarget, color = Some(chess.Color.Black)).getOrElse(0L), 0L)
+
+  test("xray target rejects low-value minor-piece targets"):
+    val vector = RootExtractor.fromFen(chess.format.Fen.Full.clean("3qk3/3p4/8/8/3N4/8/8/4K3 b - - 0 1")).fold(fail(_), identity)
+
+    assertEquals(vector.squareMask64(SchemaId.XrayTarget, color = Some(chess.Color.Black)).getOrElse(0L), 0L)
 
   test("root coverage matrix artifact stays in sync with the corpus"):
     def normalizeSnapshot(value: String): String =

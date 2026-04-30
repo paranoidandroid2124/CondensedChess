@@ -250,7 +250,7 @@ object CommentaryRendererContract:
 
   private def evidenceIdsFor(plan: CommentaryPlan, claim: CommentaryClaim): Vector[String] =
     val publicRefs = publicEvidenceRefs(plan)
-    claim.evidenceRefs
+    publicRefsForClaim(claim)
       .filter(publicRefs.contains)
       .map(_.id)
 
@@ -262,10 +262,10 @@ object CommentaryRendererContract:
     val blockedSelectedRefs = publicSections(plan)
       .flatMap(_.claims)
       .filter(selected => blockedClaimIds.contains(selected.claim.id))
-      .flatMap(_.claim.evidenceRefs)
-    val blockedRefs = (plan.blocked.flatMap(_.claim.evidenceRefs) ++ blockedSelectedRefs).toSet
+      .flatMap(selected => publicRefsForClaim(selected.claim))
+    val blockedRefs = (plan.blocked.flatMap(blocked => publicRefsForClaim(blocked.claim)) ++ blockedSelectedRefs).toSet
     val publicClaimRefs = publicSelectedClaims
-      .flatMap(_.claim.evidenceRefs)
+      .flatMap(selected => publicRefsForClaim(selected.claim))
       .toSet
     val publicCertificationClaimRefs = publicSelectedClaims
       .filter(_.claim.layer == ClaimLayer.Certification)
@@ -277,6 +277,18 @@ object CommentaryRendererContract:
       .filter(ref => renderableEvidence(ref, plan, publicCertificationClaimRefs))
       .filter(ref => !blockedRefs.contains(ref) || publicClaimRefs.contains(ref))
       .toSet
+
+  private def publicRefsForClaim(claim: CommentaryClaim): Vector[EvidenceRef] =
+    claim.evidenceRefs ++ claim.lowerCarrierRefs.filter(isBoardReasonRef)
+
+  private def isBoardReasonRef(ref: EvidenceRef): Boolean =
+    Set(
+      EvidenceRefKind.Root,
+      EvidenceRefKind.Witness,
+      EvidenceRefKind.Object,
+      EvidenceRefKind.Delta
+    ).contains(ref.kind) &&
+      bounded(ref)
 
   private def renderVariationEvidence(
       plan: CommentaryPlan,

@@ -23,7 +23,7 @@ class EnglishLineCommentaryContractTest extends munit.FunSuite:
     assertEquals(commentary.comments.head.wordingCap, WordingStrength.QualifiedSupport)
     assertEquals(
       commentary.comments.head.comment,
-      "After Nf6 Ng5, ...Qb6 Qd2 is met by Ng5, and pressure remains in the line."
+      "After Nf6 Ng5, ...Qb6 Qd2 is met by Ng5, and the pressure stays on."
     )
 
   test("missing main line or missing line result creates no comment"):
@@ -55,11 +55,25 @@ class EnglishLineCommentaryContractTest extends munit.FunSuite:
     assertEquals(
       withDetails.comments.map(_.comment),
       Vector(
-        "After Nf6 Ng5, pressure remains in the line. In Nxd5 ...exd5, the line converts into a clearer continuation. By contrast, Nxd5 ...exd5 is premature in the line."
+        "After Nf6 Ng5, the pressure stays on. In Nxd5 ...exd5, the continuation becomes clearer. By contrast, Nxd5 ...exd5 comes too early."
       )
     )
-    assertEquals(crossProofDetails.comments.map(_.comment), Vector("After Nf6 Ng5, pressure remains in the line."))
+    assertEquals(crossProofDetails.comments.map(_.comment), Vector("After Nf6 Ng5, the pressure stays on."))
     assertEquals(withoutMain.comments, Vector.empty)
+
+  test("line result phrases stay player-facing without repetitive engine-style wording"):
+    val pressure =
+      EnglishLineCommentaryWriter.write(linePlan(mainNote(), resultNote(LineNoteMeaning.PressurePersists)))
+    val counterplay =
+      EnglishLineCommentaryWriter.write(linePlan(mainNote(), resultNote(LineNoteMeaning.DoesNotRestoreCounterplay)))
+    val conversion =
+      EnglishLineCommentaryWriter.write(linePlan(mainNote(), resultNote(LineNoteMeaning.Converts)))
+
+    assertEquals(pressure.comments.map(_.comment), Vector("After Nf6 Ng5, the pressure stays on."))
+    assertEquals(counterplay.comments.map(_.comment), Vector("After Nf6 Ng5, counterplay still does not return."))
+    assertEquals(conversion.comments.map(_.comment), Vector("After Nf6 Ng5, the continuation becomes clearer."))
+    (pressure.comments ++ counterplay.comments ++ conversion.comments).foreach: comment =>
+      assert(!comment.comment.toLowerCase.contains("in the line"), clues(comment.comment))
 
   test("same annotation alternate complete line does not splice into the first comment"):
     val alternateMain =
@@ -73,7 +87,7 @@ class EnglishLineCommentaryContractTest extends munit.FunSuite:
 
     assertEquals(commentary.comments.size, 1)
     assertEquals(commentary.comments.head.primaryProofId, "candidate-main")
-    assertEquals(commentary.comments.head.comment, "After Nf6 Ng5, pressure remains in the line.")
+    assertEquals(commentary.comments.head.comment, "After Nf6 Ng5, the pressure stays on.")
     assert(!commentary.comments.head.comment.contains("d4"), clues(commentary.comments.head.comment))
     assert(!commentary.comments.head.comment.contains("c4"), clues(commentary.comments.head.comment))
 
@@ -93,14 +107,23 @@ class EnglishLineCommentaryContractTest extends munit.FunSuite:
       Vector(
         "natural",
         "tempting",
+        "better plan",
+        "critical",
         "best",
         "only",
+        "must",
+        "has to",
         "forced",
         "winning",
         "drawn",
         "decisive",
         "refutes",
-        "engine says",
+        "engine",
+        "stockfish",
+        "eval",
+        "depth",
+        "pv",
+        "proof",
         "theory proves",
         "tablebase",
         "oracle",

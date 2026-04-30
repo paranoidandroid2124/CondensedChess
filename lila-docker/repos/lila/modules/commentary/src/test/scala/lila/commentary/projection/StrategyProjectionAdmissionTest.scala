@@ -13,7 +13,6 @@ import lila.commentary.certification.{
   CertificationEvidencePurpose,
   CertificationEvidenceStrength,
   CertificationId,
-  CertificationExtractor,
   CertificationScope,
   CertificationVerdict
 }
@@ -77,7 +76,7 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
       )
     )
 
-  test("S01 admits only exact same-anchor king-wing storm route with certified same-king support"):
+  test("S01 defers king-wing storm routes until attack-scaffold support is stronger than geometry"):
     val s01 = StrategyProjectionBandId("S01")
     val storm = seedExtraction("6k1/6pp/8/6p1/3B1p2/8/Q3P1RP/6K1 w - - 0 1")
     val certification = kingSafetyEdgeEvidenceFor(storm, Color.White)
@@ -90,7 +89,7 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         Color.White,
         certification
       ),
-      Right(true)
+      Right(false)
     )
     assertEquals(
       StrategyProjectionAdmission.admits(
@@ -100,7 +99,7 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         Color.White,
         certification
       ),
-      Right(true)
+      Right(false)
     )
     assertEquals(
       StrategyProjectionAdmission.admits(s01, storm, StrategyProjectionEvidence.empty, Color.White, certification),
@@ -355,7 +354,8 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
               "carrier_source_squares" -> WitnessValue.SquareListValue(Vector(carrierSource)),
               "carrier_squares" -> WitnessValue.SquareListValue(Vector(carrierSource, carrierTarget)),
               "support_fragment_ids" -> WitnessValue.TokenListValue(Vector("loose_piece")),
-              "support_squares" -> WitnessValue.SquareListValue(Vector(supportOnlyTarget))
+              "support_squares" -> WitnessValue.SquareListValue(Vector(carrierTarget, supportOnlyTarget)),
+              "loose_support_squares" -> WitnessValue.SquareListValue(Vector(carrierTarget, supportOnlyTarget))
             ),
             support = WitnessSupport.empty
               .addTargetSquare(carrierSource)
@@ -388,6 +388,59 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
       clues("S02 must not promote AttackScaffold support-only squares into king-ring concentration targets")
     )
     assertEquals(carrierTargetSets.exists(_ == Set(carrierTarget.key)), true)
+
+  test("S02 rejects loose support that is not bound to the concentration target"):
+    val exact = seedExtraction("6k1/6pp/8/8/3B4/8/6R1/6K1 w - - 0 1")
+    val current = StrategicObjectExtractor.fromRoot(exact.rootState)
+    val defendingKing = squareFromKey("g8")
+    val carrierSource = squareFromKey("d4")
+    val carrierTarget = squareFromKey("g7")
+    val unrelatedLooseSupport = squareFromKey("h7")
+    val syntheticCurrent = StrategicObjectExtraction(
+      rootState = current.rootState,
+      primaryWitnesses = current.primaryWitnesses,
+      attachedWitnesses = current.attachedWitnesses,
+      objects = StrategicObjectSet(
+        Vector(
+          StrategicObject(
+            familyId = StrategicObjectId("AttackScaffold"),
+            anchor = WitnessAnchor.SquareAnchor(defendingKing),
+            color = Some(Color.White),
+            payload = WitnessPayload(
+              "king_square" -> WitnessValue.SquareValue(defendingKing),
+              "carrier_fragment_ids" -> WitnessValue.TokenListValue(Vector("diagonal_lane_only")),
+              "carrier_source_squares" -> WitnessValue.SquareListValue(Vector(carrierSource)),
+              "carrier_squares" -> WitnessValue.SquareListValue(Vector(carrierSource, carrierTarget)),
+              "support_fragment_ids" -> WitnessValue.TokenListValue(Vector("loose_piece")),
+              "support_squares" -> WitnessValue.SquareListValue(Vector(unrelatedLooseSupport)),
+              "loose_support_squares" -> WitnessValue.SquareListValue(Vector(unrelatedLooseSupport))
+            ),
+            support = WitnessSupport.empty
+              .addTargetSquare(carrierSource)
+              .addTargetSquare(carrierTarget)
+              .addTargetSquare(unrelatedLooseSupport)
+          )
+        )
+      )
+    )
+    val syntheticCertification = Certification(
+      familyId = CertificationId("CertifiedKingSafetyEdge"),
+      scope = CertificationScope.Comparative,
+      burdenTag = CertificationBurdenTag("king_safety_edge_certification"),
+      verdict = CertificationVerdict.Certified,
+      anchor = WitnessAnchor.BoardAnchor,
+      color = Color.White,
+      payload = WitnessPayload(
+        "attacked_king_ring_squares" -> WitnessValue.SquareListValue(Vector(carrierTarget, unrelatedLooseSupport))
+      ),
+      support = WitnessSupport.empty
+    )
+
+    assertEquals(
+      invokeS02KingRingConcentrationCarriers(syntheticCurrent, syntheticCertification, Color.White).isEmpty,
+      true,
+      clues("S02 loose support must bind to the same source/target as the public concentration carrier")
+    )
 
   test("S02 rejects same-cluster rivals, shortcut negatives, optional strengthening, and stale evidence"):
     val s02 = StrategyProjectionBandId("S02")
@@ -444,7 +497,7 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         .exists(_.contains("stale certification evidence"))
     )
 
-  test("S03 admits only exact same-king diagonal attack routes with mirrored runtime evidence"):
+  test("S03 defers diagonal attack routes until scaffold support is loose-bound"):
     val s03 = StrategyProjectionBandId("S03")
     val exact = seedExtraction("6k1/8/6p1/8/3B4/8/6R1/6K1 w - - 0 1")
     val certification = kingSafetyEdgeEvidenceFor(exact, Color.White)
@@ -457,7 +510,7 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         Color.White,
         certification
       ),
-      Right(true)
+      Right(false)
     )
     assertEquals(
       StrategyProjectionAdmission.admits(
@@ -467,7 +520,7 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         Color.White,
         certification
       ),
-      Right(true)
+      Right(false)
     )
     assertEquals(
       StrategyProjectionAdmission.admits(s03, exact, StrategyProjectionEvidence.empty, Color.White, certification),
@@ -533,6 +586,57 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         certification
       ),
       Right(false)
+    )
+
+  test("S03 filters loose support to endpoints bound to the diagonal source"):
+    val exact = seedExtraction("6k1/8/6p1/8/3B4/8/6R1/6K1 w - - 0 1")
+    val current = StrategicObjectExtractor.fromRoot(exact.rootState)
+    val defendingKing = squareFromKey("g8")
+    val diagonalSource = squareFromKey("d4")
+    val boundEndpoint = squareFromKey("g7")
+    val unrelatedEndpoint = squareFromKey("h8")
+    val unrelatedLooseSupport = squareFromKey("h7")
+    val syntheticCurrent = StrategicObjectExtraction(
+      rootState = current.rootState,
+      primaryWitnesses = current.primaryWitnesses,
+      attachedWitnesses = current.attachedWitnesses,
+      objects = StrategicObjectSet(
+        Vector(
+          StrategicObject(
+            familyId = StrategicObjectId("AttackScaffold"),
+            anchor = WitnessAnchor.SquareAnchor(defendingKing),
+            color = Some(Color.White),
+            payload = WitnessPayload(
+              "king_square" -> WitnessValue.SquareValue(defendingKing),
+              "carrier_fragment_ids" -> WitnessValue.TokenListValue(Vector("diagonal_lane_only")),
+              "carrier_source_squares" -> WitnessValue.SquareListValue(Vector(diagonalSource)),
+              "carrier_squares" -> WitnessValue.SquareListValue(Vector(diagonalSource, boundEndpoint, unrelatedEndpoint)),
+              "support_fragment_ids" -> WitnessValue.TokenListValue(Vector("loose_piece")),
+              "support_squares" -> WitnessValue.SquareListValue(Vector(boundEndpoint, unrelatedLooseSupport)),
+              "loose_support_squares" -> WitnessValue.SquareListValue(Vector(boundEndpoint, unrelatedLooseSupport))
+            ),
+            support = WitnessSupport.empty
+              .addTargetSquare(diagonalSource)
+              .addTargetSquare(boundEndpoint)
+              .addTargetSquare(unrelatedEndpoint)
+              .addTargetSquare(unrelatedLooseSupport)
+          )
+        )
+      )
+    )
+
+    val carriers =
+      invokeS03DiagonalKingAttackCarriers(
+        syntheticCurrent,
+        lila.commentary.witness.u.UExtractionContext(exact.rootState),
+        Color.White
+      )
+    val endpointSets =
+      carriers.map(_.productElement(2).asInstanceOf[Set[Square]].map(_.key))
+    assertEquals(
+      endpointSets.forall(_ == Set(boundEndpoint.key)),
+      true,
+      clues("S03 must publish only loose-bound diagonal endpoints, not every endpoint in the witness")
     )
 
   test("S03 rejects same-cluster rivals, shortcut negatives, support-only proof, and stale evidence"):
@@ -604,29 +708,12 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
       clues("S03 scaffold plus certification without exact king-theater diagonal entry cannot admit")
     )
     assert(
-      StrategicObjectExtractor
+      !StrategicObjectExtractor
         .fromRoot(scaffoldCertificationNoDiagonal.rootState)
         .objects
         .forFamilyId("AttackScaffold")
         .exists(_.color.contains(Color.White)),
-      clues("S03 nasty negative must contain real AttackScaffold support")
-    )
-    val noDiagonalCertifications =
-      CertificationExtractor
-        .fromObjectExtractionFailClosed(
-          StrategicObjectExtractor.fromRoot(scaffoldCertificationNoDiagonal.rootState),
-          noDiagonalCertification
-        )
-        .fold(message => fail(message), identity)
-        .claims
-    assert(
-      noDiagonalCertifications
-        .forFamilyId("ComparativeKingFragility")
-        .exists(cert => cert.owner.contains(Color.White) && cert.verdict == CertificationVerdict.Certified) &&
-        noDiagonalCertifications
-          .forFamilyId("CertifiedKingSafetyEdge")
-          .exists(cert => cert.owner.contains(Color.White) && cert.verdict == CertificationVerdict.Certified),
-      clues("S03 nasty negative must contain certified lower support")
+      clues("S03 scaffold support without loose-bound tactical support remains deferred")
     )
     val blackKingRing =
       lila.commentary.witness.u.UExtractionContext(scaffoldCertificationNoDiagonal.rootState)
@@ -1258,7 +1345,7 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         .exists(_.contains("stale certification evidence"))
     )
 
-  test("S04 admits only exact same-defender shelter-breach routes with mirrored runtime evidence"):
+  test("S04 defers shelter-breach routes until attack-scaffold support is stronger than geometry"):
     val s04 = StrategyProjectionBandId("S04")
     val exact = seedExtraction("6k1/8/6p1/4B3/8/8/7R/6K1 w - - 0 1")
     val certification = kingSafetyEdgeEvidenceFor(exact, Color.White)
@@ -1271,7 +1358,7 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         Color.White,
         certification
       ),
-      Right(true)
+      Right(false)
     )
     assertEquals(
       StrategyProjectionAdmission.admits(
@@ -1281,7 +1368,7 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         Color.White,
         certification
       ),
-      Right(true)
+      Right(false)
     )
     assertEquals(
       StrategyProjectionAdmission.admits(s04, exact, StrategyProjectionEvidence.empty, Color.White, certification),
@@ -4797,6 +4884,25 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         .getOrElse(fail("missing S02 carrier builder"))
     method.setAccessible(true)
     method.invoke(StrategyProjectionAdmission, current, certification, owner).asInstanceOf[Vector[Product]]
+
+  private def invokeS03DiagonalKingAttackCarriers(
+      current: StrategicObjectExtraction,
+      context: lila.commentary.witness.u.UExtractionContext,
+      owner: Color
+  ): Vector[Product] =
+    val method =
+      StrategyProjectionAdmission.getClass.getDeclaredMethods
+        .find(method =>
+          method.getName.contains("s03DiagonalKingAttackCarriers") &&
+            method.getParameterTypes.toVector == Vector(
+              classOf[StrategicObjectExtraction],
+              classOf[lila.commentary.witness.u.UExtractionContext],
+              classOf[Color]
+            )
+        )
+        .getOrElse(fail("missing S03 carrier builder"))
+    method.setAccessible(true)
+    method.invoke(StrategyProjectionAdmission, current, context, owner).asInstanceOf[Vector[Product]]
 
   private def s09Evidence(
       extraction: lila.commentary.witness.seed.StrategySupportSeedExtraction,

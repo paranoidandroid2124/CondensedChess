@@ -53,7 +53,7 @@ final class Main(
           Main.HomeQuickAction(
             label = "Start",
             title = "Start from PGN",
-            copy = "Paste a game and open Guided Review without rebuilding your entry flow.",
+            copy = "Paste a game and open the analysis board without rebuilding your entry flow.",
             href = routes.Importer.importGame.url
           ),
           Main.HomeQuickAction(

@@ -341,6 +341,7 @@ private[commentary] object RootCoverageMatrix:
         "white|minor|undefended|mixed",
         "white|queen|nominally_defended_but_losing|heavy",
         "white|minor|stably_defended|mixed",
+        "white|minor|stably_defended|heavy",
         "black|rook|undefended|heavy",
         "black|rook|stably_defended|heavy",
         "white|rook|undefended|heavy",
@@ -421,10 +422,10 @@ private[commentary] object RootCoverageMatrix:
     SchemaId.XrayTarget -> AuditPolicy(
       riskClass = "structural / engine-optional sanity",
       enginePolicy = "optional; use only to reject rows where an unrelated tactical win makes the x-ray target non-informative",
-      breadthBuckets = "polarity[white|black], slider[rook|bishop|queen], line_geometry[file|diagonal|rank], blocker_type[own_piece|enemy_piece], fail_closed[target_absent|two_blockers]",
-      minimumCorpusFloor = 9,
+      breadthBuckets = "polarity[white|black], slider[rook|bishop|queen], line_geometry[file|diagonal|rank], blocker_type[own_piece|enemy_piece], fail_closed[target_absent|two_blockers|minor_target]",
+      minimumCorpusFloor = 10,
       status = "broad-confidence-green",
-      exactBlocker = "none; white/black polarity, rook/bishop/queen slider families, file/diagonal/rank geometry, own/enemy blocker ownership, and target-absent/two-blocker fail-closed rows are closed",
+      exactBlocker = "none; white/black polarity, rook/bishop/queen slider families, file/diagonal/rank geometry, own/enemy blocker ownership, and target-absent/two-blocker/minor-target fail-closed rows are closed",
       greenProofBuckets = Vector(
         "white|rook|file|enemy_piece",
         "white|rook|file|target_absent",
@@ -434,7 +435,8 @@ private[commentary] object RootCoverageMatrix:
         "black|rook|file|enemy_piece",
         "black|bishop|diagonal|enemy_piece",
         "black|queen|rank|own_piece",
-        "black|queen|rank|two_blockers"
+        "black|queen|rank|two_blockers",
+        "black|queen|file|minor_target"
       )
     ),
     SchemaId.LeverAvailable -> AuditPolicy(

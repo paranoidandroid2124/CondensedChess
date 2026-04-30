@@ -215,6 +215,31 @@ class CommentaryOutlineBuilderContractTest extends munit.FunSuite:
     assertEquals(plan.evidence.map(_.ref), outlineEvidence)
     assert(!plan.evidence.exists(_.ref.id == "claim-local-ref"))
 
+  test("selected bounded board-reason lower carriers are preserved as plan evidence"):
+    val boardReason =
+      EvidenceRef(EvidenceRefKind.Delta, "capture_transition", Some("white"), Some("board"), Some("route"), Some("position_local"))
+    val lead = selectedClaim(
+      "lead-with-board-reason",
+      ClaimLayer.Certification,
+      ClaimBucket.MustLead,
+      evidenceRefs = Vector(EvidenceRef(EvidenceRefKind.Certification, "MaterialHarvest", Some("white"), Some("board"), Some("route"), Some("position_local"))),
+      lowerCarrierRefs = Vector(
+        boardReason,
+        EvidenceRef(EvidenceRefKind.RawEngine, "raw-pv", Some("white"), Some("board"), Some("route"), Some("position_local")),
+        EvidenceRef(EvidenceRefKind.SourceContext, "opening-source", Some("white"), Some("board"), Some("route"), Some("position_local")),
+        EvidenceRef(EvidenceRefKind.Object, "unbounded-object")
+      )
+    )
+    val outline = outlineWith(
+      lead = Some(lead),
+      evidenceRefs = lead.claim.evidenceRefs,
+      wordingStrengthCap = WordingStrength.QualifiedSupport
+    )
+
+    val plan = CommentaryOutlineBuilder.build(outline)
+
+    assertEquals(plan.evidence.map(_.ref), lead.claim.evidenceRefs :+ boardReason)
+
   test("annotation selection is copied from outline to plan without reranking or source reinterpretation"):
     val annotation =
       PlanAnnotationSelection(
@@ -267,6 +292,7 @@ class CommentaryOutlineBuilderContractTest extends munit.FunSuite:
       layer: ClaimLayer,
       bucket: ClaimBucket,
       evidenceRefs: Vector[EvidenceRef] = Vector(EvidenceRef(EvidenceRefKind.ExactBoard, "exact-board-ref")),
+      lowerCarrierRefs: Vector[EvidenceRef] = Vector.empty,
       softReasons: Vector[SuppressionReason] = Vector.empty,
       wordingStrengthCap: WordingStrength = WordingStrength.QualifiedSupport
   ): SelectedClaim =
@@ -283,6 +309,7 @@ class CommentaryOutlineBuilderContractTest extends munit.FunSuite:
         route = Option.when(layer != ClaimLayer.SourceContext)("route"),
         scope = Option.when(layer != ClaimLayer.SourceContext)("position_local"),
         evidenceRefs = evidenceRefs,
+        lowerCarrierRefs = lowerCarrierRefs,
         exactBoardBound = layer != ClaimLayer.SourceContext,
         wordingStrengthCap = wordingStrengthCap,
         sourceContextKind = Option.when(layer == ClaimLayer.SourceContext)(SourceContextKind.Opening)

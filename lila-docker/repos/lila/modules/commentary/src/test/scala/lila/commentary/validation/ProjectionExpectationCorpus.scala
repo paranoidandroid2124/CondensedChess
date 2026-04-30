@@ -57,7 +57,7 @@ private[validation] object ProjectionExpectationCorpus:
   val requiredRuntimeCaseTypes: Set[String] =
     Set("exact", "near_miss", "nasty_negative", "comparative_false_rival")
   val requiredCaseTypes: Set[String] = coverageCaseTypes
-  val requiredExpectations: Set[String] = Set("admitted", "rejected")
+  val requiredExpectations: Set[String] = Set("admitted", "rejected", "deferred")
   val requiredOwners: Set[String] = Set("white", "black")
   val requiredEvidenceKindsByBand: Map[String, Set[String]] =
     StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view
@@ -652,7 +652,7 @@ private[validation] object ProjectionExpectationCorpus:
         val caseTypeValue = validatedCaseType
         val expectationValue = validatedExpectation
         if admittedCoverageAxes.contains(axis) then
-          caseTypeValue == "exact" && expectationValue == "admitted"
+          caseTypeValue == "exact" && Set("admitted", "deferred").contains(expectationValue)
         else if nearMissCoverageAxes.contains(axis) then
           Set("near_miss", "contrastive", "comparative_false_rival").contains(caseTypeValue) &&
             expectationValue == "rejected"

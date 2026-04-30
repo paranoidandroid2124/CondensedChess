@@ -65,6 +65,53 @@ class CommentarySelectionContractTest extends munit.FunSuite:
     assertSuppressed(outline, "raw-engine-swing", SuppressionReason.RawEngineOnly)
     assertSuppressed(outline, "raw-engine-swing", SuppressionReason.NoBoardReason)
 
+  test("generic current-board tactical liability cannot become public lead"):
+    val outline = ClaimSelector.select(
+      Vector(
+        selectionClaim(
+          id = "generic-loose-piece-smell",
+          layer = ClaimLayer.Object,
+          status = ClaimStatus.Admitted,
+          owner = Some("white"),
+          beneficiary = Some("white"),
+          defender = Some("black"),
+          sideToMove = Some("white"),
+          anchor = Some("d4"),
+          route = Some("tactical_liability"),
+          scope = Some("position_local"),
+          evidenceRefs = Vector(EvidenceRef(EvidenceRefKind.Root, "loose_piece", Some("white"), Some("d4"), Some("tactical_liability"), Some("position_local"))),
+          lowerCarrierRefs = Vector.empty
+        )
+      )
+    )
+
+    assertEquals(outline.lead, None)
+    assertSuppressed(outline, "generic-loose-piece-smell", SuppressionReason.ForbiddenShortcut)
+
+  test("move-local loose-piece claims require an immediate-capture carrier"):
+    val outline = ClaimSelector.select(
+      Vector(
+        selectionClaim(
+          id = "loose-without-capture-payload",
+          layer = ClaimLayer.Delta,
+          status = ClaimStatus.Admitted,
+          owner = Some("white"),
+          beneficiary = Some("white"),
+          defender = Some("black"),
+          sideToMove = Some("white"),
+          anchor = Some("d4"),
+          route = Some("moved_piece_left_loose"),
+          scope = Some("move_local"),
+          evidenceRefs = Vector(EvidenceRef(EvidenceRefKind.Root, "loose_piece", Some("white"), Some("d4"), Some("moved_piece_left_loose"), Some("move_local"))),
+          lowerCarrierRefs = Vector.empty
+        )
+      )
+    )
+
+    assertEquals(outline.lead, None)
+    assertSuppressed(outline, "loose-without-capture-payload", SuppressionReason.ForbiddenShortcut)
+    assertSuppressed(outline, "loose-without-capture-payload", SuppressionReason.NoBoardReason)
+
   test("raw engine refs cannot be smuggled through certification or support"):
     val outline = ClaimSelector.select(
       Vector(

@@ -307,7 +307,7 @@ object importer:
             div(cls := "auth-history__section-head")(
               strong("Recent analyses"),
               span(
-                "Resume imported games from the exact PGN snapshot you saved, then continue with move insight or full-game review."
+                "Resume imported games from the exact PGN snapshot you saved, then continue with the board and move insight."
               )
             ),
             div(cls := "auth-history__list")(

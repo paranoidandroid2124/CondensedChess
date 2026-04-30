@@ -121,9 +121,60 @@ class CommentaryRendererContractTest extends munit.FunSuite:
 
     assertEquals(
       render.blocks.map(_.text.publicText),
-      Vector(Some("After Nf6 Ng5, ...Qb6 Qd2 is met by Ng5, and pressure remains in the line."))
+      Vector(Some("After Nf6 Ng5, ...Qb6 Qd2 is met by Ng5, and the pressure stays on."))
     )
     assertEquals(fallback.blocks.map(_.text.publicText), Vector(Some("Primary")))
+
+  test("renderer does not synthesize reason text from selected evidence ids"):
+    val materialRef =
+      EvidenceRef(EvidenceRefKind.Certification, "MaterialHarvest", Some("white"), Some("board"), Some("route"), Some("position_local"))
+    val kingRef =
+      EvidenceRef(EvidenceRefKind.Certification, "CertifiedKingSafetyEdge", Some("white"), Some("board"), Some("route"), Some("position_local"))
+    val targetRef =
+      EvidenceRef(EvidenceRefKind.Projection, "same_target_forcing_realization", Some("white"), Some("board"), Some("route"), Some("position_local"))
+    val liabilityRef =
+      EvidenceRef(EvidenceRefKind.Projection, "liability_relief_certified", Some("white"), Some("board"), Some("route"), Some("position_local"))
+    val initiativeRef =
+      EvidenceRef(EvidenceRefKind.Certification, "InitiativeWindow", Some("white"), Some("board"), Some("route"), Some("position_local"))
+    val structureRef =
+      EvidenceRef(EvidenceRefKind.Projection, "weak_pawn_target_pressure_persistence_certified", Some("white"), Some("d5"), Some("target_pressure"), Some("position_local"))
+    val endgameRef =
+      EvidenceRef(EvidenceRefKind.Projection, "fortress_hold_certified", Some("white"), Some("board"), Some("hold"), Some("position_local"))
+    val activityRef =
+      EvidenceRef(EvidenceRefKind.Projection, "mobility_domination_route_certified", Some("white"), Some("e5"), Some("mobility_plus_restriction"), Some("position_local"))
+
+    def primaryTextFor(ref: EvidenceRef): Option[String] =
+      val selectedClaim = selected(
+        id = s"claim-${ref.id}",
+        layer = if ref.kind == EvidenceRefKind.Projection then ClaimLayer.Projection else ClaimLayer.Certification,
+        bucket = ClaimBucket.ShouldLead,
+        evidenceRefs = Vector(ref),
+        owner = ref.owner.getOrElse("white")
+      )
+      CommentaryRenderer
+        .render(
+          planWith(
+            main = Some(section(PlanRole.Main, selectedClaim)),
+            evidence = Vector(PlanEvidence(ref)),
+            maxStrength = WordingStrength.QualifiedSupport
+          )
+        )
+        .blocks
+        .headOption
+        .flatMap(_.text.publicText)
+
+    Vector(
+      materialRef,
+      kingRef,
+      targetRef,
+      liabilityRef,
+      initiativeRef,
+      structureRef,
+      endgameRef,
+      activityRef,
+      materialRef.copy(owner = Some("black"))
+    ).foreach: ref =>
+      assertEquals(primaryTextFor(ref), Some("Primary"))
 
   test("minimal renderer does not emit role fragments for negative-only blocks"):
     val plan = planWith(
@@ -354,6 +405,28 @@ class CommentaryRendererContractTest extends munit.FunSuite:
 
     assertEquals(render.evidenceRefs, Vector.empty)
     assertEquals(render.blocks.head.evidenceIds, Vector.empty)
+
+  test("renderer exposes selected bounded board-reason lower carriers"):
+    val boardReason =
+      EvidenceRef(EvidenceRefKind.Delta, "capture_transition", Some("white"), Some("board"), Some("route"), Some("position_local"))
+    val lead = selected(
+      "lead-with-board-reason",
+      ClaimLayer.Certification,
+      ClaimBucket.MustLead,
+      evidenceRefs = Vector(EvidenceRef(EvidenceRefKind.Certification, "MaterialHarvest", Some("white"), Some("board"), Some("route"), Some("position_local"))),
+      lowerCarrierRefs = Vector(boardReason),
+      wordingStrengthCap = WordingStrength.AssertiveCertified
+    )
+    val plan = planWith(
+      main = Some(section(PlanRole.Main, lead)),
+      evidence = (lead.claim.evidenceRefs ++ lead.claim.lowerCarrierRefs).map(PlanEvidence.apply),
+      maxStrength = WordingStrength.AssertiveCertified
+    )
+
+    val render = CommentaryRendererContract.render(plan)
+
+    assertEquals(render.evidenceRefs.map(_.kind), Vector(EvidenceRefKind.Certification, EvidenceRefKind.Delta))
+    assertEquals(render.blocks.head.evidenceIds, Vector("MaterialHarvest", "capture_transition"))
 
   test("renderer does not attach plan evidence by id collision with wrong kind or binding"):
     val lead = selected(
@@ -688,22 +761,25 @@ class CommentaryRendererContractTest extends munit.FunSuite:
       layer: ClaimLayer,
       bucket: ClaimBucket,
       evidenceRefs: Vector[EvidenceRef] = Vector.empty,
+      lowerCarrierRefs: Vector[EvidenceRef] = Vector.empty,
       softReasons: Vector[SuppressionReason] = Vector.empty,
-      wordingStrengthCap: WordingStrength = WordingStrength.QualifiedSupport
+      wordingStrengthCap: WordingStrength = WordingStrength.QualifiedSupport,
+      owner: String = "white"
   ): SelectedClaim =
     SelectedClaim(
       CommentaryClaim(
         id = id,
         layer = layer,
         status = if layer == ClaimLayer.SourceContext then ClaimStatus.Context else ClaimStatus.Admitted,
-        owner = Option.when(layer != ClaimLayer.SourceContext)("white"),
-        beneficiary = Option.when(layer != ClaimLayer.SourceContext)("white"),
-        defender = Option.when(layer != ClaimLayer.SourceContext)("black"),
+        owner = Option.when(layer != ClaimLayer.SourceContext)(owner),
+        beneficiary = Option.when(layer != ClaimLayer.SourceContext)(owner),
+        defender = Option.when(layer != ClaimLayer.SourceContext)(if owner == "white" then "black" else "white"),
         sideToMove = Option.when(layer != ClaimLayer.SourceContext)("white"),
         anchor = Option.when(layer != ClaimLayer.SourceContext)("board"),
         route = Option.when(layer != ClaimLayer.SourceContext)("route"),
         scope = Option.when(layer != ClaimLayer.SourceContext)("position_local"),
         evidenceRefs = evidenceRefs,
+        lowerCarrierRefs = lowerCarrierRefs,
         exactBoardBound = layer != ClaimLayer.SourceContext,
         wordingStrengthCap = wordingStrengthCap,
         sourceContextKind = Option.when(layer == ClaimLayer.SourceContext)(SourceContextKind.Opening)

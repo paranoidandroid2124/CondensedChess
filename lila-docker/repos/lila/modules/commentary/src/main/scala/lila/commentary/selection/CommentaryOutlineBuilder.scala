@@ -66,8 +66,25 @@ object CommentaryOutlineBuilder:
       ),
       contrast = PlanSection(PlanRole.Contrast, outline.contrast),
       blocked = outline.suppressedClaims.map(suppressed => BlockedClaim(suppressed.claim, suppressed.reasons)),
-      evidence = outline.evidenceRefs.map(PlanEvidence.apply),
+      evidence = (outline.evidenceRefs ++ selectedBoardReasonLowerRefs(outline)).distinct.map(PlanEvidence.apply),
       variationEvidence = outline.variationEvidence.map(PlanVariationEvidence.apply),
       wordingRules = WordingRules(outline.wordingStrengthCap),
       annotationSelections = outline.annotationSelections
     )
+
+  private def selectedBoardReasonLowerRefs(outline: CommentaryOutline): Vector[EvidenceRef] =
+    val selected =
+      outline.lead.toVector ++ outline.support ++ outline.context ++ outline.contrast
+    selected.flatMap(_.claim.lowerCarrierRefs).filter(isBoundedBoardReasonRef)
+
+  private def isBoundedBoardReasonRef(ref: EvidenceRef): Boolean =
+    Set(
+      EvidenceRefKind.Root,
+      EvidenceRefKind.Witness,
+      EvidenceRefKind.Object,
+      EvidenceRefKind.Delta
+    ).contains(ref.kind) &&
+      ref.owner.nonEmpty &&
+      ref.anchor.nonEmpty &&
+      ref.route.nonEmpty &&
+      ref.scope.nonEmpty

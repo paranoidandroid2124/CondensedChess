@@ -8,7 +8,7 @@ import java.time.Instant
 import scala.util.control.NonFatal
 
 import lila.commentary.CommentaryCore
-import lila.commentary.certification.{ CertificationEngineRuntimeIntake, CertificationEvidenceClaim, EngineNodeIdentity }
+import lila.commentary.certification.{ CertificationEngineRuntimeIntake, CertificationEvidenceBundle, CertificationEvidenceClaim, CertificationExtractor, EngineNodeIdentity }
 import lila.commentary.claim.{ EvidenceClaimHandoff, EvidenceClaimProducer }
 import lila.commentary.delta.StrategicDeltaExtraction
 import lila.commentary.line.*
@@ -141,6 +141,7 @@ final case class CommentaryPipelineInput(
     currentExtraction: StrategicObjectExtraction,
     deltaExtraction: Option[StrategicDeltaExtraction],
     engineIntake: Option[CommentaryEngineIntake],
+    engineCertificationEvidence: Option[CertificationEvidenceBundle],
     completedProbe: Option[CommentaryCompletedProbePayload]
 )
 
@@ -185,6 +186,7 @@ final class CommentaryBackendSeam private (
           currentExtraction = valid.currentExtraction,
           deltaExtraction = valid.deltaExtraction,
           engineIntake = engineIntake.map(_.metadata),
+          engineCertificationEvidence = engineIntake.map(_.evidence),
           completedProbe = valid.completedProbe
         )
         val producedClaims = claimProvider(input)
@@ -298,6 +300,7 @@ final class CommentaryBackendSeam private (
           status = status,
           reason = Option.when(status == CommentaryEngineIntakeStatus.Rejected)("engine_intake_rejected")
         ),
+        evidence = result.evidence.asBundle,
         evidenceRefs = result.evidence.all.map(engineEvidenceRef).toSet
       )
 
@@ -407,6 +410,7 @@ final class CommentaryBackendSeam private (
 
   private final case class BackendEngineIntake(
       metadata: CommentaryEngineIntake,
+      evidence: CertificationEvidenceBundle,
       evidenceRefs: Set[BackendEngineEvidenceRef]
   )
 
@@ -432,7 +436,7 @@ object CommentaryBackendSeam:
 
   private val default =
     new CommentaryBackendSeam(
-      input => EvidenceClaimProducer.produce(input.currentExtraction, input.deltaExtraction, EvidenceClaimHandoff.empty),
+      input => EvidenceClaimProducer.produce(input.currentExtraction, input.deltaExtraction, defaultEvidenceHandoff(input)),
       defaultCandidateLineAssembly,
       () => System.currentTimeMillis()
     )
@@ -478,6 +482,20 @@ object CommentaryBackendSeam:
       (_, _) => None,
       nowEpochMs
     )
+
+  private def defaultEvidenceHandoff(input: CommentaryPipelineInput): EvidenceClaimHandoff =
+    val certification =
+      input.engineCertificationEvidence.filterNot(_.isEmpty).flatMap: evidence =>
+        input.deltaExtraction match
+          case Some(delta) =>
+            CertificationExtractor
+              .fromDeltaExtractionFailClosed(delta, evidence)
+              .toOption
+          case None =>
+            CertificationExtractor
+              .fromObjectExtractionFailClosed(input.currentExtraction, evidence)
+              .toOption
+    EvidenceClaimHandoff(certification = certification)
 
   private def defaultCandidateLineAssembly(
       input: CommentaryPipelineInput,

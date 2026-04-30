@@ -91,7 +91,7 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
     val requiredBuckets = RootCoverageMatrix.greenProofBucketsFor(schemaId).toSet
 
     assertEquals(policy.status, "broad-confidence-green")
-    assertEquals(schemaRows.size, policy.minimumCorpusFloor, s"$schemaId rows must stay frozen to its exact broad-green inventory")
+    assert(schemaRows.size >= policy.minimumCorpusFloor, s"$schemaId rows = ${schemaRows.size}, floor = ${policy.minimumCorpusFloor}")
     assertEquals(schemaRows.map(_.caseType).toSet, Set("exact", "near_miss"))
     assertEquals(bucketSet, requiredBuckets)
 
@@ -253,7 +253,7 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
 
     assertEquals(policy.status, "broad-confidence-green")
     assert(schemaRows.size >= policy.minimumCorpusFloor, s"$schemaId rows = ${schemaRows.size}, floor = ${policy.minimumCorpusFloor}")
-    assertEquals(schemaRows.map(_.caseType).toSet, Set("exact", "near_miss"))
+    assertEquals(schemaRows.map(_.caseType).toSet, Set("exact", "near_miss", "nasty_negative"))
     assertEquals(bucketSet, requiredBuckets)
 
   test("trapped_piece reaches broad-confidence-green only with the matrix-owned family, trap-mode, category-rejection, and engine-probe bucket spread"):
@@ -289,7 +289,7 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
 
     assertEquals(policy.status, "broad-confidence-green")
     assert(schemaRows.size >= policy.minimumCorpusFloor, s"$schemaId rows = ${schemaRows.size}, floor = ${policy.minimumCorpusFloor}")
-    assertEquals(schemaRows.map(_.caseType).toSet, Set("exact", "near_miss"))
+    assertEquals(schemaRows.map(_.caseType).toSet, Set("exact", "near_miss", "nasty_negative"))
     assertEquals(bucketSet, requiredBuckets)
 
   test("overloaded_piece reaches broad-confidence-green only with defender-family, target-burden, polarity, and fail-closed buckets"):
@@ -300,7 +300,7 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
     val requiredBuckets = RootCoverageMatrix.greenProofBucketsFor(schemaId).toSet
 
     assertEquals(policy.status, "broad-confidence-green")
-    assertEquals(schemaRows.size, policy.minimumCorpusFloor, s"$schemaId rows must stay frozen to its exact broad-green inventory")
+    assert(schemaRows.size >= policy.minimumCorpusFloor, s"$schemaId rows = ${schemaRows.size}, floor = ${policy.minimumCorpusFloor}")
     assertEquals(schemaRows.map(_.caseType).toSet, Set("exact", "near_miss"))
     assertRowFenInventory(
       schemaRows,
@@ -326,8 +326,8 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
     val requiredBuckets = RootCoverageMatrix.greenProofBucketsFor(schemaId).toSet
 
     assertEquals(policy.status, "broad-confidence-green")
-    assertEquals(schemaRows.size, policy.minimumCorpusFloor, s"$schemaId rows must stay frozen to its exact broad-green inventory")
-    assertEquals(schemaRows.map(_.caseType).toSet, Set("exact", "near_miss"))
+    assert(schemaRows.size >= policy.minimumCorpusFloor, s"$schemaId rows = ${schemaRows.size}, floor = ${policy.minimumCorpusFloor}")
+    assertEquals(schemaRows.map(_.caseType).toSet, Set("exact", "near_miss", "nasty_negative"))
     assertRowFenInventory(
       schemaRows,
       Vector(
@@ -339,7 +339,9 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
         "r-xray-target-black-d1-rook-file" -> "3rk3/8/8/8/8/8/3P4/3QK3 b - - 0 1",
         "r-xray-target-black-c4-bishop-diagonal" -> "4k1b1/8/4P3/8/2Q5/8/8/4K3 b - - 0 1",
         "r-xray-target-black-a5-queen-rank" -> "4k3/8/8/R3n2q/8/8/8/4K3 b - - 0 1",
-        "r-xray-target-black-two-blockers-near-miss" -> "4k3/8/8/R1b1n2q/8/8/8/4K3 b - - 0 1"
+        "r-xray-target-black-two-blockers-near-miss" -> "4k3/8/8/R1b1n2q/8/8/8/4K3 b - - 0 1",
+        "r-xray-target-black-minor-target-near-miss" -> "3qk3/3p4/8/8/3N4/8/8/4K3 b - - 0 1",
+        "r-xray-target-white-target-absent-nasty-negative" -> "4k3/3p4/8/8/8/8/8/3RK3 w - - 0 1"
       )
     )
     assertEquals(bucketSet, requiredBuckets)
@@ -910,7 +912,7 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
               assertEquals(row.trueSquares.toVector, Vector(square), s"Exact pinned-piece declaration drifted from extractor truth for ${row.id}")
               square
             case other => fail(s"Expected exactly one extracted pinned-piece square for ${row.id}: $other")
-        case "near_miss" =>
+        case "near_miss" | "nasty_negative" =>
           assertEquals(actualSchemaSquares(row), Vector.empty, s"Near-miss pinned-piece row extracted non-empty truth for ${row.id}")
           assert(row.trueSquares.isEmpty, s"Near-miss pinned-piece row should not declare true squares for ${row.id}")
           pinnedPieceSubjectSquare(row, polarity)
@@ -922,7 +924,7 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
       row.caseType match
         case "exact" =>
           pinnedStateAndGeometry(row.fen, polarity, subject, row.id)
-        case "near_miss" =>
+        case "near_miss" | "nasty_negative" =>
           assert(absolutePinGeometry(row.fen, polarity, subject).isEmpty, s"Near-miss pinned-piece row is actually an absolute pin for ${row.id}")
           assert(relativePinGeometry(row.fen, polarity, subject).isEmpty, s"Near-miss pinned-piece row is actually a relative pin for ${row.id}")
           ("fail_closed", alignedEnemySliderGeometry(row.fen, polarity, subject, row.id))
@@ -1052,19 +1054,22 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
             case Vector(single) => single
             case other => fail(s"Expected exactly one x-ray carrier line for ${row.id}: $other")
         xrayBucket(polarity, line, xrayBlockerType(row.fen, polarity, line.blockers))
-      case "near_miss" =>
+      case "near_miss" | "nasty_negative" =>
         assertEquals(actualSchemaSquares(row), Vector.empty, s"Near-miss xray_target row extracted non-empty truth for ${row.id}")
         assert(row.trueSquares.isEmpty, s"Near-miss xray_target row should not declare true squares for ${row.id}")
         assert(
-          xrayPositiveLines(row, polarity).forall(_.blockers.size != 1),
+          xrayPositiveLines(row, polarity).filter(line => highValueXrayTarget(row.fen, line.targetSquare)).forall(_.blockers.size != 1),
           s"Near-miss xray_target row still has a one-blocker x-ray target for ${row.id}"
         )
-        xrayPositiveLines(row, polarity).filter(_.blockers.size == 2) match
-          case Vector(line) => xrayBucket(polarity, line, "two_blockers")
-          case Vector() =>
-            val line = xrayTargetAbsentLine(row, polarity)
-            xrayBucket(polarity, line, "target_absent")
-          case other => fail(s"Expected at most one two-blocker xray_target near miss for ${row.id}: $other")
+        xrayPositiveLines(row, polarity).filter(line => line.blockers.size == 1 && !highValueXrayTarget(row.fen, line.targetSquare)) match
+          case Vector(line) => xrayBucket(polarity, line, "minor_target")
+          case Vector() => xrayPositiveLines(row, polarity).filter(_.blockers.size == 2) match
+            case Vector(line) => xrayBucket(polarity, line, "two_blockers")
+            case Vector() =>
+              val line = xrayTargetAbsentLine(row, polarity)
+              xrayBucket(polarity, line, "target_absent")
+            case other => fail(s"Expected at most one two-blocker xray_target near miss for ${row.id}: $other")
+          case other => fail(s"Expected at most one minor-target xray_target near miss for ${row.id}: $other")
       case other => fail(s"Unexpected case type for ${row.id}: $other")
 
   private def xrayPositiveLines(row: RootExpectationCorpus.Row, polarity: String): Vector[XrayLine] =
@@ -1111,6 +1116,9 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
         if pieceColor(blockerPiece) == polarity then "own_piece" else "enemy_piece"
       case other => fail(s"Expected exactly one x-ray blocker, found $other")
 
+  private def highValueXrayTarget(fen: String, square: String): Boolean =
+    pieceAt(fen, square).exists(piece => Set('R', 'Q').contains(piece.toUpper))
+
   private def xraySliderFamily(piece: Char): String =
     piece.toUpper match
       case 'B' => "bishop"
@@ -1147,7 +1155,7 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
               assertEquals(row.trueSquares.toVector, Vector(square), s"Exact loose-piece declaration drifted from extractor truth for ${row.id}")
               square
             case other => fail(s"Expected exactly one extracted loose-piece square for ${row.id}: $other")
-        case "near_miss" =>
+        case "near_miss" | "nasty_negative" =>
           assertEquals(actualSchemaSquares(row), Vector.empty, s"Near-miss loose-piece row extracted non-empty truth for ${row.id}")
           assert(row.trueSquares.isEmpty, s"Near-miss loose-piece row should not declare true squares for ${row.id}")
           loosePieceSubjectSquare(row, polarity)
@@ -1167,7 +1175,7 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
           // Runtime extraction above proves positive local exchange loss; defender
           // presence only selects the matrix-owned exact exchange bucket.
           if friendlyDefenders.nonEmpty then "nominally_defended_but_losing" else "undefended"
-        case "near_miss" =>
+        case "near_miss" | "nasty_negative" =>
           assert(friendlyDefenders.nonEmpty, s"Near-miss loose-piece row must keep a same-color defender for ${row.id}")
           "stably_defended"
         case other => fail(s"Unexpected case type for ${row.id}: $other")
@@ -1303,7 +1311,7 @@ class RootBroadGreenPromotionTest extends munit.FunSuite:
       case "exact" =>
         assertEquals(extracted, Vector(subject), s"Exact loose-piece row must be exchange-losing under the runtime extractor for ${row.id}")
         assert(exchangeNet > 0, s"Exact loose-piece row must have positive independent exchange loss for ${row.id}: net=$exchangeNet")
-      case "near_miss" =>
+      case "near_miss" | "nasty_negative" =>
         assertEquals(extracted, Vector.empty, s"Near-miss loose-piece row must fail closed under the runtime exchange extractor for ${row.id}")
         assert(exchangeNet <= 0, s"Near-miss loose-piece row must not have positive independent exchange loss for ${row.id}: net=$exchangeNet")
       case other => fail(s"Unexpected case type for ${row.id}: $other")

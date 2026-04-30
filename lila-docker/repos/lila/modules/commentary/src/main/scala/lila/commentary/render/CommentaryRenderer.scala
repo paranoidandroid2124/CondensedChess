@@ -19,11 +19,14 @@ object CommentaryRenderer:
       )
     )
 
-  private def publicTextFor(block: RenderBlock, lineComments: Map[String, String]): Option[String] =
-    if block.role == RenderRole.Primary then lineComments.get(block.claimId).orElse(labelFor(block))
-    else labelFor(block)
+  private def publicTextFor(
+      block: RenderBlock,
+      lineComments: Map[String, String]
+  ): Option[String] =
+    if block.role == RenderRole.Primary then lineComments.get(block.claimId).orElse(roleLabelFor(block))
+    else roleLabelFor(block)
 
-  private def labelFor(block: RenderBlock): Option[String] =
+  private def roleLabelFor(block: RenderBlock): Option[String] =
     Option.when(block.wordingStrength.rank >= WordingStrength.ContextOnly.rank):
       block.role match
         case RenderRole.Primary => "Primary"
