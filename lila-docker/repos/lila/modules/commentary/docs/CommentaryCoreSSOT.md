@@ -480,7 +480,14 @@ identity, a non-pawn/non-king moved piece, no pre-existing `loose_piece` fact on
 the moved piece at the origin, a bound Delta evidence id
 `moved_piece_left_loose_transition`, a bound `loose_piece` lower carrier, and a
 bound `immediate_capture` lower carrier proving a legal side-to-move capture on
-the destination. A current-board opportunity may be public only through a
+the destination. Capture moves must also pass a whole-transition material gate:
+the opponent's best immediate exchange gain on the destination must exceed the
+value of any piece captured by the played move. Equal recaptures and already
+favorable captures are not `moved_piece_left_loose` public reasons. If the
+opponent has exact mate in one on the after-board, the loose-piece reason is
+suppressed behind the mate truth. Created pin geometry remains
+measurement/deferred material until a strategy-facing reason needs a narrower
+contract. A current-board opportunity may be public only through a
 dedicated exact-board Object route, currently the bounded `immediate_capture`
 contract: the side to move must have a legal capture onto a non-king target
 that is also a same-square `loose_piece` lower carrier. Plain

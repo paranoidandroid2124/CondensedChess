@@ -188,6 +188,60 @@ class ExactBoardClaimProducerContractTest extends munit.FunSuite:
     ))
     assert(response.render.blocks.exists(_.evidenceIds.contains("loose_piece")))
 
+  test("moved piece recapture does not become loose-piece reason unless the transition loses material"):
+    val response =
+      CommentaryBackendSeam.render(
+        request(
+          currentFen = equalRecaptureAfterFen,
+          beforeFen = Some(equalRecaptureBeforeFen),
+          playedMove = Some("c4e6")
+        )
+      )
+
+    assertEquals(response.status, CommentaryResponseStatus.Rendered)
+    assert(!response.render.evidenceRefs.exists(ref =>
+      ref.id == "moved_piece_left_loose_transition" ||
+        (ref.id == "loose_piece" &&
+          ref.owner.contains("black") &&
+          ref.anchor.contains("e6") &&
+          ref.route.contains("moved_piece_left_loose") &&
+          ref.scope.contains("move_local"))
+    ))
+
+  test("capturing moved piece becomes loose-piece reason when the whole transition loses material"):
+    val response =
+      CommentaryBackendSeam.render(
+        request(
+          currentFen = captureLossAfterFen,
+          beforeFen = Some(captureLossBeforeFen),
+          playedMove = Some("f5d4")
+        )
+      )
+
+    assertEquals(response.status, CommentaryResponseStatus.Rendered)
+    assert(response.render.evidenceRefs.exists(ref =>
+      ref.id == "moved_piece_left_loose_transition" &&
+        ref.owner.contains("white") &&
+        ref.anchor.contains("d4") &&
+        ref.route.contains("moved_piece_left_loose") &&
+        ref.scope.contains("move_local")
+    ))
+    assert(response.render.blocks.exists(_.evidenceIds.contains("loose_piece")))
+
+  test("moved piece left loose is suppressed when the opponent has exact mate in one"):
+    val response =
+      CommentaryBackendSeam.render(
+        request(
+          currentFen = mateDominatedLooseAfterFen,
+          beforeFen = Some(mateDominatedLooseBeforeFen),
+          playedMove = Some("h5f4")
+        )
+      )
+
+    assertEquals(response.status, CommentaryResponseStatus.Rendered)
+    assert(response.render.evidenceRefs.exists(_.id == "immediate_mate"))
+    assert(!response.render.evidenceRefs.exists(_.id == "moved_piece_left_loose_transition"))
+
   test("already-loose moved piece does not become a new move-local loose reason"):
     val response =
       CommentaryBackendSeam.render(
@@ -419,6 +473,12 @@ class ExactBoardClaimProducerContractTest extends munit.FunSuite:
   private val movedQueenLooseAfterFen = "r4rk1/1pp3p1/1pnpb2p/8/2P2q2/1N6/PP1QBPPP/4RRK1 w - - 2 18"
   private val movedKnightLooseBeforeFen = "4k3/8/8/5n2/8/8/8/3QK3 b - - 0 1"
   private val movedKnightLooseAfterFen = "4k3/8/8/8/3n4/8/8/3QK3 w - - 1 2"
+  private val equalRecaptureBeforeFen = "r2qk2r/1p2npbp/p1npb3/2p2p2/P1B5/2NP1N2/1PP3PP/R1B1QRK1 w kq - 0 13"
+  private val equalRecaptureAfterFen = "r2qk2r/1p2npbp/p1npB3/2p2p2/P7/2NP1N2/1PP3PP/R1B1QRK1 b kq - 0 13"
+  private val captureLossBeforeFen = "4k3/8/8/5n2/3P4/8/8/3QK3 b - - 0 1"
+  private val captureLossAfterFen = "4k3/8/8/8/3n4/8/8/3QK3 w - - 0 2"
+  private val mateDominatedLooseBeforeFen = "k7/8/K7/7n/8/8/8/1Q3R2 b - - 0 1"
+  private val mateDominatedLooseAfterFen = "k7/8/K7/8/5n2/8/8/1Q3R2 w - - 1 2"
   private val alreadyLooseKnightBeforeFen = "4k3/8/8/5n2/8/8/8/3QKR2 b - - 0 1"
   private val alreadyLooseKnightAfterFen = "4k3/8/8/8/3n4/8/8/3QKR2 w - - 1 2"
   private val movedPawnLooseBeforeFen = "k3r3/8/8/8/4P3/8/8/7K w - - 0 1"

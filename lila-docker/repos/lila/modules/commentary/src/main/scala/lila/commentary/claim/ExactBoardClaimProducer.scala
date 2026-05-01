@@ -1,6 +1,6 @@
 package lila.commentary.claim
 
-import chess.{ Color, King, Knight, Pawn, Piece, Position, Queen, Rook, Square }
+import chess.{ Board, Color, King, Knight, Pawn, Piece, Position, Queen, Rook, Square }
 
 import lila.commentary.delta.StrategicDeltaExtraction
 import lila.commentary.root.RootAtomRegistry
@@ -256,7 +256,7 @@ object ExactBoardClaimProducer:
           Some(lastMoveClaim(delta, movingPiece)),
           captureClaim(delta, movingPiece, capturedPiece),
           pawnTransitionClaim(delta, movingPiece, capturedPiece),
-          movedPieceLeftLooseClaim(delta, before, move.after.position, movingPiece),
+          movedPieceLeftLooseClaim(delta, before, move.after.position, movingPiece, capturedPiece),
           nonSliderRoyalForkClaim(delta, before, move.after.position, movingPiece.color)
         ).flatten
     )
@@ -305,13 +305,16 @@ object ExactBoardClaimProducer:
       delta: StrategicDeltaExtraction,
       before: Position,
       after: Position,
-      movingPiece: Piece
+      movingPiece: Piece,
+      capturedPiece: Option[Piece]
   ): Option[CommentaryClaim] =
     val destination = delta.playedMove.dest
     val destinationPiece = after.pieceAt(destination)
     immediateCaptureOn(after, destination, !movingPiece.color).filter(_ =>
         movingPiece.role != King &&
         movingPiece.role != Pawn &&
+        mateInOne(after).isEmpty &&
+        opponentBestExchangeNet(after.board, destination, !movingPiece.color) > capturedPiece.map(piece => pieceValue(piece.role)).getOrElse(0) &&
         !loosePieceAt(delta.before.rootState, movingPiece.color, delta.playedMove.orig) &&
         before.pieceAt(delta.playedMove.orig).contains(movingPiece) &&
         destinationPiece.contains(movingPiece) &&
@@ -369,6 +372,21 @@ object ExactBoardClaimProducer:
 
   private def immediateCaptureOn(position: Position, square: Square, attacker: Color): Option[chess.Move] =
     legalMoves(position.withColor(attacker)).find(move => move.dest == square && move.capture.nonEmpty)
+
+  private def opponentBestExchangeNet(boardState: Board, square: Square, attacker: Color): Int =
+    boardState.pieceAt(square).fold(0): occupant =>
+      legalAttackers(boardState, square, attacker)
+        .map: origin =>
+          val afterCapture = boardState.taking(origin, square).get
+          pieceValue(occupant.role) - opponentBestExchangeNet(afterCapture, square, !attacker)
+        .foldLeft(0)(math.max)
+
+  private def legalAttackers(boardState: Board, square: Square, attacker: Color): Vector[Square] =
+    val attackerPosition = Position(boardState, chess.variant.Standard, attacker)
+    boardState
+      .attackers(square, attacker)
+      .filter(origin => attackerPosition.generateMovesAt(origin).exists(_.dest == square))
+      .toVector
 
   private def loosePieceAt(delta: StrategicDeltaExtraction, color: Color, square: Square): Boolean =
     delta.after.rootState

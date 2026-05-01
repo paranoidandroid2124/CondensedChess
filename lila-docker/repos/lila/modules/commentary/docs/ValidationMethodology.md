@@ -2710,7 +2710,12 @@ The moved-piece-left-loose slice is validated only when exact replay proves
 same-piece movement, the moved piece is neither pawn nor king, the origin was
 not already `loose_piece` before the move, the destination is `loose_piece`
 after the move, and a legal side-to-move immediate capture on that destination
-is carried as a separate `immediate_capture` lower fact. A root-only
+is carried as a separate `immediate_capture` lower fact. For capture moves, the
+slice is public only when the opponent's best immediate exchange gain on the
+destination is greater than the value captured by the played move, so equal
+recaptures and already favorable captures stay out of the Game Review reason.
+If the after-board gives the opponent exact mate in one, mate truth takes
+priority and the loose-piece reason stays behind it. A root-only
 `loose_piece` ref, or a moved piece that was already loose before the move, is a
 false-positive anti-case rather than a public move-local reason.
 The same support-only discipline applies before projection/certification
@@ -2791,8 +2796,11 @@ The high-risk tactical audit runner is
 also read `uniqueTransitionKeys` and `multiSchemaTransitionKeys` before making
 corpus claims. The runner threads source verification into each
 `loose_piece`, `pinned_piece`, and `xray_target` row and keeps
-`publicClaimReadiness = not_ready_for_public_claim` for all rows. `loose_piece`
-rows carry legal capture, defender, and exchange-gain payloads, with touched
+`publicClaimReadiness = not_ready_for_public_claim` for all rows. This runner
+is measurement and triage only; it must not become a runtime admission layer.
+Source PGN verification remains provenance evidence, while live runtime claims
+are admitted only by exact replay in the producer and selector contracts.
+`loose_piece` rows carry legal capture, defender, and exchange-gain payloads, with touched
 classification computed only from created loose facts. Standing loose facts
 touched by the move are reported separately and do not route the row into the
 created-touched capture slice. `pinned_piece` rows carry pinner, pinned piece,
@@ -2801,39 +2809,6 @@ and played-move relation. `xray_target` rows carry slider, blocker, target,
 geometry, line squares, before-line state, and played-move relation. These
 payloads make the audit reviewable; they do not convert the root into public
 truth.
-
-The serial audit plan runner is
-`lila.commentary.diagnostic.LowerDiagnosticSerialAuditPlanRunner`. Each slice
-must report both total diagnostic rows and source-verified eligible rows. If
-source verification is zero, the loose-touched, loose-non-touch, pinned-created,
-and xray-created slices remain blocked work queues, not public explanation
-backlog. The intended audit order is source PGN verification first, then
-created loose touched-anchor capture audit, created loose non-touch causality
-audit, created pin geometry audit, created x-ray geometry audit, pre-existing
-anti-case guards, and only then trapped/overloaded follow-up.
-
-The phase-3 bottleneck runner is
-`lila.commentary.diagnostic.LowerDiagnosticBottleneckRunner`. It consumes the
-same tracked or external diagnostic input and writes diagnostic-only
-`phase3-summary.json`, `bottlenecks.jsonl`, and `fourth-phase-slices.jsonl`.
-The bottleneck report must separate:
-
-- `input_reconstruction`: rows where exact transition identity is missing or
-  invalid
-- `standing_board_fact_only`: current-board tactical facts without replayable
-  `beforeFen` and `playedMove`
-- `root_witness_schema`: tactical source schemas with no corresponding tracked
-  tactical root fact
-- `exact_transition_admission`: replayable transition rows only
-- `selection_line` and `positive_control`: selector handoff and existing green
-  controls
-
-`exact_transition_admission` is valid only when the row is replayable. Current
-standing tactical roots must remain `standing_board_fact_only` with
-`transition_context_required`; they cannot be handed to 4th-phase admission work
-as exact transition slices. Phase-3 handoff slices must also carry
-`countsByCaseType` and `countsByExpectation` so that positive rows and
-false-positive anti-cases are visible before any lower-layer slice expansion.
 
 The projection impact runner is
 `lila.commentary.diagnostic.KingAttackProjectionImpactReportRunner`. It must
@@ -2873,18 +2848,6 @@ last move created or missed the tactic.
 The current tracked standing audit snapshot has 286 `standing_board_fact_only`
 rows and zero `overbroad_home_pawn_xray` rows. This is a false-positive
 boundary result, not a product commentary acceptance result.
-
-The chess action runner is
-`lila.commentary.diagnostic.LowerDiagnosticChessActionRunner`. It writes
-diagnostic-only `chess-action-summary.json`, `chess-action-items.jsonl`,
-`transition-slice-handoff.jsonl`, and `chess-action-report.md`. These artifacts
-translate lower diagnostic bottlenecks into ordered chess-engineering work
-items. They are not acceptance reports and do not create runtime admission:
-`input_reconstruction` stays blocked, `exact_transition_slice` is the only
-immediate move-local admission backlog, `root_witness_contract` is taxonomy
-work only, current-board `immediate_capture` remains non-move-causal, and
-standing tactical smells remain support-only unless exact transition identity
-is added.
 
 Future sweep summaries should include cell-local counts such as
 `phase | moveBucket | materialRegime`, but aggregate pass counts alone are not

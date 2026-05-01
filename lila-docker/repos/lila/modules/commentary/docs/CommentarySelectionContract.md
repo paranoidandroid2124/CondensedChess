@@ -161,7 +161,10 @@ the selected public ref to `move_local` exact-board evidence. The
 moved-piece-left-loose slice is selector-admissible only with a bound Delta
 `moved_piece_left_loose_transition` evidence ref plus bound `loose_piece` and
 `immediate_capture` lower carriers on the same owner, anchor, route, and scope;
-a root-only loose ref is suppressed as a shortcut. Standing
+a root-only loose ref is suppressed as a shortcut. Producer admission for this
+route also requires whole-transition material loss after subtracting the value
+captured by the played move, and exact after-board mate-in-one suppresses the
+loose-piece reason behind mate truth. Standing
 position-local tactical roots may render as public board facts but must not be
 treated as move-causal claims; in transition contexts they are `SupportOnly`
 and cannot mask move-bound line evidence.
