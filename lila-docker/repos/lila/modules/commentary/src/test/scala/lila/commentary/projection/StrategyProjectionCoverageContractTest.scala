@@ -13,7 +13,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
   private val allProjectionBandIds: Vector[String] =
     (1 to 25).map(index => f"S$index%02d").toVector
 
-  test("projection coverage contract names row groups without rollout stages"):
+  test("projection coverage contract names row groups without temporary stage labels"):
     val source =
       Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/projection/StrategyProjectionCoverageContract.scala"))
     Vector(
@@ -31,7 +31,35 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       "preLiveProjectionEvidenceKindFreezeByBand",
       "preLiveRuntimeBoundaryFreezeByBand"
     ).foreach: fragment =>
-      assert(!source.contains(fragment), clues(s"runtime contract must not expose rollout-stage name $fragment"))
+      assert(!source.contains(fragment), clues(s"runtime contract must not expose temporary stage name $fragment"))
+
+  test("authority docs freeze Sxx projection terminology"):
+    val core =
+      Files.readString(Paths.get("modules/commentary/docs/CommentaryCoreSSOT.md"))
+    val boundary =
+      Files.readString(Paths.get("modules/commentary/docs/StrategyProjectionBoundaryMatrix.md"))
+    val validation =
+      Files.readString(Paths.get("modules/commentary/docs/ValidationMethodology.md"))
+    val witnesses =
+      Files.readString(Paths.get("modules/commentary/docs/Witnesses61.md"))
+
+    Vector(
+      "| `semantic boundary` | Sxx meaning, rival separation, and false-positive shape; not public admission |",
+      "| `validation scaffold` | exact-board `src/test` coverage for legacy Sxx contracts, including raw matcher checks and corpus rows |",
+      "| `LegacyValidationScaffold` | non-public authority attached to validation-scaffold admissions; never lowerable to public claims |",
+      "| `CertifiedTruth(K)` | factory-minted same-root carrier bundle consumed by projection geometry |",
+      "| `StrategyProjectionSliceDescriptor` | production owner of `A`, `mu`, descriptor-owned `d` algebra, carrier binding law, overlap policy, phrase capability, falsification burden, rival bands, and rollout flag |",
+      "| `DescriptorCertifiedRuntime` | only projection admission authority that may lower into public claims |",
+      "| `production public admission` | descriptor/K path from `CertifiedTruth(K)` through geometry and producer into `EvidenceClaimProducer` |",
+      "For Sxx projection work, `start-ready`, `live admission`, `runtime admission`,"
+    ).foreach: token =>
+      assert(core.contains(token), clues(s"core terminology token must be frozen: $token"))
+
+    Vector(boundary, validation, witnesses).foreach: docs =>
+      assert(docs.contains("semantic boundary"))
+      assert(docs.contains("validation scaffold"))
+      assert(docs.contains("production public admission"))
+    assertEquals(core.contains("The `24` strategy labels"), false)
 
   test("projection row clusters cover S01-S25 without deferred coverage leftovers"):
     assertEquals(
@@ -71,6 +99,82 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Vector("S01", "S02", "S03", "S04", "S05", "S06", "S07", "S08", "S09", "S10", "S11", "S12", "S13", "S14", "S15", "S16", "S17", "S18", "S19", "S20", "S21", "S22", "S23", "S24", "S25")
     )
 
+  test("finite-cover envelope covers every Sxx band with stable certified fact families"):
+    assertEquals(
+      StrategyGeometryFoundation.certifiedFactFamilies.map(_.key),
+      Vector(
+        "board_transition",
+        "move_causal_tactic",
+        "king_safety_attack",
+        "line_access_activity",
+        "pawn_structure_passer",
+        "space_restriction_mobility",
+        "initiative_counterplay",
+        "piece_quality_material_trade",
+        "endgame_conversion_holding"
+      )
+    )
+    assertEquals(
+      StrategyGeometryFoundation.certifiedFactFamiliesByBand.view.mapValues(_.map(_.key)).toMap,
+      Map(
+        "S01" -> Vector("king_safety_attack"),
+        "S02" -> Vector("king_safety_attack", "line_access_activity"),
+        "S03" -> Vector("king_safety_attack", "line_access_activity"),
+        "S04" -> Vector("king_safety_attack"),
+        "S05" -> Vector("pawn_structure_passer", "initiative_counterplay"),
+        "S06" -> Vector("space_restriction_mobility"),
+        "S07" -> Vector("initiative_counterplay"),
+        "S08" -> Vector("initiative_counterplay"),
+        "S09" -> Vector("line_access_activity"),
+        "S10" -> Vector("space_restriction_mobility", "line_access_activity"),
+        "S11" -> Vector("pawn_structure_passer"),
+        "S12" -> Vector("line_access_activity", "space_restriction_mobility"),
+        "S13" -> Vector("pawn_structure_passer"),
+        "S14" -> Vector("pawn_structure_passer"),
+        "S15" -> Vector("pawn_structure_passer"),
+        "S16" -> Vector("pawn_structure_passer", "endgame_conversion_holding"),
+        "S17" -> Vector("piece_quality_material_trade"),
+        "S18" -> Vector("piece_quality_material_trade"),
+        "S19" -> Vector("piece_quality_material_trade"),
+        "S20" -> Vector("space_restriction_mobility"),
+        "S21" -> Vector("initiative_counterplay", "pawn_structure_passer"),
+        "S22" -> Vector("endgame_conversion_holding"),
+        "S23" -> Vector("endgame_conversion_holding", "line_access_activity"),
+        "S24" -> Vector("move_causal_tactic", "piece_quality_material_trade"),
+        "S25" -> Vector("line_access_activity")
+      )
+    )
+    assertEquals(
+      StrategyGeometryFoundation.certifiedFactFamiliesByBand.keySet,
+      allProjectionBandIds.toSet
+    )
+    assert(
+      StrategyGeometryFoundation.certifiedFactFamiliesByBand.values.forall(_.nonEmpty),
+      clues("each Sxx band must belong to at least one finite-cover family")
+    )
+    assertEquals(
+      StrategyGeometryFoundation.certifiedFactFamiliesByBand("S23").map(_.key),
+      Vector("endgame_conversion_holding", "line_access_activity")
+    )
+
+  test("public-path disposition algebra is closed and anti-case is terminal"):
+    assertEquals(
+      StrategyGeometryFoundation.publicPathDispositions.map(_.key),
+      Vector("certified", "support_only", "context_only", "deferred", "rejected", "anti_case")
+    )
+    assertEquals(
+      StrategyGeometryFoundation.publicPathDispositions.filter(_.entersSxxAdmission).map(_.key),
+      Vector("certified")
+    )
+    assertEquals(
+      StrategyGeometryFoundation.publicPathDispositions.filter(_.canOwnPublicClaim).map(_.key),
+      Vector("certified")
+    )
+    assertEquals(
+      StrategyGeometryFoundation.PublicPathDisposition.fromKey("anti_case"),
+      Some(StrategyGeometryFoundation.PublicPathDisposition.AntiCase)
+    )
+
   test("unsupported projection bands remain fail-closed outside S01-S25"):
     val extraction = seedExtraction("7k/8/8/8/8/8/8/4K3 w - - 0 1")
 
@@ -85,7 +189,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Left("Unsupported projection admission band: S26")
     )
 
-  test("S04 live admission contract names exact burden, runtime boundary, and projection evidence kind"):
+  test("S04 production public admission contract names exact burden, production-public boundary, and projection evidence kind"):
     val s04 = StrategyProjectionBandId("S04")
     val evidenceKind = StrategyProjectionEvidenceKind("king_shelter_breach_route_certified")
 
@@ -116,21 +220,18 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
         "modules/commentary/docs/ValidationMethodology.md",
         "modules/commentary/docs/DecisionFreezeLedger.md"
       ).map(path => Files.readString(Paths.get(path))).mkString("\n")
-    (StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S04") ++
-      StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S04").map(_.value) ++
-      Vector(
-        "ObjectSupportOnly:KingSafetyShell(non_truth_owner)",
-        "ProjectionValidation:shell_payload_breach|support_break_breach(same_defender_king)",
-        "CertificationSupportOnly:CertifiedKingSafetyEdge(non_truth_owner)",
-        "ProjectionEvidence:king_shelter_breach_route_certified",
-        "same_task_projection_evidence_must_mirror_s04_owner_defending_king_shell_anchor_breach_squares_and_route_law",
-        "wrong_owner_wrong_defender_wrong_shell_wrong_route_stale_or_support_only_evidence_not_counted",
-        "shell_payload_and_support_break_use_distinct_declared_support_burdens",
-        "S04 Runtime Admission Contract"
-      )).foreach: token =>
-      assert(docs.contains(token), clues(s"S04 live contract token $token must be documented"))
+    Vector(
+      "`S04` | `shelter_breach_route`",
+      "shell_payload_breach",
+      "support_break_breach",
+      "king_shelter_breach_route_certified",
+      "rowSpecificAdmissionBurdensByBand",
+      "exactValidationScaffoldByBand",
+      "declaredProjectionEvidenceKindsByBand"
+    ).foreach: token =>
+      assert(docs.contains(token), clues(s"S04 scaffold contract token $token must be documented"))
 
-  test("S02 live admission contract names exact king-ring concentration burden and projection evidence kind"):
+  test("S02 production public admission contract names exact king-ring concentration burden and projection evidence kind"):
     val s02 = StrategyProjectionBandId("S02")
     val evidenceKind = StrategyProjectionEvidenceKind("king_ring_concentration_route_certified")
     val extraction = seedExtraction("6k1/6pp/8/8/3B4/8/6R1/6K1 w - - 0 1")
@@ -185,16 +286,18 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
         "modules/commentary/docs/ValidationMethodology.md",
         "modules/commentary/docs/DecisionFreezeLedger.md"
       ).map(path => Files.readString(Paths.get(path))).mkString("\n")
-    (StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S02") ++
-      StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S02").map(_.value) ++
-      Vector(
-        "same_task_projection_evidence_must_mirror_s02_owner_defending_king_ring_targets_source_set_and_route_law",
-        "wrong_owner_wrong_king_wrong_targets_wrong_sources_wrong_route_stale_or_support_only_evidence_not_counted",
-        "ProjectionEvidence:king_ring_concentration_route_certified"
-      )).foreach: token =>
-      assert(docs.contains(token), clues(s"S02 live contract token $token must be documented"))
+    Vector(
+      "`S02` | `attack_concentration_route`",
+      "direct_piece_concentration",
+      "lane_strengthened_concentration",
+      "king_ring_concentration_route_certified",
+      "rowSpecificAdmissionBurdensByBand",
+      "exactValidationScaffoldByBand",
+      "declaredProjectionEvidenceKindsByBand"
+    ).foreach: token =>
+      assert(docs.contains(token), clues(s"S02 scaffold contract token $token must be documented"))
 
-  test("S03 live admission contract names exact diagonal king-attack burden and projection evidence kind"):
+  test("S03 production public admission contract names exact diagonal king-attack burden and projection evidence kind"):
     val s03 = StrategyProjectionBandId("S03")
     val evidenceKind = StrategyProjectionEvidenceKind("diagonal_king_attack_route_certified")
     val docs =
@@ -259,17 +362,18 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
         docs.contains(pair._1) && docs.contains(pair._2),
         clues(s"docs must mention S03 coverage pair ${pair._1}/${pair._2}")
       )
-    (StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S03") ++
-      StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S03").map(_.value) ++
-      Vector(
-        "ObjectSupportOnly:AttackScaffold(non_truth_owner)",
-        "CertificationSupportOnly:ComparativeKingFragility|CertifiedKingSafetyEdge(non_truth_owner)",
-        "ProjectionEvidence:diagonal_king_attack_route_certified",
-        "| `S03` |"
-      )).foreach: token =>
-      assert(docs.contains(token), clues(s"docs must mention S03 live contract token $token"))
+    Vector(
+      "`S03` | `diagonal_attack_route`",
+      "king_facing_diagonal_entry",
+      "fragility_linked_diagonal",
+      "diagonal_king_attack_route_certified",
+      "rowSpecificAdmissionBurdensByBand",
+      "exactValidationScaffoldByBand",
+      "declaredProjectionEvidenceKindsByBand"
+    ).foreach: token =>
+      assert(docs.contains(token), clues(s"docs must mention S03 scaffold contract token $token"))
 
-  test("S01 live admission contract names exact storm burden and projection evidence kind"):
+  test("S01 production public admission contract names exact storm burden and projection evidence kind"):
     val s01 = StrategyProjectionBandId("S01")
     val evidenceKind = StrategyProjectionEvidenceKind("king_wing_storm_route_certified")
     val extraction = seedExtraction("6k1/6pp/8/6p1/3B1p2/8/Q3P1RP/6K1 w - - 0 1")
@@ -318,7 +422,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
         .contains("wrong_source_wrong_target_wrong_king_wrong_route_stale_or_support_only_evidence_not_counted")
     )
 
-  test("S09 live admission contract names exact file-penetration burden and projection evidence kind"):
+  test("S09 production public admission contract names exact file-penetration burden and projection evidence kind"):
     val s09 = StrategyProjectionBandId("S09")
     val evidenceKind = StrategyProjectionEvidenceKind("file_penetration_route_certified")
     val extraction = seedExtraction("6k1/pppp1ppp/8/8/8/8/PPPPRPPP/6K1 w - - 0 1")
@@ -373,16 +477,19 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
         "modules/commentary/docs/Witnesses61.md",
         "modules/commentary/docs/ValidationMethodology.md"
       ).map(path => Files.readString(Paths.get(path))).mkString("\n")
-    (StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S09") ++
-      StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S09").map(_.value) ++
-      Vector(
-        "same_task_projection_evidence_must_mirror_s09_owner_file_source_entry_and_route_law",
-        "wrong_file_wrong_source_wrong_entry_wrong_route_stale_or_support_only_evidence_not_counted",
-        "ProjectionEvidence:file_penetration_route_certified"
-      )).foreach: token =>
-      assert(docs.contains(token), clues(s"S09 live contract token $token must be documented"))
+    Vector(
+      "`S09` | `penetration_route`",
+      "open_file_entry",
+      "semi_open_file_entry",
+      "same_file_penetration",
+      "file_penetration_route_certified",
+      "rowSpecificAdmissionBurdensByBand",
+      "exactValidationScaffoldByBand",
+      "declaredProjectionEvidenceKindsByBand"
+    ).foreach: token =>
+      assert(docs.contains(token), clues(s"S09 scaffold contract token $token must be documented"))
 
-  test("S12 live contract names exact access burden and projection evidence kind"):
+  test("S12 production public admission contract names exact access burden and projection evidence kind"):
     val s12 = StrategyProjectionBandId("S12")
     val evidenceKind = StrategyProjectionEvidenceKind("local_access_superiority_route_certified")
     val extraction = seedExtraction("6k1/8/3P4/3rB3/5P2/8/8/6K1 w - - 0 1")
@@ -428,7 +535,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Right(false)
     )
 
-  test("S10 live contract admits only exact same-anchor outpost occupation routes through runtime evidence"):
+  test("S10 production public admission contract admits only exact same-anchor outpost occupation routes through runtime evidence"):
     val s10 = StrategyProjectionBandId("S10")
     val evidenceKind = StrategyProjectionEvidenceKind("outpost_occupation_route_certified")
 
@@ -451,7 +558,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       )
     )
 
-  test("S20 live contract admits only exact mobility domination routes through runtime evidence"):
+  test("S20 production public admission contract admits only exact mobility domination routes through runtime evidence"):
     val s20 = StrategyProjectionBandId("S20")
     val evidenceKind = StrategyProjectionEvidenceKind("mobility_domination_route_certified")
     val extraction = seedExtraction("8/8/1nQ3n1/4p3/3b2K1/8/1k6/8 w - - 0 1")
@@ -494,14 +601,16 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
         "modules/commentary/docs/Witnesses61.md",
         "modules/commentary/docs/ValidationMethodology.md"
       ).map(path => Files.readString(Paths.get(path))).mkString("\n")
-    (StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S20") ++
-      StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S20").map(_.value) ++
-      Vector(
-        "same_board_mobility_certification_and_support_witness_law",
-        "lower_truth_owner_not_projection_truth",
-        "wrong_owner_wrong_anchor_wrong_route_stale_or_support_only_evidence_not_counted"
-      )).foreach: token =>
-      assert(docs.contains(token), clues(s"S20 live contract token $token must be documented"))
+    Vector(
+      "`S20` | `domination_route`",
+      "mobility_plus_restriction",
+      "defender_starvation",
+      "mobility_domination_route_certified",
+      "rowSpecificAdmissionBurdensByBand",
+      "exactValidationScaffoldByBand",
+      "declaredProjectionEvidenceKindsByBand"
+    ).foreach: token =>
+      assert(docs.contains(token), clues(s"S20 scaffold contract token $token must be documented"))
     assertEquals(
       StrategyProjectionAdmission.admits(
         s20,
@@ -512,7 +621,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Right(false)
     )
 
-  test("S06 live admission contract names exact space-bind burden and evidence kind"):
+  test("S06 production public admission contract names exact space-bind burden and evidence kind"):
     val s06 = StrategyProjectionBandId("S06")
     val evidenceKind = StrategyProjectionEvidenceKind("space_bind_restriction_route_certified")
     val extraction = seedExtraction("4k3/8/8/3ppN2/3PP3/7B/8/4K3 w - - 0 1")
@@ -559,7 +668,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
         .contains("exact_s05_center_release_and_exact_s20_domination_false_rivals_not_counted")
     )
 
-  test("S08 live admission contract names exact denial burden and evidence kind"):
+  test("S08 production public admission contract names exact denial burden and evidence kind"):
     val s08 = StrategyProjectionBandId("S08")
     val evidenceKind = StrategyProjectionEvidenceKind("counterplay_denial_route_certified")
 
@@ -603,7 +712,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Right(false)
     )
 
-  test("S07 live admission contract names initiative-conversion burden and exact evidence"):
+  test("S07 production public admission contract names initiative-conversion burden and exact evidence"):
     val s07 = StrategyProjectionBandId("S07")
     val evidenceKind = StrategyProjectionEvidenceKind("initiative_conversion_route_certified")
     val extraction = seedExtraction("r1bqkbnr/2ppp1pp/2n5/8/2P1P3/2N2N2/PP1P1PPP/R2QKB1R w KQkq - 0 1")
@@ -642,7 +751,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
         .contains("projection_evidence_same_board_route_present")
     )
 
-  test("S05 live admission contract names center-release burden and exact evidence"):
+  test("S05 production public admission contract names center-release burden and exact evidence"):
     val s05 = StrategyProjectionBandId("S05")
     val declaredEvidenceKinds =
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand
@@ -673,7 +782,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       assertEquals(
         StrategyProjectionScopeContract.isAllowedEvidenceKind(s05, kind),
         true,
-        clues(s"S05 evidence kind ${kind.value} must be live admission evidence")
+        clues(s"S05 evidence kind ${kind.value} must be production public evidence")
       )
     assertEquals(
       StrategyProjectionAdmission.admits(
@@ -685,7 +794,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Right(false)
     )
 
-  test("S18 live admission contract names exact carrier burden and evidence without admitting shortcuts"):
+  test("S18 production public admission contract names exact carrier burden and evidence without admitting shortcuts"):
     val s18 = StrategyProjectionBandId("S18")
     val extraction = seedExtraction("r1bqkbnr/p1ppp1pp/2n5/8/2P1P3/B1N2N2/PP1P1PPP/R2QKB1R w KQkq - 0 1")
     val declaredEvidenceKinds =
@@ -720,7 +829,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       assertEquals(
         StrategyProjectionScopeContract.isAllowedEvidenceKind(s18, kind),
         true,
-        clues(s"S18 evidence kind ${kind.value} must be live after explicit admission")
+        clues(s"S18 evidence kind ${kind.value} must be production-public after explicit admission")
       )
     assertEquals(
       StrategyProjectionAdmission.admits(
@@ -732,7 +841,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Right(false)
     )
 
-  test("S15 live admission contract names same-candidate creation burden and exact evidence"):
+  test("S15 production public admission contract names same-candidate creation burden and exact evidence"):
     val s15 = StrategyProjectionBandId("S15")
     val extraction = seedExtraction("4k3/8/1p6/2p5/PP6/8/8/4K3 w - - 0 1")
     val declaredEvidenceKinds =
@@ -764,7 +873,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       assertEquals(
         StrategyProjectionScopeContract.isAllowedEvidenceKind(s15, kind),
         true,
-        clues(s"S15 evidence kind ${kind.value} must be live admission evidence")
+        clues(s"S15 evidence kind ${kind.value} must be production public evidence")
       )
       StrategyProjectionEvidenceClaim(
         s15,
@@ -782,7 +891,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Right(false)
     )
 
-  test("S16 live admission contract names same-enemy-passer burden and exact evidence"):
+  test("S16 production public admission contract names same-enemy-passer burden and exact evidence"):
     val s16 = StrategyProjectionBandId("S16")
     val extraction = seedExtraction("7k/n5pp/P7/8/8/4K3/3N4/8 w - - 0 1")
     val declaredEvidenceKinds =
@@ -815,7 +924,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       assertEquals(
         StrategyProjectionScopeContract.isAllowedEvidenceKind(s16, kind),
         true,
-        clues(s"S16 evidence kind ${kind.value} must be live admission evidence")
+        clues(s"S16 evidence kind ${kind.value} must be production public evidence")
       )
       StrategyProjectionEvidenceClaim(
         s16,
@@ -833,7 +942,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Right(false)
     )
 
-  test("S19 live admission contract names exact task burden and evidence without admitting shortcuts"):
+  test("S19 production public admission contract names exact task burden and evidence without admitting shortcuts"):
     val s19 = StrategyProjectionBandId("S19")
     val extraction = seedExtraction("4k3/2n5/3P4/8/6p1/8/4K3/8 w - - 0 1")
     val declaredEvidenceKinds =
@@ -864,14 +973,14 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       assertEquals(
         StrategyProjectionScopeContract.isAllowedEvidenceKind(s19, kind),
         true,
-        clues(s"S19 evidence kind ${kind.value} must be live admission evidence")
+        clues(s"S19 evidence kind ${kind.value} must be production public evidence")
       )
     assertEquals(
       StrategyProjectionAdmission.admits(s19, extraction, StrategyProjectionEvidence.empty, Color.White),
       Right(false)
     )
 
-  test("S22 live admission contract exposes hold evidence while requiring proof"):
+  test("S22 production public admission contract exposes hold evidence while requiring proof"):
     val s22 = StrategyProjectionBandId("S22")
     val extraction = seedExtraction("7k/6pp/8/8/8/4K3/3N4/8 w - - 0 1")
 
@@ -891,7 +1000,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       assertEquals(
         StrategyProjectionScopeContract.isAllowedEvidenceKind(s22, kind),
         true,
-        clues(s"S22 evidence kind ${kind.value} must be live admission evidence")
+        clues(s"S22 evidence kind ${kind.value} must be production public evidence")
       )
     assertEquals(
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand("S22"),
@@ -902,7 +1011,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Right(false)
     )
 
-  test("S11 live admission contract names target pressure burden and exact evidence"):
+  test("S11 production public admission contract names target pressure burden and exact evidence"):
     val s11 = StrategyProjectionBandId("S11")
     val extraction = seedExtraction("4k3/8/8/3p4/3P1N2/8/6B1/4K3 w - - 0 1")
     val declaredEvidenceKinds =
@@ -934,7 +1043,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       assertEquals(
         StrategyProjectionScopeContract.isAllowedEvidenceKind(s11, kind),
         true,
-        clues(s"S11 evidence kind ${kind.value} must be live admission evidence")
+        clues(s"S11 evidence kind ${kind.value} must be production public evidence")
       )
       StrategyProjectionEvidenceClaim(
         s11,
@@ -947,7 +1056,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Right(false)
     )
 
-  test("S13 live admission contract names wing-damage burden and exact evidence"):
+  test("S13 production public admission contract names wing-damage burden and exact evidence"):
     val s13 = StrategyProjectionBandId("S13")
     val extraction = seedExtraction("4k3/8/8/8/1pp5/8/P7/4K3 w - - 0 1")
     val declaredEvidenceKinds =
@@ -978,7 +1087,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       assertEquals(
         StrategyProjectionScopeContract.isAllowedEvidenceKind(s13, kind),
         true,
-        clues(s"S13 evidence kind ${kind.value} must be live admission evidence")
+        clues(s"S13 evidence kind ${kind.value} must be production public evidence")
       )
       StrategyProjectionEvidenceClaim(
         s13,
@@ -991,7 +1100,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       Right(false)
     )
 
-  test("S14 live admission contract names chain-base burden and exact evidence"):
+  test("S14 production public admission contract names chain-base burden and exact evidence"):
     val s14 = StrategyProjectionBandId("S14")
     val extraction = seedExtraction("4k3/8/1p6/2p5/P7/8/8/4K3 w - - 0 1")
     val declaredEvidenceKinds =
@@ -1020,7 +1129,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
       assertEquals(
         StrategyProjectionScopeContract.isAllowedEvidenceKind(s14, kind),
         true,
-        clues(s"S14 evidence kind ${kind.value} must be live after explicit admission")
+        clues(s"S14 evidence kind ${kind.value} must be production-public after explicit admission")
       )
       StrategyProjectionEvidenceClaim(
         s14,
@@ -1048,7 +1157,7 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
         Right(false)
       )
 
-  test("S21 live admission contract names exact survival burden and exact evidence"):
+  test("S21 production public admission contract names exact survival burden and exact evidence"):
     val s21 = StrategyProjectionBandId("S21")
     val evidenceKind = StrategyProjectionEvidenceKind("counterplay_survival_route_certified")
     val extraction = seedExtraction("r1bqkbnr/p2pp1pp/2n5/2p5/4P2P/2N2N2/PP1P1PP1/R2QKB1R w KQkq - 0 1")

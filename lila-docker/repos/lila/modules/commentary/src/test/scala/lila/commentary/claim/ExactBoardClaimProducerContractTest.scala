@@ -3,6 +3,7 @@ package lila.commentary.claim
 import lila.commentary.CommentaryCore
 import lila.commentary.api.{ CommentaryApiJson, CommentaryBackendSeam, CommentaryRequest, CommentaryResponseStatus }
 import lila.commentary.certification.CertificationEngineRuntimeIntake
+import lila.commentary.projection.StrategyGeometryFoundation
 import lila.commentary.render.RenderStatus
 import lila.commentary.selection.{ ClaimLayer, ClaimStatus, EvidenceRefKind }
 import chess.format.Fen
@@ -241,6 +242,42 @@ class ExactBoardClaimProducerContractTest extends munit.FunSuite:
     assertEquals(response.status, CommentaryResponseStatus.Rendered)
     assert(response.render.evidenceRefs.exists(_.id == "immediate_mate"))
     assert(!response.render.evidenceRefs.exists(_.id == "moved_piece_left_loose_transition"))
+
+  test("P1 anti-case families are anchored to exact-board tactical false positives"):
+    val antiCaseKeys = StrategyGeometryFoundation.antiCaseFamilies.map(_.key).toSet
+    val xrayOnly =
+      CommentaryBackendSeam.render(
+        request(
+          currentFen = movedQueenLooseAfterFen,
+          beforeFen = Some(movedQueenLooseBeforeFen),
+          playedMove = Some("e5f4")
+        )
+      )
+    val alreadyLoose =
+      CommentaryBackendSeam.render(
+        request(
+          currentFen = alreadyLooseKnightAfterFen,
+          beforeFen = Some(alreadyLooseKnightBeforeFen),
+          playedMove = Some("f5d4")
+        )
+      )
+    val mateDominated =
+      CommentaryBackendSeam.render(
+        request(
+          currentFen = mateDominatedLooseAfterFen,
+          beforeFen = Some(mateDominatedLooseBeforeFen),
+          playedMove = Some("h5f4")
+        )
+      )
+
+    assert(antiCaseKeys.contains("pre_existing_pin_or_xray"))
+    assert(antiCaseKeys.contains("pre_existing_loose_piece"))
+    assert(antiCaseKeys.contains("mate_dominated_tactical_smell"))
+    assert(!xrayOnly.render.evidenceRefs.exists(ref => ref.id == "xray_target" && ref.scope.contains("position_local")))
+    assert(!xrayOnly.render.evidenceRefs.exists(ref => ref.id == "loose_piece" && ref.scope.contains("move_local")))
+    assert(!alreadyLoose.render.evidenceRefs.exists(ref => ref.id == "moved_piece_left_loose_transition"))
+    assert(mateDominated.render.evidenceRefs.exists(_.id == "immediate_mate"))
+    assert(!mateDominated.render.evidenceRefs.exists(_.id == "moved_piece_left_loose_transition"))
 
   test("already-loose moved piece does not become a new move-local loose reason"):
     val response =

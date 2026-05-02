@@ -69,12 +69,19 @@ final case class EngineCertificationClaim(
     minMultiPv: Int,
     minPvPlies: Int,
     requiredScore: Option[EngineScoreRequirement],
-    payload: WitnessPayload = WitnessPayload.empty
+    payload: WitnessPayload = WitnessPayload.empty,
+    probeRequestId: Option[String] = None,
+    probePolicyFingerprint: Option[String] = None,
+    roleReports: Map[CertificationEngineRole, CertificationEvidenceStrength] = Map.empty,
+    publicCaps: Set[String] = Set.empty
 ):
   require(purposes.nonEmpty, "Engine certification claim requires at least one purpose")
   require(minDepth > 0, "Engine certification claim requires positive minDepth")
   require(minMultiPv > 0, "Engine certification claim requires positive minMultiPv")
   require(minPvPlies > 0, "Engine certification claim requires positive minPvPlies")
+
+  def engineRoles: Set[CertificationEngineRole] =
+    CertificationEngineRole.fromEvidencePurposes(purposes.keys)
 
 final case class EngineEvidencePacket(
     identity: EnginePacketIdentity,
@@ -153,6 +160,9 @@ private object EngineScoreNormalization:
 object CertificationEngineEvidenceContract:
 
   private val BestDefenseMinimumMultiPv = 3
+  private val MaterialCollapseCp = 1200
+  private val PublicCapKeys: Set[String] =
+    Set("horizon_limited", "multipv_ambiguous", "tablebase_required", "mate_dominated", "material_collapse")
 
   def forObjectExtraction(
       current: StrategicObjectExtraction,
@@ -307,6 +317,9 @@ object CertificationEngineEvidenceContract:
                s"Engine evidence has a truncated PV below required length ${claim.minPvPlies}"
              )
             _ <- validatePvBranchDiversity(packet.pvLines.take(requiredMultiPv), requiredMultiPv)
+            _ <- validateRolePolicyBinding(packet, claim)
+            _ <- validateServerRolePolicyFloor(packet, claim)
+            _ <- validateRoleInvariants(packet, claim)
           yield ()
 
   private def validatePvLines(
@@ -397,7 +410,189 @@ object CertificationEngineEvidenceContract:
         acc.flatMap: _ =>
           claim.requiredScore match
             case None => Left("Engine evidence claim requires a typed score requirement")
-            case Some(requirement) => validateScoreRequirement(packet, claim, requirement, nowEpochMs)
+            case Some(requirement) =>
+              validatePublicOutcomeCaps(packet, claim).flatMap(_ =>
+                validateScoreRequirement(packet, claim, requirement, nowEpochMs)
+              )
+
+  private def validateRolePolicyBinding(
+      packet: EngineEvidencePacket,
+      claim: EngineCertificationClaim
+  ): Either[String, Unit] =
+    if claim.engineRoles.isEmpty then Right(())
+    else
+      for
+        requestId <- claim.probeRequestId.toRight(
+          "Engine evidence requires a server-issued Q request id"
+        )
+        _ <- Either.cond(
+          isServerIssuedQRequestId(requestId),
+          (),
+          "Engine evidence Q request id is not server-issued"
+        )
+        _ <- validateQRequestIdentity(requestId, packet, claim)
+        fingerprint <- claim.probePolicyFingerprint.toRight(
+          "Engine evidence requires a bound Q policy fingerprint"
+        )
+        expectedFingerprint <- expectedPolicyFingerprint(packet, claim)
+        _ <- Either.cond(
+          fingerprint == expectedFingerprint,
+          (),
+          "Engine evidence Q policy fingerprint must match the server-issued role policy fingerprint"
+        )
+      yield ()
+
+  private def isServerIssuedQRequestId(requestId: String): Boolean =
+    requestId.trim.matches("^q-[a-z0-9][a-z0-9_-]*$")
+
+  private def validateQRequestIdentity(
+      requestId: String,
+      packet: EngineEvidencePacket,
+      claim: EngineCertificationClaim
+  ): Either[String, Unit] =
+    claim.engineRoles.toVector.sortBy(_.key) match
+      case Vector(role) =>
+        val expected =
+          Vector(
+            "q",
+            stableToken(role.key),
+            stableToken(claim.familyId.value),
+            colorKey(claim.owner),
+            stableToken(claim.anchor.key),
+            stableToken(packet.identity.node.nodeId),
+            packet.identity.node.ply.toString
+          ).mkString("-")
+        Either.cond(
+          requestId.trim == expected,
+          (),
+          "Engine evidence Q request role identity does not match the certification role, family, owner, anchor, node, and ply"
+        )
+      case _ =>
+        Left("Engine evidence Q request role binding requires exactly one certification role")
+
+  private def expectedPolicyFingerprint(
+      packet: EngineEvidencePacket,
+      claim: EngineCertificationClaim
+  ): Either[String, String] =
+    claim.engineRoles.toVector.sortBy(_.key) match
+      case Vector(role) =>
+        Right(
+          CertificationEnginePolicyFingerprint.defaultForRole(
+            packet.search.engineConfigFingerprint,
+            role
+          )
+        )
+      case _ =>
+        Left("Engine evidence Q request role binding requires exactly one certification role")
+
+  private def validateServerRolePolicyFloor(
+      packet: EngineEvidencePacket,
+      claim: EngineCertificationClaim
+  ): Either[String, Unit] =
+    claim.engineRoles.toVector.sortBy(_.key).foldLeft[Either[String, Unit]](Right(())):
+      case (acc, role) =>
+        acc.flatMap: _ =>
+          val targetDepth = CertificationEnginePolicyFingerprint.defaultTargetDepth(role)
+          val floorDepth = CertificationEnginePolicyFingerprint.defaultFloorDepth(role)
+          val requiredMultiPv = CertificationEnginePolicyFingerprint.defaultMultiPv(role)
+          val requiredMinPvPlies = CertificationEnginePolicyFingerprint.defaultMinPvPlies(role)
+          for
+            _ <- Either.cond(
+              packet.search.requestedDepth >= targetDepth,
+              (),
+              s"Engine evidence Q policy target depth is below server target $targetDepth"
+            )
+            _ <- Either.cond(
+              packet.search.realizedDepth >= floorDepth && claim.minDepth >= floorDepth,
+              (),
+              s"Engine evidence Q policy floor depth is below server floor $floorDepth"
+            )
+            _ <- Either.cond(
+              claim.minMultiPv >= requiredMultiPv,
+              (),
+              s"Engine evidence Q policy MultiPV is below required role MultiPV $requiredMultiPv"
+            )
+            _ <- Either.cond(
+              claim.minPvPlies >= requiredMinPvPlies,
+              (),
+              s"Engine evidence Q policy PV length is below required role PV length $requiredMinPvPlies"
+            )
+          yield ()
+
+  private def stableToken(value: String): String =
+    value
+      .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
+      .replaceAll("[^A-Za-z0-9]+", "-")
+      .stripPrefix("-")
+      .stripSuffix("-")
+      .toLowerCase
+
+  private def colorKey(color: Color): String =
+    if color.white then "white" else "black"
+
+  private def validateRoleInvariants(
+      packet: EngineEvidencePacket,
+      claim: EngineCertificationClaim
+  ): Either[String, Unit] =
+    val roles = claim.engineRoles
+    if roles.contains(CertificationEngineRole.BestDefenseSurvival) &&
+      !claim.roleReports
+        .get(CertificationEngineRole.BestDefenseSurvival)
+        .contains(CertificationEvidenceStrength.Satisfied)
+    then Left("Engine evidence best-defense semantic coverage is missing")
+    else if roles.exists(transitionInvariantRole) && packet.identity.transition.isEmpty then
+      Left("Engine evidence transition-bound invariant is required for release, causality, and persistence roles")
+    else if roles.exists(requiresBoundBaseline) && packet.baseline.isEmpty then
+      Left("Engine evidence requires a bound baseline for comparative, conversion, or counterplay role policy")
+    else
+      val missing =
+        roles
+          .filterNot(role =>
+            role == CertificationEngineRole.BestDefenseSurvival ||
+              claim.roleReports.get(role).contains(CertificationEvidenceStrength.Satisfied)
+          )
+          .toVector
+          .sortBy(_.key)
+      Either.cond(
+        missing.isEmpty,
+        (),
+        s"Engine evidence role policy invariant report is missing for ${missing.map(_.key).mkString(", ")}"
+      )
+
+  private def transitionInvariantRole(role: CertificationEngineRole): Boolean =
+    role == CertificationEngineRole.CausalityCheck ||
+      role == CertificationEngineRole.AntiCausalityCheck ||
+      role == CertificationEngineRole.TacticalReleaseDetection ||
+      role == CertificationEngineRole.PersistenceCheck
+
+  private def requiresBoundBaseline(role: CertificationEngineRole): Boolean =
+    role == CertificationEngineRole.ComparativeSuperiority ||
+      role == CertificationEngineRole.CounterplayDenial ||
+      role == CertificationEngineRole.ConversionRouteSurvival
+
+  private def validatePublicOutcomeCaps(
+      packet: EngineEvidencePacket,
+      claim: EngineCertificationClaim
+  ): Either[String, Unit] =
+    val unknownCaps = claim.publicCaps.diff(PublicCapKeys)
+    if unknownCaps.nonEmpty then
+      Left(s"Engine evidence public cap report contains unknown caps: ${unknownCaps.toVector.sorted.mkString(", ")}")
+    else if claim.publicCaps.nonEmpty then
+      Left(s"Engine evidence public outcome cap blocks certification: ${claim.publicCaps.toVector.sorted.mkString(", ")}")
+    else packet.normalizedMateFor(claim.owner) match
+      case Some(plies) if math.abs(plies) <= 6 && !mateScoreAllowedFor(claim.familyId) =>
+        Left("Engine evidence mate outcome cap blocks non-mate strategic certification")
+      case _ =>
+        packet.normalizedCentipawnsFor(claim.owner) match
+          case Some(cp) if math.abs(cp) >= MaterialCollapseCp && !materialCollapseAllowedFor(claim.familyId) =>
+            Left("Engine evidence material-collapse cap blocks non-material strategic certification")
+          case _ => Right(())
+
+  private def mateScoreAllowedFor(familyId: CertificationId): Boolean =
+    familyId.value == "MateNetCertification"
+
+  private def materialCollapseAllowedFor(familyId: CertificationId): Boolean =
+    familyId.value == "MaterialHarvest"
 
   private def validateScoreRequirement(
       packet: EngineEvidencePacket,
@@ -542,7 +737,8 @@ object CertificationEngineEvidenceContract:
               color = claim.owner,
               anchor = claim.anchor,
               purposeStrengths = claim.purposes,
-              payload = claim.payload
+              payload = claim.payload,
+              engineRoles = claim.engineRoles
             )
         )
       )

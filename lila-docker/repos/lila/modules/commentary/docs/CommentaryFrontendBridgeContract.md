@@ -91,8 +91,8 @@ Public fields are:
 - response/render status
 - render `schemaVersion`
 - public render blocks, copied only as role, claim id, render text,
-  wording strength, evidence ids, variation evidence ids, boundaries, and
-  non-authoritative marker
+  wording strength, evidence ids, variation evidence ids, boundaries,
+  non-authoritative marker, and phrase capability
 - block `wordingStrength`
 - block `evidenceIds`
 - block `variationEvidenceIds`, when present
@@ -103,23 +103,30 @@ Public fields are:
 - public `forbiddenTerms` metadata carried by render text and wording
 
 The renderer may emit closed backend-owned book-style public text on a block
-when the server-side annotation writer has produced it. The bridge preserves a
-block when it has public text, public evidence ids, or public variation
-evidence ids. It does not invent fallback text for prose-empty blocks.
+when the server-side annotation writer has produced it and the block phrase
+capability authorizes `line_commentary`. The bridge preserves public text only
+when the copied phrase capability, block role, block wording strength, and
+render wording cap still allow it. It preserves variation evidence ids only
+when the same phrase capability authorizes public line commentary. It does not
+invent fallback text for prose-empty blocks.
 
 When `render.variationEvidence` is present, the bridge may preserve only the
 renderer-owned `RenderVariationEvidence` fields: proof id, bound claim id,
-start FEN, owner/defender/anchor/route/scope binding, renderer-public line
-role, move role, SAN/UCI
-line arrays, public move-pair fields, tested/reply/resource line fields, test
-result, proof purpose, bounded provenance refs, boundary fields, wording cap,
-and surface allowance. The bridge must drop variation-evidence entries whose
+owner/defender/anchor/route/scope binding, renderer-public line role, move
+role, public SAN move/line fields, tested/reply/resource SAN line fields, test
+result, proof purpose, wording cap, and surface allowance. The bridge must not
+copy start FEN, UCI PV, provenance refs, replay/freshness boundary fields,
+depth, MultiPV, engine fingerprints, cache keys, branch ids, or raw move UCI
+because those are lower proof/debug inputs, not public display data. The bridge
+must drop variation-evidence entries whose
 role is not one of the renderer-public `RenderLineRole` keys: `resource`,
 `caution`, `hold`, `conversion`, `pressure`, or `simplification`. It must not
 expose lower prepared roles such as `failed_tempting_move`, and it must not
-expose the lower prepared `proves` token. If the backend omits
-`render.variationEvidence`, or if every variation-evidence entry is dropped,
-the decoded public output keeps the existing omitted/empty behavior.
+expose the lower prepared `proves` token. It also drops entries whose
+`surfaceAllowance` is not `public_line`; `boundary_only` evidence may remain a
+backend boundary concept but is not public display payload. If the backend
+omits `render.variationEvidence`, or if every variation-evidence entry is
+dropped, the decoded public output keeps the existing omitted/empty behavior.
 
 Internal fields are not public:
 
@@ -151,10 +158,11 @@ rankings.
 The frontend bridge must not render raw engine eval, PV, centipawn, mate,
 depth, or engine labels as commentary.
 
-The frontend bridge must not turn `RenderVariationEvidence` into book-style
-prose, best-move claims, forced-line claims, result claims, or engine/oracle
-proof. It may only pass through or hide backend-prepared public fields,
-including backend-owned `RenderText.publicText`.
+The frontend bridge must not turn `RenderVariationEvidence`, role labels, or
+evidence ids into book-style prose, best-move claims, forced-line claims,
+result claims, or engine/oracle proof. It may only pass through or hide
+backend-prepared public fields, including backend-owned `RenderText.publicText`
+that is still authorized by phrase capability.
 Resource and caution line roles remain structured evidence only; the bridge
 must not turn them into a recommendation, best-defense claim, or result claim.
 Opening sequence context and `opening-line-test:*:context` refs remain
@@ -203,14 +211,15 @@ request-error states remain quiet public output.
 
 The view may render:
 
-- backend-prepared block `RenderText.publicText`, in backend block order
-- compact player labels such as `Move note`, `Line`, `Context`, and `Reply`
+- backend-prepared block `RenderText.publicText`, in backend block order, only
+  after phrase capability survives bridge validation
 - public SAN notation from decoded public variation evidence when the evidence
-  is tied to the block and has `surfaceAllowance = public_line`
+  is tied to the block, has `surfaceAllowance = public_line`, and the block
+  phrase capability allows `line_commentary`
 
-The view must not render proof ids, claim ids, evidence labels, internal ids,
-boundaries, UCI-only raw PV, depth, eval, engine labels, cache/probe fields, or
-debug/internal metadata.
+The view must not render role-label prose or fallback captions. The view must not render proof ids,
+claim ids, evidence labels, internal ids, boundaries, UCI-only raw PV, depth,
+eval, engine labels, cache/probe fields, or debug/internal metadata.
 
 ## Status Handling
 

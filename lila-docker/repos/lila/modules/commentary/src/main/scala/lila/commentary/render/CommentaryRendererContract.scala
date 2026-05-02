@@ -52,38 +52,16 @@ object RenderEvidenceRef:
     RenderEvidenceRef(ref.kind, ref.id, ref.owner, ref.anchor, ref.route, ref.scope)
 
 final case class RenderVariationMove(
-    san: String,
-    uci: String
+    san: String
 )
 
 object RenderVariationMove:
   def from(move: VariationMove): RenderVariationMove =
-    RenderVariationMove(move.san, move.uci)
-
-final case class RenderVariationBoundary(
-    depthFloor: Int,
-    realizedDepth: Int,
-    multiPv: Int,
-    freshnessChecked: Boolean,
-    legalReplayChecked: Boolean,
-    baselineChecked: Boolean
-)
-
-object RenderVariationBoundary:
-  def from(boundary: PreparedVariationBoundary): RenderVariationBoundary =
-    RenderVariationBoundary(
-      depthFloor = boundary.depthFloor,
-      realizedDepth = boundary.realizedDepth,
-      multiPv = boundary.multiPv,
-      freshnessChecked = boundary.freshnessChecked,
-      legalReplayChecked = boundary.legalReplayChecked,
-      baselineChecked = boundary.baselineChecked
-    )
+    RenderVariationMove(move.san)
 
 final case class RenderVariationEvidence(
     proofId: String,
     boundClaimId: String,
-    startFen: String,
     owner: String,
     defender: Option[String],
     anchor: String,
@@ -92,7 +70,6 @@ final case class RenderVariationEvidence(
     role: RenderLineRole,
     moveRole: VariationMoveRole,
     lineSan: Vector[String],
-    lineUci: Vector[String],
     playedMove: Option[RenderVariationMove],
     candidateMove: Option[RenderVariationMove],
     defenderResource: Option[RenderVariationMove],
@@ -103,8 +80,6 @@ final case class RenderVariationEvidence(
     resourceLine: Vector[RenderVariationMove],
     testResult: VariationTestResult,
     proofPurpose: VariationProofPurpose,
-    provenanceRefs: Vector[RenderEvidenceRef],
-    boundary: RenderVariationBoundary,
     wordingCap: WordingStrength,
     surfaceAllowance: VariationSurfaceAllowance
 )
@@ -114,7 +89,6 @@ object RenderVariationEvidence:
     RenderVariationEvidence(
       proofId = proof.proofId,
       boundClaimId = proof.boundClaimId,
-      startFen = proof.startFen,
       owner = proof.owner,
       defender = proof.defender,
       anchor = proof.anchor,
@@ -123,7 +97,6 @@ object RenderVariationEvidence:
       role = RenderLineRole.from(proof.role),
       moveRole = proof.moveRole,
       lineSan = proof.lineSan,
-      lineUci = proof.lineUci,
       playedMove = proof.playedMove.map(RenderVariationMove.from),
       candidateMove = proof.candidateMove.map(RenderVariationMove.from),
       defenderResource = proof.defenderResource.map(RenderVariationMove.from),
@@ -134,11 +107,53 @@ object RenderVariationEvidence:
       resourceLine = proof.resourceLine.map(RenderVariationMove.from),
       testResult = proof.testResult,
       proofPurpose = proof.proofPurpose,
-      provenanceRefs = proof.provenanceRefs.map(RenderEvidenceRef.from),
-      boundary = RenderVariationBoundary.from(proof.boundary),
       wordingCap = proof.wordingCap,
       surfaceAllowance = proof.surfaceAllowance
     )
+
+object PublicSurfaceTemplate:
+
+  def renderBlock(claim: PublicClaim): RenderBlock =
+    renderBlock(claim, None)
+
+  def renderBlock(claim: PublicClaim, phrase: Option[PublicPhrase]): RenderBlock =
+    RenderBlock(
+      role = claim.role,
+      claimId = claim.claimId,
+      text = authorizedText(claim, phrase),
+      wordingStrength = claim.wordingStrength,
+      evidenceIds = claim.evidenceIds,
+      variationEvidenceIds = claim.variationEvidenceIds,
+      boundaries = claim.boundaries,
+      nonAuthoritative = claim.nonAuthoritative,
+      phraseCapability = claim.phraseCapability
+    )
+
+  private def authorizedText(claim: PublicClaim, phrase: Option[PublicPhrase]): RenderText =
+    claim.text.copy(
+      publicText = phrase.filter(phraseAllowed(claim, _)).map(_.text.trim)
+    )
+
+  private def phraseAllowed(claim: PublicClaim, phrase: PublicPhrase): Boolean =
+    val capability = claim.phraseCapability
+    phrase.claimId == claim.claimId &&
+      phrase.text.trim.nonEmpty &&
+      phrase.predicate == PublicClaimPredicate.LineCommentary &&
+      claim.role == RenderRole.Primary &&
+      claim.wordingStrength.rank >= WordingStrength.QualifiedSupport.rank &&
+      phrase.wordingStrength.rank >= WordingStrength.QualifiedSupport.rank &&
+      capability.maxStrength.rank >= claim.wordingStrength.rank &&
+      capability.maxStrength.rank >= phrase.wordingStrength.rank &&
+      capability.allowsLineCommentary &&
+      capability.allowedPredicates.contains(PublicClaimPredicate.LineCommentary) &&
+      !capability.allowsResultLanguage &&
+      !capability.allowsBestForcedLanguage &&
+      !capability.allowsEngineLanguage &&
+      !containsForbiddenTerm(phrase.text, capability.forbiddenTerms)
+
+  def containsForbiddenTerm(text: String, terms: Vector[String]): Boolean =
+    val normalized = text.toLowerCase
+    terms.exists(term => normalized.contains(term.toLowerCase))
 
 final case class RenderBoundary(
     claimId: String,
@@ -157,6 +172,45 @@ final case class RenderWording(
     forbiddenTerms: Vector[String]
 )
 
+enum PublicClaimPredicate(val key: String):
+  case BoardFact extends PublicClaimPredicate("board_fact")
+  case Certification extends PublicClaimPredicate("certification")
+  case StrategyProjection extends PublicClaimPredicate("strategy_projection")
+  case SourceContext extends PublicClaimPredicate("source_context")
+  case LineCommentary extends PublicClaimPredicate("line_commentary")
+  case ResultMaterial extends PublicClaimPredicate("result_material")
+
+final case class PublicPhrase(
+    claimId: String,
+    text: String,
+    predicate: PublicClaimPredicate,
+    wordingStrength: WordingStrength
+)
+
+final case class PhraseCapability(
+    maxStrength: WordingStrength,
+    allowedPredicates: Set[PublicClaimPredicate],
+    allowsResultLanguage: Boolean,
+    allowsBestForcedLanguage: Boolean,
+    allowsEngineLanguage: Boolean,
+    allowsLineCommentary: Boolean,
+    forbiddenTerms: Vector[String]
+)
+
+final case class PublicClaim(
+    role: RenderRole,
+    claimId: String,
+    text: RenderText,
+    wordingStrength: WordingStrength,
+    evidenceIds: Vector[String],
+    variationEvidenceIds: Vector[String],
+    boundaries: Vector[RenderBoundary],
+    nonAuthoritative: Boolean,
+    phraseCapability: PhraseCapability
+):
+  def toRenderBlock: RenderBlock =
+    PublicSurfaceTemplate.renderBlock(this)
+
 final case class RenderBlock(
     role: RenderRole,
     claimId: String,
@@ -165,7 +219,8 @@ final case class RenderBlock(
     evidenceIds: Vector[String],
     variationEvidenceIds: Vector[String],
     boundaries: Vector[RenderBoundary],
-    nonAuthoritative: Boolean
+    nonAuthoritative: Boolean,
+    phraseCapability: PhraseCapability
 )
 
 final case class CommentaryRender(
@@ -179,67 +234,129 @@ final case class CommentaryRender(
     wording: RenderWording
 )
 
+final case class PublicCommentaryPlan(
+    schemaVersion: Int,
+    publicClaims: Vector[PublicClaim],
+    evidenceRefs: Vector[RenderEvidenceRef],
+    variationEvidence: Vector[RenderVariationEvidence],
+    boundaries: Vector[RenderBoundary],
+    suppressions: Vector[RenderSuppression],
+    wording: RenderWording
+)
+
 object CommentaryRendererContract:
 
   val SchemaVersion = 2
 
-  def render(plan: CommentaryPlan): CommentaryRender =
+  def publicClaims(plan: CommentaryPlan): Vector[PublicClaim] =
+    lowerableSelectedClaims(plan).map(publicClaimFor(plan, _))
+
+  def publicPlan(plan: CommentaryPlan): PublicCommentaryPlan =
     val wording = renderWording(plan.wordingRules.maxStrength)
-    val publicBlocks =
-      if plan.wordingRules.maxStrength == WordingStrength.Hidden then Vector.empty
-      else
-        Vector(
-          plan.main.toVector.flatMap(section => renderSection(plan, section, RenderRole.Primary)),
-          renderSection(plan, plan.support, RenderRole.Supporting),
-          renderSection(plan, plan.context, RenderRole.Context),
-          renderSection(plan, plan.contrast, RenderRole.Contrast)
-        ).flatten
+    val claims = publicClaims(plan)
+    val publicBlocks = claims.map(_.toRenderBlock)
     val blockedClaimIds = plan.blocked.map(_.claim.id).toSet
     val boundaries =
       Vector(plan.support, plan.context, plan.contrast)
         .flatMap(
           _.boundaries
             .filterNot(boundary => blockedClaimIds.contains(boundary.claimId))
+            .filter(boundary => claims.exists(_.claimId == boundary.claimId))
             .map(boundary => RenderBoundary(boundary.claimId, boundary.reason))
         )
     val suppressions =
       plan.blocked.map(blocked => RenderSuppression(blocked.claim.id, blocked.reasons, public = false))
-    val status = statusFor(plan, publicBlocks)
+    val status = statusFor(publicBlocks)
     val publicBoundaries =
       if status == RenderStatus.NoCommentary then Vector.empty
       else boundaries
-    CommentaryRender(
+    PublicCommentaryPlan(
       schemaVersion = SchemaVersion,
-      status = status,
-      blocks = publicBlocks,
-      evidenceRefs = if status == RenderStatus.NoCommentary then Vector.empty else renderEvidence(plan),
-      variationEvidence = if status == RenderStatus.NoCommentary then Vector.empty else renderVariationEvidence(plan, publicBlocks),
+      publicClaims = claims,
+      evidenceRefs = renderEvidence(plan),
+      variationEvidence = renderVariationEvidence(plan, publicBlocks),
       boundaries = publicBoundaries,
       suppressions = suppressions,
       wording = wording
     )
 
-  private def renderSection(
-      plan: CommentaryPlan,
+  def render(plan: CommentaryPlan): CommentaryRender =
+    render(publicPlan(plan))
+
+  def render(publicPlan: PublicCommentaryPlan): CommentaryRender =
+    render(publicPlan, Map.empty)
+
+  def render(publicPlan: PublicCommentaryPlan, phrases: Map[String, PublicPhrase]): CommentaryRender =
+    val publicBlocks = publicPlan.publicClaims.map(claim => PublicSurfaceTemplate.renderBlock(claim, phrases.get(claim.claimId)))
+    val status = statusFor(publicBlocks)
+    CommentaryRender(
+      schemaVersion = publicPlan.schemaVersion,
+      status = status,
+      blocks = publicBlocks,
+      evidenceRefs = if status == RenderStatus.NoCommentary then Vector.empty else publicPlan.evidenceRefs,
+      variationEvidence = if status == RenderStatus.NoCommentary then Vector.empty else publicPlan.variationEvidence,
+      boundaries = if status == RenderStatus.NoCommentary then Vector.empty else publicPlan.boundaries,
+      suppressions = publicPlan.suppressions,
+      wording = publicPlan.wording
+    )
+
+  private final case class LowerableSelected(
       section: PlanSection,
-      role: RenderRole
-  ): Vector[RenderBlock] =
-    val blockedClaimIds = plan.blocked.map(_.claim.id).toSet
-    section.claims.flatMap: selected =>
-      val strength = effectiveStrength(plan, selected, role)
-      Option.when(strength != WordingStrength.Hidden && !blockedClaimIds.contains(selected.claim.id)):
-        RenderBlock(
-          role = role,
-          claimId = selected.claim.id,
-          text = RenderText(publicText = None, forbiddenTerms = forbiddenTermsFor(selected.claim, strength)),
-          wordingStrength = strength,
-          evidenceIds = evidenceIdsFor(plan, selected.claim),
-          variationEvidenceIds = variationEvidenceIdsFor(plan, selected.claim),
-          boundaries = section.boundaries
-            .filter(_.claimId == selected.claim.id)
-            .map(boundary => RenderBoundary(boundary.claimId, boundary.reason)),
-          nonAuthoritative = selected.claim.layer == ClaimLayer.SourceContext || selected.bucket == ClaimBucket.ContextOnly
-        )
+      selected: SelectedClaim,
+      role: RenderRole,
+      strength: WordingStrength
+  )
+
+  private def lowerableSelectedClaims(plan: CommentaryPlan): Vector[LowerableSelected] =
+    if plan.wordingRules.maxStrength == WordingStrength.Hidden then Vector.empty
+    else
+      val blockedClaimIds = plan.blocked.map(_.claim.id).toSet
+      publicSectionsWithRoles(plan).flatMap: (section, role) =>
+        section.claims.flatMap: selected =>
+          val strength = effectiveStrength(plan, selected, role)
+          Option.when(
+            strength != WordingStrength.Hidden &&
+              !blockedClaimIds.contains(selected.claim.id) &&
+              lowerableClaimStatus(selected.claim)
+          )(LowerableSelected(section, selected, role, strength))
+
+  private def publicSectionsWithRoles(plan: CommentaryPlan): Vector[(PlanSection, RenderRole)] =
+    plan.main.toVector.map(_ -> RenderRole.Primary) ++
+      Vector(
+        plan.support -> RenderRole.Supporting,
+        plan.context -> RenderRole.Context,
+        plan.contrast -> RenderRole.Contrast
+      )
+
+  private def lowerableClaimStatus(claim: CommentaryClaim): Boolean =
+    claim.layer match
+      case ClaimLayer.SourceContext =>
+        claim.status == ClaimStatus.Context || claim.status == ClaimStatus.Admitted
+      case ClaimLayer.Engine | ClaimLayer.Renderer =>
+        false
+      case _ =>
+        claim.status == ClaimStatus.Admitted
+
+  private def publicClaimFor(
+      plan: CommentaryPlan,
+      lowerable: LowerableSelected
+  ): PublicClaim =
+    val claim = lowerable.selected.claim
+    val forbiddenTerms = forbiddenTermsFor(claim, lowerable.strength)
+    val variationIds = variationEvidenceIdsFor(plan, claim)
+    PublicClaim(
+      role = lowerable.role,
+      claimId = claim.id,
+      text = RenderText(publicText = None, forbiddenTerms = forbiddenTerms),
+      wordingStrength = lowerable.strength,
+      evidenceIds = evidenceIdsFor(plan, claim),
+      variationEvidenceIds = variationIds,
+      boundaries = lowerable.section.boundaries
+        .filter(_.claimId == claim.id)
+        .map(boundary => RenderBoundary(boundary.claimId, boundary.reason)),
+      nonAuthoritative = claim.layer == ClaimLayer.SourceContext || lowerable.selected.bucket == ClaimBucket.ContextOnly,
+      phraseCapability = phraseCapabilityFor(claim, lowerable.role, lowerable.strength, variationIds, forbiddenTerms)
+    )
 
   private def renderEvidence(plan: CommentaryPlan): Vector[RenderEvidenceRef] =
     val publicRefs = publicEvidenceRefs(plan)
@@ -256,9 +373,7 @@ object CommentaryRendererContract:
 
   private def publicEvidenceRefs(plan: CommentaryPlan): Set[EvidenceRef] =
     val blockedClaimIds = plan.blocked.map(_.claim.id).toSet
-    val publicSelectedClaims = publicSections(plan)
-      .flatMap(_.claims)
-      .filterNot(selected => blockedClaimIds.contains(selected.claim.id))
+    val publicSelectedClaims = lowerableSelectedClaims(plan).map(_.selected)
     val blockedSelectedRefs = publicSections(plan)
       .flatMap(_.claims)
       .filter(selected => blockedClaimIds.contains(selected.claim.id))
@@ -314,11 +429,10 @@ object CommentaryRendererContract:
       .distinct
 
   private def publicClaimMap(plan: CommentaryPlan, publicClaimIds: Set[String]): Map[String, CommentaryClaim] =
-    val blockedClaimIds = plan.blocked.map(_.claim.id).toSet
-    publicSections(plan)
-      .flatMap(_.claims)
+    lowerableSelectedClaims(plan)
+      .map(_.selected)
       .map(_.claim)
-      .filter(claim => publicClaimIds.contains(claim.id) && !blockedClaimIds.contains(claim.id))
+      .filter(claim => publicClaimIds.contains(claim.id))
       .map(claim => claim.id -> claim)
       .toMap
 
@@ -429,9 +543,9 @@ object CommentaryRendererContract:
       else selected.claim.wordingStrengthCap
     WordingStrength.weaker(WordingStrength.weaker(plan.wordingRules.maxStrength, roleCap), sourceCap)
 
-  private def statusFor(plan: CommentaryPlan, blocks: Vector[RenderBlock]): RenderStatus =
+  private def statusFor(blocks: Vector[RenderBlock]): RenderStatus =
     if blocks.isEmpty then RenderStatus.NoCommentary
-    else if blocks.forall(_.role == RenderRole.Context) && plan.main.isEmpty then RenderStatus.ContextOnly
+    else if blocks.forall(_.role == RenderRole.Context) then RenderStatus.ContextOnly
     else RenderStatus.Rendered
 
   private def renderWording(maxStrength: WordingStrength): RenderWording =
@@ -447,7 +561,7 @@ object CommentaryRendererContract:
       if claim.layer == ClaimLayer.SourceContext then
         Vector("best", "theory", "forced", "result", "engine", "oracle", "proof", "winning", "drawing")
       else Vector.empty
-    (base ++ sourceTerms).distinct
+    (base ++ sourceTerms ++ claim.publicSurfaceForbiddenTerms).distinct
 
   private def forbiddenTermsForCap(strength: WordingStrength): Vector[String] =
     val proofTerms = Vector("best", "theory", "forced", "result", "oracle", "engine says")
@@ -462,3 +576,49 @@ object CommentaryRendererContract:
         Vector("best", "theory", "forced", "result", "winning", "drawing", "engine says")
       case WordingStrength.AssertiveCertified =>
         Vector("best", "theory", "result", "winning", "drawing", "engine says", "raw eval", "raw pv", "forced")
+
+  private def phraseCapabilityFor(
+      claim: CommentaryClaim,
+      role: RenderRole,
+      strength: WordingStrength,
+      variationEvidenceIds: Vector[String],
+      forbiddenTerms: Vector[String]
+  ): PhraseCapability =
+    val layerPredicates =
+      claim.layer match
+        case ClaimLayer.Projection =>
+          Set(PublicClaimPredicate.StrategyProjection)
+        case ClaimLayer.Certification =>
+          Set(PublicClaimPredicate.BoardFact, PublicClaimPredicate.Certification)
+        case ClaimLayer.Root | ClaimLayer.Witness | ClaimLayer.Object | ClaimLayer.Delta =>
+          Set(PublicClaimPredicate.BoardFact)
+        case ClaimLayer.SourceContext =>
+          Set(PublicClaimPredicate.SourceContext)
+        case _ =>
+          Set.empty[PublicClaimPredicate]
+    val basePredicates =
+      claim.projectionPhraseCapability match
+        case Some(capability) if claim.layer == ClaimLayer.Projection =>
+          predicateForKey(capability.allowedPredicateKey).toSet.intersect(layerPredicates)
+        case _ => layerPredicates
+    val lineAllowed =
+      role == RenderRole.Primary &&
+        variationEvidenceIds.nonEmpty &&
+        strength.rank >= WordingStrength.QualifiedSupport.rank &&
+        claim.layer != ClaimLayer.SourceContext &&
+        claim.projectionPhraseCapability.forall(capability => !capability.sanOnlyVariationEvidence)
+    val predicates =
+      if lineAllowed then basePredicates + PublicClaimPredicate.LineCommentary
+      else basePredicates
+    PhraseCapability(
+      maxStrength = strength,
+      allowedPredicates = predicates,
+      allowsResultLanguage = false,
+      allowsBestForcedLanguage = false,
+      allowsEngineLanguage = false,
+      allowsLineCommentary = lineAllowed,
+      forbiddenTerms = forbiddenTerms.distinct
+    )
+
+  private def predicateForKey(key: String): Option[PublicClaimPredicate] =
+    PublicClaimPredicate.values.find(_.key == key)

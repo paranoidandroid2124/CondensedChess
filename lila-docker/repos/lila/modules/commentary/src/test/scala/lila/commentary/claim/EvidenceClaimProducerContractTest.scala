@@ -92,6 +92,20 @@ class EvidenceClaimProducerContractTest extends munit.FunSuite:
 
     assert(!claims.exists(_.layer == ClaimLayer.Projection))
 
+  test("legacy projection admission scaffold cannot create a public projection claim"):
+    val current = objectExtraction(centerReleaseFen)
+    val legacyAdmission = centerReleaseAdmission(current)
+    val claims =
+      EvidenceClaimProducer.produce(
+        current,
+        None,
+        EvidenceClaimHandoff(projectionAdmissions = Vector(legacyAdmission))
+      )
+
+    assertEquals(legacyAdmission.authority, StrategyProjectionAdmissionAuthority.LegacyValidationScaffold)
+    assert(legacyAdmission.admitted)
+    assertEquals(claims.filter(_.layer == ClaimLayer.Projection), Vector.empty)
+
   test("stale projection evidence bound to another exact board cannot create a projection claim"):
     val current = objectExtraction(startingFen)
     val stale = objectExtraction(afterE4Fen)
@@ -125,9 +139,9 @@ class EvidenceClaimProducerContractTest extends munit.FunSuite:
     assert(!rawClaims.exists(_.layer == ClaimLayer.Projection))
     assert(!unboundClaims.exists(_.layer == ClaimLayer.Projection))
 
-  test("admitted typed projection result with exact lower carrier can become a bounded projection claim"):
-    val current = objectExtraction(centerReleaseFen)
-    val admission = centerReleaseAdmission(current)
+  test("descriptor-certified projection result with exact lower carrier can become a bounded projection claim"):
+    val current = objectExtraction(kingEntryFen)
+    val admission = descriptorRuntimeAdmission(current)
     val claims =
       EvidenceClaimProducer.produce(
         current,
@@ -136,22 +150,25 @@ class EvidenceClaimProducerContractTest extends munit.FunSuite:
       )
     val projectionClaim =
       claims
-        .find(claim => claim.layer == ClaimLayer.Projection && claim.band.contains("S05"))
+        .find(claim => claim.layer == ClaimLayer.Projection && claim.band.contains("S23"))
         .getOrElse(fail("expected admitted projection claim"))
 
-    assertEquals(projectionClaim.id, "projection-s05-white-d5-center-pawn-target")
+    assertEquals(admission.authority, StrategyProjectionAdmissionAuthority.DescriptorCertifiedRuntime)
+    assertEquals(admission.runtimeKId, Some("k-s23-certified"))
+    assertEquals(claims.filter(_.layer == ClaimLayer.Projection).map(_.id), Vector("projection-s23-white-board-king-entry-conversion"))
+    assertEquals(projectionClaim.id, "projection-s23-white-board-king-entry-conversion")
     assertEquals(projectionClaim.status, ClaimStatus.Admitted)
     assertEquals(projectionClaim.owner, Some("white"))
     assertEquals(projectionClaim.beneficiary, Some("white"))
     assertEquals(projectionClaim.defender, Some("black"))
-    assertEquals(projectionClaim.anchor, Some("d5"))
-    assertEquals(projectionClaim.route, Some("center_pawn_target"))
-    assertEquals(projectionClaim.scope, Some("position_local"))
+    assertEquals(projectionClaim.anchor, Some("board"))
+    assertEquals(projectionClaim.route, Some("king_entry_conversion"))
+    assertEquals(projectionClaim.scope, Some("exact_current_board"))
     assertEquals(projectionClaim.wordingStrengthCap, WordingStrength.QualifiedSupport)
+    assertEquals(projectionClaim.projectionRuntimeKId, Some("k-s23-certified"))
     assert(projectionClaim.exactBoardBound)
-    assertEquals(projectionClaim.lowerCarrierRefs.exists(ref => ref.kind == EvidenceRefKind.Witness && ref.id == "available_lever_trigger"), true)
-    assertEquals(projectionClaim.lowerCarrierRefs.exists(ref => ref.kind == EvidenceRefKind.Witness && ref.id == "pawn_push_break_contact_source"), true)
-    assertEquals(projectionClaim.evidenceRefs.exists(ref => ref.kind == EvidenceRefKind.Projection && ref.id == "center_release_route_certified"), true)
+    assertEquals(projectionClaim.lowerCarrierRefs.exists(ref => ref.kind == EvidenceRefKind.ExactBoard && ref.id == "k-s23-exact-board-carrier"), true)
+    assertEquals(projectionClaim.evidenceRefs.exists(ref => ref.kind == EvidenceRefKind.Projection && ref.id == "king_entry_conversion_certified"), true)
 
     val outline = ClaimSelector.select(claims)
     assert(outline.lead.exists(_.claim.id == projectionClaim.id))
@@ -246,13 +263,13 @@ class EvidenceClaimProducerContractTest extends munit.FunSuite:
     assert(!claims.exists(_.layer == ClaimLayer.Projection))
 
   test("projection claim wording cap blocks best forced result oracle theory recommendation wording"):
-    val current = objectExtraction(centerReleaseFen)
+    val current = objectExtraction(kingEntryFen)
     val projectionClaims =
       EvidenceClaimProducer
         .produce(
           current,
           None,
-          EvidenceClaimHandoff(projectionAdmissions = Vector(centerReleaseAdmission(current)))
+          EvidenceClaimHandoff(projectionAdmissions = Vector(descriptorRuntimeAdmission(current)))
         )
         .filter(_.layer == ClaimLayer.Projection)
 
@@ -358,7 +375,10 @@ class EvidenceClaimProducerContractTest extends munit.FunSuite:
   private val afterE4Fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 0 1"
   private val bareKingsFen = "8/8/8/8/8/8/4k3/7K w - - 0 1"
   private val centerReleaseFen = "6k1/6pp/5n2/3pp3/3PP3/5N2/2P3PP/6K1 w - - 0 1"
+  private val kingEntryFen = "6k1/8/8/3p4/5K2/8/8/8 w - - 0 1"
   private val kingShelterBreachFen = "6k1/8/6p1/4B3/8/8/7R/6K1 w - - 0 1"
+  private val s23Binding: Map[String, String] =
+    Map("entry_square" -> "e5", "contact_square" -> "d5")
 
   private def objectExtraction(fen: String): StrategicObjectExtraction =
     CommentaryCore.extractStrategicObjectsFromFenFailClosed(fen).fold(fail(_), identity)
@@ -410,6 +430,44 @@ class EvidenceClaimProducerContractTest extends munit.FunSuite:
       lowerCarrierRefs = Vector(
         boundRef(EvidenceRefKind.Witness, "available_lever_trigger", "white", "center_pawn_target", "position_local"),
         boundRef(EvidenceRefKind.Witness, "pawn_push_break_contact_source", "white", "center_pawn_target", "position_local")
+      )
+    )
+
+  private def descriptorRuntimeAdmission(current: StrategicObjectExtraction): StrategyProjectionAdmissionResult =
+    val region = StrategyGeometryFoundation.admittedRegionsByBand("S23").head
+    StrategyProjectionAdmissionProducer
+      .produce(
+        StrategyProjectionAdmissionProducer.Input(
+          currentExtraction = current,
+          deltaExtraction = None,
+          certificationEvidence = CertificationEvidenceBundle.empty,
+          runtimeKCandidates = Vector(s23CertifiedTruthCandidate())
+        ),
+        Vector(region.regionId)
+      )
+      .headOption
+      .getOrElse(fail("expected descriptor-certified projection admission"))
+
+  private def s23CertifiedTruthCandidate(): StrategyRuntimeKProducer.Candidate =
+    StrategyRuntimeKProducer.Candidate(
+      id = "k-s23-certified",
+      regionId = "A_S23_endgame_entry_or_opposition",
+      family = StrategyGeometryFoundation.CertifiedFactFamily.EndgameConversionHolding,
+      owner = Color.White,
+      anchor = WitnessAnchor.BoardAnchor,
+      route = "king_entry_conversion",
+      scope = "exact_current_board",
+      evidenceKinds = Vector(StrategyProjectionScopeContract.KingEntryConversionCertified),
+      lowerCarrierRefs = Vector(
+        StrategyProjectionCarrierRef(
+          kind = StrategyProjectionCarrierKind.ExactBoard,
+          id = "k-s23-exact-board-carrier",
+          owner = "white",
+          anchor = "board",
+          route = "king_entry_conversion",
+          scope = "exact_current_board",
+          binding = s23Binding
+        )
       )
     )
 

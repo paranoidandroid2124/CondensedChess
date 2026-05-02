@@ -8,10 +8,19 @@ import java.time.Instant
 import scala.util.control.NonFatal
 
 import lila.commentary.CommentaryCore
-import lila.commentary.certification.{ CertificationEngineRuntimeIntake, CertificationEvidenceBundle, CertificationEvidenceClaim, CertificationExtractor, EngineNodeIdentity }
+import lila.commentary.certification.{
+  CertificationEngineRuntimeIntake,
+  CertificationEvidenceBundle,
+  CertificationEvidenceClaim,
+  CertificationEvidencePurpose,
+  CertificationEvidenceStrength,
+  CertificationExtractor,
+  EngineNodeIdentity
+}
 import lila.commentary.claim.{ EvidenceClaimHandoff, EvidenceClaimProducer }
 import lila.commentary.delta.StrategicDeltaExtraction
 import lila.commentary.line.*
+import lila.commentary.projection.StrategyProjectionAdmissionProducer
 import lila.commentary.render.*
 import lila.commentary.root.RootPositionSupport
 import lila.commentary.selection.*
@@ -301,7 +310,7 @@ final class CommentaryBackendSeam private (
           reason = Option.when(status == CommentaryEngineIntakeStatus.Rejected)("engine_intake_rejected")
         ),
         evidence = result.evidence.asBundle,
-        evidenceRefs = result.evidence.all.map(engineEvidenceRef).toSet
+        evidenceRefs = result.evidence.all.flatMap(engineEvidenceRef).toSet
       )
 
   private def failClosedEngineClaims(
@@ -336,13 +345,16 @@ final class CommentaryBackendSeam private (
           case Some(prepared) =>
             claim.copy(variationEvidence = (claim.variationEvidence ++ prepared).distinct)
 
-  private def engineEvidenceRef(claim: CertificationEvidenceClaim): BackendEngineEvidenceRef =
+  private def engineEvidenceRef(claim: CertificationEvidenceClaim): Option[BackendEngineEvidenceRef] =
     val owner = if claim.owner.white then "white" else "black"
-    BackendEngineEvidenceRef(
-      id = s"engine-certification:${claim.familyId.value}:$owner:${claim.anchor.kind.key}:${claim.anchor.key}",
-      owner = owner,
-      anchor = claim.anchor.key
-    )
+    enginePublicContract(claim).map: contract =>
+      BackendEngineEvidenceRef(
+        id = s"engine-certification:${claim.familyId.value}:$owner:${claim.anchor.kind.key}:${claim.anchor.key}",
+        owner = owner,
+        anchor = claim.anchor.key,
+        route = contract.route,
+        scope = contract.scope
+      )
 
   private def response(
       status: CommentaryResponseStatus,
@@ -417,12 +429,68 @@ final class CommentaryBackendSeam private (
   private final case class BackendEngineEvidenceRef(
       id: String,
       owner: String,
-      anchor: String
+      anchor: String,
+      route: String,
+      scope: String
   ):
     def matches(ref: EvidenceRef): Boolean =
       ref.id == id &&
         ref.owner.contains(owner) &&
-        ref.anchor.contains(anchor)
+        ref.anchor.contains(anchor) &&
+        ref.route.contains(route) &&
+        ref.scope.contains(scope)
+
+  private final case class EnginePublicContract(
+      route: String,
+      scope: String,
+      requiredPurposes: Set[CertificationEvidencePurpose]
+  )
+
+  private def enginePublicContract(claim: CertificationEvidenceClaim): Option[EnginePublicContract] =
+    enginePublicContracts.get(claim.familyId.value).filter: contract =>
+      contract.requiredPurposes.forall(purpose =>
+        claim.purposeStrengths.get(purpose).contains(CertificationEvidenceStrength.Satisfied)
+      )
+
+  private val enginePublicContracts: Map[String, EnginePublicContract] =
+    import CertificationEvidencePurpose.*
+    Map(
+      "DevelopmentComparison" -> EnginePublicContract(
+        "development_superiority",
+        "comparative",
+        Set(ComparativeSuperiority)
+      ),
+      "InitiativeWindow" -> EnginePublicContract(
+        "counterplay_denial_window",
+        "comparative",
+        Set(CounterplayDenial, BestDefenseSurvival)
+      ),
+      "MobilityComparison" -> EnginePublicContract(
+        "mobility_superiority",
+        "comparative",
+        Set(ComparativeSuperiority)
+      ),
+      "ComparativeKingFragility" -> EnginePublicContract(
+        "king_fragility_asymmetry",
+        "comparative",
+        Set(ComparativeSuperiority)
+      ),
+      "CertifiedKingSafetyEdge" -> EnginePublicContract(
+        "king_safety_edge_certification",
+        "comparative",
+        Set(ComparativeSuperiority, BestDefenseSurvival)
+      ),
+      "MaterialHarvest" -> EnginePublicContract(
+        "realized_material_conversion",
+        "current_position",
+        Set(BestDefenseSurvival, TacticalReleaseDetection)
+      ),
+      "SpaceBindRestrictionCertification" -> EnginePublicContract(
+        "space_bind_persistence",
+        "current_position",
+        Set(BestDefenseSurvival, TacticalReleaseDetection)
+      )
+    )
 
   private def safe[A](body: => A): Either[String, A] =
     try Right(body)
@@ -495,7 +563,15 @@ object CommentaryBackendSeam:
             CertificationExtractor
               .fromObjectExtractionFailClosed(input.currentExtraction, evidence)
               .toOption
-    EvidenceClaimHandoff(certification = certification)
+    val projectionAdmissions =
+      StrategyProjectionAdmissionProducer.produce(
+        StrategyProjectionAdmissionProducer.Input(
+          currentExtraction = input.currentExtraction,
+          deltaExtraction = input.deltaExtraction,
+          certificationEvidence = input.engineCertificationEvidence.getOrElse(CertificationEvidenceBundle.empty)
+        )
+      )
+    EvidenceClaimHandoff(certification = certification, projectionAdmissions = projectionAdmissions)
 
   private def defaultCandidateLineAssembly(
       input: CommentaryPipelineInput,
@@ -532,7 +608,10 @@ object CommentaryBackendSeam:
         .requests
         .headOption
       rootPayload <- completedRootPayload(payload.rootProbe, rootRequest)
-      childPayloads <- completedChildPayloads(input, rootPayload, payload.childProbes, budget)
+      plannedChildRequests = plannedCompletedChildRequests(input, rootPayload, budget)
+      childRequests <- childRequestsForDtos(payload.childProbes, plannedChildRequests)
+      _ <- Option.when(probeRequestsMatch(payload.probeRequests, rootRequest +: childRequests))(())
+      childPayloads <- completedChildPayloads(payload.childProbes, childRequests)
     yield CandidateLineAssemblyProvider.Input(
       currentFen = input.currentFen.value,
       nodeId = input.node.nodeId,
@@ -597,12 +676,11 @@ object CommentaryBackendSeam:
       completed = true
     )
 
-  private def completedChildPayloads(
+  private def plannedCompletedChildRequests(
       input: CommentaryPipelineInput,
       rootPayload: CandidateProbeResultPayload,
-      childDtos: Vector[CommentaryCompletedChildProbe],
       budget: CandidateProbeBudget
-  ): Option[Vector[CandidateProbeResultPayload]] =
+  ): Vector[CandidateProbeRequest] =
     val rootPacket = CandidateProbeControlledAdapter.rootPacketFrom(rootPayload, CandidateLineProvenanceKind.EngineRoot)
     val rootEvidence =
       rootPacket.toVector.flatMap(packet =>
@@ -611,25 +689,42 @@ object CommentaryBackendSeam:
           nowEpochMs = System.currentTimeMillis()
         )
       )
-    val requests =
-      CandidateProbePlan.childStage(rootEvidence, budget = budget, nowEpochMs = System.currentTimeMillis()).requests
+    CandidateProbePlan.childStage(rootEvidence, budget = budget, nowEpochMs = System.currentTimeMillis()).requests
+
+  private def childRequestsForDtos(
+      childDtos: Vector[CommentaryCompletedChildProbe],
+      plannedRequests: Vector[CandidateProbeRequest]
+  ): Option[Vector[CandidateProbeRequest]] =
+    val matched =
+      childDtos.flatMap(dto => plannedRequests.find(childRequestMatchesDto(_, dto)))
+    Option.when(matched.size == childDtos.size)(matched)
+
+  private def completedChildPayloads(
+      childDtos: Vector[CommentaryCompletedChildProbe],
+      requests: Vector[CandidateProbeRequest]
+  ): Option[Vector[CandidateProbeResultPayload]] =
     val payloads =
       childDtos.flatMap: dto =>
         requests
-          .find(request =>
-            request.parentRootRank.contains(dto.parentRootRank) &&
-              request.parentBranchId.exists(_.value == dto.parentBranchId) &&
-              request.parentLinePrefix == dto.parentUciPrefix.map(_.trim.toLowerCase) &&
-              request.startFen == dto.currentFen &&
-              request.nodeId == dto.nodeId &&
-              request.ply == dto.ply &&
-              request.variant == dto.variant &&
-              request.engineFingerprint == dto.engineFingerprint &&
-              request.targetDepth == dto.requestedDepth &&
-              request.multiPv == dto.multiPv
-          )
+          .find(childRequestMatchesDto(_, dto))
           .flatMap(request => completedChildPayload(dto, request))
     Option.when(payloads.size == childDtos.size)(payloads)
+
+  private def childRequestMatchesDto(
+      request: CandidateProbeRequest,
+      dto: CommentaryCompletedChildProbe
+  ): Boolean =
+    request.parentRootRank.contains(dto.parentRootRank) &&
+      request.parentBranchId.exists(_.value == dto.parentBranchId) &&
+      request.parentLinePrefix == dto.parentUciPrefix.map(_.trim.toLowerCase) &&
+      request.startFen == dto.currentFen &&
+      request.nodeId == dto.nodeId &&
+      request.ply == dto.ply &&
+      request.variant == dto.variant &&
+      request.engineFingerprint == dto.engineFingerprint &&
+      request.targetDepth == dto.requestedDepth &&
+      request.floorDepth <= dto.realizedDepth &&
+      request.multiPv == dto.multiPv
 
   private def completedChildPayload(
       child: CommentaryCompletedChildProbe,
@@ -655,7 +750,11 @@ object CommentaryBackendSeam:
   ): Option[Vector[CandidateProbeResultLine]] =
     val expected = (1 to multiPv).toVector
     val rankPairs = lines.map(line => line.rank -> line.multiPvIndex).sortBy(_._1)
-    Option.when(lines.size == multiPv && rankPairs == expected.map(index => index -> index)):
+    Option.when(
+      lines.size == multiPv &&
+        rankPairs == expected.map(index => index -> index) &&
+        lines.forall(_.multiPv == multiPv)
+    ):
       lines.sortBy(_.rank).map: line =>
         CandidateProbeResultLine(
           branchId = CandidateBranchId(s"$idPrefix-${line.rank}"),
@@ -663,6 +762,73 @@ object CommentaryBackendSeam:
           multiPvIndex = line.multiPvIndex,
           uciLine = line.uci
         )
+
+  private final case class CompletedProbeRequestKey(
+      role: String,
+      currentFen: String,
+      nodeId: String,
+      ply: Int,
+      variant: String,
+      multiPv: Int,
+      requestedDepth: Int,
+      depthFloor: Int,
+      parentBranchId: Option[String],
+      parentUciPrefix: Vector[String],
+      parentRootRank: Option[Int]
+  )
+
+  private def probeRequestsMatch(
+      supplied: Vector[CommentaryCompletedProbeRequest],
+      expected: Vector[CandidateProbeRequest]
+  ): Boolean =
+    val suppliedKeys = supplied.map(requestKey).sortBy(keySort)
+    val expectedKeys = expected.map(requestKey).sortBy(keySort)
+    suppliedKeys == expectedKeys
+
+  private def requestKey(request: CommentaryCompletedProbeRequest): CompletedProbeRequestKey =
+    CompletedProbeRequestKey(
+      role = request.role.trim,
+      currentFen = request.currentFen.trim,
+      nodeId = request.nodeId.trim,
+      ply = request.ply,
+      variant = request.variant.trim,
+      multiPv = request.multiPv,
+      requestedDepth = request.requestedDepth,
+      depthFloor = request.depthFloor,
+      parentBranchId = request.parentBranchId.map(_.trim),
+      parentUciPrefix = request.parentUciPrefix.getOrElse(Vector.empty).map(_.trim.toLowerCase),
+      parentRootRank = request.parentRootRank
+    )
+
+  private def requestKey(request: CandidateProbeRequest): CompletedProbeRequestKey =
+    CompletedProbeRequestKey(
+      role = request.role.key,
+      currentFen = request.startFen,
+      nodeId = request.nodeId,
+      ply = request.ply,
+      variant = request.variant,
+      multiPv = request.multiPv,
+      requestedDepth = request.targetDepth,
+      depthFloor = request.floorDepth,
+      parentBranchId = request.parentBranchId.map(_.value),
+      parentUciPrefix = request.parentLinePrefix.map(_.trim.toLowerCase),
+      parentRootRank = request.parentRootRank
+    )
+
+  private def keySort(key: CompletedProbeRequestKey): String =
+    Vector(
+      key.role,
+      key.currentFen,
+      key.ply.toString,
+      key.nodeId,
+      key.variant,
+      key.multiPv.toString,
+      key.requestedDepth.toString,
+      key.depthFloor.toString,
+      key.parentBranchId.getOrElse(""),
+      key.parentUciPrefix.mkString(" "),
+      key.parentRootRank.map(_.toString).getOrElse("")
+    ).mkString("|")
 
   private def loweringBinding(claims: Vector[CommentaryClaim]): Option[CandidateLineEvidenceLowering.Binding] =
     claims
@@ -710,6 +876,8 @@ object CommentaryApiJson:
   given Format[WordingStrength] = enumFormat(WordingStrength.values, _.key, "WordingStrength")
   given Format[EvidenceRefKind] = enumFormat(EvidenceRefKind.values, _.key, "EvidenceRefKind")
   given Format[SuppressionReason] = enumFormat(SuppressionReason.values, _.key, "SuppressionReason")
+  given Format[PublicClaimPredicate] =
+    enumFormat(PublicClaimPredicate.values, _.key, "PublicClaimPredicate")
   given Format[VariationMoveRole] = enumFormat(VariationMoveRole.values, _.key, "VariationMoveRole")
   given Format[VariationProofPurpose] = enumFormat(VariationProofPurpose.values, _.key, "VariationProofPurpose")
   given Format[VariationTestResult] = enumFormat(VariationTestResult.values, _.key, "VariationTestResult")
@@ -720,11 +888,11 @@ object CommentaryApiJson:
   given Format[RenderText] = Json.format[RenderText]
   given Format[RenderEvidenceRef] = Json.format[RenderEvidenceRef]
   given Format[RenderVariationMove] = Json.format[RenderVariationMove]
-  given Format[RenderVariationBoundary] = Json.format[RenderVariationBoundary]
   given Format[RenderVariationEvidence] = Json.format[RenderVariationEvidence]
   given Format[RenderBoundary] = Json.format[RenderBoundary]
   given Format[RenderSuppression] = Json.format[RenderSuppression]
   given Format[RenderWording] = Json.format[RenderWording]
+  given Format[PhraseCapability] = Json.format[PhraseCapability]
   given Format[RenderBlock] = Json.format[RenderBlock]
   given Format[CommentaryRender] = Json.format[CommentaryRender]
 

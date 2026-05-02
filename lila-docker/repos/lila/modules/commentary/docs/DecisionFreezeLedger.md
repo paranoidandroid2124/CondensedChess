@@ -211,7 +211,7 @@ It authorizes only narrow first-slice projection work plus corpus authoring.
 It does **not** yet prove broader deployment.
 
 No coverage-complete-only projection band is broad-deployed on the current
-branch. The staged wave-1 through wave-6 set `S01`, `S02`, `S03`,
+branch. The frozen S01-S25 projection coverage set `S01`, `S02`, `S03`,
 `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`,
 `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and
 `S25` is coverage-complete under the current JSONL/test broad-coverage gates.
@@ -236,7 +236,7 @@ and exact-validation scaffold for every `S01-S25` band.
 This is a gate freeze plus executable corpus-coverage state only. It does not
 promote any coverage-only band to live runtime projection or broad deployment.
 The projection corpus validator now computes the missing required bucket pairs
-for the staged wave-1 through wave-6 executable gate-band set (`S01`, `S02`,
+for the frozen S01-S25 executable gate-band set (`S01`, `S02`,
 `S03`, `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`,
 `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`,
 and `S25`) from the JSONL corpus and keeps this state executable rather than
@@ -247,7 +247,7 @@ cannot be filled by admitted positives.
 Current JSONL coverage now completes `S01`, `S02`, `S03`, `S04`, `S05`, `S06`,
 `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`, `S16`, `S17`,
 `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and `S25` against those frozen
-staged gates.
+frozen gates.
 That completion is corpus/validation-only and does not add broad deployment for
 those bands; for `S01`, `S02`, `S03`, `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and `S25` it
 does not widen the existing narrow live admission slices.
@@ -370,11 +370,11 @@ The previous high-risk broad blocker set is closed at gate-decision level:
 
 These closures do not count as broad deployment by themselves.
 `S06`, `S10`, `S12`, `S15`, and `S16` now have separate matching corpus rows.
-`S15` and `S16` are completed wave-6 broad-ready coverage bands with narrow
+`S15` and `S16` are completed broad-coverage bands with narrow
 live runtime admission branches. S16 admission remains limited to the exact
 same-enemy-passer suppression routes named above.
-`S09`, `S20`, and `S23` are staged into wave 1
-alongside `S06`, `S10`, `S12`, and `S25`; `S09`, `S23`, and `S25` now have
+`S09`, `S20`, and `S23` share the positional-access coverage set
+with `S06`, `S10`, `S12`, and `S25`; `S09`, `S23`, and `S25` now have
 matching coverage rows, while `S25` remains limited to
 `rank_access_route = cross_wing_rank_switch` for current broad counting.
 
@@ -451,13 +451,13 @@ king-ring target set, and route.
 All non-`S01`/`S02`/`S03`/`S04`/`S05`/`S06`/`S07`/`S08`/`S09`/`S10`/`S11`/`S12`/`S13`/`S14`/`S15`/`S16`/`S17`/`S18`/`S19`/`S20`/`S21`/`S22`/`S23`/`S24`/`S25` S-bands remain outside
 `StrategyProjectionAdmission` unless a later runtime boundary explicitly adds
 them. The current closure proves the runtime start-ready scaffold only for
-`S01`/`S02`/`S03`/`S04`/`S05`/`S06`/`S07`/`S08`/`S09`/`S10`/`S11`/`S12`/`S13`/`S14`/`S15`/`S16`/`S17`/`S18`/`S19`/`S20`/`S21`/`S22`/`S23`/`S24`/`S25` and proves staged
-wave-1 through wave-6 JSONL coverage gates for `S01-S25`; it is not a branch-wide
+`S01`/`S02`/`S03`/`S04`/`S05`/`S06`/`S07`/`S08`/`S09`/`S10`/`S11`/`S12`/`S13`/`S14`/`S15`/`S16`/`S17`/`S18`/`S19`/`S20`/`S21`/`S22`/`S23`/`S24`/`S25` and proves frozen
+JSONL coverage gates for `S01-S25`; it is not a branch-wide
 live-admission green list.
 All non-`S01`/`S02`/`S03`/`S04`/`S05`/`S06`/`S07`/`S08`/`S09`/`S10`/`S11`/`S12`/`S13`/`S14`/`S15`/`S16`/`S17`/`S18`/`S19`/`S20`/`S21`/`S22`/`S23`/`S24`/`S25` bands remain outside live projection admission.
 
-Broad-coverage corpus debt for the staged wave-1 through wave-6 projection
-clusters is closed. Any future debt is outside the current frozen broad-ready
+Broad-coverage corpus debt for the S01-S25 projection clusters is closed. Any
+future debt is outside the current frozen broad-ready
 gate set.
 
 Detailed owner:

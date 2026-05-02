@@ -5,7 +5,6 @@ import java.util.Locale
 import play.api.libs.json.*
 
 import lila.commentary.api.CommentaryApiJson.given
-import lila.commentary.certification.{ CertificationEvidencePurpose, CertificationEvidenceStrength }
 
 object CommentaryPublicJsonTransport:
 
@@ -42,17 +41,6 @@ object CommentaryPublicJsonTransport:
 
   private val RuntimeScoreFields = Set("type", "cp", "plies")
 
-  private val RuntimeClaimFields = Set(
-    "familyId",
-    "owner",
-    "purposes",
-    "anchor",
-    "minDepth",
-    "minMultiPv",
-    "minPvPlies",
-    "requiredScore"
-  )
-
   private val RuntimeTransitionFields = Set(
     "beforeFen",
     "playedMove",
@@ -85,9 +73,6 @@ object CommentaryPublicJsonTransport:
     "engineconfigfingerprint",
     "pvlines"
   )
-
-  private val CertificationPurposeKeys = CertificationEvidencePurpose.values.map(_.key).toSet
-  private val CertificationStrengthKeys = CertificationEvidenceStrength.values.map(_.key).toSet
 
   private val ForbiddenExactFieldNames = Set(
     "parentbranchid",
@@ -128,32 +113,26 @@ object CommentaryPublicJsonTransport:
   private def isPublicRequestShape(json: JsValue): Boolean =
     json match
       case obj: JsObject =>
+        val hasTopLevelTransition =
+          obj.value.get("beforeFen").exists(_ != JsNull) &&
+            obj.value.get("playedMove").exists(_ != JsNull)
         validateObject(obj, RequestFields):
-          case ("enginePacket", value) => validateNullableObject(value)(validateRuntimeEnginePacket)
+          case ("enginePacket", value) => validateNullableObject(value)(validateRuntimeEnginePacket(_, hasTopLevelTransition))
           case (_, value) => validateScalar(value)
       case _ => false
 
-  private def validateRuntimeEnginePacket(obj: JsObject): Boolean =
+  private def validateRuntimeEnginePacket(obj: JsObject, hasTopLevelTransition: Boolean): Boolean =
     validateObject(obj, RuntimeEnginePacketFields):
       case ("score", value) => validateTypedObject(value)(validateRuntimeScore)
       case ("pvLines", value) => validatePvLines(value)
       case ("claims", value) => validateClaims(value)
       case ("transition", value) => validateNullableObject(value)(validateRuntimeTransition)
-      case ("baseline", value) => validateNullableObject(value)(validateRuntimeBaseline)
+      case ("baseline", JsNull) => true
+      case ("baseline", value) => hasTopLevelTransition && validateNullableObject(value)(validateRuntimeBaseline)
       case (_, value) => validateScalar(value)
 
   private def validateRuntimeScore(obj: JsObject): Boolean =
     validateObject(obj, RuntimeScoreFields):
-      case (_, value) => validateScalar(value)
-
-  private def validateRuntimeScoreRequirement(obj: JsObject): Boolean =
-    validateObject(obj, RuntimeScoreFields):
-      case (_, value) => validateScalar(value)
-
-  private def validateRuntimeClaim(obj: JsObject): Boolean =
-    validateObject(obj, RuntimeClaimFields):
-      case ("purposes", value) => validatePurposeMap(value)
-      case ("requiredScore", value) => validateNullableObject(value)(validateRuntimeScoreRequirement)
       case (_, value) => validateScalar(value)
 
   private def validateRuntimeTransition(obj: JsObject): Boolean =
@@ -195,10 +174,7 @@ object CommentaryPublicJsonTransport:
 
   private def validateClaims(value: JsValue): Boolean =
     value match
-      case JsArray(claims) =>
-        claims.forall:
-          case obj: JsObject => validateRuntimeClaim(obj)
-          case _ => false
+      case JsArray(claims) => claims.isEmpty
       case _: JsObject => false
       case _ => true
 
@@ -210,16 +186,6 @@ object CommentaryPublicJsonTransport:
           case _ => false
       case _: JsObject => false
       case _ => true
-
-  private def validatePurposeMap(value: JsValue): Boolean =
-    value match
-      case JsObject(fields) =>
-        fields.forall: (field, purposeValue) =>
-          CertificationPurposeKeys.contains(field) &&
-            (purposeValue match
-              case JsString(strength) => CertificationStrengthKeys.contains(strength)
-              case _ => false)
-      case _ => false
 
   private def validateScalar(value: JsValue): Boolean =
     value match

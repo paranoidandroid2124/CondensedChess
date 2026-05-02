@@ -1,35 +1,23 @@
 package lila.commentary.render
 
 import lila.commentary.render.annotation.{ BookAnnotationPlanner, EnglishLineCommentaryWriter, LineCommentaryPlanner }
-import lila.commentary.selection.{ CommentaryPlan, WordingStrength }
+import lila.commentary.selection.CommentaryPlan
 
 object CommentaryRenderer:
 
   def render(plan: CommentaryPlan): CommentaryRender =
-    val contractRender = CommentaryRendererContract.render(plan)
-    val lineComments =
+    val publicPlan = CommentaryRendererContract.publicPlan(plan)
+    val linePhrases =
       EnglishLineCommentaryWriter
         .write(LineCommentaryPlanner.plan(BookAnnotationPlanner.plan(plan)))
         .comments
-        .map(comment => comment.annotationId -> comment.comment)
+        .map(comment =>
+          comment.annotationId -> PublicPhrase(
+            claimId = comment.annotationId,
+            text = comment.comment,
+            predicate = PublicClaimPredicate.LineCommentary,
+            wordingStrength = comment.wordingCap
+          )
+        )
         .toMap
-    contractRender.copy(
-      blocks = contractRender.blocks.map(block =>
-        block.copy(text = block.text.copy(publicText = publicTextFor(block, lineComments)))
-      )
-    )
-
-  private def publicTextFor(
-      block: RenderBlock,
-      lineComments: Map[String, String]
-  ): Option[String] =
-    if block.role == RenderRole.Primary then lineComments.get(block.claimId).orElse(roleLabelFor(block))
-    else roleLabelFor(block)
-
-  private def roleLabelFor(block: RenderBlock): Option[String] =
-    Option.when(block.wordingStrength.rank >= WordingStrength.ContextOnly.rank):
-      block.role match
-        case RenderRole.Primary => "Primary"
-        case RenderRole.Supporting => "Support"
-        case RenderRole.Context => "Context"
-        case RenderRole.Contrast => "Contrast"
+    CommentaryRendererContract.render(publicPlan, linePhrases)

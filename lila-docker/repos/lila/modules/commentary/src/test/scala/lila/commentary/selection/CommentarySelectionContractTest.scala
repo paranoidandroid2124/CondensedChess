@@ -173,6 +173,24 @@ class CommentarySelectionContractTest extends munit.FunSuite:
     assertEquals(outline.lead.map(_.claim.id), Some("certified-engine-swing"))
     assertEquals(outline.evidenceRefs.exists(_.kind == EvidenceRefKind.EngineCertification), true)
 
+  test("engine certification cannot use generic exact-board lower carrier as board reason"):
+    val exactBoardCarrier =
+      EvidenceRef(EvidenceRefKind.ExactBoard, "certification-current-board", Some("white"), Some("board"), Some("material_harvest"), Some("position_local"))
+    val claim =
+      engineCertifiedClaim(
+        id = "engine-certified-exact-board-carrier",
+        route = Some("material_harvest"),
+        impact = ClaimImpact(resultMaterialImpact = 90, evalSwing = 500, evidenceConfidence = 95),
+        certificationId = "MaterialHarvest",
+        boardReasons = Vector.empty,
+        wordingStrengthCap = WordingStrength.AssertiveCertified
+      ).copy(lowerCarrierRefs = Vector(exactBoardCarrier))
+
+    val outline = ClaimSelector.select(Vector(claim))
+
+    assertEquals(outline.lead, None)
+    assertSuppressed(outline, "engine-certified-exact-board-carrier", SuppressionReason.NoBoardReason)
+
   test("engine certified eval swing without board reason cannot become lead"):
     val opaqueEval = engineCertifiedClaim(
       id = "engine-certified-opaque-eval",
@@ -365,7 +383,7 @@ class CommentarySelectionContractTest extends munit.FunSuite:
     assertSuppressed(outline, "generic-fork-picture", SuppressionReason.ForbiddenShortcut)
     assertSuppressed(outline, "generic-fork-picture", SuppressionReason.NoBoardReason)
 
-  test("S24 requires same-target forcing and conversion evidence"):
+  test("S24 remains public-closed even with same-target forcing and conversion evidence"):
     val forcingOnly = admittedProjection("s24-forcing-only", "S24", anchor = "piece:e4", route = "same_target_realization", score = 90)
       .copy(
         evidenceRefs = Vector(
@@ -381,7 +399,9 @@ class CommentarySelectionContractTest extends munit.FunSuite:
     )
     val outline = ClaimSelector.select(Vector(forcingOnly, complete))
 
-    assertEquals(outline.lead.map(_.claim.id), Some("s24-complete"))
+    assertEquals(outline.lead, None)
+    assertSuppressed(outline, "s24-complete", SuppressionReason.ForbiddenShortcut)
+    assertSuppressed(outline, "s24-complete", SuppressionReason.NoBoardReason)
     assertSuppressed(outline, "s24-forcing-only", SuppressionReason.ForbiddenShortcut)
 
   test("admitted Sxx can lead only with exact lower carrier and allowed evidence kind"):
@@ -413,17 +433,19 @@ class CommentarySelectionContractTest extends munit.FunSuite:
     assertEquals(outline.lead.map(_.claim.id), Some("admitted-s07"))
     assertSuppressed(outline, "stale-s07", SuppressionReason.StaleEvidence)
 
-  test("supportOnly and deferred claims cannot become lead"):
+  test("supportOnly, deferred, and anti-case claims cannot become lead"):
     val outline = ClaimSelector.select(
       Vector(
         selectionClaim("support-only-cert", ClaimLayer.Certification, ClaimStatus.SupportOnly),
-        selectionClaim("deferred-cert", ClaimLayer.Certification, ClaimStatus.Deferred)
+        selectionClaim("deferred-cert", ClaimLayer.Certification, ClaimStatus.Deferred),
+        selectionClaim("anti-case-cert", ClaimLayer.Certification, ClaimStatus.AntiCase)
       )
     )
 
     assertEquals(outline.lead, None)
     assertSuppressed(outline, "support-only-cert", SuppressionReason.SupportOnly)
     assertSuppressed(outline, "deferred-cert", SuppressionReason.Deferred)
+    assertSuppressed(outline, "anti-case-cert", SuppressionReason.AntiCase)
 
   test("context-only outline is allowed only when no stronger exact-board lead exists"):
     val lucenaReference = sourceClaim("lucena-reference", SourceContextKind.EndgameStudy)
@@ -1465,9 +1487,22 @@ class CommentarySelectionContractTest extends munit.FunSuite:
     bands.foreach: band =>
       val claim = closureProjection(band)
       val outline = ClaimSelector.select(Vector(claim))
-      assertEquals(outline.lead.map(_.claim.band), Some(Some(band)), clues(band, outline.suppressedClaims))
-      assertEquals(outline.lead.map(_.bucket), Some(ClaimBucket.ShouldLead), clues(band))
-      assertEquals(outline.wordingStrengthCap, WordingStrength.QualifiedSupport, clues(band))
+      if band == StrategyProjectionScopeContract.S24.value then
+        assertEquals(outline.lead, None, clues(band, outline.suppressedClaims))
+        assertSuppressed(outline, claim.id, SuppressionReason.ForbiddenShortcut)
+        assertSuppressed(outline, claim.id, SuppressionReason.NoBoardReason)
+      else
+        assertEquals(outline.lead.map(_.claim.band), Some(Some(band)), clues(band, outline.suppressedClaims))
+        assertEquals(outline.lead.map(_.bucket), Some(ClaimBucket.ShouldLead), clues(band))
+        assertEquals(outline.wordingStrengthCap, WordingStrength.QualifiedSupport, clues(band))
+
+  test("S24 complete-looking projection remains blocker-only without descriptor runtime K"):
+    val claim = closureProjection("S24")
+    val outline = ClaimSelector.select(Vector(claim))
+
+    assertEquals(outline.lead, None)
+    assertSuppressed(outline, claim.id, SuppressionReason.ForbiddenShortcut)
+    assertSuppressed(outline, claim.id, SuppressionReason.NoBoardReason)
 
   test("planner and surface rows cover the frozen selection contract cases"):
     val plannerById = plannerRows.map(row => row.id -> row).toMap
@@ -1479,7 +1514,8 @@ class CommentarySelectionContractTest extends munit.FunSuite:
       "selector-engine-cert-without-root-cert-suppressed" -> ("suppressed", Vector("forbidden_shortcut", "no_board_reason"), None),
       "selector-source-ref-smuggling-suppressed" -> ("suppressed", Vector("source_context_only", "no_board_reason"), None),
       "selector-s24-not-generic-tactic-owner" -> ("suppressed", Vector("forbidden_shortcut", "no_board_reason"), None),
-      "selector-s24-requires-forcing-and-conversion" -> ("suppressed", Vector("forbidden_shortcut"), None),
+      "selector-s24-requires-forcing-and-conversion" -> ("suppressed", Vector("forbidden_shortcut", "no_board_reason"), None),
+      "selector-s24-public-closed-with-complete-scaffold" -> ("suppressed", Vector("forbidden_shortcut", "no_board_reason"), None),
       "selector-admitted-sxx-requires-lower-evidence" -> ("lead", Vector("stale_evidence"), Some("shouldLead")),
       "selector-raw-engine-ref-smuggling-suppressed" -> ("suppressed", Vector("raw_engine_only", "no_board_reason"), None),
       "selector-raw-engine-lower-carrier-board-claim-suppressed" -> ("suppressed", Vector("raw_engine_only", "no_board_reason"), None),

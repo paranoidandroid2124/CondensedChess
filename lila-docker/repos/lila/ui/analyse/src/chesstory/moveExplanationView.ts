@@ -10,14 +10,12 @@ export function view(ctrl: MoveExplanationCtrl): VNode | undefined {
   if (!blocks.length) return;
 
   return hl('section.move-explanation', [
-    hl('div.move-explanation__head', [hl('strong', 'Move note')]),
     hl(
       'div.move-explanation__blocks',
       blocks.map(entry =>
         hl('article.move-explanation__block', { key: entry.key }, [
-          hl('span.move-explanation__label', entry.label),
           entry.text ? hl('p.move-explanation__text', entry.text) : null,
-          entry.line ? hl('p.move-explanation__line', [hl('span', 'Line'), hl('san', entry.line)]) : null,
+          entry.line ? hl('p.move-explanation__line', [hl('san', entry.line)]) : null,
         ]),
       ),
     ),

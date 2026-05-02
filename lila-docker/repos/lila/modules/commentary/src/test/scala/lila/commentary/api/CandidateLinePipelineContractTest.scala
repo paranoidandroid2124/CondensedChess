@@ -35,23 +35,27 @@ class CandidateLinePipelineContractTest extends munit.FunSuite:
     assertEquals(rendered.map(_.boundClaimId).distinct, Vector(claimId))
     assertEquals(rendered.map(_.role).count(_ == RenderLineRole.Pressure), 1)
     assertEquals(rendered.map(_.role).count(_ == RenderLineRole.Resource), 4)
-    assertEquals(rendered.exists(evidence => evidence.lineSan == Vector("e4", "e5") && evidence.lineUci == Vector("e2e4", "e7e5")), true)
-    assertEquals(rendered.exists(evidence => evidence.lineSan == Vector("d4", "d5") && evidence.lineUci == Vector("d2d4", "d7d5")), false)
-    assertEquals(rendered.exists(evidence => evidence.lineSan == Vector("Nf3", "Nf6") && evidence.lineUci == Vector("g1f3", "g8f6")), false)
+    assertEquals(rendered.exists(evidence => evidence.lineSan == Vector("e4", "e5")), true)
+    assertEquals(rendered.exists(evidence => evidence.lineSan == Vector("d4", "d5")), false)
+    assertEquals(rendered.exists(evidence => evidence.lineSan == Vector("Nf3", "Nf6")), false)
     assertEquals(rendered.exists(evidence => evidence.role == RenderLineRole.Resource && evidence.lineSan == Vector("c5", "Nf3")), true)
     assertEquals(response.render.blocks.head.variationEvidenceIds, rendered.map(_.proofId))
-    assertEquals(rendered.flatMap(_.provenanceRefs).map(_.id).distinct, Vector(binding.provenanceRef.id))
-    assertEquals(rendered.flatMap(_.provenanceRefs).forall(_.kind == EvidenceRefKind.Certification), true)
-    assertEquals(rendered.forall(_.boundary.depthFloor == 16), true)
-    assertEquals(rendered.filter(_.role == RenderLineRole.Pressure).forall(_.boundary.multiPv == 3), true)
-    assertEquals(rendered.filter(_.role == RenderLineRole.Resource).forall(_.boundary.multiPv == 2), true)
     Vector(
       "CandidateLineEvidence",
       "CandidateProbeResultPayload",
       "CandidateProbeControlledAdapter",
+      "startFen",
+      "lineUci",
+      "provenanceRefs",
+      "boundary",
+      "depthFloor",
+      "realizedDepth",
+      "e2e4",
+      "e7e5",
       "branchId",
       "parentBranchId",
       "multiPvIndex",
+      "multiPv",
       "engineFingerprint",
       engine,
       "rawLines",

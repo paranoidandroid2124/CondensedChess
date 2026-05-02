@@ -84,9 +84,13 @@ and future public transport fields are rejected before request decoding.
 - optional `internal`
 
 `render` is a `CommentaryRender` JSON payload using the frozen renderer
-contract: public blocks, evidence refs, boundaries, wording, and render status.
+contract: public blocks, block phrase capability, evidence refs, boundaries,
+wording, and render status.
 Frontend consumers must not rerank, reinterpret, revive blocked claims, merge
 source vectors, infer evidence, or upgrade wording strength from this payload.
+`RenderText.publicText` may be present only after the renderer's
+`PublicSurfaceTemplate` consumes a closed `PublicPhrase`; role labels,
+evidence ids, and raw `PublicClaim.text` are not public prose.
 If public-safe prepared variation evidence is present, the response carries
 only the renderer-owned `RenderVariationEvidence` subset. Internal
 `PreparedVariationDebug`, raw engine packets, raw PV details, source rows, and
@@ -212,8 +216,9 @@ same-root `CertificationEvidenceBundle` may be extracted into a
 wrong-node, wrong-FEN, illegal-PV, or empty engine intake contributes no
 higher claim. A private `EvidenceClaimHandoff` may carry already-bounded
 `CertificationExtraction`,
-typed `StrategyProjectionAdmissionResult` values, legacy projection claim
-candidates, and normalized `SourceContextCandidate` values. It is not a
+typed descriptor-certified `StrategyProjectionAdmissionResult` values, legacy
+projection claim candidates, and normalized `SourceContextCandidate` values.
+Legacy validation-scaffold projection admissions are not public-lowerable. It is not a
 frontend/request payload and it is not a live source lookup path.
 The private `CandidateLinePacketHandoff` stays outside claim production: it can
 normalize internal root/child packet evidence into `CandidateLineEvidence`, but
@@ -297,12 +302,13 @@ not cross the public seam.
 Certification claims are emitted only from same-current-root certified
 extractions with same-binding exact-board support and a non-result public
 family. Projection claims are emitted only from admitted
-`StrategyProjectionAdmissionResult` values produced by
-`StrategyProjectionAdmission.admit`; the result must bind the source root to
+`StrategyProjectionAdmissionResult` values produced by the descriptor-certified
+runtime path (`StrategyProjectionAdmissionProducer`) and marked with
+`DescriptorCertifiedRuntime` authority; the result must bind the source root to
 the current root, carry same-binding exact lower carrier refs, expose only
 allowed projection evidence kinds, keep an exact scope, and remain under the
-qualified wording cap. Legacy claim-shaped projection candidates remain
-fail-closed and ignored. Source context is converted only through
+qualified wording cap. Legacy claim-shaped projection candidates and
+legacy-validation-scaffold admissions remain fail-closed and ignored. Source context is converted only through
 `SourceContextClaimBoundary` and remains context/support only. Raw engine
 packets, raw source rows, prepared variation evidence, Sxx labels, broad chess
 concepts, candidate lines, and candidate-line assembly results still cannot
@@ -363,7 +369,7 @@ evidence filtering. The seam does not render raw eval, PV, centipawn, mate, or
 engine search fields. An accepted engine packet is not sufficient by itself:
 `EngineCertification` refs may pass the seam only when they match a bounded
 engine evidence ref produced by the accepted `CertificationEngineRuntimeIntake`
-result by canonical id, owner, and anchor.
+result by canonical id, owner, anchor, route, scope, and required purpose set.
 
 ## noCommentary
 
@@ -407,13 +413,17 @@ The scaffold validates:
   top level or nested under `enginePacket`, are rejected before they can be
   silently reinterpreted
 - valid typed `RuntimeEnginePacket` JSON containing `engineConfigFingerprint`
-  and `pvLines` is not rejected by the public transport guard
+  and `pvLines` is not rejected by the public transport guard when it carries
+  no public caller-supplied certification claims
+- public transport rejects caller-supplied `enginePacket.claims` and rejects
+  baseline packets unless the public request itself is transition-bound
 - malformed FEN fails closed
 - stale or wrong-node engine packet does not render engine evidence
 - absent, rejected, or accepted-with-empty engine intake cannot unlock
   engine-certified claims
 - accepted engine intake can carry engine-certified claims only through matching
-  bounded evidence refs
+  bounded evidence refs with full id, owner, anchor, route, scope, and required
+  purpose binding
 - source/opening context remains context-only
 - public-safe prepared variation evidence survives only as structured public
   line-proof fields
@@ -435,6 +445,11 @@ The scaffold validates:
   default rank `3` live child payloads while preserving strong depth-20 cache
   reuse, emits child writes only for accepted completed child probes, and keeps
   child probe/cache internals out of public backend/render JSON
+- completed-probe helper payloads are accepted only when every supplied root
+  and child request matches the server-derived request key for FEN, node, ply,
+  role, parent branch/prefix, requested/target/floor depth, MultiPV, engine
+  fingerprint, and policy binding; forged, missing, or per-line MultiPV
+  mismatches fail closed before prepared evidence is attached
 - internal candidate-line assembly can attach already-lowered prepared
   variation evidence to matching existing claims without creating claims
 - the proof-cache facade stores only probe-origin adapter/provider write
@@ -446,6 +461,9 @@ The scaffold validates:
   adapter, exact-FEN SAN normalization, lowering, backend seam attachment,
   selection, outline, renderer, and public response only as bound
   `RenderVariationEvidence`
+- public `RenderVariationEvidence` carries SAN-only public line fields and
+  omits start FEN, UCI PV, provenance refs, replay/freshness boundary fields,
+  depth, MultiPV, branch ids, cache keys, engine fingerprints, and raw move UCI
 - claim production cannot observe candidate-line assembly
 - claim production runs before the candidate-line assembly provider
 - missing assembly or assembly without prepared evidence leaves existing

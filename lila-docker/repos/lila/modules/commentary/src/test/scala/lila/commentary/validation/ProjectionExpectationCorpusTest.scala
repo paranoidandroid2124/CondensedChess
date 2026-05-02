@@ -44,7 +44,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
   private val MaxRenewalStates = 512
   private val allProjectionBandIds: Set[String] =
     (1 to 25).map(index => f"S$index%02d").toSet
-  private val expectedLiveRuntimeBandIds: Vector[String] =
+  private val expectedProductionPublicBandIds: Vector[String] =
     Vector(
       "S01",
       "S02",
@@ -106,7 +106,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       assertS22PerpetualHoldCycle(row)
       assertS22AdmissionContract(row)
 
-  test("projection coverage gates cover every live Sxx band without legacy exceptions"):
+  test("projection coverage gates cover every production-public Sxx band without legacy exceptions"):
     assertEquals(
       ProjectionExpectationCorpus.legacyRuntimeExceptionBands,
       Set.empty[String]
@@ -418,7 +418,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       assertEquals(
         row.evidenceClaimsForRuntime,
         Vector.empty,
-        clues(s"${row.id} deferred coverage row must not declare live projection evidence")
+        clues(s"${row.id} deferred coverage row must not declare production-public projection evidence")
       )
 
   test("S01-S25 rejected rows have exact-board negative scaffolds"):
@@ -439,7 +439,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     assertEquals(rejectedRows.nonEmpty, true)
     rejectedRows.foreach(assertGlobalRejectedLowerCarrier)
 
-  test("forged S23 and S25 runtime evidence rows remain fail-closed on exact live carriers"):
+  test("forged S23 and S25 runtime evidence rows remain fail-closed on exact production-public carriers"):
     val forgedIds = Set(
       "proj-s23-forged-wrong-entry-evidence-negative",
       "proj-s23-forged-wrong-contact-evidence-negative",
@@ -518,12 +518,12 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       assertEquals(
         StrategyProjectionCoverageContract.coverageOnlyBandIds.exists(_.value == row.band),
         false,
-        clues(s"${row.id} must not remain coverage-only after S09 live admission")
+        clues(s"${row.id} must not remain coverage-only after S09 production public admission")
       )
       assertEquals(
         StrategyProjectionScopeContract.startReadyBandIds.exists(_.value == row.band),
         true,
-        clues(s"${row.id} must be guarded by S09 live admission")
+        clues(s"${row.id} must be guarded by S09 production public admission")
       )
     val attackShell =
       supportOnlyNegatives.find(_.id == "proj-s09-support-only-attack-shell-nasty-negative").get
@@ -545,8 +545,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     assert(winningOnly.validatedOptionalStrengtheningFamilies.contains("WinningEndgame"))
     assert(hasCertifiedFamily(winningOnly, "WinningEndgame"))
 
-  test("S09 runtime admission completion gate matches docs, code, corpus, and adjacent boundaries"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toVector
+  test("S09 production public admission completion gate matches docs, code, corpus, and adjacent boundaries"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toVector
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val requiredEvidenceKinds =
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view.mapValues(_.map(_.value)).toMap
@@ -560,23 +560,23 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val s09 = StrategyProjectionBandId("S09")
     val evidenceKind = StrategyProjectionEvidenceKind("file_penetration_route_certified")
     val s09Rows = rows.filter(_.band == "S09")
-    val expectedLiveBands =
-      expectedLiveRuntimeBandIds
-    val expectedLiveBandDocList =
-      expectedLiveBands.map(id => s"`$id`").mkString(", ").replace(", `S25`", ", and `S25`")
-    val expectedLiveBandSlashList =
-      expectedLiveBands.map(id => s"`$id`").mkString("/")
+    val expectedProductionPublicBands =
+      expectedProductionPublicBandIds
+    val expectedProductionPublicBandDocList =
+      expectedProductionPublicBands.map(id => s"`$id`").mkString(", ").replace(", `S25`", ", and `S25`")
+    val expectedProductionPublicBandSlashList =
+      expectedProductionPublicBands.map(id => s"`$id`").mkString("/")
     val staleCoverageOnlyDocListWithS09 = "`S09`, `S01`, `S02`, `S03`, and `S04`"
     val staleLiveDocListWithoutS09 =
       "`S05`, `S06`, `S07`, `S08`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and `S25`"
     val staleCoverageOnlyDocListWithS02 = "coverage-only `S02`, `S03`, and `S04`"
     val staleS04CoverageOnlyStatus = "`S04`\nremains coverage-only fail-closed"
 
-    assertEquals(liveBandIds, expectedLiveBands)
-    assert(docs.contains(expectedLiveBandDocList), clues("docs must name the S09-inclusive live start-ready list"))
-    assert(docs.contains(expectedLiveBandSlashList), clues("docs must name the S09-inclusive slash-form live start-ready list"))
+    assertEquals(productionPublicBandIds, expectedProductionPublicBands)
+    assert(docs.contains(expectedProductionPublicBandDocList), clues("docs must name the S09-inclusive production-public list"))
+    assert(docs.contains(expectedProductionPublicBandSlashList), clues("docs must name the S09-inclusive slash-form production-public list"))
     assertEquals(docs.contains(staleCoverageOnlyDocListWithS09), false, clues("docs must not retain S09 in coverage-only lists"))
-    assertEquals(docs.contains(staleLiveDocListWithoutS09), false, clues("docs must not retain S09-omitting live start-ready lists"))
+    assertEquals(docs.contains(staleLiveDocListWithoutS09), false, clues("docs must not retain S09-omitting production-public lists"))
     assertEquals(docs.contains(staleCoverageOnlyDocListWithS02), false, clues("docs must not retain S02 in coverage-only lists"))
     assertEquals(docs.contains(staleS04CoverageOnlyStatus), false, clues("docs must not retain S04 as coverage-only fail-closed"))
     assertEquals(requiredEvidenceKinds("S09"), Vector(evidenceKind.value))
@@ -586,7 +586,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     )
     assertEquals(StrategyProjectionScopeContract.isAllowedEvidenceKind(s09, evidenceKind), true)
     assertEquals(coverageOnlyIds.contains("S09"), false)
-    assertEquals(liveBandIds.toSet.intersect(coverageOnlyIds), Set.empty[String])
+    assertEquals(productionPublicBandIds.toSet.intersect(coverageOnlyIds), Set.empty[String])
     assertEquals(coverageOnlyIds, expectedCoverageOnlyBandIds)
 
     assertEquals(StrategyProjectionScopeContract.startReadyBandIds.exists(_.value == "S02"), true)
@@ -691,7 +691,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         StrategyProjectionAdmission
           .admits(row.validatedBand, extraction, evidence, row.validatedOwner)
           .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S09 runtime boundary"))
+      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S09 production-public boundary"))
       if row.expectation == "admitted" then
         assertEquals(row.evidenceClaimsForRuntime.map(_.kind), Vector(evidenceKind))
         val claim = row.evidenceClaimsForRuntime.head
@@ -705,15 +705,15 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
 
     Vector(
       "file_penetration_route_certified",
-      "file_penetration_route_requires_owner_file_lane_state",
-      "same_task_projection_evidence_must_mirror_s09_owner_file_source_entry_and_route",
-      "S09 Runtime Admission Contract",
-      "ProjectionEvidence:file_penetration_route_certified",
-      "support_only_attack_shell_or_certification_only_not_counted"
+      "`S09` | `penetration_route`",
+      "test-only scaffold; production descriptor/K region pending",
+      "rowSpecificAdmissionBurdensByBand",
+      "exactValidationScaffoldByBand",
+      "declaredProjectionEvidenceKindsByBand"
     ).foreach: token =>
-      assert(docs.contains(token), clues(s"S09 runtime contract token $token must be documented"))
+      assert(docs.contains(token), clues(s"S09 scaffold contract token $token must be documented"))
 
-  test("conversion/hold/target coverage gate matches docs, JSONL, and runtime boundary"):
+  test("conversion/hold/target coverage gate matches docs, JSONL, and production-public boundary"):
     val conversionHoldTargetBands =
       StrategyProjectionCoverageContract.conversionHoldTargetBandIds.map(_.value).toSet
     val expectedPairsByBand =
@@ -797,7 +797,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       Set.empty[String]
     )
 
-  test("initiative/release/counterplay coverage rows complete with S05 live admission kept narrow"):
+  test("initiative/release/counterplay coverage rows complete with S05 production public admission kept narrow"):
     val initiativeReleaseCounterplayBands =
       StrategyProjectionCoverageContract.initiativeReleaseCounterplayBandIds.map(_.value).toSet
     val expectedPairsByBand =
@@ -888,7 +888,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         else if row.band == "S08" && row.expectation == "admitted" then Vector("counterplay_denial_route_certified")
         else if row.band == "S21" && row.expectation == "admitted" then Vector("counterplay_survival_route_certified")
         else Vector.empty,
-        clues(s"${row.id} initiative/release/counterplay coverage row must only declare live evidence for S05/S07/S08/S21 rows")
+        clues(s"${row.id} initiative/release/counterplay coverage row must only declare production-public evidence for S05/S07/S08/S21 rows")
       )
       assertEquals(
         StrategyProjectionAdmission.admits(
@@ -901,7 +901,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         ),
         if row.band == "S05" || row.band == "S07" || row.band == "S08" || row.band == "S21" then Right(false)
         else Left(s"Unsupported projection admission band: ${row.band}"),
-        clues(s"${row.id} initiative/release/counterplay coverage row must not admit without live projection evidence")
+        clues(s"${row.id} initiative/release/counterplay coverage row must not admit without production-public projection evidence")
       )
     StrategyProjectionCoverageContract.initiativeReleaseCounterplayBandIds
       .filterNot(bandId => Set("S05", "S07", "S08", "S21").contains(bandId.value))
@@ -918,8 +918,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           Left(s"Unsupported projection admission band: ${bandId.value}")
         )
 
-  test("S21 runtime admission gate matches docs, code, corpus, and adjacent boundaries"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
+  test("S21 production public admission gate matches docs, code, corpus, and adjacent boundaries"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
       "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
@@ -930,13 +930,13 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       "modules/commentary/docs/StrategySupportSeedInventory.md"
     ).map(docText).mkString("\n")
 
-    assertEquals(liveBandIds.contains("S21"), true)
+    assertEquals(productionPublicBandIds.contains("S21"), true)
     assertEquals(coverageOnlyIds.contains("S21"), false)
-    assertEquals(liveBandIds.contains("S01"), true, clues("S01 is now live but must not leak into S21 admission"))
-    assertEquals(coverageOnlyIds.contains("S01"), false, clues("S01 coverage rows stay countable while exact rows are live-admitted"))
-    assertEquals(liveBandIds.contains("S08"), true, clues("S08 is intentionally live from its separate branch"))
+    assertEquals(productionPublicBandIds.contains("S01"), true, clues("S01 is now production-public but must not leak into S21 admission"))
+    assertEquals(coverageOnlyIds.contains("S01"), false, clues("S01 coverage rows stay countable while exact rows are production-public admitted"))
+    assertEquals(productionPublicBandIds.contains("S08"), true, clues("S08 is intentionally production-public from its separate branch"))
     assertEquals(coverageOnlyIds.contains("S08"), false, clues("S08 must not be reclassified as coverage-only"))
-    assertEquals(liveBandIds.contains("S05"), true, clues("S05 is intentionally live from its separate branch"))
+    assertEquals(productionPublicBandIds.contains("S05"), true, clues("S05 is intentionally production-public from its separate branch"))
     assertEquals(coverageOnlyIds.contains("S05"), false, clues("S05 must not be reclassified as coverage-only"))
     assertEquals(
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S21").map(_.value),
@@ -949,7 +949,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     assertEquals(
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand("S05").map(_.value),
       Vector("center_release_route_certified"),
-      clues("S05 must remain a distinct live branch, not an S21 side effect")
+      clues("S05 must remain a distinct production-public branch, not an S21 side effect")
     )
     assertEquals(
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.keySet.contains("S01"),
@@ -967,14 +967,14 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       clues("S08 keeps its distinct denial evidence instead of gaining S21 evidence")
     )
     assert(docs.contains("counterplay_survival_route_certified"))
-    assert(docs.contains("S21 live runtime admission"))
-    assert(docs.contains("counterplay survival route is start-ready"))
+    assert(docs.contains("`S21` validation scaffold consumes"))
+    assert(docs.contains("counterplay survival route is validation-ready"))
     assert(docs.contains("certified `InitiativeWindow` alone is not S21 proof"))
     assert(
       docs.contains(
         "`S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and `S25`"
       ),
-      clues("S21 must be present in documented live runtime start-ready enumerations")
+      clues("S21 must be present in documented production-public enumerations")
     )
     Vector(
       "`S05`, `S06`, `S07`, `S08`, `S11`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S21`, `S22`, `S23`, `S24`, and `S25`",
@@ -984,7 +984,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       "`S05`, `S11`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S22`, `S23`, `S24`, and `S25`",
       "`S05`/`S11`/`S13`/`S14`/`S15`/`S16`/`S17`/`S18`/`S19`/`S22`/`S23`/`S24`/`S25`"
     ).foreach: staleLiveSet =>
-      assert(!docs.contains(staleLiveSet), clues(s"stale live set omitted S21: $staleLiveSet"))
+      assert(!docs.contains(staleLiveSet), clues(s"stale production-public set omitted S21: $staleLiveSet"))
 
     rows.filter(_.band == "S21").foreach: row =>
       if row.expectation == "admitted" then
@@ -1020,11 +1020,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       assertEquals(
         admitted,
         row.expectation == "admitted",
-        clues(s"${row.id} S21 runtime boundary")
+        clues(s"${row.id} S21 production-public boundary")
       )
 
-  test("S07 runtime admission gate matches docs while runtime admits only exact initiative-conversion evidence"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
+  test("S07 production public admission gate matches docs while producer admits only exact initiative-conversion evidence"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
       "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
@@ -1035,7 +1035,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       "modules/commentary/docs/StrategySupportSeedInventory.md"
     ).map(docText).mkString("\n")
 
-    assertEquals(liveBandIds.contains("S07"), true)
+    assertEquals(productionPublicBandIds.contains("S07"), true)
     assertEquals(coverageOnlyIds.contains("S07"), false)
     assertEquals(StrategyProjectionScopeContract.requiredEvidenceKindsByBand("S07").map(_.value), Vector("initiative_conversion_route_certified"))
     assertEquals(
@@ -1051,9 +1051,9 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         "development_only_initiative_only_s08_denial_or_optional_strengthening_is_non_admitting"
       )
     )
-    assert(docs.contains("S07 live runtime admission"))
+    assert(docs.contains("S07 validation scaffold"))
     assert(docs.contains("initiative_conversion_route_certified"))
-    assert(docs.contains("S08 live runtime admission"))
+    assert(docs.contains("S08 validation scaffold uses"))
     assert(docs.contains("DevelopmentComparison` and certified `InitiativeWindow`"))
     assert(docs.contains("OpeningDevelopmentRegime` is support-only"))
 
@@ -1098,7 +1098,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       assertEquals(
         admitted,
         row.expectation == "admitted",
-        clues(s"${row.id} S07 runtime boundary")
+        clues(s"${row.id} S07 production-public boundary")
       )
       assertEquals(
         StrategyProjectionAdmission.admits(
@@ -1111,8 +1111,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         Right(false)
       )
 
-  test("S08 runtime admission gate matches docs while runtime admits only exact denial evidence"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
+  test("S08 production public admission gate matches docs while producer admits only exact denial evidence"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val evidenceKind = StrategyProjectionEvidenceKind("counterplay_denial_route_certified")
     val docs = Vector(
@@ -1123,7 +1123,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       "modules/commentary/docs/Witnesses61.md"
     ).map(docText).mkString("\n")
 
-    assertEquals(liveBandIds.contains("S08"), true)
+    assertEquals(productionPublicBandIds.contains("S08"), true)
     assertEquals(coverageOnlyIds.contains("S08"), false)
     assertEquals(StrategyProjectionScopeContract.requiredEvidenceKindsByBand("S08"), Vector(evidenceKind))
     assertEquals(StrategyProjectionScopeContract.isAllowedEvidenceKind(StrategyProjectionBandId("S08"), evidenceKind), true)
@@ -1131,7 +1131,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S08"),
       Vector(evidenceKind)
     )
-    assert(docs.contains("S08 live runtime admission"))
+    assert(docs.contains("S08 validation scaffold uses"))
     assert(docs.contains("counterplay_denial_route_certified"))
     assert(docs.contains("wrong-source/wrong-target/wrong-route/stale-evidence rejection"))
     assert(docs.contains("same rival source, target, and denial route"))
@@ -1176,7 +1176,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       assertEquals(
         admitted,
         row.expectation == "admitted",
-        clues(s"${row.id} S08 runtime boundary")
+        clues(s"${row.id} S08 production-public boundary")
       )
       assertEquals(
         StrategyProjectionAdmission.admits(
@@ -1195,8 +1195,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           assert(row.validatedSupportWitnessIds.contains("pawn_push_break_contact_source"))
         case _ => ()
 
-  test("S05 runtime admission completion gate matches docs, code, corpus, and adjacent boundaries"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value)
+  test("S05 production public admission completion gate matches docs, code, corpus, and adjacent boundaries"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value)
     val requiredEvidenceKinds =
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view.mapValues(_.map(_.value)).toMap
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
@@ -1208,7 +1208,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       "modules/commentary/docs/Witnesses61.md"
     ).map(docText).mkString("\n")
 
-    assertEquals(liveBandIds, expectedLiveRuntimeBandIds)
+    assertEquals(productionPublicBandIds, expectedProductionPublicBandIds)
     assertEquals(requiredEvidenceKinds("S05"), Vector("center_release_route_certified"))
     assertEquals(
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S05").map(_.value),
@@ -1224,16 +1224,16 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     assertEquals(coverageOnlyIds.contains("S05"), false)
     assertEquals(coverageOnlyIds.contains("S06"), false)
     assertEquals(coverageOnlyIds.contains("S21"), false)
-    assertEquals(liveBandIds.contains("S06"), true)
-    assertEquals(liveBandIds.contains("S21"), true)
+    assertEquals(productionPublicBandIds.contains("S06"), true)
+    assertEquals(productionPublicBandIds.contains("S21"), true)
     assertEquals(requiredEvidenceKinds("S06"), Vector("space_bind_restriction_route_certified"))
     assertEquals(requiredEvidenceKinds("S06").intersect(requiredEvidenceKinds("S05")), Vector.empty[String])
-    assertEquals(liveBandIds.contains("S14"), true, clues("S14 was already an intentional live row, not promoted by S05"))
+    assertEquals(productionPublicBandIds.contains("S14"), true, clues("S14 was already an intentional production-public row, not promoted by S05"))
     assertEquals(requiredEvidenceKinds("S14"), Vector("chain_base_contact_route_certified"))
     assertEquals(requiredEvidenceKinds("S14").intersect(requiredEvidenceKinds("S05")), Vector.empty[String])
     assertEquals(requiredEvidenceKinds("S21"), Vector("counterplay_survival_route_certified"))
     assertEquals(requiredEvidenceKinds("S21").intersect(requiredEvidenceKinds("S05")), Vector.empty[String])
-    assertEquals(coverageOnlyIds.intersect(liveBandIds.toSet), Set.empty[String])
+    assertEquals(coverageOnlyIds.intersect(productionPublicBandIds.toSet), Set.empty[String])
 
     assertEquals(
       ProjectionExpectationCorpus.coveragePairsByBand(rows).getOrElse("S05", Set.empty),
@@ -1266,7 +1266,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         StrategyProjectionAdmission
           .admits(row.validatedBand, extraction, evidence, row.validatedOwner)
           .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S05 runtime boundary"))
+      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S05 production-public boundary"))
 
     Set("S06").foreach: band =>
       rows.filter(_.band == band).foreach: row =>
@@ -1280,7 +1280,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
             row.validatedOwner
           ),
           Right(false),
-          clues(s"${row.id} adjacent live row must not admit through S05 empty evidence")
+          clues(s"${row.id} adjacent production-public row must not admit through S05 empty evidence")
         )
     rows.filter(_.band == "S21").foreach: row =>
       assertEquals(
@@ -1293,14 +1293,14 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           row.validatedOwner
         ),
         Right(false),
-        clues(s"${row.id} adjacent live S21 row must not admit through S05 evidence or empty evidence")
+        clues(s"${row.id} adjacent production-public S21 row must not admit through S05 evidence or empty evidence")
       )
 
-  test("S06 runtime admission gate matches docs while broad coverage remains countable"):
+  test("S06 production public admission gate matches docs while broad coverage remains countable"):
     val s06 = StrategyProjectionBandId("S06")
     val evidenceKind = StrategyProjectionEvidenceKind("space_bind_restriction_route_certified")
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value)
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value)
     val docs = Vector(
       "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
       "modules/commentary/docs/CommentaryCoreSSOT.md",
@@ -1310,7 +1310,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       "modules/commentary/docs/StrategySupportSeedInventory.md"
     ).map(docText).mkString("\n")
 
-    assertEquals(liveBandIds.contains("S06"), true)
+    assertEquals(productionPublicBandIds.contains("S06"), true)
     assertEquals(coverageOnlyIds.contains("S06"), false)
     assertEquals(StrategyProjectionScopeContract.requiredEvidenceKindsByBand("S06"), Vector(evidenceKind))
     assertEquals(StrategyProjectionScopeContract.isAllowedEvidenceKind(s06, evidenceKind), true)
@@ -1318,7 +1318,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S06"),
       Vector(evidenceKind)
     )
-    assert(docs.contains("S06 live runtime admission"))
+    assert(docs.contains("S06 validation scaffold consumes"))
     assert(docs.contains("space_bind_restriction_route_certified"))
     assert(docs.contains("SpaceBindRestrictionCertification"))
     assert(docs.contains("exact S05 center-release and exact S20 domination false-rival"))
@@ -1354,7 +1354,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       if row.expectation == "admitted" then
         assertEquals(row.evidenceClaimsForRuntime.map(_.kind.value), Vector("space_bind_restriction_route_certified"))
         assertEquals(row.validatedRequiredCertificationFamilies, Vector("SpaceBindRestrictionCertification"))
-      else assertEquals(row.evidenceClaimsForRuntime, Vector.empty, clues(s"${row.id} rejected S06 row has no live evidence"))
+      else assertEquals(row.evidenceClaimsForRuntime, Vector.empty, clues(s"${row.id} rejected S06 row has no production-public evidence"))
       val extraction =
         StrategySupportSeedExtractor
           .fromFen(row.normalizedFen)
@@ -1368,10 +1368,10 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       assertEquals(
         actual,
         row.expectation == "admitted",
-        clues(s"${row.id} S06 live runtime boundary")
+        clues(s"${row.id} S06 production-public boundary")
       )
 
-  test("king-attack coverage rows keep S01/S02/S03/S04 live admission separated by evidence kind"):
+  test("king-attack coverage rows keep S01/S02/S03/S04 production public admission separated by evidence kind"):
     val kingAttackBands =
       StrategyProjectionCoverageContract.kingAttackBandIds.map(_.value).toSet
     val expectedPairsByBand =
@@ -1482,7 +1482,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           StrategyProjectionAdmission
             .admits(row.validatedBand, extraction, evidence, row.validatedOwner, certificationEvidence)
             .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-        assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S01 live runtime boundary"))
+        assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S01 production-public boundary"))
         if row.expectation == "admitted" then
           assertEquals(row.evidenceClaimsForRuntime.map(_.kind), Vector(s01EvidenceKind))
           val claim = row.evidenceClaimsForRuntime.head
@@ -1499,7 +1499,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           StrategyProjectionAdmission
             .admits(row.validatedBand, extraction, evidence, row.validatedOwner, certificationEvidence)
             .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-        assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S02 live runtime boundary"))
+        assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S02 production-public boundary"))
         if row.expectation == "admitted" then
           assertEquals(row.evidenceClaimsForRuntime.map(_.kind), Vector(s02EvidenceKind))
           val claim = row.evidenceClaimsForRuntime.head
@@ -1517,7 +1517,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           StrategyProjectionAdmission
             .admits(row.validatedBand, extraction, evidence, row.validatedOwner, certificationEvidence)
             .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-        assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S03 live runtime boundary"))
+        assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S03 production-public boundary"))
         if row.expectation == "admitted" then
           assertEquals(row.evidenceClaimsForRuntime.map(_.kind), Vector(s03EvidenceKind))
           val claim = row.evidenceClaimsForRuntime.head
@@ -1572,7 +1572,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           StrategyProjectionAdmission
             .admits(row.validatedBand, extraction, evidence, row.validatedOwner, certificationEvidence)
             .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-        assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S04 live runtime boundary"))
+        assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S04 production-public boundary"))
         if row.expectation == "admitted" then
           assertEquals(row.evidenceClaimsForRuntime.map(_.kind), Vector(s04EvidenceKind))
           val claim = row.evidenceClaimsForRuntime.head
@@ -1612,7 +1612,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
             row.validatedOwner
           ),
           Left(s"Unsupported projection admission band: ${row.band}"),
-          clues(s"${row.id} deferred king-attack row must stay fail-closed at live admission")
+          clues(s"${row.id} deferred king-attack row must stay fail-closed at production public admission")
         )
     assertEquals(
       StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S01"),
@@ -1636,13 +1636,15 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       "modules/commentary/docs/ValidationMethodology.md",
       "modules/commentary/docs/Witnesses61.md"
     ).map(docText).mkString("\n")
-    (
-      StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S01") ++
-        StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S01").map(_.value) ++
-        StrategyProjectionCoverageContract.helperLawsByBand("S01") ++
-        StrategyProjectionCoverageContract.exactValidationScaffoldByBand("S01")
+    Vector(
+      "`S01` | `storm_route`",
+      "king_wing_storm_route_certified",
+      "same_cluster_near_miss`: `vs_s05`, `vs_s21",
+      "shortcut_negative`: `castling_side_only",
+      "rowSpecificAdmissionBurdensByBand",
+      "exactValidationScaffoldByBand"
     ).foreach: token =>
-      assert(s01ContractDocs.contains(token), clues(s"S01 live contract token $token must be documented"))
+      assert(s01ContractDocs.contains(token), clues(s"S01 scaffold contract token $token must be documented"))
     Vector(
       "S05" -> Vector("center_release_route_certified"),
       "S21" -> Vector("counterplay_survival_route_certified")
@@ -1907,7 +1909,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     kingAttackRows.foreach: row =>
       assertKingPressureCoverageLowerCarrier(row)
 
-  test("conversion/hold/target coverage rows complete with S19 and S22 live admission expansion"):
+  test("conversion/hold/target coverage rows complete with S19 and S22 production public admission expansion"):
     val conversionHoldTargetBands =
       StrategyProjectionCoverageContract.conversionHoldTargetBandIds.map(_.value).toSet
 
@@ -1926,8 +1928,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       expectedCoverageOnlyBandIds
     )
 
-  test("S22 runtime admission completion gate matches docs, code, corpus, and adjacent boundaries"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value)
+  test("S22 production public admission completion gate matches docs, code, corpus, and adjacent boundaries"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value)
     val requiredEvidenceKinds =
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view.mapValues(_.map(_.value)).toMap
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
@@ -1939,7 +1941,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       "modules/commentary/docs/Witnesses61.md"
     ).map(docText).appended(decisionFreezeLedger).mkString("\n")
 
-    assertEquals(liveBandIds, expectedLiveRuntimeBandIds)
+    assertEquals(productionPublicBandIds, expectedProductionPublicBandIds)
     assert(docs.contains("`S01`, `S02`, `S03`, `S04`, `S05`, `S06`, `S07`, `S08`, `S09`, `S10`, `S11`, `S12`, `S13`, `S14`, `S15`, `S16`, `S17`, `S18`, `S19`, `S20`, `S21`, `S22`, `S23`, `S24`, and `S25`"))
     assert(docs.contains("`S01`/`S02`/`S03`/`S04`/`S05`/`S06`/`S07`/`S08`/`S09`/`S10`/`S11`/`S12`/`S13`/`S14`/`S15`/`S16`/`S17`/`S18`/`S19`/`S20`/`S21`/`S22`/`S23`/`S24`/`S25`"))
     assert(decisionFreezeLedger.contains("does **not** authorize broad runtime behavior"))
@@ -2007,7 +2009,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     assertEquals(coverageOnlyIds.contains("S05"), false)
     assertEquals(coverageOnlyIds.contains("S19"), false)
     assertEquals(coverageOnlyIds.contains("S18"), false)
-    assertEquals(coverageOnlyIds.intersect(liveBandIds.toSet), Set.empty[String])
+    assertEquals(coverageOnlyIds.intersect(productionPublicBandIds.toSet), Set.empty[String])
     assertEquals(
       requiredEvidenceKinds("S23"),
       Vector("king_entry_conversion_certified", "king_opposition_certified"),
@@ -2045,7 +2047,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           row.validatedOwner
         ),
         Left(s"Unsupported projection admission band: ${row.band}"),
-        clues(s"${row.id} coverage-only row must stay outside live runtime admission")
+        clues(s"${row.id} coverage-only row must stay outside production-public admission")
       )
 
     val s22Rows = rows.filter(_.band == "S22")
@@ -2061,7 +2063,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         StrategyProjectionAdmission
           .admits(row.validatedBand, extraction, evidence, row.validatedOwner, certificationEvidence)
           .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S22 runtime boundary"))
+      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S22 production-public boundary"))
       if row.expectation == "admitted" then
         assertEquals(
           row.evidenceClaimsForRuntime.map(_.kind.value).toSet.subsetOf(requiredEvidenceKinds("S22").toSet),
@@ -2070,8 +2072,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       else
         assertEquals(row.evidenceClaimsForRuntime, Vector.empty)
 
-  test("S18 runtime admission gate matches docs, code, corpus, and adjacent boundaries"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
+  test("S18 production public admission gate matches docs, code, corpus, and adjacent boundaries"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
       "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
@@ -2084,7 +2086,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val declaredEvidenceKinds =
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S18").map(_.value)
 
-    assertEquals(liveBandIds.contains("S18"), true)
+    assertEquals(productionPublicBandIds.contains("S18"), true)
     assertEquals(coverageOnlyIds.contains("S18"), false)
     assertEquals(
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand("S18"),
@@ -2118,7 +2120,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           StrategyProjectionEvidenceKind(kind)
         ),
         true,
-        clues(s"S18 evidence kind $kind must be live after explicit runtime admission")
+        clues(s"S18 evidence kind $kind must be production-public after explicit admission")
       )
     assertEquals(
       ProjectionExpectationCorpus.coveragePairsByBand(rows).getOrElse("S18", Set.empty),
@@ -2155,10 +2157,10 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         StrategyProjectionAdmission
           .admits(row.validatedBand, extraction, evidence, row.validatedOwner, certificationEvidence)
           .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S18 runtime boundary"))
+      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S18 production-public boundary"))
 
-    assertEquals(liveBandIds.contains("S12"), true)
-    assertEquals(liveBandIds.contains("S20"), true)
+    assertEquals(productionPublicBandIds.contains("S12"), true)
+    assertEquals(productionPublicBandIds.contains("S20"), true)
     Vector("S12").foreach: band =>
       assertEquals(
         StrategyProjectionAdmission.admits(
@@ -2170,11 +2172,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           Color.White
         ),
         Right(false),
-        clues(s"$band adjacent live row must still require exact S12 evidence with S18")
+        clues(s"$band adjacent production-public row must still require exact S12 evidence with S18")
       )
 
-  test("S20 runtime admission completion gate matches docs, code, corpus, and adjacent boundaries"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toVector
+  test("S20 production public admission completion gate matches docs, code, corpus, and adjacent boundaries"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toVector
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val requiredEvidenceKinds =
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view.mapValues(_.map(_.value)).toMap
@@ -2188,11 +2190,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val s20 = StrategyProjectionBandId("S20")
     val evidenceKind = StrategyProjectionEvidenceKind("mobility_domination_route_certified")
     val s20Rows = rows.filter(_.band == "S20")
-    val expectedLiveBands =
-      expectedLiveRuntimeBandIds
+    val expectedProductionPublicBands =
+      expectedProductionPublicBandIds
 
-    assertEquals(liveBandIds, expectedLiveBands)
-    assert(docs.contains(expectedLiveBands.map(id => s"`$id`").mkString(", ").replace(", `S25`", ", and `S25`")))
+    assertEquals(productionPublicBandIds, expectedProductionPublicBands)
+    assert(docs.contains(expectedProductionPublicBands.map(id => s"`$id`").mkString(", ").replace(", `S25`", ", and `S25`")))
     assertEquals(requiredEvidenceKinds("S20"), Vector(evidenceKind.value))
     assertEquals(
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S20"),
@@ -2201,14 +2203,14 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     assert(docs.contains(evidenceKind.value))
     assertEquals(StrategyProjectionScopeContract.isAllowedEvidenceKind(s20, evidenceKind), true)
     assertEquals(coverageOnlyIds.contains("S20"), false)
-    assertEquals(liveBandIds.toSet.intersect(coverageOnlyIds), Set.empty[String])
+    assertEquals(productionPublicBandIds.toSet.intersect(coverageOnlyIds), Set.empty[String])
     assertEquals(
       coverageOnlyIds,
       expectedCoverageOnlyBandIds
     )
 
     Vector("S06", "S12", "S17").foreach: band =>
-      assertEquals(liveBandIds.contains(band), true, clues(s"$band start-ready status is pre-existing and must not be an S20 side effect"))
+      assertEquals(productionPublicBandIds.contains(band), true, clues(s"$band production-public membership is pre-existing and must not be an S20 side effect"))
       assertEquals(coverageOnlyIds.contains(band), false)
     assertEquals(requiredEvidenceKinds("S06"), Vector("space_bind_restriction_route_certified"))
     assertEquals(requiredEvidenceKinds("S12"), Vector("local_access_superiority_route_certified"))
@@ -2243,7 +2245,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         StrategyProjectionAdmission
           .admits(row.validatedBand, extraction, evidence, row.validatedOwner, certificationEvidence)
           .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S20 runtime boundary"))
+      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S20 production-public boundary"))
       if row.expectation == "admitted" then
         assertEquals(row.evidenceClaimsForRuntime.map(_.kind), Vector(evidenceKind))
         val claim = row.evidenceClaimsForRuntime.head
@@ -2260,8 +2262,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         assertEquals(row.evidenceClaimsForRuntime, Vector.empty)
 
 
-  test("S10 runtime admission completion gate matches docs, code, corpus, and adjacent boundaries"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toVector
+  test("S10 production public admission completion gate matches docs, code, corpus, and adjacent boundaries"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toVector
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val requiredEvidenceKinds =
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view.mapValues(_.map(_.value)).toMap
@@ -2275,22 +2277,22 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val s10 = StrategyProjectionBandId("S10")
     val evidenceKind = StrategyProjectionEvidenceKind("outpost_occupation_route_certified")
     val s10Rows = rows.filter(_.band == "S10")
-    val expectedLiveBands =
-      expectedLiveRuntimeBandIds
-    val expectedLiveBandDocList =
-      expectedLiveBands.map(id => s"`$id`").mkString(", ").replace(", `S25`", ", and `S25`")
-    val expectedLiveBandSlashList =
-      expectedLiveBands.map(id => s"`$id`").mkString("/")
+    val expectedProductionPublicBands =
+      expectedProductionPublicBandIds
+    val expectedProductionPublicBandDocList =
+      expectedProductionPublicBands.map(id => s"`$id`").mkString(", ").replace(", `S25`", ", and `S25`")
+    val expectedProductionPublicBandSlashList =
+      expectedProductionPublicBands.map(id => s"`$id`").mkString("/")
     val staleStartReadyDocListWithoutS10 =
-      expectedLiveBands.filterNot(_ == "S10").map(id => s"`$id`").mkString(", ").replace(", `S25`", ", and `S25`")
+      expectedProductionPublicBands.filterNot(_ == "S10").map(id => s"`$id`").mkString(", ").replace(", `S25`", ", and `S25`")
     val staleStartReadySlashListWithoutS10 =
-      expectedLiveBands.filterNot(_ == "S10").map(id => s"`$id`").mkString("/")
+      expectedProductionPublicBands.filterNot(_ == "S10").map(id => s"`$id`").mkString("/")
 
-    assertEquals(liveBandIds, expectedLiveBands)
-    assert(docs.contains(expectedLiveBandDocList), clues("docs must name the S10-inclusive live start-ready list"))
-    assert(docs.contains(expectedLiveBandSlashList), clues("docs must name the S10-inclusive slash-form live start-ready list"))
-    assertEquals(docs.contains(staleStartReadyDocListWithoutS10), false, clues("docs must not retain S10-omitting live start-ready lists"))
-    assertEquals(docs.contains(staleStartReadySlashListWithoutS10), false, clues("docs must not retain S10-omitting slash-form live start-ready lists"))
+    assertEquals(productionPublicBandIds, expectedProductionPublicBands)
+    assert(docs.contains(expectedProductionPublicBandDocList), clues("docs must name the S10-inclusive production-public list"))
+    assert(docs.contains(expectedProductionPublicBandSlashList), clues("docs must name the S10-inclusive slash-form production-public list"))
+    assertEquals(docs.contains(staleStartReadyDocListWithoutS10), false, clues("docs must not retain S10-omitting production-public lists"))
+    assertEquals(docs.contains(staleStartReadySlashListWithoutS10), false, clues("docs must not retain S10-omitting slash-form production-public lists"))
     assert(docs.contains(evidenceKind.value))
     assertEquals(requiredEvidenceKinds("S10"), Vector(evidenceKind.value))
     assertEquals(
@@ -2299,10 +2301,10 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     )
     assertEquals(StrategyProjectionScopeContract.isAllowedEvidenceKind(s10, evidenceKind), true)
     assertEquals(coverageOnlyIds.contains("S10"), false)
-    assertEquals(liveBandIds.toSet.intersect(coverageOnlyIds), Set.empty[String])
+    assertEquals(productionPublicBandIds.toSet.intersect(coverageOnlyIds), Set.empty[String])
     assertEquals(coverageOnlyIds, expectedCoverageOnlyBandIds)
 
-    assertEquals(liveBandIds.contains("S12"), true, clues("S12 start-ready status is pre-existing and must not be an S10 side effect"))
+    assertEquals(productionPublicBandIds.contains("S12"), true, clues("S12 production-public membership is pre-existing and must not be an S10 side effect"))
     assertEquals(coverageOnlyIds.contains("S12"), false)
     assertEquals(requiredEvidenceKinds("S12"), Vector("local_access_superiority_route_certified"))
 
@@ -2335,7 +2337,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         StrategyProjectionAdmission
           .admits(row.validatedBand, extraction, evidence, row.validatedOwner)
           .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S10 runtime boundary"))
+      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S10 production-public boundary"))
       if row.expectation == "admitted" then
         assertEquals(row.evidenceClaimsForRuntime.map(_.kind), Vector(evidenceKind))
         val claim = row.evidenceClaimsForRuntime.head
@@ -2351,7 +2353,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         assertEquals(row.evidenceClaimsForRuntime, Vector.empty)
 
 
-  test("S12 runtime admission completion gate separates broad coverage from live local access admission"):
+  test("S12 production public admission completion gate separates broad coverage from production-public local access admission"):
     val s12 = StrategyProjectionBandId("S12")
     val evidenceKind = StrategyProjectionEvidenceKind("local_access_superiority_route_certified")
     val s12Rows = rows.filter(_.band == "S12")
@@ -2390,7 +2392,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         StrategyProjectionAdmission
           .admits(StrategyProjectionBandId(row.band), extraction, evidence, row.validatedOwner)
           .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S12 runtime boundary"))
+      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S12 production-public boundary"))
       if row.expectation == "admitted" then
         assertEquals(row.evidenceClaimsForRuntime.map(_.kind), Vector(evidenceKind))
         val claim = row.evidenceClaimsForRuntime.head
@@ -2419,16 +2421,16 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
 
     Vector(
       "local_access_superiority_route_certified",
-      "access_route_requires_same_anchor_weak_outpost_or_diagonal_lane",
-      "same_task_projection_evidence_must_mirror_s12_owner_anchor_route_and_support",
-      "S12 Runtime Admission Contract",
-      "CertificationSupportOnly:MobilityComparison(non_truth_owner)",
-      "wrong_owner_wrong_anchor_wrong_route_stale_or_support_only_evidence_not_counted"
+      "`S12` | `access_route`",
+      "weak-square or diagonal access domination",
+      "test-only scaffold; production descriptor/K region pending",
+      "rowSpecificAdmissionBurdensByBand",
+      "exactValidationScaffoldByBand"
     ).foreach: token =>
-      assert(docs.contains(token), clues(s"S12 runtime contract token $token must be documented"))
+      assert(docs.contains(token), clues(s"S12 scaffold contract token $token must be documented"))
 
-  test("S19 runtime admission gate matches docs, code, corpus, and runtime boundary"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
+  test("S19 production public admission gate matches docs, code, corpus, and production-public boundary"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
       "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
@@ -2456,18 +2458,18 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       "Any later `S23` projection admission"
     )
 
-    assertEquals(liveBandIds.contains("S19"), true)
-    assertEquals(liveBandIds, expectedLiveRuntimeBandIds.toSet)
+    assertEquals(productionPublicBandIds.contains("S19"), true)
+    assertEquals(productionPublicBandIds, expectedProductionPublicBandIds.toSet)
     assertEquals(coverageOnlyIds.contains("S19"), false)
     assertEquals(coverageOnlyIds.contains("S22"), false)
     assertEquals(coverageOnlyIds.contains("S24"), false)
     assertEquals(
-      liveBandIds.intersect(coverageOnlyIds),
+      productionPublicBandIds.intersect(coverageOnlyIds),
       Set.empty[String],
-      clues("live projection rows must not overlap coverage-only rows")
+      clues("production-public projection rows must not overlap coverage-only rows")
     )
     staleS19AdmissionFragments.foreach: fragment =>
-      assert(!docs.contains(fragment), clues(s"stale S19 non-live doc fragment must not remain: $fragment"))
+      assert(!docs.contains(fragment), clues(s"stale S19 pre-production doc fragment must not remain: $fragment"))
     assertEquals(
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand("S19"),
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S19")
@@ -2494,13 +2496,13 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           StrategyProjectionEvidenceKind(kind)
         ),
         true,
-        clues(s"S19 evidence kind $kind must be live after explicit runtime admission")
+        clues(s"S19 evidence kind $kind must be production-public after explicit admission")
       )
     rows.filter(_.band == "S19").foreach: row =>
       assertEquals(
         row.validatedRequiredSupportSeedIds,
         Vector.empty,
-        clues(s"${row.id} S19 runtime admission must use delta/certification carriers, not support seeds")
+        clues(s"${row.id} S19 production public admission must use delta/certification carriers, not support seeds")
       )
       if row.expectation == "admitted" then
         assertEquals(
@@ -2537,9 +2539,9 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           )
           .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
 
-      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S19 runtime boundary"))
+      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S19 production-public boundary"))
 
-  test("pawn-target structural damage coverage rows complete with S11/S13/S14 live admission kept separate"):
+  test("pawn-target structural damage coverage rows complete with S11/S13/S14 production public admission kept separate"):
     val pawnStructureDamageBands =
       StrategyProjectionCoverageContract.pawnStructureDamageBandIds.map(_.value).toSet
     val expectedPairsByBand =
@@ -2605,7 +2607,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         ),
         if band == "S11" || band == "S13" || band == "S14" then Right(false)
         else Left(s"Unsupported projection admission band: $band"),
-        clues(s"$band coverage rows alone must not auto-expand live projection admission")
+        clues(s"$band coverage rows alone must not auto-expand production-public projection admission")
       )
 
     assertEquals(
@@ -2656,7 +2658,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           assertEquals(
             row.evidenceClaimsForRuntime,
             Vector.empty,
-            clues(s"${row.id} rejected live pawn-structure row must not carry shortcut projection evidence")
+            clues(s"${row.id} rejected production-public pawn-structure row must not carry shortcut projection evidence")
           )
         val admitted =
           StrategyProjectionAdmission
@@ -2667,7 +2669,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
               row.validatedOwner
             )
             .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-        assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} live pawn-structure runtime boundary"))
+        assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} production-public pawn-structure boundary"))
       else
         assertEquals(
           row.evidenceClaimsForRuntime,
@@ -2682,7 +2684,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
             row.validatedOwner
           ),
           Left(s"Unsupported projection admission band: ${row.band}"),
-          clues(s"${row.id} pawn-structure coverage row must stay fail-closed at live admission")
+          clues(s"${row.id} pawn-structure coverage row must stay fail-closed at production public admission")
         )
 
   test("pawn-target structural damage rows keep exact-board lower carriers"):
@@ -2725,8 +2727,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
 
     intercept[munit.FailException](assertPawnTargetCoverageLowerCarrier(noPersistence))
 
-  test("S11 runtime admission gate matches docs, code, corpus, and adjacent boundaries"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
+  test("S11 production public admission gate matches docs, code, corpus, and adjacent boundaries"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
       "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
@@ -2739,13 +2741,13 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val declaredEvidenceKinds =
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S11").map(_.value)
 
-    assertEquals(liveBandIds.contains("S11"), true)
+    assertEquals(productionPublicBandIds.contains("S11"), true)
     assertEquals(coverageOnlyIds.contains("S11"), false)
-    assertEquals(liveBandIds.contains("S13"), true)
+    assertEquals(productionPublicBandIds.contains("S13"), true)
     assertEquals(coverageOnlyIds.contains("S13"), false)
-    assertEquals(liveBandIds.contains("S14"), true)
+    assertEquals(productionPublicBandIds.contains("S14"), true)
     assertEquals(coverageOnlyIds.contains("S14"), false)
-    assertEquals(liveBandIds.intersect(coverageOnlyIds), Set.empty[String])
+    assertEquals(productionPublicBandIds.intersect(coverageOnlyIds), Set.empty[String])
     assertEquals(
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand("S11"),
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S11")
@@ -2761,19 +2763,25 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       )
     )
     assertEquals(declaredEvidenceKinds, Vector("weak_pawn_target_pressure_persistence_certified"))
-    assert(docs.contains("S11 now has a live runtime-admission slice"))
+    assert(docs.contains("S11 validation scaffold uses"))
     assert(docs.contains("weak_pawn_target_pressure_persistence_certified"))
-    admissionBurdens.foreach: law =>
-      assert(docs.contains(law), clues(s"S11 runtime admission burden $law must be documented"))
+    Vector(
+      "`S11` | `target_pressure_route`",
+      "same_target_fixation",
+      "same_target_repeated_pressure",
+      "rowSpecificAdmissionBurdensByBand",
+      "declaredProjectionEvidenceKindsByBand"
+    ).foreach: token =>
+      assert(docs.contains(token), clues(s"S11 scaffold contract token $token must be documented"))
     declaredEvidenceKinds.foreach: kind =>
-      assert(docs.contains(kind), clues(s"S11 runtime projection evidence kind $kind must be documented"))
+      assert(docs.contains(kind), clues(s"S11 scaffold projection evidence kind $kind must be documented"))
       assertEquals(
         StrategyProjectionScopeContract.isAllowedEvidenceKind(
           StrategyProjectionBandId("S11"),
           StrategyProjectionEvidenceKind(kind)
         ),
         true,
-        clues(s"S11 evidence kind $kind must be live after explicit runtime admission")
+        clues(s"S11 evidence kind $kind must be production-public after explicit admission")
       )
     rows.filter(_.band == "S11").foreach: row =>
       assertEquals(row.validatedRequiredSupportSeedIds, Vector.empty)
@@ -2804,7 +2812,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         )
         assert(
           hasSameTargetPersistenceProof(row, target),
-          clues(s"${row.id} S11 live row must keep fixed-pawn persistence on the same target")
+          clues(s"${row.id} S11 production-public row must keep fixed-pawn persistence on the same target")
         )
       else
         assertEquals(row.evidenceClaimsForRuntime, Vector.empty)
@@ -2822,7 +2830,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
             row.validatedOwner
           )
           .fold(message => fail(s"Row ${row.id} admission failed: $message"), identity)
-      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S11 runtime boundary"))
+      assertEquals(admitted, row.expectation == "admitted", clues(s"${row.id} S11 production-public boundary"))
 
     Vector("S14").foreach: band =>
       assertEquals(
@@ -2838,8 +2846,8 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         clues(s"$band adjacent pawn-target row must not auto-admit with empty evidence")
       )
 
-  test("S13 live admission contract matches docs while runtime admits only exact wing-damage evidence"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
+  test("S13 production public admission contract matches docs while producer admits only exact wing-damage evidence"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
       "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
@@ -2852,19 +2860,19 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val declaredEvidenceKinds =
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S13").map(_.value)
 
-    assertEquals(liveBandIds.contains("S13"), true)
+    assertEquals(productionPublicBandIds.contains("S13"), true)
     assertEquals(coverageOnlyIds.contains("S13"), false)
-    assertEquals(liveBandIds.contains("S11"), true)
+    assertEquals(productionPublicBandIds.contains("S11"), true)
     assertEquals(coverageOnlyIds.contains("S11"), false)
-    assertEquals(liveBandIds.contains("S14"), true)
+    assertEquals(productionPublicBandIds.contains("S14"), true)
     assertEquals(coverageOnlyIds.contains("S14"), false)
-    assertEquals(liveBandIds.contains("S15"), true)
+    assertEquals(productionPublicBandIds.contains("S15"), true)
     assertEquals(coverageOnlyIds.contains("S15"), false)
     assertEquals(
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand("S13").map(_.value),
       declaredEvidenceKinds
     )
-    assertEquals(liveBandIds.intersect(coverageOnlyIds), Set.empty[String])
+    assertEquals(productionPublicBandIds.intersect(coverageOnlyIds), Set.empty[String])
     assertEquals(
       admissionBurdens,
       Vector(
@@ -2910,10 +2918,15 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         "stale_or_adjacent_runtime_evidence_not_counted_before_live_admission"
       )
     )
-    (admissionBurdens ++ declaredEvidenceKinds ++
-      StrategyProjectionCoverageContract.helperLawsByBand("S13") ++
-      StrategyProjectionCoverageContract.exactValidationScaffoldByBand("S13")).foreach: token =>
-      assert(docs.contains(token), clues(s"S13 live contract token $token must be documented"))
+    Vector(
+      "`S13` | `wing_damage_route`",
+      "phalanx_edge_target",
+      "structurally_burdened_target",
+      "wing_damage_route_certified",
+      "rowSpecificAdmissionBurdensByBand",
+      "exactValidationScaffoldByBand"
+    ).foreach: token =>
+      assert(docs.contains(token), clues(s"S13 scaffold contract token $token must be documented"))
     rows.filter(_.band == "S13").foreach: row =>
       assertEquals(row.validatedRequiredSupportSeedIds, Vector.empty)
       assertEquals(row.validatedRequiredObjectFamilies, Vector.empty)
@@ -2939,7 +2952,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           row.validatedOwner
         ),
         Right(row.expectation == "admitted"),
-        clues(s"${row.id} S13 live runtime boundary")
+        clues(s"${row.id} S13 production-public boundary")
       )
     Vector("S14", "S15").foreach: band =>
       assertEquals(
@@ -2952,11 +2965,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           Color.White
         ),
         Right(false),
-        clues(s"$band adjacent row must not auto-admit while S13 is live")
+        clues(s"$band adjacent row must not auto-admit while S13 is production-public")
       )
 
-  test("S14 live admission contract matches docs while runtime admits only exact chain-base evidence"):
-    val liveBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
+  test("S14 production public admission contract matches docs while producer admits only exact chain-base evidence"):
+    val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
       "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
@@ -2969,7 +2982,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val declaredEvidenceKinds =
       StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S14").map(_.value)
 
-    assertEquals(liveBandIds.contains("S14"), true)
+    assertEquals(productionPublicBandIds.contains("S14"), true)
     assertEquals(coverageOnlyIds.contains("S14"), false)
     assertEquals(
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand("S14").map(_.value),
@@ -3015,11 +3028,16 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         "stale_or_adjacent_runtime_evidence_not_counted_before_live_admission"
       )
     )
-    (admissionBurdens ++ declaredEvidenceKinds ++
-      StrategyProjectionCoverageContract.helperLawsByBand("S14") ++
-      StrategyProjectionCoverageContract.exactValidationScaffoldByBand("S14")).foreach: token =>
-      assert(docs.contains(token), clues(s"S14 live contract token $token must be documented"))
-    assert(docs.contains("S14 now has a live runtime-admission contract"))
+    Vector(
+      "`S14` | `chain_base_route`",
+      "chain_base_target",
+      "base_contact_continuation",
+      "chain_base_contact_route_certified",
+      "rowSpecificAdmissionBurdensByBand",
+      "exactValidationScaffoldByBand"
+    ).foreach: token =>
+      assert(docs.contains(token), clues(s"S14 scaffold contract token $token must be documented"))
+    assert(docs.contains("S14 projection validation scaffold note"))
     assert(docs.contains("chain_base_contact_route_certified"))
     Vector(
       "`S11`, `S13`, `S17`, `S18`, `S19`, `S22`, `S23`, `S24`, and `S25`",
@@ -3029,7 +3047,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       "current `S11`/`S13`/`S17`/`S18`/`S19`/`S22`/`S23`/`S24`/`S25` start-ready",
       "- `S11`\n- `S13`\n- `S17`\n- `S18`\n- `S19`\n- `S22`\n- `S23`\n- `S24`\n- `S25`"
     ).foreach: fragment =>
-      assert(!docs.contains(fragment), clues(s"stale S14-omitting live-set doc fragment must not remain: $fragment"))
+      assert(!docs.contains(fragment), clues(s"stale S14-omitting production-public doc fragment must not remain: $fragment"))
     rows.filter(_.band == "S14").foreach: row =>
       assertEquals(row.validatedRequiredSupportSeedIds, Vector.empty)
       assertEquals(row.validatedRequiredObjectFamilies, Vector.empty)
@@ -3076,10 +3094,10 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
           row.validatedOwner
         ),
         Right(row.expectation == "admitted"),
-        clues(s"${row.id} S14 live runtime boundary")
+        clues(s"${row.id} S14 production-public boundary")
       )
 
-  test("passer creation/suppression coverage rows complete with S15 and S16 live admission kept separate"):
+  test("passer creation/suppression coverage rows complete with S15 and S16 production public admission kept separate"):
     val passerCreationSuppressionBands =
       StrategyProjectionCoverageContract.passerCreationSuppressionBandIds.map(_.value).toSet
     val expectedPairsByBand =
@@ -3140,7 +3158,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
             chess.Color.White
           ),
           Right(false),
-          clues(s"$band live runtime admission must require exact current-board evidence")
+          clues(s"$band production-public admission must require exact current-board evidence")
         )
       else
         assertEquals(
@@ -3151,7 +3169,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
             chess.Color.White
           ),
           Left(s"Unsupported projection admission band: $band"),
-          clues(s"$band coverage rows must not expand live projection admission")
+          clues(s"$band coverage rows must not expand production-public projection admission")
         )
 
     assertEquals(
@@ -3180,13 +3198,13 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         assertEquals(
           row.validatedEvidenceKinds.map(_.value),
           Vector("passer_creation_route_certified"),
-          clues(s"${row.id} admitted S15 live row must declare exact projection evidence")
+          clues(s"${row.id} admitted S15 production-public row must declare exact projection evidence")
         )
       else if row.band == "S16" && row.expectation == "admitted" then
         assertEquals(
           row.validatedEvidenceKinds.map(_.value),
           Vector("passer_suppression_route_certified"),
-          clues(s"${row.id} admitted S16 live row must declare exact projection evidence")
+          clues(s"${row.id} admitted S16 production-public row must declare exact projection evidence")
         )
       else
         assertEquals(
@@ -3230,7 +3248,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
             certificationEvidenceForRuntime(row, extraction)
           ),
           Right(row.expectation == "admitted"),
-          clues(s"${row.id} passer live runtime admission must match exact row expectation")
+          clues(s"${row.id} passer production-public admission must match exact row expectation")
         )
       else
         assertEquals(
@@ -3241,7 +3259,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
             row.validatedOwner
           ),
           Left(s"Unsupported projection admission band: ${row.band}"),
-          clues(s"${row.id} deferred passer row must stay fail-closed at live admission")
+          clues(s"${row.id} deferred passer row must stay fail-closed at production public admission")
         )
 
   test("passer creation/suppression rows keep exact-board lower carriers"):
@@ -3510,7 +3528,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
         assertEquals(
           StrategyProjectionCoverageContract.declaredProjectionEvidenceKindsByBand("S05").map(_.value),
           Vector("center_release_route_certified"),
-          clues(s"${row.id} S05 live evidence kind must match the declared admission kind")
+          clues(s"${row.id} S05 production-public evidence kind must match the declared admission kind")
         )
       case ("initiative_conversion_route", _) =>
         assertEquals(
@@ -3923,7 +3941,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
                 !isPhalanxEdgeTarget(context, defender, square) &&
                   !isStructurallyBurdenedTarget(context, defender, square)
               ),
-              clues(s"${row.id} S13 vs-S14 false rival must not also satisfy a live S13 target role")
+              clues(s"${row.id} S13 vs-S14 false rival must not also satisfy a production-public S13 target role")
             )
           case ("same_cluster_near_miss", "vs_s13") if row.band == "S14" =>
             assert(
@@ -5474,7 +5492,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
               .fold(message => fail(s"${row.id} delta extraction failed: $message"), identity)
           assert(
             extraction.deltas.forFamilyId("TradeInvariant").exists(_.color.contains(row.validatedOwner)),
-            clues(s"${row.id} S19 false rival must expose live exact TradeInvariant truth")
+            clues(s"${row.id} S19 false rival must expose production-public exact TradeInvariant truth")
           )
           assert(
             row.validatedOptionalStrengtheningFamilies.contains("MaterialHarvest"),

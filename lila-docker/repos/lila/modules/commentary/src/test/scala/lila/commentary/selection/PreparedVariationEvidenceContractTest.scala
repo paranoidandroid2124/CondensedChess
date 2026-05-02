@@ -163,10 +163,10 @@ class PreparedVariationEvidenceContractTest extends munit.FunSuite:
 
     assertEquals(render.variationEvidence.map(_.proofId), Vector("line-proof-safe", "line-proof-defender"))
     assertEquals(render.variationEvidence.head.lineSan, Vector("Nf6", "Ng5"))
-    assertEquals(render.variationEvidence.head.boundary.legalReplayChecked, true)
-    assertEquals(render.variationEvidence.head.boundary.freshnessChecked, true)
     assertEquals(render.blocks.head.variationEvidenceIds, Vector("line-proof-safe", "line-proof-defender"))
     val renderedText = Json.toJson(render).toString
+    Vector("boundary", "legalReplayChecked", "freshnessChecked", "realizedDepth", "multiPv", "lineUci", "startFen", "provenanceRefs").foreach: token =>
+      assert(!renderedText.contains(token), clues(renderedText))
     assert(!renderedText.contains("debug-hash"), clues(renderedText))
     assert(!renderedText.contains("stockfish-private-config"), clues(renderedText))
     assert(!renderedText.contains("raw-packet-1"), clues(renderedText))
@@ -266,8 +266,7 @@ class PreparedVariationEvidenceContractTest extends munit.FunSuite:
     assertEquals(safeRender.variationEvidence.map(_.proofId), Vector("line-proof-safe", "defender-resource-line"))
     assertEquals(safeRender.variationEvidence.last.role, RenderLineRole.Resource)
     assertEquals(safeRender.variationEvidence.last.testResult, VariationTestResult.ResourceFails)
-    assertEquals(safeRender.variationEvidence.last.resourceLine.map(_.uci), Vector("d8b6", "d1d2"))
-    assertEquals(safeRender.variationEvidence.last.provenanceRefs.map(_.id), Vector("CertifiedLine"))
+    assertEquals(safeRender.variationEvidence.last.resourceLine.map(_.san), Vector("...Qb6", "Qd2"))
     assertEquals(staleOutline.variationEvidence, Vector.empty)
     assertSuppressed(staleOutline, claimId, SuppressionReason.RawEngineOnly)
     assertEquals(illegalOutline.variationEvidence, Vector.empty)

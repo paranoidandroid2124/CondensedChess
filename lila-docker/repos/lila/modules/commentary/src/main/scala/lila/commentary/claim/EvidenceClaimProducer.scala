@@ -6,6 +6,7 @@ import lila.commentary.certification.{ Certification, CertificationExtraction, C
 import lila.commentary.delta.StrategicDeltaExtraction
 import lila.commentary.projection.{
   StrategyProjectionAdmissionResult,
+  StrategyProjectionAdmissionAuthority,
   StrategyProjectionAdmissionStatus,
   StrategyProjectionBandId,
   StrategyProjectionCarrierKind,
@@ -88,7 +89,7 @@ object EvidenceClaimProducer:
       owner <- certification.owner
       _ <- Option.when(certification.verdict == CertificationVerdict.Certified)(())
       _ <- Option.when(publicCertificationFamily(certification.familyId.value))(())
-      _ <- extraction.evidence.evidenceFor(certification.familyId, owner, certification.anchor)
+      evidence <- extraction.evidence.evidenceFor(certification.familyId, owner, certification.anchor)
       sideToMove <- RootPositionSupport.sideToMove(currentExtraction.rootState).toOption
     yield
       val ownerKey = colorKey(owner)
@@ -96,6 +97,17 @@ object EvidenceClaimProducer:
       val anchorKey = certification.anchor.key
       val routeKey = certification.burdenTag.value
       val scopeKey = certification.scope.key
+      val engineEvidenceRefs =
+        Option.when(evidence.engineBacked)(
+          EvidenceRef(
+            kind = EvidenceRefKind.EngineCertification,
+            id = s"engine-certification:${certification.familyId.value}:$ownerKey:${certification.anchor.kind.key}:$anchorKey",
+            owner = Some(ownerKey),
+            anchor = Some(anchorKey),
+            route = Some(routeKey),
+            scope = Some(scopeKey)
+          )
+        ).toVector
       CommentaryClaim(
         id = s"certification-${stableToken(certification.familyId.value)}-$ownerKey-${stableToken(anchorKey)}",
         layer = ClaimLayer.Certification,
@@ -117,7 +129,7 @@ object EvidenceClaimProducer:
             route = Some(routeKey),
             scope = Some(scopeKey)
           )
-        ),
+        ) ++ engineEvidenceRefs,
         lowerCarrierRefs = Vector(
           EvidenceRef(
             kind = EvidenceRefKind.ExactBoard,
@@ -172,6 +184,8 @@ object EvidenceClaimProducer:
   ): Option[CommentaryClaim] =
     for
       sideToMove <- RootPositionSupport.sideToMove(currentExtraction.rootState).toOption
+      _ <- Option.when(admission.authority == StrategyProjectionAdmissionAuthority.DescriptorCertifiedRuntime)(())
+      _ <- admission.runtimeKId
       _ <- Option.when(admission.status == StrategyProjectionAdmissionStatus.Admitted)(())
       _ <- Option.when(admission.currentRootState == currentExtraction.rootState)(())
       _ <- Option.when(admission.sourceRootState == currentExtraction.rootState)(())
@@ -202,7 +216,10 @@ object EvidenceClaimProducer:
         evidenceRefs = evidenceRefs,
         lowerCarrierRefs = lowerRefs,
         exactBoardBound = true,
-        wordingStrengthCap = WordingStrength.weaker(admission.wordingStrengthCap, WordingStrength.QualifiedSupport)
+        wordingStrengthCap = WordingStrength.weaker(admission.wordingStrengthCap, WordingStrength.QualifiedSupport),
+        projectionPhraseCapability = Some(admission.phraseCapability),
+        projectionRuntimeKId = admission.runtimeKId,
+        publicSurfaceForbiddenTerms = admission.publicSurfaceForbiddenTerms
       )
 
   private def projectionCarrierRefs(admission: StrategyProjectionAdmissionResult): Option[Vector[EvidenceRef]] =

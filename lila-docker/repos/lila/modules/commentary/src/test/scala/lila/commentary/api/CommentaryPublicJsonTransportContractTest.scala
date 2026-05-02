@@ -55,16 +55,15 @@ class CommentaryPublicJsonTransportContractTest extends munit.FunSuite:
       assertSanitizedBadRequest(error)
       assertNoTokens(error, Vector(field, s"$field-secret"))
 
-  test("valid typed RuntimeEnginePacket JSON with public engine intake fields is not rejected by transport guard"):
-    val packetJson = Json.toJson(enginePacket(claims = Vector(runtimeEngineClaim())))
+  test("valid typed RuntimeEnginePacket JSON with public engine intake fields and no claims is not rejected by transport guard"):
+    val packetJson = Json.toJson(enginePacket())
     val parsed = CommentaryPublicJsonTransport.parseRequest(minimalRequest ++ Json.obj("enginePacket" -> packetJson))
 
     assertEquals((packetJson \ "engineConfigFingerprint").as[String], "api-transport-test-engine")
     assertEquals((packetJson \ "pvLines").as[Vector[Vector[String]]], Vector(Vector("g8f6")))
-    assertEquals((packetJson \ "claims" \ 0 \ "purposes" \ "comparative_superiority").as[String], "satisfied")
     assert(parsed.isRight)
 
-  test("valid runtime engine claim purpose evidence map is accepted"):
+  test("public runtime engine claims are rejected even when purpose evidence map is typed"):
     val packetJson = Json.toJson(
       enginePacket(
         claims = Vector(
@@ -78,9 +77,36 @@ class CommentaryPublicJsonTransportContractTest extends munit.FunSuite:
         )
       )
     )
-    val parsed = CommentaryPublicJsonTransport.parseRequest(minimalRequest ++ Json.obj("enginePacket" -> packetJson))
+    val error = badRequest(minimalRequest ++ Json.obj("enginePacket" -> packetJson))
 
-    assert(parsed.isRight)
+    assertSanitizedBadRequest(error)
+    assertNoTokens(error, Vector("best_defense_survival", "counterplay_denial", "enginePacket", "claims"))
+
+  test("public runtime engine baseline is rejected without paired transition request"):
+    val packetJson = Json.toJson(enginePacket()).as[JsObject] ++
+      Json.obj(
+        "baseline" -> Json.obj(
+          "fen" -> validFen,
+          "nodeId" -> nodeId,
+          "ply" -> 0,
+          "search" -> Json.obj(
+            "requestedDepth" -> 18,
+            "realizedDepth" -> 18,
+            "multiPv" -> 1,
+            "completed" -> true,
+            "generatedAtEpochMs" -> 1,
+            "maxAgeMs" -> 1,
+            "engineConfigFingerprint" -> "caller-baseline-engine"
+          ),
+          "score" -> Json.obj("type" -> "centipawns", "cp" -> 0),
+          "scorePerspective" -> "white",
+          "pvLines" -> Json.arr(Json.arr("g8f6"))
+        )
+      )
+    val error = badRequest(minimalRequest ++ Json.obj("enginePacket" -> packetJson))
+
+    assertSanitizedBadRequest(error)
+    assertNoTokens(error, Vector("baseline", "caller-baseline-engine", "g8f6"))
 
   test("unknown runtime engine claim purpose key is rejected without echo"):
     val error = badRequest(requestWithClaimPurposes(Json.obj("future_payload" -> "secret-purpose-token")))
@@ -249,6 +275,9 @@ class CommentaryPublicJsonTransportContractTest extends munit.FunSuite:
       "parentBranchId",
       "sourceRow",
       "probeRequests",
+      "strategyProbeRequest",
+      "tauCacheKey",
+      "proofBurden",
       "proofId",
       "proves"
     )

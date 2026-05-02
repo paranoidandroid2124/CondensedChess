@@ -25,6 +25,7 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
   private val nearMiss =
     StrategicObjectExtractor.fromFenFailClosed(nearMissFen).fold(message => fail(message), identity)
   private val node = EngineNodeIdentity("mainline:3b", 5)
+  private val engineFingerprint = "stockfish:depth=20:multipv=3"
 
   test("Engine packet admits bounded certification evidence only when exact FEN, node, freshness, score, and PV laws pass"):
     val packet =
@@ -50,11 +51,6 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
 
     assert(
       claim.strengthFor(CertificationEvidencePurpose.BestDefenseSurvival) ==
-        Some(CertificationEvidenceStrength.Satisfied),
-      clues(claim)
-    )
-    assert(
-      claim.strengthFor(CertificationEvidencePurpose.ComparativeSuperiority) ==
         Some(CertificationEvidenceStrength.Satisfied),
       clues(claim)
     )
@@ -170,7 +166,14 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
         current,
         node,
         exactFen,
-        matePacket.copy(claims = Vector(bestDefenseClaim(CertificationEvidenceStrength.Satisfied))),
+        matePacket.copy(
+          claims = Vector(
+            bestDefenseClaim(CertificationEvidenceStrength.Satisfied).copy(
+              familyId = CertificationId("MateNetCertification"),
+              probeRequestId = Some(engineQRequestId("MateNetCertification", Color.White, WitnessAnchor.BoardAnchor, CertificationEngineRole.BestDefenseSurvival, node))
+            )
+          )
+        ),
         12_000L
       ),
       "centipawn"
@@ -207,7 +210,12 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
             minDepth = 18,
             minMultiPv = 3,
             minPvPlies = 2,
-            requiredScore = Some(EngineScoreRequirement.CentipawnAtLeast(100))
+            requiredScore = Some(EngineScoreRequirement.CentipawnAtLeast(100)),
+            probeRequestId = Some(engineQRequestId("MaterialHarvest", Color.White, WitnessAnchor.BoardAnchor, CertificationEngineRole.BestDefenseSurvival, transitionNode)),
+            probePolicyFingerprint = Some(engineQPolicyFingerprint(engineFingerprint, CertificationEngineRole.BestDefenseSurvival)),
+            roleReports = Map(
+              CertificationEngineRole.BestDefenseSurvival -> CertificationEvidenceStrength.Satisfied
+            )
           )
         )
       )
@@ -301,6 +309,84 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
       "bound baseline"
     )
 
+  test("Engine role claims require server-issued Q request identity and matching role policy"):
+    val claim = bestDefenseClaim(CertificationEvidenceStrength.Satisfied)
+    val packet = basePacket().copy(claims = Vector(claim))
+
+    assertLeftContains(
+      CertificationEngineEvidenceContract.forObjectExtraction(
+        current,
+        node,
+        exactFen,
+        packet.copy(claims = Vector(claim.copy(probeRequestId = None))),
+        12_000L
+      ),
+      "Q request id"
+    )
+    assertLeftContains(
+      CertificationEngineEvidenceContract.forObjectExtraction(
+        current,
+        node,
+        exactFen,
+        packet.copy(claims = Vector(claim.copy(probeRequestId = Some("not-q-best-defense")))),
+        12_000L
+      ),
+      "Q request id"
+    )
+    assertLeftContains(
+      CertificationEngineEvidenceContract.forObjectExtraction(
+        current,
+        node,
+        exactFen,
+        packet.copy(claims = Vector(claim.copy(probeRequestId = Some("q-comparative-superiority-certified-king-safety-edge-white-board")))),
+        12_000L
+      ),
+      "Q request role"
+    )
+    assertLeftContains(
+      CertificationEngineEvidenceContract.forObjectExtraction(
+        current,
+        node,
+        exactFen,
+        packet.copy(claims = Vector(claim.copy(probeRequestId = Some("q-best-defense-survival-forged-family-white-board-mainline-3b-5")))),
+        12_000L
+      ),
+      "Q request role identity"
+    )
+    assertLeftContains(
+      CertificationEngineEvidenceContract.forObjectExtraction(
+        current,
+        node,
+        exactFen,
+        packet.copy(claims = Vector(claim.copy(probePolicyFingerprint = Some("other-engine-policy")))),
+        12_000L
+      ),
+      "policy fingerprint"
+    )
+    assertLeftContains(
+      CertificationEngineEvidenceContract.forObjectExtraction(
+        current,
+        node,
+        exactFen,
+        packet.copy(claims = Vector(claim.copy(probePolicyFingerprint = Some(engineFingerprint)))),
+        12_000L
+      ),
+      "Q policy fingerprint"
+    )
+    assertLeftContains(
+      CertificationEngineEvidenceContract.forObjectExtraction(
+        current,
+        node,
+        exactFen,
+        packet.copy(
+          search = packet.search.copy(requestedDepth = 1, realizedDepth = 1),
+          claims = Vector(claim.copy(minDepth = 1, minPvPlies = 1))
+        ),
+        12_000L
+      ),
+      "Q policy target depth"
+    )
+
   test("Engine eval swing requires a bound fresh before-position baseline for delta evidence"):
     val delta =
       StrategicDeltaExtractor
@@ -331,7 +417,12 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
             minDepth = 18,
             minMultiPv = 3,
             minPvPlies = 2,
-            requiredScore = Some(EngineScoreRequirement.CentipawnSwingAtLeast(200))
+            requiredScore = Some(EngineScoreRequirement.CentipawnSwingAtLeast(200)),
+            probeRequestId = Some(engineQRequestId("MaterialHarvest", Color.White, WitnessAnchor.BoardAnchor, CertificationEngineRole.BestDefenseSurvival, transitionNode)),
+            probePolicyFingerprint = Some(engineQPolicyFingerprint(engineFingerprint, CertificationEngineRole.BestDefenseSurvival)),
+            roleReports = Map(
+              CertificationEngineRole.BestDefenseSurvival -> CertificationEvidenceStrength.Satisfied
+            )
           )
         ),
         baseline = Some(
@@ -344,7 +435,7 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
               completed = true,
               generatedAtEpochMs = 10_000L,
               maxAgeMs = 5_000L,
-              engineConfigFingerprint = "stockfish:depth=20:multipv=3"
+              engineConfigFingerprint = engineFingerprint
             ),
             score = EngineScore.Centipawns(50),
             scorePerspective = EngineScorePerspective.SideToMove,
@@ -407,7 +498,9 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
       "CertificationEngineRuntimeIntake",
       "UI/API raw probe sidecars are not certification evidence",
       "opaque Engine E evidence facade",
-      "normalized full-FEN string"
+      "normalized full-FEN string",
+      "server-shaped",
+      "Q policy fingerprint"
     ).foreach: token =>
       assert(docs.contains(token), clues(s"missing doc token: $token"))
 
@@ -434,7 +527,7 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
         completed = true,
         generatedAtEpochMs = 10_000L,
         maxAgeMs = 5_000L,
-        engineConfigFingerprint = "stockfish:depth=20:multipv=3"
+        engineConfigFingerprint = engineFingerprint
       ),
       score = score,
       scorePerspective = EngineScorePerspective.SideToMove,
@@ -447,13 +540,17 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
       familyId = CertificationId("CertifiedKingSafetyEdge"),
       owner = Color.White,
       purposes = Map(
-        CertificationEvidencePurpose.BestDefenseSurvival -> strength,
-        CertificationEvidencePurpose.ComparativeSuperiority -> strength
+        CertificationEvidencePurpose.BestDefenseSurvival -> strength
       ),
       minDepth = 18,
       minMultiPv = 3,
       minPvPlies = 2,
-      requiredScore = Some(EngineScoreRequirement.CentipawnAtMost(-100))
+      requiredScore = Some(EngineScoreRequirement.CentipawnAtMost(-100)),
+      probeRequestId = Some(engineQRequestId("CertifiedKingSafetyEdge", Color.White, WitnessAnchor.BoardAnchor, CertificationEngineRole.BestDefenseSurvival, node)),
+      probePolicyFingerprint = Some(engineQPolicyFingerprint(engineFingerprint, CertificationEngineRole.BestDefenseSurvival)),
+      roleReports = Map(
+        CertificationEngineRole.BestDefenseSurvival -> strength
+      )
     )
 
   private def move(uci: String): Uci.Move =
@@ -466,6 +563,37 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
     result match
       case Left(message) => assert(message.contains(expected), clues(message))
       case Right(value) => fail(s"Expected Left containing '$expected', got $value")
+
+  private def engineQRequestId(
+      familyId: String,
+      owner: Color,
+      anchor: WitnessAnchor,
+      role: CertificationEngineRole,
+      node: EngineNodeIdentity
+  ): String =
+    Vector(
+      "q",
+      stableToken(role.key),
+      stableToken(familyId),
+      if owner.white then "white" else "black",
+      stableToken(anchor.key),
+      stableToken(node.nodeId),
+      node.ply.toString
+    ).mkString("-")
+
+  private def engineQPolicyFingerprint(
+      engineFingerprint: String,
+      role: CertificationEngineRole
+  ): String =
+    CertificationEnginePolicyFingerprint.defaultForRole(engineFingerprint, role)
+
+  private def stableToken(value: String): String =
+    value
+      .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
+      .replaceAll("[^A-Za-z0-9]+", "-")
+      .stripPrefix("-")
+      .stripSuffix("-")
+      .toLowerCase
 
   private def readDoc(path: String): String =
     Files.readString(Paths.get(path), StandardCharsets.UTF_8)

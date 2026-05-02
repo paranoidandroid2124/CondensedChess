@@ -1,6 +1,11 @@
 package lila.commentary.selection
 
-import lila.commentary.projection.{ StrategyProjectionBandId, StrategyProjectionEvidenceKind, StrategyProjectionScopeContract }
+import lila.commentary.projection.{
+  StrategyProjectionBandId,
+  StrategyProjectionEvidenceKind,
+  StrategyProjectionPhraseCapability,
+  StrategyProjectionScopeContract
+}
 
 enum ClaimLayer(val key: String):
   case Root extends ClaimLayer("root")
@@ -18,6 +23,7 @@ enum ClaimStatus(val key: String):
   case SupportOnly extends ClaimStatus("support_only")
   case Deferred extends ClaimStatus("deferred")
   case Rejected extends ClaimStatus("rejected")
+  case AntiCase extends ClaimStatus("anti_case")
   case Context extends ClaimStatus("context")
 
 enum ClaimBucket(val key: String):
@@ -35,6 +41,7 @@ object ClaimBucket:
 enum SuppressionReason(val key: String):
   case SupportOnly extends SuppressionReason("support_only")
   case Deferred extends SuppressionReason("deferred")
+  case AntiCase extends SuppressionReason("anti_case")
   case StaleEvidence extends SuppressionReason("stale_evidence")
   case WrongOwner extends SuppressionReason("wrong_owner")
   case WrongAnchor extends SuppressionReason("wrong_anchor")
@@ -321,7 +328,10 @@ final case class CommentaryClaim(
     wordingStrengthCap: WordingStrength = WordingStrength.QualifiedSupport,
     suppressionHints: Vector[SuppressionReason] = Vector.empty,
     sourceContextKind: Option[SourceContextKind] = None,
-    variationEvidence: Vector[PreparedVariationEvidence] = Vector.empty
+    variationEvidence: Vector[PreparedVariationEvidence] = Vector.empty,
+    projectionPhraseCapability: Option[StrategyProjectionPhraseCapability] = None,
+    projectionRuntimeKId: Option[String] = None,
+    publicSurfaceForbiddenTerms: Vector[String] = Vector.empty
 ):
   require(id.trim.nonEmpty, "CommentaryClaim id must be non-empty")
 
@@ -457,6 +467,7 @@ object ClaimSelector:
       claim.status match
         case ClaimStatus.SupportOnly => Vector(SuppressionReason.SupportOnly)
         case ClaimStatus.Deferred => Vector(SuppressionReason.Deferred)
+        case ClaimStatus.AntiCase => Vector(SuppressionReason.AntiCase)
         case ClaimStatus.Rejected => Vector(SuppressionReason.ForbiddenShortcut)
         case _ => Vector.empty
     val layerReasons =
@@ -817,7 +828,7 @@ object ClaimSelector:
         case Some(band) if band == StrategyProjectionScopeContract.S23.value =>
           kingActivityCarrierReasons(claim)
         case Some(band) if band == StrategyProjectionScopeContract.S24.value =>
-          preparedTargetCarrierReasons(claim)
+          s24PublicClosedReasons(claim)
         case Some(band) if band == StrategyProjectionScopeContract.S25.value =>
           rankAccessCarrierReasons(claim)
         case Some(_) => Vector(SuppressionReason.ForbiddenShortcut)
@@ -1400,6 +1411,44 @@ object ClaimSelector:
     )
 
   private def kingActivityCarrierReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
+    val kBackedReasons = kBackedKingActivityCarrierReasons(claim)
+    if kBackedReasons.isEmpty then Vector.empty
+    else if claim.route.exists(route => route == "king_entry_conversion" || route == "king_opposition") then kBackedReasons
+    else seedKingActivityCarrierReasons(claim)
+
+  private def kBackedKingActivityCarrierReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
+    val requiredEvidenceId =
+      claim.route match
+        case Some("king_entry_conversion") => Some("king_entry_conversion_certified")
+        case Some("king_opposition") => Some("king_opposition_certified")
+        case _ => None
+    val hasKCarrier =
+      claim.lowerCarrierRefs.exists(ref =>
+        ref.kind == EvidenceRefKind.ExactBoard &&
+          ref.id.startsWith("k-s23-") &&
+          sameClaimBinding(claim, ref)
+      )
+    val hasRuntimeK =
+      claim.projectionRuntimeKId.exists(id => id.startsWith("k-s23-"))
+    val hasProjectionEvidence =
+      requiredEvidenceId.exists(id =>
+        claim.evidenceRefs.exists(ref =>
+          ref.kind == EvidenceRefKind.Projection &&
+            ref.id == id &&
+            sameClaimBinding(claim, ref)
+        )
+      )
+    Vector(
+      Option.when(requiredEvidenceId.isEmpty)(SuppressionReason.WrongRoute),
+      Option.when(requiredEvidenceId.isEmpty)(SuppressionReason.ForbiddenShortcut),
+      Option.when(!hasRuntimeK)(SuppressionReason.ForbiddenShortcut),
+      Option.when(!hasRuntimeK)(SuppressionReason.NoBoardReason),
+      Option.when(!hasKCarrier)(SuppressionReason.ForbiddenShortcut),
+      Option.when(!hasKCarrier)(SuppressionReason.NoBoardReason),
+      Option.when(!hasProjectionEvidence)(SuppressionReason.ForbiddenShortcut)
+    ).flatten.distinct
+
+  private def seedKingActivityCarrierReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
     val entryReasons =
       requiredCarrierReasons(
         claim,
@@ -1427,6 +1476,9 @@ object ClaimSelector:
         EvidenceRefKind.Witness -> "target_attack_convergence_seed"
       )
     )
+
+  private def s24PublicClosedReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
+    (preparedTargetCarrierReasons(claim) ++ Vector(SuppressionReason.ForbiddenShortcut, SuppressionReason.NoBoardReason)).distinct
 
   private def rankAccessCarrierReasons(claim: CommentaryClaim): Vector[SuppressionReason] =
     requiredCarrierReasons(

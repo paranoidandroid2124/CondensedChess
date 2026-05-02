@@ -7,9 +7,11 @@ intake, or model-authored prose generation.
 
 ## Authority Boundary
 
-The renderer consumes `CommentaryPlan` only.
+The renderer ingress consumes `CommentaryPlan` only, then lowers it to
+`PublicCommentaryPlan` before public blocks are emitted.
 
-Short form: `CommentaryPlan only`.
+Short form: `CommentaryPlan only` at ingress; `PublicCommentaryPlan` only at
+the final render boundary.
 
 It must not consume:
 
@@ -43,8 +45,13 @@ The stable contract names are:
 - `RenderBoundary`
 - `RenderSuppression`
 - `RenderWording`
+- `PublicClaim`
+- `PublicClaimPredicate`
+- `PhraseCapability`
+- `PublicSurfaceTemplate`
+- `PublicPhrase`
+- `PublicCommentaryPlan`
 - `RenderVariationEvidence`
-- `RenderVariationBoundary`
 - `RenderVariationMove`
 - `BookAnnotationPlanner`
 - `BookAnnotationPlan`
@@ -73,26 +80,27 @@ The contracted render statuses are:
 - `contextOnly`
 - `noCommentary`
 
-`CommentaryRendererContract.render` remains the lower deterministic structured
-contract and emits no public prose. `CommentaryRenderer.render` may replace a
-primary block's public text with a closed English line comment when the
-annotation path produces one for that block's claim id.
+`CommentaryRendererContract.publicPlan` lowers a `CommentaryPlan` into
+`PublicCommentaryPlan`. `CommentaryRendererContract.render` remains the lower
+deterministic structured contract and maps `PublicClaim` objects into public
+blocks without consuming `PublicClaim.text` as prose. `CommentaryRenderer.render`
+may pass a `PublicPhrase` created from the closed English line-comment writer
+into `PublicSurfaceTemplate`; only that phrase-token handoff can populate a
+primary block's public text, and only when the matching `PublicClaim` carries
+`PhraseCapability.allowsLineCommentary` plus the `line_commentary` predicate.
 
-When no safe English line comment exists, the renderer falls back to short
-deterministic role fragments:
-
-- `Primary`
-- `Support`
-- `Context`
-- `Contrast`
-
-These fragments are display labels, not chess claims. The renderer does not
-emit broad chess narration or generated/model-authored prose.
+When no safe English line comment exists, `RenderText.publicText` remains
+empty. Structured roles such as `Primary`, `Support`, `Context`, and
+`Contrast` stay available only as `RenderRole` data, not as fallback public
+move-explanation text. The renderer does not emit broad chess narration,
+role-label prose, or generated/model-authored prose.
 
 ## Section Mapping
 
 The mapping is plan-preserving:
 
+- `CommentaryPlan -> PublicCommentaryPlan`
+- selected public claim data -> `PublicClaim`
 - `plan.main -> RenderRole.Primary`
 - `plan.support -> RenderRole.Supporting`
 - `plan.context -> RenderRole.Context`
@@ -102,7 +110,7 @@ The mapping is plan-preserving:
 - selected public-safe line proofs from
   `plan.variationEvidence -> RenderVariationEvidence`
 - safe primary line comments from
-  `plan.annotationSelections -> BookAnnotationPlanner -> LineCommentaryPlanner -> EnglishLineCommentaryWriter -> RenderText.publicText`
+  `plan.annotationSelections -> BookAnnotationPlanner -> LineCommentaryPlanner -> EnglishLineCommentaryWriter -> PublicPhrase -> PublicSurfaceTemplate -> RenderText.publicText`
 - `plan.wordingRules.maxStrength -> RenderWording.maxStrength`
 
 The renderer must preserve section order:
@@ -118,6 +126,11 @@ Public `RenderEvidenceRef` output is stricter than raw `plan.evidence`: a ref
 must already be present in `plan.evidence` and must also be directly referenced
 by an unblocked public selected claim. This prevents plan-wide or malformed
 evidence from becoming public without selected-claim ownership.
+`EngineCertification` refs are renderable only for public Certification
+claims with the same owner, anchor, route, and scope, a matching bounded
+`Certification` ref, and a same-binding typed lower board reason (`Root`,
+`Witness`, `Object`, or `Delta`). A generic exact-board carrier proves board
+identity only and does not authorize the engine provenance ref to render.
 
 Public `RenderVariationEvidence` output is similarly stricter than raw
 `plan.variationEvidence`: a proof must be public-safe, must be bound to an
@@ -132,18 +145,31 @@ only these keys: `resource`, `caution`, `hold`, `conversion`, `pressure`, and
 `failed_tempting_move`, `premature_move`, and `release_risk` map to
 `caution`; internal `persistence` maps to `pressure`; the other supported
 roles keep their chess-friendly public names. The renderer must not serialize
-`PreparedVariationDebug` or the prepared `proves` token. It may serialize
-tested move/line, reply/resource line, restrained test result, bounded
-provenance refs, proof purpose, and surface allowance, but only as structured
-fields. Public `RenderVariationEvidence` requires `surfaceAllowance =
-public_line`; `boundary_only` proofs remain non-rendered line evidence in this
-scaffold. It must filter `internal_only`, raw-engine-provenance,
-source-context-provenance, unbounded, stale, illegal, or overclaim-token line
-proofs.
+`PreparedVariationDebug`, the prepared `proves` token, start FEN, UCI PV,
+provenance refs, replay/freshness boundary fields, depth, MultiPV, engine
+fingerprints, cache keys, branch ids, or raw move UCI. It may serialize only
+SAN move/line fields, restrained test result, proof purpose, wording cap, and
+surface allowance as structured public data. Public `RenderVariationEvidence`
+requires `surfaceAllowance = public_line`; `boundary_only` proofs remain
+non-rendered line evidence in this scaffold. It must filter `internal_only`,
+raw-engine-provenance, source-context-provenance, unbounded, stale, illegal, or
+overclaim-token line proofs.
 
 ## Wording Strength
 
 `wordingRules.maxStrength` is a hard maximum.
+
+`PhraseCapability` is the per-`PublicClaim` public-surface permission object.
+It records the effective wording ceiling, allowed predicate family, line-comment
+permission, result/best/engine-language denial, and forbidden terms. It is not a
+prose template and must not contain generated chess explanation text. Public
+blocks carry the capability so API/frontend consumers can fail closed on stale
+or malformed payloads; they still must not invent text from the capability.
+`PublicPhrase` is the separate closed phrase token. A phrase is renderable only
+when it matches the block claim id, uses `PublicClaimPredicate.LineCommentary`,
+stays within the block/cap wording ceilings, and does not contain forbidden
+terms. Caller-supplied `PublicClaim.text`, evidence ids, role labels, and raw
+variation/evidence fields are not phrase tokens.
 
 The effective block strength is the weakest of:
 
@@ -401,10 +427,11 @@ present in `plan.evidence`.
 
 `EngineCertification` evidence refs may be public render evidence only when the
 ref has owner, anchor, route, and scope binding and `plan.evidence` also
-contains same-binding `Certification` evidence and a same-binding typed board
-reason (`Root`, `Witness`, `Object`, or `Delta`). Unbound, stale-shaped,
-Certification-unpaired, or board-reason-unbacked `EngineCertification` refs are
-not public render evidence.
+contains same-binding `Certification` evidence and the selected Certification
+claim has a same-binding typed lower board reason (`Root`, `Witness`, `Object`,
+or `Delta`). A generic exact-board carrier is insufficient. Unbound, stale-shaped,
+Certification-unpaired, or carrier-unbacked `EngineCertification` refs are not
+public render evidence.
 The public selected claim that references an `EngineCertification` ref must be
 a Certification-layer claim. Projection/Sxx claims cannot make plan-wide engine
 certification evidence public.

@@ -88,6 +88,37 @@ object CertificationEvidencePurpose:
   def fromKey(key: String): Option[CertificationEvidencePurpose] =
     CertificationEvidencePurpose.values.find(_.key == key.trim)
 
+enum CertificationEngineRole(val key: String):
+  case ComparativeSuperiority extends CertificationEngineRole("comparative_superiority")
+  case CounterplayDenial extends CertificationEngineRole("counterplay_denial")
+  case BestDefenseSurvival extends CertificationEngineRole("best_defense_survival")
+  case TacticalReleaseDetection extends CertificationEngineRole("tactical_release_detection")
+  case ConversionRouteSurvival extends CertificationEngineRole("conversion_route_survival")
+  case ConfoundCheck extends CertificationEngineRole("confound_check")
+  case CausalityCheck extends CertificationEngineRole("causality_check")
+  case AntiCausalityCheck extends CertificationEngineRole("anti_causality_check")
+  case PersistenceCheck extends CertificationEngineRole("persistence_check")
+  case AmbiguityCheck extends CertificationEngineRole("ambiguity_check")
+  case TablebaseFinality extends CertificationEngineRole("tablebase_finality")
+  case LineSupport extends CertificationEngineRole("line_support")
+  case SurfaceCapability extends CertificationEngineRole("surface_capability")
+
+object CertificationEngineRole:
+
+  def fromKey(key: String): Option[CertificationEngineRole] =
+    CertificationEngineRole.values.find(_.key == key.trim)
+
+  def fromEvidencePurpose(purpose: CertificationEvidencePurpose): CertificationEngineRole =
+    purpose match
+      case CertificationEvidencePurpose.ComparativeSuperiority => ComparativeSuperiority
+      case CertificationEvidencePurpose.CounterplayDenial => CounterplayDenial
+      case CertificationEvidencePurpose.BestDefenseSurvival => BestDefenseSurvival
+      case CertificationEvidencePurpose.TacticalReleaseDetection => TacticalReleaseDetection
+      case CertificationEvidencePurpose.ConversionRouteSurvival => ConversionRouteSurvival
+
+  def fromEvidencePurposes(purposes: Iterable[CertificationEvidencePurpose]): Set[CertificationEngineRole] =
+    purposes.map(fromEvidencePurpose).toSet
+
 enum CertificationEvidenceStrength(val key: String):
   case Satisfied extends CertificationEvidenceStrength("satisfied")
   case Insufficient extends CertificationEvidenceStrength("insufficient")
@@ -102,10 +133,12 @@ final case class CertificationEvidenceClaim(
     owner: Color,
     anchor: WitnessAnchor = WitnessAnchor.BoardAnchor,
     purposeStrengths: Map[CertificationEvidencePurpose, CertificationEvidenceStrength],
-    payload: WitnessPayload = WitnessPayload.empty
+    payload: WitnessPayload = WitnessPayload.empty,
+    engineRoles: Set[CertificationEngineRole] = Set.empty
 ):
 
   def color: Color = owner
+  def engineBacked: Boolean = engineRoles.nonEmpty
 
   def strengthFor(
       purpose: CertificationEvidencePurpose
@@ -204,14 +237,16 @@ object CertificationEvidence:
       color: Color,
       anchor: WitnessAnchor = WitnessAnchor.BoardAnchor,
       purposeStrengths: Map[CertificationEvidencePurpose, CertificationEvidenceStrength],
-      payload: WitnessPayload = WitnessPayload.empty
+      payload: WitnessPayload = WitnessPayload.empty,
+      engineRoles: Set[CertificationEngineRole] = Set.empty
   ): CertificationEvidenceClaim =
     CertificationEvidenceClaim(
       familyId = familyId,
       owner = color,
       anchor = anchor,
       purposeStrengths = purposeStrengths,
-      payload = payload
+      payload = payload,
+      engineRoles = engineRoles
     )
 
 opaque type CertificationEngineEvidence = CertificationEvidence

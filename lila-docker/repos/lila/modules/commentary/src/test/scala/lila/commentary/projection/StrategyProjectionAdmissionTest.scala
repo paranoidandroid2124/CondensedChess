@@ -1640,6 +1640,40 @@ class StrategyProjectionAdmissionTest extends munit.FunSuite:
         .exists(_.contains("stale evidence bundle"))
     )
 
+  test("projection admission result rejects stale evidence before filtered rebinding"):
+    val current = seedExtraction("6k1/6pp/5n2/3pp3/3PP3/5N2/2P3PP/6K1 w - - 0 1")
+    val staleSource = seedExtraction("8/8/8/8/8/8/8/4K2k w - - 0 1")
+    val staleEvidence =
+      s05Evidence(staleSource, "c2", "d5", "center_pawn_target")
+    val anchor = WitnessAnchor.SquareAnchor(squareFromKey("d5"))
+    val result =
+      StrategyProjectionAdmission.admit(
+        projectionId = "s05-center-release",
+        bandId = StrategyProjectionBandId("S05"),
+        extraction = current,
+        currentRootState = current.rootState,
+        evidence = staleEvidence,
+        owner = Color.White,
+        beneficiary = Some(Color.White),
+        defender = Some(Color.Black),
+        anchor = anchor,
+        route = "center_pawn_target",
+        scope = "exact_current_board",
+        lowerCarrierRefs = Vector(
+          StrategyProjectionCarrierRef(
+            StrategyProjectionCarrierKind.Witness,
+            "pawn_push_break_contact_source",
+            "white",
+            anchor.key,
+            "center_pawn_target",
+            "exact_current_board"
+          )
+        )
+      )
+
+    assertEquals(result.status, StrategyProjectionAdmissionStatus.Rejected)
+    assert(result.rejectionReason.exists(_.contains("stale evidence bundle")), clues(result))
+
   test("S07 admits only exact same-board initiative conversion with route evidence and certified lower carriers"):
     val s07 = StrategyProjectionBandId("S07")
     val conversion = seedExtraction("r1bqkbnr/2ppp1pp/2n5/8/2P1P3/2N2N2/PP1P1PPP/R2QKB1R w KQkq - 0 1")

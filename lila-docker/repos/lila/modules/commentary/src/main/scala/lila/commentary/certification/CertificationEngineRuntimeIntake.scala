@@ -66,7 +66,11 @@ object CertificationEngineRuntimeIntake:
       minDepth: Int,
       minMultiPv: Int,
       minPvPlies: Int,
-      requiredScore: Option[RuntimeScoreRequirement]
+      requiredScore: Option[RuntimeScoreRequirement],
+      probeRequestId: Option[String] = None,
+      probePolicyFingerprint: Option[String] = None,
+      roleReports: Option[Map[String, String]] = None,
+      publicCaps: Option[Vector[String]] = None
   )
 
   final case class RuntimeEnginePacket(
@@ -240,7 +244,11 @@ object CertificationEngineRuntimeIntake:
       minDepth = raw.minDepth,
       minMultiPv = raw.minMultiPv,
       minPvPlies = raw.minPvPlies,
-      requiredScore = raw.requiredScore.map(normalizeRequirement)
+      requiredScore = raw.requiredScore.map(normalizeRequirement),
+      probeRequestId = raw.probeRequestId.map(_.trim).filter(_.nonEmpty),
+      probePolicyFingerprint = raw.probePolicyFingerprint.map(_.trim).filter(_.nonEmpty),
+      roleReports = normalizeRoleReports(raw.roleReports.getOrElse(Map.empty)),
+      publicCaps = raw.publicCaps.getOrElse(Vector.empty).map(_.trim).filter(_.nonEmpty).toSet
     )
 
   private def normalizeScore(score: RuntimeScore): EngineScore =
@@ -260,6 +268,16 @@ object CertificationEngineRuntimeIntake:
       case RuntimeScoreRequirement.CentipawnAtMost(cp) => EngineScoreRequirement.CentipawnAtMost(cp)
       case RuntimeScoreRequirement.CentipawnSwingAtLeast(cp) => EngineScoreRequirement.CentipawnSwingAtLeast(cp)
       case RuntimeScoreRequirement.MateInAtMost(plies) => EngineScoreRequirement.MateInAtMost(plies)
+
+  private def normalizeRoleReports(
+      reports: Map[String, String]
+  ): Map[CertificationEngineRole, CertificationEvidenceStrength] =
+    reports.map: (role, strength) =>
+      CertificationEngineRole.fromKey(role).getOrElse:
+        throw IllegalArgumentException(s"Unknown engine role invariant report: $role")
+      ->
+        CertificationEvidenceStrength.fromKey(strength).getOrElse:
+          throw IllegalArgumentException(s"Unknown engine role invariant strength: $strength")
 
   private def normalizeAnchor(anchor: RuntimeAnchor): WitnessAnchor =
     anchor match

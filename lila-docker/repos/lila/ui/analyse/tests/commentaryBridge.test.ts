@@ -158,10 +158,129 @@ describe('minimal commentary frontend bridge', () => {
 
     assert.equal(decoded.kind, 'render');
     assert.equal(decoded.blocks[0].claimId, 'claim-1');
-    assert.equal(decoded.blocks[0].text.publicText, 'Primary');
+    assert.equal(decoded.blocks[0].text.publicText, 'The line keeps pressure.');
     assert.equal((decoded.blocks[0] as any).backendOnly, undefined);
     assert.equal((decoded.blocks[0] as any).cacheKey, undefined);
     assert.doesNotMatch(JSON.stringify(decoded), /branchId:root-candidate-1|cacheKey:secret/);
+  });
+
+  test('drops backend block public text when phrase capability is missing', () => {
+    const decoded = decodePublicCommentaryRender(response({
+      render: {
+        ...baseRender('rendered'),
+        blocks: [
+          {
+            ...baseRender('rendered').blocks[0],
+            text: { publicText: 'Fallback role-label prose must not display.', forbiddenTerms: [] },
+            evidenceIds: [],
+            phraseCapability: undefined,
+          } as any,
+        ],
+      },
+    }));
+
+    assert.equal(decoded.kind, 'empty');
+    assert.doesNotMatch(JSON.stringify(decoded), /Fallback role-label prose/);
+  });
+
+  test('drops variation-only backend blocks when phrase capability denies line commentary', () => {
+    const decoded = decodePublicCommentaryRender(response({
+      render: {
+        ...baseRender('rendered'),
+        blocks: [
+          {
+            ...baseRender('rendered').blocks[0],
+            text: { publicText: null, forbiddenTerms: [] },
+            evidenceIds: [],
+            variationEvidenceIds: ['proof-claim-1-resource'],
+            phraseCapability: {
+              ...phraseCapability('qualified_support'),
+              allowsLineCommentary: false,
+              allowedPredicates: ['board_fact'],
+            },
+          },
+        ],
+        variationEvidence: [publicVariationEvidence()],
+      },
+    }));
+
+    assert.equal(decoded.kind, 'empty');
+    assert.doesNotMatch(JSON.stringify(decoded), /Nxe5|proof-claim-1-resource/);
+  });
+
+  test('drops public text when block wording exceeds phrase capability or public wording denies text', () => {
+    const capMismatch = decodePublicCommentaryRender(response({
+      render: {
+        ...baseRender('rendered'),
+        blocks: [
+          {
+            ...baseRender('rendered').blocks[0],
+            wordingStrength: 'assertive_certified',
+            phraseCapability: phraseCapability('qualified_support'),
+          },
+        ],
+      },
+    }));
+    const wordingDenied = decodePublicCommentaryRender(response({
+      render: {
+        ...baseRender('rendered'),
+        wording: wording('qualified_support', false),
+      },
+    }));
+
+    assert.equal(capMismatch.kind, 'empty');
+    assert.equal(wordingDenied.kind, 'empty');
+  });
+
+  test('drops non-primary public text and boundary-only variation evidence before public state', () => {
+    const decoded = decodePublicCommentaryRender(response({
+      render: {
+        ...baseRender('rendered'),
+        blocks: [
+          {
+            ...baseRender('rendered').blocks[0],
+            role: 'supporting',
+            text: { publicText: 'Supporting role prose must not display.', forbiddenTerms: [] },
+            evidenceIds: [],
+            variationEvidenceIds: ['proof-claim-1-resource'],
+          },
+        ],
+        variationEvidence: [
+          {
+            ...publicVariationEvidence(),
+            surfaceAllowance: 'boundary_only',
+          },
+        ],
+      },
+    }));
+
+    assert.equal(decoded.kind, 'empty');
+    assert.doesNotMatch(JSON.stringify(decoded), /Supporting role prose|Nxe5|boundary_only/);
+  });
+
+  test('boundary-only variation evidence cannot keep a primary block visible by id alone', () => {
+    const decoded = decodePublicCommentaryRender(response({
+      render: {
+        ...baseRender('rendered'),
+        blocks: [
+          {
+            ...baseRender('rendered').blocks[0],
+            text: { publicText: null, forbiddenTerms: [] },
+            evidenceIds: [],
+            variationEvidenceIds: ['proof-claim-1-resource'],
+          },
+        ],
+        variationEvidence: [
+          {
+            ...publicVariationEvidence(),
+            surfaceAllowance: 'boundary_only',
+          },
+        ],
+      },
+    }));
+
+    assert.equal(decoded.kind, 'empty');
+    assert.doesNotMatch(JSON.stringify(decoded), /proof-claim-1-resource|boundary_only|Nxe5/);
   });
 
   test('copies top-level public render metadata when decoding backend render', () => {
@@ -232,6 +351,7 @@ describe('minimal commentary frontend bridge', () => {
     assert.deepEqual(decoded.blocks[0].variationEvidenceIds, ['proof-claim-1-resource']);
     assert.deepEqual(decoded.variationEvidence, [publicVariationEvidence()]);
     assert.equal((decoded as any).variationEvidence[0].bookProse, undefined);
+    assert.doesNotMatch(JSON.stringify(decoded), /startFen|lineUci|provenanceRefs|boundary|realizedDepth|multiPv|f3e5|c6e5/);
   });
 
   test('variation evidence bridge shape omits internal proof tokens and developer role wording', () => {
@@ -343,6 +463,12 @@ describe('minimal commentary frontend bridge', () => {
       'cacheKey',
       'rawLines',
       'pvLines',
+      'startFen',
+      'lineUci',
+      'provenanceRefs',
+      'boundary',
+      'realizedDepth',
+      'multiPv',
     ])
       assert.doesNotMatch(serialized, new RegExp(forbidden));
   });
@@ -357,7 +483,7 @@ describe('minimal commentary frontend bridge', () => {
     assert.equal(negativeOnly.kind, 'empty');
   });
 
-  test('shows context only as non-authoritative backend blocks without adding chess wording', () => {
+  test('keeps context-only backend blocks structured without adding role-label wording', () => {
     const decoded = decodePublicCommentaryRender(response({
       status: 'contextOnly',
       render: {
@@ -366,9 +492,9 @@ describe('minimal commentary frontend bridge', () => {
           {
             role: 'context',
             claimId: 'opening-context',
-            text: { publicText: 'Context', forbiddenTerms: ['best', 'theory', 'forced', 'result'] },
+            text: { publicText: null, forbiddenTerms: ['best', 'theory', 'forced', 'result'] },
             wordingStrength: 'context_only',
-            evidenceIds: [],
+            evidenceIds: ['source-context:opening'],
             boundaries: [],
             nonAuthoritative: true,
           },
@@ -378,9 +504,11 @@ describe('minimal commentary frontend bridge', () => {
     }));
 
     assert.equal(decoded.kind, 'render');
-    assert.deepEqual(decoded.blocks.map(block => block.text.publicText), ['Context']);
+    assert.deepEqual(decoded.blocks.map(block => block.text.publicText), [null]);
     assert.equal(decoded.blocks[0].nonAuthoritative, true);
+    assert.deepEqual(decoded.blocks[0].evidenceIds, ['source-context:opening']);
     assert.doesNotMatch(decoded.blocks[0].text.publicText || '', /best|theory|forced|result/i);
+    assert.doesNotMatch(JSON.stringify(decoded), /\bContext\b/);
   });
 
   test('discards stale node or wrong ply response before exposing render blocks', async () => {
@@ -438,6 +566,8 @@ describe('minimal commentary frontend bridge', () => {
       'POST /api/commentary/render',
       'backend-prepared block `RenderText.publicText`',
       'public SAN notation',
+      'phrase capability',
+      'role-label prose',
       'Late or overlapping responses must not overwrite',
       'completed-probe payloads',
       'not public controller/API route fields',
@@ -479,11 +609,12 @@ function baseRender(status: 'rendered' | 'contextOnly' | 'noCommentary') {
             {
               role: 'primary',
               claimId: 'claim-1',
-              text: { publicText: 'Primary', forbiddenTerms: [] },
+              text: { publicText: 'The line keeps pressure.', forbiddenTerms: [] },
               wordingStrength: status === 'contextOnly' ? 'context_only' : 'qualified_support',
               evidenceIds: [],
               boundaries: [],
               nonAuthoritative: false,
+              phraseCapability: phraseCapability(status === 'contextOnly' ? 'context_only' : 'qualified_support'),
             },
           ],
     evidenceRefs: [],
@@ -502,11 +633,22 @@ function wording(maxStrength: 'hidden' | 'negative_only' | 'context_only' | 'qua
   };
 }
 
+function phraseCapability(maxStrength: 'context_only' | 'qualified_support') {
+  return {
+    maxStrength,
+    allowedPredicates: ['line_commentary'],
+    allowsResultLanguage: false,
+    allowsBestForcedLanguage: false,
+    allowsEngineLanguage: false,
+    allowsLineCommentary: maxStrength === 'qualified_support',
+    forbiddenTerms: ['best', 'forced', 'engine says'],
+  };
+}
+
 function publicVariationEvidence() {
   return {
     proofId: 'proof-claim-1-resource',
     boundClaimId: 'claim-1',
-    startFen: currentNode.currentFen,
     owner: 'white',
     defender: 'black',
     anchor: 'e5',
@@ -515,35 +657,16 @@ function publicVariationEvidence() {
     role: 'resource',
     moveRole: 'defender_resource',
     lineSan: ['Nxe5', 'Nxe5'],
-    lineUci: ['f3e5', 'c6e5'],
-    playedMove: { san: 'Nxe5', uci: 'f3e5' },
-    candidateMove: { san: 'Nxe5', uci: 'f3e5' },
-    defenderResource: { san: 'Nxe5', uci: 'c6e5' },
-    continuation: [{ san: 'Nxe5', uci: 'c6e5' }],
-    testedMove: { san: 'Nxe5', uci: 'f3e5' },
-    testedLine: [{ san: 'Nxe5', uci: 'f3e5' }],
-    replyLine: [{ san: 'Nxe5', uci: 'c6e5' }],
-    resourceLine: [{ san: 'Nxe5', uci: 'c6e5' }],
+    playedMove: { san: 'Nxe5' },
+    candidateMove: { san: 'Nxe5' },
+    defenderResource: { san: 'Nxe5' },
+    continuation: [{ san: 'Nxe5' }],
+    testedMove: { san: 'Nxe5' },
+    testedLine: [{ san: 'Nxe5' }],
+    replyLine: [{ san: 'Nxe5' }],
+    resourceLine: [{ san: 'Nxe5' }],
     testResult: 'resource_fails',
     proofPurpose: 'fails',
-    provenanceRefs: [
-      {
-        kind: 'Certification',
-        id: 'certification:claim-1',
-        owner: 'white',
-        anchor: 'e5',
-        route: 'counterplay_resource',
-        scope: 'position',
-      },
-    ],
-    boundary: {
-      depthFloor: 16,
-      realizedDepth: 18,
-      multiPv: 2,
-      freshnessChecked: true,
-      legalReplayChecked: true,
-      baselineChecked: true,
-    },
     wordingCap: 'qualified_support',
     surfaceAllowance: 'public_line',
   };

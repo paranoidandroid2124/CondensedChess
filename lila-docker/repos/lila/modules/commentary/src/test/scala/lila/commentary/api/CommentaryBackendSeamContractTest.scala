@@ -1,10 +1,12 @@
 package lila.commentary.api
 
+import chess.format.Fen
 import play.api.libs.json.Json
 
-import lila.commentary.certification.CertificationEngineRuntimeIntake
+import lila.commentary.CommentaryCore
+import lila.commentary.certification.{ CertificationEnginePolicyFingerprint, CertificationEngineRole, CertificationEngineRuntimeIntake, CertificationEvidenceBundle, EngineNodeIdentity }
 import lila.commentary.line.*
-import lila.commentary.render.{ RenderLineRole, RenderRole, RenderStatus }
+import lila.commentary.render.{ PublicClaimPredicate, RenderLineRole, RenderRole, RenderStatus }
 import lila.commentary.selection.*
 import lila.commentary.api.CommentaryApiJson.given
 
@@ -124,28 +126,42 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
     assertEquals(absentResponse.internal.flatMap(_.engineIntake), None)
     assertEquals(rejectedResponse.internal.flatMap(_.engineIntake.map(_.status)), Some(CommentaryEngineIntakeStatus.Rejected))
 
-  test("accepted engine intake must carry matching bounded evidence before engine-certified claims can render"):
-    val canonicalEngineRef = "engine-certification:CertifiedKingSafetyEdge:white:board:board"
+  test("accepted engine intake must carry full route scope and purpose binding before engine-certified claims can render"):
+    val canonicalEngineRef = "engine-certification:MaterialHarvest:white:board:board"
     val emptyAcceptedSeam =
       CommentaryBackendSeam.withClaimProvider(_ => Vector(engineCertifiedLead("api-empty-intake-engine-lead", canonicalEngineRef)), nowEpochMs = () => 12_000L)
     val forgedBindingSeam =
       CommentaryBackendSeam.withClaimProvider(_ => Vector(engineCertifiedLead("api-forged-engine-binding", canonicalEngineRef, ownerValue = "black")), nowEpochMs = () => 12_000L)
     val wrongIdSeam =
-      CommentaryBackendSeam.withClaimProvider(_ => Vector(engineCertifiedLead("api-wrong-engine-id", "engine-certification:MaterialHarvest:white:board:board")), nowEpochMs = () => 12_000L)
-    val wrongAnchorSeam =
-      CommentaryBackendSeam.withClaimProvider(_ => Vector(engineCertifiedLead("api-wrong-engine-anchor", canonicalEngineRef, anchorValue = "file")), nowEpochMs = () => 12_000L)
-    val boundedSeam =
-      CommentaryBackendSeam.withClaimProvider(_ => Vector(engineCertifiedLead("api-bound-intake-engine-lead", canonicalEngineRef)), nowEpochMs = () => 12_000L)
+      CommentaryBackendSeam.withClaimProvider(_ => Vector(engineCertifiedLead("api-wrong-engine-id", "engine-certification:CertifiedKingSafetyEdge:white:board:board")), nowEpochMs = () => 12_000L)
+    val wrongRouteSeam =
+      CommentaryBackendSeam.withClaimProvider(
+        _ => Vector(engineCertifiedLead("api-wrong-engine-route", canonicalEngineRef, routeValue = "api_engine_certified_route")),
+        nowEpochMs = () => 12_000L
+      )
+    val partialPurposeSeam =
+      CommentaryBackendSeam.withClaimProvider(
+        _ =>
+          Vector(
+            engineCertifiedLead(
+              "api-partial-purpose-engine-lead",
+              canonicalEngineRef,
+              routeValue = "realized_material_conversion",
+              scopeValue = "current_position"
+            )
+          ),
+        nowEpochMs = () => 12_000L
+      )
 
     val emptyAccepted = emptyAcceptedSeam.renderDebug(request(enginePacket = Some(enginePacket(packetNodeId = nodeId)), debug = true))
     val forgedBinding =
-      forgedBindingSeam.renderDebug(request(enginePacket = Some(enginePacket(packetNodeId = nodeId).copy(claims = Vector(runtimeEngineClaim()))), debug = true))
+      forgedBindingSeam.renderDebug(request(enginePacket = Some(materialEnginePacket()), debug = true))
     val wrongId =
-      wrongIdSeam.renderDebug(request(enginePacket = Some(enginePacket(packetNodeId = nodeId).copy(claims = Vector(runtimeEngineClaim()))), debug = true))
-    val wrongAnchor =
-      wrongAnchorSeam.renderDebug(request(enginePacket = Some(enginePacket(packetNodeId = nodeId).copy(claims = Vector(runtimeEngineClaim()))), debug = true))
-    val boundedAccepted =
-      boundedSeam.renderDebug(request(enginePacket = Some(enginePacket(packetNodeId = nodeId).copy(claims = Vector(runtimeEngineClaim()))), debug = true))
+      wrongIdSeam.renderDebug(request(enginePacket = Some(materialEnginePacket()), debug = true))
+    val wrongRoute =
+      wrongRouteSeam.renderDebug(request(enginePacket = Some(materialEnginePacket()), debug = true))
+    val partialPurpose =
+      partialPurposeSeam.renderDebug(request(enginePacket = Some(materialEnginePacket()), debug = true))
 
     assertEquals(emptyAccepted.internal.flatMap(_.engineIntake.map(_.status)), Some(CommentaryEngineIntakeStatus.Accepted))
     assertEquals(emptyAccepted.status, CommentaryResponseStatus.NoCommentary)
@@ -156,14 +172,13 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
     assertEquals(forgedBinding.render.evidenceRefs.exists(_.kind == EvidenceRefKind.EngineCertification), false)
     assertEquals(wrongId.status, CommentaryResponseStatus.NoCommentary)
     assertEquals(wrongId.render.evidenceRefs.exists(_.kind == EvidenceRefKind.EngineCertification), false)
-    assertEquals(wrongAnchor.status, CommentaryResponseStatus.NoCommentary)
-    assertEquals(wrongAnchor.render.evidenceRefs.exists(_.kind == EvidenceRefKind.EngineCertification), false)
+    assertEquals(wrongRoute.status, CommentaryResponseStatus.NoCommentary)
+    assertEquals(wrongRoute.render.evidenceRefs.exists(_.kind == EvidenceRefKind.EngineCertification), false)
+    assertEquals(partialPurpose.internal.flatMap(_.engineIntake.map(_.status)), Some(CommentaryEngineIntakeStatus.Accepted))
+    assertEquals(partialPurpose.status, CommentaryResponseStatus.NoCommentary)
+    assertEquals(partialPurpose.render.evidenceRefs.exists(ref => ref.kind == EvidenceRefKind.EngineCertification && ref.id == canonicalEngineRef), false)
 
-    assertEquals(boundedAccepted.internal.flatMap(_.engineIntake.map(_.status)), Some(CommentaryEngineIntakeStatus.Accepted))
-    assertEquals(boundedAccepted.status, CommentaryResponseStatus.Rendered)
-    assertEquals(boundedAccepted.render.evidenceRefs.exists(ref => ref.kind == EvidenceRefKind.EngineCertification && ref.id == canonicalEngineRef), true)
-
-  test("default backend feeds accepted material certification evidence into public claims"):
+  test("default backend keeps accepted material certification non-public without concrete board reason"):
     val fen = "4k3/5ppp/8/3n4/3R4/8/5PPP/4K3 w - - 0 1"
     val now = System.currentTimeMillis()
     val response =
@@ -184,11 +199,10 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
 
     assertEquals(response.status, CommentaryResponseStatus.Rendered)
     assertEquals(response.internal.flatMap(_.engineIntake.map(_.status)), Some(CommentaryEngineIntakeStatus.Accepted))
-    assert(
-      response.render.evidenceRefs.exists(ref => ref.kind == EvidenceRefKind.Certification && ref.id == "MaterialHarvest"),
-      clues(response.render.evidenceRefs, response.internal)
-    )
-    assert(response.render.blocks.exists(_.evidenceIds.contains("MaterialHarvest")))
+    assertEquals(response.render.evidenceRefs.exists(ref => ref.kind == EvidenceRefKind.Certification && ref.id == "MaterialHarvest"), false)
+    assertEquals(response.render.evidenceRefs.exists(ref => ref.kind == EvidenceRefKind.EngineCertification && ref.id.startsWith("engine-certification:MaterialHarvest")), false)
+    assertEquals(response.render.blocks.exists(_.evidenceIds.contains("MaterialHarvest")), false)
+    assertEquals(response.internal.exists(_.suppressions.exists(suppression => suppression.claimId == "certification-material-harvest-white-board")), false)
 
   test("public response for accepted engine intake hides raw engine packet details"):
     val fen = "4k3/5ppp/8/3n4/3R4/8/5PPP/4K3 w - - 0 1"
@@ -268,20 +282,28 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
     assertEquals(response.render.variationEvidence.map(_.boundClaimId).distinct, Vector("backend-line-claim"))
     assertEquals(response.render.variationEvidence.map(_.role).count(_ == RenderLineRole.Pressure), 1)
     assertEquals(response.render.variationEvidence.map(_.role).count(_ == RenderLineRole.Resource), 4)
-    assertEquals(response.render.variationEvidence.head.lineUci, Vector("e2e4", "e7e5"))
+    assertEquals(response.render.variationEvidence.head.lineSan, Vector("e4", "e5"))
     assertEquals(response.render.blocks.head.variationEvidenceIds, response.render.variationEvidence.map(_.proofId))
     Vector(
       "CandidateLineEvidence",
       "CandidateProbeResultPayload",
       "CandidateProbeControlledAdapter",
+      "startFen",
+      "lineUci",
+      "provenanceRefs",
+      "boundary",
+      "realizedDepth",
       "root-candidate-1",
       "branchId",
       "parentBranchId",
       "multiPvIndex",
+      "multiPv",
       "engineFingerprint",
       "stockfish-backend-seam",
       "rawLines",
-      "cacheKey"
+      "cacheKey",
+      "e2e4",
+      "e7e5"
     ).foreach(token => assert(!responseText.contains(token), clues(token, responseText)))
 
   test("same request without internal candidate-line assembly preserves existing claim render behavior"):
@@ -507,6 +529,52 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
 
     assertEquals(response.render.variationEvidence, Vector.empty)
 
+  test("internal completed-probe payload must match server-issued root and child requests"):
+    val validPayload = completedProbePayload(includeChild = true)
+    val validInput =
+      CommentaryBackendSeam.completedProbeAssemblyInput(
+        input = completedProbePipelineInput(),
+        claims = Vector(candidateBoundClaim("backend-line-claim")),
+        payload = validPayload,
+        cache = CandidateLineProofCache.InMemory.empty
+      )
+
+    assert(validInput.nonEmpty)
+
+    val missingChildRequest =
+      CommentaryBackendSeam.completedProbeAssemblyInput(
+        completedProbePipelineInput(),
+        Vector(candidateBoundClaim("backend-line-claim")),
+        validPayload.copy(probeRequests = validPayload.probeRequests.filterNot(_.role == "defender_resource")),
+        CandidateLineProofCache.InMemory.empty
+      )
+    val forgedChildRequest =
+      CommentaryBackendSeam.completedProbeAssemblyInput(
+        completedProbePipelineInput(),
+        Vector(candidateBoundClaim("backend-line-claim")),
+        validPayload.copy(probeRequests =
+          validPayload.probeRequests.map:
+            case request if request.role == "defender_resource" => request.copy(requestedDepth = 20)
+            case request => request
+        ),
+        CandidateLineProofCache.InMemory.empty
+      )
+    val lineMultiPvMismatch =
+      CommentaryBackendSeam.completedProbeAssemblyInput(
+        completedProbePipelineInput(),
+        Vector(candidateBoundClaim("backend-line-claim")),
+        validPayload.copy(
+          rootProbe = validPayload.rootProbe.copy(
+            lines = validPayload.rootProbe.lines.updated(0, validPayload.rootProbe.lines.head.copy(multiPv = 2))
+          )
+        ),
+        CandidateLineProofCache.InMemory.empty
+      )
+
+    assertEquals(missingChildRequest, None)
+    assertEquals(forgedChildRequest, None)
+    assertEquals(lineMultiPvMismatch, None)
+
   test("CommentaryRequest source shape excludes completed-probe and internal candidate-line types"):
     val source = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/src/main/scala/lila/commentary/api/CommentaryBackendSeam.scala"))
     val requestStart = source.indexOf("final case class CommentaryRequest(")
@@ -576,6 +644,28 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
     assert(debugResponse.internal.exists(_.suppressions.map(_.claimId) == Vector("api-blocked-source-truth")))
     assertEquals(debugResponse.render.blocks.exists(_.claimId == "api-blocked-source-truth"), false)
 
+  test("direct claim-provider S23 projection cannot bypass runtime K producer provenance"):
+    val seam = CommentaryBackendSeam.withClaimProvider(_ => Vector(forgedS23ProjectionClaim()))
+
+    val publicResponse = seam.render(request(currentFen = bareKingsFen))
+    val debugResponse = seam.renderDebug(request(currentFen = bareKingsFen))
+
+    assertEquals(publicResponse.render.blocks.exists(_.claimId == "api-forged-s23-projection"), false)
+    assertEquals(publicResponse.render.evidenceRefs.exists(_.id == "king_entry_conversion_certified"), false)
+    assert(debugResponse.internal.exists(_.suppressions.exists(_.claimId == "api-forged-s23-projection")))
+
+  test("direct claim-provider S24 projection remains blocker-only and cannot surface publicly"):
+    val seam = CommentaryBackendSeam.withClaimProvider(_ => Vector(forgedS24ProjectionClaim()))
+
+    val publicResponse = seam.render(request(currentFen = bareKingsFen))
+    val debugResponse = seam.renderDebug(request(currentFen = bareKingsFen))
+
+    assertEquals(publicResponse.status, CommentaryResponseStatus.NoCommentary)
+    assertEquals(publicResponse.render.blocks.exists(_.claimId == "api-forged-s24-projection"), false)
+    assertEquals(publicResponse.render.evidenceRefs.exists(_.id == "same_target_forcing_realization"), false)
+    assertEquals(publicResponse.render.evidenceRefs.exists(_.id == "same_target_conversion_certified"), false)
+    assert(debugResponse.internal.exists(_.suppressions.exists(_.claimId == "api-forged-s24-projection")))
+
   test("request and response JSON serialization round trip uses stable role keys"):
     val seam = CommentaryBackendSeam.withClaimProvider(_ => Vector(boardLead("api-json-lead")))
     val apiRequest = request(debug = true)
@@ -593,7 +683,14 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
     assertEquals(minimalRequestJson.as[CommentaryRequest], request())
     assertEquals(decoded.status, CommentaryResponseStatus.Rendered)
     assertEquals(decoded.render.blocks.map(_.role), Vector(RenderRole.Primary))
+    assert(decoded.render.blocks.head.phraseCapability.allowedPredicates.contains(PublicClaimPredicate.BoardFact))
+    assertEquals(decoded.render.blocks.head.phraseCapability.allowsLineCommentary, false)
     assertEquals((responseJson \ "render" \ "blocks" \ 0 \ "role").as[String], "primary")
+    assertEquals((responseJson \ "render" \ "blocks" \ 0 \ "phraseCapability" \ "allowsLineCommentary").as[Boolean], false)
+    assertEquals(
+      (responseJson \ "render" \ "blocks" \ 0 \ "phraseCapability" \ "allowedPredicates").as[Vector[String]],
+      Vector("board_fact")
+    )
     assertEquals((responseJson \ "render" \ "suppressions").as[Vector[String]], Vector.empty)
 
   test("contract docs name the backend seam and keep public route separate from local probe"):
@@ -636,6 +733,22 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
   private val afterE4Fen =
     "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
 
+  private val afterE4E5Fen =
+    "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+
+  private def completedProbePipelineInput(): CommentaryPipelineInput =
+    val fen = Fen.Full.clean(afterE4Fen): Fen.Full
+    CommentaryPipelineInput(
+      node = EngineNodeIdentity(nodeId, 1),
+      currentFen = fen,
+      beforeFen = None,
+      currentExtraction = CommentaryCore.extractStrategicObjectsFromFenFailClosed(afterE4Fen).fold(fail(_), identity),
+      deltaExtraction = None,
+      engineIntake = None,
+      engineCertificationEvidence = Some(CertificationEvidenceBundle.empty),
+      completedProbe = None
+    )
+
   private def completedProbePayload(includeChild: Boolean): CommentaryCompletedProbePayload =
     val generatedAt = System.currentTimeMillis().toString
     CommentaryCompletedProbePayload(
@@ -662,7 +775,22 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
           requestedDepth = 18,
           depthFloor = 16
         )
-      ),
+      ) ++
+        Option.when(includeChild)(
+          CommentaryCompletedProbeRequest(
+            role = "defender_resource",
+            currentFen = afterE4E5Fen,
+            nodeId = nodeId,
+            ply = 2,
+            variant = "standard",
+            multiPv = 2,
+            requestedDepth = 18,
+            depthFloor = 16,
+            parentBranchId = Some("root-candidate-1"),
+            parentUciPrefix = Some(Vector("e7e5")),
+            parentRootRank = Some(1)
+          )
+        ).toVector,
       rootProbe = CommentaryCompletedRootProbe(
         currentFen = afterE4Fen,
         nodeId = nodeId,
@@ -686,7 +814,7 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
         else
           Vector(
             CommentaryCompletedChildProbe(
-              currentFen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+              currentFen = afterE4E5Fen,
               nodeId = nodeId,
               ply = 2,
               variant = "standard",
@@ -740,6 +868,56 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
       scope = Some("position_local"),
       impact = ClaimImpact(resultMaterialImpact = 60, evidenceConfidence = 80, boardExplainability = 70),
       evidenceRefs = Vector(candidateBinding("backend-line-claim").provenanceRef),
+      exactBoardBound = true,
+      wordingStrengthCap = WordingStrength.QualifiedSupport
+    )
+
+  private def forgedS23ProjectionClaim(): CommentaryClaim =
+    CommentaryClaim(
+      id = "api-forged-s23-projection",
+      layer = ClaimLayer.Projection,
+      status = ClaimStatus.Admitted,
+      band = Some("S23"),
+      owner = Some("white"),
+      beneficiary = Some("white"),
+      defender = Some("black"),
+      sideToMove = Some("white"),
+      anchor = Some("board"),
+      route = Some("king_entry_conversion"),
+      scope = Some("exact_current_board"),
+      impact = ClaimImpact(evidenceConfidence = 90, boardExplainability = 90, pedagogicalClarity = 80),
+      evidenceRefs = Vector(
+        EvidenceRef(EvidenceRefKind.Projection, "king_entry_conversion_certified", Some("white"), Some("board"), Some("king_entry_conversion"), Some("exact_current_board"))
+      ),
+      lowerCarrierRefs = Vector(
+        EvidenceRef(EvidenceRefKind.ExactBoard, "k-s23-exact-board-carrier", Some("white"), Some("board"), Some("king_entry_conversion"), Some("exact_current_board"))
+      ),
+      exactBoardBound = true,
+      wordingStrengthCap = WordingStrength.QualifiedSupport
+    )
+
+  private def forgedS24ProjectionClaim(): CommentaryClaim =
+    CommentaryClaim(
+      id = "api-forged-s24-projection",
+      layer = ClaimLayer.Projection,
+      status = ClaimStatus.Admitted,
+      band = Some("S24"),
+      owner = Some("white"),
+      beneficiary = Some("white"),
+      defender = Some("black"),
+      sideToMove = Some("white"),
+      anchor = Some("piece:d5"),
+      route = Some("same_target_realization"),
+      scope = Some("position_local"),
+      impact = ClaimImpact(evidenceConfidence = 90, boardExplainability = 90, pedagogicalClarity = 80),
+      evidenceRefs = Vector(
+        EvidenceRef(EvidenceRefKind.Projection, "same_target_forcing_realization", Some("white"), Some("piece:d5"), Some("same_target_realization"), Some("position_local")),
+        EvidenceRef(EvidenceRefKind.Projection, "same_target_conversion_certified", Some("white"), Some("piece:d5"), Some("same_target_realization"), Some("position_local"))
+      ),
+      lowerCarrierRefs = Vector(
+        EvidenceRef(EvidenceRefKind.Witness, "target_resource_dependency_seed", Some("white"), Some("piece:d5"), Some("same_target_realization"), Some("position_local")),
+        EvidenceRef(EvidenceRefKind.Witness, "target_attack_convergence_seed", Some("white"), Some("piece:d5"), Some("same_target_realization"), Some("position_local"))
+      ),
       exactBoardBound = true,
       wordingStrengthCap = WordingStrength.QualifiedSupport
     )
@@ -858,13 +1036,15 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
       id: String,
       engineEvidenceId: String = "api-bounded-engine-certification",
       ownerValue: String = "white",
-      anchorValue: String = "board"
+      anchorValue: String = "board",
+      routeValue: String = "api_engine_certified_route",
+      scopeValue: String = "position_local"
   ): CommentaryClaim =
     val owner = Some(ownerValue)
     val defender = if ownerValue == "white" then Some("black") else Some("white")
     val anchor = Some(anchorValue)
-    val route = Some("api_engine_certified_route")
-    val scope = Some("position_local")
+    val route = Some(routeValue)
+    val scope = Some(scopeValue)
     CommentaryClaim(
       id = id,
       layer = ClaimLayer.Certification,
@@ -886,29 +1066,32 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
       wordingStrengthCap = WordingStrength.AssertiveCertified
     )
 
-  private def runtimeEngineClaim(): CertificationEngineRuntimeIntake.RuntimeCertificationClaim =
-    CertificationEngineRuntimeIntake.RuntimeCertificationClaim(
-      familyId = "CertifiedKingSafetyEdge",
-      owner = "white",
-      purposes = Map("comparative_superiority" -> "satisfied"),
-      minDepth = 18,
-      minMultiPv = 1,
-      minPvPlies = 1,
-      requiredScore = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtLeast(50))
-    )
-
   private def materialHarvestRuntimeClaim(): CertificationEngineRuntimeIntake.RuntimeCertificationClaim =
     CertificationEngineRuntimeIntake.RuntimeCertificationClaim(
       familyId = "MaterialHarvest",
       owner = "white",
       purposes = Map(
-        "best_defense_survival" -> "satisfied",
-        "tactical_release_detection" -> "satisfied"
+        "best_defense_survival" -> "satisfied"
       ),
       minDepth = 18,
       minMultiPv = 3,
       minPvPlies = 1,
-      requiredScore = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtLeast(50))
+      requiredScore = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtLeast(50)),
+      probeRequestId = Some("q-best-defense-survival-material-harvest-white-board-mainline-0-0"),
+      probePolicyFingerprint = Some(
+        CertificationEnginePolicyFingerprint.defaultForRole(
+          "api-seam-test-engine",
+          CertificationEngineRole.BestDefenseSurvival
+        )
+      ),
+      roleReports = Some(Map("best_defense_survival" -> "satisfied"))
+    )
+
+  private def materialEnginePacket(): CertificationEngineRuntimeIntake.RuntimeEnginePacket =
+    enginePacket(packetNodeId = nodeId).copy(
+      multiPv = 3,
+      pvLines = Vector(Vector("g8f6"), Vector("d7d6"), Vector("e5d4")),
+      claims = Vector(materialHarvestRuntimeClaim())
     )
 
   private def enginePacket(

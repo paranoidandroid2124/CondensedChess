@@ -53,7 +53,115 @@ class CommentaryRendererContractTest extends munit.FunSuite:
     assertEquals(render.evidenceRefs.map(_.id), Vector("initiative_conversion_route_certified", "pawn_push_break_contact_source"))
     assertEquals(render.blocks.exists(_.text.publicText.nonEmpty), false)
 
-  test("minimal renderer emits deterministic role fragments without chess narration"):
+  test("P2 renderer lowers selected claims to PublicClaim before public blocks"):
+    val projectionRef =
+      EvidenceRef(EvidenceRefKind.Projection, "king_entry_conversion_certified", Some("white"), Some("board"), Some("king_entry_conversion"), Some("exact_current_board"))
+    val exactCarrier =
+      EvidenceRef(EvidenceRefKind.ExactBoard, "k-s23-exact-board-carrier", Some("white"), Some("board"), Some("king_entry_conversion"), Some("exact_current_board"))
+    val plan = planWith(
+      main = Some(section(
+        PlanRole.Main,
+        selected(
+          "projection-s23-white-board-king-entry",
+          ClaimLayer.Projection,
+          ClaimBucket.ShouldLead,
+          evidenceRefs = Vector(projectionRef),
+          lowerCarrierRefs = Vector(exactCarrier),
+          wordingStrengthCap = WordingStrength.QualifiedSupport
+        )
+      )),
+      evidence = Vector(PlanEvidence(projectionRef), PlanEvidence(exactCarrier)),
+      maxStrength = WordingStrength.QualifiedSupport
+    )
+
+    val publicClaims = CommentaryRendererContract.publicClaims(plan)
+    val render = CommentaryRendererContract.render(plan)
+
+    assertEquals(publicClaims.map(_.claimId), Vector("projection-s23-white-board-king-entry"))
+    assertEquals(render.blocks.map(_.claimId), publicClaims.map(_.claimId))
+    assertEquals(publicClaims.head.evidenceIds, Vector("king_entry_conversion_certified"))
+    assertEquals(render.blocks.head.evidenceIds, publicClaims.head.evidenceIds)
+    assert(publicClaims.head.phraseCapability.allowedPredicates.contains(PublicClaimPredicate.StrategyProjection))
+    assertEquals(publicClaims.head.phraseCapability.allowsEngineLanguage, false)
+    assertEquals(publicClaims.head.phraseCapability.allowsResultLanguage, false)
+    assert(publicClaims.head.phraseCapability.forbiddenTerms.contains("engine says"))
+
+  test("public surface template strips public text not authorized by phrase capability"):
+    val plan = planWith(
+      main = Some(section(PlanRole.Main, selected("main-s07", ClaimLayer.Projection, ClaimBucket.ShouldLead))),
+      maxStrength = WordingStrength.QualifiedSupport
+    )
+    val publicPlan = CommentaryRendererContract.publicPlan(plan)
+    val forgedTextPlan = publicPlan.copy(
+      publicClaims = publicPlan.publicClaims.map(claim =>
+        claim.copy(text = RenderText(Some("Primary fallback from raw evidence MaterialHarvest"), Vector.empty))
+      )
+    )
+
+    val render = CommentaryRendererContract.render(forgedTextPlan)
+
+    assertEquals(render.blocks.map(_.text.publicText), Vector(None))
+
+  test("publicPlan render cannot turn raw PublicClaim text into phrase text even when line commentary is allowed"):
+    val lead = selected("line-owner", ClaimLayer.Certification, ClaimBucket.MustLead)
+    val proof =
+      safeVariationProof("line-owner").copy(
+        proofId = "candidate-main",
+        lineSan = Vector("Nf6", "Ng5"),
+        lineUci = Vector("g8f6", "f3g5"),
+        candidateMove = Some(VariationMove("Nf6", "g8f6")),
+        continuation = Vector(VariationMove("Ng5", "f3g5")),
+        replyLine = Vector(VariationMove("Ng5", "f3g5"))
+      )
+    val plan = planWith(
+      main = Some(section(PlanRole.Main, lead)),
+      variationEvidence = Vector(PlanVariationEvidence(proof)),
+      maxStrength = WordingStrength.QualifiedSupport
+    )
+    val publicPlan = CommentaryRendererContract.publicPlan(plan)
+    val forgedTextPlan = publicPlan.copy(
+      publicClaims = publicPlan.publicClaims.map(claim =>
+        claim.copy(text = RenderText(Some("MaterialHarvest pressure route raw evidence prose"), Vector.empty))
+      )
+    )
+
+    val render = CommentaryRendererContract.render(forgedTextPlan)
+
+    assertEquals(publicPlan.publicClaims.head.phraseCapability.allowsLineCommentary, true)
+    assertEquals(render.blocks.map(_.text.publicText), Vector(None))
+
+  test("public render blocks carry phrase capability as surface permission metadata"):
+    val plan = planWith(
+      main = Some(section(PlanRole.Main, selected("main-s07", ClaimLayer.Projection, ClaimBucket.ShouldLead))),
+      maxStrength = WordingStrength.QualifiedSupport
+    )
+
+    val render = CommentaryRendererContract.render(plan)
+
+    assert(render.blocks.head.productElementNames.toVector.contains("phraseCapability"))
+
+  test("P2 renderer boundary does not public-lower terminal non-certified dispositions"):
+    val terminalClaims =
+      Vector(
+        selectedStatus("support-only-projection", ClaimStatus.SupportOnly),
+        selectedStatus("deferred-projection", ClaimStatus.Deferred),
+        selectedStatus("anti-case-projection", ClaimStatus.AntiCase),
+        selectedStatus("rejected-projection", ClaimStatus.Rejected)
+      )
+    val plan = planWith(
+      main = Some(section(PlanRole.Main, terminalClaims.head)),
+      support = PlanSection(PlanRole.Support, terminalClaims.tail),
+      maxStrength = WordingStrength.QualifiedSupport
+    )
+
+    val publicClaims = CommentaryRendererContract.publicClaims(plan)
+    val render = CommentaryRendererContract.render(plan)
+
+    assertEquals(publicClaims, Vector.empty)
+    assertEquals(render.status, RenderStatus.NoCommentary)
+    assertEquals(render.blocks, Vector.empty)
+
+  test("minimal renderer does not turn role labels into public prose"):
     val plan = planWith(
       main = Some(section(PlanRole.Main, selected("main-s07", ClaimLayer.Projection, ClaimBucket.ShouldLead))),
       support = section(PlanRole.Support, selected("support-s21", ClaimLayer.Projection, ClaimBucket.Support)),
@@ -64,13 +172,7 @@ class CommentaryRendererContractTest extends munit.FunSuite:
 
     val render = CommentaryRenderer.render(plan)
 
-    assertEquals(render.blocks.map(_.text.publicText), Vector(Some("Primary"), Some("Support"), Some("Context"), Some("Contrast")))
-    render.blocks.flatMap(_.text.publicText).foreach: text =>
-      assert(!text.toLowerCase.contains("best"))
-      assert(!text.toLowerCase.contains("theory"))
-      assert(!text.toLowerCase.contains("forced"))
-      assert(!text.toLowerCase.contains("result"))
-      assert(!text.toLowerCase.contains("winning"))
+    assertEquals(render.blocks.map(_.text.publicText), Vector(None, None, None, None))
 
   test("renderer uses safe English line commentary for annotated primary block only"):
     val lead = selected("line-owner", ClaimLayer.Certification, ClaimBucket.MustLead)
@@ -118,12 +220,14 @@ class CommentaryRendererContractTest extends munit.FunSuite:
 
     val render = CommentaryRenderer.render(plan)
     val fallback = CommentaryRenderer.render(plan.copy(annotationSelections = Vector.empty))
+    val publicClaims = CommentaryRendererContract.publicClaims(plan)
 
     assertEquals(
       render.blocks.map(_.text.publicText),
       Vector(Some("After Nf6 Ng5, ...Qb6 Qd2 is met by Ng5, and the pressure stays on."))
     )
-    assertEquals(fallback.blocks.map(_.text.publicText), Vector(Some("Primary")))
+    assertEquals(fallback.blocks.map(_.text.publicText), Vector(None))
+    assertEquals(publicClaims.head.phraseCapability.allowsLineCommentary, true)
 
   test("renderer does not synthesize reason text from selected evidence ids"):
     val materialRef =
@@ -174,7 +278,7 @@ class CommentaryRendererContractTest extends munit.FunSuite:
       activityRef,
       materialRef.copy(owner = Some("black"))
     ).foreach: ref =>
-      assertEquals(primaryTextFor(ref), Some("Primary"))
+      assertEquals(primaryTextFor(ref), None)
 
   test("minimal renderer does not emit role fragments for negative-only blocks"):
     val plan = planWith(
@@ -302,7 +406,7 @@ class CommentaryRendererContractTest extends munit.FunSuite:
     val render = CommentaryRenderer.render(plan)
 
     assertEquals(render.status, RenderStatus.ContextOnly)
-    assertEquals(render.blocks.map(_.text.publicText), Vector(Some("Context")))
+    assertEquals(render.blocks.map(_.text.publicText), Vector(None))
     assertEquals(render.blocks.head.nonAuthoritative, true)
     assertEquals(render.evidenceRefs.map(_.id), Vector("opening-source-use:master_reference", "opening-source-use:online_trend"))
     assertEquals(render.evidenceRefs.exists(_.id.contains("merged")), false)
@@ -509,6 +613,33 @@ class CommentaryRendererContractTest extends munit.FunSuite:
     assertEquals(render.evidenceRefs.map(_.kind), Vector(EvidenceRefKind.Certification))
     assertEquals(render.blocks.head.evidenceIds, Vector("MaterialHarvest"))
 
+  test("renderer does not expose EngineCertification with only generic exact-board lower carrier"):
+    val certification =
+      EvidenceRef(EvidenceRefKind.Certification, "MaterialHarvest", Some("white"), Some("board"), Some("material_harvest"), Some("position_local"))
+    val engine =
+      EvidenceRef(EvidenceRefKind.EngineCertification, "bounded-engine-evidence", Some("white"), Some("board"), Some("material_harvest"), Some("position_local"))
+    val exactBoard =
+      EvidenceRef(EvidenceRefKind.ExactBoard, "certification-current-board", Some("white"), Some("board"), Some("material_harvest"), Some("position_local"))
+    val lead =
+      selected(
+        "exact-board-backed-engine-certification",
+        ClaimLayer.Certification,
+        ClaimBucket.MustLead,
+        evidenceRefs = Vector(certification, engine),
+        lowerCarrierRefs = Vector(exactBoard),
+        wordingStrengthCap = WordingStrength.AssertiveCertified
+      )
+    val plan = planWith(
+      main = Some(section(PlanRole.Main, lead)),
+      evidence = Vector(PlanEvidence(certification), PlanEvidence(engine)),
+      maxStrength = WordingStrength.AssertiveCertified
+    )
+
+    val render = CommentaryRendererContract.render(plan)
+
+    assertEquals(render.evidenceRefs.map(_.kind), Vector(EvidenceRefKind.Certification))
+    assertEquals(render.blocks.head.evidenceIds, Vector("MaterialHarvest"))
+
   test("renderer filters unbounded Certification refs"):
     val boundedCertification =
       EvidenceRef(EvidenceRefKind.Certification, "bounded-cert", Some("white"), Some("board"), Some("route"), Some("position_local"))
@@ -688,6 +819,17 @@ class CommentaryRendererContractTest extends munit.FunSuite:
     assert(!publicSurface.contains("failed_tempting_move"), clues(publicSurface))
     assert(!publicSurface.toLowerCase.contains("tempting"), clues(publicSurface))
     assert(!publicSurface.contains("proves"), clues(publicSurface))
+    Vector(
+      "startFen",
+      "lineUci",
+      "provenanceRefs",
+      "boundary",
+      "depthFloor",
+      "realizedDepth",
+      "multiPv",
+      "g8f6",
+      "f1b5"
+    ).foreach(token => assert(!publicSurface.contains(token), clues(token, publicSurface)))
 
   test("renderer contract docs and surface corpus keep executable names"):
     val contractDoc = Files.readString(Paths.get("modules/commentary/docs/CommentaryRendererContract.md"))
@@ -706,6 +848,12 @@ class CommentaryRendererContractTest extends munit.FunSuite:
       "RenderBoundary",
       "RenderSuppression",
       "RenderWording",
+      "PublicClaim",
+      "PublicClaimPredicate",
+      "PhraseCapability",
+      "PublicSurfaceTemplate",
+      "PublicPhrase",
+      "PublicCommentaryPlan",
       "EnglishLineCommentary",
       "EnglishLineCommentaryWriter",
       "EnglishLineCommentaryContractTest.scala",
@@ -724,7 +872,7 @@ class CommentaryRendererContractTest extends munit.FunSuite:
     assert(surfaceRows.contains("surface-renderer-no-commentary-silent"))
     assert(surfaceRows.contains("surface-renderer-no-evidence-invention"))
     assert(surfaceRows.contains("surface-renderer-raw-engine-filtered"))
-    assert(surfaceRows.contains("surface-renderer-deterministic-role-fragments"))
+    assert(surfaceRows.contains("surface-renderer-no-role-label-public-text"))
     assert(surfaceRows.contains("surface-renderer-blocked-selected-conflict-denied"))
     assert(surfaceRows.contains("surface-renderer-engine-certification-board-reason-required"))
     assert(surfaceRows.contains("surface-renderer-plan-wide-engine-evidence-not-public"))
@@ -786,6 +934,32 @@ class CommentaryRendererContractTest extends munit.FunSuite:
       ),
       bucket,
       softReasons
+    )
+
+  private def selectedStatus(id: String, status: ClaimStatus): SelectedClaim =
+    SelectedClaim(
+      CommentaryClaim(
+        id = id,
+        layer = ClaimLayer.Projection,
+        status = status,
+        band = Some("S23"),
+        owner = Some("white"),
+        beneficiary = Some("white"),
+        defender = Some("black"),
+        sideToMove = Some("white"),
+        anchor = Some("board"),
+        route = Some("king_entry_conversion"),
+        scope = Some("exact_current_board"),
+        evidenceRefs = Vector(
+          EvidenceRef(EvidenceRefKind.Projection, "king_entry_conversion_certified", Some("white"), Some("board"), Some("king_entry_conversion"), Some("exact_current_board"))
+        ),
+        lowerCarrierRefs = Vector(
+          EvidenceRef(EvidenceRefKind.ExactBoard, "k-s23-exact-board-carrier", Some("white"), Some("board"), Some("king_entry_conversion"), Some("exact_current_board"))
+        ),
+        exactBoardBound = true,
+        wordingStrengthCap = WordingStrength.QualifiedSupport
+      ),
+      ClaimBucket.ShouldLead
     )
 
   private def safeVariationProof(boundClaimId: String): PreparedVariationEvidence =

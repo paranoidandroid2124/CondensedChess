@@ -91,7 +91,6 @@ The live runtime names are:
 - `EnglishLineCommentaryWriter`
 - `RenderLineRole`
 - `RenderVariationEvidence`
-- `RenderVariationBoundary`
 - `RenderVariationMove`
 - `CandidateLineSelection`
 
@@ -350,12 +349,14 @@ non-proof metadata and cannot become a proof-owned
 candidate proof.
 
 The current prepared variation shape remains sufficient through the current
-internal seam. Branch id, rank, MultiPV, probe-plan fields, and cache fields
-are consumed inside internal line/probe boundaries; public output carries the
-stable proof id, legal SAN/UCI line, bounded depth/MultiPV boundary,
-claim-binding metadata, and bounded provenance ref only. Public response shape
-is unchanged. The public proof id must be a lowering-owned stable line id; it
-must not encode `CandidateBranchId`, parent branch id, rank, or MultiPV index.
+internal seam. Branch id, rank, MultiPV, probe-plan fields, cache fields, UCI
+PV, start FEN, boundary/depth data, and provenance refs are consumed inside
+internal line/probe boundaries. Public output carries only the stable proof id,
+claim-binding metadata, renderer-public role, legal SAN move/line fields,
+restrained test result, proof purpose, wording cap, and surface allowance.
+Public response shape is intentionally narrower than lower prepared evidence.
+The public proof id must be a lowering-owned stable line id; it must not encode
+`CandidateBranchId`, parent branch id, rank, or MultiPV index.
 Lowering must also fail closed when the supplied binding provenance is
 `RawEngine`, `SourceContext`, unbound, mismatched to the supplied owner,
 anchor, route, or scope, or uses an unsafe internal provenance id such as a
@@ -399,13 +400,14 @@ claim.
 internal `VariationEvidenceRole` values plus the internal `proves` token for
 selection, planning, and test authority. The public renderer boundary is
 stricter: `RenderVariationEvidence` exposes a renderer-public `RenderLineRole`
-and does not expose `proves`.
+and does not expose `proves`, start FEN, UCI PV, provenance refs,
+boundary/depth/MultiPV data, engine fingerprints, cache keys, branch ids, or
+raw move UCI.
 
 The public render shape may expose only:
 
 - proof id
 - bound claim id
-- start FEN
 - owner / defender / anchor / route / scope
 - renderer-public line role:
   - `resource`
@@ -415,11 +417,11 @@ The public render shape may expose only:
   - `pressure`
   - `simplification`
 - move role
-- legal SAN and UCI line
-- played move, candidate move, defender resource, and continuation when
-  prepared as public-safe move pairs
-- tested move, tested line, reply line, and resource line when prepared as
-  public-safe move pairs
+- legal SAN line
+- played move, candidate move, defender resource, and continuation as
+  SAN-only public move fields
+- tested move, tested line, reply line, and resource line as SAN-only public
+  move fields
 - restrained test result:
   - `resource_works`
   - `resource_fails`
@@ -431,9 +433,6 @@ The public render shape may expose only:
   - `converts`
   - `pressure_persists`
 - proof purpose
-- bounded provenance refs that match the same owner / anchor / route / scope
-- depth floor, realized depth, MultiPV, freshness checked, legal replay
-  checked, and baseline checked flags
 - wording cap
 - public surface allowance:
   - `public_line`
@@ -548,7 +547,7 @@ The current renderer-side line commentary skeleton path is:
 
 The current renderer-side English line commentary path is:
 
-`LineCommentaryPlan -> EnglishLineCommentaryWriter -> EnglishLineCommentary -> CommentaryRenderer.render primary RenderText.publicText`
+`LineCommentaryPlan -> EnglishLineCommentaryWriter -> EnglishLineCommentary -> PublicPhrase -> PublicSurfaceTemplate -> CommentaryRenderer.render primary RenderText.publicText`
 
 `CommentaryOutlineBuilder` copies selected prepared variation evidence without
 adding meaning. `CommentaryRenderer` exposes only the public-safe render subset
@@ -556,9 +555,12 @@ and filters unsafe or malformed plan variation evidence. At this boundary the
 internal `VariationEvidenceRole` is mapped to renderer-public `RenderLineRole`
 keys and the prepared `proves` token is dropped from the public payload. The
 analyse `commentaryBridge` may preserve that public render subset when it is
-present, but it must not add prose, run source lookup, execute Stockfish/WASM,
-or carry raw candidate-line/probe/cache/debug fields, internal role keys, or
-prepared proof tokens.
+present and `surfaceAllowance = public_line`; `boundary_only` stays non-display
+boundary evidence. The bridge and view may show SAN line notation only when the
+rendered block's phrase capability allows `line_commentary`. They must not add
+prose, role-label captions, run source lookup, execute Stockfish/WASM, or carry
+raw candidate-line/probe/cache/debug fields, internal role keys, or prepared
+proof tokens.
 
 `CommentaryBackendSeam` may receive an internal
 `CandidateProbeControlledAdapter.AssemblyResult` as an attach-only side input

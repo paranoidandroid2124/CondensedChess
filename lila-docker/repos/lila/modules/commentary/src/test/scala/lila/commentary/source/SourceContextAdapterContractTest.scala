@@ -1,6 +1,7 @@
 package lila.commentary.source
 
 import lila.commentary.api.{ CommentaryApiJson, CommentaryBackendSeam, CommentaryRequest }
+import lila.commentary.api.CommentaryApiJson.given
 import lila.commentary.render.{ CommentaryRenderer, RenderLineRole, RenderStatus }
 import lila.commentary.selection.*
 import play.api.libs.json.Json
@@ -31,7 +32,7 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
     assertEquals(plan.context.claims.map(_.claim.id), Vector("adapter-catalan-context"))
     assertEquals(render.status, RenderStatus.ContextOnly)
     assertEquals(render.blocks.map(_.nonAuthoritative), Vector(true))
-    assertEquals(render.blocks.flatMap(_.text.publicText), Vector("Context"))
+    assertEquals(render.blocks.map(_.text.publicText), Vector(None))
     assert(!render.blocks.flatMap(_.text.publicText).mkString(" ").contains("catalan-open"))
     assertEquals(render.evidenceRefs.map(_.id).filter(_.contains("opening-source-use")), Vector("opening-source-use:master_reference", "opening-source-use:online_trend"))
 
@@ -72,7 +73,7 @@ class SourceContextAdapterContractTest extends munit.FunSuite:
     assert(openingClaim.evidenceRefs.exists(_.id == "opening-sequence:pawn_break:e2e4_break_context"))
     assert(openingClaim.evidenceRefs.forall(_.kind == EvidenceRefKind.SourceContext))
     assert(render.variationEvidence.map(_.proofId).contains(proofId))
-    assertEquals(render.variationEvidence.flatMap(_.provenanceRefs).map(_.kind).toSet, Set(EvidenceRefKind.Certification))
+    assert(!Json.toJson(render).toString.contains("provenanceRefs"))
     assert(render.evidenceRefs.exists(_.id == s"opening-line-test:$proofId:context"))
 
   test("opening adapter rejects product candidate source uses and sequence overclaim wording"):

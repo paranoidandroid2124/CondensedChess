@@ -34,10 +34,12 @@ class CertificationEngineRuntimeIntakeTest extends munit.FunSuite:
       )
 
     assertEquals(result.status, CertificationEngineRuntimeIntake.Status.Accepted)
-    assert(
+    val evidence =
       result.evidence
         .evidenceFor(CertificationId("CertifiedKingSafetyEdge"), Color.White, WitnessAnchor.BoardAnchor)
-        .nonEmpty,
+        .getOrElse(fail("missing engine-backed certification evidence"))
+    assert(
+      evidence.engineRoles.map(_.key) == Set("best_defense_survival"),
       clues(result)
     )
 
@@ -72,6 +74,68 @@ class CertificationEngineRuntimeIntakeTest extends munit.FunSuite:
       runtimePacket(multiPv = 2, pvLines = Vector(Vector("g8f6", "f3g5"), Vector("d7d6", "f3g5"))),
       "MultiPV 3"
     )
+
+  test("role policy invariants reject weak PV semantics before certification evidence is minted"):
+    assertRejected(
+      runtimePacket().copy(
+        claims = Vector(runtimeClaim(purposes = Map("best_defense_survival" -> "satisfied"), roleReports = Some(Map.empty)))
+      ),
+      "best-defense semantic coverage"
+    )
+    assertRejected(
+      runtimePacket().copy(
+        claims = Vector(
+          runtimeClaim(
+            purposes = Map("comparative_superiority" -> "satisfied"),
+            scoreRequirement = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtLeast(50))
+          )
+        )
+      ),
+      "bound baseline"
+    )
+    assertRejected(
+      runtimePacket(requestedDepth = 1, realizedDepth = 1).copy(
+        claims = Vector(runtimeClaim(minDepth = 1, minPvPlies = 1))
+      ),
+      "Q policy target depth"
+    )
+
+  test("outcome caps reject mate and material-collapse scores for non-result strategic engine claims"):
+    assertRejected(
+      runtimePacket(
+        score = CertificationEngineRuntimeIntake.RuntimeScore.MateIn(3),
+        scorePerspective = CertificationEngineRuntimeIntake.RuntimeScorePerspective.White,
+        scoreRequirement = CertificationEngineRuntimeIntake.RuntimeScoreRequirement.MateInAtMost(4)
+      ).copy(
+        claims = Vector(
+          runtimeClaim(
+            purposes = Map("best_defense_survival" -> "satisfied"),
+            scoreRequirement = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.MateInAtMost(4))
+          )
+        )
+      ),
+      "mate outcome cap"
+    )
+    assertRejected(
+      runtimePacket(
+        score = CertificationEngineRuntimeIntake.RuntimeScore.Centipawns(1_500),
+        scorePerspective = CertificationEngineRuntimeIntake.RuntimeScorePerspective.White,
+        scoreRequirement = CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtLeast(1_200)
+      ).copy(
+        claims = Vector(
+          runtimeClaim(
+            purposes = Map("best_defense_survival" -> "satisfied"),
+            scoreRequirement = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtLeast(1_200))
+          )
+        )
+      ),
+      "material-collapse cap"
+    )
+    Vector("horizon_limited", "multipv_ambiguous", "tablebase_required").foreach: cap =>
+      assertRejected(
+        runtimePacket().copy(claims = Vector(runtimeClaim(publicCaps = Some(Vector(cap))))),
+        "public outcome cap"
+      )
 
   test("runtime intake rejects malformed certification claim and transition normalization fields"):
     assertRejected(
@@ -129,6 +193,14 @@ class CertificationEngineRuntimeIntakeTest extends munit.FunSuite:
             score = CertificationEngineRuntimeIntake.RuntimeScore.MateIn(3),
             scorePerspective = CertificationEngineRuntimeIntake.RuntimeScorePerspective.White,
             scoreRequirement = CertificationEngineRuntimeIntake.RuntimeScoreRequirement.MateInAtMost(4)
+          ).copy(
+            claims = Vector(
+              runtimeClaim(
+                familyId = "MateNetCertification",
+                purposes = Map("best_defense_survival" -> "satisfied"),
+                scoreRequirement = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.MateInAtMost(4))
+              )
+            )
           )
         ),
         nowEpochMs = 12_000L
@@ -139,6 +211,14 @@ class CertificationEngineRuntimeIntakeTest extends munit.FunSuite:
       runtimePacket(
         score = CertificationEngineRuntimeIntake.RuntimeScore.MateIn(3),
         scoreRequirement = CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtMost(-100)
+      ).copy(
+        claims = Vector(
+          runtimeClaim(
+            familyId = "MateNetCertification",
+            purposes = Map("best_defense_survival" -> "satisfied"),
+            scoreRequirement = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtMost(-100))
+          )
+        )
       ),
       "centipawn"
     )
@@ -285,13 +365,18 @@ class CertificationEngineRuntimeIntakeTest extends munit.FunSuite:
       Right(false)
     )
 
-    val projectionSource =
-      Files.readString(
-        Paths.get("modules/commentary/src/main/scala/lila/commentary/projection/StrategyProjectionAdmission.scala"),
-        StandardCharsets.UTF_8
-      )
-    assert(!projectionSource.contains("EngineEvidencePacket"), clues("projection must not consume raw Engine E packets"))
-    assert(!projectionSource.contains("CertificationEngineEvidence"), clues("projection must not consume Engine E facade"))
+    val mainProjectionSources =
+      sourceFilesUnder("modules/commentary/src/main/scala/lila/commentary/projection")
+    val joinedMainProjectionSources =
+      mainProjectionSources.map(path => Files.readString(path, StandardCharsets.UTF_8)).mkString("\n")
+    assert(
+      !rawAdmissionObjectPattern.findFirstIn(joinedMainProjectionSources).isDefined,
+      clues("legacy raw admission must stay out of main")
+    )
+    assert(!joinedMainProjectionSources.contains("StrategyProjectionAdmission.admit"), clues("main projection must not call legacy raw admission"))
+    assert(!joinedMainProjectionSources.contains("StrategyProjectionAdmission.admits"), clues("main projection must not call legacy raw admission"))
+    assert(!joinedMainProjectionSources.contains("EngineEvidencePacket"), clues("projection must not consume raw Engine E packets"))
+    assert(!joinedMainProjectionSources.contains("CertificationEngineEvidence"), clues("projection must not consume Engine E facade"))
 
   test("UI API and validation probe sidecars do not reference certification runtime intake"):
     val rawSidecarSources =
@@ -312,6 +397,7 @@ class CertificationEngineRuntimeIntakeTest extends munit.FunSuite:
       fen: String = exactFen.toString,
       nodeId: String = node.nodeId,
       ply: Int = node.ply,
+      requestedDepth: Int = 20,
       realizedDepth: Int = 20,
       multiPv: Int = 3,
       pvLines: Vector[Vector[String]] = Vector(
@@ -330,7 +416,7 @@ class CertificationEngineRuntimeIntakeTest extends munit.FunSuite:
       fen = fen,
       nodeId = nodeId,
       ply = ply,
-      requestedDepth = 20,
+      requestedDepth = requestedDepth,
       realizedDepth = realizedDepth,
       multiPv = multiPv,
       completed = true,
@@ -349,20 +435,31 @@ class CertificationEngineRuntimeIntakeTest extends munit.FunSuite:
       familyId: String = "CertifiedKingSafetyEdge",
       owner: String = "white",
       purposes: Map[String, String] = Map(
-        "best_defense_survival" -> "satisfied",
-        "comparative_superiority" -> "satisfied"
+        "best_defense_survival" -> "satisfied"
       ),
       scoreRequirement: Option[CertificationEngineRuntimeIntake.RuntimeScoreRequirement] =
-        Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtMost(-100))
+        Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnAtMost(-100)),
+      minDepth: Int = 18,
+      minPvPlies: Int = 2,
+      probeRequestId: Option[String] = None,
+      probePolicyFingerprint: Option[String] = None,
+      roleReports: Option[Map[String, String]] = None,
+      publicCaps: Option[Vector[String]] = None
   ): CertificationEngineRuntimeIntake.RuntimeCertificationClaim =
     CertificationEngineRuntimeIntake.RuntimeCertificationClaim(
       familyId = familyId,
       owner = owner,
       purposes = purposes,
-      minDepth = 18,
+      minDepth = minDepth,
       minMultiPv = 3,
-      minPvPlies = 2,
-      requiredScore = scoreRequirement
+      minPvPlies = minPvPlies,
+      requiredScore = scoreRequirement,
+      probeRequestId = probeRequestId.orElse(Some(runtimeQRequestId(familyId, owner, purposes, node.nodeId, node.ply))),
+      probePolicyFingerprint = probePolicyFingerprint.orElse(
+        Some(runtimeQPolicyFingerprint("wasm_stockfish:depth=20:multipv=3", purposes))
+      ),
+      roleReports = roleReports.orElse(Some(purposes)),
+      publicCaps = publicCaps
     )
 
   private def runtimeTransitionPacket(
@@ -394,7 +491,19 @@ class CertificationEngineRuntimeIntakeTest extends munit.FunSuite:
           minDepth = 18,
           minMultiPv = 3,
           minPvPlies = 2,
-          requiredScore = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnSwingAtLeast(200))
+          requiredScore = Some(CertificationEngineRuntimeIntake.RuntimeScoreRequirement.CentipawnSwingAtLeast(200)),
+          probeRequestId = Some(runtimeQRequestId("MaterialHarvest", "white", Map("best_defense_survival" -> "satisfied"), transitionNode.nodeId, transitionNode.ply)),
+          probePolicyFingerprint = Some(
+            CertificationEnginePolicyFingerprint.defaultForRole(
+              "wasm_stockfish:depth=20:multipv=3",
+              CertificationEngineRole.BestDefenseSurvival
+            )
+          ),
+          roleReports = Some(
+            Map(
+              "best_defense_survival" -> "satisfied"
+            )
+          )
         )
       ),
       transition = Some(
@@ -466,3 +575,41 @@ class CertificationEngineRuntimeIntakeTest extends munit.FunSuite:
           .toVector
           .collect { case path: java.nio.file.Path => path }
       finally stream.close()
+
+  private val rawAdmissionObjectPattern =
+    "(?m)^\\s*object\\s+StrategyProjectionAdmission\\s*:".r
+
+  private def runtimeQRequestId(
+      familyId: String,
+      owner: String,
+      purposes: Map[String, String],
+      nodeId: String,
+      ply: Int
+  ): String =
+    val role = purposes.keys.toVector.sorted.headOption.getOrElse("best_defense_survival")
+    Vector(
+      "q",
+      stableToken(role),
+      stableToken(familyId),
+      stableToken(owner),
+      "board",
+      stableToken(nodeId),
+      ply.toString
+    ).mkString("-")
+
+  private def runtimeQPolicyFingerprint(
+      engineConfigFingerprint: String,
+      purposes: Map[String, String]
+  ): String =
+    purposes.keys.toVector.sorted.headOption
+      .flatMap(CertificationEngineRole.fromKey)
+      .map(role => CertificationEnginePolicyFingerprint.defaultForRole(engineConfigFingerprint, role))
+      .getOrElse("qpolicy-unknown-runtime-role")
+
+  private def stableToken(value: String): String =
+    value
+      .replaceAll("([a-z0-9])([A-Z])", "$1-$2")
+      .replaceAll("[^A-Za-z0-9]+", "-")
+      .stripPrefix("-")
+      .stripSuffix("-")
+      .toLowerCase

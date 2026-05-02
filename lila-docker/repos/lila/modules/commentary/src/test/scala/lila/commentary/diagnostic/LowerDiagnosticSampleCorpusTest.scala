@@ -20,7 +20,7 @@ class LowerDiagnosticSampleCorpusTest extends munit.FunSuite:
       row.expectedBreaks.foreach: expectedBreak =>
         assert(trace.breaks.contains(expectedBreak), clues(trace))
 
-  test("lower diagnostic summary exposes the current bottleneck before renderer"):
+  test("lower diagnostic summary exposes current pre-renderer breakpoints"):
     val summary = LowerDiagnosticSummary.from(rows.map(row => LowerLayerDiagnostic.trace(row.input)))
 
     assertEquals(summary.total, rows.size)

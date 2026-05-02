@@ -43,19 +43,26 @@ object StrategyProjectionAdmission:
       certificationEvidence: CertificationEvidenceBundle = CertificationEvidenceBundle.empty,
       deltaExtraction: Option[StrategicDeltaExtraction] = None
   ): StrategyProjectionAdmissionResult =
+    val originalEvidenceBinding =
+      Either.cond(
+        evidence.matches(extraction.rootState),
+        (),
+        "Strategy projection admission rejected stale evidence bundle"
+      )
     val selectedEvidenceClaims =
       evidence.all.filter(claim => claim.bandId == bandId && claim.owner == owner && claim.anchor == anchor)
     val boundEvidence =
       StrategyProjectionEvidence.forSeedExtraction(extraction, selectedEvidenceClaims)
     val admissionDecision =
-      admits(
-        bandId = bandId,
-        extraction = extraction,
-        evidence = boundEvidence,
-        owner = owner,
-        certificationEvidence = certificationEvidence,
-        deltaExtraction = deltaExtraction
-      )
+      originalEvidenceBinding.flatMap: _ =>
+        admits(
+          bandId = bandId,
+          extraction = extraction,
+          evidence = boundEvidence,
+          owner = owner,
+          certificationEvidence = certificationEvidence,
+          deltaExtraction = deltaExtraction
+        )
     val decision =
       admissionDecision.map(admitted =>
         admitted &&
@@ -66,6 +73,7 @@ object StrategyProjectionAdmission:
       selectedEvidenceClaims.map(_.kind)
     StrategyProjectionAdmissionResult.fromDecision(
       projectionId = projectionId,
+      authority = StrategyProjectionAdmissionAuthority.LegacyValidationScaffold,
       bandId = bandId,
       sourceRootState = extraction.rootState,
       currentRootState = currentRootState,

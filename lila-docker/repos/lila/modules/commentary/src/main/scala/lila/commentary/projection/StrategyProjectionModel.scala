@@ -33,6 +33,18 @@ object StrategyProjectionEvidenceKind:
 
   extension (kind: StrategyProjectionEvidenceKind) def value: String = kind
 
+final case class StrategyProjectionPhraseCapability(
+    allowedPredicateKey: String,
+    sanOnlyVariationEvidence: Boolean,
+    allowsResultLanguage: Boolean,
+    allowsBestForcedLanguage: Boolean,
+    allowsEngineLanguage: Boolean,
+    allowsFallbackText: Boolean,
+    forbiddenTerms: Vector[String]
+):
+  require(allowedPredicateKey.trim.nonEmpty, "Strategy projection phrase capability requires a predicate key")
+  require(forbiddenTerms.nonEmpty, "Strategy projection phrase capability requires forbidden terms")
+
 final case class StrategyProjectionEvidenceClaim(
     bandId: StrategyProjectionBandId,
     kind: StrategyProjectionEvidenceKind,
@@ -138,6 +150,10 @@ enum StrategyProjectionAdmissionStatus(val key: String):
   case Admitted extends StrategyProjectionAdmissionStatus("admitted")
   case Rejected extends StrategyProjectionAdmissionStatus("rejected")
 
+enum StrategyProjectionAdmissionAuthority(val key: String):
+  case DescriptorCertifiedRuntime extends StrategyProjectionAdmissionAuthority("descriptor_certified_runtime")
+  case LegacyValidationScaffold extends StrategyProjectionAdmissionAuthority("legacy_validation_scaffold")
+
 enum StrategyProjectionCarrierKind(val key: String):
   case ExactBoard extends StrategyProjectionCarrierKind("exact_board")
   case Root extends StrategyProjectionCarrierKind("root")
@@ -152,7 +168,8 @@ final case class StrategyProjectionCarrierRef(
     owner: String,
     anchor: String,
     route: String,
-    scope: String
+    scope: String,
+    binding: Map[String, String] = Map.empty
 ):
   require(id.trim.nonEmpty, "Strategy projection carrier id must be non-empty")
   require(owner.trim.nonEmpty, "Strategy projection carrier owner must be non-empty")
@@ -160,9 +177,14 @@ final case class StrategyProjectionCarrierRef(
   require(route.trim.nonEmpty, "Strategy projection carrier route must be non-empty")
   require(scope.trim.nonEmpty, "Strategy projection carrier scope must be non-empty")
 
+  def bindingValue(key: String): Option[String] =
+    binding.get(key).map(_.trim).filter(_.nonEmpty)
+
 final case class StrategyProjectionAdmissionResult private[projection] (
     projectionId: String,
+    authority: StrategyProjectionAdmissionAuthority,
     status: StrategyProjectionAdmissionStatus,
+    runtimeKId: Option[String],
     bandId: StrategyProjectionBandId,
     sourceRootState: RootStateVector,
     currentRootState: RootStateVector,
@@ -175,11 +197,14 @@ final case class StrategyProjectionAdmissionResult private[projection] (
     scope: String,
     lowerCarrierRefs: Vector[StrategyProjectionCarrierRef],
     wordingStrengthCap: WordingStrength,
+    phraseCapability: StrategyProjectionPhraseCapability,
+    publicSurfaceForbiddenTerms: Vector[String],
     rejectionReason: Option[String]
 ):
   require(projectionId.trim.nonEmpty, "Strategy projection admission id must be non-empty")
   require(route.trim.nonEmpty, "Strategy projection admission route must be non-empty")
   require(scope.trim.nonEmpty, "Strategy projection admission scope must be non-empty")
+  runtimeKId.foreach(id => require(id.trim.nonEmpty, "Strategy projection runtime K id must be non-empty"))
 
   def admitted: Boolean = status == StrategyProjectionAdmissionStatus.Admitted
 
@@ -189,9 +214,21 @@ object StrategyProjectionAdmissionResult:
   private val AllowedScopes = Set("position_local", "move_local", "exact_current_board", "exact_transition")
   private val ForbiddenTokens =
     Vector("best", "forced", "winning", "drawn", "result", "oracle", "theory", "recommend", "engine", "source")
+  private val DefaultPhraseCapability =
+    StrategyProjectionPhraseCapability(
+      allowedPredicateKey = "strategy_projection",
+      sanOnlyVariationEvidence = true,
+      allowsResultLanguage = false,
+      allowsBestForcedLanguage = false,
+      allowsEngineLanguage = false,
+      allowsFallbackText = false,
+      forbiddenTerms = ForbiddenTokens
+    )
 
   private[projection] def fromDecision(
       projectionId: String,
+      authority: StrategyProjectionAdmissionAuthority,
+      runtimeK: Option[StrategyRuntimeKProducer.RuntimeK] = None,
       bandId: StrategyProjectionBandId,
       sourceRootState: RootStateVector,
       currentRootState: RootStateVector,
@@ -204,6 +241,8 @@ object StrategyProjectionAdmissionResult:
       scope: String,
       lowerCarrierRefs: Vector[StrategyProjectionCarrierRef],
       wordingStrengthCap: WordingStrength,
+      phraseCapability: StrategyProjectionPhraseCapability = DefaultPhraseCapability,
+      publicSurfaceForbiddenTerms: Vector[String] = Vector.empty,
       decision: Either[String, Boolean]
   ): StrategyProjectionAdmissionResult =
     val normalizedEvidenceKinds =
@@ -211,6 +250,7 @@ object StrategyProjectionAdmissionResult:
     val rejectionReason =
       decision.left.toOption
         .orElse(Option.when(decision.contains(false))("projection_admission_rejected"))
+        .orElse(Option.when(authority == StrategyProjectionAdmissionAuthority.DescriptorCertifiedRuntime && runtimeK.isEmpty)("projection_runtime_k_required"))
         .orElse(Option.when(sourceRootState != currentRootState)("projection_root_binding_mismatch"))
         .orElse(Option.when(lowerCarrierRefs.isEmpty)("projection_lower_carrier_required"))
         .orElse(Option.when(!validLowerCarrierBinding(bandId, owner, defender, anchor, route, scope, lowerCarrierRefs))("projection_lower_carrier_binding_mismatch"))
@@ -222,7 +262,9 @@ object StrategyProjectionAdmissionResult:
 
     StrategyProjectionAdmissionResult(
       projectionId = projectionId,
+      authority = authority,
       status = if rejectionReason.isEmpty then StrategyProjectionAdmissionStatus.Admitted else StrategyProjectionAdmissionStatus.Rejected,
+      runtimeKId = runtimeK.map(_.truth.id),
       bandId = bandId,
       sourceRootState = sourceRootState,
       currentRootState = currentRootState,
@@ -235,6 +277,8 @@ object StrategyProjectionAdmissionResult:
       scope = scope,
       lowerCarrierRefs = lowerCarrierRefs,
       wordingStrengthCap = WordingStrength.weaker(wordingStrengthCap, WordingStrength.QualifiedSupport),
+      phraseCapability = phraseCapability,
+      publicSurfaceForbiddenTerms = publicSurfaceForbiddenTerms.distinct,
       rejectionReason = rejectionReason
     )
 

@@ -264,15 +264,6 @@ describe('move explanation surface', () => {
       variationEvidence: [
         {
           ...variationEvidence('proof-claim-primary-resource', ['Nxe5', 'Nxe5']),
-          lineUci: ['f3e5', 'c6e5'],
-          boundary: {
-            depthFloor: 16,
-            realizedDepth: 18,
-            multiPv: 2,
-            freshnessChecked: true,
-            legalReplayChecked: true,
-            baselineChecked: true,
-          },
           engineEval: '+0.42',
           rawPv: 'f3e5 c6e5',
           cacheKey: 'candidate-line-cache',
@@ -282,7 +273,6 @@ describe('move explanation surface', () => {
 
     const text = surfaceText(withEvidence);
 
-    assert.match(text, /Line/);
     assert.match(text, /Nxe5 Nxe5/);
     assert.doesNotMatch(text, /f3e5|c6e5|depth|eval|engine|rawPv|cache|candidate-line-cache|proof-claim-primary-resource/i);
   });
@@ -302,6 +292,36 @@ describe('move explanation surface', () => {
 
     assert.match(text, /The reply is the point/);
     assert.doesNotMatch(text, /Nxe5/);
+  });
+
+  test('surface does not add role-label prose around backend text or SAN lines', () => {
+    const state: MoveExplanationState = readyState(render({
+      blocks: [block('claim-primary', 'The reply is the point.', ['proof-claim-primary-resource'])],
+      variationEvidence: [variationEvidence('proof-claim-primary-resource', ['Nxe5', 'Nxe5'])],
+    }));
+
+    const text = surfaceText(state);
+
+    assert.match(text, /The reply is the point/);
+    assert.match(text, /Nxe5 Nxe5/);
+    assert.doesNotMatch(text, /Move note|Context|Reply|\bLine\b/);
+  });
+
+  test('surface does not show SAN evidence when block phrase capability denies line commentary', () => {
+    const denied = {
+      ...block('claim-primary', '', ['proof-claim-primary-resource']),
+      phraseCapability: {
+        ...block('claim-primary', '').phraseCapability,
+        allowsLineCommentary: false,
+        allowedPredicates: ['board_fact' as const],
+      },
+    };
+    const state: MoveExplanationState = readyState(render({
+      blocks: [denied],
+      variationEvidence: [variationEvidence('proof-claim-primary-resource', ['Nxe5', 'Nxe5'])],
+    }));
+
+    assert.equal(surfaceText(state), '');
   });
 });
 
@@ -333,7 +353,7 @@ function readyState(render: PublicCommentaryRender): MoveExplanationState {
 function surfaceText(state: MoveExplanationState): string {
   if (state.kind !== 'ready') return '';
   return visibleMoveExplanationBlocks(state)
-    .flatMap(block => [block.label, block.text, block.line ? `Line ${block.line}` : ''])
+    .flatMap(block => [block.label, block.text, block.line || ''])
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -418,6 +438,15 @@ function block(claimId: string, publicText: string, variationEvidenceIds?: strin
     ...(variationEvidenceIds ? { variationEvidenceIds } : {}),
     boundaries: [],
     nonAuthoritative: false,
+    phraseCapability: {
+      maxStrength: 'qualified_support' as const,
+      allowedPredicates: ['line_commentary' as const],
+      allowsResultLanguage: false,
+      allowsBestForcedLanguage: false,
+      allowsEngineLanguage: false,
+      allowsLineCommentary: true,
+      forbiddenTerms: ['best', 'forced', 'engine says'],
+    },
   };
 }
 
@@ -425,7 +454,6 @@ function variationEvidence(proofId: string, lineSan: string[]): RenderVariationE
   return {
     proofId,
     boundClaimId: 'claim-primary',
-    startFen: currentFen,
     owner: 'white',
     defender: 'black',
     anchor: 'e5',
@@ -434,26 +462,16 @@ function variationEvidence(proofId: string, lineSan: string[]): RenderVariationE
     role: 'resource',
     moveRole: 'defender_resource',
     lineSan,
-    lineUci: ['f3e5', 'c6e5'],
-    playedMove: { san: lineSan[0], uci: 'f3e5' },
-    candidateMove: { san: lineSan[0], uci: 'f3e5' },
-    defenderResource: { san: lineSan[1], uci: 'c6e5' },
-    continuation: [{ san: lineSan[1], uci: 'c6e5' }],
-    testedMove: { san: lineSan[0], uci: 'f3e5' },
-    testedLine: [{ san: lineSan[0], uci: 'f3e5' }],
-    replyLine: [{ san: lineSan[1], uci: 'c6e5' }],
-    resourceLine: [{ san: lineSan[1], uci: 'c6e5' }],
+    playedMove: { san: lineSan[0] },
+    candidateMove: { san: lineSan[0] },
+    defenderResource: { san: lineSan[1] },
+    continuation: [{ san: lineSan[1] }],
+    testedMove: { san: lineSan[0] },
+    testedLine: [{ san: lineSan[0] }],
+    replyLine: [{ san: lineSan[1] }],
+    resourceLine: [{ san: lineSan[1] }],
     testResult: 'resource_fails',
     proofPurpose: 'fails',
-    provenanceRefs: [],
-    boundary: {
-      depthFloor: 16,
-      realizedDepth: 18,
-      multiPv: 2,
-      freshnessChecked: true,
-      legalReplayChecked: true,
-      baselineChecked: true,
-    },
     wordingCap: 'qualified_support',
     surfaceAllowance: 'public_line',
   };

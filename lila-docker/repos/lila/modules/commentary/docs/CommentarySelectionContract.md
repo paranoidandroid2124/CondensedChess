@@ -22,9 +22,12 @@ raw `EngineEvidencePacket`, centipawn number, or PV line is never a selectable
 claim. Engine-derived selection input must already be bounded same-root
 Certification evidence. An `EngineCertification` evidence reference by itself
 is not enough: selector admission requires a same-root `Certification` evidence
-reference with the same owner, anchor, route, and scope.
+reference with the same owner, anchor, route, and scope, plus a same-binding
+typed lower board reason (`Root`, `Witness`, `Object`, or `Delta`). A generic
+exact-board carrier proves board identity only; it does not turn engine evidence
+into public board explanation.
 If the claim, `Certification` ref, `EngineCertification` ref, or engine-certified
-board reason is missing scope, the candidate is suppressed before ranking.
+carrier is missing scope, the candidate is suppressed before ranking.
 
 Source context is not a truth owner. Opening, motif, endgame-study, and
 retrieval rows may become context or reference material only. They cannot beat
@@ -111,6 +114,14 @@ enter selected lines or source context refs through only one boundary.
 S24 is not the generic tactic owner. S24 covers same-target forcing/realization
 projection only. A concrete tactic, forced conversion, or blunder lead must be
 owned by the actual current exact-board or transition family that admitted it.
+Current public selection keeps S24 closed as an anti-case/blocker: even a
+complete validation-scaffold shape with both same-target forcing and
+same-target conversion evidence is suppressed until a future descriptor-backed
+RuntimeK region exists.
+
+`anti_case` is a terminal public-path disposition for known false-positive
+shapes. Like `support_only`, `deferred`, and `rejected`, it cannot become lead,
+support, context, renderer prose, or a public claim owner.
 
 Renderer may only verbalize the `CommentaryOutline`. It must not perform
 admission, ranking, suppression, best-defense, persistence, conversion,
@@ -197,18 +208,31 @@ Allowed lead sources:
 - admitted Sxx projection with exact lower carrier and allowed projection
   evidence kind
 
-For S24, the allowed projection evidence must include both
-`same_target_forcing_realization` and `same_target_conversion_certified`.
+For S24, the validation-scaffold evidence shape still requires both
+`same_target_forcing_realization` and `same_target_conversion_certified`, but
+that shape is blocker-only at the public selector boundary and cannot lead
+without a future descriptor-certified RuntimeK path.
 
 The backend producer handoff for runtime Sxx claims is
-`StrategyProjectionAdmissionResult`. Only results produced by
-`StrategyProjectionAdmission.admit` and marked `admitted` may become
-Projection-layer `CommentaryClaim`s. The producer does not infer Sxx admission
-from a band id, prose label, broad concept, selector-shaped claim, source row,
-raw engine packet, or prepared variation evidence. The typed result must bind
-source root to current root, carry same-binding exact lower carrier refs, expose
-only allowed projection evidence kinds, keep an exact scope, and preserve a
-bounded wording cap.
+`StrategyProjectionAdmissionResult`. Only descriptor-certified runtime results
+marked `admitted` may become Projection-layer `CommentaryClaim`s. The canonical
+runtime producer is `StrategyProjectionAdmissionProducer`, which consumes same-root
+`Certified(K)`, explicit admitted-region ids, and
+`StrategyGeometryEngine` public-primary memberships. The lower
+`StrategyProjectionAdmission.admit` path is test-only validation scaffolding
+for existing Sxx contracts and is not public-lowerable. The producer does not infer Sxx admission from a
+band id, prose label, broad concept, selector-shaped claim, source row, raw
+engine packet, prepared variation evidence, classifier center key, finite fit
+score, rank, or overlap label. The typed result must bind source root to
+current root, carry same-binding exact lower carrier refs, expose only allowed
+projection evidence kinds, keep an exact scope, and preserve a bounded wording
+cap.
+
+Classifier rank is an intra-projection classifier only. It may decide which
+already-certified membership becomes the public-primary projection admission,
+but it does not override the selector's layer priorities or promote
+support-only, context-only, deferred, rejected, anti-case, stale, or unbound
+claims.
 
 Sxx lower carriers must be exact typed refs with owner, anchor, route, and
 scope binding. Unbound lower carriers are not enough to admit a Projection
@@ -487,8 +511,8 @@ selection-layer checks for:
   wrong owner/anchor/route/scope, and renderer-strength shortcuts staying
   fail-closed
 
-The fourth runtime expansion slice adds the S01/S02/S03/S04 king-attack
-cluster. It does not add projection admission law. It consumes already admitted
+The king-attack selection cluster covers S01/S02/S03/S04. It does not add
+projection admission law. It consumes already admitted
 S01, S02, S03, and S04 projection claims and adds selection-layer checks for:
 
 - exact admitted S01 selected as `shouldLead` only when lower carriers include
@@ -532,15 +556,15 @@ to Certification-layer claims and adds selection-layer checks for:
 - bounded `EngineCertification` influencing ranking only when the claim is a
   Certification claim with same-root `Certification` evidence and a
   same-owner/anchor/route/scope typed Root, Witness, Object, or Delta board
-  reason
-- engine-certified eval swing without that typed board reason suppressed with
+  reason; a generic exact-board carrier is insufficient
+- engine-certified eval swing without that carrier suppressed with
   `no_board_reason`, even when its numeric swing is larger than an admitted
   Sxx projection
 - board-explainable admitted Sxx projection outranking opaque engine-certified
   eval swing
 - engine-certified result/material Certification outranking Sxx only when
   result/material impact, same-root Certification, and same-binding typed
-  board reason justify the `mustLead` bucket
+  Root, Witness, Object, or Delta board reason justify the `mustLead` bucket
 - stale, wrong-node, wrong-FEN, wrong-route, and wrong-engine-config
   `EngineCertification` refs suppressed before ranking via
   `stale_evidence`, `wrong_owner`, `wrong_anchor`, `wrong_route`, or
@@ -628,7 +652,8 @@ The selector contract tests cover:
 - `EngineCertification` without same-root `Certification` evidence is
   suppressed
 - S24 is not treated as generic tactic owner
-- S24 requires both same-target forcing and conversion evidence
+- S24 remains public-closed even with same-target forcing and conversion
+  scaffold evidence
 - admitted Sxx can lead only with exact lower carrier/evidence
 - raw engine refs cannot be smuggled through another layer or Sxx lower carrier
 - raw engine lower carriers cannot be smuggled through non-Projection board
@@ -674,11 +699,11 @@ The selector contract tests cover:
   exact lower carriers while preventing generic attack/source/raw-engine truth
   promotion
 - engine-certified eval swing cannot lead without same-root Certification and
-  same-binding typed board reason
+  same-binding typed Root, Witness, Object, or Delta board reason
 - board-explainable admitted Sxx can beat larger opaque engine-certified eval
   swing
-- engine-certified result/material Certification can beat Sxx only with typed
-  board reason support
+- engine-certified result/material Certification can beat Sxx only with
+  same-binding typed Root, Witness, Object, or Delta board-reason support
 - non-Certification eval swing is ignored for ranking
 - cross-layer same-key carrier/support claims are not duplicate-suppressed
 - every `S01-S25` start-ready band has a selection closure path when already

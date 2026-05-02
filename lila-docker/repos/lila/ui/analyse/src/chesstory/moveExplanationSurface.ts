@@ -17,19 +17,13 @@ export function visibleMoveExplanationBlocks(state: MoveExplanationReadyState): 
     const text = (block.text.publicText || '').trim();
     const line = publicLineForBlock(state.render, block);
     if (!text && !line) return [];
-    return { key: `${index}:${block.role}`, block, label: blockLabel(block), text, line };
+    return { key: `${index}:${block.role}`, block, label: '', text, line };
   });
-}
-
-function blockLabel(block: RenderBlock): string {
-  if (block.role === 'context') return 'Context';
-  if (block.role === 'contrast') return 'Reply';
-  return 'Move note';
 }
 
 function publicLineForBlock(render: PublicRender, block: RenderBlock): string | null {
   const ids = block.variationEvidenceIds;
-  if (!ids?.length || !render.variationEvidence?.length) return null;
+  if (!ids?.length || !render.variationEvidence?.length || !blockAllowsLineCommentary(block, render)) return null;
 
   const allowedIds = new Set(ids);
   const line = render.variationEvidence.find(item => item.boundClaimId === block.claimId && allowedIds.has(item.proofId) && isPublicLine(item));
@@ -41,4 +35,36 @@ function publicLineForBlock(render: PublicRender, block: RenderBlock): string | 
 
 function isPublicLine(line: PublicLine): boolean {
   return line.surfaceAllowance === 'public_line' && Array.isArray(line.lineSan) && line.lineSan.length > 0;
+}
+
+function blockAllowsLineCommentary(block: RenderBlock, render: PublicRender): boolean {
+  const capability = block.phraseCapability;
+  if (!capability || !render.wording.allowedPublicText || block.role !== 'primary') return false;
+  return (
+    capability.allowsLineCommentary &&
+    capability.allowedPredicates.includes('line_commentary') &&
+    !capability.allowsResultLanguage &&
+    !capability.allowsBestForcedLanguage &&
+    !capability.allowsEngineLanguage &&
+    wordingRank(block.wordingStrength) >= wordingRank('qualified_support') &&
+    wordingRank(capability.maxStrength) >= wordingRank(block.wordingStrength) &&
+    wordingRank(render.wording.maxStrength) >= wordingRank(block.wordingStrength)
+  );
+}
+
+function wordingRank(strength: string): number {
+  switch (strength) {
+    case 'hidden':
+      return 0;
+    case 'negative_only':
+      return 1;
+    case 'context_only':
+      return 2;
+    case 'qualified_support':
+      return 3;
+    case 'assertive_certified':
+      return 4;
+    default:
+      return -1;
+  }
 }

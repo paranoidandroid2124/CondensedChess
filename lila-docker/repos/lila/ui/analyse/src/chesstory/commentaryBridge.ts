@@ -24,6 +24,24 @@ export type RenderText = {
   forbiddenTerms: string[];
 };
 
+export type PublicClaimPredicate =
+  | 'board_fact'
+  | 'certification'
+  | 'strategy_projection'
+  | 'source_context'
+  | 'line_commentary'
+  | 'result_material';
+
+export type PhraseCapability = {
+  maxStrength: WordingStrength;
+  allowedPredicates: PublicClaimPredicate[];
+  allowsResultLanguage: boolean;
+  allowsBestForcedLanguage: boolean;
+  allowsEngineLanguage: boolean;
+  allowsLineCommentary: boolean;
+  forbiddenTerms: string[];
+};
+
 export type RenderEvidenceRef = {
   kind: string;
   id: string;
@@ -65,22 +83,11 @@ export type VariationSurfaceAllowance = 'public_line' | 'boundary_only';
 
 export type RenderVariationMove = {
   san: string;
-  uci: string;
-};
-
-export type RenderVariationBoundary = {
-  depthFloor: number;
-  realizedDepth: number;
-  multiPv: number;
-  freshnessChecked: boolean;
-  legalReplayChecked: boolean;
-  baselineChecked: boolean;
 };
 
 export type RenderVariationEvidence = {
   proofId: string;
   boundClaimId: string;
-  startFen: string;
   owner: string;
   defender?: string | null;
   anchor: string;
@@ -89,7 +96,6 @@ export type RenderVariationEvidence = {
   role: RenderLineRole;
   moveRole: VariationMoveRole;
   lineSan: string[];
-  lineUci: string[];
   playedMove?: RenderVariationMove | null;
   candidateMove?: RenderVariationMove | null;
   defenderResource?: RenderVariationMove | null;
@@ -100,8 +106,6 @@ export type RenderVariationEvidence = {
   resourceLine: RenderVariationMove[];
   testResult: VariationTestResult;
   proofPurpose: VariationProofPurpose;
-  provenanceRefs: RenderEvidenceRef[];
-  boundary: RenderVariationBoundary;
   wordingCap: WordingStrength;
   surfaceAllowance: VariationSurfaceAllowance;
 };
@@ -115,6 +119,7 @@ export type RenderBlock = {
   variationEvidenceIds?: string[];
   boundaries: RenderBoundary[];
   nonAuthoritative: boolean;
+  phraseCapability?: PhraseCapability | null;
 };
 
 export type RenderSuppression = {
@@ -256,12 +261,16 @@ export function decodePublicCommentaryRender(response: CommentaryResponse): Publ
   if (response.render.wording.maxStrength === 'hidden') return { kind: 'empty', reason: 'hidden' };
   if (response.render.wording.maxStrength === 'negative_only') return { kind: 'empty', reason: 'negative_only' };
 
-  const blocks = response.render.blocks.filter(hasPublicBlockPayload).map(copyRenderBlock);
-  if (!blocks.length) return { kind: 'empty', reason: 'no_commentary' };
+  const renderWording = copyRenderWording(response.render.wording);
   const variationEvidence = response.render.variationEvidence?.flatMap(evidence => {
     const copied = copyRenderVariationEvidence(evidence);
     return copied ? [copied] : [];
   });
+  const publicVariationProofIds = new Set((variationEvidence || []).map(evidence => evidence.proofId));
+  const blocks = response.render.blocks
+    .map(block => copyRenderBlock(block, renderWording, publicVariationProofIds))
+    .filter(hasPublicBlockPayload);
+  if (!blocks.length) return { kind: 'empty', reason: 'no_commentary' };
 
   return {
     kind: 'render',
@@ -272,33 +281,144 @@ export function decodePublicCommentaryRender(response: CommentaryResponse): Publ
     evidenceRefs: response.render.evidenceRefs.map(copyRenderEvidenceRef),
     ...(variationEvidence && variationEvidence.length ? { variationEvidence } : {}),
     boundaries: response.render.boundaries.map(copyRenderBoundary),
-    wording: copyRenderWording(response.render.wording),
+    wording: renderWording,
   };
 }
 
-function copyRenderBlock(block: RenderBlock): RenderBlock {
+function copyRenderBlock(
+  block: RenderBlock,
+  renderWording: RenderWording,
+  publicVariationProofIds: Set<string>,
+): RenderBlock {
+  const phraseCapability = copyPhraseCapability(block.phraseCapability);
+  const allowsLine = blockAllowsLineCommentary(block, phraseCapability, renderWording);
+  const variationEvidenceIds =
+    allowsLine && block.variationEvidenceIds !== undefined
+      ? block.variationEvidenceIds.filter(
+          (proofId): proofId is string => typeof proofId === 'string' && publicVariationProofIds.has(proofId),
+        )
+      : undefined;
   return {
     role: block.role,
     claimId: block.claimId,
-    text: {
-      publicText: block.text.publicText,
-      forbiddenTerms: [...block.text.forbiddenTerms],
-    },
+    text: copyRenderText(block.text, block, phraseCapability, renderWording),
     wordingStrength: block.wordingStrength,
     evidenceIds: [...block.evidenceIds],
-    ...(block.variationEvidenceIds !== undefined ? { variationEvidenceIds: [...block.variationEvidenceIds] } : {}),
+    ...(variationEvidenceIds !== undefined && variationEvidenceIds.length ? { variationEvidenceIds } : {}),
     boundaries: block.boundaries.map(copyRenderBoundary),
     nonAuthoritative: block.nonAuthoritative,
+    ...(phraseCapability ? { phraseCapability } : {}),
   };
+}
+
+function copyRenderText(
+  text: RenderText,
+  block: RenderBlock,
+  phraseCapability: PhraseCapability | null,
+  renderWording: RenderWording,
+): RenderText {
+  const forbiddenTerms = Array.isArray(text.forbiddenTerms) ? [...text.forbiddenTerms] : [];
+  const publicText = typeof text.publicText === 'string' ? text.publicText : null;
+  return {
+    publicText: publicTextAllowedByPhraseCapability(publicText, block, phraseCapability, renderWording) ? publicText : null,
+    forbiddenTerms,
+  };
+}
+
+function copyPhraseCapability(value: unknown): PhraseCapability | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Partial<PhraseCapability>;
+  if (
+    !isWordingStrength(candidate.maxStrength) ||
+    !Array.isArray(candidate.allowedPredicates) ||
+    typeof candidate.allowsResultLanguage !== 'boolean' ||
+    typeof candidate.allowsBestForcedLanguage !== 'boolean' ||
+    typeof candidate.allowsEngineLanguage !== 'boolean' ||
+    typeof candidate.allowsLineCommentary !== 'boolean' ||
+    !Array.isArray(candidate.forbiddenTerms)
+  )
+    return null;
+
+  return {
+    maxStrength: candidate.maxStrength,
+    allowedPredicates: candidate.allowedPredicates.filter(isPublicClaimPredicate),
+    allowsResultLanguage: candidate.allowsResultLanguage,
+    allowsBestForcedLanguage: candidate.allowsBestForcedLanguage,
+    allowsEngineLanguage: candidate.allowsEngineLanguage,
+    allowsLineCommentary: candidate.allowsLineCommentary,
+    forbiddenTerms: candidate.forbiddenTerms.filter((term): term is string => typeof term === 'string'),
+  };
+}
+
+function publicTextAllowedByPhraseCapability(
+  publicText: string | null,
+  block: RenderBlock,
+  phraseCapability: PhraseCapability | null,
+  renderWording: RenderWording,
+): boolean {
+  if (!publicText?.trim() || !phraseCapability) return false;
+  return (
+    blockAllowsLineCommentary(block, phraseCapability, renderWording) &&
+    !containsForbiddenTerm(publicText, phraseCapability.forbiddenTerms)
+  );
+}
+
+function blockAllowsLineCommentary(block: RenderBlock, phraseCapability: PhraseCapability | null, renderWording: RenderWording): boolean {
+  if (!phraseCapability || !renderWording.allowedPublicText || block.role !== 'primary') return false;
+  return (
+    phraseCapability.allowsLineCommentary &&
+    phraseCapability.allowedPredicates.includes('line_commentary') &&
+    !phraseCapability.allowsResultLanguage &&
+    !phraseCapability.allowsBestForcedLanguage &&
+    !phraseCapability.allowsEngineLanguage &&
+    wordingRank(block.wordingStrength) >= wordingRank('qualified_support') &&
+    wordingRank(phraseCapability.maxStrength) >= wordingRank(block.wordingStrength) &&
+    wordingRank(renderWording.maxStrength) >= wordingRank(block.wordingStrength)
+  );
+}
+
+function containsForbiddenTerm(text: string, terms: string[]): boolean {
+  const normalized = text.toLowerCase();
+  return terms.some(term => normalized.includes(term.toLowerCase()));
+}
+
+function isWordingStrength(value: unknown): value is WordingStrength {
+  return value === 'hidden' || value === 'negative_only' || value === 'context_only' || value === 'qualified_support' || value === 'assertive_certified';
+}
+
+function isPublicClaimPredicate(value: unknown): value is PublicClaimPredicate {
+  return (
+    value === 'board_fact' ||
+    value === 'certification' ||
+    value === 'strategy_projection' ||
+    value === 'source_context' ||
+    value === 'line_commentary' ||
+    value === 'result_material'
+  );
+}
+
+function wordingRank(strength: WordingStrength): number {
+  switch (strength) {
+    case 'hidden':
+      return 0;
+    case 'negative_only':
+      return 1;
+    case 'context_only':
+      return 2;
+    case 'qualified_support':
+      return 3;
+    case 'assertive_certified':
+      return 4;
+  }
 }
 
 function copyRenderVariationEvidence(evidence: RenderVariationEvidence): RenderVariationEvidence | null {
   if (!isRenderLineRole(evidence.role)) return null;
+  if (evidence.surfaceAllowance !== 'public_line') return null;
 
   return {
     proofId: evidence.proofId,
     boundClaimId: evidence.boundClaimId,
-    startFen: evidence.startFen,
     owner: evidence.owner,
     defender: evidence.defender,
     anchor: evidence.anchor,
@@ -307,7 +427,6 @@ function copyRenderVariationEvidence(evidence: RenderVariationEvidence): RenderV
     role: evidence.role,
     moveRole: evidence.moveRole,
     lineSan: [...evidence.lineSan],
-    lineUci: [...evidence.lineUci],
     playedMove: copyOptionalRenderVariationMove(evidence.playedMove),
     candidateMove: copyOptionalRenderVariationMove(evidence.candidateMove),
     defenderResource: copyOptionalRenderVariationMove(evidence.defenderResource),
@@ -318,15 +437,6 @@ function copyRenderVariationEvidence(evidence: RenderVariationEvidence): RenderV
     resourceLine: evidence.resourceLine.map(copyRenderVariationMove),
     testResult: evidence.testResult,
     proofPurpose: evidence.proofPurpose,
-    provenanceRefs: evidence.provenanceRefs.map(copyRenderEvidenceRef),
-    boundary: {
-      depthFloor: evidence.boundary.depthFloor,
-      realizedDepth: evidence.boundary.realizedDepth,
-      multiPv: evidence.boundary.multiPv,
-      freshnessChecked: evidence.boundary.freshnessChecked,
-      legalReplayChecked: evidence.boundary.legalReplayChecked,
-      baselineChecked: evidence.boundary.baselineChecked,
-    },
     wordingCap: evidence.wordingCap,
     surfaceAllowance: evidence.surfaceAllowance,
   };
@@ -347,7 +457,6 @@ function hasPublicBlockPayload(block: RenderBlock): boolean {
 function copyRenderVariationMove(move: RenderVariationMove): RenderVariationMove {
   return {
     san: move.san,
-    uci: move.uci,
   };
 }
 
