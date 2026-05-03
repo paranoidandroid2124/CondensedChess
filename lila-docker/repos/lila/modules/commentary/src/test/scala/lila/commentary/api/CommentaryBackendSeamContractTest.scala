@@ -644,6 +644,46 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
     assert(debugResponse.internal.exists(_.suppressions.map(_.claimId) == Vector("api-blocked-source-truth")))
     assertEquals(debugResponse.render.blocks.exists(_.claimId == "api-blocked-source-truth"), false)
 
+  test("semantic shadow metadata is debug-only and cannot change legacy public render"):
+    val highScoringRawEngine = CommentaryClaim(
+      id = "api-semantic-raw-engine-shadow",
+      layer = ClaimLayer.Engine,
+      status = ClaimStatus.Admitted,
+      impact = ClaimImpact(
+        resultMaterialImpact = 100,
+        forcedness = 100,
+        immediacy = 100,
+        evalSwing = 1200,
+        evidenceConfidence = 100
+      ),
+      evidenceRefs = Vector(EvidenceRef(EvidenceRefKind.RawEngine, "api-semantic-shadow-raw-engine"))
+    )
+    val seam = CommentaryBackendSeam.withClaimProvider(_ =>
+      Vector(highScoringRawEngine, boardLead("api-semantic-legacy-lead"))
+    )
+
+    val publicResponse = seam.render(request())
+    val debugResponse = seam.renderDebug(request())
+    val publicJson = Json.toJson(publicResponse).toString
+    val debugJson = Json.toJson(debugResponse).toString
+
+    assertEquals(publicResponse.render.blocks.map(_.claimId), Vector("api-semantic-legacy-lead"))
+    assertEquals(publicResponse.internal, None)
+    assert(!publicJson.contains("semanticShadow"), clues(publicJson))
+    assertEquals(debugResponse.render.blocks.map(_.claimId), Vector("api-semantic-legacy-lead"))
+    assert(debugResponse.internal.flatMap(_.semanticShadow).nonEmpty)
+    assert(
+      debugResponse.internal.exists(
+        _.semanticShadow.exists(_.legacyLeadClaimId.contains("api-semantic-legacy-lead"))
+      )
+    )
+    assert(
+      debugResponse.internal.exists(
+        _.semanticShadow.exists(_.topDecisions.exists(_.claimId == "api-semantic-raw-engine-shadow"))
+      )
+    )
+    assert(debugJson.contains("semanticShadow"), clues(debugJson))
+
   test("direct claim-provider S23 projection cannot bypass runtime K producer provenance"):
     val seam = CommentaryBackendSeam.withClaimProvider(_ => Vector(forgedS23ProjectionClaim()))
 

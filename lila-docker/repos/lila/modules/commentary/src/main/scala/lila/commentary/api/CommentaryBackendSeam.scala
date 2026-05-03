@@ -24,6 +24,7 @@ import lila.commentary.projection.StrategyProjectionAdmissionProducer
 import lila.commentary.render.*
 import lila.commentary.root.RootPositionSupport
 import lila.commentary.selection.*
+import lila.commentary.selection.semantic.*
 import lila.commentary.strategic.StrategicObjectExtraction
 
 final case class CommentaryRequest(
@@ -133,7 +134,8 @@ final case class CommentaryEngineIntake(
 final case class CommentaryInternalMetadata(
     suppressions: Vector[RenderSuppression],
     engineIntake: Option[CommentaryEngineIntake],
-    invalidReason: Option[String]
+    invalidReason: Option[String],
+    semanticShadow: Option[SemanticShadowSummary] = None
 )
 
 final case class CommentaryResponse(
@@ -203,6 +205,10 @@ final class CommentaryBackendSeam private (
         val candidateLineAssembly = candidateLineAssemblyProvider(input, engineFilteredClaims)
         val claims = attachPreparedVariationEvidence(engineFilteredClaims, candidateLineAssembly)
         val outline = ClaimSelector.select(claims)
+        val semanticShadow =
+          Option.when(includeDebug)(
+            SemanticShadowSummary.from(SemanticClaimSelector.shadow(input, claims, outline))
+          )
         val plan = CommentaryOutlineBuilder.build(outline)
         val rendered = CommentaryRenderer.render(plan)
         response(
@@ -210,7 +216,8 @@ final class CommentaryBackendSeam private (
           render = rendered,
           debug = includeDebug,
           engineIntake = engineIntake.map(_.metadata),
-          invalidReason = None
+          invalidReason = None,
+          semanticShadow = semanticShadow
         )
 
   private def validate(
@@ -361,7 +368,8 @@ final class CommentaryBackendSeam private (
       render: CommentaryRender,
       debug: Boolean,
       engineIntake: Option[CommentaryEngineIntake],
-      invalidReason: Option[String]
+      invalidReason: Option[String],
+      semanticShadow: Option[SemanticShadowSummary] = None
   ): CommentaryResponse =
     val publicRender = render.copy(suppressions = Vector.empty)
     CommentaryResponse(
@@ -372,7 +380,8 @@ final class CommentaryBackendSeam private (
         CommentaryInternalMetadata(
           suppressions = render.suppressions,
           engineIntake = engineIntake,
-          invalidReason = invalidReason
+          invalidReason = invalidReason,
+          semanticShadow = semanticShadow
         )
       )
     )
@@ -873,9 +882,13 @@ object CommentaryApiJson:
   given Format[RenderRole] = enumFormat(RenderRole.values, _.key, "RenderRole")
   given Format[RenderStatus] = enumFormat(RenderStatus.values, _.key, "RenderStatus")
   given Format[RenderLineRole] = enumFormat(RenderLineRole.values, _.key, "RenderLineRole")
+  given Format[ClaimLayer] = enumFormat(ClaimLayer.values, _.key, "ClaimLayer")
+  given Format[ClaimStatus] = enumFormat(ClaimStatus.values, _.key, "ClaimStatus")
   given Format[WordingStrength] = enumFormat(WordingStrength.values, _.key, "WordingStrength")
   given Format[EvidenceRefKind] = enumFormat(EvidenceRefKind.values, _.key, "EvidenceRefKind")
   given Format[SuppressionReason] = enumFormat(SuppressionReason.values, _.key, "SuppressionReason")
+  given Format[SemanticGate] = enumFormat(SemanticGate.values, _.key, "SemanticGate")
+  given Format[SemanticRole] = enumFormat(SemanticRole.values, _.key, "SemanticRole")
   given Format[PublicClaimPredicate] =
     enumFormat(PublicClaimPredicate.values, _.key, "PublicClaimPredicate")
   given Format[VariationMoveRole] = enumFormat(VariationMoveRole.values, _.key, "VariationMoveRole")
@@ -895,6 +908,8 @@ object CommentaryApiJson:
   given Format[PhraseCapability] = Json.format[PhraseCapability]
   given Format[RenderBlock] = Json.format[RenderBlock]
   given Format[CommentaryRender] = Json.format[CommentaryRender]
+  given Format[SemanticDecisionSummary] = Json.format[SemanticDecisionSummary]
+  given Format[SemanticShadowSummary] = Json.format[SemanticShadowSummary]
 
   given Format[CertificationEngineRuntimeIntake.RuntimeScore] = Format(
     Reads: json =>
