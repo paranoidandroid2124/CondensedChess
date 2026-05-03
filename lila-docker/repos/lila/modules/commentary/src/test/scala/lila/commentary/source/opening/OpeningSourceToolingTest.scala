@@ -12,7 +12,7 @@ class OpeningSourceToolingTest extends munit.FunSuite:
   private val rejects = OpeningSourceCorpus.loadRejectFixtures()
 
   test("opening storage boundary is frozen by current worktree docs and ignore rules"):
-    val storageDoc = OpeningSourceCorpus.readWorkspaceFile("modules/commentary/docs/OpeningSourceStorage.md")
+    val storageDoc = OpeningSourceCorpus.readWorkspaceFile("modules/commentary/docs/legacy-pre-semantic-reset/OpeningSourceStorage.md")
     val gitignore = OpeningSourceCorpus.readWorkspaceFile(".gitignore")
 
     assert(

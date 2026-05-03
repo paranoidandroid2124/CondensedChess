@@ -35,13 +35,13 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
 
   test("authority docs freeze Sxx projection terminology"):
     val core =
-      Files.readString(Paths.get("modules/commentary/docs/CommentaryCoreSSOT.md"))
+      Files.readString(Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md"))
     val boundary =
-      Files.readString(Paths.get("modules/commentary/docs/StrategyProjectionBoundaryMatrix.md"))
+      Files.readString(Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md"))
     val validation =
-      Files.readString(Paths.get("modules/commentary/docs/ValidationMethodology.md"))
+      Files.readString(Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md"))
     val witnesses =
-      Files.readString(Paths.get("modules/commentary/docs/Witnesses61.md"))
+      Files.readString(Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"))
 
     Vector(
       "| `semantic boundary` | Sxx meaning, rival separation, and false-positive shape; not public admission |",
@@ -214,11 +214,11 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
     )
     val docs =
       Vector(
-        "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-        "modules/commentary/docs/CommentaryCoreSSOT.md",
-        "modules/commentary/docs/Witnesses61.md",
-        "modules/commentary/docs/ValidationMethodology.md",
-        "modules/commentary/docs/DecisionFreezeLedger.md"
+        "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md"
       ).map(path => Files.readString(Paths.get(path))).mkString("\n")
     Vector(
       "`S04` | `shelter_breach_route`",
@@ -280,11 +280,11 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
     )
     val docs =
       Vector(
-        "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-        "modules/commentary/docs/CommentaryCoreSSOT.md",
-        "modules/commentary/docs/Witnesses61.md",
-        "modules/commentary/docs/ValidationMethodology.md",
-        "modules/commentary/docs/DecisionFreezeLedger.md"
+        "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md"
       ).map(path => Files.readString(Paths.get(path))).mkString("\n")
     Vector(
       "`S02` | `attack_concentration_route`",
@@ -302,11 +302,11 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
     val evidenceKind = StrategyProjectionEvidenceKind("diagonal_king_attack_route_certified")
     val docs =
       Vector(
-        "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-        "modules/commentary/docs/CommentaryCoreSSOT.md",
-        "modules/commentary/docs/Witnesses61.md",
-        "modules/commentary/docs/ValidationMethodology.md",
-        "modules/commentary/docs/DecisionFreezeLedger.md"
+        "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md"
       ).map(path => Files.readString(Paths.get(path))).mkString("\n")
 
     assertEquals(StrategyProjectionScopeContract.startReadyBandIds.contains(s03), true)
@@ -472,10 +472,10 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
 
     val docs =
       Vector(
-        "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-        "modules/commentary/docs/CommentaryCoreSSOT.md",
-        "modules/commentary/docs/Witnesses61.md",
-        "modules/commentary/docs/ValidationMethodology.md"
+        "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md"
       ).map(path => Files.readString(Paths.get(path))).mkString("\n")
     Vector(
       "`S09` | `penetration_route`",
@@ -596,10 +596,10 @@ class StrategyProjectionCoverageContractTest extends munit.FunSuite:
     )
     val docs =
       Vector(
-        "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-        "modules/commentary/docs/CommentaryCoreSSOT.md",
-        "modules/commentary/docs/Witnesses61.md",
-        "modules/commentary/docs/ValidationMethodology.md"
+        "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md"
       ).map(path => Files.readString(Paths.get(path))).mkString("\n")
     Vector(
       "`S20` | `domination_route`",

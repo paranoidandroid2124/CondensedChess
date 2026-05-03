@@ -115,10 +115,10 @@ class CandidateLineAssemblyProviderContractTest extends munit.FunSuite:
     ).foreach(token => assert(!json.contains(token), clues(token, json)))
 
   test("contract docs name the provider as internal-only and defer execution persistence controller UI and prose"):
-    val variation = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/VariationEvidenceContract.md"))
-    val core = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/CommentaryCoreSSOT.md"))
-    val backend = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/CommentaryBackendSeamContract.md"))
-    val validation = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/ValidationMethodology.md"))
+    val variation = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/VariationEvidenceContract.md"))
+    val core = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md"))
+    val backend = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/CommentaryBackendSeamContract.md"))
+    val validation = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md"))
     val docs = Vector(variation, core, backend, validation).mkString("\n")
 
     Vector(

@@ -364,6 +364,14 @@ object ClaimSelector:
       claims: Vector[CommentaryClaim],
       rendererRequestedCap: Option[WordingStrength] = None
   ): CommentaryOutline =
+    LegacyClaimSelector.select(claims, rendererRequestedCap)
+
+object LegacyClaimSelector:
+
+  def select(
+      claims: Vector[CommentaryClaim],
+      rendererRequestedCap: Option[WordingStrength] = None
+  ): CommentaryOutline =
     val classified = claims.map(claim => claim -> suppressionReasons(claim))
     val baseSuppressed =
       classified.collect { case (claim, reasons) if reasons.nonEmpty =>

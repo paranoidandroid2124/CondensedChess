@@ -551,11 +551,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val requiredEvidenceKinds =
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view.mapValues(_.map(_.value)).toMap
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
     val s09 = StrategyProjectionBandId("S09")
     val evidenceKind = StrategyProjectionEvidenceKind("file_penetration_route_certified")
@@ -922,12 +922,12 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md",
-      "modules/commentary/docs/StrategySupportSeedInventory.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategySupportSeedInventory.md"
     ).map(docText).mkString("\n")
 
     assertEquals(productionPublicBandIds.contains("S21"), true)
@@ -1027,12 +1027,12 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md",
-      "modules/commentary/docs/StrategySupportSeedInventory.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategySupportSeedInventory.md"
     ).map(docText).mkString("\n")
 
     assertEquals(productionPublicBandIds.contains("S07"), true)
@@ -1116,11 +1116,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val evidenceKind = StrategyProjectionEvidenceKind("counterplay_denial_route_certified")
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
 
     assertEquals(productionPublicBandIds.contains("S08"), true)
@@ -1201,11 +1201,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view.mapValues(_.map(_.value)).toMap
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
 
     assertEquals(productionPublicBandIds, expectedProductionPublicBandIds)
@@ -1302,12 +1302,12 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value)
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md",
-      "modules/commentary/docs/StrategySupportSeedInventory.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategySupportSeedInventory.md"
     ).map(docText).mkString("\n")
 
     assertEquals(productionPublicBandIds.contains("S06"), true)
@@ -1631,10 +1631,10 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     )
     assertEquals(StrategyProjectionScopeContract.requiredEvidenceKindsByBand("S01"), Vector(s01EvidenceKind))
     val s01ContractDocs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
     Vector(
       "`S01` | `storm_route`",
@@ -1933,12 +1933,12 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val requiredEvidenceKinds =
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view.mapValues(_.map(_.value)).toMap
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
-    val decisionFreezeLedger = docText("modules/commentary/docs/DecisionFreezeLedger.md")
+    val decisionFreezeLedger = docText("modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md")
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).appended(decisionFreezeLedger).mkString("\n")
 
     assertEquals(productionPublicBandIds, expectedProductionPublicBandIds)
@@ -2076,11 +2076,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
     val admissionBurdens = StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S18")
     val declaredEvidenceKinds =
@@ -2181,11 +2181,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val requiredEvidenceKinds =
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view.mapValues(_.map(_.value)).toMap
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
     val s20 = StrategyProjectionBandId("S20")
     val evidenceKind = StrategyProjectionEvidenceKind("mobility_domination_route_certified")
@@ -2268,11 +2268,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val requiredEvidenceKinds =
       StrategyProjectionScopeContract.requiredEvidenceKindsByBand.view.mapValues(_.map(_.value)).toMap
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
     val s10 = StrategyProjectionBandId("S10")
     val evidenceKind = StrategyProjectionEvidenceKind("outpost_occupation_route_certified")
@@ -2358,11 +2358,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val evidenceKind = StrategyProjectionEvidenceKind("local_access_superiority_route_certified")
     val s12Rows = rows.filter(_.band == "S12")
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
 
     assertEquals(s12Rows.size, 7)
@@ -2433,12 +2433,12 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/StrategySupportSeedInventory.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategySupportSeedInventory.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
     val admissionBurdens = StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S19")
     val declaredEvidenceKinds =
@@ -2731,11 +2731,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
     val admissionBurdens = StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S11")
     val declaredEvidenceKinds =
@@ -2850,11 +2850,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
     val admissionBurdens = StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S13")
     val declaredEvidenceKinds =
@@ -2972,11 +2972,11 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
     val productionPublicBandIds = StrategyProjectionScopeContract.startReadyBandIds.map(_.value).toSet
     val coverageOnlyIds = StrategyProjectionCoverageContract.coverageOnlyBandIds.map(_.value).toSet
     val docs = Vector(
-      "modules/commentary/docs/StrategyProjectionBoundaryMatrix.md",
-      "modules/commentary/docs/CommentaryCoreSSOT.md",
-      "modules/commentary/docs/ValidationMethodology.md",
-      "modules/commentary/docs/DecisionFreezeLedger.md",
-      "modules/commentary/docs/Witnesses61.md"
+      "modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/DecisionFreezeLedger.md",
+      "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md"
     ).map(docText).mkString("\n")
     val admissionBurdens = StrategyProjectionCoverageContract.rowSpecificAdmissionBurdensByBand("S14")
     val declaredEvidenceKinds =
@@ -5162,7 +5162,7 @@ class ProjectionExpectationCorpusTest extends munit.FunSuite:
       case _ => ()
 
   private def docsCoveragePairsFor(band: String): Set[(String, String)] =
-    val docPath = java.nio.file.Paths.get("modules/commentary/docs/StrategyProjectionBoundaryMatrix.md")
+    val docPath = java.nio.file.Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/StrategyProjectionBoundaryMatrix.md")
     val lines = java.nio.file.Files.readAllLines(docPath).toArray.toVector.map(_.toString)
     val row =
       lines

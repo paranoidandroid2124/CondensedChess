@@ -482,10 +482,10 @@ class CertificationEngineEvidenceContractTest extends munit.FunSuite:
   test("Engine E freeze is documented as certification-only bounded evidence"):
     val docs =
       Vector(
-        "modules/commentary/docs/CommentaryCoreSSOT.md",
-        "modules/commentary/docs/ValidationMethodology.md",
-        "modules/commentary/docs/Witnesses61.md",
-        "modules/commentary/docs/LegacyFailureTaxonomy.md"
+        "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/Witnesses61.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/LegacyFailureTaxonomy.md"
       ).map(readDoc).mkString("\n")
 
     Vector(

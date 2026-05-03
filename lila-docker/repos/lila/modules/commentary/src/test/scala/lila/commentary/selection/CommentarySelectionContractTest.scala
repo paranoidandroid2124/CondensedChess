@@ -1621,10 +1621,10 @@ class CommentarySelectionContractTest extends munit.FunSuite:
   test("selection contract docs keep literal parity with executable keys"):
     val docs =
       Vector(
-        "modules/commentary/docs/CommentarySelectionContract.md",
-        "modules/commentary/docs/CommentaryCoreSSOT.md",
-        "modules/commentary/docs/ValidationMethodology.md",
-        "modules/commentary/docs/SourceContextContract.md"
+        "modules/commentary/docs/legacy-pre-semantic-reset/CommentarySelectionContract.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md",
+        "modules/commentary/docs/legacy-pre-semantic-reset/SourceContextContract.md"
       ).map(path => Files.readString(Paths.get(path))).mkString("\n")
 
     (ClaimBucket.values.map(_.key) ++ SuppressionReason.values.map(_.key) ++ WordingStrength.values.map(_.key) ++ Vector(

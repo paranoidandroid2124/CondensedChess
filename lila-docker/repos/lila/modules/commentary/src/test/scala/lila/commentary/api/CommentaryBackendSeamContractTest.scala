@@ -694,9 +694,9 @@ class CommentaryBackendSeamContractTest extends munit.FunSuite:
     assertEquals((responseJson \ "render" \ "suppressions").as[Vector[String]], Vector.empty)
 
   test("contract docs name the backend seam and keep public route separate from local probe"):
-    val contract = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/CommentaryBackendSeamContract.md"))
-    val core = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/CommentaryCoreSSOT.md"))
-    val validation = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/ValidationMethodology.md"))
+    val contract = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/CommentaryBackendSeamContract.md"))
+    val core = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md"))
+    val validation = java.nio.file.Files.readString(java.nio.file.Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md"))
 
     Vector(
       "CommentaryRequest",

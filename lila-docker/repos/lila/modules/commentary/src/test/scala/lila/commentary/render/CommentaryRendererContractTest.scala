@@ -832,9 +832,9 @@ class CommentaryRendererContractTest extends munit.FunSuite:
     ).foreach(token => assert(!publicSurface.contains(token), clues(token, publicSurface)))
 
   test("renderer contract docs and surface corpus keep executable names"):
-    val contractDoc = Files.readString(Paths.get("modules/commentary/docs/CommentaryRendererContract.md"))
-    val coreDoc = Files.readString(Paths.get("modules/commentary/docs/CommentaryCoreSSOT.md"))
-    val validationDoc = Files.readString(Paths.get("modules/commentary/docs/ValidationMethodology.md"))
+    val contractDoc = Files.readString(Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/CommentaryRendererContract.md"))
+    val coreDoc = Files.readString(Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/CommentaryCoreSSOT.md"))
+    val validationDoc = Files.readString(Paths.get("modules/commentary/docs/legacy-pre-semantic-reset/ValidationMethodology.md"))
     val surfaceRows = Files.readString(Paths.get("modules/commentary/src/test/resources/commentary-corpus/surface-expectations.jsonl"))
     val requiredTokens = Vector(
       "CommentaryRenderer",
