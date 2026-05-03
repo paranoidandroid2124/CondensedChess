@@ -1,223 +1,47 @@
 # Agent Instructions
 
-For tasks touching Chesstory commentary-analysis work on this branch, use the
-current worktree documents by role, not by old path memory or branch-external
-snapshots.
+For Chesstory commentary work on this branch, treat the backend as a semantic
+commentary model reset.
 
-The current-branch migration authority lives under
-`lila-docker/repos/lila/modules/commentary/docs`:
-- `Witnesses61.md`
-- `CommentaryCoreSSOT.md`
-- `RootAtoms.md`
-- `LegacyFailureTaxonomy.md`
-- `ValidationMethodology.md`
-- `RootIndexFreeze.md`
+Live commentary documentation lives at:
 
-Scope includes helper modules and consumption paths across:
-- `strategic`
-- `semantic`
-- `endgame`
-- `opening`
-- `probe`
-- `plan`
-- `pawn`
-- `structure`
-- `threat`
-- `practicality`
-- `counterfactual`
-- `authoring`
-- outline / renderer / API / frontend
+- `lila-docker/repos/lila/modules/commentary/docs/README.md`
+- `lila-docker/repos/lila/modules/commentary/docs/CommentaryCoreSSOT.md`
+- `lila-docker/repos/lila/modules/commentary/docs/SemanticModelArchitecture.md`
+- `lila-docker/repos/lila/modules/commentary/docs/LegacyArchiveIndex.md`
 
-Do not redo the full `producer -> carrier/model -> builder -> outline -> renderer -> API -> frontend`
-trace if the request is already answered by the current-branch migration docs or
-by the current-branch authority files.
+Documents under
+`lila-docker/repos/lila/modules/commentary/docs/legacy-pre-semantic-reset/`
+are historical reference only. They do not grant current runtime authority,
+selector authority, renderer authority, public claim ownership, or test
+acceptance.
 
-Use the document roles strictly:
-- `modules/commentary/docs/Witnesses61.md`
-  - current 61-row ownership map and row-by-row migration verdict ledger
-- `modules/commentary/docs/CommentaryCoreSSOT.md`
-  - current branch contract / ownership SSoT
-- `modules/commentary/docs/RootAtoms.md`
-  - current lower-root authority
-- `modules/commentary/docs/LegacyFailureTaxonomy.md`
-  - reusable reject / defer / failure-pattern authority
-- `modules/commentary/docs/ValidationMethodology.md`
-  - exact-board validation methodology authority
-- `modules/commentary/docs/RootIndexFreeze.md`
-  - frozen root-index reference when root inventory/index stability matters
+## Branch Direction
 
-Do not cite branch-external or branch-removed documentation as if it were live
-authority for this worktree.
+The target pipeline is:
 
-Re-audit the current-branch commentary docs only if:
-- the user explicitly asks for a fresh audit,
-- code changed after the relevant snapshot in
-  `lila-docker/repos/lila/modules/commentary/src/main`,
-  `lila-docker/repos/lila/app/controllers`, or
-  `lila-docker/repos/lila/ui/analyse/src`,
-- or the task introduces a runtime path not covered by the current branch SSoT.
+`feature extraction -> candidate generation -> semantic scoring/gating -> outline -> renderer`
 
-When changing current-branch descriptor ownership, exact-slice landing, or
-row-level migration status, update `Witnesses61.md` and `CommentaryCoreSSOT.md`
-in the same change.
+The renderer is deferred and must not create chess meaning.
 
-When changing lower-root vocabulary or exact lower admission rules, update
-`RootAtoms.md` in the same change, and update `RootIndexFreeze.md` too if the
-change affects root inventory/index stability.
+## Implementation Guardrails
 
-When changing reusable reject/defer rationale, update
-`LegacyFailureTaxonomy.md` in the same change if the pattern is branch-wide
-rather than row-local.
+- Preserve exact-board validation, legal replay, owner/anchor/route/scope
+  binding, raw-engine/source non-ownership, public-safe line evidence, and
+  stale-evidence rejection as hard gates.
+- Treat Root/U/Object/Delta/Certification/Projection/Source/Engine artifacts as
+  features or evidence unless the new semantic selector explicitly admits them.
+- Do not add new Sxx-style selector special cases as live authority.
+- Do not promote lower atoms such as `pinned_piece`, `xray_target`, or
+  `weak_pawn` into public commentary by themselves.
+- Keep renderer changes downstream of `CommentaryOutline`/`CommentaryPlan`.
+- If a legacy rule is still needed, restate it in a live semantic-model document
+  before relying on it.
 
-When changing validation methodology or what counts as exact board-certified
-evidence, update `ValidationMethodology.md` in the same change.
+## Verification Discipline
 
-## Chess Validation Discipline
+- For runtime behavior changes, run targeted commentary tests or explain why
+  legacy tests are expected to fail after the document reset.
+- Do not treat legacy documentation tests as current acceptance unless they have
+  been migrated to the semantic model docs.
 
-For CTH / strategic-discovery / trust-hardening work on Chesstory, validation
-must stay anchored to exact board truth rather than verbal sketches.
-
-- Use exact positions whenever a claim depends on strategic truth:
-  - prefer a concrete corpus row, PGN move index, or FEN-backed position
-  - do **not** validate a candidate only from a hand-wavy description such as
-    "a heavy-piece bind here"
-- Strong self-critique must be board-based:
-  - build nasty cases from exact positions, not abstract motifs alone
-  - test the same claim against the defender's best practical route in that
-    exact position
-- When best-defense, persistence, continuation, or release-risk matters, attach
-  engine-backed verification to the exact position:
-  - use the best available engine/probe/PV evidence already present in the
-    pipeline or local tooling
-  - prefer concrete best-defense / best-path lines over approximate narrative
-    summaries
-- A candidate is not validated just because a verbal idea sounds right.
-  If exact-position and best-line verification are missing, keep the claim
-  `deferred`, support-only, or negative-first.
-- When reporting results, separate:
-  - exact board-verified claim
-  - conjectural extension or future frontier idea
-  Do **not** let the latter masquerade as validated truth.
-
-## Exact-Slice and Admission Boundary Guardrails
-
-When opening or cleaning up a narrow exact slice in Chesstory, keep the slice
-boundary centralized.
-
-- Do **not** spread the same slice policy across multiple layers as ad hoc
-  string checks unless the layer boundary truly requires it.
-- If a slice needs special handling for:
-  - owner source
-  - witness extraction
-  - continuation terms
-  - same-branch / persistence / release rules
-  - scope overrides
-  then centralize those rules in one canonical runtime boundary first, and let
-  downstream planner / renderer code consume that certified result.
-- Do **not** gate planner ownership from broad scope alone. For example,
-  `PositionLocal` by itself must not be enough to admit `WhatMattersHere`; use a
-  certified slice/source predicate instead.
-- If two exact slices share the same structural pattern, prefer a shared private
-  helper or descriptor over duplicating the pattern with new special-case blocks.
-- Keep wording contracts aligned with slice certification:
-  - main claim wording
-  - contrast / consequence wording
-  - deterministic surface selection
-  should not drift independently for the same slice.
-- Before adding a new exact slice, check whether an existing slice helper should
-  be generalized instead of adding another parallel special case.
-- If cleanup is needed, prefer:
-  1. centralizing the slice predicate/helper
-  2. tightening planner admission to certified slices only
-  3. reusing the existing canonical planner/build/replay path
-  rather than adding another rollout-style exception.
-
-## Naming, Packaging, and Verification Guardrails
-
-When doing module cleanup, naming cleanup, or package boundary work in this repo,
-follow these rules strictly:
-
-### Stable names only
-- Do **not** put temporary rollout labels in module, package, or file names.
-- Avoid names such as `Track`, `Phase`, `Frontier`, `Prototype`, `Kickoff`, `V2`, `V3`
-  unless they are part of a real long-lived domain model.
-- Prefer role-based, stable names such as:
-  - `quality`
-  - `contrast`
-  - `quiet`
-  - `render`
-  - `practical`
-  - `review`
-  - `realpgn`
-- If a name reflects a project step or roadmap phase rather than a runtime/test role,
-  it is probably the wrong name.
-- This rule applies to:
-  - source file names
-  - package names
-  - object/class names
-  - runner/support/test helper names
-- Experiment or run identifiers may appear in generated report filenames under `tmp/` or
-  similar output directories, but **must not** become source module names.
-
-### Runtime and test/tooling must not blur together
-- Keep runtime helpers under active `src/main/...` trees in role-based
-  packages.
-- Keep CQF runners, corpus tools, eval scaffolds, and report builders under
-  active `src/test/...` trees in test/tooling packages.
-- Do **not** create runtime modules whose main purpose is experiment staging,
-  report generation, or corpus evaluation.
-- Do **not** mix runtime owner-path logic with test-only evaluation scaffolds.
-- If a helper exists only to evaluate, compare, score, classify, or report over artifacts,
-  it belongs in `src/test`, not `src/main`.
-- If a helper participates in live planner/build/replay behavior, it belongs in `src/main`
-  and must not depend on test/tooling code.
-
-### Boundary cleanup before rename churn
-- For package cleanup, define the target boundary first, then move files by role.
-- Do **not** rename broadly first and discover boundaries later.
-- Prefer subpackages over new flat helper files when a role is shared across
-  multiple call sites.
-- If logic is single-surface and single-call-site, prefer a private helper over
-  introducing a new top-level support file.
-- Before starting a cleanup, write down the target boundary map explicitly:
-  - which files are runtime
-  - which files are test/tooling
-  - which package each family should live in
-- Do **not** leave mixed-role siblings in a flat directory when they clearly belong to
-  different families such as `quality`, `bookmaker`, `active`, `review`, or `realpgn`.
-- If a family has become large enough to need multiple helper files, give it a dedicated
-  subpackage instead of keeping it in a catch-all flat package.
-
-### Verification discipline
-- After package moves or naming cleanup, run compile plus targeted tests before
-  reporting the work as done.
-- Do **not** run multiple `sbt` / `testOnly` / `runMain` commands in parallel
-  against the same worktree; keep build and runner invocations serial because
-  Windows `sbt --client` boot, Zinc/`target` state, and temp artifact writes
-  race each other in this repo.
-- Do **not** claim quality gain, acceptance, or signoff from a mixed-worktree
-  diff. If the result is confounded by unrelated drift, report it as isolation
-  only, not as acceptance.
-- When before/after evidence is scope-sensitive, explicitly separate:
-  - target slice vs visible aggregate
-  - runtime behavior vs test/tooling artifact changes
-  - replay-layer issues vs upstream input issues
-- For naming/package cleanup specifically, do not stop at file moves:
-  - fix imports
-  - fix package declarations
-  - fix `runMain` / runner strings
-  - fix doc references to the moved module names
-- Report cleanup as:
-  - `boundary cleanup only`, or
-  - `boundary cleanup + verified compile/test`
-  rather than implying product behavior changed.
-
-### Commentary pipeline-specific reminder
-- New CQF or commentary-analysis helpers must reuse the existing planner/build/
-  replay architecture rather than introducing parallel runtime paths.
-- If a cleanup changes audited runtime package paths, update
-  `lila-docker/repos/lila/modules/commentary/docs/CommentaryCoreSSOT.md`
-  in the same change.
-- If a cleanup changes canonical helper names or directory ownership, update the relevant
-  current-branch migration docs in the same change so a new session does not
-  reintroduce stale branch-external names.
