@@ -3,21 +3,18 @@ package controllers
 import play.api.libs.json.*
 
 import lila.app.*
-import lila.commentary.api.CommentaryLocalProbeJsonTransport
-import lila.commentary.api.CommentaryPublicJsonTransport
 
 final class Commentary(env: Env) extends LilaController(env):
 
+  private val unavailable = Json.obj(
+    "status" -> "unavailable",
+    "noCommentary" -> true,
+    "render" -> JsNull
+  )
+
   def renderCommentary = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
-    CommentaryPublicJsonTransport.renderJson(ctx.body.body) match
-      case Right(json) => Ok(json).toFuccess
-      case Left(error) => BadRequest(error).toFuccess
+    ServiceUnavailable(unavailable).toFuccess
 
   def renderLocalProbeCommentary =
-    if env.mode.isProd then Open:
-      authorizationFailed
-    else
-      OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
-        CommentaryLocalProbeJsonTransport.renderJson(ctx.body.body) match
-          case Right(json) => Ok(json).toFuccess
-          case Left(error) => BadRequest(error).toFuccess
+    OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
+      ServiceUnavailable(unavailable).toFuccess

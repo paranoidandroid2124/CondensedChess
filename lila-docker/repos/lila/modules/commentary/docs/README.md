@@ -1,20 +1,27 @@
 # Commentary Docs
 
-This branch is a semantic commentary model reset.
+This branch is a chess commentary model reset.
 
-Only the documents in this directory root are live authority for new backend
-work. Documents under `legacy-pre-semantic-reset/` are historical reference
-only. They may explain why prior slices existed, but they do not grant runtime
-authority, public claim ownership, selector behavior, renderer behavior, or
-test acceptance for this branch.
+Only the documents in this directory root are live authority for current
+commentary backend work. There is no live archive authority in this branch.
 
 Live authority:
 
-- `CommentaryCoreSSOT.md`
-- `SemanticModelArchitecture.md`
-- `LegacyArchiveIndex.md`
+- `ChessCommentarySSOT.md`
+- `ChessModelArchitecture.md`
+- `ChessModelContract.md`
+- `ChessResetRationale.md`
+- `LegacyPruneManifest.md`
+- `README.md`
 
-Legacy archive:
+Authority summary:
 
-- `legacy-pre-semantic-reset/`
-
+- `ChessCommentarySSOT.md` defines the single public chess meaning chain:
+  `BoardMood` -> `Story` -> `StoryTable` -> `Verdict`.
+- `ChessModelArchitecture.md` describes the HCE-style deterministic chess
+  model architecture.
+- `ChessModelContract.md` is the shape, naming, family, and deletion contract.
+- `ChessResetRationale.md` records why the reset exists and which old failure
+  modes the new model must not repeat.
+- `LegacyPruneManifest.md` records what was pruned and what is intentionally
+  preserved during the reset.
