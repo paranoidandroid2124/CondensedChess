@@ -865,6 +865,54 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(pawnAttacksKnight, true)
     assertEquals(pawnGuardsKnight, true)
 
+  test("BoardFacts seen records piece facts without free hanging or material-win claims"):
+    val fen = Fen.Full("4k3/8/8/4n3/3P4/2N5/1P6/4K3 w - - 0 1")
+    val facts = BoardFacts.fromFen(fen).toOption.get
+    val seen = facts.seen
+    val blackKnight = Piece(Side.Black, Man.Knight, Square('e', 5))
+    val whitePawn = Piece(Side.White, Man.Pawn, Square('d', 4))
+    val whiteKnight = Piece(Side.White, Man.Knight, Square('c', 3))
+    val whiteGuard = Piece(Side.White, Man.Pawn, Square('b', 2))
+
+    assertEquals(
+      seen.piecesUnderAttack,
+      Vector(
+        BoardFacts.PieceUnderAttack(
+          piece = blackKnight,
+          attackers = Vector(whitePawn)
+        )
+      )
+    )
+    assertEquals(
+      seen.guardedPieces,
+      Vector(
+        BoardFacts.GuardedPiece(
+          piece = whiteKnight,
+          guards = Vector(whiteGuard)
+        )
+      )
+    )
+    assertEquals(
+      seen.attackedUnguardedPieces,
+      Vector(
+        BoardFacts.AttackedUnguardedPiece(
+          piece = blackKnight,
+          attackers = Vector(whitePawn)
+        )
+      )
+    )
+    assertEquals(
+      seen.loosePieceObservations,
+      Vector(
+        BoardFacts.LoosePieceObservation(blackKnight)
+      )
+    )
+
+    val mood = BoardMood.fromFacts(facts)
+    assertEquals(scalar(mood, "exact_board_binding"), 0)
+    assertEquals(scalar(mood, "legal_replay_binding"), 0)
+    assertEquals(scalar(mood, "public_claim_pressure"), 0)
+
   test("BoardFacts seen records pin lines without turning pins into public claims"):
     val fen = Fen.Full("4r1k1/8/8/8/8/8/4N3/4K3 w - - 0 1")
     val seen = BoardFacts.fromFen(fen).toOption.get.seen

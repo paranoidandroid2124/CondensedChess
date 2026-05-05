@@ -518,6 +518,34 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(boardFacts.contains("Manual or untrusted `BoardFacts` assembly must produce empty `facts.seen`"))
     assert(boardFacts.contains("same-board producer proof"))
     Vector(
+      "Slice 1 - Board Facts index / facts.seen ledger",
+      "Slice 2 - Piece facts",
+      "Slice 3 - Line facts",
+      "Slice 4 - File facts",
+      "Slice 5 - Pawn and square facts",
+      "Slice 6 - King ring facts and Board Facts closure"
+    ).foreach: slice =>
+      assert(boardFacts.contains(slice), s"Board Facts charter must pin $slice")
+    Vector(
+      "free piece",
+      "hanging",
+      "wins material",
+      "can be taken",
+      "blunder",
+      "tactical target",
+      "controls the file",
+      "king is unsafe",
+      "outpost"
+    ).foreach: forbidden =>
+      assert(boardFacts.contains(forbidden), s"Board Facts charter must ban $forbidden")
+    Vector(
+      "`PieceUnderAttack` rows",
+      "`GuardedPiece` rows",
+      "`AttackedUnguardedPiece` rows",
+      "`LoosePieceObservation` rows"
+    ).foreach: rowName =>
+      assert(boardFacts.contains(rowName), s"Board Facts charter must document $rowName")
+    Vector(
       "the knight is free",
       "controls the c-file",
       "the outpost is strategically central",

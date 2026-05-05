@@ -241,6 +241,10 @@ object BoardFacts:
   final case class LegalMove(side: Side, piece: Piece, line: Line)
   final case class Attack(attacker: Piece, target: Piece)
   final case class Guard(guard: Piece, target: Piece)
+  final case class PieceUnderAttack(piece: Piece, attackers: Vector[Piece])
+  final case class GuardedPiece(piece: Piece, guards: Vector[Piece])
+  final case class AttackedUnguardedPiece(piece: Piece, attackers: Vector[Piece])
+  final case class LoosePieceObservation(piece: Piece)
   final case class Pin(side: Side, king: Piece, pinned: Piece, attacker: Piece, line: Line)
   final case class PawnLever(side: Side, pawn: Piece, target: Piece, line: Line)
   final case class RookEntry(side: Side, rook: Piece, line: Line)
@@ -252,6 +256,10 @@ object BoardFacts:
       legalMoves: Vector[LegalMove],
       attacks: Vector[Attack],
       guards: Vector[Guard],
+      piecesUnderAttack: Vector[PieceUnderAttack],
+      guardedPieces: Vector[GuardedPiece],
+      attackedUnguardedPieces: Vector[AttackedUnguardedPiece],
+      loosePieceObservations: Vector[LoosePieceObservation],
       pins: Vector[Pin],
       pawnLevers: Vector[PawnLever],
       openFiles: Vector[OpenFile],
@@ -265,6 +273,10 @@ object BoardFacts:
         legalMoves = Vector.empty,
         attacks = Vector.empty,
         guards = Vector.empty,
+        piecesUnderAttack = Vector.empty,
+        guardedPieces = Vector.empty,
+        attackedUnguardedPieces = Vector.empty,
+        loosePieceObservations = Vector.empty,
         pins = Vector.empty,
         pawnLevers = Vector.empty,
         openFiles = Vector.empty,
@@ -281,11 +293,19 @@ object BoardFacts:
       val occupied = pieces.foldLeft(0L): (mask, piece) =>
         mask | piece.square.bit
       val legal = legalMoves(facts, bySquare)
+      val attacksSeen = attacks(pieces, occupied)
+      val guardsSeen = guards(pieces, occupied)
+      val underAttack = pieceUnderAttackRows(attacksSeen)
+      val guarded = guardedPieceRows(guardsSeen)
       val files = openFiles(pieces, legal)
       Seen(
         legalMoves = legal,
-        attacks = attacks(pieces, occupied),
-        guards = guards(pieces, occupied),
+        attacks = attacksSeen,
+        guards = guardsSeen,
+        piecesUnderAttack = underAttack,
+        guardedPieces = guarded,
+        attackedUnguardedPieces = attackedUnguardedPieceRows(underAttack, guarded),
+        loosePieceObservations = loosePieceObservationRows(pieces, guarded),
         pins = pins(pieces, bySquare),
         pawnLevers = pawnLevers(pieces, occupied),
         openFiles = files,
@@ -326,6 +346,42 @@ object BoardFacts:
       guard <- pieces
       if guard != target && guard.side == target.side && attacksSquare(guard, target.square, occupied)
     yield Guard(guard, target)).sortBy(guard => (pieceKey(guard.guard), pieceKey(guard.target)))
+
+  private def pieceUnderAttackRows(attacks: Vector[Attack]): Vector[PieceUnderAttack] =
+    attacks
+      .groupBy(_.target)
+      .toVector
+      .map: (piece, rows) =>
+        PieceUnderAttack(piece, rows.map(_.attacker).sortBy(pieceKey))
+      .sortBy(row => pieceKey(row.piece))
+
+  private def guardedPieceRows(guards: Vector[Guard]): Vector[GuardedPiece] =
+    guards
+      .groupBy(_.target)
+      .toVector
+      .map: (piece, rows) =>
+        GuardedPiece(piece, rows.map(_.guard).sortBy(pieceKey))
+      .sortBy(row => pieceKey(row.piece))
+
+  private def attackedUnguardedPieceRows(
+      attacked: Vector[PieceUnderAttack],
+      guarded: Vector[GuardedPiece]
+  ): Vector[AttackedUnguardedPiece] =
+    val guardedPieces = guarded.map(_.piece).toSet
+    attacked
+      .filterNot(row => guardedPieces.contains(row.piece))
+      .map(row => AttackedUnguardedPiece(row.piece, row.attackers))
+
+  private def loosePieceObservationRows(
+      pieces: Vector[Piece],
+      guarded: Vector[GuardedPiece]
+  ): Vector[LoosePieceObservation] =
+    val guardedPieces = guarded.map(_.piece).toSet
+    pieces
+      .filter(piece => piece.man != Man.Pawn && piece.man != Man.King)
+      .filterNot(guardedPieces.contains)
+      .map(LoosePieceObservation.apply)
+      .sortBy(row => pieceKey(row.piece))
 
   private def pins(pieces: Vector[Piece], bySquare: Map[Square, Piece]): Vector[Pin] =
     val kings = pieces.filter(_.man == Man.King)

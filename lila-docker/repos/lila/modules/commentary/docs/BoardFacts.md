@@ -32,6 +32,157 @@ Allowed observation families are chess-readable:
 
 These names are observation names only. A named board fact is still only an observation.
 
+## Stage 1 Slices
+
+Stage 1 proceeds in six slices. Each slice may add only small current-board
+observations. Each slice must name its forbidden public claims.
+
+### Slice 1 - Board Facts index / facts.seen ledger
+
+`facts.seen` is the internal ledger of what the board observation layer saw.
+It is an observation list, not a claim list. Renderer, LLM, public route, and
+frontend mock code must not read it directly as explanation input.
+
+Completion standard:
+
+- `facts.seen` is an observation ledger.
+- `facts.seen` is not a public claim list.
+- missing evidence logs are present.
+- no public or renderer path reads `facts.seen` directly.
+
+### Slice 2 - Piece facts
+
+Allowed observations:
+
+- attacked piece
+- guarded piece
+- attacked and unguarded piece
+- loose piece observation
+- attacked_piece_guard_map
+- piece_under_attack
+- attacked_unguarded_piece
+
+Forbidden public claims:
+
+- free piece
+- hanging
+- wins material
+- can be taken
+- blunder
+- tactical target
+
+Loose piece language is internal observation language only. It means no current
+same-side guard was observed for the piece; it does not mean the piece can be
+won.
+
+### Slice 3 - Line facts
+
+Allowed observations:
+
+- pin-to-king line
+- blocker
+- ray
+- file line
+- rank line
+- diagonal line
+- x-ray shape
+
+Forbidden public claims:
+
+- pin wins material
+- discovered attack works
+- x-ray tactic
+- skewer
+- forced tactic
+
+Line means geometry. It is not a tactic.
+
+### Slice 4 - File facts
+
+Allowed observations:
+
+- open file
+- semi-open file
+- rook on file
+- rook_open_file_entry
+- open_file_observation
+- semi_open_file_observation
+- legal_file_entry_move
+- file blocker
+- file target square
+
+Forbidden public claims:
+
+- controls the file
+- dominates the file
+- file pressure is decisive
+- rook invasion works
+- opponent cannot contest the file
+
+Open file is observation. File control is interpretation.
+
+### Slice 5 - Pawn and square facts
+
+Allowed observations:
+
+- pawn lever
+- pawn can challenge square
+- pawn cannot currently challenge square
+- pawn-safe square observation
+- front blocker
+- passed pawn observation
+- isolated pawn observation
+- backward pawn front square
+- pawn_safe_square
+- no_current_pawn_chase
+- piece_reachable_square
+- square_guard_map
+
+Forbidden public claims:
+
+- outpost
+- weak square is the strategic key
+- minority attack
+- bad structure
+- permanent weakness
+- good plan
+- fixed target
+
+Weak square language, if it appears at all, is a candidate observation only.
+It is not an outpost, strategic key, or move recommendation.
+
+### Slice 6 - King ring facts and Board Facts closure
+
+Allowed observations:
+
+- king square
+- king ring squares
+- attacked king-ring squares
+- king-ring defenders
+- legal escape squares
+- contact check observations
+- line to king
+- blocker near king
+
+Forbidden public claims:
+
+- king is unsafe
+- mate net
+- winning attack
+- dangerous attack
+- forced mate
+- no escape
+
+The closure gate checks every Stage 1 slice:
+
+- every Board Fact is bound to the same board.
+- every Board Fact has the needed side, piece, square, file, rank, line, or
+  legal move coordinates.
+- missing data stays `0`/silent.
+- no Board Fact becomes a public claim.
+- renderer, LLM, public route, and frontend mock paths remain closed.
+- failure logs say why the system still cannot speak.
+
 ## Required Binding
 
 Every Board Fact must identify the chess coordinates it uses:
@@ -72,6 +223,10 @@ current-board observations through `facts.seen`.
 - `LegalMove` rows with side, piece, and line
 - `Attack` rows with attacker and target
 - `Guard` rows with guard and target
+- `PieceUnderAttack` rows with piece and attackers
+- `GuardedPiece` rows with piece and guards
+- `AttackedUnguardedPiece` rows with piece and attackers
+- `LoosePieceObservation` rows with piece only
 - `Pin` rows with side, king, pinned piece, attacker, and line
 - `PawnLever` rows with side, pawn, target, and line
 - `OpenFile` rows with file and legal rook entry lines
