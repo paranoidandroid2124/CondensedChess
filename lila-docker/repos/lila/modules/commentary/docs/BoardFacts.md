@@ -62,6 +62,28 @@ Stage 1 may say internally that a board fact exists:
 Each row must keep its side, piece, square, file, rank, line, or legal move
 binding. If the binding cannot be recorded, the fact is silent.
 
+## Runtime Surface
+
+Strict `BoardFacts.fromFen` and internal `BoardFacts.fromPosition` expose
+current-board observations through `facts.seen`.
+
+`facts.seen` may contain:
+
+- `LegalMove` rows with side, piece, and line
+- `Attack` rows with attacker and target
+- `Guard` rows with guard and target
+- `Pin` rows with side, king, pinned piece, attacker, and line
+- `PawnLever` rows with side, pawn, target, and line
+- `OpenFile` rows with file and legal rook entry lines
+- `KingRingAttack` rows with king side, king square, attacked ring square, and
+  attacking side
+- `MissingEvidence` rows listing missing evidence
+
+Manual or untrusted `BoardFacts` assembly must produce empty `facts.seen`
+observations and a missing-evidence log. The expected missing evidence includes
+same-board producer proof, same board root, board header, legal moves, attacks,
+pieces, pawns, or piece list.
+
 ## Public Claim Ban
 
 Open file, pin, weak square, loose piece, and pawn lever are board fact names,

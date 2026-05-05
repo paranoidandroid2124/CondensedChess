@@ -514,6 +514,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(boardFacts.contains("A named board fact is still only an observation."))
     assert(boardFacts.contains("Missing or unproven data stays `0`/silent."))
     assert(boardFacts.contains("Failure logs must say which evidence is missing before any Story can speak."))
+    assert(boardFacts.contains("current-board observations through `facts.seen`"))
+    assert(boardFacts.contains("Manual or untrusted `BoardFacts` assembly must produce empty `facts.seen`"))
+    assert(boardFacts.contains("same-board producer proof"))
     Vector(
       "the knight is free",
       "controls the c-file",

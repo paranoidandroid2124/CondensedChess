@@ -820,6 +820,124 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(whitePawnAtoms, 8)
     assert(facts.root.contains(blackKingAtom))
 
+  test("BoardFacts seen records legal moves with side piece square and line binding"):
+    val facts = BoardFacts.fromFen(Fen.initial).toOption.get
+    val seen = facts.seen
+    val hasWhiteE4 =
+      seen.legalMoves.contains(
+        BoardFacts.LegalMove(
+          side = Side.White,
+          piece = Piece(Side.White, Man.Pawn, Square('e', 2)),
+          line = Line(Square('e', 2), Square('e', 4))
+        )
+      )
+    val hasBlackE5 =
+      seen.legalMoves.contains(
+        BoardFacts.LegalMove(
+          side = Side.Black,
+          piece = Piece(Side.Black, Man.Pawn, Square('e', 7)),
+          line = Line(Square('e', 7), Square('e', 5))
+        )
+      )
+
+    assertEquals(hasWhiteE4, true)
+    assertEquals(hasBlackE5, true)
+    assert(seen.failures.isEmpty)
+
+  test("BoardFacts seen records attacked and guarded pieces as observations only"):
+    val fen = Fen.Full("4k3/8/8/4n3/3P4/2N5/1P6/4K3 w - - 0 1")
+    val seen = BoardFacts.fromFen(fen).toOption.get.seen
+    val pawnAttacksKnight =
+      seen.attacks.contains(
+        BoardFacts.Attack(
+          attacker = Piece(Side.White, Man.Pawn, Square('d', 4)),
+          target = Piece(Side.Black, Man.Knight, Square('e', 5))
+        )
+      )
+    val pawnGuardsKnight =
+      seen.guards.contains(
+        BoardFacts.Guard(
+          guard = Piece(Side.White, Man.Pawn, Square('b', 2)),
+          target = Piece(Side.White, Man.Knight, Square('c', 3))
+        )
+      )
+
+    assertEquals(pawnAttacksKnight, true)
+    assertEquals(pawnGuardsKnight, true)
+
+  test("BoardFacts seen records pin lines without turning pins into public claims"):
+    val fen = Fen.Full("4r1k1/8/8/8/8/8/4N3/4K3 w - - 0 1")
+    val seen = BoardFacts.fromFen(fen).toOption.get.seen
+
+    assertEquals(
+      seen.pins,
+      Vector(
+        BoardFacts.Pin(
+          side = Side.White,
+          king = Piece(Side.White, Man.King, Square('e', 1)),
+          pinned = Piece(Side.White, Man.Knight, Square('e', 2)),
+          attacker = Piece(Side.Black, Man.Rook, Square('e', 8)),
+          line = Line(Square('e', 8), Square('e', 1))
+        )
+      )
+    )
+
+    val mood = BoardMood.fromFacts(BoardFacts.fromFen(fen).toOption.get)
+    assertEquals(scalar(mood, "exact_board_binding"), 0)
+    assertEquals(scalar(mood, "legal_replay_binding"), 0)
+    assertEquals(scalar(mood, "public_claim_pressure"), 0)
+
+  test("BoardFacts seen records pawn levers open files rook entries and king ring attacks"):
+    val levers = BoardFacts.fromFen(Fen.Full("7k/8/8/3p1p2/4P3/8/8/4K3 w - - 0 1")).toOption.get.seen
+    val whitePawnLever =
+      levers.pawnLevers.contains(
+        BoardFacts.PawnLever(
+          side = Side.White,
+          pawn = Piece(Side.White, Man.Pawn, Square('e', 4)),
+          target = Piece(Side.Black, Man.Pawn, Square('d', 5)),
+          line = Line(Square('e', 4), Square('d', 5))
+        )
+      )
+    assertEquals(whitePawnLever, true)
+
+    val openFile = BoardFacts.fromFen(Fen.Full("4k3/8/8/8/8/8/R7/4K3 w - - 0 1")).toOption.get.seen
+    val whiteRookEntry =
+      openFile.openFiles
+        .find(_.file == 2)
+        .exists:
+          _.rookEntries.contains(
+            BoardFacts.RookEntry(
+              side = Side.White,
+              rook = Piece(Side.White, Man.Rook, Square('a', 2)),
+              line = Line(Square('a', 2), Square('c', 2))
+            )
+          )
+    assertEquals(whiteRookEntry, true)
+
+    val kingRing = BoardFacts.fromFen(Fen.Full("6k1/8/8/8/8/8/6R1/4K3 b - - 0 1")).toOption.get.seen
+    val blackKingRingG7 =
+      kingRing.kingRingAttacks.contains(
+        BoardFacts.KingRingAttack(
+          side = Side.Black,
+          king = Piece(Side.Black, Man.King, Square('g', 8)),
+          square = Square('g', 7),
+          by = Side.White
+        )
+      )
+    assertEquals(blackKingRingG7, true)
+
+  test("BoardFacts seen keeps untrusted or incomplete board facts silent with missing evidence logs"):
+    val seen = minimalBoardFacts().seen
+
+    assertEquals(seen.legalMoves, Vector.empty)
+    assertEquals(seen.attacks, Vector.empty)
+    assertEquals(seen.guards, Vector.empty)
+    assertEquals(seen.pins, Vector.empty)
+    val missingProducer = seen.failures.exists(_.missing.contains("same-board producer proof"))
+    val missingPieces = seen.failures.exists(_.missing.contains("piece list"))
+    assertEquals(missingProducer, true)
+    assertEquals(missingPieces, true)
+
   test("BoardFacts fromPosition is an internal same-board diagnostic boundary"):
     val position = Fen.read(variant.Standard, Fen.initial).get
     val facts = BoardFacts.fromPosition(position, fullmoveNumber = 1).toOption.get

@@ -15,6 +15,15 @@ Allowed core names:
 - `Piece`
 - `Line`
 - `BoardFacts`
+- `LegalMove`
+- `Attack`
+- `Guard`
+- `Pin`
+- `PawnLever`
+- `OpenFile`
+- `RookEntry`
+- `KingRingAttack`
+- `MissingEvidence`
 - `Heat`
 - `KingHeat`
 - `Tactics`
@@ -84,6 +93,11 @@ Runtime input boundary:
 - `BoardFacts.md` is the Stage 1 charter for board observations. A
   chess-readable Board Fact name such as open file, pin, weak square, loose
   piece, or pawn lever does not create public claim authority.
+- `BoardFacts.seen` is the Stage 1 runtime observation surface. It may expose
+  legal moves, attacks, guards, pins, pawn levers, open files, rook entry
+  lines, king-ring attacks, and missing-evidence rows. These rows are
+  observations only and do not write Story proof, renderer payload, or public
+  claim pressure.
 - `BoardFacts.fromFen` is the strict root transport entrypoint. It accepts a
   `Fen.Full` or raw FEN string, validates through
   `RootExtractor.fromFenWithPositionFailClosed`, and returns
