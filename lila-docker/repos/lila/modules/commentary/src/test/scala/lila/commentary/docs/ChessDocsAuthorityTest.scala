@@ -289,6 +289,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(cutLaw.contains("`StoryResurrectionLaw.md`, not BoardMood"))
     assert(splitLaw.contains("The 65 split slots listed here are inactive in live BoardMood"))
     assert(splitLaw.contains("Re-entry is allowed only through the exact smaller BoardMood fact"))
+    assert(splitLaw.contains("Public chess speech still belongs to Story only after Story binds side"))
+    assert(splitLaw.contains("target, anchor, route, rival, required legal line, and same-root proof"))
+    assert(splitLaw.contains("numeric proof scores alone are not enough"))
     assert(resurrectionLaw.contains("BoardMood does not create, score, revive, or hint at the meanings below"))
     assert(resurrectionLaw.contains("Every row inherits mandatory Story binding"))
     assert(resurrectionLaw.contains(HardPublicOutputBlocker.replace(" is a hard public-output block.", " means no public sentence.")))
@@ -321,6 +324,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val rationale = Files.readString(docsRoot.resolve("ChessResetRationale.md"))
     val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
     val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val agents = Files.readString(agentInstructions)
     val contents = Vector(readme, ssot, architecture, modelContract, rationale, interactionLaw, manifest).mkString("\n")
 
     assert(readme.contains("Public route no-go"))
@@ -351,6 +355,109 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(interactionLaw.contains("| Scene.Opening | context-only |"))
     assert(interactionLaw.contains("no truth override or lead over board-backed Story"))
     assert(modelContract.contains("`Source` and `Opening` never lead over a board-backed story"))
+    assert(readme.contains("Stage order no-go"))
+    assert(readme.contains("Current implementation scope is Stage 0 only"))
+    assert(readme.contains("Stages 1-11 are a dependency map"))
+    assert(readme.contains("LLM no-go"))
+    assert(readme.contains("LLM narration remains"))
+    assert(readme.contains("closed and must not judge chess"))
+    assert(ssot.contains("proof-first Story kernel"))
+    assert(ssot.contains("Engine is the truth oracle."))
+    assert(ssot.contains("Backend is the proof and pedagogy system."))
+    assert(ssot.contains("LLM is the narrator."))
+    assert(ssot.contains("The LLM does not judge chess."))
+    assert(ssot.contains("Engine lines, mate/tablebase proof, SEE, and bounded material results are"))
+    assert(ssot.contains("truth-oracle evidence for backend proof"))
+    assert(ssot.contains("Backend policy owns proof, Story selection,"))
+    assert(ssot.contains("arbitration, and pedagogy"))
+    assert(ssot.contains("it must not decide, prove, rank, repair, or invent"))
+    assert(ssot.contains("`BoardMood` observes."))
+    assert(ssot.contains("`Story` proves."))
+    assert(ssot.contains("`StoryTable` arbitrates."))
+    assert(ssot.contains("`Verdict` speaks."))
+    assert(ssot.contains("Renderer only phrases."))
+    assert(ssot.contains("feature is not a claim"))
+    assert(ssot.contains("claim is not a public `Story`"))
+    assert(ssot.contains("public `Story` requires proof-bearing identity"))
+    assert(ssot.contains("whether that feature can become a"))
+    assert(ssot.contains("Story with side, target, anchor, route, rival, required legal line, and"))
+    assert(ssot.contains("same-root proof"))
+    assert(ssot.contains("`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer"))
+    assert(ssot.contains("feature to public claim"))
+    assert(ssot.contains("raw engine eval to public truth"))
+    assert(ssot.contains("high numeric `Proof` score to `Role.Lead` without sidecar"))
+    assert(ssot.contains("If a change makes commentary richer but weakens proof ownership, it is rejected."))
+    Vector(
+      "Renderer before Story proof sidecar is forbidden.",
+      "LLM before Explanation IR is forbidden.",
+      "Strategy before tactical/material proof is forbidden.",
+      "Pedagogy before causal arbitration is forbidden.",
+      "Personalization before stable Story taxonomy is forbidden."
+    ).foreach: shortcut =>
+      assert(ssot.contains(shortcut), s"SSOT must pin shortcut ban: $shortcut")
+      assert(agents.contains(shortcut), s"AGENTS must pin shortcut ban: $shortcut")
+    assert(ssot.contains("Pedagogy is backend policy over selected proof-backed `Verdict` data"))
+    assert(ssot.contains("Renderer"))
+    assert(ssot.contains("LLM layers may not choose instructional emphasis"))
+    assert(rationale.contains("The old question was: what tactical or strategic feature is visible"))
+    assert(rationale.contains("The new question is: can this feature become a Story with side,"))
+    assert(rationale.contains("A tactic motif, plan affordance, source row, or engine number is not a public"))
+    assert(rationale.contains("Engine lines, mate/tablebase proof, SEE, and bounded material results are"))
+    assert(rationale.contains("Raw engine numbers and engine text"))
+    assert(rationale.contains("The LLM is not the intelligence of commentary"))
+    assert(architecture.contains("`Board Truth / Primitive Geometry / Story boundary / Verdict boundary`"))
+    assert(architecture.contains("Current implementation scope is Stage 0 only"))
+    assert(architecture.contains("Stages 1-11 below are a"))
+    assert(architecture.contains("dependency map for product design"))
+    assert(architecture.contains("Only Stage 0 is active implementation authority now."))
+    assert(architecture.contains("Stages 1-11 are"))
+    assert(architecture.contains("dependency-map-only"))
+    assert(architecture.contains("`Board Truth` -> `Engine Truth` -> `Primitive Geometry` -> `Tactical/Strategic Story Birth` -> `Engine Validation` -> `Causal Arbitration` -> `Pedagogical Policy` -> `Explanation IR` -> `LLM Narration` -> `Verifier`"))
+    assert(!architecture.contains("Tactical/Strategic Hypotheses"))
+    Vector(
+      "Stage 0 - Closed Kernel",
+      "Stage 1 - Board Observation Only",
+      "Stage 2 - Story Proof Sidecar",
+      "Stage 3 - First Narrow Positive Story",
+      "Stage 4 - Engine Validation",
+      "Stage 5 - Causal Arbitration",
+      "Stage 6 - Explanation IR",
+      "Stage 7 - Deterministic Renderer",
+      "Stage 8 - LLM Narration",
+      "Stage 9 - Natural-Language Verifier",
+      "Stage 10 - Pedagogical Policy",
+      "Stage 11 - Personal Learning Loop"
+    ).foreach: stage =>
+      assert(architecture.contains(stage), s"architecture must pin $stage")
+    (1 to 11).foreach: stage =>
+      assert(
+        architecture.contains(s"Stage $stage depends on Stage ${stage - 1}."),
+        s"architecture must pin Stage $stage dependency"
+      )
+    assert(architecture.contains("Engine lines, mate/tablebase proof, SEE, and bounded material results are"))
+    assert(architecture.contains("truth-oracle evidence for backend proof"))
+    assert(architecture.contains("Pedagogy is backend policy over selected proof-backed `Verdict` data"))
+    assert(architecture.contains("LLM before Explanation IR is forbidden"))
+    assert(architecture.contains("Personalization depends on stable Story taxonomy"))
+    assert(interactionLaw.contains("Stage 3 opens exactly one narrow proof-backed Story family"))
+    assert(interactionLaw.contains("Every blocked Story must report proof deficit"))
+    assert(interactionLaw.contains("\"proofCoordinates\":"))
+    Vector(
+      "\"root\": \"...\"",
+      "\"side\": \"...\"",
+      "\"target\": \"...\"",
+      "\"anchor\": \"...\"",
+      "\"route\": \"...\"",
+      "\"rival\": \"...\"",
+      "\"requiredLegalLine\": \"...\"",
+      "\"sameRootProofSidecar\": \"...\""
+    ).foreach: coordinate =>
+      assert(interactionLaw.contains(coordinate), s"proof-deficit log must include $coordinate")
+    assert(interactionLaw.contains("\"missingSidecar\": [\"...\"]"))
+    assert(interactionLaw.contains("\"root\": \"current-position-root\""))
+    assert(interactionLaw.contains("\"requiredLegalLine\": null"))
+    assert(interactionLaw.contains("\"sameRootProofSidecar\": null"))
+    assert(interactionLaw.contains("\"missingSidecar\": [\"legal file-entry line\", \"same-root route proof\"]"))
     assert(readme.contains("Forbidden-name no-go"))
     Vector("Semantic", "Candidate", "Certification", "Object", "Delta", "Selector", "Pipeline", "Gate", "ScoreVector").foreach: term =>
       assert(readme.contains(term), s"README must freeze forbidden name $term")
@@ -375,6 +482,12 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(agents.contains("No `Story` proof writers"))
     assert(agents.contains("No renderer opening"))
     assert(agents.contains("Forbidden-name no-go"))
+    assert(agents.contains("proof-first chess-story kernel"))
+    assert(agents.contains("`BoardMood` observes."))
+    assert(agents.contains("feature is not a claim"))
+    assert(agents.contains("public `Story` requires proof-bearing identity"))
+    assert(agents.contains("Ask whether a feature can become a `Story` with side, target, anchor, route,"))
+    assert(agents.contains("`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer"))
 
   test("live docs reject legacy candidate selector authority while allowing candidate passer"):
     val contents = liveDocContents

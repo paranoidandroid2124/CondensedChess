@@ -25,6 +25,9 @@ mismatch is a no-go state, not a second source of authority.
 
 This reset is intentionally closed at the public boundary.
 
+Current implementation scope is Stage 0 only. Stages 1-11 are a dependency map
+for later work, not permission to open those systems in this branch checkpoint.
+
 - Public route no-go: `/api/commentary/render` and
   `/internal/commentary/render-local-probe` are registered only as fail-closed
   tombstones until an explicit public-surface contract exists. No `200`,
@@ -48,6 +51,13 @@ This reset is intentionally closed at the public boundary.
 - Forbidden-name no-go: new core model, type, module, or docs-authority names
   must not use `Semantic`, non-pawn `Candidate`, `Certification`, `Object`,
   `Delta`, `Selector`, `Pipeline`, `Gate`, `ScoreVector`, or version suffixes.
+- Stage order no-go: implementation opens only
+  `observation` -> `proof sidecar` -> `Story` -> `Verdict` ->
+  `Explanation IR` -> Renderer. Downstream product stages stay closed until
+  the earlier authority stage is proven.
+- LLM no-go: Engine truth, exact-board validation, legal replay, proof
+  sidecars, and `StoryTable` decide what can be said. LLM narration remains
+  closed and must not judge chess.
 
 Current implementation blockers are documented, not excused: runtime
 enforcement of the full public-output tuple is incomplete, so public output

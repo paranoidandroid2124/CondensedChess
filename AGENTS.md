@@ -1,7 +1,7 @@
 # Agent Instructions
 
-For Chesstory commentary work on this branch, treat the backend as a chess
-commentary model reset.
+For Chesstory commentary work on this branch, treat the backend as a
+proof-first chess-story kernel. It is not the full commentary product yet.
 
 Live commentary documentation authority is exactly and exhaustively:
 
@@ -28,12 +28,61 @@ acceptance.
 
 ## Branch Direction
 
+Product north-star philosophy:
+
+- Engine is the truth oracle.
+- Backend is the proof and pedagogy system.
+- LLM is the narrator.
+
+The LLM does not judge chess. Engine truth, exact-board validation, legal
+replay, proof sidecars, and `StoryTable` decide what can be said; LLM phrasing
+comes after that.
+
+Engine lines, mate/tablebase proof, SEE, and bounded material results are
+truth-oracle evidence for backend proof. Raw engine numbers and engine text are
+never public claim owners. Backend policy owns proof, Story selection,
+arbitration, and pedagogy. The LLM may phrase selected `Verdict` or
+`Explanation IR` data only; it must not decide, prove, rank, repair, or invent
+chess meaning.
+
 The live authority chain is:
 
 `BoardMood` -> `Story` -> `StoryTable` -> `Verdict`
 
 No other public path owns current chess meaning. Outline and renderer work is
 downstream of selected `Verdict` data only and must not create chess meaning.
+
+The branch slogan is:
+
+- `BoardMood` observes.
+- `Story` proves.
+- `StoryTable` arbitrates.
+- `Verdict` speaks.
+- Renderer only phrases.
+
+Core proof boundary:
+
+- feature is not a claim
+- claim is not a public `Story`
+- public `Story` requires proof-bearing identity
+
+Implementation must open in this order only:
+
+`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer
+
+Do not implement downstream product stages before earlier authority stages are
+proven.
+
+Current implementation scope is Stage 0 only. Stages 1-11 are a dependency map,
+not permission to open those systems.
+
+Forbidden dependency shortcuts:
+
+- Renderer before Story proof sidecar is forbidden.
+- LLM before Explanation IR is forbidden.
+- Strategy before tactical/material proof is forbidden.
+- Pedagogy before causal arbitration is forbidden.
+- Personalization before stable Story taxonomy is forbidden.
 
 ## Current No-Go State
 
@@ -54,6 +103,9 @@ downstream of selected `Verdict` data only and must not create chess meaning.
 - No renderer opening: templates and LLM renderers may verbalize selected
   `Verdict` data only after prerequisite laws and tests exist; they cannot
   repair, upgrade, or invent chess meaning.
+- Stage 0 only: do not implement renderer opening, LLM narration, public
+  commentary route `200`, broad scalar re-entry, strategic Story openings,
+  source/engine public-truth paths, or CTH-style family exceptions.
 - Old-doc no-go: `CommentaryCoreSSOT.md`, `SemanticModelArchitecture.md`,
   `LegacyArchiveIndex.md`, and `CommentaryFrontendBridgeContract.md` must not
   return as root authority.
@@ -68,6 +120,8 @@ downstream of selected `Verdict` data only and must not create chess meaning.
   stale-evidence rejection as hard gates.
 - Treat legacy artifacts as features or evidence only when a live authority
   document explicitly admits them into `BoardMood` or `Story` proof.
+- Ask whether a feature can become a `Story` with side, target, anchor, route,
+  rival, required legal line, and same-root proof. If not, do not speak it.
 - Do not add new Sxx-style special cases as live authority.
 - Do not promote lower atoms such as `pinned_piece`, `xray_target`, or
   `weak_pawn` into public commentary by themselves.

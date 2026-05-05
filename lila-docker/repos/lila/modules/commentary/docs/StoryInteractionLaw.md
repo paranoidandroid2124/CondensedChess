@@ -18,6 +18,29 @@ support facts are present. A stronger tactical or blunder Story can override a
 strategic Story. Engine context can confirm, cap, or contradict a Story, but it
 does not speak without the Story identity tuple.
 
+## First Public Opening
+
+Stage 3 opens exactly one narrow proof-backed Story family. The first positive
+public Stories must be narrow tactical or material claims, not broad strategy.
+The preferred opening order is:
+
+1. `Tactic.Hanging`
+2. `Tactic.Fork`
+3. `Scene.Material`
+4. `Scene.Defense`
+
+`Plan.Convert`, `Plan.Prophy`, `Plan.Initiative`, `Plan.ColorBind`,
+`Plan.WeakSquare`, and route-only strategic claims remain closed until their
+proof sidecars and line validation are live.
+
+For `Tactic.Hanging`, an attacked-piece guard map is only an observation. A
+public hanging-piece Story requires the attacked piece identity, legal capture,
+defender and recapture map, material result or SEE, engine confirmation or
+bounded line confirmation, same-root legal replay, and a forbidden-wording
+boundary. Without that tuple it must degrade to observation, context, or
+blocked Story; it must not say that a piece is hanging or that a move wins
+material.
+
 ## Scene Law
 
 | scene | class | required support | blockers and caps | public wording |
@@ -146,6 +169,62 @@ BoardMood can support a tactic, but they cannot prove it.
 | Counterplay cap | Counterplay risk above 70 blocks conversion and plan lead unless the Story proves the rival resource is answered. |
 | Quiet fallback | Quiet can lead only when every non-Quiet Story is below public floor. |
 | Render cap | Render may only verbalize selected Verdicts and cannot repair missing identity or proof. |
+
+## Proof-Deficit Logs
+
+Every blocked Story must report proof deficit, not only family pass/fail.
+Validation output must explain which identity or proof tuple members are absent
+and which board observations were present.
+
+Required blocked-story diagnostic shape:
+
+```json
+{
+  "story": "...",
+  "leadAllowed": false,
+  "blockedBy": ["..."],
+  "boardFactsPresent": ["..."],
+  "proofCoordinates": {
+    "root": "...",
+    "side": "...",
+    "target": "...",
+    "anchor": "...",
+    "route": "...",
+    "rival": "...",
+    "requiredLegalLine": "...",
+    "sameRootProofSidecar": "..."
+  },
+  "missingSidecar": ["..."],
+  "reason": "..."
+}
+```
+
+Example:
+
+```json
+{
+  "story": "Plan.OpenFile",
+  "leadAllowed": false,
+  "blockedBy": ["routeProof", "sameRootLine"],
+  "boardFactsPresent": ["rook_open_file_entry"],
+  "proofCoordinates": {
+    "root": "current-position-root",
+    "side": "White",
+    "target": "open file entry square",
+    "anchor": "rook square",
+    "route": null,
+    "rival": "Black",
+    "requiredLegalLine": null,
+    "sameRootProofSidecar": null
+  },
+  "missingSidecar": ["legal file-entry line", "same-root route proof"],
+  "reason": "The rook has an entry-square observation, but no same-root line proves usable file entry."
+}
+```
+
+This keeps false positives actionable. The fix should be to supply the missing
+proof coordinate or keep the Story blocked, not to add another family-specific
+shortcut.
 
 ## Fixture Duties
 

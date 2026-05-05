@@ -129,8 +129,9 @@ Every allowed fact has the same boundary:
 - Its zero value means silent, absent, or not proven by the direct observation.
 - It does not say that a tactic works.
 - It does not say that a plan exists, is good, or should be played.
-- Public chess speech still belongs to Story after Story binds side, target,
-  anchor, route, rival, and proof scores.
+- Public chess speech still belongs to Story only after Story binds side,
+  target, anchor, route, rival, required legal line, and same-root proof
+  sidecar; numeric proof scores alone are not enough.
 
 ## Self-Review
 

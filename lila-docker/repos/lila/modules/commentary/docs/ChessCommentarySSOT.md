@@ -7,6 +7,28 @@ The live backend authority chain is:
 
 No other path owns current public chess meaning.
 
+This branch is not yet a product-level commentary backend. Its current job is
+the proof-first Story kernel: prevent unproven chess meaning from reaching the
+public surface. Good commentary is deferred until the public boundary is closed
+against false claims.
+
+Product north-star philosophy:
+
+- Engine is the truth oracle.
+- Backend is the proof and pedagogy system.
+- LLM is the narrator.
+
+The LLM does not judge chess. Engine truth, exact-board validation, legal
+replay, proof sidecars, and `StoryTable` decide what can be said. LLM phrasing
+comes only after a safe downstream payload exists.
+
+Engine lines, mate/tablebase proof, SEE, and bounded material results are
+truth-oracle evidence for backend proof. Raw engine numbers and engine text are
+never public claim owners. Backend policy owns proof, Story selection,
+arbitration, and pedagogy. The LLM may phrase selected `Verdict` or
+`Explanation IR` data only; it must not decide, prove, rank, repair, or invent
+chess meaning.
+
 ## Core Decision
 
 `BoardMood` gathers shared board facts. `Story` is the only chess unit allowed
@@ -16,6 +38,42 @@ ordering rules. `Verdict` is the language-neutral result consumed downstream.
 The renderer is explicitly downstream. It may express selected structured
 intent, but it must not create chess meaning, repair missing evidence, upgrade
 wording strength, or turn source and engine context into truth.
+
+The branch invariant is:
+
+`BoardMood` observes.
+`Story` proves.
+`StoryTable` arbitrates.
+`Verdict` speaks.
+Renderer only phrases.
+
+`BoardMood` observations such as weak squares, open files, attacked pieces,
+legal pawn levers, and king-ring attack maps are not public claims. For
+example, a rook/open-file/entry-square observation does not prove that a rook
+controls or can use the open file. Public meaning begins only at `Story`.
+
+The proof boundary is:
+
+- feature is not a claim
+- claim is not a public `Story`
+- public `Story` requires proof-bearing identity
+
+The implementation question is not "which tactic or strategy feature is
+visible?" The implementation question is whether that feature can become a
+Story with side, target, anchor, route, rival, required legal line, and
+same-root proof. If the answer is missing, the system must stay silent or keep
+the row blocked/context-only.
+
+Implementation must open in this order only:
+
+`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer
+
+The current branch owns the early kernel: board truth, primitive geometry,
+Story boundary, and Verdict boundary. Downstream product stages stay closed
+until earlier authority stages are proven.
+
+Current implementation scope is Stage 0 only. Stages 1-11 are a dependency map,
+not permission to open those systems.
 
 ## Current No-Go State
 
@@ -64,6 +122,33 @@ may feed `BoardMood` or same-root Story sidecars only when a live authority
 document admits that path; they do not supply proof authority by name and do not
 bypass `StoryTable`.
 
+Root atoms, source rows, engine evals, and support-only carriers must not be
+shown directly to renderers or LLM phrasing layers. They may become evidence
+only after a `Story` binds the required identity and proof tuple.
+
+Forbidden shortcut patterns:
+
+- feature to public claim
+- root atom to public claim
+- `BoardMood` scalar to public claim
+- source row to public truth
+- raw engine eval to public truth
+- high numeric `Proof` score to `Role.Lead` without sidecar
+- renderer repair of missing chess evidence
+- LLM inference of chess meaning
+- broad strategic `Story` before narrow tactical/material `Story`
+- family-specific shortcut growth before common proof coordinates exist
+
+If a change makes commentary richer but weakens proof ownership, it is rejected.
+
+Dependency shortcuts are forbidden:
+
+- Renderer before Story proof sidecar is forbidden.
+- LLM before Explanation IR is forbidden.
+- Strategy before tactical/material proof is forbidden.
+- Pedagogy before causal arbitration is forbidden.
+- Personalization before stable Story taxonomy is forbidden.
+
 ## Required Bindings
 
 These are non-negotiable bindings, not soft preferences:
@@ -97,3 +182,7 @@ The chess model scores what is worth saying after required bindings:
 
 Templates and LLM renderers must consume only selected `Verdict` data. They may
 paraphrase; they may not infer new claims.
+
+Pedagogy is backend policy over selected proof-backed `Verdict` data. Renderer
+and LLM layers may not choose instructional emphasis, promote context into
+lessons, or turn observations into advice.

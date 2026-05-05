@@ -21,6 +21,18 @@ That failure mode produced a predictable loop:
 This branch stops that loop. A fact being extracted is not the same as a fact
 being safe to say.
 
+The core lesson is:
+
+- feature is not a claim
+- claim is not a public `Story`
+- public `Story` requires proof-bearing identity
+
+The old question was: what tactical or strategic feature is visible in this
+position? The new question is: can this feature become a Story with side,
+target, anchor, route, rival, required legal line, and same-root proof? If the
+answer is missing, the correct behavior is silence, observation, or
+blocked/context-only output.
+
 ## Model Lesson
 
 Chess commentary is not a single-score problem. One position usually has many
@@ -91,8 +103,15 @@ FEN to public `Verdict`.
 - Legal destination masks are not proof of origin, route, castling, en-passant,
   promotion, tactics, or public claim legality.
 - A pin motif is not permission to publicly claim a pin story.
+- A tactic motif, plan affordance, source row, or engine number is not a public
+  `Story`.
 - Opening/source context is not public chess truth ownership.
 - Engine eval is pressure context, not a replacement for chess proof.
+- Engine lines, mate/tablebase proof, SEE, and bounded material results are
+  truth-oracle evidence for backend proof. Raw engine numbers and engine text
+  are never public claim owners.
+- The LLM is not the intelligence of commentary; it is a terminal phraser for
+  already-proven `Verdict` data.
 - Missing `known && sane` facts must not be hidden behind default zeroes.
 - `BoardMood.fromPieces` is scaffold-only and must not make runtime positions
   ready.
