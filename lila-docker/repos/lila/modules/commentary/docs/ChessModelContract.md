@@ -81,6 +81,9 @@ the old slot remains `0`/silent.
 Runtime input boundary:
 
 - `BoardFacts` -> `BoardMood.fromFacts` is the runtime input boundary.
+- `BoardFacts.md` is the Stage 1 charter for board observations. A
+  chess-readable Board Fact name such as open file, pin, weak square, loose
+  piece, or pawn lever does not create public claim authority.
 - `BoardFacts.fromFen` is the strict root transport entrypoint. It accepts a
   `Fen.Full` or raw FEN string, validates through
   `RootExtractor.fromFenWithPositionFailClosed`, and returns

@@ -9,6 +9,7 @@ Live commentary documentation authority is exactly and exhaustively:
 - `lila-docker/repos/lila/modules/commentary/docs/ChessModelArchitecture.md`
 - `lila-docker/repos/lila/modules/commentary/docs/ChessModelContract.md`
 - `lila-docker/repos/lila/modules/commentary/docs/ChessResetRationale.md`
+- `lila-docker/repos/lila/modules/commentary/docs/BoardFacts.md`
 - `lila-docker/repos/lila/modules/commentary/docs/BoardMoodCutLaw.md`
 - `lila-docker/repos/lila/modules/commentary/docs/BoardMoodSplitLaw.md`
 - `lila-docker/repos/lila/modules/commentary/docs/StoryInteractionLaw.md`
@@ -73,8 +74,8 @@ Implementation must open in this order only:
 Do not implement downstream product stages before earlier authority stages are
 proven.
 
-Current implementation scope is Stage 0 only. Stages 1-11 are a dependency map,
-not permission to open those systems.
+Current implementation scope is Stage 1 Board Facts only. Stages 2-11 are a
+dependency map, not permission to open those systems.
 
 Forbidden dependency shortcuts:
 
@@ -103,9 +104,12 @@ Forbidden dependency shortcuts:
 - No renderer opening: templates and LLM renderers may verbalize selected
   `Verdict` data only after prerequisite laws and tests exist; they cannot
   repair, upgrade, or invent chess meaning.
-- Stage 0 only: do not implement renderer opening, LLM narration, public
-  commentary route `200`, broad scalar re-entry, strategic Story openings,
-  source/engine public-truth paths, or CTH-style family exceptions.
+- Stage 1 Board Facts only: do not implement renderer opening, LLM narration,
+  public commentary route `200`, broad scalar re-entry, strategic Story
+  openings, source/engine public-truth paths, or CTH-style family exceptions.
+- Board Facts no-go: open file, pin, weak square, loose piece, pawn lever,
+  attacked piece, king-ring attack, and legal move facts are observations only.
+  They are not public claims and must not bypass `Story`.
 - Old-doc no-go: `CommentaryCoreSSOT.md`, `SemanticModelArchitecture.md`,
   `LegacyArchiveIndex.md`, and `CommentaryFrontendBridgeContract.md` must not
   return as root authority.

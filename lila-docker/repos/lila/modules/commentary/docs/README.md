@@ -8,6 +8,7 @@ commentary backend work. There is no live archive authority in this branch.
 Live authority is exactly and exhaustively:
 
 - `ChessCommentarySSOT.md`
+- `BoardFacts.md`
 - `BoardMoodCutLaw.md`
 - `BoardMoodSplitLaw.md`
 - `ChessModelArchitecture.md`
@@ -25,8 +26,7 @@ mismatch is a no-go state, not a second source of authority.
 
 This reset is intentionally closed at the public boundary.
 
-Current implementation scope is Stage 0 only. Stages 1-11 are a dependency map
-for later work, not permission to open those systems in this branch checkpoint.
+Current implementation scope is Stage 1 Board Facts only. Stages 2-11 are a dependency map for later work, not permission to open those systems in this branch checkpoint.
 
 - Public route no-go: `/api/commentary/render` and
   `/internal/commentary/render-local-probe` are registered only as fail-closed
@@ -35,6 +35,9 @@ for later work, not permission to open those systems in this branch checkpoint.
 - `BoardMood` no-go: no expansion beyond `48` bits, `256` scalars, and `3,328`
   total values. Split/cut re-entry requires a named law and same-board producer
   proof; closed, cut, and split slots otherwise stay `0`/silent.
+- Board Facts no-go: open file, pin, weak square, loose piece, pawn lever,
+  attacked piece, king-ring attack, and legal move facts are observations only.
+  They are not public claims and must not bypass `Story`.
 - No `Story` proof writers: numeric `Proof` scores may rank blocked/context
   `Verdict` rows only. They cannot set `leadAllowed=true` or produce
   `Role.Lead` until same-root side, target, anchor, route, rival, required
@@ -71,6 +74,8 @@ Authority summary:
 
 - `ChessCommentarySSOT.md` defines the single public chess meaning chain:
   `BoardMood` -> `Story` -> `StoryTable` -> `Verdict`.
+- `BoardFacts.md` is the Stage 1 charter for board observations that remain
+  below public claims.
 - `BoardMoodCutLaw.md` closes BoardMood slots that have no live chess fact.
 - `BoardMoodSplitLaw.md` closes broad BoardMood slots unless they re-enter as
   smaller exact chess facts.

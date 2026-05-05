@@ -10,6 +10,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
   private val agentInstructions = Paths.get("../../..", "AGENTS.md")
   private val LiveDocs =
     Vector(
+      "BoardFacts.md",
       "BoardMoodCutLaw.md",
       "BoardMoodSplitLaw.md",
       "ChessCommentarySSOT.md",
@@ -228,6 +229,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val readme = Files.readString(docsRoot.resolve("README.md"))
     val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
     val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val boardFacts = Files.readString(docsRoot.resolve("BoardFacts.md"))
     val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
     val rationale = Files.readString(docsRoot.resolve("ChessResetRationale.md"))
     val cutLaw = Files.readString(docsRoot.resolve("BoardMoodCutLaw.md"))
@@ -253,8 +255,14 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(architecture.contains("HCE-style deterministic chess scorer"))
     assert(architecture.contains("`BoardMood` -> `Story` -> `StoryTable` -> `Verdict`"))
     assert(architecture.contains("`48` bit slots"))
+    assert(architecture.contains("Stage 1 - Board Facts"))
     assert(!architecture.contains("Historical selector-shaped scaffolds may remain"))
     assert(!architecture.contains("gate bits"))
+    assert(boardFacts.contains("Stage 1 name is `Board Facts`."))
+    assert(boardFacts.contains("Board state observes. Story proves."))
+    assert(boardFacts.contains("A named board fact is still only an observation."))
+    assert(boardFacts.contains("Open file, pin, weak square, loose piece, and pawn lever"))
+    assert(boardFacts.contains("No renderer, LLM, public route, template, frontend mock, or API transport may read Board Facts directly as commentary."))
     assert(modelContract.contains("Forbidden in new core model names"))
     assert(modelContract.contains("The model has exactly `32` long-term plan families"))
     assert(modelContract.contains("B00..B45 are packed `RootStateVector` transport words"))
@@ -356,8 +364,8 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(interactionLaw.contains("no truth override or lead over board-backed Story"))
     assert(modelContract.contains("`Source` and `Opening` never lead over a board-backed story"))
     assert(readme.contains("Stage order no-go"))
-    assert(readme.contains("Current implementation scope is Stage 0 only"))
-    assert(readme.contains("Stages 1-11 are a dependency map"))
+    assert(readme.contains("Current implementation scope is Stage 1 Board Facts only"))
+    assert(readme.contains("Stages 2-11 are a dependency map"))
     assert(readme.contains("LLM no-go"))
     assert(readme.contains("LLM narration remains"))
     assert(readme.contains("closed and must not judge chess"))
@@ -406,17 +414,17 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(rationale.contains("Raw engine numbers and engine text"))
     assert(rationale.contains("The LLM is not the intelligence of commentary"))
     assert(architecture.contains("`Board Truth / Primitive Geometry / Story boundary / Verdict boundary`"))
-    assert(architecture.contains("Current implementation scope is Stage 0 only"))
-    assert(architecture.contains("Stages 1-11 below are a"))
+    assert(architecture.contains("Current implementation scope is Stage 1 Board Facts only"))
+    assert(architecture.contains("Stages 2-11 below are a"))
     assert(architecture.contains("dependency map for product design"))
-    assert(architecture.contains("Only Stage 0 is active implementation authority now."))
-    assert(architecture.contains("Stages 1-11 are"))
+    assert(architecture.contains("Only Stage 1 Board Facts is active implementation authority now."))
+    assert(architecture.contains("Stages 2-11 are"))
     assert(architecture.contains("dependency-map-only"))
     assert(architecture.contains("`Board Truth` -> `Engine Truth` -> `Primitive Geometry` -> `Tactical/Strategic Story Birth` -> `Engine Validation` -> `Causal Arbitration` -> `Pedagogical Policy` -> `Explanation IR` -> `LLM Narration` -> `Verifier`"))
     assert(!architecture.contains("Tactical/Strategic Hypotheses"))
     Vector(
       "Stage 0 - Closed Kernel",
-      "Stage 1 - Board Observation Only",
+      "Stage 1 - Board Facts",
       "Stage 2 - Story Proof Sidecar",
       "Stage 3 - First Narrow Positive Story",
       "Stage 4 - Engine Validation",
@@ -488,6 +496,36 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(agents.contains("public `Story` requires proof-bearing identity"))
     assert(agents.contains("Ask whether a feature can become a `Story` with side, target, anchor, route,"))
     assert(agents.contains("`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer"))
+
+  test("stage 1 board facts charter keeps observations below public claims"):
+    val boardFacts = Files.readString(docsRoot.resolve("BoardFacts.md"))
+
+    assert(boardFacts.contains("Stage 1 name is `Board Facts`."))
+    assert(boardFacts.contains("Board state observes. Story proves."))
+    assert(boardFacts.contains("Small board facts may be recorded only when they are directly visible from the current board"))
+    assert(boardFacts.contains("binds to the same board root"))
+    assert(boardFacts.contains("side"))
+    assert(boardFacts.contains("piece"))
+    assert(boardFacts.contains("square"))
+    assert(boardFacts.contains("file"))
+    assert(boardFacts.contains("rank"))
+    assert(boardFacts.contains("line"))
+    assert(boardFacts.contains("legal move"))
+    assert(boardFacts.contains("A named board fact is still only an observation."))
+    assert(boardFacts.contains("Missing or unproven data stays `0`/silent."))
+    assert(boardFacts.contains("Failure logs must say which evidence is missing before any Story can speak."))
+    Vector(
+      "the knight is free",
+      "controls the c-file",
+      "the outpost is strategically central",
+      "the king is unsafe",
+      "this is a good plan",
+      "counterplay is stopped"
+    ).foreach: claim =>
+      assert(boardFacts.contains(claim), s"Board Facts charter must explicitly reject public claim: $claim")
+    assert(boardFacts.contains("No renderer, LLM, public route, template, frontend mock, or API transport may read Board Facts directly as commentary."))
+    assert(!boardFacts.contains("Stage 1 is commentary"))
+    assert(!boardFacts.contains("leadAllowed=true"))
 
   test("live docs reject legacy candidate selector authority while allowing candidate passer"):
     val contents = liveDocContents

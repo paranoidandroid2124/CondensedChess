@@ -72,14 +72,16 @@ The current branch owns the early kernel: board truth, primitive geometry,
 Story boundary, and Verdict boundary. Downstream product stages stay closed
 until earlier authority stages are proven.
 
-Current implementation scope is Stage 0 only. Stages 1-11 are a dependency map,
-not permission to open those systems.
+Current implementation scope is Stage 1 Board Facts only. Stages 2-11 are a
+dependency map, not permission to open those systems.
 
 ## Current No-Go State
 
-The current checkpoint is closed. There is no public surface opening, no
-`BoardMood` Sxxx expansion or re-entry, no `Story` proof writer opening, and no
-renderer opening until prerequisite laws and tests exist.
+The current checkpoint is closed at the public boundary. Stage 1 `Board Facts`
+may organize small current-board observations under `BoardFacts.md`, but there
+is no public surface opening, no broad `BoardMood` Sxxx expansion or re-entry,
+no `Story` proof writer opening, and no renderer opening until prerequisite
+laws and tests exist.
 
 `/api/commentary/render` and `/internal/commentary/render-local-probe` are
 registered only as fail-closed tombstones. No `200`, rendered payload,
@@ -87,6 +89,11 @@ environment switch, or frontend mock can open them.
 
 `BoardMood` remains fixed at `48` bits, `256` scalars, and `3,328` total values.
 Split/cut re-entry requires a named law and same-board producer proof.
+
+Open file, pin, weak square, loose piece, pawn lever, attacked piece,
+king-ring attack, and legal move facts remain observations only. They do not
+become public claims until `Story` supplies side, target, anchor, route, rival,
+required legal line, and same-root proof sidecar.
 
 Known blockers are authority blockers, not implementation permission:
 

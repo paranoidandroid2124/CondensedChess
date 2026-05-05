@@ -6,6 +6,7 @@ reset.
 Authority is exactly the live root docs listed in `docs/README.md`:
 `docs/ChessCommentarySSOT.md`, `docs/ChessModelArchitecture.md`,
 `docs/ChessModelContract.md`, `docs/ChessResetRationale.md`,
+`docs/BoardFacts.md`,
 `docs/BoardMoodCutLaw.md`, `docs/BoardMoodSplitLaw.md`,
 `docs/StoryInteractionLaw.md`, `docs/StoryResurrectionLaw.md`,
 `docs/LegacyPruneManifest.md`, and `docs/README.md`.
@@ -32,6 +33,7 @@ environment switch, frontend mock, or route test can open public commentary.
 The remaining live docs are:
 
 - `ChessCommentarySSOT.md`
+- `BoardFacts.md`
 - `BoardMoodCutLaw.md`
 - `BoardMoodSplitLaw.md`
 - `ChessModelArchitecture.md`
@@ -50,8 +52,9 @@ return as root docs authority.
 
 The prune does not open a replacement public path. Controllers, facades, API
 transports, renderer-facing claim paths, default runtime FEN to public
-`Verdict`, `BoardMood` Sxxx expansion/re-entry, and `Story` proof writers stay
-closed until prerequisite laws and tests exist.
+`Verdict`, broad `BoardMood` Sxxx expansion/re-entry, and `Story` proof writers
+stay closed until prerequisite laws and tests exist. Stage 1 `Board Facts`
+admits only small current-board observations below public claims.
 
 `BoardMood` does not expand beyond `48` bits, `256` scalars, and `3,328` total
 values in this checkpoint. Split/cut re-entry requires a named law and
