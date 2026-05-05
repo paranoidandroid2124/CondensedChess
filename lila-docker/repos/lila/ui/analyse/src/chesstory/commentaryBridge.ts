@@ -2,7 +2,7 @@ type JsonRecord = Record<string, unknown>;
 
 export type WordingStrength = 'hidden' | 'negative_only' | 'context_only' | 'qualified_support' | 'assertive_certified';
 export type RenderStatus = 'rendered' | 'contextOnly' | 'noCommentary';
-export type CommentaryResponseStatus = RenderStatus | 'invalidRequest';
+export type CommentaryResponseStatus = RenderStatus | 'invalidRequest' | 'unavailable';
 
 export type CommentaryBridgeNodeIdentity = {
   currentFen: string;
@@ -153,7 +153,7 @@ export type CommentaryInternalMetadata = {
 
 export type CommentaryResponse = {
   status: CommentaryResponseStatus;
-  render: CommentaryRender;
+  render: CommentaryRender | null;
   noCommentary: boolean;
   internal?: CommentaryInternalMetadata | null;
 };
@@ -230,6 +230,8 @@ function isForbiddenEnginePacketKey(key: string): boolean {
     normalized.includes('rawlines') ||
     normalized.includes('rawprobe') ||
     normalized.includes('rawprobes') ||
+    normalized.includes('raweval') ||
+    normalized === 'linetoken' ||
     normalized.includes('sourcerow') ||
     normalized === 'branchid' ||
     normalized === 'parentbranchid' ||
@@ -257,32 +259,54 @@ function normalizeEnginePacketKey(key: string): string {
 
 export function decodePublicCommentaryRender(response: CommentaryResponse): PublicCommentaryRender {
   if (response.status === 'invalidRequest') return { kind: 'empty', reason: 'invalid_request' };
-  if (response.noCommentary || response.render.status === 'noCommentary') return { kind: 'empty', reason: 'no_commentary' };
-  if (response.render.wording.maxStrength === 'hidden') return { kind: 'empty', reason: 'hidden' };
-  if (response.render.wording.maxStrength === 'negative_only') return { kind: 'empty', reason: 'negative_only' };
+  const render = isCommentaryRender(response.render) ? response.render : null;
+  if (response.noCommentary || !render || render.status === 'noCommentary') return { kind: 'empty', reason: 'no_commentary' };
+  if (render.wording.maxStrength === 'hidden') return { kind: 'empty', reason: 'hidden' };
+  if (render.wording.maxStrength === 'negative_only') return { kind: 'empty', reason: 'negative_only' };
+  if (PublicRenderRoutesTombstoned) return { kind: 'empty', reason: 'no_commentary' };
 
-  const renderWording = copyRenderWording(response.render.wording);
-  const variationEvidence = response.render.variationEvidence?.flatMap(evidence => {
+  const renderWording = copyRenderWording(render.wording);
+  const variationEvidence = render.variationEvidence?.flatMap(evidence => {
     const copied = copyRenderVariationEvidence(evidence);
     return copied ? [copied] : [];
   });
   const publicVariationProofIds = new Set((variationEvidence || []).map(evidence => evidence.proofId));
-  const blocks = response.render.blocks
+  const blocks = render.blocks
     .map(block => copyRenderBlock(block, renderWording, publicVariationProofIds))
     .filter(hasPublicBlockPayload);
   if (!blocks.length) return { kind: 'empty', reason: 'no_commentary' };
 
   return {
     kind: 'render',
-    schemaVersion: response.render.schemaVersion,
+    schemaVersion: render.schemaVersion,
     status: response.status,
-    renderStatus: response.render.status,
+    renderStatus: render.status,
     blocks,
-    evidenceRefs: response.render.evidenceRefs.map(copyRenderEvidenceRef),
+    evidenceRefs: render.evidenceRefs.map(copyRenderEvidenceRef),
     ...(variationEvidence && variationEvidence.length ? { variationEvidence } : {}),
-    boundaries: response.render.boundaries.map(copyRenderBoundary),
+    boundaries: render.boundaries.map(copyRenderBoundary),
     wording: renderWording,
   };
+}
+
+const PublicRenderRoutesTombstoned = true;
+
+function isCommentaryRender(value: unknown): value is CommentaryRender {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<CommentaryRender>;
+  return (
+    typeof candidate.schemaVersion === 'number' &&
+    (candidate.status === 'rendered' || candidate.status === 'contextOnly' || candidate.status === 'noCommentary') &&
+    Array.isArray(candidate.blocks) &&
+    Array.isArray(candidate.evidenceRefs) &&
+    Array.isArray(candidate.boundaries) &&
+    Array.isArray(candidate.suppressions) &&
+    !!candidate.wording &&
+    typeof candidate.wording === 'object' &&
+    isWordingStrength((candidate.wording as Partial<RenderWording>).maxStrength) &&
+    typeof (candidate.wording as Partial<RenderWording>).allowedPublicText === 'boolean' &&
+    Array.isArray((candidate.wording as Partial<RenderWording>).forbiddenTerms)
+  );
 }
 
 function copyRenderBlock(

@@ -74,9 +74,34 @@ Fixed shape:
 - `256` scalar slots
 - total size: `3,328`
 
+There is no `BoardMood` expansion beyond this shape in the current checkpoint.
+Split/cut re-entry requires a named law and same-board producer proof; otherwise
+the old slot remains `0`/silent.
+
 Runtime input boundary:
 
 - `BoardFacts` -> `BoardMood.fromFacts` is the runtime input boundary.
+- `BoardFacts.fromFen` is the strict root transport entrypoint. It accepts a
+  `Fen.Full` or raw FEN string, validates through
+  `RootExtractor.fromFenWithPositionFailClosed`, and returns
+  `Either[String, BoardFacts]`.
+  Invalid FEN, illegal standard positions, mismatched castling rights, and
+  mismatched en-passant fields return `Left`; they do not produce
+  `BoardMood.empty` fallbacks.
+- `BoardFacts.fromPosition` is an internal/test boundary only. It must run the
+  same strict position validation that does not depend on raw FEN fields, derive
+  its own root state from the supplied position, and require an explicit
+  positive fullmove number supplied by the internal caller. It is not raw-FEN
+  castling or en-passant mismatch validation.
+- Runtime BoardFacts factories must not accept caller-supplied root, legal,
+  material, control, or pawn facts. Strict same-board producers record the
+  factory-created `BoardFacts` instance identity as ready; constructor
+  parameters do not carry readiness authority.
+- Manual `BoardFacts` assembly remains only for contract tests and fail-closed
+  boundary checks. It is untrusted by definition and must keep S015
+  `position_ready` at `0` even when every nested fact is `known && sane`.
+- `BoardFacts` must not expose case-class `copy` or product reconstruction;
+  reflective construction and caller-supplied fields must not create readiness.
 - BoardFacts required fields are `root`, `sideToMove`, `header`, `sideLegal`,
   `rivalLegal`, `control`, `material`, and `pawns`. Callers must provide them
   explicitly; default construction is not a runtime contract.
@@ -86,13 +111,21 @@ Runtime input boundary:
 - `sideToMove` must be `White` or `Black`.
 - S015 `position_ready` may be `1` only when all nested facts are known and sane:
   `header`, `sideLegal`, `rivalLegal`, `control`, `material`, and `pawns`.
+  It also requires factory-created instance identity recorded by strict
+  producers such as `BoardFacts.fromFen` or `BoardFacts.fromPosition`; reflective
+  construction of matching fields remains unready.
 - Legal move sidecars are known facts, not positive-count facts. A known
   zero-legal-move sidecar remains valid for mate and stalemate. If `moveCount`
   is positive, the sidecar must carry a non-zero legal destination summary or at
   least one legal line destination. Move, capture, and check counts must be
   non-negative, and capture/check counts must not exceed `moveCount`.
+- `Moves.lines` carries all legal `(from, to)` pairs as same-board diagnostic
+  summaries. Castling stores only the king route, promotion stores no promotion
+  role, and en-passant stores no captured-pawn square at this stage.
 - `rivalLegal` is a required known legal sidecar. Missing rival legal facts must
   keep S015 `position_ready` at `0`.
+- `rivalLegal` is computed by viewing the same exact board with the opposite
+  side to move. It is a board-interaction diagnostic, not timeline proof.
 - `BoardMood.fromPieces` is scaffold-only and not runtime authority. It may
   transport local piece-on atoms and debug summaries, but it must not mark a
   position ready for runtime use.
@@ -108,6 +141,28 @@ Bit contract:
   canonical padding and must be zero.
 - B46 is `side_legal_destination_union`.
 - B47 is `rival_legal_destination_union`.
+
+Low-level scalar construction:
+
+- `BoardMood.fromPacked`, `BoardMood.fromParts`, and `BoardMood.fromRoot`
+  accept dense scalar transport for live diagnostics only.
+- These low-level constructors canonicalize all closed scalar slots to `0` on
+  input. Closed means `BoardMoodSplitLaw.md`, `BoardMoodCutLaw.md`, and
+  S224..S255 proof/pressure slots.
+- Callers cannot inject broad scores, cut meanings, exact-board binding, legal
+  replay binding, source, evidence, render safety, proof counts, or pressure
+  values through scalar transport.
+- `BoardMood` must not expose case-class `copy` or product reconstruction.
+  Raw construction, including reflective construction, must still canonicalize
+  all closed scalar slots to `0`.
+- A closed scalar may re-enter only as a named exact chess fact or proof writer
+  admitted in this contract and the appropriate BoardMood law document before
+  runtime use.
+- At this checkpoint no `BoardMood` Sxxx re-entry or proof writer is admitted.
+  Closed, cut, split, proof, source, and pressure slots stay `0`/silent without
+  a named law and same-board producer proof.
+- Cut BoardMood meanings may be spoken only by Story under
+  `StoryResurrectionLaw.md`; BoardMood remains `0`/silent for those slots.
 
 B46 and B47 are legal destination summaries, not proof.
 
@@ -381,9 +436,99 @@ Scalar contract:
 - S254 `board_story_pressure`
 - S255 `public_claim_pressure`
 
-Binding and proof slots remain zero unless later sidecars fill them. Stage 0
-`BoardMood.fromFacts` writes board facts, legal destination summaries, material,
-control summaries, and pawn facts; it does not create public proof authority.
+Binding and proof slots remain zero. The current root transport baseline writes
+board facts, legal destination summaries, material, control summaries, and pawn
+facts; it does not create public proof authority.
+S224..S255 remain zero from `BoardFacts.fromFen` through `BoardMood.fromFacts`
+and through low-level scalar constructors. Nonzero proof, binding, source, and
+pressure values require named writers admitted here and exposed through a
+dedicated API; they are not placeholders.
+
+Root transport control facts use the same geometric attack semantics as
+`RootExtractor`, not legal-attack proof. Pinned pieces still contribute
+geometric attacks, control, and diagnostic mobility. Legal replay sidecars
+remain the authority for actual legal moves.
+
+Root transport pawn facts populate file counts, isolated pawns, backward pawns,
+doubled files, passed pawns, candidate passers, fixed pawns, lever counts, and
+best promotion distance from the same exact board/root. Protected passers,
+chain bases, break chances, blockaded pawns, support, risk, and structure are
+closed by `BoardMoodSplitLaw.md` or `BoardMoodCutLaw.md` and stay `0` in live
+BoardMood.
+
+## Phase 2 Position / Material Completeness
+
+S000..S031 are complete for strict `BoardFacts.fromFen` runtime input:
+
+- S000 `side_to_move`: `White.ordinal` or `Black.ordinal` from the validated
+  position color.
+- S001 `ply_from_start`: `(fullmove_number - 1) * 2 + 1` when black is to move,
+  otherwise `(fullmove_number - 1) * 2`.
+- S002 `phase_total`: sum across both sides using `N/B=1`, `R=2`, `Q=4`,
+  `P/K=0`.
+- S003 `phase_non_pawn`: count of all non-pawn, non-king pieces.
+- S004 `halfmove_clock`: the non-negative FEN halfmove clock.
+- S005 `fullmove_number`: the positive FEN fullmove number.
+- S006 `castling_mask`: bitmask `white king-side=1`, `white queen-side=2`,
+  `black king-side=4`, `black queen-side=8`, after strict castling validation.
+- S007 `ep_square_plus_one`: `0` when absent; otherwise validated en-passant
+  square index plus one.
+- S008 `in_check_mask`: bitmask `white=1`, `black=2`, from exact-board check
+  detection.
+- S009 `legal_move_count`: count of side-to-move legal moves from legal replay.
+- S010 `legal_capture_count`: count of legal moves whose replayed move is a
+  capture or en-passant capture.
+- S011 `legal_check_count`: count of legal moves whose replayed after-position
+  gives check.
+- S012 `snapshot_ply`: equal to S001 for this phase.
+- S013 `board_hash_lo` and S014 `board_hash_hi`: cut BoardMood chess meanings.
+  They must be `0` for S015 readiness and cannot support a public chess
+  sentence.
+- S015 `position_ready`: `1` only when root transport is non-empty and all
+  nested facts are `known && sane`; zero-baseline hash and material-imbalance
+  fields must still be zero.
+- S016..S027 piece counts: exact count by side and role in order pawn, knight,
+  bishop, rook, queen, king.
+- S028 `white_material` and S029 `black_material`: material value in centipawns
+  using `P=100`, `N=320`, `B=330`, `R=500`, `Q=900`, `K=0`.
+- S030 `material_diff`: `white_material - black_material`.
+- S031 `material_imbalance`: deterministic zero-baseline in this phase. It
+  remains `0` and must be `0` for S015 readiness. It is closed by
+  `BoardMoodSplitLaw.md` unless replaced by smaller exact material facts.
+
+## Phase 3 BoardMood Mobility / Control / Space Completeness
+
+S032..S063 are complete for strict `BoardFacts.fromFen` and internal
+`BoardFacts.fromPosition` runtime input:
+
+- S032..S043 role mobility: per-side, per-role pseudo/geometric destination
+  counts from the exact board. Sliding pieces use current blockers and include
+  the first blocker square, then same-color occupied destinations are removed.
+  Knights and kings use geometric destination masks with same-color occupied
+  destinations removed. Pawns count one-square forward non-capture pushes when
+  the forward square is empty, plus diagonal attack destinations that are not
+  occupied by a same-color piece. Double pawn pushes are not counted in this
+  phase. These slots are diagnostics, not legal self-check proof.
+- S044..S055 safe mobility: the same per-side, per-role mobility destinations
+  filtered to destinations not controlled by the opponent under the same
+  geometric `RootExtractor` attack semantics. Safe mobility is not legal move
+  proof and does not certify king safety under replay.
+- S056 `white_space`: count of empty squares on files c through f and ranks 4
+  through 6 that are controlled by White and not controlled by Black.
+- S057 `black_space`: count of empty squares on files c through f and ranks 3
+  through 5 that are controlled by Black and not controlled by White.
+- S058 `space_diff`: `white_space - black_space`.
+- S059 `white_controlled_squares` and S060 `black_controlled_squares`: popcount
+  of each side's same-board geometric attack/control union, aligned with
+  `RootExtractor`.
+- S061 `contested_squares`: popcount of the intersection of the two geometric
+  control unions.
+- S062 `white_attacked_twice` and S063 `black_attacked_twice`: count of squares
+  attacked by at least two same-side geometric attack masks.
+
+S032..S063 may be nonzero only as board diagnostics. They do not set any
+S224..S255 proof, binding, source, or pressure slot, and they do not grant
+public commentary authority by themselves.
 
 `BoardMood.fromPieces(pieces, side)` is a local scaffold over root `piece_on`
 atoms and basic scalar summaries. It is not an authoritative piece-map or heat
@@ -457,6 +602,10 @@ Each story carries these proof scores as `0..100` integers:
 
 Lead fail-closed rules:
 
+- No Story may lead at the public surface without concrete side, target, anchor,
+  route, rival, required legal line, and same-root proof sidecar. The current
+  implementation is known not to enforce that full tuple yet, so public surface
+  opening stays closed.
 - `ownerProof >= 70` requires `side` to be `White`, `Black`, or `Both`; `None`
   cannot lead.
 - `anchorProof >= 70` requires a concrete `anchor`.
@@ -466,9 +615,19 @@ Lead fail-closed rules:
 - `Proof.truth` includes `lineProof`, so a missing line proof can cap public
   strength.
 
-BoardMood carries proof summaries, not public proof authority by itself. Proof
-scores are forgeable unless they are backed by LegalMove, Ray, LineProof, and
-Source sidecars bound to the same root state.
+BoardMood carries proof summaries, not public proof authority by itself. A
+numeric `Proof` score is forgeable unless side, target, anchor, route, rival,
+required legal line, and same-root proof sidecars are bound to the same root
+state.
+
+No `Story` proof writer is live in this checkpoint. Numeric `Proof` scores may
+rank blocked/context `Verdict` rows only; they cannot set `leadAllowed=true` or
+produce `Role.Lead` until same-root side, target, anchor, route, rival,
+required legal line, and proof sidecars exist.
+
+Missing side, target, anchor, route, rival, required legal line, or same-root
+proof sidecar is a hard public-output block, not weak scoring, deferred work,
+or renderer repair.
 
 ## Verdict Layout
 
@@ -611,14 +770,15 @@ Lead requirements:
 - `Quiet` only if no story has `publicStrength >= 55`
 - `Tactic` outranks `Plan` if `tacticHeat >= 70` and `lineProof >= 65`
 - `Plan` can lead only if no opposing `Tactic` or `Blunder` story is at least `70`
-- `Source` never leads over a board-backed story at least `55`
+- `Source` and `Opening` never lead over a board-backed story at least `55`
 - a pin can lead only through `Tactics`, never from line weather alone
 
-## Legacy Survival Rule
+## Legacy Deletion Rule
 
-Legacy `R`, `U`, object, delta, certification, projection, source, and engine
-structures survive only when they fill `BoardMood` or provide proof for a
-`Story`.
+Retired pre-reset carrier stacks such as legacy root/intermediate lanes,
+certificates, broad source wrappers, engine wrappers, and projected claim
+paths are deletion targets, not proof sources. They do not supply public proof
+authority by surviving in code or documentation.
 
 These are deletion targets:
 

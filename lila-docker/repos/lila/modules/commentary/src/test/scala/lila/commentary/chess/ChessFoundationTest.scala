@@ -1,5 +1,7 @@
 package lila.commentary.chess
 
+import chess.format.Fen
+import chess.variant
 import lila.commentary.root.{ RootAtomRegistry, RootStateVector }
 
 class ChessFoundationTest extends munit.FunSuite:
@@ -90,7 +92,7 @@ class ChessFoundationTest extends munit.FunSuite:
       material: Material = readyMaterial,
       pawns: Pawns = readyPawns
   ): BoardFacts =
-    BoardFacts(
+    BoardFacts.untrusted(
       root = root,
       sideToMove = sideToMove,
       header = header,
@@ -103,6 +105,53 @@ class ChessFoundationTest extends munit.FunSuite:
 
   private def positionReady(facts: BoardFacts): Int =
     BoardMood.fromFacts(facts).scalars(BoardMood.ScalarsByName("position_ready"))
+
+  private def scalar(mood: BoardMood, name: String): Int =
+    mood.scalars(BoardMood.ScalarsByName(name))
+
+  private def canonicalScalars(values: Vector[Int]): Vector[Int] =
+    values.zipWithIndex.map:
+      case (_, index) if BoardMood.ClosedScalarIndices.contains(index) => 0
+      case (value, _)                                                 => value
+
+  private def legalReplayCounts(fen: Fen.Full): (Int, Int, Int) =
+    val position = Fen.read(variant.Standard, fen).get
+    val legal = position.legalMoves.toVector
+    (
+      legal.size,
+      legal.count(move => move.capture.isDefined || move.enpassant),
+      legal.count(move => move.after.check.yes)
+    )
+
+  private val mobilityScalarNames = Vector(
+    "white_pawn_mobility",
+    "white_knight_mobility",
+    "white_bishop_mobility",
+    "white_rook_mobility",
+    "white_queen_mobility",
+    "white_king_mobility",
+    "black_pawn_mobility",
+    "black_knight_mobility",
+    "black_bishop_mobility",
+    "black_rook_mobility",
+    "black_queen_mobility",
+    "black_king_mobility"
+  )
+
+  private val safeMobilityScalarNames = Vector(
+    "white_pawn_safe_mobility",
+    "white_knight_safe_mobility",
+    "white_bishop_safe_mobility",
+    "white_rook_safe_mobility",
+    "white_queen_safe_mobility",
+    "white_king_safe_mobility",
+    "black_pawn_safe_mobility",
+    "black_knight_safe_mobility",
+    "black_bishop_safe_mobility",
+    "black_rook_safe_mobility",
+    "black_queen_safe_mobility",
+    "black_king_safe_mobility"
+  )
 
   test("BoardMood keeps the fixed dense shape"):
     assertEquals(BoardMood.Schema, 1)
@@ -117,9 +166,9 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(BoardMood.empty.scalars, Vector.fill(BoardMood.Scalars)(0))
 
     intercept[IllegalArgumentException]:
-      BoardMood(Vector.fill(BoardMood.Bits - 1)(0L), Vector.fill(BoardMood.Scalars)(0))
+      BoardMood.fromPacked(Vector.fill(BoardMood.Bits - 1)(0L), Vector.fill(BoardMood.Scalars)(0))
     intercept[IllegalArgumentException]:
-      BoardMood(Vector.fill(BoardMood.Bits)(0L), Vector.fill(BoardMood.Scalars + 1)(0))
+      BoardMood.fromPacked(Vector.fill(BoardMood.Bits)(0L), Vector.fill(BoardMood.Scalars + 1)(0))
 
   test("BoardMood names every bit slot and scalar slot with dense non-reserved metadata"):
     assertEquals(BoardMood.bitSlots.size, BoardMood.Bits)
@@ -130,8 +179,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(BoardMood.scalarSlots.map(_.name).distinct.size, BoardMood.Scalars)
     assert(BoardMood.bitSlots.forall(slot => slot.name.nonEmpty && slot.role.nonEmpty && slot.note.nonEmpty))
     assert(BoardMood.scalarSlots.forall: slot =>
-      Vector(slot.name, slot.role, slot.zero, slot.scale, slot.source, slot.failClosed).forall(_.nonEmpty)
-    )
+      Vector(slot.name, slot.role, slot.zero, slot.scale, slot.source, slot.failClosed).forall(_.nonEmpty))
 
     val forbidden = "(?i).*(reserved|unknown|tbd).*".r
     assert(BoardMood.bitSlots.forall(slot => forbidden.findFirstIn(slot.name).isEmpty))
@@ -156,10 +204,18 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(BoardMood.scalarSlots(224).name, "exact_board_binding")
     assertEquals(BoardMood.scalarSlots(240).name, "ray_count")
     assertEquals(BoardMood.scalarSlots(255).name, "public_claim_pressure")
-    assert(BoardMood.scalarSlots(BoardMood.ScalarsByName("white_pawn_file_counts")).scale.contains("packed 8-file"))
-    assert(BoardMood.scalarSlots(BoardMood.ScalarsByName("black_pawn_file_counts")).scale.contains("packed 8-file"))
-    assert(BoardMood.scalarSlots(BoardMood.ScalarsByName("white_king_square")).zero.contains("square index + 1"))
-    assert(!BoardMood.scalarSlots(BoardMood.ScalarsByName("white_king_square")).zero.contains("A1 or no square"))
+    assert(
+      BoardMood.scalarSlots(BoardMood.ScalarsByName("white_pawn_file_counts")).scale.contains("packed 8-file")
+    )
+    assert(
+      BoardMood.scalarSlots(BoardMood.ScalarsByName("black_pawn_file_counts")).scale.contains("packed 8-file")
+    )
+    assert(
+      BoardMood.scalarSlots(BoardMood.ScalarsByName("white_king_square")).zero.contains("square index + 1")
+    )
+    assert(
+      !BoardMood.scalarSlots(BoardMood.ScalarsByName("white_king_square")).zero.contains("A1 or no square")
+    )
     assert(BoardMood.scalarSlots.forall(!_.source.contains("fromPieces fully populates")))
 
     val candidateNamedScalars = BoardMood.scalarNames.filter(_.contains("candidate"))
@@ -201,13 +257,32 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(mood.bits(45), (1L << 0) | (1L << (RootAtomRegistry.RootSize - 1 - 45 * 64)))
     assertEquals(mood.bits(BoardMood.SideLegalDestinationsBit), sideLegal)
     assertEquals(mood.bits(BoardMood.RivalLegalDestinationsBit), rivalLegal)
-    assertEquals(mood.scalars, scalars)
+    assertEquals(mood.scalars, canonicalScalars(scalars))
     assertEquals(mood.activeRootAtomIndices.sorted, active.sorted)
+
+  test("BoardMood closes split, cut, proof, and pressure scalar slots to zero"):
+    assertEquals(BoardMood.SplitScalarIndices.size, 65)
+    assertEquals(BoardMood.CutScalarIndices.size, 28)
+    assertEquals(BoardMood.ProofScalarIndices.size, 32)
+    assertEquals(BoardMood.ClosedScalarIndices.size, 125)
+    assert(BoardMood.SplitScalarIndices.forall(index => index >= 0 && index < 224))
+    assert(BoardMood.CutScalarIndices.forall(index => index >= 0 && index < 224))
+    assert(BoardMood.ProofScalarIndices.forall(index => index >= 224 && index < BoardMood.Scalars))
+    assert((BoardMood.SplitScalarIndices & BoardMood.CutScalarIndices).isEmpty)
+
+    val values = Vector.tabulate(BoardMood.Scalars)(index => index + 1)
+    val mood = BoardMood.fromPacked(Vector.fill(BoardMood.Bits)(0L), values)
+
+    BoardMood.ClosedScalarIndices.foreach: index =>
+      assertEquals(mood.scalars(index), 0, s"${BoardMood.scalarSlots(index).name} must stay silent")
+
+    (0 until BoardMood.Scalars).filterNot(BoardMood.ClosedScalarIndices.contains).foreach: index =>
+      assertEquals(mood.scalars(index), values(index), s"${BoardMood.scalarSlots(index).name} must remain live")
 
   test("BoardMood fromFacts is the runtime BoardMood input boundary"):
     val active = Vector(0, 70, RootAtomRegistry.RootSize - 1)
     val root = RootStateVector.fromIndices(active)
-    val facts = BoardFacts(
+    val facts = BoardFacts.untrusted(
       root = root,
       sideToMove = Side.Black,
       header = BoardHeader(
@@ -221,8 +296,8 @@ class ChessFoundationTest extends munit.FunSuite:
         epSquare = Some(Square('e', 3)),
         inCheckMask = 2,
         snapshotPly = 19,
-        hashLo = 0x10203040,
-        hashHi = -123456789
+        hashLo = 0,
+        hashHi = 0
       ),
       sideLegal = Moves(
         known = true,
@@ -262,7 +337,7 @@ class ChessFoundationTest extends munit.FunSuite:
         white = Pieces(pawns = 7, knights = 2, bishops = 1, rooks = 2, queens = 1, kings = 1, value = 2920),
         black = Pieces(pawns = 6, knights = 1, bishops = 2, rooks = 1, queens = 1, kings = 1, value = 2650),
         diff = 270,
-        imbalance = 40
+        imbalance = 0
       ),
       pawns = Pawns(
         known = true,
@@ -334,9 +409,9 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(scalar("legal_capture_count"), 8)
     assertEquals(scalar("legal_check_count"), 3)
     assertEquals(scalar("snapshot_ply"), 19)
-    assertEquals(scalar("board_hash_lo"), 0x10203040)
-    assertEquals(scalar("board_hash_hi"), -123456789)
-    assertEquals(scalar("position_ready"), 1)
+    assertEquals(scalar("board_hash_lo"), 0)
+    assertEquals(scalar("board_hash_hi"), 0)
+    assertEquals(scalar("position_ready"), 0)
     assertEquals(scalar("white_pawn_count"), 7)
     assertEquals(scalar("white_knight_count"), 2)
     assertEquals(scalar("white_bishop_count"), 1)
@@ -352,7 +427,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(scalar("white_material"), 2920)
     assertEquals(scalar("black_material"), 2650)
     assertEquals(scalar("material_diff"), 270)
-    assertEquals(scalar("material_imbalance"), 40)
+    assertEquals(scalar("material_imbalance"), 0)
     assertEquals(scalar("white_space"), 14)
     assertEquals(scalar("black_space"), 12)
     assertEquals(scalar("space_diff"), 2)
@@ -367,32 +442,32 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(scalar("white_doubled_file_count"), 1)
     assertEquals(scalar("white_passed_pawn_count"), 2)
     assertEquals(scalar("white_candidate_passer_count"), 3)
-    assertEquals(scalar("white_protected_passer_count"), 1)
+    assertEquals(scalar("white_protected_passer_count"), 0)
     assertEquals(scalar("white_fixed_pawn_count"), 4)
-    assertEquals(scalar("white_chain_base_count"), 2)
+    assertEquals(scalar("white_chain_base_count"), 0)
     assertEquals(scalar("white_lever_count"), 1)
-    assertEquals(scalar("white_break_chance_count"), 2)
-    assertEquals(scalar("white_blockaded_pawn_count"), 1)
+    assertEquals(scalar("white_break_chance_count"), 0)
+    assertEquals(scalar("white_blockaded_pawn_count"), 0)
     assertEquals(scalar("white_promotion_distance_best"), 3)
-    assertEquals(scalar("white_pawn_support"), 44)
-    assertEquals(scalar("white_pawn_risk"), 12)
-    assertEquals(scalar("white_pawn_structure_score"), 32)
+    assertEquals(scalar("white_pawn_support"), 0)
+    assertEquals(scalar("white_pawn_risk"), 0)
+    assertEquals(scalar("white_pawn_structure_score"), 0)
     assertEquals(scalar("black_pawn_file_counts"), 0x01010120)
     assertEquals(scalar("black_isolated_pawn_count"), 2)
     assertEquals(scalar("black_backward_pawn_count"), 1)
     assertEquals(scalar("black_doubled_file_count"), 0)
     assertEquals(scalar("black_passed_pawn_count"), 1)
     assertEquals(scalar("black_candidate_passer_count"), 0)
-    assertEquals(scalar("black_protected_passer_count"), 1)
+    assertEquals(scalar("black_protected_passer_count"), 0)
     assertEquals(scalar("black_fixed_pawn_count"), 3)
-    assertEquals(scalar("black_chain_base_count"), 1)
+    assertEquals(scalar("black_chain_base_count"), 0)
     assertEquals(scalar("black_lever_count"), 2)
-    assertEquals(scalar("black_break_chance_count"), 1)
-    assertEquals(scalar("black_blockaded_pawn_count"), 2)
+    assertEquals(scalar("black_break_chance_count"), 0)
+    assertEquals(scalar("black_blockaded_pawn_count"), 0)
     assertEquals(scalar("black_promotion_distance_best"), 4)
-    assertEquals(scalar("black_pawn_support"), 31)
-    assertEquals(scalar("black_pawn_risk"), 18)
-    assertEquals(scalar("black_pawn_structure_score"), 21)
+    assertEquals(scalar("black_pawn_support"), 0)
+    assertEquals(scalar("black_pawn_risk"), 0)
+    assertEquals(scalar("black_pawn_structure_score"), 0)
     assertEquals(scalar("white_pawn_mobility"), 0)
     assertEquals(scalar("exact_board_binding"), 0)
     assertEquals(scalar("public_claim_pressure"), 0)
@@ -403,10 +478,22 @@ class ChessFoundationTest extends munit.FunSuite:
     intercept[IllegalArgumentException]:
       minimalBoardFacts(sideToMove = Side.Both)
 
-  test("BoardMood fromFacts derives readiness from explicit complete nested facts"):
-    assertEquals(positionReady(minimalBoardFacts()), 1)
+  test("BoardMood fromFacts keeps complete manually assembled nested facts unready"):
+    assertEquals(positionReady(minimalBoardFacts()), 0)
     assertEquals(positionReady(minimalBoardFacts(root = RootStateVector.empty)), 0)
     assertEquals(positionReady(minimalBoardFacts(header = readyHeader.copy(fullmoveNumber = -1))), 0)
+
+  test("BoardMood fromFacts requires phase zero-baseline fields for readiness"):
+    assertEquals(positionReady(minimalBoardFacts(header = readyHeader.copy(hashLo = 1))), 0)
+    assertEquals(positionReady(minimalBoardFacts(header = readyHeader.copy(hashHi = -1))), 0)
+    assertEquals(positionReady(minimalBoardFacts(material = readyMaterial.copy(imbalance = 1))), 0)
+
+  test("BoardMood fromFacts does not mark manually assembled BoardFacts ready"):
+    val manual = minimalBoardFacts()
+    val runtime = BoardFacts.fromFen(Fen.initial).toOption.get
+
+    assertEquals(positionReady(manual), 0)
+    assertEquals(positionReady(runtime), 1)
 
   test("BoardMood fromFacts fails closed for default-ish nested facts"):
     assertEquals(positionReady(minimalBoardFacts(header = BoardHeader())), 0)
@@ -416,17 +503,338 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(positionReady(minimalBoardFacts(material = Material())), 0)
     assertEquals(positionReady(minimalBoardFacts(pawns = Pawns())), 0)
 
-  test("BoardMood fromFacts accepts known zero legal moves when other nested facts are complete"):
-    assertEquals(positionReady(minimalBoardFacts(sideLegal = readyMoves(moveCount = 0))), 1)
-    assertEquals(positionReady(minimalBoardFacts(rivalLegal = readyMoves(moveCount = 0))), 1)
+  test("BoardMood fromFacts keeps known zero legal moves unready when manually assembled"):
+    assertEquals(positionReady(minimalBoardFacts(sideLegal = readyMoves(moveCount = 0))), 0)
+    assertEquals(positionReady(minimalBoardFacts(rivalLegal = readyMoves(moveCount = 0))), 0)
 
   test("BoardMood fromFacts rejects fake legal move summaries"):
     assertEquals(positionReady(minimalBoardFacts(sideLegal = Moves(known = true, moveCount = 1))), 0)
     assertEquals(
       positionReady(
-        minimalBoardFacts(sideLegal = Moves(known = true, moveCount = 0, destinationUnion = Square('b', 3).bit))
+        minimalBoardFacts(sideLegal =
+          Moves(known = true, moveCount = 0, destinationUnion = Square('b', 3).bit)
+        )
       ),
       0
+    )
+
+  test("BoardFacts fromFen builds ready exact-board facts for the initial position"):
+    val facts = BoardFacts.fromFen(Fen.initial).toOption.get
+    val mood = BoardMood.fromFacts(facts)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assertEquals(scalar(mood, "side_to_move"), Side.White.ordinal)
+    assertEquals(scalar(mood, "ply_from_start"), 0)
+    assertEquals(scalar(mood, "snapshot_ply"), 0)
+    assertEquals(scalar(mood, "fullmove_number"), 1)
+    assertEquals(scalar(mood, "castling_mask"), 15)
+    assertEquals(scalar(mood, "ep_square_plus_one"), 0)
+    assertEquals(scalar(mood, "in_check_mask"), 0)
+    assertEquals(scalar(mood, "legal_move_count"), 20)
+    assertEquals(facts.sideLegal.lines.size, 20)
+    assertEquals(facts.sideLegal.captureCount, 0)
+    assertEquals(facts.sideLegal.checkCount, 0)
+    assertEquals(facts.rivalLegal.moveCount, 20)
+    assertEquals(scalar(mood, "phase_total"), 24)
+    assertEquals(scalar(mood, "phase_non_pawn"), 14)
+    assertEquals(scalar(mood, "white_material"), 4000)
+    assertEquals(scalar(mood, "black_material"), 4000)
+    assertEquals(scalar(mood, "material_diff"), 0)
+    assertEquals(scalar(mood, "white_pawn_file_counts"), 0x11111111)
+    assertEquals(scalar(mood, "black_pawn_file_counts"), 0x11111111)
+    assertEquals(scalar(mood, "white_isolated_pawn_count"), 0)
+    assertEquals(scalar(mood, "black_isolated_pawn_count"), 0)
+    assertEquals(scalar(mood, "white_doubled_file_count"), 0)
+    assertEquals(scalar(mood, "black_doubled_file_count"), 0)
+    assertEquals(scalar(mood, "white_passed_pawn_count"), 0)
+    assertEquals(scalar(mood, "black_passed_pawn_count"), 0)
+    assertEquals(scalar(mood, "white_promotion_distance_best"), 6)
+    assertEquals(scalar(mood, "black_promotion_distance_best"), 6)
+    assertEquals(scalar(mood, "white_space"), 0)
+    assertEquals(scalar(mood, "black_space"), 0)
+    assertEquals(scalar(mood, "space_diff"), 0)
+    assert(scalar(mood, "white_controlled_squares") > 0)
+    assert(scalar(mood, "black_controlled_squares") > 0)
+    assert(scalar(mood, "contested_squares") >= 0)
+    assertEquals(scalar(mood, "board_hash_lo"), 0)
+    assertEquals(scalar(mood, "board_hash_hi"), 0)
+    assertEquals(scalar(mood, "exact_board_binding"), 0)
+    assertEquals(scalar(mood, "public_claim_pressure"), 0)
+
+  test("BoardFacts fromFen populates non-initial position header scalars"):
+    val fen = Fen.Full("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 7 9")
+    val facts = BoardFacts.fromFen(fen).toOption.get
+    val mood = BoardMood.fromFacts(facts)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assertEquals(scalar(mood, "side_to_move"), Side.Black.ordinal)
+    assertEquals(scalar(mood, "ply_from_start"), 17)
+    assertEquals(scalar(mood, "snapshot_ply"), 17)
+    assertEquals(scalar(mood, "halfmove_clock"), 7)
+    assertEquals(scalar(mood, "fullmove_number"), 9)
+    assertEquals(scalar(mood, "castling_mask"), 15)
+    assertEquals(scalar(mood, "ep_square_plus_one"), Square('e', 3).index + 1)
+    assertEquals(scalar(mood, "in_check_mask"), 0)
+    assertEquals(scalar(mood, "phase_total"), 24)
+    assertEquals(scalar(mood, "phase_non_pawn"), 14)
+
+  test("BoardFacts fromFen derives capture and check counts from legal replay"):
+    val captureFen = Fen.Full("4k3/8/8/8/8/8/4r3/4K3 w - - 0 1")
+    val checkFen = Fen.Full("4k3/8/8/8/8/8/8/R3K3 w - - 0 1")
+
+    val captureFacts = BoardFacts.fromFen(captureFen).toOption.get
+    val checkFacts = BoardFacts.fromFen(checkFen).toOption.get
+    val (_, expectedCaptures, _) = legalReplayCounts(captureFen)
+    val (_, _, expectedChecks) = legalReplayCounts(checkFen)
+    val captureMood = BoardMood.fromFacts(captureFacts)
+    val checkMood = BoardMood.fromFacts(checkFacts)
+
+    assert(expectedCaptures > 0)
+    assert(expectedChecks > 0)
+    assertEquals(captureFacts.sideLegal.captureCount, expectedCaptures)
+    assertEquals(checkFacts.sideLegal.checkCount, expectedChecks)
+    assertEquals(scalar(captureMood, "legal_capture_count"), expectedCaptures)
+    assertEquals(scalar(checkMood, "legal_check_count"), expectedChecks)
+
+  test("BoardFacts fromFen derives nonzero control diagnostics from the same board"):
+    val fen = Fen.Full("4k3/8/5N2/8/5N2/8/8/4K3 b - - 0 1")
+    val mood = BoardMood.fromFacts(BoardFacts.fromFen(fen).toOption.get)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assert(scalar(mood, "white_controlled_squares") > 0)
+    assert(scalar(mood, "white_attacked_twice") > 0)
+
+  test("BoardFacts fromFen derives role mobility and safe mobility as diagnostics"):
+    val fen = Fen.Full("4k3/7p/8/7r/3q4/2b1n3/3P3P/RNBQK3 w - - 0 1")
+    val mood = BoardMood.fromFacts(BoardFacts.fromFen(fen).toOption.get)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    mobilityScalarNames.foreach: name =>
+      assert(scalar(mood, name) > 0, s"$name should be nonzero from exact-board geometric mobility")
+    safeMobilityScalarNames.foreach: name =>
+      assert(scalar(mood, name) > 0, s"$name should be nonzero from opponent-control-filtered mobility")
+
+    mobilityScalarNames.zip(safeMobilityScalarNames).foreach: (mobilityName, safeName) =>
+      assert(
+        scalar(mood, safeName) <= scalar(mood, mobilityName),
+        s"$safeName must not exceed $mobilityName"
+      )
+
+    assert(scalar(mood, "white_pawn_mobility") != scalar(mood, "white_knight_mobility"))
+    assert(scalar(mood, "black_bishop_mobility") != scalar(mood, "black_queen_mobility"))
+
+  test("BoardFacts white pawn mobility counts diagnostic one-step and diagonal destinations exactly"):
+    val fen = Fen.Full("7k/8/8/5n2/8/2N1p3/3P3P/4K3 w - - 0 1")
+    val mood = BoardMood.fromFacts(BoardFacts.fromFen(fen).toOption.get)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assertEquals(
+      scalar(mood, "white_pawn_mobility"),
+      4,
+      "d2-d3 and h2-h3 count; d2xe3 and h2-g3 count diagnostically; d2-c3 and double pushes do not"
+    )
+    assertEquals(
+      scalar(mood, "white_pawn_safe_mobility"),
+      2,
+      "black knight control filters e3 and g3, leaving d3 and h3 as safe diagnostic destinations"
+    )
+    assert(scalar(mood, "white_pawn_safe_mobility") <= scalar(mood, "white_pawn_mobility"))
+    assertEquals(mood.scalars.slice(224, 256), Vector.fill(32)(0))
+
+  test("BoardFacts black pawn mobility counts diagnostic one-step and diagonal destinations exactly"):
+    val fen = Fen.Full("7k/4p2p/3n1P2/8/5N2/8/8/4K3 b - - 0 1")
+    val mood = BoardMood.fromFacts(BoardFacts.fromFen(fen).toOption.get)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assertEquals(
+      scalar(mood, "black_pawn_mobility"),
+      4,
+      "e7-e6 and h7-h6 count; e7xf6 and h7-g6 count diagnostically; e7-d6 and double pushes do not"
+    )
+    assertEquals(
+      scalar(mood, "black_pawn_safe_mobility"),
+      2,
+      "white knight control filters e6 and g6, leaving f6 and h6 as safe diagnostic destinations"
+    )
+    assert(scalar(mood, "black_pawn_safe_mobility") <= scalar(mood, "black_pawn_mobility"))
+    assertEquals(mood.scalars.slice(224, 256), Vector.fill(32)(0))
+
+  test("BoardFacts pinned piece mobility and control are diagnostic non-proof semantics"):
+    val fen = Fen.Full("4k3/4n3/8/8/8/8/8/K3R3 b - - 0 1")
+    val facts = BoardFacts.fromFen(fen).toOption.get
+    val mood = BoardMood.fromFacts(facts)
+    val pinnedKnightDestinations =
+      Square('c', 6).bit |
+        Square('c', 8).bit |
+        Square('d', 5).bit |
+        Square('f', 5).bit |
+        Square('g', 6).bit |
+        Square('g', 8).bit
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assert(scalar(mood, "black_knight_mobility") > 0)
+    assert((facts.control.black.controlledMask & Square('c', 6).bit) != 0L)
+    assertEquals(facts.sideLegal.legalDestinationUnion & pinnedKnightDestinations, 0L)
+    assert(scalar(mood, "legal_move_count") > 0)
+
+  test("BoardFacts fromFen derives deterministic same-board space diagnostics"):
+    val fen = Fen.Full("4k3/8/8/8/4N3/8/8/4K3 w - - 0 1")
+    val mood = BoardMood.fromFacts(BoardFacts.fromFen(fen).toOption.get)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assert(scalar(mood, "white_space") > 0)
+    assertEquals(scalar(mood, "black_space"), 0)
+    assertEquals(
+      scalar(mood, "space_diff"),
+      scalar(mood, "white_space") - scalar(mood, "black_space")
+    )
+
+  test("BoardFacts fromFen keeps control diagnostics geometric and proof pressure slots zero"):
+    val fen = Fen.Full("4k3/8/5N2/8/5N2/8/8/4K3 b - - 0 1")
+    val facts = BoardFacts.fromFen(fen).toOption.get
+    val mood = BoardMood.fromFacts(facts)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assertEquals(scalar(mood, "white_controlled_squares"), java.lang.Long.bitCount(facts.control.white.controlledMask))
+    assertEquals(scalar(mood, "black_controlled_squares"), java.lang.Long.bitCount(facts.control.black.controlledMask))
+    assertEquals(
+      scalar(mood, "contested_squares"),
+      java.lang.Long.bitCount(facts.control.white.controlledMask & facts.control.black.controlledMask)
+    )
+    assert(scalar(mood, "white_attacked_twice") > 0)
+    assertEquals(mood.scalars.slice(224, 256), Vector.fill(32)(0))
+
+  test("BoardMood fromFacts keeps manually assembled BoardFacts with pieces and control unready"):
+    val facts = minimalBoardFacts(
+      control = Control(
+        known = true,
+        white = ControlSide(space = 2, controlledSquares = 3, controlledMask = Square('d', 4).bit),
+        black = ControlSide(space = 1, controlledSquares = 2, controlledMask = Square('e', 5).bit),
+        contestedSquares = 0,
+        spaceDiff = 1
+      )
+    )
+    val mood = BoardMood.fromFacts(facts)
+
+    assertEquals(scalar(mood, "white_space"), 2)
+    assertEquals(scalar(mood, "black_space"), 1)
+    assertEquals(scalar(mood, "position_ready"), 0)
+
+  test("BoardFacts fromFen derives nonzero pawn diagnostics from the same board root"):
+    val fen = Fen.Full("4k3/8/1pp5/5p2/1PPP1P1P/8/8/4K3 w - - 0 1")
+    val mood = BoardMood.fromFacts(BoardFacts.fromFen(fen).toOption.get)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assert(scalar(mood, "white_passed_pawn_count") > 0)
+    assert(scalar(mood, "white_candidate_passer_count") > 0)
+    assert(scalar(mood, "white_fixed_pawn_count") > 0)
+    assert(scalar(mood, "white_lever_count") > 0)
+
+  test("BoardFacts fromFen derives nonzero backward pawn diagnostics from the same board root"):
+    val fen = Fen.Full("4k3/8/1p1p4/1P6/2P5/8/8/4K3 w - - 0 1")
+    val mood = BoardMood.fromFacts(BoardFacts.fromFen(fen).toOption.get)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assert(scalar(mood, "white_backward_pawn_count") > 0)
+
+  test("BoardFacts fromFen populates imbalanced material counts with zero-baseline imbalance"):
+    val fen = Fen.Full("4k3/8/8/8/8/8/8/RNBQK3 w - - 0 1")
+    val facts = BoardFacts.fromFen(fen).toOption.get
+    val mood = BoardMood.fromFacts(facts)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assertEquals(scalar(mood, "white_pawn_count"), 0)
+    assertEquals(scalar(mood, "white_knight_count"), 1)
+    assertEquals(scalar(mood, "white_bishop_count"), 1)
+    assertEquals(scalar(mood, "white_rook_count"), 1)
+    assertEquals(scalar(mood, "white_queen_count"), 1)
+    assertEquals(scalar(mood, "white_king_count"), 1)
+    assertEquals(scalar(mood, "black_pawn_count"), 0)
+    assertEquals(scalar(mood, "black_knight_count"), 0)
+    assertEquals(scalar(mood, "black_bishop_count"), 0)
+    assertEquals(scalar(mood, "black_rook_count"), 0)
+    assertEquals(scalar(mood, "black_queen_count"), 0)
+    assertEquals(scalar(mood, "black_king_count"), 1)
+    assertEquals(scalar(mood, "white_material"), 2050)
+    assertEquals(scalar(mood, "black_material"), 0)
+    assertEquals(scalar(mood, "material_diff"), 2050)
+    assertEquals(scalar(mood, "material_imbalance"), 0)
+    assertEquals(scalar(mood, "phase_total"), 8)
+    assertEquals(scalar(mood, "phase_non_pawn"), 4)
+
+  test("BoardFacts fromFen keeps hash and proof slots zero while ready"):
+    val fen = Fen.Full("4k3/8/8/8/8/8/8/RNBQK3 w - - 0 1")
+    val first = BoardMood.fromFacts(BoardFacts.fromFen(fen).toOption.get)
+    val second = BoardMood.fromFacts(BoardFacts.fromFen(fen).toOption.get)
+
+    assertEquals(scalar(first, "position_ready"), 1)
+    assertEquals(scalar(first, "board_hash_lo"), 0)
+    assertEquals(scalar(first, "board_hash_hi"), 0)
+    assertEquals(scalar(second, "board_hash_lo"), 0)
+    assertEquals(scalar(second, "board_hash_hi"), 0)
+    assertEquals(first.scalars.slice(224, 256), Vector.fill(32)(0))
+    assertEquals(second.scalars.slice(224, 256), Vector.fill(32)(0))
+
+  test("BoardFacts fromFen accepts mate and stalemate as ready known zero-legal-move positions"):
+    val mate = BoardFacts.fromFen(Fen.Full("7k/6Q1/6K1/8/8/8/8/8 b - - 0 1")).toOption.get
+    val stalemate = BoardFacts.fromFen(Fen.Full("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1")).toOption.get
+
+    assertEquals(mate.sideLegal.known, true)
+    assertEquals(mate.sideLegal.moveCount, 0)
+    assertEquals(scalar(BoardMood.fromFacts(mate), "position_ready"), 1)
+    assertEquals(scalar(BoardMood.fromFacts(mate), "in_check_mask"), 2)
+
+    assertEquals(stalemate.sideLegal.known, true)
+    assertEquals(stalemate.sideLegal.moveCount, 0)
+    assertEquals(scalar(BoardMood.fromFacts(stalemate), "position_ready"), 1)
+    assertEquals(scalar(BoardMood.fromFacts(stalemate), "in_check_mask"), 0)
+
+  test("BoardFacts fromFen fails closed for invalid FEN and strict castling or en-passant mismatches"):
+    assert(BoardFacts.fromFen("not a fen").isLeft)
+    assert(BoardFacts.fromFen(Fen.Full("8/8/8/8/8/8/8/8 w - - 0 1")).isLeft)
+    assert(BoardFacts.fromFen(Fen.Full("8/8/8/8/8/8/4k3/4K3 w - - 0 1")).isLeft)
+    assert(BoardFacts.fromFen(Fen.Full("7k/6Q1/6K1/8/8/8/8/8 w - - 0 1")).isLeft)
+    assert(BoardFacts.fromFen(Fen.Full("8/8/8/8/8/8/8/4K3 w K - 0 1")).isLeft)
+    assert(BoardFacts.fromFen(Fen.Full("8/8/8/8/8/8/4P3/4K2k w - e3 0 1")).isLeft)
+
+  test("BoardFacts fromFen keeps root piece atoms and exact piece list in parity"):
+    val facts = BoardFacts.fromFen(Fen.initial).toOption.get
+    val whitePawnAtoms = facts.root
+      .activeIndicesForSchema(RootAtomRegistry.SchemaId.PieceOn)
+      .count: index =>
+        (0 until 8).exists: file =>
+          index == RootAtomRegistry.pieceOnIndex(
+            chess.Color.White,
+            chess.Pawn,
+            chess.Square(chess.File(file).get, chess.Rank.Second)
+          )
+    val blackKingAtom =
+      RootAtomRegistry.pieceOnIndex(
+        chess.Color.Black,
+        chess.King,
+        chess.Square(chess.File.E, chess.Rank.Eighth)
+      )
+
+    assertEquals(facts.pieces.size, 32)
+    assertEquals(facts.pieces.count(piece => piece.side == Side.White && piece.man == Man.Pawn), 8)
+    assertEquals(whitePawnAtoms, 8)
+    assert(facts.root.contains(blackKingAtom))
+
+  test("BoardFacts fromPosition is an internal same-board diagnostic boundary"):
+    val position = Fen.read(variant.Standard, Fen.initial).get
+    val facts = BoardFacts.fromPosition(position, fullmoveNumber = 1).toOption.get
+    val mood = BoardMood.fromFacts(facts)
+
+    assertEquals(scalar(mood, "position_ready"), 1)
+    assertEquals(facts.sideLegal.moveCount, 20)
+    assertEquals(facts.rivalLegal.moveCount, 20)
+    assertEquals(
+      mood.bits(BoardMood.SideLegalDestinationsBit),
+      facts.sideLegal.legalDestinationUnion
+    )
+    assertEquals(
+      mood.bits(BoardMood.RivalLegalDestinationsBit),
+      facts.rivalLegal.legalDestinationUnion
     )
     assertEquals(
       positionReady(
@@ -438,22 +846,39 @@ class ChessFoundationTest extends munit.FunSuite:
     )
     assertEquals(
       positionReady(
-        minimalBoardFacts(rivalLegal = Moves(known = true, moveCount = 0, destinationUnion = Square('g', 6).bit))
+        minimalBoardFacts(rivalLegal =
+          Moves(known = true, moveCount = 0, destinationUnion = Square('g', 6).bit)
+        )
       ),
       0
     )
     assertEquals(
       positionReady(
         minimalBoardFacts(
-          rivalLegal = Moves(known = true, moveCount = 0, lines = Vector(Line(Square('g', 7), Square('g', 6))))
+          rivalLegal =
+            Moves(known = true, moveCount = 0, lines = Vector(Line(Square('g', 7), Square('g', 6))))
         )
       ),
       0
     )
     assertEquals(positionReady(minimalBoardFacts(sideLegal = readyMoves(moveCount = 1, captureCount = 2))), 0)
     assertEquals(positionReady(minimalBoardFacts(sideLegal = readyMoves(moveCount = 1, checkCount = 2))), 0)
-    assertEquals(positionReady(minimalBoardFacts(rivalLegal = readyMoves(moveCount = 1, captureCount = 2))), 0)
+    assertEquals(
+      positionReady(minimalBoardFacts(rivalLegal = readyMoves(moveCount = 1, captureCount = 2))),
+      0
+    )
     assertEquals(positionReady(minimalBoardFacts(rivalLegal = readyMoves(moveCount = 1, checkCount = 2))), 0)
+
+  test("BoardFacts fromPosition uses an explicit internal fullmove source"):
+    val fen = Fen.Full("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3 7 9")
+    val position = Fen.read(variant.Standard, fen).get
+    val mood = BoardMood.fromFacts(BoardFacts.fromPosition(position, fullmoveNumber = 9).toOption.get)
+
+    assertEquals(scalar(mood, "side_to_move"), Side.Black.ordinal)
+    assertEquals(scalar(mood, "fullmove_number"), 9)
+    assertEquals(scalar(mood, "ply_from_start"), 17)
+    assertEquals(scalar(mood, "snapshot_ply"), 17)
+    assert(BoardFacts.fromPosition(position, fullmoveNumber = 0).isLeft)
 
   test("BoardMood legal destination bits ignore control masks"):
     val facts = minimalBoardFacts(
@@ -480,11 +905,43 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(mood.bits(BoardMood.SideLegalDestinationsBit) & Square('c', 6).bit, 0L)
     assertEquals(mood.bits(BoardMood.RivalLegalDestinationsBit) & Square('d', 6).bit, 0L)
 
-  test("BoardFacts runtime fields have no constructor defaults"):
+  test("BoardFacts constructor fields have no shortcut authority defaults"):
     val companionMethods = BoardFacts.getClass.getMethods.map(_.getName).toSet
-    (1 to 8).foreach: index =>
-      assert(!companionMethods.contains(s"$$lessinit$$greater$$default$$$index"), s"BoardFacts field $index must be explicit")
-    assert(companionMethods.contains("$lessinit$greater$default$9"), "pieces may remain debug-only default carry")
+    val instanceMethods = classOf[BoardFacts].getMethods.map(_.getName).toSet
+    (1 to 9).foreach: index =>
+      assert(
+        !companionMethods.contains(s"$$lessinit$$greater$$default$$$index"),
+        s"BoardFacts field $index must be explicit"
+      )
+    assert(classOf[BoardFacts].getDeclaredConstructors.forall(_.getParameterCount == 9))
+    assert(!companionMethods.contains("fromProduct"), "BoardFacts must not expose product reconstruction")
+    assert(!instanceMethods.contains("copy"), "BoardFacts must not expose case-class copy authority")
+    assert(
+      companionMethods.contains("untrusted"),
+      "manual BoardFacts assembly must go through the untrusted fail-closed helper"
+    )
+
+  test("BoardFacts reflective construction cannot forge same-board readiness"):
+    val constructor = classOf[BoardFacts].getDeclaredConstructors.maxBy(_.getParameterCount)
+    constructor.setAccessible(true)
+    val params =
+      Vector(
+        RootStateVector.fromIndices(Vector(0)),
+        Side.White,
+        readyHeader,
+        readyMoves(),
+        readyMoves(line = safeRivalRoute),
+        readyControl,
+        readyMaterial,
+        readyPawns,
+        Vector.empty[Piece]
+      )
+    assertEquals(constructor.getParameterCount, params.size)
+
+    val forged = constructor.newInstance(params.map(_.asInstanceOf[AnyRef])*).asInstanceOf[BoardFacts]
+
+    assertEquals(positionReady(forged), 0)
+    assertEquals(positionReady(BoardFacts.fromFen(Fen.initial).toOption.get), 1)
 
   test("BoardMood fromParts and fromPacked reject wrong sizes"):
     val rootWords = Vector.fill(BoardMood.RootWordBits)(0L)
@@ -503,13 +960,43 @@ class ChessFoundationTest extends munit.FunSuite:
     intercept[IllegalArgumentException]:
       BoardMood.fromPacked(Vector.fill(BoardMood.Bits)(0L), scalars :+ 1)
 
+  test("BoardMood low-level scalar constructors canonicalize closed slots to zero"):
+    val bits = Vector.fill(BoardMood.Bits)(0L)
+    val scalars = Vector.tabulate(BoardMood.Scalars)(index => index + 1)
+    val root = RootStateVector.fromIndices(Vector(0))
+
+    val packed = BoardMood.fromPacked(bits, scalars)
+    val parts = BoardMood.fromParts(scalars = Some(scalars))
+    val rooted = BoardMood.fromRoot(root, scalars = Some(scalars))
+
+    Vector(packed, parts, rooted).foreach: mood =>
+      assertEquals(mood.scalars, canonicalScalars(scalars))
+
+  test("BoardMood exposes no case-class copy or product reconstruction shortcuts"):
+    val companionMethods = BoardMood.getClass.getMethods.map(_.getName).toSet
+    val instanceMethods = classOf[BoardMood].getMethods.map(_.getName).toSet
+
+    assert(!companionMethods.contains("fromProduct"), "BoardMood must not expose product reconstruction")
+    assert(!instanceMethods.contains("copy"), "BoardMood must not expose case-class copy authority")
+    assert(!classOf[Product].isAssignableFrom(classOf[BoardMood]), "BoardMood must not be a Product")
+
+  test("BoardMood raw constructor path canonicalizes closed slots to zero"):
+    val bits = Vector.fill(BoardMood.Bits)(0L)
+    val scalars = Vector.tabulate(BoardMood.Scalars)(index => index + 1)
+    val constructor = classOf[BoardMood].getDeclaredConstructors.find(_.getParameterCount == 2).get
+    constructor.setAccessible(true)
+
+    val mood = constructor.newInstance(bits, scalars).asInstanceOf[BoardMood]
+
+    assertEquals(mood.scalars, canonicalScalars(scalars))
+
   test("BoardMood rejects non-root padding bits in B45"):
     val scalars = Vector.fill(BoardMood.Scalars)(0)
     val badRootWords = Vector.fill(BoardMood.RootWordBits - 1)(0L) :+ (1L << 11)
     val badBits = badRootWords ++ Vector(0L, 0L)
 
     intercept[IllegalArgumentException]:
-      BoardMood(badBits, scalars)
+      BoardMood.fromPacked(badBits, scalars)
     intercept[IllegalArgumentException]:
       BoardMood.fromPacked(badBits, scalars)
     intercept[IllegalArgumentException]:
@@ -797,7 +1284,7 @@ class ChessFoundationTest extends munit.FunSuite:
       tactic = Some(Tactic.Fork),
       proof = exactProof
     )
-    val verdict = Verdict(story, rank = 2, leadAllowed = true, strength = 87.5, role = Role.Support)
+    val verdict = Verdict(story, rank = 2, leadAllowed = false, strength = 87.5, role = Role.Blocked)
     val values = verdict.values
 
     assertEquals(Verdict.Size, 96)
@@ -815,9 +1302,9 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(Verdict.Slots.Tactic, 56)
     assertEquals(Verdict.Slots.Proof, 80)
     assertEquals(Verdict.Slots.End, Verdict.Size)
-    assertEqualsDouble(values(Verdict.Slots.Role), Role.Support.ordinal.toDouble, 0.0)
+    assertEqualsDouble(values(Verdict.Slots.Role), Role.Blocked.ordinal.toDouble, 0.0)
     assertEqualsDouble(values(Verdict.Slots.Rank), 2.0, 0.0)
-    assertEqualsDouble(values(Verdict.Slots.LeadAllowed), 1.0, 0.0)
+    assertEqualsDouble(values(Verdict.Slots.LeadAllowed), 0.0, 0.0)
     assertEqualsDouble(values(Verdict.Slots.Strength), 87.5, 0.0001)
     assertEqualsDouble(values(Verdict.Slots.Side), Side.Black.ordinal.toDouble, 0.0)
     assertEqualsDouble(values(Verdict.Slots.Rival), Side.White.ordinal.toDouble, 0.0)
@@ -851,7 +1338,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assert(verdicts.map(_.strength).sliding(2).forall(pair => pair.size == 1 || pair(0) >= pair(1)))
     assertEquals(verdicts.map(_.rank), (1 to 8).toVector)
 
-  test("StoryTable applies lead eligibility rules"):
+  test("StoryTable closes public leads until named proof writers exist"):
     val low =
       Story(
         Scene.Material,
@@ -883,17 +1370,21 @@ class ChessFoundationTest extends munit.FunSuite:
 
     val verdicts = StoryTable.choose(Vector(low, risky, solid))
 
-    assertEquals(verdicts.find(_.story == solid).map(_.role), Some(Role.Lead))
+    assertEquals(StoryTable.PublicStoryLeadsClosedUntilNamedProofWriters, true)
+    assertEquals(verdicts.find(_.story == solid).map(_.role), Some(Role.Blocked))
+    assertEquals(verdicts.find(_.story == solid).map(_.leadAllowed), Some(false))
     assertEquals(verdicts.find(_.story == low).map(_.leadAllowed), Some(false))
     assertEquals(verdicts.find(_.story == risky).map(_.leadAllowed), Some(false))
+    assert(verdicts.forall(_.role != Role.Lead))
 
-  test("Quiet can lead only when every non-Quiet story is below public floor"):
+  test("Quiet remains blocked without same-root proof sidecars"):
     val quiet =
       Story(Scene.Quiet, side = Side.White, anchor = Some(safeAnchor), route = Some(safeRoute), proof = proof(boardProof = 80, ownerProof = 80, anchorProof = 80, routeProof = 80, conversionPrize = 90))
     val material =
       Story(Scene.Material, side = Side.White, anchor = Some(safeAnchor), route = Some(safeRoute), proof = proof(boardProof = 80, ownerProof = 80, anchorProof = 80, routeProof = 80, conversionPrize = 90))
 
-    assertEquals(StoryTable.choose(Vector(quiet)).head.role, Role.Lead)
+    assertEquals(StoryTable.choose(Vector(quiet)).head.role, Role.Blocked)
+    assertEquals(StoryTable.choose(Vector(quiet)).head.leadAllowed, false)
     assertEquals(
       StoryTable.choose(Vector(quiet, material)).find(_.story == quiet).map(_.leadAllowed),
       Some(false)
@@ -929,7 +1420,7 @@ class ChessFoundationTest extends munit.FunSuite:
 
     assertEquals(StoryTable.choose(Vector(plan, tactic)).head.story, tactic)
 
-  test("Plan lead is blocked only by opposing qualifying Tactic or Blunder stories"):
+  test("Plan ordering remains deterministic while public leads are closed"):
     val plan = Story(
       Scene.Plan,
       side = Side.White,
@@ -950,15 +1441,16 @@ class ChessFoundationTest extends munit.FunSuite:
 
     assertEquals(
       StoryTable.choose(Vector(plan, sameSideTactic)).find(_.story == plan).map(_.leadAllowed),
-      Some(true)
+      Some(false)
     )
 
     val verdicts = StoryTable.choose(Vector(plan, opposingTactic))
 
     assertEquals(verdicts.find(_.story == plan).map(_.leadAllowed), Some(false))
     assertEquals(verdicts.head.story, opposingTactic)
+    assert(verdicts.forall(_.role != Role.Lead))
 
-  test("Source never leads over a board-backed story at the public floor"):
+  test("Source remains non-lead while public leads are closed"):
     val source =
       Story(Scene.Source, side = Side.White, route = Some(safeRoute), proof = proof(boardProof = 90, ownerProof = 90, anchorProof = 90, routeProof = 90, conversionPrize = 95))
     val boardBacked =
@@ -967,9 +1459,10 @@ class ChessFoundationTest extends munit.FunSuite:
     val verdicts = StoryTable.choose(Vector(source, boardBacked))
 
     assertEquals(verdicts.find(_.story == source).map(_.leadAllowed), Some(false))
-    assertEquals(verdicts.head.story, boardBacked)
+    assertEquals(verdicts.find(_.story == boardBacked).map(_.leadAllowed), Some(false))
+    assert(verdicts.forall(_.role != Role.Lead))
 
-  test("Pin stories lead only through explicit tactic families"):
+  test("Pin stories remain blocked until proof sidecar writers exist"):
     val absPin = Story(
       Scene.Tactic,
       side = Side.White,
@@ -980,8 +1473,10 @@ class ChessFoundationTest extends munit.FunSuite:
     )
     val relPin = absPin.copy(tactic = Some(Tactic.RelPin))
 
-    assertEquals(StoryTable.choose(Vector(absPin)).head.role, Role.Lead)
-    assertEquals(StoryTable.choose(Vector(relPin)).head.role, Role.Lead)
+    assertEquals(StoryTable.choose(Vector(absPin)).head.role, Role.Blocked)
+    assertEquals(StoryTable.choose(Vector(relPin)).head.role, Role.Blocked)
+    assertEquals(StoryTable.choose(Vector(absPin)).head.leadAllowed, false)
+    assertEquals(StoryTable.choose(Vector(relPin)).head.leadAllowed, false)
     assertEquals(absPin.tactic.exists(t => t == Tactic.AbsPin || t == Tactic.RelPin), true)
     assertEquals(relPin.tactic.exists(t => t == Tactic.AbsPin || t == Tactic.RelPin), true)
 

@@ -7,8 +7,8 @@ patching the old commentary stack.
 
 The old stack repeatedly confused lower-layer success with public commentary readiness. A root atom, source row, tactical tag, engine eval, or opening label
 could look locally valid, but the final surface still failed because the public
-claim had no owner, anchor, route, legal replay, same-root proof, or source
-binding.
+claim had no side, target, anchor, route, rival, required legal line,
+same-root proof sidecar, or source binding.
 
 That failure mode produced a predictable loop:
 
@@ -23,8 +23,8 @@ being safe to say.
 
 ## Model Lesson
 
-Chess commentary is not a single selector problem. One position usually has
-many interacting facts: material, king safety, mobility, pawn structure, tactical
+Chess commentary is not a single-score problem. One position usually has many
+interacting facts: material, king safety, mobility, pawn structure, tactical
 motifs, long-term plans, opening context, engine pressure, and source context.
 
 The model therefore follows a Stockfish HCE-like lesson:
@@ -35,9 +35,8 @@ The model therefore follows a Stockfish HCE-like lesson:
 - keep deterministic shapes so every decision can be audited
 
 The model does not copy Stockfish's output. Stockfish reduces features to one
-eval scalar. This branch must produce structured commentary candidates. The
-output side is therefore `Story`, `StoryTable`, and `Verdict`, not a single
-number.
+eval scalar. This branch must produce `Story` rows that compete through
+`StoryTable` and end as a deterministic `Verdict`, not a single number.
 
 ## New Authority Chain
 
@@ -58,6 +57,34 @@ deterministic interaction rules.
 Renderer code, templates, and LLM phrasing are downstream. They may express a
 selected `Verdict`; they may not create chess meaning, repair missing evidence,
 or increase claim strength.
+
+## Current Freeze
+
+This reset freezes the no-go state while the prerequisite laws and tests are
+missing: no public surface opening, no `BoardMood` Sxxx expansion or re-entry,
+no `Story` proof writers, and no renderer opening.
+
+The registered render routes, `/api/commentary/render` and
+`/internal/commentary/render-local-probe`, are fail-closed tombstones only. No
+`200`, rendered payload, environment switch, or frontend mock opens them.
+
+`BoardMood` does not expand beyond `48` bits, `256` scalars, and `3,328` total
+values in this checkpoint. Split/cut re-entry requires a named law and
+same-board producer proof.
+
+The blockers are known. Numeric `Proof` scores may rank blocked/context
+`Verdict` rows only; they cannot set `leadAllowed=true` or produce `Role.Lead`.
+That is why public output remains closed until same-root side, target, anchor,
+route, rival, required legal line, and proof sidecars are enforced.
+`Scene.Opening` is context-only and must not lead over a board-backed `Story`.
+
+Missing side, target, anchor, route, rival, required legal line, or same-root
+proof sidecar is a hard public-output block, not weak scoring or renderer
+repair.
+
+Old failing tests showed that lower facts, scaffold paths, and renderers do not
+upgrade themselves into public chess meaning. They did not prove default runtime
+FEN to public `Verdict`.
 
 ## Non-Negotiable Lessons
 
@@ -87,7 +114,7 @@ Use chess-facing names such as `BoardFacts`, `BoardMood`, `Material`, `Pawns`,
 ## Completion Standard
 
 A stage is not complete because a lower layer can extract something. It is
-complete only when the next public boundary cannot later discover that required
+complete only when the next public boundary cannot discover that required
 facts, ownership, route, source, or proof were missing.
 
 Every new producer must answer:
@@ -96,7 +123,7 @@ Every new producer must answer:
 - whether the fact is `known && sane`
 - which `BoardMood` slot it fills
 - whether it is public proof or only a diagnostic summary
-- what must stay zero until a later sidecar exists
+- which closed values must stay zero, and which named law can open them
 
 If those answers are missing, the correct result is fail closed, not a renderer
 patch.

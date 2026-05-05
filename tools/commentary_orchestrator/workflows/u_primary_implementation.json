@@ -1,77 +1,27 @@
 {
   "metadata": {
-    "scope": "Active U-primary implementation only",
-    "sequence": [
-      "u_scope_freeze_gate",
-      "u_runtime_foundation",
-      "u_registry_wiring",
-      "u_validation_harness",
-      "u_file_lane_state",
-      "u_diagonal_lane_only",
-      "u_available_lever_trigger",
-      "u_weak_pawn_target_state",
-      "u_passed_pawn_entity_state",
-      "u_weak_outpost_square_state",
-      "u_loose_piece_target_state",
-      "u_sector_asymmetry_state",
-      "u_pawn_push_break_contact_source",
-      "u_rook_on_open_file_state",
-      "u_bishop_pair_state",
-      "u_knight_on_outpost_square",
-      "u_duty_bound_defender",
-      "u_short_run_slider_gate_restriction",
-      "u_pin",
-      "u_fork",
-      "u_skewer",
-      "u_overload",
-      "u_integration_compile",
-      "u_runtime_validation_smoke"
+    "scope": "RETIRED/BLOCKED: pre-reset U-primary implementation workflow",
+    "retired": true,
+    "retired_reason": "The chess commentary reset moved authority to the live BoardMood -> Story -> StoryTable -> Verdict chain. This workflow must not launch row implementation from retired authority.",
+    "blocked_until": "A live PositionFixtureLaw exists and a replacement workflow is written against the current no-go contracts.",
+    "live_authority_docs": [
+      "lila-docker/repos/lila/modules/commentary/docs/ChessCommentarySSOT.md",
+      "lila-docker/repos/lila/modules/commentary/docs/ChessModelArchitecture.md",
+      "lila-docker/repos/lila/modules/commentary/docs/ChessModelContract.md",
+      "lila-docker/repos/lila/modules/commentary/docs/ChessResetRationale.md",
+      "lila-docker/repos/lila/modules/commentary/docs/BoardMoodCutLaw.md",
+      "lila-docker/repos/lila/modules/commentary/docs/BoardMoodSplitLaw.md",
+      "lila-docker/repos/lila/modules/commentary/docs/StoryInteractionLaw.md",
+      "lila-docker/repos/lila/modules/commentary/docs/StoryResurrectionLaw.md",
+      "lila-docker/repos/lila/modules/commentary/docs/LegacyPruneManifest.md",
+      "lila-docker/repos/lila/modules/commentary/docs/README.md"
     ],
-    "active_u_primary_rows": [
-      "file_lane_state",
-      "diagonal_lane_only",
-      "weak_pawn_target_state",
-      "passed_pawn_entity_state",
-      "weak_outpost_square_state",
-      "loose_piece_target_state",
-      "pawn_push_break_contact_source",
-      "sector_asymmetry_state",
-      "available_lever_trigger",
-      "rook_on_open_file_state",
-      "bishop_pair_state",
-      "knight_on_outpost_square",
-      "duty_bound_defender",
-      "short_run_slider_gate_restriction",
-      "pin",
-      "fork",
-      "skewer",
-      "overload"
-    ],
-    "banned_rehome_rows": [
-      "opening-tempo",
-      "middlegame-positional",
-      "transition-liquidation",
-      "endgame-race",
-      "central tension"
-    ],
-    "host_shell_only_rows": [
-      "closed center",
-      "fixed chain"
-    ],
-    "blocked_strategy_seed_families": [
-      "king_entry_square_seed",
-      "king_access_route_seed",
-      "king_opposition_contact_seed",
-      "target_resource_dependency_seed",
-      "target_attack_convergence_seed"
-    ],
-    "guardrails": [
-      "Implement only the active U-primary 18.",
-      "Do not reintroduce rehome rows into U.",
-      "Keep closed center and fixed chain as host-shell vocabulary only.",
-      "Maintain DecisionFreezeLedger backflow guardrails during implementation.",
-      "Do not let S23/S24 support seeds leak downward into U.",
-      "Keep engine/probe out of witness admission."
+    "no_go": [
+      "Do not implement pre-reset U-primary rows from this workflow.",
+      "Do not open public commentary routes or frontend mocks.",
+      "Do not admit forgeable numeric Story proof scores as public lead authority.",
+      "Do not use retired root docs as implementation authority.",
+      "Do not proceed until PositionFixtureLaw is live and a replacement workflow exists."
     ]
   },
   "defaults": {
@@ -80,166 +30,17 @@
     "cwd": "../../..",
     "max_parallel": 1,
     "max_attempts": 1,
-    "full_auto": true,
-    "block_handler_task": "u_block_resolution",
-    "review_handler_task": "u_completion_review"
+    "full_auto": false
   },
   "initial_tasks": [
-    "u_scope_freeze_gate"
+    "position_fixture_law_block"
   ],
   "tasks": {
-    "u_block_resolution": {
-      "block_handler_task": null,
-      "review_handler_task": null,
-      "prompt": "A U-primary implementation task blocked during the current orchestration run. Read the block context JSON at `{{active_block_context_path}}`, inspect the blocked worker outputs at `{{blocked_result_path}}`, `{{blocked_stdout_path}}`, and `{{blocked_stderr_path}}`, and try to resolve only scope-local implementation, validation, or wiring blockers inside the frozen current-branch authority. If the block context says `blocked_origin=review`, also inspect the review-origin fields in that JSON so you can fix the reviewed implementation step rather than only the reviewer failure. Do not change the active U-primary 18 scope, do not revive rehome rows, do not turn closed center or fixed chain into U-primary, and do not admit blocked S23/S24 support seeds. If the blocker can be cleared inside current authority, make the minimal fix and return final JSON with status `completed`, needs_human `false`, and next_tasks set to [\"{{blocked_task_id}}\"] so the blocked task reruns. If the blocker is a real authority conflict or needs branch-level semantic redefinition, return final JSON with status `blocked`, needs_human `true`, and next_tasks set to []."
-    },
-    "u_completion_review": {
-      "max_attempts": 2,
-      "block_handler_task": null,
-      "review_handler_task": null,
-      "prompt": "A U-primary implementation step completed and now requires adversarial review before the orchestration can continue. Review task `{{reviewed_task_id}}`. Read the review context JSON at `{{active_review_context_path}}`, inspect the reviewed worker outputs at `{{reviewed_result_path}}`, `{{reviewed_stdout_path}}`, and `{{reviewed_stderr_path}}`, inspect the current workspace diff, and independently challenge the reviewed step against the frozen current-branch authority. Re-check exact-scope compliance, exact-board validation discipline, compile/test sufficiency, and branch guardrails. Run any targeted compile/tests or focused inspections needed to prove the step is actually ready. If you find scope-local issues, fix them yourself, rerun the necessary checks, and only pass once the reviewed step is sound. Do not widen scope, do not revive rehome rows, do not turn closed center or fixed chain into U-primary, and do not admit blocked S23/S24 support seeds. On success, return final JSON with status `completed`, needs_human `false`, and next_tasks matching `{{reviewed_next_tasks_json}}`. If the reviewed step still has a real authority conflict or cannot be made sound inside current branch authority, return final JSON with status `blocked`, needs_human `true`, and next_tasks set to []."
-    },
-    "u_scope_freeze_gate": {
-      "expected_next_tasks": [
-        "u_runtime_foundation"
-      ],
-      "prompt": "Start the active U-primary implementation run by enforcing scope only. Read tools/commentary_orchestrator/workflows/u_primary_implementation.json metadata together with lila-docker/repos/lila/modules/commentary/docs/CommentaryCoreSSOT.md, lila-docker/repos/lila/modules/commentary/docs/DecisionFreezeLedger.md, lila-docker/repos/lila/modules/commentary/docs/DescriptorOwnershipMatrix.md, lila-docker/repos/lila/modules/commentary/docs/Witnesses61.md, and lila-docker/repos/lila/modules/commentary/docs/ValidationMethodology.md. Confirm that the implementation scope is exactly the active U-primary 18, that rehome rows do not re-enter U, that closed center and fixed chain stay host-shell only, and that blocked S23/S24 support seeds remain out of U. Make only minimal notes or guardrail scaffolding if helpful; do not start row extraction logic yet. Final JSON must set next_tasks to [\"u_runtime_foundation\"] on success; if any contract conflict exists, set needs_human true and do not queue follow-ups."
-    },
-    "u_runtime_foundation": {
-      "expected_next_tasks": [
-        "u_registry_wiring"
-      ],
-      "prompt": "Build the shared U runtime foundation for modules/commentary only. Scope is frozen by tools/commentary_orchestrator/workflows/u_primary_implementation.json metadata and lila-docker/repos/lila/modules/commentary/docs/CommentaryCoreSSOT.md, lila-docker/repos/lila/modules/commentary/docs/DecisionFreezeLedger.md, lila-docker/repos/lila/modules/commentary/docs/DescriptorOwnershipMatrix.md, lila-docker/repos/lila/modules/commentary/docs/Witnesses61.md, and lila-docker/repos/lila/modules/commentary/docs/ValidationMethodology.md. Implement only the common witness runtime types, anchor/value containers, extractor entry points, and internal structure needed by the active U-primary 18. Do not implement any rehome row, host-shell-only row, or S23/S24 support seed. Final JSON must set next_tasks to [\"u_registry_wiring\"] on success; if the scope is blocked by a contract conflict, set needs_human true and do not queue follow-ups."
-    },
-    "u_registry_wiring": {
-      "expected_next_tasks": [
-        "u_validation_harness"
-      ],
-      "prompt": "Wire the shared U runtime registry for the active U-primary 18 only. Add the minimal descriptor-id, anchor-grammar, merge-order, and runtime registration plumbing that later row implementations will reuse. Do not wire any rehome row back into U and do not create live admission for closed center, fixed chain, S23 seeds, or S24 seeds. Final JSON must set next_tasks to [\"u_validation_harness\"] on success; if blocked, set needs_human true."
-    },
-    "u_validation_harness": {
-      "expected_next_tasks": [
-        "u_file_lane_state"
-      ],
-      "prompt": "Build the first U validation harness for the active U-primary implementation only. Add the minimal exact-board test/corpus hooks, runtime fixtures, and assertion helpers needed to validate U witnesses without reopening projection semantics. Keep engine/probe out of witness admission and keep the work serial-friendly for this Windows sbt environment. Final JSON must set next_tasks to [\"u_file_lane_state\"] on success; if blocked, set needs_human true."
-    },
-    "u_file_lane_state": {
-      "expected_next_tasks": [
-        "u_diagonal_lane_only"
-      ],
-      "prompt": "Implement `file_lane_state` only. Use the workflow metadata plus lila-docker/repos/lila/modules/commentary/docs/DecisionFreezeLedger.md and lila-docker/repos/lila/modules/commentary/docs/DescriptorOwnershipMatrix.md as the exact scope contract. Do not reintroduce opening-tempo, middlegame-positional, transition-liquidation, endgame-race, central tension, closed center, or fixed chain as U-primary. Add only the minimal runtime and test support needed for exact open/semi-open file substrate extraction. Final JSON must set next_tasks to [\"u_diagonal_lane_only\"] on success; if blocked, set needs_human true."
-    },
-    "u_diagonal_lane_only": {
-      "expected_next_tasks": [
-        "u_available_lever_trigger"
-      ],
-      "prompt": "Implement `diagonal_lane_only` only inside the new U runtime. Keep color-complex overreach out of U and keep the implementation exact-lane only, with no projection or evaluative drift. Use the workflow metadata and lila-docker/repos/lila/modules/commentary/docs/DescriptorOwnershipMatrix.md and lila-docker/repos/lila/modules/commentary/docs/Witnesses61.md as authority. Final JSON must set next_tasks to [\"u_available_lever_trigger\"] on success; if blocked, set needs_human true."
-    },
-    "u_available_lever_trigger": {
-      "expected_next_tasks": [
-        "u_weak_pawn_target_state"
-      ],
-      "prompt": "Implement `available_lever_trigger` only. Keep it as immediate pawn-trigger truth and do not inflate it into open-center, chain-break, or full strategy release semantics. Follow DecisionFreezeLedger backflow guardrails. Final JSON must set next_tasks to [\"u_weak_pawn_target_state\"] on success; if blocked, set needs_human true."
-    },
-    "u_weak_pawn_target_state": {
-      "expected_next_tasks": [
-        "u_passed_pawn_entity_state"
-      ],
-      "prompt": "Implement `weak_pawn_target_state` only. Keep the witness beneficiary-local, exact, and root-backed, without widening into strategy vocabulary. Use lila-docker/repos/lila/modules/commentary/docs/DecisionFreezeLedger.md, lila-docker/repos/lila/modules/commentary/docs/DescriptorOwnershipMatrix.md, and lila-docker/repos/lila/modules/commentary/docs/ValidationMethodology.md. Final JSON must set next_tasks to [\"u_passed_pawn_entity_state\"] on success; if blocked, set needs_human true."
-    },
-    "u_passed_pawn_entity_state": {
-      "expected_next_tasks": [
-        "u_weak_outpost_square_state"
-      ],
-      "prompt": "Implement `passed_pawn_entity_state` only. Keep candidate-passer support below U and do not collapse this row into create-passer, promotion-race, or projection logic. Respect the workflow metadata scope and current branch docs. Final JSON must set next_tasks to [\"u_weak_outpost_square_state\"] on success; if blocked, set needs_human true."
-    },
-    "u_weak_outpost_square_state": {
-      "expected_next_tasks": [
-        "u_loose_piece_target_state"
-      ],
-      "prompt": "Implement `weak_outpost_square_state` only. Keep the row exact-square and exact-anchor based, without drifting into broad good-piece or domination vocabulary. Use DescriptorOwnershipMatrix.md and Witnesses61.md as the row contract. Final JSON must set next_tasks to [\"u_loose_piece_target_state\"] on success; if blocked, set needs_human true."
-    },
-    "u_loose_piece_target_state": {
-      "expected_next_tasks": [
-        "u_sector_asymmetry_state"
-      ],
-      "prompt": "Implement `loose_piece_target_state` only. Do not widen it into overload or generic tactical smell; overload remains its own admitted exact tactic. Keep the row exact and target-oriented. Final JSON must set next_tasks to [\"u_sector_asymmetry_state\"] on success; if blocked, set needs_human true."
-    },
-    "u_pawn_push_break_contact_source": {
-      "expected_next_tasks": [
-        "u_rook_on_open_file_state"
-      ],
-      "prompt": "Implement `pawn_push_break_contact_source` only. Keep break-point squares payload-only and do not let counterplay wording, initiative wording, or blocked S21/S23/S24 semantics leak into U admission. Use current branch docs as authority. Final JSON must set next_tasks to [\"u_rook_on_open_file_state\"] on success; if blocked, set needs_human true."
-    },
-    "u_sector_asymmetry_state": {
-      "expected_next_tasks": [
-        "u_pawn_push_break_contact_source"
-      ],
-      "prompt": "Implement `sector_asymmetry_state` only. Keep it as exact count-only sector imbalance, not as minority-attack strategy or wing-play projection. Respect the workflow metadata and DescriptorOwnershipMatrix.md. Final JSON must set next_tasks to [\"u_pawn_push_break_contact_source\"] on success; if blocked, set needs_human true."
-    },
-    "u_rook_on_open_file_state": {
-      "expected_next_tasks": [
-        "u_bishop_pair_state"
-      ],
-      "prompt": "Implement `rook_on_open_file_state` only. Keep it exact configuration truth and do not let open-line or penetration projection semantics own the row. Use DescriptorOwnershipMatrix.md and ValidationMethodology.md as the contract. Final JSON must set next_tasks to [\"u_bishop_pair_state\"] on success; if blocked, set needs_human true."
-    },
-    "u_bishop_pair_state": {
-      "expected_next_tasks": [
-        "u_knight_on_outpost_square"
-      ],
-      "prompt": "Implement `bishop_pair_state` only. Keep it as pure board configuration and do not widen it into S18 conversion or color-complex evaluation. Respect the active U-primary 18 scope. Final JSON must set next_tasks to [\"u_knight_on_outpost_square\"] on success; if blocked, set needs_human true."
-    },
-    "u_knight_on_outpost_square": {
-      "expected_next_tasks": [
-        "u_duty_bound_defender"
-      ],
-      "prompt": "Implement `knight_on_outpost_square` only. Keep it owner-side occupancy on an admitted outpost square and do not collapse the row into generic good-knight or strategy vocabulary. Final JSON must set next_tasks to [\"u_duty_bound_defender\"] on success; if blocked, set needs_human true."
-    },
-    "u_duty_bound_defender": {
-      "expected_next_tasks": [
-        "u_short_run_slider_gate_restriction"
-      ],
-      "prompt": "Implement `duty_bound_defender` only. Keep shortage wording above U and keep this row exact defender-duty truth only. Do not reuse blocked prepared-target seeds from S24. Final JSON must set next_tasks to [\"u_short_run_slider_gate_restriction\"] on success; if blocked, set needs_human true."
-    },
-    "u_short_run_slider_gate_restriction": {
-      "expected_next_tasks": [
-        "u_pin"
-      ],
-      "prompt": "Implement `short_run_slider_gate_restriction` only. Keep domination wording in projection space and keep the row as exact restriction geometry. Respect the no-backflow guardrails from DecisionFreezeLedger.md. Final JSON must set next_tasks to [\"u_pin\"] on success; if blocked, set needs_human true."
-    },
-    "u_pin": {
-      "expected_next_tasks": [
-        "u_fork"
-      ],
-      "prompt": "Implement the exact tactic witness `pin` only. Keep the row exact ray geometry and do not let broad tactical-conversion or king-attack language leak in. Final JSON must set next_tasks to [\"u_fork\"] on success; if blocked, set needs_human true."
-    },
-    "u_fork": {
-      "expected_next_tasks": [
-        "u_skewer"
-      ],
-      "prompt": "Implement the exact tactic witness `fork` only. Keep the row exact attack-fan geometry and do not let broad tactical smell or S24 language leak into U. Final JSON must set next_tasks to [\"u_skewer\"] on success; if blocked, set needs_human true."
-    },
-    "u_skewer": {
-      "expected_next_tasks": [
-        "u_overload"
-      ],
-      "prompt": "Implement the exact tactic witness `skewer` only. Keep the row exact ordered-exposure geometry and do not widen it into tactical conversion projection. Final JSON must set next_tasks to [\"u_overload\"] on success; if blocked, set needs_human true."
-    },
-    "u_overload": {
-      "expected_next_tasks": [
-        "u_integration_compile"
-      ],
-      "prompt": "Implement the exact tactic witness `overload` only. Keep it as exact duty overload truth, separate from loose-piece meaning and from S24 conversion semantics. Final JSON must set next_tasks to [\"u_integration_compile\"] on success; if blocked, set needs_human true."
-    },
-    "u_integration_compile": {
-      "expected_next_tasks": [
-        "u_runtime_validation_smoke"
-      ],
-      "prompt": "Run the first integration compile and narrow cleanup pass for the active U-primary runtime only. Keep the scope limited to the active U-primary 18 and their shared foundation. Fix compile wiring, imports, packages, and test hooks as needed, but do not widen the semantic scope. Keep sbt and related build commands serial in this worktree. Final JSON must set next_tasks to [\"u_runtime_validation_smoke\"] on success; if blocked, set needs_human true."
-    },
-    "u_runtime_validation_smoke": {
+    "position_fixture_law_block": {
       "expected_next_tasks": [],
-      "prompt": "Run the first U-runtime validation pass for the implemented active U-primary 18 only. Verify that rehome rows were not revived, closed center and fixed chain stayed host-shell only, S23/S24 seeds did not leak into U, and engine/probe remained outside witness admission. Add or tighten only the minimal compile/test coverage needed for that scope. Keep sbt/test invocations serial. Final JSON must set next_tasks to [] on success; if blocked or the runtime is not sound, set needs_human true."
+      "block_handler_task": null,
+      "review_handler_task": null,
+      "prompt": "This workflow is retired and blocked. Do not implement any old U-primary row from this file. Read only the workflow metadata and the listed live reset docs. Confirm that PositionFixtureLaw is not yet live for executable same-root fixtures and that public render routes, frontend mocks, and forgeable numeric Story proof scores remain no-go. Return final JSON with status `blocked`, needs_human `true`, next_tasks [], and a summary saying this workflow must be replaced, not resumed, once PositionFixtureLaw exists."
     }
   }
 }

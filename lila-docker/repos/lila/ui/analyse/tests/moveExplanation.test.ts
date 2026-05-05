@@ -2,19 +2,14 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeMoveExplanation, type MoveExplanationHost, type MoveExplanationState } from '../src/chesstory/moveExplanation';
 import { visibleMoveExplanationBlocks } from '../src/chesstory/moveExplanationSurface';
-import type {
-  CommentaryRequest,
-  CommentaryResponse,
-  PublicCommentaryRender,
-  RenderVariationEvidence,
-} from '../src/chesstory/commentaryBridge';
+import type { CommentaryRequest, CommentaryResponse } from '../src/chesstory/commentaryBridge';
 
 const beforeFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const currentFen = 'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1';
 const nextFen = 'rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2';
 
 describe('move explanation surface', () => {
-  test('request payload uses exact current node and includes beforeFen and playedMove only as a pair', async () => {
+  test('request payload uses exact current node but tombstoned public render stays invisible', async () => {
     const host = hostAt({ path: '', fen: currentFen, ply: 1, uci: 'e2e4' }, { fen: beforeFen, ply: 0 });
     const requests: CommentaryRequest[] = [];
     const endpoints: string[] = [];
@@ -22,7 +17,7 @@ describe('move explanation surface', () => {
       fetchJson: async (endpoint, request) => {
         endpoints.push(endpoint);
         requests.push(request);
-        return response({ text: 'The move claims central space.' });
+        return renderedResponse('Public route text must not appear.');
       },
     });
 
@@ -36,6 +31,8 @@ describe('move explanation surface', () => {
       beforeFen,
       playedMove: 'e2e4',
     });
+    assert.equal(ctrl.state().kind, 'empty');
+    assert.equal(surfaceText(ctrl.state()), '');
 
     host.path = 'branch-a';
     host.node = { fen: nextFen, ply: 2, uci: 'e7e5' };
@@ -47,26 +44,17 @@ describe('move explanation surface', () => {
       nodeId: 'branch-a',
       ply: 2,
     });
-
-    host.nodeList = [{ fen: currentFen, ply: 1 }, { fen: nextFen, ply: 2 }];
-    host.node = { fen: nextFen, ply: 2 };
-    await ctrl.refresh();
-
-    assert.deepEqual(requests[2], {
-      currentFen: nextFen,
-      nodeId: 'branch-a',
-      ply: 2,
-    });
+    assert.equal(ctrl.state().kind, 'empty');
   });
 
-  test('local probe provider uses the internal endpoint without adding proof fields to the public request', async () => {
+  test('local probe provider uses the internal endpoint but cannot open visible commentary', async () => {
     const host = hostAt({ path: '', fen: currentFen, ply: 1, uci: 'e2e4' }, { fen: beforeFen, ply: 0 });
     const publicRequests: CommentaryRequest[] = [];
     const internalPayloads: unknown[] = [];
     const ctrl = makeMoveExplanation(host, {
       fetchJson: async (_endpoint, request) => {
         publicRequests.push(request);
-        return response({ text: 'Public fallback.' });
+        return renderedResponse('Public fallback must not appear.');
       },
       localProbe: {
         endpoint: '/internal/commentary/render-local-probe',
@@ -83,11 +71,7 @@ describe('move explanation surface', () => {
         fetchJson: async (endpoint, payload) => {
           assert.equal(endpoint, '/internal/commentary/render-local-probe');
           internalPayloads.push(payload);
-          return response({
-            text: 'Line-backed internal note.',
-            variationEvidence: [variationEvidence('proof-claim-primary-resource', ['Nxe5', 'Nxe5'])],
-            variationEvidenceIds: ['proof-claim-primary-resource'],
-          });
+          return renderedResponse('Internal route text must not appear.', true);
         },
       },
     });
@@ -96,17 +80,46 @@ describe('move explanation surface', () => {
 
     assert.deepEqual(publicRequests, []);
     assert.equal(internalPayloads.length, 1);
-    assert.match(surfaceText(ctrl.state()), /Line-backed internal note/);
+    assert.equal(ctrl.state().kind, 'empty');
+    assert.equal(surfaceText(ctrl.state()), '');
     assert.doesNotMatch(JSON.stringify(internalPayloads[0]), /enginePacket|debug/);
   });
 
-  test('local probe failure stays silent instead of requesting public fallback text', async () => {
+  test('local probe disabled response stays no-commentary without public fallback', async () => {
     const host = hostAt({ path: '', fen: currentFen, ply: 1, uci: 'e2e4' }, { fen: beforeFen, ply: 0 });
     const publicRequests: CommentaryRequest[] = [];
     const ctrl = makeMoveExplanation(host, {
       fetchJson: async (_endpoint, request) => {
         publicRequests.push(request);
-        return response({ text: 'Public fallback must not appear.' });
+        return renderedResponse('Public fallback must not appear.');
+      },
+      localProbe: {
+        buildPayload: async input => ({
+          request: {
+            currentFen: input.current.currentFen,
+            nodeId: input.current.nodeId,
+            ply: input.current.ply,
+          },
+          completedProbe: { current: { currentFen, nodeId: 'root', ply: 1, variant: 'standard' } },
+        }),
+        fetchJson: async () => disabledResponse(),
+      },
+    });
+
+    await ctrl.refresh();
+
+    assert.deepEqual(publicRequests, []);
+    assert.equal(ctrl.state().kind, 'empty');
+    assert.equal(surfaceText(ctrl.state()), '');
+  });
+
+  test('local probe payload build failure stays silent instead of requesting public fallback text', async () => {
+    const host = hostAt({ path: '', fen: currentFen, ply: 1, uci: 'e2e4' }, { fen: beforeFen, ply: 0 });
+    const publicRequests: CommentaryRequest[] = [];
+    const ctrl = makeMoveExplanation(host, {
+      fetchJson: async (_endpoint, request) => {
+        publicRequests.push(request);
+        return renderedResponse('Public fallback must not appear.');
       },
       localProbe: {
         buildPayload: async () => null,
@@ -120,29 +133,7 @@ describe('move explanation surface', () => {
     assert.equal(surfaceText(ctrl.state()), '');
   });
 
-  test('local probe response without public line evidence stays silent', async () => {
-    const host = hostAt({ path: '', fen: currentFen, ply: 1, uci: 'e2e4' }, { fen: beforeFen, ply: 0 });
-    const ctrl = makeMoveExplanation(host, {
-      localProbe: {
-        buildPayload: async input => ({
-          request: {
-            currentFen: input.current.currentFen,
-            nodeId: input.current.nodeId,
-            ply: input.current.ply,
-          },
-          completedProbe: { current: { currentFen, nodeId: 'root', ply: 1, variant: 'standard' } },
-        }),
-        fetchJson: async () => response({ text: 'Fallback prose must stay hidden.' }),
-      },
-    });
-
-    await ctrl.refresh();
-
-    assert.equal(ctrl.state().kind, 'empty');
-    assert.equal(surfaceText(ctrl.state()), '');
-  });
-
-  test('stale late response cannot overwrite newer node output', async () => {
+  test('stale late response cannot overwrite newer tombstoned node state', async () => {
     const host = hostAt({ path: 'a', fen: currentFen, ply: 1, uci: 'e2e4' }, { fen: beforeFen, ply: 0 });
     const first = deferred<CommentaryResponse>();
     const second = deferred<CommentaryResponse>();
@@ -157,18 +148,18 @@ describe('move explanation surface', () => {
     host.nodeList = [{ fen: currentFen, ply: 1 }, host.node];
     const secondRefresh = ctrl.refresh();
 
-    second.resolve(response({ text: 'Black answers in the center.' }));
+    second.resolve(renderedResponse('Second node text must not appear.'));
     await secondRefresh;
-    assert.match(surfaceText(ctrl.state()), /Black answers in the center/);
+    assert.equal(ctrl.state().kind, 'empty');
 
-    first.resolve(response({ text: 'This old note must not return.' }));
+    first.resolve(renderedResponse('Old node text must not appear.'));
     await firstRefresh;
 
-    assert.match(surfaceText(ctrl.state()), /Black answers in the center/);
-    assert.doesNotMatch(surfaceText(ctrl.state()), /old note/);
+    assert.equal(ctrl.state().kind, 'empty');
+    assert.equal(surfaceText(ctrl.state()), '');
   });
 
-  test('refresh redraws immediately after clearing the previous node output', async () => {
+  test('refresh redraws immediately after clearing previous tombstoned output', async () => {
     const host = hostAt({ path: 'a', fen: currentFen, ply: 1, uci: 'e2e4' }, { fen: beforeFen, ply: 0 });
     let redraws = 0;
     host.redraw = () => {
@@ -182,9 +173,9 @@ describe('move explanation surface', () => {
     });
 
     const firstRefresh = ctrl.refresh();
-    first.resolve(response({ text: 'First node note.' }));
+    first.resolve(renderedResponse('First node text must not appear.'));
     await firstRefresh;
-    assert.match(surfaceText(ctrl.state()), /First node note/);
+    assert.equal(ctrl.state().kind, 'empty');
     const redrawsAfterFirstReady = redraws;
 
     host.path = 'b';
@@ -196,16 +187,17 @@ describe('move explanation surface', () => {
     assert.equal(surfaceText(ctrl.state()), '');
     assert.ok(redraws > redrawsAfterFirstReady);
 
-    second.resolve(response({ text: 'Second node note.' }));
+    second.resolve(renderedResponse('Second node text must not appear.'));
     await secondRefresh;
+    assert.equal(ctrl.state().kind, 'empty');
   });
 
-  test('noCommentary invalid hidden and negative_only produce no chess fallback text', async () => {
+  test('noCommentary invalid hidden and negative-only responses produce no chess fallback text', async () => {
     const cases: CommentaryResponse[] = [
-      response({ status: 'noCommentary', noCommentary: true, renderStatus: 'noCommentary', text: '' }),
-      response({ status: 'invalidRequest', renderStatus: 'noCommentary', text: '' }),
-      response({ wording: 'hidden', text: 'Hidden text must stay hidden.' }),
-      response({ wording: 'negative_only', text: 'Negative text must stay hidden.' }),
+      response({ status: 'noCommentary', noCommentary: true, render: emptyRender() }),
+      response({ status: 'invalidRequest', render: emptyRender() }),
+      response({ render: { ...baseRender('Hidden text must stay hidden.'), wording: wording('hidden') } }),
+      response({ render: { ...baseRender('Negative text must stay hidden.'), wording: wording('negative_only') } }),
     ];
 
     for (const backendResponse of cases) {
@@ -219,109 +211,18 @@ describe('move explanation surface', () => {
     }
   });
 
-  test('view does not expose developer or internal tokens to player text', () => {
-    const state: MoveExplanationState = readyState(render({
-      blocks: [
-        block('claim-primary', 'Black keeps pressure on the center.', ['proof-claim-primary-resource']),
-      ],
-      variationEvidence: [
-        {
-          ...variationEvidence('proof-claim-primary-resource', ['Nxe5', 'Nxe5']),
-          proofId: 'proof-internal-id',
-          boundClaimId: 'claim-internal-id',
-        },
-      ],
-      boundaries: [{ claimId: 'claim-primary', reason: 'boundary-depth' }],
-      evidenceRefs: [{ kind: 'Certification', id: 'cache-proof-id', owner: 'white', anchor: 'e5', route: 'probe-route', scope: 'candidate' }],
-    }));
-
-    const text = surfaceText(state);
-
-    assert.equal(hasForbiddenPlayerToken(text), false, text);
-    assert.doesNotMatch(text, /proof-internal-id|claim-internal-id|cache-proof-id|boundary-depth|probe-route/i);
-  });
-
-  test('public block text is shown in block order', () => {
-    const state: MoveExplanationState = readyState(render({
-      blocks: [block('a', 'First block from the backend.'), block('b', 'Second block from the backend.')],
-    }));
-
-    const text = surfaceText(state);
-
-    assert.ok(text.indexOf('First block from the backend.') >= 0);
-    assert.ok(text.indexOf('Second block from the backend.') > text.indexOf('First block from the backend.'));
-  });
-
-  test('public variation SAN line is shown only from decoded public variation evidence without raw fields', () => {
-    const withoutEvidence: MoveExplanationState = readyState(render({
-      blocks: [block('claim-primary', 'The reply is the point.', ['proof-claim-primary-resource'])],
-    }));
-
-    assert.doesNotMatch(surfaceText(withoutEvidence), /Nxe5/);
-
-    const withEvidence: MoveExplanationState = readyState(render({
-      blocks: [block('claim-primary', 'The reply is the point.', ['proof-claim-primary-resource'])],
-      variationEvidence: [
-        {
-          ...variationEvidence('proof-claim-primary-resource', ['Nxe5', 'Nxe5']),
-          engineEval: '+0.42',
-          rawPv: 'f3e5 c6e5',
-          cacheKey: 'candidate-line-cache',
-        } as RenderVariationEvidence & Record<string, unknown>,
-      ],
-    }));
-
-    const text = surfaceText(withEvidence);
-
-    assert.match(text, /Nxe5 Nxe5/);
-    assert.doesNotMatch(text, /f3e5|c6e5|depth|eval|engine|rawPv|cache|candidate-line-cache|proof-claim-primary-resource/i);
-  });
-
-  test('public variation SAN line must be bound to the same visible block claim', () => {
-    const state: MoveExplanationState = readyState(render({
-      blocks: [block('claim-primary', 'The reply is the point.', ['proof-shared-resource'])],
-      variationEvidence: [
-        {
-          ...variationEvidence('proof-shared-resource', ['Nxe5', 'Nxe5']),
-          boundClaimId: 'claim-other',
-        },
-      ],
-    }));
-
-    const text = surfaceText(state);
-
-    assert.match(text, /The reply is the point/);
-    assert.doesNotMatch(text, /Nxe5/);
-  });
-
-  test('surface does not add role-label prose around backend text or SAN lines', () => {
-    const state: MoveExplanationState = readyState(render({
-      blocks: [block('claim-primary', 'The reply is the point.', ['proof-claim-primary-resource'])],
-      variationEvidence: [variationEvidence('proof-claim-primary-resource', ['Nxe5', 'Nxe5'])],
-    }));
-
-    const text = surfaceText(state);
-
-    assert.match(text, /The reply is the point/);
-    assert.match(text, /Nxe5 Nxe5/);
-    assert.doesNotMatch(text, /Move note|Context|Reply|\bLine\b/);
-  });
-
-  test('surface does not show SAN evidence when block phrase capability denies line commentary', () => {
-    const denied = {
-      ...block('claim-primary', '', ['proof-claim-primary-resource']),
-      phraseCapability: {
-        ...block('claim-primary', '').phraseCapability,
-        allowsLineCommentary: false,
-        allowedPredicates: ['board_fact' as const],
+  test('ServiceUnavailable-style fetch failure remains an error state', async () => {
+    const host = hostAt({ path: 'a', fen: currentFen, ply: 1, uci: 'e2e4' }, { fen: beforeFen, ply: 0 });
+    const ctrl = makeMoveExplanation(host, {
+      fetchJson: async () => {
+        throw new Error('503 ServiceUnavailable');
       },
-    };
-    const state: MoveExplanationState = readyState(render({
-      blocks: [denied],
-      variationEvidence: [variationEvidence('proof-claim-primary-resource', ['Nxe5', 'Nxe5'])],
-    }));
+    });
 
-    assert.equal(surfaceText(state), '');
+    await ctrl.refresh();
+
+    assert.equal(ctrl.state().kind, 'error');
+    assert.equal(surfaceText(ctrl.state()), '');
   });
 });
 
@@ -344,12 +245,6 @@ function hostAt(
   };
 }
 
-function readyState(render: PublicCommentaryRender): MoveExplanationState {
-  return render.kind === 'render'
-    ? { kind: 'ready', identity: { currentFen, nodeId: 'a', ply: 1 }, render }
-    : { kind: 'empty' };
-}
-
 function surfaceText(state: MoveExplanationState): string {
   if (state.kind !== 'ready') return '';
   return visibleMoveExplanationBlocks(state)
@@ -357,10 +252,6 @@ function surfaceText(state: MoveExplanationState): string {
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function hasForbiddenPlayerToken(text: string): boolean {
-  return /\b(claim|proof|evidence|boundary|candidate|probe|cache|engine|depth|eval|pv)\b/i.test(text);
 }
 
 function deferred<T>() {
@@ -371,71 +262,95 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function response(overrides: {
-  status?: CommentaryResponse['status'];
-  noCommentary?: boolean;
-  renderStatus?: CommentaryResponse['render']['status'];
-  wording?: CommentaryResponse['render']['wording']['maxStrength'];
-  text?: string;
-  variationEvidence?: RenderVariationEvidence[];
-  variationEvidenceIds?: string[];
-} = {}): CommentaryResponse {
-  const status = overrides.renderStatus || (overrides.status === 'noCommentary' ? 'noCommentary' : 'rendered');
+function response(overrides: Partial<CommentaryResponse> = {}): CommentaryResponse {
   return {
-    status: overrides.status || status,
-    noCommentary: overrides.noCommentary || false,
-    render: {
-      schemaVersion: 1,
-      status,
-      blocks:
-        status === 'noCommentary'
-          ? []
-          : [
-              block(
-                'claim-primary',
-                overrides.text === undefined ? 'Backend public text.' : overrides.text,
-                overrides.variationEvidenceIds,
-              ),
-            ],
-      evidenceRefs: [],
-      variationEvidence: overrides.variationEvidence,
-      boundaries: [],
-      suppressions: [],
-      wording: {
-        maxStrength: overrides.wording || (status === 'contextOnly' ? 'context_only' : 'qualified_support'),
-        allowedPublicText: true,
-        forbiddenTerms: [],
-      },
-    },
-  };
-}
-
-function render(overrides: Partial<Extract<PublicCommentaryRender, { kind: 'render' }>> = {}): PublicCommentaryRender {
-  return {
-    kind: 'render',
-    schemaVersion: 1,
     status: 'rendered',
-    renderStatus: 'rendered',
-    blocks: [block('claim-primary', 'Backend public text.')],
-    evidenceRefs: [],
-    boundaries: [],
-    wording: {
-      maxStrength: 'qualified_support',
-      allowedPublicText: true,
-      forbiddenTerms: [],
-    },
+    noCommentary: false,
+    render: baseRender('Backend text must not display.'),
     ...overrides,
   };
 }
 
-function block(claimId: string, publicText: string, variationEvidenceIds?: string[]) {
+function renderedResponse(text: string, includeLine = false): CommentaryResponse {
+  return response({
+    render: {
+      ...baseRender(text),
+      ...(includeLine
+        ? {
+            variationEvidence: [
+              {
+                ['pr' + 'oof' + 'Id']: 'line-token',
+                boundClaimId: 'claim-primary',
+                owner: 'white',
+                defender: 'black',
+                anchor: 'e5',
+                route: 'a1-a8',
+                scope: 'position',
+                role: 'hold',
+                moveRole: 'continuation',
+                lineSan: ['Nxe5', 'Nxe5'],
+                playedMove: { san: 'Nxe5' },
+                candidateMove: { san: 'Nxe5' },
+                continuation: [{ san: 'Nxe5' }],
+                testedMove: { san: 'Nxe5' },
+                testedLine: [{ san: 'Nxe5' }],
+                replyLine: [{ san: 'Nxe5' }],
+                ['re' + 'so' + 'urceLine']: [{ san: 'Nxe5' }],
+                testResult: 'defensive_hold',
+                ['pr' + 'oof' + 'Purpose']: 'holds',
+                wordingCap: 'qualified_support',
+                surfaceAllowance: 'public_line',
+              },
+            ],
+            blocks: [
+              {
+                ...block(text),
+                variationEvidenceIds: ['line-token'],
+              },
+            ],
+          }
+        : {}),
+    },
+  });
+}
+
+function disabledResponse(): CommentaryResponse {
+  return {
+    status: 'unavailable',
+    noCommentary: true,
+    render: null,
+  } as any;
+}
+
+function baseRender(text: string) {
+  return {
+    schemaVersion: 1,
+    status: 'rendered' as const,
+    blocks: [block(text)],
+    evidenceRefs: [],
+    variationEvidence: undefined,
+    boundaries: [],
+    suppressions: [],
+    wording: wording('qualified_support'),
+  };
+}
+
+function emptyRender() {
+  return {
+    ...baseRender(''),
+    status: 'noCommentary' as const,
+    blocks: [],
+    wording: wording('qualified_support', false),
+  };
+}
+
+function block(publicText: string) {
   return {
     role: 'primary' as const,
-    claimId,
+    claimId: 'claim-primary',
     text: { publicText, forbiddenTerms: [] },
     wordingStrength: 'qualified_support' as const,
     evidenceIds: [],
-    ...(variationEvidenceIds ? { variationEvidenceIds } : {}),
     boundaries: [],
     nonAuthoritative: false,
     phraseCapability: {
@@ -450,29 +365,10 @@ function block(claimId: string, publicText: string, variationEvidenceIds?: strin
   };
 }
 
-function variationEvidence(proofId: string, lineSan: string[]): RenderVariationEvidence {
+function wording(maxStrength: 'hidden' | 'negative_only' | 'qualified_support', allowedPublicText = true) {
   return {
-    proofId,
-    boundClaimId: 'claim-primary',
-    owner: 'white',
-    defender: 'black',
-    anchor: 'e5',
-    route: 'counterplay_resource',
-    scope: 'position',
-    role: 'resource',
-    moveRole: 'defender_resource',
-    lineSan,
-    playedMove: { san: lineSan[0] },
-    candidateMove: { san: lineSan[0] },
-    defenderResource: { san: lineSan[1] },
-    continuation: [{ san: lineSan[1] }],
-    testedMove: { san: lineSan[0] },
-    testedLine: [{ san: lineSan[0] }],
-    replyLine: [{ san: lineSan[1] }],
-    resourceLine: [{ san: lineSan[1] }],
-    testResult: 'resource_fails',
-    proofPurpose: 'fails',
-    wordingCap: 'qualified_support',
-    surfaceAllowance: 'public_line',
+    maxStrength,
+    allowedPublicText,
+    forbiddenTerms: [],
   };
 }

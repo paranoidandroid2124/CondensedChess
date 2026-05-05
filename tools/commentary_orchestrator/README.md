@@ -126,8 +126,10 @@ The dashboard shows:
 The GUI reads and writes the same `state.json` based lifecycle used by the CLI,
 so `launch/status/watch/stop` and the browser view stay in sync.
 
-An example real workflow for the currently admitted `U-primary 18` scope lives
-at:
+The historical U-primary workflow is intentionally retained only as a retired
+tombstone. Launching it must produce a blocked human handoff until
+`PositionFixtureLaw` exists and a replacement workflow is written against the
+live reset docs:
 
 [u_primary_implementation.json](/C:/Codes/CondensedChess/tools/commentary_orchestrator/workflows/u_primary_implementation.json)
 
@@ -148,17 +150,14 @@ task instead of stopping immediately. Handler prompts can read:
 - `{{blocked_stderr_path}}`
 
 The handler task may be reused across multiple blocked steps in the same run.
-The `U-primary` workflow uses this pattern through `u_block_resolution`.
 
 Workflows may also declare `review_handler_task` in `defaults` or per-task. When
 an implementation task completes successfully, the orchestrator can route that
 result into a dedicated review Codex session before any follow-up task is
-enqueued. The `U-primary` workflow uses this pattern through
-`u_completion_review`, so a step only advances after a second Codex pass
-re-checks scope, compile/test evidence, and branch guardrails. Review tasks may
-also use their own retry budget. If a review still fails or returns blocked
-after that budget is exhausted, the orchestrator routes the original reviewed
-task into its block handler instead of stopping the whole run immediately.
+enqueued. Review tasks may also use their own retry budget. If a review still
+fails or returns blocked after that budget is exhausted, the orchestrator routes
+the original reviewed task into its block handler instead of stopping the whole
+run immediately.
 
 `run.ps1` prefers a working `python.exe` from the current environment, then
 falls back to a packaged Anaconda interpreter when the default launcher is

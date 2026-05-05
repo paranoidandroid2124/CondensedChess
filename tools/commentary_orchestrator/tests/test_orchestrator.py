@@ -20,11 +20,25 @@ COMMENTARY_DOCS = (
     REPO_ROOT / "lila-docker" / "repos" / "lila" / "modules" / "commentary" / "docs"
 )
 TEST_TEMP_ROOT = REPO_ROOT / "tmp" / "orchestrator-test-temp"
-DECISION_LEDGER = COMMENTARY_DOCS / "DecisionFreezeLedger.md"
-DESCRIPTOR_MATRIX = COMMENTARY_DOCS / "DescriptorOwnershipMatrix.md"
-WITNESSES_61 = COMMENTARY_DOCS / "Witnesses61.md"
-VALIDATION_METHODOLOGY = COMMENTARY_DOCS / "ValidationMethodology.md"
-COMMENTARY_CORE_SSOT = COMMENTARY_DOCS / "CommentaryCoreSSOT.md"
+LIVE_AUTHORITY_DOCS = [
+    "ChessCommentarySSOT.md",
+    "ChessModelArchitecture.md",
+    "ChessModelContract.md",
+    "ChessResetRationale.md",
+    "BoardMoodCutLaw.md",
+    "BoardMoodSplitLaw.md",
+    "StoryInteractionLaw.md",
+    "StoryResurrectionLaw.md",
+    "LegacyPruneManifest.md",
+    "README.md",
+]
+RETIRED_AUTHORITY_DOCS = [
+    "Commentary" + "CoreSSOT.md",
+    "Decision" + "FreezeLedger.md",
+    "Descriptor" + "OwnershipMatrix.md",
+    "Witnesses" + "61.md",
+    "Validation" + "Methodology.md",
+]
 
 
 def load_json(path: Path) -> dict:
@@ -177,98 +191,27 @@ class CommentaryOrchestratorTest(unittest.TestCase):
             self.assertEqual(state["tasks"]["slow_root_gate"]["status"], "completed")
             self.assertEqual(state["tasks"]["fast_side_probe"]["status"], "completed")
 
-    def test_u_primary_workflow_matches_active_scope(self) -> None:
+    def test_u_primary_workflow_is_retired_position_fixture_law_block(self) -> None:
         workflow = load_json(U_PRIMARY_WORKFLOW)
         metadata = workflow["metadata"]
-        active_rows = set(metadata["active_u_primary_rows"])
-        self.assertEqual(len(active_rows), 18)
-        self.assertEqual(
-            active_rows,
-            {
-                "file_lane_state",
-                "diagonal_lane_only",
-                "weak_pawn_target_state",
-                "passed_pawn_entity_state",
-                "weak_outpost_square_state",
-                "loose_piece_target_state",
-                "pawn_push_break_contact_source",
-                "sector_asymmetry_state",
-                "available_lever_trigger",
-                "rook_on_open_file_state",
-                "bishop_pair_state",
-                "knight_on_outpost_square",
-                "duty_bound_defender",
-                "short_run_slider_gate_restriction",
-                "pin",
-                "fork",
-                "skewer",
-                "overload",
-            },
-        )
-        self.assertEqual(
-            set(metadata["banned_rehome_rows"]),
-            {
-                "opening-tempo",
-                "middlegame-positional",
-                "transition-liquidation",
-                "endgame-race",
-                "central tension",
-            },
-        )
-        self.assertEqual(
-            set(metadata["host_shell_only_rows"]),
-            {"closed center", "fixed chain"},
-        )
-        self.assertEqual(
-            metadata["sequence"],
-            [
-                "u_scope_freeze_gate",
-                "u_runtime_foundation",
-                "u_registry_wiring",
-                "u_validation_harness",
-                "u_file_lane_state",
-                "u_diagonal_lane_only",
-                "u_available_lever_trigger",
-                "u_weak_pawn_target_state",
-                "u_passed_pawn_entity_state",
-                "u_weak_outpost_square_state",
-                "u_loose_piece_target_state",
-                "u_sector_asymmetry_state",
-                "u_pawn_push_break_contact_source",
-                "u_rook_on_open_file_state",
-                "u_bishop_pair_state",
-                "u_knight_on_outpost_square",
-                "u_duty_bound_defender",
-                "u_short_run_slider_gate_restriction",
-                "u_pin",
-                "u_fork",
-                "u_skewer",
-                "u_overload",
-                "u_integration_compile",
-                "u_runtime_validation_smoke",
-            ],
-        )
-        self.assertEqual(workflow["initial_tasks"], ["u_scope_freeze_gate"])
+        prompt = workflow["tasks"]["position_fixture_law_block"]["prompt"]
+
+        self.assertEqual(metadata["retired"], True)
+        self.assertIn("RETIRED/BLOCKED", metadata["scope"])
+        self.assertIn("PositionFixtureLaw", metadata["blocked_until"])
+        self.assertEqual(workflow["initial_tasks"], ["position_fixture_law_block"])
         self.assertEqual(workflow["defaults"]["max_parallel"], 1)
-        self.assertEqual(workflow["defaults"]["block_handler_task"], "u_block_resolution")
-        self.assertEqual(workflow["defaults"]["review_handler_task"], "u_completion_review")
-        self.assertIn("u_runtime_validation_smoke", workflow["tasks"])
-        self.assertIn("u_integration_compile", workflow["tasks"])
-        self.assertIn("u_registry_wiring", workflow["tasks"])
-        self.assertIn("u_validation_harness", workflow["tasks"])
-        self.assertIn("u_block_resolution", workflow["tasks"])
-        self.assertIn("u_completion_review", workflow["tasks"])
-        self.assertIsNone(workflow["tasks"]["u_block_resolution"]["block_handler_task"])
-        self.assertIsNone(workflow["tasks"]["u_block_resolution"]["review_handler_task"])
-        self.assertEqual(workflow["tasks"]["u_completion_review"]["max_attempts"], 2)
-        self.assertIsNone(workflow["tasks"]["u_completion_review"]["block_handler_task"])
-        self.assertIsNone(workflow["tasks"]["u_completion_review"]["review_handler_task"])
-        self.assertIn("{{blocked_task_id}}", workflow["tasks"]["u_block_resolution"]["prompt"])
-        self.assertIn("blocked_origin=review", workflow["tasks"]["u_block_resolution"]["prompt"])
-        self.assertIn("{{reviewed_task_id}}", workflow["tasks"]["u_completion_review"]["prompt"])
-        for index, task_id in enumerate(metadata["sequence"]):
-            expected = [] if index == len(metadata["sequence"]) - 1 else [metadata["sequence"][index + 1]]
-            self.assertEqual(workflow["tasks"][task_id]["expected_next_tasks"], expected)
+        self.assertEqual(workflow["defaults"]["full_auto"], False)
+        self.assertEqual(set(workflow["tasks"]), {"position_fixture_law_block"})
+        self.assertEqual(workflow["tasks"]["position_fixture_law_block"]["expected_next_tasks"], [])
+        self.assertIn("status `blocked`", prompt)
+        self.assertIn("needs_human `true`", prompt)
+        self.assertIn("next_tasks []", prompt)
+        self.assertIn("must be replaced, not resumed", prompt)
+        self.assertEqual(
+            metadata["live_authority_docs"],
+            [f"lila-docker/repos/lila/modules/commentary/docs/{doc}" for doc in LIVE_AUTHORITY_DOCS],
+        )
 
     def test_blocked_task_can_route_to_block_handler(self) -> None:
         workflow = {
@@ -943,67 +886,21 @@ class CommentaryOrchestratorTest(unittest.TestCase):
                         check=False,
                     )
 
-    def test_u_primary_workflow_stays_in_sync_with_scope_authority_docs(self) -> None:
+    def test_retired_u_primary_workflow_cannot_reference_retired_authority_docs(self) -> None:
         workflow = load_json(U_PRIMARY_WORKFLOW)
-        metadata = workflow["metadata"]
-        scope_prompt = workflow["tasks"]["u_scope_freeze_gate"]["prompt"]
-        foundation_prompt = workflow["tasks"]["u_runtime_foundation"]["prompt"]
+        rendered = json.dumps(workflow, sort_keys=True)
         doc_root = "lila-docker/repos/lila/modules/commentary/docs/"
-        matrix_rows = parse_descriptor_owner_rows(DESCRIPTOR_MATRIX)
-        ledger_text = load_text(DECISION_LEDGER)
-        witnesses_text = load_text(WITNESSES_61)
-        validation_text = load_text(VALIDATION_METHODOLOGY)
-        core_ssot_text = load_text(COMMENTARY_CORE_SSOT)
 
-        active_rows = {
-            row["owner_home"]
-            for row in matrix_rows.values()
-            if row["owner_layer"] == "Witness / U-primary"
-        }
-        self.assertEqual(set(metadata["active_u_primary_rows"]), active_rows)
-        self.assertEqual(len(active_rows), 18)
-
-        for descriptor in metadata["banned_rehome_rows"]:
-            self.assertIn(descriptor, matrix_rows)
-            self.assertNotEqual(matrix_rows[descriptor]["owner_layer"], "Witness / U-primary")
-            self.assertIn(f"`{descriptor}`", ledger_text)
-        self.assertIn("must not re-enter `U`", ledger_text)
-        self.assertIn("must not be revived as a raw `U-primary` witness", ledger_text)
-
-        for descriptor in metadata["host_shell_only_rows"]:
-            self.assertEqual(matrix_rows[descriptor]["owner_layer"], "Witness / U-attached")
-            self.assertIn("host shell", matrix_rows[descriptor]["owner_home"])
-        self.assertIn("### Closed Center Host-Shell Reclassification", witnesses_text)
-        self.assertIn("### Fixed Chain Host-Shell Reclassification", witnesses_text)
-        self.assertIn("must remain host-shell vocabulary only", ledger_text)
-
-        for seed_family in metadata["blocked_strategy_seed_families"]:
-            self.assertIn(f"`{seed_family}`", ledger_text)
-        self.assertIn(
-            "frozen as required future contracts, not as active runtime contracts",
-            ledger_text,
-        )
-        self.assertIn("blocked S23/S24 support seeds remain out of U", scope_prompt)
-        self.assertIn("upper-layer-owned inventory entries do not leak back in", validation_text)
-        self.assertIn("witness verdicts", validation_text)
-        self.assertIn("most static witness admission", validation_text)
-        self.assertIn(f"{doc_root}CommentaryCoreSSOT.md", scope_prompt)
-        self.assertIn(f"{doc_root}CommentaryCoreSSOT.md", foundation_prompt)
-        self.assertIn("object -> delta -> certification", core_ssot_text)
-        self.assertIn("inventory label `closed center`", core_ssot_text)
-        self.assertIn("inventory label `fixed chain`", core_ssot_text)
-        self.assertIn("inventory label `central tension`", core_ssot_text)
-
-        self.assertIn("active U-primary 18", scope_prompt)
-        self.assertIn("rehome rows do not re-enter U", scope_prompt)
-        self.assertIn("closed center and fixed chain stay host-shell only", scope_prompt)
+        self.assertIn("retired", rendered)
+        self.assertIn("PositionFixtureLaw", rendered)
+        self.assertIn("live reset docs", rendered)
+        for doc_name in LIVE_AUTHORITY_DOCS:
+            self.assertIn(f"{doc_root}{doc_name}", rendered)
+        for doc_name in RETIRED_AUTHORITY_DOCS:
+            self.assertNotIn(doc_name, rendered)
 
         bad_doc_root = re.compile(r"(?<!lila-docker/repos/lila/)modules/commentary/docs/")
-        for task in workflow["tasks"].values():
-            prompt = task.get("prompt", "")
-            if "commentary/docs/" in prompt:
-                self.assertIn(doc_root, prompt)
-            self.assertIsNone(bad_doc_root.search(prompt))
+        self.assertIsNone(bad_doc_root.search(rendered))
 
 
 if __name__ == "__main__":

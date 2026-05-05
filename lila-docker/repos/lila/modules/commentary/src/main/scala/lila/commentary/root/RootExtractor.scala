@@ -8,6 +8,8 @@ object RootExtractor:
 
   import RootAtomRegistry.*
 
+  private[commentary] final case class RootWithPosition(position: Position, root: RootStateVector)
+
   val implementedSchemas: Set[String] = all.map(_.id).toSet
 
   def fromFen(fen: Fen.Full): Either[String, RootStateVector] =
@@ -17,33 +19,45 @@ object RootExtractor:
   // reachable game states. External FEN input should go through the strict
   // fail-closed boundary instead.
   def fromFenFailClosed(fen: Fen.Full): Either[String, RootStateVector] =
+    fromFenWithPositionFailClosed(fen).map(_.root)
+
+  private[commentary] def fromFenWithPositionFailClosed(fen: Fen.Full): Either[String, RootWithPosition] =
     for
       position <- readPosition(fen)
-      _ <- validateStrictInput(fen, position)
-    yield RootAnalyzer(position).extract()
+      _ <- validateStrictPosition(position, fen.value)
+      _ <- validateFenFields(fen, position)
+    yield RootWithPosition(position, RootAnalyzer(position).extract())
+
+  private[commentary] def fromPositionFailClosed(position: Position): Either[String, RootWithPosition] =
+    validateStrictPosition(position, Fen.write(position).value)
+      .map(_ => RootWithPosition(position, RootAnalyzer(position).extract()))
 
   private def readPosition(fen: Fen.Full): Either[String, Position] =
     Fen
       .read(variant.Standard, fen)
       .toRight(s"Invalid standard FEN: $fen")
 
-  private def validateStrictInput(fen: Fen.Full, position: Position): Either[String, Unit] =
+  private def validateStrictPosition(position: Position, label: String): Either[String, Unit] =
     for
       _ <- Either.cond(
         variant.Standard.valid(position, strict = true),
         (),
-        s"Illegal standard position shape: $fen"
+        s"Illegal standard position shape: $label"
       )
       _ <- Either.cond(
         kingsAreSeparated(position),
         (),
-        s"Illegal standard position (adjacent kings): $fen"
+        s"Illegal standard position (adjacent kings): $label"
       )
       _ <- Either.cond(
         sideThatJustMovedIsSafe(position),
         (),
-        s"Illegal standard position (side that just moved remains in check): $fen"
+        s"Illegal standard position (side that just moved remains in check): $label"
       )
+    yield ()
+
+  private def validateFenFields(fen: Fen.Full, position: Position): Either[String, Unit] =
+    for
       _ <- validateCastlingField(fen, position)
       _ <- validateEnPassantField(fen, position)
     yield ()

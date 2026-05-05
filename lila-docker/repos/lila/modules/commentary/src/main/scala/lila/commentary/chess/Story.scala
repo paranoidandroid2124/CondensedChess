@@ -305,15 +305,19 @@ object Verdict:
 
 object StoryTable:
   val TopK = 8
+  // Public Story leads require non-forgeable same-root proof sidecars from named writers.
+  // No such writer exists in the current no-go checkpoint, so Proof numbers rank only blocked/context rows.
+  val PublicStoryLeadsClosedUntilNamedProofWriters = true
 
   def choose(stories: Vector[Story]): Vector[Verdict] =
     val rows =
       stories.map: story =>
-        Row(story, story.proof.publicStrength, lead(story, stories))
+        val leadCandidate = leadByStoryRules(story, stories)
+        Row(story, story.proof.publicStrength, lead(leadCandidate), leadCandidate)
     rows
       .sortBy(row =>
         (
-          if row.leadAllowed then 0 else 1,
+          leadSortPriority(row),
           -row.strength,
           row.story.scene.ordinal,
           tag(row.story),
@@ -335,9 +339,15 @@ object StoryTable:
           role = role(row, index)
         )
 
-  private case class Row(story: Story, strength: Double, leadAllowed: Boolean)
+  private case class Row(story: Story, strength: Double, leadAllowed: Boolean, leadCandidate: Boolean)
 
-  private def lead(story: Story, stories: Vector[Story]) =
+  private def leadSortPriority(row: Row) =
+    if row.leadAllowed then 0 else if row.leadCandidate then 1 else 2
+
+  private def lead(leadCandidate: Boolean) =
+    leadCandidate && !PublicStoryLeadsClosedUntilNamedProofWriters
+
+  private def leadByStoryRules(story: Story, stories: Vector[Story]) =
     base(story) &&
       identity(story) &&
       fit(story) &&

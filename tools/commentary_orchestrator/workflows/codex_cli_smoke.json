@@ -7,7 +7,7 @@
     "guardrails": [
       "Do not edit files.",
       "Do not run destructive commands.",
-      "Read only enough local context to confirm the U-primary implementation workflow exists and is in admitted-start state.",
+      "Read only enough local context to confirm the U-primary implementation workflow exists and is retired/blocked.",
       "Return JSON only using the workflow output contract."
     ]
   },
@@ -25,7 +25,7 @@
   "tasks": {
     "codex_cli_smoke": {
       "expected_next_tasks": [],
-      "prompt": "This is a Codex CLI orchestration smoke test. Do not edit any files. Do not create commits. Read only enough local context to confirm these branch facts: DecisionFreezeLedger.md authorizes U implementation start with effective U blocker count 0 after rehome discharge, DescriptorOwnershipMatrix.md freezes active U-primary count at 18, and tools/commentary_orchestrator/workflows/u_primary_implementation.json exists. Then return JSON only matching the provided schema with status `completed`, needs_human false, next_tasks [], and a short summary that states whether the smoke test confirmed the CLI can read the branch context."
+      "prompt": "This is a Codex CLI orchestration smoke test. Do not edit any files. Do not create commits. Read only enough local context to confirm these branch facts: tools/commentary_orchestrator/workflows/u_primary_implementation.json exists, its metadata marks it retired/blocked, and it must not run implementation work until PositionFixtureLaw exists and a replacement workflow is written against live reset docs. Then return JSON only matching the provided schema with status `completed`, needs_human false, next_tasks [], and a short summary that states whether the smoke test confirmed the CLI can read the branch context."
     }
   }
 }

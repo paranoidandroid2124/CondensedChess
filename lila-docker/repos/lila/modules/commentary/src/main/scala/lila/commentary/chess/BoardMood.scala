@@ -2,8 +2,9 @@ package lila.commentary.chess
 
 import lila.commentary.root.{ RootAtomRegistry, RootStateVector }
 
-final case class BoardMood(bits: Vector[Long], scalars: Vector[Int]):
+final class BoardMood private (val bits: Vector[Long], rawScalars: Vector[Int]):
   require(bits.size == BoardMood.Bits, s"BoardMood needs ${BoardMood.Bits} bit slots")
+  val scalars: Vector[Int] = BoardMood.canonicalScalarInput(rawScalars)
   require(scalars.size == BoardMood.Scalars, s"BoardMood needs ${BoardMood.Scalars} scalars")
   BoardMood.requireCanonicalRootPadding(bits)
 
@@ -17,6 +18,17 @@ final case class BoardMood(bits: Vector[Long], scalars: Vector[Int]):
             wordIndex * 64 + bit
       .filter(_ < RootAtomRegistry.RootSize)
 
+  override def equals(other: Any): Boolean =
+    other match
+      case that: BoardMood => bits == that.bits && scalars == that.scalars
+      case _               => false
+
+  override def hashCode: Int =
+    31 * bits.hashCode + scalars.hashCode
+
+  override def toString: String =
+    s"BoardMood($bits,$scalars)"
+
 object BoardMood:
   val Schema = 1
   val Bits = 48
@@ -29,6 +41,18 @@ object BoardMood:
   private val LastRootWord = RootWordBits - 1
   private val LastRootValidBits = RootAtomRegistry.RootSize - LastRootWord * 64
   private val LastRootPaddingMask = ~((1L << LastRootValidBits) - 1L)
+  val SplitScalarIndices: Set[Int] = Set(
+    31, 76, 77, 79, 92, 93, 95, 102, 106, 107, 109, 110, 118, 122, 123, 125, 126, 128, 129, 130,
+    133, 137, 143, 144, 145, 146, 149, 153, 159, 163, 168, 169, 170, 171, 172, 173, 179, 184, 185,
+    186, 187, 188, 189, 192, 193, 194, 195, 196, 197, 198, 199, 200, 202, 203, 204, 205, 206, 207,
+    208, 209, 210, 211, 212, 213, 218
+  )
+  val CutScalarIndices: Set[Int] = Set(
+    13, 14, 78, 94, 104, 111, 120, 127, 131, 142, 147, 158, 164, 174, 175, 180, 190, 191, 201, 214,
+    215, 216, 217, 219, 220, 221, 222, 223
+  )
+  val ProofScalarIndices: Set[Int] = (224 until Scalars).toSet
+  val ClosedScalarIndices: Set[Int] = SplitScalarIndices ++ CutScalarIndices ++ ProofScalarIndices
 
   final case class BitSlot(index: Int, name: String, role: String, note: String)
 
@@ -345,10 +369,10 @@ object BoardMood:
 
   val ScalarsByName: Map[String, Int] = scalarSlots.map(slot => slot.name -> slot.index).toMap
 
-  val empty = BoardMood(Vector.fill(Bits)(0L), Vector.fill(Scalars)(0))
+  val empty = new BoardMood(Vector.fill(Bits)(0L), Vector.fill(Scalars)(0))
 
   def fromPacked(bits: Vector[Long], scalars: Vector[Int]): BoardMood =
-    BoardMood(bits, scalars)
+    new BoardMood(bits, scalars)
 
   def fromParts(
       rootWords: Option[Vector[Long]] = None,
@@ -364,9 +388,9 @@ object BoardMood:
     val scalarValues = scalars match
       case Some(values) =>
         require(values.size == Scalars, s"scalars needs $Scalars slots")
-        values
+        canonicalScalarInput(values)
       case None => Vector.fill(Scalars)(0)
-    BoardMood(words ++ Vector(sideLegalDestinations, rivalLegalDestinations), scalarValues)
+    new BoardMood(words ++ Vector(sideLegalDestinations, rivalLegalDestinations), scalarValues)
 
   def fromRoot(
       rootState: RootStateVector,
@@ -418,6 +442,12 @@ object BoardMood:
     put("black_material", facts.material.black.value)
     put("material_diff", facts.material.diff)
     put("material_imbalance", facts.material.imbalance)
+
+    val mobility = mobilityFromPieces(facts.pieces, facts.control)
+    putMobility("white", mobility.white.mobility, safe = false, put)
+    putMobility("black", mobility.black.mobility, safe = false, put)
+    putMobility("white", mobility.white.safeMobility, safe = true, put)
+    putMobility("black", mobility.black.safeMobility, safe = true, put)
 
     put("white_space", facts.control.white.space)
     put("black_space", facts.control.black.space)
@@ -503,34 +533,44 @@ object BoardMood:
     else "Integer count, ordinal, mask, score, or centipawn value as named; producers own saturation."
 
   private def scalarSource(index: Int): String =
-    index match
-      case i if i < 16 =>
-        "Runtime population requires RootStateVector plus legal replay position header; fromPieces is scaffold-only for basic slots."
-      case i if i < 32 =>
-        "Runtime population requires exact-board material extraction; fromPieces is scaffold-only for counts/material."
-      case i if i < 64 =>
-        "Runtime population requires legal move, attack, and control sidecars; fromPieces does not populate these."
-      case i if i < 96 =>
-        "Runtime population requires king safety plus legal escape and attack sidecars; fromPieces does not populate these."
-      case i if i < 128 =>
-        "Runtime population requires pawn structure sidecars over exact board root atoms; fromPieces does not populate these."
-      case i if i < 160 =>
-        "Runtime population requires piece activity, route, and ray sidecars; fromPieces does not populate these."
-      case i if i < 192 =>
-        "Runtime population requires tactical affordance plus SEE/legal replay sidecars; fromPieces does not populate these."
-      case i if i < 224 =>
-        "Runtime population requires plan affordance extractors; these are inputs, not priors."
-      case i if i < 240 =>
-        "Runtime population requires owner, anchor, route, source, engine, and replay proof sidecars."
-      case _ =>
-        "Runtime population requires ray, line proof, source, evidence, and public pressure sidecars."
+    if SplitScalarIndices.contains(index) then
+      "Closed broad slot: it may re-enter only as smaller exact chess facts with their own law."
+    else if CutScalarIndices.contains(index) then
+      "Closed cut slot: BoardMood does not carry this as live chess fact."
+    else
+      index match
+        case i if i < 16 =>
+          "Runtime population requires RootStateVector plus legal replay position header; fromPieces is scaffold-only for basic slots."
+        case i if i < 32 =>
+          "Runtime population requires exact-board material extraction; fromPieces is scaffold-only for counts/material."
+        case i if i < 64 =>
+          "Runtime population requires legal move, attack, and control sidecars; fromPieces does not populate these."
+        case i if i < 96 =>
+          "Runtime population requires king safety plus legal escape and attack sidecars; fromPieces does not populate these."
+        case i if i < 128 =>
+          "Runtime population requires pawn structure sidecars over exact board root atoms; fromPieces does not populate these."
+        case i if i < 160 =>
+          "Runtime population requires piece activity, route, and ray sidecars; fromPieces does not populate these."
+        case i if i < 192 =>
+          "Runtime population requires tactical affordance plus SEE/legal replay sidecars; fromPieces does not populate these."
+        case i if i < 224 =>
+          "Runtime population requires plan affordance extractors; these are inputs, not priors."
+        case i if i < 240 =>
+          "Runtime population requires owner, anchor, route, source, engine, and replay proof sidecars."
+        case _ =>
+          "Runtime population requires ray, line proof, source, evidence, and public pressure sidecars."
 
   private def scalarFailClosed(index: Int): String =
-    index match
-      case i if i < 224 =>
-        "Missing or stale source writes 0 and must not become public proof by itself."
-      case _ =>
-        "Missing sidecar proof writes 0 and must block or down-rank public claims."
+    if SplitScalarIndices.contains(index) then
+      "Always writes 0 until replaced by smaller exact chess facts; broad values must stay silent."
+    else if CutScalarIndices.contains(index) then
+      "Always writes 0; this slot has no live BoardMood meaning."
+    else
+      index match
+        case i if i < 224 =>
+          "Missing or stale source writes 0 and must not become public proof by itself."
+        case _ =>
+          "Missing sidecar proof writes 0 and must block or down-rank public claims."
 
   private def rootColor(side: Side) =
     side match
@@ -571,12 +611,19 @@ object BoardMood:
     // it is not proof authority and does not validate move replay.
     (facts.sideToMove == Side.White || facts.sideToMove == Side.Black) &&
       facts.root.activeIndices.nonEmpty &&
+      facts.sameBoardReady &&
       facts.header.sane &&
       facts.sideLegal.sane &&
       facts.rivalLegal.sane &&
       facts.control.sane &&
       facts.material.sane &&
       facts.pawns.sane
+
+  private def canonicalScalarInput(values: Vector[Int]): Vector[Int] =
+    require(values.size == Scalars, s"scalars needs $Scalars slots")
+    values.zipWithIndex.map:
+      case (_, index) if ClosedScalarIndices.contains(index) => 0
+      case (value, _)                                       => value
 
   private def putPieces(prefix: String, pieces: Pieces, put: (String, Int) => Unit): Unit =
     put(s"${prefix}_pawn_count", pieces.pawns)
@@ -585,6 +632,121 @@ object BoardMood:
     put(s"${prefix}_rook_count", pieces.rooks)
     put(s"${prefix}_queen_count", pieces.queens)
     put(s"${prefix}_king_count", pieces.kings)
+
+  private final case class RoleMobility(
+      pawns: Int = 0,
+      knights: Int = 0,
+      bishops: Int = 0,
+      rooks: Int = 0,
+      queens: Int = 0,
+      kings: Int = 0
+  ):
+    def +(piece: Piece, destinations: Long): RoleMobility =
+      val count = java.lang.Long.bitCount(destinations)
+      piece.man match
+        case Man.Pawn   => copy(pawns = pawns + count)
+        case Man.Knight => copy(knights = knights + count)
+        case Man.Bishop => copy(bishops = bishops + count)
+        case Man.Rook   => copy(rooks = rooks + count)
+        case Man.Queen  => copy(queens = queens + count)
+        case Man.King   => copy(kings = kings + count)
+
+    def scalars: Vector[Int] = Vector(pawns, knights, bishops, rooks, queens, kings)
+
+  private final case class SideMobility(mobility: RoleMobility, safeMobility: RoleMobility)
+  private final case class MobilityBySide(white: SideMobility, black: SideMobility)
+
+  private def mobilityFromPieces(pieces: Vector[Piece], control: Control): MobilityBySide =
+    val occupied = pieces.foldLeft(0L): (mask, piece) =>
+      mask | piece.square.bit
+    val whiteOccupied = occupiedBy(pieces, Side.White)
+    val blackOccupied = occupiedBy(pieces, Side.Black)
+
+    def sideMobility(side: Side, ownOccupied: Long, opponentControl: Long): SideMobility =
+      pieces
+        .filter(_.side == side)
+        .foldLeft(SideMobility(RoleMobility(), RoleMobility())): (summary, piece) =>
+          val destinations = mobilityMask(piece, occupied, ownOccupied)
+          val safeDestinations = destinations & ~opponentControl
+          SideMobility(
+            mobility = summary.mobility.+(piece, destinations),
+            safeMobility = summary.safeMobility.+(piece, safeDestinations)
+          )
+
+    MobilityBySide(
+      white = sideMobility(Side.White, whiteOccupied, control.black.controlledMask),
+      black = sideMobility(Side.Black, blackOccupied, control.white.controlledMask)
+    )
+
+  private def occupiedBy(pieces: Vector[Piece], side: Side): Long =
+    pieces.foldLeft(0L): (mask, piece) =>
+      if piece.side == side then mask | piece.square.bit else mask
+
+  private def mobilityMask(piece: Piece, occupied: Long, ownOccupied: Long): Long =
+    piece.man match
+      case Man.Pawn => pawnMobilityMask(piece, occupied, ownOccupied)
+      case Man.Knight =>
+        leaperMask(piece.square, Vector((1, 2), (2, 1), (2, -1), (1, -2), (-1, -2), (-2, -1), (-2, 1), (-1, 2))) &
+          ~ownOccupied
+      case Man.Bishop => sliderMask(piece.square, occupied, Vector((1, 1), (1, -1), (-1, 1), (-1, -1))) & ~ownOccupied
+      case Man.Rook   => sliderMask(piece.square, occupied, Vector((1, 0), (-1, 0), (0, 1), (0, -1))) & ~ownOccupied
+      case Man.Queen =>
+        sliderMask(
+          piece.square,
+          occupied,
+          Vector((1, 1), (1, -1), (-1, 1), (-1, -1), (1, 0), (-1, 0), (0, 1), (0, -1))
+        ) & ~ownOccupied
+      case Man.King =>
+        leaperMask(piece.square, Vector((1, 1), (1, 0), (1, -1), (0, 1), (0, -1), (-1, 1), (-1, 0), (-1, -1))) &
+          ~ownOccupied
+
+  private def pawnMobilityMask(piece: Piece, occupied: Long, ownOccupied: Long): Long =
+    val direction = if piece.side == Side.White then 1 else -1
+    val forward =
+      target(piece.square, 0, direction)
+        .filter(square => (square.bit & occupied) == 0L)
+        .fold(0L)(_.bit)
+    val diagonals =
+      Vector(-1, 1).foldLeft(0L): (mask, fileDelta) =>
+        target(piece.square, fileDelta, direction)
+          .filter(square => (square.bit & ownOccupied) == 0L)
+          .fold(mask)(square => mask | square.bit)
+    forward | diagonals
+
+  private def leaperMask(square: Square, deltas: Vector[(Int, Int)]): Long =
+    deltas.foldLeft(0L): (mask, delta) =>
+      target(square, delta._1, delta._2).fold(mask)(targetSquare => mask | targetSquare.bit)
+
+  private def sliderMask(square: Square, occupied: Long, directions: Vector[(Int, Int)]): Long =
+    directions.foldLeft(0L): (mask, direction) =>
+      mask | rayMask(square, occupied, direction._1, direction._2)
+
+  private def rayMask(square: Square, occupied: Long, fileDelta: Int, rankDelta: Int): Long =
+    def loop(file: Int, rank: Int, mask: Long): Long =
+      if file < 0 || file >= 8 || rank < 0 || rank >= 8 then mask
+      else
+        val targetSquare = Square.fromIndex(rank * 8 + file)
+        val nextMask = mask | targetSquare.bit
+        if (targetSquare.bit & occupied) != 0L then nextMask
+        else loop(file + fileDelta, rank + rankDelta, nextMask)
+    loop(square.file + fileDelta, square.rank + rankDelta, 0L)
+
+  private def target(square: Square, fileDelta: Int, rankDelta: Int): Option[Square] =
+    val file = square.file + fileDelta
+    val rank = square.rank + rankDelta
+    Option.when(file >= 0 && file < 8 && rank >= 0 && rank < 8)(Square.fromIndex(rank * 8 + file))
+
+  private def putMobility(
+      prefix: String,
+      mobility: RoleMobility,
+      safe: Boolean,
+      put: (String, Int) => Unit
+  ): Unit =
+    val suffix = if safe then "safe_mobility" else "mobility"
+    Vector("pawn", "knight", "bishop", "rook", "queen", "king")
+      .zip(mobility.scalars)
+      .foreach: (role, value) =>
+        put(s"${prefix}_${role}_$suffix", value)
 
   private def putPawns(prefix: String, pawns: PawnSide, put: (String, Int) => Unit): Unit =
     val names = Vector(
