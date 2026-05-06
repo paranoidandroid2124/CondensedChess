@@ -74,7 +74,7 @@ Implementation must open in this order only:
 Do not implement downstream product stages before earlier authority stages are
 proven.
 
-Current implementation scope is Stage 5 Closeout Pass.
+Current implementation scope is Stage 6 Closeout Pass.
 Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
 Story are prerequisites. Stage 3 remains open only for Material proof kernel,
 `Tactic.Hanging`, and Hanging negative corpus. Stage 4 opens only
@@ -87,8 +87,36 @@ those rows only. Stage 5-2 fixes deterministic ordering inputs for those
 StoryTable rows. Stage 5-3 tightens close Hanging blockers and context
 relations for those StoryTable rows. Stage 5-4 keeps Verdict diagnostics out
 of public numeric values and downstream public surfaces. Stage 5 closeout
-confirms Story ordering only and selected-Verdict handoff only; Stages 6-11
-remain a dependency map, not permission to open those systems.
+confirmed Story ordering only and selected-Verdict handoff only. Stage 6-0
+opens only the Explanation Plan charter and selected-Verdict speech boundary.
+Stage 6 is named `Explanation Plan`; docs may also say `Explanation IR` when
+describing the downstream data shape. Stage 6-0 does not write sentences or
+open renderer, LLM, public route `200`, pedagogy, a new Story family, or
+engine explanation. Stage 6-1 opens only the Explanation Plan shape for one
+selected `Tactic.Hanging` Lead Verdict. `allowedClaim` stays a structured key
+such as `can_win_piece`; the first shape carries `bounded` strength and
+forbidden wording, not public prose. Stage 6-2 opens only `Tactic.Hanging`
+allowed claim mapping. Uncapped Lead Verdict only may carry an allowed claim
+key. Support, Context, Blocked, and engine-capped Verdicts do not create
+standalone public claims; `engineStrengthLimited` suppresses claim keys and
+strengthens forbidden wording. Stage 6-3 opens only forbidden wording
+boundary. Explanation Plan must carry the default forbidden wording set.
+`Tactic.Hanging` remains bounded material tactic wording only, and
+`engineStrengthLimited` strengthens forbidden wording without carrying a claim.
+Stage 6-4 opens only Support and Context relation structure. Uncapped Lead
+only carries an allowed claim. Support and Context create no standalone public
+claim. Blocked remains debug-only relation structure, and proofFailures do not
+feed relation wording.
+Stage 6-5 opens only the selected Verdict input guard. Explanation Plan accepts
+selected Verdict only. Raw BoardFacts, BoardMood, root atoms, CaptureResult,
+EngineCheck, EngineEval, EngineLine, raw PV, proofFailures text, unselected
+Story, unselected Verdict, and source rows remain forbidden inputs.
+Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
+engine-capped, and engine-refuted Verdicts create no allowed claim or public
+claim. Stage 7 deterministic renderer may receive Explanation Plan only and
+must not read raw Verdict, EngineCheck, CaptureResult, Board Facts, BoardMood,
+raw PV, proofFailures text, source rows, or raw engine evidence directly.
+Stages 7-11 remain a dependency map, not permission to open those systems.
 
 `StoryInteractionLaw.md` is the single live authority for the Stage 3 charter.
 All other documents may summarize scope, but must not create a second Stage 3
@@ -144,6 +172,55 @@ closed as StoryTable ordering only, with no new chess meaning, no downstream
 public surface, and Stage 6 limited to selected Verdict handoff rather than raw
 facts or engine sidecars.
 
+`StoryInteractionLaw.md` is the single live authority for the Stage 6 charter.
+All other documents may summarize scope, but must not create a second Stage 6
+rule text. Stage 6 is named `Explanation Plan`, with `Explanation IR`
+permitted as a parenthetical data-shape label. Stage 6-0 receives selected `Verdict` data only;
+it may bound claim, evidence, strength, role, support/context relation, and
+forbidden wording. Raw Board Facts, raw
+BoardMood, root atoms, `CaptureResult`, `EngineCheck`, `EngineEval`,
+`EngineLine`, raw PV, proofFailures text, source rows, renderer wording, and
+LLM wording remain forbidden inputs. Deterministic renderer, LLM narration,
+public route `200`, user-facing prose, pedagogy, new Story families, and engine
+explanation remain closed.
+Stage 6-1 may summarize only that one selected `Tactic.Hanging` Lead Verdict
+can become an internal `ExplanationPlan` shape with role, scene, tactic, side,
+target, anchor, route, allowedClaim, evidenceLine, strength,
+forbiddenWording, and empty supportContextLinks. `allowedClaim` stays a
+structured key such as `can_win_piece`; the first shape carries `bounded`
+strength and forbidden wording, not public prose. Full sentence generation,
+user-facing prose, `engine says`, best move, winning, decisive, and public eval
+remain closed.
+Stage 6-2 may summarize only that uncapped `Tactic.Hanging` Lead Verdicts can
+carry a safe allowed claim key, while Support, Context, Blocked, and
+engine-capped Verdicts create no standalone public claim.
+`engineStrengthLimited` suppresses claim keys and tightens forbidden wording;
+it must not expose engine approval, best-move, winning, decisive, forced-win,
+no-counterplay, or blunder claims.
+Stage 6-3 may summarize only that Explanation Plan carries a default forbidden
+wording set for downstream renderer and LLM layers. `Tactic.Hanging` remains
+bounded material tactic wording only. `engineStrengthLimited` strengthens
+forbidden wording; it creates no engine approval, best-move, only-move,
+winning, decisive, forced, no-counterplay, strategic, conversion, king-safety,
+file-control, outpost, or mate-net claim.
+Stage 6-4 may summarize only that Support and Context enter Explanation Plan
+as structured relations to the Lead. The allowed relation keys are
+`same_family_lower_rank`, `alternative_hanging_candidate`, `capped_same_story`,
+and `blocked_by_engine_refute`. Support, Context, and Blocked create no
+standalone public claim. Blocked remains debug-only relation structure, and
+proofFailures text must not become relation wording.
+Stage 6-5 may summarize only that Explanation Plan receives selected Verdict
+only. It must not accept raw BoardFacts, BoardMood, root atoms, CaptureResult,
+EngineCheck, EngineEval, EngineLine, raw PV, proofFailures text, unselected
+Story, unselected Verdict, or source rows. It creates no chess meaning beyond
+the selected Verdict.
+Stage 6 closeout also lives there; other documents may summarize only that
+Stage 6 closes with Explanation Plan only, no renderer/LLM/public route or
+pedagogy opening, no duplicated StoryTable/Verdict/EngineCheck/CaptureResult
+authority, no allowed claim for Blocked, Support, Context, engine-capped, or
+engine-refuted Verdicts, and Stage 7 deterministic renderer may receive
+Explanation Plan only.
+
 Forbidden dependency shortcuts:
 
 - Renderer before Story proof sidecar is forbidden.
@@ -169,15 +246,16 @@ Forbidden dependency shortcuts:
 - Proof no-go: missing side, target, anchor, route, rival, required legal line,
   or same-root proof sidecar is a hard public-output block, not weak scoring or
   renderer repair.
-- No renderer opening: templates and LLM renderers may verbalize selected
-  `Verdict` data only after prerequisite laws and tests exist; they cannot
-  repair, upgrade, or invent chess meaning.
-- Stage 5 Story Order scope only: do not implement `Tactic.Fork`,
-  `Scene.Material`, `Scene.Defense`, Plan, Strategy, King attack, Conversion,
-  Blunder, pedagogical advice, Explanation IR, engine PV commentary, best-move
-  explanation, renderer opening, LLM narration, public commentary route `200`,
-  broad scalar re-entry, source/engine public-truth paths, or CTH-style family
-  exceptions.
+- No renderer opening: deterministic templates and LLM renderers remain closed.
+  They may verbalize selected Explanation Plan data only after prerequisite
+  laws and tests exist; they cannot repair, upgrade, or invent chess meaning.
+- Stage 6 Closeout Explanation Plan scope only: do not implement deterministic
+  renderer, LLM narration, public route `200`, user-facing prose, pedagogy,
+  new Story families, engine explanation, `Tactic.Fork`, `Scene.Material`,
+  `Scene.Defense`, Plan, Strategy, King attack, Conversion, Blunder, engine PV
+  commentary, best-move explanation, broad scalar re-entry,
+  source/engine public-truth paths, or CTH-style family exceptions. Stage 7
+  deterministic renderer may later receive Explanation Plan only.
 - Story Order no-go: StoryTable may order existing `Tactic.Hanging` Story rows
   into roles, but it must not create a Story, open a new positive
   family, or promote engine eval, Board Facts, or `CaptureResult` into direct

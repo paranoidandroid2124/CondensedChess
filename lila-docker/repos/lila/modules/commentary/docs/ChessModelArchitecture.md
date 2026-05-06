@@ -9,7 +9,11 @@ The current checkpoint covers board truth, primitive board geometry, Stage 1
 board facts, Stage 2 Story Proof, Stage 3 first narrow positive Story, and
 Stage 4 Engine Check closeout, Stage 5-1 Hanging Role Rules, Stage 5-2
 Deterministic Ordering, Stage 5-3 Conflict and Block Rules, Stage 5-4
-Verdict Diagnostic Boundary, and Stage 5 Closeout Pass. It is
+Verdict Diagnostic Boundary, Stage 5 Closeout Pass, Stage 6-0 Explanation Plan
+Charter, Stage 6-1 Explanation Plan Shape, Stage 6-2 Tactic.Hanging Allowed
+Claim Mapping, Stage 6-3 Forbidden Wording Boundary, Stage 6-4 Support /
+Context Relation, Stage 6-5 Selected Verdict Only Guard, and Stage 6 Closeout
+Pass. It is
 intentionally not a full product
 commentary backend.
 
@@ -19,9 +23,9 @@ renderer openings remain downstream of proof-backed Stories.
 
 The current branch owns only:
 
-`Board Truth / Primitive Geometry / Story boundary / Verdict boundary`
+`Board Truth / Primitive Geometry / Story boundary / Verdict boundary / Explanation Plan boundary`
 
-Current implementation scope is Stage 5 Closeout Pass.
+Current implementation scope is Stage 6 Closeout Pass.
 Stage 3 remains open only for Material proof kernel, `Tactic.Hanging`, and
 Hanging negative corpus. Stage 4 is named `Engine Check`. Stage 4 opens only
 `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board
@@ -33,8 +37,34 @@ Context, and Blocked roles inside that Hanging-only slice. Stage 5-2 fixes
 deterministic ordering inputs for those rows. Stage 5-3 tightens close
 blockers and context relations for those rows. Stage 5-4 keeps Verdict
 diagnostics out of public numeric values and downstream public surfaces. Stage
-5 closeout confirms Story ordering only and selected-Verdict handoff only.
-Stages 6-11 below are a dependency map for product design; they are not
+5 closeout confirmed Story ordering only and selected-Verdict handoff only.
+Stage 6-0 opens only the Explanation Plan charter and selected-Verdict speech
+boundary; it does not open sentences, renderer, LLM, public route `200`,
+pedagogy, new Story families, or engine explanation. Stage 6-1 opens only the
+Explanation Plan shape for one selected `Tactic.Hanging` Lead Verdict.
+`allowedClaim` stays a structured key such as `can_win_piece`; the first shape
+carries `bounded` strength and forbidden wording, not public prose. Stage 6-2
+opens only `Tactic.Hanging` allowed claim mapping. Uncapped Lead Verdict only
+may carry an allowed claim key. Support, Context, Blocked, and engine-capped
+Verdicts do not create standalone public claims. `engineStrengthLimited`
+suppresses claim keys and strengthens forbidden wording. Stage 6-3 opens only
+forbidden wording boundary. Explanation Plan must carry the default forbidden
+wording set. `Tactic.Hanging` remains bounded material tactic wording only,
+and `engineStrengthLimited` strengthens forbidden wording without carrying a
+claim. Stage 6-4 opens only Support and Context relation structure. Uncapped
+Lead only carries an allowed claim. Support and Context create no standalone
+public claim. Blocked remains debug-only relation structure, and proofFailures
+do not feed relation wording.
+Stage 6-5 opens only the selected Verdict input guard. Explanation Plan accepts
+selected Verdict only. Raw BoardFacts, BoardMood, root atoms, CaptureResult,
+EngineCheck, EngineEval, EngineLine, raw PV, proofFailures text, unselected
+Story, unselected Verdict, and source rows remain forbidden inputs.
+Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
+engine-capped, and engine-refuted Verdicts create no allowed claim or public
+claim. Stage 7 deterministic renderer may receive Explanation Plan only and
+must not read raw Verdict, EngineCheck, CaptureResult, Board Facts, BoardMood,
+raw PV, proofFailures text, source rows, or raw engine evidence directly.
+Stages 7-11 below are a dependency map for product design; they are not
 permission to implement those systems in this checkpoint.
 
 Product north-star philosophy:
@@ -98,9 +128,11 @@ public-meaning unit, `StoryTable` decides roles and lead eligibility, and
 Stages open in this order only. Do not implement downstream product stages
 before earlier authority stages are proven.
 
-Only Stage 5 Closeout Pass is active implementation authority now, and only
-for existing `Tactic.Hanging` Story rows. Stages 6-11 are
-dependency-map-only and stay closed until their predecessor exits are proven.
+Only Stage 6 Closeout Pass is active implementation authority now, and only
+for selected Verdict input and closeout boundaries in Explanation Plan.
+Stages 7-11
+are dependency-map-only and stay closed until their predecessor exits are
+proven.
 
 Dependency order:
 
@@ -124,7 +156,7 @@ Dependency order:
 | 3 First Narrow Positive Story | Exactly one positive Story family at a time, with Material proof kernel as sub-proof only. | Complete Stage 2 sidecar, same-root legal replay, named writer, and family-specific proof. | Complete StoryProof opening a family, family piggybacking, renderer, LLM, public route `200`, or broad strategic family before tactical/material proof. | One narrow Hanging Story can speak with proof; close false positives stay silent. | Missing target, attack, legal capture, defender, recapture, positive bounded material result or SEE, same-board proof, named writer, or legal replay. |
 | 4 Engine Check | Engine evidence attached to identified Story. | A Story already exists with identity and legal line. | Engine eval/PV/best move as explanation, strategy, or pedagogy by itself. | Engine supports, caps, or refutes the Story without speaking alone. | Missing same-board proof, checked move, engine line, reply line, eval before, eval after, depth or freshness, or fresh engine evidence. |
 | 5 Story Order | Lead/support/context/blocked roles across existing Story rows, first scoped to `Tactic.Hanging`. | Multiple proof-backed Hanging Stories and Stage 4 EngineCheck diagnostics. | New Story creation, new positive family, engine eval as ranking truth, Board Facts direct public claim, `CaptureResult` public material story, pedagogy, Explanation IR, renderer, LLM, public route. | `StoryTable` deterministically decides Hanging roles without creating new chess meaning or a new public claim. | Missing role policy, blocker, cap, deterministic tie-break, or same Story row proof. |
-| 6 Explanation IR | Renderer-safe language-neutral explanation payload. | Selected Verdicts with allowed claims and evidence. | Raw `BoardMood`, root atom, source row, or engine eval read by IR. | IR lists allowed claim, evidence, strength, role, support/context relation, and forbidden wording. | Missing allowed claim, evidence line, strength, role, relationship, or forbidden wording. |
+| 6 Explanation Plan (Explanation IR) | Renderer-safe language-neutral speech bounds. | Selected Verdict data only. | Raw Board Facts, raw `BoardMood`, root atoms, capture evidence, engine sidecars, raw PV, proofFailures text, source rows, renderer wording, or LLM wording read by the plan. | The plan lists allowed claim, evidence, strength, role, support/context relation, and forbidden wording without writing sentences. | Missing allowed claim, evidence line, strength, role, relationship, or forbidden wording. |
 | 7 Deterministic Renderer | Template baseline over Explanation IR. | Explanation IR is complete and renderer-safe. | Natural language that exceeds IR or repairs missing proof. | Deterministic text is no stronger than IR. | Missing template boundary, unsupported phrase, or unrepresented claim. |
 | 8 LLM Narration | Wording, tone, level adjustment, compression. | Deterministic renderer baseline and safe IR. | New move, tactic, plan, causal explanation, evaluation, line, or claim strength. | LLM output verbalizes only allowed claims. | Unsupported chess fact, strengthened wording, or invented line. |
 | 9 Natural-Language Verifier | Claim extraction and rejection over rendered text. | IR and rendered text are available for comparison. | Accepting stronger natural language than IR. | Verifier rejects mate/win/only-move/tactic/plan/source claims without matching proof. | Extracted claim exceeds allowed claim, evidence, role, or strength. |
@@ -280,29 +312,72 @@ Stage 5 closeout confirms Story ordering only. Stage 6 may consume selected
 Verdict data only; raw Board Facts, CaptureResult, EngineCheck, engine eval,
 and PV text stay behind Stage 5's selected Verdict boundary.
 
-### Stage 6 - Explanation IR
+### Stage 6 - Explanation Plan (Explanation IR)
 
-Goal: convert selected Verdicts into a renderer-safe language-neutral
-explanation payload.
+Goal: convert selected Verdicts into renderer-safe language-neutral speech
+bounds.
 
-Explanation IR may include allowed claim, allowed evidence line, allowed
-strength, forbidden wording, user-facing role, and support/context
-relationship from selected Verdict data. It must not read raw `BoardMood`, root
-atoms, source rows, capture evidence, engine sidecars, or engine eval directly.
+`StoryInteractionLaw.md` owns the Stage 6 charter.
+Stage 6 is named `Explanation Plan`; `Explanation IR` is a permitted
+parenthetical label for the data shape. Stage 6-0 is not natural-language work.
+It may include allowed claim, allowed evidence line, allowed strength, role,
+forbidden wording, and support/context relationship from selected Verdict data.
+It must not read raw Board Facts, raw `BoardMood`, root atoms, source rows,
+capture evidence, EngineCheck, EngineEval, EngineLine, raw PV, proofFailures
+text, renderer wording, or LLM wording directly.
 
-Pedagogy is backend policy over selected proof-backed `Verdict` data.
-Explanation IR may carry backend-owned instructional emphasis only after causal
-arbitration. Renderer and LLM layers may not choose that emphasis or turn
-observations into advice.
+Stage 6-0 does not open deterministic renderer, LLM narration, public route
+`200`, user-facing prose, pedagogy, new Story families, or engine explanation.
+Renderer and LLM layers remain downstream and may not turn observations into
+advice.
+
+Stage 6-1 adds the first internal `ExplanationPlan` shape. The first scope
+accepts exactly one selected `Tactic.Hanging` Lead Verdict and produces role,
+scene, tactic, side, target, anchor, route, allowedClaim, evidenceLine,
+strength, forbiddenWording, and empty supportContextLinks. `allowedClaim` stays
+a structured key such as `can_win_piece`; the first shape carries `bounded`
+strength and forbidden wording, not public prose. It does not generate full
+sentences, user-facing prose, engine-says wording, best-move wording, winning
+wording, decisive wording, or public eval.
+
+Stage 6-2 adds `Tactic.Hanging` allowed claim mapping only. Uncapped Lead
+Verdict only may carry an allowed claim key. Support, Context, Blocked, and
+engine-capped Verdicts do not create standalone public claims.
+`engineStrengthLimited` suppresses claim keys, strengthens forbidden wording,
+and creates no engine-approved, best-move, winning, decisive, forced,
+no-counterplay, or blunder claim.
+
+Stage 6-3 adds forbidden wording boundary only. Explanation Plan must carry the
+default forbidden wording set for downstream renderer and LLM layers.
+`Tactic.Hanging` remains bounded material tactic wording only.
+`engineStrengthLimited` strengthens forbidden wording without carrying a claim.
+
+Stage 6-4 adds Support and Context relation structure only. Lead only carries
+an allowed claim only when uncapped. Support, Context, Blocked, and
+engine-capped Verdicts create no standalone public claim. Blocked remains
+debug-only relation structure, and proofFailures do not feed relation wording.
+
+Stage 6-5 adds the selected Verdict input guard only. Explanation Plan accepts
+selected Verdict only and creates no chess meaning beyond that Verdict. Raw
+proof material, unselected Story, unselected Verdict, source rows, and
+proofFailures text remain outside its input boundary.
+
+Stage 6 closeout confirms Explanation Plan only. It opens no deterministic
+renderer, LLM narration, public route, user-facing prose, or pedagogy. Stage 7
+deterministic renderer may receive Explanation Plan only and must not read raw
+Verdict, EngineCheck, CaptureResult, Board Facts, BoardMood, raw PV,
+proofFailures text, source rows, or raw engine evidence directly.
 
 ### Stage 7 - Deterministic Renderer
 
 Goal: provide a template baseline over Explanation IR before LLM narration.
 
-The deterministic renderer may verbalize selected Verdict or Explanation IR
-only. It must not create chess meaning, repair missing proof, upgrade claim
-strength, infer new tactics, infer new plans, or reinterpret source or engine
-context as truth. Its text must be no stronger than the IR.
+The deterministic renderer may receive Explanation Plan only. It must not read
+raw Verdict, EngineCheck, CaptureResult, Board Facts, BoardMood, raw PV,
+proofFailures text, source rows, or raw engine evidence directly. It must not
+create chess meaning, repair missing proof, upgrade claim strength, infer new
+tactics, infer new plans, or reinterpret source or engine context as truth. Its
+text must be no stronger than the IR.
 
 ### Stage 8 - LLM Narration
 
@@ -326,6 +401,7 @@ claims that override board truth.
 Goal: choose level-aware teaching emphasis over proof-backed, causally
 arbitrated Verdicts.
 
+Pedagogy is backend policy over selected proof-backed `Verdict` data.
 Pedagogical policy depends on causal arbitration and verifier-safe language. It
 may adapt explanation level, but it must not change chess truth or promote
 context/observation rows into advice.

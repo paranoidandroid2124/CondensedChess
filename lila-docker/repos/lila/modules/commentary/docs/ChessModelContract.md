@@ -58,6 +58,24 @@ Stage 5-4 Verdict Diagnostic Boundary is also owned by `StoryInteractionLaw.md`;
 this contract records only the Verdict diagnostic shape boundary.
 Stage 5 closeout is also owned by `StoryInteractionLaw.md`; this contract
 records only the selected-Verdict handoff boundary.
+`StoryInteractionLaw.md` owns the Stage 6 charter. This contract records only
+the selected-Verdict input boundary for Explanation Plan data. Stage 6-0
+admits no new core type, row, Story family, renderer input, LLM input, public
+route payload, engine explanation, or raw evidence handoff.
+Stage 6-1 Explanation Plan Shape is also owned by `StoryInteractionLaw.md`;
+this contract records only the internal shape names.
+Stage 6-2 Tactic.Hanging Allowed Claim Mapping is also owned by
+`StoryInteractionLaw.md`; this contract records only the claim-key boundary.
+Stage 6-3 Forbidden Wording Boundary is also owned by `StoryInteractionLaw.md`;
+this contract records only the forbidden-wording boundary.
+Stage 6-4 Support / Context Relation is also owned by `StoryInteractionLaw.md`;
+this contract records only the relation-key boundary.
+Stage 6-5 Selected Verdict Only Guard is also owned by
+`StoryInteractionLaw.md`; this contract records only the selected-Verdict input
+guard.
+Stage 6 closeout is also owned by `StoryInteractionLaw.md`; this contract
+records only that Explanation Plan closes without renderer, LLM, public route,
+pedagogy, or duplicated evidence/selection authority.
 
 Renderer, LLM narration, public route `200`, `/api/commentary/render`, and
 `/internal/commentary/render-local-probe` remain closed until their own
@@ -127,6 +145,11 @@ Allowed core names:
 - `TacticHanging`
 - `Verdict`
 - `StoryTable`
+- `ExplanationPlan`
+- `ExplanationClaim`
+- `ExplanationStrength`
+- `ExplanationRelation`
+- `ForbiddenWording`
 
 Forbidden in new core model names:
 
@@ -752,9 +775,41 @@ Lead fail-closed rules:
   proofFailures, EngineCheck diagnostics, and `engineStrengthLimited` remain
   internal; Verdict is not public text, and renderer, LLM, and public route
   remain closed.
-- Stage 5 closeout keeps the next boundary narrow: Explanation IR may receive
+- Stage 5 closeout keeps the next boundary narrow: Explanation Plan may receive
   selected Verdict data only, and must not directly consume raw Board Facts,
-  CaptureResult, EngineCheck, raw engine eval, or raw PV text.
+  raw BoardMood, root atoms, CaptureResult, EngineCheck, EngineEval,
+  EngineLine, raw PV text, proofFailures text, source rows, renderer wording,
+  or LLM wording.
+- Stage 6-0 records only selected-Verdict speech bounds. It may carry claim,
+  evidence, strength, role, support/context relation, and forbidden wording,
+  but it writes no sentence and opens no renderer, LLM, public route `200`,
+  pedagogy, new Story family, or engine explanation.
+- Stage 6-1 opens only the Explanation Plan shape for one selected
+  `Tactic.Hanging` Lead Verdict. `allowedClaim` stays a structured key such as
+  `can_win_piece`; the first shape carries `bounded` strength and forbidden
+  wording, not public prose.
+- Stage 6-2 opens only `Tactic.Hanging` allowed claim mapping. Uncapped Lead
+  Verdict only may carry an allowed claim key. Support, Context, Blocked, and
+  engine-capped Verdicts do not create standalone public claims.
+  `engineStrengthLimited` suppresses claim keys and strengthens forbidden
+  wording.
+- Stage 6-3 opens only forbidden wording boundary. Explanation Plan must carry
+  the default forbidden wording set. `Tactic.Hanging` remains bounded material
+  tactic wording only. `engineStrengthLimited` strengthens forbidden wording
+  without carrying a claim.
+- Stage 6-4 opens only Support and Context relation structure. Uncapped Lead
+  only carries an allowed claim. Support, Context, Blocked, and engine-capped
+  Verdicts create no standalone public claim. Blocked remains debug-only
+  relation structure, and proofFailures do not feed relation wording.
+- Stage 6-5 opens only the selected Verdict input guard. Explanation Plan
+  accepts selected Verdict only. It accepts no raw proof material, unselected
+  Story, unselected Verdict, source row, or proofFailures wording.
+- Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
+  engine-capped, and engine-refuted Verdicts create no allowed claim or public
+  claim. Stage 7 deterministic renderer may receive Explanation Plan only and
+  must not read raw Verdict, EngineCheck, CaptureResult, Board Facts,
+  BoardMood, raw PV, proofFailures text, source rows, or raw engine evidence
+  directly.
 - `ownerProof >= 70` requires `side` to be `White`, `Black`, or `Both`; `None`
   cannot lead.
 - `anchorProof >= 70` requires a concrete `anchor`.

@@ -400,6 +400,289 @@ Stage 5 closeout does not open Explanation IR, renderer, LLM, public route,
 pedagogical advice, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan,
 Strategy, engine PV commentary, or best-move explanation.
 
+## Stage 6 Charter
+
+Stage 6 name is `Explanation Plan`.
+
+Documents may write `Explanation IR` parenthetically when describing the
+renderer-safe data shape.
+
+Core sentence: Verdict decides. Explanation Plan bounds speech.
+
+Stage 6-0 fixes this charter before renderer or narration work. The goal is not
+natural language. The goal is to receive selected Verdict data and organize
+claim, evidence, strength, role, support/context relation, and forbidden
+wording that downstream stages may phrase only after their own contracts open.
+
+Allowed input:
+
+- selected Verdict
+- Verdict role
+- Verdict strength
+- Verdict story identity
+- Verdict scene / tactic
+- Verdict Lead, Support, Context, or Blocked state
+
+Forbidden input:
+
+- raw Board Facts
+- raw BoardMood
+- root atoms
+- `CaptureResult`
+- `EngineCheck`
+- `EngineEval`
+- `EngineLine`
+- raw PV
+- proofFailures text
+- source row
+- renderer wording
+- LLM wording
+
+Still closed:
+
+- deterministic renderer
+- LLM narration
+- public route `200`
+- user-facing prose
+- pedagogy
+- new Story family
+- engine explanation
+
+Explanation Plan must not decide, prove, rank, repair, or invent chess meaning.
+It may bound speech only from selected Verdict data. It must not read raw board
+facts, raw engine evidence, source rows, diagnostics, renderer wording, or LLM
+wording to expand that boundary.
+
+Stage 6-0 completion standard: Explanation Plan defines what may be said from
+the selected Verdict, but it writes no sentence.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 6 charter.
+Other live documents may summarize Stage 6 scope only.
+
+## Stage 6-1 Explanation Plan Shape
+
+Stage 6-1 goal: turn one selected Verdict into a small pre-speech plan.
+
+First scope handles exactly one `Tactic.Hanging` Lead Verdict.
+
+Allowed fields:
+
+- role
+- scene
+- tactic
+- side
+- target
+- anchor
+- route
+- allowedClaim
+- evidenceLine
+- strength
+- forbiddenWording
+- supportContextLinks
+
+`allowedClaim` is a structured claim key, not a natural-language sentence.
+The first live claim key is `can_win_piece`.
+The first live strength key is `bounded`.
+support/context links stay empty in the first scope.
+
+Stage 6-1 must not read raw Board Facts, raw BoardMood, root atoms,
+`CaptureResult`, `EngineCheck`, `EngineEval`, `EngineLine`, raw PV,
+proofFailures text, source rows, renderer wording, or LLM wording.
+
+Still closed:
+
+- full sentence generation
+- user-facing prose
+- `engine says`
+- best move
+- winning
+- decisive
+- public eval
+
+The first shape may bound only this claim: the selected side can win the named
+target piece along the selected route. It must not call the move free,
+blunder, winning, decisive, forced, best, engine-approved, or evaluated.
+
+## Stage 6-2 Tactic.Hanging Allowed Claim Mapping
+
+Stage 6-2 goal: define which claim keys a `Tactic.Hanging` Verdict may lower to.
+
+Allowed claim keys:
+
+- `can_win_piece`
+- `piece_can_be_taken_with_gain`
+- `capture_leaves_material_gain`
+
+Forbidden claim keys:
+
+- `free_piece`
+- `blunder`
+- `winning_tactic`
+- `decisive_tactic`
+- `forced_win`
+- `best_move`
+- `no_counterplay`
+- `engine_approved`
+
+Only uncapped Lead Verdict may carry an allowed claim key.
+Support and Context are not standalone claims.
+Blocked creates no allowed claim.
+`engineStrengthLimited` suppresses allowed claim keys and strengthens forbidden
+wording.
+
+`engineStrengthLimited` may add a strong-wording ban only from the selected
+Verdict. It must not expose `EngineCheck`, raw engine eval, raw PV, engine
+approval, best-move, winning, decisive, forced-win, no-counterplay, or blunder
+claims.
+
+Stage 6-2 completion standard: one selected uncapped `Tactic.Hanging` Lead
+Verdict may lower to a safe structured claim key. Other roles create no public
+claim.
+
+## Stage 6-3 Forbidden Wording Boundary
+
+Stage 6-3 goal: Explanation Plan carries forbidden wording that renderer or
+LLM layers must not say.
+
+Default forbidden wording:
+
+- `free piece`
+- `blunder`
+- `winning`
+- `decisive`
+- `forced`
+- `best move`
+- `only move`
+- `engine says`
+- `no counterplay`
+- `king unsafe`
+- `file control`
+- `outpost`
+- `strategic key`
+- `conversion`
+- `mate net`
+
+`Tactic.Hanging` first allowed claim remains bounded material tactic only.
+`engineStrengthLimited=true` strengthens the forbidden wording boundary.
+`engineStrengthLimited=true` carries no allowed claim key.
+Explanation Plan must make forbidden wording clearer than allowed speech.
+
+Stage 6-3 must not open renderer wording, LLM wording, public route `200`,
+user-facing prose, pedagogy, new Story families, engine explanation, engine
+approval, best-move explanation, strategic explanation, conversion advice, or
+king-safety claims.
+
+Stage 6-3 completion standard: Explanation Plan carries a stronger forbidden
+wording boundary than its allowed claim boundary. It still writes no sentence.
+
+## Stage 6-4 Support / Context Relation
+
+Stage 6-4 goal: carry Support and Context as structure-only relations inside
+Explanation Plan.
+
+Rules:
+
+- Uncapped Lead only carries an allowed claim.
+- Support carries relation to Lead only.
+- Context creates no public claim.
+- Blocked may enter Explanation Plan only as debug-only relation structure.
+- proofFailures must not feed Explanation Plan wording or relation text.
+
+Allowed relation keys:
+
+- `same_family_lower_rank`
+- `alternative_hanging_candidate`
+- `capped_same_story`
+- `blocked_by_engine_refute`
+
+Forbidden:
+
+- Support standalone sentence
+- Context standalone sentence
+- Blocked debug text as user explanation
+- proofFailures text as wording
+
+Stage 6-4 must not read proofFailures text, raw Board Facts, raw BoardMood,
+root atoms, `CaptureResult`, `EngineCheck`, `EngineEval`, `EngineLine`, raw
+PV, source rows, renderer wording, or LLM wording to create relation text.
+
+Stage 6-4 completion standard: Support and Context enter Explanation Plan only
+as relation structure. Uncapped Lead remains the only role with an allowed
+claim.
+
+## Stage 6-5 Selected Verdict Only Guard
+
+Stage 6-5 goal: Explanation Plan receives selected Verdict only.
+
+Allowed input:
+
+- selected Verdict only
+
+Forbidden input:
+
+- raw BoardFacts
+- BoardMood
+- root atoms
+- CaptureResult
+- EngineCheck
+- EngineEval
+- EngineLine
+- raw PV
+- proofFailures text
+- unselected Story
+- unselected Verdict
+- source row
+
+Explanation Plan must not expose overloads, constructors, fields, or relation
+text paths for raw proof material. It may read only the selected Verdict value
+and the fields already carried by that Verdict.
+
+Stage 6-5 completion standard: Explanation Plan does not read raw proof
+material directly. It creates no chess meaning beyond the selected Verdict.
+
+## Stage 6 Closeout
+
+Stage 6 closes with Explanation Plan only.
+
+Renderer, LLM, public route `200`, user-facing prose, and pedagogy remain
+closed.
+
+Explanation Plan creates no chess meaning. StoryTable and Verdict keep
+selection authority. `EngineCheck` and `CaptureResult` keep evidence authority.
+Explanation Plan must not duplicate their roles.
+
+Negative corpus:
+
+- Blocked, Support, Context, engine-capped, and engine-refuted Verdicts create
+  no allowed claim or public claim.
+- Engine-capped Verdicts may carry `capped_same_story` relation structure and
+  stronger forbidden wording only.
+- Engine-refuted Verdicts may carry debug-only `blocked_by_engine_refute`
+  relation structure only.
+- proofFailures text remains diagnostic only and must not become explanation
+  wording.
+
+Cleanup / consolidation:
+
+- No new Story family opens.
+- No renderer, LLM, public route, or pedagogy opens.
+- No new row or md authority is introduced by Stage 6 closeout.
+- Existing Explanation Plan type names remain shape names only; they do not
+  decide, prove, rank, repair, or invent.
+
+Next-stage handoff:
+
+- Stage 7 deterministic renderer may receive Explanation Plan only.
+- Stage 7 must not read raw Verdict, `EngineCheck`, `CaptureResult`, Board
+  Facts, BoardMood, raw PV, proofFailures text, source rows, or raw engine
+  evidence directly.
+- Stage 7 must not create chess meaning, repair missing proof, upgrade claim
+  strength, or open public route `200` without its own contract and tests.
+
+One chess meaning, one home.
+One rule, one live authority.
+Verdict decides. Explanation Plan bounds speech.
+
 ## Scene Law
 
 | scene | class | required support | blockers and caps | public wording |

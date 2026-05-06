@@ -314,7 +314,8 @@ final case class Verdict(
     // Internal diagnostics only. Verdict.values, renderer, and LLM inputs must not consume these.
     proofFailures: Vector[BoardFacts.MissingEvidence] = Vector.empty,
     engineCheckStatus: Option[EngineCheckStatus] = None,
-    engineStrengthLimited: Boolean = false
+    engineStrengthLimited: Boolean = false,
+    selected: Boolean = false
 ):
   def values: Vector[Double] =
     val data = Array.fill(Verdict.Size)(0.0)
@@ -398,7 +399,8 @@ object StoryTable:
           role = selectedRole,
           proofFailures = row.proofFailures,
           engineCheckStatus = row.story.engineCheck.map(_.status),
-          engineStrengthLimited = row.story.engineCheck.exists(_.status == EngineCheckStatus.Caps)
+          engineStrengthLimited = row.story.engineCheck.exists(_.status == EngineCheckStatus.Caps),
+          selected = true
         )
 
   private case class Row(

@@ -3290,6 +3290,368 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(withRefutingEngine.values, base.values)
     assertEquals(withStrengthLimit.values, base.values)
 
+  test("Stage 6-1 builds structured ExplanationPlan for selected Hanging Lead Verdict"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+
+    val plan = ExplanationPlan.fromSelected(verdict).get
+
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(plan.role, Role.Lead)
+    assertEquals(plan.scene, Scene.Tactic)
+    assertEquals(plan.tactic, Some(Tactic.Hanging))
+    assertEquals(plan.side, Side.White)
+    assertEquals(plan.target, Some(Square('e', 5)))
+    assertEquals(plan.anchor, Some(Square('d', 4)))
+    assertEquals(plan.route, Some(capture))
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.CanWinPiece))
+    assertEquals(plan.allowedClaim.map(_.key), Some("can_win_piece"))
+    assert(!plan.allowedClaim.exists(_.key.contains(" ")))
+    assertEquals(plan.evidenceLine, Some(capture))
+    assertEquals(plan.strength, ExplanationStrength.Bounded)
+    assertEquals(
+      plan.forbiddenWording.map(_.key),
+      Vector(
+        "free_piece",
+        "blunder",
+        "winning",
+        "decisive",
+        "forced",
+        "best_move",
+        "only_move",
+        "engine_says",
+        "no_counterplay",
+        "king_unsafe",
+        "file_control",
+        "outpost",
+        "strategic_key",
+        "conversion",
+        "mate_net"
+      )
+    )
+    assertEquals(plan.relations, Vector.empty)
+    assertEquals(plan.debugOnly, false)
+    assertEquals(plan.supportContextLinks, Vector.empty)
+
+  test("Stage 6-1 ExplanationPlan rejects non Hanging Verdicts"):
+    val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val left = TacticHanging.write(facts, Line(Square('d', 4), Square('c', 5))).get
+    val right = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
+    val supportVerdict = StoryTable.choose(Vector(left, right))(1)
+    val forgedForkLead = Verdict(
+      story = right.copy(tactic = Some(Tactic.Fork)),
+      rank = 1,
+      leadAllowed = true,
+      strength = 80.0,
+      role = Role.Lead
+    )
+    val publicSurfaceNames =
+      classOf[ExplanationPlan].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[ExplanationPlan].getDeclaredFields.map(_.getName).toSet
+
+    assertEquals(supportVerdict.role, Role.Support)
+    assertEquals(ExplanationPlan.fromSelected(forgedForkLead), None)
+    Vector("sentence", "prose", "engineCheck", "EngineEval", "proofFailures").foreach: forbiddenName =>
+      assert(!publicSurfaceNames.exists(_.toLowerCase.contains(forbiddenName.toLowerCase)))
+
+  test("Stage 6-2 maps Hanging Lead to safe allowed claim keys"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val allowedClaimKeys = ExplanationClaim.HangingAllowed.map(_.key)
+    val forbiddenClaimKeys = ExplanationClaim.HangingForbiddenKeys
+
+    assertEquals(
+      allowedClaimKeys,
+      Vector("can_win_piece", "piece_can_be_taken_with_gain", "capture_leaves_material_gain")
+    )
+    assertEquals(
+      forbiddenClaimKeys,
+      Vector(
+        "free_piece",
+        "blunder",
+        "winning_tactic",
+        "decisive_tactic",
+        "forced_win",
+        "best_move",
+        "no_counterplay",
+        "engine_approved"
+      )
+    )
+    assert(plan.allowedClaim.exists(claim => allowedClaimKeys.contains(claim.key)))
+    assert(!plan.allowedClaim.exists(claim => forbiddenClaimKeys.contains(claim.key)))
+
+  test("Stage 6-2 only Lead Verdict produces an allowed claim plan"):
+    val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val left = TacticHanging.write(facts, Line(Square('d', 4), Square('c', 5))).get
+    val right = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
+    val verdicts = StoryTable.choose(Vector(left, right))
+    val leadVerdict = verdicts.find(_.role == Role.Lead).get
+    val supportVerdict = verdicts.find(_.role == Role.Support).get
+    val contextVerdict = leadVerdict.copy(role = Role.Context, leadAllowed = false, rank = 3)
+    val blockedVerdict = leadVerdict.copy(role = Role.Blocked, leadAllowed = false, rank = 4)
+
+    assert(ExplanationPlan.fromSelected(leadVerdict).exists(plan => plan.allowedClaim.contains(ExplanationClaim.CanWinPiece)))
+    Vector(supportVerdict, contextVerdict, blockedVerdict).foreach: verdict =>
+      assertEquals(ExplanationPlan.fromSelected(verdict).flatMap(_.allowedClaim), None)
+
+  test("Stage 6-2 engineStrengthLimited suppresses claim and strengthens forbidden wording"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val plainVerdict = StoryTable.choose(Vector(story)).head
+    val check = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Caps
+    )
+    val capped = TacticHanging.withEngineCheck(story, check).get
+    val cappedVerdict = StoryTable.choose(Vector(capped)).head
+    val plainPlan = ExplanationPlan.fromSelected(plainVerdict).get
+    val cappedPlan = ExplanationPlan.fromSelected(cappedVerdict).get
+
+    assertEquals(cappedVerdict.engineStrengthLimited, true)
+    assertEquals(plainPlan.allowedClaim, Some(ExplanationClaim.CanWinPiece))
+    assertEquals(cappedPlan.allowedClaim, None)
+    assert(!plainPlan.forbiddenWording.map(_.key).contains("strong_wording"))
+    assert(cappedPlan.forbiddenWording.map(_.key).contains("strong_wording"))
+
+  test("Stage 6-3 gives ExplanationPlan a stronger forbidden wording boundary"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val forbiddenKeys = plan.forbiddenWording.map(_.key)
+
+    assertEquals(
+      ForbiddenWording.Basic.map(_.key),
+      Vector(
+        "free_piece",
+        "blunder",
+        "winning",
+        "decisive",
+        "forced",
+        "best_move",
+        "only_move",
+        "engine_says",
+        "no_counterplay",
+        "king_unsafe",
+        "file_control",
+        "outpost",
+        "strategic_key",
+        "conversion",
+        "mate_net"
+      )
+    )
+    assertEquals(forbiddenKeys, ForbiddenWording.Basic.map(_.key))
+    assert(forbiddenKeys.size > ExplanationClaim.HangingAllowed.size)
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.CanWinPiece))
+    assertEquals(plan.strength, ExplanationStrength.Bounded)
+
+  test("Stage 6-3 engineStrengthLimited adds strong wording prohibition without a claim"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val check = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Caps
+    )
+    val capped = TacticHanging.withEngineCheck(story, check).get
+    val cappedVerdict = StoryTable.choose(Vector(capped)).head
+    val cappedPlan = ExplanationPlan.fromSelected(cappedVerdict).get
+
+    assertEquals(cappedVerdict.engineStrengthLimited, true)
+    assertEquals(cappedPlan.allowedClaim, None)
+    assertEquals(
+      cappedPlan.forbiddenWording.map(_.key),
+      ForbiddenWording.Basic.map(_.key) :+ "strong_wording"
+    )
+
+  test("Stage 6-4 keeps Support and Context as relation-only plans"):
+    val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val left = TacticHanging.write(facts, Line(Square('d', 4), Square('c', 5))).get
+    val right = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
+    val verdicts = StoryTable.choose(Vector(left, right))
+    val leadVerdict = verdicts.find(_.role == Role.Lead).get
+    val supportVerdict = verdicts.find(_.role == Role.Support).get
+    val contextVerdict = leadVerdict.copy(role = Role.Context, leadAllowed = false, rank = 3)
+    val supportPlan = ExplanationPlan.fromSelected(supportVerdict).get
+    val contextPlan = ExplanationPlan.fromSelected(contextVerdict).get
+
+    assertEquals(ExplanationPlan.fromSelected(leadVerdict).flatMap(_.allowedClaim), Some(ExplanationClaim.CanWinPiece))
+    assertEquals(supportPlan.allowedClaim, None)
+    assertEquals(supportPlan.relations.map(_.key), Vector("same_family_lower_rank"))
+    assertEquals(supportPlan.debugOnly, false)
+    assertEquals(contextPlan.allowedClaim, None)
+    assertEquals(contextPlan.relations.map(_.key), Vector("alternative_hanging_candidate"))
+    assertEquals(contextPlan.debugOnly, false)
+
+  test("Stage 6-4 records capped and engine-refuted relations without proofFailure wording"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+
+    def checked(status: EngineCheckStatus) =
+      val check = EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(capture))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(20)),
+        evalAfter = Some(EngineEval(80)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+      TacticHanging.withEngineCheck(story, check).get
+
+    val cappedPlan =
+      ExplanationPlan.fromSelected(StoryTable.choose(Vector(checked(EngineCheckStatus.Caps))).head).get
+    val blockedVerdict = StoryTable.choose(Vector(checked(EngineCheckStatus.Refutes))).head.copy(
+      proofFailures = Vector(BoardFacts.MissingEvidence("Story Proof", Vector("must never become wording")))
+    )
+    val blockedPlan = ExplanationPlan.fromSelected(blockedVerdict).get
+    val publicSurfaceNames =
+      classOf[ExplanationPlan].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[ExplanationPlan].getDeclaredFields.map(_.getName).toSet
+
+    assertEquals(cappedPlan.allowedClaim, None)
+    assertEquals(cappedPlan.relations.map(_.key), Vector("capped_same_story"))
+    assertEquals(blockedPlan.allowedClaim, None)
+    assertEquals(blockedPlan.relations.map(_.key), Vector("blocked_by_engine_refute"))
+    assertEquals(blockedPlan.debugOnly, true)
+    Vector("proofFailures", "must never become wording", "debugText").foreach: forbiddenName =>
+      assert(!publicSurfaceNames.exists(_.toLowerCase.contains(forbiddenName.toLowerCase)))
+
+  test("Stage 6-5 ExplanationPlan accepts selected Verdict only"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val selectedVerdict = StoryTable.choose(Vector(story)).head
+    val unselectedVerdict = selectedVerdict.copy(selected = false)
+
+    assertEquals(selectedVerdict.selected, true)
+    assert(ExplanationPlan.fromSelected(selectedVerdict).exists(_.allowedClaim.contains(ExplanationClaim.CanWinPiece)))
+    assertEquals(ExplanationPlan.fromSelected(unselectedVerdict), None)
+    assertEquals(selectedVerdict.values, unselectedVerdict.values)
+
+  test("Stage 6-5 ExplanationPlan exposes no raw proof material input"):
+    val fromSelectedMethods =
+      ExplanationPlan.getClass.getDeclaredMethods.toVector.filter(_.getName == "fromSelected")
+    val fromSelectedParameterNames =
+      fromSelectedMethods
+        .flatMap(_.getParameterTypes.toVector)
+        .map(_.getName)
+        .mkString(" ")
+    val planSurfaceNames =
+      classOf[ExplanationPlan].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[ExplanationPlan].getDeclaredFields.map(_.getName).toSet
+
+    assertEquals(fromSelectedMethods.map(_.getParameterTypes.toVector.map(_.getSimpleName)), Vector(Vector("Verdict")))
+    Vector(
+      "BoardFacts",
+      "BoardMood",
+      "CaptureResult",
+      "EngineCheck",
+      "EngineEval",
+      "EngineLine",
+      "Story",
+      "String",
+      "Source"
+    ).foreach: forbiddenType =>
+      assert(!fromSelectedParameterNames.contains(forbiddenType), s"ExplanationPlan must not accept $forbiddenType")
+    Vector(
+      "boardFacts",
+      "boardMood",
+      "rootAtoms",
+      "captureResult",
+      "engineCheck",
+      "engineEval",
+      "engineLine",
+      "rawPv",
+      "proofFailures",
+      "sourceRow"
+    ).foreach: forbiddenName =>
+      assert(!planSurfaceNames.exists(_.toLowerCase.contains(forbiddenName.toLowerCase)))
+
+  test("Stage 6 closeout negative corpus creates no public claim outside uncapped Lead"):
+    val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val left = TacticHanging.write(facts, Line(Square('d', 4), Square('c', 5))).get
+    val right = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
+    val verdicts = StoryTable.choose(Vector(left, right))
+    val leadVerdict = verdicts.find(_.role == Role.Lead).get
+    val supportVerdict = verdicts.find(_.role == Role.Support).get
+    val contextVerdict = leadVerdict.copy(role = Role.Context, leadAllowed = false, rank = 3)
+    val blockedVerdict = leadVerdict.copy(role = Role.Blocked, leadAllowed = false, rank = 4)
+
+    def checked(status: EngineCheckStatus) =
+      val check = EngineCheck.fromStory(
+        facts = facts,
+        story = Some(right),
+        engineLine = Some(EngineLine(Vector(Line(Square('d', 4), Square('e', 5))))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(20)),
+        evalAfter = Some(EngineEval(80)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+      StoryTable.choose(Vector(TacticHanging.withEngineCheck(right, check).get)).head
+
+    val cappedVerdict = checked(EngineCheckStatus.Caps)
+    val refutedVerdict = checked(EngineCheckStatus.Refutes)
+    val negativePlans =
+      Vector(supportVerdict, contextVerdict, blockedVerdict, cappedVerdict, refutedVerdict)
+        .flatMap(ExplanationPlan.fromSelected)
+
+    assertEquals(ExplanationPlan.fromSelected(leadVerdict).flatMap(_.allowedClaim), Some(ExplanationClaim.CanWinPiece))
+    assertEquals(negativePlans.map(_.allowedClaim), Vector.fill(negativePlans.size)(None))
+    assert(negativePlans.exists(_.relations.contains(ExplanationRelation.CappedSameStory)))
+    assert(negativePlans.exists(_.relations.contains(ExplanationRelation.BlockedByEngineRefute)))
+    assertEquals(ExplanationPlan.fromSelected(refutedVerdict).map(_.debugOnly), Some(true))
+
+  test("Stage 6 closeout runtime surface stays pre-render"):
+    val fromSelectedMethods =
+      ExplanationPlan.getClass.getDeclaredMethods.toVector.filter(_.getName == "fromSelected")
+    val planSurfaceNames =
+      classOf[ExplanationPlan].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[ExplanationPlan].getDeclaredFields.map(_.getName).toSet
+
+    assertEquals(fromSelectedMethods.map(_.getParameterTypes.toVector.map(_.getSimpleName)), Vector(Vector("Verdict")))
+    Vector(
+      "render",
+      "renderer",
+      "llm",
+      "sentence",
+      "prose",
+      "publicRoute",
+      "pedagogy",
+      "engineExplanation",
+      "bestMove",
+      "engineEval",
+      "captureResult",
+      "boardFacts"
+    ).foreach: forbiddenName =>
+      assert(!planSurfaceNames.exists(_.toLowerCase.contains(forbiddenName.toLowerCase)))
+
   test("Stage 2 ordering does not use proofFailures as public sort input"):
     val proofScore = proof(
       boardProof = 99,

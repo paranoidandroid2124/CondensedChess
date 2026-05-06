@@ -98,3 +98,44 @@ diagnostic-to-public-value promotion do not return.
 Stage 5 closeout also lives in `StoryInteractionLaw.md`; legacy downstream
 handoffs from raw Board Facts, CaptureResult, EngineCheck, engine eval, or PV
 text do not return.
+
+Stage 6 charter authority lives in `StoryInteractionLaw.md`. Legacy outline,
+renderer, LLM, public prose, source-row, proof-failure, and engine-explanation
+paths do not return. Stage 6-0 admits only selected Verdict speech bounds for
+Explanation Plan data; it does not revive raw BoardMood, root atoms,
+CaptureResult, EngineCheck, EngineEval, EngineLine, raw PV, source rows, or
+wording from renderer or LLM layers as input authority.
+Stage 6-1 opens only the Explanation Plan shape for one selected
+`Tactic.Hanging` Lead Verdict. `allowedClaim` stays a structured key such as
+`can_win_piece`; the first shape carries `bounded` strength and forbidden
+wording, not public prose. Legacy full-sentence generation, user-facing prose,
+engine-says wording, best-move wording, winning wording, decisive wording, and
+public eval do not return.
+Stage 6-2 opens only `Tactic.Hanging` allowed claim mapping. Uncapped Lead
+Verdict only may carry an allowed claim key. Support, Context, Blocked, and
+engine-capped Verdicts do not create standalone public claims.
+`engineStrengthLimited` suppresses claim keys and strengthens forbidden
+wording; legacy free-piece, blunder, winning, decisive, forced-win, best-move,
+no-counterplay, and engine-approved claim paths do not return.
+Stage 6-3 opens only forbidden wording boundary. Explanation Plan must carry
+the default forbidden wording set. `Tactic.Hanging` remains bounded material
+tactic wording only, and `engineStrengthLimited` strengthens forbidden wording
+without carrying a claim.
+Legacy king-safety, file-control, outpost, strategic-key, conversion, and
+mate-net wording paths do not return.
+Stage 6-4 opens only Support and Context relation structure. Uncapped Lead
+only carries an allowed claim. Support, Context, Blocked, and engine-capped
+Verdicts create no standalone public claim. Blocked remains debug-only
+relation structure, and proofFailures do not feed relation wording. Legacy
+Support standalone sentences, Context standalone sentences, Blocked debug text
+as user explanation, and proofFailures wording do not return.
+Stage 6-5 opens only the selected Verdict input guard. Raw BoardFacts,
+BoardMood, root atoms, CaptureResult, EngineCheck, EngineEval, EngineLine, raw
+PV, proofFailures text, unselected Story, unselected Verdict, and source rows
+do not return as Explanation Plan inputs.
+Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
+engine-capped, and engine-refuted Verdicts create no allowed claim or public
+claim. Stage 7 deterministic renderer may receive Explanation Plan only; raw
+Verdict, EngineCheck, CaptureResult, Board Facts, BoardMood, raw PV,
+proofFailures text, source rows, and raw engine evidence do not return as
+renderer inputs.

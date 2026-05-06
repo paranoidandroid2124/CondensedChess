@@ -482,6 +482,8 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val agents = Files.readString(agentInstructions)
     val contents =
       Vector(readme, ssot, architecture, modelContract, rationale, interactionLaw, manifest).mkString("\n")
+    val normalizedSsot = ssot.replaceAll("\\s+", " ")
+    val normalizedInteractionLaw = interactionLaw.replaceAll("\\s+", " ")
 
     assert(readme.contains("Public route no-go"))
     assert(contents.contains("`/api/commentary/render`"))
@@ -568,9 +570,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(bridgeSource.contains("const PublicRenderRoutesTombstoned = true"))
     assert(bridgeSource.contains("if (PublicRenderRoutesTombstoned) return { kind: 'empty', reason: 'no_commentary' }"))
     assert(readme.contains("Stage order no-go"))
-    assert(readme.contains("Current implementation scope is Stage 5 Closeout Pass"))
+    assert(readme.contains("Current implementation scope is Stage 6 Closeout Pass"))
     assert(readme.contains("Stage 4 is named `Engine Check`."))
-    assert(readme.replaceAll("\\s+", " ").contains("Stages 6-11 remain a dependency map"))
+    assert(readme.replaceAll("\\s+", " ").contains("Stages 7-11 remain a dependency map"))
     assert(readme.contains("LLM no-go"))
     assert(readme.contains("LLM narration remains"))
     assert(readme.contains("closed and must not judge chess"))
@@ -624,13 +626,21 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(rationale.contains("Engine lines, mate/tablebase proof, SEE, and bounded material results are"))
     assert(rationale.contains("Raw engine numbers and engine text"))
     assert(rationale.contains("The LLM is not the intelligence of commentary"))
-    assert(architecture.contains("`Board Truth / Primitive Geometry / Story boundary / Verdict boundary`"))
-    assert(architecture.contains("Current implementation scope is Stage 5 Closeout Pass"))
+    assert(
+      architecture.contains(
+        "`Board Truth / Primitive Geometry / Story boundary / Verdict boundary / Explanation Plan boundary`"
+      )
+    )
+    assert(architecture.contains("Current implementation scope is Stage 6 Closeout Pass"))
     assert(architecture.contains("Stage 4 is named `Engine Check`."))
-    assert(architecture.contains("Stages 6-11 below"))
+    assert(architecture.replaceAll("\\s+", " ").contains("Stages 7-11 below"))
     assert(architecture.replaceAll("\\s+", " ").contains("dependency map for product design"))
-    assert(architecture.contains("Only Stage 5 Closeout Pass is active implementation authority"))
-    assert(architecture.contains("Stages 6-11"))
+    assert(
+      architecture.replaceAll("\\s+", " ").contains(
+        "Only Stage 6 Closeout Pass is active implementation authority"
+      )
+    )
+    assert(architecture.contains("Stages 7-11"))
     assert(architecture.contains("dependency-map-only"))
     assert(
       architecture.contains(
@@ -645,7 +655,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "Stage 3 - First Narrow Positive Story",
       "Stage 4 - Engine Check",
       "Stage 5 - Story Order",
-      "Stage 6 - Explanation IR",
+      "Stage 6 - Explanation Plan (Explanation IR)",
       "Stage 7 - Deterministic Renderer",
       "Stage 8 - LLM Narration",
       "Stage 9 - Natural-Language Verifier",
@@ -832,6 +842,341 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "Stage 6 must not read raw Board Facts, `CaptureResult`, `EngineCheck`, raw engine eval, or raw PV text directly."
     ).foreach: closeoutLine =>
       assert(interactionLaw.contains(closeoutLine), s"Stage 5 closeout must pin: $closeoutLine")
+    assert(interactionLaw.contains("## Stage 6 Charter"))
+    assert(interactionLaw.contains("Stage 6 name is `Explanation Plan`."))
+    assert(interactionLaw.contains("Documents may write `Explanation IR` parenthetically"))
+    assert(interactionLaw.contains("Core sentence: Verdict decides. Explanation Plan bounds speech."))
+    Vector(
+      "Stage 6-0 fixes this charter before renderer or narration work.",
+      "The goal is not natural language.",
+      "The goal is to receive selected Verdict data and organize claim, evidence, strength, role, support/context relation, and forbidden wording",
+      "Explanation Plan must not decide, prove, rank, repair, or invent chess meaning.",
+      "Stage 6-0 completion standard: Explanation Plan defines what may be said from the selected Verdict, but it writes no sentence.",
+      "`StoryInteractionLaw.md` is the single live authority for the Stage 6 charter.",
+      "Other live documents may summarize Stage 6 scope only."
+    ).foreach: charterLine =>
+      assert(
+        normalizedInteractionLaw.contains(charterLine),
+        s"StoryInteractionLaw must own Stage 6 charter line: $charterLine"
+      )
+    Vector(
+      "- selected Verdict",
+      "- Verdict role",
+      "- Verdict strength",
+      "- Verdict story identity",
+      "- Verdict scene / tactic",
+      "- Verdict Lead, Support, Context, or Blocked state"
+    ).foreach: allowed =>
+      assert(interactionLaw.contains(allowed), s"Stage 6 charter must allow input: $allowed")
+    Vector(
+      "- raw Board Facts",
+      "- raw BoardMood",
+      "- root atoms",
+      "- `CaptureResult`",
+      "- `EngineCheck`",
+      "- `EngineEval`",
+      "- `EngineLine`",
+      "- raw PV",
+      "- proofFailures text",
+      "- source row",
+      "- renderer wording",
+      "- LLM wording"
+    ).foreach: forbidden =>
+      assert(interactionLaw.contains(forbidden), s"Stage 6 charter must forbid input: $forbidden")
+    Vector(
+      "- deterministic renderer",
+      "- LLM narration",
+      "- public route `200`",
+      "- user-facing prose",
+      "- pedagogy",
+      "- new Story family",
+      "- engine explanation"
+    ).foreach: closed =>
+      assert(interactionLaw.contains(closed), s"Stage 6 charter must keep closed: $closed")
+    val nonCharterStage6Docs =
+      Vector(
+        "AGENTS.md" -> agents,
+        "ChessCommentarySSOT.md" -> ssot,
+        "README.md" -> readme,
+        "ChessModelArchitecture.md" -> architecture,
+        "ChessModelContract.md" -> modelContract,
+        "ChessResetRationale.md" -> rationale,
+        "LegacyPruneManifest.md" -> manifest
+      ).map((name, text) => name -> text.replaceAll("\\s+", " "))
+    Vector(
+      "Verdict decides. Explanation Plan bounds speech.",
+      "Stage 6-0 fixes this charter before renderer or narration work.",
+      "The goal is not natural language.",
+      "Stage 6-0 completion standard: Explanation Plan defines what may be said from the selected Verdict, but it writes no sentence."
+    ).foreach: charterLine =>
+      nonCharterStage6Docs.foreach: (name, doc) =>
+        assert(
+          !doc.contains(charterLine),
+          s"$name must not duplicate Stage 6 charter line owned by StoryInteractionLaw: $charterLine"
+        )
+    Vector(
+      "Stage 6-0 opens only the Explanation Plan charter and selected-Verdict speech boundary",
+      "Stage 6 is named `Explanation Plan`",
+      "selected Verdict data only to bound claim, evidence, strength, role, support/context relation, and forbidden wording",
+      "Deterministic renderer, LLM narration, public route `200`, user-facing prose, pedagogy, new Story families, and engine explanation remain closed"
+    ).foreach: scopeSummary =>
+      assert(
+        agents.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          ssot.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          readme.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          modelContract.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          manifest.replaceAll("\\s+", " ").contains(scopeSummary),
+        s"Stage 6 scope summary must appear in summary docs: $scopeSummary"
+      )
+    assert(interactionLaw.contains("## Stage 6-1 Explanation Plan Shape"))
+    assert(interactionLaw.contains("Stage 6-1 goal: turn one selected Verdict into a small pre-speech plan."))
+    assert(interactionLaw.contains("First scope handles exactly one `Tactic.Hanging` Lead Verdict."))
+    assert(interactionLaw.contains("`allowedClaim` is a structured claim key, not a natural-language sentence."))
+    assert(interactionLaw.contains("The first live claim key is `can_win_piece`."))
+    assert(interactionLaw.contains("The first live strength key is `bounded`."))
+    assert(interactionLaw.contains("support/context links stay empty in the first scope."))
+    Vector(
+      "- role",
+      "- scene",
+      "- tactic",
+      "- side",
+      "- target",
+      "- anchor",
+      "- route",
+      "- allowedClaim",
+      "- evidenceLine",
+      "- strength",
+      "- forbiddenWording",
+      "- supportContextLinks"
+    ).foreach: field =>
+      assert(interactionLaw.contains(field), s"Stage 6-1 must pin ExplanationPlan field: $field")
+    Vector(
+      "- full sentence generation",
+      "- user-facing prose",
+      "- `engine says`",
+      "- best move",
+      "- winning",
+      "- decisive",
+      "- public eval"
+    ).foreach: forbidden =>
+      assert(interactionLaw.contains(forbidden), s"Stage 6-1 must keep closed: $forbidden")
+    Vector(
+      "Stage 6-1 opens only the Explanation Plan shape for one selected `Tactic.Hanging` Lead Verdict",
+      "`allowedClaim` stays a structured key such as `can_win_piece`",
+      "the first shape carries `bounded` strength and forbidden wording, not public prose"
+    ).foreach: scopeSummary =>
+      assert(
+        agents.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          ssot.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          readme.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          modelContract.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          manifest.replaceAll("\\s+", " ").contains(scopeSummary),
+        s"Stage 6-1 scope summary must appear in summary docs: $scopeSummary"
+      )
+    assert(interactionLaw.contains("## Stage 6-2 Tactic.Hanging Allowed Claim Mapping"))
+    assert(
+      interactionLaw.contains(
+        "Stage 6-2 goal: define which claim keys a `Tactic.Hanging` Verdict may lower to."
+      )
+    )
+    Vector(
+      "- `can_win_piece`",
+      "- `piece_can_be_taken_with_gain`",
+      "- `capture_leaves_material_gain`"
+    ).foreach: claimKey =>
+      assert(interactionLaw.contains(claimKey), s"Stage 6-2 must allow claim key: $claimKey")
+    Vector(
+      "- `free_piece`",
+      "- `blunder`",
+      "- `winning_tactic`",
+      "- `decisive_tactic`",
+      "- `forced_win`",
+      "- `best_move`",
+      "- `no_counterplay`",
+      "- `engine_approved`"
+    ).foreach: claimKey =>
+      assert(interactionLaw.contains(claimKey), s"Stage 6-2 must forbid claim key: $claimKey")
+    Vector(
+      "Only uncapped Lead Verdict may carry an allowed claim key.",
+      "Support and Context are not standalone claims.",
+      "Blocked creates no allowed claim.",
+      "`engineStrengthLimited` suppresses allowed claim keys and strengthens forbidden wording."
+    ).foreach: boundary =>
+      assert(normalizedInteractionLaw.contains(boundary), s"Stage 6-2 must pin claim boundary: $boundary")
+    Vector(
+      "Stage 6-2 opens only `Tactic.Hanging` allowed claim mapping",
+      "Uncapped Lead Verdict only may carry an allowed claim key",
+      "Support, Context, Blocked, and engine-capped Verdicts do not create standalone public claims",
+      "`engineStrengthLimited` suppresses claim keys and strengthens forbidden wording"
+    ).foreach: scopeSummary =>
+      assert(
+        agents.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          ssot.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          readme.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          modelContract.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          manifest.replaceAll("\\s+", " ").contains(scopeSummary),
+        s"Stage 6-2 scope summary must appear in summary docs: $scopeSummary"
+      )
+    assert(interactionLaw.contains("## Stage 6-3 Forbidden Wording Boundary"))
+    assert(
+      normalizedInteractionLaw.contains(
+        "Stage 6-3 goal: Explanation Plan carries forbidden wording that renderer or LLM layers must not say."
+      )
+    )
+    Vector(
+      "- `free piece`",
+      "- `blunder`",
+      "- `winning`",
+      "- `decisive`",
+      "- `forced`",
+      "- `best move`",
+      "- `only move`",
+      "- `engine says`",
+      "- `no counterplay`",
+      "- `king unsafe`",
+      "- `file control`",
+      "- `outpost`",
+      "- `strategic key`",
+      "- `conversion`",
+      "- `mate net`"
+    ).foreach: wording =>
+      assert(interactionLaw.contains(wording), s"Stage 6-3 must forbid wording: $wording")
+    Vector(
+      "`Tactic.Hanging` first allowed claim remains bounded material tactic only.",
+      "`engineStrengthLimited=true` strengthens the forbidden wording boundary.",
+      "`engineStrengthLimited=true` carries no allowed claim key.",
+      "Explanation Plan must make forbidden wording clearer than allowed speech."
+    ).foreach: boundary =>
+      assert(interactionLaw.contains(boundary), s"Stage 6-3 must pin wording boundary: $boundary")
+    Vector(
+      "Stage 6-3 opens only forbidden wording boundary",
+      "Explanation Plan must carry the default forbidden wording set",
+      "`Tactic.Hanging` remains bounded material tactic wording only",
+      "`engineStrengthLimited` strengthens forbidden wording without carrying a claim"
+    ).foreach: scopeSummary =>
+      assert(
+        agents.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          ssot.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          readme.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          modelContract.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          manifest.replaceAll("\\s+", " ").contains(scopeSummary),
+        s"Stage 6-3 scope summary must appear in summary docs: $scopeSummary"
+      )
+    assert(interactionLaw.contains("## Stage 6-4 Support / Context Relation"))
+    assert(
+      normalizedInteractionLaw.contains(
+        "Stage 6-4 goal: carry Support and Context as structure-only relations inside Explanation Plan."
+      )
+    )
+    Vector(
+      "- `same_family_lower_rank`",
+      "- `alternative_hanging_candidate`",
+      "- `capped_same_story`",
+      "- `blocked_by_engine_refute`"
+    ).foreach: relation =>
+      assert(interactionLaw.contains(relation), s"Stage 6-4 must allow relation: $relation")
+    Vector(
+      "Uncapped Lead only carries an allowed claim.",
+      "Support carries relation to Lead only.",
+      "Context creates no public claim.",
+      "Blocked may enter Explanation Plan only as debug-only relation structure.",
+      "proofFailures must not feed Explanation Plan wording or relation text."
+    ).foreach: boundary =>
+      assert(interactionLaw.contains(boundary), s"Stage 6-4 must pin relation boundary: $boundary")
+    Vector(
+      "- Support standalone sentence",
+      "- Context standalone sentence",
+      "- Blocked debug text as user explanation",
+      "- proofFailures text as wording"
+    ).foreach: forbidden =>
+      assert(interactionLaw.contains(forbidden), s"Stage 6-4 must forbid: $forbidden")
+    Vector(
+      "Stage 6-4 opens only Support and Context relation structure",
+      "Uncapped Lead only carries an allowed claim",
+      "Support and Context create no standalone public claim",
+      "Blocked remains debug-only relation structure",
+      "proofFailures do not feed relation wording"
+    ).foreach: scopeSummary =>
+      assert(
+        agents.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          ssot.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          readme.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          modelContract.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          manifest.replaceAll("\\s+", " ").contains(scopeSummary),
+        s"Stage 6-4 scope summary must appear in summary docs: $scopeSummary"
+      )
+    assert(interactionLaw.contains("## Stage 6-5 Selected Verdict Only Guard"))
+    assert(interactionLaw.contains("Stage 6-5 goal: Explanation Plan receives selected Verdict only."))
+    assert(interactionLaw.contains("- selected Verdict only"))
+    Vector(
+      "- raw BoardFacts",
+      "- BoardMood",
+      "- root atoms",
+      "- CaptureResult",
+      "- EngineCheck",
+      "- EngineEval",
+      "- EngineLine",
+      "- raw PV",
+      "- proofFailures text",
+      "- unselected Story",
+      "- unselected Verdict",
+      "- source row"
+    ).foreach: forbidden =>
+      assert(interactionLaw.contains(forbidden), s"Stage 6-5 must forbid input: $forbidden")
+    Vector(
+      "Explanation Plan must not expose overloads, constructors, fields, or relation text paths for raw proof material.",
+      "It may read only the selected Verdict value and the fields already carried by that Verdict.",
+      "Stage 6-5 completion standard: Explanation Plan does not read raw proof material directly.",
+      "It creates no chess meaning beyond the selected Verdict."
+    ).foreach: boundary =>
+      assert(normalizedInteractionLaw.contains(boundary), s"Stage 6-5 must pin selected guard: $boundary")
+    Vector(
+      "Stage 6-5 opens only the selected Verdict input guard",
+      "Explanation Plan accepts selected Verdict only",
+      "raw proof material",
+      "unselected Story",
+      "unselected Verdict",
+      "proofFailures wording"
+    ).foreach: scopeSummary =>
+      assert(
+        agents.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          ssot.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          readme.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          modelContract.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          manifest.replaceAll("\\s+", " ").contains(scopeSummary),
+        s"Stage 6-5 scope summary must appear in summary docs: $scopeSummary"
+      )
+    assert(interactionLaw.contains("## Stage 6 Closeout"))
+    Vector(
+      "Stage 6 closes with Explanation Plan only.",
+      "Renderer, LLM, public route `200`, user-facing prose, and pedagogy remain closed.",
+      "Explanation Plan creates no chess meaning.",
+      "StoryTable and Verdict keep selection authority.",
+      "`EngineCheck` and `CaptureResult` keep evidence authority.",
+      "Blocked, Support, Context, engine-capped, and engine-refuted Verdicts create no allowed claim or public claim.",
+      "Stage 7 deterministic renderer may receive Explanation Plan only.",
+      "Stage 7 must not read raw Verdict, `EngineCheck`, `CaptureResult`, Board Facts, BoardMood, raw PV, proofFailures text, source rows, or raw engine evidence directly.",
+      "One chess meaning, one home.",
+      "One rule, one live authority.",
+      "Verdict decides. Explanation Plan bounds speech."
+    ).foreach: closeoutLine =>
+      assert(
+        normalizedInteractionLaw.contains(closeoutLine),
+        s"Stage 6 closeout must pin: $closeoutLine"
+      )
+    Vector(
+      "Stage 6 closeout confirms Explanation Plan only",
+      "Blocked, Support, Context, engine-capped, and engine-refuted Verdicts create no allowed claim",
+      "Stage 7 deterministic renderer may receive Explanation Plan only"
+    ).foreach: closeoutSummary =>
+      assert(
+        agents.replaceAll("\\s+", " ").contains(closeoutSummary) ||
+          ssot.replaceAll("\\s+", " ").contains(closeoutSummary) ||
+          readme.replaceAll("\\s+", " ").contains(closeoutSummary) ||
+          modelContract.replaceAll("\\s+", " ").contains(closeoutSummary) ||
+          manifest.replaceAll("\\s+", " ").contains(closeoutSummary),
+        s"Stage 6 closeout summary must appear in summary docs: $closeoutSummary"
+      )
     assert(modelContract.contains("positive `CaptureResult`"))
     assert(modelContract.contains("EngineCheck is internal evidence only."))
     assert(modelContract.contains("It records same-board proof, checked move, engine line, reply line, eval before, eval after, depth or freshness, and missing evidence."))
@@ -860,8 +1205,6 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
         .replaceAll("\\s+", " ")
         .contains("proofFailures, EngineCheck diagnostics, and `engineStrengthLimited` remain internal")
     )
-    val normalizedSsot = ssot.replaceAll("\\s+", " ")
-    val normalizedInteractionLaw = interactionLaw.replaceAll("\\s+", " ")
     val nonCharterStage3Docs =
       Vector(
         "AGENTS.md" -> agents,
@@ -875,21 +1218,26 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(agents.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 3 charter."))
     assert(agents.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 4 charter."))
     assert(agents.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 5 charter."))
+    assert(agents.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 6 charter."))
     assert(ssot.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 3 charter."))
     assert(ssot.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 4 charter."))
     assert(ssot.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 5 charter."))
+    assert(ssot.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 6 charter."))
     assert(readme.contains("`StoryInteractionLaw.md` owns the Stage 3 charter."))
     assert(readme.contains("`StoryInteractionLaw.md` owns the Stage 4 charter."))
     assert(readme.contains("`StoryInteractionLaw.md` owns the Stage 5 charter."))
+    assert(readme.contains("`StoryInteractionLaw.md` owns the Stage 6 charter."))
     assert(architecture.contains("`StoryInteractionLaw.md` owns the Stage 3 charter."))
     assert(architecture.contains("`StoryInteractionLaw.md` owns the Stage 4 charter."))
     assert(architecture.contains("`StoryInteractionLaw.md` owns the Stage 5 charter."))
     assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 3 charter."))
     assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 4 charter."))
     assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 5 charter."))
+    assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 6 charter."))
     assert(manifest.contains("Stage 3 charter authority lives in `StoryInteractionLaw.md`."))
     assert(manifest.contains("Stage 4 charter authority lives in `StoryInteractionLaw.md`."))
     assert(manifest.contains("Stage 5 charter authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("Stage 6 charter authority lives in `StoryInteractionLaw.md`."))
     assert(agents.contains("Stage 5-1 Hanging role rules also live there"))
     assert(ssot.contains("Stage 5-1 Hanging role rules also live in `StoryInteractionLaw.md`"))
     assert(modelContract.contains("Stage 5-1 Hanging Role Rules are also owned by `StoryInteractionLaw.md`"))
@@ -1030,7 +1378,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "StoryTable may order existing `Tactic.Hanging` Story rows into roles",
       "Stage 5-3 tightens close blockers and context relations",
       "Stage 5-4 keeps Verdict diagnostics out of public numeric values",
-      "Stage 5 closeout confirms Story ordering only"
+      "Stage 5 closeout confirmed Story ordering only"
     ).foreach: scopeSummary =>
       assert(
         normalizedSsot.contains(scopeSummary) ||
