@@ -139,3 +139,46 @@ claim. Stage 7 deterministic renderer may receive Explanation Plan only; raw
 Verdict, EngineCheck, CaptureResult, Board Facts, BoardMood, raw PV,
 proofFailures text, source rows, and raw engine evidence do not return as
 renderer inputs.
+Stage 7-0 charter authority lives in `StoryInteractionLaw.md`. Legacy
+renderer, outline, source-row, proof-failure, raw evidence, LLM, public route,
+pedagogy, engine PV explanation, best-move explanation, engine-says, winning,
+decisive, forced, blunder, and free-piece wording paths do not return. Stage
+7-0 admits only `ExplanationPlan` input, deterministic template,
+`Tactic.Hanging` bounded claim phrasing, forbidden wording check, no LLM, and
+no public route.
+Stage 7-1 input guard authority lives in `StoryInteractionLaw.md`. Legacy
+renderer entrypoints from raw Verdict, Story, BoardFacts, BoardMood,
+CaptureResult, EngineCheck, EngineEval, EngineLine, raw PV, proofFailures, or
+source rows do not return. Renderer receives `ExplanationPlan` only.
+Stage 7-2 minimal template authority lives in `StoryInteractionLaw.md`.
+Legacy broad renderer templates, stronger tactical wording, engine wording,
+best-move wording, and non-Hanging claim text do not return. Only the
+`can_win_piece` claim key may become first deterministic `Tactic.Hanging`
+text, bounded by ExplanationPlan evidenceLine.
+Stage 7-3 forbidden wording enforcement authority lives in
+`StoryInteractionLaw.md`. Legacy renderer wording that violates
+`ExplanationPlan.forbiddenWording` does not return. `win material` wording is
+allowed only when `allowedClaim` is `CanWinPiece`; `winning position`,
+engine-strength-limited strong wording output, missing-claim output, and
+debug-only output do not return.
+Stage 7-4 no-standalone-text authority lives in `StoryInteractionLaw.md`.
+Legacy Support, Context, Blocked, capped no-claim, and engine-refuted relation
+renderer text does not return. Renderer phrases only Lead plans with an
+allowed claim.
+Stage 7-5 RenderedLine shape authority lives in `StoryInteractionLaw.md`.
+Legacy renderer payloads with CaptureResult, EngineCheck, BoardFacts,
+proofFailures, raw route analysis, source rows, proof ownership, or engine data
+ownership do not return. `RenderedLine` owns no chess meaning, proof, or
+engine data; RenderedLine is only the expression result of ExplanationPlan.
+Stage 7-6 renderer baseline authority lives in `StoryInteractionLaw.md`.
+Stage 7-6 opens only renderer baseline tests. Legacy renderer baseline gaps do
+not return as permission for stronger wording, direct Verdict or EngineCheck
+input, engine mentions, best-move wording, blunder wording, free-piece wording,
+decisive wording, forced wording, or winning-position wording. Renderer output
+is no stronger than ExplanationPlan.
+Stage 7 closeout authority lives in `StoryInteractionLaw.md`. Deterministic
+renderer is closed as a template baseline. Legacy renderer, LLM, public route,
+pedagogy, new Story family, direct Verdict input, direct Story input, direct
+EngineCheck input, direct CaptureResult input, and direct Board Facts input do
+not return. Stage 8 LLM Narration may receive deterministic text and
+ExplanationPlan only.

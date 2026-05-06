@@ -3652,6 +3652,376 @@ class ChessFoundationTest extends munit.FunSuite:
     ).foreach: forbiddenName =>
       assert(!planSurfaceNames.exists(_.toLowerCase.contains(forbiddenName.toLowerCase)))
 
+  test("Stage 7-1 DeterministicRenderer accepts ExplanationPlan only"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val fromPlanMethods =
+      DeterministicRenderer.getClass.getDeclaredMethods.toVector.filter(_.getName == "fromPlan")
+    val fromPlanParameterShapes =
+      fromPlanMethods.map(method => method.getParameterTypes.toVector.map(_.getSimpleName).toVector).toVector
+    val fromPlanParameterNames =
+      fromPlanMethods
+        .flatMap(_.getParameterTypes.toVector)
+        .map(_.getSimpleName)
+    val rendererMethodNames = DeterministicRenderer.getClass.getDeclaredMethods.map(_.getName).toSet
+
+    assert(rendered.text.nonEmpty)
+    assertEquals(fromPlanParameterShapes, Vector(Vector("ExplanationPlan")))
+    assertEquals(fromPlanParameterNames, Vector("ExplanationPlan"))
+    Vector(
+      "fromVerdict",
+      "fromStory",
+      "fromBoardFacts",
+      "fromBoardMood",
+      "fromCaptureResult",
+      "fromEngineCheck",
+      "fromEngineEval",
+      "fromEngineLine"
+    ).foreach: forbiddenMethod =>
+      assert(!rendererMethodNames.contains(forbiddenMethod), s"DeterministicRenderer must not expose $forbiddenMethod")
+
+  test("Stage 7-1 DeterministicRenderer cannot create text without an ExplanationPlan"):
+    val rendererNoArgTextMethods =
+      DeterministicRenderer.getClass.getDeclaredMethods.toVector.filter: method =>
+        method.getParameterTypes.isEmpty && method.getReturnType.getSimpleName.contains("RenderedLine")
+    val rendererParameterNames =
+      DeterministicRenderer.getClass.getDeclaredMethods.toVector
+        .flatMap(_.getParameterTypes.toVector)
+        .map(_.getSimpleName)
+        .mkString(" ")
+    val textSurfaceNames =
+      classOf[RenderedLine].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[RenderedLine].getDeclaredFields.map(_.getName).toSet
+
+    assertEquals(rendererNoArgTextMethods, Vector.empty)
+    Vector(
+      "Verdict",
+      "Story",
+      "BoardFacts",
+      "BoardMood",
+      "CaptureResult",
+      "EngineCheck",
+      "EngineEval",
+      "EngineLine"
+    ).foreach: forbiddenType =>
+      assert(!rendererParameterNames.contains(forbiddenType), s"DeterministicRenderer must not accept $forbiddenType")
+    Vector(
+      "verdict",
+      "story",
+      "boardFacts",
+      "boardMood",
+      "captureResult",
+      "engineCheck",
+      "engineEval",
+      "engineLine",
+      "rawPv",
+      "proofFailures",
+      "sourceRow"
+    ).foreach: forbiddenName =>
+      assert(!textSurfaceNames.exists(_.toLowerCase.contains(forbiddenName.toLowerCase)))
+
+  test("Stage 7-2 renders only the minimal CanWinPiece Hanging template"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val forbiddenPhrases =
+      Vector(
+        "free piece",
+        "blunder",
+        "winning",
+        "decisive",
+        "forced",
+        "best move",
+        "only move",
+        "engine says",
+        "no counterplay",
+        "king unsafe",
+        "file control",
+        "outpost"
+      )
+
+    assertEquals(plan.role, Role.Lead)
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.CanWinPiece))
+    assertEquals(plan.strength, ExplanationStrength.Bounded)
+    assertEquals(plan.debugOnly, false)
+    assertEquals(plan.route, Some(capture))
+    assertEquals(plan.evidenceLine, Some(capture))
+    assertEquals(plan.target, Some(Square('e', 5)))
+    assert(plan.forbiddenWording.nonEmpty)
+    assertEquals(rendered.text, "d4xe5 wins material against the piece on e5.")
+    forbiddenPhrases.foreach: phrase =>
+      assert(!rendered.text.toLowerCase.contains(phrase), s"template must not contain forbidden phrase: $phrase")
+
+  test("Stage 7-2 refuses missing or non CanWinPiece template prerequisites"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val invalidPlans =
+      Vector(
+        plan.copy(role = Role.Support),
+        plan.copy(allowedClaim = Some(ExplanationClaim.PieceCanBeTakenWithGain)),
+        plan.copy(allowedClaim = None),
+        plan.copy(debugOnly = true),
+        plan.copy(route = None),
+        plan.copy(evidenceLine = None),
+        plan.copy(target = None),
+        plan.copy(forbiddenWording = Vector.empty)
+      )
+
+    invalidPlans.foreach: invalidPlan =>
+      assertEquals(DeterministicRenderer.fromPlan(invalidPlan), None)
+
+  test("Stage 7-3 enforces forbidden wording before renderer output"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val lowerText = rendered.text.toLowerCase
+    val forbiddenMeanings =
+      Vector(
+        "free piece",
+        "blunder",
+        "winning position",
+        "decisive",
+        "forced",
+        "best move",
+        "only move",
+        "engine says",
+        "no counterplay",
+        "king unsafe",
+        "file control",
+        "outpost",
+        "strategic key",
+        "conversion",
+        "mate net"
+      )
+    val strongBlockedPlan =
+      plan.copy(forbiddenWording = plan.forbiddenWording :+ ForbiddenWording.StrongWording)
+
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.CanWinPiece))
+    assert(lowerText.contains("wins material"))
+    forbiddenMeanings.foreach: phrase =>
+      assert(!lowerText.contains(phrase), s"renderer output must not contain forbidden phrase: $phrase")
+    assertEquals(DeterministicRenderer.fromPlan(strongBlockedPlan), None)
+
+  test("Stage 7-3 refuses engine-limited no-claim and debug-only plans"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val check = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Caps
+    )
+    val cappedPlan =
+      ExplanationPlan.fromSelected(StoryTable.choose(Vector(TacticHanging.withEngineCheck(story, check).get)).head).get
+
+    assertEquals(cappedPlan.allowedClaim, None)
+    assert(cappedPlan.forbiddenWording.contains(ForbiddenWording.StrongWording))
+    assertEquals(DeterministicRenderer.fromPlan(cappedPlan), None)
+    assertEquals(DeterministicRenderer.fromPlan(plan.copy(allowedClaim = None)), None)
+    assertEquals(DeterministicRenderer.fromPlan(plan.copy(debugOnly = true)), None)
+
+  test("Stage 7-4 renders no standalone text for Support Context or Blocked plans"):
+    val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val left = TacticHanging.write(facts, Line(Square('d', 4), Square('c', 5))).get
+    val right = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
+    val verdicts = StoryTable.choose(Vector(left, right))
+    val leadPlan = ExplanationPlan.fromSelected(verdicts.find(_.role == Role.Lead).get).get
+    val supportPlan = ExplanationPlan.fromSelected(verdicts.find(_.role == Role.Support).get).get
+    val contextPlan =
+      leadPlan.copy(role = Role.Context, allowedClaim = None, relations = Vector(ExplanationRelation.AlternativeHangingCandidate))
+    val blockedPlan =
+      leadPlan.copy(role = Role.Blocked, allowedClaim = None, debugOnly = true)
+
+    assert(leadPlan.allowedClaim.nonEmpty)
+    assert(DeterministicRenderer.fromPlan(leadPlan).nonEmpty)
+    assertEquals(DeterministicRenderer.fromPlan(supportPlan), None)
+    assertEquals(DeterministicRenderer.fromPlan(contextPlan), None)
+    assertEquals(DeterministicRenderer.fromPlan(blockedPlan), None)
+    assertEquals(DeterministicRenderer.fromPlan(leadPlan.copy(role = Role.Lead, allowedClaim = None)), None)
+
+  test("Stage 7-4 renders no text for capped or engine-refuted relation plans"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+
+    def checked(status: EngineCheckStatus) =
+      val check = EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(capture))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(20)),
+        evalAfter = Some(EngineEval(80)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+      TacticHanging.withEngineCheck(story, check).get
+
+    val cappedPlan =
+      ExplanationPlan.fromSelected(StoryTable.choose(Vector(checked(EngineCheckStatus.Caps))).head).get
+    val refutedPlan =
+      ExplanationPlan.fromSelected(StoryTable.choose(Vector(checked(EngineCheckStatus.Refutes))).head).get
+
+    assertEquals(cappedPlan.allowedClaim, None)
+    assert(cappedPlan.relations.contains(ExplanationRelation.CappedSameStory))
+    assertEquals(DeterministicRenderer.fromPlan(cappedPlan), None)
+    assertEquals(refutedPlan.allowedClaim, None)
+    assert(refutedPlan.relations.contains(ExplanationRelation.BlockedByEngineRefute))
+    assertEquals(DeterministicRenderer.fromPlan(refutedPlan), None)
+
+  test("Stage 7-5 RenderedLine carries only text claim strength and forbidden check"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val fieldNames =
+      rendered.getClass.getDeclaredFields.map(_.getName).filterNot(_.startsWith("$")).toVector
+    def fieldValue(name: String) =
+      val field = rendered.getClass.getDeclaredField(name)
+      field.setAccessible(true)
+      field.get(rendered)
+
+    assertEquals(rendered.getClass.getSimpleName, "RenderedLine")
+    assertEquals(fieldNames, Vector("text", "claimKey", "strength", "forbiddenCheckPassed"))
+    assertEquals(fieldValue("text"), "d4xe5 wins material against the piece on e5.")
+    assertEquals(fieldValue("claimKey"), "can_win_piece")
+    assertEquals(fieldValue("strength"), "bounded")
+    assertEquals(fieldValue("forbiddenCheckPassed").asInstanceOf[Boolean], true)
+
+  test("Stage 7-5 RenderedLine owns no proof engine board source or route analysis fields"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val renderedLineSurfaceNames =
+      (rendered.getClass.getDeclaredFields.map(_.getName).toSet ++
+        rendered.getClass.getDeclaredMethods.map(_.getName).toSet)
+        .map(_.toLowerCase)
+
+    Vector(
+      "captureResult",
+      "engineCheck",
+      "boardFacts",
+      "proofFailures",
+      "rawRouteAnalysis",
+      "sourceRow",
+      "engineEval",
+      "engineLine",
+      "rawPv",
+      "route",
+      "proof"
+    ).foreach: forbiddenName =>
+      assert(
+        !renderedLineSurfaceNames.exists(_.contains(forbiddenName.toLowerCase)),
+        s"RenderedLine must not expose $forbiddenName"
+      )
+
+  test("Stage 7-6 baseline renders Lead CanWinPiece bounded text no stronger than plan"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val forbiddenPhrases =
+      Vector(
+        "engine",
+        "best move",
+        "blunder",
+        "free piece",
+        "decisive",
+        "forced",
+        "winning position"
+      )
+
+    assertEquals(plan.role, Role.Lead)
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.CanWinPiece))
+    assertEquals(plan.strength, ExplanationStrength.Bounded)
+    assertEquals(rendered.text, "d4xe5 wins material against the piece on e5.")
+    assertEquals(rendered.claimKey, "can_win_piece")
+    assertEquals(rendered.strength, "bounded")
+    assertEquals(rendered.forbiddenCheckPassed, true)
+    forbiddenPhrases.foreach: phrase =>
+      assert(!rendered.text.toLowerCase.contains(phrase), s"baseline renderer must not mention: $phrase")
+
+  test("Stage 7-6 baseline rejects non Lead no-claim engine-limited and forbidden plans"):
+    val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val left = TacticHanging.write(facts, Line(Square('d', 4), Square('c', 5))).get
+    val rightCapture = Line(Square('d', 4), Square('e', 5))
+    val right = TacticHanging.write(facts, rightCapture).get
+    val verdicts = StoryTable.choose(Vector(left, right))
+    val leadPlan = ExplanationPlan.fromSelected(verdicts.find(_.role == Role.Lead).get).get
+    val supportPlan = ExplanationPlan.fromSelected(verdicts.find(_.role == Role.Support).get).get
+    val contextPlan =
+      leadPlan.copy(role = Role.Context, allowedClaim = None, relations = Vector(ExplanationRelation.AlternativeHangingCandidate))
+    val blockedPlan =
+      leadPlan.copy(role = Role.Blocked, allowedClaim = None, debugOnly = true)
+    val debugOnlyPlan = leadPlan.copy(debugOnly = true)
+    val noClaimPlan = leadPlan.copy(allowedClaim = None)
+    val forbiddenPlan = leadPlan.copy(forbiddenWording = leadPlan.forbiddenWording :+ ForbiddenWording.StrongWording)
+    val cappedCheck = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(right),
+      engineLine = Some(EngineLine(Vector(rightCapture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Caps
+    )
+    val cappedPlan =
+      ExplanationPlan.fromSelected(StoryTable.choose(Vector(TacticHanging.withEngineCheck(right, cappedCheck).get)).head).get
+
+    Vector(
+      supportPlan,
+      contextPlan,
+      blockedPlan,
+      debugOnlyPlan,
+      noClaimPlan,
+      cappedPlan,
+      forbiddenPlan
+    ).foreach: plan =>
+      assertEquals(DeterministicRenderer.fromPlan(plan), None)
+
+  test("Stage 7-6 baseline renderer exposes no Verdict or EngineCheck input"):
+    val methodNames = DeterministicRenderer.getClass.getDeclaredMethods.map(_.getName).toSet
+    val parameterNames =
+      DeterministicRenderer.getClass.getDeclaredMethods.toVector
+        .flatMap(_.getParameterTypes.toVector)
+        .map(_.getSimpleName)
+
+    assert(!methodNames.contains("fromVerdict"))
+    assert(!methodNames.contains("fromEngineCheck"))
+    assert(!parameterNames.contains("Verdict"))
+    assert(!parameterNames.contains("EngineCheck"))
+
   test("Stage 2 ordering does not use proofFailures as public sort input"):
     val proofScore = proof(
       boardProof = 99,

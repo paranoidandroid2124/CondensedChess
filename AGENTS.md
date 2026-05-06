@@ -74,7 +74,7 @@ Implementation must open in this order only:
 Do not implement downstream product stages before earlier authority stages are
 proven.
 
-Current implementation scope is Stage 6 Closeout Pass.
+Current implementation scope is Stage 7 Closeout Pass.
 Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
 Story are prerequisites. Stage 3 remains open only for Material proof kernel,
 `Tactic.Hanging`, and Hanging negative corpus. Stage 4 opens only
@@ -116,7 +116,35 @@ engine-capped, and engine-refuted Verdicts create no allowed claim or public
 claim. Stage 7 deterministic renderer may receive Explanation Plan only and
 must not read raw Verdict, EngineCheck, CaptureResult, Board Facts, BoardMood,
 raw PV, proofFailures text, source rows, or raw engine evidence directly.
-Stages 7-11 remain a dependency map, not permission to open those systems.
+Stage 7-0 opens only the Deterministic Renderer charter: `ExplanationPlan`
+only input, deterministic template, `Tactic.Hanging` bounded claim phrasing,
+forbidden wording check, no LLM, and no public route. Raw Verdict, Story,
+Board Facts, CaptureResult, EngineCheck, EngineEval, EngineLine, raw PV,
+proofFailures text, source rows, user-level pedagogy, best-move wording,
+engine-says wording, winning, decisive, forced, blunder, and free-piece
+wording remain closed. Stage 7-1 opens only the Renderer input guard:
+Renderer receives `ExplanationPlan` only and exposes no raw Verdict, Story,
+BoardFacts, BoardMood, CaptureResult, EngineCheck, EngineEval, EngineLine, raw
+PV, proofFailures, or source-row input. Stage 7-2 opens only the minimal
+`Tactic.Hanging` template for the `can_win_piece` claim key; the text must not
+exceed the ExplanationPlan claim key or evidenceLine. Stage 7-3 opens only
+forbidden wording enforcement. Renderer output must not violate
+`ExplanationPlan.forbiddenWording`; `win material` wording is allowed only when
+`allowedClaim` is `CanWinPiece`, `winning position` remains forbidden, and
+engine-strength-limited plans must fail strong wording output. Stage 7-4
+opens only the no-standalone-text boundary. Renderer phrases only Lead plans
+with an allowed claim; Support, Context, Blocked, capped no-claim, and
+engine-refuted relation plans produce no text. Stage 7-5 opens only the
+RenderedLine shape. `RenderedLine` owns no chess meaning, proof, or engine
+data; RenderedLine is only the expression result of ExplanationPlan. Stage
+7-6 opens only renderer baseline tests. Renderer output is no stronger than
+ExplanationPlan; there is no new renderer wording, no new input, no public
+route `200`, and no LLM narration. Stages 8-11 remain a dependency map, not
+permission to open those systems. Stage 7 closeout confirms deterministic
+renderer is closed as a template baseline. Stage 8 LLM Narration may receive
+deterministic text and ExplanationPlan only. Stage 8 must not read raw Verdict,
+Story, EngineCheck, CaptureResult, Board Facts, BoardMood, raw PV,
+proofFailures text, or source rows directly.
 
 `StoryInteractionLaw.md` is the single live authority for the Stage 3 charter.
 All other documents may summarize scope, but must not create a second Stage 3
@@ -221,6 +249,67 @@ authority, no allowed claim for Blocked, Support, Context, engine-capped, or
 engine-refuted Verdicts, and Stage 7 deterministic renderer may receive
 Explanation Plan only.
 
+`StoryInteractionLaw.md` is the single live authority for the Stage 7-0
+charter. All other documents may summarize scope, but must not create a second
+Stage 7 rule text. Stage 7 is named `Deterministic Renderer`. Stage 7-0 opens
+only the Deterministic Renderer charter for `ExplanationPlan` only input,
+deterministic template, `Tactic.Hanging` bounded claim phrasing, forbidden
+wording check, no LLM, and no public route. It does not open LLM narration,
+public route `200`, pedagogy, a new Story family, raw Verdict input, raw
+EngineCheck input, raw CaptureResult input, raw Board Facts input, engine PV
+explanation, best-move explanation, engine-says wording, winning, decisive,
+forced, blunder, or free-piece wording.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 7-1 input
+guard. Other documents may summarize only that Stage 7-1 opens the Renderer
+input guard: Renderer receives `ExplanationPlan` only, exposes no raw Verdict,
+Story, BoardFacts, BoardMood, CaptureResult, EngineCheck, EngineEval,
+EngineLine, raw PV, proofFailures, or source-row input, and cannot create a
+sentence without an `ExplanationPlan`.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 7-2
+template. Other documents may summarize only that Stage 7-2 opens the minimal
+`Tactic.Hanging` template for `can_win_piece`, with Lead, bounded strength,
+non-debug, route, target, evidenceLine, and forbidden wording present. The
+template must not exceed the ExplanationPlan claim key or evidenceLine, and it
+does not open any other claim key, Story family, raw proof input, LLM, or
+public route.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 7-3
+forbidden wording enforcement. Other documents may summarize only that Stage
+7-3 opens only forbidden wording enforcement, Renderer output must not violate
+`ExplanationPlan.forbiddenWording`, `win material` wording is allowed only
+when `allowedClaim` is `CanWinPiece`, `winning position` remains forbidden,
+engine-strength-limited plans fail strong wording output, and plans with no
+allowedClaim or debugOnly true produce no output. Stage 7-3 completion
+standard: Renderer automatically refuses forbidden wording.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 7-4
+no-standalone-text boundary. Other documents may summarize only that Stage 7-4
+opens only the no-standalone-text boundary, Renderer phrases only Lead plans
+with an allowed claim, and Support, Context, Blocked, capped no-claim, and
+engine-refuted relation plans produce no text.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 7-5
+RenderedLine shape. Other documents may summarize only that Stage 7-5 opens
+only the RenderedLine shape, `RenderedLine` owns no chess meaning, proof, or
+engine data, and RenderedLine is only the expression result of ExplanationPlan.
+It must not include CaptureResult, EngineCheck, BoardFacts, proofFailures, raw
+route analysis, or source-row material.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 7-6
+renderer baseline tests. Other documents may summarize only that Stage 7-6
+opens only renderer baseline tests, Renderer output is no stronger than
+ExplanationPlan, and there is no new renderer wording, no new input, no public
+route `200`, and no LLM narration.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 7 closeout
+pass. Other documents may summarize only that deterministic renderer is closed
+as a template baseline, Stage 8 LLM Narration may receive deterministic text
+and ExplanationPlan only, and Stage 8 must not read raw Verdict, Story,
+EngineCheck, CaptureResult, Board Facts, BoardMood, raw PV, proofFailures text,
+or source rows directly.
+
 Forbidden dependency shortcuts:
 
 - Renderer before Story proof sidecar is forbidden.
@@ -246,16 +335,47 @@ Forbidden dependency shortcuts:
 - Proof no-go: missing side, target, anchor, route, rival, required legal line,
   or same-root proof sidecar is a hard public-output block, not weak scoring or
   renderer repair.
-- No renderer opening: deterministic templates and LLM renderers remain closed.
-  They may verbalize selected Explanation Plan data only after prerequisite
-  laws and tests exist; they cannot repair, upgrade, or invent chess meaning.
-- Stage 6 Closeout Explanation Plan scope only: do not implement deterministic
-  renderer, LLM narration, public route `200`, user-facing prose, pedagogy,
-  new Story families, engine explanation, `Tactic.Fork`, `Scene.Material`,
-  `Scene.Defense`, Plan, Strategy, King attack, Conversion, Blunder, engine PV
-  commentary, best-move explanation, broad scalar re-entry,
-  source/engine public-truth paths, or CTH-style family exceptions. Stage 7
-  deterministic renderer may later receive Explanation Plan only.
+- Renderer boundary no-go: Stage 7-0 may fix deterministic template phrasing
+  over `ExplanationPlan` only. LLM renderers remain closed, public route `200`
+  remains closed, and no renderer may repair, upgrade, or invent chess meaning.
+- Stage 7-0 Deterministic Renderer scope only: the current scope may fix
+  `ExplanationPlan` only input, deterministic template, `Tactic.Hanging`
+  bounded claim phrasing, and forbidden wording checks. Do not implement LLM
+  narration, public route `200`, pedagogy, new Story families, engine
+  explanation, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan,
+  Strategy, King attack, Conversion, Blunder, engine PV commentary, best-move
+  explanation, broad scalar re-entry, source/engine public-truth paths, or
+  CTH-style family exceptions.
+- Stage 7-1 Renderer Input Guard scope only: Renderer may accept
+  `ExplanationPlan` only. Do not add `fromVerdict`, `fromStory`,
+  `fromBoardFacts`, `fromEngineCheck`, or any raw proof-material renderer
+  entrypoint.
+- Stage 7-2 Minimal Tactic.Hanging Template scope only: render only the
+  `can_win_piece` claim key for a Lead, bounded, non-debug `Tactic.Hanging`
+  ExplanationPlan with route, target, evidenceLine, and forbidden wording. Do
+  not render other claim keys or strengthen wording beyond the evidenceLine.
+- Stage 7-3 Forbidden Wording Enforcement scope only: Renderer must reject
+  deterministic text that violates `ExplanationPlan.forbiddenWording`. `win
+  material` wording is allowed only when `allowedClaim` is `CanWinPiece`;
+  winning-position, best-move, engine-says, strategic, conversion, mate-net,
+  and other forbidden wording remains closed.
+- Stage 7-4 No Text for Support / Context / Blocked scope only: render no
+  standalone text for Support, Context, Blocked, debug-only, capped no-claim,
+  or engine-refuted relation plans. Do not add relation narration or public
+  text for non-Lead plans.
+- Stage 7-5 Rendered Line Shape scope only: `RenderedLine` may carry text,
+  claim key, strength, and forbidden-check result only. Do not add
+  CaptureResult, EngineCheck, BoardFacts, proofFailures, raw route analysis,
+  source rows, proof ownership, engine data ownership, or new chess meaning.
+- Stage 7-6 Renderer Baseline Tests scope only: add baseline tests that prove
+  renderer output is no stronger than ExplanationPlan. Do not add renderer
+  wording, new inputs, relation narration, public route `200`, or LLM
+  narration.
+- Stage 7 Closeout Pass scope only: audit that deterministic renderer is the
+  only Stage 7 surface opened. Do not open LLM narration, public route `200`,
+  pedagogy, new Story families, new renderer inputs, or new markdown authority.
+  Stage 8 LLM Narration may receive deterministic text and ExplanationPlan
+  only.
 - Story Order no-go: StoryTable may order existing `Tactic.Hanging` Story rows
   into roles, but it must not create a Story, open a new positive
   family, or promote engine eval, Board Facts, or `CaptureResult` into direct
