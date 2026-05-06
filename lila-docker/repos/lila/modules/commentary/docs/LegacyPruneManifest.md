@@ -67,3 +67,14 @@ runtime commentary.
 Stage 3 charter authority lives in `StoryInteractionLaw.md`. Legacy material
 does not open `Tactic.Hanging`, any other positive Story family, renderer, LLM,
 or public route.
+
+Stage 4 charter authority lives in `StoryInteractionLaw.md`. Legacy engine
+wrappers, PV text, best-move explanations, and raw eval carriers do not open
+public truth. Stage 4-1 admits only `EngineCheck`, `EngineLine`, and
+`EngineEval` as internal evidence shape for existing `Tactic.Hanging` Stories.
+Stage 4-2 admits only same-board and stale guards over that shape; legacy
+engine lines from another FEN, route-mismatched PVs, stale data, eval-only
+rows, and PV-only rows remain diagnostic only.
+Stage 4-3 attaches EngineCheck only to `Tactic.Hanging`; legacy engine support
+does not create winning, best-move, decisive, PV-explanation, or public-eval
+claims.

@@ -62,7 +62,8 @@ Renderer, LLM narration, public route `200`, `/api/commentary/render`, and
 opens backend proof and writer permission only; it does not open public
 transport, template rendering, frontend mocks, or LLM phrasing.
 
-Stage 4 Engine Validation, renderer, and LLM remain closed after the Stage 3
+Stage 4 Engine Check opens only after the Stage 3 charter and only as internal
+evidence for existing Stories. Renderer and LLM remain closed after the Stage 3
 charter.
 
 Opening Tactic.Hanging does not open Fork, Material, Defense, Plan, Strategy,
@@ -144,6 +145,87 @@ same-board proof, same-root legal replay, complete StoryProof, and a
 forbidden-wording boundary. Without that tuple it must degrade to observation,
 context, or blocked Story; it must not say that a piece is hanging or that a
 move wins material.
+
+## Stage 4 Charter
+
+Stage 4 name is `Engine Check`.
+
+Story comes first. Engine checks, caps, or refutes. Engine never speaks alone.
+
+Stage 4-1 opens only the internal engine evidence shape. The open evidence
+names are `EngineCheck`, `EngineLine`, and `EngineEval`. Their job is to record
+same-board proof, checked move, engine line, reply line, eval before, eval
+after, depth or freshness, and missing evidence.
+
+Engine eval, engine line, reply line, and checked move data cannot create a Story. They cannot open `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan, Strategy, renderer, LLM, public route `200`, engine PV commentary, or best-move explanation.
+
+An engine line may check only an existing Story identity and legal route.
+Missing same-board proof, checked move, engine line, reply line, eval before,
+eval after, depth or freshness, or fresh engine evidence is internal missing
+evidence. It is not public payload, renderer input, LLM input, or text that may
+be spoken.
+
+Stage 4-1 does not wire StoryTable consumption. `Tactic.Hanging` remains the only positive Story writer. Renderer, LLM, and public route `200` remain closed.
+
+Stage 4-2 adds same-board and stale engine guards.
+
+Engine evidence must bind to the same board, the same Story route, and the same legal line.
+
+Different-FEN engine lines, route-mismatched engine lines, stale engine data, depth-missing engine data, eval-only input without a Story, and PV-only input without a Story are diagnostic only.
+
+The guard result may confirm that an `EngineCheck` sidecar is usable for an existing Story. It still does not create a Story, does not choose a Story, does not write a `Verdict`, and does not open renderer, LLM, or public route `200`.
+
+Stage 4-3 attaches EngineCheck only to `Tactic.Hanging`.
+
+EngineCheck status starts with exactly `Unknown`, `Supports`, `Caps`, and `Refutes`.
+
+- `Unknown`: engine evidence is absent or unusable. Engine-related expression is forbidden.
+- `Supports`: engine evidence does not contradict the current Hanging Story. `Supports` does not mean winning, best move, decisive, PV explanation, or public truth.
+- `Caps`: the Hanging Story may remain available, but strong expression is forbidden.
+- `Refutes`: `Refutes` blocks the Hanging Story.
+
+`Caps` leaves the Story available but forbids strong expression.
+`Supports` does not create a new claim. Engine PV remains evidence only and must not become explanation. Engine eval remains internal evidence only and must not become public truth.
+
+Stage 4 negative corpus covers local material gain that fails to a larger
+tactic, refuting engine replies, eval collapse after capture, different-FEN
+engine lines, stale engine lines, route-mismatched engine lines, engine data
+without `CaptureResult`, engine data without complete StoryProof, and engine
+data without a named writer.
+
+A complete same-board Hanging Story may be blocked by `Refutes`. Incomplete,
+wrong-board, stale, route-mismatched, writerless, or proofless engine evidence
+remains `Unknown` and cannot support.
+
+Stage 4 StoryTable integration is conservative.
+
+EngineCheck never creates a Story in StoryTable. `Refutes` blocks only the
+Hanging Lead path. `Caps` records only the internal `engineStrengthLimited`
+marker. `Supports` preserves the existing Story without creating a new claim.
+`Unknown` leaves no engine-related claim. Renderer and LLM wording remain
+closed.
+
+## Stage 4 Closeout
+
+One chess meaning, one home. One rule, one live authority.
+
+Stage 4 ends with `Tactic.Hanging` as the only EngineCheck consumer.
+`EngineCheck` is not a Story writer and does not create public truth.
+`StoryInteractionLaw.md` owns this closeout; other live docs may summarize scope only.
+
+The closeout state is:
+
+- `Refutes` blocks the Hanging Lead path.
+- `Caps` records only an internal strength-limited diagnostic.
+- `Supports` preserves an existing Hanging Story without adding a claim.
+- `Unknown` carries no engine-related claim.
+- Wrong-board, stale, route-mismatched, captureless, proofless, and writerless
+  engine evidence cannot support.
+
+Stage 5 may receive internal EngineCheck diagnostics from selected Verdict rows.
+Stage 5 must not open renderer, LLM, public route `200`, `Tactic.Fork`,
+`Scene.Material`, `Scene.Defense`, Plan, Strategy, engine PV commentary, or
+best-move explanation.
 
 ## Scene Law
 

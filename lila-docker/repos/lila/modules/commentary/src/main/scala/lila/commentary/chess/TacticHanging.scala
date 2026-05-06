@@ -3,6 +3,10 @@ package lila.commentary.chess
 private[commentary] object TacticHanging:
   val WriterOpen = true
 
+  def withEngineCheck(story: Story, check: EngineCheck): Option[Story] =
+    Option.when(hangingStory(story) && checkBindsStoryRoute(story, check)):
+      story.copy(engineCheck = Some(check))
+
   def write(facts: BoardFacts, captureLine: Line): Option[Story] =
     val captureResult = CaptureResult.fromBoardFacts(facts, captureLine)
     for
@@ -27,6 +31,15 @@ private[commentary] object TacticHanging:
       )
       if story.proofFailures.isEmpty
     yield story
+
+  private def hangingStory(story: Story): Boolean =
+    story.writer.contains(StoryWriter.TacticHanging) &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Hanging) &&
+      story.plan.isEmpty
+
+  private def checkBindsStoryRoute(story: Story, check: EngineCheck): Boolean =
+    check.checkedMove.forall(move => story.route.contains(move))
 
   private def targetAttackedByCapturingPiece(facts: BoardFacts, capturingPiece: Piece, targetPiece: Piece): Boolean =
     facts.seen.attacks.exists(attack => attack.attacker == capturingPiece && attack.target == targetPiece)

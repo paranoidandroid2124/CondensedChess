@@ -74,10 +74,14 @@ Implementation must open in this order only:
 Do not implement downstream product stages before earlier authority stages are
 proven.
 
-Current implementation scope is Stage 3 first narrow positive Story only.
-Stage 1 Board Facts and Stage 2 Story Proof are prerequisites. Stage 3 is open
-only for Material proof kernel, `Tactic.Hanging`, and Hanging negative corpus;
-Stages 4-11 remain a dependency map, not permission to open those systems.
+Current implementation scope is Stage 4 Engine Check closeout.
+Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
+Story are prerequisites. Stage 3 remains open only for Material proof kernel,
+`Tactic.Hanging`, and Hanging negative corpus. Stage 4 opens only
+`EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board
+and stale guards, `Tactic.Hanging` attachment, false-positive corpus, and
+conservative StoryTable diagnostics for existing `Tactic.Hanging` Stories;
+Stages 5-11 remain a dependency map, not permission to open those systems.
 
 `StoryInteractionLaw.md` is the single live authority for the Stage 3 charter.
 All other documents may summarize scope, but must not create a second Stage 3
@@ -85,6 +89,22 @@ rule text. The active Stage 3 scope opens backend Material proof evidence and
 the named `Tactic.Hanging` writer only; `Tactic.Fork`, `Scene.Material`,
 `Scene.Defense`, Plan, Strategy, renderer, LLM, public route `200`, and strong
 wording remain closed there.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 4 charter.
+Stage 4 is named `Engine Check`. Story comes first. Engine checks, caps, or
+refutes. Engine never speaks alone.
+
+Stage 4-2 adds same-board and stale engine guards. Engine evidence must bind
+to the same board, the same Story route, and the same legal line. Different
+FENs, route-mismatched engine lines, stale engine data, depth-missing engine
+data, eval-only input without a Story, and PV-only input without a Story are
+diagnostic only.
+
+Stage 4-3 attaches EngineCheck only to `Tactic.Hanging`. EngineCheck status is
+exactly `Unknown`, `Supports`, `Caps`, or `Refutes`. `Unknown` forbids engine
+expression, `Supports` creates no new claim, `Caps` forbids strong expression,
+and `Refutes` blocks the Hanging Story. Engine support must not become winning,
+best-move, decisive, PV explanation, or public truth wording.
 
 Forbidden dependency shortcuts:
 
@@ -114,10 +134,16 @@ Forbidden dependency shortcuts:
 - No renderer opening: templates and LLM renderers may verbalize selected
   `Verdict` data only after prerequisite laws and tests exist; they cannot
   repair, upgrade, or invent chess meaning.
-- Stage 3 first scope only: do not implement `Tactic.Fork`, `Scene.Material`,
-  `Scene.Defense`, Plan, Strategy, King attack, Conversion, Blunder, renderer
-  opening, LLM narration, public commentary route `200`, broad scalar re-entry,
+- Stage 4 closeout scope only: do not implement `Tactic.Fork`,
+  `Scene.Material`, `Scene.Defense`, Plan, Strategy, King attack, Conversion,
+  Blunder, engine PV commentary, best-move explanation, renderer opening, LLM
+  narration, public commentary route `200`, broad scalar re-entry,
   source/engine public-truth paths, or CTH-style family exceptions.
+- Engine Check no-go: engine eval, engine line, reply line, and checked move
+  data may support, cap, or refute only an already existing `Tactic.Hanging`
+  Story after same-board and freshness evidence exists. They must not create a
+  Story, rank a Story, write a `Verdict`, feed a renderer, feed an LLM, or
+  become public truth.
 - Board Facts no-go: open file, pin, weak square, loose piece, pawn lever,
   attacked piece, king-ring attack, and legal move facts are observations only.
   They are not public claims and must not bypass `Story`.

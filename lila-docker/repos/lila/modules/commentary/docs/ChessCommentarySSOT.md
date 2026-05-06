@@ -91,25 +91,33 @@ The current branch owns the early kernel: board truth, primitive geometry,
 Story boundary, and Verdict boundary. Downstream product stages stay closed
 until earlier authority stages are proven.
 
-Current implementation scope is Stage 3 first narrow positive Story only.
-Stage 1 Board Facts and Stage 2 Story Proof are prerequisites. Stage 3 is open
-only for Material proof kernel, `Tactic.Hanging`, and Hanging negative corpus;
-Stages 4-11 remain a dependency map, not permission to open those systems.
+Current implementation scope is Stage 4 Engine Check closeout.
+Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
+Story are prerequisites. Stage 3 remains open only for Material proof kernel,
+`Tactic.Hanging`, and Hanging negative corpus. Stage 4 opens only
+`EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board
+and stale guards, `Tactic.Hanging` attachment, false-positive corpus, and
+conservative StoryTable diagnostics for existing `Tactic.Hanging` Stories.
+Stages 5-11 remain a dependency map, not permission to open those systems.
 
 `StoryInteractionLaw.md` is the single live authority for the Stage 3 charter.
 This SSOT states the stage scope only: Stage 3 opens backend Material proof
 evidence and the named `Tactic.Hanging` writer, while every other positive
 family and every downstream public/rendering/LLM surface remains closed.
 
+`StoryInteractionLaw.md` is the single live authority for the Stage 4 charter.
+This SSOT states the stage scope only: Stage 4 is named `Engine Check`. Story
+comes first. Engine checks, caps, or refutes. Engine never speaks alone.
+
 ## Current No-Go State
 
 The current checkpoint is closed at the public route and renderer boundary.
 Stage 1 `Board Facts` organizes small current-board observations under
 `BoardFacts.md`, Stage 2 `Story Proof` binds the minimum public-output evidence
-tuple, and Stage 3 opens only the named `Tactic.Hanging` writer over positive
-`CaptureResult`. There is no other positive Story opening, no public surface
-opening, no `BoardMood` Sxxx expansion or re-entry, and no renderer opening
-until prerequisite laws and tests exist.
+tuple, Stage 3 opens only the named `Tactic.Hanging` writer over positive
+`CaptureResult`, and Stage 4 closes with internal EngineCheck evidence, guards,
+Hanging-only attachment, negative corpus, and conservative StoryTable diagnostics only. There is no
+other positive Story opening, no public surface opening, no `BoardMood` Sxxx expansion or re-entry, no engine PV commentary, no best-move explanation, and no renderer opening until prerequisite laws and tests exist.
 
 `/api/commentary/render` and `/internal/commentary/render-local-probe` are
 registered only as fail-closed tombstones. No `200`, rendered payload,
@@ -134,6 +142,12 @@ Known blockers are authority blockers, not implementation permission:
 - Runtime `StoryProof` records that full tuple and its missing evidence before
   lead candidacy, but only the named `Tactic.Hanging` writer can turn complete
   proof plus positive `CaptureResult` into a positive Story.
+- `EngineCheck`, `EngineLine`, and `EngineEval` are internal evidence only.
+  They may check the existing `Tactic.Hanging` route after same-board and
+  freshness evidence exists, but they cannot create a Story, rank a Story,
+  write a `Verdict`, feed a renderer, feed an LLM, or become public truth.
+- Stage 4-2 requires engine evidence to bind to the same board, the same Story route, and the same legal line. Wrong-board facts, route-mismatched engine lines, stale engine data, missing depth/freshness, eval-only input without a Story, and PV-only input without a Story remain diagnostic only.
+- Stage 4-3 attaches EngineCheck only to `Tactic.Hanging`, with `Unknown`, `Supports`, `Caps`, and `Refutes` as the only statuses. `Supports` does not mean winning, best move, decisive, PV explanation, or public truth. `Caps` forbids strong expression. `Refutes` blocks the Hanging Story.
 - `Scene.Opening` is context-only and must not lead over a board-backed
   `Story`.
 - Old failing tests proved lower/scaffold/renderer non-upgrade, not default

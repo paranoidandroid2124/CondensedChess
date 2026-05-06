@@ -41,6 +41,10 @@ shape: a positive Story needs a named `StoryWriter`, complete `StoryProof`, and
 family-specific proof bound back to the same Story identity. `Tactic.Hanging`
 is the only live writer in this checkpoint.
 
+`StoryInteractionLaw.md` owns the Stage 4 charter. This contract owns names and
+shape: Engine Check evidence is internal sidecar evidence for an existing
+Story. It is not Story identity, not a Story writer, and not a Verdict result.
+
 Renderer, LLM narration, public route `200`, `/api/commentary/render`, and
 `/internal/commentary/render-local-probe` remain closed until their own
 contracts and tests exist.
@@ -101,6 +105,10 @@ Allowed core names:
 - `Story`
 - `StoryProof`
 - `CaptureResult`
+- `EngineEval`
+- `EngineLine`
+- `EngineCheck`
+- `EngineCheckStatus`
 - `StoryWriter`
 - `TacticHanging`
 - `Verdict`
@@ -707,6 +715,11 @@ Lead fail-closed rules:
   echoes only: `Story` remains the home for side, target, anchor, route, and
   rival, and `StoryTable` must reject any positive writer whose
   `CaptureResult` does not bind back to that Story identity.
+- EngineCheck is internal evidence only. It records same-board proof, checked move, engine line, reply line, eval before, eval after, depth or freshness, and missing evidence. EngineCheck does not create a Story, select a Story, rank a Story, write a Verdict, feed a renderer, or feed an LLM. EngineLine carries only move lines. EngineEval carries only internal centipawn numbers.
+- EngineCheck.fromStory binds engine evidence to same-board BoardFacts, an existing Story route, and a same-board legal line. Wrong-board facts, route-mismatched engine lines, stale engine data, depth-missing engine data, eval-only input without a Story, and PV-only input without a Story leave missing evidence and stay diagnostic only.
+- EngineCheckStatus has exactly `Unknown`, `Supports`, `Caps`, and `Refutes`. Only `Tactic.Hanging` may carry EngineCheck in this checkpoint. `Refutes` blocks the Hanging Story. `Supports` and `Caps` do not change `Verdict.values`, create public truth, or create winning, best-move, decisive, PV-explanation, or public-eval claims.
+- Eval collapse after capture may refute an existing Hanging EngineCheck only after same-board Story proof, named writer, CaptureResult, legal route, and freshness guards pass. Eval collapse cannot create a Story, public eval claim, or engine-authored explanation.
+- Verdict carries `engineCheckStatus` and `engineStrengthLimited` as internal diagnostics only. `Verdict.values`, renderer, and LLM inputs must not consume EngineCheck diagnostics.
 - `ownerProof >= 70` requires `side` to be `White`, `Black`, or `Both`; `None`
   cannot lead.
 - `anchorProof >= 70` requires a concrete `anchor`.

@@ -73,9 +73,11 @@ or increase claim strength.
 ## Current Freeze
 
 This reset keeps the public-surface no-go state while Stage 3 opens only one
-positive Story writer: `Tactic.Hanging`. There is still no public surface
-opening, no `BoardMood` Sxxx expansion or re-entry, no positive `Story` proof
-writer beyond `Tactic.Hanging`, and no renderer opening.
+positive Story writer: `Tactic.Hanging`, and Stage 4-1 opens only Engine Check
+evidence shape. There is still no public surface opening, no `BoardMood` Sxxx
+expansion or re-entry, no positive `Story` proof writer beyond
+`Tactic.Hanging`, no engine PV commentary, no best-move explanation, and no
+renderer opening.
 
 The registered render routes, `/api/commentary/render` and
 `/internal/commentary/render-local-probe`, are fail-closed tombstones only. No
@@ -90,6 +92,15 @@ The blockers are known. Numeric `Proof` scores may rank blocked/context
 That is why public output remains closed until same-root side, target, anchor,
 route, rival, required legal line, and proof sidecars are enforced.
 `Scene.Opening` is context-only and must not lead over a board-backed `Story`.
+Engine Check evidence can check only an existing `Tactic.Hanging` Story after
+same-board and freshness evidence exists. It cannot create a Story, rank a
+Story, write a `Verdict`, feed a renderer, feed an LLM, or become public truth.
+Stage 4-2 tightens that guard: different-FEN engine lines, route-mismatched
+engine lines, stale engine data, depth-missing engine data, eval-only input
+without a Story, and PV-only input without a Story are diagnostic only.
+Stage 4-3 attaches EngineCheck only to `Tactic.Hanging`; `Supports` creates no
+winning, best-move, decisive, PV-explanation, or public-eval claim, `Caps`
+forbids strong expression, and `Refutes` blocks Hanging.
 
 Missing side, target, anchor, route, rival, required legal line, or same-root
 proof sidecar is a hard public-output block, not weak scoring or renderer

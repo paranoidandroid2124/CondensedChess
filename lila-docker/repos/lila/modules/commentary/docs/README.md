@@ -26,16 +26,25 @@ mismatch is a no-go state, not a second source of authority.
 
 This reset is intentionally closed at the public boundary.
 
-Current implementation scope is Stage 3 first narrow positive Story only.
-Stage 1 Board Facts and Stage 2 Story Proof are prerequisites. Stage 3 is open
-only for Material proof kernel, `Tactic.Hanging`, and Hanging negative corpus;
-Stages 4-11 remain a dependency map for later work, not permission to open
-those systems in this branch checkpoint.
+Current implementation scope is Stage 4 Engine Check closeout.
+Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
+Story are prerequisites. Stage 3 remains open only for Material proof kernel,
+`Tactic.Hanging`, and Hanging negative corpus. Stage 4 is named `Engine Check`.
+Stage 4 opens only internal EngineCheck evidence, same-board and stale guards,
+`Tactic.Hanging` attachment, false-positive corpus, and conservative StoryTable
+diagnostics for existing `Tactic.Hanging` Stories; Stages 5-11 remain a
+dependency map, not permission to open those systems in this branch checkpoint.
 
 `StoryInteractionLaw.md` owns the Stage 3 charter. This README only summarizes
 the current scope: backend Material proof evidence plus the named
 `Tactic.Hanging` writer are open; other positive families, renderer, LLM, and
 public route `200` are still closed.
+
+`StoryInteractionLaw.md` owns the Stage 4 charter. This README only summarizes
+the current scope: Story comes first, and engine evidence may check, cap, or
+refute only an existing `Tactic.Hanging` Story. Engine eval, engine line, reply
+line, and checked move data cannot create a Story, rank a Story, write a
+`Verdict`, feed a renderer, feed an LLM, or become public truth.
 
 - Public route no-go: `/api/commentary/render` and
   `/internal/commentary/render-local-probe` are registered only as fail-closed
@@ -56,6 +65,19 @@ public route `200` are still closed.
 - Proof no-go: missing side, target, anchor, route, rival, required legal line,
   or same-root proof sidecar is a hard public-output block, not weak scoring,
   deferred work, or renderer repair.
+- Engine Check no-go: `EngineCheck`, `EngineLine`, and `EngineEval` are
+  internal evidence only. Same-board proof, checked move, engine line, reply
+  line, eval before, eval after, depth or freshness, status, and missing
+  evidence are diagnostics, not public claim ownership.
+- Stage 4-2 guard no-go: engine evidence must bind to the same board, the same
+  Story route, and the same legal line. Different-FEN engine lines,
+  route-mismatched engine lines, stale engine data, depth-missing engine data,
+  eval-only input without a Story, and PV-only input without a Story remain
+  diagnostic only.
+- Stage 4-3 status no-go: EngineCheck attaches only to `Tactic.Hanging`.
+  Status is exactly `Unknown`, `Supports`, `Caps`, or `Refutes`. `Supports`
+  cannot become winning, best-move, decisive, PV explanation, or public truth;
+  `Caps` forbids strong expression; `Refutes` blocks Hanging.
 - No renderer opening: templates and LLM renderers may verbalize selected
   `Verdict` data only after prerequisite laws and tests exist; they must not
   create, repair, or upgrade chess meaning.
@@ -75,10 +97,11 @@ public route `200` are still closed.
 
 Current implementation blockers are documented, not excused: Stage 2 enforces
 the full public-output tuple before lead candidacy, and Stage 3 opens only the
-named `Tactic.Hanging` writer over positive `CaptureResult`. `Scene.Opening` is
-context-only and must not lead over a board-backed `Story`. Old failing tests
-proved lower/scaffold/renderer non-upgrade; they did not prove default runtime
-FEN to rendered commentary.
+named `Tactic.Hanging` writer over positive `CaptureResult`. Stage 4-1 records
+engine evidence shape only; it does not wire StoryTable consumption.
+`Scene.Opening` is context-only and must not lead over a board-backed `Story`.
+Old failing tests proved lower/scaffold/renderer non-upgrade; they did not
+prove default runtime FEN to rendered commentary.
 
 Authority summary:
 

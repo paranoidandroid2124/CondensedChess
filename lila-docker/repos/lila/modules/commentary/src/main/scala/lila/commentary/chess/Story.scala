@@ -242,7 +242,8 @@ final case class Story(
     rival: Side = Side.None,
     storyProof: StoryProof = StoryProof.empty,
     private[commentary] val writer: Option[StoryWriter] = None,
-    private[commentary] val captureResult: Option[CaptureResult] = None
+    private[commentary] val captureResult: Option[CaptureResult] = None,
+    private[commentary] val engineCheck: Option[EngineCheck] = None
 ):
   def proofFailures: Vector[BoardFacts.MissingEvidence] =
     storyProof.failures(this)
@@ -311,7 +312,9 @@ final case class Verdict(
     strength: Double,
     role: Role,
     // Internal diagnostics only. Verdict.values, renderer, and LLM inputs must not consume this.
-    proofFailures: Vector[BoardFacts.MissingEvidence] = Vector.empty
+    proofFailures: Vector[BoardFacts.MissingEvidence] = Vector.empty,
+    engineCheckStatus: Option[EngineCheckStatus] = None,
+    engineStrengthLimited: Boolean = false
 ):
   def values: Vector[Double] =
     val data = Array.fill(Verdict.Size)(0.0)
@@ -391,7 +394,9 @@ object StoryTable:
           leadAllowed = row.leadAllowed,
           strength = row.strength,
           role = role(row, index),
-          proofFailures = row.proofFailures
+          proofFailures = row.proofFailures,
+          engineCheckStatus = row.story.engineCheck.map(_.status),
+          engineStrengthLimited = row.story.engineCheck.exists(_.status == EngineCheckStatus.Caps)
         )
 
   private case class Row(
@@ -435,6 +440,7 @@ object StoryTable:
       story.scene == Scene.Tactic &&
       story.tactic.contains(Tactic.Hanging) &&
       story.plan.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
       story.captureResult.exists: result =>
         result.positiveMaterial &&
           result.sameBoardProof &&

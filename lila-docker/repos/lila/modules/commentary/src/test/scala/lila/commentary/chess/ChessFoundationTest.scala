@@ -2110,6 +2110,385 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(verdict.leadAllowed, false)
     assert(verdict.role != Role.Lead)
 
+  test("EngineCheck records internal engine evidence without public claim authority"):
+    val checkedMove = Line(Square('d', 4), Square('e', 5))
+    val replyMove = Line(Square('e', 8), Square('e', 7))
+    val engineLine = EngineLine(Vector(checkedMove, replyMove))
+    val replyLine = EngineLine(Vector(replyMove))
+
+    val check = EngineCheck.fromEvidence(
+      sameBoardProof = true,
+      checkedMove = Some(checkedMove),
+      engineLine = Some(engineLine),
+      replyLine = Some(replyLine),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(85)),
+      depth = Some(18),
+      freshnessPly = Some(0)
+    )
+    val engineSurfaceNames =
+      classOf[EngineCheck].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[EngineCheck].getDeclaredFields.map(_.getName).toSet ++
+        classOf[EngineLine].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[EngineLine].getDeclaredFields.map(_.getName).toSet ++
+        classOf[EngineEval].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[EngineEval].getDeclaredFields.map(_.getName).toSet
+
+    assertEquals(engineLine.moves, Vector(checkedMove, replyMove))
+    assertEquals(replyLine.moves, Vector(replyMove))
+    assertEquals(check.sameBoardProof, true)
+    assertEquals(check.checkedMove, Some(checkedMove))
+    assertEquals(check.engineLine, Some(engineLine))
+    assertEquals(check.replyLine, Some(replyLine))
+    assertEquals(check.evalBefore, Some(EngineEval(20)))
+    assertEquals(check.evalAfter, Some(EngineEval(85)))
+    assertEquals(check.depth, Some(18))
+    assertEquals(check.freshnessPly, Some(0))
+    assertEquals(check.missingEvidence, Vector.empty)
+    assertEquals(check.publicClaimAllowed, false)
+    assertEquals(check.evidenceReady, true)
+    Vector("best", "strategy", "commentary", "render", "llm", "publicText", "verdict").foreach: forbidden =>
+      assert(!engineSurfaceNames.exists(_.toLowerCase.contains(forbidden.toLowerCase)), forbidden)
+
+  test("EngineCheck reports missing same-board stale and move-binding evidence"):
+    val checkedMove = Line(Square('d', 4), Square('e', 5))
+    val otherMove = Line(Square('d', 4), Square('d', 5))
+    val stale = EngineCheck.fromEvidence(
+      sameBoardProof = false,
+      checkedMove = Some(checkedMove),
+      engineLine = Some(EngineLine(Vector(otherMove))),
+      replyLine = None,
+      evalBefore = None,
+      evalAfter = None,
+      depth = None,
+      freshnessPly = Some(2)
+    )
+
+    assertEquals(stale.publicClaimAllowed, false)
+    assertEquals(stale.evidenceReady, false)
+    assertEquals(
+      stale.missingEvidence,
+      Vector(
+        BoardFacts.MissingEvidence(
+          "EngineCheck",
+          Vector(
+            "same-board proof",
+            "checked move in engine line",
+            "reply line",
+            "eval before",
+            "eval after",
+            "depth or freshness",
+            "fresh engine evidence"
+          )
+        )
+      )
+    )
+
+  test("EngineLine rejects empty PV-shaped evidence"):
+    intercept[IllegalArgumentException]:
+      EngineLine(Vector.empty)
+
+  test("EngineCheck rejects engine evidence from a different FEN"):
+    val storyFacts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val otherFacts = BoardFacts.fromFen(Fen.initial).toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(storyFacts, capture).get
+
+    val check = EngineCheck.fromStory(
+      facts = otherFacts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0)
+    )
+
+    assertEquals(check.publicClaimAllowed, false)
+    assertEquals(check.evidenceReady, false)
+    assertEquals(check.sameBoardProof, false)
+    assert(check.missingEvidence.flatMap(_.missing).contains("same-board proof"))
+    assert(check.missingEvidence.flatMap(_.missing).contains("same legal line"))
+
+  test("EngineCheck rejects engine lines that do not start with the Story route"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val wrongRoute = Line(Square('d', 4), Square('d', 5))
+    val story = TacticHanging.write(facts, capture).get
+
+    val check = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(wrongRoute))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0)
+    )
+
+    assertEquals(check.publicClaimAllowed, false)
+    assertEquals(check.evidenceReady, false)
+    assertEquals(check.sameBoardProof, true)
+    assert(check.missingEvidence.flatMap(_.missing).contains("same Story route"))
+    assert(check.missingEvidence.flatMap(_.missing).contains("checked move in engine line"))
+
+  test("EngineCheck keeps stale or depth-missing engine data diagnostic only"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+
+    val check = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = None,
+      freshnessPly = Some(2)
+    )
+
+    assertEquals(check.publicClaimAllowed, false)
+    assertEquals(check.evidenceReady, false)
+    assertEquals(check.missingEvidence.flatMap(_.missing), Vector("depth or freshness", "fresh engine evidence"))
+
+  test("EngineCheck cannot speak from eval or PV without a Story"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val evalOnly = EngineCheck.fromStory(
+      facts = facts,
+      story = None,
+      engineLine = None,
+      replyLine = None,
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0)
+    )
+    val pvOnly = EngineCheck.fromStory(
+      facts = facts,
+      story = None,
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = None,
+      evalAfter = None,
+      depth = Some(18),
+      freshnessPly = Some(0)
+    )
+
+    Vector(evalOnly, pvOnly).foreach: check =>
+      assertEquals(check.publicClaimAllowed, false)
+      assertEquals(check.evidenceReady, false)
+      assertEquals(check.checkedMove, None)
+      assertEquals(StoryTable.choose(Vector.empty), Vector.empty)
+      assert(check.missingEvidence.flatMap(_.missing).contains("Story"))
+
+  test("EngineCheck status stays Unknown unless same-board Story guard passes"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val unknown = EngineCheck.fromStory(
+      facts = facts,
+      story = None,
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    val supports = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+
+    assertEquals(unknown.status, EngineCheckStatus.Unknown)
+    assertEquals(supports.status, EngineCheckStatus.Supports)
+    assertEquals(supports.missingEvidence, Vector.empty)
+
+  test("Tactic.Hanging attaches EngineCheck statuses and Refutes blocks lead"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val baseVerdict = StoryTable.choose(Vector(story)).head
+
+    def check(status: EngineCheckStatus) =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(capture))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(20)),
+        evalAfter = Some(EngineEval(80)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    val supports = TacticHanging.withEngineCheck(story, check(EngineCheckStatus.Supports)).get
+    val caps = TacticHanging.withEngineCheck(story, check(EngineCheckStatus.Caps)).get
+    val refutes = TacticHanging.withEngineCheck(story, check(EngineCheckStatus.Refutes)).get
+    val supportsVerdict = StoryTable.choose(Vector(supports)).head
+    val capsVerdict = StoryTable.choose(Vector(caps)).head
+    val refutesVerdict = StoryTable.choose(Vector(refutes)).head
+
+    assertEquals(supports.engineCheck.map(_.status), Some(EngineCheckStatus.Supports))
+    assertEquals(caps.engineCheck.map(_.status), Some(EngineCheckStatus.Caps))
+    assertEquals(refutes.engineCheck.map(_.status), Some(EngineCheckStatus.Refutes))
+    assertEquals(supportsVerdict.leadAllowed, true)
+    assertEquals(capsVerdict.leadAllowed, true)
+    assertEquals(refutesVerdict.leadAllowed, false)
+    assert(refutesVerdict.role != Role.Lead)
+    assertEquals(supportsVerdict.values, baseVerdict.values)
+    assertEquals(capsVerdict.values, baseVerdict.values)
+
+  test("StoryTable integrates EngineCheck conservatively without creating public engine claims"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val baseVerdict = StoryTable.choose(Vector(story)).head
+
+    def checked(status: EngineCheckStatus) =
+      val check = EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(capture))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(20)),
+        evalAfter = Some(EngineEval(80)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+      TacticHanging.withEngineCheck(story, check).get
+
+    val unknownVerdict = StoryTable.choose(Vector(checked(EngineCheckStatus.Unknown))).head
+    val supportsVerdict = StoryTable.choose(Vector(checked(EngineCheckStatus.Supports))).head
+    val capsVerdict = StoryTable.choose(Vector(checked(EngineCheckStatus.Caps))).head
+    val refutesVerdict = StoryTable.choose(Vector(checked(EngineCheckStatus.Refutes))).head
+
+    assertEquals(StoryTable.choose(Vector.empty), Vector.empty)
+    Vector(unknownVerdict, supportsVerdict, capsVerdict).foreach: verdict =>
+      assertEquals(verdict.leadAllowed, true)
+      assertEquals(verdict.role, Role.Lead)
+      assertEquals(verdict.strength, baseVerdict.strength)
+      assertEquals(verdict.values, baseVerdict.values)
+
+    assertEquals(unknownVerdict.engineCheckStatus, Some(EngineCheckStatus.Unknown))
+    assertEquals(supportsVerdict.engineCheckStatus, Some(EngineCheckStatus.Supports))
+    assertEquals(capsVerdict.engineCheckStatus, Some(EngineCheckStatus.Caps))
+    assertEquals(refutesVerdict.engineCheckStatus, Some(EngineCheckStatus.Refutes))
+    assertEquals(unknownVerdict.engineStrengthLimited, false)
+    assertEquals(supportsVerdict.engineStrengthLimited, false)
+    assertEquals(capsVerdict.engineStrengthLimited, true)
+    assertEquals(refutesVerdict.engineStrengthLimited, false)
+    assertEquals(refutesVerdict.leadAllowed, false)
+    assert(refutesVerdict.role != Role.Lead)
+
+  test("EngineCheck negative corpus blocks or weakens false positive Hanging evidence"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val otherFacts = BoardFacts.fromFen(Fen.initial).toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val wrongRoute = Line(Square('d', 4), Square('d', 5))
+    val reply = Line(Square('e', 8), Square('e', 7))
+    val story = TacticHanging.write(facts, capture).get
+    val positiveCapture = CaptureResult.fromBoardFacts(facts, capture)
+    val noCaptureResult = story.copy(captureResult = None)
+    val incompleteStoryProof = story.copy(storyProof = StoryProof.empty)
+    val noNamedWriter = story.copy(writer = None)
+
+    def check(
+        storyInput: Option[Story] = Some(story),
+        factsInput: BoardFacts = facts,
+        engineMoves: Vector[Line] = Vector(capture, reply),
+        replyMoves: Vector[Line] = Vector(reply),
+        before: EngineEval = EngineEval(80),
+        after: EngineEval = EngineEval(120),
+        depthInput: Option[Int] = Some(18),
+        freshnessInput: Option[Int] = Some(0),
+        requested: EngineCheckStatus = EngineCheckStatus.Supports
+    ) =
+      EngineCheck.fromStory(
+        facts = factsInput,
+        story = storyInput,
+        engineLine = Some(EngineLine(engineMoves)),
+        replyLine = Some(EngineLine(replyMoves)),
+        evalBefore = Some(before),
+        evalAfter = Some(after),
+        depth = depthInput,
+        freshnessPly = freshnessInput,
+        requestedStatus = requested
+      )
+
+    val localGainButLargerTactic = check(after = EngineEval(-420))
+    val replyRefutes = check(after = EngineEval(-260), requested = EngineCheckStatus.Refutes)
+    val evalCollapse = check(before = EngineEval(120), after = EngineEval(-500))
+    val wrongBoard = check(factsInput = otherFacts)
+    val stale = check(freshnessInput = Some(3))
+    val routeMismatch = check(engineMoves = Vector(wrongRoute, reply))
+    val engineOnlyNoCapture = check(storyInput = Some(noCaptureResult))
+    val engineOnlyIncompleteProof = check(storyInput = Some(incompleteStoryProof))
+    val engineOnlyNoNamedWriter = check(storyInput = Some(noNamedWriter))
+
+    Vector(localGainButLargerTactic, replyRefutes, evalCollapse).foreach: refutingCheck =>
+      assertEquals(refutingCheck.status, EngineCheckStatus.Refutes)
+      val checkedStory = TacticHanging.withEngineCheck(story, refutingCheck).get
+      val verdict = StoryTable.choose(Vector(checkedStory)).head
+      assertEquals(verdict.leadAllowed, false)
+      assert(verdict.role != Role.Lead)
+
+    Vector(
+      wrongBoard -> "same-board proof",
+      stale -> "fresh engine evidence",
+      routeMismatch -> "same Story route",
+      engineOnlyNoCapture -> "same-board proof",
+      engineOnlyIncompleteProof -> "same-board proof",
+      engineOnlyNoNamedWriter -> "same-board proof"
+    ).foreach: (check, missing) =>
+      assertEquals(check.status, EngineCheckStatus.Unknown)
+      assertEquals(check.publicClaimAllowed, false)
+      assertEquals(check.evidenceReady, false)
+      assert(check.missingEvidence.flatMap(_.missing).contains(missing), missing)
+
+    assertEquals(noCaptureResult.copy(engineCheck = Some(engineOnlyNoCapture)).captureResult, None)
+    assertEquals(incompleteStoryProof.proofFailures.nonEmpty, true)
+    assertEquals(noNamedWriter.writer, None)
+    assertEquals(positiveCapture.missingEvidence, Vector.empty)
+
+  test("EngineCheck attaches only to Tactic.Hanging"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val hanging = TacticHanging.write(facts, capture).get
+    val check = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(hanging),
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    val fork = hanging.copy(tactic = Some(Tactic.Fork))
+    val material = hanging.copy(scene = Scene.Material, tactic = None)
+    val noWriter = hanging.copy(writer = None)
+
+    assertEquals(TacticHanging.withEngineCheck(hanging, check).map(_.engineCheck), Some(Some(check)))
+    assertEquals(TacticHanging.withEngineCheck(fork, check), None)
+    assertEquals(TacticHanging.withEngineCheck(material, check), None)
+    assertEquals(TacticHanging.withEngineCheck(noWriter, check), None)
+
   test("Tactic.Hanging writer opens the first narrow positive Story"):
     val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
     val capture = Line(Square('d', 4), Square('e', 5))
