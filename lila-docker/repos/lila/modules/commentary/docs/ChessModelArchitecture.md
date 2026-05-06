@@ -45,6 +45,20 @@ Code names must follow `ChessModelContract.md`: no type or module name may carry
 version suffixes or developer-facing abstraction names for the new core model.
 Schema numbers and shape sizes live in companion constants.
 
+## Authority Consolidation
+
+The architecture must reduce duplicated meaning, not multiply authority names.
+Before adding a new type, module, row, or observation family, first test whether
+the chess meaning already has a home and whether the existing owner can carry a
+new field. When a file-related observation can live inside `FileFact`, a
+piece-contact observation can live inside `PieceContact`, or a line-geometry
+observation can live inside `LineFact`, prefer extending the existing owner over creating a second authority name.
+
+Small implementation steps are good. Similar row families that each own a slice
+of the same chess phenomenon are not. If a later `Story` proof would have to
+choose between two similarly named inputs, the design has already split
+authority and must be consolidated before proceeding.
+
 ## Live Authority Chain
 
 The current chess authority path is:
@@ -124,12 +138,13 @@ Goal: populate only small current-board observations.
 Core sentence: Board state observes. Story proves.
 
 Allowed facts are side, square, file, rank, piece, pawn, legal move, attack,
-guard, defender, blocker, line, ray, x-ray shape, pin-to-king, open and
-semi-open file, rook file entry, loose piece, pawn lever, pawn challenge,
-front blocker, current pawn structure observation, reachable square, square
-guard map, king square, king-ring square, king-ring attack, king-ring defender,
-legal king move, contact-check observation, line to king, blocker near king,
-and promotion path.
+guard, `PieceContact`, `FileFact`, `LineFact`, defender, blocker, line, ray,
+x-ray shape, pin-to-king geometry, open and semi-open file state, rook file
+entry observation, unguarded non-pawn non-king piece observation, pawn lever,
+pawn challenge, front blocker, current pawn structure observation, reachable
+square, square guard map, king square, king-ring square, king-ring attack,
+king-ring defender, legal king move, contact-check observation, non-public
+king-line geometry, and promotion path.
 
 Forbidden public meanings are plan speech, tactic verdict, conversion speech,
 counterplay speech, initiative speech, score/heat/pressure speech, and engine

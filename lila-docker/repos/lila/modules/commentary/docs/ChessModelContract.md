@@ -7,6 +7,15 @@ rules on this branch.
 
 Type and module names must read like chess, not project management.
 
+New names are last-resort authority changes. Before adding a new core type,
+module, row, or docs-authority name, ask whether the same chess meaning already has a home,
+ask whether an existing Fact can carry the new field, ask whether the proposed
+name creates a new authority, ask whether the same phenomenon would now have two
+owners, and ask whether Story would later have two possible inputs to trust.
+
+One chess meaning, one home. One observation family, one owner. One public
+claim, one proof path.
+
 Allowed core names:
 
 - `BoardMood`
@@ -18,16 +27,10 @@ Allowed core names:
 - `LegalMove`
 - `Attack`
 - `Guard`
-- `PieceUnderAttack`
-- `GuardedPiece`
-- `AttackedUnguardedPiece`
-- `LoosePieceObservation`
+- `PieceContact`
 - `LineKind`
-- `LineObservation`
-- `Ray`
-- `LineBlocker`
-- `XRayShape`
-- `Pin`
+- `LineShape`
+- `LineFact`
 - `PawnLever`
 - `PawnChallenge`
 - `PawnCannotChallengeSquare`
@@ -39,23 +42,14 @@ Allowed core names:
 - `BackwardPawnFrontSquare`
 - `PieceReachableSquare`
 - `SquareGuardMap`
-- `OpenFile`
-- `RookEntry`
-- `OpenFileObservation`
-- `SemiOpenFileObservation`
-- `RookOnFile`
-- `LegalFileEntryMove`
-- `RookOpenFileEntry`
-- `FileBlocker`
-- `FileTargetSquare`
+- `FileState`
+- `FileFact`
 - `KingSquare`
 - `KingRingSquare`
 - `KingRingAttack`
 - `KingRingDefender`
 - `LegalEscapeSquare`
 - `ContactCheckObservation`
-- `LineToKing`
-- `BlockerNearKing`
 - `MissingEvidence`
 - `Heat`
 - `KingHeat`
@@ -127,13 +121,15 @@ Runtime input boundary:
   chess-readable Board Fact name such as open file, pin, weak square, loose
   piece, or pawn lever does not create public claim authority.
 - `BoardFacts.seen` is the Stage 1 runtime observation surface. It may expose
-  legal moves, attacks, guards, pieces under attack, guarded pieces, attacked
-  unguarded pieces, loose piece observations, line observations, rays,
-  line blockers, x-ray shapes, pins, pawn levers, pawn/square observations,
-  open and semi-open file observations, rook/file entry observations,
-  king-ring observations, king-line observations, and missing-evidence rows. These rows
-  are observations only and do not write Story proof, renderer payload, or
-  public claim pressure.
+  legal moves, primitive attacks, primitive guards, `PieceContact` rows,
+  `FileFact` rows, `LineFact` rows, pawn levers, pawn/square observations,
+  king-ring observations, legal king moves, contact-check observations, and
+  missing-evidence rows. `PieceContact` consolidates the former derived
+  piece-contact rows; `FileFact` consolidates the former file rows; `LineFact`
+  consolidates ordinary line/ray geometry plus non-public pin-to-king and
+  king-line geometry. These rows are observations only and do not write Story
+  proof, renderer payload, route binding, plan quality, file control, invasion,
+  tactic proof, unsafe-king proof, mate-net proof, or public claim pressure.
 - `BoardFacts.fromFen` is the strict root transport entrypoint. It accepts a
   `Fen.Full` or raw FEN string, validates through
   `RootExtractor.fromFenWithPositionFailClosed`, and returns

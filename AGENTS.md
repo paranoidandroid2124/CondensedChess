@@ -119,6 +119,16 @@ Forbidden dependency shortcuts:
 
 ## Implementation Guardrails
 
+- Authority consolidation is mandatory: `One chess meaning, one home`;
+  `One observation family, one owner`; `One public claim, one proof path`.
+- Before adding any new core type, module, row, or docs-authority name, ask
+  whether the chess meaning is truly new, whether an existing Fact can carry it
+  as a field, whether the name creates new authority, whether the same board
+  phenomenon would now have two owners, and whether a later `Story` proof would
+  know which input to trust.
+- New names are the last resort. Prefer extending `FileFact`, `PieceContact`,
+  `LineFact`, or the existing owner for the observation family when the chess
+  meaning is already housed there.
 - Preserve exact-board validation, legal replay, owner/anchor/route/scope
   binding, raw-engine/source non-ownership, public-safe line evidence, and
   stale-evidence rejection as hard gates.

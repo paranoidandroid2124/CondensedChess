@@ -58,6 +58,25 @@ The proof boundary is:
 - claim is not a public `Story`
 - public `Story` requires proof-bearing identity
 
+The authority-consolidation boundary is:
+
+- One chess meaning, one home.
+- One observation family, one owner.
+- One public claim, one proof path.
+
+Too many small modules and duplicated roles caused authority explosion in the
+old commentary stack. Splitting work into small implementation steps is still
+allowed, but splitting one chess meaning across several similarly named types,
+modules, rows, or docs authority paths is not allowed. A new type, module, row, or docs-authority name is the last resort.
+
+Before adding a new name, ask:
+
+- is this really a different chess meaning from an existing one?
+- can the existing Fact owner carry this as a field?
+- does this name create a new authority by sounding like one?
+- will two names now own the same board phenomenon?
+- will a later `Story` proof know exactly which input to trust?
+
 The implementation question is not "which tactic or strategy feature is
 visible?" The implementation question is whether that feature can become a
 Story with side, target, anchor, route, rival, required legal line, and

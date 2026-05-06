@@ -22,7 +22,9 @@ Allowed observation families are chess-readable:
 - Legal Moves
 - Attacks
 - Guards
-- Lines
+- Piece Contact
+- Line Fact
+- File Fact
 - Pawns
 - Pieces
 - King Safety
@@ -54,10 +56,11 @@ Completion standard:
 
 Allowed observations:
 
-- attacked piece
-- guarded piece
-- attacked and unguarded piece
-- loose piece observation
+- `PieceContact` row per relevant piece
+- attacked
+- guarded
+- attackedUnguarded
+- unguardedNonPawnNonKing
 - attacked_piece_guard_map
 - piece_under_attack
 - attacked_unguarded_piece
@@ -71,14 +74,20 @@ Forbidden public claims:
 - blunder
 - tactical target
 
-Loose piece language is internal observation language only. It means no current
-same-side guard was observed for the piece; it does not mean the piece can be
-won.
+`PieceContact` is the only derived piece-contact row. It carries the piece,
+attackers, guards, and the derived booleans attacked, guarded,
+attackedUnguarded, and unguardedNonPawnNonKing. It is not separate `PieceUnderAttack`,
+`GuardedPiece`, `AttackedUnguardedPiece`, or `LoosePieceObservation` rows.
+
+Loose piece language is internal observation language only. The new field name
+is unguardedNonPawnNonKing because it means no current same-side guard was
+observed for a non-pawn non-king piece; it does not mean the piece can be won.
 
 ### Slice 3 - Line facts
 
 Allowed observations:
 
+- `LineFact` row for ordinary geometry and line/ray shapes
 - pin-to-king line
 - blocker
 - ray
@@ -86,6 +95,8 @@ Allowed observations:
 - rank line
 - diagonal line
 - x-ray shape
+- ordinary geometry
+- king-line geometry
 
 Forbidden public claims:
 
@@ -97,14 +108,21 @@ Forbidden public claims:
 
 Line means geometry. It is not a tactic.
 
+`LineFact` is the only line row family for line observation, ray, blocker,
+x-ray shape, and pin-to-king geometry. It is not separate `LineObservation`,
+`Ray`, `LineBlocker`, `XRayShape`, or `Pin` rows.
+
 Slice 3 rows may name a line, ray, blocker, pin-to-king line, or x-ray shape
 only as current-board geometry. They must not say that the blocker can move,
-that the ray wins material, or that the x-ray shape is a tactic.
+that the ray wins material, that the pin is a tactic, or that the x-ray shape
+is a tactic. A `LineFact` does not prove a pin tactic and does not prove an x-ray tactic.
 
 ### Slice 4 - File facts
 
 Allowed observations:
 
+- `FileFact` row keyed by file
+- file state
 - open file
 - semi-open file
 - rook on file
@@ -129,6 +147,16 @@ Slice 4 rows may name pawnless files, semi-open files for one side, rooks
 standing on files, legal rook entry moves, file blockers, and entry target
 squares. They must not say that the file is controlled, dominated, decisive,
 usable, or uncontestable.
+
+`FileFact` is the only derived file row. It carries file state, side-specific
+semi-open observations, rooks on the file, legal entry moves, rook open-file
+entries, blockers, and target squares. It is not separate `OpenFile`,
+`OpenFileObservation`, `SemiOpenFileObservation`, `RookOnFile`,
+`LegalFileEntryMove`, `RookOpenFileEntry`, `FileBlocker`, or
+`FileTargetSquare` rows.
+
+`FileFact` does not prove file control, does not prove invasion, does not prove route binding,
+and does not prove plan quality.
 
 ### Slice 5 - Pawn and square facts
 
@@ -193,6 +221,10 @@ the king, and nearby blockers. They must not say that the king is unsafe, that
 an attack is dangerous or winning, that a mate net exists, that mate is forced,
 or that there is no escape.
 
+King-line details live as explicitly non-public king-line geometry inside
+`LineFact`. They are not separate `LineToKing` or `BlockerNearKing` rows.
+`LineFact` does not prove an unsafe king and does not prove a mate net.
+
 The closure gate checks every Stage 1 slice:
 
 - every Board Fact is bound to the same board.
@@ -247,15 +279,10 @@ current-board observations through `facts.seen`.
 - `LegalMove` rows with side, piece, and line
 - `Attack` rows with attacker and target
 - `Guard` rows with guard and target
-- `PieceUnderAttack` rows with piece and attackers
-- `GuardedPiece` rows with piece and guards
-- `AttackedUnguardedPiece` rows with piece and attackers
-- `LoosePieceObservation` rows with piece only
-- `LineObservation` rows with file, rank, or diagonal geometry between pieces
-- `Ray` rows with side, slider piece, line kind, line, and blockers
-- `LineBlocker` rows with side, slider piece, blocker, line kind, and line
-- `XRayShape` rows with side, slider piece, screen, target, line kind, and line
-- `Pin` rows with side, king, pinned piece, attacker, and line
+- `PieceContact` rows with piece, attackers, guards, attacked, guarded,
+  attackedUnguarded, and unguardedNonPawnNonKing observations
+- `LineFact` rows with line kind, line, ordinary geometry, ray/blocker/x-ray
+  shape data, and non-public pin-to-king or king-line geometry
 - `PawnLever` rows with side, pawn, target, and line
 - `PawnChallenge` rows with side, pawn, challenged square, and line
 - `PawnCannotChallengeSquare` rows with side, square, and opposing pawn side
@@ -267,14 +294,9 @@ current-board observations through `facts.seen`.
 - `BackwardPawnFrontSquare` rows with side, pawn, square, and line
 - `PieceReachableSquare` rows with side, piece, square, and legal line
 - `SquareGuardMap` rows with side, square, and guarding pieces
-- `OpenFile` rows with file and legal rook entry lines
-- `OpenFileObservation` rows with file
-- `SemiOpenFileObservation` rows with side and file
-- `RookOnFile` rows with side, rook, and file
-- `LegalFileEntryMove` rows with side, piece, file, and legal line
-- `RookOpenFileEntry` rows with side, rook, file, and legal line
-- `FileBlocker` rows with side, file, and blocker piece
-- `FileTargetSquare` rows with side, file, square, and legal line
+- `FileFact` rows with file state, side-specific semi-open observations,
+  rooks, legal entry moves, rook open-file entries, blockers, and target
+  squares
 - `KingSquare` rows with side and king
 - `KingRingSquare` rows with side, king, and ring square
 - `KingRingAttack` rows with king side, king square, attacked ring square, and
@@ -282,9 +304,6 @@ current-board observations through `facts.seen`.
 - `KingRingDefender` rows with side, king, ring square, and defender
 - `LegalEscapeSquare` rows with side, king, square, and legal line
 - `ContactCheckObservation` rows with king side, king, checking piece, and legal
-  line
-- `LineToKing` rows with side, king, line piece, line kind, line, and blockers
-- `BlockerNearKing` rows with side, king, blocker, line piece, line kind, and
   line
 - `MissingEvidence` rows listing missing evidence
 

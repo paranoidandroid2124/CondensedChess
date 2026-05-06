@@ -35,20 +35,109 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
   private val SplitSlots =
     Vector(
-      "S031", "S076", "S077", "S079", "S092", "S093", "S095", "S102", "S106", "S107", "S109",
-      "S110", "S118", "S122", "S123", "S125", "S126", "S128", "S129", "S130", "S133", "S137",
-      "S134", "S136", "S143", "S144", "S145", "S146", "S149", "S150", "S152", "S153", "S159",
-      "S163", "S168", "S169", "S170", "S171", "S172", "S173", "S179", "S184", "S185", "S186",
-      "S187", "S188", "S189", "S192", "S193", "S194", "S195", "S196", "S197", "S198", "S199",
-      "S200", "S202", "S203", "S204", "S205", "S206", "S207", "S208", "S209", "S210", "S211",
-      "S212", "S213", "S218"
+      "S031",
+      "S076",
+      "S077",
+      "S079",
+      "S092",
+      "S093",
+      "S095",
+      "S102",
+      "S106",
+      "S107",
+      "S109",
+      "S110",
+      "S118",
+      "S122",
+      "S123",
+      "S125",
+      "S126",
+      "S128",
+      "S129",
+      "S130",
+      "S133",
+      "S137",
+      "S134",
+      "S136",
+      "S143",
+      "S144",
+      "S145",
+      "S146",
+      "S149",
+      "S150",
+      "S152",
+      "S153",
+      "S159",
+      "S163",
+      "S168",
+      "S169",
+      "S170",
+      "S171",
+      "S172",
+      "S173",
+      "S179",
+      "S184",
+      "S185",
+      "S186",
+      "S187",
+      "S188",
+      "S189",
+      "S192",
+      "S193",
+      "S194",
+      "S195",
+      "S196",
+      "S197",
+      "S198",
+      "S199",
+      "S200",
+      "S202",
+      "S203",
+      "S204",
+      "S205",
+      "S206",
+      "S207",
+      "S208",
+      "S209",
+      "S210",
+      "S211",
+      "S212",
+      "S213",
+      "S218"
     )
 
   private val CutSlots =
     Vector(
-      "S013", "S014", "S072", "S078", "S088", "S094", "S104", "S111", "S120", "S127", "S131",
-      "S142", "S147", "S158", "S164", "S174", "S175", "S180", "S190", "S191", "S201", "S214",
-      "S215", "S216", "S217", "S219", "S220", "S221", "S222", "S223"
+      "S013",
+      "S014",
+      "S072",
+      "S078",
+      "S088",
+      "S094",
+      "S104",
+      "S111",
+      "S120",
+      "S127",
+      "S131",
+      "S142",
+      "S147",
+      "S158",
+      "S164",
+      "S174",
+      "S175",
+      "S180",
+      "S190",
+      "S191",
+      "S201",
+      "S214",
+      "S215",
+      "S216",
+      "S217",
+      "S219",
+      "S220",
+      "S221",
+      "S222",
+      "S223"
     )
 
   private val Scenes =
@@ -209,7 +298,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
         "tbd",
         "todo",
         "나중에"
-    )
+      )
     forbidden.foreach: term =>
       if term.exists(_.toInt > 127) then
         assert(!contents.contains(term), s"$term must not appear in law docs")
@@ -250,11 +339,18 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(!readme.contains("archived authority"))
     assert(ssot.contains("`BoardMood` -> `Story` -> `StoryTable` -> `Verdict`"))
     assert(ssot.contains("No other path owns current public chess meaning."))
+    assert(ssot.contains("One chess meaning, one home."))
+    assert(ssot.contains("One observation family, one owner."))
+    assert(ssot.contains("One public claim, one proof path."))
+    assert(ssot.contains("Too many small modules and duplicated roles caused authority explosion"))
+    assert(ssot.contains("A new type, module, row, or docs-authority name is the last resort"))
     assert(!ssot.contains("CommentaryPipelineInput"))
     assert(!ssot.contains("candidate generation"))
     assert(!ssot.contains("semantic selector"))
     assert(architecture.contains("HCE-style deterministic chess scorer"))
     assert(architecture.contains("`BoardMood` -> `Story` -> `StoryTable` -> `Verdict`"))
+    assert(architecture.contains("Before adding a new type, module, row, or observation family"))
+    assert(architecture.contains("prefer extending the existing owner over creating a second authority name"))
     assert(architecture.contains("`48` bit slots"))
     assert(architecture.contains("Stage 1 - Board Facts"))
     assert(!architecture.contains("Historical selector-shaped scaffolds may remain"))
@@ -263,8 +359,16 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(boardFacts.contains("Board state observes. Story proves."))
     assert(boardFacts.contains("A named board fact is still only an observation."))
     assert(boardFacts.contains("Open file, pin, weak square, loose piece, and pawn lever"))
-    assert(boardFacts.contains("No renderer, LLM, public route, template, frontend mock, or API transport may read Board Facts directly as commentary."))
+    assert(
+      boardFacts.contains(
+        "No renderer, LLM, public route, template, frontend mock, or API transport may read Board Facts directly as commentary."
+      )
+    )
     assert(modelContract.contains("Forbidden in new core model names"))
+    assert(modelContract.contains("New names are last-resort authority changes"))
+    assert(modelContract.contains("ask whether the same chess meaning already has a home"))
+    assert(modelContract.contains("ask whether an existing Fact can carry the new field"))
+    assert(modelContract.contains("ask whether Story would later have two possible inputs to trust"))
     assert(modelContract.contains("The model has exactly `32` long-term plan families"))
     assert(modelContract.contains("B00..B45 are packed `RootStateVector` transport words"))
     assert(modelContract.contains("BoardMood carries proof summaries, not public proof authority by itself"))
@@ -277,24 +381,44 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(modelContract.contains("parameters do not carry readiness authority"))
     assert(modelContract.contains("Manual `BoardFacts` assembly remains only for contract tests"))
     assert(modelContract.contains("must not expose case-class `copy` or product reconstruction"))
-    assert(modelContract.contains("reflective construction and caller-supplied fields must not create readiness"))
+    assert(
+      modelContract.contains("reflective construction and caller-supplied fields must not create readiness")
+    )
     assert(modelContract.contains("`BoardMood.fromPieces` is scaffold-only and not runtime authority"))
     assert(modelContract.contains("BoardFacts required fields"))
     assert(modelContract.contains("Nested BoardFacts facts must be marked `known = true`"))
     Vector(
-      "LineObservation",
-      "XRayShape",
-      "OpenFileObservation",
-      "SemiOpenFileObservation",
+      "PieceContact",
+      "FileFact",
+      "LineFact",
       "PawnChallenge",
       "SquareGuardMap",
       "KingSquare",
       "KingRingDefender",
       "ContactCheckObservation",
-      "BlockerNearKing"
+      "MissingEvidence"
     ).foreach: row =>
       assert(modelContract.contains(s"`$row`"), s"model contract must name BoardFacts row $row")
-    assert(modelContract.contains("S015 `position_ready` may be `1` only when all nested facts are known and sane"))
+    Vector(
+      "PieceUnderAttack",
+      "GuardedPiece",
+      "AttackedUnguardedPiece",
+      "LoosePieceObservation",
+      "OpenFileObservation",
+      "SemiOpenFileObservation",
+      "RookOpenFileEntry",
+      "LineObservation",
+      "XRayShape",
+      "LineToKing",
+      "BlockerNearKing"
+    ).foreach: retiredRow =>
+      assert(
+        !modelContract.contains(s"- `$retiredRow`"),
+        s"$retiredRow must not remain a separate admitted BoardFacts row"
+      )
+    assert(
+      modelContract.contains("S015 `position_ready` may be `1` only when all nested facts are known and sane")
+    )
     assert(modelContract.contains("B46 and B47 are legal destination summaries, not proof"))
     assert(modelContract.contains("`BoardMood.fromPacked`, `BoardMood.fromParts`, and `BoardMood.fromRoot`"))
     assert(modelContract.contains("canonicalize all closed scalar slots to `0`"))
@@ -314,9 +438,15 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(splitLaw.contains("Public chess speech still belongs to Story only after Story binds side"))
     assert(splitLaw.contains("target, anchor, route, rival, required legal line, and same-root proof"))
     assert(splitLaw.contains("numeric proof scores alone are not enough"))
-    assert(resurrectionLaw.contains("BoardMood does not create, score, revive, or hint at the meanings below"))
+    assert(
+      resurrectionLaw.contains("BoardMood does not create, score, revive, or hint at the meanings below")
+    )
     assert(resurrectionLaw.contains("Every row inherits mandatory Story binding"))
-    assert(resurrectionLaw.contains(HardPublicOutputBlocker.replace(" is a hard public-output block.", " means no public sentence.")))
+    assert(
+      resurrectionLaw.contains(
+        HardPublicOutputBlocker.replace(" is a hard public-output block.", " means no public sentence.")
+      )
+    )
     assert(interactionLaw.contains("Nonlinear interaction is explicit"))
     assert(interactionLaw.contains("A blocker can cap or silence a Story"))
     assert(interactionLaw.contains("An opposing Tactic or Blunder at public floor blocks Plan lead"))
@@ -347,7 +477,8 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
     val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
     val agents = Files.readString(agentInstructions)
-    val contents = Vector(readme, ssot, architecture, modelContract, rationale, interactionLaw, manifest).mkString("\n")
+    val contents =
+      Vector(readme, ssot, architecture, modelContract, rationale, interactionLaw, manifest).mkString("\n")
 
     assert(readme.contains("Public route no-go"))
     assert(contents.contains("`/api/commentary/render`"))
@@ -362,14 +493,18 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(ssot.contains("`BoardMood` Sxxx expansion or re-entry"))
     assert(rationale.contains("no `Story` proof writers"))
     assert(manifest.contains("default runtime FEN to public"))
-    assert(modelContract.contains("At this checkpoint no `BoardMood` Sxxx re-entry or proof writer is admitted"))
+    assert(
+      modelContract.contains("At this checkpoint no `BoardMood` Sxxx re-entry or proof writer is admitted")
+    )
     assert(modelContract.contains("No `Story` proof writer is live in this checkpoint"))
     assert(contents.contains("Numeric `Proof` scores may rank blocked/context `Verdict` rows only"))
     assert(contents.contains("cannot set `leadAllowed=true` or produce `Role.Lead`"))
     assert(contents.contains("Runtime proof-sidecar writers for that full tuple do not exist"))
     assert(!contents.contains("does not yet require target and rival everywhere"))
     assert(!contents.contains("only conditionally required"))
-    assert(contents.contains("Missing side, target, anchor, route, rival, required legal line, or same-root proof"))
+    assert(
+      contents.contains("Missing side, target, anchor, route, rival, required legal line, or same-root proof")
+    )
     assert(contents.contains("hard public-output block"))
     assert(contents.contains("Old failing tests proved lower/scaffold/"))
     assert(rationale.contains("They did not prove default runtime"))
@@ -404,7 +539,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(ssot.contains("whether that feature can become a"))
     assert(ssot.contains("Story with side, target, anchor, route, rival, required legal line, and"))
     assert(ssot.contains("same-root proof"))
-    assert(ssot.contains("`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer"))
+    assert(
+      ssot.contains(
+        "`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer"
+      )
+    )
     assert(ssot.contains("feature to public claim"))
     assert(ssot.contains("raw engine eval to public truth"))
     assert(ssot.contains("high numeric `Proof` score to `Role.Lead` without sidecar"))
@@ -423,7 +562,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(ssot.contains("LLM layers may not choose instructional emphasis"))
     assert(rationale.contains("The old question was: what tactical or strategic feature is visible"))
     assert(rationale.contains("The new question is: can this feature become a Story with side,"))
-    assert(rationale.contains("A tactic motif, plan affordance, source row, or engine number is not a public"))
+    assert(
+      rationale.contains("A tactic motif, plan affordance, source row, or engine number is not a public")
+    )
     assert(rationale.contains("Engine lines, mate/tablebase proof, SEE, and bounded material results are"))
     assert(rationale.contains("Raw engine numbers and engine text"))
     assert(rationale.contains("The LLM is not the intelligence of commentary"))
@@ -434,7 +575,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(architecture.contains("Only Stage 1 Board Facts is active implementation authority now."))
     assert(architecture.contains("Stages 2-11 are"))
     assert(architecture.contains("dependency-map-only"))
-    assert(architecture.contains("`Board Truth` -> `Engine Truth` -> `Primitive Geometry` -> `Tactical/Strategic Story Birth` -> `Engine Validation` -> `Causal Arbitration` -> `Pedagogical Policy` -> `Explanation IR` -> `LLM Narration` -> `Verifier`"))
+    assert(
+      architecture.contains(
+        "`Board Truth` -> `Engine Truth` -> `Primitive Geometry` -> `Tactical/Strategic Story Birth` -> `Engine Validation` -> `Causal Arbitration` -> `Pedagogical Policy` -> `Explanation IR` -> `LLM Narration` -> `Verifier`"
+      )
+    )
     assert(!architecture.contains("Tactical/Strategic Hypotheses"))
     Vector(
       "Stage 0 - Closed Kernel",
@@ -479,9 +624,21 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(interactionLaw.contains("\"root\": \"current-position-root\""))
     assert(interactionLaw.contains("\"requiredLegalLine\": null"))
     assert(interactionLaw.contains("\"sameRootProofSidecar\": null"))
-    assert(interactionLaw.contains("\"missingSidecar\": [\"legal file-entry line\", \"same-root route proof\"]"))
+    assert(
+      interactionLaw.contains("\"missingSidecar\": [\"legal file-entry line\", \"same-root route proof\"]")
+    )
     assert(readme.contains("Forbidden-name no-go"))
-    Vector("Semantic", "Candidate", "Certification", "Object", "Delta", "Selector", "Pipeline", "Gate", "ScoreVector").foreach: term =>
+    Vector(
+      "Semantic",
+      "Candidate",
+      "Certification",
+      "Object",
+      "Delta",
+      "Selector",
+      "Pipeline",
+      "Gate",
+      "ScoreVector"
+    ).foreach: term =>
       assert(readme.contains(term), s"README must freeze forbidden name $term")
     RetiredRootDocs.foreach: docName =>
       assert(readme.contains(docName), s"README must freeze retired root doc $docName")
@@ -497,7 +654,10 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
         s"AGENTS.md must list $docName as live authority"
       )
     RetiredRootDocs.foreach: fileName =>
-      assert(!agents.contains(s"modules/commentary/docs/$fileName"), s"AGENTS.md must not list $fileName as live authority")
+      assert(
+        !agents.contains(s"modules/commentary/docs/$fileName"),
+        s"AGENTS.md must not list $fileName as live authority"
+      )
       assert(agents.contains(fileName), s"AGENTS.md must explicitly retire $fileName")
     assert(agents.contains("Public route no-go"))
     assert(agents.contains("No `BoardMood` Sxxx expansion or re-entry"))
@@ -508,15 +668,28 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(agents.contains("`BoardMood` observes."))
     assert(agents.contains("feature is not a claim"))
     assert(agents.contains("public `Story` requires proof-bearing identity"))
+    assert(agents.contains("Authority consolidation is mandatory"))
+    assert(agents.contains("`One chess meaning, one home`"))
+    assert(agents.contains("`One observation family, one owner`"))
+    assert(agents.contains("`One public claim, one proof path`"))
+    assert(agents.contains("New names are the last resort"))
     assert(agents.contains("Ask whether a feature can become a `Story` with side, target, anchor, route,"))
-    assert(agents.contains("`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer"))
+    assert(
+      agents.contains(
+        "`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer"
+      )
+    )
 
   test("stage 1 board facts charter keeps observations below public claims"):
     val boardFacts = Files.readString(docsRoot.resolve("BoardFacts.md"))
 
     assert(boardFacts.contains("Stage 1 name is `Board Facts`."))
     assert(boardFacts.contains("Board state observes. Story proves."))
-    assert(boardFacts.contains("Small board facts may be recorded only when they are directly visible from the current board"))
+    assert(
+      boardFacts.contains(
+        "Small board facts may be recorded only when they are directly visible from the current board"
+      )
+    )
     assert(boardFacts.contains("binds to the same board root"))
     assert(boardFacts.contains("side"))
     assert(boardFacts.contains("piece"))
@@ -560,12 +733,42 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     ).foreach: forbidden =>
       assert(boardFacts.contains(forbidden), s"Board Facts charter must ban $forbidden")
     Vector(
-      "`PieceUnderAttack` rows",
-      "`GuardedPiece` rows",
-      "`AttackedUnguardedPiece` rows",
-      "`LoosePieceObservation` rows"
+      "`PieceContact` rows",
+      "`FileFact` rows",
+      "`LineFact` rows",
+      "not separate `PieceUnderAttack`",
+      "`LoosePieceObservation` rows",
+      "not separate `OpenFile`",
+      "`FileTargetSquare` rows",
+      "not separate `LineObservation`",
+      "`BlockerNearKing` rows"
     ).foreach: rowName =>
-      assert(boardFacts.contains(rowName), s"Board Facts charter must document $rowName")
+      assert(
+        boardFacts.contains(rowName),
+        s"Board Facts charter must document consolidated authority: $rowName"
+      )
+    Vector(
+      "attacked",
+      "guarded",
+      "attackedUnguarded",
+      "unguardedNonPawnNonKing",
+      "file state",
+      "legal entry moves",
+      "ordinary geometry",
+      "king-line geometry"
+    ).foreach: field =>
+      assert(boardFacts.contains(field), s"Board Facts charter must pin consolidated field: $field")
+    Vector(
+      "does not prove file control",
+      "does not prove invasion",
+      "does not prove route binding",
+      "does not prove plan quality",
+      "does not prove an unsafe king",
+      "does not prove a mate net",
+      "does not prove a pin tactic",
+      "does not prove an x-ray tactic"
+    ).foreach: ban =>
+      assert(boardFacts.contains(ban), s"Board Facts charter must pin public ban: $ban")
     Vector(
       "the knight is free",
       "controls the c-file",
@@ -575,9 +778,38 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "counterplay is stopped"
     ).foreach: claim =>
       assert(boardFacts.contains(claim), s"Board Facts charter must explicitly reject public claim: $claim")
-    assert(boardFacts.contains("No renderer, LLM, public route, template, frontend mock, or API transport may read Board Facts directly as commentary."))
+    assert(
+      boardFacts.contains(
+        "No renderer, LLM, public route, template, frontend mock, or API transport may read Board Facts directly as commentary."
+      )
+    )
     assert(!boardFacts.contains("Stage 1 is commentary"))
     assert(!boardFacts.contains("leadAllowed=true"))
+
+  test("BoardFacts consolidated row names avoid public-claim vocabulary"):
+    val source =
+      Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/BoardFacts.scala"))
+    val admittedRows = Vector("PieceContact", "FileFact", "LineFact")
+    val forbiddenRowVocabulary =
+      Vector(
+        "Free",
+        "Hanging",
+        "Wins",
+        "MaterialWin",
+        "Control",
+        "Dominates",
+        "Invasion",
+        "Decisive",
+        "Tactic",
+        "Motif",
+        "Proof",
+        "Claim"
+      )
+
+    admittedRows.foreach: row =>
+      assert(source.contains(s"final case class $row"), s"BoardFacts source must define $row")
+      forbiddenRowVocabulary.foreach: term =>
+        assert(!row.contains(term), s"$row must not include public-claim term $term")
 
   test("live docs reject legacy candidate selector authority while allowing candidate passer"):
     val contents = liveDocContents
@@ -669,7 +901,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(resurrectionLaw.contains("No Story resurrection as a chess idea"))
     assert(resurrectionLaw.contains("Every row inherits mandatory Story binding"))
     assert(resurrectionLaw.contains("side, target, anchor, route, rival"))
-    assert(resurrectionLaw.contains(HardPublicOutputBlocker.replace(" is a hard public-output block.", " means no public sentence.")))
+    assert(
+      resurrectionLaw.contains(
+        HardPublicOutputBlocker.replace(" is a hard public-output block.", " means no public sentence.")
+      )
+    )
     assert(resurrectionLaw.contains("A forgeable numeric `Proof` score is not enough."))
     assert(resurrectionLaw.contains("legal checking line, escape-square proof, or engine mate/decisive line"))
     assert(resurrectionLaw.contains("Engine context does not speak by itself"))
@@ -715,13 +951,22 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(!interactionLaw.contains("when the corresponding proof claims strength"))
     sceneRows.foreach: row =>
       assertEquals(row.size, 5)
-      assert(row(2).nonEmpty && row(3).nonEmpty && row(4).nonEmpty, s"scene row must close support/block/wording: ${row(0)}")
+      assert(
+        row(2).nonEmpty && row(3).nonEmpty && row(4).nonEmpty,
+        s"scene row must close support/block/wording: ${row(0)}"
+      )
     planRows.foreach: row =>
       assertEquals(row.size, 4)
-      assert(row(1).nonEmpty && row(2).nonEmpty && row(3).nonEmpty, s"plan row must close affordance/proof/blockers: ${row(0)}")
+      assert(
+        row(1).nonEmpty && row(2).nonEmpty && row(3).nonEmpty,
+        s"plan row must close affordance/proof/blockers: ${row(0)}"
+      )
     tacticRows.foreach: row =>
       assertEquals(row.size, 4)
-      assert(row(2).contains("legal") || row(2).contains("mate"), s"tactic row must require line proof: ${row(0)}")
+      assert(
+        row(2).contains("legal") || row(2).contains("mate"),
+        s"tactic row must require line proof: ${row(0)}"
+      )
     proofRows.foreach: row =>
       assertEquals(row.size, 4)
       assert(row(3).nonEmpty, s"proof row must define caps or blockers: ${row(0)}")
@@ -741,4 +986,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     val bridgeTest = Files.readString(commentaryBridgeTest)
     RetiredRootDocs.foreach: docName =>
-      assert(!bridgeTest.contains(docName), s"active commentaryBridge.test.ts must not read retired doc $docName")
+      assert(
+        !bridgeTest.contains(docName),
+        s"active commentaryBridge.test.ts must not read retired doc $docName"
+      )
