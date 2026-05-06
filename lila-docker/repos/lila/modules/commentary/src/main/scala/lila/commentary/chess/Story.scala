@@ -311,7 +311,7 @@ final case class Verdict(
     leadAllowed: Boolean,
     strength: Double,
     role: Role,
-    // Internal diagnostics only. Verdict.values, renderer, and LLM inputs must not consume this.
+    // Internal diagnostics only. Verdict.values, renderer, and LLM inputs must not consume these.
     proofFailures: Vector[BoardFacts.MissingEvidence] = Vector.empty,
     engineCheckStatus: Option[EngineCheckStatus] = None,
     engineStrengthLimited: Boolean = false
@@ -370,30 +370,32 @@ object StoryTable:
     val rows =
       stories.map: story =>
         val leadCandidate = leadByStoryRules(story, stories)
-        Row(story, story.proof.publicStrength, leadCandidate, leadCandidate, story.proofFailures)
+        val proofFailures = story.proofFailures
+        Row(story, story.proof.publicStrength, leadCandidate, blockedByStoryRules(story, proofFailures), proofFailures)
     rows
       .sortBy(row =>
         (
-          leadSortPriority(row),
+          roleSortPriority(row),
           -row.strength,
-          row.story.scene.ordinal,
-          tag(row.story),
+          familyKey(row.story),
           row.story.side.ordinal,
           squareKey(row.story.target),
           squareKey(row.story.anchor),
           routeKey(row.story.route),
+          writerKey(row.story.writer),
           row.story.rival.ordinal
         )
       )
       .take(TopK)
       .zipWithIndex
       .map: (row, index) =>
+        val selectedRole = role(row, index)
         Verdict(
           story = row.story,
           rank = index + 1,
-          leadAllowed = row.leadAllowed,
+          leadAllowed = selectedRole == Role.Lead,
           strength = row.strength,
-          role = role(row, index),
+          role = selectedRole,
           proofFailures = row.proofFailures,
           engineCheckStatus = row.story.engineCheck.map(_.status),
           engineStrengthLimited = row.story.engineCheck.exists(_.status == EngineCheckStatus.Caps)
@@ -402,13 +404,13 @@ object StoryTable:
   private case class Row(
       story: Story,
       strength: Double,
-      leadAllowed: Boolean,
       leadCandidate: Boolean,
+      blocked: Boolean,
       proofFailures: Vector[BoardFacts.MissingEvidence]
   )
 
-  private def leadSortPriority(row: Row) =
-    if row.leadAllowed then 0 else if row.leadCandidate then 1 else 2
+  private def roleSortPriority(row: Row) =
+    if row.leadCandidate then 0 else if row.blocked then 2 else 1
 
   private def leadByStoryRules(story: Story, stories: Vector[Story]) =
     story.proofFailures.isEmpty &&
@@ -419,6 +421,24 @@ object StoryTable:
       quiet(story, stories) &&
       plan(story, stories) &&
       source(story, stories)
+
+  private def blockedByStoryRules(story: Story, proofFailures: Vector[BoardFacts.MissingEvidence]) =
+    proofFailures.nonEmpty ||
+      story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) ||
+      hangingWithoutWriter(story) ||
+      hangingWriterWithoutCapture(story) ||
+      (!leadByStoryRules(story, Vector(story)) && base(story))
+
+  private def hangingWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Hanging)
+
+  private def hangingWriterWithoutCapture(story: Story) =
+    story.writer.contains(StoryWriter.TacticHanging) &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Hanging) &&
+      story.captureResult.isEmpty
 
   private def base(story: Story) =
     story.proof.publicStrength >= 65 &&
@@ -492,13 +512,19 @@ object StoryTable:
   private def tag(story: Story) =
     story.plan.map(_.ordinal).orElse(story.tactic.map(_.ordinal)).getOrElse(Int.MaxValue)
 
+  private def familyKey(story: Story) =
+    story.scene.ordinal * 100 + tag(story)
+
   private def squareKey(square: Option[Square]) = square.fold(0)(_.index + 1)
 
   private def routeKey(route: Option[Line]) =
     route.fold(0)(line => (line.from.index + 1) * 65 + line.to.index + 1)
 
+  private def writerKey(writer: Option[StoryWriter]) =
+    writer.fold(Int.MaxValue)(_.ordinal)
+
   private def role(row: Row, index: Int) =
-    if row.leadAllowed && index == 0 then Role.Lead
-    else if row.leadAllowed then Role.Support
-    else if base(row.story) then Role.Blocked
+    if row.leadCandidate && index == 0 then Role.Lead
+    else if row.leadCandidate then Role.Support
+    else if row.blocked then Role.Blocked
     else Role.Context

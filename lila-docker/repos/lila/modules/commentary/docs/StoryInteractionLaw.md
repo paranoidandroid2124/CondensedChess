@@ -222,10 +222,183 @@ The closeout state is:
 - Wrong-board, stale, route-mismatched, captureless, proofless, and writerless
   engine evidence cannot support.
 
-Stage 5 may receive internal EngineCheck diagnostics from selected Verdict rows.
-Stage 5 must not open renderer, LLM, public route `200`, `Tactic.Fork`,
-`Scene.Material`, `Scene.Defense`, Plan, Strategy, engine PV commentary, or
-best-move explanation.
+Stage 5 Story Order may receive internal EngineCheck diagnostics from selected
+Verdict rows. Stage 5 must not open renderer, LLM, public route `200`,
+`Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan, Strategy, engine PV
+commentary, or best-move explanation.
+
+## Stage 5 Charter
+
+Stage 5 name is `Story Order`.
+
+Stage 5 may be described as `StoryTable Arbitration` when a document needs to
+explain the role of `StoryTable`.
+
+Core sentence: StoryTable orders. It does not invent.
+
+Many Stories may exist. StoryTable chooses roles. No new chess meaning is
+created.
+
+Stage 5-0 fixes this charter before broader arbitration work. Stage 5 first
+scope is limited to the existing `Tactic.Hanging` vertical slice.
+
+Allowed:
+
+- Lead
+- Support
+- Context
+- Blocked
+- deterministic ordering
+- `Refutes` -> blocked
+- `Caps` -> strength-limited diagnostic
+- `Supports` -> no new claim
+- `Unknown` -> no engine claim
+
+Forbidden:
+
+- new Story creation
+- new positive family
+- engine eval as ranking truth
+- Board Facts as direct public claim
+- `CaptureResult` as public material story
+- pedagogical advice
+- Explanation IR
+- renderer
+- LLM
+- public route
+- `Tactic.Fork`
+- `Scene.Material`
+- `Scene.Defense`
+- Plan / Strategy
+- engine PV commentary
+- best-move explanation
+
+StoryTable may order only existing Story rows. It must not manufacture a row
+from EngineCheck, EngineEval, Board Facts, `CaptureResult`, a proof number, or
+a missing sidecar diagnostic.
+
+For the first scope, multiple proof-backed `Tactic.Hanging` rows may be
+assigned stable roles. One may become Lead. Other Hanging rows may become
+Support, Context, or Blocked. A `Refutes` EngineCheck sends the Hanging Story
+to Blocked. A `Caps` EngineCheck preserves only internal strength limitation.
+`Supports` preserves an existing Hanging Story without adding a claim.
+`Unknown` creates no engine claim and forbids engine expression.
+
+Stage 5 completion standard: when multiple Hanging Story rows exist,
+StoryTable deterministically decides Lead, Support, Context, and Blocked roles
+without creating new chess meaning or a new public claim.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 5 charter.
+Other live documents may summarize Stage 5 scope only.
+
+## Stage 5-1 Hanging Role Rules
+
+Stage 5-1 goal: assign roles for existing `Tactic.Hanging` Story rows.
+
+Hanging role rules:
+
+- complete `Tactic.Hanging` Story, positive `CaptureResult`, and no `Refutes`
+  may enter Lead selection.
+- exactly one selected Hanging row may be Lead.
+- lower-strength complete Hanging may become Support or Context.
+- `EngineCheck.Refutes` sends Hanging to Blocked.
+- incomplete StoryProof sends Hanging to Blocked.
+- missing `CaptureResult` sends Hanging to Blocked.
+- no writer sends Hanging to Context or Blocked.
+- `EngineCheck.Unknown` creates no engine claim.
+
+Support is not yet a public sentence. Context is not yet a public sentence.
+Role assignment does not open renderer or LLM.
+
+## Stage 5-2 Deterministic Ordering
+
+Stage 5-2 goal: when multiple Story rows exist, StoryTable always returns the
+same order for the same rows.
+
+Allowed sort input:
+
+- Story role eligibility
+- publicStrength
+- scene / tactic identity
+- side
+- target
+- anchor
+- route
+- writer presence
+- blocked status
+
+Forbidden sort input:
+
+- raw engine eval
+- raw PV text
+- proofFailures text
+- Board Facts row count
+- `CaptureResult` text
+- renderer wording
+
+Input order must not decide Lead. Equal-strength rows must fall through to
+target, anchor, and route identity. proofFailures may explain why a row is
+Blocked, but proofFailures text must not sort public rows. Raw engine eval and
+raw PV text may affect EngineCheck diagnostics only through admitted status;
+they must not order Stories by themselves.
+
+## Stage 5-3 Conflict and Block Rules
+
+Stage 5-3 goal: resolve close blocker relationships for Hanging Story rows
+only.
+
+Allowed in the current scope:
+
+- `EngineCheck.Refutes` blocks Hanging.
+- Missing StoryProof blocks Hanging.
+- Missing `CaptureResult` blocks Hanging.
+- Missing writer blocks Hanging.
+- Quiet only if no positive Hanging exists.
+- `Scene.Source` and `Scene.Opening` cannot outrank board-backed Hanging.
+
+Not implemented in Stage 5-3:
+
+- Tactic vs Plan override.
+- Blunder override.
+- Defense vs Threat relation.
+- Counterplay cap beyond existing `EngineCheck.Caps`.
+- Strategy suppression.
+
+Stage 5-3 does not create a Story, open a new positive family, create a new
+public claim, open renderer or LLM, or turn Source, Opening, Quiet, Board
+Facts, `CaptureResult`, raw engine eval, or raw PV text into public truth.
+
+## Stage 5-4 Verdict Diagnostic Boundary
+
+Stage 5-4 goal: keep StoryTable results from being mistaken for renderer or LLM input.
+
+Diagnostic boundary:
+
+- `Verdict.values` shape stays fixed.
+- proofFailures do not enter `Verdict.values`.
+- EngineCheck diagnostics do not enter `Verdict.values`.
+- `engineStrengthLimited` is an internal diagnostic.
+- `Verdict` is not public text.
+- renderer, LLM, and public route remain closed.
+
+StoryTable may return Verdict diagnostics for tests and debugging. Those
+diagnostics do not become renderer input, LLM input, public route payload,
+public text, or public chess claims.
+
+## Stage 5 Closeout
+
+Stage 5 closes with Story ordering only.
+Explanation IR, renderer, LLM, and pedagogical advice remain closed.
+StoryTable creates no chess meaning. It orders existing Stories.
+`EngineCheck`, `CaptureResult`, and Board Facts keep their existing homes.
+Refuted, incomplete, writerless, captureless, source-only, opening-only, and Quiet fallback rows cannot become Lead over proof-backed Hanging.
+No new type, row, or live md authority is introduced by Stage 5 closeout.
+Stage 6 handoff receives selected Verdict only.
+Stage 6 must not read raw Board Facts, `CaptureResult`, `EngineCheck`, raw engine eval, or raw PV text directly.
+
+Stage 5 closeout does not open Explanation IR, renderer, LLM, public route,
+pedagogical advice, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan,
+Strategy, engine PV commentary, or best-move explanation.
 
 ## Scene Law
 

@@ -73,11 +73,16 @@ or increase claim strength.
 ## Current Freeze
 
 This reset keeps the public-surface no-go state while Stage 3 opens only one
-positive Story writer: `Tactic.Hanging`, and Stage 4-1 opens only Engine Check
-evidence shape. There is still no public surface opening, no `BoardMood` Sxxx
-expansion or re-entry, no positive `Story` proof writer beyond
-`Tactic.Hanging`, no engine PV commentary, no best-move explanation, and no
-renderer opening.
+positive Story writer: `Tactic.Hanging`, Stage 4 opens only Engine Check
+evidence for that writer, Stage 5-1 opens only Hanging role ordering, and
+Stage 5-2 fixes deterministic ordering for those rows, and Stage 5-3 tightens
+close Hanging blockers without opening broader conflict systems, and Stage 5-4
+keeps Verdict diagnostics out of public numeric values and public surfaces.
+Stage 5 closeout keeps the handoff limited to selected Verdict data. There is
+still no public surface opening, no
+`BoardMood` Sxxx expansion or re-entry, no positive `Story` proof writer beyond
+`Tactic.Hanging`, no engine PV commentary, no best-move explanation, no
+Explanation IR, no LLM narration, and no renderer opening.
 
 The registered render routes, `/api/commentary/render` and
 `/internal/commentary/render-local-probe`, are fail-closed tombstones only. No
@@ -101,6 +106,14 @@ without a Story, and PV-only input without a Story are diagnostic only.
 Stage 4-3 attaches EngineCheck only to `Tactic.Hanging`; `Supports` creates no
 winning, best-move, decisive, PV-explanation, or public-eval claim, `Caps`
 forbids strong expression, and `Refutes` blocks Hanging.
+Stage 5 role ordering can choose among existing `Tactic.Hanging` Story rows,
+but it cannot create a Story, open a new positive family, or turn
+engine eval, Board Facts, or `CaptureResult` into public material meaning.
+Support and Context roles remain non-sentence structure, and unknown engine
+checks create no engine claim.
+Raw engine eval, raw PV text, proofFailures text, Board Facts row count,
+`CaptureResult` text, renderer wording, and input order remain outside
+StoryTable ordering authority.
 
 Missing side, target, anchor, route, rival, required legal line, or same-root
 proof sidecar is a hard public-output block, not weak scoring or renderer

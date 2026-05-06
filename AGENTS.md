@@ -74,14 +74,21 @@ Implementation must open in this order only:
 Do not implement downstream product stages before earlier authority stages are
 proven.
 
-Current implementation scope is Stage 4 Engine Check closeout.
+Current implementation scope is Stage 5 Closeout Pass.
 Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
 Story are prerequisites. Stage 3 remains open only for Material proof kernel,
 `Tactic.Hanging`, and Hanging negative corpus. Stage 4 opens only
 `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board
 and stale guards, `Tactic.Hanging` attachment, false-positive corpus, and
-conservative StoryTable diagnostics for existing `Tactic.Hanging` Stories;
-Stages 5-11 remain a dependency map, not permission to open those systems.
+conservative StoryTable diagnostics for existing `Tactic.Hanging` Stories.
+Stage 5 opens only StoryTable role ordering for existing `Tactic.Hanging`
+Story rows. Stage 5-1 assigns Lead, Support, Context, and Blocked roles for
+those rows only. Stage 5-2 fixes deterministic ordering inputs for those
+StoryTable rows. Stage 5-3 tightens close Hanging blockers and context
+relations for those StoryTable rows. Stage 5-4 keeps Verdict diagnostics out
+of public numeric values and downstream public surfaces. Stage 5 closeout
+confirms Story ordering only and selected-Verdict handoff only; Stages 6-11
+remain a dependency map, not permission to open those systems.
 
 `StoryInteractionLaw.md` is the single live authority for the Stage 3 charter.
 All other documents may summarize scope, but must not create a second Stage 3
@@ -105,6 +112,37 @@ exactly `Unknown`, `Supports`, `Caps`, or `Refutes`. `Unknown` forbids engine
 expression, `Supports` creates no new claim, `Caps` forbids strong expression,
 and `Refutes` blocks the Hanging Story. Engine support must not become winning,
 best-move, decisive, PV explanation, or public truth wording.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 5 charter.
+All other documents may summarize scope, but must not create a second Stage 5
+rule text. Stage 5 is named `Story Order` and may be described as StoryTable
+Arbitration. In this first scope, StoryTable assigns Lead, Support, Context,
+and Blocked only among existing `Tactic.Hanging` Story rows. It does not
+create Stories or new public claims. Renderer, LLM, Explanation IR, public
+route `200`, engine PV commentary, best-move explanation, `Tactic.Fork`,
+`Scene.Material`, `Scene.Defense`, Plan, Strategy, and pedagogy remain closed.
+Stage 5-1 Hanging role rules also live there; other documents may summarize
+that complete Hanging rows can lead or support, refuted/incomplete/captureless
+rows are blocked, unknown engine checks create no engine claim, and roles do
+not open renderer or LLM.
+Stage 5-2 deterministic ordering rules also live there; other documents may
+summarize that ordering may use role eligibility, publicStrength, Story
+identity, writer presence, and blocked status, but not raw engine eval, raw PV
+text, proofFailures text, Board Facts row count, `CaptureResult` text, renderer
+wording, or input order.
+Stage 5-3 conflict and block rules also live there; other documents may
+summarize that close Hanging blockers, Quiet fallback, and Source/Opening
+context cannot outrank board-backed Hanging, while Plan, Blunder, Defense,
+Counterplay-beyond-Caps, and Strategy relations remain closed.
+Stage 5-4 Verdict diagnostic boundary also lives there; other documents may
+summarize that `Verdict.values` keeps its fixed shape, proofFailures and
+EngineCheck diagnostics stay out of values, `engineStrengthLimited` is
+internal, Verdict is not public text, and renderer, LLM, and public route stay
+closed.
+Stage 5 closeout also lives there; other documents may summarize that Stage 5
+closed as StoryTable ordering only, with no new chess meaning, no downstream
+public surface, and Stage 6 limited to selected Verdict handoff rather than raw
+facts or engine sidecars.
 
 Forbidden dependency shortcuts:
 
@@ -134,11 +172,16 @@ Forbidden dependency shortcuts:
 - No renderer opening: templates and LLM renderers may verbalize selected
   `Verdict` data only after prerequisite laws and tests exist; they cannot
   repair, upgrade, or invent chess meaning.
-- Stage 4 closeout scope only: do not implement `Tactic.Fork`,
+- Stage 5 Story Order scope only: do not implement `Tactic.Fork`,
   `Scene.Material`, `Scene.Defense`, Plan, Strategy, King attack, Conversion,
-  Blunder, engine PV commentary, best-move explanation, renderer opening, LLM
-  narration, public commentary route `200`, broad scalar re-entry,
-  source/engine public-truth paths, or CTH-style family exceptions.
+  Blunder, pedagogical advice, Explanation IR, engine PV commentary, best-move
+  explanation, renderer opening, LLM narration, public commentary route `200`,
+  broad scalar re-entry, source/engine public-truth paths, or CTH-style family
+  exceptions.
+- Story Order no-go: StoryTable may order existing `Tactic.Hanging` Story rows
+  into roles, but it must not create a Story, open a new positive
+  family, or promote engine eval, Board Facts, or `CaptureResult` into direct
+  public claims.
 - Engine Check no-go: engine eval, engine line, reply line, and checked move
   data may support, cap, or refute only an already existing `Tactic.Hanging`
   Story after same-board and freshness evidence exists. They must not create a

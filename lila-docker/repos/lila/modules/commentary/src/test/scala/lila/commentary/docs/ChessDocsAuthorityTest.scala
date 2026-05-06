@@ -568,9 +568,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(bridgeSource.contains("const PublicRenderRoutesTombstoned = true"))
     assert(bridgeSource.contains("if (PublicRenderRoutesTombstoned) return { kind: 'empty', reason: 'no_commentary' }"))
     assert(readme.contains("Stage order no-go"))
-    assert(readme.contains("Current implementation scope is Stage 4 Engine Check closeout"))
+    assert(readme.contains("Current implementation scope is Stage 5 Closeout Pass"))
     assert(readme.contains("Stage 4 is named `Engine Check`."))
-    assert(readme.replaceAll("\\s+", " ").contains("Stages 5-11 remain a dependency map"))
+    assert(readme.replaceAll("\\s+", " ").contains("Stages 6-11 remain a dependency map"))
     assert(readme.contains("LLM no-go"))
     assert(readme.contains("LLM narration remains"))
     assert(readme.contains("closed and must not judge chess"))
@@ -625,16 +625,16 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(rationale.contains("Raw engine numbers and engine text"))
     assert(rationale.contains("The LLM is not the intelligence of commentary"))
     assert(architecture.contains("`Board Truth / Primitive Geometry / Story boundary / Verdict boundary`"))
-    assert(architecture.contains("Current implementation scope is Stage 4 Engine Check closeout"))
+    assert(architecture.contains("Current implementation scope is Stage 5 Closeout Pass"))
     assert(architecture.contains("Stage 4 is named `Engine Check`."))
-    assert(architecture.contains("Stages 5-11 below"))
-    assert(architecture.contains("dependency map for product design"))
-    assert(architecture.contains("Only Stage 4 Engine Check closeout is active implementation authority"))
-    assert(architecture.contains("Stages 5-11"))
+    assert(architecture.contains("Stages 6-11 below"))
+    assert(architecture.replaceAll("\\s+", " ").contains("dependency map for product design"))
+    assert(architecture.contains("Only Stage 5 Closeout Pass is active implementation authority"))
+    assert(architecture.contains("Stages 6-11"))
     assert(architecture.contains("dependency-map-only"))
     assert(
       architecture.contains(
-        "`Board Truth` -> `Engine Truth` -> `Primitive Geometry` -> `Tactical/Strategic Story Birth` -> `Engine Check` -> `Causal Arbitration` -> `Pedagogical Policy` -> `Explanation IR` -> `LLM Narration` -> `Verifier`"
+        "`Board Truth` -> `Engine Truth` -> `Primitive Geometry` -> `Tactical/Strategic Story Birth` -> `Engine Check` -> `StoryTable Arbitration` -> `Pedagogical Policy` -> `Explanation IR` -> `LLM Narration` -> `Verifier`"
       )
     )
     assert(!architecture.contains("Tactical/Strategic Hypotheses"))
@@ -644,7 +644,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "Stage 2 - Story Proof",
       "Stage 3 - First Narrow Positive Story",
       "Stage 4 - Engine Check",
-      "Stage 5 - Causal Arbitration",
+      "Stage 5 - Story Order",
       "Stage 6 - Explanation IR",
       "Stage 7 - Deterministic Renderer",
       "Stage 8 - LLM Narration",
@@ -698,12 +698,140 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(interactionLaw.contains("Stage 4 ends with `Tactic.Hanging` as the only EngineCheck consumer."))
     assert(interactionLaw.contains("`EngineCheck` is not a Story writer and does not create public truth."))
     assert(interactionLaw.contains("`StoryInteractionLaw.md` owns this closeout; other live docs may summarize scope only."))
-    assert(interactionLaw.contains("Stage 5 may receive internal EngineCheck diagnostics from selected Verdict rows."))
+    assert(interactionLaw.contains("Stage 5 Story Order may receive internal EngineCheck diagnostics from selected"))
     assert(
       interactionLaw.replaceAll("\\s+", " ").contains(
         "Stage 5 must not open renderer, LLM, public route `200`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan, Strategy, engine PV commentary, or best-move explanation."
       )
     )
+    assert(interactionLaw.contains("## Stage 5 Charter"))
+    assert(interactionLaw.contains("Stage 5 name is `Story Order`."))
+    assert(interactionLaw.contains("Stage 5 may be described as `StoryTable Arbitration`"))
+    assert(interactionLaw.contains("Core sentence: StoryTable orders. It does not invent."))
+    assert(interactionLaw.contains("Many Stories may exist. StoryTable chooses roles. No new chess meaning is"))
+    assert(interactionLaw.contains("Stage 5 first"))
+    assert(interactionLaw.contains("scope is limited to the existing `Tactic.Hanging` vertical slice."))
+    Vector(
+      "- Lead",
+      "- Support",
+      "- Context",
+      "- Blocked",
+      "- deterministic ordering",
+      "- `Refutes` -> blocked",
+      "- `Caps` -> strength-limited diagnostic",
+      "- `Supports` -> no new claim",
+      "- `Unknown` -> no engine claim"
+    ).foreach: allowed =>
+      assert(interactionLaw.contains(allowed), s"Stage 5 charter must allow $allowed")
+    Vector(
+      "- new Story creation",
+      "- new positive family",
+      "- engine eval as ranking truth",
+      "- Board Facts as direct public claim",
+      "- `CaptureResult` as public material story",
+      "- pedagogical advice",
+      "- Explanation IR",
+      "- renderer",
+      "- LLM",
+      "- public route",
+      "- `Tactic.Fork`",
+      "- `Scene.Material`",
+      "- `Scene.Defense`",
+      "- Plan / Strategy",
+      "- engine PV commentary",
+      "- best-move explanation"
+    ).foreach: forbidden =>
+      assert(interactionLaw.contains(forbidden), s"Stage 5 charter must forbid $forbidden")
+    assert(interactionLaw.contains("StoryTable may order only existing Story rows."))
+    assert(interactionLaw.contains("A `Refutes` EngineCheck sends the Hanging Story"))
+    assert(interactionLaw.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 5 charter."))
+    assert(interactionLaw.contains("Other live documents may summarize Stage 5 scope only."))
+    assert(interactionLaw.contains("## Stage 5-1 Hanging Role Rules"))
+    assert(interactionLaw.contains("Stage 5-1 goal: assign roles for existing `Tactic.Hanging` Story rows."))
+    Vector(
+      "complete `Tactic.Hanging` Story, positive `CaptureResult`, and no `Refutes`",
+      "exactly one selected Hanging row may be Lead",
+      "lower-strength complete Hanging may become Support or Context",
+      "`EngineCheck.Refutes` sends Hanging to Blocked",
+      "incomplete StoryProof sends Hanging to Blocked",
+      "missing `CaptureResult` sends Hanging to Blocked",
+      "no writer sends Hanging to Context or Blocked",
+      "`EngineCheck.Unknown` creates no engine claim"
+    ).foreach: roleRule =>
+      assert(interactionLaw.contains(roleRule), s"Stage 5-1 must pin role rule: $roleRule")
+    assert(interactionLaw.contains("Support is not yet a public sentence."))
+    assert(interactionLaw.contains("Context is not yet a public sentence."))
+    assert(interactionLaw.contains("Role assignment does not open renderer or LLM."))
+    assert(interactionLaw.contains("## Stage 5-2 Deterministic Ordering"))
+    assert(interactionLaw.contains("Stage 5-2 goal: when multiple Story rows exist"))
+    Vector(
+      "- Story role eligibility",
+      "- publicStrength",
+      "- scene / tactic identity",
+      "- side",
+      "- target",
+      "- anchor",
+      "- route",
+      "- writer presence",
+      "- blocked status"
+    ).foreach: allowed =>
+      assert(interactionLaw.contains(allowed), s"Stage 5-2 must allow sort input: $allowed")
+    Vector(
+      "- raw engine eval",
+      "- raw PV text",
+      "- proofFailures text",
+      "- Board Facts row count",
+      "- `CaptureResult` text",
+      "- renderer wording"
+    ).foreach: forbidden =>
+      assert(interactionLaw.contains(forbidden), s"Stage 5-2 must forbid sort input: $forbidden")
+    assert(interactionLaw.contains("Input order must not decide Lead."))
+    assert(interactionLaw.contains("Equal-strength rows must fall through to"))
+    assert(interactionLaw.contains("proofFailures text must not sort public rows."))
+    assert(interactionLaw.replaceAll("\\s+", " ").contains("Raw engine eval and raw PV text"))
+    assert(interactionLaw.contains("## Stage 5-3 Conflict and Block Rules"))
+    assert(interactionLaw.contains("Stage 5-3 goal: resolve close blocker relationships for Hanging Story rows"))
+    Vector(
+      "- `EngineCheck.Refutes` blocks Hanging.",
+      "- Missing StoryProof blocks Hanging.",
+      "- Missing `CaptureResult` blocks Hanging.",
+      "- Missing writer blocks Hanging.",
+      "- Quiet only if no positive Hanging exists.",
+      "- `Scene.Source` and `Scene.Opening` cannot outrank board-backed Hanging."
+    ).foreach: allowed =>
+      assert(interactionLaw.contains(allowed), s"Stage 5-3 must allow/block only scoped relation: $allowed")
+    Vector(
+      "- Tactic vs Plan override.",
+      "- Blunder override.",
+      "- Defense vs Threat relation.",
+      "- Counterplay cap beyond existing `EngineCheck.Caps`.",
+      "- Strategy suppression."
+    ).foreach: notImplemented =>
+      assert(interactionLaw.contains(notImplemented), s"Stage 5-3 must keep closed: $notImplemented")
+    assert(interactionLaw.contains("Stage 5-3 does not create a Story"))
+    assert(interactionLaw.contains("## Stage 5-4 Verdict Diagnostic Boundary"))
+    assert(interactionLaw.contains("Stage 5-4 goal: keep StoryTable results from being mistaken for renderer or LLM input."))
+    Vector(
+      "- `Verdict.values` shape stays fixed.",
+      "- proofFailures do not enter `Verdict.values`.",
+      "- EngineCheck diagnostics do not enter `Verdict.values`.",
+      "- `engineStrengthLimited` is an internal diagnostic.",
+      "- `Verdict` is not public text.",
+      "- renderer, LLM, and public route remain closed."
+    ).foreach: boundary =>
+      assert(interactionLaw.contains(boundary), s"Stage 5-4 must pin diagnostic boundary: $boundary")
+    assert(interactionLaw.contains("## Stage 5 Closeout"))
+    Vector(
+      "Stage 5 closes with Story ordering only.",
+      "Explanation IR, renderer, LLM, and pedagogical advice remain closed.",
+      "StoryTable creates no chess meaning. It orders existing Stories.",
+      "`EngineCheck`, `CaptureResult`, and Board Facts keep their existing homes.",
+      "Refuted, incomplete, writerless, captureless, source-only, opening-only, and Quiet fallback rows cannot become Lead over proof-backed Hanging.",
+      "No new type, row, or live md authority is introduced by Stage 5 closeout.",
+      "Stage 6 handoff receives selected Verdict only.",
+      "Stage 6 must not read raw Board Facts, `CaptureResult`, `EngineCheck`, raw engine eval, or raw PV text directly."
+    ).foreach: closeoutLine =>
+      assert(interactionLaw.contains(closeoutLine), s"Stage 5 closeout must pin: $closeoutLine")
     assert(modelContract.contains("positive `CaptureResult`"))
     assert(modelContract.contains("EngineCheck is internal evidence only."))
     assert(modelContract.contains("It records same-board proof, checked move, engine line, reply line, eval before, eval after, depth or freshness, and missing evidence."))
@@ -715,6 +843,23 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(modelContract.contains("Eval collapse cannot create a Story, public eval claim, or engine-authored explanation."))
     assert(modelContract.contains("Verdict carries `engineCheckStatus` and `engineStrengthLimited` as internal diagnostics only."))
     assert(modelContract.contains("`Verdict.values`, renderer, and LLM inputs must not consume EngineCheck diagnostics."))
+    assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 5 charter."))
+    assert(modelContract.contains("Stage 5 Story Order is limited to existing `Tactic.Hanging` Story rows"))
+    assert(modelContract.contains("Stage 5-1 may mark only the selected Lead row as `leadAllowed`"))
+    assert(modelContract.contains("Stage 5-2 ordering may use role eligibility"))
+    assert(modelContract.contains("It must not use raw engine eval, raw PV text, proofFailures text"))
+    assert(modelContract.contains("Stage 5-3 conflict rules may block Hanging-shaped rows"))
+    assert(
+      modelContract
+        .replaceAll("\\s+", " ")
+        .contains("without opening Plan, Blunder, Defense, extra counterplay, or Strategy relations")
+    )
+    assert(modelContract.contains("Stage 5-4 Verdict Diagnostic Boundary is also owned by `StoryInteractionLaw.md`"))
+    assert(
+      modelContract
+        .replaceAll("\\s+", " ")
+        .contains("proofFailures, EngineCheck diagnostics, and `engineStrengthLimited` remain internal")
+    )
     val normalizedSsot = ssot.replaceAll("\\s+", " ")
     val normalizedInteractionLaw = interactionLaw.replaceAll("\\s+", " ")
     val nonCharterStage3Docs =
@@ -729,16 +874,42 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       ).map((name, text) => name -> text.replaceAll("\\s+", " "))
     assert(agents.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 3 charter."))
     assert(agents.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 4 charter."))
+    assert(agents.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 5 charter."))
     assert(ssot.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 3 charter."))
     assert(ssot.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 4 charter."))
+    assert(ssot.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 5 charter."))
     assert(readme.contains("`StoryInteractionLaw.md` owns the Stage 3 charter."))
     assert(readme.contains("`StoryInteractionLaw.md` owns the Stage 4 charter."))
+    assert(readme.contains("`StoryInteractionLaw.md` owns the Stage 5 charter."))
     assert(architecture.contains("`StoryInteractionLaw.md` owns the Stage 3 charter."))
     assert(architecture.contains("`StoryInteractionLaw.md` owns the Stage 4 charter."))
+    assert(architecture.contains("`StoryInteractionLaw.md` owns the Stage 5 charter."))
     assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 3 charter."))
     assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 4 charter."))
+    assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 5 charter."))
     assert(manifest.contains("Stage 3 charter authority lives in `StoryInteractionLaw.md`."))
     assert(manifest.contains("Stage 4 charter authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("Stage 5 charter authority lives in `StoryInteractionLaw.md`."))
+    assert(agents.contains("Stage 5-1 Hanging role rules also live there"))
+    assert(ssot.contains("Stage 5-1 Hanging role rules also live in `StoryInteractionLaw.md`"))
+    assert(modelContract.contains("Stage 5-1 Hanging Role Rules are also owned by `StoryInteractionLaw.md`"))
+    assert(manifest.contains("Stage 5-1 Hanging Role Rules also live in `StoryInteractionLaw.md`"))
+    assert(agents.contains("Stage 5-2 deterministic ordering rules also live there"))
+    assert(ssot.contains("Stage 5-2 deterministic ordering rules also live in `StoryInteractionLaw.md`"))
+    assert(modelContract.contains("Stage 5-2 Deterministic Ordering is also owned by `StoryInteractionLaw.md`"))
+    assert(manifest.contains("Stage 5-2 Deterministic Ordering also lives in `StoryInteractionLaw.md`"))
+    assert(agents.contains("Stage 5-3 conflict and block rules also live there"))
+    assert(ssot.contains("Stage 5-3 conflict and block rules also live in `StoryInteractionLaw.md`"))
+    assert(modelContract.contains("Stage 5-3 Conflict and Block Rules are also owned by `StoryInteractionLaw.md`"))
+    assert(manifest.contains("Stage 5-3 Conflict and Block Rules also live in `StoryInteractionLaw.md`"))
+    assert(agents.contains("Stage 5-4 Verdict diagnostic boundary also lives there"))
+    assert(ssot.contains("Stage 5-4 Verdict diagnostic boundary also lives in `StoryInteractionLaw.md`"))
+    assert(modelContract.contains("Stage 5-4 Verdict Diagnostic Boundary is also owned by `StoryInteractionLaw.md`"))
+    assert(manifest.contains("Stage 5-4 Verdict Diagnostic Boundary also lives in `StoryInteractionLaw.md`"))
+    assert(agents.contains("Stage 5 closeout also lives there"))
+    assert(ssot.contains("Stage 5 closeout also lives in `StoryInteractionLaw.md`"))
+    assert(modelContract.contains("Stage 5 closeout is also owned by `StoryInteractionLaw.md`"))
+    assert(manifest.contains("Stage 5 closeout also lives in `StoryInteractionLaw.md`"))
     Vector(
       "StoryProof is necessary. A named Story writer gives permission. Family proof gives the reason.",
       "Stage 3 opens exactly one positive Story family at a time.",
@@ -810,6 +981,63 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
         s"StoryInteractionLaw must ban Stage 3 wording: $forbiddenWording"
       )
     assert(normalizedInteractionLaw.contains("Stage 4-1 does not wire StoryTable consumption."))
+    val nonCharterStage5Docs =
+      Vector(
+        "AGENTS.md" -> agents,
+        "ChessCommentarySSOT.md" -> ssot,
+        "README.md" -> readme,
+        "ChessModelArchitecture.md" -> architecture,
+        "ChessModelContract.md" -> modelContract,
+        "ChessResetRationale.md" -> rationale,
+        "LegacyPruneManifest.md" -> manifest
+      ).map((name, text) => name -> text.replaceAll("\\s+", " "))
+    Vector(
+      "StoryTable orders. It does not invent.",
+      "Many Stories may exist. StoryTable chooses roles. No new chess meaning is created.",
+      "Stage 5 completion standard: when multiple Hanging Story rows exist, StoryTable deterministically decides Lead, Support, Context, and Blocked roles without creating new chess meaning or a new public claim.",
+      "Stage 5-1 goal: assign roles for existing `Tactic.Hanging` Story rows.",
+      "Support is not yet a public sentence.",
+      "Context is not yet a public sentence.",
+      "Role assignment does not open renderer or LLM.",
+      "Stage 5-2 goal: when multiple Story rows exist, StoryTable always returns the same order for the same rows.",
+      "Input order must not decide Lead.",
+      "proofFailures text must not sort public rows.",
+      "Stage 5-3 goal: resolve close blocker relationships for Hanging Story rows only.",
+      "Missing writer blocks Hanging.",
+      "Quiet only if no positive Hanging exists.",
+      "`Scene.Source` and `Scene.Opening` cannot outrank board-backed Hanging.",
+      "Stage 5-4 goal: keep StoryTable results from being mistaken for renderer or LLM input.",
+      "`Verdict.values` shape stays fixed.",
+      "EngineCheck diagnostics do not enter `Verdict.values`.",
+      "`Verdict` is not public text.",
+      "Stage 5 closes with Story ordering only.",
+      "StoryTable creates no chess meaning. It orders existing Stories.",
+      "Stage 6 handoff receives selected Verdict only.",
+      "Stage 6 must not read raw Board Facts, `CaptureResult`, `EngineCheck`, raw engine eval, or raw PV text directly."
+    ).foreach: charterLine =>
+      assert(
+        normalizedInteractionLaw.contains(charterLine),
+        s"StoryInteractionLaw must own Stage 5 charter line: $charterLine"
+      )
+      nonCharterStage5Docs.foreach: (name, doc) =>
+        assert(
+          !doc.contains(charterLine),
+          s"$name must not duplicate Stage 5 charter line owned by StoryInteractionLaw: $charterLine"
+        )
+    Vector(
+      "Stage 5 opens only StoryTable role ordering for existing `Tactic.Hanging` Story rows",
+      "StoryTable may assign roles among existing `Tactic.Hanging` Story rows",
+      "StoryTable may order existing `Tactic.Hanging` Story rows into roles",
+      "Stage 5-3 tightens close blockers and context relations",
+      "Stage 5-4 keeps Verdict diagnostics out of public numeric values",
+      "Stage 5 closeout confirms Story ordering only"
+    ).foreach: scopeSummary =>
+      assert(
+        normalizedSsot.contains(scopeSummary) ||
+          readme.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          agents.replaceAll("\\s+", " ").contains(scopeSummary),
+        s"Stage 5 scope summary must appear in summary docs: $scopeSummary"
+      )
     assert(interactionLaw.contains("Every blocked Story must report proof deficit"))
     assert(interactionLaw.contains("\"proofCoordinates\":"))
     Vector(

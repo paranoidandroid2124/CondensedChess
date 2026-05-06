@@ -26,14 +26,21 @@ mismatch is a no-go state, not a second source of authority.
 
 This reset is intentionally closed at the public boundary.
 
-Current implementation scope is Stage 4 Engine Check closeout.
+Current implementation scope is Stage 5 Closeout Pass.
 Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
 Story are prerequisites. Stage 3 remains open only for Material proof kernel,
 `Tactic.Hanging`, and Hanging negative corpus. Stage 4 is named `Engine Check`.
 Stage 4 opens only internal EngineCheck evidence, same-board and stale guards,
 `Tactic.Hanging` attachment, false-positive corpus, and conservative StoryTable
-diagnostics for existing `Tactic.Hanging` Stories; Stages 5-11 remain a
-dependency map, not permission to open those systems in this branch checkpoint.
+diagnostics for existing `Tactic.Hanging` Stories. Stage 5 is named
+`Story Order` and opens only role ordering for existing `Tactic.Hanging` Story
+rows. Stage 5-1 assigns Lead, Support, Context, and Blocked roles inside that
+Hanging-only slice. Stage 5-2 fixes deterministic ordering inputs for those
+StoryTable rows. Stage 5-3 tightens close blockers and context relations for
+those rows. Stage 5-4 keeps Verdict diagnostics out of public numeric values
+and downstream public surfaces. Stage 5 closeout confirms Story ordering only
+and selected-Verdict handoff only; Stages 6-11 remain a dependency map, not
+permission to open those systems in this branch checkpoint.
 
 `StoryInteractionLaw.md` owns the Stage 3 charter. This README only summarizes
 the current scope: backend Material proof evidence plus the named
@@ -45,6 +52,31 @@ the current scope: Story comes first, and engine evidence may check, cap, or
 refute only an existing `Tactic.Hanging` Story. Engine eval, engine line, reply
 line, and checked move data cannot create a Story, rank a Story, write a
 `Verdict`, feed a renderer, feed an LLM, or become public truth.
+
+`StoryInteractionLaw.md` owns the Stage 5 charter. This README only summarizes
+the current scope: StoryTable may assign roles among existing
+`Tactic.Hanging` Story rows. It does not create Stories, open a new
+positive family, or turn engine eval, Board Facts, or `CaptureResult` into
+direct public claims.
+This README summarizes Stage 5-1 only: complete Hanging rows may lead or
+support, refuted/incomplete/captureless rows are blocked, unknown engine checks
+create no engine claim, and roles do not open renderer or LLM.
+This README summarizes Stage 5-2 only: ordering may use role eligibility,
+publicStrength, Story identity, writer presence, and blocked status; it must
+not use raw engine eval, raw PV text, proofFailures text, Board Facts row
+count, `CaptureResult` text, renderer wording, or input order.
+This README summarizes Stage 5-3 only: close Hanging blockers are enforced,
+Quiet remains fallback-only, and Source/Opening context cannot outrank
+board-backed Hanging; plan, blunder, defense, extra counterplay, and strategy
+relations remain closed.
+This README summarizes Stage 5-4 only: Verdict values keep their fixed shape,
+proofFailures and EngineCheck diagnostics stay out of values,
+engineStrengthLimited stays internal, Verdict is not public text, and renderer,
+LLM, and public route remain closed.
+This README summarizes Stage 5 closeout only: Stage 5 closed as StoryTable
+ordering over existing Hanging rows, with no new chess meaning or public
+surface, and Stage 6 may receive only selected Verdict data rather than raw
+facts, engine sidecars, or capture evidence.
 
 - Public route no-go: `/api/commentary/render` and
   `/internal/commentary/render-local-probe` are registered only as fail-closed
@@ -78,6 +110,11 @@ line, and checked move data cannot create a Story, rank a Story, write a
   Status is exactly `Unknown`, `Supports`, `Caps`, or `Refutes`. `Supports`
   cannot become winning, best-move, decisive, PV explanation, or public truth;
   `Caps` forbids strong expression; `Refutes` blocks Hanging.
+- Stage 5 Story Order no-go: role ordering is limited to existing
+  `Tactic.Hanging` Story rows. It does not open `Tactic.Fork`,
+  `Scene.Material`, `Scene.Defense`, Plan, Strategy, pedagogical advice,
+  Explanation IR, renderer, LLM, public route `200`, engine PV commentary, or
+  best-move explanation.
 - No renderer opening: templates and LLM renderers may verbalize selected
   `Verdict` data only after prerequisite laws and tests exist; they must not
   create, repair, or upgrade chess meaning.
@@ -98,7 +135,8 @@ line, and checked move data cannot create a Story, rank a Story, write a
 Current implementation blockers are documented, not excused: Stage 2 enforces
 the full public-output tuple before lead candidacy, and Stage 3 opens only the
 named `Tactic.Hanging` writer over positive `CaptureResult`. Stage 4-1 records
-engine evidence shape only; it does not wire StoryTable consumption.
+engine evidence shape only; Stage 5 role ordering consumes only existing
+`Tactic.Hanging` Story rows.
 `Scene.Opening` is context-only and must not lead over a board-backed `Story`.
 Old failing tests proved lower/scaffold/renderer non-upgrade; they did not
 prove default runtime FEN to rendered commentary.

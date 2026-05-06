@@ -7,7 +7,10 @@ branch.
 
 The current checkpoint covers board truth, primitive board geometry, Stage 1
 board facts, Stage 2 Story Proof, Stage 3 first narrow positive Story, and
-Stage 4 Engine Check closeout. It is intentionally not a full product
+Stage 4 Engine Check closeout, Stage 5-1 Hanging Role Rules, Stage 5-2
+Deterministic Ordering, Stage 5-3 Conflict and Block Rules, Stage 5-4
+Verdict Diagnostic Boundary, and Stage 5 Closeout Pass. It is
+intentionally not a full product
 commentary backend.
 
 The safe target is to make unproven commentary impossible before opening any
@@ -18,13 +21,21 @@ The current branch owns only:
 
 `Board Truth / Primitive Geometry / Story boundary / Verdict boundary`
 
-Current implementation scope is Stage 4 Engine Check closeout.
+Current implementation scope is Stage 5 Closeout Pass.
 Stage 3 remains open only for Material proof kernel, `Tactic.Hanging`, and
 Hanging negative corpus. Stage 4 is named `Engine Check`. Stage 4 opens only
 `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board
 and stale guards, `Tactic.Hanging` attachment, false-positive corpus, and
 conservative StoryTable diagnostics for existing `Tactic.Hanging` Stories.
-Stages 5-11 below are a dependency map for product design; they are not permission to implement those systems in this checkpoint.
+Stage 5 is named `Story Order` and opens only StoryTable role ordering for
+existing `Tactic.Hanging` Story rows. Stage 5-1 assigns Lead, Support,
+Context, and Blocked roles inside that Hanging-only slice. Stage 5-2 fixes
+deterministic ordering inputs for those rows. Stage 5-3 tightens close
+blockers and context relations for those rows. Stage 5-4 keeps Verdict
+diagnostics out of public numeric values and downstream public surfaces. Stage
+5 closeout confirms Story ordering only and selected-Verdict handoff only.
+Stages 6-11 below are a dependency map for product design; they are not
+permission to implement those systems in this checkpoint.
 
 Product north-star philosophy:
 
@@ -75,7 +86,7 @@ and deletion rules are fixed by `ChessModelContract.md`.
 
 Long term, the product backend may grow into this ordered structure:
 
-`Board Truth` -> `Engine Truth` -> `Primitive Geometry` -> `Tactical/Strategic Story Birth` -> `Engine Check` -> `Causal Arbitration` -> `Pedagogical Policy` -> `Explanation IR` -> `LLM Narration` -> `Verifier`
+`Board Truth` -> `Engine Truth` -> `Primitive Geometry` -> `Tactical/Strategic Story Birth` -> `Engine Check` -> `StoryTable Arbitration` -> `Pedagogical Policy` -> `Explanation IR` -> `LLM Narration` -> `Verifier`
 
 That product structure does not open the current public surface. In this branch,
 `BoardMood` supplies board facts and primitive geometry, `Story` is the first
@@ -87,9 +98,9 @@ public-meaning unit, `StoryTable` decides roles and lead eligibility, and
 Stages open in this order only. Do not implement downstream product stages
 before earlier authority stages are proven.
 
-Only Stage 4 Engine Check closeout is active implementation authority now, and
-only for existing `Tactic.Hanging` Stories. Stages 5-11 are dependency-map-only
-and stay closed until their predecessor exits are proven.
+Only Stage 5 Closeout Pass is active implementation authority now, and only
+for existing `Tactic.Hanging` Story rows. Stages 6-11 are
+dependency-map-only and stay closed until their predecessor exits are proven.
 
 Dependency order:
 
@@ -112,7 +123,7 @@ Dependency order:
 | 2 Story Proof | Code-enforced proof-bearing Story identity. | Stage 1 observations plus side, target, anchor, route, rival, required legal line, same-root proof. | Numeric proof score as public authority. | No Story Proof or incomplete Story Proof yields blocked/context only. | Missing sidecar field, stale sidecar, or wrong root. |
 | 3 First Narrow Positive Story | Exactly one positive Story family at a time, with Material proof kernel as sub-proof only. | Complete Stage 2 sidecar, same-root legal replay, named writer, and family-specific proof. | Complete StoryProof opening a family, family piggybacking, renderer, LLM, public route `200`, or broad strategic family before tactical/material proof. | One narrow Hanging Story can speak with proof; close false positives stay silent. | Missing target, attack, legal capture, defender, recapture, positive bounded material result or SEE, same-board proof, named writer, or legal replay. |
 | 4 Engine Check | Engine evidence attached to identified Story. | A Story already exists with identity and legal line. | Engine eval/PV/best move as explanation, strategy, or pedagogy by itself. | Engine supports, caps, or refutes the Story without speaking alone. | Missing same-board proof, checked move, engine line, reply line, eval before, eval after, depth or freshness, or fresh engine evidence. |
-| 5 Causal Arbitration | Lead/support/context/blocked roles across Stories. | Multiple proof-backed Stories and interaction laws. | Pedagogical advice before causal ordering. | `StoryTable` deterministically decides roles under tactic, blunder, source, counterplay, and quiet rules. | Missing override, cap, blocker, role, or rival-resource proof. |
+| 5 Story Order | Lead/support/context/blocked roles across existing Story rows, first scoped to `Tactic.Hanging`. | Multiple proof-backed Hanging Stories and Stage 4 EngineCheck diagnostics. | New Story creation, new positive family, engine eval as ranking truth, Board Facts direct public claim, `CaptureResult` public material story, pedagogy, Explanation IR, renderer, LLM, public route. | `StoryTable` deterministically decides Hanging roles without creating new chess meaning or a new public claim. | Missing role policy, blocker, cap, deterministic tie-break, or same Story row proof. |
 | 6 Explanation IR | Renderer-safe language-neutral explanation payload. | Selected Verdicts with allowed claims and evidence. | Raw `BoardMood`, root atom, source row, or engine eval read by IR. | IR lists allowed claim, evidence, strength, role, support/context relation, and forbidden wording. | Missing allowed claim, evidence line, strength, role, relationship, or forbidden wording. |
 | 7 Deterministic Renderer | Template baseline over Explanation IR. | Explanation IR is complete and renderer-safe. | Natural language that exceeds IR or repairs missing proof. | Deterministic text is no stronger than IR. | Missing template boundary, unsupported phrase, or unrepresented claim. |
 | 8 LLM Narration | Wording, tone, level adjustment, compression. | Deterministic renderer baseline and safe IR. | New move, tactic, plan, causal explanation, evaluation, line, or claim strength. | LLM output verbalizes only allowed claims. | Unsupported chess fact, strengthened wording, or invented line. |
@@ -232,15 +243,42 @@ Engine lines, mate/tablebase proof, SEE, and bounded material results are
 truth-oracle evidence for backend proof. Raw engine numbers and engine text are
 never public claim owners.
 
-### Stage 5 - Causal Arbitration
+### Stage 5 - Story Order
 
-Goal: allow `StoryTable` to decide which proof-backed Stories lead, support,
-block, or stay context.
+Goal: allow `StoryTable` to decide which existing Story rows lead,
+support, block, or stay context.
 
-Required interactions: tactic overrides plan, blunder suppresses strategic
-praise, source/opening cannot lead over board-backed Story, high counterplay
-risk caps conversion/plan lead, and quiet leads only when no non-quiet Story
-reaches public floor.
+`StoryInteractionLaw.md` owns the Stage 5 charter.
+
+The first scope is limited to existing `Tactic.Hanging` rows. StoryTable
+may assign Lead, Support, Context, and Blocked roles with deterministic
+ordering. Refuted Hanging is blocked, capped Hanging keeps only internal
+strength limitation, support creates no new claim, and unknown engine evidence
+creates no engine claim.
+
+Stage 5 does not open a new Story writer, new positive family, pedagogical
+advice, Explanation IR, renderer, LLM, public route, engine PV commentary, or
+best-move explanation. It must not promote raw engine eval, Board Facts, or
+`CaptureResult` into public meaning.
+
+Stage 5-2 orders Story rows deterministically using role eligibility,
+publicStrength, Story identity, writer presence, and blocked status. It does
+not use raw engine eval, raw PV text, proofFailures text, Board Facts row
+count, `CaptureResult` text, renderer wording, or input order.
+
+Stage 5-3 tightens only close Hanging blockers and context relations:
+EngineCheck refutation, missing proof, missing capture evidence, and missing
+writer block Hanging-shaped rows, while Quiet, Source, and Opening remain
+non-lead context around board-backed Hanging.
+
+Stage 5-4 keeps Verdict diagnostics out of public numeric values:
+proofFailures, EngineCheck status, and engineStrengthLimited remain internal
+diagnostics, Verdict is not public text, and renderer, LLM, and public route
+stay closed.
+
+Stage 5 closeout confirms Story ordering only. Stage 6 may consume selected
+Verdict data only; raw Board Facts, CaptureResult, EngineCheck, engine eval,
+and PV text stay behind Stage 5's selected Verdict boundary.
 
 ### Stage 6 - Explanation IR
 
@@ -249,8 +287,8 @@ explanation payload.
 
 Explanation IR may include allowed claim, allowed evidence line, allowed
 strength, forbidden wording, user-facing role, and support/context
-relationship. It must not read raw `BoardMood`, root atoms, source rows, or
-engine eval directly.
+relationship from selected Verdict data. It must not read raw `BoardMood`, root
+atoms, source rows, capture evidence, engine sidecars, or engine eval directly.
 
 Pedagogy is backend policy over selected proof-backed `Verdict` data.
 Explanation IR may carry backend-owned instructional emphasis only after causal

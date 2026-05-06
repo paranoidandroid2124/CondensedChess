@@ -78,3 +78,23 @@ rows, and PV-only rows remain diagnostic only.
 Stage 4-3 attaches EngineCheck only to `Tactic.Hanging`; legacy engine support
 does not create winning, best-move, decisive, PV-explanation, or public-eval
 claims.
+
+Stage 5 charter authority lives in `StoryInteractionLaw.md`. Legacy selection,
+ranking, and renderer-facing claim paths do not open Story Order authority.
+Stage 5 admits only role ordering for existing `Tactic.Hanging` Story rows; it
+does not create Stories, open new positive families, or promote
+engine eval, Board Facts, or `CaptureResult` into public claims.
+Stage 5-1 Hanging Role Rules also live in `StoryInteractionLaw.md`; legacy
+support/context buckets do not become public sentence authority.
+Stage 5-2 Deterministic Ordering also lives in `StoryInteractionLaw.md`; legacy
+selector ranking, raw engine ordering, raw PV ordering, proof-failure text
+ordering, and renderer wording order do not return.
+Stage 5-3 Conflict and Block Rules also live in `StoryInteractionLaw.md`;
+legacy conflict override systems, plan suppression, blunder override, defense
+relations, and strategy suppression do not return.
+Stage 5-4 Verdict Diagnostic Boundary also lives in `StoryInteractionLaw.md`;
+legacy renderer input paths, LLM input paths, public route payloads, and
+diagnostic-to-public-value promotion do not return.
+Stage 5 closeout also lives in `StoryInteractionLaw.md`; legacy downstream
+handoffs from raw Board Facts, CaptureResult, EngineCheck, engine eval, or PV
+text do not return.

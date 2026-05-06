@@ -2395,6 +2395,336 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(refutesVerdict.leadAllowed, false)
     assert(refutesVerdict.role != Role.Lead)
 
+  test("Stage 5-1 verified Hanging alone becomes Lead"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+
+    assertEquals(verdict.story, story)
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(verdict.leadAllowed, true)
+    assertEquals(verdict.proofFailures, Vector.empty)
+
+  test("Stage 5-1 chooses deterministic Lead from two verified Hanging rows"):
+    val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val leftCapture = Line(Square('d', 4), Square('c', 5))
+    val rightCapture = Line(Square('d', 4), Square('e', 5))
+    val left = TacticHanging.write(facts, leftCapture).get
+    val right = TacticHanging.write(facts, rightCapture).get
+    val forward = StoryTable.choose(Vector(right, left))
+    val reverse = StoryTable.choose(Vector(left, right))
+
+    assertEquals(forward.map(_.story), reverse.map(_.story))
+    assertEquals(forward.head.story, left)
+    assertEquals(forward.head.role, Role.Lead)
+    assertEquals(forward.head.leadAllowed, true)
+    assertEquals(forward(1).story, right)
+    assertEquals(forward(1).role, Role.Support)
+    assertEquals(forward(1).leadAllowed, false)
+
+  test("Stage 5-1 Refuted Hanging is Blocked while supported Hanging may Lead"):
+    val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val supportedCapture = Line(Square('d', 4), Square('c', 5))
+    val refutedCapture = Line(Square('d', 4), Square('e', 5))
+    val supported = TacticHanging.write(facts, supportedCapture).get
+    val refuted = TacticHanging.write(facts, refutedCapture).get
+
+    def check(story: Story, status: EngineCheckStatus) =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(story.route.get))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(20)),
+        evalAfter = Some(EngineEval(80)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    val checkedSupported = TacticHanging.withEngineCheck(supported, check(supported, EngineCheckStatus.Supports)).get
+    val checkedRefuted = TacticHanging.withEngineCheck(refuted, check(refuted, EngineCheckStatus.Refutes)).get
+    val verdicts = StoryTable.choose(Vector(checkedRefuted, checkedSupported))
+
+    assertEquals(verdicts.head.story, checkedSupported)
+    assertEquals(verdicts.head.role, Role.Lead)
+    assertEquals(verdicts.head.leadAllowed, true)
+    assertEquals(verdicts.find(_.story == checkedRefuted).map(_.role), Some(Role.Blocked))
+    assertEquals(verdicts.find(_.story == checkedRefuted).map(_.leadAllowed), Some(false))
+    assertEquals(verdicts.find(_.story == checkedRefuted).flatMap(_.engineCheckStatus), Some(EngineCheckStatus.Refutes))
+
+  test("Stage 5-1 Capped Hanging keeps strength-limited diagnostic"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val check = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Caps
+    )
+    val capped = TacticHanging.withEngineCheck(story, check).get
+    val verdict = StoryTable.choose(Vector(capped)).head
+
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(verdict.leadAllowed, true)
+    assertEquals(verdict.engineCheckStatus, Some(EngineCheckStatus.Caps))
+    assertEquals(verdict.engineStrengthLimited, true)
+
+  test("Stage 5-1 Unknown EngineCheck creates no engine wording"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val baseVerdict = StoryTable.choose(Vector(story)).head
+    val check = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Unknown
+    )
+    val unknown = TacticHanging.withEngineCheck(story, check).get
+    val verdict = StoryTable.choose(Vector(unknown)).head
+
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(verdict.leadAllowed, true)
+    assertEquals(verdict.engineCheckStatus, Some(EngineCheckStatus.Unknown))
+    assertEquals(verdict.engineStrengthLimited, false)
+    assertEquals(verdict.values, baseVerdict.values)
+
+  test("Stage 5-1 incomplete or unsupported Hanging rows are not Lead"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val lowStrength = story.copy(
+      proof = proof(
+        boardProof = 60,
+        lineProof = 60,
+        ownerProof = 90,
+        anchorProof = 90,
+        routeProof = 90,
+        conversionPrize = 60
+      )
+    )
+    val incompleteProof = story.copy(storyProof = StoryProof.empty)
+    val missingCapture = story.copy(captureResult = None)
+    val noWriter = story.copy(writer = None)
+
+    val verdicts = StoryTable.choose(Vector(lowStrength, incompleteProof, missingCapture, noWriter))
+
+    assertEquals(verdicts.find(_.story == lowStrength).map(_.role), Some(Role.Context))
+    assertEquals(verdicts.find(_.story == incompleteProof).map(_.role), Some(Role.Blocked))
+    assertEquals(verdicts.find(_.story == missingCapture).map(_.role), Some(Role.Blocked))
+    assert(verdicts.find(_.story == noWriter).exists(verdict => verdict.role == Role.Context || verdict.role == Role.Blocked))
+    assert(verdicts.forall(_.role != Role.Lead))
+    assert(verdicts.forall(!_.leadAllowed))
+
+  test("Stage 5-2 keeps deterministic Lead independent of input order"):
+    val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val left = TacticHanging.write(facts, Line(Square('d', 4), Square('c', 5))).get
+    val right = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
+    val forward = StoryTable.choose(Vector(right, left))
+    val reverse = StoryTable.choose(Vector(left, right))
+
+    assertEquals(forward.map(_.story), reverse.map(_.story))
+    assertEquals(forward.head.role, Role.Lead)
+    assertEquals(forward.head.story, left)
+
+  test("Stage 5-2 uses target anchor and route as deterministic equal-strength tie-breaks"):
+    val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val c5 = TacticHanging.write(facts, Line(Square('d', 4), Square('c', 5))).get
+    val e5 = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
+    val routeA = c5.copy(
+      target = Some(Square('c', 5)),
+      anchor = Some(Square('c', 4)),
+      route = Some(Line(Square('c', 4), Square('c', 5))),
+      storyProof = StoryProof.untrustedLegalLine(Line(Square('c', 4), Square('c', 5)))
+    )
+    val routeB = c5.copy(
+      target = Some(Square('c', 5)),
+      anchor = Some(Square('c', 4)),
+      route = Some(Line(Square('d', 4), Square('c', 5))),
+      storyProof = StoryProof.untrustedLegalLine(Line(Square('d', 4), Square('c', 5)))
+    )
+
+    assertEquals(StoryTable.choose(Vector(e5, c5)).head.story, c5)
+    assertEquals(StoryTable.choose(Vector(routeB, routeA)).head.story, routeA)
+
+  test("Stage 5-2 uses blocked status without proofFailures text as public ordering"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val context = story.copy(
+      target = Some(Square('a', 1)),
+      proof = proof(
+        boardProof = 60,
+        lineProof = 60,
+        ownerProof = 90,
+        anchorProof = 90,
+        routeProof = 90,
+        conversionPrize = 60
+      )
+    )
+    val blocked = story.copy(
+      target = Some(Square('h', 8)),
+      storyProof = StoryProof.empty,
+      proof = proof(
+        boardProof = 99,
+        lineProof = 99,
+        ownerProof = 99,
+        anchorProof = 99,
+        routeProof = 99,
+        conversionPrize = 99,
+        forcing = 99,
+        immediacy = 99
+      )
+    )
+    val verdicts = StoryTable.choose(Vector(blocked, context))
+
+    assertEquals(context.proofFailures, Vector.empty)
+    assert(blocked.proofFailures.nonEmpty)
+    assertEquals(verdicts.head.story, context)
+    assertEquals(verdicts.head.role, Role.Context)
+    assertEquals(verdicts(1).story, blocked)
+    assertEquals(verdicts(1).role, Role.Blocked)
+
+  test("Stage 5-2 raw engine eval does not reorder Hanging rows"):
+    val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val left = TacticHanging.write(facts, Line(Square('d', 4), Square('c', 5))).get
+    val right = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
+
+    def checked(story: Story, before: Int, after: Int) =
+      val route = story.route.get
+      val check = EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(route))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(before)),
+        evalAfter = Some(EngineEval(after)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = EngineCheckStatus.Supports
+      )
+      TacticHanging.withEngineCheck(story, check).get
+
+    val lowEvalLeft = checked(left, before = 20, after = 80)
+    val highEvalRight = checked(right, before = 400, after = 460)
+    val highEvalLeft = checked(left, before = 400, after = 460)
+    val lowEvalRight = checked(right, before = 20, after = 80)
+
+    assertEquals(
+      StoryTable.choose(Vector(highEvalRight, lowEvalLeft)).map(_.story.route),
+      StoryTable.choose(Vector(lowEvalRight, highEvalLeft)).map(_.story.route)
+    )
+
+  test("Stage 5-3 Refuted Hanging remains Blocked"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val check = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(capture))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+      evalBefore = Some(EngineEval(80)),
+      evalAfter = Some(EngineEval(20)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Refutes
+    )
+    val refuted = TacticHanging.withEngineCheck(story, check).get
+    val verdict = StoryTable.choose(Vector(refuted)).head
+
+    assertEquals(verdict.role, Role.Blocked)
+    assertEquals(verdict.leadAllowed, false)
+    assertEquals(verdict.engineCheckStatus, Some(EngineCheckStatus.Refutes))
+
+  test("Stage 5-3 Quiet cannot Lead when positive Hanging exists"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val hanging = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
+    val quiet = Story(
+      Scene.Quiet,
+      side = Side.White,
+      target = Some(Square('a', 2)),
+      anchor = Some(safeAnchor),
+      route = Some(safeRoute),
+      rival = Side.Black,
+      proof = proof(boardProof = 90, ownerProof = 90, anchorProof = 90, routeProof = 90, conversionPrize = 90),
+      storyProof = storyProof()
+    )
+    val verdicts = StoryTable.choose(Vector(quiet, hanging))
+
+    assertEquals(verdicts.head.story, hanging)
+    assertEquals(verdicts.head.role, Role.Lead)
+    assertEquals(verdicts.find(_.story == quiet).map(_.leadAllowed), Some(false))
+    assert(verdicts.find(_.story == quiet).exists(_.role != Role.Lead))
+
+  test("Stage 5-3 Source and Opening cannot outrank board-backed Hanging"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val hanging = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
+    def context(scene: Scene, target: Square) =
+      Story(
+        scene,
+        side = Side.White,
+        target = Some(target),
+        anchor = Some(safeAnchor),
+        route = Some(safeRoute),
+        rival = Side.Black,
+        proof = proof(
+          boardProof = 99,
+          lineProof = 99,
+          ownerProof = 99,
+          anchorProof = 99,
+          routeProof = 99,
+          conversionPrize = 99,
+          forcing = 99,
+          immediacy = 99
+        ),
+        storyProof = storyProof()
+      )
+
+    val sourceVerdicts = StoryTable.choose(Vector(context(Scene.Source, Square('b', 2)), hanging))
+    val openingVerdicts = StoryTable.choose(Vector(context(Scene.Opening, Square('c', 2)), hanging))
+
+    assertEquals(sourceVerdicts.head.story, hanging)
+    assertEquals(openingVerdicts.head.story, hanging)
+    assert(sourceVerdicts.forall(verdict => verdict.story.scene != Scene.Source || !verdict.leadAllowed))
+    assert(openingVerdicts.forall(verdict => verdict.story.scene != Scene.Opening || !verdict.leadAllowed))
+
+  test("Stage 5-3 no-writer Story cannot behave like Hanging"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val hanging = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
+    val noWriter = hanging.copy(
+      writer = None,
+      proof = proof(
+        boardProof = 60,
+        lineProof = 60,
+        ownerProof = 90,
+        anchorProof = 90,
+        routeProof = 90,
+        forcing = 60,
+        immediacy = 60,
+        conversionPrize = 60,
+        kingHeat = 60
+      )
+    )
+    val verdict = StoryTable.choose(Vector(noWriter)).head
+
+    assertEquals(noWriter.proofFailures, Vector.empty)
+    assertEquals(verdict.role, Role.Blocked)
+    assertEquals(verdict.leadAllowed, false)
+
   test("EngineCheck negative corpus blocks or weakens false positive Hanging evidence"):
     val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
     val otherFacts = BoardFacts.fromFen(Fen.initial).toOption.get
@@ -2930,6 +3260,35 @@ class ChessFoundationTest extends munit.FunSuite:
         !verdictSlotNames.exists(_.toLowerCase.contains(term.toLowerCase)),
         s"Verdict public slots must not expose $term"
       )
+
+  test("Stage 5-4 Verdict diagnostics do not enter public values"):
+    val story = Story(
+      Scene.Tactic,
+      side = Side.White,
+      target = Some(Square('e', 5)),
+      anchor = Some(Square('d', 4)),
+      route = Some(Line(Square('d', 4), Square('e', 5))),
+      rival = Side.Black,
+      tactic = Some(Tactic.Hanging),
+      proof = proof(),
+      storyProof = storyProof()
+    )
+    val base =
+      Verdict(story, rank = 1, leadAllowed = true, strength = 80.0, role = Role.Lead)
+    val withProofFailure =
+      base.copy(proofFailures = Vector(BoardFacts.MissingEvidence("Story Proof", Vector("same-board proof"))))
+    val withUnknownEngine =
+      base.copy(engineCheckStatus = Some(EngineCheckStatus.Unknown))
+    val withRefutingEngine =
+      base.copy(engineCheckStatus = Some(EngineCheckStatus.Refutes))
+    val withStrengthLimit =
+      base.copy(engineCheckStatus = Some(EngineCheckStatus.Caps), engineStrengthLimited = true)
+
+    assertEquals(base.values.size, Verdict.Size)
+    assertEquals(withProofFailure.values, base.values)
+    assertEquals(withUnknownEngine.values, base.values)
+    assertEquals(withRefutingEngine.values, base.values)
+    assertEquals(withStrengthLimit.values, base.values)
 
   test("Stage 2 ordering does not use proofFailures as public sort input"):
     val proofScore = proof(

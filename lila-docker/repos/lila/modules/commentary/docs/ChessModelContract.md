@@ -45,6 +45,20 @@ is the only live writer in this checkpoint.
 shape: Engine Check evidence is internal sidecar evidence for an existing
 Story. It is not Story identity, not a Story writer, and not a Verdict result.
 
+`StoryInteractionLaw.md` owns the Stage 5 charter. This contract owns names and
+shape: StoryTable assigns roles among existing Story rows and Verdict
+records the result. StoryTable does not create Story identity or proof.
+Stage 5-1 Hanging Role Rules are also owned by `StoryInteractionLaw.md`; this
+contract records only the shape boundary.
+Stage 5-2 Deterministic Ordering is also owned by `StoryInteractionLaw.md`;
+this contract records only the Verdict ordering shape boundary.
+Stage 5-3 Conflict and Block Rules are also owned by `StoryInteractionLaw.md`;
+this contract records only the close-blocker shape boundary.
+Stage 5-4 Verdict Diagnostic Boundary is also owned by `StoryInteractionLaw.md`;
+this contract records only the Verdict diagnostic shape boundary.
+Stage 5 closeout is also owned by `StoryInteractionLaw.md`; this contract
+records only the selected-Verdict handoff boundary.
+
 Renderer, LLM narration, public route `200`, `/api/commentary/render`, and
 `/internal/commentary/render-local-probe` remain closed until their own
 contracts and tests exist.
@@ -720,6 +734,27 @@ Lead fail-closed rules:
 - EngineCheckStatus has exactly `Unknown`, `Supports`, `Caps`, and `Refutes`. Only `Tactic.Hanging` may carry EngineCheck in this checkpoint. `Refutes` blocks the Hanging Story. `Supports` and `Caps` do not change `Verdict.values`, create public truth, or create winning, best-move, decisive, PV-explanation, or public-eval claims.
 - Eval collapse after capture may refute an existing Hanging EngineCheck only after same-board Story proof, named writer, CaptureResult, legal route, and freshness guards pass. Eval collapse cannot create a Story, public eval claim, or engine-authored explanation.
 - Verdict carries `engineCheckStatus` and `engineStrengthLimited` as internal diagnostics only. `Verdict.values`, renderer, and LLM inputs must not consume EngineCheck diagnostics.
+- Stage 5 Story Order is limited to existing `Tactic.Hanging` Story rows
+  in this checkpoint. StoryTable may assign roles and deterministic ordering,
+  but it must not create Stories, open new positive families, or use engine
+  eval, Board Facts, or `CaptureResult` as direct public claim owners.
+- Stage 5-1 may mark only the selected Lead row as `leadAllowed`; Support and
+  Context roles are not public sentences and do not open renderer or LLM.
+- Stage 5-2 ordering may use role eligibility, publicStrength, scene/tactic
+  identity, side, target, anchor, route, writer presence, and blocked status.
+  It must not use raw engine eval, raw PV text, proofFailures text, Board Facts
+  row count, `CaptureResult` text, renderer wording, or input order.
+- Stage 5-3 conflict rules may block Hanging-shaped rows from EngineCheck
+  refutation, missing proof, missing capture evidence, or missing writer, and
+  may keep Quiet, Source, and Opening behind board-backed Hanging without
+  opening Plan, Blunder, Defense, extra counterplay, or Strategy relations.
+- Stage 5-4 keeps Verdict diagnostics outside public numeric values:
+  proofFailures, EngineCheck diagnostics, and `engineStrengthLimited` remain
+  internal; Verdict is not public text, and renderer, LLM, and public route
+  remain closed.
+- Stage 5 closeout keeps the next boundary narrow: Explanation IR may receive
+  selected Verdict data only, and must not directly consume raw Board Facts,
+  CaptureResult, EngineCheck, raw engine eval, or raw PV text.
 - `ownerProof >= 70` requires `side` to be `White`, `Black`, or `Both`; `None`
   cannot lead.
 - `anchorProof >= 70` requires a concrete `anchor`.
