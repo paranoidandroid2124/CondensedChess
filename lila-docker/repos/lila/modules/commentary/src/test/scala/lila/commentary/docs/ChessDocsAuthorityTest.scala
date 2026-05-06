@@ -242,7 +242,10 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "sourceFit",
       "novelty",
       "clarity"
-    )
+  )
+
+  private val commentaryController = Paths.get("app/controllers/Commentary.scala")
+  private val commentaryBridgeSource = Paths.get("ui/analyse/src/chesstory/commentaryBridge.ts")
 
   private def rootDocNames: Vector[String] =
     val stream = Files.list(docsRoot)
@@ -497,6 +500,33 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       modelContract.contains("At this checkpoint no `BoardMood` Sxxx re-entry or proof writer is admitted")
     )
     assert(modelContract.contains("No positive `Story` proof writer is live in this checkpoint"))
+    assert(modelContract.contains("Story owns identity."))
+    assert(modelContract.contains("StoryProof owns proof and missing evidence."))
+    assert(modelContract.contains("Verdict carries the result."))
+    assert(modelContract.contains("StoryProof must not own or duplicate `side`, `target`, `anchor`, `route`, or `rival`"))
+    assert(modelContract.contains("Legal line binding is not tactical success proof"))
+    assert(modelContract.contains("Complete StoryProof is necessary but not sufficient"))
+    assert(modelContract.contains("proofFailures are internal diagnostics only."))
+    assert(modelContract.contains("proofFailures are not public payload."))
+    assert(modelContract.contains("proofFailures are not renderer input."))
+    assert(modelContract.contains("proofFailures are not LLM input."))
+    assert(modelContract.contains("Missing evidence text must not become user commentary."))
+    assert(agents.contains("proofFailures are internal diagnostics only"))
+    assert(agents.contains("must not become public JSON, renderer input, or LLM input"))
+    val frontendSource = Paths.get("ui/analyse/src")
+    val frontendStream = Files.walk(frontendSource)
+    val frontendProofFailureReaders =
+      try
+        frontendStream
+          .iterator()
+          .asScala
+          .filter(path => Files.isRegularFile(path))
+          .filter(path => Files.readString(path).contains("proofFailures"))
+          .map(_.toString)
+          .toVector
+          .sorted
+      finally frontendStream.close()
+    assertEquals(frontendProofFailureReaders, Vector.empty)
     assert(contents.contains("Numeric `Proof` scores may rank blocked/context `Verdict` rows only"))
     assert(contents.contains("cannot set `leadAllowed=true` or produce `Role.Lead`"))
     assert(contents.contains("Runtime `StoryProof` records that full tuple and its missing evidence"))
@@ -511,7 +541,24 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(rationale.contains("FEN to public `Verdict`"))
     assert(interactionLaw.contains("| Scene.Opening | context-only |"))
     assert(interactionLaw.contains("no truth override or lead over board-backed Story"))
+    assert(interactionLaw.contains("This diagnostic shape is internal validation, test, and debugging output only."))
+    assert(interactionLaw.contains("It is not API/public JSON, renderer input, LLM input, or user commentary."))
+    assert(interactionLaw.contains("it does not provide text that may be spoken."))
     assert(modelContract.contains("`Source` and `Opening` never lead over a board-backed story"))
+    val chessFoundationTest =
+      Files.readString(Paths.get("modules/commentary/src/test/scala/lila/commentary/chess/ChessFoundationTest.scala"))
+    assert(chessFoundationTest.contains("Verdict proofFailures are internal diagnostics, not public payload"))
+    assert(chessFoundationTest.contains("assertEquals(verdict.values, cleared.values)"))
+    assert(chessFoundationTest.contains("Stage 2 ordering does not use proofFailures as public sort input"))
+    val controllerSource = Files.readString(commentaryController)
+    assert(controllerSource.contains("def renderCommentary"))
+    assert(controllerSource.contains("def renderLocalProbeCommentary"))
+    assert(controllerSource.contains("ServiceUnavailable(unavailable)"))
+    assert(controllerSource.contains("\"noCommentary\" -> true"))
+    assert(!controllerSource.contains("Ok("))
+    val bridgeSource = Files.readString(commentaryBridgeSource)
+    assert(bridgeSource.contains("const PublicRenderRoutesTombstoned = true"))
+    assert(bridgeSource.contains("if (PublicRenderRoutesTombstoned) return { kind: 'empty', reason: 'no_commentary' }"))
     assert(readme.contains("Stage order no-go"))
     assert(readme.contains("Current implementation scope is Stage 2 Story Proof only"))
     assert(readme.contains("Stages 3-11 are a dependency map"))

@@ -43,12 +43,15 @@ class ChessFoundationTest extends munit.FunSuite:
       clarity = clarity
     )
 
-  private val safeRoute = Line(Square('a', 1), Square('a', 2))
-  private val safeAnchor = Square('a', 1)
-  private val safeRivalRoute = Line(Square('h', 8), Square('h', 7))
+  private val safeRoute = Line(Square('a', 2), Square('a', 3))
+  private val safeAnchor = Square('a', 2)
+  private val safeRivalRoute = Line(Square('h', 7), Square('h', 6))
 
   private def storyProof(line: Line = safeRoute): StoryProof =
-    StoryProof.sameBoard(legalLine = line)
+    StoryProof.fromBoardFacts(BoardFacts.fromFen(Fen.initial).toOption.get, legalLine = line)
+
+  private def untrustedStoryProof(line: Line = safeRoute): StoryProof =
+    StoryProof.untrustedLegalLine(legalLine = line)
 
   private def rivalOf(side: Side): Side =
     if side == Side.White then Side.Black else Side.White
@@ -1843,30 +1846,144 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(verdict.leadAllowed, false)
     assert(verdict.role != Role.Lead)
 
-  test("Story Proof completion still cannot open a public lead in Stage 2"):
-    val story = Story(
-      Scene.Material,
-      side = Side.White,
-      target = Some(Square('a', 2)),
-      anchor = Some(safeAnchor),
-      route = Some(safeRoute),
-      rival = Side.Black,
-      proof = proof(
-        boardProof = 99,
-        lineProof = 99,
-        ownerProof = 99,
-        anchorProof = 99,
-        routeProof = 99,
-        conversionPrize = 99
-      ),
-      storyProof = storyProof()
-    )
-    val verdict = StoryTable.choose(Vector(story)).head
+  test("Story Proof does not own or duplicate Story identity"):
+    val storyProofFields =
+      classOf[StoryProof].getDeclaredFields
+        .map(_.getName)
+        .filterNot(name => name.startsWith("$") || name.contains("bitmap"))
+        .toVector
+        .sorted
+    val storyProofMethods = classOf[StoryProof].getDeclaredMethods.map(_.getName).toVector
+    val identityTerms = Vector("side", "target", "anchor", "route", "rival")
 
-    assertEquals(story.proofFailures, Vector.empty)
-    assertEquals(verdict.proofFailures, Vector.empty)
-    assertEquals(verdict.leadAllowed, false)
-    assertEquals(verdict.role, Role.Blocked)
+    assertEquals(storyProofFields, Vector("legalLine", "sameBoardProof"))
+    identityTerms.foreach: term =>
+      assert(!storyProofFields.exists(_.toLowerCase.contains(term)), s"StoryProof must not own $term")
+    assert(!storyProofMethods.contains("copy"))
+    assert(!classOf[Product].isAssignableFrom(classOf[StoryProof]))
+
+  test("Story Proof legal line binding reports each missing evidence case"):
+    def completeStory(
+        route: Option[Line] = Some(safeRoute),
+        storyProof: StoryProof = storyProof(),
+        side: Side = Side.White,
+        rival: Side = Side.Black,
+        target: Option[Square] = Some(Square('a', 2)),
+        anchor: Option[Square] = Some(safeAnchor)
+    ) =
+      Story(
+        Scene.Material,
+        side = side,
+        target = target,
+        anchor = anchor,
+        route = route,
+        rival = rival,
+        proof = proof(
+          boardProof = 99,
+          lineProof = 99,
+          ownerProof = 99,
+          anchorProof = 99,
+          routeProof = 99,
+          conversionPrize = 99
+        ),
+        storyProof = storyProof
+      )
+
+    val mismatchedRoute = Line(Square('b', 1), Square('b', 2))
+    val cases = Vector(
+      ("route missing", completeStory(route = None), Vector("route", "legal line")),
+      ("legal line missing", completeStory(storyProof = StoryProof.empty), Vector(
+        "legal line",
+        "same-board proof"
+      )),
+      ("untrusted facts cannot forge same-board proof", completeStory(
+        storyProof = StoryProof.fromBoardFacts(minimalBoardFacts(), safeRoute)
+      ), Vector(
+        "legal line",
+        "same-board proof"
+      )),
+      ("legal line mismatch", completeStory(route = Some(mismatchedRoute)), Vector("legal line")),
+      ("same-board proof missing", completeStory(storyProof = untrustedStoryProof()), Vector(
+        "same-board proof"
+      )),
+      ("side missing", completeStory(side = Side.None), Vector("side", "rival")),
+      ("side both", completeStory(side = Side.Both), Vector("side", "rival")),
+      ("rival missing", completeStory(rival = Side.None), Vector("rival")),
+      ("rival both", completeStory(rival = Side.Both), Vector("rival")),
+      ("rival same as side", completeStory(rival = Side.White), Vector("rival")),
+      ("target missing", completeStory(target = None), Vector("target")),
+      ("anchor missing", completeStory(anchor = None), Vector("anchor"))
+    )
+
+    cases.foreach: (label, story, missing) =>
+      val verdict = StoryTable.choose(Vector(story)).head
+      assertEquals(story.proofFailures, Vector(BoardFacts.MissingEvidence("Story Proof", missing)), label)
+      assertEquals(verdict.proofFailures, story.proofFailures, label)
+      assertEquals(verdict.leadAllowed, false, label)
+      assert(verdict.role != Role.Lead, label)
+
+  test("Complete Story Proof is necessary but not sufficient for public Lead in Stage 2"):
+    def completeStory(
+        scene: Scene,
+        plan: Option[Plan] = None,
+        tactic: Option[Tactic] = None,
+        route: Line = safeRoute,
+        target: Square = Square('a', 2),
+        anchor: Square = safeAnchor,
+        proofScore: Proof = proof(
+          boardProof = 99,
+          lineProof = 99,
+          ownerProof = 99,
+          anchorProof = 99,
+          routeProof = 99,
+          conversionPrize = 99,
+          forcing = 99,
+          kingHeat = 99,
+          immediacy = 99
+        )
+    ) =
+      Story(
+        scene,
+        side = Side.White,
+        target = Some(target),
+        anchor = Some(anchor),
+        route = Some(route),
+        rival = Side.Black,
+        plan = plan,
+        tactic = tactic,
+        proof = proofScore,
+        storyProof = storyProof(route)
+      )
+
+    val completeStories = Vector(
+      "Material" -> completeStory(Scene.Material),
+      "Tactic" -> completeStory(Scene.Tactic, tactic = Some(Tactic.Fork)),
+      "Tactic.Hanging" -> completeStory(Scene.Tactic, tactic = Some(Tactic.Hanging)),
+      "Plan" -> completeStory(Scene.Plan, plan = Some(Plan.CenterBreak)),
+      "King" -> completeStory(Scene.King)
+    )
+
+    completeStories.foreach: (label, story) =>
+      val verdict = StoryTable.choose(Vector(story)).head
+      assertEquals(story.proofFailures, Vector.empty, label)
+      assertEquals(verdict.proofFailures, Vector.empty, label)
+      assertEquals(verdict.leadAllowed, false, label)
+      assertEquals(verdict.role, Role.Blocked, label)
+
+    val boardBacked = completeStory(Scene.Material, target = Square('b', 2))
+    val source = completeStory(Scene.Source, target = Square('c', 2))
+    val opening = completeStory(Scene.Opening, target = Square('d', 2))
+    val sourceVerdicts = StoryTable.choose(Vector(source, boardBacked))
+    val openingVerdicts = StoryTable.choose(Vector(opening, boardBacked))
+
+    assertEquals(source.proofFailures, Vector.empty)
+    assertEquals(opening.proofFailures, Vector.empty)
+    assertEquals(sourceVerdicts.head.story, boardBacked)
+    assertEquals(openingVerdicts.head.story, boardBacked)
+    assert(sourceVerdicts.forall(_.role != Role.Lead))
+    assert(openingVerdicts.forall(_.role != Role.Lead))
+    assert(sourceVerdicts.find(_.story == source).exists(!_.leadAllowed))
+    assert(openingVerdicts.find(_.story == opening).exists(!_.leadAllowed))
 
   test("Board Facts legal rows cannot become public claims without Story Proof"):
     val facts = BoardFacts.fromFen(Fen.initial).toOption.get
@@ -1897,6 +2014,198 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(verdict.leadAllowed, false)
     assert(verdict.role != Role.Lead)
 
+  test("Board Facts observations cannot speak without Story Proof"):
+    def highProof =
+      proof(
+        boardProof = 99,
+        lineProof = 99,
+        ownerProof = 99,
+        anchorProof = 99,
+        routeProof = 99,
+        conversionPrize = 99,
+        forcing = 99,
+        kingHeat = 99,
+        immediacy = 99
+      )
+
+    def claimLikeStory(side: Side, target: Square, anchor: Square, route: Line, rival: Side): Story =
+      Story(
+        Scene.Material,
+        side = side,
+        target = Some(target),
+        anchor = Some(anchor),
+        route = Some(route),
+        rival = rival,
+        proof = highProof
+      )
+
+    def cannotSpeak(label: String, boardFactExists: Boolean, story: Story): Unit =
+      val verdict = StoryTable.choose(Vector(story)).head
+      assertEquals(boardFactExists, true, s"$label Board Fact must exist")
+      assert(story.proof.publicStrength >= 65, s"$label must use a high Proof score")
+      assertEquals(
+        story.proofFailures,
+        Vector(BoardFacts.MissingEvidence("Story Proof", Vector("legal line", "same-board proof"))),
+        label
+      )
+      assertEquals(verdict.proofFailures, story.proofFailures, label)
+      assertEquals(verdict.leadAllowed, false, label)
+      assert(verdict.role != Role.Lead, label)
+
+    val contactFacts =
+      BoardFacts.fromFen(Fen.Full("4k3/8/8/4n3/3P4/2N5/1P6/4K3 w - - 0 1")).toOption.get
+    val contactSeen = contactFacts.seen
+    val whitePawn = Piece(Side.White, Man.Pawn, Square('d', 4))
+    val whiteKnight = Piece(Side.White, Man.Knight, Square('c', 3))
+    val whiteGuard = Piece(Side.White, Man.Pawn, Square('b', 2))
+    val blackKnight = Piece(Side.Black, Man.Knight, Square('e', 5))
+    val attacked = contactSeen.attacks.find(row => row.attacker == whitePawn && row.target == blackKnight).get
+    val guarded = contactSeen.guards.find(row => row.guard == whiteGuard && row.target == whiteKnight).get
+    val loose = contactSeen.pieceContacts.find(row => row.piece == blackKnight && row.attackedUnguarded).get
+
+    cannotSpeak(
+      "attacked piece",
+      boardFactExists = contactSeen.attacks.contains(attacked),
+      claimLikeStory(
+        attacked.attacker.side,
+        attacked.target.square,
+        attacked.attacker.square,
+        Line(attacked.attacker.square, attacked.target.square),
+        attacked.target.side
+      )
+    )
+    cannotSpeak(
+      "guarded piece",
+      boardFactExists = contactSeen.guards.contains(guarded),
+      claimLikeStory(
+        guarded.guard.side,
+        guarded.target.square,
+        guarded.guard.square,
+        Line(guarded.guard.square, guarded.target.square),
+        rivalOf(guarded.guard.side)
+      )
+    )
+    cannotSpeak(
+      "loose unguarded piece",
+      boardFactExists = contactSeen.pieceContacts.contains(loose),
+      claimLikeStory(
+        loose.attackers.head.side,
+        loose.piece.square,
+        loose.attackers.head.square,
+        Line(loose.attackers.head.square, loose.piece.square),
+        loose.piece.side
+      )
+    )
+
+    val pinSeen = BoardFacts.fromFen(Fen.Full("4r1k1/8/8/8/8/8/4N3/4K3 w - - 0 1")).toOption.get.seen
+    val pinLine = pinSeen.lineFacts.find(_.shapes.contains(BoardFacts.LineShape.PinToKing)).get
+    cannotSpeak(
+      "pin-to-king line",
+      boardFactExists = pinSeen.lineFacts.contains(pinLine),
+      claimLikeStory(
+        pinLine.attacker.get.side,
+        pinLine.pinned.get.square,
+        pinLine.attacker.get.square,
+        pinLine.line,
+        pinLine.pinned.get.side
+      )
+    )
+
+    val xraySeen =
+      BoardFacts.fromFen(Fen.Full("7k/8/q7/2b5/8/B7/8/R6K w - - 0 1")).toOption.get.seen
+    val xrayLine = xraySeen.lineFacts.find(_.shapes.contains(BoardFacts.LineShape.XRay)).get
+    cannotSpeak(
+      "x-ray shape",
+      boardFactExists = xraySeen.lineFacts.contains(xrayLine),
+      claimLikeStory(
+        xrayLine.from.get.side,
+        xrayLine.target.get.square,
+        xrayLine.from.get.square,
+        xrayLine.line,
+        xrayLine.target.get.side
+      )
+    )
+
+    val openFileSeen = BoardFacts.fromFen(Fen.Full("4k3/8/8/8/8/8/R7/4K3 w - - 0 1")).toOption.get.seen
+    val openFileEntry = openFileSeen.fileFacts.find(_.file == 2).get.rookOpenFileEntries.head
+    cannotSpeak(
+      "open file entry",
+      boardFactExists = openFileSeen.fileFacts.exists(_.rookOpenFileEntries.contains(openFileEntry)),
+      claimLikeStory(
+        openFileEntry.side,
+        openFileEntry.line.to,
+        openFileEntry.piece.square,
+        openFileEntry.line,
+        rivalOf(openFileEntry.side)
+      )
+    )
+
+    val pawnSeen =
+      BoardFacts.fromFen(Fen.Full("7k/8/8/3pnp2/1P2P3/2P2N2/P7/4K3 w - - 0 1")).toOption.get.seen
+    val pawnLever = pawnSeen.pawnLevers.find(_.pawn.square == Square('e', 4)).get
+    val pawnSafe = pawnSeen.pawnSafeSquareObservations.find(_.square == Square('f', 3)).get
+    cannotSpeak(
+      "pawn lever",
+      boardFactExists = pawnSeen.pawnLevers.contains(pawnLever),
+      claimLikeStory(
+        pawnLever.side,
+        pawnLever.target.square,
+        pawnLever.pawn.square,
+        pawnLever.line,
+        pawnLever.target.side
+      )
+    )
+    cannotSpeak(
+      "pawn-safe square",
+      boardFactExists = pawnSeen.pawnSafeSquareObservations.contains(pawnSafe),
+      claimLikeStory(
+        pawnSafe.side,
+        pawnSafe.square,
+        pawnSafe.square,
+        Line(pawnSafe.square, pawnSafe.square),
+        pawnSafe.by
+      )
+    )
+
+    val kingSeen =
+      BoardFacts.fromFen(Fen.Full("4r1k1/6br/8/8/8/8/4N1R1/4K3 b - - 0 1")).toOption.get.seen
+    val kingRingAttack = kingSeen.kingRingAttacks.find(_.square == Square('g', 7)).get
+    val legalEscape = kingSeen.legalEscapeSquares.find(_.square == Square('h', 8)).get
+    val contactCheck = kingSeen.contactCheckObservations.head
+    cannotSpeak(
+      "king-ring attack",
+      boardFactExists = kingSeen.kingRingAttacks.contains(kingRingAttack),
+      claimLikeStory(
+        kingRingAttack.attacker.side,
+        kingRingAttack.square,
+        kingRingAttack.attacker.square,
+        Line(kingRingAttack.attacker.square, kingRingAttack.square),
+        kingRingAttack.side
+      )
+    )
+    cannotSpeak(
+      "legal escape square",
+      boardFactExists = kingSeen.legalEscapeSquares.contains(legalEscape),
+      claimLikeStory(
+        legalEscape.side,
+        legalEscape.square,
+        legalEscape.king.square,
+        legalEscape.line,
+        rivalOf(legalEscape.side)
+      )
+    )
+    cannotSpeak(
+      "contact check observation",
+      boardFactExists = kingSeen.contactCheckObservations.contains(contactCheck),
+      claimLikeStory(
+        contactCheck.attacker.side,
+        contactCheck.king.square,
+        contactCheck.attacker.square,
+        contactCheck.line,
+        contactCheck.side
+      )
+    )
+
   test("Story route endpoints encode differently and order deterministically"):
     val forward = Story(
       Scene.Material,
@@ -1910,7 +2219,7 @@ class ChessFoundationTest extends munit.FunSuite:
     )
     val reverse = forward.copy(
       route = Some(Line(Square('a', 4), Square('a', 2))),
-      storyProof = storyProof(Line(Square('a', 4), Square('a', 2)))
+      storyProof = StoryProof.empty
     )
 
     assertEquals(
@@ -1985,6 +2294,65 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEqualsDouble(values(Verdict.Slots.Tactic + Tactic.Fork.ordinal), 1.0, 0.0)
     assertEquals(values.slice(Verdict.Slots.Proof, Verdict.Slots.End).map(_.toInt), exactProof.values)
     assert(values.exists(_ != 0.0))
+
+  test("Verdict proofFailures are internal diagnostics, not public payload"):
+    val story = Story(
+      Scene.Material,
+      proof = proof(
+        boardProof = 99,
+        lineProof = 99,
+        ownerProof = 99,
+        anchorProof = 99,
+        routeProof = 99,
+        conversionPrize = 99
+      )
+    )
+    val verdict = StoryTable.choose(Vector(story)).head
+    val cleared = verdict.copy(proofFailures = Vector.empty)
+    val verdictSlotNames =
+      Verdict.Slots.getClass.getDeclaredMethods
+        .map(_.getName)
+        .filterNot(name => name.startsWith("$") || name.contains("bitmap"))
+        .toVector
+    val debugTerms = Vector("proofFailures", "MissingEvidence", "missing evidence", "renderer", "prompt")
+
+    assert(verdict.proofFailures.nonEmpty)
+    assertEquals(verdict.values, cleared.values)
+    debugTerms.foreach: term =>
+      assert(
+        !verdictSlotNames.exists(_.toLowerCase.contains(term.toLowerCase)),
+        s"Verdict public slots must not expose $term"
+      )
+
+  test("Stage 2 ordering does not use proofFailures as public sort input"):
+    val proofScore = proof(
+      boardProof = 99,
+      lineProof = 99,
+      ownerProof = 99,
+      anchorProof = 99,
+      routeProof = 99,
+      conversionPrize = 99
+    )
+    val incomplete = Story(
+      Scene.Material,
+      side = Side.White,
+      target = Some(Square('a', 1)),
+      anchor = Some(safeAnchor),
+      route = Some(safeRoute),
+      rival = Side.Black,
+      proof = proofScore
+    )
+    val complete = incomplete.copy(
+      target = Some(Square('b', 1)),
+      storyProof = storyProof()
+    )
+    val verdicts = StoryTable.choose(Vector(complete, incomplete))
+
+    assert(incomplete.proofFailures.nonEmpty)
+    assertEquals(complete.proofFailures, Vector.empty)
+    assertEquals(verdicts.head.story, incomplete)
+    assert(verdicts.forall(!_.leadAllowed))
+    assert(verdicts.forall(_.role != Role.Lead))
 
   test("StoryTable chooses at most eight deterministic verdicts"):
     val stories =
@@ -2077,7 +2445,7 @@ class ChessFoundationTest extends munit.FunSuite:
       Some(false)
     )
 
-  test("Tactic outranks Plan when tactical heat and line proof qualify"):
+  test("Tactic heat does not open Stage 3 priority while public leads are closed"):
     val plan = Story(
       Scene.Plan,
       side = Side.White,
@@ -2111,7 +2479,11 @@ class ChessFoundationTest extends munit.FunSuite:
       storyProof = storyProof()
     )
 
-    assertEquals(StoryTable.choose(Vector(plan, tactic)).head.story, tactic)
+    val verdicts = StoryTable.choose(Vector(plan, tactic))
+
+    assertEquals(verdicts.head.story, plan)
+    assert(verdicts.forall(!_.leadAllowed))
+    assert(verdicts.forall(_.role != Role.Lead))
 
   test("Plan ordering remains deterministic while public leads are closed"):
     val plan = Story(
@@ -2146,7 +2518,7 @@ class ChessFoundationTest extends munit.FunSuite:
     val verdicts = StoryTable.choose(Vector(plan, opposingTactic))
 
     assertEquals(verdicts.find(_.story == plan).map(_.leadAllowed), Some(false))
-    assertEquals(verdicts.head.story, opposingTactic)
+    assertEquals(verdicts.head.story, plan)
     assert(verdicts.forall(_.role != Role.Lead))
 
   test("Source remains non-lead while public leads are closed"):
@@ -2250,12 +2622,10 @@ class ChessFoundationTest extends munit.FunSuite:
       anchor = Some(Square('e', 5)),
       route = Some(Line(Square('b', 1), Square('b', 8))),
       rival = Side.Black,
-      proof = proof(boardProof = 82, ownerProof = 82, anchorProof = 82, routeProof = 82, conversionPrize = 82),
-      storyProof = storyProof(Line(Square('b', 1), Square('b', 8)))
+      proof = proof(boardProof = 82, ownerProof = 82, anchorProof = 82, routeProof = 82, conversionPrize = 82)
     )
     val aRoute = bRoute.copy(
-      route = Some(Line(Square('a', 1), Square('a', 8))),
-      storyProof = storyProof(Line(Square('a', 1), Square('a', 8)))
+      route = Some(Line(Square('a', 1), Square('a', 8)))
     )
 
     assertEquals(StoryTable.choose(Vector(bRoute, aRoute)).head.story, aRoute)

@@ -7,6 +7,29 @@ Stage 2 name is `Story Proof`.
 Core sentence: Board Facts observes. Story Proof binds. Story may speak only
 after proof.
 
+Ownership split:
+
+- Story owns identity.
+- StoryProof owns proof and missing evidence.
+- Verdict carries the result.
+
+StoryProof may inspect Story identity, but it must not own or duplicate side,
+target, anchor, route, or rival. Legal line and same-board proof are evidence
+for the Story identity, not a second identity home.
+
+Legal line binding is not tactical success proof. In Stage 2 it proves only
+that the Story route is tied to a same-board legal path.
+
+Complete StoryProof is necessary but not sufficient. Stage 2 proves only the
+minimum form of evidence. Material, tactic, plan, king, source, and opening
+Stories remain blocked or context-only until Stage 3 explicitly opens the first
+positive Story family.
+
+proofFailures are internal diagnostics only. They exist for tests, debugging,
+and locating the next missing proof coordinate. They are not public payload,
+renderer input, or LLM input, and missing evidence text must not become user
+commentary.
+
 ## Law
 
 `Story` is the first public chess unit, but a Story family name is not enough.
@@ -180,6 +203,10 @@ BoardMood can support a tactic, but they cannot prove it.
 Every blocked Story must report proof deficit, not only family pass/fail.
 Validation output must explain which identity or proof tuple members are absent
 and which board observations were present.
+
+This diagnostic shape is internal validation, test, and debugging output only.
+It is not API/public JSON, renderer input, LLM input, or user commentary. It
+shows why the kernel cannot speak; it does not provide text that may be spoken.
 
 Required blocked-story diagnostic shape:
 

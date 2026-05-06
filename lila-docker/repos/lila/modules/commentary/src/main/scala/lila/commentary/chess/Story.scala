@@ -207,8 +207,16 @@ final class StoryProof private (legalLine: Option[Line], sameBoardProof: Boolean
 object StoryProof:
   val empty: StoryProof = StoryProof(legalLine = None, sameBoardProof = false)
 
-  private[commentary] def sameBoard(legalLine: Line): StoryProof =
-    StoryProof(legalLine = Some(legalLine), sameBoardProof = true)
+  private[commentary] def fromBoardFacts(facts: BoardFacts, legalLine: Line): StoryProof =
+    val sameBoard = BoardFacts.sameBoardReady(facts)
+    val legal = facts.sideLegal.lines.contains(legalLine) || facts.rivalLegal.lines.contains(legalLine)
+    StoryProof(
+      legalLine = Option.when(sameBoard && legal)(legalLine),
+      sameBoardProof = sameBoard
+    )
+
+  private[commentary] def untrustedLegalLine(legalLine: Line): StoryProof =
+    StoryProof(legalLine = Some(legalLine), sameBoardProof = false)
 
   private def playingSide(side: Side): Boolean =
     side == Side.White || side == Side.Black
@@ -297,6 +305,7 @@ final case class Verdict(
     leadAllowed: Boolean,
     strength: Double,
     role: Role,
+    // Internal diagnostics only. Verdict.values, renderer, and LLM inputs must not consume this.
     proofFailures: Vector[BoardFacts.MissingEvidence] = Vector.empty
 ):
   def values: Vector[Double] =
@@ -352,7 +361,8 @@ object StoryTable:
   def choose(stories: Vector[Story]): Vector[Verdict] =
     val rows =
       stories.map: story =>
-        val leadCandidate = leadByStoryRules(story, stories)
+        val leadCandidate =
+          !PublicStoryLeadsClosedUntilNamedProofWriters && leadByStoryRules(story, stories)
         Row(story, story.proof.publicStrength, lead(leadCandidate), leadCandidate, story.proofFailures)
     rows
       .sortBy(row =>

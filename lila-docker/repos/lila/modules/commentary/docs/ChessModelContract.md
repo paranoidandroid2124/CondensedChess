@@ -16,6 +16,37 @@ owners, and ask whether Story would later have two possible inputs to trust.
 One chess meaning, one home. One observation family, one owner. One public
 claim, one proof path.
 
+Stage 2 ownership split:
+
+- Story owns identity.
+- StoryProof owns proof and missing evidence.
+- Verdict carries the result.
+
+`side`, `target`, `anchor`, `route`, and `rival` are Story identity. `legal
+line`, `same-board proof`, and missing evidence are StoryProof evidence.
+`rank`, `role`, `leadAllowed`, and selected strength are Verdict result.
+StoryProof must not own or duplicate `side`, `target`, `anchor`, `route`, or `rival`.
+
+Legal line binding is not tactical success proof. In Stage 2, legal line
+binding proves only that the Story route is tied to a same-board legal path. It
+does not prove that a move is good, wins material, succeeds tactically, stops
+counterplay, controls a file, or opens public commentary.
+
+Complete StoryProof is necessary but not sufficient. A complete StoryProof is
+only the minimum evidence form needed before a Story could speak. A later
+positive Story writer must explicitly open the family before any public Lead is
+allowed.
+
+proofFailures are internal diagnostics only.
+proofFailures are not public payload.
+proofFailures are not renderer input.
+proofFailures are not LLM input.
+Missing evidence text must not become user commentary.
+
+Before adding any new type, module, row, or field, classify the information as
+Story identity, StoryProof evidence, or Verdict result. If that classification
+is unclear, do not add the name.
+
 Allowed core names:
 
 - `BoardMood`

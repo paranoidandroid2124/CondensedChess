@@ -123,11 +123,21 @@ Forbidden dependency shortcuts:
 
 - Authority consolidation is mandatory: `One chess meaning, one home`;
   `One observation family, one owner`; `One public claim, one proof path`.
+- Stage 2 ownership split is mandatory: `Story owns identity.`
+  `StoryProof owns proof and missing evidence.` `Verdict carries the result.`
+  `StoryProof` must not own or duplicate `side`, `target`, `anchor`, `route`,
+  or `rival`.
 - Before adding any new core type, module, row, or docs-authority name, ask
   whether the chess meaning is truly new, whether an existing Fact can carry it
   as a field, whether the name creates new authority, whether the same board
   phenomenon would now have two owners, and whether a later `Story` proof would
   know which input to trust.
+- Before adding any new type, module, row, or field, classify the information
+  as Story identity, StoryProof evidence, or Verdict result. If it is side,
+  target, anchor, route, or rival, it belongs to `Story`, not `StoryProof`.
+- proofFailures are internal diagnostics only.
+- They may be used for tests, debugging, and missing-proof coordinates, but
+  must not become public JSON, renderer input, or LLM input.
 - New names are the last resort. Prefer extending `FileFact`, `PieceContact`,
   `LineFact`, or the existing owner for the observation family when the chess
   meaning is already housed there.

@@ -310,6 +310,15 @@ legality.
 - compact identity: `side`, `target`, `anchor`, `route`, and `rival`
 - `Proof` scores using the exact names from `ChessModelContract.md`
 
+Story owns identity. StoryProof owns proof and missing evidence. Verdict
+carries the result. `StoryProof` checks whether the identity already carried by
+`Story` is bound by legal line and same-board proof; it must not carry a second
+copy of side, target, anchor, route, or rival.
+
+`proofFailures` is internal diagnostic data only. It may explain why the kernel
+cannot speak during tests or debugging, but it is not public payload, renderer
+input, or LLM input.
+
 `Story.values` is exactly `160` values. It one-hot encodes public families and
 stores proof scores in the proof segment.
 
