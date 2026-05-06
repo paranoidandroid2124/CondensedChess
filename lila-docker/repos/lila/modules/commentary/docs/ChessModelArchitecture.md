@@ -17,9 +17,10 @@ The current branch owns only:
 
 `Board Truth / Primitive Geometry / Story boundary / Verdict boundary`
 
-Current implementation scope is Stage 2 Story Proof only. Stages 3-11 below
-are a dependency map for product design; they are not permission to implement
-those systems in this checkpoint.
+Current implementation scope is Stage 3 first narrow positive Story only.
+Stage 3 is open only for Material proof kernel, `Tactic.Hanging`, and Hanging
+negative corpus. Stages 4-11 below are a dependency map for product design;
+they are not permission to implement those systems in this checkpoint.
 
 Product north-star philosophy:
 
@@ -82,9 +83,9 @@ public-meaning unit, `StoryTable` decides roles and lead eligibility, and
 Stages open in this order only. Do not implement downstream product stages
 before earlier authority stages are proven.
 
-Only Stage 2 Story Proof is active implementation authority now. Stages 3-11
-are dependency-map-only and stay closed until their predecessor exits are
-proven.
+Only Stage 3 first narrow positive Story is active implementation authority
+now, and only for `Tactic.Hanging`. Stages 4-11 are dependency-map-only and
+stay closed until their predecessor exits are proven.
 
 Dependency order:
 
@@ -105,7 +106,7 @@ Dependency order:
 | 0 Closed Kernel | Global no-go authority and fail-closed public boundary. | Live docs and tests prove missing Story tuple blocks public output. | Renderer, LLM, public route `200`, broad strategy, broad scalar re-entry, source/engine public truth, high numeric `Proof` lead. | Public chess meaning cannot escape without side, target, anchor, route, rival, required legal line, and same-root proof sidecar. | Missing tuple member or missing no-go authority. |
 | 1 Board Facts | Small current-board observations. | Exact board identity, legal replay diagnostics, known/sane BoardFacts. | Plan speech, tactic verdict, conversion, counterplay, initiative, score/heat/pressure public meaning, engine eval as truth. | `BoardMood` creates no public chess meaning. | Missing board identity, producer proof, or observation identity. |
 | 2 Story Proof | Code-enforced proof-bearing Story identity. | Stage 1 observations plus side, target, anchor, route, rival, required legal line, same-root proof. | Numeric proof score as public authority. | No Story Proof or incomplete Story Proof yields blocked/context only. | Missing sidecar field, stale sidecar, or wrong root. |
-| 3 First Narrow Positive Story | Exactly one tactical/material Story family. | Complete Stage 2 sidecar and same-root legal replay. | Broad strategic family before tactical/material proof. | One narrow Story passes end to end; missing proof degrades to observation or silence. | Missing capture, target, defender, recapture, material/SEE, engine confirmation, or legal replay. |
+| 3 First Narrow Positive Story | Exactly one positive Story family at a time, with Material proof kernel as sub-proof only. | Complete Stage 2 sidecar, same-root legal replay, named writer, and family-specific proof. | Complete StoryProof opening a family, family piggybacking, renderer, LLM, public route `200`, or broad strategic family before tactical/material proof. | One narrow Hanging Story can speak with proof; close false positives stay silent. | Missing target, attack, legal capture, defender, recapture, positive bounded material result or SEE, same-board proof, named writer, or legal replay. |
 | 4 Engine Validation | Engine evidence attached to identified Story. | A Story candidate already exists with identity and legal line. | Engine eval/PV/best move as explanation, strategy, or pedagogy by itself. | Engine confirms, caps, or refutes the Story without speaking alone. | Missing same-root replay, SEE, line stability, MultiPV, mate/tablebase proof, or eval stability. |
 | 5 Causal Arbitration | Lead/support/context/blocked roles across Stories. | Multiple proof-backed Stories and interaction laws. | Pedagogical advice before causal ordering. | `StoryTable` deterministically decides roles under tactic, blunder, source, counterplay, and quiet rules. | Missing override, cap, blocker, role, or rival-resource proof. |
 | 6 Explanation IR | Renderer-safe language-neutral explanation payload. | Selected Verdicts with allowed claims and evidence. | Raw `BoardMood`, root atom, source row, or engine eval read by IR. | IR lists allowed claim, evidence, strength, role, support/context relation, and forbidden wording. | Missing allowed claim, evidence line, strength, role, relationship, or forbidden wording. |
@@ -165,9 +166,32 @@ after proof.
 
 Goal: open exactly one narrow proof-backed Story family.
 
-The preferred first families are `Tactic.Hanging`, `Tactic.Fork`,
-`Scene.Material`, and `Scene.Defense`, in that order. Broad strategic families
-remain closed at this stage.
+`StoryInteractionLaw.md` owns the Stage 3 charter. Architecture records the
+dependency boundary: Stage 3 consumes Stage 2 StoryProof, adds backend Material
+proof evidence, and opens only the named `Tactic.Hanging` writer. Stage 4
+Engine Validation, renderer, LLM, public route `200`, and every other positive
+Story family remain closed.
+
+The recommended implementation order is Material proof kernel,
+`Tactic.Hanging`, Hanging negative corpus, `Tactic.Fork`, Fork negative corpus,
+`Scene.Material`, then `Scene.Defense`. The first implementation scope is only
+Material proof kernel, `Tactic.Hanging`, and Hanging negative corpus.
+
+Material proof kernel is sub-proof, not public claim. It may compute legal
+capture, captured piece, capturing piece, recapture map, material after one ply
+or a bounded line, and SEE-like exchange result.
+
+`Tactic.Hanging` may speak only when target piece exists, target is attacked,
+legal capture exists, target has no adequate defender or recapture, bounded
+material result is positive, StoryProof is complete, same-board proof is
+present, and the `Tactic.Hanging` writer is explicitly open.
+
+Stage 3 first success means one narrow Hanging Story can speak with proof, and
+all close false positives still stay silent.
+
+The preferred first families after that scope are `Tactic.Hanging`,
+`Tactic.Fork`, `Scene.Material`, and `Scene.Defense`, in that order. Broad
+strategic families remain closed at this stage.
 
 ### Stage 4 - Engine Validation
 
@@ -322,11 +346,11 @@ input, or LLM input.
 `Story.values` is exactly `160` values. It one-hot encodes public families and
 stores proof scores in the proof segment.
 
-The current implementation target is Story Proof, not positive commentary or
+The current implementation target is the first narrow positive Story, not
 renderer opening. A Story cannot lead until it has concrete side, target,
-anchor, route, rival, required legal line, and same-root proof sidecar. Numeric
-proof scores alone are not authority because they can be forged without the
-bound sidecar tuple.
+anchor, route, rival, required legal line, same-root proof sidecar, a named
+positive Story writer, and family-specific proof. Numeric proof scores alone
+are not authority because they can be forged without the bound sidecar tuple.
 
 ## StoryTable
 

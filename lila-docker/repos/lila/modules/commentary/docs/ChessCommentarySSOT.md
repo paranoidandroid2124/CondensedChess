@@ -91,16 +91,25 @@ The current branch owns the early kernel: board truth, primitive geometry,
 Story boundary, and Verdict boundary. Downstream product stages stay closed
 until earlier authority stages are proven.
 
-Current implementation scope is Stage 2 Story Proof only. Stage 1 Board Facts
-is the prerequisite observation layer; Stages 3-11 are a dependency map, not
-permission to open those systems.
+Current implementation scope is Stage 3 first narrow positive Story only.
+Stage 1 Board Facts and Stage 2 Story Proof are prerequisites. Stage 3 is open
+only for Material proof kernel, `Tactic.Hanging`, and Hanging negative corpus;
+Stages 4-11 remain a dependency map, not permission to open those systems.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 3 charter.
+This SSOT states the stage scope only: Stage 3 opens backend Material proof
+evidence and the named `Tactic.Hanging` writer, while every other positive
+family and every downstream public/rendering/LLM surface remains closed.
 
 ## Current No-Go State
 
-The current checkpoint is closed at the public boundary. Stage 1 `Board Facts`
-organizes small current-board observations under `BoardFacts.md`, and Stage 2
-`Story Proof` binds the minimum public-output evidence tuple. There is no
-positive Story opening, no public surface opening, no `BoardMood` Sxxx expansion or re-entry, and no renderer opening until prerequisite laws and tests exist.
+The current checkpoint is closed at the public route and renderer boundary.
+Stage 1 `Board Facts` organizes small current-board observations under
+`BoardFacts.md`, Stage 2 `Story Proof` binds the minimum public-output evidence
+tuple, and Stage 3 opens only the named `Tactic.Hanging` writer over positive
+`CaptureResult`. There is no other positive Story opening, no public surface
+opening, no `BoardMood` Sxxx expansion or re-entry, and no renderer opening
+until prerequisite laws and tests exist.
 
 `/api/commentary/render` and `/internal/commentary/render-local-probe` are
 registered only as fail-closed tombstones. No `200`, rendered payload,
@@ -123,8 +132,8 @@ Known blockers are authority blockers, not implementation permission:
   proof sidecar is a hard public-output block, not weak scoring or renderer
   repair.
 - Runtime `StoryProof` records that full tuple and its missing evidence before
-  lead candidacy, but public output remains closed until a later positive Story
-  family is explicitly opened.
+  lead candidacy, but only the named `Tactic.Hanging` writer can turn complete
+  proof plus positive `CaptureResult` into a positive Story.
 - `Scene.Opening` is context-only and must not lead over a board-backed
   `Story`.
 - Old failing tests proved lower/scaffold/renderer non-upgrade, not default

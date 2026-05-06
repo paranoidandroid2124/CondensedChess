@@ -74,9 +74,17 @@ Implementation must open in this order only:
 Do not implement downstream product stages before earlier authority stages are
 proven.
 
-Current implementation scope is Stage 2 Story Proof only. Stage 1 Board Facts
-is the prerequisite observation layer; Stages 3-11 are a dependency map, not
-permission to open those systems.
+Current implementation scope is Stage 3 first narrow positive Story only.
+Stage 1 Board Facts and Stage 2 Story Proof are prerequisites. Stage 3 is open
+only for Material proof kernel, `Tactic.Hanging`, and Hanging negative corpus;
+Stages 4-11 remain a dependency map, not permission to open those systems.
+
+`StoryInteractionLaw.md` is the single live authority for the Stage 3 charter.
+All other documents may summarize scope, but must not create a second Stage 3
+rule text. The active Stage 3 scope opens backend Material proof evidence and
+the named `Tactic.Hanging` writer only; `Tactic.Fork`, `Scene.Material`,
+`Scene.Defense`, Plan, Strategy, renderer, LLM, public route `200`, and strong
+wording remain closed there.
 
 Forbidden dependency shortcuts:
 
@@ -96,19 +104,20 @@ Forbidden dependency shortcuts:
   `0`/silent; there is no expansion beyond `48` bits, `256` scalars, and
   `3,328` total values unless a live authority document and docs test
   explicitly open a smaller exact chess fact with same-board producer proof.
-- No positive `Story` proof writers: proof numbers remain non-authoritative
-  for public speech even after Stage 2 records same-root side, target, anchor,
-  route, rival, required legal line, and proof sidecar failures.
+- Only `Tactic.Hanging` positive `Story` writer is live: proof numbers remain
+  non-authoritative for public speech unless the named `Tactic.Hanging` writer,
+  complete StoryProof, same-board proof, and positive `CaptureResult` are all
+  present.
 - Proof no-go: missing side, target, anchor, route, rival, required legal line,
   or same-root proof sidecar is a hard public-output block, not weak scoring or
   renderer repair.
 - No renderer opening: templates and LLM renderers may verbalize selected
   `Verdict` data only after prerequisite laws and tests exist; they cannot
   repair, upgrade, or invent chess meaning.
-- Stage 2 Story Proof only: do not implement positive Story openings,
-  renderer opening, LLM narration, public commentary route `200`, broad scalar
-  re-entry, strategic Story openings, source/engine public-truth paths, or
-  CTH-style family exceptions.
+- Stage 3 first scope only: do not implement `Tactic.Fork`, `Scene.Material`,
+  `Scene.Defense`, Plan, Strategy, King attack, Conversion, Blunder, renderer
+  opening, LLM narration, public commentary route `200`, broad scalar re-entry,
+  source/engine public-truth paths, or CTH-style family exceptions.
 - Board Facts no-go: open file, pin, weak square, loose piece, pawn lever,
   attacked piece, king-ring attack, and legal move facts are observations only.
   They are not public claims and must not bypass `Story`.

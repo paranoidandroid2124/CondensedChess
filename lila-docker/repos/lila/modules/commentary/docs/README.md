@@ -26,9 +26,16 @@ mismatch is a no-go state, not a second source of authority.
 
 This reset is intentionally closed at the public boundary.
 
-Current implementation scope is Stage 2 Story Proof only. Stage 1 Board Facts
-is the prerequisite observation layer; Stages 3-11 are a dependency map for
-later work, not permission to open those systems in this branch checkpoint.
+Current implementation scope is Stage 3 first narrow positive Story only.
+Stage 1 Board Facts and Stage 2 Story Proof are prerequisites. Stage 3 is open
+only for Material proof kernel, `Tactic.Hanging`, and Hanging negative corpus;
+Stages 4-11 remain a dependency map for later work, not permission to open
+those systems in this branch checkpoint.
+
+`StoryInteractionLaw.md` owns the Stage 3 charter. This README only summarizes
+the current scope: backend Material proof evidence plus the named
+`Tactic.Hanging` writer are open; other positive families, renderer, LLM, and
+public route `200` are still closed.
 
 - Public route no-go: `/api/commentary/render` and
   `/internal/commentary/render-local-probe` are registered only as fail-closed
@@ -41,9 +48,11 @@ later work, not permission to open those systems in this branch checkpoint.
   attacked piece, king-ring attack, and legal move facts are observations only.
   They are not public claims and must not bypass `Story`.
 - Story Proof no-go: `StoryProof` records the minimum proof bundle and missing
-  evidence, but no positive Story family is open. Numeric `Proof` scores may
-  rank blocked/context `Verdict` rows only. They cannot set
-  `leadAllowed=true` or produce `Role.Lead`.
+  evidence, but only the named `Tactic.Hanging` writer may open a positive
+  Story family. Numeric `Proof` scores may rank blocked/context `Verdict` rows
+  only. They cannot set `leadAllowed=true` or produce `Role.Lead` without the
+  named writer, complete StoryProof, same-board proof, and positive
+  `CaptureResult`.
 - Proof no-go: missing side, target, anchor, route, rival, required legal line,
   or same-root proof sidecar is a hard public-output block, not weak scoring,
   deferred work, or renderer repair.
@@ -65,11 +74,11 @@ later work, not permission to open those systems in this branch checkpoint.
   closed and must not judge chess.
 
 Current implementation blockers are documented, not excused: Stage 2 enforces
-the full public-output tuple before lead candidacy, but public output remains
-closed because no positive Story family is open. `Scene.Opening` is
+the full public-output tuple before lead candidacy, and Stage 3 opens only the
+named `Tactic.Hanging` writer over positive `CaptureResult`. `Scene.Opening` is
 context-only and must not lead over a board-backed `Story`. Old failing tests
 proved lower/scaffold/renderer non-upgrade; they did not prove default runtime
-FEN to public `Verdict`.
+FEN to rendered commentary.
 
 Authority summary:
 

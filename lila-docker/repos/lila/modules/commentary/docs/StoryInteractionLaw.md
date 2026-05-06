@@ -7,6 +7,9 @@ Stage 2 name is `Story Proof`.
 Core sentence: Board Facts observes. Story Proof binds. Story may speak only
 after proof.
 
+Stage 3 core sentence: StoryProof is necessary. A named Story writer gives
+permission. Family proof gives the reason.
+
 Ownership split:
 
 - Story owns identity.
@@ -20,10 +23,10 @@ for the Story identity, not a second identity home.
 Legal line binding is not tactical success proof. In Stage 2 it proves only
 that the Story route is tied to a same-board legal path.
 
-Complete StoryProof is necessary but not sufficient. Stage 2 proves only the
-minimum form of evidence. Material, tactic, plan, king, source, and opening
-Stories remain blocked or context-only until Stage 3 explicitly opens the first
-positive Story family.
+Stage 2 StoryProof proves only the minimum form of evidence. Material, tactic,
+plan, king, source, and opening Stories remain blocked or context-only until
+Stage 3 explicitly opens the first positive Story family through a named Story
+writer and family-specific proof.
 
 proofFailures are internal diagnostics only. They exist for tests, debugging,
 and locating the next missing proof coordinate. They are not public payload,
@@ -46,11 +49,84 @@ support facts are present. A stronger tactical or blunder Story can override a
 strategic Story. Engine context can confirm, cap, or contradict a Story, but it
 does not speak without the Story identity tuple.
 
-## First Public Opening
+## Stage 3 Charter
 
-Stage 3 opens exactly one narrow proof-backed Story family. The first positive
-public Stories must be narrow tactical or material claims, not broad strategy.
-The preferred opening order is:
+Stage 3 opens exactly one positive Story family at a time. In the first scope,
+Stage 3 opens exactly one narrow proof-backed Story family. Complete StoryProof
+is necessary but not sufficient. A complete StoryProof does not open a family.
+A positive Story requires a named Story writer and family-specific proof. No
+other Story family may piggyback on the first family.
+
+Renderer, LLM narration, public route `200`, `/api/commentary/render`, and
+`/internal/commentary/render-local-probe` remain closed. The Stage 3 charter
+opens backend proof and writer permission only; it does not open public
+transport, template rendering, frontend mocks, or LLM phrasing.
+
+Stage 4 Engine Validation, renderer, and LLM remain closed after the Stage 3
+charter.
+
+Opening Tactic.Hanging does not open Fork, Material, Defense, Plan, Strategy,
+renderer, LLM, or public route.
+
+The following remain forbidden: renderer opening, LLM narration, public route
+`200`, Board Facts direct public claim, Proof score alone as Lead, StoryProof
+alone as Lead, and positive Story families other than `Tactic.Hanging`.
+
+Opening `Tactic.Hanging` does not open `Scene.Material`, `Tactic.Fork`,
+`Scene.Defense`, `Scene.Plan`, or any Plan row. Opening `Scene.Material` does
+not open `Scene.Blunder`, `Scene.Convert`, winning claims, conversion claims,
+or decisive-advantage wording.
+
+Board Facts direct public claim, Proof score alone as Lead, StoryProof alone as
+Lead, and positive Story families other than `Tactic.Hanging` are forbidden in
+the first Stage 3 scope.
+
+proofFailures remain internal diagnostics only. They may locate missing proof
+coordinates for tests and debugging, but they are not public JSON, renderer
+input, LLM input, or text that may be spoken.
+
+The Stage 3 implementation order is:
+
+1. Material proof kernel
+2. `Tactic.Hanging`
+3. Hanging negative corpus
+4. `Tactic.Fork`
+5. Fork negative corpus
+6. `Scene.Material`
+7. `Scene.Defense`
+
+The first implementation scope is only steps 1-3: create the material proof
+kernel, open one narrow `Tactic.Hanging` writer on top of that kernel, and prove
+near false positives still stay silent.
+
+Material proof kernel is not a public Story family. `CaptureResult` is internal
+evidence only. It may compute side, capturing piece, target piece, legal
+capture line, captured value, recapture candidates, material result after one
+ply or a bounded line, same-board proof, and missing evidence. It must not say
+wins material, free piece, hanging, best move, blunder, decisive, winning, or
+tactic works. A capture line can show a material result; a recapture can cancel
+that result; unclear recapture or equality means no positive material proof.
+Failed `CaptureResult` rows leave missing evidence and stay silent.
+
+`Tactic.Hanging` is the first positive Story family. It may speak only when all
+of these are present:
+
+1. target piece exists
+2. target is attacked
+3. legal capture exists
+4. target has no adequate defender or recapture
+5. bounded material result is positive
+6. StoryProof is complete
+7. same-board proof is present
+8. `Tactic.Hanging` writer is explicitly open
+
+`Tactic.Hanging` must not use free piece, blunder, winning, decisive, forced,
+king unsafe, file control, plan, counterplay, strategy, or conversion wording.
+
+Stage 3 first success means one narrow Hanging Story can speak with proof, and
+all close false positives still stay silent.
+
+The preferred family opening order after the first scope is:
 
 1. `Tactic.Hanging`
 2. `Tactic.Fork`
@@ -63,11 +139,11 @@ proof sidecars and line validation are live.
 
 For `Tactic.Hanging`, an attacked-piece guard map is only an observation. A
 public hanging-piece Story requires the attacked piece identity, legal capture,
-defender and recapture map, material result or SEE, engine confirmation or
-bounded line confirmation, same-root legal replay, and a forbidden-wording
-boundary. Without that tuple it must degrade to observation, context, or
-blocked Story; it must not say that a piece is hanging or that a move wins
-material.
+defender and recapture map, positive bounded material result or SEE,
+same-board proof, same-root legal replay, complete StoryProof, and a
+forbidden-wording boundary. Without that tuple it must degrade to observation,
+context, or blocked Story; it must not say that a piece is hanging or that a
+move wins material.
 
 ## Scene Law
 

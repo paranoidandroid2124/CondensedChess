@@ -99,7 +99,8 @@ class ChessFoundationTest extends munit.FunSuite:
       rivalLegal: Moves = readyMoves(line = safeRivalRoute),
       control: Control = readyControl,
       material: Material = readyMaterial,
-      pawns: Pawns = readyPawns
+      pawns: Pawns = readyPawns,
+      pieces: Vector[Piece] = Vector.empty
   ): BoardFacts =
     BoardFacts.untrusted(
       root = root,
@@ -109,7 +110,8 @@ class ChessFoundationTest extends munit.FunSuite:
       rivalLegal = rivalLegal,
       control = control,
       material = material,
-      pawns = pawns
+      pawns = pawns,
+      pieces = pieces
     )
 
   private def positionReady(facts: BoardFacts): Int =
@@ -1985,6 +1987,232 @@ class ChessFoundationTest extends munit.FunSuite:
     assert(sourceVerdicts.find(_.story == source).exists(!_.leadAllowed))
     assert(openingVerdicts.find(_.story == opening).exists(!_.leadAllowed))
 
+  test("CaptureResult records legal capture material evidence without public claim"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+
+    val result = CaptureResult.fromBoardFacts(facts, capture)
+    val publicSurfaceNames =
+      classOf[CaptureResult].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[CaptureResult].getDeclaredFields.map(_.getName).toSet
+
+    assertEquals(result.side, Side.White)
+    assertEquals(result.capturingPiece, Some(Piece(Side.White, Man.Pawn, Square('d', 4))))
+    assertEquals(result.targetPiece, Some(Piece(Side.Black, Man.Knight, Square('e', 5))))
+    assertEquals(result.captureLine, capture)
+    assertEquals(result.capturedValue, Some(320))
+    assertEquals(result.recaptureCandidates, Vector.empty)
+    assertEquals(result.materialResult, Some(320))
+    assertEquals(result.sameBoardProof, true)
+    assertEquals(result.missingEvidence, Vector.empty)
+    assertEquals(result.publicClaimAllowed, false)
+    Vector("leadAllowed", "publicText", "render", "llm", "verdict").foreach: publicName =>
+      assert(!publicSurfaceNames.exists(_.toLowerCase.contains(publicName.toLowerCase)))
+
+  test("CaptureResult bounded recapture check can cancel the material result"):
+    val facts = BoardFacts.fromFen("7k/8/8/3q4/4Qn2/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('e', 4), Square('d', 5))
+
+    val result = CaptureResult.fromBoardFacts(facts, capture)
+
+    assertEquals(result.capturingPiece.map(_.man), Some(Man.Queen))
+    assertEquals(result.targetPiece.map(_.man), Some(Man.Queen))
+    assertEquals(result.capturedValue, Some(900))
+    assertEquals(result.recaptureCandidates.map(_.piece.man), Vector(Man.Knight))
+    assertEquals(result.materialResult, Some(0))
+    assertEquals(result.positiveMaterial, false)
+    assertEquals(result.missingEvidence, Vector.empty)
+
+  test("CaptureResult leaves missing evidence for capture false positives"):
+    val legalButUntrustedLine = Line(Square('d', 4), Square('e', 5))
+    val legalButUntrusted =
+      minimalBoardFacts(
+        sideLegal = readyMoves(line = legalButUntrustedLine, captureCount = 1),
+        pieces = Vector(
+          Piece(Side.White, Man.King, Square('e', 1)),
+          Piece(Side.Black, Man.King, Square('e', 8)),
+          Piece(Side.White, Man.Pawn, Square('d', 4)),
+          Piece(Side.Black, Man.Knight, Square('e', 5))
+        )
+      )
+    val illegalCapture = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val ownTarget = BoardFacts.fromFen("4k3/8/8/4N3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val kingTarget =
+      minimalBoardFacts(
+        sideLegal = readyMoves(line = Line(Square('d', 4), Square('e', 5)), captureCount = 1),
+        pieces = Vector(
+          Piece(Side.White, Man.King, Square('e', 1)),
+          Piece(Side.Black, Man.King, Square('e', 5)),
+          Piece(Side.White, Man.Queen, Square('d', 4))
+        )
+      )
+    val unclearMaterial =
+      minimalBoardFacts(
+        sideLegal = readyMoves(line = legalButUntrustedLine, captureCount = 1),
+        material = readyMaterial.copy(known = false),
+        pieces = Vector(
+          Piece(Side.White, Man.King, Square('e', 1)),
+          Piece(Side.Black, Man.King, Square('e', 8)),
+          Piece(Side.White, Man.Pawn, Square('d', 4)),
+          Piece(Side.Black, Man.Knight, Square('e', 5))
+        )
+      )
+
+    val cases = Vector(
+      "attacked but illegal capture" ->
+        CaptureResult.fromBoardFacts(illegalCapture, Line(Square('d', 4), Square('d', 5))) ->
+        Vector("legal capture", "target piece"),
+      "target is own piece" ->
+        CaptureResult.fromBoardFacts(ownTarget, legalButUntrustedLine) ->
+        Vector("legal capture", "target enemy piece"),
+      "target is king" ->
+        CaptureResult.fromBoardFacts(kingTarget, Line(Square('d', 4), Square('e', 5))) ->
+        Vector("legal capture", "target non-king"),
+      "same-board proof missing" ->
+        CaptureResult.fromBoardFacts(legalButUntrusted, legalButUntrustedLine) ->
+        Vector("same-board proof"),
+      "capture material result unclear" ->
+        CaptureResult.fromBoardFacts(unclearMaterial, legalButUntrustedLine) ->
+        Vector("same-board proof", "material result")
+    )
+
+    cases.foreach:
+      case ((label, result), expectedMissing) =>
+        assertEquals(result.publicClaimAllowed, false, label)
+        assertEquals(result.positiveMaterial, false, label)
+        assert(result.missingEvidence.nonEmpty, label)
+        val missing = result.missingEvidence.flatMap(_.missing)
+        expectedMissing.foreach: expected =>
+          assert(missing.contains(expected), s"$label must report missing $expected, got $missing")
+
+    val highProofHanging = Story(
+      Scene.Tactic,
+      tactic = Some(Tactic.Hanging),
+      side = Side.White,
+      rival = Side.Black,
+      target = Some(Square('e', 5)),
+      anchor = Some(Square('d', 4)),
+      route = Some(legalButUntrustedLine),
+      proof = proof(
+        boardProof = 99,
+        lineProof = 99,
+        ownerProof = 99,
+        anchorProof = 99,
+        routeProof = 99,
+        conversionPrize = 99,
+        forcing = 99,
+        immediacy = 99
+      ),
+      storyProof = StoryProof.fromBoardFacts(BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get, legalButUntrustedLine)
+    )
+    val verdict = StoryTable.choose(Vector(highProofHanging)).head
+
+    assertEquals(verdict.leadAllowed, false)
+    assert(verdict.role != Role.Lead)
+
+  test("Tactic.Hanging writer opens the first narrow positive Story"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+
+    assertEquals(TacticHanging.WriterOpen, true)
+    assertEquals(story.scene, Scene.Tactic)
+    assertEquals(story.tactic, Some(Tactic.Hanging))
+    assertEquals(story.writer, Some(StoryWriter.TacticHanging))
+    assertEquals(story.captureResult.exists(_.positiveMaterial), true)
+    assertEquals(story.side, Side.White)
+    assertEquals(story.rival, Side.Black)
+    assertEquals(story.anchor, Some(Square('d', 4)))
+    assertEquals(story.target, Some(Square('e', 5)))
+    assertEquals(story.route, Some(capture))
+    assertEquals(story.proofFailures, Vector.empty)
+    assertEquals(verdict.proofFailures, Vector.empty)
+    assertEquals(verdict.leadAllowed, true)
+    assertEquals(verdict.role, Role.Lead)
+
+  test("Tactic.Hanging writer keeps the negative corpus silent"):
+    val positiveFacts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val defendedFacts = BoardFacts.fromFen("7k/8/8/3q4/4Qn2/8/8/4K3 w - - 0 1").toOption.get
+    val pawnTargetFacts = BoardFacts.fromFen("4k3/8/8/4p3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val defendedCapture = Line(Square('e', 4), Square('d', 5))
+    val untrusted =
+      minimalBoardFacts(
+        sideLegal = readyMoves(line = capture, captureCount = 1),
+        pieces = Vector(
+          Piece(Side.White, Man.King, Square('e', 1)),
+          Piece(Side.Black, Man.King, Square('e', 8)),
+          Piece(Side.White, Man.Pawn, Square('d', 4)),
+          Piece(Side.Black, Man.Knight, Square('e', 5))
+        )
+      )
+    val kingTarget =
+      minimalBoardFacts(
+        sideLegal = readyMoves(line = capture, captureCount = 1),
+        pieces = Vector(
+          Piece(Side.White, Man.King, Square('e', 1)),
+          Piece(Side.Black, Man.King, Square('e', 5)),
+          Piece(Side.White, Man.Queen, Square('d', 4))
+        )
+      )
+
+    assertEquals(TacticHanging.write(defendedFacts, defendedCapture), None, "attacked and recaptured equally")
+    assertEquals(TacticHanging.write(positiveFacts, Line(Square('d', 4), Square('d', 5))), None, "capture illegal")
+    assertEquals(TacticHanging.write(pawnTargetFacts, capture), None, "pawn target scope is closed")
+    assertEquals(TacticHanging.write(kingTarget, capture), None, "king target is closed")
+    assertEquals(TacticHanging.write(untrusted, capture), None, "same-board proof missing")
+
+    val positiveCapture = CaptureResult.fromBoardFacts(positiveFacts, capture)
+    val highProof = proof(
+      boardProof = 99,
+      lineProof = 99,
+      ownerProof = 99,
+      anchorProof = 99,
+      routeProof = 99,
+      conversionPrize = 99,
+      forcing = 99,
+      immediacy = 99
+    )
+    val noWriter = Story(
+      Scene.Tactic,
+      tactic = Some(Tactic.Hanging),
+      side = Side.White,
+      rival = Side.Black,
+      target = Some(Square('e', 5)),
+      anchor = Some(Square('d', 4)),
+      route = Some(capture),
+      proof = highProof,
+      storyProof = StoryProof.fromBoardFacts(positiveFacts, capture),
+      captureResult = Some(positiveCapture)
+    )
+    val writerWithoutCapture = noWriter.copy(writer = Some(StoryWriter.TacticHanging), captureResult = None)
+    val captureWithoutStoryProof =
+      noWriter.copy(writer = Some(StoryWriter.TacticHanging), storyProof = StoryProof.empty)
+    val boardFactOnly = noWriter.copy(writer = None, captureResult = None, storyProof = StoryProof.empty)
+    val mismatchedCaptureIdentity =
+      noWriter.copy(
+        writer = Some(StoryWriter.TacticHanging),
+        target = Some(Square('d', 4))
+      )
+
+    Vector(noWriter, writerWithoutCapture, captureWithoutStoryProof, boardFactOnly, mismatchedCaptureIdentity).foreach: story =>
+      val verdict = StoryTable.choose(Vector(story)).head
+      assertEquals(verdict.leadAllowed, false)
+      assert(verdict.role != Role.Lead)
+
+    val fork = noWriter.copy(tactic = Some(Tactic.Fork), writer = Some(StoryWriter.TacticHanging))
+    val material = noWriter.copy(scene = Scene.Material, tactic = None, writer = Some(StoryWriter.TacticHanging))
+    val defense = noWriter.copy(scene = Scene.Defense, tactic = None, writer = Some(StoryWriter.TacticHanging))
+    val planStory =
+      noWriter.copy(scene = Scene.Plan, tactic = None, plan = Some(Plan.CenterBreak), writer = Some(StoryWriter.TacticHanging))
+
+    Vector(fork, material, defense, planStory).foreach: story =>
+      val verdict = StoryTable.choose(Vector(story)).head
+      assertEquals(verdict.leadAllowed, false)
+      assert(verdict.role != Role.Lead)
+
   test("Board Facts legal rows cannot become public claims without Story Proof"):
     val facts = BoardFacts.fromFen(Fen.initial).toOption.get
     val legalRow = facts.seen.legalMoves.head
@@ -2377,7 +2605,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assert(verdicts.map(_.strength).sliding(2).forall(pair => pair.size == 1 || pair(0) >= pair(1)))
     assertEquals(verdicts.map(_.rank), (1 to 8).toVector)
 
-  test("StoryTable closes public leads until named proof writers exist"):
+  test("StoryTable requires named positive Story writers for public leads"):
     val low =
       Story(
         Scene.Material,
@@ -2411,7 +2639,7 @@ class ChessFoundationTest extends munit.FunSuite:
 
     val verdicts = StoryTable.choose(Vector(low, risky, solid))
 
-    assertEquals(StoryTable.PublicStoryLeadsClosedUntilNamedProofWriters, true)
+    assertEquals(StoryTable.PublicStoryLeadsRequireNamedProofWriters, true)
     assertEquals(verdicts.find(_.story == solid).map(_.role), Some(Role.Blocked))
     assertEquals(verdicts.find(_.story == solid).map(_.leadAllowed), Some(false))
     assertEquals(verdicts.find(_.story == low).map(_.leadAllowed), Some(false))
@@ -2445,7 +2673,7 @@ class ChessFoundationTest extends munit.FunSuite:
       Some(false)
     )
 
-  test("Tactic heat does not open Stage 3 priority while public leads are closed"):
+  test("Tactic heat does not open Stage 3 priority without named Hanging writer"):
     val plan = Story(
       Scene.Plan,
       side = Side.White,
@@ -2485,7 +2713,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assert(verdicts.forall(!_.leadAllowed))
     assert(verdicts.forall(_.role != Role.Lead))
 
-  test("Plan ordering remains deterministic while public leads are closed"):
+  test("Plan ordering remains deterministic while only Hanging writer can lead"):
     val plan = Story(
       Scene.Plan,
       side = Side.White,
@@ -2521,7 +2749,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(verdicts.head.story, plan)
     assert(verdicts.forall(_.role != Role.Lead))
 
-  test("Source remains non-lead while public leads are closed"):
+  test("Source remains non-lead while only Hanging writer can lead"):
     val source =
       Story(
         Scene.Source,

@@ -32,10 +32,18 @@ binding proves only that the Story route is tied to a same-board legal path. It
 does not prove that a move is good, wins material, succeeds tactically, stops
 counterplay, controls a file, or opens public commentary.
 
-Complete StoryProof is necessary but not sufficient. A complete StoryProof is
-only the minimum evidence form needed before a Story could speak. A later
-positive Story writer must explicitly open the family before any public Lead is
-allowed.
+StoryProof is only the minimum evidence form needed before a Story could speak.
+`StoryInteractionLaw.md` owns the rule for when a named positive writer can
+open a family before any public Lead is allowed.
+
+`StoryInteractionLaw.md` owns the Stage 3 charter. This contract owns names and
+shape: a positive Story needs a named `StoryWriter`, complete `StoryProof`, and
+family-specific proof bound back to the same Story identity. `Tactic.Hanging`
+is the only live writer in this checkpoint.
+
+Renderer, LLM narration, public route `200`, `/api/commentary/render`, and
+`/internal/commentary/render-local-probe` remain closed until their own
+contracts and tests exist.
 
 proofFailures are internal diagnostics only.
 proofFailures are not public payload.
@@ -92,6 +100,9 @@ Allowed core names:
 - `Opening`
 - `Story`
 - `StoryProof`
+- `CaptureResult`
+- `StoryWriter`
+- `TacticHanging`
 - `Verdict`
 - `StoryTable`
 
@@ -689,6 +700,13 @@ Lead fail-closed rules:
   same-board proof presence, and missing evidence for the existing `Story`
   identity fields. It does not duplicate side, target, anchor, route, or rival
   ownership.
+- `CaptureResult` is internal family proof for `Tactic.Hanging`. It records the
+  capture side, capturing piece, target piece, capture line, captured value,
+  recapture candidates, material result after bounded recapture check,
+  same-board proof presence, and missing evidence. These coordinates are proof
+  echoes only: `Story` remains the home for side, target, anchor, route, and
+  rival, and `StoryTable` must reject any positive writer whose
+  `CaptureResult` does not bind back to that Story identity.
 - `ownerProof >= 70` requires `side` to be `White`, `Black`, or `Both`; `None`
   cannot lead.
 - `anchorProof >= 70` requires a concrete `anchor`.
@@ -703,9 +721,11 @@ numeric `Proof` score is forgeable unless side, target, anchor, route, rival,
 required legal line, and same-root proof sidecars are bound to the same root
 state.
 
-No positive `Story` proof writer is live in this checkpoint. Numeric `Proof`
-scores may rank blocked/context `Verdict` rows only; they cannot set
-`leadAllowed=true` or produce `Role.Lead` even when `StoryProof` is complete.
+Only the named `Tactic.Hanging` positive `Story` writer is live in this
+checkpoint. Numeric `Proof` scores may rank blocked/context `Verdict` rows
+only; they cannot set `leadAllowed=true` or produce `Role.Lead` unless the
+Story has the named `Tactic.Hanging` writer, complete StoryProof, same-board
+proof, and positive `CaptureResult`.
 
 Missing side, target, anchor, route, rival, required legal line, or same-root
 proof sidecar is a hard public-output block, not weak scoring, deferred work,

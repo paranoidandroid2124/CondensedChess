@@ -63,3 +63,7 @@ same-board producer proof.
 Existing failures around lower facts, scaffold paths, and renderer non-upgrade
 remain evidence for the reset boundary only. They are not acceptance for public
 runtime commentary.
+
+Stage 3 charter authority lives in `StoryInteractionLaw.md`. Legacy material
+does not open `Tactic.Hanging`, any other positive Story family, renderer, LLM,
+or public route.

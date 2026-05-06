@@ -227,6 +227,9 @@ object StoryProof:
   private def legalLineBindsRoute(route: Option[Line], legalLine: Option[Line]): Boolean =
     route.zip(legalLine).exists((routeLine, legal) => routeLine == legal)
 
+private[commentary] enum StoryWriter:
+  case TacticHanging
+
 final case class Story(
     scene: Scene,
     plan: Option[Plan] = None,
@@ -237,7 +240,9 @@ final case class Story(
     anchor: Option[Square] = None,
     route: Option[Line] = None,
     rival: Side = Side.None,
-    storyProof: StoryProof = StoryProof.empty
+    storyProof: StoryProof = StoryProof.empty,
+    private[commentary] val writer: Option[StoryWriter] = None,
+    private[commentary] val captureResult: Option[CaptureResult] = None
 ):
   def proofFailures: Vector[BoardFacts.MissingEvidence] =
     storyProof.failures(this)
@@ -354,16 +359,15 @@ object Verdict:
 
 object StoryTable:
   val TopK = 8
-  // Public Story leads require non-forgeable same-root proof sidecars from named positive Story writers.
-  // Stage 2 records proof deficits only, so Proof numbers rank only blocked/context rows.
-  val PublicStoryLeadsClosedUntilNamedProofWriters = true
+  // Public Story leads require same-root proof sidecars from named positive Story writers.
+  // Stage 3 opens only Tactic.Hanging.
+  val PublicStoryLeadsRequireNamedProofWriters = true
 
   def choose(stories: Vector[Story]): Vector[Verdict] =
     val rows =
       stories.map: story =>
-        val leadCandidate =
-          !PublicStoryLeadsClosedUntilNamedProofWriters && leadByStoryRules(story, stories)
-        Row(story, story.proof.publicStrength, lead(leadCandidate), leadCandidate, story.proofFailures)
+        val leadCandidate = leadByStoryRules(story, stories)
+        Row(story, story.proof.publicStrength, leadCandidate, leadCandidate, story.proofFailures)
     rows
       .sortBy(row =>
         (
@@ -401,11 +405,9 @@ object StoryTable:
   private def leadSortPriority(row: Row) =
     if row.leadAllowed then 0 else if row.leadCandidate then 1 else 2
 
-  private def lead(leadCandidate: Boolean) =
-    leadCandidate && !PublicStoryLeadsClosedUntilNamedProofWriters
-
   private def leadByStoryRules(story: Story, stories: Vector[Story]) =
     story.proofFailures.isEmpty &&
+      positiveWriter(story) &&
       base(story) &&
       identity(story) &&
       fit(story) &&
@@ -427,6 +429,24 @@ object StoryTable:
 
   private def fit(story: Story) =
     story.tactic.isEmpty || story.scene == Scene.Tactic
+
+  private def positiveWriter(story: Story) =
+    story.writer.contains(StoryWriter.TacticHanging) &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Hanging) &&
+      story.plan.isEmpty &&
+      story.captureResult.exists: result =>
+        result.positiveMaterial &&
+          result.sameBoardProof &&
+          result.missingEvidence.isEmpty &&
+          captureResultBindsStory(story, result) &&
+          result.targetPiece.exists(piece => piece.man != Man.Pawn && piece.man != Man.King)
+
+  private def captureResultBindsStory(story: Story, result: CaptureResult) =
+    result.side == story.side &&
+      story.route.contains(result.captureLine) &&
+      result.capturingPiece.exists(piece => story.anchor.contains(piece.square)) &&
+      result.targetPiece.exists(piece => story.target.contains(piece.square))
 
   private def quiet(story: Story, stories: Vector[Story]) =
     story.scene != Scene.Quiet || stories.filterNot(_ == story).forall(_.proof.publicStrength < 55)

@@ -494,18 +494,22 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(contents.contains("`48` bits, `256` scalars, and `3,328` total values"))
     assert(contents.contains("Split/cut re-entry requires a named law and same-board producer proof"))
     assert(ssot.contains("`BoardMood` Sxxx expansion or re-entry"))
-    assert(rationale.contains("no positive `Story` proof writers"))
+    assert(rationale.replaceAll("\\s+", " ").contains("no positive `Story` proof writer beyond `Tactic.Hanging`"))
     assert(manifest.contains("default runtime FEN to public"))
     assert(
       modelContract.contains("At this checkpoint no `BoardMood` Sxxx re-entry or proof writer is admitted")
     )
-    assert(modelContract.contains("No positive `Story` proof writer is live in this checkpoint"))
+    assert(modelContract.contains("Only the named `Tactic.Hanging` positive `Story` writer is live in this"))
     assert(modelContract.contains("Story owns identity."))
     assert(modelContract.contains("StoryProof owns proof and missing evidence."))
     assert(modelContract.contains("Verdict carries the result."))
     assert(modelContract.contains("StoryProof must not own or duplicate `side`, `target`, `anchor`, `route`, or `rival`"))
+    assert(modelContract.contains("`CaptureResult`"))
+    assert(modelContract.contains("`StoryWriter`"))
+    assert(modelContract.contains("`TacticHanging`"))
     assert(modelContract.contains("Legal line binding is not tactical success proof"))
-    assert(modelContract.contains("Complete StoryProof is necessary but not sufficient"))
+    assert(modelContract.contains("StoryProof is only the minimum evidence form needed before a Story could speak."))
+    assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 3 charter."))
     assert(modelContract.contains("proofFailures are internal diagnostics only."))
     assert(modelContract.contains("proofFailures are not public payload."))
     assert(modelContract.contains("proofFailures are not renderer input."))
@@ -560,8 +564,8 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(bridgeSource.contains("const PublicRenderRoutesTombstoned = true"))
     assert(bridgeSource.contains("if (PublicRenderRoutesTombstoned) return { kind: 'empty', reason: 'no_commentary' }"))
     assert(readme.contains("Stage order no-go"))
-    assert(readme.contains("Current implementation scope is Stage 2 Story Proof only"))
-    assert(readme.contains("Stages 3-11 are a dependency map"))
+    assert(readme.contains("Current implementation scope is Stage 3 first narrow positive Story only"))
+    assert(readme.contains("Stages 4-11 remain a dependency map"))
     assert(readme.contains("LLM no-go"))
     assert(readme.contains("LLM narration remains"))
     assert(readme.contains("closed and must not judge chess"))
@@ -616,11 +620,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(rationale.contains("Raw engine numbers and engine text"))
     assert(rationale.contains("The LLM is not the intelligence of commentary"))
     assert(architecture.contains("`Board Truth / Primitive Geometry / Story boundary / Verdict boundary`"))
-    assert(architecture.contains("Current implementation scope is Stage 2 Story Proof only"))
-    assert(architecture.contains("Stages 3-11 below"))
+    assert(architecture.contains("Current implementation scope is Stage 3 first narrow positive Story only"))
+    assert(architecture.contains("Stages 4-11 below"))
     assert(architecture.contains("dependency map for product design"))
-    assert(architecture.contains("Only Stage 2 Story Proof is active implementation authority now."))
-    assert(architecture.contains("Stages 3-11"))
+    assert(architecture.contains("Only Stage 3 first narrow positive Story is active implementation authority"))
+    assert(architecture.contains("Stages 4-11"))
     assert(architecture.contains("dependency-map-only"))
     assert(
       architecture.contains(
@@ -654,6 +658,82 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(architecture.contains("LLM before Explanation IR is forbidden"))
     assert(architecture.contains("Personalization depends on stable Story taxonomy"))
     assert(interactionLaw.contains("Stage 3 opens exactly one narrow proof-backed Story family"))
+    assert(interactionLaw.contains("`CaptureResult` is internal"))
+    assert(interactionLaw.contains("side, capturing piece, target piece, legal"))
+    assert(interactionLaw.contains("captured value, recapture candidates, material result"))
+    assert(interactionLaw.contains("Failed `CaptureResult` rows leave missing evidence and stay silent."))
+    assert(modelContract.contains("positive `CaptureResult`"))
+    val normalizedSsot = ssot.replaceAll("\\s+", " ")
+    val normalizedInteractionLaw = interactionLaw.replaceAll("\\s+", " ")
+    val nonCharterStage3Docs =
+      Vector(
+        "AGENTS.md" -> agents,
+        "ChessCommentarySSOT.md" -> ssot,
+        "README.md" -> readme,
+        "ChessModelArchitecture.md" -> architecture,
+        "ChessModelContract.md" -> modelContract,
+        "ChessResetRationale.md" -> rationale,
+        "LegacyPruneManifest.md" -> manifest
+      ).map((name, text) => name -> text.replaceAll("\\s+", " "))
+    assert(agents.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 3 charter."))
+    assert(ssot.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 3 charter."))
+    assert(readme.contains("`StoryInteractionLaw.md` owns the Stage 3 charter."))
+    assert(architecture.contains("`StoryInteractionLaw.md` owns the Stage 3 charter."))
+    assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 3 charter."))
+    assert(manifest.contains("Stage 3 charter authority lives in `StoryInteractionLaw.md`."))
+    Vector(
+      "StoryProof is necessary. A named Story writer gives permission. Family proof gives the reason.",
+      "Stage 3 opens exactly one positive Story family at a time.",
+      "Complete StoryProof is necessary but not sufficient.",
+      "A positive Story requires a named Story writer and family-specific proof.",
+      "Opening Tactic.Hanging does not open Fork, Material, Defense, Plan, Strategy, renderer, LLM, or public route."
+    ).foreach: charterLine =>
+      assert(
+        normalizedInteractionLaw.contains(charterLine),
+        s"StoryInteractionLaw must own Stage 3 charter line: $charterLine"
+      )
+      nonCharterStage3Docs.foreach: (name, doc) =>
+        assert(
+          !doc.contains(charterLine),
+          s"$name must not duplicate Stage 3 charter line owned by StoryInteractionLaw: $charterLine"
+        )
+    Vector(
+      "backend Material proof evidence and the named `Tactic.Hanging` writer",
+      "`Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan, Strategy, renderer, LLM, public route `200`, and strong wording remain closed there"
+    ).foreach: scopeLine =>
+      assert(agents.replaceAll("\\s+", " ").contains(scopeLine), s"AGENTS must summarize Stage 3 scope: $scopeLine")
+    assert(
+      normalizedSsot.contains(
+        "Stage 3 opens backend Material proof evidence and the named `Tactic.Hanging` writer, while every other positive family and every downstream public/rendering/LLM surface remains closed."
+      )
+    )
+    Vector(
+      "renderer opening",
+      "LLM narration",
+      "public route `200`",
+      "Board Facts direct public claim",
+      "Proof score alone as Lead",
+      "StoryProof alone as Lead",
+      "positive Story families other than `Tactic.Hanging`"
+    ).foreach: noGo =>
+      assert(
+        normalizedInteractionLaw.contains(noGo),
+        s"StoryInteractionLaw must pin Stage 3 no-go: $noGo"
+      )
+    Vector(
+      "free piece",
+      "blunder",
+      "winning",
+      "decisive",
+      "forced",
+      "king unsafe",
+      "file control"
+    ).foreach: forbiddenWording =>
+      assert(
+        interactionLaw.contains(forbiddenWording),
+        s"StoryInteractionLaw must ban Stage 3 wording: $forbiddenWording"
+      )
+    assert(normalizedInteractionLaw.contains("Stage 4 Engine Validation, renderer, and LLM remain closed after the Stage 3"))
     assert(interactionLaw.contains("Every blocked Story must report proof deficit"))
     assert(interactionLaw.contains("\"proofCoordinates\":"))
     Vector(
@@ -708,7 +788,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(agents.contains(fileName), s"AGENTS.md must explicitly retire $fileName")
     assert(agents.contains("Public route no-go"))
     assert(agents.contains("No `BoardMood` Sxxx expansion or re-entry"))
-    assert(agents.contains("No positive `Story` proof writers"))
+    assert(agents.contains("Only `Tactic.Hanging` positive `Story` writer is live"))
     assert(agents.contains("No renderer opening"))
     assert(agents.contains("Forbidden-name no-go"))
     assert(agents.contains("proof-first chess-story kernel"))

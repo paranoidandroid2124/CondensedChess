@@ -870,7 +870,7 @@ object BoardFacts:
       shapes = Set(LineShape.KingLine) ++ Option.when(nearKingBlockers.nonEmpty)(LineShape.BlockerNearKing)
     )).sortBy(lineFactKey)
 
-  private def attacksSquare(piece: Piece, target: Square, occupied: Long): Boolean =
+  private[chess] def attacksSquare(piece: Piece, target: Square, occupied: Long): Boolean =
     piece.man match
       case Man.Pawn => pawnAttacks(piece).contains(target)
       case Man.Knight => knightAttacks(piece.square).contains(target)
@@ -880,16 +880,16 @@ object BoardFacts:
           sliderUses(piece.man, step) && squaresBetween(piece.square, target, step).forall: square =>
             (occupied & square.bit) == 0L
 
-  private def pawnAttacks(piece: Piece): Vector[Square] =
+  private[chess] def pawnAttacks(piece: Piece): Vector[Square] =
     val rankStep = if piece.side == Side.White then 1 else -1
     Vector(-1, 1).flatMap(fileStep => squareAt(piece.square.file + fileStep, piece.square.rank + rankStep))
 
-  private def knightAttacks(square: Square): Vector[Square] =
+  private[chess] def knightAttacks(square: Square): Vector[Square] =
     Vector((1, 2), (2, 1), (2, -1), (1, -2), (-1, -2), (-2, -1), (-2, 1), (-1, 2))
       .flatMap: (fileStep, rankStep) =>
         squareAt(square.file + fileStep, square.rank + rankStep)
 
-  private def kingRing(square: Square): Vector[Square] =
+  private[chess] def kingRing(square: Square): Vector[Square] =
     (for
       fileStep <- -1 to 1
       rankStep <- -1 to 1
@@ -897,10 +897,10 @@ object BoardFacts:
       ringSquare <- squareAt(square.file + fileStep, square.rank + rankStep)
     yield ringSquare).toVector
 
-  private def squareAt(file: Int, rank: Int): Option[Square] =
+  private[chess] def squareAt(file: Int, rank: Int): Option[Square] =
     Option.when(file >= 0 && file < 8 && rank >= 0 && rank < 8)(Square.fromIndex(rank * 8 + file))
 
-  private def lineStep(from: Square, to: Square): Option[Int] =
+  private[chess] def lineStep(from: Square, to: Square): Option[Int] =
     val fileDelta = to.file - from.file
     val rankDelta = to.rank - from.rank
     if fileDelta == 0 && rankDelta != 0 then Some(Integer.signum(rankDelta) * 8)
@@ -926,7 +926,7 @@ object BoardFacts:
       else onBoard = false
     end
 
-  private def squaresBetween(from: Square, to: Square, step: Int): Vector[Square] =
+  private[chess] def squaresBetween(from: Square, to: Square, step: Int): Vector[Square] =
     val builder = Vector.newBuilder[Square]
     var index = from.index + step
     while index != to.index do
@@ -934,7 +934,7 @@ object BoardFacts:
       index += step
     builder.result()
 
-  private def sliderUses(man: Man, step: Int): Boolean =
+  private[chess] def sliderUses(man: Man, step: Int): Boolean =
     man match
       case Man.Rook => math.abs(step) == 1 || math.abs(step) == 8
       case Man.Bishop => math.abs(step) == 7 || math.abs(step) == 9
@@ -942,7 +942,7 @@ object BoardFacts:
         math.abs(step) == 1 || math.abs(step) == 7 || math.abs(step) == 8 || math.abs(step) == 9
       case _ => false
 
-  private def opposite(side: Side): Side =
+  private[chess] def opposite(side: Side): Side =
     side match
       case Side.White => Side.Black
       case Side.Black => Side.White
