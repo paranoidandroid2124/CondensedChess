@@ -2209,6 +2209,51 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(interactionLaw.contains("Strategic plan with no route"))
     assertNoForbiddenLawTerms(interactionLaw)
 
+  test("story interaction law carries tactics family width map without opening families"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val normalizedInteractionLaw = interactionLaw.replaceAll("\\s+", " ")
+    val widthRows =
+      interactionLaw.linesIterator
+        .filter(line => line.matches("""^\| W\d{2} \|.*"""))
+        .map: line =>
+          line.stripPrefix("|").stripSuffix("|").split("\\|").toVector.map(_.trim)
+        .toVector
+    val mappedTactics =
+      widthRows.map(row => row(1).stripPrefix("`").stripSuffix("`")).sorted
+
+    assert(interactionLaw.contains("## Tactics Family Width Map"))
+    assert(interactionLaw.contains("One tactic name is not one proof system."))
+    assert(
+      normalizedInteractionLaw.contains(
+        "The width map is a proof-home map, not permission to open a new positive family."
+      )
+    )
+    assert(interactionLaw.contains("`Tactic.Hanging` remains the only live positive tactic."))
+    assert(interactionLaw.contains("Opening a proof home does not open all tactic names in that home."))
+    assert(
+      normalizedInteractionLaw.contains(
+        "Renderer, LLM, and public route `200` remain closed for every non-Hanging tactic."
+      )
+    )
+    assertEquals(widthRows.size, 24)
+    assertEquals(mappedTactics, Tactics.sorted)
+    widthRows.foreach: row =>
+      assertEquals(row.size, 9)
+      assert(row(2).nonEmpty, s"width map must name proof shape for ${row(1)}")
+      assert(row(3).contains("StoryProof"), s"width map must keep StoryProof reuse visible for ${row(1)}")
+      assert(row(5).nonEmpty, s"width map must name false-positive risks for ${row(1)}")
+      assert(row(6).contains("yes") || row(6).contains("attached"), s"width map must name EngineCheck need for ${row(1)}")
+    Vector(
+      "CaptureProof",
+      "TargetProof",
+      "LineProof",
+      "DefenderProof",
+      "KingProof",
+      "PromotionProof",
+      "MobilityProof"
+    ).foreach: proofHome =>
+      assert(interactionLaw.contains(s"| $proofHome |"), s"width map must cover $proofHome")
+
   test("agents and active frontend tests reject retired downstream authority"):
     assert(Files.exists(agentInstructions), "AGENTS.md must be available from the lila worktree")
     assert(Files.exists(commentaryBridgeTest), "commentaryBridge.test.ts must remain an active frontend test")

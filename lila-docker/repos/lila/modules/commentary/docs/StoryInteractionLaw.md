@@ -1143,6 +1143,93 @@ BoardMood can support a tactic, but they cannot prove it.
 | Tactic.Deflect | defender and target | legal deflection move | defender not needed or recaptures |
 | Tactic.Tempo | forcing move with gained turn | legal move and rival reply restriction | rival has equal or stronger forcing move |
 
+## Tactics Family Width Map
+
+The width map is a proof-home map, not permission to open a new positive
+family. It opens no Story writer, no renderer input, no LLM input, and no
+public route.
+
+One tactic name is not one proof system. Similar tactics must share the same
+proof home when they rely on the same chess meaning. A proof home name in this
+map is a planning label only unless a stage charter, sidecar, negative corpus,
+and same-board legal-line tests admit it.
+
+`Tactic.Hanging` remains the only live positive tactic. All other tactic names
+below are closed until their proof home and writer are explicitly admitted.
+`CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`,
+`ExplanationPlan`, and Renderer remain in their current ownership boundaries.
+They may be reused only through selected Verdict handoff and family-specific
+charters; none of them may read raw proof material or create a new tactic.
+
+Proof-home width:
+
+| proof home | covered tactic names | shared proof shape | reusable current homes | new home needed |
+|---|---|---|---|---|
+| CaptureProof | `Tactic.Hanging`, `Tactic.Loose`, capture-shaped `Tactic.QueenHit` | legal capture, target identity, defender or recapture map, bounded material result | `CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`, Renderer after claim mapping | no for live Hanging; yes before Loose or QueenHit speech broadens capture meaning |
+| TargetProof | `Tactic.Fork`, `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`, `Tactic.InBetween` | one legal move creates target relation or tempo pressure; reply map proves rival cannot answer all relevant targets | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` for material ending | yes |
+| LineProof | `Tactic.AbsPin`, `Tactic.RelPin`, `Tactic.Xray`, `Tactic.Discover`, `Tactic.Clear`, line-shaped `Tactic.Skewer` | same-board ray, screen, front or rear target, reveal or restriction, legal exploitation line | BoardFacts `LineFact`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes |
+| DefenderProof | `Tactic.RemoveGuard`, `Tactic.Overload`, `Tactic.Deflect`, `Tactic.Decoy` | defender identity, protected target, dependency relation, legal test that removes or distracts the defender | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes |
+| KingProof | `Tactic.SafeCheck`, `Tactic.BackRank`, `Tactic.MateNet`, `Tactic.KingOpen` | legal check or king-line action, escape map, interposition or capture replies, no unchecked king claim | BoardFacts king and line facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes |
+| PromotionProof | `Tactic.PawnPush`, `Tactic.Promote` | legal pawn route, stop squares, capture stops, tempo count, promotion prize | BoardFacts pawn and legal move facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes |
+| MobilityProof | `Tactic.Trap` | target piece mobility map, chase route or no-escape line, rival counter-threat check | BoardFacts legal move facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes |
+
+Per-tactic width map:
+
+| map | tactic name | proof shape | existing reusable homes | needs new home | false positive risks | EngineCheck needed | open now | blocked by |
+|---|---|---|---|---|---|---|---|---|
+| W01 | `Tactic.Hanging` | CaptureProof plus StoryProof plus EngineCheck | `CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`, Renderer | no for current slice | recapture equalizes, target is pawn or king, wrong board, illegal capture, engine refutes | attached now for cap or refute | live positive only | stronger wording, other capture tactics, public route, and LLM stay closed |
+| W02 | `Tactic.Loose` | CaptureProof or pressure line over an underdefended target | `CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, if pressure without capture is admitted | loose observation is not a gain, defender exists, pressure is too slow, capture equalizes | yes for cap or refute | no | CaptureProof broadening plus loose negative corpus |
+| W03 | `Tactic.QueenHit` | TargetProof with optional CaptureProof | `StoryProof`, optional `CaptureResult`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, TargetProof | queen can move with tempo, attacker is unsafe, rival has stronger forcing reply, target hit has no gain | yes | no | TargetProof charter plus queen-target negative corpus |
+| W04 | `Tactic.Fork` | TargetProof over two targets and reply map | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, TargetProof | fork square unsafe, one target can move with tempo, rival has equal or stronger forcing move, no gain remains | yes | no | TargetProof charter plus fork negative corpus |
+| W05 | `Tactic.PawnFork` | TargetProof with pawn legal move and two target attacks | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, TargetProof with pawn route rule | pawn move illegal, pawn is pinned, target can reply with stronger threat, promotion context contaminates proof | yes | no | TargetProof after Fork plus pawn-fork negative corpus |
+| W06 | `Tactic.Skewer` | TargetProof and LineProof over front target and rear target | BoardFacts `LineFact`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, LineProof or TargetProof pairing | front target escapes with tempo, rear target not reachable, line can be blocked, check claim too strong | yes | no | LineProof and TargetProof pairing charter |
+| W07 | `Tactic.Tempo` | TargetProof over gained turn and restricted rival reply | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, TargetProof with reply restriction | rival has equal forcing move, gained turn has no target, move is only a threat label | yes | no | TargetProof reply-map charter |
+| W08 | `Tactic.InBetween` | TargetProof over forcing intermezzo and ignored-loss test | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, TargetProof with forcing reply map | rival can ignore, in-between move loses material, first threat was not real, move order is illegal | yes | no | TargetProof reply-map charter plus intermezzo corpus |
+| W09 | `Tactic.AbsPin` | LineProof with king behind screen and legal restriction | BoardFacts `LineFact`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, LineProof | pinned piece can legally move, line can be blocked, tactic does not exploit pin, king line is stale | yes | no | LineProof charter plus pin exploitation corpus |
+| W10 | `Tactic.RelPin` | LineProof with valuable rear target and screen | BoardFacts `LineFact`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, LineProof | rear target not valuable enough, screen can move with gain, line pressure has no legal use | yes | no | LineProof charter plus relative-pin corpus |
+| W11 | `Tactic.Xray` | LineProof over screened ray and legal reveal or pressure | BoardFacts `LineFact`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, LineProof | screen not movable, target defended, reveal loses tempo, ray observation is only geometry | yes | no | LineProof charter plus xray negative corpus |
+| W12 | `Tactic.Discover` | LineProof over screened line and moving piece | BoardFacts `LineFact`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, LineProof | moving piece illegal, line target absent, discovered attack can be answered, moving piece hangs | yes | no | LineProof reveal charter |
+| W13 | `Tactic.Clear` | LineProof over clearance move and newly usable line | BoardFacts `LineFact`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, LineProof | cleared line has no target, clearance loses material, rival closes the line, route not legal | yes | no | LineProof clearance charter |
+| W14 | `Tactic.RemoveGuard` | DefenderProof plus optional CaptureProof | `StoryProof`, optional `CaptureResult`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, DefenderProof | guard is not sole defender, recapture equalizes, protected target irrelevant, guard capture is illegal | yes | no | DefenderProof identity and dependency corpus |
+| W15 | `Tactic.Overload` | DefenderProof over dual target dependency and legal test | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, DefenderProof | defender can cover both, one target irrelevant, reply order solves both threats, relation is only a plan label | yes | no | DefenderProof dual-target charter |
+| W16 | `Tactic.Deflect` | DefenderProof over defender displacement and target gain | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, DefenderProof | defender not needed, defender can decline, displacement gives counterplay, target gain absent | yes | no | DefenderProof displacement corpus |
+| W17 | `Tactic.Decoy` | DefenderProof or TargetProof over lure square and forced acceptance | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, DefenderProof with lure relation | target can decline safely, lure square is not exploitable, follow-up is illegal, gain is unproven | yes | no | DefenderProof lure charter |
+| W18 | `Tactic.SafeCheck` | KingProof over legal check and reply map | BoardFacts king facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, KingProof | checking piece is lost without gain, legal reply wins tempo, check text becomes best-move or engine wording | yes | no | KingProof safe-check charter |
+| W19 | `Tactic.BackRank` | KingProof plus LineProof over back rank and escape map | BoardFacts king and line facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, KingProof | escape square exists, interposition works, checking line illegal, mate wording leaks in | yes | no | KingProof escape corpus |
+| W20 | `Tactic.MateNet` | KingProof over checks, escape map, and answered defenses | BoardFacts king facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, KingProof | any legal defense survives, net is only pressure, engine depth missing, mate wording too strong | yes, and mate proof must be explicit | no | KingProof mate-net charter and mate-negative corpus |
+| W21 | `Tactic.KingOpen` | KingProof plus LineProof over shelter break or king line | BoardFacts king and line facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, KingProof | king remains defended, opened line closes, sacrifice lacks proof, attack wording outruns evidence | yes | no | KingProof shelter-break corpus |
+| W22 | `Tactic.PawnPush` | PromotionProof or TargetProof over pawn step, stop squares, and reply map | BoardFacts pawn and legal move facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, PromotionProof | blocker stops pawn, capture refutes, tempo step has no gain, promotion claim leaks in | yes | no | PromotionProof pawn-route charter |
+| W23 | `Tactic.Promote` | PromotionProof over legal promotion route and stop-square proof | BoardFacts pawn and legal move facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, PromotionProof | stop square exists, pawn is captured, promotion race lost, tablebase or engine refutes | yes | no | PromotionProof promotion-route corpus |
+| W24 | `Tactic.Trap` | MobilityProof over target mobility and chase or no-escape line | BoardFacts legal move facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, MobilityProof | escape square exists, counter-threat outranks trap, chase line illegal, trapped piece not valuable | yes | no | MobilityProof mobility corpus |
+
+Safe opening order:
+
+1. Keep `Tactic.Hanging` as the only live positive tactic while this map closes
+   the width question.
+2. Admit TargetProof for `Tactic.Fork` only, with reply-map proof, same-board
+   legal move proof, EngineCheck cap/refute attachment, and fork negative
+   corpus. `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`,
+   `Tactic.Tempo`, and `Tactic.InBetween` stay closed even though they share
+   TargetProof shape.
+3. Admit the remaining TargetProof tactics one by one only after the shared
+   reply-map shape proves it does not open sibling tactics by name alone.
+4. Admit LineProof for pin and ray tactics only after line exploitation is
+   proven, not merely line geometry.
+5. Admit DefenderProof only after defender identity, sole-dependency, and
+   target-gain tests exist.
+6. Admit PromotionProof only after pawn route, stop-square, capture-stop, and
+   tempo-count tests exist.
+7. Admit KingProof only after escape, interposition, capture reply, and mate
+   wording boundaries are proven.
+8. Admit MobilityProof only after legal mobility and counter-threat tests
+   exist.
+
+Opening a proof home does not open all tactic names in that home. Each tactic
+still needs a named Story writer, family proof sidecar, negative corpus,
+EngineCheck attachment rule, StoryTable role rule, selected-Verdict
+ExplanationPlan mapping, and renderer wording boundary. Renderer, LLM, and
+public route `200` remain closed for every non-Hanging tactic.
+
 ## Proof And Interaction Law
 
 | proof field | live class | raises | caps or blocks |
