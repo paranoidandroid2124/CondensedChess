@@ -124,8 +124,12 @@ Goal: populate only small current-board observations.
 Core sentence: Board state observes. Story proves.
 
 Allowed facts are side, square, file, rank, piece, pawn, legal move, attack,
-guard, defender, blocker, line, pin-to-king, open file, loose piece, pawn
-lever, king-ring attack, and promotion path.
+guard, defender, blocker, line, ray, x-ray shape, pin-to-king, open and
+semi-open file, rook file entry, loose piece, pawn lever, pawn challenge,
+front blocker, current pawn structure observation, reachable square, square
+guard map, king square, king-ring square, king-ring attack, king-ring defender,
+legal king move, contact-check observation, line to king, blocker near king,
+and promotion path.
 
 Forbidden public meanings are plan speech, tactic verdict, conversion speech,
 counterplay speech, initiative speech, score/heat/pressure speech, and engine

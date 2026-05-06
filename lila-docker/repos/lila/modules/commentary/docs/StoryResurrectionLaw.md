@@ -27,7 +27,9 @@ concrete before public wording is allowed.
 |---|---|---|---|---|---|
 | S013 `board_hash_lo` | Hash bits are not chess meaning and say nothing about material, legality, threats, plans, or safety. | No Story resurrection as a chess idea. Hash use is limited to exact-position equality. | Exact board key half only; it is not proof for a claim. | None. | 0 sentences. |
 | S014 `board_hash_hi` | Hash bits are not chess meaning and cannot describe a position in public chess terms. | No Story resurrection as a chess idea. Hash use is limited to exact-position equality. | Exact board key half only; it is not proof for a claim. | None. | 0 sentences. |
+| S072 `white_open_file_exposure` | Open-file exposure is an interpretive safety or targetability claim, not a file fact. | Story may mention White exposure on a file only when it names the White king or target, the file, attacking line piece, blockers, and defensive rival. | White king or target square, file, attacking piece, line, blockers, escape or defender, proof source. | Legal line or exact attack route required; engine line required for decisive or best-move wording. | 1 sentence; no exposed-king or winning-attack wording without proof. |
 | S078 `white_mate_net_pressure` | Mate-net pressure is an interpretation and can be false when legal escapes or quiet defenses exist. | Story may mention pressure on the white king only when it names the attacking side, white king square, checking route, escape issue, and defensive rival. | White king square, attacking piece, checking or mating target square, escape squares, defender or blocker, proof source. | One of: legal checking line, escape-square proof, or engine mate/decisive line. | 1 sentence; no mate wording unless mate proof is present. |
+| S088 `black_open_file_exposure` | Open-file exposure is an interpretive safety or targetability claim, not a file fact. | Story may mention Black exposure on a file only when it names the Black king or target, the file, attacking line piece, blockers, and defensive rival. | Black king or target square, file, attacking piece, line, blockers, escape or defender, proof source. | Legal line or exact attack route required; engine line required for decisive or best-move wording. | 1 sentence; no exposed-king or winning-attack wording without proof. |
 | S094 `black_mate_net_pressure` | Mate-net pressure is an interpretation and can be false when legal escapes or quiet defenses exist. | Story may mention pressure on the black king only when it names the attacking side, black king square, checking route, escape issue, and defensive rival. | Black king square, attacking piece, checking or mating target square, escape squares, defender or blocker, proof source. | One of: legal checking line, escape-square proof, or engine mate/decisive line. | 1 sentence; no mate wording unless mate proof is present. |
 | S104 `white_chain_base_count` | A chain base depends on which pawn chain matters; a count hides square identity and story purpose. | Story may mention a white chain base only for a named pawn that anchors a named chain and is relevant to a target or route. | White base pawn square, linked friendly pawns, enemy attack or lever, anchor square, proof source. | Legal pawn or capture line if the claim says the base can be hit, fixed, or advanced. | 1 sentence; structural wording only. |
 | S111 `white_pawn_structure_score` | A pawn-structure score compresses unrelated pawn strengths and weaknesses into one verdict. | Story may mention a white pawn-structure idea only for an exact pawn feature tied to a target, anchor, or route. | White pawn square, feature type, supporting pawns, blockers, enemy levers, proof source. | Legal line or eval swing only if the wording claims the feature changes the game course. | 1 sentence; no global score wording. |
@@ -67,8 +69,8 @@ concrete before public wording is allowed.
 
 ## Count
 
-This document maps all 28 cut slots:
+This document maps all 30 cut slots:
 
-S013, S014, S078, S094, S104, S111, S120, S127, S131, S142, S147, S158,
-S164, S174, S175, S180, S190, S191, S201, S214, S215, S216, S217, S219,
-S220, S221, S222, S223.
+S013, S014, S072, S078, S088, S094, S104, S111, S120, S127, S131, S142,
+S147, S158, S164, S174, S175, S180, S190, S191, S201, S214, S215, S216,
+S217, S219, S220, S221, S222, S223.

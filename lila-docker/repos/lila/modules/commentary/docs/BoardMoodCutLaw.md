@@ -14,7 +14,9 @@ If one of these chess ideas is spoken at all, the authority is
 The complete `버림` list is:
 
 - S013-S014
+- S072
 - S078
+- S088
 - S094
 - S104
 - S111
@@ -36,7 +38,9 @@ Expanded by current slot name:
 
 - S013 `board_hash_lo`
 - S014 `board_hash_hi`
+- S072 `white_open_file_exposure`
 - S078 `white_mate_net_pressure`
+- S088 `black_open_file_exposure`
 - S094 `black_mate_net_pressure`
 - S104 `white_chain_base_count`
 - S111 `white_pawn_structure_score`
@@ -75,6 +79,11 @@ a direct board observation. If BoardMood guessed it from nearby signals, it
 would create false positives around legal escapes, quiet defenses, and non-mate
 attacks. Only smaller observable facts such as king ring squares, enemy attacks,
 safe escapes, contact checks, and legal check counts may survive elsewhere.
+
+S072 and S088 are open-file exposure values. Exposure is a king-safety or
+targetability claim, not a file observation. BoardMood may name open files,
+semi-open files, file blockers, target squares, and legal rook entry moves, but
+it must not decide that a side is exposed on that file.
 
 S104 and S120 name chain-base counts, but the label is too interpretive for this
 layer. A pawn can be counted by file, isolation, doubling, passed status, fixed

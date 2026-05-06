@@ -261,14 +261,27 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(mood.activeRootAtomIndices.sorted, active.sorted)
 
   test("BoardMood closes split, cut, proof, and pressure scalar slots to zero"):
-    assertEquals(BoardMood.SplitScalarIndices.size, 65)
-    assertEquals(BoardMood.CutScalarIndices.size, 28)
+    assertEquals(BoardMood.SplitScalarIndices.size, 69)
+    assertEquals(BoardMood.CutScalarIndices.size, 30)
     assertEquals(BoardMood.ProofScalarIndices.size, 32)
-    assertEquals(BoardMood.ClosedScalarIndices.size, 125)
+    assertEquals(BoardMood.ClosedScalarIndices.size, 131)
     assert(BoardMood.SplitScalarIndices.forall(index => index >= 0 && index < 224))
     assert(BoardMood.CutScalarIndices.forall(index => index >= 0 && index < 224))
     assert(BoardMood.ProofScalarIndices.forall(index => index >= 224 && index < BoardMood.Scalars))
     assert((BoardMood.SplitScalarIndices & BoardMood.CutScalarIndices).isEmpty)
+
+    Vector(
+      "white_open_file_exposure",
+      "black_open_file_exposure",
+      "white_rook_open_file_count",
+      "black_rook_open_file_count",
+      "white_loose_piece_count",
+      "black_loose_piece_count"
+    ).foreach: name =>
+      assert(
+        BoardMood.ClosedScalarIndices.contains(BoardMood.ScalarsByName(name)),
+        s"$name must remain a closed scalar"
+      )
 
     val values = Vector.tabulate(BoardMood.Scalars)(index => index + 1)
     val mood = BoardMood.fromPacked(Vector.fill(BoardMood.Bits)(0L), values)
@@ -820,6 +833,25 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(whitePawnAtoms, 8)
     assert(facts.root.contains(blackKingAtom))
 
+  test("BoardFacts fromFen keeps claim-shaped root schemas dark during Stage 1"):
+    val pinFacts = BoardFacts.fromFen(Fen.Full("4r1k1/8/8/8/8/8/4N3/4K3 w - - 0 1")).toOption.get
+    val xrayFacts = BoardFacts.fromFen(Fen.Full("7k/8/q7/2b5/8/B7/8/R6K w - - 0 1")).toOption.get
+    val pawnSquareFacts = BoardFacts.fromFen(Fen.Full("7k/8/8/3pnp2/1P2P3/2P2N2/P7/4K3 w - - 0 1")).toOption.get
+    val darkSchemas = Vector(
+      RootAtomRegistry.SchemaId.WeakSquare,
+      RootAtomRegistry.SchemaId.OutpostSquare,
+      RootAtomRegistry.SchemaId.LoosePiece,
+      RootAtomRegistry.SchemaId.PinnedPiece,
+      RootAtomRegistry.SchemaId.OverloadedPiece,
+      RootAtomRegistry.SchemaId.TrappedPiece,
+      RootAtomRegistry.SchemaId.XrayTarget,
+      RootAtomRegistry.SchemaId.KingShelterHole
+    )
+
+    Vector(pinFacts, xrayFacts, pawnSquareFacts).foreach: facts =>
+      darkSchemas.foreach: schemaId =>
+        assertEquals(facts.root.activeIndicesForSchema(schemaId), Vector.empty, s"$schemaId must stay dark")
+
   test("BoardFacts seen records legal moves with side piece square and line binding"):
     val facts = BoardFacts.fromFen(Fen.initial).toOption.get
     val seen = facts.seen
@@ -909,6 +941,10 @@ class ChessFoundationTest extends munit.FunSuite:
     )
 
     val mood = BoardMood.fromFacts(facts)
+    assertEquals(scalar(mood, "white_loose_piece_count"), 0)
+    assertEquals(scalar(mood, "black_loose_piece_count"), 0)
+    assertEquals(scalar(mood, "white_hanging_piece_count"), 0)
+    assertEquals(scalar(mood, "black_hanging_piece_count"), 0)
     assertEquals(scalar(mood, "exact_board_binding"), 0)
     assertEquals(scalar(mood, "legal_replay_binding"), 0)
     assertEquals(scalar(mood, "public_claim_pressure"), 0)
@@ -933,6 +969,370 @@ class ChessFoundationTest extends munit.FunSuite:
     val mood = BoardMood.fromFacts(BoardFacts.fromFen(fen).toOption.get)
     assertEquals(scalar(mood, "exact_board_binding"), 0)
     assertEquals(scalar(mood, "legal_replay_binding"), 0)
+    assertEquals(scalar(mood, "public_claim_pressure"), 0)
+
+  test("BoardFacts seen records line geometry without x-ray tactic or forced-tactic claims"):
+    val fen = Fen.Full("7k/8/q7/2b5/8/B7/8/R6K w - - 0 1")
+    val facts = BoardFacts.fromFen(fen).toOption.get
+    val seen = facts.seen
+    val whiteRook = Piece(Side.White, Man.Rook, Square('a', 1))
+    val whiteKing = Piece(Side.White, Man.King, Square('h', 1))
+    val whiteBishop = Piece(Side.White, Man.Bishop, Square('a', 3))
+    val blackBishop = Piece(Side.Black, Man.Bishop, Square('c', 5))
+    val blackQueen = Piece(Side.Black, Man.Queen, Square('a', 6))
+
+    assert(
+      seen.lineObservations.contains(
+        BoardFacts.LineObservation(
+          kind = BoardFacts.LineKind.File,
+          from = whiteRook,
+          to = whiteBishop,
+          line = Line(Square('a', 1), Square('a', 3))
+        )
+      )
+    )
+    assert(
+      seen.lineObservations.contains(
+        BoardFacts.LineObservation(
+          kind = BoardFacts.LineKind.Rank,
+          from = whiteRook,
+          to = whiteKing,
+          line = Line(Square('a', 1), Square('h', 1))
+        )
+      )
+    )
+    assert(
+      seen.lineObservations.contains(
+        BoardFacts.LineObservation(
+          kind = BoardFacts.LineKind.Diagonal,
+          from = whiteBishop,
+          to = blackBishop,
+          line = Line(Square('a', 3), Square('c', 5))
+        )
+      )
+    )
+    assert(
+      seen.rays.contains(
+        BoardFacts.Ray(
+          side = Side.White,
+          piece = whiteRook,
+          kind = BoardFacts.LineKind.File,
+          line = Line(Square('a', 1), Square('a', 8)),
+          blockers = Vector(whiteBishop, blackQueen)
+        )
+      )
+    )
+    assert(
+      seen.lineBlockers.contains(
+        BoardFacts.LineBlocker(
+          side = Side.White,
+          piece = whiteRook,
+          blocker = whiteBishop,
+          kind = BoardFacts.LineKind.File,
+          line = Line(Square('a', 1), Square('a', 3))
+        )
+      )
+    )
+    assertEquals(
+      seen.lineBlockers.exists(row => row.piece == whiteRook && row.blocker == blackQueen),
+      false
+    )
+    assert(
+      seen.xrayShapes.contains(
+        BoardFacts.XRayShape(
+          side = Side.White,
+          piece = whiteRook,
+          screen = whiteBishop,
+          target = blackQueen,
+          kind = BoardFacts.LineKind.File,
+          line = Line(Square('a', 1), Square('a', 6))
+        )
+      )
+    )
+
+    val mood = BoardMood.fromFacts(facts)
+    assertEquals(scalar(mood, "ray_count"), 0)
+    assertEquals(scalar(mood, "line_proof_count"), 0)
+    assertEquals(scalar(mood, "white_pin_motif_count"), 0)
+    assertEquals(scalar(mood, "white_skewer_motif_count"), 0)
+    assertEquals(scalar(mood, "white_xray_discovery_count"), 0)
+    assertEquals(scalar(mood, "public_claim_pressure"), 0)
+
+  test("BoardFacts seen records file facts without file-control or invasion claims"):
+    val fen = Fen.Full("4k3/8/3p4/8/8/8/R7/4K3 w - - 0 1")
+    val facts = BoardFacts.fromFen(fen).toOption.get
+    val seen = facts.seen
+    val whiteRook = Piece(Side.White, Man.Rook, Square('a', 2))
+    val blackPawn = Piece(Side.Black, Man.Pawn, Square('d', 6))
+
+    assert(seen.openFileObservations.contains(BoardFacts.OpenFileObservation(file = 2)))
+    assert(seen.semiOpenFileObservations.contains(BoardFacts.SemiOpenFileObservation(Side.White, file = 3)))
+    assert(seen.rookOnFiles.contains(BoardFacts.RookOnFile(Side.White, whiteRook, file = 0)))
+    assert(
+      seen.legalFileEntryMoves.contains(
+        BoardFacts.LegalFileEntryMove(
+          side = Side.White,
+          piece = whiteRook,
+          file = 3,
+          line = Line(Square('a', 2), Square('d', 2))
+        )
+      )
+    )
+    assert(
+      seen.rookOpenFileEntries.contains(
+        BoardFacts.RookOpenFileEntry(
+          side = Side.White,
+          rook = whiteRook,
+          file = 2,
+          line = Line(Square('a', 2), Square('c', 2))
+        )
+      )
+    )
+    assert(
+      seen.fileBlockers.contains(
+        BoardFacts.FileBlocker(
+          side = Side.Black,
+          file = 3,
+          blocker = blackPawn
+        )
+      )
+    )
+    assert(
+      seen.fileTargetSquares.contains(
+        BoardFacts.FileTargetSquare(
+          side = Side.White,
+          file = 3,
+          square = Square('d', 2),
+          line = Line(Square('a', 2), Square('d', 2))
+        )
+      )
+    )
+
+    val mood = BoardMood.fromFacts(facts)
+    assertEquals(scalar(mood, "white_open_file_exposure"), 0)
+    assertEquals(scalar(mood, "black_open_file_exposure"), 0)
+    assertEquals(scalar(mood, "white_rook_open_file_count"), 0)
+    assertEquals(scalar(mood, "black_rook_open_file_count"), 0)
+    assertEquals(scalar(mood, "plan_open_file"), 0)
+    assertEquals(scalar(mood, "route_binding"), 0)
+    assertEquals(scalar(mood, "line_proof_count"), 0)
+    assertEquals(scalar(mood, "public_claim_pressure"), 0)
+
+  test("BoardFacts seen records pawn and square facts without outpost or structure claims"):
+    val fen = Fen.Full("7k/8/8/3pnp2/1P2P3/2P2N2/P7/4K3 w - - 0 1")
+    val facts = BoardFacts.fromFen(fen).toOption.get
+    val seen = facts.seen
+    val whiteA2 = Piece(Side.White, Man.Pawn, Square('a', 2))
+    val whiteC3 = Piece(Side.White, Man.Pawn, Square('c', 3))
+    val whiteE4 = Piece(Side.White, Man.Pawn, Square('e', 4))
+    val whiteKnight = Piece(Side.White, Man.Knight, Square('f', 3))
+    val blackD5 = Piece(Side.Black, Man.Pawn, Square('d', 5))
+    val blackKnight = Piece(Side.Black, Man.Knight, Square('e', 5))
+
+    assert(
+      seen.pawnChallenges.contains(
+        BoardFacts.PawnChallenge(
+          side = Side.White,
+          pawn = whiteE4,
+          square = Square('d', 5),
+          line = Line(Square('e', 4), Square('d', 5))
+        )
+      )
+    )
+    assert(
+      seen.pawnCannotChallengeSquares.contains(
+        BoardFacts.PawnCannotChallengeSquare(
+          side = Side.White,
+          square = Square('f', 3),
+          by = Side.Black
+        )
+      )
+    )
+    assert(
+      seen.pawnSafeSquareObservations.contains(
+        BoardFacts.PawnSafeSquareObservation(
+          side = Side.White,
+          square = Square('f', 3),
+          by = Side.Black
+        )
+      )
+    )
+    assert(
+      seen.noCurrentPawnChases.contains(
+        BoardFacts.NoCurrentPawnChase(
+          side = Side.White,
+          square = Square('f', 3),
+          by = Side.Black
+        )
+      )
+    )
+    assert(
+      seen.frontBlockers.contains(
+        BoardFacts.FrontBlocker(
+          side = Side.White,
+          pawn = whiteE4,
+          blocker = blackKnight,
+          square = Square('e', 5),
+          line = Line(Square('e', 4), Square('e', 5))
+        )
+      )
+    )
+    assert(seen.passedPawnObservations.contains(BoardFacts.PassedPawnObservation(Side.White, whiteA2)))
+    assert(seen.isolatedPawnObservations.contains(BoardFacts.IsolatedPawnObservation(Side.White, whiteE4)))
+    assert(
+      seen.backwardPawnFrontSquares.contains(
+        BoardFacts.BackwardPawnFrontSquare(
+          side = Side.White,
+          pawn = whiteC3,
+          square = Square('c', 4),
+          line = Line(Square('c', 3), Square('c', 4))
+        )
+      )
+    )
+    assert(
+      seen.pieceReachableSquares.contains(
+        BoardFacts.PieceReachableSquare(
+          side = Side.White,
+          piece = whiteKnight,
+          square = Square('g', 5),
+          line = Line(Square('f', 3), Square('g', 5))
+        )
+      )
+    )
+    assert(
+      seen.squareGuardMaps.contains(
+        BoardFacts.SquareGuardMap(
+          side = Side.White,
+          square = Square('d', 5),
+          guards = Vector(whiteE4)
+        )
+      )
+    )
+    assert(seen.pawnLevers.contains(BoardFacts.PawnLever(Side.White, whiteE4, blackD5, Line(Square('e', 4), Square('d', 5)))))
+
+    val mood = BoardMood.fromFacts(facts)
+    assertEquals(scalar(mood, "white_outpost_count"), 0)
+    assertEquals(scalar(mood, "black_outpost_count"), 0)
+    assertEquals(scalar(mood, "plan_outpost"), 0)
+    assertEquals(scalar(mood, "plan_weak_square"), 0)
+    assertEquals(scalar(mood, "plan_minority"), 0)
+    assertEquals(scalar(mood, "plan_center_break"), 0)
+    assertEquals(scalar(mood, "plan_flank_break"), 0)
+    assertEquals(scalar(mood, "route_binding"), 0)
+    assertEquals(scalar(mood, "line_proof_count"), 0)
+    assertEquals(scalar(mood, "public_claim_pressure"), 0)
+
+  test("BoardFacts seen records king ring facts without unsafe king mate or no-escape claims"):
+    val fen = Fen.Full("4r1k1/6br/8/8/8/8/4N1R1/4K3 b - - 0 1")
+    val facts = BoardFacts.fromFen(fen).toOption.get
+    val seen = facts.seen
+    val whiteKing = Piece(Side.White, Man.King, Square('e', 1))
+    val blackKing = Piece(Side.Black, Man.King, Square('g', 8))
+    val whiteKnight = Piece(Side.White, Man.Knight, Square('e', 2))
+    val whiteRook = Piece(Side.White, Man.Rook, Square('g', 2))
+    val blackRookE8 = Piece(Side.Black, Man.Rook, Square('e', 8))
+    val blackBishopG7 = Piece(Side.Black, Man.Bishop, Square('g', 7))
+    val blackRookH7 = Piece(Side.Black, Man.Rook, Square('h', 7))
+
+    assert(seen.kingSquares.contains(BoardFacts.KingSquare(Side.White, whiteKing)))
+    assert(
+      seen.kingRingSquares.contains(
+        BoardFacts.KingRingSquare(
+          side = Side.Black,
+          king = blackKing,
+          square = Square('g', 7)
+        )
+      )
+    )
+    assert(
+      seen.kingRingAttacks.contains(
+        BoardFacts.KingRingAttack(
+          side = Side.Black,
+          king = blackKing,
+          square = Square('g', 7),
+          attacker = whiteRook
+        )
+      )
+    )
+    assert(
+      seen.kingRingDefenders.contains(
+        BoardFacts.KingRingDefender(
+          side = Side.Black,
+          king = blackKing,
+          square = Square('g', 7),
+          defender = blackRookH7
+        )
+      )
+    )
+    assert(
+      seen.legalEscapeSquares.contains(
+        BoardFacts.LegalEscapeSquare(
+          side = Side.Black,
+          king = blackKing,
+          square = Square('h', 8),
+          line = Line(Square('g', 8), Square('h', 8))
+        )
+      )
+    )
+    assert(
+      seen.contactCheckObservations.contains(
+        BoardFacts.ContactCheckObservation(
+          side = Side.Black,
+          king = blackKing,
+          attacker = Piece(Side.White, Man.Rook, Square('g', 7)),
+          line = Line(Square('g', 2), Square('g', 7))
+        )
+      )
+    )
+    assert(
+      seen.linesToKing.contains(
+        BoardFacts.LineToKing(
+          side = Side.White,
+          king = whiteKing,
+          piece = blackRookE8,
+          kind = BoardFacts.LineKind.File,
+          line = Line(Square('e', 8), Square('e', 1)),
+          blockers = Vector(whiteKnight)
+        )
+      )
+    )
+    assert(
+      seen.blockersNearKing.contains(
+        BoardFacts.BlockerNearKing(
+          side = Side.White,
+          king = whiteKing,
+          blocker = whiteKnight,
+          piece = blackRookE8,
+          kind = BoardFacts.LineKind.File,
+          line = Line(Square('e', 8), Square('e', 1))
+        )
+      )
+    )
+    assert(
+      seen.linesToKing.contains(
+        BoardFacts.LineToKing(
+          side = Side.Black,
+          king = blackKing,
+          piece = whiteRook,
+          kind = BoardFacts.LineKind.File,
+          line = Line(Square('g', 2), Square('g', 8)),
+          blockers = Vector(blackBishopG7)
+        )
+      )
+    )
+
+    val mood = BoardMood.fromFacts(facts)
+    assertEquals(scalar(mood, "white_king_square"), 0)
+    assertEquals(scalar(mood, "black_king_square"), 0)
+    assertEquals(scalar(mood, "white_king_ring_enemy_attacks"), 0)
+    assertEquals(scalar(mood, "black_king_ring_enemy_attacks"), 0)
+    assertEquals(scalar(mood, "white_contact_check_threats"), 0)
+    assertEquals(scalar(mood, "black_contact_check_threats"), 0)
+    assertEquals(scalar(mood, "white_mate_net_pressure"), 0)
+    assertEquals(scalar(mood, "black_mate_net_pressure"), 0)
+    assertEquals(scalar(mood, "white_king_heat"), 0)
+    assertEquals(scalar(mood, "black_king_heat"), 0)
+    assertEquals(scalar(mood, "line_proof_count"), 0)
     assertEquals(scalar(mood, "public_claim_pressure"), 0)
 
   test("BoardFacts seen records pawn levers open files rook entries and king ring attacks"):
@@ -969,7 +1369,7 @@ class ChessFoundationTest extends munit.FunSuite:
           side = Side.Black,
           king = Piece(Side.Black, Man.King, Square('g', 8)),
           square = Square('g', 7),
-          by = Side.White
+          attacker = Piece(Side.White, Man.Rook, Square('g', 2))
         )
       )
     assertEquals(blackKingRingG7, true)
@@ -980,7 +1380,36 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(seen.legalMoves, Vector.empty)
     assertEquals(seen.attacks, Vector.empty)
     assertEquals(seen.guards, Vector.empty)
+    assertEquals(seen.lineObservations, Vector.empty)
+    assertEquals(seen.rays, Vector.empty)
+    assertEquals(seen.lineBlockers, Vector.empty)
+    assertEquals(seen.xrayShapes, Vector.empty)
     assertEquals(seen.pins, Vector.empty)
+    assertEquals(seen.pawnChallenges, Vector.empty)
+    assertEquals(seen.pawnCannotChallengeSquares, Vector.empty)
+    assertEquals(seen.pawnSafeSquareObservations, Vector.empty)
+    assertEquals(seen.noCurrentPawnChases, Vector.empty)
+    assertEquals(seen.frontBlockers, Vector.empty)
+    assertEquals(seen.passedPawnObservations, Vector.empty)
+    assertEquals(seen.isolatedPawnObservations, Vector.empty)
+    assertEquals(seen.backwardPawnFrontSquares, Vector.empty)
+    assertEquals(seen.pieceReachableSquares, Vector.empty)
+    assertEquals(seen.squareGuardMaps, Vector.empty)
+    assertEquals(seen.openFileObservations, Vector.empty)
+    assertEquals(seen.semiOpenFileObservations, Vector.empty)
+    assertEquals(seen.rookOnFiles, Vector.empty)
+    assertEquals(seen.legalFileEntryMoves, Vector.empty)
+    assertEquals(seen.rookOpenFileEntries, Vector.empty)
+    assertEquals(seen.fileBlockers, Vector.empty)
+    assertEquals(seen.fileTargetSquares, Vector.empty)
+    assertEquals(seen.kingSquares, Vector.empty)
+    assertEquals(seen.kingRingSquares, Vector.empty)
+    assertEquals(seen.kingRingAttacks, Vector.empty)
+    assertEquals(seen.kingRingDefenders, Vector.empty)
+    assertEquals(seen.legalEscapeSquares, Vector.empty)
+    assertEquals(seen.contactCheckObservations, Vector.empty)
+    assertEquals(seen.linesToKing, Vector.empty)
+    assertEquals(seen.blockersNearKing, Vector.empty)
     val missingProducer = seen.failures.exists(_.missing.contains("same-board producer proof"))
     val missingPieces = seen.failures.exists(_.missing.contains("piece list"))
     assertEquals(missingProducer, true)
@@ -1137,6 +1566,15 @@ class ChessFoundationTest extends munit.FunSuite:
 
     Vector(packed, parts, rooted).foreach: mood =>
       assertEquals(mood.scalars, canonicalScalars(scalars))
+      Vector(
+        "white_open_file_exposure",
+        "black_open_file_exposure",
+        "white_rook_open_file_count",
+        "black_rook_open_file_count",
+        "white_loose_piece_count",
+        "black_loose_piece_count"
+      ).foreach: name =>
+        assertEquals(mood.scalars(BoardMood.ScalarsByName(name)), 0)
 
   test("BoardMood exposes no case-class copy or product reconstruction shortcuts"):
     val companionMethods = BoardMood.getClass.getMethods.map(_.getName).toSet

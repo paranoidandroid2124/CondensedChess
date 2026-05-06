@@ -160,8 +160,13 @@ object RootExtractor:
       if isHalfOpenFile(color, file) then mask | (1 << file.value) else mask
     )
     private val kingRingMask = ByColor(color => kingRingSquares(color))
-    private val weakSquareMask = ByColor(color => bitboardFromSquares(canonicalSquares.filter(isWeakSquare(color, _))))
-    private val outpostSquareMask = ByColor(color => bitboardFromSquares(canonicalSquares.filter(isOutpostSquare(color, _))))
+    // Stage 1 keeps frozen claim-shaped root schemas dark. BoardFacts may record
+    // smaller observations, but root transport must not speak these identities.
+    private def stageOneClaimSchemaOpen: Boolean = false
+    private val weakSquareMask =
+      ByColor(color => bitboardFromSquares(canonicalSquares.filter(square => stageOneClaimSchemaOpen && isWeakSquare(color, square))))
+    private val outpostSquareMask =
+      ByColor(color => bitboardFromSquares(canonicalSquares.filter(square => stageOneClaimSchemaOpen && isOutpostSquare(color, square))))
     private val isolatedPawnMask = ByColor(color => bitboardFromSquares(pawnSquaresOf(color).filter(isIsolatedPawn(color, _))))
     private val backwardPawnMask = ByColor(color => bitboardFromSquares(pawnSquaresOf(color).filter(isBackwardPawn(color, _))))
     private val doubledFileMask = ByColor(color => canonicalFiles.foldLeft(0): (mask, file) =>
@@ -170,13 +175,19 @@ object RootExtractor:
     private val passedPawnMask = ByColor(color => bitboardFromSquares(pawnSquaresOf(color).filter(isPassedPawn(color, _))))
     private val candidatePasserMask = ByColor(color => bitboardFromSquares(pawnSquaresOf(color).filter(isCandidatePasser(color, _))))
     private val fixedPawnMask = ByColor(color => bitboardFromSquares(pawnSquaresOf(color).filter(isFixedPawn(color, _))))
-    private val loosePieceMask = ByColor(color => bitboardFromSquares(pieceSquaresOf(color).filter(isLoosePiece(color, _))))
-    private val pinnedPieceMask = ByColor(color => bitboardFromSquares(pieceSquaresOf(color).filter(isPinnedPiece(color, _))))
-    private val overloadedPieceMask = ByColor(color => bitboardFromSquares(pieceSquaresOf(color).filter(isOverloadedPiece(color, _))))
-    private val trappedPieceMask = ByColor(color => bitboardFromSquares(pieceSquaresOf(color).filter(isTrappedPiece(color, _))))
-    private val xrayTargetMask = ByColor(color => bitboardFromSquares(canonicalSquares.filter(isXrayTarget(color, _))))
+    private val loosePieceMask =
+      ByColor(color => bitboardFromSquares(pieceSquaresOf(color).filter(square => stageOneClaimSchemaOpen && isLoosePiece(color, square))))
+    private val pinnedPieceMask =
+      ByColor(color => bitboardFromSquares(pieceSquaresOf(color).filter(square => stageOneClaimSchemaOpen && isPinnedPiece(color, square))))
+    private val overloadedPieceMask =
+      ByColor(color => bitboardFromSquares(pieceSquaresOf(color).filter(square => stageOneClaimSchemaOpen && isOverloadedPiece(color, square))))
+    private val trappedPieceMask =
+      ByColor(color => bitboardFromSquares(pieceSquaresOf(color).filter(square => stageOneClaimSchemaOpen && isTrappedPiece(color, square))))
+    private val xrayTargetMask =
+      ByColor(color => bitboardFromSquares(canonicalSquares.filter(square => stageOneClaimSchemaOpen && isXrayTarget(color, square))))
     private val leverAvailableMask = ByColor(color => bitboardFromSquares(pawnSquaresOf(color).filter(hasImmediatePawnLever(color, _))))
-    private val kingShelterHoleMask = ByColor(color => bitboardFromSquares(canonicalSquares.filter(isKingShelterHole(color, _))))
+    private val kingShelterHoleMask =
+      ByColor(color => bitboardFromSquares(canonicalSquares.filter(square => stageOneClaimSchemaOpen && isKingShelterHole(color, square))))
 
     def extract(): RootStateVector =
       val builder = RootStateVector.builder

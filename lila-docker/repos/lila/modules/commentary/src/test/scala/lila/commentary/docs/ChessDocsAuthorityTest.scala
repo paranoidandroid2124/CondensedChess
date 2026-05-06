@@ -37,17 +37,18 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     Vector(
       "S031", "S076", "S077", "S079", "S092", "S093", "S095", "S102", "S106", "S107", "S109",
       "S110", "S118", "S122", "S123", "S125", "S126", "S128", "S129", "S130", "S133", "S137",
-      "S143", "S144", "S145", "S146", "S149", "S153", "S159", "S163", "S168", "S169", "S170",
-      "S171", "S172", "S173", "S179", "S184", "S185", "S186", "S187", "S188", "S189", "S192",
-      "S193", "S194", "S195", "S196", "S197", "S198", "S199", "S200", "S202", "S203", "S204",
-      "S205", "S206", "S207", "S208", "S209", "S210", "S211", "S212", "S213", "S218"
+      "S134", "S136", "S143", "S144", "S145", "S146", "S149", "S150", "S152", "S153", "S159",
+      "S163", "S168", "S169", "S170", "S171", "S172", "S173", "S179", "S184", "S185", "S186",
+      "S187", "S188", "S189", "S192", "S193", "S194", "S195", "S196", "S197", "S198", "S199",
+      "S200", "S202", "S203", "S204", "S205", "S206", "S207", "S208", "S209", "S210", "S211",
+      "S212", "S213", "S218"
     )
 
   private val CutSlots =
     Vector(
-      "S013", "S014", "S078", "S094", "S104", "S111", "S120", "S127", "S131", "S142", "S147",
-      "S158", "S164", "S174", "S175", "S180", "S190", "S191", "S201", "S214", "S215", "S216",
-      "S217", "S219", "S220", "S221", "S222", "S223"
+      "S013", "S014", "S072", "S078", "S088", "S094", "S104", "S111", "S120", "S127", "S131",
+      "S142", "S147", "S158", "S164", "S174", "S175", "S180", "S190", "S191", "S201", "S214",
+      "S215", "S216", "S217", "S219", "S220", "S221", "S222", "S223"
     )
 
   private val Scenes =
@@ -280,6 +281,19 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(modelContract.contains("`BoardMood.fromPieces` is scaffold-only and not runtime authority"))
     assert(modelContract.contains("BoardFacts required fields"))
     assert(modelContract.contains("Nested BoardFacts facts must be marked `known = true`"))
+    Vector(
+      "LineObservation",
+      "XRayShape",
+      "OpenFileObservation",
+      "SemiOpenFileObservation",
+      "PawnChallenge",
+      "SquareGuardMap",
+      "KingSquare",
+      "KingRingDefender",
+      "ContactCheckObservation",
+      "BlockerNearKing"
+    ).foreach: row =>
+      assert(modelContract.contains(s"`$row`"), s"model contract must name BoardFacts row $row")
     assert(modelContract.contains("S015 `position_ready` may be `1` only when all nested facts are known and sane"))
     assert(modelContract.contains("B46 and B47 are legal destination summaries, not proof"))
     assert(modelContract.contains("`BoardMood.fromPacked`, `BoardMood.fromParts`, and `BoardMood.fromRoot`"))
@@ -295,7 +309,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(cutLaw.contains("These slots are not kept as BoardMood live facts"))
     assert(cutLaw.contains("always `0`/silent"))
     assert(cutLaw.contains("`StoryResurrectionLaw.md`, not BoardMood"))
-    assert(splitLaw.contains("The 65 split slots listed here are inactive in live BoardMood"))
+    assert(splitLaw.contains("The 69 split slots listed here are inactive in live BoardMood"))
     assert(splitLaw.contains("Re-entry is allowed only through the exact smaller BoardMood fact"))
     assert(splitLaw.contains("Public chess speech still belongs to Story only after Story binds side"))
     assert(splitLaw.contains("target, anchor, route, rival, required legal line, and same-root proof"))
@@ -535,7 +549,14 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "tactical target",
       "controls the file",
       "king is unsafe",
-      "outpost"
+      "outpost",
+      "pin wins material",
+      "x-ray tactic",
+      "forced tactic",
+      "minority attack",
+      "bad structure",
+      "permanent weakness",
+      "fixed target"
     ).foreach: forbidden =>
       assert(boardFacts.contains(forbidden), s"Board Facts charter must ban $forbidden")
     Vector(
@@ -586,10 +607,10 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val slots = tableSlots(splitLaw)
     val rows = tableRows(splitLaw)
 
-    assertEquals(slots.size, 65)
-    assertEquals(slots.distinct.size, 65)
+    assertEquals(slots.size, 69)
+    assertEquals(slots.distinct.size, 69)
     assertEquals(slots.sorted, SplitSlots.sorted)
-    assertEquals(rows.size, 65)
+    assertEquals(rows.size, 69)
     rows.foreach: row =>
       assertEquals(row.size, 5)
       assert("S\\d{3} `[^`]+`".r.matches(row(0)), s"old slot cell must name one slot: ${row(0)}")
@@ -597,7 +618,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(row(2).nonEmpty, s"derivation rule must not be empty for ${row(0)}")
       assert(row(3).startsWith("No "), s"zero meaning must close the fact: ${row(0)}")
       assert(row(4).startsWith("No "), s"public speech ban must be explicit: ${row(0)}")
-    assertEquals(rows.map(_(1)).distinct.size, 65)
+    assertEquals(rows.map(_(1)).distinct.size, 69)
     assert(splitLaw.contains("Exact smaller BoardMood fact"))
     assert(splitLaw.contains("Current-board derivation rule"))
     assert(splitLaw.contains("Public speech ban"))
@@ -618,8 +639,8 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val cutLaw = Files.readString(docsRoot.resolve("BoardMoodCutLaw.md"))
     val slots = bulletSlots(cutLaw)
 
-    assertEquals(slots.size, 28)
-    assertEquals(slots.distinct.size, 28)
+    assertEquals(slots.size, 30)
+    assertEquals(slots.distinct.size, 30)
     assertEquals(slots.sorted, CutSlots.sorted)
     assert(cutLaw.contains("always `0`/silent"))
     assert(cutLaw.contains("If one of these chess ideas is spoken at all"))
@@ -633,10 +654,10 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val slots = tableSlots(resurrectionLaw)
     val rows = tableRows(resurrectionLaw)
 
-    assertEquals(slots.size, 28)
-    assertEquals(slots.distinct.size, 28)
+    assertEquals(slots.size, 30)
+    assertEquals(slots.distinct.size, 30)
     assertEquals(slots.sorted, CutSlots.sorted)
-    assertEquals(rows.size, 28)
+    assertEquals(rows.size, 30)
     rows.foreach: row =>
       assertEquals(row.size, 6)
       assert("S\\d{3} `[^`]+`".r.matches(row(0)), s"cut slot cell must name one slot: ${row(0)}")
@@ -655,6 +676,8 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(resurrectionLaw.contains("Legal lines must use legal moves from the current position"))
     Vector(
       "S078 `white_mate_net_pressure`",
+      "S072 `white_open_file_exposure`",
+      "S088 `black_open_file_exposure`",
       "S094 `black_mate_net_pressure`",
       "S215 `plan_trade`",
       "S216 `plan_simplify`",

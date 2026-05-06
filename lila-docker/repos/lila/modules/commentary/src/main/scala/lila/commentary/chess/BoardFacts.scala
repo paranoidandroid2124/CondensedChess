@@ -217,7 +217,7 @@ final class BoardFacts private (
     val pawns: Pawns,
     val pieces: Vector[Piece]
 ):
-  lazy val seen: BoardFacts.Seen = BoardFacts.seen(this)
+  private[chess] lazy val seen: BoardFacts.Seen = BoardFacts.seen(this)
 
   require(
     sideToMove == Side.White || sideToMove == Side.Black,
@@ -238,21 +238,51 @@ object BoardFacts:
   private[commentary] def sameBoardReady(facts: BoardFacts): Boolean =
     sameBoardFacts.containsKey(facts)
 
-  final case class LegalMove(side: Side, piece: Piece, line: Line)
-  final case class Attack(attacker: Piece, target: Piece)
-  final case class Guard(guard: Piece, target: Piece)
-  final case class PieceUnderAttack(piece: Piece, attackers: Vector[Piece])
-  final case class GuardedPiece(piece: Piece, guards: Vector[Piece])
-  final case class AttackedUnguardedPiece(piece: Piece, attackers: Vector[Piece])
-  final case class LoosePieceObservation(piece: Piece)
-  final case class Pin(side: Side, king: Piece, pinned: Piece, attacker: Piece, line: Line)
-  final case class PawnLever(side: Side, pawn: Piece, target: Piece, line: Line)
-  final case class RookEntry(side: Side, rook: Piece, line: Line)
-  final case class OpenFile(file: Int, rookEntries: Vector[RookEntry])
-  final case class KingRingAttack(side: Side, king: Piece, square: Square, by: Side)
-  final case class MissingEvidence(fact: String, missing: Vector[String])
+  private[chess] final case class LegalMove(side: Side, piece: Piece, line: Line)
+  private[chess] final case class Attack(attacker: Piece, target: Piece)
+  private[chess] final case class Guard(guard: Piece, target: Piece)
+  private[chess] final case class PieceUnderAttack(piece: Piece, attackers: Vector[Piece])
+  private[chess] final case class GuardedPiece(piece: Piece, guards: Vector[Piece])
+  private[chess] final case class AttackedUnguardedPiece(piece: Piece, attackers: Vector[Piece])
+  private[chess] final case class LoosePieceObservation(piece: Piece)
+  private[chess] enum LineKind:
+    case File, Rank, Diagonal
+  private[chess] final case class LineObservation(kind: LineKind, from: Piece, to: Piece, line: Line)
+  private[chess] final case class Ray(side: Side, piece: Piece, kind: LineKind, line: Line, blockers: Vector[Piece])
+  private[chess] final case class LineBlocker(side: Side, piece: Piece, blocker: Piece, kind: LineKind, line: Line)
+  private[chess] final case class XRayShape(side: Side, piece: Piece, screen: Piece, target: Piece, kind: LineKind, line: Line)
+  private[chess] final case class Pin(side: Side, king: Piece, pinned: Piece, attacker: Piece, line: Line)
+  private[chess] final case class PawnLever(side: Side, pawn: Piece, target: Piece, line: Line)
+  private[chess] final case class PawnChallenge(side: Side, pawn: Piece, square: Square, line: Line)
+  private[chess] final case class PawnCannotChallengeSquare(side: Side, square: Square, by: Side)
+  private[chess] final case class PawnSafeSquareObservation(side: Side, square: Square, by: Side)
+  private[chess] final case class NoCurrentPawnChase(side: Side, square: Square, by: Side)
+  private[chess] final case class FrontBlocker(side: Side, pawn: Piece, blocker: Piece, square: Square, line: Line)
+  private[chess] final case class PassedPawnObservation(side: Side, pawn: Piece)
+  private[chess] final case class IsolatedPawnObservation(side: Side, pawn: Piece)
+  private[chess] final case class BackwardPawnFrontSquare(side: Side, pawn: Piece, square: Square, line: Line)
+  private[chess] final case class PieceReachableSquare(side: Side, piece: Piece, square: Square, line: Line)
+  private[chess] final case class SquareGuardMap(side: Side, square: Square, guards: Vector[Piece])
+  private[chess] final case class RookEntry(side: Side, rook: Piece, line: Line)
+  private[chess] final case class OpenFile(file: Int, rookEntries: Vector[RookEntry])
+  private[chess] final case class OpenFileObservation(file: Int)
+  private[chess] final case class SemiOpenFileObservation(side: Side, file: Int)
+  private[chess] final case class RookOnFile(side: Side, rook: Piece, file: Int)
+  private[chess] final case class LegalFileEntryMove(side: Side, piece: Piece, file: Int, line: Line)
+  private[chess] final case class RookOpenFileEntry(side: Side, rook: Piece, file: Int, line: Line)
+  private[chess] final case class FileBlocker(side: Side, file: Int, blocker: Piece)
+  private[chess] final case class FileTargetSquare(side: Side, file: Int, square: Square, line: Line)
+  private[chess] final case class KingSquare(side: Side, king: Piece)
+  private[chess] final case class KingRingSquare(side: Side, king: Piece, square: Square)
+  private[chess] final case class KingRingAttack(side: Side, king: Piece, square: Square, attacker: Piece)
+  private[chess] final case class KingRingDefender(side: Side, king: Piece, square: Square, defender: Piece)
+  private[chess] final case class LegalEscapeSquare(side: Side, king: Piece, square: Square, line: Line)
+  private[chess] final case class ContactCheckObservation(side: Side, king: Piece, attacker: Piece, line: Line)
+  private[chess] final case class LineToKing(side: Side, king: Piece, piece: Piece, kind: LineKind, line: Line, blockers: Vector[Piece])
+  private[chess] final case class BlockerNearKing(side: Side, king: Piece, blocker: Piece, piece: Piece, kind: LineKind, line: Line)
+  private[chess] final case class MissingEvidence(fact: String, missing: Vector[String])
 
-  final case class Seen(
+  private[chess] final case class Seen(
       legalMoves: Vector[LegalMove],
       attacks: Vector[Attack],
       guards: Vector[Guard],
@@ -260,14 +290,42 @@ object BoardFacts:
       guardedPieces: Vector[GuardedPiece],
       attackedUnguardedPieces: Vector[AttackedUnguardedPiece],
       loosePieceObservations: Vector[LoosePieceObservation],
+      lineObservations: Vector[LineObservation],
+      rays: Vector[Ray],
+      lineBlockers: Vector[LineBlocker],
+      xrayShapes: Vector[XRayShape],
       pins: Vector[Pin],
       pawnLevers: Vector[PawnLever],
+      pawnChallenges: Vector[PawnChallenge],
+      pawnCannotChallengeSquares: Vector[PawnCannotChallengeSquare],
+      pawnSafeSquareObservations: Vector[PawnSafeSquareObservation],
+      noCurrentPawnChases: Vector[NoCurrentPawnChase],
+      frontBlockers: Vector[FrontBlocker],
+      passedPawnObservations: Vector[PassedPawnObservation],
+      isolatedPawnObservations: Vector[IsolatedPawnObservation],
+      backwardPawnFrontSquares: Vector[BackwardPawnFrontSquare],
+      pieceReachableSquares: Vector[PieceReachableSquare],
+      squareGuardMaps: Vector[SquareGuardMap],
       openFiles: Vector[OpenFile],
+      openFileObservations: Vector[OpenFileObservation],
+      semiOpenFileObservations: Vector[SemiOpenFileObservation],
+      rookOnFiles: Vector[RookOnFile],
+      legalFileEntryMoves: Vector[LegalFileEntryMove],
+      rookOpenFileEntries: Vector[RookOpenFileEntry],
+      fileBlockers: Vector[FileBlocker],
+      fileTargetSquares: Vector[FileTargetSquare],
+      kingSquares: Vector[KingSquare],
+      kingRingSquares: Vector[KingRingSquare],
       kingRingAttacks: Vector[KingRingAttack],
+      kingRingDefenders: Vector[KingRingDefender],
+      legalEscapeSquares: Vector[LegalEscapeSquare],
+      contactCheckObservations: Vector[ContactCheckObservation],
+      linesToKing: Vector[LineToKing],
+      blockersNearKing: Vector[BlockerNearKing],
       failures: Vector[MissingEvidence]
   )
 
-  object Seen:
+  private[chess] object Seen:
     def empty(failures: Vector[MissingEvidence] = Vector.empty): Seen =
       Seen(
         legalMoves = Vector.empty,
@@ -277,10 +335,38 @@ object BoardFacts:
         guardedPieces = Vector.empty,
         attackedUnguardedPieces = Vector.empty,
         loosePieceObservations = Vector.empty,
+        lineObservations = Vector.empty,
+        rays = Vector.empty,
+        lineBlockers = Vector.empty,
+        xrayShapes = Vector.empty,
         pins = Vector.empty,
         pawnLevers = Vector.empty,
+        pawnChallenges = Vector.empty,
+        pawnCannotChallengeSquares = Vector.empty,
+        pawnSafeSquareObservations = Vector.empty,
+        noCurrentPawnChases = Vector.empty,
+        frontBlockers = Vector.empty,
+        passedPawnObservations = Vector.empty,
+        isolatedPawnObservations = Vector.empty,
+        backwardPawnFrontSquares = Vector.empty,
+        pieceReachableSquares = Vector.empty,
+        squareGuardMaps = Vector.empty,
         openFiles = Vector.empty,
+        openFileObservations = Vector.empty,
+        semiOpenFileObservations = Vector.empty,
+        rookOnFiles = Vector.empty,
+        legalFileEntryMoves = Vector.empty,
+        rookOpenFileEntries = Vector.empty,
+        fileBlockers = Vector.empty,
+        fileTargetSquares = Vector.empty,
+        kingSquares = Vector.empty,
+        kingRingSquares = Vector.empty,
         kingRingAttacks = Vector.empty,
+        kingRingDefenders = Vector.empty,
+        legalEscapeSquares = Vector.empty,
+        contactCheckObservations = Vector.empty,
+        linesToKing = Vector.empty,
+        blockersNearKing = Vector.empty,
         failures = failures
       )
 
@@ -297,7 +383,10 @@ object BoardFacts:
       val guardsSeen = guards(pieces, occupied)
       val underAttack = pieceUnderAttackRows(attacksSeen)
       val guarded = guardedPieceRows(guardsSeen)
-      val files = openFiles(pieces, legal)
+      val fileRows = fileFacts(pieces, legal)
+      val rayRows = rays(pieces, bySquare)
+      val pawnSquareRows = pawnSquareFacts(pieces, legal, bySquare, occupied)
+      val kingRows = kingFacts(pieces, legal, bySquare, occupied)
       Seen(
         legalMoves = legal,
         attacks = attacksSeen,
@@ -306,10 +395,38 @@ object BoardFacts:
         guardedPieces = guarded,
         attackedUnguardedPieces = attackedUnguardedPieceRows(underAttack, guarded),
         loosePieceObservations = loosePieceObservationRows(pieces, guarded),
+        lineObservations = lineObservations(pieces),
+        rays = rayRows,
+        lineBlockers = lineBlockers(rayRows),
+        xrayShapes = xrayShapes(rayRows),
         pins = pins(pieces, bySquare),
-        pawnLevers = pawnLevers(pieces, occupied),
-        openFiles = files,
-        kingRingAttacks = kingRingAttacks(pieces, occupied),
+        pawnLevers = pawnSquareRows.pawnLevers,
+        pawnChallenges = pawnSquareRows.pawnChallenges,
+        pawnCannotChallengeSquares = pawnSquareRows.pawnCannotChallengeSquares,
+        pawnSafeSquareObservations = pawnSquareRows.pawnSafeSquareObservations,
+        noCurrentPawnChases = pawnSquareRows.noCurrentPawnChases,
+        frontBlockers = pawnSquareRows.frontBlockers,
+        passedPawnObservations = pawnSquareRows.passedPawnObservations,
+        isolatedPawnObservations = pawnSquareRows.isolatedPawnObservations,
+        backwardPawnFrontSquares = pawnSquareRows.backwardPawnFrontSquares,
+        pieceReachableSquares = pawnSquareRows.pieceReachableSquares,
+        squareGuardMaps = pawnSquareRows.squareGuardMaps,
+        openFiles = fileRows.openFiles,
+        openFileObservations = fileRows.openFileObservations,
+        semiOpenFileObservations = fileRows.semiOpenFileObservations,
+        rookOnFiles = fileRows.rookOnFiles,
+        legalFileEntryMoves = fileRows.legalFileEntryMoves,
+        rookOpenFileEntries = fileRows.rookOpenFileEntries,
+        fileBlockers = fileRows.fileBlockers,
+        fileTargetSquares = fileRows.fileTargetSquares,
+        kingSquares = kingRows.kingSquares,
+        kingRingSquares = kingRows.kingRingSquares,
+        kingRingAttacks = kingRows.kingRingAttacks,
+        kingRingDefenders = kingRows.kingRingDefenders,
+        legalEscapeSquares = kingRows.legalEscapeSquares,
+        contactCheckObservations = kingRows.contactCheckObservations,
+        linesToKing = kingRows.linesToKing,
+        blockersNearKing = kingRows.blockersNearKing,
         failures = Vector.empty
       )
 
@@ -383,6 +500,73 @@ object BoardFacts:
       .map(LoosePieceObservation.apply)
       .sortBy(row => pieceKey(row.piece))
 
+  private def lineObservations(pieces: Vector[Piece]): Vector[LineObservation] =
+    val bySquare = pieces.sortBy(_.square.index)
+    (for
+      (from, index) <- bySquare.zipWithIndex
+      to <- bySquare.drop(index + 1)
+      step <- lineStep(from.square, to.square)
+    yield LineObservation(lineKind(step), from, to, Line(from.square, to.square)))
+      .sortBy(row => (row.kind.ordinal, row.line.from.index, row.line.to.index))
+
+  private final case class RayDirection(step: Int, fileDelta: Int, rankDelta: Int)
+
+  private val rayDirections = Vector(
+    RayDirection(1, 1, 0),
+    RayDirection(-1, -1, 0),
+    RayDirection(8, 0, 1),
+    RayDirection(-8, 0, -1),
+    RayDirection(9, 1, 1),
+    RayDirection(-9, -1, -1),
+    RayDirection(7, -1, 1),
+    RayDirection(-7, 1, -1)
+  )
+
+  private def rays(pieces: Vector[Piece], bySquare: Map[Square, Piece]): Vector[Ray] =
+    pieces
+      .filter(piece => sliderUses(piece.man, 1) || sliderUses(piece.man, 7) || sliderUses(piece.man, 8))
+      .flatMap: piece =>
+        rayDirections
+          .filter(direction => sliderUses(piece.man, direction.step))
+          .flatMap: direction =>
+            rayEnd(piece.square, direction).map: end =>
+              val raySquares = squaresBetween(piece.square, end, direction.step) :+ end
+              Ray(
+                side = piece.side,
+                piece = piece,
+                kind = lineKind(direction.step),
+                line = Line(piece.square, end),
+                blockers = raySquares.flatMap(bySquare.get)
+              )
+      .sortBy(ray => (pieceKey(ray.piece), ray.kind.ordinal, ray.line.to.index))
+
+  private def lineBlockers(rays: Vector[Ray]): Vector[LineBlocker] =
+    rays
+      .flatMap: ray =>
+        ray.blockers.headOption.map: blocker =>
+          LineBlocker(
+            side = ray.side,
+            piece = ray.piece,
+            blocker = blocker,
+            kind = ray.kind,
+            line = Line(ray.piece.square, blocker.square)
+          )
+      .sortBy(row => (pieceKey(row.piece), row.kind.ordinal, row.line.to.index, pieceKey(row.blocker)))
+
+  private def xrayShapes(rays: Vector[Ray]): Vector[XRayShape] =
+    rays
+      .collect:
+        case ray if ray.blockers.size >= 2 =>
+          XRayShape(
+            side = ray.side,
+            piece = ray.piece,
+            screen = ray.blockers(0),
+            target = ray.blockers(1),
+            kind = ray.kind,
+            line = Line(ray.piece.square, ray.blockers(1).square)
+          )
+      .sortBy(row => (pieceKey(row.piece), row.kind.ordinal, row.line.to.index, pieceKey(row.screen), pieceKey(row.target)))
+
   private def pins(pieces: Vector[Piece], bySquare: Map[Square, Piece]): Vector[Pin] =
     val kings = pieces.filter(_.man == Man.King)
     (for
@@ -409,25 +593,322 @@ object BoardFacts:
     yield PawnLever(pawn.side, pawn, target, Line(pawn.square, target.square)))
       .sortBy(lever => (lever.side.ordinal, lever.pawn.square.index, lever.target.square.index))
 
-  private def openFiles(pieces: Vector[Piece], legalMoves: Vector[LegalMove]): Vector[OpenFile] =
-    val pawnFiles = pieces.filter(_.man == Man.Pawn).map(_.square.file).toSet
-    val openFileIndexes = (0 until 8).filterNot(pawnFiles.contains).toVector
-    val rookEntries =
-      legalMoves
-        .filter(move => move.piece.man == Man.Rook && openFileIndexes.contains(move.line.to.file))
-        .map(move => RookEntry(move.side, move.piece, move.line))
-    openFileIndexes.map: file =>
-      OpenFile(file, rookEntries.filter(_.line.to.file == file))
+  private final case class PawnSquareFacts(
+      pawnLevers: Vector[PawnLever],
+      pawnChallenges: Vector[PawnChallenge],
+      pawnCannotChallengeSquares: Vector[PawnCannotChallengeSquare],
+      pawnSafeSquareObservations: Vector[PawnSafeSquareObservation],
+      noCurrentPawnChases: Vector[NoCurrentPawnChase],
+      frontBlockers: Vector[FrontBlocker],
+      passedPawnObservations: Vector[PassedPawnObservation],
+      isolatedPawnObservations: Vector[IsolatedPawnObservation],
+      backwardPawnFrontSquares: Vector[BackwardPawnFrontSquare],
+      pieceReachableSquares: Vector[PieceReachableSquare],
+      squareGuardMaps: Vector[SquareGuardMap]
+  )
 
-  private def kingRingAttacks(pieces: Vector[Piece], occupied: Long): Vector[KingRingAttack] =
-    val kings = pieces.filter(_.man == Man.King)
+  private def pawnSquareFacts(
+      pieces: Vector[Piece],
+      legalMoves: Vector[LegalMove],
+      bySquare: Map[Square, Piece],
+      occupied: Long
+  ): PawnSquareFacts =
+    val challenges = pawnChallenges(pieces)
+    val noChase = noCurrentPawnChases(pieces, legalMoves, challenges)
+    PawnSquareFacts(
+      pawnLevers = pawnLevers(pieces, occupied),
+      pawnChallenges = challenges,
+      pawnCannotChallengeSquares = noChase.map(row => PawnCannotChallengeSquare(row.side, row.square, row.by)),
+      pawnSafeSquareObservations = noChase.map(row => PawnSafeSquareObservation(row.side, row.square, row.by)),
+      noCurrentPawnChases = noChase,
+      frontBlockers = frontBlockers(pieces, bySquare),
+      passedPawnObservations = passedPawnObservations(pieces),
+      isolatedPawnObservations = isolatedPawnObservations(pieces),
+      backwardPawnFrontSquares = backwardPawnFrontSquares(pieces),
+      pieceReachableSquares = pieceReachableSquares(legalMoves),
+      squareGuardMaps = squareGuardMaps(pieces, occupied)
+    )
+
+  private def pawnChallenges(pieces: Vector[Piece]): Vector[PawnChallenge] =
+    pieces
+      .filter(_.man == Man.Pawn)
+      .flatMap: pawn =>
+        pawnAttacks(pawn).map: square =>
+          PawnChallenge(pawn.side, pawn, square, Line(pawn.square, square))
+      .sortBy(row => (row.side.ordinal, row.pawn.square.index, row.square.index))
+
+  private def noCurrentPawnChases(
+      pieces: Vector[Piece],
+      legalMoves: Vector[LegalMove],
+      challenges: Vector[PawnChallenge]
+  ): Vector[NoCurrentPawnChase] =
+    val challengedBySide = challenges.groupBy(_.side).view.mapValues(_.map(_.square).toSet).toMap
+    pawnSafeCandidateSquares(pieces, legalMoves)
+      .filterNot: (side, square) =>
+        challengedBySide.getOrElse(opposite(side), Set.empty).contains(square)
+      .map: (side, square) =>
+        NoCurrentPawnChase(side, square, opposite(side))
+      .sortBy(row => (row.side.ordinal, row.square.index, row.by.ordinal))
+
+  private def pawnSafeCandidateSquares(pieces: Vector[Piece], legalMoves: Vector[LegalMove]): Vector[(Side, Square)] =
+    val occupiedCandidates =
+      pieces
+        .filter(piece => piece.man != Man.Pawn && piece.man != Man.King)
+        .map(piece => piece.side -> piece.square)
+    val reachableCandidates =
+      legalMoves
+        .filter(move => move.piece.man != Man.Pawn && move.piece.man != Man.King)
+        .map(move => move.side -> move.line.to)
+    (occupiedCandidates ++ reachableCandidates).distinct
+
+  private def frontBlockers(pieces: Vector[Piece], bySquare: Map[Square, Piece]): Vector[FrontBlocker] =
+    pieces
+      .filter(_.man == Man.Pawn)
+      .flatMap: pawn =>
+        frontSquare(pawn).flatMap: square =>
+          bySquare.get(square).map: blocker =>
+            FrontBlocker(pawn.side, pawn, blocker, square, Line(pawn.square, square))
+      .sortBy(row => (row.side.ordinal, row.pawn.square.index, row.square.index, pieceKey(row.blocker)))
+
+  private def passedPawnObservations(pieces: Vector[Piece]): Vector[PassedPawnObservation] =
+    pieces
+      .filter(_.man == Man.Pawn)
+      .filter(pawn => isPassedPawnObservation(pawn, pieces))
+      .map(pawn => PassedPawnObservation(pawn.side, pawn))
+      .sortBy(row => pieceKey(row.pawn))
+
+  private def isolatedPawnObservations(pieces: Vector[Piece]): Vector[IsolatedPawnObservation] =
+    pieces
+      .filter(_.man == Man.Pawn)
+      .filter: pawn =>
+        !pieces.exists(piece =>
+          piece.side == pawn.side && piece.man == Man.Pawn && piece != pawn && math.abs(piece.square.file - pawn.square.file) == 1
+        )
+      .map(pawn => IsolatedPawnObservation(pawn.side, pawn))
+      .sortBy(row => pieceKey(row.pawn))
+
+  private def backwardPawnFrontSquares(pieces: Vector[Piece]): Vector[BackwardPawnFrontSquare] =
+    val pawns = pieces.filter(_.man == Man.Pawn)
+    pawns
+      .flatMap: pawn =>
+        frontSquare(pawn).filter: front =>
+          hasAdjacentFriendlyPawn(pawn, pawns) &&
+            !pawns.exists(friendly => friendly.side == pawn.side && pawnAttacks(friendly).contains(front)) &&
+            (
+              pawns.exists(enemy => enemy.side == opposite(pawn.side) && pawnAttacks(enemy).contains(front)) ||
+                pieces.exists(piece => piece.side == opposite(pawn.side) && piece.square == front)
+            )
+        .map(front => BackwardPawnFrontSquare(pawn.side, pawn, front, Line(pawn.square, front)))
+      .sortBy(row => (row.side.ordinal, row.pawn.square.index, row.square.index))
+
+  private def pieceReachableSquares(legalMoves: Vector[LegalMove]): Vector[PieceReachableSquare] =
+    legalMoves
+      .map(move => PieceReachableSquare(move.side, move.piece, move.line.to, move.line))
+      .sortBy(row => (row.side.ordinal, pieceKey(row.piece), row.square.index))
+
+  private def squareGuardMaps(pieces: Vector[Piece], occupied: Long): Vector[SquareGuardMap] =
+    (for
+      side <- Vector(Side.White, Side.Black)
+      square <- (0 until 64).toVector.map(Square.fromIndex)
+      guards = pieces.filter(piece => piece.side == side && attacksSquare(piece, square, occupied)).sortBy(pieceKey)
+      if guards.nonEmpty
+    yield SquareGuardMap(side, square, guards))
+      .sortBy(row => (row.side.ordinal, row.square.index))
+
+  private def frontSquare(pawn: Piece): Option[Square] =
+    val rankStep = if pawn.side == Side.White then 1 else -1
+    squareAt(pawn.square.file, pawn.square.rank + rankStep)
+
+  private def isPassedPawnObservation(pawn: Piece, pieces: Vector[Piece]): Boolean =
+    pieces
+      .filter(piece => piece.side == opposite(pawn.side) && piece.man == Man.Pawn)
+      .forall: enemy =>
+        math.abs(enemy.square.file - pawn.square.file) > 1 || !isAheadOf(pawn.side, pawn.square, enemy.square)
+
+  private def isAheadOf(side: Side, from: Square, to: Square): Boolean =
+    if side == Side.White then to.rank > from.rank else to.rank < from.rank
+
+  private def hasAdjacentFriendlyPawn(pawn: Piece, pawns: Vector[Piece]): Boolean =
+    pawns.exists(piece => piece.side == pawn.side && piece != pawn && math.abs(piece.square.file - pawn.square.file) == 1)
+
+  private final case class FileFacts(
+      openFiles: Vector[OpenFile],
+      openFileObservations: Vector[OpenFileObservation],
+      semiOpenFileObservations: Vector[SemiOpenFileObservation],
+      rookOnFiles: Vector[RookOnFile],
+      legalFileEntryMoves: Vector[LegalFileEntryMove],
+      rookOpenFileEntries: Vector[RookOpenFileEntry],
+      fileBlockers: Vector[FileBlocker],
+      fileTargetSquares: Vector[FileTargetSquare]
+  )
+
+  private def fileFacts(pieces: Vector[Piece], legalMoves: Vector[LegalMove]): FileFacts =
+    val whitePawnFiles = pawnFiles(pieces, Side.White)
+    val blackPawnFiles = pawnFiles(pieces, Side.Black)
+    val allPawnFiles = whitePawnFiles ++ blackPawnFiles
+    val openFileObservations =
+      (0 until 8).filterNot(allPawnFiles.contains).map(OpenFileObservation.apply).toVector
+    val openFileIndexes = openFileObservations.map(_.file).toSet
+    val semiOpenFileObservations =
+      (0 until 8).toVector.flatMap: file =>
+        Vector(
+          Option.when(!whitePawnFiles.contains(file) && blackPawnFiles.contains(file))(
+            SemiOpenFileObservation(Side.White, file)
+          ),
+          Option.when(!blackPawnFiles.contains(file) && whitePawnFiles.contains(file))(
+            SemiOpenFileObservation(Side.Black, file)
+          )
+        ).flatten
+    val semiOpenFilesBySide = semiOpenFileObservations.map(row => row.side -> row.file).toSet
+    val observedFiles = openFileIndexes ++ semiOpenFileObservations.map(_.file).toSet
+    val rookOnFiles =
+      pieces
+        .filter(_.man == Man.Rook)
+        .map(rook => RookOnFile(rook.side, rook, rook.square.file))
+        .sortBy(row => (row.side.ordinal, row.file, pieceKey(row.rook)))
+    val legalFileEntryMoves =
+      legalMoves
+        .filter(_.piece.man == Man.Rook)
+        .filter: move =>
+          openFileIndexes.contains(move.line.to.file) || semiOpenFilesBySide.contains(move.side -> move.line.to.file)
+        .map(move => LegalFileEntryMove(move.side, move.piece, move.line.to.file, move.line))
+        .sortBy(row => (row.side.ordinal, row.file, row.line.from.index, row.line.to.index))
+    val rookOpenFileEntries =
+      legalFileEntryMoves
+        .filter(move => openFileIndexes.contains(move.file))
+        .map(move => RookOpenFileEntry(move.side, move.piece, move.file, move.line))
+    val openFiles =
+      openFileObservations.map: row =>
+        OpenFile(
+          row.file,
+          rookOpenFileEntries
+            .filter(_.file == row.file)
+            .map(entry => RookEntry(entry.side, entry.rook, entry.line))
+        )
+    val fileBlockers =
+      pieces
+        .filter(piece => observedFiles.contains(piece.square.file))
+        .map(piece => FileBlocker(piece.side, piece.square.file, piece))
+        .sortBy(row => (row.file, pieceKey(row.blocker)))
+    val fileTargetSquares =
+      legalFileEntryMoves
+        .map(move => FileTargetSquare(move.side, move.file, move.line.to, move.line))
+        .sortBy(row => (row.side.ordinal, row.file, row.square.index, row.line.from.index))
+
+    FileFacts(
+      openFiles = openFiles,
+      openFileObservations = openFileObservations,
+      semiOpenFileObservations = semiOpenFileObservations,
+      rookOnFiles = rookOnFiles,
+      legalFileEntryMoves = legalFileEntryMoves,
+      rookOpenFileEntries = rookOpenFileEntries,
+      fileBlockers = fileBlockers,
+      fileTargetSquares = fileTargetSquares
+    )
+
+  private def pawnFiles(pieces: Vector[Piece], side: Side): Set[Int] =
+    pieces.filter(piece => piece.side == side && piece.man == Man.Pawn).map(_.square.file).toSet
+
+  private final case class KingFacts(
+      kingSquares: Vector[KingSquare],
+      kingRingSquares: Vector[KingRingSquare],
+      kingRingAttacks: Vector[KingRingAttack],
+      kingRingDefenders: Vector[KingRingDefender],
+      legalEscapeSquares: Vector[LegalEscapeSquare],
+      contactCheckObservations: Vector[ContactCheckObservation],
+      linesToKing: Vector[LineToKing],
+      blockersNearKing: Vector[BlockerNearKing]
+  )
+
+  private def kingFacts(
+      pieces: Vector[Piece],
+      legalMoves: Vector[LegalMove],
+      bySquare: Map[Square, Piece],
+      occupied: Long
+  ): KingFacts =
+    val kings = pieces.filter(_.man == Man.King).sortBy(pieceKey)
+    val lines = linesToKing(kings, pieces, bySquare)
+    KingFacts(
+      kingSquares = kings.map(king => KingSquare(king.side, king)),
+      kingRingSquares = kingRingSquares(kings),
+      kingRingAttacks = kingRingAttacks(kings, pieces, occupied),
+      kingRingDefenders = kingRingDefenders(kings, pieces, occupied),
+      legalEscapeSquares = legalEscapeSquares(legalMoves),
+      contactCheckObservations = contactCheckObservations(kings, legalMoves, occupied),
+      linesToKing = lines,
+      blockersNearKing = blockersNearKing(lines)
+    )
+
+  private def kingRingSquares(kings: Vector[Piece]): Vector[KingRingSquare] =
+    kings
+      .flatMap: king =>
+        kingRing(king.square).map(square => KingRingSquare(king.side, king, square))
+      .sortBy(row => (row.side.ordinal, row.king.square.index, row.square.index))
+
+  private def kingRingAttacks(kings: Vector[Piece], pieces: Vector[Piece], occupied: Long): Vector[KingRingAttack] =
     (for
       king <- kings
       square <- kingRing(king.square)
-      by = opposite(king.side)
-      if pieces.exists(piece => piece.side == by && attacksSquare(piece, square, occupied))
-    yield KingRingAttack(king.side, king, square, by))
-      .sortBy(attack => (attack.side.ordinal, attack.king.square.index, attack.square.index))
+      attacker <- pieces
+      if attacker.side == opposite(king.side) && attacksSquare(attacker, square, occupied)
+    yield KingRingAttack(king.side, king, square, attacker))
+      .sortBy(attack => (attack.side.ordinal, attack.king.square.index, attack.square.index, pieceKey(attack.attacker)))
+
+  private def kingRingDefenders(kings: Vector[Piece], pieces: Vector[Piece], occupied: Long): Vector[KingRingDefender] =
+    (for
+      king <- kings
+      square <- kingRing(king.square)
+      defender <- pieces
+      if defender.side == king.side && defender != king && attacksSquare(defender, square, occupied)
+    yield KingRingDefender(king.side, king, square, defender))
+      .sortBy(row => (row.side.ordinal, row.king.square.index, row.square.index, pieceKey(row.defender)))
+
+  private def legalEscapeSquares(legalMoves: Vector[LegalMove]): Vector[LegalEscapeSquare] =
+    legalMoves
+      .filter(_.piece.man == Man.King)
+      .map(move => LegalEscapeSquare(move.side, move.piece, move.line.to, move.line))
+      .sortBy(row => (row.side.ordinal, row.king.square.index, row.square.index))
+
+  private def contactCheckObservations(
+      kings: Vector[Piece],
+      legalMoves: Vector[LegalMove],
+      occupied: Long
+  ): Vector[ContactCheckObservation] =
+    (for
+      king <- kings
+      move <- legalMoves
+      if move.side == opposite(king.side)
+      if kingRing(king.square).contains(move.line.to)
+      moved = Piece(move.side, move.piece.man, move.line.to)
+      occupiedAfter = (occupied & ~move.line.from.bit) | move.line.to.bit
+      if attacksSquare(moved, king.square, occupiedAfter)
+    yield ContactCheckObservation(king.side, king, moved, move.line))
+      .sortBy(row => (row.side.ordinal, row.king.square.index, pieceKey(row.attacker), row.line.from.index))
+
+  private def linesToKing(kings: Vector[Piece], pieces: Vector[Piece], bySquare: Map[Square, Piece]): Vector[LineToKing] =
+    (for
+      king <- kings
+      piece <- pieces
+      step <- lineStep(piece.square, king.square)
+      if piece != king && sliderUses(piece.man, step)
+      blockers = squaresBetween(piece.square, king.square, step).flatMap(bySquare.get)
+    yield LineToKing(
+      side = king.side,
+      king = king,
+      piece = piece,
+      kind = lineKind(step),
+      line = Line(piece.square, king.square),
+      blockers = blockers
+    )).sortBy(row => (row.side.ordinal, row.king.square.index, pieceKey(row.piece), row.line.from.index))
+
+  private def blockersNearKing(lines: Vector[LineToKing]): Vector[BlockerNearKing] =
+    lines
+      .flatMap: line =>
+        line.blockers
+          .filter(blocker => kingRing(line.king.square).contains(blocker.square))
+          .map: blocker =>
+            BlockerNearKing(line.side, line.king, blocker, line.piece, line.kind, line.line)
+      .sortBy(row => (row.side.ordinal, row.king.square.index, pieceKey(row.blocker), pieceKey(row.piece)))
 
   private def attacksSquare(piece: Piece, target: Square, occupied: Long): Boolean =
     piece.man match
@@ -467,6 +948,23 @@ object BoardFacts:
     else if math.abs(fileDelta) == math.abs(rankDelta) && fileDelta != 0 then
       Some(Integer.signum(rankDelta) * 8 + Integer.signum(fileDelta))
     else None
+
+  private def lineKind(step: Int): LineKind =
+    if math.abs(step) == 8 then LineKind.File
+    else if math.abs(step) == 1 then LineKind.Rank
+    else LineKind.Diagonal
+
+  private def rayEnd(from: Square, direction: RayDirection): Option[Square] =
+    var file = from.file
+    var rank = from.rank
+    var end: Option[Square] = None
+    var onBoard = true
+    while onBoard do
+      file += direction.fileDelta
+      rank += direction.rankDelta
+      if file >= 0 && file < 8 && rank >= 0 && rank < 8 then end = Some(Square.fromIndex(rank * 8 + file))
+      else onBoard = false
+    end
 
   private def squaresBetween(from: Square, to: Square, step: Int): Vector[Square] =
     val builder = Vector.newBuilder[Square]

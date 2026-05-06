@@ -4,7 +4,7 @@ Prepared on 2026-05-05 for BoardMood scalar slots classified as `쪼갬`.
 
 ## Decision
 
-The 65 split slots listed here are inactive in live BoardMood. Each old slot
+The 69 split slots listed here are inactive in live BoardMood. Each old slot
 writes `0/silent`. The old slot has no public meaning, no scalar speech, and no
 plan speech.
 
@@ -58,12 +58,16 @@ small affordance fact named here; it may not produce plan speech.
 | S129 `white_rook_activity` | `white_rook_file_reach` | For each White rook, name its file, pawn occupancy on that file, and legal vertical destinations. | No White rook file-reach fact is emitted. | No rook-activity score or file-control sentence. |
 | S130 `white_queen_activity` | `white_queen_legal_moves` | For each White queen, count legal destinations and name occupied target squares it attacks. | No White queen legal-move fact is emitted. | No queen-activity score or attacking claim. |
 | S133 `white_bad_bishop_count` | `white_bishop_pawn_color_map` | For each White bishop, record bishop square color, friendly pawns on that color, and blocked diagonal squares. | No White bishop color-map fact is emitted. | No bad-bishop label or strategic verdict. |
+| S134 `white_rook_open_file_count` | `white_rook_open_file_entry` | Name each White rook with a legal move to a pawnless file target square. | No White rook open-file entry is emitted. | No open-file control, invasion, or plan speech. |
+| S136 `white_loose_piece_count` | `white_loose_piece_observation` | Name each White non-pawn non-king piece with no current same-side guard observed. | No White loose-piece observation is emitted. | No loose-piece count, free-piece, hanging-piece, or material-win speech. |
 | S137 `white_hanging_piece_count` | `white_attacked_piece_guard_map` | For each attacked White non-king piece, list legal enemy captures and friendly defenders of that square. | No White attacked-piece guard map is emitted. | No hanging-piece, winning-material, or capture verdict. |
 | S143 `white_piece_coordination` | `white_shared_target_attack` | Name each square attacked by two or more White non-pawn pieces. | No White shared-target attack is emitted. | No coordination score or team-piece praise. |
 | S144 `black_minor_activity` | `black_minor_legal_moves` | For each Black knight and bishop, count legal destinations and name occupied target squares it attacks. | No Black minor legal-move fact is emitted. | No minor-piece activity score or praise. |
 | S145 `black_rook_activity` | `black_rook_file_reach` | For each Black rook, name its file, pawn occupancy on that file, and legal vertical destinations. | No Black rook file-reach fact is emitted. | No rook-activity score or file-control sentence. |
 | S146 `black_queen_activity` | `black_queen_legal_moves` | For each Black queen, count legal destinations and name occupied target squares it attacks. | No Black queen legal-move fact is emitted. | No queen-activity score or attacking claim. |
 | S149 `black_bad_bishop_count` | `black_bishop_pawn_color_map` | For each Black bishop, record bishop square color, friendly pawns on that color, and blocked diagonal squares. | No Black bishop color-map fact is emitted. | No bad-bishop label or strategic verdict. |
+| S150 `black_rook_open_file_count` | `black_rook_open_file_entry` | Name each Black rook with a legal move to a pawnless file target square. | No Black rook open-file entry is emitted. | No open-file control, invasion, or plan speech. |
+| S152 `black_loose_piece_count` | `black_loose_piece_observation` | Name each Black non-pawn non-king piece with no current same-side guard observed. | No Black loose-piece observation is emitted. | No loose-piece count, free-piece, hanging-piece, or material-win speech. |
 | S153 `black_hanging_piece_count` | `black_attacked_piece_guard_map` | For each attacked Black non-king piece, list legal enemy captures and friendly defenders of that square. | No Black attacked-piece guard map is emitted. | No hanging-piece, winning-material, or capture verdict. |
 | S159 `black_piece_coordination` | `black_shared_target_attack` | Name each square attacked by two or more Black non-pawn pieces. | No Black shared-target attack is emitted. | No coordination score or team-piece praise. |
 
@@ -101,7 +105,7 @@ small affordance fact named here; it may not produce plan speech.
 | S200 `plan_bad_piece` | `boxed_piece` | Name each non-king piece with two or fewer legal destinations and occupied blockers on its normal movement lines. | No boxed piece is emitted. | No improve-piece plan or bad-piece verdict. |
 | S202 `plan_bishops` | `bishop_pair_or_color` | Record bishop count by side and whether opposing bishops sit on same-colored or opposite-colored squares. | No bishop pair or color fact is emitted. | No bishop-plan or color-complex speech. |
 | S203 `plan_blockade` | `passer_blockade_square` | Name each passed pawn and the square directly in front of it, occupied or legally reachable by an enemy piece. | No passer blockade square is emitted. | No blockade-plan speech. |
-| S204 `plan_open_file` | `rook_open_file_entry` | Name each pawnless file, rook on that file, and legal rook entry square on that file. | No rook open-file entry is emitted. | No open-file plan speech. |
+| S204 `plan_open_file` | `rook_open_file_entry` | Name each rook with a legal move to a pawnless file target square. | No rook open-file entry is emitted. | No open-file plan speech. |
 | S205 `plan_seventh` | `rook_seventh_targets` | Name each rook on the opponent seventh rank and enemy pawns or king on that rank. | No rook seventh-rank target is emitted. | No seventh-rank plan speech. |
 | S206 `plan_color_bind` | `fixed_color_weak_squares` | Name weak squares of one color that cannot be attacked by enemy pawns and are near fixed pawns on that color. | No fixed-color weak square set is emitted. | No color-bind plan speech. |
 | S207 `plan_weak_square` | `pawn_safe_weak_square` | Name each square not attackable by enemy pawns, defended by the other side, and occupied or legally reachable by a non-pawn piece. | No pawn-safe weak square is emitted. | No weak-square plan speech. |
