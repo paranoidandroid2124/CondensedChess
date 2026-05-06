@@ -16,8 +16,8 @@ Context Relation, Stage 6-5 Selected Verdict Only Guard, Stage 6 Closeout
 Pass, Stage 7-0 Deterministic Renderer Charter, Stage 7-1 Renderer Input
 Guard, Stage 7-2 Minimal Tactic.Hanging Template, Stage 7-3 Forbidden Wording
 Enforcement, Stage 7-4 No Text for Support / Context / Blocked, Stage 7-5
-Rendered Line Shape, Stage 7-6 Renderer Baseline Tests, and Stage 7 Closeout
-Pass. It is
+Rendered Line Shape, Stage 7-6 Renderer Baseline Tests, Stage 7 Closeout Pass,
+and Stage 8 Prompt Smoke. It is
 intentionally not a full product
 commentary backend.
 
@@ -30,7 +30,7 @@ The current branch owns only:
 
 `Board Truth / Primitive Geometry / Story boundary / Verdict boundary / Explanation Plan boundary / Deterministic Renderer boundary`
 
-Current implementation scope is Stage 7 Closeout Pass.
+Current implementation scope is Stage 8 Prompt Smoke.
 Stage 3 remains open only for Material proof kernel, `Tactic.Hanging`, and
 Hanging negative corpus. Stage 4 is named `Engine Check`. Stage 4 opens only
 `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board
@@ -92,13 +92,16 @@ RenderedLine shape. `RenderedLine` owns no chess meaning, proof, or engine
 data; RenderedLine is only the expression result of ExplanationPlan. Stage 7-6
 opens only renderer baseline tests. Renderer output is no stronger than
 ExplanationPlan; there is no new renderer wording, no new input, no public
-route `200`, and no LLM narration. Stages 8-11 below are a dependency map for
-product design; they are not permission to implement those systems in this
-checkpoint. Stage 7 closeout confirms deterministic renderer is closed as a
-template baseline. Stage 8 LLM Narration may receive deterministic text and
-ExplanationPlan only. Stage 8 must not read raw Verdict, Story, EngineCheck,
+route `200`, and no LLM narration. Stage 7 closeout confirms deterministic
+renderer is closed as a template baseline. Stage 8 opens only 8A Mock narrator
+and 8B Codex CLI prompt smoke test. Stage 8B Codex CLI prompt smoke may
+receive renderedText, claimKey, strength, forbidden wording list, and the
+instruction `Rephrase only. Do not add chess facts.` only. 8A Mock narrator may
+receive ExplanationPlan and RenderedLine only. Production API validation
+remains closed. Stage 8 must not read raw Verdict, Story, EngineCheck,
 CaptureResult, Board Facts, BoardMood, raw PV, proofFailures text, or source
-rows directly.
+rows directly. Stages 9-11 below are a dependency map for product design; they
+are not permission to implement those systems in this checkpoint.
 
 Product north-star philosophy:
 
@@ -161,10 +164,11 @@ public-meaning unit, `StoryTable` decides roles and lead eligibility, and
 Stages open in this order only. Do not implement downstream product stages
 before earlier authority stages are proven.
 
-Only Stage 7 Closeout Pass is active implementation authority now, and only for
-auditing deterministic renderer as a closed template baseline and bounding the
-Stage 8 handoff. Stages 8-11 are dependency-map-only and stay closed until
-their predecessor exits are proven.
+Only Stage 8 Prompt Smoke is active implementation authority now, and only for
+8A Mock narrator over ExplanationPlan plus RenderedLine and 8B Codex CLI prompt
+smoke over renderedText, claimKey, strength, forbidden wording list, and a
+rephrase-only instruction. Stages 9-11 are dependency-map-only and stay closed
+until their predecessor exits are proven.
 
 Dependency order:
 
@@ -190,7 +194,7 @@ Dependency order:
 | 5 Story Order | Lead/support/context/blocked roles across existing Story rows, first scoped to `Tactic.Hanging`. | Multiple proof-backed Hanging Stories and Stage 4 EngineCheck diagnostics. | New Story creation, new positive family, engine eval as ranking truth, Board Facts direct public claim, `CaptureResult` public material story, pedagogy, Explanation IR, renderer, LLM, public route. | `StoryTable` deterministically decides Hanging roles without creating new chess meaning or a new public claim. | Missing role policy, blocker, cap, deterministic tie-break, or same Story row proof. |
 | 6 Explanation Plan (Explanation IR) | Renderer-safe language-neutral speech bounds. | Selected Verdict data only. | Raw Board Facts, raw `BoardMood`, root atoms, capture evidence, engine sidecars, raw PV, proofFailures text, source rows, renderer wording, or LLM wording read by the plan. | The plan lists allowed claim, evidence, strength, role, support/context relation, and forbidden wording without writing sentences. | Missing allowed claim, evidence line, strength, role, relationship, or forbidden wording. |
 | 7 Deterministic Renderer | Template baseline over Explanation IR. | Explanation IR is complete and renderer-safe. | Natural language that exceeds IR or repairs missing proof. | Deterministic text is no stronger than IR. | Missing template boundary, unsupported phrase, or unrepresented claim. |
-| 8 LLM Narration | Wording, tone, level adjustment, compression. | Deterministic renderer baseline and safe IR. | New move, tactic, plan, causal explanation, evaluation, line, or claim strength. | LLM output verbalizes only allowed claims. | Unsupported chess fact, strengthened wording, or invented line. |
+| 8 LLM Narration | Prompt smoke over wording, tone, compression, and rephrase behavior. | Deterministic renderer baseline and safe IR. | New move, tactic, plan, causal explanation, evaluation, line, engine mention, production API, or claim strength. | Codex CLI prompt smoke checks whether LLM output verbalizes only allowed claims. | Unsupported chess fact, strengthened wording, invented line, or API path opened. |
 | 9 Natural-Language Verifier | Claim extraction and rejection over rendered text. | IR and rendered text are available for comparison. | Accepting stronger natural language than IR. | Verifier rejects mate/win/only-move/tactic/plan/source claims without matching proof. | Extracted claim exceeds allowed claim, evidence, role, or strength. |
 | 10 Pedagogical Policy | Level-aware teaching choices. | Stable causal arbitration and verified narration. | Pedagogy before causal truth. | Same Story can be explained differently by user level without changing chess truth. | Missing user level, learning objective, or allowed teaching transform. |
 | 11 Personal Learning Loop | Motif memory, spaced repetition, custom practice, progress. | Stable Story taxonomy and pedagogical policy. | Personalization before reliable Story classification. | Repeated Story patterns can drive training without changing proof rules. | Missing motif identity, history window, review cadence, or progress evidence. |
@@ -456,13 +460,18 @@ may receive deterministic text and ExplanationPlan only.
 
 ### Stage 8 - LLM Narration
 
-Goal: adjust wording, tone, level, compression, and example phrasing over
-Explanation IR and deterministic renderer baseline.
+Goal: smoke-test LLM narration behavior over Explanation IR and deterministic
+renderer baseline.
 
-LLM narration may not add a new move, tactic, plan, causal explanation,
-evaluation, line, or claim strength. LLM before Explanation IR is forbidden.
-Stage 8 must not read raw Verdict, Story, EngineCheck, CaptureResult, Board
-Facts, BoardMood, raw PV, proofFailures text, or source rows directly.
+Stage 8 opens only 8A Mock narrator and 8B Codex CLI prompt smoke test. 8A may
+receive ExplanationPlan and RenderedLine only. 8B may receive renderedText,
+claimKey, strength, forbidden wording list, and the instruction `Rephrase only.
+Do not add chess facts.` only. LLM narration may not add a new move, tactic,
+plan, causal explanation, evaluation, line, engine mention, or claim strength.
+LLM before Explanation IR is forbidden. Stage 8 must not read raw Verdict,
+Story, EngineCheck, CaptureResult, Board Facts, BoardMood, raw PV,
+proofFailures text, or source rows directly. Production API validation, public
+route `200`, pedagogy, and natural-language verifier remain closed.
 
 ### Stage 9 - Natural-Language Verifier
 

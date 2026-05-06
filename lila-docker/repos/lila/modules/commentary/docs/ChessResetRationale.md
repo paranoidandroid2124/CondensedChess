@@ -132,10 +132,13 @@ Stage 7-6 opens only renderer baseline tests. Renderer output is no stronger
 than ExplanationPlan; there is no new renderer wording, no new input, no
 public route `200`, and no LLM narration.
 Stage 7 closeout confirms deterministic renderer is closed as a template
-baseline. Stage 8 LLM Narration may receive deterministic text and
-ExplanationPlan only. Stage 8 must not read raw Verdict, Story, EngineCheck,
-CaptureResult, Board Facts, BoardMood, raw PV, proofFailures text, or source
-rows directly.
+baseline. Stage 8 opens only 8A Mock narrator and 8B Codex CLI prompt smoke
+test. Stage 8B Codex CLI prompt smoke may receive renderedText, claimKey,
+strength, forbidden wording list, and the instruction `Rephrase only. Do not
+add chess facts.` only. 8A Mock narrator may receive ExplanationPlan and
+RenderedLine only. Production API validation remains closed. Stage 8 must not
+read raw Verdict, Story, EngineCheck, CaptureResult, Board Facts, BoardMood,
+raw PV, proofFailures text, or source rows directly.
 
 The registered render routes, `/api/commentary/render` and
 `/internal/commentary/render-local-probe`, are fail-closed tombstones only. No
@@ -223,6 +226,9 @@ Stage 7 closeout may audit only that deterministic renderer is the opened Stage
 7 surface and is closed as a template baseline. It does not open LLM narration,
 public route `200`, pedagogy, new Story families, new renderer inputs, or a new
 markdown authority file.
+Stage 8 Prompt Smoke may open only 8A Mock narrator and 8B Codex CLI prompt
+smoke test. It does not open production API validation, public route `200`,
+pedagogy, natural-language verifier, raw proof input, or new chess meaning.
 
 Missing side, target, anchor, route, rival, required legal line, or same-root
 proof sidecar is a hard public-output block, not weak scoring or renderer

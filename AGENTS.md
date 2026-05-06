@@ -69,12 +69,12 @@ Core proof boundary:
 
 Implementation must open in this order only:
 
-`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer
+`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer -> LLM narration smoke
 
 Do not implement downstream product stages before earlier authority stages are
 proven.
 
-Current implementation scope is Stage 7 Closeout Pass.
+Current implementation scope is Stage 8 Prompt Smoke.
 Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
 Story are prerequisites. Stage 3 remains open only for Material proof kernel,
 `Tactic.Hanging`, and Hanging negative corpus. Stage 4 opens only
@@ -139,12 +139,16 @@ RenderedLine shape. `RenderedLine` owns no chess meaning, proof, or engine
 data; RenderedLine is only the expression result of ExplanationPlan. Stage
 7-6 opens only renderer baseline tests. Renderer output is no stronger than
 ExplanationPlan; there is no new renderer wording, no new input, no public
-route `200`, and no LLM narration. Stages 8-11 remain a dependency map, not
-permission to open those systems. Stage 7 closeout confirms deterministic
-renderer is closed as a template baseline. Stage 8 LLM Narration may receive
-deterministic text and ExplanationPlan only. Stage 8 must not read raw Verdict,
-Story, EngineCheck, CaptureResult, Board Facts, BoardMood, raw PV,
-proofFailures text, or source rows directly.
+route `200`, and no LLM narration. Stage 7 closeout confirms deterministic
+renderer is closed as a template baseline. Stage 8 opens only 8A Mock narrator
+and 8B Codex CLI prompt smoke test. Stage 8B Codex CLI prompt smoke may
+receive renderedText, claimKey, strength, forbidden wording list, and the
+instruction `Rephrase only. Do not add chess facts.` only. 8A Mock narrator may
+receive ExplanationPlan and RenderedLine only. Production API validation
+remains closed. Stage 8 must not read raw Verdict, Story, EngineCheck,
+CaptureResult, Board Facts, BoardMood, raw PV, proofFailures text, or source
+rows directly. Stages 9-11 remain a dependency map, not permission to open
+those systems.
 
 `StoryInteractionLaw.md` is the single live authority for the Stage 3 charter.
 All other documents may summarize scope, but must not create a second Stage 3
@@ -310,6 +314,12 @@ and ExplanationPlan only, and Stage 8 must not read raw Verdict, Story,
 EngineCheck, CaptureResult, Board Facts, BoardMood, raw PV, proofFailures text,
 or source rows directly.
 
+`StoryInteractionLaw.md` is the single live authority for the Stage 8 prompt
+smoke. Other documents may summarize only that Stage 8 opens 8A Mock narrator
+and 8B Codex CLI prompt smoke test, production API validation remains closed,
+and LLM narration behavior smoke must not add a move, line, tactic, plan,
+engine mention, stronger claim, or chess meaning absent from ExplanationPlan.
+
 Forbidden dependency shortcuts:
 
 - Renderer before Story proof sidecar is forbidden.
@@ -376,6 +386,13 @@ Forbidden dependency shortcuts:
   pedagogy, new Story families, new renderer inputs, or new markdown authority.
   Stage 8 LLM Narration may receive deterministic text and ExplanationPlan
   only.
+- Stage 8 Prompt Smoke scope only: open only 8A Mock narrator and 8B Codex CLI
+  prompt smoke test. 8A may receive ExplanationPlan and RenderedLine only. 8B
+  may receive renderedText, claimKey, strength, forbidden wording list, and
+  `Rephrase only. Do not add chess facts.` only. Do not open production API
+  integration, real API micro-test, streaming, public route `200`, user-facing
+  LLM output, raw proof input, pedagogy, new Story family, engine explanation,
+  or natural-language verifier.
 - Story Order no-go: StoryTable may order existing `Tactic.Hanging` Story rows
   into roles, but it must not create a Story, open a new positive
   family, or promote engine eval, Board Facts, or `CaptureResult` into direct

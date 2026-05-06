@@ -4022,6 +4022,156 @@ class ChessFoundationTest extends munit.FunSuite:
     assert(!parameterNames.contains("Verdict"))
     assert(!parameterNames.contains("EngineCheck"))
 
+  test("Stage 8A mock narrator echoes safe RenderedLine text only"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val mockText = LlmNarrationSmoke.mockNarrate(plan, rendered).get
+    val checked = LlmNarrationSmoke.check(plan, rendered, mockText)
+    val supportPlan = plan.copy(role = Role.Support, allowedClaim = None)
+    val contextPlan = plan.copy(role = Role.Context, allowedClaim = None)
+    val blockedPlan = plan.copy(role = Role.Blocked, allowedClaim = None, debugOnly = true)
+
+    assertEquals(mockText, rendered.text)
+    assertEquals(checked.accepted, true)
+    assertEquals(checked.violations, Vector.empty)
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, Option.empty[RenderedLine]), None)
+    assertEquals(LlmNarrationSmoke.mockNarrate(supportPlan, Some(rendered)), None)
+    assertEquals(LlmNarrationSmoke.mockNarrate(contextPlan, Some(rendered)), None)
+    assertEquals(LlmNarrationSmoke.mockNarrate(blockedPlan, Some(rendered)), None)
+
+  test("Stage 8B Codex CLI prompt smoke uses only rendered text contract"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val prompt = LlmNarrationSmoke.codexCliPrompt(plan, rendered).get
+
+    Vector(
+      "renderedText: d4xe5 wins material against the piece on e5.",
+      "claimKey: can_win_piece",
+      "strength: bounded",
+      "forbiddenWording:",
+      "instruction: Rephrase only. Do not add chess facts."
+    ).foreach: required =>
+      assert(prompt.contains(required), s"prompt must include allowed input: $required")
+    Vector(
+      "ExplanationPlan",
+      "FEN",
+      "PGN",
+      "Verdict",
+      "Story",
+      "BoardFacts",
+      "BoardMood",
+      "CaptureResult",
+      "EngineCheck",
+      "EngineEval",
+      "EngineLine",
+      "raw PV",
+      "proofFailures",
+      "source row",
+      "role:",
+      "scene:",
+      "tactic:",
+      "side:",
+      "target:",
+      "route:",
+      "evidence line:"
+    ).foreach: forbidden =>
+      assert(!prompt.contains(forbidden), s"prompt must not include forbidden raw input label: $forbidden")
+
+  test("Stage 8 smoke checker rejects forbidden wording stronger claims and invented lines"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val capture = Line(Square('d', 4), Square('e', 5))
+    val story = TacticHanging.write(facts, capture).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val engineBestWinning =
+      LlmNarrationSmoke.check(plan, rendered, "The engine says d4xe5 is the best move and a winning position.")
+    val inventedLine =
+      LlmNarrationSmoke.check(plan, rendered, "After d4xe5 e8e7, White wins material.")
+    val inventedTactic =
+      LlmNarrationSmoke.check(plan, rendered, "d4xe5 starts a fork and a strategic plan.")
+    val inventedCauseAndEval =
+      LlmNarrationSmoke.check(plan, rendered, "d4xe5 works because White is better afterward.")
+    val freePiece =
+      LlmNarrationSmoke.check(plan, rendered, "White wins a free piece on e5.")
+
+    assertEquals(engineBestWinning.accepted, false)
+    assertEquals(engineBestWinning.violations.contains("forbidden_wording"), true)
+    assertEquals(engineBestWinning.violations.contains("stronger_claim"), true)
+    assertEquals(inventedLine.accepted, false)
+    assertEquals(inventedLine.violations.contains("new_move_or_line"), true)
+    assertEquals(inventedTactic.accepted, false)
+    assertEquals(inventedTactic.violations.contains("new_tactic_or_plan"), true)
+    assertEquals(inventedCauseAndEval.accepted, false)
+    assertEquals(inventedCauseAndEval.violations.contains("new_cause_or_evaluation"), true)
+    assertEquals(freePiece.accepted, false)
+    assertEquals(freePiece.violations.contains("forbidden_wording"), true)
+    assertEquals(freePiece.violations.contains("stronger_claim"), true)
+
+  test("Stage 8 narration smoke exposes no raw proof or production API input"):
+    val methodNames = LlmNarrationSmoke.getClass.getDeclaredMethods.map(_.getName).toSet
+    val parameterNames =
+      LlmNarrationSmoke.getClass.getDeclaredMethods.toVector
+        .flatMap(_.getParameterTypes.toVector)
+        .map(_.getSimpleName)
+    val resultSurfaceNames =
+      classOf[NarrationSmokeCheck].getDeclaredFields.map(_.getName).toSet ++
+        classOf[NarrationSmokeCheck].getDeclaredMethods.map(_.getName).toSet
+
+    assertEquals(parameterNames.contains("ExplanationPlan"), true)
+    assertEquals(parameterNames.contains("RenderedLine"), true)
+    Vector(
+      "fromVerdict",
+      "fromStory",
+      "fromBoardFacts",
+      "fromBoardMood",
+      "fromCaptureResult",
+      "fromEngineCheck",
+      "fromEngineEval",
+      "fromEngineLine",
+      "callApi",
+      "productionApi"
+    ).foreach: forbiddenMethod =>
+      assert(!methodNames.contains(forbiddenMethod), s"Stage 8 smoke must not expose $forbiddenMethod")
+    Vector(
+      "Verdict",
+      "Story",
+      "BoardFacts",
+      "BoardMood",
+      "CaptureResult",
+      "EngineCheck",
+      "EngineEval",
+      "EngineLine"
+    ).foreach: forbiddenType =>
+      assert(!parameterNames.contains(forbiddenType), s"Stage 8 smoke must not accept $forbiddenType")
+    Vector(
+      "verdict",
+      "story",
+      "boardFacts",
+      "boardMood",
+      "captureResult",
+      "engineCheck",
+      "engineEval",
+      "engineLine",
+      "rawPv",
+      "proofFailures",
+      "sourceRow",
+      "model",
+      "temperature",
+      "responseFormat",
+      "retry",
+      "timeout"
+    ).foreach: forbiddenName =>
+      assert(!resultSurfaceNames.exists(_.toLowerCase.contains(forbiddenName.toLowerCase)))
+
   test("Stage 2 ordering does not use proofFailures as public sort input"):
     val proofScore = proof(
       boardProof = 99,

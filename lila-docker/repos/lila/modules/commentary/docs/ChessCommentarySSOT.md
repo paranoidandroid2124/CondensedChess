@@ -85,13 +85,13 @@ the row blocked/context-only.
 
 Implementation must open in this order only:
 
-`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer
+`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer -> LLM narration smoke
 
 The current branch owns the early kernel: board truth, primitive geometry,
 Story boundary, and Verdict boundary. Downstream product stages stay closed
 until earlier authority stages are proven.
 
-Current implementation scope is Stage 7 Closeout Pass.
+Current implementation scope is Stage 8 Prompt Smoke.
 Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
 Story are prerequisites. Stage 3 remains open only for Material proof kernel,
 `Tactic.Hanging`, and Hanging negative corpus. Stage 4 opens only
@@ -154,12 +154,16 @@ RenderedLine shape. `RenderedLine` owns no chess meaning, proof, or engine
 data; RenderedLine is only the expression result of ExplanationPlan. Stage
 7-6 opens only renderer baseline tests. Renderer output is no stronger than
 ExplanationPlan; there is no new renderer wording, no new input, no public
-route `200`, and no LLM narration. Stages 8-11 remain a dependency map, not
-permission to open those systems. Stage 7 closeout confirms deterministic
-renderer is closed as a template baseline. Stage 8 LLM Narration may receive
-deterministic text and ExplanationPlan only. Stage 8 must not read raw Verdict,
-Story, EngineCheck, CaptureResult, Board Facts, BoardMood, raw PV,
-proofFailures text, or source rows directly.
+route `200`, and no LLM narration. Stage 7 closeout confirms deterministic
+renderer is closed as a template baseline. Stage 8 opens only 8A Mock narrator
+and 8B Codex CLI prompt smoke test. Stage 8B Codex CLI prompt smoke may
+receive renderedText, claimKey, strength, forbidden wording list, and the
+instruction `Rephrase only. Do not add chess facts.` only. 8A Mock narrator may
+receive ExplanationPlan and RenderedLine only. Production API validation
+remains closed. Stage 8 must not read raw Verdict, Story, EngineCheck,
+CaptureResult, Board Facts, BoardMood, raw PV, proofFailures text, or source
+rows directly. Stages 9-11 remain a dependency map, not permission to open
+those systems.
 
 `StoryInteractionLaw.md` is the single live authority for the Stage 3 charter.
 This SSOT states the stage scope only: Stage 3 opens backend Material proof
@@ -290,9 +294,16 @@ ExplanationPlan only, and Stage 8 must not read raw Verdict, Story,
 EngineCheck, CaptureResult, Board Facts, BoardMood, raw PV, proofFailures text,
 or source rows directly.
 
+`StoryInteractionLaw.md` is the single live authority for the Stage 8 prompt
+smoke. This SSOT summarizes only that Stage 8 opens 8A Mock narrator and 8B
+Codex CLI prompt smoke test, production API validation remains closed, and LLM
+narration behavior smoke must not add a move, line, tactic, plan, engine
+mention, stronger claim, or chess meaning absent from ExplanationPlan.
+
 ## Current No-Go State
 
-The current checkpoint is closed at the public route and LLM boundary.
+The current checkpoint is closed at the public route and production LLM API
+boundary.
 Stage 1 `Board Facts` organizes small current-board observations under
 `BoardFacts.md`, Stage 2 `Story Proof` binds the minimum public-output evidence
 tuple, Stage 3 opens only the named `Tactic.Hanging` writer over positive
@@ -309,10 +320,12 @@ Stage 7-2 opens only the minimal `Tactic.Hanging` template, Stage 7-3 opens
 only forbidden wording enforcement, and Stage 7-4 opens only the
 no-standalone-text boundary. Stage 7-5 opens only the RenderedLine shape.
 Stage 7-6 opens only renderer baseline tests. Stage 7 closeout confirms the
-deterministic renderer is closed as a template baseline. There is no other positive Story opening, no public surface opening, no
-`BoardMood` Sxxx expansion or re-entry, no engine PV commentary, no best-move
-explanation, no LLM narration, and no renderer authority beyond
-`ExplanationPlan` only deterministic phrasing.
+deterministic renderer is closed as a template baseline. Stage 8 opens only 8A
+Mock narrator and 8B Codex CLI prompt smoke test. There is no other positive
+Story opening, no public surface opening, no `BoardMood` Sxxx expansion or
+re-entry, no engine PV commentary, no best-move explanation, no production API
+validation, and no renderer authority beyond `ExplanationPlan` only
+deterministic phrasing.
 
 `/api/commentary/render` and `/internal/commentary/render-local-probe` are
 registered only as fail-closed tombstones. No `200`, rendered payload,

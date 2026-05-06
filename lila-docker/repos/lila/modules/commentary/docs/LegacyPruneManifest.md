@@ -182,3 +182,9 @@ pedagogy, new Story family, direct Verdict input, direct Story input, direct
 EngineCheck input, direct CaptureResult input, and direct Board Facts input do
 not return. Stage 8 LLM Narration may receive deterministic text and
 ExplanationPlan only.
+Stage 8 prompt smoke authority lives in `StoryInteractionLaw.md`. Stage 8 opens
+only 8A Mock narrator and 8B Codex CLI prompt smoke test. Legacy LLM renderer
+paths, production API validation, raw proof inputs, engine mentions, best-move
+wording, forced wording, winning wording, decisive wording, blunder wording,
+free-piece wording, new moves, new lines, new tactics, and new plans do not
+return.

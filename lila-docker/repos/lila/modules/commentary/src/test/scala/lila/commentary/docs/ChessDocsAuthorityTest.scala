@@ -570,11 +570,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(bridgeSource.contains("const PublicRenderRoutesTombstoned = true"))
     assert(bridgeSource.contains("if (PublicRenderRoutesTombstoned) return { kind: 'empty', reason: 'no_commentary' }"))
     assert(readme.contains("Stage order no-go"))
-    assert(readme.contains("Current implementation scope is Stage 7 Closeout Pass"))
+    assert(readme.contains("Current implementation scope is Stage 8 Prompt Smoke"))
     assert(readme.contains("Stage 4 is named `Engine Check`."))
-    assert(readme.replaceAll("\\s+", " ").contains("Stages 8-11 remain a dependency map"))
+    assert(readme.replaceAll("\\s+", " ").contains("Stages 9-11 remain a dependency map"))
     assert(readme.contains("LLM no-go"))
-    assert(readme.contains("LLM narration remains"))
+    assert(readme.contains("LLM narration behavior smoke may rephrase"))
     assert(readme.contains("closed and must not judge chess"))
     assert(ssot.contains("proof-first Story kernel"))
     assert(ssot.contains("Engine is the truth oracle."))
@@ -599,7 +599,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(ssot.contains("same-root proof"))
     assert(
       ssot.contains(
-        "`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer"
+        "`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer -> LLM narration smoke"
       )
     )
     assert(ssot.contains("feature to public claim"))
@@ -631,16 +631,16 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
         "`Board Truth / Primitive Geometry / Story boundary / Verdict boundary / Explanation Plan boundary / Deterministic Renderer boundary`"
       )
     )
-    assert(architecture.contains("Current implementation scope is Stage 7 Closeout Pass"))
+    assert(architecture.contains("Current implementation scope is Stage 8 Prompt Smoke"))
     assert(architecture.contains("Stage 4 is named `Engine Check`."))
-    assert(architecture.replaceAll("\\s+", " ").contains("Stages 8-11 below"))
+    assert(architecture.replaceAll("\\s+", " ").contains("Stages 9-11 below"))
     assert(architecture.replaceAll("\\s+", " ").contains("dependency map for product design"))
     assert(
       architecture.replaceAll("\\s+", " ").contains(
-        "Only Stage 7 Closeout Pass is active implementation authority"
+        "Only Stage 8 Prompt Smoke is active implementation authority"
       )
     )
-    assert(architecture.contains("Stages 8-11"))
+    assert(architecture.contains("Stages 9-11"))
     assert(architecture.contains("dependency-map-only"))
     assert(
       architecture.contains(
@@ -1632,6 +1632,120 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
         normalizedInteractionLaw.contains(criterion),
         s"Stage 7 completion criteria must include: $criterion"
       )
+    assert(interactionLaw.contains("## Stage 8 LLM Narration Prompt Smoke"))
+    assert(interactionLaw.contains("Stage 8 name is `LLM Narration`."))
+    assert(interactionLaw.contains("Core sentence: LLM rephrases. It does not add chess meaning."))
+    Vector(
+      "Stage 8 opens narration behavior smoke only.",
+      "It is not production API validation.",
+      "The prompt smoke input should match the production Stage 8 prompt shape as closely as this checkpoint permits.",
+      "Stage 8 completion standard: Codex CLI prompt smoke can check narration behavior without opening production API, public route `200`, or new chess meaning."
+    ).foreach: stage8Line =>
+      assert(
+        normalizedInteractionLaw.contains(stage8Line),
+        s"Stage 8 must pin smoke boundary: $stage8Line"
+      )
+    Vector(
+      "- 8A Mock narrator",
+      "- 8B Codex CLI prompt smoke test",
+      "- 8C Production API micro-test remains closed",
+      "- 8D Nightly eval remains closed"
+    ).foreach: lane =>
+      assert(interactionLaw.contains(lane), s"Stage 8 must pin lane: $lane")
+    Vector(
+      "8A Mock narrator allowed input:",
+      "- ExplanationPlan",
+      "- RenderedLine",
+      "8B Codex CLI prompt smoke allowed input:",
+      "- renderedText",
+      "- claimKey",
+      "- strength",
+      "- forbidden wording list",
+      "- instruction: \"Rephrase only. Do not add chess facts.\""
+    ).foreach: allowed =>
+      assert(interactionLaw.contains(allowed), s"Stage 8 must allow input: $allowed")
+    Vector(
+      "- FEN",
+      "- PGN",
+      "- engine line",
+      "- eval",
+      "- CaptureResult",
+      "- EngineCheck",
+      "- BoardFacts",
+      "- raw Verdict",
+      "- Story",
+      "- BoardMood",
+      "- engine eval",
+      "- raw PV",
+      "- proofFailures",
+      "- source row"
+    ).foreach: forbidden =>
+      assert(interactionLaw.contains(forbidden), s"Stage 8 must forbid input: $forbidden")
+    Vector(
+      "- new move",
+      "- new line",
+      "- new tactic",
+      "- new plan",
+      "- new cause or causal explanation",
+      "- new evaluation",
+      "- engine mention",
+      "- `engine says`",
+      "- best move",
+      "- forced",
+      "- winning",
+      "- decisive",
+      "- blunder",
+      "- free piece",
+      "- claim stronger than deterministic text",
+      "- chess meaning absent from ExplanationPlan"
+    ).foreach: forbidden =>
+      assert(interactionLaw.contains(forbidden), s"Stage 8 must forbid output: $forbidden")
+    Vector(
+      "- same system prompt",
+      "- same model / temperature / response format",
+      "- stable schema",
+      "- forbidden wording checker applied to API output",
+      "- cost and latency acceptable",
+      "- failure / retry / timeout fail closed"
+    ).foreach: apiCheck =>
+      assert(interactionLaw.contains(apiCheck), s"Stage 8 production API closed check must be pinned: $apiCheck")
+    Vector(
+      "Stage 8 Prompt Smoke",
+      "Stage 8 opens only 8A Mock narrator and 8B Codex CLI prompt smoke test",
+      "Production API validation remains closed",
+      "Stage 8B Codex CLI prompt smoke",
+      "forbidden wording checker",
+      "Rephrase only. Do not add chess facts."
+    ).foreach: scopeSummary =>
+      assert(
+        agents.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          ssot.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          readme.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          architecture.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          modelContract.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          rationale.replaceAll("\\s+", " ").contains(scopeSummary) ||
+          manifest.replaceAll("\\s+", " ").contains(scopeSummary),
+        s"Stage 8 scope summary must appear in summary docs: $scopeSummary"
+      )
+    Vector(
+      "- scope stayed limited to mock narrator plus Codex CLI smoke test.",
+      "- production API integration stayed closed.",
+      "- raw proof material did not enter narration.",
+      "- forbidden wording is rejected.",
+      "- new move is rejected.",
+      "- new tactic or plan is rejected.",
+      "- new cause or evaluation is rejected.",
+      "- engine mention is rejected.",
+      "- strengthened claim is rejected.",
+      "- Stage 8C production API micro-test remains closed"
+    ).foreach: closeout =>
+      assert(interactionLaw.contains(closeout), s"Stage 8 closeout must include: $closeout")
+    Vector(
+      "- Deterministic text is the ceiling.",
+      "- LLM only polishes below it.",
+      "- No raw proof material enters narration."
+    ).foreach: closeoutStandard =>
+      assert(interactionLaw.contains(closeoutStandard), s"Stage 8 closeout standard must include: $closeoutStandard")
     assert(modelContract.contains("positive `CaptureResult`"))
     assert(modelContract.contains("EngineCheck is internal evidence only."))
     assert(modelContract.contains("It records same-board proof, checked move, engine line, reply line, eval before, eval after, depth or freshness, and missing evidence."))
@@ -1910,7 +2024,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(agents.contains("Ask whether a feature can become a `Story` with side, target, anchor, route,"))
     assert(
       agents.contains(
-        "`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer"
+        "`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer -> LLM narration smoke"
       )
     )
 

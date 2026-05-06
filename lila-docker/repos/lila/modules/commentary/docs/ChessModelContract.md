@@ -99,10 +99,16 @@ stronger than ExplanationPlan.
 Stage 7 closeout is also owned by `StoryInteractionLaw.md`; this contract
 records only that deterministic renderer is closed as a template baseline and
 Stage 8 LLM Narration may receive deterministic text and ExplanationPlan only.
+Stage 8 prompt smoke is also owned by `StoryInteractionLaw.md`; this contract
+records only the 8A Mock narrator and 8B Codex CLI prompt smoke shape. 8A may
+receive ExplanationPlan and RenderedLine only. 8B may receive renderedText,
+claimKey, strength, forbidden wording list, and the instruction `Rephrase only.
+Do not add chess facts.` only. Production API validation remains closed.
 
-LLM narration, public route `200`, `/api/commentary/render`, and
-`/internal/commentary/render-local-probe` remain closed. Deterministic renderer
-authority is limited to Stage 7 closeout.
+Public route `200`, `/api/commentary/render`,
+`/internal/commentary/render-local-probe`, production API validation,
+pedagogy, natural-language verifier, raw proof input, and new chess meaning
+remain closed. LLM narration authority is limited to Stage 8 prompt smoke.
 
 proofFailures are internal diagnostics only.
 proofFailures are not public payload.
@@ -173,6 +179,9 @@ Allowed core names:
 - `ExplanationStrength`
 - `ExplanationRelation`
 - `ForbiddenWording`
+- `RenderedLine`
+- `LlmNarrationSmoke`
+- `NarrationSmokeCheck`
 
 Forbidden in new core model names:
 
@@ -866,10 +875,13 @@ Lead fail-closed rules:
   than ExplanationPlan, and there is no new renderer wording, no new input, no
   public route `200`, and no LLM narration.
 - Stage 7 closeout confirms deterministic renderer is closed as a template
-  baseline. Stage 8 LLM Narration may receive deterministic text and
-  ExplanationPlan only. Stage 8 must not read raw Verdict, Story, EngineCheck,
-  CaptureResult, Board Facts, BoardMood, raw PV, proofFailures text, or source
-  rows directly.
+  baseline. Stage 8 opens only 8A Mock narrator and 8B Codex CLI prompt smoke
+  test. Stage 8B Codex CLI prompt smoke may receive renderedText, claimKey,
+  strength, forbidden wording list, and the instruction `Rephrase only. Do not
+  add chess facts.` only. 8A Mock narrator may receive ExplanationPlan and
+  RenderedLine only. Production API validation remains closed. Stage 8 must
+  not read raw Verdict, Story, EngineCheck, CaptureResult, Board Facts,
+  BoardMood, raw PV, proofFailures text, or source rows directly.
 - `ownerProof >= 70` requires `side` to be `White`, `Black`, or `Both`; `None`
   cannot lead.
 - `anchorProof >= 70` requires a concrete `anchor`.

@@ -1050,6 +1050,139 @@ One chess meaning, one home.
 One rule, one live authority.
 Explanation Plan bounds speech. Renderer only phrases it.
 
+## Stage 8 LLM Narration Prompt Smoke
+
+Stage 8 name is `LLM Narration`.
+
+Core sentence: LLM rephrases. It does not add chess meaning.
+
+Stage 8 opens narration behavior smoke only.
+
+It is not production API validation.
+
+The prompt smoke input should match the production Stage 8 prompt shape as
+closely as this checkpoint permits.
+
+Open lanes:
+
+- 8A Mock narrator
+- 8B Codex CLI prompt smoke test
+- 8C Production API micro-test remains closed
+- 8D Nightly eval remains closed
+
+8A Mock narrator allowed input:
+
+- ExplanationPlan
+- RenderedLine
+
+8B Codex CLI prompt smoke allowed input:
+
+- renderedText
+- claimKey
+- strength
+- forbidden wording list
+- instruction: "Rephrase only. Do not add chess facts."
+
+Forbidden input:
+
+- FEN
+- PGN
+- engine line
+- eval
+- CaptureResult
+- EngineCheck
+- BoardFacts
+- raw Verdict
+- Story
+- BoardMood
+- engine eval
+- raw PV
+- proofFailures
+- source row
+
+Forbidden output:
+
+- new move
+- new line
+- new tactic
+- new plan
+- new cause or causal explanation
+- new evaluation
+- engine mention
+- `engine says`
+- best move
+- forced
+- winning
+- decisive
+- blunder
+- free piece
+- claim stronger than deterministic text
+- chess meaning absent from ExplanationPlan
+
+The mock narrator may echo deterministic text or perform a rules-based
+rephrase. It receives only `ExplanationPlan` and `RenderedLine`. It must return
+no narration when `RenderedLine` is absent, when the plan is Support, Context,
+or Blocked, when forbidden wording appears, or when output would be stronger
+than deterministic text.
+
+The Codex CLI prompt smoke test is an LLM behavior check. Passing it means the
+prompt contract is broadly safe enough for this checkpoint. It does not replace
+production API validation.
+
+Production API validation remains closed until a separate checkpoint proves:
+
+- same system prompt
+- same model / temperature / response format
+- stable schema
+- forbidden wording checker applied to API output
+- cost and latency acceptable
+- failure / retry / timeout fail closed
+
+Stage 8B Codex CLI prompt smoke must check whether output:
+
+1. rephrases only from renderedText, claimKey, strength, forbidden wording
+   list, and the rephrase-only instruction.
+2. respects the forbidden wording list.
+3. stays no stronger than deterministic text.
+4. adds no move, line, tactic, plan, engine mention, or chess meaning absent
+   from ExplanationPlan.
+
+8A/8B closeout checks:
+
+- scope stayed limited to mock narrator plus Codex CLI smoke test.
+- production API integration stayed closed.
+- Stage 8C production API micro-test remains closed.
+- streaming stayed closed.
+- public route `200` stayed closed.
+- user-facing LLM output stayed closed.
+- raw proof material did not enter narration.
+- forbidden wording is rejected.
+- new move is rejected.
+- new line is rejected.
+- new tactic or plan is rejected.
+- new cause or evaluation is rejected.
+- engine mention is rejected.
+- strengthened claim is rejected.
+- no new Story family opened.
+- no pedagogy opened.
+- no meaning-duplicating type or markdown authority opened.
+
+Closeout standard:
+
+- Deterministic text is the ceiling.
+- LLM only polishes below it.
+- No raw proof material enters narration.
+
+Stage 8 opens no public route `200`, no renderer input, no raw proof input, no
+production API path, no pedagogy, no new Story family, no engine explanation,
+and no natural-language verifier.
+
+Stage 8 completion standard: Codex CLI prompt smoke can check narration behavior without opening production API, public route `200`, or new chess meaning.
+
+One chess meaning, one home.
+One rule, one live authority.
+LLM rephrases. It does not add chess meaning.
+
 ## Scene Law
 
 | scene | class | required support | blockers and caps | public wording |
