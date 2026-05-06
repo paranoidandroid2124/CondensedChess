@@ -74,7 +74,7 @@ or increase claim strength.
 
 This reset freezes the no-go state while the prerequisite laws and tests are
 missing: no public surface opening, no `BoardMood` Sxxx expansion or re-entry,
-no `Story` proof writers, and no renderer opening.
+no positive `Story` proof writers, and no renderer opening.
 
 The registered render routes, `/api/commentary/render` and
 `/internal/commentary/render-local-probe`, are fail-closed tombstones only. No

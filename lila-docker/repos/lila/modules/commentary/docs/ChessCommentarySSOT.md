@@ -91,16 +91,16 @@ The current branch owns the early kernel: board truth, primitive geometry,
 Story boundary, and Verdict boundary. Downstream product stages stay closed
 until earlier authority stages are proven.
 
-Current implementation scope is Stage 1 Board Facts only. Stages 2-11 are a
-dependency map, not permission to open those systems.
+Current implementation scope is Stage 2 Story Proof only. Stage 1 Board Facts
+is the prerequisite observation layer; Stages 3-11 are a dependency map, not
+permission to open those systems.
 
 ## Current No-Go State
 
 The current checkpoint is closed at the public boundary. Stage 1 `Board Facts`
-may organize small current-board observations under `BoardFacts.md`, but there
-is no public surface opening, no broad `BoardMood` Sxxx expansion or re-entry,
-no `Story` proof writer opening, and no renderer opening until prerequisite
-laws and tests exist.
+organizes small current-board observations under `BoardFacts.md`, and Stage 2
+`Story Proof` binds the minimum public-output evidence tuple. There is no
+positive Story opening, no public surface opening, no `BoardMood` Sxxx expansion or re-entry, and no renderer opening until prerequisite laws and tests exist.
 
 `/api/commentary/render` and `/internal/commentary/render-local-probe` are
 registered only as fail-closed tombstones. No `200`, rendered payload,
@@ -122,8 +122,9 @@ Known blockers are authority blockers, not implementation permission:
 - Missing side, target, anchor, route, rival, required legal line, or same-root
   proof sidecar is a hard public-output block, not weak scoring or renderer
   repair.
-- Runtime proof-sidecar writers for that full tuple do not exist, so public
-  output remains closed until the tuple is enforced.
+- Runtime `StoryProof` records that full tuple and its missing evidence before
+  lead candidacy, but public output remains closed until a later positive Story
+  family is explicitly opened.
 - `Scene.Opening` is context-only and must not lead over a board-backed
   `Story`.
 - Old failing tests proved lower/scaffold/renderer non-upgrade, not default

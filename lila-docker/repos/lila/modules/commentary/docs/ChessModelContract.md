@@ -60,6 +60,7 @@ Allowed core names:
 - `Wound`
 - `Opening`
 - `Story`
+- `StoryProof`
 - `Verdict`
 - `StoryTable`
 
@@ -652,9 +653,11 @@ Each story carries these proof scores as `0..100` integers:
 Lead fail-closed rules:
 
 - No Story may lead at the public surface without concrete side, target, anchor,
-  route, rival, required legal line, and same-root proof sidecar. The current
-  implementation is known not to enforce that full tuple yet, so public surface
-  opening stays closed.
+  route, rival, required legal line, and same-root proof sidecar.
+- `StoryProof` is the Stage 2 sidecar that records the required legal line,
+  same-board proof presence, and missing evidence for the existing `Story`
+  identity fields. It does not duplicate side, target, anchor, route, or rival
+  ownership.
 - `ownerProof >= 70` requires `side` to be `White`, `Black`, or `Both`; `None`
   cannot lead.
 - `anchorProof >= 70` requires a concrete `anchor`.
@@ -669,10 +672,9 @@ numeric `Proof` score is forgeable unless side, target, anchor, route, rival,
 required legal line, and same-root proof sidecars are bound to the same root
 state.
 
-No `Story` proof writer is live in this checkpoint. Numeric `Proof` scores may
-rank blocked/context `Verdict` rows only; they cannot set `leadAllowed=true` or
-produce `Role.Lead` until same-root side, target, anchor, route, rival,
-required legal line, and proof sidecars exist.
+No positive `Story` proof writer is live in this checkpoint. Numeric `Proof`
+scores may rank blocked/context `Verdict` rows only; they cannot set
+`leadAllowed=true` or produce `Role.Lead` even when `StoryProof` is complete.
 
 Missing side, target, anchor, route, rival, required legal line, or same-root
 proof sidecar is a hard public-output block, not weak scoring, deferred work,

@@ -2,6 +2,11 @@
 
 Prepared on 2026-05-05 for the public layer above BoardMood.
 
+Stage 2 name is `Story Proof`.
+
+Core sentence: Board Facts observes. Story Proof binds. Story may speak only
+after proof.
+
 ## Law
 
 `Story` is the first public chess unit, but a Story family name is not enough.

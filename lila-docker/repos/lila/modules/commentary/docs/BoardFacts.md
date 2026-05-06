@@ -4,7 +4,7 @@ This document is live authority for Stage 1.
 
 Stage 1 name is `Board Facts`.
 
-Board state observes. Story proves.
+Board Facts observes. Story Proof binds. Story may speak only after proof.
 
 `Board Facts` is the first open observation layer after the closed kernel. It
 records only small facts visible from the current board. It does not create

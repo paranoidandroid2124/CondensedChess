@@ -74,8 +74,9 @@ Implementation must open in this order only:
 Do not implement downstream product stages before earlier authority stages are
 proven.
 
-Current implementation scope is Stage 1 Board Facts only. Stages 2-11 are a
-dependency map, not permission to open those systems.
+Current implementation scope is Stage 2 Story Proof only. Stage 1 Board Facts
+is the prerequisite observation layer; Stages 3-11 are a dependency map, not
+permission to open those systems.
 
 Forbidden dependency shortcuts:
 
@@ -95,18 +96,19 @@ Forbidden dependency shortcuts:
   `0`/silent; there is no expansion beyond `48` bits, `256` scalars, and
   `3,328` total values unless a live authority document and docs test
   explicitly open a smaller exact chess fact with same-board producer proof.
-- No `Story` proof writers: proof numbers remain non-authoritative until
-  same-root side, target, anchor, route, rival, required legal line, and proof
-  sidecars and their tests exist.
+- No positive `Story` proof writers: proof numbers remain non-authoritative
+  for public speech even after Stage 2 records same-root side, target, anchor,
+  route, rival, required legal line, and proof sidecar failures.
 - Proof no-go: missing side, target, anchor, route, rival, required legal line,
   or same-root proof sidecar is a hard public-output block, not weak scoring or
   renderer repair.
 - No renderer opening: templates and LLM renderers may verbalize selected
   `Verdict` data only after prerequisite laws and tests exist; they cannot
   repair, upgrade, or invent chess meaning.
-- Stage 1 Board Facts only: do not implement renderer opening, LLM narration,
-  public commentary route `200`, broad scalar re-entry, strategic Story
-  openings, source/engine public-truth paths, or CTH-style family exceptions.
+- Stage 2 Story Proof only: do not implement positive Story openings,
+  renderer opening, LLM narration, public commentary route `200`, broad scalar
+  re-entry, strategic Story openings, source/engine public-truth paths, or
+  CTH-style family exceptions.
 - Board Facts no-go: open file, pin, weak square, loose piece, pawn lever,
   attacked piece, king-ring attack, and legal move facts are observations only.
   They are not public claims and must not bypass `Story`.

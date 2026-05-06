@@ -356,7 +356,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(!architecture.contains("Historical selector-shaped scaffolds may remain"))
     assert(!architecture.contains("gate bits"))
     assert(boardFacts.contains("Stage 1 name is `Board Facts`."))
-    assert(boardFacts.contains("Board state observes. Story proves."))
+    assert(boardFacts.contains("Board Facts observes. Story Proof binds. Story may speak only after proof."))
     assert(boardFacts.contains("A named board fact is still only an observation."))
     assert(boardFacts.contains("Open file, pin, weak square, loose piece, and pawn lever"))
     assert(
@@ -491,15 +491,15 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(contents.contains("`48` bits, `256` scalars, and `3,328` total values"))
     assert(contents.contains("Split/cut re-entry requires a named law and same-board producer proof"))
     assert(ssot.contains("`BoardMood` Sxxx expansion or re-entry"))
-    assert(rationale.contains("no `Story` proof writers"))
+    assert(rationale.contains("no positive `Story` proof writers"))
     assert(manifest.contains("default runtime FEN to public"))
     assert(
       modelContract.contains("At this checkpoint no `BoardMood` Sxxx re-entry or proof writer is admitted")
     )
-    assert(modelContract.contains("No `Story` proof writer is live in this checkpoint"))
+    assert(modelContract.contains("No positive `Story` proof writer is live in this checkpoint"))
     assert(contents.contains("Numeric `Proof` scores may rank blocked/context `Verdict` rows only"))
     assert(contents.contains("cannot set `leadAllowed=true` or produce `Role.Lead`"))
-    assert(contents.contains("Runtime proof-sidecar writers for that full tuple do not exist"))
+    assert(contents.contains("Runtime `StoryProof` records that full tuple and its missing evidence"))
     assert(!contents.contains("does not yet require target and rival everywhere"))
     assert(!contents.contains("only conditionally required"))
     assert(
@@ -513,8 +513,8 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(interactionLaw.contains("no truth override or lead over board-backed Story"))
     assert(modelContract.contains("`Source` and `Opening` never lead over a board-backed story"))
     assert(readme.contains("Stage order no-go"))
-    assert(readme.contains("Current implementation scope is Stage 1 Board Facts only"))
-    assert(readme.contains("Stages 2-11 are a dependency map"))
+    assert(readme.contains("Current implementation scope is Stage 2 Story Proof only"))
+    assert(readme.contains("Stages 3-11 are a dependency map"))
     assert(readme.contains("LLM no-go"))
     assert(readme.contains("LLM narration remains"))
     assert(readme.contains("closed and must not judge chess"))
@@ -569,11 +569,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(rationale.contains("Raw engine numbers and engine text"))
     assert(rationale.contains("The LLM is not the intelligence of commentary"))
     assert(architecture.contains("`Board Truth / Primitive Geometry / Story boundary / Verdict boundary`"))
-    assert(architecture.contains("Current implementation scope is Stage 1 Board Facts only"))
-    assert(architecture.contains("Stages 2-11 below are a"))
+    assert(architecture.contains("Current implementation scope is Stage 2 Story Proof only"))
+    assert(architecture.contains("Stages 3-11 below"))
     assert(architecture.contains("dependency map for product design"))
-    assert(architecture.contains("Only Stage 1 Board Facts is active implementation authority now."))
-    assert(architecture.contains("Stages 2-11 are"))
+    assert(architecture.contains("Only Stage 2 Story Proof is active implementation authority now."))
+    assert(architecture.contains("Stages 3-11"))
     assert(architecture.contains("dependency-map-only"))
     assert(
       architecture.contains(
@@ -584,7 +584,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     Vector(
       "Stage 0 - Closed Kernel",
       "Stage 1 - Board Facts",
-      "Stage 2 - Story Proof Sidecar",
+      "Stage 2 - Story Proof",
       "Stage 3 - First Narrow Positive Story",
       "Stage 4 - Engine Validation",
       "Stage 5 - Causal Arbitration",
@@ -661,7 +661,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(agents.contains(fileName), s"AGENTS.md must explicitly retire $fileName")
     assert(agents.contains("Public route no-go"))
     assert(agents.contains("No `BoardMood` Sxxx expansion or re-entry"))
-    assert(agents.contains("No `Story` proof writers"))
+    assert(agents.contains("No positive `Story` proof writers"))
     assert(agents.contains("No renderer opening"))
     assert(agents.contains("Forbidden-name no-go"))
     assert(agents.contains("proof-first chess-story kernel"))
@@ -684,7 +684,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val boardFacts = Files.readString(docsRoot.resolve("BoardFacts.md"))
 
     assert(boardFacts.contains("Stage 1 name is `Board Facts`."))
-    assert(boardFacts.contains("Board state observes. Story proves."))
+    assert(boardFacts.contains("Board Facts observes. Story Proof binds. Story may speak only after proof."))
     assert(
       boardFacts.contains(
         "Small board facts may be recorded only when they are directly visible from the current board"

@@ -190,6 +190,35 @@ enum Side:
   case Both
   case None
 
+final class StoryProof private (legalLine: Option[Line], sameBoardProof: Boolean):
+  def failures(story: Story): Vector[BoardFacts.MissingEvidence] =
+    val missing = Vector(
+      Option.when(!StoryProof.playingSide(story.side))("side"),
+      Option.when(story.target.isEmpty)("target"),
+      Option.when(story.anchor.isEmpty)("anchor"),
+      Option.when(story.route.isEmpty)("route"),
+      Option.when(!StoryProof.rivalSide(story.side, story.rival))("rival"),
+      Option.when(!StoryProof.legalLineBindsRoute(story.route, legalLine))("legal line"),
+      Option.when(!sameBoardProof)("same-board proof")
+    ).flatten
+    if missing.isEmpty then Vector.empty
+    else Vector(BoardFacts.MissingEvidence("Story Proof", missing))
+
+object StoryProof:
+  val empty: StoryProof = StoryProof(legalLine = None, sameBoardProof = false)
+
+  private[commentary] def sameBoard(legalLine: Line): StoryProof =
+    StoryProof(legalLine = Some(legalLine), sameBoardProof = true)
+
+  private def playingSide(side: Side): Boolean =
+    side == Side.White || side == Side.Black
+
+  private def rivalSide(side: Side, rival: Side): Boolean =
+    playingSide(rival) && playingSide(side) && side != rival
+
+  private def legalLineBindsRoute(route: Option[Line], legalLine: Option[Line]): Boolean =
+    route.zip(legalLine).exists((routeLine, legal) => routeLine == legal)
+
 final case class Story(
     scene: Scene,
     plan: Option[Plan] = None,
@@ -199,8 +228,12 @@ final case class Story(
     target: Option[Square] = None,
     anchor: Option[Square] = None,
     route: Option[Line] = None,
-    rival: Side = Side.None
+    rival: Side = Side.None,
+    storyProof: StoryProof = StoryProof.empty
 ):
+  def proofFailures: Vector[BoardFacts.MissingEvidence] =
+    storyProof.failures(this)
+
   def values: Vector[Int] =
     val data = Array.fill(Story.Size)(0)
 
@@ -258,7 +291,14 @@ enum Role:
   case Context
   case Blocked
 
-final case class Verdict(story: Story, rank: Int, leadAllowed: Boolean, strength: Double, role: Role):
+final case class Verdict(
+    story: Story,
+    rank: Int,
+    leadAllowed: Boolean,
+    strength: Double,
+    role: Role,
+    proofFailures: Vector[BoardFacts.MissingEvidence] = Vector.empty
+):
   def values: Vector[Double] =
     val data = Array.fill(Verdict.Size)(0.0)
 
@@ -305,15 +345,15 @@ object Verdict:
 
 object StoryTable:
   val TopK = 8
-  // Public Story leads require non-forgeable same-root proof sidecars from named writers.
-  // No such writer exists in the current no-go checkpoint, so Proof numbers rank only blocked/context rows.
+  // Public Story leads require non-forgeable same-root proof sidecars from named positive Story writers.
+  // Stage 2 records proof deficits only, so Proof numbers rank only blocked/context rows.
   val PublicStoryLeadsClosedUntilNamedProofWriters = true
 
   def choose(stories: Vector[Story]): Vector[Verdict] =
     val rows =
       stories.map: story =>
         val leadCandidate = leadByStoryRules(story, stories)
-        Row(story, story.proof.publicStrength, lead(leadCandidate), leadCandidate)
+        Row(story, story.proof.publicStrength, lead(leadCandidate), leadCandidate, story.proofFailures)
     rows
       .sortBy(row =>
         (
@@ -336,10 +376,17 @@ object StoryTable:
           rank = index + 1,
           leadAllowed = row.leadAllowed,
           strength = row.strength,
-          role = role(row, index)
+          role = role(row, index),
+          proofFailures = row.proofFailures
         )
 
-  private case class Row(story: Story, strength: Double, leadAllowed: Boolean, leadCandidate: Boolean)
+  private case class Row(
+      story: Story,
+      strength: Double,
+      leadAllowed: Boolean,
+      leadCandidate: Boolean,
+      proofFailures: Vector[BoardFacts.MissingEvidence]
+  )
 
   private def leadSortPriority(row: Row) =
     if row.leadAllowed then 0 else if row.leadCandidate then 1 else 2
@@ -348,7 +395,8 @@ object StoryTable:
     leadCandidate && !PublicStoryLeadsClosedUntilNamedProofWriters
 
   private def leadByStoryRules(story: Story, stories: Vector[Story]) =
-    base(story) &&
+    story.proofFailures.isEmpty &&
+      base(story) &&
       identity(story) &&
       fit(story) &&
       quiet(story, stories) &&

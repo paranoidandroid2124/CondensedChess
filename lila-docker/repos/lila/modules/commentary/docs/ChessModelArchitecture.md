@@ -6,8 +6,8 @@ branch.
 ## Current Scope
 
 The current checkpoint covers only board truth, primitive board geometry,
-Stage 1 board facts, and the public Story boundary. It is intentionally not a
-full product commentary backend.
+Stage 1 board facts, Stage 2 Story Proof, and the public Story boundary. It is
+intentionally not a full product commentary backend.
 
 The safe target is to make unproven commentary impossible before opening any
 positive public claim. Broad strategy, plan labels, conversion claims, and
@@ -17,9 +17,9 @@ The current branch owns only:
 
 `Board Truth / Primitive Geometry / Story boundary / Verdict boundary`
 
-Current implementation scope is Stage 1 Board Facts only. Stages 2-11 below are a
-dependency map for product design; they are not permission to implement those
-systems in this checkpoint.
+Current implementation scope is Stage 2 Story Proof only. Stages 3-11 below
+are a dependency map for product design; they are not permission to implement
+those systems in this checkpoint.
 
 Product north-star philosophy:
 
@@ -82,8 +82,8 @@ public-meaning unit, `StoryTable` decides roles and lead eligibility, and
 Stages open in this order only. Do not implement downstream product stages
 before earlier authority stages are proven.
 
-Only Stage 1 Board Facts is active implementation authority now. Stages 2-11 are
-dependency-map-only and stay closed until their predecessor exits are
+Only Stage 2 Story Proof is active implementation authority now. Stages 3-11
+are dependency-map-only and stay closed until their predecessor exits are
 proven.
 
 Dependency order:
@@ -104,7 +104,7 @@ Dependency order:
 |---|---|---|---|---|---|
 | 0 Closed Kernel | Global no-go authority and fail-closed public boundary. | Live docs and tests prove missing Story tuple blocks public output. | Renderer, LLM, public route `200`, broad strategy, broad scalar re-entry, source/engine public truth, high numeric `Proof` lead. | Public chess meaning cannot escape without side, target, anchor, route, rival, required legal line, and same-root proof sidecar. | Missing tuple member or missing no-go authority. |
 | 1 Board Facts | Small current-board observations. | Exact board identity, legal replay diagnostics, known/sane BoardFacts. | Plan speech, tactic verdict, conversion, counterplay, initiative, score/heat/pressure public meaning, engine eval as truth. | `BoardMood` creates no public chess meaning. | Missing board identity, producer proof, or observation identity. |
-| 2 Story Proof Sidecar | Code-enforced proof-bearing Story identity. | Stage 1 observations plus side, target, anchor, route, rival, required legal line, same-root proof. | Numeric proof score as public authority. | No sidecar or incomplete sidecar yields blocked/context only. | Missing sidecar field, stale sidecar, or wrong root. |
+| 2 Story Proof | Code-enforced proof-bearing Story identity. | Stage 1 observations plus side, target, anchor, route, rival, required legal line, same-root proof. | Numeric proof score as public authority. | No Story Proof or incomplete Story Proof yields blocked/context only. | Missing sidecar field, stale sidecar, or wrong root. |
 | 3 First Narrow Positive Story | Exactly one tactical/material Story family. | Complete Stage 2 sidecar and same-root legal replay. | Broad strategic family before tactical/material proof. | One narrow Story passes end to end; missing proof degrades to observation or silence. | Missing capture, target, defender, recapture, material/SEE, engine confirmation, or legal replay. |
 | 4 Engine Validation | Engine evidence attached to identified Story. | A Story candidate already exists with identity and legal line. | Engine eval/PV/best move as explanation, strategy, or pedagogy by itself. | Engine confirms, caps, or refutes the Story without speaking alone. | Missing same-root replay, SEE, line stability, MultiPV, mate/tablebase proof, or eval stability. |
 | 5 Causal Arbitration | Lead/support/context/blocked roles across Stories. | Multiple proof-backed Stories and interaction laws. | Pedagogical advice before causal ordering. | `StoryTable` deterministically decides roles under tactic, blunder, source, counterplay, and quiet rules. | Missing override, cap, blocker, role, or rival-resource proof. |
@@ -150,13 +150,16 @@ Forbidden public meanings are plan speech, tactic verdict, conversion speech,
 counterplay speech, initiative speech, score/heat/pressure speech, and engine
 eval as truth. `BoardMood` facts are observations, not claims.
 
-### Stage 2 - Story Proof Sidecar
+### Stage 2 - Story Proof
 
 Goal: create the first real proof sidecar required for public Story birth.
 
 A Story cannot lead unless it has side, target, anchor, route, rival, required
 legal line, and same-root proof sidecar. A high numeric `Proof` score without
 that sidecar remains blocked/context only.
+
+Core sentence: Board Facts observes. Story Proof binds. Story may speak only
+after proof.
 
 ### Stage 3 - First Narrow Positive Story
 
@@ -310,10 +313,11 @@ legality.
 `Story.values` is exactly `160` values. It one-hot encodes public families and
 stores proof scores in the proof segment.
 
-The next implementation target is proof sidecars, not renderer opening. A
-Story cannot lead until it has concrete side, target, anchor, route, rival,
-required legal line, and same-root proof sidecar. Numeric proof scores alone
-are not authority because they can be forged without the bound sidecar tuple.
+The current implementation target is Story Proof, not positive commentary or
+renderer opening. A Story cannot lead until it has concrete side, target,
+anchor, route, rival, required legal line, and same-root proof sidecar. Numeric
+proof scores alone are not authority because they can be forged without the
+bound sidecar tuple.
 
 ## StoryTable
 

@@ -47,6 +47,12 @@ class ChessFoundationTest extends munit.FunSuite:
   private val safeAnchor = Square('a', 1)
   private val safeRivalRoute = Line(Square('h', 8), Square('h', 7))
 
+  private def storyProof(line: Line = safeRoute): StoryProof =
+    StoryProof.sameBoard(legalLine = line)
+
+  private def rivalOf(side: Side): Side =
+    if side == Side.White then Side.Black else Side.White
+
   private def readyHeader: BoardHeader =
     BoardHeader(known = true, fullmoveNumber = 1)
 
@@ -1816,6 +1822,81 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(values(Story.Slots.Proof + Proof.Slots.ConversionPrize), 84)
     assert(values.exists(_ != 0))
 
+  test("Story Proof lists the full missing evidence tuple before any Story can speak"):
+    val story = Story(
+      Scene.Material,
+      proof = proof(
+        boardProof = 99,
+        lineProof = 99,
+        ownerProof = 99,
+        anchorProof = 99,
+        routeProof = 99,
+        conversionPrize = 99
+      )
+    )
+    val verdict = StoryTable.choose(Vector(story)).head
+    val expectedMissing =
+      Vector("side", "target", "anchor", "route", "rival", "legal line", "same-board proof")
+
+    assertEquals(story.proofFailures, Vector(BoardFacts.MissingEvidence("Story Proof", expectedMissing)))
+    assertEquals(verdict.proofFailures, story.proofFailures)
+    assertEquals(verdict.leadAllowed, false)
+    assert(verdict.role != Role.Lead)
+
+  test("Story Proof completion still cannot open a public lead in Stage 2"):
+    val story = Story(
+      Scene.Material,
+      side = Side.White,
+      target = Some(Square('a', 2)),
+      anchor = Some(safeAnchor),
+      route = Some(safeRoute),
+      rival = Side.Black,
+      proof = proof(
+        boardProof = 99,
+        lineProof = 99,
+        ownerProof = 99,
+        anchorProof = 99,
+        routeProof = 99,
+        conversionPrize = 99
+      ),
+      storyProof = storyProof()
+    )
+    val verdict = StoryTable.choose(Vector(story)).head
+
+    assertEquals(story.proofFailures, Vector.empty)
+    assertEquals(verdict.proofFailures, Vector.empty)
+    assertEquals(verdict.leadAllowed, false)
+    assertEquals(verdict.role, Role.Blocked)
+
+  test("Board Facts legal rows cannot become public claims without Story Proof"):
+    val facts = BoardFacts.fromFen(Fen.initial).toOption.get
+    val legalRow = facts.seen.legalMoves.head
+    val story = Story(
+      Scene.Material,
+      side = legalRow.side,
+      target = Some(legalRow.line.to),
+      anchor = Some(legalRow.piece.square),
+      route = Some(legalRow.line),
+      rival = rivalOf(legalRow.side),
+      proof = proof(
+        boardProof = 99,
+        lineProof = 99,
+        ownerProof = 99,
+        anchorProof = 99,
+        routeProof = 99,
+        conversionPrize = 99
+      )
+    )
+    val verdict = StoryTable.choose(Vector(story)).head
+
+    assertEquals(
+      story.proofFailures,
+      Vector(BoardFacts.MissingEvidence("Story Proof", Vector("legal line", "same-board proof")))
+    )
+    assertEquals(verdict.proofFailures, story.proofFailures)
+    assertEquals(verdict.leadAllowed, false)
+    assert(verdict.role != Role.Lead)
+
   test("Story route endpoints encode differently and order deterministically"):
     val forward = Story(
       Scene.Material,
@@ -1824,9 +1905,13 @@ class ChessFoundationTest extends munit.FunSuite:
       anchor = Some(Square('e', 5)),
       route = Some(Line(Square('a', 2), Square('a', 4))),
       rival = Side.Black,
-      proof = proof(boardProof = 82, ownerProof = 82, anchorProof = 82, routeProof = 82, conversionPrize = 82)
+      proof = proof(boardProof = 82, ownerProof = 82, anchorProof = 82, routeProof = 82, conversionPrize = 82),
+      storyProof = storyProof(Line(Square('a', 2), Square('a', 4)))
     )
-    val reverse = forward.copy(route = Some(Line(Square('a', 4), Square('a', 2))))
+    val reverse = forward.copy(
+      route = Some(Line(Square('a', 4), Square('a', 2))),
+      storyProof = storyProof(Line(Square('a', 4), Square('a', 2)))
+    )
 
     assertEquals(
       forward.values(Story.Slots.Pawn + Story.Identity.RouteFrom),
@@ -1999,13 +2084,18 @@ class ChessFoundationTest extends munit.FunSuite:
       anchor = Some(safeAnchor),
       route = Some(safeRoute),
       plan = Some(Plan.Minority),
-      proof = proof(boardProof = 80, ownerProof = 80, anchorProof = 80, routeProof = 80, conversionPrize = 90)
+      rival = Side.Black,
+      target = Some(Square('a', 2)),
+      proof = proof(boardProof = 80, ownerProof = 80, anchorProof = 80, routeProof = 80, conversionPrize = 90),
+      storyProof = storyProof()
     )
     val tactic = Story(
       Scene.Tactic,
       side = Side.Black,
       anchor = Some(safeAnchor),
       route = Some(safeRoute),
+      rival = Side.White,
+      target = Some(Square('a', 2)),
       tactic = Some(Tactic.Fork),
       proof = proof(
         boardProof = 80,
@@ -2017,7 +2107,8 @@ class ChessFoundationTest extends munit.FunSuite:
         conversionPrize = 95,
         kingHeat = 95,
         immediacy = 95
-      )
+      ),
+      storyProof = storyProof()
     )
 
     assertEquals(StoryTable.choose(Vector(plan, tactic)).head.story, tactic)
@@ -2028,18 +2119,24 @@ class ChessFoundationTest extends munit.FunSuite:
       side = Side.White,
       anchor = Some(safeAnchor),
       route = Some(safeRoute),
+      target = Some(Square('a', 2)),
+      rival = Side.Black,
       plan = Some(Plan.CenterBreak),
-      proof = proof(boardProof = 85, ownerProof = 85, anchorProof = 85, routeProof = 85, conversionPrize = 95)
+      proof = proof(boardProof = 85, ownerProof = 85, anchorProof = 85, routeProof = 85, conversionPrize = 95),
+      storyProof = storyProof()
     )
     val sameSideTactic = Story(
       Scene.Tactic,
       side = Side.White,
       anchor = Some(safeAnchor),
       route = Some(safeRoute),
+      target = Some(Square('a', 2)),
+      rival = Side.Black,
       tactic = Some(Tactic.Fork),
-      proof = proof(boardProof = 75, ownerProof = 75, anchorProof = 75, routeProof = 75, conversionPrize = 95)
+      proof = proof(boardProof = 75, ownerProof = 75, anchorProof = 75, routeProof = 75, conversionPrize = 95),
+      storyProof = storyProof()
     )
-    val opposingTactic = sameSideTactic.copy(side = Side.Black)
+    val opposingTactic = sameSideTactic.copy(side = Side.Black, rival = Side.White)
 
     assertEquals(
       StoryTable.choose(Vector(plan, sameSideTactic)).find(_.story == plan).map(_.leadAllowed),
@@ -2153,9 +2250,13 @@ class ChessFoundationTest extends munit.FunSuite:
       anchor = Some(Square('e', 5)),
       route = Some(Line(Square('b', 1), Square('b', 8))),
       rival = Side.Black,
-      proof = proof(boardProof = 82, ownerProof = 82, anchorProof = 82, routeProof = 82, conversionPrize = 82)
+      proof = proof(boardProof = 82, ownerProof = 82, anchorProof = 82, routeProof = 82, conversionPrize = 82),
+      storyProof = storyProof(Line(Square('b', 1), Square('b', 8)))
     )
-    val aRoute = bRoute.copy(route = Some(Line(Square('a', 1), Square('a', 8))))
+    val aRoute = bRoute.copy(
+      route = Some(Line(Square('a', 1), Square('a', 8))),
+      storyProof = storyProof(Line(Square('a', 1), Square('a', 8)))
+    )
 
     assertEquals(StoryTable.choose(Vector(bRoute, aRoute)).head.story, aRoute)
     assertEquals(StoryTable.choose(Vector(aRoute, bRoute)).head.story, aRoute)

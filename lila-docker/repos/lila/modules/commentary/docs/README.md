@@ -26,7 +26,9 @@ mismatch is a no-go state, not a second source of authority.
 
 This reset is intentionally closed at the public boundary.
 
-Current implementation scope is Stage 1 Board Facts only. Stages 2-11 are a dependency map for later work, not permission to open those systems in this branch checkpoint.
+Current implementation scope is Stage 2 Story Proof only. Stage 1 Board Facts
+is the prerequisite observation layer; Stages 3-11 are a dependency map for
+later work, not permission to open those systems in this branch checkpoint.
 
 - Public route no-go: `/api/commentary/render` and
   `/internal/commentary/render-local-probe` are registered only as fail-closed
@@ -38,10 +40,10 @@ Current implementation scope is Stage 1 Board Facts only. Stages 2-11 are a depe
 - Board Facts no-go: open file, pin, weak square, loose piece, pawn lever,
   attacked piece, king-ring attack, and legal move facts are observations only.
   They are not public claims and must not bypass `Story`.
-- No `Story` proof writers: numeric `Proof` scores may rank blocked/context
-  `Verdict` rows only. They cannot set `leadAllowed=true` or produce
-  `Role.Lead` until same-root side, target, anchor, route, rival, required
-  legal line, and proof sidecars exist.
+- Story Proof no-go: `StoryProof` records the minimum proof bundle and missing
+  evidence, but no positive Story family is open. Numeric `Proof` scores may
+  rank blocked/context `Verdict` rows only. They cannot set
+  `leadAllowed=true` or produce `Role.Lead`.
 - Proof no-go: missing side, target, anchor, route, rival, required legal line,
   or same-root proof sidecar is a hard public-output block, not weak scoring,
   deferred work, or renderer repair.
@@ -62,13 +64,12 @@ Current implementation scope is Stage 1 Board Facts only. Stages 2-11 are a depe
   sidecars, and `StoryTable` decide what can be said. LLM narration remains
   closed and must not judge chess.
 
-Current implementation blockers are documented, not excused: runtime
-enforcement of the full public-output tuple is incomplete, so public output
-remains closed until side, target, anchor, route, rival, required legal line,
-and same-root proof sidecar are enforced. `Scene.Opening` is context-only and
-must not lead over a board-backed `Story`. Old failing tests proved
-lower/scaffold/renderer non-upgrade; they did not prove default runtime FEN to
-public `Verdict`.
+Current implementation blockers are documented, not excused: Stage 2 enforces
+the full public-output tuple before lead candidacy, but public output remains
+closed because no positive Story family is open. `Scene.Opening` is
+context-only and must not lead over a board-backed `Story`. Old failing tests
+proved lower/scaffold/renderer non-upgrade; they did not prove default runtime
+FEN to public `Verdict`.
 
 Authority summary:
 
