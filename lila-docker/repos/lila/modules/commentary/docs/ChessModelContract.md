@@ -1135,6 +1135,14 @@ Lead fail-closed rules:
   king-forcing tactic; Defense does not open king safety, mate defense, or
   counterplay. Public route `200`, production API, and public/user-facing LLM
   narration remain closed.
+- Middlegame Interaction Smoke checks only StoryTable role stability among
+  already-open Hanging, Fork, Material, and Defense rows. It opens no new Story
+  family, public route, production API, or public/user-facing LLM narration.
+  Same-board Material vs Defense collisions are resolved by actual material
+  change now over prevented immediate loss, with speculative material loss
+  blocked. EngineCheck may support, cap, or refute existing rows only. Raw
+  engine eval and renderer wording must not rank rows, and Support/Context
+  remain relation roles, not sentences.
 - Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
   engine-capped, and engine-refuted Verdicts create no allowed claim or public
   claim. Stage 7 deterministic renderer may receive Explanation Plan only and

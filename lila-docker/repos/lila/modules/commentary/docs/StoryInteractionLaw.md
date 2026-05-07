@@ -2818,6 +2818,40 @@ One chess meaning, one home.
 
 Completion standard: Defense closes as a narrow proof-backed attacked-piece material-loss defense slice only.
 
+## Middlegame Interaction Smoke
+
+Middlegame Interaction Smoke opens no new Story family, public route, production API, or public/user-facing LLM narration.
+
+The smoke checks whether already-open Story rows receive stable `Lead`, `Support`, `Context`, or `Blocked` roles when they collide in one position.
+
+Smoke matrix:
+
+- Material vs Defense
+- Hanging vs Defense
+- Fork vs Defense
+- Hanging vs Material
+- Hanging vs Fork
+- EngineCheck Supports / Caps / Refutes across these rows
+
+Material vs Defense is the first and highest-risk case because `Scene.Defense` prevents immediate material loss while `Scene.Material` describes material balance changing now.
+
+Ordering smoke:
+
+- If the move actually wins or changes material now, `Scene.Material` may lead.
+- If the move prevents an immediate material loss, `Scene.Defense` may lead.
+- If both are present on the same-board route, same-board outcome decides:
+- actual material gain/change outranks Defense as Material
+- prevented immediate loss without actual material gain/change remains Defense
+- speculative material loss remains Blocked
+
+Authority boundary:
+
+- StoryTable must not create Defense, Material, Hanging, or Fork rows during this smoke.
+- EngineCheck may support, cap, or refute existing rows only.
+- Raw engine eval and renderer wording must not rank rows.
+- Support and Context remain relation roles, not sentences.
+- Public route `200`, production API, and public/user-facing LLM narration remain closed.
+
 ## Proof And Interaction Law
 
 | proof field | live class | raises | caps or blocks |

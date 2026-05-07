@@ -427,7 +427,9 @@ object StoryTable:
     if row.leadCandidate then 0 else if row.blocked then 2 else 1
 
   private def overlappingMaterialPriority(story: Story, stories: Vector[Story]) =
-    if materialOverlapsHanging(story, stories) then 1 else 0
+    if materialOverlapsHanging(story, stories) then 1
+    else if defenseOverlapsImmediateMaterialGain(story, stories) then 1
+    else 0
 
   private def materialOverlapsHanging(story: Story, stories: Vector[Story]) =
     positiveMaterialWriter(story) &&
@@ -441,6 +443,20 @@ object StoryTable:
       story.route == other.route &&
       story.target == other.target &&
       story.captureResult.flatMap(_.materialResult) == other.captureResult.flatMap(_.materialResult)
+
+  private def defenseOverlapsImmediateMaterialGain(story: Story, stories: Vector[Story]) =
+    positiveDefenseWriter(story) &&
+      story.defenseProof.flatMap(_.afterDefenseTargetStatus).contains(DefenseTargetStatus.AttackerCaptured) &&
+      stories.exists: other =>
+        other != story &&
+          positiveMaterialWriter(other) &&
+          sameRouteCapturesDefenseAttacker(story, other)
+
+  private def sameRouteCapturesDefenseAttacker(defense: Story, material: Story) =
+    defense.side == material.side &&
+      defense.route == material.route &&
+      defense.threatProof.flatMap(_.attackingPiece).map(_.square) ==
+        material.captureResult.flatMap(_.targetPiece).map(_.square)
 
   private def leadByStoryRules(story: Story, stories: Vector[Story]) =
     story.proofFailures.isEmpty &&

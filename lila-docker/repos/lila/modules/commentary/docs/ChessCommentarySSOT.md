@@ -91,7 +91,11 @@ The current branch owns the early kernel: board truth, primitive geometry,
 Story boundary, and Verdict boundary. Downstream product stages stay closed
 until earlier authority stages are proven.
 
-Current implementation scope is Defense Slice Closeout Pass.
+Current implementation scope is Middlegame Interaction Smoke.
+Middlegame Interaction Smoke opens no new Story family, public route, production API, or public/user-facing LLM narration.
+Material vs Defense is the first and highest-risk case because `Scene.Defense` prevents immediate material loss while `Scene.Material` describes material balance changing now.
+Middlegame Interaction Smoke checks only StoryTable role stability among already-open Hanging, Fork, Material, and Defense rows.
+Same-board Material vs Defense collisions are resolved by actual material change now over prevented immediate loss, with speculative material loss blocked.
 Defense-0 opened only the charter for the first narrow `Scene.Defense` slice.
 Defense-1 opened only `ThreatProof`.
 Defense-1 opens only `ThreatProof`.
@@ -116,7 +120,7 @@ LLM smoke does not make Defense text stronger.
 Defense Slice Closeout opens no new chess meaning beyond the narrow `Scene.Defense` vertical slice.
 Defense closes as a narrow proof-backed attacked-piece material-loss defense slice only.
 Public route `200`, production API, and public/user-facing LLM narration remain closed.
-The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, and Defense-9 scopes remain closed baselines.
+The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, Defense-9, and Defense Slice Closeout scopes remain closed baselines.
 Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
 Story are prerequisites. Stage 3 remains open only for Material proof kernel,
 `Tactic.Hanging`, Hanging negative corpus, the narrow `Tactic.Fork` vertical

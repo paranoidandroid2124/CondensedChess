@@ -576,7 +576,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(bridgeSource.contains("const PublicRenderRoutesTombstoned = true"))
     assert(bridgeSource.contains("if (PublicRenderRoutesTombstoned) return { kind: 'empty', reason: 'no_commentary' }"))
     assert(readme.contains("Stage order no-go"))
-    assert(readme.contains("Current implementation scope is Defense Slice Closeout Pass."))
+    assert(readme.contains("Current implementation scope is Middlegame Interaction Smoke."))
     assert(readme.contains("Stage 4 is named `Engine Check`."))
     assert(readme.replaceAll("\\s+", " ").contains("Stages 9-11 remain a dependency map"))
     assert(readme.contains("LLM no-go"))
@@ -637,7 +637,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
         "`Board Truth / Primitive Geometry / Story boundary / Verdict boundary / Explanation Plan boundary / Deterministic Renderer boundary`"
       )
     )
-    assert(architecture.contains("Current implementation scope is Defense Slice Closeout Pass."))
+    assert(architecture.contains("Current implementation scope is Middlegame Interaction Smoke."))
     assert(architecture.contains("Stage 4 is named `Engine Check`."))
     assert(architecture.replaceAll("\\s+", " ").contains("Stages 9-11 below"))
     assert(architecture.replaceAll("\\s+", " ").contains("dependency map for product design"))
@@ -3216,7 +3216,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     Vector(readme, ssot, architecture, agents).foreach: doc =>
       assert(doc.contains("Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows."))
       assert(doc.contains("StoryTable deterministically orders Hanging, Fork, Material, and Defense without creating new chess meaning."))
-      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, and Defense-9 scopes remain closed baselines."))
+      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, Defense-9, and Defense Slice Closeout scopes remain closed baselines."))
     assert(normalizedModelContract.contains("Defense-6 is owned by `StoryInteractionLaw.md`."))
     assert(normalizedModelContract.contains("Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows."))
     assert(normalizedModelContract.contains("StoryTable deterministically orders Hanging, Fork, Material, and Defense without creating new chess meaning."))
@@ -3263,7 +3263,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     Vector(readme, ssot, architecture, agents).foreach: doc =>
       assert(doc.contains("Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts."))
       assert(doc.contains("Defense ExplanationPlan creates no meaning stronger than the selected Verdict."))
-      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, and Defense-9 scopes remain closed baselines."))
+      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, Defense-9, and Defense Slice Closeout scopes remain closed baselines."))
     assert(normalizedModelContract.contains("Defense-7 is owned by `StoryInteractionLaw.md`."))
     assert(normalizedModelContract.contains("Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts."))
     assert(normalizedModelContract.contains("Defense ExplanationPlan creates no meaning stronger than the selected Verdict."))
@@ -3303,7 +3303,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     Vector(readme, ssot, architecture, agents).foreach: doc =>
       assert(doc.contains("Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan."))
       assert(doc.contains("Renderer text is no stronger than the Defense ExplanationPlan."))
-      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, and Defense-9 scopes remain closed baselines."))
+      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, Defense-9, and Defense Slice Closeout scopes remain closed baselines."))
     assert(normalizedModelContract.contains("Defense-8 is owned by `StoryInteractionLaw.md`."))
     assert(normalizedModelContract.contains("Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan."))
     assert(normalizedModelContract.contains("Renderer text is no stronger than the Defense ExplanationPlan."))
@@ -3404,12 +3404,51 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(closeoutLine), s"Defense closeout must pin: $closeoutLine")
 
     Vector(readme, ssot, architecture, agents).foreach: doc =>
-      assert(doc.contains("Current implementation scope is Defense Slice Closeout Pass."))
       assert(doc.contains("Defense Slice Closeout opens no new chess meaning beyond the narrow `Scene.Defense` vertical slice."))
       assert(doc.contains("Defense closes as a narrow proof-backed attacked-piece material-loss defense slice only."))
       assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
     assert(normalizedModelContract.contains("Defense Slice Closeout confirms `Scene.Defense` opened no King safety, Mate defense, Plan, Strategy, Counterplay, or Prophylaxis path."))
     assert(normalizedModelContract.contains("`ThreatProof`, `DefenseProof`, `Scene.Defense`, and `defends_piece` each keep one home."))
+
+  test("Middlegame interaction smoke pins StoryTable conflict scope"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("## Middlegame Interaction Smoke"))
+    Vector(
+      "Middlegame Interaction Smoke opens no new Story family, public route, production API, or public/user-facing LLM narration.",
+      "The smoke checks whether already-open Story rows receive stable `Lead`, `Support`, `Context`, or `Blocked` roles when they collide in one position.",
+      "Smoke matrix:",
+      "- Material vs Defense",
+      "- Hanging vs Defense",
+      "- Fork vs Defense",
+      "- Hanging vs Material",
+      "- Hanging vs Fork",
+      "- EngineCheck Supports / Caps / Refutes across these rows",
+      "Material vs Defense is the first and highest-risk case because `Scene.Defense` prevents immediate material loss while `Scene.Material` describes material balance changing now.",
+      "If the move actually wins or changes material now, `Scene.Material` may lead.",
+      "If the move prevents an immediate material loss, `Scene.Defense` may lead.",
+      "If both are present on the same-board route, same-board outcome decides:",
+      "- actual material gain/change outranks Defense as Material",
+      "- prevented immediate loss without actual material gain/change remains Defense",
+      "- speculative material loss remains Blocked",
+      "StoryTable must not create Defense, Material, Hanging, or Fork rows during this smoke.",
+      "Raw engine eval and renderer wording must not rank rows.",
+      "Support and Context remain relation roles, not sentences."
+    ).foreach: smokeLine =>
+      assert(interactionLaw.contains(smokeLine), s"Middlegame interaction smoke must pin: $smokeLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Current implementation scope is Middlegame Interaction Smoke."))
+      assert(doc.contains("Middlegame Interaction Smoke opens no new Story family, public route, production API, or public/user-facing LLM narration."))
+      assert(doc.contains("Material vs Defense is the first and highest-risk case because `Scene.Defense` prevents immediate material loss while `Scene.Material` describes material balance changing now."))
+    assert(normalizedModelContract.contains("Middlegame Interaction Smoke checks only StoryTable role stability among already-open Hanging, Fork, Material, and Defense rows."))
+    assert(normalizedModelContract.contains("Same-board Material vs Defense collisions are resolved by actual material change now over prevented immediate loss, with speculative material loss blocked."))
 
   test("agents and active frontend tests reject retired downstream authority"):
     assert(Files.exists(agentInstructions), "AGENTS.md must be available from the lila worktree")

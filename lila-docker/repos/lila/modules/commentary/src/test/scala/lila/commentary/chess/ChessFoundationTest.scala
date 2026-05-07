@@ -3144,6 +3144,175 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(rendered.text, "Bh4 defends the piece on g5.")
     assertEquals(LlmNarrationSmoke.check(plan, rendered, rendered.text), NarrationSmokeCheck(true, Vector.empty))
 
+  test("Middlegame interaction smoke lets same-board Material outrank Defense when the move changes material now"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3RB3/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val captureDefense = Line(Square('e', 4), Square('f', 5))
+    val defense = SceneDefense.write(facts, threatLine, captureDefense).get
+    val material = SceneMaterial.write(facts, captureDefense).get
+    val forward = StoryTable.choose(Vector(defense, material))
+    val reverse = StoryTable.choose(Vector(material, defense))
+
+    assertEquals(defense.defenseProof.flatMap(_.afterDefenseTargetStatus), Some(DefenseTargetStatus.AttackerCaptured))
+    assertEquals(material.captureResult.exists(_.positiveMaterial), true)
+    assertEquals(forward.map(v => (v.story.scene, v.role)), reverse.map(v => (v.story.scene, v.role)))
+    assertEquals(forward.head.story.scene, Scene.Material)
+    assertEquals(forward.head.role, Role.Lead)
+    assertEquals(forward(1).story.scene, Scene.Defense)
+    assertEquals(forward(1).role, Role.Support)
+
+  test("Middlegame interaction smoke keeps immediate Defense lead separate from speculative future loss"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val defense = SceneDefense.write(facts, threatLine, defenseLine).get
+    val speculativeFutureLoss =
+      Story(
+        scene = Scene.Defense,
+        side = Side.White,
+        target = Some(Square('d', 4)),
+        anchor = Some(Square('d', 4)),
+        route = Some(defenseLine),
+        routeSan = Some("Qe4"),
+        rival = Side.Black,
+        proof = proof(
+          boardProof = 100,
+          lineProof = 100,
+          ownerProof = 100,
+          anchorProof = 100,
+          routeProof = 100,
+          forcing = 100,
+          conversionPrize = 100,
+          counterplayRisk = 0,
+          kingHeat = 0,
+          pieceSupport = 100,
+          clarity = 100
+        ),
+        storyProof = StoryProof.fromBoardFacts(facts, defenseLine),
+        writer = Some(StoryWriter.SceneDefense)
+      )
+    val verdicts = StoryTable.choose(Vector(speculativeFutureLoss, defense))
+
+    assertEquals(verdicts.head.story, defense)
+    assertEquals(verdicts.head.role, Role.Lead)
+    assertEquals(verdicts(1).story, speculativeFutureLoss)
+    assertEquals(verdicts(1).role, Role.Blocked)
+    assertEquals(ExplanationPlan.fromSelected(verdicts(1)).flatMap(DeterministicRenderer.fromPlan), None)
+
+  test("Middlegame interaction smoke covers DefenseProof move away guard block and capture cases"):
+    val movedFacts = BoardFacts.fromFen("rnbq1rk1/ppp1bpp1/4pn1p/3p2B1/2PP4/2N1PN2/PP3PPP/R2QKB1R w KQ - 0 7").toOption.get
+    val moved = SceneDefense.write(
+      movedFacts,
+      Line(Square('h', 6), Square('g', 5)),
+      Line(Square('g', 5), Square('h', 4))
+    ).get
+    val guardedFacts = BoardFacts.fromFen("4k3/8/8/3q4/3R4/8/7B/4K3 w - - 0 1").toOption.get
+    val guarded = SceneDefense.write(
+      guardedFacts,
+      Line(Square('d', 5), Square('d', 4)),
+      Line(Square('h', 2), Square('e', 5))
+    ).get
+    val blockedFacts = BoardFacts.fromFen("3qk3/8/8/8/3RB3/8/8/4K3 w - - 0 1").toOption.get
+    val blocked = SceneDefense.write(
+      blockedFacts,
+      Line(Square('d', 8), Square('d', 4)),
+      Line(Square('e', 4), Square('d', 5))
+    ).get
+    val capturedFacts = BoardFacts.fromFen("4k3/8/8/5n2/3RB3/8/8/4K3 w - - 0 1").toOption.get
+    val captured = SceneDefense.write(
+      capturedFacts,
+      Line(Square('f', 5), Square('d', 4)),
+      Line(Square('e', 4), Square('f', 5))
+    ).get
+    val cases = Vector(
+      DefenseTargetStatus.TargetMovedAway -> moved,
+      DefenseTargetStatus.TargetGuarded -> guarded,
+      DefenseTargetStatus.AttackerLineBlocked -> blocked,
+      DefenseTargetStatus.AttackerCaptured -> captured
+    )
+
+    cases.foreach: (status, story) =>
+      assertEquals(story.defenseProof.flatMap(_.afterDefenseTargetStatus), Some(status), status.toString)
+      assertEquals(StoryTable.choose(Vector(story)).head.role, Role.Lead, status.toString)
+
+  test("Middlegame interaction smoke keeps open Story families deterministically ordered"):
+    val hangingFacts = BoardFacts.fromFen("4k3/8/8/4n3/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val hangingMove = Line(Square('d', 4), Square('e', 5))
+    val hanging = TacticHanging.write(hangingFacts, hangingMove).get
+    val material = SceneMaterial.write(hangingFacts, hangingMove).get
+    val forkFacts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork = TacticFork.write(forkFacts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+    val defenseFacts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val defense = SceneDefense.write(
+      defenseFacts,
+      Line(Square('f', 5), Square('d', 4)),
+      Line(Square('d', 4), Square('e', 4))
+    ).get
+    val matrix = Vector(
+      "Material vs Defense" -> Vector(material, defense),
+      "Hanging vs Defense" -> Vector(hanging, defense),
+      "Fork vs Defense" -> Vector(fork, defense),
+      "Hanging vs Material" -> Vector(hanging, material),
+      "Hanging vs Fork" -> Vector(hanging, fork)
+    )
+
+    matrix.foreach: (label, rows) =>
+      val forward = StoryTable.choose(rows)
+      val reverse = StoryTable.choose(rows.reverse)
+      assertEquals(forward.map(v => (v.story.scene, v.story.tactic, v.story.route, v.role)), reverse.map(v => (v.story.scene, v.story.tactic, v.story.route, v.role)), label)
+      assertEquals(forward.count(_.role == Role.Lead), 1, label)
+      assert(forward.forall(v => Set(Role.Lead, Role.Support, Role.Context, Role.Blocked).contains(v.role)), label)
+      forward.filter(_.role != Role.Lead).foreach: verdict =>
+        assertEquals(ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan), None, label)
+
+  test("Middlegame interaction smoke applies EngineCheck Supports Caps and Refutes across open rows"):
+    val materialFacts = BoardFacts.fromFen("4k3/8/8/4n3/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val materialMove = Line(Square('d', 4), Square('e', 5))
+    val material = SceneMaterial.write(materialFacts, materialMove).get
+    val defenseFacts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val defenseThreat = Line(Square('f', 5), Square('d', 4))
+    val defenseMove = Line(Square('d', 4), Square('e', 4))
+    val defense = SceneDefense.write(defenseFacts, defenseThreat, defenseMove).get
+    val forkFacts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork = TacticFork.write(forkFacts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+    val hanging = TacticHanging.write(materialFacts, materialMove).get
+
+    def check(facts: BoardFacts, story: Story, reply: Line, status: EngineCheckStatus, before: Int = 20, after: Int = 20): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = story.route.map(route => EngineLine(Vector(route))),
+        replyLine = Some(EngineLine(Vector(reply))),
+        evalBefore = Some(EngineEval(before)),
+        evalAfter = Some(EngineEval(after)),
+        depth = Some(12),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    val rows = Vector(
+      (materialFacts, material, materialMove, SceneMaterial.withEngineCheck),
+      (materialFacts, hanging, materialMove, TacticHanging.withEngineCheck),
+      (forkFacts, fork, forkMove, TacticFork.withEngineCheck),
+      (defenseFacts, defense, defenseThreat, SceneDefense.withEngineCheck)
+    )
+
+    rows.foreach: (facts, story, reply, attach) =>
+      val supports = attach(story, check(facts, story, reply, EngineCheckStatus.Supports)).get
+      val caps = attach(story, check(facts, story, reply, EngineCheckStatus.Caps)).get
+      val refutes = attach(story, check(facts, story, reply, EngineCheckStatus.Supports, before = 200, after = 0)).get
+      val supportsVerdict = StoryTable.choose(Vector(supports)).head
+      val capsVerdict = StoryTable.choose(Vector(caps)).head
+      val refutesVerdict = StoryTable.choose(Vector(refutes)).head
+
+      assertEquals(supportsVerdict.role, Role.Lead, story.toString)
+      assertEquals(supportsVerdict.engineStrengthLimited, false, story.toString)
+      assertEquals(capsVerdict.role, Role.Lead, story.toString)
+      assertEquals(capsVerdict.engineStrengthLimited, true, story.toString)
+      assertEquals(refutesVerdict.role, Role.Blocked, story.toString)
+
   test("Material-3 Scene.Material writer admits one narrow proof-backed Story"):
     val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
     val capture = Line(Square('d', 4), Square('e', 5))
