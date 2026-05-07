@@ -159,6 +159,22 @@ private[commentary] object EngineCheck:
               story.route.contains(result.captureLine) &&
               result.capturingPiece.exists(pieces.contains) &&
               result.targetPiece.exists(pieces.contains)
+      case Some(StoryWriter.SceneDefense) =>
+        story.scene == Scene.Defense &&
+          story.tactic.isEmpty &&
+          story.proofFailures.isEmpty &&
+          story.threatProof.exists: threat =>
+            threat.complete &&
+              threat.sameBoardProof &&
+              threat.legalThreatLine.exists(line => facts.rivalLegal.lines.contains(line)) &&
+              threat.attackingPiece.exists(pieces.contains) &&
+              threat.threatenedTarget.exists(pieces.contains) &&
+              story.defenseProof.exists: defense =>
+                defense.complete &&
+                  defense.sameBoardProof &&
+                  defense.defenseMove.exists(move => story.route.contains(move)) &&
+                  defense.defenseMove.exists(move => facts.sideLegal.lines.contains(move)) &&
+                  defense.defendedTarget.exists(pieces.contains)
       case _ => false
 
   private def checkedStatus(

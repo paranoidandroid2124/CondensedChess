@@ -30,6 +30,13 @@ private[commentary] object DeterministicRenderer:
       )
     else if canPhraseMaterial(plan) then
       Some(s"After ${plan.routeSan.get}, ${sideText(plan.side)} comes out ahead in material.")
+    else if canPhraseDefense(plan) then
+      plan.allowedClaim match
+        case Some(ExplanationClaim.PreventsMaterialLoss) =>
+          Some(s"${plan.routeSan.get} prevents the piece on ${squareText(plan.target.get)} from being lost immediately.")
+        case Some(ExplanationClaim.DefendsPiece | ExplanationClaim.ProtectsTarget) =>
+          Some(s"${plan.routeSan.get} defends the piece on ${squareText(plan.target.get)}.")
+        case _ => None
     else None
 
   private def canPhraseHanging(plan: ExplanationPlan): Boolean =
@@ -65,6 +72,22 @@ private[commentary] object DeterministicRenderer:
       plan.scene == Scene.Material &&
       plan.tactic.isEmpty &&
       plan.allowedClaim.contains(ExplanationClaim.MaterialBalanceChanges) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      (plan.side == Side.White || plan.side == Side.Black) &&
+      plan.target.nonEmpty &&
+      plan.anchor.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseDefense(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Defense &&
+      plan.tactic.isEmpty &&
+      plan.allowedClaim.exists(ExplanationClaim.DefenseAllowed.contains) &&
       plan.strength == ExplanationStrength.Bounded &&
       (plan.side == Side.White || plan.side == Side.Black) &&
       plan.target.nonEmpty &&
@@ -135,6 +158,18 @@ private[commentary] object DeterministicRenderer:
         Vector("decisive fork")
       case ForbiddenWording.ForcedWin =>
         Vector("forced win", "forces a win")
+      case ForbiddenWording.BestDefense =>
+        Vector("best defense")
+      case ForbiddenWording.RefutesAttack =>
+        Vector("refutes attack", "refutes the attack")
+      case ForbiddenWording.StopsCounterplay =>
+        Vector("stops counterplay", "stops all counterplay")
+      case ForbiddenWording.SolvesPosition =>
+        Vector("solves the position", "solves position")
+      case ForbiddenWording.KingSafe =>
+        Vector("king safe", "king is safe")
+      case ForbiddenWording.MateDefense =>
+        Vector("mate defense", "stops mate", "mate is stopped")
 
   private def materialWinAllowed(normalized: String, plan: ExplanationPlan): Boolean =
     val materialWinPhrases =

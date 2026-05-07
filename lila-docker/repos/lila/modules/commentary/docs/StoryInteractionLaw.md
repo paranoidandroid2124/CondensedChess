@@ -2401,6 +2401,423 @@ Next-stage handoff:
 
 Completion standard: Material slice is closed as a narrow bounded material-result Story label.
 
+## Defense-0 Scene.Defense Charter
+
+Defense-0 opens only the charter for the first narrow `Scene.Defense` slice.
+It does not open a Defense writer, proof sidecar implementation, StoryTable
+integration, ExplanationPlan mapping, deterministic renderer, LLM smoke,
+public route `200`, production API, king safety, mate defense, strategic
+defense, prophylaxis, winning, conversion, best-move, only-move, refutation,
+or no-counterplay claim.
+
+Defense requires a threat.
+
+ThreatProof proves what must be stopped.
+
+DefenseProof proves how the move stops it.
+
+Defense is not no-counterplay.
+
+First Defense scope:
+
+- attacked piece exists
+- opponent has an immediate material threat
+- the threat is same-board legal
+- the defended move removes, guards, or saves the target
+- material loss is prevented in a bounded way
+- no claim of best move or only move
+
+Core distinction:
+
+`ThreatProof = what must be stopped`
+`DefenseProof = how it is stopped`
+`Scene.Defense = Story label`
+`defends_piece / prevents_material_loss = speech claim`
+
+Forbidden Defense-0 claims:
+
+- only move
+- best move
+- no counterplay
+- refutes the attack
+- solves the position
+- king safety
+- mate defense
+- strategic defense
+- prophylaxis
+- winning
+- conversion
+
+Completion standard: `Scene.Defense` must not become another name for a good move or for stopping all counterplay.
+
+## Defense-1 ThreatProof
+
+Defense-1 opens only `ThreatProof`.
+
+ThreatProof proves what must be stopped.
+
+ThreatProof does not create a Defense Story.
+
+ThreatProof does not create a public claim.
+
+DefenseProof, the named Scene.Defense writer, StoryTable integration,
+ExplanationPlan, renderer, LLM smoke, public route `200`, and production API
+remain closed.
+
+Required ThreatProof fields:
+
+- rival side
+- threatened target
+- attacking piece
+- legal threat line
+- target value
+- material loss if unanswered
+- same-board proof
+- missing evidence
+
+Allowed Defense-1 meanings:
+
+- rival can capture the target
+- target is attacked
+- capture would cause material loss
+- threat is immediate and legal
+
+Forbidden Defense-1 meanings:
+
+- opponent has an attack
+- king is unsafe
+- no counterplay
+- mate threat
+- long-term pressure
+- strategic threat
+- engine says this is a threat
+
+Completion standard: ThreatProof proves what must be stopped, but it does not create a Defense Story or public claim.
+
+## Defense-2 DefenseProof
+
+Defense-2 opens only `DefenseProof`.
+
+DefenseProof proves how a specific move stops a specific ThreatProof.
+
+DefenseProof does not create a Defense Story.
+
+DefenseProof does not create a public claim.
+
+Allowed Defense-2 move types:
+
+1. target moves away
+2. target becomes guarded
+3. attacker line is blocked or attacker is captured
+
+Required DefenseProof fields:
+
+- defending side
+- defense move
+- defended target
+- original threat
+- after-defense target status
+- material loss prevented
+- same-board proof
+- missing evidence
+
+Allowed Defense-2 meanings:
+
+- the target is no longer capturable for gain
+- the target is defended after the move
+- the attacker's line is blocked
+- the attacker is captured
+
+Forbidden Defense-2 meanings:
+
+- solves the position
+- refutes the attack
+- stops all threats
+- only move
+- best defense
+- no counterplay
+- king safety
+- mate defense
+
+Completion standard: DefenseProof proves whether a specific threat is stopped, but it does not create a Defense Story or public claim.
+
+## Defense-3 SceneDefense Writer
+
+Defense-3 opens only the named `SceneDefense` writer for one narrow `Scene.Defense` Story.
+
+Required SceneDefense writer evidence:
+
+- scene = Defense
+- StoryProof complete
+- ThreatProof complete
+- DefenseProof complete
+- same-board proof present
+- defense move legal
+- protected target identified
+- material loss prevented
+- writer = SceneDefense
+- EngineCheck does not Refute
+
+First allowed Defense-3 meanings:
+
+- this move defends the attacked piece
+- this move prevents immediate material loss
+
+Forbidden Defense-3 meanings:
+
+- only move
+- best move
+- refutes attack
+- stops counterplay
+- solves position
+- king safe
+- mate stopped
+- winning
+- decisive
+
+Completion standard: one narrow proof-backed Defense Story can enter StoryTable.
+
+## Defense-4 Defense Negative Corpus
+
+Defense-4 opens only the Defense negative corpus.
+
+Defense-looking false positives must stay silent without complete ThreatProof and complete DefenseProof.
+
+Defense-4 negative cases:
+
+- no actual threat
+- threat is illegal
+- attacked piece is already adequately defended
+- defense move does not affect the target
+- defense move guards wrong piece
+- defense move still loses material
+- defense move allows equivalent recapture
+- defense only looks like prophylaxis
+- defense is actually a tactic / material gain
+- king safety claim tries to enter
+- mate defense tries to enter
+- only-move claim tries to enter
+- StoryProof incomplete
+- ThreatProof incomplete
+- DefenseProof incomplete
+- EngineCheck Refutes
+- high Proof score only
+
+Completion standard: defense-looking rows have no Lead or are Blocked unless ThreatProof and DefenseProof are complete.
+
+## Defense-5 EngineCheck for Scene.Defense
+
+Defense-5 opens only existing EngineCheck reuse for existing `Scene.Defense` Stories.
+
+Allowed Defense-5 EngineCheck statuses:
+
+- Unknown
+- Supports
+- Caps
+- Refutes
+
+Required Defense-5 EngineCheck evidence:
+
+- Defense Story already exists
+- same-board proof
+- same Story route
+- same legal line
+- fresh/depth evidence
+
+Forbidden Defense-5 meanings and shortcuts:
+
+- engine creates Defense Story
+- engine eval becomes public truth
+- PV becomes explanation
+- best move explanation
+- only move claim
+- refutes attack claim
+- DefenseEngineCheck duplicate type
+
+Completion standard: EngineCheck may support, cap, or refute an existing Defense Story, but it does not create Defense.
+
+## Defense-6 StoryTable Integration
+
+Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows.
+
+Allowed Defense-6 roles and behavior:
+
+- Lead
+- Support
+- Context
+- Blocked
+- deterministic ordering
+
+Defense-6 StoryTable rules:
+
+- Refuted Defense -> Blocked
+- incomplete Defense -> Blocked
+- writerless Defense -> Blocked
+- Defense without ThreatProof -> Blocked
+- Defense without DefenseProof -> Blocked
+- Defense can compete for Lead only if it has complete proof
+- Support / Context are not sentences
+
+Forbidden Defense-6 shortcuts:
+
+- StoryTable creates Defense
+- raw engine eval ranks Defense
+- Defense proof text becomes public
+- renderer wording affects order
+- Defense silently opens only move or no counterplay
+
+Completion standard: StoryTable deterministically orders Hanging, Fork, Material, and Defense without creating new chess meaning.
+
+## Defense-7 ExplanationPlan for Scene.Defense
+
+Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts.
+
+Defense-7 allowed input:
+
+- selected Verdict only
+
+Defense-7 forbidden inputs:
+
+- ThreatProof directly
+- DefenseProof directly
+- EngineCheck
+- BoardFacts
+- raw PV
+- proofFailures
+- source row
+
+Defense-7 first allowed claim keys:
+
+- defends_piece
+- prevents_material_loss
+- protects_target
+
+Defense-7 forbidden claim keys:
+
+- only_move
+- best_defense
+- refutes_attack
+- stops_counterplay
+- solves_position
+- king_safe
+- mate_defense
+- no_counterplay
+
+Completion standard: Defense ExplanationPlan creates no meaning stronger than the selected Verdict.
+
+## Defense-8 Deterministic Renderer
+
+Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan.
+
+Defense-8 allowed renderer input:
+
+- ExplanationPlan only
+
+Defense-8 first deterministic templates:
+
+- `{route} defends the piece on {target}.`
+- `{route} prevents the piece on {target} from being lost immediately.`
+
+Defense-8 forbidden renderer wording:
+
+- only move
+- best move
+- refutes the attack
+- stops all counterplay
+- solves the position
+- king is safe
+- mate is stopped
+- winning
+- decisive
+- forced
+
+Completion standard: Renderer text is no stronger than the Defense ExplanationPlan.
+
+## Defense-9 LLM Smoke
+
+Defense-9 opens only LLM smoke for selected Defense ExplanationPlan and RenderedLine.
+
+Defense-9 allowed LLM smoke input:
+
+- ExplanationPlan
+- RenderedLine
+
+Defense-9 Codex CLI smoke input:
+
+- renderedText
+- claimKey
+- strength
+- forbidden wording
+- instruction: Rephrase only. Do not add chess facts.
+
+Defense-9 forbidden LLM smoke inputs:
+
+- raw Verdict
+- Story
+- ThreatProof
+- DefenseProof
+- EngineCheck
+- BoardFacts
+- engine eval
+- raw PV
+- proofFailures
+
+Defense-9 smoke rejection checks:
+
+- no new move
+- no new line
+- no new tactic
+- no new plan
+- no engine mention
+- no only move
+- no best move
+- no no-counterplay
+- no king safety
+- no mate defense
+- no refutes-attack wording
+- no stronger claim
+
+Completion standard: LLM smoke does not make Defense text stronger.
+
+## Defense Slice Closeout Pass
+
+Defense Slice Closeout opens no new chess meaning beyond the narrow `Scene.Defense` vertical slice.
+
+Defense closeout scope audit:
+
+- only `Scene.Defense` opened
+- king safety remains closed
+- mate defense remains closed
+- Plan remains closed
+- Strategy remains closed
+- Counterplay remains closed beyond existing EngineCheck Caps
+- Prophylaxis remains closed
+
+Defense closeout authority audit:
+
+- ThreatProof owns what must be stopped
+- DefenseProof owns how the move stops it
+- StoryProof owns same-board Story identity evidence
+- EngineCheck supports, caps, or refutes an existing Defense Story only
+- StoryTable arbitrates roles without creating Defense
+
+Defense closeout negative corpus audit: defense-looking false positives stay silent without complete ThreatProof and DefenseProof.
+
+Defense closeout shared skeleton audit: charter, proof home, named writer, negative corpus, EngineCheck reuse, StoryTable integration, ExplanationPlan, deterministic renderer, LLM smoke, and closeout reused the existing vertical-slice skeleton.
+
+Defense closeout cleanup audit: `ThreatProof`, `DefenseProof`, `Scene.Defense`, and `defends_piece` each have one home.
+
+Defense closeout real-game smoke: Fischer-Spassky 1972 game 6 after 6...h6, 7.Bh4 is covered as an attacked-piece defense smoke.
+
+Defense closeout next-stage handoff: next candidates remain line-based tactic or king-forcing tactic; Defense does not open king safety, mate defense, or counterplay.
+
+Defense requires a threat.
+Defense is not no-counterplay.
+Reuse the skeleton before adding a new one.
+One chess meaning, one home.
+
+Completion standard: Defense closes as a narrow proof-backed attacked-piece material-loss defense slice only.
+
 ## Proof And Interaction Law
 
 | proof field | live class | raises | caps or blocks |

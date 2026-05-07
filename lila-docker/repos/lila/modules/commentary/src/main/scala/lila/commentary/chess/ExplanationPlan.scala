@@ -9,6 +9,9 @@ private[commentary] enum ExplanationClaim:
   case MaterialBalanceChanges
   case LineLeavesMaterialGain
   case ExchangeLeavesSideAhead
+  case DefendsPiece
+  case PreventsMaterialLoss
+  case ProtectsTarget
 
   def key: String =
     this match
@@ -20,6 +23,9 @@ private[commentary] enum ExplanationClaim:
       case MaterialBalanceChanges    => "material_balance_changes"
       case LineLeavesMaterialGain    => "line_leaves_material_gain"
       case ExchangeLeavesSideAhead   => "exchange_leaves_side_ahead"
+      case DefendsPiece              => "defends_piece"
+      case PreventsMaterialLoss      => "prevents_material_loss"
+      case ProtectsTarget            => "protects_target"
 
 private[commentary] object ExplanationClaim:
   val HangingAllowed: Vector[ExplanationClaim] =
@@ -75,6 +81,25 @@ private[commentary] object ExplanationClaim:
       "no_counterplay"
     )
 
+  val DefenseAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.DefendsPiece,
+      ExplanationClaim.PreventsMaterialLoss,
+      ExplanationClaim.ProtectsTarget
+    )
+
+  val DefenseForbiddenKeys: Vector[String] =
+    Vector(
+      "only_move",
+      "best_defense",
+      "refutes_attack",
+      "stops_counterplay",
+      "solves_position",
+      "king_safe",
+      "mate_defense",
+      "no_counterplay"
+    )
+
 private[commentary] enum ExplanationStrength:
   case Bounded
 
@@ -118,6 +143,12 @@ private[commentary] enum ForbiddenWording:
   case WinsQueen
   case DecisiveFork
   case ForcedWin
+  case BestDefense
+  case RefutesAttack
+  case StopsCounterplay
+  case SolvesPosition
+  case KingSafe
+  case MateDefense
 
   def key: String =
     this match
@@ -141,6 +172,12 @@ private[commentary] enum ForbiddenWording:
       case WinsQueen          => "wins_queen"
       case DecisiveFork       => "decisive_fork"
       case ForcedWin          => "forced_win"
+      case BestDefense        => "best_defense"
+      case RefutesAttack      => "refutes_attack"
+      case StopsCounterplay   => "stops_counterplay"
+      case SolvesPosition     => "solves_position"
+      case KingSafe           => "king_safe"
+      case MateDefense        => "mate_defense"
 
 private[commentary] object ForbiddenWording:
   val Basic: Vector[ForbiddenWording] =
@@ -203,6 +240,16 @@ private[commentary] object ExplanationPlan:
       )
   private val MaterialForbiddenWording =
     ForbiddenWording.Basic :+ ForbiddenWording.ForcedWin
+  private val DefenseForbiddenWording =
+    ForbiddenWording.Basic ++
+      Vector(
+        ForbiddenWording.BestDefense,
+        ForbiddenWording.RefutesAttack,
+        ForbiddenWording.StopsCounterplay,
+        ForbiddenWording.SolvesPosition,
+        ForbiddenWording.KingSafe,
+        ForbiddenWording.MateDefense
+      )
 
   private def tacticAllowedClaim(verdict: Verdict, tactic: Tactic) =
     if verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited then
@@ -217,6 +264,11 @@ private[commentary] object ExplanationPlan:
       ExplanationClaim.MaterialBalanceChanges
     )
 
+  private def defenseAllowedClaim(verdict: Verdict) =
+    Option.when(verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited)(
+      ExplanationClaim.DefendsPiece
+    )
+
   private def forbiddenWording(verdict: Verdict, tactic: Tactic) =
     val base =
       tactic match
@@ -228,6 +280,10 @@ private[commentary] object ExplanationPlan:
   private def materialForbiddenWording(verdict: Verdict) =
     if verdict.engineStrengthLimited then MaterialForbiddenWording :+ ForbiddenWording.StrongWording
     else MaterialForbiddenWording
+
+  private def defenseForbiddenWording(verdict: Verdict) =
+    if verdict.engineStrengthLimited then DefenseForbiddenWording :+ ForbiddenWording.StrongWording
+    else DefenseForbiddenWording
 
   private def relations(verdict: Verdict, tactic: Tactic) =
     val roleRelation =
@@ -252,9 +308,20 @@ private[commentary] object ExplanationPlan:
     if verdict.engineStrengthLimited then roleRelation :+ ExplanationRelation.CappedSameStory
     else roleRelation
 
+  private def defenseRelations(verdict: Verdict) =
+    val roleRelation =
+      verdict.role match
+        case Role.Support => Vector(ExplanationRelation.SameFamilyLowerRank)
+        case Role.Blocked if verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes) =>
+          Vector(ExplanationRelation.BlockedByEngineRefute)
+        case _ => Vector.empty
+    if verdict.engineStrengthLimited then roleRelation :+ ExplanationRelation.CappedSameStory
+    else roleRelation
+
   def fromSelected(verdict: Verdict): Option[ExplanationPlan] =
     val story = verdict.story
     if story.scene == Scene.Material then fromSelectedMaterial(verdict, story)
+    else if story.scene == Scene.Defense then fromSelectedDefense(verdict, story)
     else fromSelectedTactic(verdict, story)
 
   private def fromSelectedTactic(verdict: Verdict, story: Story): Option[ExplanationPlan] =
@@ -313,6 +380,36 @@ private[commentary] object ExplanationPlan:
       strength = ExplanationStrength.Bounded,
       forbiddenWording = materialForbiddenWording(verdict),
       relations = materialRelations(verdict),
+      debugOnly = verdict.role == Role.Blocked,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedDefense(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      if verdict.selected
+      if story.scene == Scene.Defense
+      if story.tactic.isEmpty
+      if story.plan.isEmpty
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = None,
+      side = story.side,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = None,
+      allowedClaim = defenseAllowedClaim(verdict),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = defenseForbiddenWording(verdict),
+      relations = defenseRelations(verdict),
       debugOnly = verdict.role == Role.Blocked,
       supportContextLinks = Vector.empty
     )

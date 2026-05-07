@@ -231,6 +231,7 @@ private[commentary] enum StoryWriter:
   case TacticHanging
   case TacticFork
   case SceneMaterial
+  case SceneDefense
 
 final case class Story(
     scene: Scene,
@@ -248,7 +249,9 @@ final case class Story(
     private[commentary] val captureResult: Option[CaptureResult] = None,
     private[commentary] val engineCheck: Option[EngineCheck] = None,
     secondaryTarget: Option[Square] = None,
-    private[commentary] val multiTargetProof: Option[MultiTargetProof] = None
+    private[commentary] val multiTargetProof: Option[MultiTargetProof] = None,
+    private[commentary] val threatProof: Option[ThreatProof] = None,
+    private[commentary] val defenseProof: Option[DefenseProof] = None
 ):
   def proofFailures: Vector[BoardFacts.MissingEvidence] =
     storyProof.failures(this)
@@ -457,6 +460,7 @@ object StoryTable:
       forkWithoutWriter(story) ||
       invalidForkWriter(story) ||
       invalidMaterialWriter(story) ||
+      invalidDefenseWriter(story) ||
       (!leadByStoryRules(story, Vector(story)) && base(story))
 
   private def hangingWithoutWriter(story: Story) =
@@ -483,6 +487,10 @@ object StoryTable:
     story.writer.contains(StoryWriter.SceneMaterial) &&
       !positiveMaterialWriter(story)
 
+  private def invalidDefenseWriter(story: Story) =
+    story.writer.contains(StoryWriter.SceneDefense) &&
+      !positiveDefenseWriter(story)
+
   private def base(story: Story) =
     story.proof.publicStrength >= 65 &&
       story.proof.truth >= 70 &&
@@ -504,6 +512,7 @@ object StoryTable:
       case Some(StoryWriter.TacticHanging) => positiveHangingWriter(story)
       case Some(StoryWriter.TacticFork)    => positiveForkWriter(story)
       case Some(StoryWriter.SceneMaterial) => positiveMaterialWriter(story)
+      case Some(StoryWriter.SceneDefense)  => positiveDefenseWriter(story)
       case _                               => false
 
   private def positiveHangingWriter(story: Story) =
@@ -542,6 +551,20 @@ object StoryTable:
         result.boundedExchangeSequence.nonEmpty &&
         captureResultBindsStory(story, result)
 
+  private def positiveDefenseWriter(story: Story) =
+    story.scene == Scene.Defense &&
+    story.tactic.isEmpty &&
+    story.plan.isEmpty &&
+    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+    story.threatProof.exists(proof => proof.complete && proof.sameBoardProof) &&
+    story.defenseProof.exists: proof =>
+      proof.complete &&
+        proof.sameBoardProof &&
+        proof.defenseMove.nonEmpty &&
+        proof.defendedTarget.nonEmpty &&
+        proof.materialLossPrevented.exists(_ > 0) &&
+        defenseProofBindsStory(story, proof)
+
   private def captureResultBindsStory(story: Story, result: CaptureResult) =
     result.side == story.side &&
       story.route.contains(result.captureLine) &&
@@ -554,6 +577,13 @@ object StoryTable:
       proof.attacker.exists(piece => story.anchor.contains(piece.square)) &&
       story.target.exists(target => proof.targetSquares.headOption.contains(target)) &&
       story.secondaryTarget.exists(target => proof.targetSquares.lift(1).contains(target))
+
+  private def defenseProofBindsStory(story: Story, proof: DefenseProof) =
+    proof.defendingSide == story.side &&
+      story.rival == proof.originalThreat.rivalSide &&
+      proof.defenseMove.exists(move => story.route.contains(move)) &&
+      proof.defendedTarget.exists(piece => story.target.contains(piece.square)) &&
+      proof.defenseMove.exists(move => story.anchor.contains(move.from))
 
   private def multiTargetRelationProven(proof: MultiTargetProof) =
     proof.targetSquares.size == 2 &&

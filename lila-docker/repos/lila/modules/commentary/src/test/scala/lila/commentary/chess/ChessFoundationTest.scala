@@ -2102,6 +2102,1048 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(result.sameBoardProof, true)
     assertEquals(result.missingEvidence, Vector.empty)
 
+  test("Defense-1 ThreatProof proves immediate legal material threat without Story or public claim"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val proof = ThreatProof.fromBoardFacts(facts, threatLine)
+    val publicSurfaceNames =
+      classOf[ThreatProof].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[ThreatProof].getDeclaredFields.map(_.getName).toSet
+    val threatMethods = ThreatProof.getClass.getDeclaredMethods.toVector
+
+    assertEquals(proof.rivalSide, Side.Black)
+    assertEquals(proof.threatenedTarget, Some(Piece(Side.White, Man.Queen, Square('d', 4))))
+    assertEquals(proof.attackingPiece, Some(Piece(Side.Black, Man.Knight, Square('f', 5))))
+    assertEquals(proof.legalThreatLine, Some(threatLine))
+    assertEquals(proof.targetValue, Some(900))
+    assertEquals(proof.materialLossIfUnanswered, Some(900))
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.missingEvidence, Vector.empty)
+    assertEquals(proof.complete, true)
+    assertEquals(proof.publicClaimAllowed, false)
+    Vector(
+      "Story",
+      "Sentence",
+      "RenderedLine",
+      "ExplanationPlan",
+      "Verdict",
+      "publicText",
+      "render",
+      "llm",
+      "engine"
+    ).foreach: forbidden =>
+      assert(!publicSurfaceNames.exists(_.toLowerCase.contains(forbidden.toLowerCase)), forbidden)
+    assertEquals(threatMethods.filter(_.getName == "fromBoardFacts").map(_.getReturnType.getSimpleName), Vector("ThreatProof"))
+    assertEquals(threatMethods.exists(_.getReturnType.getSimpleName.contains("Story")), false)
+
+  test("Defense-1 ThreatProof keeps non-immediate and non-material threats incomplete"):
+    val positiveFacts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defendedFacts = BoardFacts.fromFen("7k/8/8/3q4/4Q3/8/5N2/4K3 w - - 0 1").toOption.get
+    val recaptureCancelledThreat = Line(Square('d', 5), Square('e', 4))
+    val untrusted =
+      minimalBoardFacts(
+        rivalLegal = readyMoves(line = threatLine, captureCount = 1),
+        pieces = Vector(
+          Piece(Side.White, Man.King, Square('e', 1)),
+          Piece(Side.Black, Man.King, Square('e', 8)),
+          Piece(Side.White, Man.Queen, Square('d', 4)),
+          Piece(Side.Black, Man.Knight, Square('f', 5))
+        )
+      )
+    val kingTarget =
+      minimalBoardFacts(
+        rivalLegal = readyMoves(line = Line(Square('f', 5), Square('e', 3)), captureCount = 1),
+        pieces = Vector(
+          Piece(Side.White, Man.King, Square('e', 3)),
+          Piece(Side.Black, Man.King, Square('e', 8)),
+          Piece(Side.Black, Man.Knight, Square('f', 5))
+        )
+      )
+    val attackOnly =
+      ThreatProof.fromBoardFacts(positiveFacts, Line(Square('f', 5), Square('h', 4)))
+    val illegalThreat =
+      ThreatProof.fromBoardFacts(positiveFacts, Line(Square('f', 5), Square('f', 4)))
+    val untrustedThreat = ThreatProof.fromBoardFacts(untrusted, threatLine)
+    val kingThreat = ThreatProof.fromBoardFacts(kingTarget, Line(Square('f', 5), Square('e', 3)))
+    val cancelledThreat = ThreatProof.fromBoardFacts(defendedFacts, recaptureCancelledThreat)
+    val highProofOnly =
+      Story(
+        Scene.Defense,
+        side = Side.White,
+        target = Some(Square('d', 4)),
+        anchor = Some(Square('e', 2)),
+        route = Some(safeRoute),
+        rival = Side.Black,
+        proof = proof(
+          boardProof = 99,
+          lineProof = 99,
+          ownerProof = 99,
+          anchorProof = 99,
+          routeProof = 99,
+          conversionPrize = 99,
+          forcing = 99,
+          immediacy = 99
+        ),
+        storyProof = storyProof()
+      )
+
+    Vector(attackOnly, illegalThreat, untrustedThreat, kingThreat, cancelledThreat).foreach: proof =>
+      assertEquals(proof.complete, false)
+      assert(proof.missingEvidence.nonEmpty)
+      assertEquals(proof.publicClaimAllowed, false)
+    assertEquals(attackOnly.missingEvidence.exists(_.missing.contains("legal threat line")), true)
+    assertEquals(illegalThreat.missingEvidence.exists(_.missing.contains("legal threat line")), true)
+    assertEquals(untrustedThreat.missingEvidence.exists(_.missing.contains("same-board proof")), true)
+    assertEquals(kingThreat.missingEvidence.exists(_.missing.contains("threatened non-king target")), true)
+    assertEquals(cancelledThreat.materialLossIfUnanswered, Some(0))
+    assertEquals(cancelledThreat.missingEvidence.exists(_.missing.contains("material loss if unanswered")), true)
+    assertEquals(StoryTable.choose(Vector(highProofOnly)).head.role, Role.Blocked)
+    assertEquals(StoryTable.choose(Vector(highProofOnly)).head.leadAllowed, false)
+
+  test("Defense-2 DefenseProof proves target moves away without Story or public claim"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseMove = Line(Square('d', 4), Square('e', 4))
+    val threat = ThreatProof.fromBoardFacts(facts, threatLine)
+    val proof = DefenseProof.fromBoardFacts(facts, threat, defenseMove)
+    val publicSurfaceNames =
+      classOf[DefenseProof].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[DefenseProof].getDeclaredFields.map(_.getName).toSet
+    val defenseMethods = DefenseProof.getClass.getDeclaredMethods.toVector
+
+    assertEquals(proof.defendingSide, Side.White)
+    assertEquals(proof.defenseMove, Some(defenseMove))
+    assertEquals(proof.defendedTarget, Some(Piece(Side.White, Man.Queen, Square('d', 4))))
+    assertEquals(proof.originalThreat, threat)
+    assertEquals(proof.afterDefenseTargetStatus, Some(DefenseTargetStatus.TargetMovedAway))
+    assertEquals(proof.materialLossPrevented, Some(900))
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.missingEvidence, Vector.empty)
+    assertEquals(proof.complete, true)
+    assertEquals(proof.publicClaimAllowed, false)
+    Vector(
+      "Story",
+      "Sentence",
+      "RenderedLine",
+      "ExplanationPlan",
+      "Verdict",
+      "publicText",
+      "render",
+      "llm",
+      "engine"
+    ).foreach: forbidden =>
+      assert(!publicSurfaceNames.exists(_.toLowerCase.contains(forbidden.toLowerCase)), forbidden)
+    assertEquals(defenseMethods.filter(_.getName == "fromBoardFacts").map(_.getReturnType.getSimpleName), Vector("DefenseProof"))
+    assertEquals(defenseMethods.exists(_.getReturnType.getSimpleName.contains("Story")), false)
+
+  test("Defense-2 DefenseProof proves guarding blocking and attacker capture only"):
+    val guardedFacts = BoardFacts.fromFen("4k3/8/8/3q4/3R4/8/7B/4K3 w - - 0 1").toOption.get
+    val guardedThreatLine = Line(Square('d', 5), Square('d', 4))
+    val guardedMove = Line(Square('h', 2), Square('e', 5))
+    val guardedThreat = ThreatProof.fromBoardFacts(guardedFacts, guardedThreatLine)
+    val guardedProof = DefenseProof.fromBoardFacts(guardedFacts, guardedThreat, guardedMove)
+    val blockedFacts = BoardFacts.fromFen("3qk3/8/8/8/3RB3/8/8/4K3 w - - 0 1").toOption.get
+    val blockedThreatLine = Line(Square('d', 8), Square('d', 4))
+    val blockedMove = Line(Square('e', 4), Square('d', 5))
+    val blockedThreat = ThreatProof.fromBoardFacts(blockedFacts, blockedThreatLine)
+    val blockedProof = DefenseProof.fromBoardFacts(blockedFacts, blockedThreat, blockedMove)
+    val capturedFacts = BoardFacts.fromFen("4k3/8/8/5n2/3RB3/8/8/4K3 w - - 0 1").toOption.get
+    val capturedThreatLine = Line(Square('f', 5), Square('d', 4))
+    val capturedMove = Line(Square('e', 4), Square('f', 5))
+    val capturedThreat = ThreatProof.fromBoardFacts(capturedFacts, capturedThreatLine)
+    val capturedProof = DefenseProof.fromBoardFacts(capturedFacts, capturedThreat, capturedMove)
+
+    assertEquals(guardedThreat.materialLossIfUnanswered, Some(500))
+    assertEquals(guardedProof.afterDefenseTargetStatus, Some(DefenseTargetStatus.TargetGuarded))
+    assertEquals(guardedProof.materialLossPrevented, Some(500))
+    assertEquals(guardedProof.complete, true)
+    assertEquals(blockedThreat.materialLossIfUnanswered, Some(500))
+    assertEquals(blockedProof.afterDefenseTargetStatus, Some(DefenseTargetStatus.AttackerLineBlocked))
+    assertEquals(blockedProof.materialLossPrevented, Some(500))
+    assertEquals(blockedProof.complete, true)
+    assertEquals(capturedThreat.materialLossIfUnanswered, Some(500))
+    assertEquals(capturedProof.afterDefenseTargetStatus, Some(DefenseTargetStatus.AttackerCaptured))
+    assertEquals(capturedProof.materialLossPrevented, Some(500))
+    assertEquals(capturedProof.complete, true)
+    Vector(guardedProof, blockedProof, capturedProof).foreach: proof =>
+      assertEquals(proof.missingEvidence, Vector.empty)
+      assertEquals(proof.publicClaimAllowed, false)
+
+  test("Defense-2 DefenseProof keeps unsupported defense-looking moves incomplete"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val threat = ThreatProof.fromBoardFacts(facts, threatLine)
+    val illegalMove = DefenseProof.fromBoardFacts(facts, threat, Line(Square('a', 1), Square('a', 2)))
+    val quietMove = DefenseProof.fromBoardFacts(facts, threat, Line(Square('e', 1), Square('e', 2)))
+    val stillCapturableTargetMove =
+      DefenseProof.fromBoardFacts(facts, threat, Line(Square('d', 4), Square('h', 4)))
+    val untrusted =
+      minimalBoardFacts(
+        sideLegal = readyMoves(line = Line(Square('d', 4), Square('e', 4))),
+        rivalLegal = readyMoves(line = threatLine, captureCount = 1),
+        pieces = Vector(
+          Piece(Side.White, Man.King, Square('e', 1)),
+          Piece(Side.Black, Man.King, Square('e', 8)),
+          Piece(Side.White, Man.Queen, Square('d', 4)),
+          Piece(Side.Black, Man.Knight, Square('f', 5))
+        )
+      )
+    val untrustedThreat = ThreatProof.fromBoardFacts(untrusted, threatLine)
+    val untrustedProof =
+      DefenseProof.fromBoardFacts(untrusted, untrustedThreat, Line(Square('d', 4), Square('e', 4)))
+    val incompleteThreat =
+      ThreatProof.fromBoardFacts(facts, Line(Square('f', 5), Square('f', 4)))
+    val incompleteThreatProof =
+      DefenseProof.fromBoardFacts(facts, incompleteThreat, Line(Square('d', 4), Square('e', 4)))
+    val highProofOnly =
+      Story(
+        Scene.Defense,
+        side = Side.White,
+        target = Some(Square('d', 4)),
+        anchor = Some(Square('d', 4)),
+        route = Some(Line(Square('d', 4), Square('e', 4))),
+        rival = Side.Black,
+        proof = proof(
+          boardProof = 99,
+          lineProof = 99,
+          ownerProof = 99,
+          anchorProof = 99,
+          routeProof = 99,
+          conversionPrize = 99,
+          forcing = 99,
+          immediacy = 99
+        ),
+        storyProof = storyProof()
+      )
+
+    Vector(illegalMove, quietMove, stillCapturableTargetMove, untrustedProof, incompleteThreatProof).foreach: proof =>
+      assertEquals(proof.complete, false)
+      assert(proof.missingEvidence.nonEmpty)
+      assertEquals(proof.publicClaimAllowed, false)
+    assertEquals(illegalMove.missingEvidence.exists(_.missing.contains("legal defense move")), true)
+    assertEquals(quietMove.missingEvidence.exists(_.missing.contains("after-defense target status")), true)
+    assertEquals(stillCapturableTargetMove.missingEvidence.exists(_.missing.contains("after-defense target status")), true)
+    assertEquals(untrustedProof.missingEvidence.exists(_.missing.contains("same-board proof")), true)
+    assertEquals(incompleteThreatProof.missingEvidence.exists(_.missing.contains("complete ThreatProof")), true)
+    assertEquals(StoryTable.choose(Vector(highProofOnly)).head.role, Role.Blocked)
+    assertEquals(StoryTable.choose(Vector(highProofOnly)).head.leadAllowed, false)
+
+  test("Defense-3 SceneDefense writer admits one proof-backed Defense Story"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val threat = ThreatProof.fromBoardFacts(facts, threatLine)
+    val defense = DefenseProof.fromBoardFacts(facts, threat, defenseLine)
+    val story = SceneDefense.write(facts, threatLine, defenseLine).get
+    val verdict = StoryTable.choose(Vector(story)).head
+
+    assertEquals(threat.complete, true)
+    assertEquals(defense.complete, true)
+    assertEquals(story.scene, Scene.Defense)
+    assertEquals(story.tactic, None)
+    assertEquals(story.plan, None)
+    assertEquals(story.side, Side.White)
+    assertEquals(story.rival, Side.Black)
+    assertEquals(story.target, Some(Square('d', 4)))
+    assertEquals(story.anchor, Some(Square('d', 4)))
+    assertEquals(story.route, Some(defenseLine))
+    assertEquals(story.writer, Some(StoryWriter.SceneDefense))
+    assertEquals(story.threatProof, Some(threat))
+    assertEquals(story.defenseProof, Some(defense))
+    assertEquals(story.proofFailures, Vector.empty)
+    assertEquals(story.engineCheck.exists(_.status == EngineCheckStatus.Refutes), false)
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(verdict.leadAllowed, true)
+    assertEquals(verdict.story.scene, Scene.Defense)
+
+  test("Defense-3 SceneDefense writer blocks refuted and unsupported Defense rows"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val quietDefense = Line(Square('e', 1), Square('e', 2))
+    val story = SceneDefense.write(facts, threatLine, defenseLine).get
+    val refute = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(defenseLine))),
+      replyLine = Some(EngineLine(Vector(threatLine))),
+      evalBefore = Some(EngineEval(100)),
+      evalAfter = Some(EngineEval(-100)),
+      depth = Some(12),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    val refutedStory = SceneDefense.withEngineCheck(story, refute).get
+    val forged =
+      Story(
+        scene = Scene.Defense,
+        side = Side.White,
+        target = Some(Square('d', 4)),
+        anchor = Some(Square('d', 4)),
+        route = Some(defenseLine),
+        routeSan = Some("Qe4"),
+        rival = Side.Black,
+        proof = proof(
+          boardProof = 99,
+          lineProof = 99,
+          ownerProof = 99,
+          anchorProof = 99,
+          routeProof = 99,
+          conversionPrize = 99,
+          forcing = 99,
+          immediacy = 99
+        ),
+        storyProof = StoryProof.fromBoardFacts(facts, defenseLine),
+        writer = Some(StoryWriter.SceneDefense)
+      )
+
+    assertEquals(SceneDefense.write(facts, threatLine, quietDefense), None)
+    assertEquals(refute.status, EngineCheckStatus.Refutes)
+    assertEquals(StoryTable.choose(Vector(refutedStory)).head.role, Role.Blocked)
+    assertEquals(StoryTable.choose(Vector(refutedStory)).head.leadAllowed, false)
+    assertEquals(StoryTable.choose(Vector(forged)).head.role, Role.Blocked)
+    assertEquals(StoryTable.choose(Vector(forged)).head.leadAllowed, false)
+
+  test("Defense-4 negative corpus keeps defense-looking false positives silent"):
+    val baselineFacts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val quietDefense = Line(Square('e', 1), Square('e', 2))
+    val wrongGuardFacts = BoardFacts.fromFen("4k3/8/8/3q4/3R4/8/B6B/4K3 w - - 0 1").toOption.get
+    val alreadyDefendedFacts = BoardFacts.fromFen("7k/8/8/3q4/4Q3/8/5N2/4K3 w - - 0 1").toOption.get
+    val stillLosesFacts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val recaptureFacts = BoardFacts.fromFen("4k3/8/8/5n2/3RBq2/8/8/4K3 w - - 0 1").toOption.get
+    val tacticFacts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val noThreat = SceneDefense.write(baselineFacts, Line(Square('f', 5), Square('h', 4)), defenseLine)
+    val illegalThreat = SceneDefense.write(baselineFacts, Line(Square('f', 5), Square('f', 4)), defenseLine)
+    val alreadyDefended =
+      SceneDefense.write(alreadyDefendedFacts, Line(Square('d', 5), Square('e', 4)), Line(Square('e', 4), Square('e', 3)))
+    val doesNotAffectTarget = SceneDefense.write(baselineFacts, threatLine, quietDefense)
+    val guardsWrongPiece =
+      SceneDefense.write(wrongGuardFacts, Line(Square('d', 5), Square('d', 4)), Line(Square('a', 2), Square('b', 3)))
+    val stillLoses = SceneDefense.write(stillLosesFacts, threatLine, Line(Square('d', 4), Square('h', 4)))
+    val allowsEquivalentRecapture =
+      SceneDefense.write(recaptureFacts, Line(Square('f', 5), Square('d', 4)), Line(Square('e', 4), Square('f', 5)))
+    val prophylaxis =
+      Story(
+        scene = Scene.Defense,
+        plan = Some(Plan.Prophy),
+        side = Side.White,
+        target = Some(Square('d', 4)),
+        anchor = Some(Square('e', 2)),
+        route = Some(quietDefense),
+        routeSan = Some("Ke2"),
+        rival = Side.Black,
+        proof = proof(
+          boardProof = 99,
+          lineProof = 99,
+          ownerProof = 99,
+          anchorProof = 99,
+          routeProof = 99,
+          conversionPrize = 99,
+          forcing = 99,
+          immediacy = 99
+        ),
+        storyProof = StoryProof.fromBoardFacts(baselineFacts, quietDefense),
+        writer = Some(StoryWriter.SceneDefense)
+      )
+    val tacticMaterialGain = SceneDefense.write(tacticFacts, Line(Square('e', 5), Square('d', 4)), Line(Square('d', 4), Square('e', 5)))
+    val kingSafetyClaim =
+      Story(
+        scene = Scene.Defense,
+        side = Side.White,
+        target = Some(Square('e', 1)),
+        anchor = Some(Square('g', 2)),
+        route = Some(Line(Square('g', 2), Square('g', 3))),
+        routeSan = Some("g3"),
+        rival = Side.Black,
+        proof = proof(boardProof = 99, lineProof = 99, ownerProof = 99, anchorProof = 99, routeProof = 99, kingHeat = 99),
+        storyProof = StoryProof.empty,
+        writer = Some(StoryWriter.SceneDefense)
+      )
+    val mateDefenseClaim =
+      Story(
+        scene = Scene.Defense,
+        tactic = Some(Tactic.MateNet),
+        side = Side.White,
+        target = Some(Square('e', 1)),
+        anchor = Some(Square('g', 2)),
+        route = Some(Line(Square('g', 2), Square('g', 3))),
+        routeSan = Some("g3"),
+        rival = Side.Black,
+        proof = proof(boardProof = 99, lineProof = 99, ownerProof = 99, anchorProof = 99, routeProof = 99, kingHeat = 99),
+        storyProof = StoryProof.empty,
+        writer = Some(StoryWriter.SceneDefense)
+      )
+    val onlyMoveClaim =
+      Story(
+        scene = Scene.Defense,
+        side = Side.White,
+        target = Some(Square('d', 4)),
+        anchor = Some(Square('d', 4)),
+        route = Some(defenseLine),
+        routeSan = Some("Qe4"),
+        rival = Side.Black,
+        proof = proof(
+          boardProof = 99,
+          lineProof = 99,
+          ownerProof = 99,
+          anchorProof = 99,
+          routeProof = 99,
+          forcing = 100,
+          conversionPrize = 100,
+          clarity = 100
+        ),
+        storyProof = StoryProof.fromBoardFacts(baselineFacts, defenseLine),
+        writer = Some(StoryWriter.SceneDefense)
+      )
+    val storyProofIncomplete =
+      SceneDefense.write(minimalBoardFacts(sideLegal = readyMoves(line = defenseLine), rivalLegal = readyMoves(line = threatLine)), threatLine, defenseLine)
+    val threatProofIncomplete = SceneDefense.write(baselineFacts, Line(Square('f', 5), Square('f', 4)), defenseLine)
+    val defenseProofIncomplete = SceneDefense.write(baselineFacts, threatLine, quietDefense)
+    val refuted = SceneDefense.write(baselineFacts, threatLine, defenseLine).flatMap: story =>
+      val check = EngineCheck.fromStory(
+        facts = baselineFacts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(defenseLine))),
+        replyLine = Some(EngineLine(Vector(threatLine))),
+        evalBefore = Some(EngineEval(120)),
+        evalAfter = Some(EngineEval(-120)),
+        depth = Some(12),
+        freshnessPly = Some(0),
+        requestedStatus = EngineCheckStatus.Supports
+      )
+      SceneDefense.withEngineCheck(story, check)
+    val highProofOnly =
+      Story(
+        scene = Scene.Defense,
+        side = Side.White,
+        target = Some(Square('d', 4)),
+        anchor = Some(Square('d', 4)),
+        route = Some(defenseLine),
+        routeSan = Some("Qe4"),
+        rival = Side.Black,
+        proof = proof(
+          boardProof = 100,
+          lineProof = 100,
+          ownerProof = 100,
+          anchorProof = 100,
+          routeProof = 100,
+          forcing = 100,
+          conversionPrize = 100,
+          clarity = 100
+        ),
+        storyProof = StoryProof.fromBoardFacts(baselineFacts, defenseLine)
+      )
+
+    Vector(
+      "no actual threat" -> noThreat,
+      "threat is illegal" -> illegalThreat,
+      "attacked piece is already adequately defended" -> alreadyDefended,
+      "defense move does not affect the target" -> doesNotAffectTarget,
+      "defense move guards wrong piece" -> guardsWrongPiece,
+      "defense move still loses material" -> stillLoses,
+      "defense move allows equivalent recapture" -> allowsEquivalentRecapture,
+      "defense is actually a tactic / material gain" -> tacticMaterialGain,
+      "StoryProof incomplete" -> storyProofIncomplete,
+      "ThreatProof incomplete" -> threatProofIncomplete,
+      "DefenseProof incomplete" -> defenseProofIncomplete
+    ).foreach: (label, defenseStory) =>
+      assertEquals(defenseStory, None, label)
+
+    Vector(
+      "defense only looks like prophylaxis" -> prophylaxis,
+      "king safety claim tries to enter" -> kingSafetyClaim,
+      "mate defense tries to enter" -> mateDefenseClaim,
+      "only-move claim tries to enter" -> onlyMoveClaim,
+      "EngineCheck Refutes" -> refuted.get,
+      "high Proof score only" -> highProofOnly
+    ).foreach: (label, story) =>
+      val verdict = StoryTable.choose(Vector(story)).head
+      assertEquals(verdict.leadAllowed, false, label)
+      assertEquals(verdict.role, Role.Blocked, label)
+
+  test("Defense-5 reuses EngineCheck statuses for existing SceneDefense Stories only"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val story = SceneDefense.write(facts, threatLine, defenseLine).get
+
+    def check(status: EngineCheckStatus, before: Int = 20, after: Int = 20): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(defenseLine))),
+        replyLine = Some(EngineLine(Vector(threatLine))),
+        evalBefore = Some(EngineEval(before)),
+        evalAfter = Some(EngineEval(after)),
+        depth = Some(12),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    val unknown = SceneDefense.withEngineCheck(story, check(EngineCheckStatus.Unknown)).get
+    val supports = SceneDefense.withEngineCheck(story, check(EngineCheckStatus.Supports)).get
+    val caps = SceneDefense.withEngineCheck(story, check(EngineCheckStatus.Caps)).get
+    val refutes = SceneDefense.withEngineCheck(story, check(EngineCheckStatus.Supports, before = 100, after = -100)).get
+    val unknownVerdict = StoryTable.choose(Vector(unknown)).head
+    val supportsVerdict = StoryTable.choose(Vector(supports)).head
+    val capsVerdict = StoryTable.choose(Vector(caps)).head
+    val refutesVerdict = StoryTable.choose(Vector(refutes)).head
+
+    assertEquals(unknown.engineCheck.map(_.status), Some(EngineCheckStatus.Unknown))
+    assertEquals(supports.engineCheck.map(_.status), Some(EngineCheckStatus.Supports))
+    assertEquals(caps.engineCheck.map(_.status), Some(EngineCheckStatus.Caps))
+    assertEquals(refutes.engineCheck.map(_.status), Some(EngineCheckStatus.Refutes))
+    assertEquals(unknownVerdict.role, Role.Lead)
+    assertEquals(supportsVerdict.role, Role.Lead)
+    assertEquals(capsVerdict.role, Role.Lead)
+    assertEquals(capsVerdict.engineStrengthLimited, true)
+    assertEquals(refutesVerdict.role, Role.Blocked)
+    assertEquals(refutesVerdict.leadAllowed, false)
+
+  test("Defense-5 EngineCheck cannot create or explain Defense without same-board Story binding"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val otherFacts = BoardFacts.fromFen("4k3/8/8/8/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val wrongRoute = Line(Square('d', 4), Square('h', 4))
+    val story = SceneDefense.write(facts, threatLine, defenseLine).get
+    val engineOnly = EngineCheck.fromStory(
+      facts = facts,
+      story = None,
+      engineLine = Some(EngineLine(Vector(defenseLine))),
+      replyLine = Some(EngineLine(Vector(threatLine))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(20)),
+      depth = Some(12),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    val staleOrDepthMissing = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(defenseLine))),
+      replyLine = Some(EngineLine(Vector(threatLine))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(20)),
+      depth = None,
+      freshnessPly = Some(2),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    val routeMismatched = EngineCheck.fromEvidence(
+      sameBoardProof = true,
+      checkedMove = Some(wrongRoute),
+      engineLine = Some(EngineLine(Vector(wrongRoute))),
+      replyLine = Some(EngineLine(Vector(threatLine))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(20)),
+      depth = Some(12),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    val differentBoard = EngineCheck.fromStory(
+      facts = otherFacts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(defenseLine))),
+      replyLine = Some(EngineLine(Vector(threatLine))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(20)),
+      depth = Some(12),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+
+    assertEquals(engineOnly.storyBound, false)
+    assertEquals(engineOnly.status, EngineCheckStatus.Unknown)
+    assertEquals(SceneDefense.withEngineCheck(story, engineOnly), None)
+    assertEquals(SceneDefense.withEngineCheck(story, staleOrDepthMissing), None)
+    assertEquals(SceneDefense.withEngineCheck(story, routeMismatched), None)
+    assertEquals(SceneDefense.withEngineCheck(story, differentBoard), None)
+    assertEquals(StoryTable.choose(Vector(story)).head.role, Role.Lead)
+
+  test("Defense-6 StoryTable orders Hanging Fork Material and Defense deterministically"):
+    val hangingFacts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val hangingMove = Line(Square('d', 4), Square('e', 5))
+    val hanging = TacticHanging.write(hangingFacts, hangingMove).get
+    val material = SceneMaterial.write(hangingFacts, hangingMove).get
+    val forkFacts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork = TacticFork.write(forkFacts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+    val defenseFacts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val defenseThreat = Line(Square('f', 5), Square('d', 4))
+    val defenseMove = Line(Square('d', 4), Square('e', 4))
+    val defense = SceneDefense.write(defenseFacts, defenseThreat, defenseMove).get
+
+    def score(value: Int): Proof =
+      proof(
+        boardProof = value,
+        lineProof = value,
+        ownerProof = value,
+        anchorProof = value,
+        routeProof = value,
+        persistence = value,
+        immediacy = value,
+        forcing = value,
+        conversionPrize = value,
+        counterplayRisk = 20,
+        kingHeat = 0,
+        pieceSupport = value,
+        pawnSupport = 0,
+        clarity = value
+      )
+
+    val high = score(99)
+    val tied = Vector(
+      hanging.copy(proof = high),
+      fork.copy(proof = high),
+      material.copy(proof = high),
+      defense.copy(proof = high)
+    )
+    val forward = StoryTable.choose(tied)
+    val reverse = StoryTable.choose(tied.reverse)
+    val shuffled = StoryTable.choose(Vector(tied(3), tied(1), tied(2), tied(0)))
+
+    def orderShape(verdicts: Vector[Verdict]) =
+      verdicts.map(verdict => (verdict.story.scene, verdict.story.tactic, verdict.story.route, verdict.role))
+
+    assertEquals(orderShape(forward), orderShape(reverse))
+    assertEquals(orderShape(forward), orderShape(shuffled))
+    assertEquals(forward.map(_.story.scene).toSet, Set(Scene.Tactic, Scene.Material, Scene.Defense))
+    assertEquals(forward.map(_.story.tactic).toSet, Set(Some(Tactic.Hanging), Some(Tactic.Fork), None))
+    assertEquals(forward.map(_.role), Vector(Role.Lead, Role.Support, Role.Support, Role.Support))
+    forward.filter(_.role != Role.Lead).foreach: verdict =>
+      assertEquals(ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan), None)
+
+  test("Defense-6 StoryTable blocks invalid Defense rows without creating meaning"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val story = SceneDefense.write(facts, threatLine, defenseLine).get
+    val refute = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(defenseLine))),
+      replyLine = Some(EngineLine(Vector(threatLine))),
+      evalBefore = Some(EngineEval(100)),
+      evalAfter = Some(EngineEval(-100)),
+      depth = Some(14),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    val refuted = SceneDefense.withEngineCheck(story, refute).get
+    val writerless = story.copy(writer = None)
+    val withoutThreatProof = story.copy(threatProof = None)
+    val withoutDefenseProof = story.copy(defenseProof = None)
+    val incompleteDefense =
+      Story(
+        scene = Scene.Defense,
+        side = Side.White,
+        target = Some(Square('d', 4)),
+        anchor = Some(Square('d', 4)),
+        route = Some(defenseLine),
+        routeSan = Some("Qe4"),
+        rival = Side.Black,
+        proof = story.proof,
+        storyProof = StoryProof.empty,
+        writer = Some(StoryWriter.SceneDefense),
+        threatProof = story.threatProof,
+        defenseProof = story.defenseProof
+      )
+    val highProofOnly =
+      Story(
+        scene = Scene.Defense,
+        side = Side.White,
+        target = Some(Square('d', 4)),
+        anchor = Some(Square('d', 4)),
+        route = Some(defenseLine),
+        routeSan = Some("Qe4"),
+        rival = Side.Black,
+        proof = proof(
+          boardProof = 100,
+          lineProof = 100,
+          ownerProof = 100,
+          anchorProof = 100,
+          routeProof = 100,
+          forcing = 100,
+          conversionPrize = 100,
+          clarity = 100
+        ),
+        storyProof = StoryProof.fromBoardFacts(facts, defenseLine)
+      )
+    val alternateDefenseLine = Line(Square('d', 4), Square('c', 4))
+    val alternateStory = SceneDefense.write(facts, threatLine, alternateDefenseLine).get
+    val rawEvalFavoredLowProof = story
+      .copy(
+        proof = proof(boardProof = 72, lineProof = 72, ownerProof = 72, anchorProof = 72, routeProof = 72),
+        engineCheck = Some(
+          EngineCheck.fromEvidence(
+            sameBoardProof = true,
+            checkedMove = Some(defenseLine),
+            engineLine = Some(EngineLine(Vector(defenseLine))),
+            replyLine = Some(EngineLine(Vector(threatLine))),
+            evalBefore = Some(EngineEval(-900)),
+            evalAfter = Some(EngineEval(900)),
+            depth = Some(20),
+            freshnessPly = Some(0),
+            requestedStatus = EngineCheckStatus.Supports
+          )
+        )
+      )
+    val proofFavored = alternateStory.copy(
+      proof = proof(boardProof = 95, lineProof = 95, ownerProof = 95, anchorProof = 95, routeProof = 95)
+    )
+
+    Vector(
+      "Refuted Defense" -> refuted,
+      "incomplete Defense" -> incompleteDefense,
+      "writerless Defense" -> writerless,
+      "Defense without ThreatProof" -> withoutThreatProof,
+      "Defense without DefenseProof" -> withoutDefenseProof,
+      "high Proof score only" -> highProofOnly
+    ).foreach: (label, row) =>
+      val verdict = StoryTable.choose(Vector(row)).head
+      assertEquals(verdict.role, Role.Blocked, label)
+      assertEquals(verdict.leadAllowed, false, label)
+
+    val evalOrder = StoryTable.choose(Vector(rawEvalFavoredLowProof, proofFavored))
+    assertEquals(evalOrder.head.story, proofFavored)
+    assertEquals(evalOrder.exists(_.story == rawEvalFavoredLowProof), true)
+    assertEquals(StoryTable.choose(Vector(story)).head.role, Role.Lead)
+    assertEquals(StoryTable.choose(Vector(story)).exists(_.story.scene == Scene.Defense), true)
+
+  test("Defense-7 ExplanationPlan lowers selected Defense Verdict without raw proof input"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val defense = SceneDefense.write(facts, threatLine, defenseLine).get
+    val verdict = StoryTable.choose(Vector(defense)).head
+    val maybePlan = ExplanationPlan.fromSelected(verdict)
+    val fromSelectedMethods =
+      ExplanationPlan.getClass.getDeclaredMethods.toVector.filter(_.getName == "fromSelected")
+    val fromSelectedParameterNames =
+      fromSelectedMethods
+        .flatMap(_.getParameterTypes.toVector)
+        .map(_.getName)
+        .mkString(" ")
+    val planSurfaceNames =
+      classOf[ExplanationPlan].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[ExplanationPlan].getDeclaredFields.map(_.getName).toSet
+
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(verdict.selected, true)
+    assertEquals(fromSelectedMethods.map(_.getParameterTypes.toVector.map(_.getSimpleName)), Vector(Vector("Verdict")))
+    Vector(
+      "ThreatProof",
+      "DefenseProof",
+      "EngineCheck",
+      "BoardFacts",
+      "EngineLine",
+      "Source",
+      "String"
+    ).foreach: forbiddenType =>
+      assert(!fromSelectedParameterNames.contains(forbiddenType), s"ExplanationPlan must not accept $forbiddenType")
+
+    val plan = maybePlan.get
+    assertEquals(plan.role, Role.Lead)
+    assertEquals(plan.scene, Scene.Defense)
+    assertEquals(plan.tactic, None)
+    assertEquals(plan.side, Side.White)
+    assertEquals(plan.target, Some(Square('d', 4)))
+    assertEquals(plan.anchor, Some(Square('d', 4)))
+    assertEquals(plan.route, Some(defenseLine))
+    assertEquals(plan.secondaryTarget, None)
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.DefendsPiece))
+    assertEquals(plan.allowedClaim.map(_.key), Some("defends_piece"))
+    assertEquals(
+      ExplanationClaim.DefenseAllowed.map(_.key),
+      Vector("defends_piece", "prevents_material_loss", "protects_target")
+    )
+    assertEquals(
+      ExplanationClaim.DefenseForbiddenKeys,
+      Vector(
+        "only_move",
+        "best_defense",
+        "refutes_attack",
+        "stops_counterplay",
+        "solves_position",
+        "king_safe",
+        "mate_defense",
+        "no_counterplay"
+      )
+    )
+    assertEquals(plan.evidenceLine, Some(defenseLine))
+    assertEquals(plan.strength, ExplanationStrength.Bounded)
+    Vector(
+      "only_move",
+      "best_move",
+      "best_defense",
+      "refutes_attack",
+      "stops_counterplay",
+      "solves_position",
+      "king_safe",
+      "mate_defense",
+      "no_counterplay"
+    ).foreach: forbidden =>
+      assert(plan.forbiddenWording.map(_.key).contains(forbidden), forbidden)
+    assertEquals(plan.relations, Vector.empty)
+    assertEquals(plan.debugOnly, false)
+    assertEquals(plan.supportContextLinks, Vector.empty)
+    Vector(
+      "threatProof",
+      "defenseProof",
+      "engineCheck",
+      "boardFacts",
+      "rawPv",
+      "proofFailures",
+      "sourceRow"
+    ).foreach: forbiddenName =>
+      assert(!planSurfaceNames.exists(_.toLowerCase.contains(forbiddenName.toLowerCase)))
+
+  test("Defense-7 Defense non Lead capped and refuted plans create no stronger claim"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val leftMove = Line(Square('d', 4), Square('e', 4))
+    val rightMove = Line(Square('d', 4), Square('c', 4))
+    val leftDefense = SceneDefense.write(facts, threatLine, leftMove).get
+    val rightDefense = SceneDefense.write(facts, threatLine, rightMove).get.copy(proof = leftDefense.proof)
+    val verdicts = StoryTable.choose(Vector(leftDefense, rightDefense))
+    val leadVerdict = verdicts.find(_.role == Role.Lead).get
+    val supportVerdict = verdicts.find(_.role == Role.Support).get
+    val contextVerdict = leadVerdict.copy(role = Role.Context, leadAllowed = false)
+    val blockedVerdict = leadVerdict.copy(role = Role.Blocked, leadAllowed = false)
+    val cappedCheck = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(leftDefense),
+      engineLine = Some(EngineLine(Vector(leftMove))),
+      replyLine = Some(EngineLine(Vector(threatLine))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(20)),
+      depth = Some(12),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Caps
+    )
+    val refuteCheck = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(leftDefense),
+      engineLine = Some(EngineLine(Vector(leftMove))),
+      replyLine = Some(EngineLine(Vector(threatLine))),
+      evalBefore = Some(EngineEval(100)),
+      evalAfter = Some(EngineEval(-100)),
+      depth = Some(12),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    val cappedPlan =
+      ExplanationPlan.fromSelected(StoryTable.choose(Vector(SceneDefense.withEngineCheck(leftDefense, cappedCheck).get)).head).get
+    val refutedPlan =
+      ExplanationPlan.fromSelected(StoryTable.choose(Vector(SceneDefense.withEngineCheck(leftDefense, refuteCheck).get)).head).get
+    val leadPlan = ExplanationPlan.fromSelected(leadVerdict).get
+    val supportPlan = ExplanationPlan.fromSelected(supportVerdict).get
+    val contextPlan = ExplanationPlan.fromSelected(contextVerdict).get
+    val blockedPlan = ExplanationPlan.fromSelected(blockedVerdict).get
+
+    assertEquals(leadPlan.allowedClaim, Some(ExplanationClaim.DefendsPiece))
+    Vector(supportPlan, contextPlan, blockedPlan, cappedPlan, refutedPlan).foreach: plan =>
+      assertEquals(plan.allowedClaim, None)
+    assertEquals(supportPlan.relations, Vector(ExplanationRelation.SameFamilyLowerRank))
+    assertEquals(contextPlan.relations, Vector.empty)
+    assertEquals(blockedPlan.debugOnly, true)
+    assertEquals(cappedPlan.forbiddenWording.contains(ForbiddenWording.StrongWording), true)
+    assertEquals(refutedPlan.relations, Vector(ExplanationRelation.BlockedByEngineRefute))
+    assertEquals(refutedPlan.debugOnly, true)
+
+  test("Defense-8 DeterministicRenderer phrases Defense ExplanationPlan without stronger meaning"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val defense = SceneDefense.write(facts, threatLine, defenseLine).get
+    val verdict = StoryTable.choose(Vector(defense)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val materialLossPlan = plan.copy(allowedClaim = Some(ExplanationClaim.PreventsMaterialLoss))
+    val materialLossRendered = DeterministicRenderer.fromPlan(materialLossPlan).get
+    val rendererMethods =
+      DeterministicRenderer.getClass.getDeclaredMethods
+        .filter(_.getName == "fromPlan")
+        .map(_.getParameterTypes.toVector.map(_.getSimpleName))
+        .toVector
+
+    assertEquals(rendererMethods, Vector(Vector("ExplanationPlan")))
+    assertEquals(rendered.text, "Qe4+ defends the piece on d4.")
+    assertEquals(rendered.claimKey, "defends_piece")
+    assertEquals(rendered.strength, "bounded")
+    assertEquals(rendered.forbiddenCheckPassed, true)
+    assertEquals(materialLossRendered.text, "Qe4+ prevents the piece on d4 from being lost immediately.")
+    assertEquals(materialLossRendered.claimKey, "prevents_material_loss")
+    Vector(
+      "only move",
+      "best move",
+      "refutes the attack",
+      "stops all counterplay",
+      "solves the position",
+      "king is safe",
+      "mate is stopped",
+      "winning",
+      "decisive",
+      "forced"
+    ).foreach: forbidden =>
+      assert(!rendered.text.toLowerCase.contains(forbidden))
+      assert(!materialLossRendered.text.toLowerCase.contains(forbidden))
+
+  test("Defense-8 Renderer refuses Defense text without bounded Lead claim permission"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val alternateDefenseLine = Line(Square('d', 4), Square('c', 4))
+    val defense = SceneDefense.write(facts, threatLine, defenseLine).get
+    val alternateDefense = SceneDefense.write(facts, threatLine, alternateDefenseLine).get.copy(proof = defense.proof)
+    val verdicts = StoryTable.choose(Vector(defense, alternateDefense))
+    val supportPlan = ExplanationPlan.fromSelected(verdicts.find(_.role == Role.Support).get).get
+    val leadPlan = ExplanationPlan.fromSelected(verdicts.find(_.role == Role.Lead).get).get
+    val blockedPlan = leadPlan.copy(role = Role.Blocked, allowedClaim = None, debugOnly = true)
+    val cappedPlan = leadPlan.copy(allowedClaim = None, forbiddenWording = leadPlan.forbiddenWording :+ ForbiddenWording.StrongWording)
+    val wrongScenePlan = leadPlan.copy(scene = Scene.Material)
+    val wrongClaimPlan = leadPlan.copy(allowedClaim = Some(ExplanationClaim.MaterialBalanceChanges))
+    val strongerRoutePlan = leadPlan.copy(routeSan = Some("Qe4 wins material"))
+
+    Vector(supportPlan, blockedPlan, cappedPlan, wrongScenePlan, wrongClaimPlan, strongerRoutePlan).foreach: plan =>
+      assertEquals(DeterministicRenderer.fromPlan(plan), None)
+
+  test("Defense-9 LLM smoke accepts Defense RenderedLine without raw proof input"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val defense = SceneDefense.write(facts, threatLine, defenseLine).get
+    val verdict = StoryTable.choose(Vector(defense)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val prompt = LlmNarrationSmoke.codexCliPrompt(plan, rendered).get
+    val smokeMethods =
+      LlmNarrationSmoke.getClass.getDeclaredMethods.toVector
+    val smokeParameterNames =
+      smokeMethods.flatMap(_.getParameterTypes.toVector).map(_.getName).mkString(" ")
+
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, rendered), Some(rendered.text))
+    assertEquals(LlmNarrationSmoke.check(plan, rendered, rendered.text), NarrationSmokeCheck(true, Vector.empty))
+    assert(prompt.contains("renderedText: Qe4+ defends the piece on d4."))
+    assert(prompt.contains("claimKey: defends_piece"))
+    assert(prompt.contains("strength: bounded"))
+    assert(prompt.contains("instruction: Rephrase only. Do not add chess facts."))
+    Vector(
+      "ThreatProof",
+      "DefenseProof",
+      "EngineCheck",
+      "BoardFacts",
+      "EngineEval",
+      "EngineLine",
+      "Story",
+      "Verdict"
+    ).foreach: forbiddenType =>
+      assert(!smokeParameterNames.contains(forbiddenType), s"LLM smoke must not accept $forbiddenType")
+    Vector(
+      "raw Verdict",
+      "Story",
+      "ThreatProof",
+      "DefenseProof",
+      "EngineCheck",
+      "BoardFacts",
+      "engine eval",
+      "raw PV",
+      "proofFailures"
+    ).foreach: forbidden =>
+      assert(!prompt.contains(forbidden), forbidden)
+
+  test("Defense-9 LLM smoke rejects stronger Defense rephrases"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val defense = SceneDefense.write(facts, threatLine, defenseLine).get
+    val verdict = StoryTable.choose(Vector(defense)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val cases = Vector(
+      "Qe4+ is the only move to defend the piece on d4." -> "forbidden_wording",
+      "Qe4+ is the best move to defend the piece on d4." -> "forbidden_wording",
+      "Qe4+ gives White no counterplay problems." -> "forbidden_wording",
+      "Qe4+ keeps the king safe while defending d4." -> "forbidden_wording",
+      "Qe4+ stops mate and defends d4." -> "forbidden_wording",
+      "Qe4+ refutes the attack on d4." -> "forbidden_wording",
+      "The engine says Qe4+ defends d4." -> "engine_mention",
+      "Qe4+ defends d4 and Nc6 is next." -> "new_move_or_line",
+      "Qe4+ defends d4 with a fork." -> "new_tactic_or_plan",
+      "Qe4+ starts a plan to defend d4." -> "new_tactic_or_plan",
+      "Qe4+ wins material by defending d4." -> "stronger_claim"
+    )
+
+    cases.foreach: (output, violation) =>
+      val check = LlmNarrationSmoke.check(plan, rendered, output)
+      assertEquals(check.accepted, false, output)
+      assert(check.violations.contains(violation), s"$output should include $violation, got ${check.violations}")
+
+  test("Defense slice closeout keeps proof homes separate and unopened meanings silent"):
+    val facts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val threat = ThreatProof.fromBoardFacts(facts, threatLine)
+    val defenseProof = DefenseProof.fromBoardFacts(facts, threat, defenseLine)
+    val story = SceneDefense.write(facts, threatLine, defenseLine).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    assertEquals(threat.publicClaimAllowed, false)
+    assertEquals(defenseProof.publicClaimAllowed, false)
+    assertEquals(threat.complete, true)
+    assertEquals(defenseProof.complete, true)
+    assertEquals(story.scene, Scene.Defense)
+    assertEquals(story.tactic, None)
+    assertEquals(story.plan, None)
+    assertEquals(story.captureResult, None)
+    assertEquals(story.multiTargetProof, None)
+    assertEquals(story.threatProof.exists(_.complete), true)
+    assertEquals(story.defenseProof.exists(_.complete), true)
+    assertEquals(story.proof.kingHeat, 0)
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.DefendsPiece))
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, rendered), Some(rendered.text))
+    Vector(
+      "only move",
+      "best move",
+      "no counterplay",
+      "king safety",
+      "mate defense",
+      "refutes",
+      "strategy",
+      "prophylaxis",
+      "winning",
+      "decisive",
+      "forced"
+    ).foreach: forbidden =>
+      assert(!rendered.text.toLowerCase.contains(forbidden), forbidden)
+
+  test("Defense slice closeout real game smoke accepts attacked bishop defense"):
+    // Fischer-Spassky, World Championship 1972 game 6 after 1.c4 e6 2.Nf3 d5 3.d4 Nf6 4.Nc3 Be7 5.Bg5 O-O 6.e3 h6.
+    val facts = BoardFacts.fromFen("rnbq1rk1/ppp1bpp1/4pn1p/3p2B1/2PP4/2N1PN2/PP3PPP/R2QKB1R w KQ - 0 7").toOption.get
+    val threatLine = Line(Square('h', 6), Square('g', 5))
+    val defenseLine = Line(Square('g', 5), Square('h', 4))
+    val story = SceneDefense.write(facts, threatLine, defenseLine).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    assertEquals(story.scene, Scene.Defense)
+    assertEquals(story.tactic, None)
+    assertEquals(story.plan, None)
+    assertEquals(story.threatProof.exists(_.complete), true)
+    assertEquals(story.defenseProof.exists(_.complete), true)
+    assertEquals(story.defenseProof.flatMap(_.afterDefenseTargetStatus), Some(DefenseTargetStatus.TargetMovedAway))
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.DefendsPiece))
+    assertEquals(rendered.text, "Bh4 defends the piece on g5.")
+    assertEquals(LlmNarrationSmoke.check(plan, rendered, rendered.text), NarrationSmokeCheck(true, Vector.empty))
+
   test("Material-3 Scene.Material writer admits one narrow proof-backed Story"):
     val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
     val capture = Line(Square('d', 4), Square('e', 5))

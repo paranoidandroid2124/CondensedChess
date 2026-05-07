@@ -60,6 +60,8 @@ private[commentary] object LlmNarrationSmoke:
         plan.tactic.exists(tactic => claimMatchesTactic(plan, tactic))
       case Scene.Material =>
         plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.MaterialBalanceChanges)
+      case Scene.Defense =>
+        plan.tactic.isEmpty && plan.allowedClaim.exists(ExplanationClaim.DefenseAllowed.contains)
       case _ =>
         false
 
@@ -90,7 +92,16 @@ private[commentary] object LlmNarrationSmoke:
         "only move",
         "engine says",
         "engine approved",
-        "no counterplay"
+        "no counterplay",
+        "best defense",
+        "refutes attack",
+        "refutes the attack",
+        "stops counterplay",
+        "stops all counterplay",
+        "king is safe",
+        "king safety",
+        "mate defense",
+        "mate is stopped"
       )
     strongPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
       (!plan.allowedClaim.contains(ExplanationClaim.CanWinPiece) && materialWinPhrases.exists(containsPhrase(normalized, _))) ||
@@ -225,6 +236,18 @@ private[commentary] object LlmNarrationSmoke:
         Vector("decisive fork")
       case ForbiddenWording.ForcedWin =>
         Vector("forced win", "forces a win")
+      case ForbiddenWording.BestDefense =>
+        Vector("best defense")
+      case ForbiddenWording.RefutesAttack =>
+        Vector("refutes attack", "refutes the attack")
+      case ForbiddenWording.StopsCounterplay =>
+        Vector("stops counterplay", "stops all counterplay")
+      case ForbiddenWording.SolvesPosition =>
+        Vector("solves the position", "solves position")
+      case ForbiddenWording.KingSafe =>
+        Vector("king safe", "king is safe")
+      case ForbiddenWording.MateDefense =>
+        Vector("mate defense", "stops mate", "mate is stopped")
 
   private def forbiddenLabel(forbidden: ForbiddenWording): String =
     forbiddenMeaning(forbidden).head

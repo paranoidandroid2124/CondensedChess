@@ -1021,6 +1021,120 @@ Lead fail-closed rules:
   smoke directly. Material reuses the existing proof home, Story writer,
   EngineCheck, StoryTable, ExplanationPlan, Renderer, and LLM smoke skeleton.
   The next named slice remains `Scene.Defense`.
+- Defense-0 is owned by `StoryInteractionLaw.md`. Defense-0 opens only the `Scene.Defense` charter.
+  It fixes the first scope to an attacked piece, an immediate same-board legal
+  material threat, a defended move that removes, guards, or saves the target,
+  and bounded prevention of material loss. `ThreatProof` names what must be
+  stopped. `DefenseProof` names how it is stopped. `Scene.Defense` is the
+  Story label. `defends_piece` and `prevents_material_loss` are speech claims.
+  It opens no writer, proof sidecar, StoryTable integration, ExplanationPlan,
+  renderer, LLM smoke, public route `200`, or production API. It does not open
+  only-move, best-move, no-counterplay, refutation, solved-position, king
+  safety, mate defense, strategic defense, prophylaxis, winning, or conversion
+  claims.
+- Defense-1 is owned by `StoryInteractionLaw.md`. Defense-1 opens only `ThreatProof`.
+  ThreatProof carries rival side, threatened target, attacking piece, legal
+  threat line, target value, material loss if unanswered, same-board proof,
+  and missing evidence. It may prove that the rival can immediately and
+  legally capture the target, that the target is attacked, and that the
+  capture would cause bounded material loss. ThreatProof proves what must be
+  stopped, but it does not create a Defense Story or public claim. It does not
+  open DefenseProof, the named Scene.Defense writer, StoryTable integration,
+  ExplanationPlan, renderer, LLM smoke, public route `200`, production API,
+  king safety, mate threat, long-term pressure, strategic threat,
+  no-counterplay, or engine-says-this-is-a-threat wording.
+- Defense-2 is owned by `StoryInteractionLaw.md`. Defense-2 opens only `DefenseProof`.
+  DefenseProof carries defending side, defense move, defended target, original
+  threat, after-defense target status, material loss prevented, same-board
+  proof, and missing evidence. It may prove only that the target moves away,
+  the target becomes guarded, the attacker line is blocked, or the attacker is
+  captured. DefenseProof proves whether a specific threat is stopped, but it
+  does not create a Defense Story or public claim. It does not open the named
+  Scene.Defense writer, StoryTable integration, ExplanationPlan, renderer, LLM
+  smoke, public route `200`, production API, solved-position, refutation,
+  stops-all-threats, only-move, best-defense, no-counterplay, king safety, or
+  mate defense wording.
+- Defense-3 is owned by `StoryInteractionLaw.md`. Defense-3 opens only the named `SceneDefense` writer for one narrow `Scene.Defense` Story.
+  A SceneDefense Story requires complete StoryProof, complete ThreatProof,
+  complete DefenseProof, same-board proof, legal defense move, identified
+  protected target, prevented material loss, writer `SceneDefense`, and no
+  refuting EngineCheck. Its first allowed meanings are only that this move
+  defends the attacked piece and prevents immediate material loss. It does not
+  open ExplanationPlan, renderer, LLM smoke, public route `200`, production API,
+  only-move, best-move, refutes-attack, stops-counterplay, solves-position,
+  king-safe, mate-stopped, winning, or decisive wording.
+- Defense-4 is owned by `StoryInteractionLaw.md`. Defense-4 opens only the Defense negative corpus.
+  Defense-looking rows have no Lead or are Blocked unless ThreatProof and
+  DefenseProof are complete. The negative corpus covers no actual threat,
+  illegal threat, already adequately defended target, defense moves that do not
+  affect the target, wrong-piece guards, still-losing defenses, equivalent
+  recapture, prophylaxis-looking rows, tactic/material-gain rows, king-safety
+  claims, mate-defense claims, only-move claims, incomplete StoryProof,
+  incomplete ThreatProof, incomplete DefenseProof, EngineCheck Refutes, and
+  high Proof score only. Defense-4 opens no ExplanationPlan, renderer, LLM
+  smoke, public route `200`, production API, only-move, best-move,
+  no-counterplay, king-safety, mate-defense, winning, or decisive wording.
+- Defense-5 is owned by `StoryInteractionLaw.md`. Defense-5 opens only existing EngineCheck reuse for existing `Scene.Defense` Stories.
+  EngineCheck may support, cap, or refute an existing Defense Story, but it
+  does not create Defense. Defense EngineCheck evidence requires an existing
+  Defense Story, same-board proof, the same Story route, the same legal line,
+  and fresh/depth evidence. Allowed statuses are Unknown, Supports, Caps, and
+  Refutes. It opens no DefenseEngineCheck duplicate type, engine-created
+  Defense Story, public engine truth, PV explanation, best-move explanation,
+  only-move claim, refutes-attack claim, ExplanationPlan, renderer, LLM smoke,
+  public route `200`, or production API.
+- Defense-6 is owned by `StoryInteractionLaw.md`. Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows.
+  StoryTable deterministically orders Hanging, Fork, Material, and Defense
+  without creating new chess meaning. Refuted, incomplete, writerless,
+  ThreatProof-missing, and DefenseProof-missing Defense rows are Blocked.
+  Defense may compete for Lead only with complete proof. Support and Context
+  roles are not sentences. StoryTable does not create Defense, rank Defense by
+  raw engine eval, expose Defense proof text, let renderer wording affect order,
+  or open only-move or no-counterplay wording.
+- Defense-7 is owned by `StoryInteractionLaw.md`. Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts.
+  It accepts selected Verdict only and must not accept ThreatProof directly,
+  DefenseProof directly, EngineCheck, BoardFacts, raw PV, proofFailures, or
+  source row input. First allowed claim keys are `defends_piece`,
+  `prevents_material_loss`, and `protects_target`. Forbidden claim keys are
+  `only_move`, `best_defense`, `refutes_attack`, `stops_counterplay`,
+  `solves_position`, `king_safe`, `mate_defense`, and `no_counterplay`.
+  Defense ExplanationPlan creates no meaning stronger than the selected
+  Verdict.
+- Defense-8 is owned by `StoryInteractionLaw.md`. Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan.
+  Renderer receives ExplanationPlan only and may render only bounded Defense
+  text such as `{route} defends the piece on {target}.` or `{route} prevents
+  the piece on {target} from being lost immediately.` Renderer text is no
+  stronger than the Defense ExplanationPlan. It opens no ThreatProof,
+  DefenseProof, EngineCheck, BoardFacts, raw PV, proofFailures, source row,
+  only-move, best-move, refutes-attack, stops-all-counterplay,
+  solves-position, king-safe, mate-stopped, winning, decisive, forced, LLM
+  smoke, public route `200`, or production API path.
+- Defense-9 is owned by `StoryInteractionLaw.md`. Defense-9 opens only LLM smoke for selected Defense ExplanationPlan and RenderedLine.
+  LLM smoke may receive only ExplanationPlan and RenderedLine. 8B Codex CLI
+  smoke input may receive only renderedText, claimKey, strength, forbidden
+  wording, and the instruction `Rephrase only. Do not add chess facts.` It
+  must not receive raw Verdict, Story, ThreatProof, DefenseProof, EngineCheck,
+  BoardFacts, engine eval, raw PV, or proofFailures. It rejects new moves, new
+  lines, new tactics, new plans, engine mentions, only-move, best-move,
+  no-counterplay, king-safety, mate-defense, refutes-attack wording, and
+  stronger claims. LLM smoke does not make Defense text stronger. Public route
+  `200`, production API, and public/user-facing LLM narration remain closed.
+- Defense Slice Closeout confirms `Scene.Defense` opened no King safety, Mate defense, Plan, Strategy, Counterplay, or Prophylaxis path.
+  Defense closes as a narrow proof-backed attacked-piece material-loss defense
+  slice only. `ThreatProof`, `DefenseProof`, `Scene.Defense`, and
+  `defends_piece` each keep one home. ThreatProof owns what must be stopped;
+  DefenseProof owns how the move stops it; StoryProof owns same-board Story
+  identity evidence; EngineCheck supports, caps, or refutes an existing
+  Defense Story only; StoryTable arbitrates roles without creating Defense.
+  The Defense negative corpus keeps defense-looking false positives silent
+  without complete ThreatProof and DefenseProof. The slice reused the shared
+  charter, proof home, named writer, negative corpus, EngineCheck, StoryTable,
+  ExplanationPlan, deterministic renderer, LLM smoke, and closeout skeleton.
+  Fischer-Spassky 1972 game 6 after 6...h6, 7.Bh4 is covered as the real-game
+  attacked-piece defense smoke. Next candidates remain line-based tactic or
+  king-forcing tactic; Defense does not open king safety, mate defense, or
+  counterplay. Public route `200`, production API, and public/user-facing LLM
+  narration remain closed.
 - Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
   engine-capped, and engine-refuted Verdicts create no allowed claim or public
   claim. Stage 7 deterministic renderer may receive Explanation Plan only and

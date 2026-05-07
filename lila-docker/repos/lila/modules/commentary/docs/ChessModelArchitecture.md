@@ -30,8 +30,33 @@ The current branch owns only:
 
 `Board Truth / Primitive Geometry / Story boundary / Verdict boundary / Explanation Plan boundary / Deterministic Renderer boundary`
 
-Current implementation scope is Stage 8 Prompt Smoke, the narrow Fork-9
-LLM smoke slice, and Material Slice Closeout Pass. Stage 3 remains open
+Current implementation scope is Defense Slice Closeout Pass.
+Defense-0 opened only the charter for the first narrow `Scene.Defense` slice.
+Defense-1 opened only `ThreatProof`.
+Defense-1 opens only `ThreatProof`.
+Defense requires a threat. ThreatProof proves what must be stopped.
+DefenseProof proves how the move stops it.
+DefenseProof proves how a specific move stops a specific ThreatProof.
+Defense is not no-counterplay.
+Defense-2 opens only `DefenseProof`.
+Defense-3 opens only the named `SceneDefense` writer for one narrow `Scene.Defense` Story.
+Defense-4 opens only the Defense negative corpus.
+Defense-looking false positives must stay silent without complete ThreatProof and complete DefenseProof.
+Defense-5 opens only existing EngineCheck reuse for existing `Scene.Defense` Stories.
+EngineCheck may support, cap, or refute an existing Defense Story, but it does not create Defense.
+Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows.
+StoryTable deterministically orders Hanging, Fork, Material, and Defense without creating new chess meaning.
+Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts.
+Defense ExplanationPlan creates no meaning stronger than the selected Verdict.
+Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan.
+Renderer text is no stronger than the Defense ExplanationPlan.
+Defense-9 opens only LLM smoke for selected Defense ExplanationPlan and RenderedLine.
+LLM smoke does not make Defense text stronger.
+Defense Slice Closeout opens no new chess meaning beyond the narrow `Scene.Defense` vertical slice.
+Defense closes as a narrow proof-backed attacked-piece material-loss defense slice only.
+Public route `200`, production API, and public/user-facing LLM narration remain closed.
+The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, and Defense-9 scopes remain closed baselines.
+Stage 3 remains open
 only for Material proof kernel, `Tactic.Hanging`, Hanging negative corpus, the
 narrow `Tactic.Fork` vertical slice, the narrow `Scene.Material` writer, and
 Material negative corpus and EngineCheck reuse.

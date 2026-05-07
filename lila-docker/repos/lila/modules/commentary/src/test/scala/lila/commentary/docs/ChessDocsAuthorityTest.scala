@@ -576,7 +576,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(bridgeSource.contains("const PublicRenderRoutesTombstoned = true"))
     assert(bridgeSource.contains("if (PublicRenderRoutesTombstoned) return { kind: 'empty', reason: 'no_commentary' }"))
     assert(readme.contains("Stage order no-go"))
-    assert(readme.contains("Current implementation scope is Stage 8 Prompt Smoke"))
+    assert(readme.contains("Current implementation scope is Defense Slice Closeout Pass."))
     assert(readme.contains("Stage 4 is named `Engine Check`."))
     assert(readme.replaceAll("\\s+", " ").contains("Stages 9-11 remain a dependency map"))
     assert(readme.contains("LLM no-go"))
@@ -637,7 +637,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
         "`Board Truth / Primitive Geometry / Story boundary / Verdict boundary / Explanation Plan boundary / Deterministic Renderer boundary`"
       )
     )
-    assert(architecture.contains("Current implementation scope is Stage 8 Prompt Smoke"))
+    assert(architecture.contains("Current implementation scope is Defense Slice Closeout Pass."))
     assert(architecture.contains("Stage 4 is named `Engine Check`."))
     assert(architecture.replaceAll("\\s+", " ").contains("Stages 9-11 below"))
     assert(architecture.replaceAll("\\s+", " ").contains("dependency map for product design"))
@@ -2882,6 +2882,534 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "MobilityProof"
     ).foreach: proofHome =>
       assert(interactionLaw.contains(s"| $proofHome |"), s"width map must cover $proofHome")
+
+  test("Defense-0 charter pins Scene.Defense as bounded material-loss defense only"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("## Defense-0 Scene.Defense Charter"))
+    Vector(
+      "Defense-0 opens only the charter for the first narrow `Scene.Defense` slice.",
+      "First Defense scope:",
+      "- attacked piece exists",
+      "- opponent has an immediate material threat",
+      "- the threat is same-board legal",
+      "- the defended move removes, guards, or saves the target",
+      "- material loss is prevented in a bounded way",
+      "- no claim of best move or only move",
+      "`ThreatProof = what must be stopped`",
+      "`DefenseProof = how it is stopped`",
+      "`Scene.Defense = Story label`",
+      "`defends_piece / prevents_material_loss = speech claim`",
+      "Forbidden Defense-0 claims:",
+      "- only move",
+      "- best move",
+      "- no counterplay",
+      "- refutes the attack",
+      "- solves the position",
+      "- king safety",
+      "- mate defense",
+      "- strategic defense",
+      "- prophylaxis",
+      "- winning",
+      "- conversion",
+      "Completion standard: `Scene.Defense` must not become another name for a good move or for stopping all counterplay."
+    ).foreach: defenseLine =>
+      assert(interactionLaw.contains(defenseLine), s"Defense-0 must pin: $defenseLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Defense-0 opened only the charter for the first narrow `Scene.Defense` slice."))
+      assert(doc.contains("Defense requires a threat."))
+      assert(doc.contains("ThreatProof proves what must be stopped."))
+      assert(doc.contains("DefenseProof proves how the move stops it."))
+      assert(doc.contains("Defense is not no-counterplay."))
+    assert(normalizedModelContract.contains("Defense-0 is owned by `StoryInteractionLaw.md`."))
+    assert(normalizedModelContract.contains("Defense-0 opens only the `Scene.Defense` charter."))
+    assert(normalizedModelContract.contains("It opens no writer, proof sidecar, StoryTable integration, ExplanationPlan, renderer, LLM smoke, public route `200`, or production API."))
+
+  test("Defense-1 ThreatProof pins what Defense must stop without creating Story"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("## Defense-1 ThreatProof"))
+    Vector(
+      "Defense-1 opens only `ThreatProof`.",
+      "ThreatProof proves what must be stopped.",
+      "ThreatProof does not create a Defense Story.",
+      "ThreatProof does not create a public claim.",
+      "Required ThreatProof fields:",
+      "- rival side",
+      "- threatened target",
+      "- attacking piece",
+      "- legal threat line",
+      "- target value",
+      "- material loss if unanswered",
+      "- same-board proof",
+      "- missing evidence",
+      "Allowed Defense-1 meanings:",
+      "- rival can capture the target",
+      "- target is attacked",
+      "- capture would cause material loss",
+      "- threat is immediate and legal",
+      "Forbidden Defense-1 meanings:",
+      "- opponent has an attack",
+      "- king is unsafe",
+      "- no counterplay",
+      "- mate threat",
+      "- long-term pressure",
+      "- strategic threat",
+      "- engine says this is a threat",
+      "Completion standard: ThreatProof proves what must be stopped, but it does not create a Defense Story or public claim."
+    ).foreach: defenseLine =>
+      assert(interactionLaw.contains(defenseLine), s"Defense-1 must pin: $defenseLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Defense-1 opens only `ThreatProof`."))
+      assert(doc.contains("ThreatProof proves what must be stopped."))
+    assert(normalizedModelContract.contains("Defense-1 is owned by `StoryInteractionLaw.md`."))
+    assert(normalizedModelContract.contains("Defense-1 opens only `ThreatProof`."))
+    assert(normalizedModelContract.contains("ThreatProof proves what must be stopped, but it does not create a Defense Story or public claim."))
+
+  test("Defense-2 DefenseProof pins how a specific move stops a ThreatProof"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("## Defense-2 DefenseProof"))
+    Vector(
+      "Defense-2 opens only `DefenseProof`.",
+      "DefenseProof proves how a specific move stops a specific ThreatProof.",
+      "DefenseProof does not create a Defense Story.",
+      "DefenseProof does not create a public claim.",
+      "Allowed Defense-2 move types:",
+      "1. target moves away",
+      "2. target becomes guarded",
+      "3. attacker line is blocked or attacker is captured",
+      "Required DefenseProof fields:",
+      "- defending side",
+      "- defense move",
+      "- defended target",
+      "- original threat",
+      "- after-defense target status",
+      "- material loss prevented",
+      "- same-board proof",
+      "- missing evidence",
+      "Allowed Defense-2 meanings:",
+      "- the target is no longer capturable for gain",
+      "- the target is defended after the move",
+      "- the attacker's line is blocked",
+      "- the attacker is captured",
+      "Forbidden Defense-2 meanings:",
+      "- solves the position",
+      "- refutes the attack",
+      "- stops all threats",
+      "- only move",
+      "- best defense",
+      "- no counterplay",
+      "- king safety",
+      "- mate defense",
+      "Completion standard: DefenseProof proves whether a specific threat is stopped, but it does not create a Defense Story or public claim."
+    ).foreach: defenseLine =>
+      assert(interactionLaw.contains(defenseLine), s"Defense-2 must pin: $defenseLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Defense-2 opens only `DefenseProof`."))
+      assert(doc.contains("DefenseProof proves how a specific move stops a specific ThreatProof."))
+    assert(normalizedModelContract.contains("Defense-2 is owned by `StoryInteractionLaw.md`."))
+    assert(normalizedModelContract.contains("Defense-2 opens only `DefenseProof`."))
+    assert(normalizedModelContract.contains("DefenseProof proves whether a specific threat is stopped, but it does not create a Defense Story or public claim."))
+
+  test("Defense-3 SceneDefense writer pins the first narrow Defense Story"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("## Defense-3 SceneDefense Writer"))
+    Vector(
+      "Defense-3 opens only the named `SceneDefense` writer for one narrow `Scene.Defense` Story.",
+      "Required SceneDefense writer evidence:",
+      "- scene = Defense",
+      "- StoryProof complete",
+      "- ThreatProof complete",
+      "- DefenseProof complete",
+      "- same-board proof present",
+      "- defense move legal",
+      "- protected target identified",
+      "- material loss prevented",
+      "- writer = SceneDefense",
+      "- EngineCheck does not Refute",
+      "First allowed Defense-3 meanings:",
+      "- this move defends the attacked piece",
+      "- this move prevents immediate material loss",
+      "Forbidden Defense-3 meanings:",
+      "- only move",
+      "- best move",
+      "- refutes attack",
+      "- stops counterplay",
+      "- solves position",
+      "- king safe",
+      "- mate stopped",
+      "- winning",
+      "- decisive",
+      "Completion standard: one narrow proof-backed Defense Story can enter StoryTable."
+    ).foreach: defenseLine =>
+      assert(interactionLaw.contains(defenseLine), s"Defense-3 must pin: $defenseLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Defense-3 opens only the named `SceneDefense` writer for one narrow `Scene.Defense` Story."))
+      assert(doc.contains("ThreatProof proves what must be stopped."))
+      assert(doc.contains("DefenseProof proves how a specific move stops a specific ThreatProof."))
+      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+    assert(normalizedModelContract.contains("Defense-3 is owned by `StoryInteractionLaw.md`."))
+    assert(normalizedModelContract.contains("Defense-3 opens only the named `SceneDefense` writer for one narrow `Scene.Defense` Story."))
+    assert(normalizedModelContract.contains("A SceneDefense Story requires complete StoryProof, complete ThreatProof, complete DefenseProof, same-board proof, legal defense move, identified protected target, prevented material loss, writer `SceneDefense`, and no refuting EngineCheck."))
+
+  test("Defense-4 negative corpus pins defense-looking false positives silent"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("## Defense-4 Defense Negative Corpus"))
+    Vector(
+      "Defense-4 opens only the Defense negative corpus.",
+      "Defense-looking false positives must stay silent without complete ThreatProof and complete DefenseProof.",
+      "Defense-4 negative cases:",
+      "- no actual threat",
+      "- threat is illegal",
+      "- attacked piece is already adequately defended",
+      "- defense move does not affect the target",
+      "- defense move guards wrong piece",
+      "- defense move still loses material",
+      "- defense move allows equivalent recapture",
+      "- defense only looks like prophylaxis",
+      "- defense is actually a tactic / material gain",
+      "- king safety claim tries to enter",
+      "- mate defense tries to enter",
+      "- only-move claim tries to enter",
+      "- StoryProof incomplete",
+      "- ThreatProof incomplete",
+      "- DefenseProof incomplete",
+      "- EngineCheck Refutes",
+      "- high Proof score only",
+      "Completion standard: defense-looking rows have no Lead or are Blocked unless ThreatProof and DefenseProof are complete."
+    ).foreach: defenseLine =>
+      assert(interactionLaw.contains(defenseLine), s"Defense-4 must pin: $defenseLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Defense-4 opens only the Defense negative corpus."))
+      assert(doc.contains("Defense-looking false positives must stay silent without complete ThreatProof and complete DefenseProof."))
+      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+    assert(normalizedModelContract.contains("Defense-4 is owned by `StoryInteractionLaw.md`."))
+    assert(normalizedModelContract.contains("Defense-4 opens only the Defense negative corpus."))
+    assert(normalizedModelContract.contains("Defense-looking rows have no Lead or are Blocked unless ThreatProof and DefenseProof are complete."))
+
+  test("Defense-5 EngineCheck reuse pins Defense engine evidence boundary"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+    val chessSources =
+      Files
+        .walk(docsRoot.getParent.resolve("src/main/scala/lila/commentary/chess"))
+        .toList
+        .stream
+        .filter(path => path.toString.endsWith(".scala"))
+        .map(path => Files.readString(path))
+        .reduce("", _ + "\n" + _)
+
+    assert(interactionLaw.contains("## Defense-5 EngineCheck for Scene.Defense"))
+    Vector(
+      "Defense-5 opens only existing EngineCheck reuse for existing `Scene.Defense` Stories.",
+      "Allowed Defense-5 EngineCheck statuses:",
+      "- Unknown",
+      "- Supports",
+      "- Caps",
+      "- Refutes",
+      "Required Defense-5 EngineCheck evidence:",
+      "- Defense Story already exists",
+      "- same-board proof",
+      "- same Story route",
+      "- same legal line",
+      "- fresh/depth evidence",
+      "Forbidden Defense-5 meanings and shortcuts:",
+      "- engine creates Defense Story",
+      "- engine eval becomes public truth",
+      "- PV becomes explanation",
+      "- best move explanation",
+      "- only move claim",
+      "- refutes attack claim",
+      "- DefenseEngineCheck duplicate type",
+      "Completion standard: EngineCheck may support, cap, or refute an existing Defense Story, but it does not create Defense."
+    ).foreach: defenseLine =>
+      assert(interactionLaw.contains(defenseLine), s"Defense-5 must pin: $defenseLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Defense-5 opens only existing EngineCheck reuse for existing `Scene.Defense` Stories."))
+      assert(doc.contains("EngineCheck may support, cap, or refute an existing Defense Story, but it does not create Defense."))
+      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+    assert(normalizedModelContract.contains("Defense-5 is owned by `StoryInteractionLaw.md`."))
+    assert(normalizedModelContract.contains("Defense-5 opens only existing EngineCheck reuse for existing `Scene.Defense` Stories."))
+    assert(normalizedModelContract.contains("EngineCheck may support, cap, or refute an existing Defense Story, but it does not create Defense."))
+    assert(!chessSources.contains("DefenseEngineCheck"))
+
+  test("Defense-6 StoryTable integration pins four-family deterministic ordering"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("## Defense-6 StoryTable Integration"))
+    Vector(
+      "Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows.",
+      "Allowed Defense-6 roles and behavior:",
+      "- Lead",
+      "- Support",
+      "- Context",
+      "- Blocked",
+      "- deterministic ordering",
+      "Defense-6 StoryTable rules:",
+      "- Refuted Defense -> Blocked",
+      "- incomplete Defense -> Blocked",
+      "- writerless Defense -> Blocked",
+      "- Defense without ThreatProof -> Blocked",
+      "- Defense without DefenseProof -> Blocked",
+      "- Defense can compete for Lead only if it has complete proof",
+      "- Support / Context are not sentences",
+      "Forbidden Defense-6 shortcuts:",
+      "- StoryTable creates Defense",
+      "- raw engine eval ranks Defense",
+      "- Defense proof text becomes public",
+      "- renderer wording affects order",
+      "- Defense silently opens only move or no counterplay",
+      "Completion standard: StoryTable deterministically orders Hanging, Fork, Material, and Defense without creating new chess meaning."
+    ).foreach: defenseLine =>
+      assert(interactionLaw.contains(defenseLine), s"Defense-6 must pin: $defenseLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows."))
+      assert(doc.contains("StoryTable deterministically orders Hanging, Fork, Material, and Defense without creating new chess meaning."))
+      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, and Defense-9 scopes remain closed baselines."))
+    assert(normalizedModelContract.contains("Defense-6 is owned by `StoryInteractionLaw.md`."))
+    assert(normalizedModelContract.contains("Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows."))
+    assert(normalizedModelContract.contains("StoryTable deterministically orders Hanging, Fork, Material, and Defense without creating new chess meaning."))
+
+  test("Defense-7 ExplanationPlan pins selected Defense Verdict speech boundary"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("## Defense-7 ExplanationPlan for Scene.Defense"))
+    Vector(
+      "Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts.",
+      "Defense-7 allowed input:",
+      "- selected Verdict only",
+      "Defense-7 forbidden inputs:",
+      "- ThreatProof directly",
+      "- DefenseProof directly",
+      "- EngineCheck",
+      "- BoardFacts",
+      "- raw PV",
+      "- proofFailures",
+      "- source row",
+      "Defense-7 first allowed claim keys:",
+      "- defends_piece",
+      "- prevents_material_loss",
+      "- protects_target",
+      "Defense-7 forbidden claim keys:",
+      "- only_move",
+      "- best_defense",
+      "- refutes_attack",
+      "- stops_counterplay",
+      "- solves_position",
+      "- king_safe",
+      "- mate_defense",
+      "- no_counterplay",
+      "Completion standard: Defense ExplanationPlan creates no meaning stronger than the selected Verdict."
+    ).foreach: defenseLine =>
+      assert(interactionLaw.contains(defenseLine), s"Defense-7 must pin: $defenseLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts."))
+      assert(doc.contains("Defense ExplanationPlan creates no meaning stronger than the selected Verdict."))
+      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, and Defense-9 scopes remain closed baselines."))
+    assert(normalizedModelContract.contains("Defense-7 is owned by `StoryInteractionLaw.md`."))
+    assert(normalizedModelContract.contains("Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts."))
+    assert(normalizedModelContract.contains("Defense ExplanationPlan creates no meaning stronger than the selected Verdict."))
+
+  test("Defense-8 deterministic renderer pins Defense text boundary"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("## Defense-8 Deterministic Renderer"))
+    Vector(
+      "Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan.",
+      "Defense-8 allowed renderer input:",
+      "- ExplanationPlan only",
+      "Defense-8 first deterministic templates:",
+      "- `{route} defends the piece on {target}.`",
+      "- `{route} prevents the piece on {target} from being lost immediately.`",
+      "Defense-8 forbidden renderer wording:",
+      "- only move",
+      "- best move",
+      "- refutes the attack",
+      "- stops all counterplay",
+      "- solves the position",
+      "- king is safe",
+      "- mate is stopped",
+      "- winning",
+      "- decisive",
+      "- forced",
+      "Completion standard: Renderer text is no stronger than the Defense ExplanationPlan."
+    ).foreach: defenseLine =>
+      assert(interactionLaw.contains(defenseLine), s"Defense-8 must pin: $defenseLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan."))
+      assert(doc.contains("Renderer text is no stronger than the Defense ExplanationPlan."))
+      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, and Defense-9 scopes remain closed baselines."))
+    assert(normalizedModelContract.contains("Defense-8 is owned by `StoryInteractionLaw.md`."))
+    assert(normalizedModelContract.contains("Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan."))
+    assert(normalizedModelContract.contains("Renderer text is no stronger than the Defense ExplanationPlan."))
+
+  test("Defense-9 LLM smoke pins Defense rephrase boundary"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("## Defense-9 LLM Smoke"))
+    Vector(
+      "Defense-9 opens only LLM smoke for selected Defense ExplanationPlan and RenderedLine.",
+      "Defense-9 allowed LLM smoke input:",
+      "- ExplanationPlan",
+      "- RenderedLine",
+      "Defense-9 Codex CLI smoke input:",
+      "- renderedText",
+      "- claimKey",
+      "- strength",
+      "- forbidden wording",
+      "- instruction: Rephrase only. Do not add chess facts.",
+      "Defense-9 forbidden LLM smoke inputs:",
+      "- raw Verdict",
+      "- Story",
+      "- ThreatProof",
+      "- DefenseProof",
+      "- EngineCheck",
+      "- BoardFacts",
+      "- engine eval",
+      "- raw PV",
+      "- proofFailures",
+      "Defense-9 smoke rejection checks:",
+      "- no new move",
+      "- no new line",
+      "- no new tactic",
+      "- no new plan",
+      "- no engine mention",
+      "- no only move",
+      "- no best move",
+      "- no no-counterplay",
+      "- no king safety",
+      "- no mate defense",
+      "- no refutes-attack wording",
+      "- no stronger claim",
+      "Completion standard: LLM smoke does not make Defense text stronger."
+    ).foreach: defenseLine =>
+      assert(interactionLaw.contains(defenseLine), s"Defense-9 must pin: $defenseLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Defense-9 opens only LLM smoke for selected Defense ExplanationPlan and RenderedLine."))
+      assert(doc.contains("LLM smoke does not make Defense text stronger."))
+      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+    assert(normalizedModelContract.contains("Defense-9 is owned by `StoryInteractionLaw.md`."))
+    assert(normalizedModelContract.contains("Defense-9 opens only LLM smoke for selected Defense ExplanationPlan and RenderedLine."))
+    assert(normalizedModelContract.contains("LLM smoke does not make Defense text stronger."))
+
+  test("Defense slice closeout pins audit and next-stage handoff"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val agents = Files.readString(agentInstructions)
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("## Defense Slice Closeout Pass"))
+    Vector(
+      "Defense Slice Closeout opens no new chess meaning beyond the narrow `Scene.Defense` vertical slice.",
+      "Defense closeout scope audit:",
+      "- only `Scene.Defense` opened",
+      "- king safety remains closed",
+      "- mate defense remains closed",
+      "- Plan remains closed",
+      "- Strategy remains closed",
+      "- Counterplay remains closed beyond existing EngineCheck Caps",
+      "- Prophylaxis remains closed",
+      "Defense closeout authority audit:",
+      "- ThreatProof owns what must be stopped",
+      "- DefenseProof owns how the move stops it",
+      "- StoryProof owns same-board Story identity evidence",
+      "- EngineCheck supports, caps, or refutes an existing Defense Story only",
+      "- StoryTable arbitrates roles without creating Defense",
+      "Defense closeout negative corpus audit: defense-looking false positives stay silent without complete ThreatProof and DefenseProof.",
+      "Defense closeout shared skeleton audit: charter, proof home, named writer, negative corpus, EngineCheck reuse, StoryTable integration, ExplanationPlan, deterministic renderer, LLM smoke, and closeout reused the existing vertical-slice skeleton.",
+      "Defense closeout cleanup audit: `ThreatProof`, `DefenseProof`, `Scene.Defense`, and `defends_piece` each have one home.",
+      "Defense closeout real-game smoke: Fischer-Spassky 1972 game 6 after 6...h6, 7.Bh4 is covered as an attacked-piece defense smoke.",
+      "Defense closeout next-stage handoff: next candidates remain line-based tactic or king-forcing tactic; Defense does not open king safety, mate defense, or counterplay.",
+      "Defense requires a threat.",
+      "Defense is not no-counterplay.",
+      "Reuse the skeleton before adding a new one.",
+      "One chess meaning, one home.",
+      "Completion standard: Defense closes as a narrow proof-backed attacked-piece material-loss defense slice only."
+    ).foreach: closeoutLine =>
+      assert(interactionLaw.contains(closeoutLine), s"Defense closeout must pin: $closeoutLine")
+
+    Vector(readme, ssot, architecture, agents).foreach: doc =>
+      assert(doc.contains("Current implementation scope is Defense Slice Closeout Pass."))
+      assert(doc.contains("Defense Slice Closeout opens no new chess meaning beyond the narrow `Scene.Defense` vertical slice."))
+      assert(doc.contains("Defense closes as a narrow proof-backed attacked-piece material-loss defense slice only."))
+      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+    assert(normalizedModelContract.contains("Defense Slice Closeout confirms `Scene.Defense` opened no King safety, Mate defense, Plan, Strategy, Counterplay, or Prophylaxis path."))
+    assert(normalizedModelContract.contains("`ThreatProof`, `DefenseProof`, `Scene.Defense`, and `defends_piece` each keep one home."))
 
   test("agents and active frontend tests reject retired downstream authority"):
     assert(Files.exists(agentInstructions), "AGENTS.md must be available from the lila worktree")
