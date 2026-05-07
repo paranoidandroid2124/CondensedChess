@@ -241,6 +241,7 @@ final case class Story(
     target: Option[Square] = None,
     anchor: Option[Square] = None,
     route: Option[Line] = None,
+    routeSan: Option[String] = None,
     rival: Side = Side.None,
     storyProof: StoryProof = StoryProof.empty,
     private[commentary] val writer: Option[StoryWriter] = None,
@@ -385,12 +386,12 @@ object StoryTable:
       .sortBy(row =>
         (
           roleSortPriority(row),
+          overlappingMaterialPriority(row.story, stories),
           -row.strength,
           familyKey(row.story),
           row.story.side.ordinal,
           squareKey(row.story.target),
-          squareKey(row.story.secondaryTarget),
-          squareKey(row.story.anchor),
+          squarePairKey(row.story.secondaryTarget, row.story.anchor),
           routeKey(row.story.route),
           row.story.rival.ordinal
         )
@@ -421,6 +422,22 @@ object StoryTable:
 
   private def roleSortPriority(row: Row) =
     if row.leadCandidate then 0 else if row.blocked then 2 else 1
+
+  private def overlappingMaterialPriority(story: Story, stories: Vector[Story]) =
+    if materialOverlapsHanging(story, stories) then 1 else 0
+
+  private def materialOverlapsHanging(story: Story, stories: Vector[Story]) =
+    positiveMaterialWriter(story) &&
+      stories.exists: other =>
+        other != story &&
+          positiveHangingWriter(other) &&
+          sameCaptureMaterialResult(story, other)
+
+  private def sameCaptureMaterialResult(story: Story, other: Story) =
+    story.side == other.side &&
+      story.route == other.route &&
+      story.target == other.target &&
+      story.captureResult.flatMap(_.materialResult) == other.captureResult.flatMap(_.materialResult)
 
   private def leadByStoryRules(story: Story, stories: Vector[Story]) =
     story.proofFailures.isEmpty &&
@@ -475,6 +492,7 @@ object StoryTable:
     (story.proof.ownerProof < 70 || story.side != Side.None) &&
       (story.proof.anchorProof < 70 || story.anchor.nonEmpty) &&
       (story.proof.routeProof < 70 || story.route.nonEmpty) &&
+      (story.proof.routeProof < 70 || story.routeSan.nonEmpty) &&
       (story.scene != Scene.Tactic || story.tactic.nonEmpty) &&
       (story.scene != Scene.Tactic || story.proof.lineProof > 0)
 
@@ -586,6 +604,9 @@ object StoryTable:
     story.scene.ordinal * 100 + tag(story)
 
   private def squareKey(square: Option[Square]) = square.fold(0)(_.index + 1)
+
+  private def squarePairKey(first: Option[Square], second: Option[Square]) =
+    squareKey(first) * 65 + squareKey(second)
 
   private def routeKey(route: Option[Line]) =
     route.fold(0)(line => (line.from.index + 1) * 65 + line.to.index + 1)

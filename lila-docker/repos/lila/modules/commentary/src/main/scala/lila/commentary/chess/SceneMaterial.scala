@@ -12,6 +12,7 @@ private[commentary] object SceneMaterial:
     for
       capturingPiece <- captureResult.capturingPiece
       targetPiece <- captureResult.targetPiece
+      routeSan <- BoardFacts.sanFor(facts, captureLine)
       if WriterOpen
       if captureResult.positiveMaterial
       if captureResult.sameBoardProof
@@ -26,6 +27,7 @@ private[commentary] object SceneMaterial:
         target = Some(targetPiece.square),
         anchor = Some(capturingPiece.square),
         route = Some(captureLine),
+        routeSan = Some(routeSan),
         proof = materialProof(captureResult),
         storyProof = StoryProof.fromBoardFacts(facts, captureLine),
         writer = Some(StoryWriter.SceneMaterial),

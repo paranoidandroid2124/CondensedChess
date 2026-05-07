@@ -170,6 +170,7 @@ private[commentary] final case class ExplanationPlan(
     target: Option[Square],
     anchor: Option[Square],
     route: Option[Line],
+    routeSan: Option[String],
     secondaryTarget: Option[Square],
     allowedClaim: Option[ExplanationClaim],
     evidenceLine: Option[Line],
@@ -187,7 +188,8 @@ private[commentary] object ExplanationPlan:
       tactic: Option[Tactic],
       side: Side,
       target: Option[Square],
-      route: Option[Line]
+      route: Option[Line],
+      routeSan: Option[String]
   )
 
   private val HangingForbiddenWording = ForbiddenWording.Basic
@@ -261,6 +263,7 @@ private[commentary] object ExplanationPlan:
       target <- story.target
       anchor <- story.anchor
       route <- story.route
+      routeSan <- story.routeSan
       if verdict.selected
       if story.scene == Scene.Tactic
       if tactic == Tactic.Hanging || tactic == Tactic.Fork
@@ -274,6 +277,7 @@ private[commentary] object ExplanationPlan:
       target = Some(target),
       anchor = Some(anchor),
       route = Some(route),
+      routeSan = Some(routeSan),
       secondaryTarget = story.secondaryTarget,
       allowedClaim = tacticAllowedClaim(verdict, tactic),
       evidenceLine = Some(route),
@@ -289,6 +293,7 @@ private[commentary] object ExplanationPlan:
       target <- story.target
       anchor <- story.anchor
       route <- story.route
+      routeSan <- story.routeSan
       if verdict.selected
       if story.scene == Scene.Material
       if story.tactic.isEmpty
@@ -301,6 +306,7 @@ private[commentary] object ExplanationPlan:
       target = Some(target),
       anchor = Some(anchor),
       route = Some(route),
+      routeSan = Some(routeSan),
       secondaryTarget = None,
       allowedClaim = materialAllowedClaim(verdict),
       evidenceLine = Some(route),

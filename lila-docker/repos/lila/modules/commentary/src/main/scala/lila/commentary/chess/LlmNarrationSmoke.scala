@@ -33,6 +33,7 @@ private[commentary] object LlmNarrationSmoke:
       Vector(
         Option.when(!inputMatches(plan, rendered))("input_mismatch"),
         Option.when(violatesForbiddenWording(output, plan))("forbidden_wording"),
+        Option.when(usesCoordinateMoveText(output))("non_san_move_text"),
         Option.when(addsNewMoveOrLine(output, plan, rendered))("new_move_or_line"),
         Option.when(addsNewTacticOrPlan(output, plan))("new_tactic_or_plan"),
         Option.when(addsNewCauseOrEvaluation(output))("new_cause_or_evaluation"),
@@ -50,6 +51,7 @@ private[commentary] object LlmNarrationSmoke:
       rendered.forbiddenCheckPassed &&
       plan.evidenceLine.nonEmpty &&
       plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
       plan.evidenceLine == plan.route
 
   private def claimMatchesPlan(plan: ExplanationPlan): Boolean =
@@ -98,8 +100,7 @@ private[commentary] object LlmNarrationSmoke:
   private def addsNewMoveOrLine(text: String, plan: ExplanationPlan, rendered: RenderedLine): Boolean =
     val allowedMoves =
       moveTokens(rendered.text).toSet ++
-        plan.route.map(routeText).toSet ++
-        plan.evidenceLine.map(routeText).toSet
+        plan.routeSan.map(_.toLowerCase(Locale.ROOT)).toSet
     val allowedSquares =
       squareTokens(rendered.text).toSet ++
         plan.target.map(squareText).toSet ++
@@ -229,10 +230,15 @@ private[commentary] object LlmNarrationSmoke:
     forbiddenMeaning(forbidden).head
 
   private def moveTokens(text: String): Vector[String] =
-    """(?i)\b(?:[a-h][1-8][x-]?[a-h][1-8]|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?)\b""".r
+    """(?i)\b(?:O-O-O|O-O|[a-h][1-8][x-]?[a-h][1-8]|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?)\b""".r
       .findAllIn(text)
       .map(_.toLowerCase(Locale.ROOT))
       .toVector
+
+  private def usesCoordinateMoveText(text: String): Boolean =
+    """(?i)\b[a-h][1-8][a-h][1-8][qrbn]?\b""".r.findFirstIn(text).nonEmpty ||
+      """(?i)\b[a-h][1-8][x-][a-h][1-8]\b""".r.findFirstIn(text).nonEmpty ||
+      """(?i)\bfrom\s+[a-h][1-8]\s+to\s+[a-h][1-8]\b""".r.findFirstIn(text).nonEmpty
 
   private def squareTokens(text: String): Vector[String] =
     """(?i)\b[a-h][1-8]\b""".r
@@ -253,6 +259,3 @@ private[commentary] object LlmNarrationSmoke:
 
   private def squareText(square: Square): String =
     s"${('a' + square.file).toChar}${square.rank + 1}"
-
-  private def routeText(line: Line): String =
-    s"${squareText(line.from)}x${squareText(line.to)}"

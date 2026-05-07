@@ -16,6 +16,7 @@ private[commentary] object TacticFork:
     val multiTargetProof = MultiTargetProof.fromBoardFacts(facts, forkMove, firstTarget, secondTarget)
     for
       route <- forkMove
+      routeSan <- BoardFacts.sanFor(facts, route)
       attacker <- multiTargetProof.attacker
       primaryTarget <- firstTarget
       secondaryTarget <- secondTarget
@@ -30,6 +31,7 @@ private[commentary] object TacticFork:
         secondaryTarget = Some(secondaryTarget),
         anchor = Some(attacker.square),
         route = Some(route),
+        routeSan = Some(routeSan),
         proof = forkProof(multiTargetProof),
         storyProof = StoryProof.fromBoardFacts(facts, route),
         writer = Some(StoryWriter.TacticFork),

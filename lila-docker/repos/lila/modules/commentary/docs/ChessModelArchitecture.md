@@ -307,8 +307,8 @@ The recommended implementation order is Material proof kernel,
 Material proof kernel, `Tactic.Hanging`, and Hanging negative corpus.
 
 Material proof kernel is sub-proof, not public claim. It may compute legal
-capture, captured piece, capturing piece, recapture map, material after one ply
-or a bounded line, and SEE-like exchange result.
+capture, captured piece, capturing piece, recapture map, material after the
+immediate legal reply or a bounded line, and SEE-like exchange result.
 
 `Tactic.Hanging` may speak only when target piece exists, target is attacked,
 legal capture exists, target has no adequate defender or recapture, bounded

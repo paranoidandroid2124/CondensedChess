@@ -562,6 +562,8 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(scalar(mood, "in_check_mask"), 0)
     assertEquals(scalar(mood, "legal_move_count"), 20)
     assertEquals(facts.sideLegal.lines.size, 20)
+    assertEquals(facts.sideLegal.san.size, 20)
+    assertEquals(facts.sideLegal.sanFor(Line(Square('e', 2), Square('e', 4))), Some("e4"))
     assertEquals(facts.sideLegal.captureCount, 0)
     assertEquals(facts.sideLegal.checkCount, 0)
     assertEquals(facts.rivalLegal.moveCount, 20)
@@ -663,7 +665,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(
       scalar(mood, "white_pawn_mobility"),
       4,
-      "d2-d3 and h2-h3 count; d2xe3 and h2-g3 count diagnostically; d2-c3 and double pushes do not"
+      "single pawn steps and diagonal captures count diagnostically; diagonal non-captures and double pushes do not"
     )
     assertEquals(
       scalar(mood, "white_pawn_safe_mobility"),
@@ -681,7 +683,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(
       scalar(mood, "black_pawn_mobility"),
       4,
-      "e7-e6 and h7-h6 count; e7xf6 and h7-g6 count diagnostically; e7-d6 and double pushes do not"
+      "single pawn steps and diagonal captures count diagnostically; diagonal non-captures and double pushes do not"
     )
     assertEquals(
       scalar(mood, "black_pawn_safe_mobility"),
@@ -2471,7 +2473,18 @@ class ChessFoundationTest extends munit.FunSuite:
 
     assertEquals(StoryTable.choose(Vector(hangingHigh, forkLow, materialLow)).head.story, hangingHigh)
     assertEquals(StoryTable.choose(Vector(hangingLow, forkHigh, materialLow)).head.story, forkHigh)
-    assertEquals(StoryTable.choose(Vector(hangingLow, forkLow, materialHigh)).head.story, materialHigh)
+    assertEquals(StoryTable.choose(Vector(forkLow, materialHigh)).head.story, materialHigh)
+
+    val overlapping = StoryTable.choose(Vector(materialHigh, hanging))
+    val overlappingHanging = overlapping.find(_.story == hanging).get
+    val overlappingMaterial = overlapping.find(_.story == materialHigh).get
+
+    assertEquals(materialHigh.route, hanging.route)
+    assertEquals(materialHigh.target, hanging.target)
+    assertEquals(materialHigh.captureResult.flatMap(_.materialResult), hanging.captureResult.flatMap(_.materialResult))
+    assertEquals(overlappingHanging.role, Role.Lead)
+    assertEquals(overlappingMaterial.role, Role.Support)
+    assertEquals(ExplanationPlan.fromSelected(overlappingMaterial).flatMap(DeterministicRenderer.fromPlan), None)
 
     val tied = Vector(hangingHigh, forkHigh, materialHigh)
     val forward = StoryTable.choose(tied)
@@ -2723,9 +2736,11 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(plan.scene, Scene.Material)
     assertEquals(plan.tactic, None)
     assertEquals(plan.allowedClaim, Some(ExplanationClaim.MaterialBalanceChanges))
-    assertEquals(maybeRendered.map(_.text), Some("After d4xe5, White comes out ahead in material."))
+    assertEquals(facts.sideLegal.sanFor(capture), Some("dxe5"))
+    assertEquals(plan.routeSan, Some("dxe5"))
+    assertEquals(maybeRendered.map(_.text), Some("After dxe5, White comes out ahead in material."))
     val rendered = maybeRendered.get
-    assertEquals(rendered.text, "After d4xe5, White comes out ahead in material.")
+    assertEquals(rendered.text, "After dxe5, White comes out ahead in material.")
     assertEquals(rendered.claimKey, "material_balance_changes")
     assertEquals(rendered.strength, "bounded")
     assertEquals(rendered.forbiddenCheckPassed, true)
@@ -2784,13 +2799,13 @@ class ChessFoundationTest extends munit.FunSuite:
     val rendered = DeterministicRenderer.fromPlan(plan).get
     val mockText = LlmNarrationSmoke.mockNarrate(plan, rendered)
     val prompt = LlmNarrationSmoke.codexCliPrompt(plan, rendered)
-    val checked = LlmNarrationSmoke.check(plan, rendered, "After d4xe5, White is ahead in material.")
+    val checked = LlmNarrationSmoke.check(plan, rendered, "After dxe5, White is ahead in material.")
 
     assertEquals(mockText, Some(rendered.text))
     assertEquals(checked.accepted, true)
     assertEquals(checked.violations, Vector.empty)
     Vector(
-      "renderedText: After d4xe5, White comes out ahead in material.",
+      "renderedText: After dxe5, White comes out ahead in material.",
       "claimKey: material_balance_changes",
       "strength: bounded",
       "forbiddenWording:",
@@ -2823,18 +2838,20 @@ class ChessFoundationTest extends munit.FunSuite:
     val plan = ExplanationPlan.fromSelected(verdict).get
     val rendered = DeterministicRenderer.fromPlan(plan).get
 
-    val safe = LlmNarrationSmoke.check(plan, rendered, "After d4xe5, White is ahead in material.")
-    val inventedMove = LlmNarrationSmoke.check(plan, rendered, "After d4xe5 e8e7, White is ahead in material.")
-    val inventedLine = LlmNarrationSmoke.check(plan, rendered, "After d4xe5, White is ahead, and e8-e7 follows.")
-    val inventedTactic = LlmNarrationSmoke.check(plan, rendered, "After d4xe5, White starts a fork.")
-    val inventedPlan = LlmNarrationSmoke.check(plan, rendered, "After d4xe5, White starts a plan.")
+    val safe = LlmNarrationSmoke.check(plan, rendered, "After dxe5, White is ahead in material.")
+    val inventedMove = LlmNarrationSmoke.check(plan, rendered, "After dxe5 Ke7, White is ahead in material.")
+    val inventedLine = LlmNarrationSmoke.check(plan, rendered, "After dxe5, White is ahead, and Ke7 follows.")
+    val inventedTactic = LlmNarrationSmoke.check(plan, rendered, "After dxe5, White starts a fork.")
+    val inventedPlan = LlmNarrationSmoke.check(plan, rendered, "After dxe5, White starts a plan.")
     val engineBestWinning =
-      LlmNarrationSmoke.check(plan, rendered, "The engine says d4xe5 is the best move and technically winning.")
+      LlmNarrationSmoke.check(plan, rendered, "The engine says dxe5 is the best move and technically winning.")
     val forcedDecisiveBlunder =
-      LlmNarrationSmoke.check(plan, rendered, "d4xe5 is a forced decisive result after a blunder.")
-    val conversion = LlmNarrationSmoke.check(plan, rendered, "After d4xe5, White converts the material edge.")
-    val strongerMaterialWin = LlmNarrationSmoke.check(plan, rendered, "After d4xe5, White wins material.")
-    val noCounterplay = LlmNarrationSmoke.check(plan, rendered, "After d4xe5, Black has no counterplay.")
+      LlmNarrationSmoke.check(plan, rendered, "dxe5 is a forced decisive result after a blunder.")
+    val conversion = LlmNarrationSmoke.check(plan, rendered, "After dxe5, White converts the material edge.")
+    val strongerMaterialWin = LlmNarrationSmoke.check(plan, rendered, "After dxe5, White wins material.")
+    val noCounterplay = LlmNarrationSmoke.check(plan, rendered, "After dxe5, Black has no counterplay.")
+    val coordinateRoute = LlmNarrationSmoke.check(plan, rendered, "After the move from d4 to e5, White is ahead in material.")
+    val compactCoordinateRoute = LlmNarrationSmoke.check(plan, rendered, "After d4e5, White is ahead in material.")
 
     assertEquals(safe.accepted, true)
     assertEquals(safe.violations, Vector.empty)
@@ -2859,6 +2876,10 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(strongerMaterialWin.violations.contains("stronger_claim"), true)
     assertEquals(noCounterplay.accepted, false)
     assertEquals(noCounterplay.violations.contains("forbidden_wording"), true)
+    assertEquals(coordinateRoute.accepted, false)
+    assertEquals(coordinateRoute.violations.contains("non_san_move_text"), true)
+    assertEquals(compactCoordinateRoute.accepted, false)
+    assertEquals(compactCoordinateRoute.violations.contains("non_san_move_text"), true)
 
   test("Material slice closeout keeps sibling scenes and proof homes closed"):
     val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
@@ -2876,7 +2897,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(material.storyProof.failures(material), Vector.empty)
     assertEquals(plan.allowedClaim, Some(ExplanationClaim.MaterialBalanceChanges))
     assertEquals(rendered.text.contains("winning"), false)
-    assertEquals(LlmNarrationSmoke.check(plan, rendered, "After d4xe5, White has a winning position.").accepted, false)
+    assertEquals(LlmNarrationSmoke.check(plan, rendered, "After dxe5, White has a winning position.").accepted, false)
     assertEquals(intercept[ClassNotFoundException](Class.forName("lila.commentary.chess.ExchangeResult")).getClass, classOf[ClassNotFoundException])
     assertEquals(intercept[ClassNotFoundException](Class.forName("lila.commentary.chess.MaterialEngineCheck")).getClass, classOf[ClassNotFoundException])
 
@@ -3995,8 +4016,10 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(plan.target, Some(Square('b', 5)))
     assertEquals(plan.secondaryTarget, Some(Square('f', 5)))
     assertEquals(plan.route, Some(forkMove))
+    assertEquals(facts.sideLegal.sanFor(forkMove), Some("Nd4"))
+    assertEquals(plan.routeSan, Some("Nd4"))
     assertEquals(plan.evidenceLine, Some(forkMove))
-    assertEquals(rendered.text, "f3-d4 forks the pieces on b5 and f5.")
+    assertEquals(rendered.text, "Nd4 forks the pieces on b5 and f5.")
     assertEquals(rendered.claimKey, "forks_two_targets")
     assertEquals(rendered.strength, "bounded")
     assertEquals(rendered.forbiddenCheckPassed, true)
@@ -4018,7 +4041,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(checked.accepted, true)
     assertEquals(checked.violations, Vector.empty)
     Vector(
-      "renderedText: f3-d4 forks the pieces on b5 and f5.",
+      "renderedText: Nd4 forks the pieces on b5 and f5.",
       "claimKey: forks_two_targets",
       "strength: bounded",
       "forbiddenWording:",
@@ -4050,18 +4073,20 @@ class ChessFoundationTest extends munit.FunSuite:
     val plan = ExplanationPlan.fromSelected(verdict).get
     val rendered = DeterministicRenderer.fromPlan(plan).get
 
-    val safe = LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the pieces on b5 and f5.")
-    val inventedMove = LlmNarrationSmoke.check(plan, rendered, "After f3-d4 h8h7, the fork stays.")
-    val inventedTactic = LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the pieces and starts a skewer.")
-    val inventedPlan = LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the pieces and starts a plan.")
+    val safe = LlmNarrationSmoke.check(plan, rendered, "Nd4 forks the pieces on b5 and f5.")
+    val inventedMove = LlmNarrationSmoke.check(plan, rendered, "After Nd4 Kh7, the fork stays.")
+    val inventedTactic = LlmNarrationSmoke.check(plan, rendered, "Nd4 forks the pieces and starts a skewer.")
+    val inventedPlan = LlmNarrationSmoke.check(plan, rendered, "Nd4 forks the pieces and starts a plan.")
     val engineBestWinning =
-      LlmNarrationSmoke.check(plan, rendered, "The engine says f3-d4 is the best move and a winning fork.")
+      LlmNarrationSmoke.check(plan, rendered, "The engine says Nd4 is the best move and a winning fork.")
     val forcedDecisiveBlunder =
-      LlmNarrationSmoke.check(plan, rendered, "f3-d4 is a forced decisive fork after a blunder.")
-    val winsQueen = LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the pieces and wins the queen.")
-    val winsMaterial = LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the pieces and wins material.")
+      LlmNarrationSmoke.check(plan, rendered, "Nd4 is a forced decisive fork after a blunder.")
+    val winsQueen = LlmNarrationSmoke.check(plan, rendered, "Nd4 forks the pieces and wins the queen.")
+    val winsMaterial = LlmNarrationSmoke.check(plan, rendered, "Nd4 forks the pieces and wins material.")
     val namesTargets =
-      LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the queen on b5 and rook on f5.")
+      LlmNarrationSmoke.check(plan, rendered, "Nd4 forks the queen on b5 and rook on f5.")
+    val coordinateRoute = LlmNarrationSmoke.check(plan, rendered, "After the move from f3 to d4, the fork stays.")
+    val compactCoordinateRoute = LlmNarrationSmoke.check(plan, rendered, "After f3d4, the fork stays.")
 
     assertEquals(safe.accepted, true)
     assertEquals(safe.violations, Vector.empty)
@@ -4081,6 +4106,10 @@ class ChessFoundationTest extends munit.FunSuite:
     Vector(winsQueen, winsMaterial, namesTargets).foreach: checked =>
       assertEquals(checked.accepted, false)
       assert(checked.violations.contains("forbidden_wording") || checked.violations.contains("stronger_claim"))
+    assertEquals(coordinateRoute.accepted, false)
+    assertEquals(coordinateRoute.violations.contains("non_san_move_text"), true)
+    assertEquals(compactCoordinateRoute.accepted, false)
+    assertEquals(compactCoordinateRoute.violations.contains("non_san_move_text"), true)
 
   test("Fork-8 refuses Fork renderer text without structural Fork plan permission"):
     val facts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
@@ -5307,10 +5336,11 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(plan.strength, ExplanationStrength.Bounded)
     assertEquals(plan.debugOnly, false)
     assertEquals(plan.route, Some(capture))
+    assertEquals(plan.routeSan, Some("dxe5"))
     assertEquals(plan.evidenceLine, Some(capture))
     assertEquals(plan.target, Some(Square('e', 5)))
     assert(plan.forbiddenWording.nonEmpty)
-    assertEquals(rendered.text, "d4xe5 wins material against the piece on e5.")
+    assertEquals(rendered.text, "dxe5 wins material against the piece on e5.")
     forbiddenPhrases.foreach: phrase =>
       assert(!rendered.text.toLowerCase.contains(phrase), s"template must not contain forbidden phrase: $phrase")
 
@@ -5327,6 +5357,7 @@ class ChessFoundationTest extends munit.FunSuite:
         plan.copy(allowedClaim = None),
         plan.copy(debugOnly = true),
         plan.copy(route = None),
+        plan.copy(routeSan = None),
         plan.copy(evidenceLine = None),
         plan.copy(target = None),
         plan.copy(forbiddenWording = Vector.empty)
@@ -5462,7 +5493,7 @@ class ChessFoundationTest extends munit.FunSuite:
 
     assertEquals(rendered.getClass.getSimpleName, "RenderedLine")
     assertEquals(fieldNames, Vector("text", "claimKey", "strength", "forbiddenCheckPassed"))
-    assertEquals(fieldValue("text"), "d4xe5 wins material against the piece on e5.")
+    assertEquals(fieldValue("text"), "dxe5 wins material against the piece on e5.")
     assertEquals(fieldValue("claimKey"), "can_win_piece")
     assertEquals(fieldValue("strength"), "bounded")
     assertEquals(fieldValue("forbiddenCheckPassed").asInstanceOf[Boolean], true)
@@ -5518,7 +5549,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(plan.role, Role.Lead)
     assertEquals(plan.allowedClaim, Some(ExplanationClaim.CanWinPiece))
     assertEquals(plan.strength, ExplanationStrength.Bounded)
-    assertEquals(rendered.text, "d4xe5 wins material against the piece on e5.")
+    assertEquals(rendered.text, "dxe5 wins material against the piece on e5.")
     assertEquals(rendered.claimKey, "can_win_piece")
     assertEquals(rendered.strength, "bounded")
     assertEquals(rendered.forbiddenCheckPassed, true)
@@ -5608,7 +5639,7 @@ class ChessFoundationTest extends munit.FunSuite:
     val prompt = LlmNarrationSmoke.codexCliPrompt(plan, rendered).get
 
     Vector(
-      "renderedText: d4xe5 wins material against the piece on e5.",
+      "renderedText: dxe5 wins material against the piece on e5.",
       "claimKey: can_win_piece",
       "strength: bounded",
       "forbiddenWording:",
@@ -5648,13 +5679,13 @@ class ChessFoundationTest extends munit.FunSuite:
     val plan = ExplanationPlan.fromSelected(verdict).get
     val rendered = DeterministicRenderer.fromPlan(plan).get
     val engineBestWinning =
-      LlmNarrationSmoke.check(plan, rendered, "The engine says d4xe5 is the best move and a winning position.")
+      LlmNarrationSmoke.check(plan, rendered, "The engine says dxe5 is the best move and a winning position.")
     val inventedLine =
-      LlmNarrationSmoke.check(plan, rendered, "After d4xe5 e8e7, White wins material.")
+      LlmNarrationSmoke.check(plan, rendered, "After dxe5 Ke7, White wins material.")
     val inventedTactic =
-      LlmNarrationSmoke.check(plan, rendered, "d4xe5 starts a fork and a strategic plan.")
+      LlmNarrationSmoke.check(plan, rendered, "dxe5 starts a fork and a strategic plan.")
     val inventedCauseAndEval =
-      LlmNarrationSmoke.check(plan, rendered, "d4xe5 works because White is better afterward.")
+      LlmNarrationSmoke.check(plan, rendered, "dxe5 works because White is better afterward.")
     val freePiece =
       LlmNarrationSmoke.check(plan, rendered, "White wins a free piece on e5.")
 

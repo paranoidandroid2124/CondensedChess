@@ -595,6 +595,13 @@ Forbidden dependency shortcuts:
 - Preserve exact-board validation, legal replay, owner/anchor/route/scope
   binding, raw-engine/source non-ownership, public-safe line evidence, and
   stale-evidence rejection as hard gates.
+- Player-facing move notation defaults to SAN. `Line` endpoints, engine move
+  coordinates, and replay coordinates may remain internal proof bindings only;
+  Renderer, LLM smoke, docs examples, and any downstream public speech surface must
+  receive and phrase the selected route as SAN.
+- SAN formats already-approved legal moves only. SAN may include check or mate
+  marks only as legal-replay notation; those marks do not create Story, Proof,
+  Verdict, Explanation Plan, or public claims.
 - Treat legacy artifacts as features or evidence only when a live authority
   document explicitly admits them into `BoardMood` or `Story` proof.
 - Ask whether a feature can become a `Story` with side, target, anchor, route,

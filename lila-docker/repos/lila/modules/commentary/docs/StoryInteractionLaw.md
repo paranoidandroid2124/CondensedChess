@@ -115,7 +115,7 @@ near false positives still stay silent.
 Material proof kernel is not a public Story family. `CaptureResult` is internal
 evidence only. It may compute side, capturing piece, target piece, legal
 capture line, captured value, recapture candidates, material result after one
-ply or a bounded line, same-board proof, and missing evidence. It must not say
+immediate legal reply or a bounded line, same-board proof, and missing evidence. It must not say
 wins material, free piece, hanging, best move, blunder, decisive, winning, or
 tactic works. A capture line can show a material result; a recapture can cancel
 that result; unclear recapture or equality means no positive material proof.
@@ -795,6 +795,16 @@ forced, blunder, and free-piece wording remain closed.
 
 Stage 7-1 completion standard: Renderer does not read proof material directly.
 
+Player notation boundary:
+
+- SAN formats an already-approved legal move only
+- legal `Line` endpoints remain proof binding only
+- route SAN is the speech notation carried from Story into ExplanationPlan
+- SAN check or mate marks are legal-replay notation only
+- SAN does not create Story, Proof, Verdict, ExplanationPlan, or public claims
+- Renderer and LLM smoke must not phrase moves as origin-destination routes
+- SAN text owns no proof, ranking, or chess meaning by itself
+
 One chess meaning, one home.
 One rule, one live authority.
 Explanation Plan bounds speech. Renderer only phrases it.
@@ -810,13 +820,14 @@ Input conditions:
 - strength is `Bounded`
 - debugOnly is false
 - route exists
+- route SAN exists
 - target exists
 - evidenceLine exists
 - forbidden wording set exists
 
 Allowed first template:
 
-- `d4xe5 wins material against the piece on e5.`
+- `dxe5 wins material against the piece on e5.`
 
 Forbidden wording:
 
@@ -838,7 +849,7 @@ missing-target, missing-evidenceLine, missing-forbidden-wording, and
 non-`CanWinPiece` plans.
 
 The template may use only the selected `ExplanationPlan` side, target, route,
-evidenceLine, allowed claim key, strength, and forbidden wording. It must not
+route SAN, evidenceLine, allowed claim key, strength, and forbidden wording. It must not
 read raw Verdict, Story, BoardFacts, CaptureResult, EngineCheck, EngineEval,
 EngineLine, raw PV, proofFailures, or source-row material.
 
@@ -2128,6 +2139,7 @@ Material-6 StoryTable rules:
 - writerless Material becomes Blocked
 - Material without material proof becomes Blocked
 - Hanging, Fork, and Material can compete for Lead
+- Material with the same route, target, and material result as positive Hanging orders behind Hanging
 - Support and Context are not sentences
 
 Forbidden Material-6 meanings and shortcuts:

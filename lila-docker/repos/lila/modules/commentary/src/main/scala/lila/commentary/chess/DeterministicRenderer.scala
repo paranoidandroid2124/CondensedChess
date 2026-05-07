@@ -23,13 +23,13 @@ private[commentary] object DeterministicRenderer:
 
   private def textFromPlan(plan: ExplanationPlan): Option[String] =
     if canPhraseHanging(plan) then
-      Some(s"${captureRouteText(plan.evidenceLine.get)} wins material against the piece on ${squareText(plan.target.get)}.")
+      Some(s"${plan.routeSan.get} wins material against the piece on ${squareText(plan.target.get)}.")
     else if canPhraseFork(plan) then
       Some(
-        s"${moveRouteText(plan.evidenceLine.get)} forks the pieces on ${squareText(plan.target.get)} and ${squareText(plan.secondaryTarget.get)}."
+        s"${plan.routeSan.get} forks the pieces on ${squareText(plan.target.get)} and ${squareText(plan.secondaryTarget.get)}."
       )
     else if canPhraseMaterial(plan) then
-      Some(s"After ${captureRouteText(plan.evidenceLine.get)}, ${sideText(plan.side)} comes out ahead in material.")
+      Some(s"After ${plan.routeSan.get}, ${sideText(plan.side)} comes out ahead in material.")
     else None
 
   private def canPhraseHanging(plan: ExplanationPlan): Boolean =
@@ -41,6 +41,7 @@ private[commentary] object DeterministicRenderer:
       plan.strength == ExplanationStrength.Bounded &&
       plan.target.nonEmpty &&
       plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
       plan.evidenceLine.contains(plan.route.get) &&
       plan.forbiddenWording.nonEmpty
 
@@ -54,6 +55,7 @@ private[commentary] object DeterministicRenderer:
       plan.target.nonEmpty &&
       plan.secondaryTarget.nonEmpty &&
       plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
       plan.evidenceLine.contains(plan.route.get) &&
       plan.forbiddenWording.nonEmpty
 
@@ -69,6 +71,7 @@ private[commentary] object DeterministicRenderer:
       plan.anchor.nonEmpty &&
       plan.secondaryTarget.isEmpty &&
       plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
       plan.evidenceLine.contains(plan.route.get) &&
       plan.forbiddenWording.nonEmpty
 
@@ -152,12 +155,6 @@ private[commentary] object DeterministicRenderer:
 
   private def squareText(square: Square): String =
     s"${('a' + square.file).toChar}${square.rank + 1}"
-
-  private def captureRouteText(line: Line): String =
-    s"${squareText(line.from)}x${squareText(line.to)}"
-
-  private def moveRouteText(line: Line): String =
-    s"${squareText(line.from)}-${squareText(line.to)}"
 
   private def sideText(side: Side): String =
     side match

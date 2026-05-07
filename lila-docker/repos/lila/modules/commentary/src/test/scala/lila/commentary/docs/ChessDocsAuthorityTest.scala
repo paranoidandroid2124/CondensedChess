@@ -1305,6 +1305,17 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
         s"Stage 7-1 must pin renderer guard: $guardLine"
       )
     Vector(
+      "Player notation boundary:",
+      "- SAN formats an already-approved legal move only",
+      "- legal `Line` endpoints remain proof binding only",
+      "- route SAN is the speech notation carried from Story into ExplanationPlan",
+      "- SAN check or mate marks are legal-replay notation only",
+      "- SAN does not create Story, Proof, Verdict, ExplanationPlan, or public claims",
+      "- Renderer and LLM smoke must not phrase moves as origin-destination routes",
+      "- SAN text owns no proof, ranking, or chess meaning by itself"
+    ).foreach: notationLine =>
+      assert(interactionLaw.contains(notationLine), s"Stage 7 notation boundary must include: $notationLine")
+    Vector(
       "Stage 7-1 opens only the Renderer input guard",
       "Renderer receives `ExplanationPlan` only",
       "Renderer exposes no raw Verdict, Story, BoardFacts, BoardMood, CaptureResult, EngineCheck, EngineEval, EngineLine, raw PV, proofFailures, or source-row input"
@@ -1331,12 +1342,13 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "- strength is `Bounded`",
       "- debugOnly is false",
       "- route exists",
+      "- route SAN exists",
       "- target exists",
       "- evidenceLine exists",
       "- forbidden wording set exists"
     ).foreach: condition =>
       assert(interactionLaw.contains(condition), s"Stage 7-2 must require condition: $condition")
-    assert(interactionLaw.contains("`d4xe5 wins material against the piece on e5.`"))
+    assert(interactionLaw.contains("`dxe5 wins material against the piece on e5.`"))
     Vector(
       "- free piece",
       "- blunder",
@@ -2040,6 +2052,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(agents.contains("`One public claim, one proof path`"))
     assert(agents.contains("New names are the last resort"))
     assert(agents.contains("Ask whether a feature can become a `Story` with side, target, anchor, route,"))
+    assert(agents.contains("Player-facing move notation defaults to SAN."))
+    assert(agents.contains("Renderer, LLM smoke, docs examples, and any downstream public speech surface must"))
+    assert(agents.contains("phrase the selected route as SAN"))
+    assert(agents.contains("SAN formats already-approved legal moves only."))
+    assert(agents.contains("those marks do not create Story, Proof,"))
     assert(
       agents.contains(
         "`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `Explanation IR` -> Renderer -> LLM narration smoke"
@@ -2684,6 +2701,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "- writerless Material becomes Blocked",
       "- Material without material proof becomes Blocked",
       "- Hanging, Fork, and Material can compete for Lead",
+      "- Material with the same route, target, and material result as positive Hanging orders behind Hanging",
       "- Support and Context are not sentences",
       "- StoryTable creates Material",
       "- raw engine eval ranks Material",

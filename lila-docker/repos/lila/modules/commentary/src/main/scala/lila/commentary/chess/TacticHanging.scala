@@ -12,6 +12,7 @@ private[commentary] object TacticHanging:
     for
       capturingPiece <- captureResult.capturingPiece
       targetPiece <- captureResult.targetPiece
+      routeSan <- BoardFacts.sanFor(facts, captureLine)
       if WriterOpen
       if captureResult.positiveMaterial
       if targetPiece.man != Man.Pawn && targetPiece.man != Man.King
@@ -24,6 +25,7 @@ private[commentary] object TacticHanging:
         target = Some(targetPiece.square),
         anchor = Some(capturingPiece.square),
         route = Some(captureLine),
+        routeSan = Some(routeSan),
         proof = hangingProof(captureResult),
         storyProof = StoryProof.fromBoardFacts(facts, captureLine),
         writer = Some(StoryWriter.TacticHanging),

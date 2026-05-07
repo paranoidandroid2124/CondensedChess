@@ -80,11 +80,18 @@ final case class BoardHeader(
 final case class Moves(
     known: Boolean = false,
     lines: Vector[Line] = Vector.empty,
+    san: Vector[String] = Vector.empty,
     destinationUnion: Long = 0L,
     moveCount: Int = 0,
     captureCount: Int = 0,
     checkCount: Int = 0
 ):
+  def sanFor(line: Line): Option[String] =
+    lines
+      .zip(san)
+      .collectFirst:
+        case (legalLine, notation) if legalLine == line && notation.nonEmpty => notation
+
   def legalDestinationUnion: Long =
     lines.foldLeft(destinationUnion): (mask, line) =>
       mask | line.to.bit
@@ -99,6 +106,8 @@ final case class Moves(
     checkCount >= 0 &&
     captureCount <= moveCount &&
     checkCount <= moveCount &&
+    san.size <= lines.size &&
+    san.forall(_.nonEmpty) &&
     destinationsMatchMoveCount
 
 final case class ControlSide(
@@ -237,6 +246,9 @@ object BoardFacts:
 
   private[commentary] def sameBoardReady(facts: BoardFacts): Boolean =
     sameBoardFacts.containsKey(facts)
+
+  private[commentary] def sanFor(facts: BoardFacts, line: Line): Option[String] =
+    facts.sideLegal.sanFor(line).orElse(facts.rivalLegal.sanFor(line))
 
   private[chess] final case class LegalMove(side: Side, piece: Piece, line: Line)
   private[chess] final case class Attack(attacker: Piece, target: Piece)
@@ -1074,6 +1086,7 @@ object BoardFacts:
     Moves(
       known = true,
       lines = legal.map(move => Line(Square.fromIndex(move.orig.value), Square.fromIndex(move.dest.value))),
+      san = legal.map(_.toSanStr.toString),
       moveCount = legal.size,
       captureCount = legal.count(move => move.capture.isDefined || move.enpassant),
       checkCount = legal.count(move => move.after.check.yes)
