@@ -11,9 +11,7 @@ private[commentary] final case class RenderedLine(
 
 private[commentary] object DeterministicRenderer:
   def fromPlan(plan: ExplanationPlan): Option[RenderedLine] =
-    if canPhrase(plan) then
-      val text =
-        s"${routeText(plan.evidenceLine.get)} wins material against the piece on ${squareText(plan.target.get)}."
+    textFromPlan(plan).flatMap: text =>
       val forbiddenCheckPassed = respectsForbiddenWording(text, plan)
       Option.when(forbiddenCheckPassed):
         RenderedLine(
@@ -22,9 +20,17 @@ private[commentary] object DeterministicRenderer:
           strength = plan.strength.key,
           forbiddenCheckPassed = true
         )
+
+  private def textFromPlan(plan: ExplanationPlan): Option[String] =
+    if canPhraseHanging(plan) then
+      Some(s"${captureRouteText(plan.evidenceLine.get)} wins material against the piece on ${squareText(plan.target.get)}.")
+    else if canPhraseFork(plan) then
+      Some(
+        s"${moveRouteText(plan.evidenceLine.get)} forks the pieces on ${squareText(plan.target.get)} and ${squareText(plan.secondaryTarget.get)}."
+      )
     else None
 
-  private def canPhrase(plan: ExplanationPlan): Boolean =
+  private def canPhraseHanging(plan: ExplanationPlan): Boolean =
     plan.role == Role.Lead &&
       !plan.debugOnly &&
       plan.scene == Scene.Tactic &&
@@ -32,6 +38,19 @@ private[commentary] object DeterministicRenderer:
       plan.allowedClaim.contains(ExplanationClaim.CanWinPiece) &&
       plan.strength == ExplanationStrength.Bounded &&
       plan.target.nonEmpty &&
+      plan.route.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseFork(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Fork) &&
+      plan.allowedClaim.contains(ExplanationClaim.ForksTwoTargets) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      plan.target.nonEmpty &&
+      plan.secondaryTarget.nonEmpty &&
       plan.route.nonEmpty &&
       plan.evidenceLine.contains(plan.route.get) &&
       plan.forbiddenWording.nonEmpty
@@ -88,6 +107,14 @@ private[commentary] object DeterministicRenderer:
           "only move",
           "no counterplay"
         )
+      case ForbiddenWording.WinsMaterialByFork =>
+        Vector("wins material by fork", "win material by fork", "material by fork")
+      case ForbiddenWording.WinsQueen =>
+        Vector("wins queen", "wins the queen", "win the queen")
+      case ForbiddenWording.DecisiveFork =>
+        Vector("decisive fork")
+      case ForbiddenWording.ForcedWin =>
+        Vector("forced win", "forces a win")
 
   private def materialWinAllowed(normalized: String, plan: ExplanationPlan): Boolean =
     val materialWinPhrases =
@@ -109,5 +136,8 @@ private[commentary] object DeterministicRenderer:
   private def squareText(square: Square): String =
     s"${('a' + square.file).toChar}${square.rank + 1}"
 
-  private def routeText(line: Line): String =
+  private def captureRouteText(line: Line): String =
     s"${squareText(line.from)}x${squareText(line.to)}"
+
+  private def moveRouteText(line: Line): String =
+    s"${squareText(line.from)}-${squareText(line.to)}"

@@ -74,19 +74,22 @@ Implementation must open in this order only:
 Do not implement downstream product stages before earlier authority stages are
 proven.
 
-Current implementation scope is Stage 8 Prompt Smoke.
+Current implementation scope is Stage 8 Prompt Smoke plus the narrow Fork-9
+LLM smoke slice.
 Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
 Story are prerequisites. Stage 3 remains open only for Material proof kernel,
-`Tactic.Hanging`, and Hanging negative corpus. Stage 4 opens only
+`Tactic.Hanging`, Hanging negative corpus, and the narrow `Tactic.Fork`
+vertical slice. Stage 4 opens only
 `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board
-and stale guards, `Tactic.Hanging` attachment, false-positive corpus, and
-conservative StoryTable diagnostics for existing `Tactic.Hanging` Stories.
-Stage 5 opens only StoryTable role ordering for existing `Tactic.Hanging`
-Story rows. Stage 5-1 assigns Lead, Support, Context, and Blocked roles for
-those rows only. Stage 5-2 fixes deterministic ordering inputs for those
-StoryTable rows. Stage 5-3 tightens close Hanging blockers and context
-relations for those StoryTable rows. Stage 5-4 keeps Verdict diagnostics out
-of public numeric values and downstream public surfaces. Stage 5 closeout
+and stale guards, `Tactic.Hanging` attachment, narrow `Tactic.Fork` attachment,
+false-positive corpus, and conservative StoryTable diagnostics for existing
+`Tactic.Hanging` and narrow `Tactic.Fork` Stories. Stage 5 opens only
+StoryTable role ordering for existing `Tactic.Hanging` Story rows and existing
+narrow `Tactic.Fork` Story rows. Stage 5-1 assigns Lead, Support, Context, and
+Blocked roles for those rows only. Stage 5-2 fixes deterministic ordering
+inputs for those StoryTable rows. Stage 5-3 tightens close blockers and context
+relations for those StoryTable rows. Stage 5-4 keeps Verdict diagnostics out of
+public numeric values and downstream public surfaces. Stage 5 closeout
 confirmed Story ordering only and selected-Verdict handoff only. Stage 6-0
 opens only the Explanation Plan charter and selected-Verdict speech boundary.
 Stage 6 is named `Explanation Plan`; docs may also say `Explanation IR` when
@@ -147,15 +150,23 @@ instruction `Rephrase only. Do not add chess facts.` only. 8A Mock narrator may
 receive ExplanationPlan and RenderedLine only. Production API validation
 remains closed. Stage 8 must not read raw Verdict, Story, EngineCheck,
 CaptureResult, Board Facts, BoardMood, raw PV, proofFailures text, or source
-rows directly. Stages 9-11 remain a dependency map, not permission to open
-those systems.
+rows directly. Fork-8 opens only deterministic renderer text for selected Fork
+ExplanationPlan, using route, target, and secondaryTarget already lowered from
+the selected Verdict. Fork-9 opens only LLM smoke for selected Fork
+ExplanationPlan and RenderedLine; 8B may receive renderedText, claimKey,
+strength, forbidden wording list, and the instruction `Rephrase only. Do not
+add chess facts.` only. It does not open public/user-facing Fork LLM narration,
+public route `200`, production API, pedagogy, material claims, wins-queen
+claims, engine PV commentary, best-move explanation, or sibling tactic
+families. Stages 9-11 remain a dependency map, not permission to open those
+systems.
 
 `StoryInteractionLaw.md` is the single live authority for the Stage 3 charter.
 All other documents may summarize scope, but must not create a second Stage 3
 rule text. The active Stage 3 scope opens backend Material proof evidence and
-the named `Tactic.Hanging` writer only; `Tactic.Fork`, `Scene.Material`,
-`Scene.Defense`, Plan, Strategy, renderer, LLM, public route `200`, and strong
-wording remain closed there.
+the named `Tactic.Hanging` writer plus the narrow `Tactic.Fork` proof/writer
+vertical slice; `Scene.Material`, `Scene.Defense`, Plan, Strategy, Fork LLM
+narration, public route `200`, and strong wording remain closed there.
 
 `StoryInteractionLaw.md` is the single live authority for the Stage 4 charter.
 Stage 4 is named `Engine Check`. Story comes first. Engine checks, caps, or
@@ -167,20 +178,22 @@ FENs, route-mismatched engine lines, stale engine data, depth-missing engine
 data, eval-only input without a Story, and PV-only input without a Story are
 diagnostic only.
 
-Stage 4-3 attaches EngineCheck only to `Tactic.Hanging`. EngineCheck status is
+Stage 4-3 attaches EngineCheck first to `Tactic.Hanging`; Fork-5 reuses the
+same sidecar for existing narrow `Tactic.Fork` Stories. EngineCheck status is
 exactly `Unknown`, `Supports`, `Caps`, or `Refutes`. `Unknown` forbids engine
 expression, `Supports` creates no new claim, `Caps` forbids strong expression,
-and `Refutes` blocks the Hanging Story. Engine support must not become winning,
+and `Refutes` blocks the Story. Engine support must not become winning,
 best-move, decisive, PV explanation, or public truth wording.
 
 `StoryInteractionLaw.md` is the single live authority for the Stage 5 charter.
 All other documents may summarize scope, but must not create a second Stage 5
 rule text. Stage 5 is named `Story Order` and may be described as StoryTable
-Arbitration. In this first scope, StoryTable assigns Lead, Support, Context,
-and Blocked only among existing `Tactic.Hanging` Story rows. It does not
-create Stories or new public claims. Renderer, LLM, Explanation IR, public
-route `200`, engine PV commentary, best-move explanation, `Tactic.Fork`,
-`Scene.Material`, `Scene.Defense`, Plan, Strategy, and pedagogy remain closed.
+Arbitration. In this scope, StoryTable assigns Lead, Support, Context, and
+Blocked only among existing `Tactic.Hanging` Story rows and existing narrow
+`Tactic.Fork` Story rows. It does not create Stories or new public claims.
+Public/user-facing Fork LLM narration, public route `200`, engine PV
+commentary, best-move explanation, `Scene.Material`, `Scene.Defense`, Plan,
+Strategy, and pedagogy remain closed.
 Stage 5-1 Hanging role rules also live there; other documents may summarize
 that complete Hanging rows can lead or support, refuted/incomplete/captureless
 rows are blocked, unknown engine checks create no engine claim, and roles do
@@ -320,6 +333,34 @@ and 8B Codex CLI prompt smoke test, production API validation remains closed,
 and LLM narration behavior smoke must not add a move, line, tactic, plan,
 engine mention, stronger claim, or chess meaning absent from ExplanationPlan.
 
+`StoryInteractionLaw.md` is the single live authority for Fork-8 Deterministic
+Renderer for Fork. Other documents may summarize only that Fork deterministic
+renderer text may phrase selected Fork ExplanationPlan fields: route, target,
+secondaryTarget, bounded strength, `forks_two_targets`, and forbidden wording.
+It must not read raw Verdict, Story, MultiTargetProof, EngineCheck,
+CaptureResult, BoardFacts, BoardMood, raw PV, proofFailures, or source rows,
+and it does not open Fork LLM smoke itself, public route `200`, production API,
+material claims, wins-queen claims, engine-says wording, best-move wording, or
+sibling tactic families.
+
+`StoryInteractionLaw.md` is the single live authority for Fork-9 LLM Smoke for
+Fork. Other documents may summarize only that Fork LLM smoke may receive
+selected Fork ExplanationPlan and RenderedLine. 8B may receive renderedText,
+claimKey, strength, forbidden wording list, and the instruction `Rephrase
+only. Do not add chess facts.` only. It must not read raw Verdict, Story,
+MultiTargetProof, EngineCheck, CaptureResult, BoardFacts, BoardMood,
+EngineEval, EngineLine, engine eval, raw PV, proofFailures, or source rows.
+Production API, public/user-facing LLM narration, public route `200`,
+pedagogy, engine PV commentary, best-move explanation, material-win wording,
+wins-queen wording, and sibling tactic families remain closed.
+
+`StoryInteractionLaw.md` is the single live authority for the Fork Slice
+Closeout Pass. Other documents may summarize only that closeout opens no
+sibling tactic, `Scene.Material`, `Scene.Defense`, Plan, Strategy, public
+route, production API, or public/user-facing LLM narration, and that
+MultiTargetProof does not replace CaptureResult, StoryProof, EngineCheck, or
+StoryTable.
+
 Forbidden dependency shortcuts:
 
 - Renderer before Story proof sidecar is forbidden.
@@ -338,24 +379,26 @@ Forbidden dependency shortcuts:
   `0`/silent; there is no expansion beyond `48` bits, `256` scalars, and
   `3,328` total values unless a live authority document and docs test
   explicitly open a smaller exact chess fact with same-board producer proof.
-- Only `Tactic.Hanging` positive `Story` writer is live: proof numbers remain
-  non-authoritative for public speech unless the named `Tactic.Hanging` writer,
-  complete StoryProof, same-board proof, and positive `CaptureResult` are all
-  present.
+- Only the named `Tactic.Hanging` writer and the narrow named `Tactic.Fork`
+  writer are live: proof numbers remain non-authoritative for public speech
+  unless the named writer, complete StoryProof, same-board proof, and family
+  proof are present: positive `CaptureResult` for Hanging or complete
+  `MultiTargetProof` for Fork.
 - Proof no-go: missing side, target, anchor, route, rival, required legal line,
   or same-root proof sidecar is a hard public-output block, not weak scoring or
   renderer repair.
 - Renderer boundary no-go: Stage 7-0 may fix deterministic template phrasing
   over `ExplanationPlan` only. LLM renderers remain closed, public route `200`
   remains closed, and no renderer may repair, upgrade, or invent chess meaning.
-- Stage 7-0 Deterministic Renderer scope only: the current scope may fix
+- Stage 7-0 Deterministic Renderer scope only: Stage 7-0 may fix
   `ExplanationPlan` only input, deterministic template, `Tactic.Hanging`
-  bounded claim phrasing, and forbidden wording checks. Do not implement LLM
-  narration, public route `200`, pedagogy, new Story families, engine
-  explanation, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan,
-  Strategy, King attack, Conversion, Blunder, engine PV commentary, best-move
-  explanation, broad scalar re-entry, source/engine public-truth paths, or
-  CTH-style family exceptions.
+  bounded claim phrasing, and forbidden wording checks. Fork deterministic
+  renderer text opens only later in Fork-8 from ExplanationPlan. Do not
+  implement LLM narration, public route `200`, pedagogy, new Story families,
+  engine explanation, `Scene.Material`, `Scene.Defense`, Plan, Strategy, King
+  attack, Conversion, Blunder, engine PV commentary, best-move explanation,
+  broad scalar re-entry, source/engine public-truth paths, or CTH-style family
+  exceptions.
 - Stage 7-1 Renderer Input Guard scope only: Renderer may accept
   `ExplanationPlan` only. Do not add `fromVerdict`, `fromStory`,
   `fromBoardFacts`, `fromEngineCheck`, or any raw proof-material renderer
@@ -393,15 +436,42 @@ Forbidden dependency shortcuts:
   integration, real API micro-test, streaming, public route `200`, user-facing
   LLM output, raw proof input, pedagogy, new Story family, engine explanation,
   or natural-language verifier.
+- Fork-8 Deterministic Renderer scope only: render only selected Fork
+  ExplanationPlan with role Lead, bounded strength, `forks_two_targets`, route,
+  target, secondaryTarget, evidenceLine, and forbidden wording present. Do not
+  read raw Verdict, Story, MultiTargetProof, EngineCheck, CaptureResult,
+  BoardFacts, BoardMood, raw PV, proofFailures, or source rows. Do not open Fork
+  LLM smoke itself, public route `200`, production API, material claims,
+  wins-queen claims, engine-says wording, best-move wording, or sibling tactic
+  families.
+- Fork-9 LLM Smoke scope only: smoke only selected Fork ExplanationPlan and
+  RenderedLine. 8B may receive renderedText, claimKey, strength, forbidden
+  wording list, and `Rephrase only. Do not add chess facts.` only. Do not read
+  raw Verdict, Story, MultiTargetProof, EngineCheck, CaptureResult, BoardFacts,
+  BoardMood, EngineEval, EngineLine, engine eval, raw PV, proofFailures, or
+  source rows. Reject new move, new line, new tactic, new plan, engine mention,
+  best-move, forced, winning, decisive, blunder, wins-queen, wins-material,
+  target-identity, and stronger-claim output. Do not open production API,
+  public/user-facing LLM output, public route `200`, pedagogy, engine PV
+  commentary, best-move explanation, material-win wording, wins-queen wording,
+  or sibling tactic families.
+- Fork Slice Closeout Pass scope only: audit that only narrow non-pawn Fork is
+  open. Do not open `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`,
+  `Tactic.Tempo`, `Tactic.InBetween`, `Scene.Material`, `Scene.Defense`, Plan,
+  Strategy, public route `200`, production API, public/user-facing LLM output,
+  material-win wording, wins-queen wording, or new public claim authority.
+  MultiTargetProof remains TargetProof-shaped proof evidence and must not
+  replace CaptureResult, StoryProof, EngineCheck, StoryTable,
+  ExplanationPlan, Renderer, or LLM smoke ownership.
 - Story Order no-go: StoryTable may order existing `Tactic.Hanging` Story rows
-  into roles, but it must not create a Story, open a new positive
-  family, or promote engine eval, Board Facts, or `CaptureResult` into direct
-  public claims.
+  and existing narrow `Tactic.Fork` Story rows into roles, but it must not
+  create a Story, open a new positive family, or promote engine eval, Board
+  Facts, `CaptureResult`, or MultiTargetProof into direct public claims.
 - Engine Check no-go: engine eval, engine line, reply line, and checked move
-  data may support, cap, or refute only an already existing `Tactic.Hanging`
-  Story after same-board and freshness evidence exists. They must not create a
-  Story, rank a Story, write a `Verdict`, feed a renderer, feed an LLM, or
-  become public truth.
+  data may support, cap, or refute only an already existing `Tactic.Hanging` or
+  narrow `Tactic.Fork` Story after same-board and freshness evidence exists.
+  They must not create a Story, rank a Story, write a `Verdict`, feed a
+  renderer, feed an LLM, or become public truth.
 - Board Facts no-go: open file, pin, weak square, loose piece, pawn lever,
   attacked piece, king-ring attack, and legal move facts are observations only.
   They are not public claims and must not bypass `Story`.

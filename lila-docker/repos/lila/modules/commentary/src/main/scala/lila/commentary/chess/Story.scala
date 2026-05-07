@@ -229,6 +229,7 @@ object StoryProof:
 
 private[commentary] enum StoryWriter:
   case TacticHanging
+  case TacticFork
 
 final case class Story(
     scene: Scene,
@@ -243,7 +244,9 @@ final case class Story(
     storyProof: StoryProof = StoryProof.empty,
     private[commentary] val writer: Option[StoryWriter] = None,
     private[commentary] val captureResult: Option[CaptureResult] = None,
-    private[commentary] val engineCheck: Option[EngineCheck] = None
+    private[commentary] val engineCheck: Option[EngineCheck] = None,
+    secondaryTarget: Option[Square] = None,
+    private[commentary] val multiTargetProof: Option[MultiTargetProof] = None
 ):
   def proofFailures: Vector[BoardFacts.MissingEvidence] =
     storyProof.failures(this)
@@ -261,6 +264,7 @@ final case class Story(
     data(Story.Slots.Pawn + Story.Identity.Anchor) = squareValue(anchor)
     data(Story.Slots.Pawn + Story.Identity.RouteFrom) = route.fold(0)(line => line.from.index + 1)
     data(Story.Slots.Pawn + Story.Identity.RouteTo) = route.fold(0)(line => line.to.index + 1)
+    data(Story.Slots.Piece + Story.PieceIdentity.SecondaryTarget) = squareValue(secondaryTarget)
 
     proof.values.zipWithIndex.foreach: (value, index) =>
       data(Story.Slots.Proof + index) = value
@@ -298,6 +302,9 @@ object Story:
     val Anchor = 3
     val RouteFrom = 4
     val RouteTo = 5
+
+  object PieceIdentity:
+    val SecondaryTarget = 0
 
 enum Role:
   case Lead
@@ -364,7 +371,7 @@ object Verdict:
 object StoryTable:
   val TopK = 8
   // Public Story leads require same-root proof sidecars from named positive Story writers.
-  // Stage 3 opens only Tactic.Hanging.
+  // Positive writers open one narrow proof-backed tactic at a time.
   val PublicStoryLeadsRequireNamedProofWriters = true
 
   def choose(stories: Vector[Story]): Vector[Verdict] =
@@ -381,9 +388,9 @@ object StoryTable:
           familyKey(row.story),
           row.story.side.ordinal,
           squareKey(row.story.target),
+          squareKey(row.story.secondaryTarget),
           squareKey(row.story.anchor),
           routeKey(row.story.route),
-          writerKey(row.story.writer),
           row.story.rival.ordinal
         )
       )
@@ -429,6 +436,8 @@ object StoryTable:
       story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) ||
       hangingWithoutWriter(story) ||
       hangingWriterWithoutCapture(story) ||
+      forkWithoutWriter(story) ||
+      invalidForkWriter(story) ||
       (!leadByStoryRules(story, Vector(story)) && base(story))
 
   private def hangingWithoutWriter(story: Story) =
@@ -441,6 +450,15 @@ object StoryTable:
       story.scene == Scene.Tactic &&
       story.tactic.contains(Tactic.Hanging) &&
       story.captureResult.isEmpty
+
+  private def forkWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Fork)
+
+  private def invalidForkWriter(story: Story) =
+    story.writer.contains(StoryWriter.TacticFork) &&
+      !positiveForkWriter(story)
 
   private def base(story: Story) =
     story.proof.publicStrength >= 65 &&
@@ -458,23 +476,53 @@ object StoryTable:
     story.tactic.isEmpty || story.scene == Scene.Tactic
 
   private def positiveWriter(story: Story) =
-    story.writer.contains(StoryWriter.TacticHanging) &&
-      story.scene == Scene.Tactic &&
-      story.tactic.contains(Tactic.Hanging) &&
-      story.plan.isEmpty &&
-      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-      story.captureResult.exists: result =>
-        result.positiveMaterial &&
-          result.sameBoardProof &&
-          result.missingEvidence.isEmpty &&
-          captureResultBindsStory(story, result) &&
-          result.targetPiece.exists(piece => piece.man != Man.Pawn && piece.man != Man.King)
+    story.writer match
+      case Some(StoryWriter.TacticHanging) => positiveHangingWriter(story)
+      case Some(StoryWriter.TacticFork)    => positiveForkWriter(story)
+      case _                               => false
+
+  private def positiveHangingWriter(story: Story) =
+    story.scene == Scene.Tactic &&
+    story.tactic.contains(Tactic.Hanging) &&
+    story.plan.isEmpty &&
+    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+    story.captureResult.exists: result =>
+      result.positiveMaterial &&
+        result.sameBoardProof &&
+        result.missingEvidence.isEmpty &&
+        captureResultBindsStory(story, result) &&
+        result.targetPiece.exists(piece => piece.man != Man.Pawn && piece.man != Man.King)
+
+  private def positiveForkWriter(story: Story) =
+    story.scene == Scene.Tactic &&
+    story.tactic.contains(Tactic.Fork) &&
+    story.plan.isEmpty &&
+    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+    story.multiTargetProof.exists: proof =>
+      proof.complete &&
+        proof.sameBoardProof &&
+        multiTargetProofBindsStory(story, proof) &&
+        multiTargetRelationProven(proof)
 
   private def captureResultBindsStory(story: Story, result: CaptureResult) =
     result.side == story.side &&
       story.route.contains(result.captureLine) &&
       result.capturingPiece.exists(piece => story.anchor.contains(piece.square)) &&
       result.targetPiece.exists(piece => story.target.contains(piece.square))
+
+  private def multiTargetProofBindsStory(story: Story, proof: MultiTargetProof) =
+    proof.side == story.side &&
+      proof.forkMove.exists(move => story.route.contains(move)) &&
+      proof.attacker.exists(piece => story.anchor.contains(piece.square)) &&
+      story.target.exists(target => proof.targetSquares.headOption.contains(target)) &&
+      story.secondaryTarget.exists(target => proof.targetSquares.lift(1).contains(target))
+
+  private def multiTargetRelationProven(proof: MultiTargetProof) =
+    proof.targetSquares.size == 2 &&
+      proof.targetValues.size == 2 &&
+      proof.attackedTargetSquaresAfterMove == proof.targetSquares &&
+      proof.replyMap.map(_.target) == proof.targets &&
+      proof.replyMap.forall(!_.savedByOneReply)
 
   private def quiet(story: Story, stories: Vector[Story]) =
     story.scene != Scene.Quiet || stories.filterNot(_ == story).forall(_.proof.publicStrength < 55)
@@ -521,9 +569,6 @@ object StoryTable:
 
   private def routeKey(route: Option[Line]) =
     route.fold(0)(line => (line.from.index + 1) * 65 + line.to.index + 1)
-
-  private def writerKey(writer: Option[StoryWriter]) =
-    writer.fold(Int.MaxValue)(_.ordinal)
 
   private def role(row: Row, index: Int) =
     if row.leadCandidate && index == 0 then Role.Lead

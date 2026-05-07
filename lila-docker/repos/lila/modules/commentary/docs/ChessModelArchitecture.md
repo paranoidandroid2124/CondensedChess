@@ -17,9 +17,9 @@ Pass, Stage 7-0 Deterministic Renderer Charter, Stage 7-1 Renderer Input
 Guard, Stage 7-2 Minimal Tactic.Hanging Template, Stage 7-3 Forbidden Wording
 Enforcement, Stage 7-4 No Text for Support / Context / Blocked, Stage 7-5
 Rendered Line Shape, Stage 7-6 Renderer Baseline Tests, Stage 7 Closeout Pass,
-and Stage 8 Prompt Smoke. It is
-intentionally not a full product
-commentary backend.
+Stage 8 Prompt Smoke, Fork-8 Deterministic Renderer for Fork, and Fork-9 LLM
+Smoke for Fork. It is
+intentionally not a full product commentary backend.
 
 The safe target is to make unproven commentary impossible before opening any
 positive public claim. Broad strategy, plan labels, conversion claims, and
@@ -30,19 +30,22 @@ The current branch owns only:
 
 `Board Truth / Primitive Geometry / Story boundary / Verdict boundary / Explanation Plan boundary / Deterministic Renderer boundary`
 
-Current implementation scope is Stage 8 Prompt Smoke.
-Stage 3 remains open only for Material proof kernel, `Tactic.Hanging`, and
-Hanging negative corpus. Stage 4 is named `Engine Check`. Stage 4 opens only
-`EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board
-and stale guards, `Tactic.Hanging` attachment, false-positive corpus, and
-conservative StoryTable diagnostics for existing `Tactic.Hanging` Stories.
+Current implementation scope is Stage 8 Prompt Smoke plus the narrow Fork-9
+LLM smoke slice. Stage 3 remains open only for Material proof kernel,
+`Tactic.Hanging`, Hanging negative corpus, and the narrow
+`Tactic.Fork` vertical slice. Stage 4 is named `Engine Check`. Stage 4 opens
+only `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence,
+same-board and stale guards, `Tactic.Hanging` attachment, narrow
+`Tactic.Fork` attachment, false-positive corpus, and conservative StoryTable
+diagnostics for existing `Tactic.Hanging` and narrow `Tactic.Fork` Stories.
 Stage 5 is named `Story Order` and opens only StoryTable role ordering for
-existing `Tactic.Hanging` Story rows. Stage 5-1 assigns Lead, Support,
-Context, and Blocked roles inside that Hanging-only slice. Stage 5-2 fixes
-deterministic ordering inputs for those rows. Stage 5-3 tightens close
-blockers and context relations for those rows. Stage 5-4 keeps Verdict
-diagnostics out of public numeric values and downstream public surfaces. Stage
-5 closeout confirmed Story ordering only and selected-Verdict handoff only.
+existing `Tactic.Hanging` Story rows and existing narrow `Tactic.Fork` Story
+rows. Stage 5-1 assigns Lead, Support, Context, and Blocked roles inside that
+slice. Stage 5-2 fixes deterministic ordering inputs for those rows. Stage
+5-3 tightens close blockers and context relations for those rows. Stage 5-4
+keeps Verdict diagnostics out of public numeric values and downstream public
+surfaces. Stage 5 closeout confirmed Story ordering only and selected-Verdict
+handoff only.
 Stage 6-0 opens only the Explanation Plan charter and selected-Verdict speech
 boundary; it does not open sentences, renderer, LLM, public route `200`,
 pedagogy, new Story families, or engine explanation. Stage 6-1 opens only the
@@ -100,8 +103,16 @@ instruction `Rephrase only. Do not add chess facts.` only. 8A Mock narrator may
 receive ExplanationPlan and RenderedLine only. Production API validation
 remains closed. Stage 8 must not read raw Verdict, Story, EngineCheck,
 CaptureResult, Board Facts, BoardMood, raw PV, proofFailures text, or source
-rows directly. Stages 9-11 below are a dependency map for product design; they
-are not permission to implement those systems in this checkpoint.
+rows directly. Fork-8 opens only deterministic renderer text for selected Fork
+ExplanationPlan, using route, target, and secondaryTarget already lowered from
+the selected Verdict. Fork-9 opens only LLM smoke for selected Fork
+ExplanationPlan and RenderedLine; 8B may receive renderedText, claimKey,
+strength, forbidden wording list, and the instruction `Rephrase only. Do not
+add chess facts.` only. It does not open public/user-facing Fork LLM narration,
+public route `200`, production API, pedagogy, material claims, wins-queen
+claims, engine PV commentary, best-move explanation, or sibling tactic
+families. Stages 9-11 below are a dependency map for product design; they are
+not permission to implement those systems in this checkpoint.
 
 Product north-star philosophy:
 
@@ -572,11 +583,12 @@ input, or LLM input.
 `Story.values` is exactly `160` values. It one-hot encodes public families and
 stores proof scores in the proof segment.
 
-The current implementation target is the first narrow positive Story, not
-renderer opening. A Story cannot lead until it has concrete side, target,
-anchor, route, rival, required legal line, same-root proof sidecar, a named
-positive Story writer, and family-specific proof. Numeric proof scores alone
-are not authority because they can be forged without the bound sidecar tuple.
+The current Fork implementation target opens deterministic renderer text only
+after the selected Verdict has been lowered to `ExplanationPlan`. A Story
+cannot lead until it has concrete side, target, anchor, route, rival, required
+legal line, same-root proof sidecar, a named positive Story writer, and
+family-specific proof. Numeric proof scores alone are not authority because
+they can be forged without the bound sidecar tuple.
 
 ## StoryTable
 

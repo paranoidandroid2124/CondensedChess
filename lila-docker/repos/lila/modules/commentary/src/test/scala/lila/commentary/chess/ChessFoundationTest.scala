@@ -2795,11 +2795,11 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(noNamedWriter.writer, None)
     assertEquals(positiveCapture.missingEvidence, Vector.empty)
 
-  test("EngineCheck attaches only to Tactic.Hanging"):
+  test("EngineCheck attaches only to named tactic writers"):
     val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
     val capture = Line(Square('d', 4), Square('e', 5))
     val hanging = TacticHanging.write(facts, capture).get
-    val check = EngineCheck.fromStory(
+    val hangingCheck = EngineCheck.fromStory(
       facts = facts,
       story = Some(hanging),
       engineLine = Some(EngineLine(Vector(capture))),
@@ -2810,14 +2810,407 @@ class ChessFoundationTest extends munit.FunSuite:
       freshnessPly = Some(0),
       requestedStatus = EngineCheckStatus.Supports
     )
-    val fork = hanging.copy(tactic = Some(Tactic.Fork))
+    val forkFacts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork = TacticFork.write(forkFacts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+    val forkCheck = EngineCheck.fromStory(
+      facts = forkFacts,
+      story = Some(fork),
+      engineLine = Some(EngineLine(Vector(forkMove))),
+      replyLine = Some(EngineLine(Vector(Line(Square('h', 8), Square('h', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
     val material = hanging.copy(scene = Scene.Material, tactic = None)
     val noWriter = hanging.copy(writer = None)
 
-    assertEquals(TacticHanging.withEngineCheck(hanging, check).map(_.engineCheck), Some(Some(check)))
-    assertEquals(TacticHanging.withEngineCheck(fork, check), None)
-    assertEquals(TacticHanging.withEngineCheck(material, check), None)
-    assertEquals(TacticHanging.withEngineCheck(noWriter, check), None)
+    assertEquals(TacticHanging.withEngineCheck(hanging, hangingCheck).map(_.engineCheck), Some(Some(hangingCheck)))
+    assertEquals(TacticFork.withEngineCheck(fork, forkCheck).map(_.engineCheck), Some(Some(forkCheck)))
+    assertEquals(TacticHanging.withEngineCheck(material, hangingCheck), None)
+    assertEquals(TacticHanging.withEngineCheck(noWriter, hangingCheck), None)
+    assertEquals(TacticFork.withEngineCheck(hanging, hangingCheck), None)
+
+  test("Fork-5 EngineCheck reuses existing sidecar without creating Fork"):
+    val facts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val reply = EngineLine(Vector(Line(Square('h', 8), Square('h', 7))))
+    val fork = TacticFork.write(facts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+
+    def check(status: EngineCheckStatus): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(fork),
+        engineLine = Some(EngineLine(Vector(forkMove))),
+        replyLine = Some(reply),
+        evalBefore = Some(EngineEval(20)),
+        evalAfter = Some(EngineEval(80)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    val supports = check(EngineCheckStatus.Supports)
+    val caps = check(EngineCheckStatus.Caps)
+    val unknown = check(EngineCheckStatus.Unknown)
+    val refutes = check(EngineCheckStatus.Refutes)
+
+    Vector(supports, caps, unknown, refutes).foreach: engineCheck =>
+      assertEquals(engineCheck.evidenceReady, true)
+      assertEquals(engineCheck.sameBoardProof, true)
+      assertEquals(engineCheck.checkedMove, Some(forkMove))
+      assertEquals(TacticFork.withEngineCheck(fork, engineCheck).map(_.engineCheck), Some(Some(engineCheck)))
+
+    assertEquals(StoryTable.choose(Vector(TacticFork.withEngineCheck(fork, supports).get)).head.role, Role.Lead)
+    val cappedVerdict = StoryTable.choose(Vector(TacticFork.withEngineCheck(fork, caps).get)).head
+    assertEquals(cappedVerdict.role, Role.Lead)
+    assertEquals(cappedVerdict.engineStrengthLimited, true)
+    assertEquals(StoryTable.choose(Vector(TacticFork.withEngineCheck(fork, unknown).get)).head.role, Role.Lead)
+    assertEquals(StoryTable.choose(Vector(TacticFork.withEngineCheck(fork, refutes).get)).head.role, Role.Blocked)
+
+    val engineOnly = EngineCheck.fromStory(
+      facts = facts,
+      story = None,
+      engineLine = Some(EngineLine(Vector(forkMove))),
+      replyLine = Some(reply),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    val missingDepth = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(fork),
+      engineLine = Some(EngineLine(Vector(forkMove))),
+      replyLine = Some(reply),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = None,
+      freshnessPly = None,
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    val routeMismatch = EngineCheck.fromEvidence(
+      sameBoardProof = true,
+      checkedMove = Some(Line(Square('h', 1), Square('h', 2))),
+      engineLine = Some(EngineLine(Vector(Line(Square('h', 1), Square('h', 2))))),
+      replyLine = Some(reply),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+
+    assertEquals(engineOnly.status, EngineCheckStatus.Unknown)
+    assertEquals(engineOnly.evidenceReady, false)
+    assertEquals(engineOnly.checkedMove, None)
+    assertEquals(TacticFork.withEngineCheck(fork, engineOnly), None)
+    assertEquals(missingDepth.status, EngineCheckStatus.Unknown)
+    assertEquals(missingDepth.evidenceReady, false)
+    assertEquals(TacticFork.withEngineCheck(fork, missingDepth), None)
+    assertEquals(routeMismatch.evidenceReady, true)
+    assertEquals(TacticFork.withEngineCheck(fork, routeMismatch), None)
+    assertEquals(intercept[ClassNotFoundException](Class.forName("lila.commentary.chess.ForkEngineCheck")).getClass, classOf[ClassNotFoundException])
+
+    val engineCheckSurfaces =
+      EngineCheck.getClass.getDeclaredMethods.toVector ++ classOf[EngineCheck].getDeclaredMethods.toVector
+    assertEquals(engineCheckSurfaces.exists(_.getReturnType.getSimpleName.contains("Story")), false)
+
+  test("Fork-6 StoryTable orders Hanging and Fork without creating meaning"):
+    val hangingFacts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val hangingMove = Line(Square('d', 4), Square('e', 5))
+    val hanging = TacticHanging.write(hangingFacts, hangingMove).get
+    val forkFacts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork = TacticFork.write(forkFacts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+    val forkTied = fork.copy(proof = hanging.proof)
+
+    assertEquals(StoryTable.choose(Vector(hanging)).head.role, Role.Lead)
+    assertEquals(StoryTable.choose(Vector(fork)).head.role, Role.Lead)
+
+    def orderShape(verdicts: Vector[Verdict]) =
+      verdicts.map(verdict => (verdict.story.scene, verdict.story.tactic, verdict.story.route, verdict.role))
+
+    val hangingFork = StoryTable.choose(Vector(hanging, forkTied))
+    val forkHanging = StoryTable.choose(Vector(forkTied, hanging))
+    assertEquals(orderShape(hangingFork), orderShape(forkHanging))
+    assertEquals(hangingFork.head.story, hanging)
+    assertEquals(hangingFork.head.role, Role.Lead)
+    assertEquals(hangingFork.find(_.story == forkTied).map(_.role), Some(Role.Support))
+    val forkSupportPlan = ExplanationPlan.fromSelected(hangingFork.find(_.story == forkTied).get).get
+    assertEquals(forkSupportPlan.allowedClaim, None)
+    assertEquals(DeterministicRenderer.fromPlan(forkSupportPlan), None)
+
+    val lowProof = proof(
+      boardProof = 60,
+      lineProof = 60,
+      ownerProof = 90,
+      anchorProof = 90,
+      routeProof = 90,
+      conversionPrize = 60,
+      forcing = 60,
+      immediacy = 60
+    )
+    val writerlessFork = fork.copy(writer = None, proof = lowProof)
+    val forkWithoutMultiTargetProof = fork.copy(multiTargetProof = None, proof = lowProof)
+    val incompleteFork = fork.copy(storyProof = StoryProof.empty, proof = lowProof)
+    val refuted = EngineCheck.fromStory(
+      facts = forkFacts,
+      story = Some(fork),
+      engineLine = Some(EngineLine(Vector(forkMove))),
+      replyLine = Some(EngineLine(Vector(Line(Square('h', 8), Square('h', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Refutes
+    )
+    val refutedFork = TacticFork.withEngineCheck(fork, refuted).get
+    val blocked = StoryTable.choose(Vector(hanging, writerlessFork, forkWithoutMultiTargetProof, incompleteFork, refutedFork))
+
+    assertEquals(blocked.find(_.story == hanging).map(_.role), Some(Role.Lead))
+    assertEquals(blocked.find(_.story == writerlessFork).map(_.role), Some(Role.Blocked))
+    assertEquals(blocked.find(_.story == forkWithoutMultiTargetProof).map(_.role), Some(Role.Blocked))
+    assertEquals(blocked.find(_.story == incompleteFork).map(_.role), Some(Role.Blocked))
+    assertEquals(blocked.find(_.story == refutedFork).map(_.role), Some(Role.Blocked))
+    assertEquals(blocked.find(_.story == forkWithoutMultiTargetProof).get.proofFailures, Vector.empty)
+
+    def checkedFork(evalBefore: Int, evalAfter: Int, pvTail: Line): Story =
+      val check = EngineCheck.fromStory(
+        facts = forkFacts,
+        story = Some(forkTied),
+        engineLine = Some(EngineLine(Vector(forkMove, pvTail))),
+        replyLine = Some(EngineLine(Vector(Line(Square('h', 8), Square('h', 7))))),
+        evalBefore = Some(EngineEval(evalBefore)),
+        evalAfter = Some(EngineEval(evalAfter)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = EngineCheckStatus.Supports
+      )
+      TacticFork.withEngineCheck(forkTied, check).get
+
+    val lowEvalFork = checkedFork(20, 80, Line(Square('h', 8), Square('h', 7)))
+    val highEvalFork = checkedFork(400, 460, Line(Square('h', 8), Square('h', 6)))
+    assertEquals(
+      orderShape(StoryTable.choose(Vector(hanging, lowEvalFork))),
+      orderShape(StoryTable.choose(Vector(hanging, highEvalFork)))
+    )
+
+  test("Fork-7 ExplanationPlan lowers selected Fork Verdict without raw proof input"):
+    val facts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork = TacticFork.write(facts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+    val verdict = StoryTable.choose(Vector(fork)).head
+    val maybePlan = ExplanationPlan.fromSelected(verdict)
+    val planSurfaceNames =
+      classOf[ExplanationPlan].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[ExplanationPlan].getDeclaredFields.map(_.getName).toSet
+
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(verdict.selected, true)
+    assertEquals(maybePlan.flatMap(_.allowedClaim.map(_.key)), Some("forks_two_targets"))
+    val plan = maybePlan.get
+    assertEquals(plan.scene, Scene.Tactic)
+    assertEquals(plan.tactic, Some(Tactic.Fork))
+    assertEquals(plan.side, Side.White)
+    assertEquals(plan.target, Some(Square('b', 5)))
+    assertEquals(plan.secondaryTarget, Some(Square('f', 5)))
+    assertEquals(plan.anchor, Some(Square('f', 3)))
+    assertEquals(plan.route, Some(forkMove))
+    assertEquals(plan.evidenceLine, Some(forkMove))
+    assertEquals(plan.strength, ExplanationStrength.Bounded)
+    assertEquals(plan.debugOnly, false)
+    assertEquals(plan.relations, Vector.empty)
+    assertEquals(plan.supportContextLinks, Vector.empty)
+    assert(planSurfaceNames.contains("secondaryTarget"))
+    assertEquals(ExplanationClaim.ForkAllowed.map(_.key), Vector("forks_two_targets", "attacks_two_targets"))
+    assertEquals(
+      ExplanationClaim.ForkForbiddenKeys,
+      Vector(
+        "wins_material_by_fork",
+        "wins_queen",
+        "decisive_fork",
+        "forced_win",
+        "best_move",
+        "no_counterplay"
+      )
+    )
+    Vector(
+      "wins_material_by_fork",
+      "wins_queen",
+      "decisive_fork",
+      "forced_win",
+      "best_move",
+      "no_counterplay"
+    ).foreach: forbidden =>
+      assert(plan.forbiddenWording.map(_.key).contains(forbidden), forbidden)
+    Vector("MultiTargetProof", "EngineCheck", "CaptureResult", "BoardFacts", "rawPv", "proofFailures", "sourceRow")
+      .foreach: forbiddenName =>
+        assert(!planSurfaceNames.exists(_.toLowerCase.contains(forbiddenName.toLowerCase)))
+
+  test("Fork-7 Support Context and Blocked Fork plans are relation only"):
+    val facts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork = TacticFork.write(facts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+    val leadVerdict = StoryTable.choose(Vector(fork)).head
+    val supportVerdict = leadVerdict.copy(role = Role.Support, leadAllowed = false, rank = 2)
+    val contextVerdict = leadVerdict.copy(role = Role.Context, leadAllowed = false, rank = 3)
+    val blockedVerdict = leadVerdict.copy(role = Role.Blocked, leadAllowed = false, rank = 4)
+    val engineBlockedVerdict =
+      blockedVerdict.copy(engineCheckStatus = Some(EngineCheckStatus.Refutes))
+
+    val supportPlan = ExplanationPlan.fromSelected(supportVerdict).get
+    val contextPlan = ExplanationPlan.fromSelected(contextVerdict).get
+    val blockedPlan = ExplanationPlan.fromSelected(blockedVerdict).get
+    val engineBlockedPlan = ExplanationPlan.fromSelected(engineBlockedVerdict).get
+
+    Vector(supportPlan, contextPlan, blockedPlan, engineBlockedPlan).foreach: plan =>
+      assertEquals(plan.allowedClaim, None)
+      assertEquals(DeterministicRenderer.fromPlan(plan), None)
+
+    assertEquals(supportPlan.relations.map(_.key), Vector("same_family_lower_rank"))
+    assertEquals(contextPlan.relations.map(_.key), Vector("alternative_fork_candidate"))
+    assertEquals(blockedPlan.relations, Vector.empty)
+    assertEquals(blockedPlan.debugOnly, true)
+    assertEquals(engineBlockedPlan.relations.map(_.key), Vector("blocked_by_engine_refute"))
+    assertEquals(engineBlockedPlan.debugOnly, true)
+
+  test("Fork-8 DeterministicRenderer phrases Fork ExplanationPlan without stronger meaning"):
+    val facts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork = TacticFork.write(facts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+    val verdict = StoryTable.choose(Vector(fork)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val forbiddenPhrases =
+      Vector(
+        "wins queen",
+        "wins material",
+        "decisive",
+        "forced",
+        "best move",
+        "engine says",
+        "no counterplay",
+        "blunder"
+      )
+
+    assertEquals(plan.role, Role.Lead)
+    assertEquals(plan.tactic, Some(Tactic.Fork))
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.ForksTwoTargets))
+    assertEquals(plan.target, Some(Square('b', 5)))
+    assertEquals(plan.secondaryTarget, Some(Square('f', 5)))
+    assertEquals(plan.route, Some(forkMove))
+    assertEquals(plan.evidenceLine, Some(forkMove))
+    assertEquals(rendered.text, "f3-d4 forks the pieces on b5 and f5.")
+    assertEquals(rendered.claimKey, "forks_two_targets")
+    assertEquals(rendered.strength, "bounded")
+    assertEquals(rendered.forbiddenCheckPassed, true)
+    forbiddenPhrases.foreach: phrase =>
+      assert(!rendered.text.toLowerCase.contains(phrase), s"Fork renderer must not contain forbidden phrase: $phrase")
+
+  test("Fork-9 LLM smoke accepts Fork RenderedLine without raw proof input"):
+    val facts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork = TacticFork.write(facts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+    val verdict = StoryTable.choose(Vector(fork)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val mockText = LlmNarrationSmoke.mockNarrate(plan, rendered).get
+    val prompt = LlmNarrationSmoke.codexCliPrompt(plan, rendered).get
+    val checked = LlmNarrationSmoke.check(plan, rendered, mockText)
+
+    assertEquals(mockText, rendered.text)
+    assertEquals(checked.accepted, true)
+    assertEquals(checked.violations, Vector.empty)
+    Vector(
+      "renderedText: f3-d4 forks the pieces on b5 and f5.",
+      "claimKey: forks_two_targets",
+      "strength: bounded",
+      "forbiddenWording:",
+      "Rephrase only. Do not add chess facts."
+    ).foreach: required =>
+      assert(prompt.contains(required), s"Fork prompt must include allowed input: $required")
+    Vector(
+      "Verdict",
+      "Story",
+      "MultiTargetProof",
+      "EngineCheck",
+      "BoardFacts",
+      "EngineEval",
+      "EngineLine",
+      "raw PV",
+      "proofFailures",
+      "source row",
+      "target:",
+      "secondaryTarget:",
+      "reply map:"
+    ).foreach: forbidden =>
+      assert(!prompt.contains(forbidden), s"Fork prompt must not include forbidden raw input label: $forbidden")
+
+  test("Fork-9 LLM smoke rejects stronger Fork rephrases"):
+    val facts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork = TacticFork.write(facts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+    val verdict = StoryTable.choose(Vector(fork)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    val safe = LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the pieces on b5 and f5.")
+    val inventedMove = LlmNarrationSmoke.check(plan, rendered, "After f3-d4 h8h7, the fork stays.")
+    val inventedTactic = LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the pieces and starts a skewer.")
+    val inventedPlan = LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the pieces and starts a plan.")
+    val engineBestWinning =
+      LlmNarrationSmoke.check(plan, rendered, "The engine says f3-d4 is the best move and a winning fork.")
+    val forcedDecisiveBlunder =
+      LlmNarrationSmoke.check(plan, rendered, "f3-d4 is a forced decisive fork after a blunder.")
+    val winsQueen = LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the pieces and wins the queen.")
+    val winsMaterial = LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the pieces and wins material.")
+    val namesTargets =
+      LlmNarrationSmoke.check(plan, rendered, "f3-d4 forks the queen on b5 and rook on f5.")
+
+    assertEquals(safe.accepted, true)
+    assertEquals(safe.violations, Vector.empty)
+    assertEquals(inventedMove.accepted, false)
+    assertEquals(inventedMove.violations.contains("new_move_or_line"), true)
+    assertEquals(inventedTactic.accepted, false)
+    assertEquals(inventedTactic.violations.contains("new_tactic_or_plan"), true)
+    assertEquals(inventedPlan.accepted, false)
+    assertEquals(inventedPlan.violations.contains("new_tactic_or_plan"), true)
+    assertEquals(engineBestWinning.accepted, false)
+    assertEquals(engineBestWinning.violations.contains("engine_mention"), true)
+    assertEquals(engineBestWinning.violations.contains("forbidden_wording"), true)
+    assertEquals(engineBestWinning.violations.contains("stronger_claim"), true)
+    assertEquals(forcedDecisiveBlunder.accepted, false)
+    assertEquals(forcedDecisiveBlunder.violations.contains("forbidden_wording"), true)
+    assertEquals(forcedDecisiveBlunder.violations.contains("stronger_claim"), true)
+    Vector(winsQueen, winsMaterial, namesTargets).foreach: checked =>
+      assertEquals(checked.accepted, false)
+      assert(checked.violations.contains("forbidden_wording") || checked.violations.contains("stronger_claim"))
+
+  test("Fork-8 refuses Fork renderer text without structural Fork plan permission"):
+    val facts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork = TacticFork.write(facts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get
+    val verdict = StoryTable.choose(Vector(fork)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val invalidPlans =
+      Vector(
+        plan.copy(role = Role.Support),
+        plan.copy(allowedClaim = Some(ExplanationClaim.AttacksTwoTargets)),
+        plan.copy(allowedClaim = None),
+        plan.copy(debugOnly = true),
+        plan.copy(target = None),
+        plan.copy(secondaryTarget = None),
+        plan.copy(route = None),
+        plan.copy(evidenceLine = None),
+        plan.copy(forbiddenWording = Vector.empty)
+      )
+
+    invalidPlans.foreach: invalidPlan =>
+      assertEquals(DeterministicRenderer.fromPlan(invalidPlan), None)
 
   test("Tactic.Hanging writer opens the first narrow positive Story"):
     val facts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
@@ -2921,6 +3314,275 @@ class ChessFoundationTest extends munit.FunSuite:
       val verdict = StoryTable.choose(Vector(story)).head
       assertEquals(verdict.leadAllowed, false)
       assert(verdict.role != Role.Lead)
+
+  test("Fork geometry readiness stays inside MultiTargetProof"):
+    val facts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Some(Line(Square('f', 3), Square('d', 4)))
+    val targetA = Some(Square('b', 5))
+    val targetB = Some(Square('f', 5))
+    val proof = MultiTargetProof.fromBoardFacts(facts, forkMove, targetA, targetB)
+
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.forkMove, forkMove)
+    assertEquals(proof.attacker, Some(Piece(Side.White, Man.Knight, Square('f', 3))))
+    assertEquals(proof.attackerAfterMove, Some(Piece(Side.White, Man.Knight, Square('d', 4))))
+    assertEquals(proof.targetSquares, Vector(Square('b', 5), Square('f', 5)))
+    assertEquals(
+      proof.targets,
+      Vector(Piece(Side.Black, Man.Queen, Square('b', 5)), Piece(Side.Black, Man.Rook, Square('f', 5)))
+    )
+    assertEquals(proof.targetValues, Vector(900, 500))
+    assertEquals(proof.attackedTargetSquaresAfterMove, Vector(Square('b', 5), Square('f', 5)))
+    assertEquals(proof.publicClaimAllowed, false)
+
+    val proofSurfaceNames =
+      classOf[MultiTargetProof].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[MultiTargetProof].getDeclaredFields.map(_.getName).toSet
+    Vector(
+      "forkWorks",
+      "forkSucceeds",
+      "winsMaterial",
+      "winsQueen",
+      "decisive",
+      "forced",
+      "bestMove",
+      "story",
+      "verdict",
+      "render",
+      "llm"
+    ).foreach: forbidden =>
+      assert(!proofSurfaceNames.exists(_.toLowerCase.contains(forbidden.toLowerCase)), forbidden)
+
+    val boardFactsSurfaceNames =
+      classOf[BoardFacts].getDeclaredMethods.map(_.getName).toSet ++
+        classOf[BoardFacts].getDeclaredFields.map(_.getName).toSet
+    assert(!boardFactsSurfaceNames.exists(_.toLowerCase.contains("fork")))
+
+  test("Fork-2 MultiTargetProof owns Fork proof evidence without Story construction"):
+    val facts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Some(Line(Square('f', 3), Square('d', 4)))
+    val proof =
+      MultiTargetProof.fromBoardFacts(facts, forkMove, Some(Square('b', 5)), Some(Square('f', 5)))
+
+    assertEquals(proof.complete, true)
+    assertEquals(proof.attacker, Some(Piece(Side.White, Man.Knight, Square('f', 3))))
+    assertEquals(proof.forkMove, forkMove)
+    assertEquals(proof.forkSquare, Some(Square('d', 4)))
+    assertEquals(proof.targetA, Some(Piece(Side.Black, Man.Queen, Square('b', 5))))
+    assertEquals(proof.targetB, Some(Piece(Side.Black, Man.Rook, Square('f', 5))))
+    assertEquals(proof.targetValues, Vector(900, 500))
+    assertEquals(proof.replyMap.map(_.target), proof.targets)
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.missingEvidence, Vector.empty)
+
+    val proofHomeMethods =
+      MultiTargetProof.getClass.getDeclaredMethods.toVector ++ classOf[MultiTargetProof].getDeclaredMethods.toVector
+    val storyReturningMethods = proofHomeMethods.filter(_.getReturnType.getSimpleName.contains("Story")).map(_.getName)
+    val storyConstructingMethods =
+      proofHomeMethods.map(_.getName).filter(name => name == "write" || name == "toStory" || name == "fromStory")
+    assertEquals(storyReturningMethods, Vector.empty)
+    assertEquals(storyConstructingMethods, Vector.empty)
+
+  test("Fork-3 TacticFork writer admits only proven two-target Stories"):
+    val facts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val forkMove = Some(Line(Square('f', 3), Square('d', 4)))
+    val targetA = Some(Square('b', 5))
+    val targetB = Some(Square('f', 5))
+    val story = TacticFork.write(facts, forkMove, targetA, targetB).get
+    val proof = story.multiTargetProof.get
+
+    assertEquals(story.scene, Scene.Tactic)
+    assertEquals(story.tactic, Some(Tactic.Fork))
+    assertEquals(story.writer, Some(StoryWriter.TacticFork))
+    assertEquals(story.proofFailures, Vector.empty)
+    assertEquals(story.route, forkMove)
+    assertEquals(story.anchor, Some(Square('f', 3)))
+    assertEquals(story.target, targetA)
+    assertEquals(story.secondaryTarget, targetB)
+    assertEquals(proof.complete, true)
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.forkSquare, Some(Square('d', 4)))
+    assertEquals(proof.targetA.map(_.square), Some(Square('b', 5)))
+    assertEquals(proof.targetB.map(_.square), Some(Square('f', 5)))
+    assertEquals(proof.attackedTargetSquaresAfterMove, proof.targetSquares)
+
+    val verdict = StoryTable.choose(Vector(story)).head
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(verdict.leadAllowed, true)
+
+    val refutes = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(forkMove.get))),
+      replyLine = Some(EngineLine(Vector(Line(Square('h', 8), Square('h', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Refutes
+    )
+    val refutedVerdict = StoryTable.choose(Vector(TacticFork.withEngineCheck(story, refutes).get)).head
+    assertEquals(refutedVerdict.role, Role.Blocked)
+    assertEquals(refutedVerdict.leadAllowed, false)
+
+    val forgedUnprovenRelation =
+      story.copy(multiTargetProof = Some(proof.copy(attackedTargetSquaresAfterMove = Vector.empty)))
+    val forgedVerdict = StoryTable.choose(Vector(forgedUnprovenRelation)).head
+    assertEquals(forgedVerdict.role, Role.Blocked)
+    assertEquals(forgedVerdict.leadAllowed, false)
+
+    val writerSurfaceNames =
+      TacticFork.getClass.getDeclaredMethods.map(_.getName).toSet ++
+        TacticFork.getClass.getDeclaredFields.map(_.getName).toSet
+    Vector(
+      "winsQueen",
+      "winsMaterial",
+      "decisive",
+      "forced",
+      "bestMove",
+      "onlyMove",
+      "noCounterplay",
+      "blunder",
+      "engineSays"
+    ).foreach: forbidden =>
+      assert(!writerSurfaceNames.exists(_.toLowerCase.contains(forbidden.toLowerCase)), forbidden)
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    assertEquals(plan.allowedClaim.map(_.key), Some("forks_two_targets"))
+    assertEquals(StoryTable.choose(Vector.empty), Vector.empty)
+
+  test("Fork negative corpus keeps fork-looking false positives silent"):
+    val forkMove = Some(Line(Square('f', 3), Square('d', 4)))
+    val targetA = Some(Square('b', 5))
+    val targetB = Some(Square('f', 5))
+    val positiveFacts = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val positive = TacticFork.write(positiveFacts, forkMove, targetA, targetB).get
+
+    assertEquals(positive.scene, Scene.Tactic)
+    assertEquals(positive.tactic, Some(Tactic.Fork))
+    assertEquals(positive.writer, Some(StoryWriter.TacticFork))
+    assertEquals(positive.anchor, Some(Square('f', 3)))
+    assertEquals(positive.route, forkMove)
+    assertEquals(positive.target, targetA)
+    assertEquals(positive.secondaryTarget, targetB)
+    assertEquals(positive.multiTargetProof.exists(_.complete), true)
+    assertEquals(StoryTable.choose(Vector(positive)).head.role, Role.Lead)
+
+    val noLegalMove = BoardFacts.fromFen("7k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val noAttacker = BoardFacts.fromFen("7k/8/8/1q3r2/8/8/8/7K w - - 0 1").toOption.get
+    val ownTarget = BoardFacts.fromFen("7k/8/8/1q3R2/8/5N2/8/7K w - - 0 1").toOption.get
+    val targetNotAttacked = BoardFacts.fromFen("7k/8/8/1q3rb1/8/5N2/8/7K w - - 0 1").toOption.get
+    val unsafeForkSquare = BoardFacts.fromFen("7k/6b1/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val oneReplySavesBoth = BoardFacts.fromFen("3r3k/8/8/1q3r2/8/5N2/8/7K w - - 0 1").toOption.get
+    val pawnFork = BoardFacts.fromFen("7k/8/3q1r2/8/4P3/8/8/7K w - - 0 1").toOption.get
+    val skewer = BoardFacts.fromFen("r6k/8/q7/8/8/8/8/R6K w - - 0 1").toOption.get
+    val queenHitOnly = BoardFacts.fromFen("7k/8/8/1q6/8/5N2/8/7K w - - 0 1").toOption.get
+
+    Vector(
+      "legal move 없음" ->
+        TacticFork.write(noLegalMove, Some(Line(Square('f', 3), Square('d', 5))), targetA, targetB),
+      "attacker 없음" ->
+        TacticFork.write(noAttacker, forkMove, targetA, targetB),
+      "fork square 없음" ->
+        TacticFork.write(positiveFacts, None, targetA, targetB),
+      "two targets 없음" ->
+        TacticFork.write(positiveFacts, forkMove, targetA, None),
+      "duplicated target" ->
+        TacticFork.write(positiveFacts, forkMove, targetA, targetA),
+      "own piece target" ->
+        TacticFork.write(ownTarget, forkMove, targetA, targetB),
+      "target not attacked after move" ->
+        TacticFork.write(targetNotAttacked, forkMove, targetA, Some(Square('g', 5))),
+      "fork square unsafe with no compensation" ->
+        TacticFork.write(unsafeForkSquare, forkMove, targetA, targetB),
+      "both targets saved by one reply" ->
+        TacticFork.write(oneReplySavesBoth, forkMove, targetA, targetB),
+      "pawn fork tries to enter Tactic.Fork" ->
+        TacticFork.write(
+          pawnFork,
+          Some(Line(Square('e', 4), Square('e', 5))),
+          Some(Square('d', 6)),
+          Some(Square('f', 6))
+        ),
+      "skewer tries to enter Tactic.Fork" ->
+        TacticFork.write(
+          skewer,
+          Some(Line(Square('a', 1), Square('a', 4))),
+          Some(Square('a', 6)),
+          Some(Square('a', 8))
+        ),
+      "queen-hit-only tries to enter Tactic.Fork" ->
+        TacticFork.write(queenHitOnly, forkMove, targetA, targetB)
+    ).foreach: (label, maybeStory) =>
+      assertEquals(maybeStory, None, label)
+
+    val highProof = proof(
+      boardProof = 99,
+      lineProof = 99,
+      ownerProof = 99,
+      anchorProof = 99,
+      routeProof = 99,
+      conversionPrize = 99,
+      forcing = 99,
+      immediacy = 99
+    )
+    val storyProofIncomplete = positive.copy(storyProof = StoryProof.empty)
+    val multiTargetProofIncomplete = positive.copy(multiTargetProof = None)
+    val bothTargetsSavedByOneReply =
+      positive.copy(
+        multiTargetProof =
+          positive.multiTargetProof.map: proof =>
+            proof.copy(replyMap = proof.replyMap.map(reply => reply.copy(savedByOneReply = true)))
+      )
+    val highProofOnly = Story(
+      Scene.Tactic,
+      tactic = Some(Tactic.Fork),
+      side = Side.White,
+      rival = Side.Black,
+      target = targetA,
+      secondaryTarget = targetB,
+      anchor = Some(Square('f', 3)),
+      route = forkMove,
+      proof = highProof,
+      storyProof = StoryProof.fromBoardFacts(positiveFacts, forkMove.get)
+    )
+    val engineRefutes = EngineCheck.fromStory(
+      facts = positiveFacts,
+      story = Some(positive),
+      engineLine = Some(EngineLine(Vector(forkMove.get))),
+      replyLine = Some(EngineLine(Vector(Line(Square('h', 8), Square('h', 7))))),
+      evalBefore = Some(EngineEval(120)),
+      evalAfter = Some(EngineEval(-400)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    val requestedRefute = EngineCheck.fromStory(
+      facts = positiveFacts,
+      story = Some(positive),
+      engineLine = Some(EngineLine(Vector(forkMove.get))),
+      replyLine = Some(EngineLine(Vector(Line(Square('h', 8), Square('h', 7))))),
+      evalBefore = Some(EngineEval(20)),
+      evalAfter = Some(EngineEval(80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Refutes
+    )
+
+    Vector(
+      "StoryProof incomplete" -> storyProofIncomplete,
+      "MultiTargetProof incomplete" -> multiTargetProofIncomplete,
+      "both targets saved by one reply" -> bothTargetsSavedByOneReply,
+      "high Proof score only" -> highProofOnly
+    ).foreach: (label, story) =>
+      val verdict = StoryTable.choose(Vector(story)).head
+      assertEquals(verdict.leadAllowed, false, label)
+      assert(verdict.role != Role.Lead, label)
+
+    Vector(engineRefutes, requestedRefute).foreach: check =>
+      assertEquals(check.status, EngineCheckStatus.Refutes)
+      val verdict = StoryTable.choose(Vector(TacticFork.withEngineCheck(positive, check).get)).head
+      assertEquals(verdict.leadAllowed, false)
+      assertEquals(verdict.role, Role.Blocked)
 
   test("Board Facts legal rows cannot become public claims without Story Proof"):
     val facts = BoardFacts.fromFen(Fen.initial).toOption.get
@@ -3335,7 +3997,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(plan.debugOnly, false)
     assertEquals(plan.supportContextLinks, Vector.empty)
 
-  test("Stage 6-1 ExplanationPlan rejects non Hanging Verdicts"):
+  test("Stage 6-1 ExplanationPlan rejects unselected or unsupported Verdicts"):
     val facts = BoardFacts.fromFen("4k3/8/8/2n1n3/3P4/8/8/4K3 w - - 0 1").toOption.get
     val left = TacticHanging.write(facts, Line(Square('d', 4), Square('c', 5))).get
     val right = TacticHanging.write(facts, Line(Square('d', 4), Square('e', 5))).get
@@ -3570,6 +4232,7 @@ class ChessFoundationTest extends munit.FunSuite:
       "BoardFacts",
       "BoardMood",
       "CaptureResult",
+      "MultiTargetProof",
       "EngineCheck",
       "EngineEval",
       "EngineLine",

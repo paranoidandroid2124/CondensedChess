@@ -126,15 +126,26 @@ private[commentary] object EngineCheck:
 
   private def storyIdentityOnFacts(facts: BoardFacts, story: Story): Boolean =
     val pieces = facts.pieces.toSet
-    story.writer.contains(StoryWriter.TacticHanging) &&
-      story.tactic.contains(Tactic.Hanging) &&
-      story.proofFailures.isEmpty &&
-      story.captureResult.exists: result =>
-        result.sameBoardProof &&
-          result.missingEvidence.isEmpty &&
-          story.route.contains(result.captureLine) &&
-          result.capturingPiece.exists(pieces.contains) &&
-          result.targetPiece.exists(pieces.contains)
+    story.writer match
+      case Some(StoryWriter.TacticHanging) =>
+        story.tactic.contains(Tactic.Hanging) &&
+          story.proofFailures.isEmpty &&
+          story.captureResult.exists: result =>
+            result.sameBoardProof &&
+              result.missingEvidence.isEmpty &&
+              story.route.contains(result.captureLine) &&
+              result.capturingPiece.exists(pieces.contains) &&
+              result.targetPiece.exists(pieces.contains)
+      case Some(StoryWriter.TacticFork) =>
+        story.tactic.contains(Tactic.Fork) &&
+          story.proofFailures.isEmpty &&
+          story.multiTargetProof.exists: proof =>
+            proof.complete &&
+              proof.sameBoardProof &&
+              proof.forkMove.exists(move => story.route.contains(move)) &&
+              proof.attacker.exists(pieces.contains) &&
+              proof.targets.forall(pieces.contains)
+      case _ => false
 
   private def checkedStatus(
       requestedStatus: EngineCheckStatus,

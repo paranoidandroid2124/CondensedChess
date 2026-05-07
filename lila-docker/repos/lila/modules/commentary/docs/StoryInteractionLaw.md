@@ -17,8 +17,8 @@ Ownership split:
 - Verdict carries the result.
 
 StoryProof may inspect Story identity, but it must not own or duplicate side,
-target, anchor, route, or rival. Legal line and same-board proof are evidence
-for the Story identity, not a second identity home.
+target, secondary target, anchor, route, or rival. Legal line and same-board
+proof are evidence for the Story identity, not a second identity home.
 
 Legal line binding is not tactical success proof. In Stage 2 it proves only
 that the Story route is tied to a same-board legal path.
@@ -37,11 +37,13 @@ commentary.
 
 `Story` is the first public chess unit, but a Story family name is not enough.
 Every public Story must bind side, target, anchor, route, rival, required legal
-line, and same-root proof sidecar. A family row below adds the chess-specific
-facts that must support that binding. Missing side, target, anchor, route,
-rival, required legal line, or same-root proof sidecar is a hard public-output
-block. If a row does not need a move sequence, its required legal line is the
-same-root legal replay proving the named position fact can be spoken.
+line, and same-root proof sidecar. Multi-target Stories such as Fork must also
+bind a secondary target in Story identity. A family row below adds the
+chess-specific facts that must support that binding. Missing side, target,
+anchor, route, rival, required legal line, same-root proof sidecar, or required
+secondary target is a hard public-output block. If a row does not need a move
+sequence, its required legal line is the same-root legal replay proving the
+named position fact can be spoken.
 
 Nonlinear interaction is explicit. A support fact can help a Story only when no
 hard blocker applies. A blocker can cap or silence a Story even when several
@@ -67,20 +69,27 @@ evidence for existing Stories. Renderer and LLM remain closed after the Stage 3
 charter.
 
 Opening Tactic.Hanging does not open Fork, Material, Defense, Plan, Strategy,
-renderer, LLM, or public route.
+renderer, LLM, or public route. The current Fork vertical slice opens only the
+named `Tactic.Fork` backend proof and writer path described below.
 
-The following remain forbidden: renderer opening, LLM narration, public route
-`200`, Board Facts direct public claim, Proof score alone as Lead, StoryProof
-alone as Lead, and positive Story families other than `Tactic.Hanging`.
+The following remain forbidden: renderer opening outside named
+ExplanationPlan-only templates, LLM narration, public route `200`, Board Facts
+direct public claim, Proof score alone as Lead, StoryProof alone as Lead, and
+positive Story families other than `Tactic.Hanging` and the narrow
+`Tactic.Fork` vertical slice.
 
-Opening `Tactic.Hanging` does not open `Scene.Material`, `Tactic.Fork`,
-`Scene.Defense`, `Scene.Plan`, or any Plan row. Opening `Scene.Material` does
-not open `Scene.Blunder`, `Scene.Convert`, winning claims, conversion claims,
-or decisive-advantage wording.
+Opening `Tactic.Hanging` did not open `Scene.Material`, `Tactic.Fork`,
+`Scene.Defense`, `Scene.Plan`, or any Plan row. The current Fork slice opens
+`Tactic.Fork` only through MultiTargetProof and the named Fork writer. Opening
+`Scene.Material` does not open `Scene.Blunder`, `Scene.Convert`, winning claims,
+conversion claims, or decisive-advantage wording.
 
 Board Facts direct public claim, Proof score alone as Lead, StoryProof alone as
-Lead, and positive Story families other than `Tactic.Hanging` are forbidden in
-the first Stage 3 scope.
+Lead, and positive Story families other than `Tactic.Hanging` were forbidden in
+the first Stage 3 scope. The current Fork slice opens only
+`MultiTargetProof`, the named `Tactic.Fork` writer, EngineCheck attachment,
+StoryTable ordering, negative corpus checks, ExplanationPlan mapping, and
+Fork-8 deterministic renderer text from ExplanationPlan.
 
 proofFailures remain internal diagnostics only. They may locate missing proof
 coordinates for tests and debugging, but they are not public JSON, renderer
@@ -472,6 +481,7 @@ Allowed fields:
 - tactic
 - side
 - target
+- secondaryTarget
 - anchor
 - route
 - allowedClaim
@@ -623,6 +633,7 @@ Forbidden input:
 - raw BoardFacts
 - BoardMood
 - root atoms
+- MultiTargetProof
 - CaptureResult
 - EngineCheck
 - EngineEval
@@ -1287,8 +1298,9 @@ proof home when they rely on the same chess meaning. A proof home name in this
 map is a planning label only unless a stage charter, sidecar, negative corpus,
 and same-board legal-line tests admit it.
 
-`Tactic.Hanging` remains the only live positive tactic. All other tactic names
-below are closed until their proof home and writer are explicitly admitted.
+`Tactic.Hanging` and the narrow `Tactic.Fork` vertical slice are the only live
+positive tactics. All other tactic names below are closed until their proof home
+and writer are explicitly admitted.
 `CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`,
 `ExplanationPlan`, and Renderer remain in their current ownership boundaries.
 They may be reused only through selected Verdict handoff and family-specific
@@ -1313,7 +1325,7 @@ Per-tactic width map:
 | W01 | `Tactic.Hanging` | CaptureProof plus StoryProof plus EngineCheck | `CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`, Renderer | no for current slice | recapture equalizes, target is pawn or king, wrong board, illegal capture, engine refutes | attached now for cap or refute | live positive only | stronger wording, other capture tactics, public route, and LLM stay closed |
 | W02 | `Tactic.Loose` | CaptureProof or pressure line over an underdefended target | `CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, if pressure without capture is admitted | loose observation is not a gain, defender exists, pressure is too slow, capture equalizes | yes for cap or refute | no | CaptureProof broadening plus loose negative corpus |
 | W03 | `Tactic.QueenHit` | TargetProof with optional CaptureProof | `StoryProof`, optional `CaptureResult`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, TargetProof | queen can move with tempo, attacker is unsafe, rival has stronger forcing reply, target hit has no gain | yes | no | TargetProof charter plus queen-target negative corpus |
-| W04 | `Tactic.Fork` | TargetProof over two targets and reply map | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, TargetProof | fork square unsafe, one target can move with tempo, rival has equal or stronger forcing move, no gain remains | yes | no | TargetProof charter plus fork negative corpus |
+| W04 | `Tactic.Fork` | TargetProof over two targets and reply map | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, `MultiTargetProof` | fork square unsafe, one target can move with tempo, rival has equal or stronger forcing move, no gain remains | yes | narrow Fork-4 backend only | renderer, LLM, public route, PawnFork, Skewer, QueenHit, Tempo, InBetween |
 | W05 | `Tactic.PawnFork` | TargetProof with pawn legal move and two target attacks | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, TargetProof with pawn route rule | pawn move illegal, pawn is pinned, target can reply with stronger threat, promotion context contaminates proof | yes | no | TargetProof after Fork plus pawn-fork negative corpus |
 | W06 | `Tactic.Skewer` | TargetProof and LineProof over front target and rear target | BoardFacts `LineFact`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, LineProof or TargetProof pairing | front target escapes with tempo, rear target not reachable, line can be blocked, check claim too strong | yes | no | LineProof and TargetProof pairing charter |
 | W07 | `Tactic.Tempo` | TargetProof over gained turn and restricted rival reply | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, TargetProof with reply restriction | rival has equal forcing move, gained turn has no target, move is only a threat label | yes | no | TargetProof reply-map charter |
@@ -1337,9 +1349,9 @@ Per-tactic width map:
 
 Safe opening order:
 
-1. Keep `Tactic.Hanging` as the only live positive tactic while this map closes
+1. Keep `Tactic.Hanging` as the first live positive tactic while this map closes
    the width question.
-2. Admit TargetProof for `Tactic.Fork` only, with reply-map proof, same-board
+2. Admit TargetProof/MultiTargetProof for `Tactic.Fork` only, with reply-map proof, same-board
    legal move proof, EngineCheck cap/refute attachment, and fork negative
    corpus. `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`,
    `Tactic.Tempo`, and `Tactic.InBetween` stay closed even though they share
@@ -1360,8 +1372,460 @@ Safe opening order:
 Opening a proof home does not open all tactic names in that home. Each tactic
 still needs a named Story writer, family proof sidecar, negative corpus,
 EngineCheck attachment rule, StoryTable role rule, selected-Verdict
-ExplanationPlan mapping, and renderer wording boundary. Renderer, LLM, and
-public route `200` remain closed for every non-Hanging tactic.
+ExplanationPlan mapping, renderer wording boundary, and any LLM smoke boundary.
+Production or user-facing LLM narration and public route `200` remain closed
+for every non-Hanging tactic. Renderer wording opens tactic by tactic only; the
+current Fork slice opens deterministic Fork renderer text in Fork-8 and Fork
+LLM smoke in Fork-9.
+
+## Fork-0 Tactic.Fork Charter
+
+Fork is a multi-target Story, not a capture Story.
+
+MultiTargetProof gives the reason. TacticFork writer gives permission.
+
+The first `Tactic.Fork` scope opens only a simple non-pawn multi-target tactic:
+
+- legal move to fork square
+- attacker after move attacks two named targets
+- two targets have bounded value or importance
+- bounded reply map exists
+- complete StoryProof
+- same-board proof
+- named `Tactic.Fork` writer
+- EngineCheck support/cap/refute path
+- StoryTable ordering with Hanging vs Fork
+- ExplanationPlan mapping from selected Fork Verdict
+- deterministic renderer text from Fork ExplanationPlan only
+- LLM smoke from Fork ExplanationPlan and RenderedLine only
+
+The first Fork scope does not open public material, winning, decisive, forced,
+best-move, only-move, no-counterplay, blunder, free-piece, or engine-says
+claims.
+
+`Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`,
+`Tactic.InBetween`, `Scene.Material`, `Scene.Defense`, Plan, Strategy,
+public/user-facing LLM narration, public route `200`, production API, engine
+PV commentary, and best-move explanation remain closed.
+
+Fork deterministic renderer text opens only in Fork-8 and only from
+ExplanationPlan. Fork LLM smoke opens only in Fork-9 and only from
+ExplanationPlan plus RenderedLine. Stage 8 output boundaries remain unchanged:
+renderer and LLM smoke may not read raw Story, MultiTargetProof, EngineCheck,
+BoardFacts, BoardMood, raw PV, proofFailures text, or source rows directly.
+
+## Fork-1 Geometry Readiness
+
+Fork geometry readiness is internal `MultiTargetProof` evidence only.
+BoardFacts may provide observation facts, current board, legal moves, pieces,
+and attack tests, but BoardFacts must not say that a fork works.
+
+`MultiTargetProof` may record:
+
+- current board same-board proof
+- legal move to the fork square
+- attacker piece
+- attacker-after-move on the fork square
+- post-move attacked target squares
+- two named target pieces
+
+Allowed geometry findings are limited to legal move exists, attacker can move
+to the fork square, and after that move the attacker attacks target A and
+target B.
+
+Fork-1 does not create a public Story, Verdict, renderer sentence, LLM
+narration, public route `200`, or public material claim by itself. It does not
+say fork succeeds, wins material, wins queen, decisive fork, forced fork, or
+best move.
+
+## Fork-2 MultiTargetProof
+
+`MultiTargetProof` is the family-specific proof home for the first Fork slice.
+It creates Fork evidence, but it does not directly create a public Story.
+`TacticFork` writer permission remains a separate permission step.
+
+`MultiTargetProof` must carry:
+
+- attacker
+- legal move to fork square
+- fork square
+- target A
+- target B
+- target value or target class
+- reply map
+- same-board proof
+- missing evidence
+
+`MultiTargetProof` is complete only when the move is legal, the attacker
+exists, two distinct targets exist, targets are enemy pieces or valid tactical
+targets, the attacker attacks both targets after the move, and same-board proof
+exists.
+
+The first Fork proof scope is non-pawn attacker only, preferably knight-shaped,
+with no pawn fork, no skewer, no queen-hit-only tactic, and no king or mate
+claim. It must not create material-win, best-move, forced, decisive, or
+no-counterplay claims.
+
+## Fork-3 TacticFork Writer
+
+`TacticFork` is the named positive writer for the first narrow `Tactic.Fork`
+Story.
+
+`TacticFork` may create a Story only when:
+
+- Story scene is `Scene.Tactic`
+- tactic is `Tactic.Fork`
+- StoryProof is complete
+- MultiTargetProof is complete
+- same-board proof is present
+- legal move to the fork square is present
+- two named targets are present
+- target relation is proven after the move
+- writer is `StoryWriter.TacticFork`
+- EngineCheck does not `Refutes`
+
+The first allowed Fork meaning is limited to move attacks two targets and move
+creates a fork on named targets.
+
+`TacticFork` does not open wins-queen, wins-material, decisive, forced,
+best-move, only-move, no-counterplay, blunder, or engine-says wording. It does
+not open Fork renderer text, public/user-facing Fork LLM narration, public
+route `200`, pedagogy, Strategy, Plan, Scene.Material, Scene.Defense, or broad
+tactic-family speech.
+
+Completion standard: one narrow Fork Story with complete StoryProof,
+complete MultiTargetProof, same-board proof, and no EngineCheck Refutes result
+may enter StoryTable as a Lead. A Fork-looking row with unproven target
+relation, missing writer, incomplete proof, or EngineCheck Refutes result must
+not lead.
+
+## Fork-4 Negative Corpus
+
+Fork-looking false positives stay silent unless `MultiTargetProof`,
+StoryProof, the named `Tactic.Fork` writer, same-board proof, and EngineCheck
+guards all pass.
+
+The Fork negative corpus must cover:
+
+- no legal move
+- missing attacker
+- missing fork square
+- missing two targets
+- duplicated target
+- own-piece target
+- target not attacked after the move
+- fork square unsafe with no compensation
+- one reply saving both targets
+- stronger rival reply refuting the Story
+- pawn fork trying to enter `Tactic.Fork`
+- skewer trying to enter `Tactic.Fork`
+- queen-hit-only trying to enter `Tactic.Fork`
+- incomplete StoryProof
+- incomplete MultiTargetProof
+- EngineCheck Refutes
+- high Proof score only
+
+Completion standard: a fork-looking shape with insufficient proof produces no
+Lead or becomes Blocked, and sibling tactics cannot piggyback on Fork.
+
+## Fork-5 EngineCheck For Tactic.Fork
+
+Fork reuses the existing `EngineCheck` sidecar. There is no `ForkEngineCheck`
+type.
+
+`EngineCheck` may attach to an existing Fork Story with status `Supports`,
+`Caps`, `Refutes`, or `Unknown` only when:
+
+- the Fork Story already exists
+- same-board proof is present
+- checked move binds the same Story route
+- checked move is the same legal line
+- fresh or depth evidence is present
+- EngineCheck evidence is ready
+
+`Supports` creates no new claim. `Caps` limits strength but creates no engine
+wording. `Refutes` blocks the Fork Story. `Unknown` is diagnostic only and
+creates no engine expression.
+
+Engine evidence cannot create Fork by itself. Engine PV explanation,
+best-move explanation, winning, decisive, forced, no-counterplay, public eval,
+and engine-says claims remain forbidden.
+
+Completion standard: EngineCheck can support, cap, or refute an existing Fork
+Story, but engine lines, engine eval, PV-shaped data, missing-depth checks,
+route-mismatched checks, and engine-only checks cannot create Fork or attach as
+Fork evidence.
+
+## Fork-6 StoryTable Hanging Vs Fork
+
+Fork-6 opens only StoryTable role ordering for existing `Tactic.Hanging` Story
+rows and existing narrow `Tactic.Fork` Story rows.
+
+StoryTable may assign `Lead`, `Support`, `Context`, and `Blocked` roles with
+deterministic ordering. A refuted Fork, incomplete Fork, writerless Fork, or
+Fork without `MultiTargetProof` becomes `Blocked`. Hanging and Fork may both be
+eligible for `Lead`; StoryTable chooses one deterministic `Lead` without
+creating a new Story or new chess meaning.
+
+Support and Context are not sentences. MultiTargetProof text stays internal and
+does not become public wording.
+
+StoryTable must not create Fork, rank Fork by raw engine eval or raw PV, expose
+MultiTargetProof text, or use renderer wording as an ordering input.
+
+Completion standard: when Hanging and Fork exist together, StoryTable performs
+deterministic role ordering only. It creates no new chess meaning, public
+claim, renderer text, LLM narration, public route `200`, pedagogy, Strategy,
+Plan, `Scene.Material`, `Scene.Defense`, or sibling tactic family.
+
+## Fork-7 ExplanationPlan For Fork
+
+Fork-7 opens only ExplanationPlan mapping for a selected narrow `Tactic.Fork`
+Verdict.
+
+Allowed input:
+
+- selected Verdict only
+
+Forbidden input:
+
+- MultiTargetProof
+- EngineCheck
+- CaptureResult
+- BoardFacts
+- raw PV
+- proofFailures
+- source row
+
+The first allowed Fork claim keys are:
+
+- `forks_two_targets`
+- `attacks_two_targets`
+
+The selected Fork plan may carry role, scene, tactic, side, target,
+secondaryTarget, anchor, route, evidenceLine, bounded strength, forbidden
+wording, and relation structure. It does not read MultiTargetProof,
+EngineCheck, CaptureResult, BoardFacts, raw PV, proofFailures, or source rows
+directly.
+
+Forbidden Fork claim keys and wording include:
+
+- `wins_material_by_fork`
+- `wins_queen`
+- `decisive_fork`
+- `forced_win`
+- `best_move`
+- `no_counterplay`
+
+Support, Context, and Blocked Fork Verdicts create no standalone claim and no
+public sentence. They may enter ExplanationPlan only as relation structure;
+Blocked remains debug-only. `engineStrengthLimited` suppresses allowed claim
+keys and strengthens forbidden wording.
+
+Fork-7 does not open Fork renderer text, public/user-facing Fork LLM
+narration, public route `200`, pedagogy, Strategy, Plan, `Scene.Material`,
+`Scene.Defense`, engine PV commentary, best-move explanation, or sibling
+tactic families.
+
+Completion standard: Fork ExplanationPlan creates no meaning stronger than the
+selected Verdict.
+
+## Fork-8 Deterministic Renderer For Fork
+
+Fork-8 opens only deterministic renderer text for a selected Fork
+ExplanationPlan.
+
+Allowed input:
+
+- ExplanationPlan only
+
+Forbidden input:
+
+- MultiTargetProof
+- EngineCheck
+- CaptureResult
+- BoardFacts
+- BoardMood
+- raw PV
+- proofFailures
+- source row
+- raw Verdict
+- source Story
+
+The first Fork renderer template is:
+
+`{route} forks the pieces on {targetA} and {targetB}.`
+
+`targetA` and `targetB` must come from structured `target` and
+`secondaryTarget` fields already present in the Fork ExplanationPlan. The
+renderer must not read MultiTargetProof, EngineCheck, CaptureResult,
+BoardFacts, BoardMood, raw PV, proofFailures, source rows, raw Verdict, or
+source Story to recover missing targets.
+
+The first Fork renderer permission requires:
+
+- role is `Lead`
+- scene is `Scene.Tactic`
+- tactic is `Tactic.Fork`
+- allowed claim is `forks_two_targets`
+- bounded strength
+- non-debug plan
+- route and evidenceLine match
+- target and secondaryTarget are present
+- forbidden wording is present
+
+Forbidden Fork renderer wording includes:
+
+- wins queen
+- wins material
+- decisive
+- forced
+- best move
+- engine says
+- no counterplay
+- blunder
+
+Support, Context, Blocked, capped, and engine-refuted Fork plans produce no
+text. The `attacks_two_targets` claim key remains an internal allowed claim key
+but does not open the first Fork renderer template.
+
+Fork-8 itself does not open Fork LLM smoke, public/user-facing LLM narration,
+public route `200`, production API, pedagogy, Strategy, Plan,
+`Scene.Material`, `Scene.Defense`, engine PV commentary, best-move explanation,
+material-win wording, wins-queen wording, or sibling tactic families.
+
+Completion standard: Fork renderer text is no stronger than the selected Fork
+ExplanationPlan.
+
+## Fork-9 LLM Smoke For Fork
+
+Fork-9 opens only LLM smoke for selected Fork ExplanationPlan and RenderedLine.
+It does not open production API validation, user-facing LLM output, public
+route `200`, streaming, pedagogy, Strategy, Plan, `Scene.Material`,
+`Scene.Defense`, engine PV commentary, best-move explanation, material-win
+wording, wins-queen wording, or sibling tactic families.
+
+Allowed input:
+
+- ExplanationPlan
+- RenderedLine
+
+8B Codex CLI prompt smoke allowed input for Fork:
+
+- renderedText
+- claimKey
+- strength
+- forbidden wording list
+- instruction: "Rephrase only. Do not add chess facts."
+
+Forbidden input:
+
+- raw Verdict
+- Story
+- MultiTargetProof
+- EngineCheck
+- BoardFacts
+- BoardMood
+- CaptureResult
+- EngineEval
+- EngineLine
+- engine eval
+- raw PV
+- proofFailures
+- source row
+
+Fork LLM smoke must reject output that adds:
+
+- new move
+- new line
+- new tactic
+- new plan
+- engine mention
+- best move
+- forced
+- winning
+- decisive
+- blunder
+- wins queen
+- wins material
+- target piece identity absent from renderedText
+- claim stronger than deterministic text
+
+Completion standard: Fork LLM smoke does not strengthen Fork deterministic
+text.
+
+## Fork Slice Closeout Pass
+
+Fork slice closeout goal: audit that only the narrow `Tactic.Fork` vertical slice is open.
+
+Scope audit:
+
+- opened: narrow non-pawn `Tactic.Fork` only
+- closed: `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`, `Tactic.InBetween`
+- closed: `Scene.Material`, `Scene.Defense`, Plan, Strategy
+- closed: public route `200`, production API, public/user-facing LLM narration, pedagogy, engine PV commentary, best-move explanation, material-win wording, wins-queen wording, and sibling tactic-family speech
+
+Authority audit:
+
+- MultiTargetProof does not replace CaptureResult.
+- MultiTargetProof does not replace StoryProof.
+- MultiTargetProof does not replace EngineCheck.
+- MultiTargetProof does not replace StoryTable.
+- MultiTargetProof supplies the TargetProof-shaped reason: legal move, attacker, fork square, two target identities, post-move target relation, reply map, same-board proof, bounded result, and missing evidence.
+- `TacticFork` writer gives Story permission.
+- `StoryProof` remains the same-board Story proof tuple.
+- `EngineCheck` checks, caps, or refutes only an existing Fork Story.
+- `StoryTable` assigns Lead, Support, Context, or Blocked without creating Fork.
+- `ExplanationPlan`, Renderer, and LLM smoke receive only their downstream inputs and create no new chess meaning.
+
+Negative corpus audit:
+
+Fork-looking false positives either produce no Story, no Lead, or Blocked.
+
+The closeout negative corpus remains:
+
+- no legal move
+- missing attacker
+- missing fork square
+- missing two targets
+- duplicated target
+- own-piece target
+- target not attacked after the move
+- fork square unsafe with no compensation
+- one reply saving both targets
+- stronger rival reply or EngineCheck Refutes
+- pawn fork trying to enter `Tactic.Fork`
+- skewer trying to enter `Tactic.Fork`
+- queen-hit-only trying to enter `Tactic.Fork`
+- incomplete StoryProof
+- incomplete MultiTargetProof
+- high Proof score only
+- LLM rephrase stronger than deterministic Fork text
+
+Cleanup and consolidation:
+
+No new markdown authority file, public row family, public route, production API, or sibling tactic writer opens in Fork closeout.
+
+`MultiTargetProof` is the first live TargetProof-shaped home. It remains a
+proof shape, not a tactic family. The current constructor is scoped to narrow
+non-pawn Fork, but the shape can support subsequent target-relation tactics only
+after each named family opens its own permission path.
+
+The proof shape remains reusable for subsequent PawnFork, Skewer, QueenHit, Tempo, or InBetween work only after each family gets its own named writer, negative corpus, EngineCheck rule, StoryTable rule, ExplanationPlan mapping, renderer boundary, and LLM smoke boundary.
+
+Next-stage handoff:
+
+The next family candidates remain `Scene.Material` or `Scene.Defense`.
+
+Fork does not open `Scene.Material` or `Scene.Defense` by implication.
+
+Fork does not create material, defense, plan, strategy, or tempo public
+meaning. Target values and bounded result stay internal proof evidence until a
+separate family authority admits a public claim.
+
+`One tactic name is not one proof system.`
+`One proof shape may support multiple tactics.`
+`One chess meaning, one home.`
 
 ## Proof And Interaction Law
 

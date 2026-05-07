@@ -152,7 +152,8 @@ CaptureResult, EngineCheck, EngineEval, EngineLine, raw PV, proofFailures, or
 source rows do not return. Renderer receives `ExplanationPlan` only.
 Stage 7-2 minimal template authority lives in `StoryInteractionLaw.md`.
 Legacy broad renderer templates, stronger tactical wording, engine wording,
-best-move wording, and non-Hanging claim text do not return. Only the
+best-move wording, and non-Hanging claim text do not return unless a later
+live section explicitly reopens a named tactic template. Only the
 `can_win_piece` claim key may become first deterministic `Tactic.Hanging`
 text, bounded by ExplanationPlan evidenceLine.
 Stage 7-3 forbidden wording enforcement authority lives in
@@ -182,6 +183,21 @@ pedagogy, new Story family, direct Verdict input, direct Story input, direct
 EngineCheck input, direct CaptureResult input, and direct Board Facts input do
 not return. Stage 8 LLM Narration may receive deterministic text and
 ExplanationPlan only.
+Fork-8 deterministic renderer authority lives in `StoryInteractionLaw.md`.
+Legacy broad Fork renderer templates do not return. The only reopened Fork
+renderer text is the selected Fork ExplanationPlan template over route, target,
+and secondaryTarget; it does not reopen material, wins-queen, best-move,
+engine-says, decisive, forced, no-counterplay, blunder, production LLM
+narration, or public route paths.
+Fork-9 LLM smoke authority lives in `StoryInteractionLaw.md`. Legacy broad
+Fork LLM paths do not return. The only reopened Fork LLM surface is prompt
+smoke over selected Fork ExplanationPlan and RenderedLine; raw Verdict, Story,
+MultiTargetProof, EngineCheck, BoardFacts, engine eval, raw PV,
+proofFailures, production API, and public route paths do not return.
+Fork Slice Closeout authority lives in `StoryInteractionLaw.md`. Legacy broad
+Fork family expansion does not return. PawnFork, Skewer, QueenHit, Tempo,
+Scene.Material, Scene.Defense, Plan, Strategy, production API, public route,
+and public/user-facing LLM paths remain closed by the closeout.
 Stage 8 prompt smoke authority lives in `StoryInteractionLaw.md`. Stage 8 opens
 only 8A Mock narrator and 8B Codex CLI prompt smoke test. Legacy LLM renderer
 paths, production API validation, raw proof inputs, engine mentions, best-move

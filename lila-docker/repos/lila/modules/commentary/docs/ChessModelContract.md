@@ -22,10 +22,11 @@ Stage 2 ownership split:
 - StoryProof owns proof and missing evidence.
 - Verdict carries the result.
 
-`side`, `target`, `anchor`, `route`, and `rival` are Story identity. `legal
-line`, `same-board proof`, and missing evidence are StoryProof evidence.
+`side`, `target`, `secondaryTarget`, `anchor`, `route`, and `rival` are Story
+identity. `legal line`, `same-board proof`, and missing evidence are StoryProof evidence.
 `rank`, `role`, `leadAllowed`, and selected strength are Verdict result.
-StoryProof must not own or duplicate `side`, `target`, `anchor`, `route`, or `rival`.
+StoryProof must not own or duplicate `side`, `target`, `secondaryTarget`,
+`anchor`, `route`, or `rival`.
 
 Legal line binding is not tactical success proof. In Stage 2, legal line
 binding proves only that the Story route is tied to a same-board legal path. It
@@ -39,7 +40,8 @@ open a family before any public Lead is allowed.
 `StoryInteractionLaw.md` owns the Stage 3 charter. This contract owns names and
 shape: a positive Story needs a named `StoryWriter`, complete `StoryProof`, and
 family-specific proof bound back to the same Story identity. `Tactic.Hanging`
-is the only live writer in this checkpoint.
+and the narrow `Tactic.Fork` vertical slice are the only live writers in this
+checkpoint.
 
 `StoryInteractionLaw.md` owns the Stage 4 charter. This contract owns names and
 shape: Engine Check evidence is internal sidecar evidence for an existing
@@ -76,6 +78,17 @@ guard.
 Stage 6 closeout is also owned by `StoryInteractionLaw.md`; this contract
 records only that Explanation Plan closes without renderer, LLM, public route,
 pedagogy, or duplicated evidence/selection authority.
+Fork-7 ExplanationPlan for Fork is also owned by `StoryInteractionLaw.md`;
+this contract records only the selected-Verdict Fork claim-key boundary.
+Fork-8 Deterministic Renderer for Fork is also owned by
+`StoryInteractionLaw.md`; this contract records only the Fork
+`ExplanationPlan` template boundary and the no-public-route boundary.
+Fork-9 LLM Smoke for Fork is also owned by `StoryInteractionLaw.md`; this
+contract records only the Fork smoke prompt boundary and the no-production-API,
+no-public-route boundary.
+Fork slice closeout is also owned by `StoryInteractionLaw.md`; this contract
+records only that the closeout opens no sibling tactic, scene, plan, strategy,
+public route, production API, or new public claim.
 Stage 7-0 Deterministic Renderer Charter is also owned by
 `StoryInteractionLaw.md`; this contract records only the `ExplanationPlan`
 only renderer input boundary and the no-LLM, no-public-route boundary.
@@ -731,6 +744,8 @@ Each story carries compact chess identity:
 
 - `side`: `White`, `Black`, `Both`, or `None`
 - `target`: optional `Square`
+- `secondaryTarget`: optional `Square` for multi-target Stories such as the
+  narrow Fork slice
 - `anchor`: optional `Square`
 - `route`: optional ordered `Line`
 - `rival`: `White`, `Black`, `Both`, or `None`
@@ -744,6 +759,10 @@ store typed identity:
 - `3`: anchor square index + 1, or `0` absent
 - `4`: route-from square index + 1, or `0` absent
 - `5`: route-to square index + 1, or `0` absent
+
+The first piece-family slot stores Fork's secondary target square index + 1, or
+`0` absent. It does not create a second proof owner; it keeps multi-target
+Story identity in `Story` while `MultiTargetProof` supplies proof.
 
 Square scalar slots store square index + 1; `0` means absent. Producers must not
 encode A1 as `0`.
@@ -784,15 +803,42 @@ Lead fail-closed rules:
   echoes only: `Story` remains the home for side, target, anchor, route, and
   rival, and `StoryTable` must reject any positive writer whose
   `CaptureResult` does not bind back to that Story identity.
+- `MultiTargetProof` is internal family proof for the narrow `Tactic.Fork`
+  vertical slice. It records the non-pawn attacker, attacker-after-move, fork
+  move, post-move attacked target squares, two named targets, target values or
+  importance, bounded reply map, material-or-tempo result, same-board proof
+  presence, and missing evidence.
+  Its internal accessors expose fork square, target A, and target B as proof
+  evidence only.
+  It is not a capture Story, renderer input, LLM input, or public claim owner.
+  `Story` remains the home for side, primary target, secondary target, anchor,
+  route, and rival, and `StoryTable` must reject any positive Fork writer whose
+  `MultiTargetProof` does not bind back to that Story identity.
+- `StoryWriter.TacticFork` is the named positive Fork writer. It may enter
+  StoryTable only for `Scene.Tactic`, `Tactic.Fork`, complete StoryProof,
+  complete MultiTargetProof, same-board proof, legal move to fork square, two
+  named targets, proven post-move target relation, and no EngineCheck Refutes
+  result. Reply-map entries showing one reply can save both targets block Fork
+  Lead. It does not create renderer text, LLM narration, or public material,
+  best-move, forced, decisive, no-counterplay, blunder, or engine-says claims.
 - EngineCheck is internal evidence only. It records same-board proof, checked move, engine line, reply line, eval before, eval after, depth or freshness, and missing evidence. EngineCheck does not create a Story, select a Story, rank a Story, write a Verdict, feed a renderer, or feed an LLM. EngineLine carries only move lines. EngineEval carries only internal centipawn numbers.
 - EngineCheck.fromStory binds engine evidence to same-board BoardFacts, an existing Story route, and a same-board legal line. Wrong-board facts, route-mismatched engine lines, stale engine data, depth-missing engine data, eval-only input without a Story, and PV-only input without a Story leave missing evidence and stay diagnostic only.
-- EngineCheckStatus has exactly `Unknown`, `Supports`, `Caps`, and `Refutes`. Only `Tactic.Hanging` may carry EngineCheck in this checkpoint. `Refutes` blocks the Hanging Story. `Supports` and `Caps` do not change `Verdict.values`, create public truth, or create winning, best-move, decisive, PV-explanation, or public-eval claims.
-- Eval collapse after capture may refute an existing Hanging EngineCheck only after same-board Story proof, named writer, CaptureResult, legal route, and freshness guards pass. Eval collapse cannot create a Story, public eval claim, or engine-authored explanation.
+- EngineCheckStatus has exactly `Unknown`, `Supports`, `Caps`, and `Refutes`. Only `Tactic.Hanging` and the narrow `Tactic.Fork` vertical slice may carry EngineCheck in this checkpoint. `Refutes` blocks the named Story. `Supports` and `Caps` do not change `Verdict.values`, create public truth, or create winning, best-move, decisive, PV-explanation, or public-eval claims.
+- Fork reuses `EngineCheck`; no `ForkEngineCheck` type exists. Fork
+  EngineCheck attachment requires an existing Fork Story, same-board proof, the
+  same Story route, the same legal line, fresh or depth evidence, and
+  evidence-ready EngineCheck data. Engine-only checks, route-mismatched checks,
+  missing-depth checks, raw engine lines, raw eval, and PV-shaped data cannot
+  create Fork.
+- Eval collapse after capture or fork route may refute an existing EngineCheck only after same-board Story proof, named writer, family proof sidecar, legal route, and freshness guards pass. Eval collapse cannot create a Story, public eval claim, or engine-authored explanation.
 - Verdict carries `engineCheckStatus` and `engineStrengthLimited` as internal diagnostics only. `Verdict.values`, renderer, and LLM inputs must not consume EngineCheck diagnostics.
-- Stage 5 Story Order is limited to existing `Tactic.Hanging` Story rows
-  in this checkpoint. StoryTable may assign roles and deterministic ordering,
-  but it must not create Stories, open new positive families, or use engine
-  eval, Board Facts, or `CaptureResult` as direct public claim owners.
+- Stage 5 Story Order baseline is limited to existing `Tactic.Hanging` Story
+  rows. The current Fork-6 slice adds only deterministic ordering between
+  existing `Tactic.Hanging` rows and existing narrow `Tactic.Fork` rows.
+  StoryTable may assign roles and deterministic ordering, but it must not
+  create Stories, open broad positive families, or use engine eval, Board
+  Facts, `CaptureResult`, `MultiTargetProof` text, raw PV, or renderer wording
+  as direct public claim owners or ranking inputs.
 - Stage 5-1 may mark only the selected Lead row as `leadAllowed`; Support and
   Context roles are not public sentences and do not open renderer or LLM.
 - Stage 5-2 ordering may use role eligibility, publicStrength, scene/tactic
@@ -803,6 +849,9 @@ Lead fail-closed rules:
   refutation, missing proof, missing capture evidence, or missing writer, and
   may keep Quiet, Source, and Opening behind board-backed Hanging without
   opening Plan, Blunder, Defense, extra counterplay, or Strategy relations.
+- Fork-6 role rules block refuted Fork, incomplete Fork, writerless Fork, and
+  Fork rows without `MultiTargetProof`. Hanging and Fork may compete for Lead,
+  but Support and Context still create no sentence.
 - Stage 5-4 keeps Verdict diagnostics outside public numeric values:
   proofFailures, EngineCheck diagnostics, and `engineStrengthLimited` remain
   internal; Verdict is not public text, and renderer, LLM, and public route
@@ -836,6 +885,40 @@ Lead fail-closed rules:
 - Stage 6-5 opens only the selected Verdict input guard. Explanation Plan
   accepts selected Verdict only. It accepts no raw proof material, unselected
   Story, unselected Verdict, source row, or proofFailures wording.
+- Fork-7 opens only ExplanationPlan mapping for selected narrow `Tactic.Fork`
+  Verdicts. Fork allowed claim keys are `forks_two_targets` and
+  `attacks_two_targets`; the first emitted Fork claim key is
+  `forks_two_targets`. Fork plans may carry secondaryTarget from the selected
+  Verdict's Story identity, but must not read MultiTargetProof, EngineCheck,
+  CaptureResult, BoardFacts, raw PV, proofFailures, or source rows directly.
+  Support, Context, Blocked, capped, and engine-refuted Fork plans create no
+  standalone public claim or sentence.
+- Fork-8 opens only deterministic renderer text for Fork ExplanationPlan.
+  Renderer input remains `ExplanationPlan` only. The first Fork template uses
+  route, target, and secondaryTarget already lowered from the selected Verdict:
+  `{route} forks the pieces on {targetA} and {targetB}.` It must not read
+  MultiTargetProof, EngineCheck, CaptureResult, BoardFacts, BoardMood, raw PV,
+  proofFailures, source rows, raw Verdict, or source Story directly. It does
+  not open Fork LLM smoke itself, public/user-facing LLM narration, public
+  route `200`, production API, material claims, wins-queen claims, engine-says
+  wording, best-move wording, or sibling tactic families.
+- Fork-9 opens only LLM smoke for selected Fork ExplanationPlan and
+  RenderedLine. 8A may receive ExplanationPlan and RenderedLine only. 8B may
+  receive renderedText, claimKey, strength, forbidden wording list, and the
+  instruction `Rephrase only. Do not add chess facts.` only. It must not read
+  raw Verdict, Story, MultiTargetProof, EngineCheck, CaptureResult,
+  BoardFacts, BoardMood, EngineEval, EngineLine, engine eval, raw PV,
+  proofFailures, or source rows. It rejects new move, new line, new tactic, new
+  plan, engine mention, best-move, forced, winning, decisive, blunder,
+  wins-queen, wins-material, target-identity, and stronger-claim output.
+  Production API, user-facing LLM output, public route `200`, pedagogy, and
+  sibling tactic families remain closed.
+- Fork slice closeout opens no new runtime authority. `MultiTargetProof`
+  remains TargetProof-shaped proof evidence and does not replace
+  CaptureResult, StoryProof, EngineCheck, or StoryTable. `Tactic.PawnFork`,
+  `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`, `Tactic.InBetween`,
+  `Scene.Material`, `Scene.Defense`, Plan, Strategy, public route `200`,
+  production API, and public/user-facing LLM narration remain closed.
 - Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
   engine-capped, and engine-refuted Verdicts create no allowed claim or public
   claim. Stage 7 deterministic renderer may receive Explanation Plan only and
@@ -896,11 +979,12 @@ numeric `Proof` score is forgeable unless side, target, anchor, route, rival,
 required legal line, and same-root proof sidecars are bound to the same root
 state.
 
-Only the named `Tactic.Hanging` positive `Story` writer is live in this
-checkpoint. Numeric `Proof` scores may rank blocked/context `Verdict` rows
-only; they cannot set `leadAllowed=true` or produce `Role.Lead` unless the
-Story has the named `Tactic.Hanging` writer, complete StoryProof, same-board
-proof, and positive `CaptureResult`.
+Only the named `Tactic.Hanging` writer and the narrow named `Tactic.Fork`
+writer are live in this checkpoint. Numeric `Proof` scores may rank
+blocked/context `Verdict` rows only; they cannot set `leadAllowed=true` or
+produce `Role.Lead` unless the Story has its named writer, complete
+StoryProof, same-board proof, and family proof: positive `CaptureResult` for
+Hanging or complete `MultiTargetProof` for Fork.
 
 Missing side, target, anchor, route, rival, required legal line, or same-root
 proof sidecar is a hard public-output block, not weak scoring, deferred work,

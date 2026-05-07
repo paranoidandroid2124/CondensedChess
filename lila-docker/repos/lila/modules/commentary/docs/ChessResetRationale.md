@@ -108,9 +108,9 @@ Stage 7-0 opens only the Deterministic Renderer charter: `ExplanationPlan`
 only input, deterministic template, `Tactic.Hanging` bounded claim phrasing,
 forbidden wording check, no LLM, and no public route. There is still no public
 surface opening, no `BoardMood` Sxxx expansion or re-entry, no positive
-`Story` proof writer beyond `Tactic.Hanging`, no engine PV commentary, no
-best-move explanation, no LLM narration, no pedagogy, and no engine
-explanation.
+`Story` proof writer beyond `Tactic.Hanging` and the narrow `Tactic.Fork`
+vertical slice, no engine PV commentary, no best-move explanation, no LLM
+narration, no pedagogy, and no engine explanation.
 Stage 7-1 opens only the Renderer input guard. Renderer receives
 `ExplanationPlan` only and exposes no raw Verdict, Story, BoardFacts,
 BoardMood, CaptureResult, EngineCheck, EngineEval, EngineLine, raw PV,
@@ -139,6 +139,13 @@ add chess facts.` only. 8A Mock narrator may receive ExplanationPlan and
 RenderedLine only. Production API validation remains closed. Stage 8 must not
 read raw Verdict, Story, EngineCheck, CaptureResult, Board Facts, BoardMood,
 raw PV, proofFailures text, or source rows directly.
+Fork-8 opens only deterministic renderer text for selected Fork
+ExplanationPlan. It uses route, target, and secondaryTarget already lowered
+from selected Verdict data. Fork-9 opens only LLM smoke for selected Fork
+ExplanationPlan and RenderedLine; it does not open material claims, wins-queen
+claims, public/user-facing Fork LLM narration, public route `200`, production
+API, pedagogy, engine PV commentary, best-move explanation, or sibling tactic
+families.
 
 The registered render routes, `/api/commentary/render` and
 `/internal/commentary/render-local-probe`, are fail-closed tombstones only. No

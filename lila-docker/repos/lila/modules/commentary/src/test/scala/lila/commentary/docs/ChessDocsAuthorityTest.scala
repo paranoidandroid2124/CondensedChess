@@ -496,16 +496,21 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(contents.contains("`48` bits, `256` scalars, and `3,328` total values"))
     assert(contents.contains("Split/cut re-entry requires a named law and same-board producer proof"))
     assert(ssot.contains("`BoardMood` Sxxx expansion or re-entry"))
-    assert(rationale.replaceAll("\\s+", " ").contains("no positive `Story` proof writer beyond `Tactic.Hanging`"))
+    assert(
+      rationale.replaceAll("\\s+", " ").contains(
+        "no positive `Story` proof writer beyond `Tactic.Hanging` and the narrow `Tactic.Fork` vertical slice"
+      )
+    )
     assert(manifest.contains("default runtime FEN to public"))
     assert(
       modelContract.contains("At this checkpoint no `BoardMood` Sxxx re-entry or proof writer is admitted")
     )
-    assert(modelContract.contains("Only the named `Tactic.Hanging` positive `Story` writer is live in this"))
+    assert(modelContract.contains("Only the named `Tactic.Hanging` writer and the narrow named `Tactic.Fork`"))
     assert(modelContract.contains("Story owns identity."))
     assert(modelContract.contains("StoryProof owns proof and missing evidence."))
     assert(modelContract.contains("Verdict carries the result."))
-    assert(modelContract.contains("StoryProof must not own or duplicate `side`, `target`, `anchor`, `route`, or `rival`"))
+    assert(modelContract.contains("StoryProof must not own or duplicate `side`, `target`, `secondaryTarget`"))
+    assert(modelContract.contains("`anchor`, `route`, or `rival`."))
     assert(modelContract.contains("`CaptureResult`"))
     assert(modelContract.contains("`EngineEval`"))
     assert(modelContract.contains("`EngineLine`"))
@@ -941,6 +946,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "- tactic",
       "- side",
       "- target",
+      "- secondaryTarget",
       "- anchor",
       "- route",
       "- allowedClaim",
@@ -1112,6 +1118,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "- raw BoardFacts",
       "- BoardMood",
       "- root atoms",
+      "- MultiTargetProof",
       "- CaptureResult",
       "- EngineCheck",
       "- EngineEval",
@@ -1752,17 +1759,25 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(modelContract.contains("EngineCheck does not create a Story, select a Story, rank a Story, write a Verdict, feed a renderer, or feed an LLM."))
     assert(modelContract.contains("EngineCheck.fromStory binds engine evidence to same-board BoardFacts, an existing Story route, and a same-board legal line."))
     assert(modelContract.contains("EngineCheckStatus has exactly `Unknown`, `Supports`, `Caps`, and `Refutes`."))
-    assert(modelContract.contains("Only `Tactic.Hanging` may carry EngineCheck in this checkpoint."))
-    assert(modelContract.contains("Eval collapse after capture may refute an existing Hanging EngineCheck only after same-board Story proof"))
+    assert(modelContract.contains("Only `Tactic.Hanging` and the narrow `Tactic.Fork` vertical slice may carry EngineCheck in this checkpoint."))
+    assert(modelContract.contains("Eval collapse after capture or fork route may refute an existing EngineCheck only after same-board Story proof"))
     assert(modelContract.contains("Eval collapse cannot create a Story, public eval claim, or engine-authored explanation."))
     assert(modelContract.contains("Verdict carries `engineCheckStatus` and `engineStrengthLimited` as internal diagnostics only."))
     assert(modelContract.contains("`Verdict.values`, renderer, and LLM inputs must not consume EngineCheck diagnostics."))
     assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 5 charter."))
-    assert(modelContract.contains("Stage 5 Story Order is limited to existing `Tactic.Hanging` Story rows"))
+    assert(modelContract.contains("Stage 5 Story Order baseline is limited to existing `Tactic.Hanging` Story"))
+    assert(modelContract.contains("The current Fork-6 slice adds only deterministic ordering between"))
+    assert(modelContract.contains("existing `Tactic.Hanging` rows and existing narrow `Tactic.Fork` rows"))
     assert(modelContract.contains("Stage 5-1 may mark only the selected Lead row as `leadAllowed`"))
     assert(modelContract.contains("Stage 5-2 ordering may use role eligibility"))
     assert(modelContract.contains("It must not use raw engine eval, raw PV text, proofFailures text"))
     assert(modelContract.contains("Stage 5-3 conflict rules may block Hanging-shaped rows"))
+    assert(modelContract.contains("Fork-6 role rules block refuted Fork, incomplete Fork, writerless Fork"))
+    assert(modelContract.contains("Fork-7 opens only ExplanationPlan mapping for selected narrow `Tactic.Fork`"))
+    assert(modelContract.contains("Fork allowed claim keys are `forks_two_targets` and"))
+    assert(modelContract.contains("`attacks_two_targets`; the first emitted Fork claim key is"))
+    assert(modelContract.contains("`forks_two_targets`. Fork plans may carry secondaryTarget"))
+    assert(modelContract.contains("Support, Context, Blocked, capped, and engine-refuted Fork plans create no"))
     assert(
       modelContract
         .replaceAll("\\s+", " ")
@@ -1844,21 +1859,21 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
           s"$name must not duplicate Stage 3 charter line owned by StoryInteractionLaw: $charterLine"
         )
     Vector(
-      "backend Material proof evidence and the named `Tactic.Hanging` writer",
-      "`Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan, Strategy, renderer, LLM, public route `200`, and strong wording remain closed there"
+      "backend Material proof evidence and the named `Tactic.Hanging` writer plus the narrow `Tactic.Fork` proof/writer vertical slice",
+      "`Scene.Material`, `Scene.Defense`, Plan, Strategy, Fork LLM narration, public route `200`, and strong wording remain closed there"
     ).foreach: scopeLine =>
       assert(agents.replaceAll("\\s+", " ").contains(scopeLine), s"AGENTS must summarize Stage 3 scope: $scopeLine")
     assert(agents.replaceAll("\\s+", " ").contains("Stage 4 opens only `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence"))
     assert(agents.replaceAll("\\s+", " ").contains("Stage 4-2 adds same-board and stale engine guards"))
-    assert(agents.replaceAll("\\s+", " ").contains("Stage 4-3 attaches EngineCheck only to `Tactic.Hanging`"))
+    assert(agents.replaceAll("\\s+", " ").contains("Stage 4-3 attaches EngineCheck first to `Tactic.Hanging`; Fork-5 reuses the same sidecar"))
     assert(
       normalizedSsot.contains(
-        "Stage 3 opens backend Material proof evidence and the named `Tactic.Hanging` writer, while every other positive family and every downstream public/rendering/LLM surface remains closed."
+        "Stage 3 opens backend Material proof evidence, the named `Tactic.Hanging` writer, and the narrow `Tactic.Fork` proof/writer vertical slice, while every other positive family, Fork LLM narration, and public route `200` remain closed."
       )
     )
     assert(
       normalizedSsot.contains(
-        "Stage 4 opens only `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board and stale guards, `Tactic.Hanging` attachment, false-positive corpus, and conservative StoryTable diagnostics for existing `Tactic.Hanging` Stories."
+        "Stage 4 opens only `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board and stale guards, `Tactic.Hanging` attachment, narrow `Tactic.Fork` attachment, false-positive corpus, and conservative StoryTable diagnostics for existing `Tactic.Hanging` and narrow `Tactic.Fork` Stories."
       )
     )
     assert(
@@ -1868,17 +1883,17 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     )
     assert(
       normalizedSsot.contains(
-        "Stage 4-3 attaches EngineCheck only to `Tactic.Hanging`, with `Unknown`, `Supports`, `Caps`, and `Refutes` as the only statuses."
+        "Stage 4-3 first attaches EngineCheck only to `Tactic.Hanging`; Fork-5 reuses the same sidecar for existing narrow `Tactic.Fork` Stories, with `Unknown`, `Supports`, `Caps`, and `Refutes` as the only statuses."
       )
     )
     Vector(
-      "renderer opening",
+      "renderer opening outside named ExplanationPlan-only templates",
       "LLM narration",
       "public route `200`",
       "Board Facts direct public claim",
       "Proof score alone as Lead",
       "StoryProof alone as Lead",
-      "positive Story families other than `Tactic.Hanging`"
+      "positive Story families other than `Tactic.Hanging` and the narrow `Tactic.Fork` vertical slice"
     ).foreach: noGo =>
       assert(
         normalizedInteractionLaw.contains(noGo),
@@ -1942,9 +1957,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
           s"$name must not duplicate Stage 5 charter line owned by StoryInteractionLaw: $charterLine"
         )
     Vector(
-      "Stage 5 opens only StoryTable role ordering for existing `Tactic.Hanging` Story rows",
-      "StoryTable may assign roles among existing `Tactic.Hanging` Story rows",
-      "StoryTable may order existing `Tactic.Hanging` Story rows into roles",
+      "Stage 5 opens only StoryTable role ordering for existing `Tactic.Hanging` Story rows and existing narrow `Tactic.Fork` Story rows",
+      "StoryTable may assign roles among existing `Tactic.Hanging` Story rows and existing narrow `Tactic.Fork` Story rows",
+      "StoryTable may order existing `Tactic.Hanging` Story rows and existing narrow `Tactic.Fork` Story rows into roles",
       "Stage 5-3 tightens close blockers and context relations",
       "Stage 5-4 keeps Verdict diagnostics out of public numeric values",
       "Stage 5 closeout confirmed Story ordering only"
@@ -2009,7 +2024,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(agents.contains(fileName), s"AGENTS.md must explicitly retire $fileName")
     assert(agents.contains("Public route no-go"))
     assert(agents.contains("No `BoardMood` Sxxx expansion or re-entry"))
-    assert(agents.contains("Only `Tactic.Hanging` positive `Story` writer is live"))
+    assert(agents.contains("Only the named `Tactic.Hanging` writer and the narrow named `Tactic.Fork`"))
     assert(agents.contains("Renderer boundary no-go"))
     assert(agents.contains("Forbidden-name no-go"))
     assert(agents.contains("proof-first chess-story kernel"))
@@ -2325,7 +2340,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
   test("story interaction law carries tactics family width map without opening families"):
     val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
     val normalizedInteractionLaw = interactionLaw.replaceAll("\\s+", " ")
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
     val widthRows =
       interactionLaw.linesIterator
         .filter(line => line.matches("""^\| W\d{2} \|.*"""))
@@ -2342,13 +2359,192 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
         "The width map is a proof-home map, not permission to open a new positive family."
       )
     )
-    assert(interactionLaw.contains("`Tactic.Hanging` remains the only live positive tactic."))
+    assert(interactionLaw.contains("`Tactic.Hanging` and the narrow `Tactic.Fork` vertical slice are the only live"))
     assert(interactionLaw.contains("Opening a proof home does not open all tactic names in that home."))
+    assert(interactionLaw.contains("## Fork-0 Tactic.Fork Charter"))
+    assert(interactionLaw.contains("Fork is a multi-target Story, not a capture Story."))
+    assert(interactionLaw.contains("MultiTargetProof gives the reason. TacticFork writer gives permission."))
+    assert(interactionLaw.contains("## Fork-1 Geometry Readiness"))
+    assert(interactionLaw.contains("post-move attacked target squares"))
+    assert(interactionLaw.contains("BoardFacts must not say that a fork works."))
     assert(
       normalizedInteractionLaw.contains(
-        "Renderer, LLM, and public route `200` remain closed for every non-Hanging tactic."
+        "Fork-1 does not create a public Story, Verdict, renderer sentence, LLM narration, public route `200`, or public material claim by itself."
       )
     )
+    assert(modelContract.contains("post-move attacked target squares"))
+    assert(interactionLaw.contains("## Fork-2 MultiTargetProof"))
+    assert(interactionLaw.contains("`MultiTargetProof` is the family-specific proof home for the first Fork slice."))
+    assert(interactionLaw.contains("It creates Fork evidence, but it does not directly create a public Story."))
+    assert(interactionLaw.contains("target A"))
+    assert(interactionLaw.contains("target B"))
+    assert(interactionLaw.contains("target value or target class"))
+    assert(
+      normalizedInteractionLaw.contains(
+        "The first Fork proof scope is non-pawn attacker only, preferably knight-shaped, with no pawn fork, no skewer, no queen-hit-only tactic, and no king or mate claim."
+      )
+    )
+    assert(normalizedModelContract.contains("fork square, target A, and target B as proof evidence only"))
+    assert(interactionLaw.contains("## Fork-3 TacticFork Writer"))
+    assert(interactionLaw.contains("`TacticFork` is the named positive writer for the first narrow `Tactic.Fork`"))
+    assert(interactionLaw.contains("target relation is proven after the move"))
+    assert(interactionLaw.contains("EngineCheck does not `Refutes`"))
+    assert(
+      normalizedInteractionLaw.contains(
+        "The first allowed Fork meaning is limited to move attacks two targets and move creates a fork on named targets."
+      )
+    )
+    assert(
+      normalizedInteractionLaw.contains(
+        "A Fork-looking row with unproven target relation, missing writer, incomplete proof, or EngineCheck Refutes result must not lead."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "`StoryWriter.TacticFork` is the named positive Fork writer."
+      )
+    )
+    assert(
+      normalizedModelContract.toLowerCase.contains(
+        "reply-map entries showing one reply can save both targets block Fork Lead."
+          .toLowerCase
+      )
+    )
+    assert(interactionLaw.contains("## Fork-4 Negative Corpus"))
+    assert(interactionLaw.contains("pawn fork trying to enter `Tactic.Fork`"))
+    assert(interactionLaw.contains("skewer trying to enter `Tactic.Fork`"))
+    assert(interactionLaw.contains("queen-hit-only trying to enter `Tactic.Fork`"))
+    assert(interactionLaw.contains("## Fork-5 EngineCheck For Tactic.Fork"))
+    assert(interactionLaw.contains("Fork reuses the existing `EngineCheck` sidecar."))
+    assert(interactionLaw.contains("There is no `ForkEngineCheck`"))
+    assert(interactionLaw.contains("Engine evidence cannot create Fork by itself."))
+    assert(
+      normalizedInteractionLaw.contains(
+        "EngineCheck can support, cap, or refute an existing Fork Story, but engine lines, engine eval, PV-shaped data, missing-depth checks, route-mismatched checks, and engine-only checks cannot create Fork or attach as Fork evidence."
+      )
+    )
+    assert(normalizedModelContract.contains("Fork reuses `EngineCheck`; no `ForkEngineCheck` type exists."))
+    assert(interactionLaw.contains("## Fork-6 StoryTable Hanging Vs Fork"))
+    assert(interactionLaw.contains("Fork-6 opens only StoryTable role ordering for existing `Tactic.Hanging` Story"))
+    assert(interactionLaw.contains("A refuted Fork, incomplete Fork, writerless Fork, or"))
+    assert(interactionLaw.contains("Fork without `MultiTargetProof` becomes `Blocked`."))
+    assert(normalizedInteractionLaw.contains("Hanging and Fork may both be eligible for `Lead`"))
+    assert(interactionLaw.contains("Support and Context are not sentences."))
+    assert(interactionLaw.contains("StoryTable must not create Fork, rank Fork by raw engine eval or raw PV"))
+    assert(
+      normalizedModelContract.contains(
+        "Fork-6 role rules block refuted Fork, incomplete Fork, writerless Fork, and Fork rows without `MultiTargetProof`."
+      )
+    )
+    assert(interactionLaw.contains("## Fork-7 ExplanationPlan For Fork"))
+    assert(interactionLaw.contains("Fork-7 opens only ExplanationPlan mapping for a selected narrow `Tactic.Fork`"))
+    assert(interactionLaw.contains("- selected Verdict only"))
+    assert(interactionLaw.contains("- MultiTargetProof"))
+    assert(interactionLaw.contains("- `forks_two_targets`"))
+    assert(interactionLaw.contains("- `attacks_two_targets`"))
+    assert(interactionLaw.contains("- `wins_material_by_fork`"))
+    assert(interactionLaw.contains("- `wins_queen`"))
+    assert(interactionLaw.contains("- `decisive_fork`"))
+    assert(interactionLaw.contains("- `forced_win`"))
+    assert(interactionLaw.contains("secondaryTarget"))
+    assert(interactionLaw.contains("Support, Context, and Blocked Fork Verdicts create no standalone claim"))
+    assert(interactionLaw.contains("Fork-7 does not open Fork renderer text"))
+    assert(interactionLaw.contains("Completion standard: Fork ExplanationPlan creates no meaning stronger than the"))
+    assert(interactionLaw.contains("## Fork-8 Deterministic Renderer For Fork"))
+    assert(interactionLaw.contains("Fork-8 opens only deterministic renderer text for a selected Fork"))
+    assert(interactionLaw.contains("- ExplanationPlan only"))
+    assert(interactionLaw.contains("`{route} forks the pieces on {targetA} and {targetB}.`"))
+    assert(interactionLaw.contains("`targetA` and `targetB` must come from structured `target` and"))
+    assert(interactionLaw.contains("- allowed claim is `forks_two_targets`"))
+    assert(interactionLaw.contains("Support, Context, Blocked, capped, and engine-refuted Fork plans produce no"))
+    assert(interactionLaw.contains("The `attacks_two_targets` claim key remains an internal allowed claim key"))
+    assert(interactionLaw.contains("Fork-8 itself does not open Fork LLM smoke"))
+    assert(interactionLaw.contains("Completion standard: Fork renderer text is no stronger than the selected Fork"))
+    assert(
+      normalizedInteractionLaw.contains(
+        "Renderer wording opens tactic by tactic only; the current Fork slice opens deterministic Fork renderer text in Fork-8 and Fork LLM smoke in Fork-9."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Fork-8 opens only deterministic renderer text for Fork ExplanationPlan."
+      )
+    )
+    assert(interactionLaw.contains("## Fork-9 LLM Smoke For Fork"))
+    assert(interactionLaw.contains("Fork-9 opens only LLM smoke for selected Fork ExplanationPlan and RenderedLine."))
+    Vector(
+      "Allowed input:",
+      "- ExplanationPlan",
+      "- RenderedLine",
+      "8B Codex CLI prompt smoke allowed input for Fork:",
+      "- renderedText",
+      "- claimKey",
+      "- strength",
+      "- forbidden wording list",
+      "- instruction: \"Rephrase only. Do not add chess facts.\""
+    ).foreach: allowed =>
+      assert(interactionLaw.contains(allowed), s"Fork-9 must allow only smoke input: $allowed")
+    Vector(
+      "- raw Verdict",
+      "- Story",
+      "- MultiTargetProof",
+      "- EngineCheck",
+      "- BoardFacts",
+      "- BoardMood",
+      "- CaptureResult",
+      "- EngineEval",
+      "- EngineLine",
+      "- engine eval",
+      "- raw PV",
+      "- proofFailures",
+      "- source row"
+    ).foreach: forbidden =>
+      assert(interactionLaw.contains(forbidden), s"Fork-9 must forbid raw input: $forbidden")
+    Vector(
+      "- new move",
+      "- new line",
+      "- new tactic",
+      "- new plan",
+      "- engine mention",
+      "- best move",
+      "- forced",
+      "- winning",
+      "- decisive",
+      "- blunder",
+      "- wins queen",
+      "- wins material",
+      "- target piece identity absent from renderedText",
+      "- claim stronger than deterministic text"
+    ).foreach: forbidden =>
+      assert(interactionLaw.contains(forbidden), s"Fork-9 must reject stronger output: $forbidden")
+    assert(interactionLaw.contains("Completion standard: Fork LLM smoke does not strengthen Fork deterministic"))
+    assert(normalizedModelContract.contains("Fork-9 opens only LLM smoke for selected Fork ExplanationPlan and RenderedLine."))
+    assert(interactionLaw.contains("## Fork Slice Closeout Pass"))
+    Vector(
+      "Fork slice closeout goal: audit that only the narrow `Tactic.Fork` vertical slice is open.",
+      "Scope audit:",
+      "- opened: narrow non-pawn `Tactic.Fork` only",
+      "- closed: `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`, `Tactic.InBetween`",
+      "- closed: `Scene.Material`, `Scene.Defense`, Plan, Strategy",
+      "Authority audit:",
+      "- MultiTargetProof does not replace CaptureResult.",
+      "- MultiTargetProof does not replace StoryProof.",
+      "- MultiTargetProof does not replace EngineCheck.",
+      "- MultiTargetProof does not replace StoryTable.",
+      "Negative corpus audit:",
+      "Fork-looking false positives either produce no Story, no Lead, or Blocked.",
+      "Cleanup and consolidation:",
+      "No new markdown authority file, public row family, public route, production API, or sibling tactic writer opens in Fork closeout.",
+      "The proof shape remains reusable for subsequent PawnFork, Skewer, QueenHit, Tempo, or InBetween work only after each family gets its own named writer, negative corpus, EngineCheck rule, StoryTable rule, ExplanationPlan mapping, renderer boundary, and LLM smoke boundary.",
+      "Next-stage handoff:",
+      "The next family candidates remain `Scene.Material` or `Scene.Defense`.",
+      "Fork does not open `Scene.Material` or `Scene.Defense` by implication.",
+      "`One tactic name is not one proof system.`",
+      "`One proof shape may support multiple tactics.`",
+      "`One chess meaning, one home.`"
+    ).foreach: closeoutLine =>
+      assert(interactionLaw.contains(closeoutLine), s"Fork closeout must pin: $closeoutLine")
+    assert(modelContract.contains("Fork slice closeout is also owned by `StoryInteractionLaw.md`"))
     assertEquals(widthRows.size, 24)
     assertEquals(mappedTactics, Tactics.sorted)
     widthRows.foreach: row =>

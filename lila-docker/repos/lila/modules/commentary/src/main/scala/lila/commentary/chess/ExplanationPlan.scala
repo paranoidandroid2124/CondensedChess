@@ -4,12 +4,16 @@ private[commentary] enum ExplanationClaim:
   case CanWinPiece
   case PieceCanBeTakenWithGain
   case CaptureLeavesMaterialGain
+  case ForksTwoTargets
+  case AttacksTwoTargets
 
   def key: String =
     this match
       case CanWinPiece               => "can_win_piece"
       case PieceCanBeTakenWithGain   => "piece_can_be_taken_with_gain"
       case CaptureLeavesMaterialGain => "capture_leaves_material_gain"
+      case ForksTwoTargets           => "forks_two_targets"
+      case AttacksTwoTargets         => "attacks_two_targets"
 
 private[commentary] object ExplanationClaim:
   val HangingAllowed: Vector[ExplanationClaim] =
@@ -31,6 +35,22 @@ private[commentary] object ExplanationClaim:
       "engine_approved"
     )
 
+  val ForkAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.ForksTwoTargets,
+      ExplanationClaim.AttacksTwoTargets
+    )
+
+  val ForkForbiddenKeys: Vector[String] =
+    Vector(
+      "wins_material_by_fork",
+      "wins_queen",
+      "decisive_fork",
+      "forced_win",
+      "best_move",
+      "no_counterplay"
+    )
+
 private[commentary] enum ExplanationStrength:
   case Bounded
 
@@ -41,6 +61,7 @@ private[commentary] enum ExplanationStrength:
 private[commentary] enum ExplanationRelation:
   case SameFamilyLowerRank
   case AlternativeHangingCandidate
+  case AlternativeForkCandidate
   case CappedSameStory
   case BlockedByEngineRefute
 
@@ -48,6 +69,7 @@ private[commentary] enum ExplanationRelation:
     this match
       case SameFamilyLowerRank         => "same_family_lower_rank"
       case AlternativeHangingCandidate => "alternative_hanging_candidate"
+      case AlternativeForkCandidate    => "alternative_fork_candidate"
       case CappedSameStory             => "capped_same_story"
       case BlockedByEngineRefute       => "blocked_by_engine_refute"
 
@@ -68,6 +90,10 @@ private[commentary] enum ForbiddenWording:
   case Conversion
   case MateNet
   case StrongWording
+  case WinsMaterialByFork
+  case WinsQueen
+  case DecisiveFork
+  case ForcedWin
 
   def key: String =
     this match
@@ -87,6 +113,10 @@ private[commentary] enum ForbiddenWording:
       case Conversion     => "conversion"
       case MateNet        => "mate_net"
       case StrongWording  => "strong_wording"
+      case WinsMaterialByFork => "wins_material_by_fork"
+      case WinsQueen          => "wins_queen"
+      case DecisiveFork       => "decisive_fork"
+      case ForcedWin          => "forced_win"
 
 private[commentary] object ForbiddenWording:
   val Basic: Vector[ForbiddenWording] =
@@ -116,6 +146,7 @@ private[commentary] final case class ExplanationPlan(
     target: Option[Square],
     anchor: Option[Square],
     route: Option[Line],
+    secondaryTarget: Option[Square],
     allowedClaim: Option[ExplanationClaim],
     evidenceLine: Option[Line],
     strength: ExplanationStrength,
@@ -136,16 +167,37 @@ private[commentary] object ExplanationPlan:
   )
 
   private val HangingForbiddenWording = ForbiddenWording.Basic
+  private val ForkForbiddenWording =
+    ForbiddenWording.Basic ++
+      Vector(
+        ForbiddenWording.WinsMaterialByFork,
+        ForbiddenWording.WinsQueen,
+        ForbiddenWording.DecisiveFork,
+        ForbiddenWording.ForcedWin
+      )
 
-  private def allowedClaim(verdict: Verdict) =
+  private def allowedClaim(verdict: Verdict, tactic: Tactic) =
     if verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited then
-      Some(ExplanationClaim.CanWinPiece)
+      tactic match
+        case Tactic.Hanging => Some(ExplanationClaim.CanWinPiece)
+        case Tactic.Fork    => Some(ExplanationClaim.ForksTwoTargets)
+        case _              => None
     else None
 
-  private def relations(verdict: Verdict) =
+  private def forbiddenWording(verdict: Verdict, tactic: Tactic) =
+    val base =
+      tactic match
+        case Tactic.Fork => ForkForbiddenWording
+        case _           => HangingForbiddenWording
+    if verdict.engineStrengthLimited then base :+ ForbiddenWording.StrongWording
+    else base
+
+  private def relations(verdict: Verdict, tactic: Tactic) =
     val roleRelation =
       verdict.role match
         case Role.Support => Vector(ExplanationRelation.SameFamilyLowerRank)
+        case Role.Context if tactic == Tactic.Fork =>
+          Vector(ExplanationRelation.AlternativeForkCandidate)
         case Role.Context => Vector(ExplanationRelation.AlternativeHangingCandidate)
         case Role.Blocked if verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes) =>
           Vector(ExplanationRelation.BlockedByEngineRefute)
@@ -156,29 +208,29 @@ private[commentary] object ExplanationPlan:
   def fromSelected(verdict: Verdict): Option[ExplanationPlan] =
     val story = verdict.story
     for
+      tactic <- story.tactic
       target <- story.target
       anchor <- story.anchor
       route <- story.route
       if verdict.selected
       if story.scene == Scene.Tactic
-      if story.tactic.contains(Tactic.Hanging)
+      if tactic == Tactic.Hanging || tactic == Tactic.Fork
+      if tactic != Tactic.Fork || story.secondaryTarget.nonEmpty
       if story.side == Side.White || story.side == Side.Black
     yield ExplanationPlan(
       role = verdict.role,
       scene = story.scene,
-      tactic = story.tactic,
+      tactic = Some(tactic),
       side = story.side,
       target = Some(target),
       anchor = Some(anchor),
       route = Some(route),
-      allowedClaim = allowedClaim(verdict),
+      secondaryTarget = story.secondaryTarget,
+      allowedClaim = allowedClaim(verdict, tactic),
       evidenceLine = Some(route),
       strength = ExplanationStrength.Bounded,
-      forbiddenWording =
-        if verdict.engineStrengthLimited then
-          HangingForbiddenWording :+ ForbiddenWording.StrongWording
-        else HangingForbiddenWording,
-      relations = relations(verdict),
+      forbiddenWording = forbiddenWording(verdict, tactic),
+      relations = relations(verdict, tactic),
       debugOnly = verdict.role == Role.Blocked,
       supportContextLinks = Vector.empty
     )

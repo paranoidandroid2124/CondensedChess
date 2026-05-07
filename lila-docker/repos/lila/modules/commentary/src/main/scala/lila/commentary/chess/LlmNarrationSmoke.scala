@@ -34,7 +34,7 @@ private[commentary] object LlmNarrationSmoke:
         Option.when(!inputMatches(plan, rendered))("input_mismatch"),
         Option.when(violatesForbiddenWording(output, plan))("forbidden_wording"),
         Option.when(addsNewMoveOrLine(output, plan, rendered))("new_move_or_line"),
-        Option.when(addsNewTacticOrPlan(output))("new_tactic_or_plan"),
+        Option.when(addsNewTacticOrPlan(output, plan))("new_tactic_or_plan"),
         Option.when(addsNewCauseOrEvaluation(output))("new_cause_or_evaluation"),
         Option.when(mentionsEngine(output))("engine_mention"),
         Option.when(strongerThanRendered(output, plan, rendered))("stronger_claim")
@@ -44,12 +44,20 @@ private[commentary] object LlmNarrationSmoke:
   private def inputMatches(plan: ExplanationPlan, rendered: RenderedLine): Boolean =
     plan.role == Role.Lead &&
       !plan.debugOnly &&
+      plan.scene == Scene.Tactic &&
+      plan.tactic.exists(tactic => claimMatchesTactic(plan, tactic)) &&
       plan.allowedClaim.exists(_.key == rendered.claimKey) &&
       rendered.strength == plan.strength.key &&
       rendered.forbiddenCheckPassed &&
       plan.evidenceLine.nonEmpty &&
       plan.route.nonEmpty &&
       plan.evidenceLine == plan.route
+
+  private def claimMatchesTactic(plan: ExplanationPlan, tactic: Tactic): Boolean =
+    tactic match
+      case Tactic.Hanging => plan.allowedClaim.contains(ExplanationClaim.CanWinPiece)
+      case Tactic.Fork    => plan.allowedClaim.contains(ExplanationClaim.ForksTwoTargets)
+      case _              => false
 
   private def violatesForbiddenWording(text: String, plan: ExplanationPlan): Boolean =
     val normalized = normalize(text)
@@ -76,7 +84,8 @@ private[commentary] object LlmNarrationSmoke:
       )
     strongPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
       (!plan.allowedClaim.contains(ExplanationClaim.CanWinPiece) && materialWinPhrases.exists(containsPhrase(normalized, _))) ||
-      (containsPhrase(normalized, "wins material") && !containsPhrase(renderedNormalized, "wins material"))
+      (containsPhrase(normalized, "wins material") && !containsPhrase(renderedNormalized, "wins material")) ||
+      addsPieceIdentityAbsentFromRendered(normalized, renderedNormalized)
 
   private def addsNewMoveOrLine(text: String, plan: ExplanationPlan, rendered: RenderedLine): Boolean =
     val allowedMoves =
@@ -92,10 +101,15 @@ private[commentary] object LlmNarrationSmoke:
     moveTokens(text).exists(token => !allowedMoves.contains(token)) ||
       squareTokens(text).exists(token => !allowedSquares.contains(token))
 
-  private def addsNewTacticOrPlan(text: String): Boolean =
+  private def addsNewTacticOrPlan(text: String, plan: ExplanationPlan): Boolean =
     val normalized = normalize(text)
-    Vector(
+    val allowed =
+      plan.tactic match
+        case Some(Tactic.Fork) => Set("fork", "forks")
+        case _                 => Set.empty[String]
+    val tacticOrPlanPhrases = Vector(
       "fork",
+      "forks",
       "pin",
       "skewer",
       "x ray",
@@ -111,7 +125,9 @@ private[commentary] object LlmNarrationSmoke:
       "outpost",
       "file control",
       "defense"
-    ).exists(phrase => containsPhrase(normalized, phrase))
+    )
+    tacticOrPlanPhrases.exists: phrase =>
+      !allowed.contains(phrase) && containsPhrase(normalized, phrase)
 
   private def addsNewCauseOrEvaluation(text: String): Boolean =
     val normalized = normalize(text)
@@ -134,6 +150,13 @@ private[commentary] object LlmNarrationSmoke:
 
   private val materialWinPhrases =
     Vector("wins material", "win material", "winning material", "material win")
+
+  private val pieceIdentityPhrases =
+    Vector("queen", "rook", "bishop", "knight", "pawn", "king")
+
+  private def addsPieceIdentityAbsentFromRendered(normalized: String, renderedNormalized: String): Boolean =
+    pieceIdentityPhrases.exists: phrase =>
+      containsPhrase(normalized, phrase) && !containsPhrase(renderedNormalized, phrase)
 
   private def materialWinAllowed(normalized: String, plan: ExplanationPlan): Boolean =
     !materialWinPhrases.exists(containsPhrase(normalized, _)) ||
@@ -185,6 +208,14 @@ private[commentary] object LlmNarrationSmoke:
           "only move",
           "no counterplay"
         )
+      case ForbiddenWording.WinsMaterialByFork =>
+        Vector("wins material by fork", "win material by fork", "material by fork")
+      case ForbiddenWording.WinsQueen =>
+        Vector("wins queen", "wins the queen", "win the queen")
+      case ForbiddenWording.DecisiveFork =>
+        Vector("decisive fork")
+      case ForbiddenWording.ForcedWin =>
+        Vector("forced win", "forces a win")
 
   private def forbiddenLabel(forbidden: ForbiddenWording): String =
     forbiddenMeaning(forbidden).head
