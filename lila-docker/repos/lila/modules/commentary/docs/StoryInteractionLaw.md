@@ -2818,13 +2818,28 @@ One chess meaning, one home.
 
 Completion standard: Defense closes as a narrow proof-backed attacked-piece material-loss defense slice only.
 
-## Middlegame Interaction Smoke
+## Middlegame Interaction Hardening
 
-Middlegame Interaction Smoke opens no new Story family, public route, production API, or public/user-facing LLM narration.
+### MIH-0 Charter
 
-The smoke checks whether already-open Story rows receive stable `Lead`, `Support`, `Context`, or `Blocked` roles when they collide in one position.
+Middlegame Interaction Hardening opens no chess meaning. It stress-tests already-open meanings.
 
-Smoke matrix:
+MIH-0 opens only interaction hardening among existing Hanging, Fork, Material, and Defense rows.
+
+MIH-0 opens complex middlegame fixture based role stability checks.
+
+MIH-0 checks selected Verdict, ExplanationPlan, and renderer/LLM smoke boundary stability without opening new speech.
+
+MIH-0 may apply only the minimum StoryTable ordering fix if an existing ordering bug is exposed.
+
+Allowed MIH-0 rows:
+
+- Tactic.Hanging
+- Tactic.Fork
+- Scene.Material
+- Scene.Defense
+
+MIH-0 hardening matrix:
 
 - Material vs Defense
 - Hanging vs Defense
@@ -2833,9 +2848,28 @@ Smoke matrix:
 - Hanging vs Fork
 - EngineCheck Supports / Caps / Refutes across these rows
 
+MIH-0 forbidden openings:
+
+- Line/Ray
+- RemoveGuard
+- Pin
+- Skewer
+- Pawn
+- BackRank
+- Plan
+- Strategy
+- Initiative
+- Pressure
+- public route 200
+- production API
+- public/user-facing LLM narration
+- new Story family
+- new proof home
+- new renderer wording
+
 Material vs Defense is the first and highest-risk case because `Scene.Defense` prevents immediate material loss while `Scene.Material` describes material balance changing now.
 
-Ordering smoke:
+Hardening role rules:
 
 - If the move actually wins or changes material now, `Scene.Material` may lead.
 - If the move prevents an immediate material loss, `Scene.Defense` may lead.
@@ -2846,11 +2880,244 @@ Ordering smoke:
 
 Authority boundary:
 
-- StoryTable must not create Defense, Material, Hanging, or Fork rows during this smoke.
+- StoryTable must not create Defense, Material, Hanging, or Fork rows during this hardening.
 - EngineCheck may support, cap, or refute existing rows only.
 - Raw engine eval and renderer wording must not rank rows.
 - Support and Context remain relation roles, not sentences.
 - Public route `200`, production API, and public/user-facing LLM narration remain closed.
+
+### MIH-1 Fixture Map
+
+MIH-1 opens only complex middlegame test fixtures for already-open Hanging, Fork, Material, and Defense rows.
+
+Each MIH-1 fixture must state:
+
+- same-board FEN
+- side to move
+- legal fixture lines
+- expected open rows
+- expected blocked rows
+- expected Lead / Support / Context / Blocked role
+- expected selected Verdict
+- forbidden claims
+
+Allowed MIH-1 fixture categories:
+
+- Hanging vs Material
+- Hanging vs Fork
+- Material vs Defense
+- Fork vs Defense
+- Material vs Defense on same board
+- EngineCheck Supports/Caps/Refutes over existing rows
+
+MIH-1 forbidden fixture shortcuts:
+
+- fixture implies a new Story family
+- pressure expectation
+- initiative expectation
+- best move expectation
+- only move expectation
+- proofFailures text as expected public output
+
+Completion standard: Fixture Map names board, rows, roles, selected Verdict, and forbidden claims without opening new meaning.
+
+### MIH-2 Role Stability
+
+MIH-2 opens only StoryTable role stability checks over existing Hanging, Fork, Material, and Defense rows.
+
+MIH-2 verifies:
+
+- selected Verdict remains stable across input order changes
+- same-board collisions create no duplicate Lead
+- incomplete rows cannot Lead
+- refuted rows become Blocked
+- capped rows create no standalone strong claim
+
+MIH-2 specific checks:
+
+- `Scene.Material` and `Tactic.Hanging` on the same capture route cannot both Lead.
+- `Scene.Defense` cannot Lead without an actual ThreatProof.
+- `Tactic.Fork` cannot create a Material claim without complete two-target proof.
+
+MIH-2 forbidden openings:
+
+- new Story family
+- new proof home
+- new renderer wording
+- public route 200
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Role Stability keeps selected Verdict deterministic, prevents duplicate Lead, blocks incomplete or refuted rows, and keeps capped rows from standalone strong claims without opening new meaning.
+
+### MIH-3 Material vs Defense Collision
+
+MIH-3 opens only the Material vs Defense collision rule over existing `Scene.Material` and `Scene.Defense` rows.
+
+MIH-3 rules:
+
+- actual material balance change now gives `Scene.Material` priority
+- `Scene.Defense` may speak only when it prevents immediate material loss
+- speculative material loss does not open Defense
+- same-board Material and Defense rows must distinguish actual material change now from prevented immediate loss
+
+MIH-3 forbidden upgrades:
+
+- Defense as best defense
+- Defense as only move
+- Defense as refutes attack
+- Material as winning
+- Material as conversion
+- Material as decisive
+
+MIH-3 forbidden openings:
+
+- new Story family
+- new proof home
+- new renderer wording
+- public route 200
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Material vs Defense collision selects actual material change now over prevented immediate loss, blocks speculative material loss, and keeps both public boundaries bounded.
+
+### MIH-4 EngineCheck Interaction
+
+MIH-4 opens only existing EngineCheck interaction checks over already-open Hanging, Fork, Material, and Defense rows.
+
+MIH-4 reuses existing `EngineCheck` only.
+
+MIH-4 verifies:
+
+- `Supports` creates no new claim
+- `Caps` weakens or suppresses allowed claim
+- `Refutes` blocks the checked Story
+- `Unknown` creates no engine-related expression
+
+MIH-4 forbidden shortcuts:
+
+- engine eval ordering
+- raw PV explanation
+- engine says wording
+- best-move wording
+- eval numbers in public values
+
+MIH-4 forbidden openings:
+
+- new Story family
+- new proof home
+- new renderer wording
+- public route 200
+- production API
+- public/user-facing LLM narration
+
+Completion standard: EngineCheck Interaction reuses existing EngineCheck statuses, keeps Supports and Unknown non-speaking, suppresses or weakens Caps, blocks Refutes, and prevents engine eval, raw PV, engine-says, best-move, and eval-number public leakage.
+
+### MIH-5 Negative Corpus
+
+MIH-5 opens only close false-positive negative corpus tests over already-open Hanging, Fork, Material, Defense, and EngineCheck rows.
+
+Looks plausible is not enough. Complete proof or silence.
+
+MIH-5 must include:
+
+- attacked-looking piece but adequate recapture exists
+- fork-looking move but only one real target
+- material-looking capture but equal or lost after immediate reply
+- defense-looking move but no complete ThreatProof
+- defense move guards wrong target
+- defense move still leaves material loss
+- engine refutes otherwise plausible Story
+- same-board proof missing
+- route mismatch
+- stale or wrong engine line
+
+MIH-5 forbidden openings:
+
+- new Story family
+- new proof home
+- new renderer wording
+- public route 200
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Negative Corpus keeps close false positives silent unless complete proof exists, and no plausible-looking row may reach selected public output through StoryTable, ExplanationPlan, renderer, or LLM smoke boundaries.
+
+### MIH-6 Downstream Boundary Smoke
+
+MIH-6 opens only downstream boundary smoke over selected Verdict, existing ExplanationPlan, existing DeterministicRenderer, and existing LLM smoke.
+
+MIH-6 verifies:
+
+- ExplanationPlan input is selected Verdict only
+- Renderer input is ExplanationPlan only
+- LLM smoke input is renderedText, claimKey, strength, forbidden wording, and rephrase-only instruction only
+- Support, Context, Blocked, capped, and refuted rows create no standalone public text
+
+MIH-6 forbidden openings:
+
+- new renderer template
+- new LLM behavior
+- raw Story to renderer or LLM
+- raw Proof to renderer or LLM
+- raw EngineCheck to renderer or LLM
+- public route 200
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Downstream Boundary Smoke passes only selected Lead Verdict data through existing ExplanationPlan, renderer, and LLM smoke boundaries, while non-Lead, capped, and refuted rows stay silent.
+
+### MIH-7 Diagnostics Boundary
+
+MIH-7 opens only diagnostics boundary smoke over already-open Hanging, Fork, Material, Defense, StoryTable, selected Verdict, ExplanationPlan, renderer, and LLM smoke.
+
+MIH-7 verifies:
+
+- proofFailures are internal diagnostic only
+- Verdict.values do not include raw proof failure text or engine text
+- source row data does not flow directly into ExplanationPlan
+- StoryTable debug relation does not become renderer wording
+
+MIH-7 forbidden openings:
+
+- new Story family
+- new proof home
+- new renderer wording
+- new LLM behavior
+- raw Story to renderer or LLM
+- raw Proof to renderer or LLM
+- raw EngineCheck to renderer or LLM
+- public route 200
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Diagnostics Boundary keeps proofFailures, raw proof failure text, engine text, source row data, and StoryTable debug relations out of public meaning, Verdict.values, ExplanationPlan source inputs, renderer wording, and LLM smoke prompts.
+
+### MIH Closeout Hard Cleanup Pass
+
+MIH Closeout opens no chess meaning. It only audits the MIH hardening surface.
+
+MIH Closeout audit checklist:
+
+- no new chess meaning opened
+- no new proof home opened
+- Hanging, Material, and Defense do not duplicate ownership of the same public meaning
+- Story label, proof home, and speech key remain separate
+- broad terms remain closed and do not become authority
+- detailed MIH rules live in StoryInteractionLaw.md only
+- other live docs summarize MIH scope without duplicating rule text
+- test helpers remain test-only and do not become runtime authority
+- public route 200 remains closed
+- production API remains closed
+- public/user-facing LLM narration remains closed
+
+MIH Closeout ownership map:
+
+- Tactic.Hanging owns the Story label for the hanging tactic; CaptureResult remains the capture proof home; can_win_piece remains the speech key.
+- Scene.Material owns the Story label for current material balance change; CaptureResult remains the simple capture proof home; material_balance_changes remains the first speech key.
+- Scene.Defense owns the Story label for preventing immediate material loss; ThreatProof and DefenseProof remain the proof homes; defends_piece remains the first speech key.
+
+Completion standard: MIH closes as interaction hardening only, with no new Story family, no new proof home, no duplicate meaning owner, no broad-term authority, no duplicated live rule authority outside StoryInteractionLaw.md, no promoted test helper, no public route 200, no production API, and no public/user-facing LLM narration.
 
 ## Proof And Interaction Law
 

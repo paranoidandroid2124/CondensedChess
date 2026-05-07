@@ -389,7 +389,7 @@ object StoryTable:
       .sortBy(row =>
         (
           roleSortPriority(row),
-          overlappingMaterialPriority(row.story, stories),
+          interactionPriority(row.story, stories),
           -row.strength,
           familyKey(row.story),
           row.story.side.ordinal,
@@ -426,10 +426,15 @@ object StoryTable:
   private def roleSortPriority(row: Row) =
     if row.leadCandidate then 0 else if row.blocked then 2 else 1
 
-  private def overlappingMaterialPriority(story: Story, stories: Vector[Story]) =
+  private def interactionPriority(story: Story, stories: Vector[Story]) =
     if materialOverlapsHanging(story, stories) then 1
+    else if defenseCollidesWithMaterial(story, stories) then 1
     else if defenseOverlapsImmediateMaterialGain(story, stories) then 1
     else 0
+
+  private def defenseCollidesWithMaterial(story: Story, stories: Vector[Story]) =
+    positiveDefenseWriter(story) &&
+      stories.exists(other => other != story && positiveMaterialWriter(other))
 
   private def materialOverlapsHanging(story: Story, stories: Vector[Story]) =
     positiveMaterialWriter(story) &&

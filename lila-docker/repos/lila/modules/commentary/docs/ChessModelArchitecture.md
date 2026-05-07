@@ -30,10 +30,31 @@ The current branch owns only:
 
 `Board Truth / Primitive Geometry / Story boundary / Verdict boundary / Explanation Plan boundary / Deterministic Renderer boundary`
 
-Current implementation scope is Middlegame Interaction Smoke.
-Middlegame Interaction Smoke opens no new Story family, public route, production API, or public/user-facing LLM narration.
+Current implementation scope is Middlegame Interaction Hardening.
+Middlegame Interaction Hardening opens no chess meaning. It stress-tests already-open meanings.
+MIH-0 opens no new Story family, proof home, renderer wording, public route, production API, or public/user-facing LLM narration.
+MIH-0 opens only interaction hardening among existing Hanging, Fork, Material, and Defense rows.
+MIH-0 opens complex middlegame fixture based role stability checks.
+MIH-0 checks selected Verdict, ExplanationPlan, and renderer/LLM smoke boundary stability without opening new speech.
+MIH-0 may apply only the minimum StoryTable ordering fix if an existing ordering bug is exposed.
+MIH-1 opens only complex middlegame test fixtures for already-open Hanging, Fork, Material, and Defense rows.
+Completion standard: Fixture Map names board, rows, roles, selected Verdict, and forbidden claims without opening new meaning.
+MIH-2 opens only StoryTable role stability checks over existing Hanging, Fork, Material, and Defense rows.
+Completion standard: Role Stability keeps selected Verdict deterministic, prevents duplicate Lead, blocks incomplete or refuted rows, and keeps capped rows from standalone strong claims without opening new meaning.
+MIH-3 opens only the Material vs Defense collision rule over existing `Scene.Material` and `Scene.Defense` rows.
+Completion standard: Material vs Defense collision selects actual material change now over prevented immediate loss, blocks speculative material loss, and keeps both public boundaries bounded.
+MIH-4 opens only existing EngineCheck interaction checks over already-open Hanging, Fork, Material, and Defense rows.
+Completion standard: EngineCheck Interaction reuses existing EngineCheck statuses, keeps Supports and Unknown non-speaking, suppresses or weakens Caps, blocks Refutes, and prevents engine eval, raw PV, engine-says, best-move, and eval-number public leakage.
+MIH-5 opens only close false-positive negative corpus tests over already-open Hanging, Fork, Material, Defense, and EngineCheck rows.
+Completion standard: Negative Corpus keeps close false positives silent unless complete proof exists, and no plausible-looking row may reach selected public output through StoryTable, ExplanationPlan, renderer, or LLM smoke boundaries.
+MIH-6 opens only downstream boundary smoke over selected Verdict, existing ExplanationPlan, existing DeterministicRenderer, and existing LLM smoke.
+Completion standard: Downstream Boundary Smoke passes only selected Lead Verdict data through existing ExplanationPlan, renderer, and LLM smoke boundaries, while non-Lead, capped, and refuted rows stay silent.
+MIH-7 opens only diagnostics boundary smoke over already-open Hanging, Fork, Material, Defense, StoryTable, selected Verdict, ExplanationPlan, renderer, and LLM smoke.
+Completion standard: Diagnostics Boundary keeps proofFailures, raw proof failure text, engine text, source row data, and StoryTable debug relations out of public meaning, Verdict.values, ExplanationPlan source inputs, renderer wording, and LLM smoke prompts.
+MIH Closeout opens no chess meaning. It only audits the MIH hardening surface.
+Completion standard: MIH closes as interaction hardening only, with no new Story family, no new proof home, no duplicate meaning owner, no broad-term authority, no duplicated live rule authority outside StoryInteractionLaw.md, no promoted test helper, no public route 200, no production API, and no public/user-facing LLM narration.
 Material vs Defense is the first and highest-risk case because `Scene.Defense` prevents immediate material loss while `Scene.Material` describes material balance changing now.
-Middlegame Interaction Smoke checks only StoryTable role stability among already-open Hanging, Fork, Material, and Defense rows.
+Middlegame Interaction Hardening checks StoryTable role stability, selected Verdict stability, ExplanationPlan stability, and renderer/LLM smoke boundaries among already-open Hanging, Fork, Material, and Defense rows.
 Same-board Material vs Defense collisions are resolved by actual material change now over prevented immediate loss, with speculative material loss blocked.
 Defense-0 opened only the charter for the first narrow `Scene.Defense` slice.
 Defense-1 opened only `ThreatProof`.
