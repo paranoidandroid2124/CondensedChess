@@ -44,14 +44,22 @@ private[commentary] object LlmNarrationSmoke:
   private def inputMatches(plan: ExplanationPlan, rendered: RenderedLine): Boolean =
     plan.role == Role.Lead &&
       !plan.debugOnly &&
-      plan.scene == Scene.Tactic &&
-      plan.tactic.exists(tactic => claimMatchesTactic(plan, tactic)) &&
+      claimMatchesPlan(plan) &&
       plan.allowedClaim.exists(_.key == rendered.claimKey) &&
       rendered.strength == plan.strength.key &&
       rendered.forbiddenCheckPassed &&
       plan.evidenceLine.nonEmpty &&
       plan.route.nonEmpty &&
       plan.evidenceLine == plan.route
+
+  private def claimMatchesPlan(plan: ExplanationPlan): Boolean =
+    plan.scene match
+      case Scene.Tactic =>
+        plan.tactic.exists(tactic => claimMatchesTactic(plan, tactic))
+      case Scene.Material =>
+        plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.MaterialBalanceChanges)
+      case _ =>
+        false
 
   private def claimMatchesTactic(plan: ExplanationPlan, tactic: Tactic): Boolean =
     tactic match

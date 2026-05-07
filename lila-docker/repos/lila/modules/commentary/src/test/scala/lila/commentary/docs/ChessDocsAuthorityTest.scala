@@ -498,14 +498,15 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(ssot.contains("`BoardMood` Sxxx expansion or re-entry"))
     assert(
       rationale.replaceAll("\\s+", " ").contains(
-        "no positive `Story` proof writer beyond `Tactic.Hanging` and the narrow `Tactic.Fork` vertical slice"
+        "no positive `Story` proof writer beyond `Tactic.Hanging`, the narrow `Tactic.Fork` vertical slice, and the narrow `Scene.Material` writer"
       )
     )
     assert(manifest.contains("default runtime FEN to public"))
     assert(
       modelContract.contains("At this checkpoint no `BoardMood` Sxxx re-entry or proof writer is admitted")
     )
-    assert(modelContract.contains("Only the named `Tactic.Hanging` writer and the narrow named `Tactic.Fork`"))
+    assert(modelContract.contains("Only the named `Tactic.Hanging` writer, the narrow named `Tactic.Fork`"))
+    assert(modelContract.contains("and the narrow named `Scene.Material` writer are live"))
     assert(modelContract.contains("Story owns identity."))
     assert(modelContract.contains("StoryProof owns proof and missing evidence."))
     assert(modelContract.contains("Verdict carries the result."))
@@ -1759,7 +1760,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(modelContract.contains("EngineCheck does not create a Story, select a Story, rank a Story, write a Verdict, feed a renderer, or feed an LLM."))
     assert(modelContract.contains("EngineCheck.fromStory binds engine evidence to same-board BoardFacts, an existing Story route, and a same-board legal line."))
     assert(modelContract.contains("EngineCheckStatus has exactly `Unknown`, `Supports`, `Caps`, and `Refutes`."))
-    assert(modelContract.contains("Only `Tactic.Hanging` and the narrow `Tactic.Fork` vertical slice may carry EngineCheck in this checkpoint."))
+    assert(modelContract.contains("Only `Tactic.Hanging`, the narrow `Tactic.Fork` vertical slice, and the narrow `Scene.Material` writer may carry EngineCheck in this checkpoint."))
     assert(modelContract.contains("Eval collapse after capture or fork route may refute an existing EngineCheck only after same-board Story proof"))
     assert(modelContract.contains("Eval collapse cannot create a Story, public eval claim, or engine-authored explanation."))
     assert(modelContract.contains("Verdict carries `engineCheckStatus` and `engineStrengthLimited` as internal diagnostics only."))
@@ -1768,6 +1769,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(modelContract.contains("Stage 5 Story Order baseline is limited to existing `Tactic.Hanging` Story"))
     assert(modelContract.contains("The current Fork-6 slice adds only deterministic ordering between"))
     assert(modelContract.contains("existing `Tactic.Hanging` rows and existing narrow `Tactic.Fork` rows"))
+    assert(modelContract.contains("Material-3 adds only single-row StoryTable admission for proof-backed"))
     assert(modelContract.contains("Stage 5-1 may mark only the selected Lead row as `leadAllowed`"))
     assert(modelContract.contains("Stage 5-2 ordering may use role eligibility"))
     assert(modelContract.contains("It must not use raw engine eval, raw PV text, proofFailures text"))
@@ -1859,8 +1861,8 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
           s"$name must not duplicate Stage 3 charter line owned by StoryInteractionLaw: $charterLine"
         )
     Vector(
-      "backend Material proof evidence and the named `Tactic.Hanging` writer plus the narrow `Tactic.Fork` proof/writer vertical slice",
-      "`Scene.Material`, `Scene.Defense`, Plan, Strategy, Fork LLM narration, public route `200`, and strong wording remain closed there"
+      "backend Material proof evidence, the named `Tactic.Hanging` writer, the narrow `Tactic.Fork` proof/writer vertical slice, and the narrow `Scene.Material` writer",
+      "`Scene.Defense`, Plan, Strategy, Fork LLM narration, public route `200`, and strong wording remain closed there"
     ).foreach: scopeLine =>
       assert(agents.replaceAll("\\s+", " ").contains(scopeLine), s"AGENTS must summarize Stage 3 scope: $scopeLine")
     assert(agents.replaceAll("\\s+", " ").contains("Stage 4 opens only `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence"))
@@ -1868,12 +1870,12 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(agents.replaceAll("\\s+", " ").contains("Stage 4-3 attaches EngineCheck first to `Tactic.Hanging`; Fork-5 reuses the same sidecar"))
     assert(
       normalizedSsot.contains(
-        "Stage 3 opens backend Material proof evidence, the named `Tactic.Hanging` writer, and the narrow `Tactic.Fork` proof/writer vertical slice, while every other positive family, Fork LLM narration, and public route `200` remain closed."
+        "Stage 3 opens backend Material proof evidence, the named `Tactic.Hanging` writer, the narrow `Tactic.Fork` proof/writer vertical slice, and the narrow `Scene.Material` writer, while every other positive family, Fork LLM narration, and public route `200` remain closed."
       )
     )
     assert(
       normalizedSsot.contains(
-        "Stage 4 opens only `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board and stale guards, `Tactic.Hanging` attachment, narrow `Tactic.Fork` attachment, false-positive corpus, and conservative StoryTable diagnostics for existing `Tactic.Hanging` and narrow `Tactic.Fork` Stories."
+        "Stage 4 opens only `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence, same-board and stale guards, `Tactic.Hanging` attachment, narrow `Tactic.Fork` attachment, narrow `Scene.Material` EngineCheck reuse, false-positive corpus, and conservative StoryTable diagnostics for existing `Tactic.Hanging`, narrow `Tactic.Fork`, and single proof-backed `Scene.Material` Stories."
       )
     )
     assert(
@@ -1893,7 +1895,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "Board Facts direct public claim",
       "Proof score alone as Lead",
       "StoryProof alone as Lead",
-      "positive Story families other than `Tactic.Hanging` and the narrow `Tactic.Fork` vertical slice"
+      "positive Story families other than `Tactic.Hanging`, the narrow `Tactic.Fork` vertical slice, and the narrow `Scene.Material` writer"
     ).foreach: noGo =>
       assert(
         normalizedInteractionLaw.contains(noGo),
@@ -1959,7 +1961,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     Vector(
       "Stage 5 opens only StoryTable role ordering for existing `Tactic.Hanging` Story rows and existing narrow `Tactic.Fork` Story rows",
       "StoryTable may assign roles among existing `Tactic.Hanging` Story rows and existing narrow `Tactic.Fork` Story rows",
-      "StoryTable may order existing `Tactic.Hanging` Story rows and existing narrow `Tactic.Fork` Story rows into roles",
+      "StoryTable may order existing `Tactic.Hanging` Story rows, existing narrow `Tactic.Fork` Story rows, and existing proof-backed `Scene.Material` Story rows into roles",
       "Stage 5-3 tightens close blockers and context relations",
       "Stage 5-4 keeps Verdict diagnostics out of public numeric values",
       "Stage 5 closeout confirmed Story ordering only"
@@ -2024,7 +2026,8 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(agents.contains(fileName), s"AGENTS.md must explicitly retire $fileName")
     assert(agents.contains("Public route no-go"))
     assert(agents.contains("No `BoardMood` Sxxx expansion or re-entry"))
-    assert(agents.contains("Only the named `Tactic.Hanging` writer and the narrow named `Tactic.Fork`"))
+    assert(agents.contains("Only the named `Tactic.Hanging` writer, the narrow named `Tactic.Fork`"))
+    assert(agents.contains("and the narrow named `Scene.Material` writer are live"))
     assert(agents.contains("Renderer boundary no-go"))
     assert(agents.contains("Forbidden-name no-go"))
     assert(agents.contains("proof-first chess-story kernel"))
@@ -2521,11 +2524,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(normalizedModelContract.contains("Fork-9 opens only LLM smoke for selected Fork ExplanationPlan and RenderedLine."))
     assert(interactionLaw.contains("## Fork Slice Closeout Pass"))
     Vector(
-      "Fork slice closeout goal: audit that only the narrow `Tactic.Fork` vertical slice is open.",
+      "Fork slice closeout goal: audit that the Fork closeout opened only the narrow `Tactic.Fork` vertical slice.",
       "Scope audit:",
-      "- opened: narrow non-pawn `Tactic.Fork` only",
+      "- opened by Fork closeout: narrow non-pawn `Tactic.Fork` only",
       "- closed: `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`, `Tactic.InBetween`",
-      "- closed: `Scene.Material`, `Scene.Defense`, Plan, Strategy",
+      "- not opened by Fork closeout: `Scene.Material`, `Scene.Defense`, Plan, Strategy",
       "Authority audit:",
       "- MultiTargetProof does not replace CaptureResult.",
       "- MultiTargetProof does not replace StoryProof.",
@@ -2536,15 +2539,313 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "Cleanup and consolidation:",
       "No new markdown authority file, public row family, public route, production API, or sibling tactic writer opens in Fork closeout.",
       "The proof shape remains reusable for subsequent PawnFork, Skewer, QueenHit, Tempo, or InBetween work only after each family gets its own named writer, negative corpus, EngineCheck rule, StoryTable rule, ExplanationPlan mapping, renderer boundary, and LLM smoke boundary.",
-      "Next-stage handoff:",
-      "The next family candidates remain `Scene.Material` or `Scene.Defense`.",
+      "Next-stage handoff at Fork closeout:",
+      "The next family candidates were `Scene.Material` or `Scene.Defense`.",
       "Fork does not open `Scene.Material` or `Scene.Defense` by implication.",
+      "Material-3 separately opens only the narrow named `Scene.Material` writer.",
       "`One tactic name is not one proof system.`",
       "`One proof shape may support multiple tactics.`",
       "`One chess meaning, one home.`"
     ).foreach: closeoutLine =>
       assert(interactionLaw.contains(closeoutLine), s"Fork closeout must pin: $closeoutLine")
     assert(modelContract.contains("Fork slice closeout is also owned by `StoryInteractionLaw.md`"))
+    assert(interactionLaw.contains("## Material-0 Scene.Material Charter"))
+    Vector(
+      "Material is a scene, not a tactic.",
+      "`CaptureResult` or `ExchangeResult` is the proof home.",
+      "`Scene.Material` is the Story label.",
+      "`material_change` is the speech claim.",
+      "- simple capture or exchange result",
+      "- same-board proof",
+      "- legal line",
+      "- bounded recapture or exchange check",
+      "- known material result",
+      "- no tactic label required",
+      "- winning",
+      "- decisive",
+      "- blunder",
+      "- conversion",
+      "- best move",
+      "- forced",
+      "- no counterplay",
+      "- engine says",
+      "- full evaluation claim",
+      "Completion standard: `Scene.Material` must not become another name for `Tactic.Hanging` or `CaptureResult`."
+    ).foreach: materialCharterLine =>
+      assert(interactionLaw.contains(materialCharterLine), s"Material-0 must pin: $materialCharterLine")
+    assert(interactionLaw.contains("## Material-1 Proof Home Decision"))
+    Vector(
+      "Decision: the first `Scene.Material` scope reuses `CaptureResult`.",
+      "`CaptureResult is capture proof.`",
+      "`ExchangeResult is bounded exchange proof.`",
+      "`Scene.Material is not proof.`",
+      "Do not create `ExchangeResult` in Material-1.",
+      "A new `ExchangeResult` proof home opens only when Material needs a bounded multi-move exchange sequence that `CaptureResult` cannot own without overloading capture meaning.",
+      "Completion standard: one material meaning has one proof home."
+    ).foreach: materialDecisionLine =>
+      assert(interactionLaw.contains(materialDecisionLine), s"Material-1 must pin: $materialDecisionLine")
+    assert(interactionLaw.contains("## Material-2 Material / Exchange Proof Shape"))
+    Vector(
+      "Material-2 opens only the bounded material proof shape.",
+      "- side",
+      "- legal line",
+      "- captured pieces",
+      "- recapture candidates",
+      "- bounded exchange sequence",
+      "- material result",
+      "- same-board proof",
+      "- missing evidence",
+      "- line leaves White up material",
+      "- line leaves Black up material",
+      "- exchange result is known",
+      "- winning position",
+      "- decisive advantage",
+      "- conversion",
+      "- blunder",
+      "- best move",
+      "- forced line",
+      "Completion standard: the proof calculates material result, but it does not create a public Story or sentence."
+    ).foreach: materialProofLine =>
+      assert(interactionLaw.contains(materialProofLine), s"Material-2 must pin: $materialProofLine")
+    assert(interactionLaw.contains("## Material-3 Scene.Material Writer"))
+    Vector(
+      "Material-3 opens the named `SceneMaterial` writer only.",
+      "- scene is `Scene.Material`",
+      "- StoryProof is complete",
+      "- material proof is complete",
+      "- same-board proof is present",
+      "- legal line is present",
+      "- material result is known",
+      "- writer is `StoryWriter.SceneMaterial`",
+      "- EngineCheck does not `Refutes`",
+      "- this line changes material balance",
+      "- this exchange leaves one side ahead in material",
+      "- winning",
+      "- decisive",
+      "- blunder",
+      "- conversion",
+      "- best move",
+      "- forced",
+      "- no counterplay",
+      "- engine says",
+      "Completion standard: one narrow Material Story with proof can enter StoryTable."
+    ).foreach: materialWriterLine =>
+      assert(interactionLaw.contains(materialWriterLine), s"Material-3 must pin: $materialWriterLine")
+    assert(interactionLaw.contains("## Material-4 Material Negative Corpus"))
+    Vector(
+      "Material-4 opens only the Material negative corpus.",
+      "- legal line missing",
+      "- same-board proof missing",
+      "- capture exists but bounded recapture erases the material result",
+      "- exchange result unclear",
+      "- target is king",
+      "- material result is zero",
+      "- EngineCheck `Refutes`",
+      "- StoryProof incomplete",
+      "- material proof incomplete",
+      "- tactic writer tries to speak Material",
+      "- Hanging tries to auto-duplicate as Material",
+      "- Fork tries to auto-duplicate as Material",
+      "- high Proof score only",
+      "Completion standard: material-looking rows without bounded material proof become no Lead or Blocked."
+    ).foreach: materialNegativeLine =>
+      assert(interactionLaw.contains(materialNegativeLine), s"Material-4 must pin: $materialNegativeLine")
+    assert(interactionLaw.contains("## Material-5 EngineCheck for Scene.Material"))
+    Vector(
+      "Material-5 opens only existing `EngineCheck` reuse for `Scene.Material`.",
+      "- `Unknown`",
+      "- `Supports`",
+      "- `Caps`",
+      "- `Refutes`",
+      "- Material Story already exists",
+      "- same-board proof",
+      "- same Story route",
+      "- same legal line",
+      "- fresh or depth evidence",
+      "- engine creates Material Story",
+      "- engine eval becomes public truth",
+      "- PV becomes explanation",
+      "- best move explanation",
+      "- winning claim",
+      "- `MaterialEngineCheck` duplicate type",
+      "Completion standard: `EngineCheck` may support, cap, or refute an existing Material Story, but it must not create Material."
+    ).foreach: materialEngineLine =>
+      assert(interactionLaw.contains(materialEngineLine), s"Material-5 must pin: $materialEngineLine")
+    assert(interactionLaw.contains("## Material-6 StoryTable Integration"))
+    Vector(
+      "Material-6 opens only StoryTable integration for existing Hanging, Fork, and Material rows.",
+      "- Lead",
+      "- Support",
+      "- Context",
+      "- Blocked",
+      "- deterministic ordering",
+      "- Refuted Material becomes Blocked",
+      "- incomplete Material becomes Blocked",
+      "- writerless Material becomes Blocked",
+      "- Material without material proof becomes Blocked",
+      "- Hanging, Fork, and Material can compete for Lead",
+      "- Support and Context are not sentences",
+      "- StoryTable creates Material",
+      "- raw engine eval ranks Material",
+      "- material proof text becomes public",
+      "- renderer wording affects order",
+      "- Material silently opens conversion or winning",
+      "Completion standard: StoryTable deterministically orders the three Story families without creating new chess meaning."
+    ).foreach: materialStoryTableLine =>
+      assert(interactionLaw.contains(materialStoryTableLine), s"Material-6 must pin: $materialStoryTableLine")
+    assert(interactionLaw.contains("## Material-7 ExplanationPlan for Scene.Material"))
+    Vector(
+      "Material-7 opens only ExplanationPlan mapping for selected `Scene.Material` Verdicts.",
+      "Allowed Material-7 input:",
+      "- selected Verdict only",
+      "Forbidden Material-7 inputs:",
+      "- material proof directly",
+      "- `CaptureResult`",
+      "- `ExchangeResult`",
+      "- `EngineCheck`",
+      "- `BoardFacts`",
+      "- raw PV",
+      "- proofFailures",
+      "- source row",
+      "Allowed Material-7 claim keys:",
+      "- `material_balance_changes`",
+      "- `line_leaves_material_gain`",
+      "- `exchange_leaves_side_ahead`",
+      "The first emitted Material claim key is `material_balance_changes`.",
+      "Forbidden Material-7 claim keys:",
+      "- `winning_position`",
+      "- `decisive_advantage`",
+      "- `conversion`",
+      "- `blunder`",
+      "- `best_move`",
+      "- `forced_win`",
+      "- `no_counterplay`",
+      "Support, Context, Blocked, capped, and engine-refuted Material plans create no standalone public claim.",
+      "Material-7 does not open Material renderer text",
+      "Completion standard: Material ExplanationPlan creates no meaning stronger than the selected Verdict."
+    ).foreach: materialPlanLine =>
+      assert(interactionLaw.contains(materialPlanLine), s"Material-7 must pin: $materialPlanLine")
+    assert(normalizedModelContract.contains("Material-0 and Material-1 are owned by `StoryInteractionLaw.md`."))
+    assert(
+      normalizedModelContract.contains(
+        "Material-1 reuses `CaptureResult` for the first simple capture and immediate bounded recapture scope."
+      )
+    )
+    assert(normalizedModelContract.contains("Material-2 extends `CaptureResult` with captured pieces and bounded exchange sequence proof fields."))
+    assert(normalizedModelContract.contains("Material-3 opens `StoryWriter.SceneMaterial` as the named Material writer."))
+    assert(normalizedModelContract.contains("Material-4 adds only the Material negative corpus."))
+    assert(normalizedModelContract.contains("Material-5 reuses existing `EngineCheck` for `Scene.Material`."))
+    assert(
+      normalizedModelContract.contains(
+        "Material-6 adds only StoryTable integration for existing Hanging, Fork, and Material rows."
+      )
+    )
+    assert(normalizedModelContract.contains("Material-7 opens only ExplanationPlan mapping for selected `Scene.Material` Verdicts."))
+    assert(
+      normalizedModelContract.contains(
+        "Material allowed claim keys are `material_balance_changes`, `line_leaves_material_gain`, and `exchange_leaves_side_ahead`; the first emitted Material claim key is `material_balance_changes`."
+      )
+    )
+    assert(interactionLaw.contains("## Material-8 Deterministic Renderer"))
+    Vector(
+      "Material-8 opens only deterministic renderer text for selected `Scene.Material` ExplanationPlan.",
+      "Allowed Material-8 input:",
+      "- ExplanationPlan only",
+      "First Material-8 templates:",
+      "`This line leaves White ahead in material.`",
+      "`After {route}, White comes out ahead in material.`",
+      "Forbidden Material-8 wording:",
+      "- winning",
+      "- decisive",
+      "- blunder",
+      "- forced",
+      "- best move",
+      "- no counterplay",
+      "- engine says",
+      "- conversion",
+      "- technically winning",
+      "Material-8 does not open LLM smoke",
+      "Completion standard: Renderer text is no stronger than the Material ExplanationPlan."
+    ).foreach: materialRendererLine =>
+      assert(interactionLaw.contains(materialRendererLine), s"Material-8 must pin: $materialRendererLine")
+    assert(normalizedModelContract.contains("Material-8 opens only deterministic renderer text for selected `Scene.Material` ExplanationPlan."))
+    assert(interactionLaw.contains("## Material-9 LLM Smoke"))
+    Vector(
+      "Material-9 opens only LLM smoke for selected Material ExplanationPlan and RenderedLine.",
+      "Allowed Material-9 input:",
+      "- ExplanationPlan",
+      "- RenderedLine",
+      "8B Material Codex CLI input:",
+      "- renderedText",
+      "- claimKey",
+      "- strength",
+      "- forbidden wording",
+      "- instruction: Rephrase only. Do not add chess facts.",
+      "Forbidden Material-9 input:",
+      "- raw Verdict",
+      "- Story",
+      "- material proof",
+      "- CaptureResult",
+      "- ExchangeResult",
+      "- EngineCheck",
+      "- BoardFacts",
+      "- engine eval",
+      "- raw PV",
+      "- proofFailures",
+      "Material LLM smoke must reject output that adds:",
+      "- new move",
+      "- new line",
+      "- new tactic",
+      "- new plan",
+      "- engine mention",
+      "- winning, decisive, forced, blunder, or best-move wording",
+      "- conversion claim",
+      "- stronger claim",
+      "Material-9 does not open public/user-facing LLM narration",
+      "Completion standard: LLM smoke does not strengthen Material text."
+    ).foreach: materialSmokeLine =>
+      assert(interactionLaw.contains(materialSmokeLine), s"Material-9 must pin: $materialSmokeLine")
+    assert(normalizedModelContract.contains("Material-9 opens only LLM smoke for selected Material ExplanationPlan and RenderedLine."))
+    assert(interactionLaw.contains("## Material Slice Closeout Pass"))
+    Vector(
+      "Material slice closeout opens no new chess meaning beyond the narrow `Scene.Material` vertical slice.",
+      "Scope audit:",
+      "- opened: `Scene.Material` only",
+      "- still closed: `Scene.Defense`",
+      "- still closed: Plan",
+      "- still closed: Strategy",
+      "- still closed: Conversion",
+      "- still closed: Blunder",
+      "Authority audit:",
+      "- `CaptureResult` owns simple capture and immediate bounded recapture material proof.",
+      "- `ExchangeResult` remains unopened and is reserved for bounded multi-move exchange proof outside this slice if needed.",
+      "- `StoryProof` owns identity completeness, same-board proof, and legal-line binding.",
+      "- `EngineCheck` supports, caps, or refutes only an existing Material Story.",
+      "- `StoryTable` orders existing Material rows but creates no Material Story or material proof.",
+      "- `Scene.Material` owns the Story label only.",
+      "- `material_change` is speech-claim vocabulary; current emitted key is `material_balance_changes`.",
+      "Negative corpus audit:",
+      "- material-looking false positives produce no Lead or Blocked.",
+      "- high Proof score alone remains insufficient.",
+      "Cleanup and consolidation audit:",
+      "- no `ExchangeResult` type was created in this slice.",
+      "- no `MaterialEngineCheck` type was created.",
+      "- Material proof text does not become renderer or LLM input.",
+      "Shared skeleton audit:",
+      "- Material reuses proof home -> Story writer -> EngineCheck -> StoryTable -> ExplanationPlan -> Renderer -> LLM smoke.",
+      "- Reuse the skeleton before adding a new one.",
+      "- no second Story writer path, EngineCheck type, StoryTable route, ExplanationPlan input, renderer input, or LLM prompt shape was added.",
+      "- if `ExchangeResult` opens in its own slice, it must state how bounded multi-move exchange proof differs from `CaptureResult`.",
+      "Next-stage handoff:",
+      "- next named slice remains `Scene.Defense`.",
+      "- Material does not open Defense, Conversion, Winning, Plan, Strategy, or Blunder.",
+      "`Material is a scene, not a tactic.`",
+      "`Material gain is not winning.`",
+      "`One chess meaning, one home.`",
+      "Completion standard: Material slice is closed as a narrow bounded material-result Story label."
+    ).foreach: materialCloseoutLine =>
+      assert(interactionLaw.contains(materialCloseoutLine), s"Material closeout must pin: $materialCloseoutLine")
+    assert(normalizedModelContract.contains("Material Slice Closeout confirms `Scene.Material` opened no Defense, Conversion, Winning, Plan, Strategy, or Blunder path."))
     assertEquals(widthRows.size, 24)
     assertEquals(mappedTactics, Tactics.sorted)
     widthRows.foreach: row =>

@@ -230,6 +230,7 @@ object StoryProof:
 private[commentary] enum StoryWriter:
   case TacticHanging
   case TacticFork
+  case SceneMaterial
 
 final case class Story(
     scene: Scene,
@@ -438,6 +439,7 @@ object StoryTable:
       hangingWriterWithoutCapture(story) ||
       forkWithoutWriter(story) ||
       invalidForkWriter(story) ||
+      invalidMaterialWriter(story) ||
       (!leadByStoryRules(story, Vector(story)) && base(story))
 
   private def hangingWithoutWriter(story: Story) =
@@ -460,6 +462,10 @@ object StoryTable:
     story.writer.contains(StoryWriter.TacticFork) &&
       !positiveForkWriter(story)
 
+  private def invalidMaterialWriter(story: Story) =
+    story.writer.contains(StoryWriter.SceneMaterial) &&
+      !positiveMaterialWriter(story)
+
   private def base(story: Story) =
     story.proof.publicStrength >= 65 &&
       story.proof.truth >= 70 &&
@@ -479,6 +485,7 @@ object StoryTable:
     story.writer match
       case Some(StoryWriter.TacticHanging) => positiveHangingWriter(story)
       case Some(StoryWriter.TacticFork)    => positiveForkWriter(story)
+      case Some(StoryWriter.SceneMaterial) => positiveMaterialWriter(story)
       case _                               => false
 
   private def positiveHangingWriter(story: Story) =
@@ -503,6 +510,19 @@ object StoryTable:
         proof.sameBoardProof &&
         multiTargetProofBindsStory(story, proof) &&
         multiTargetRelationProven(proof)
+
+  private def positiveMaterialWriter(story: Story) =
+    story.scene == Scene.Material &&
+    story.tactic.isEmpty &&
+    story.plan.isEmpty &&
+    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+    story.captureResult.exists: result =>
+      result.positiveMaterial &&
+        result.sameBoardProof &&
+        result.missingEvidence.isEmpty &&
+        result.materialResult.nonEmpty &&
+        result.boundedExchangeSequence.nonEmpty &&
+        captureResultBindsStory(story, result)
 
   private def captureResultBindsStory(story: Story, result: CaptureResult) =
     result.side == story.side &&

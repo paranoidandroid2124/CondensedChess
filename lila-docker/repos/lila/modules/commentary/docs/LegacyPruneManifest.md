@@ -196,8 +196,77 @@ MultiTargetProof, EngineCheck, BoardFacts, engine eval, raw PV,
 proofFailures, production API, and public route paths do not return.
 Fork Slice Closeout authority lives in `StoryInteractionLaw.md`. Legacy broad
 Fork family expansion does not return. PawnFork, Skewer, QueenHit, Tempo,
-Scene.Material, Scene.Defense, Plan, Strategy, production API, public route,
-and public/user-facing LLM paths remain closed by the closeout.
+Scene.Defense, Plan, Strategy, production API, public route, and
+public/user-facing LLM paths remain closed by the closeout. Fork does not open
+Scene.Material by implication; Material-3 separately opens only the narrow
+named Scene.Material writer.
+Material-0 and Material-1 authority lives in `StoryInteractionLaw.md`.
+`Scene.Material` is fixed as a scene Story label, not a tactic and not proof.
+The first Material proof-home decision reuses `CaptureResult` for simple
+capture and immediate bounded recapture. Legacy material evaluation,
+conversion, winning, decisive, blunder, best-move, forced, no-counterplay,
+engine-says, production API, public route, and broad Material renderer paths do
+not return.
+Material-2 authority lives in `StoryInteractionLaw.md`. `CaptureResult` may
+carry captured pieces and bounded exchange sequence proof fields, but legacy
+material sentences, public Story creation, renderer text, LLM input,
+winning-position, decisive-advantage, conversion, blunder, best-move, and
+forced-line paths do not return.
+Material-3 authority lives in `StoryInteractionLaw.md`. The named
+`SceneMaterial` writer may create one narrow proof-backed `Scene.Material`
+Story, but legacy Material ExplanationPlan mapping, renderer text, LLM input,
+public route, production API, winning, decisive, blunder, conversion,
+best-move, forced, no-counterplay, engine-says, and full-evaluation paths do
+not return.
+Material-4 authority lives in `StoryInteractionLaw.md`. The Material negative
+corpus keeps material-looking false positives silent: legal-line missing,
+same-board missing, erased material result, unclear exchange result, king
+target, zero material result, EngineCheck Refutes, incomplete StoryProof,
+incomplete material proof, tactic-writer duplication, Hanging/Fork
+auto-duplication, and high Proof score only do not return legacy Material
+speech.
+Material-5 authority lives in `StoryInteractionLaw.md`. Existing EngineCheck
+may support, cap, or refute only an existing Material Story with same-board
+proof, same Story route, same legal line, and fresh or depth evidence. Legacy
+engine-created Material, public engine truth, PV explanation, best-move
+explanation, winning claim, and MaterialEngineCheck duplicate type paths do not
+return.
+Material-6 authority lives in `StoryInteractionLaw.md`. StoryTable may
+deterministically order only existing Hanging, Fork, and Material rows.
+Refuted, incomplete, writerless, or material-proof-missing Material rows are
+Blocked; Support and Context remain non-sentence roles. Legacy StoryTable
+Story creation, raw-engine-eval ranking, material proof text, renderer wording,
+conversion, and winning paths do not return.
+Material-7 authority lives in `StoryInteractionLaw.md`. Selected Material
+Verdicts may lower only to ExplanationPlan data. Legacy direct material proof
+input, CaptureResult or ExchangeResult input, EngineCheck input, BoardFacts
+input, raw PV input, proofFailures wording, source row input, Material renderer
+text, LLM smoke, public route, production API, winning-position,
+decisive-advantage, conversion, blunder, best-move, forced-win, and
+no-counterplay paths do not return.
+Material-8 authority lives in `StoryInteractionLaw.md`. Deterministic Material
+renderer text may phrase only selected Material ExplanationPlan input. Legacy
+raw Verdict input, Story input, direct material proof input, CaptureResult or
+ExchangeResult input, EngineCheck input, BoardFacts input, raw PV input,
+proofFailures wording, source row input, LLM smoke, public route, production
+API, winning, decisive, blunder, forced, best-move, no-counterplay,
+engine-says, conversion, and technically-winning wording paths do not return.
+Material-9 authority lives in `StoryInteractionLaw.md`. Material LLM smoke may
+receive only selected Material ExplanationPlan and RenderedLine. 8B Material
+Codex CLI input is limited to renderedText, claimKey, strength, forbidden
+wording, and `Rephrase only. Do not add chess facts.` Legacy raw Verdict,
+Story, material proof, CaptureResult, ExchangeResult, EngineCheck, BoardFacts,
+engine eval, raw PV, proofFailures, source row, public/user-facing LLM
+narration, public route, production API, winning, decisive, forced, blunder,
+best-move, conversion, and stronger-claim paths do not return.
+Material Slice Closeout authority lives in `StoryInteractionLaw.md`. Legacy
+Defense, Conversion, Winning, Plan, Strategy, Blunder, best-move,
+no-counterplay, full-engine-PV, public route, production API, and
+public/user-facing LLM paths do not return through Material. `ExchangeResult`
+and `MaterialEngineCheck` were not created in this slice. Legacy alternate
+Material proof-to-text structures do not return; Material reuses the existing
+proof home, Story writer, EngineCheck, StoryTable, ExplanationPlan, Renderer,
+and LLM smoke skeleton.
 Stage 8 prompt smoke authority lives in `StoryInteractionLaw.md`. Stage 8 opens
 only 8A Mock narrator and 8B Codex CLI prompt smoke test. Legacy LLM renderer
 paths, production API validation, raw proof inputs, engine mentions, best-move

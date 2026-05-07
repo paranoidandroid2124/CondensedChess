@@ -21,7 +21,8 @@ private[commentary] final case class EngineCheck(
     depth: Option[Int],
     freshnessPly: Option[Int],
     status: EngineCheckStatus,
-    missingEvidence: Vector[BoardFacts.MissingEvidence]
+    missingEvidence: Vector[BoardFacts.MissingEvidence],
+    storyBound: Boolean
 ):
   val publicClaimAllowed: Boolean = false
   def evidenceReady: Boolean = missingEvidence.isEmpty
@@ -41,7 +42,8 @@ private[commentary] object EngineCheck:
       requestedStatus: EngineCheckStatus = EngineCheckStatus.Supports
   ): EngineCheck =
     val checkedMove = story.flatMap(_.route)
-    val sameBoardProof = BoardFacts.sameBoardReady(facts) && story.exists(storyIdentityOnFacts(facts, _))
+    val storyBound = story.exists(storyIdentityOnFacts(facts, _))
+    val sameBoardProof = BoardFacts.sameBoardReady(facts) && storyBound
     val engineStartsWithStoryRoute =
       checkedMove
         .zip(engineLine)
@@ -77,7 +79,8 @@ private[commentary] object EngineCheck:
         else EngineCheckStatus.Unknown,
       missingEvidence =
         if missing.isEmpty then Vector.empty
-        else Vector(BoardFacts.MissingEvidence("EngineCheck", missing))
+        else Vector(BoardFacts.MissingEvidence("EngineCheck", missing)),
+      storyBound = storyBound
     )
 
   def fromEvidence(
@@ -115,7 +118,8 @@ private[commentary] object EngineCheck:
       status = if missing.isEmpty then requestedStatus else EngineCheckStatus.Unknown,
       missingEvidence =
         if missing.isEmpty then Vector.empty
-        else Vector(BoardFacts.MissingEvidence("EngineCheck", missing))
+        else Vector(BoardFacts.MissingEvidence("EngineCheck", missing)),
+      storyBound = false
     )
 
   private def engineLineBindsCheckedMove(engineLine: Option[EngineLine], checkedMove: Option[Line]): Boolean =
@@ -145,6 +149,16 @@ private[commentary] object EngineCheck:
               proof.forkMove.exists(move => story.route.contains(move)) &&
               proof.attacker.exists(pieces.contains) &&
               proof.targets.forall(pieces.contains)
+      case Some(StoryWriter.SceneMaterial) =>
+        story.scene == Scene.Material &&
+          story.tactic.isEmpty &&
+          story.proofFailures.isEmpty &&
+          story.captureResult.exists: result =>
+            result.sameBoardProof &&
+              result.missingEvidence.isEmpty &&
+              story.route.contains(result.captureLine) &&
+              result.capturingPiece.exists(pieces.contains) &&
+              result.targetPiece.exists(pieces.contains)
       case _ => false
 
   private def checkedStatus(

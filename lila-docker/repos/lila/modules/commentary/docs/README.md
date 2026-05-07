@@ -26,18 +26,25 @@ mismatch is a no-go state, not a second source of authority.
 
 This reset is intentionally closed at the public boundary.
 
-Current implementation scope is Stage 8 Prompt Smoke plus Fork-9 LLM Smoke for
-Fork.
+Current implementation scope is Stage 8 Prompt Smoke, Fork-9 LLM Smoke for
+Fork, and Material Slice Closeout Pass.
 Stage 1 Board Facts, Stage 2 Story Proof, and Stage 3 first narrow positive
 Story are prerequisites. Stage 3 remains open only for Material proof kernel,
-`Tactic.Hanging`, Hanging negative corpus, and the narrow `Tactic.Fork`
-vertical slice. Stage 4 is named `Engine Check`. Stage 4 opens only internal
-EngineCheck evidence, same-board and stale guards, `Tactic.Hanging`
-attachment, narrow `Tactic.Fork` attachment, false-positive corpus, and
-conservative StoryTable diagnostics for existing `Tactic.Hanging` and narrow
-`Tactic.Fork` Stories. Stage 5 is named `Story Order` and opens only role
-ordering for existing `Tactic.Hanging` Story rows and existing narrow
-`Tactic.Fork` Story rows. Stage 5-1 assigns Lead, Support, Context, and
+`Tactic.Hanging`, Hanging negative corpus, the narrow `Tactic.Fork` vertical
+slice, the narrow `Scene.Material` writer, and Material negative corpus.
+Stage 4 is named `Engine Check`. Stage 4 opens only internal EngineCheck
+evidence, same-board and stale guards, `Tactic.Hanging` attachment, narrow `Tactic.Fork`
+attachment, narrow `Scene.Material` EngineCheck reuse, false-positive corpus, and
+conservative StoryTable diagnostics for existing `Tactic.Hanging`, narrow
+`Tactic.Fork`, and single proof-backed `Scene.Material` Stories. Stage 5 is
+named `Story Order` and opens only role ordering for existing
+`Tactic.Hanging` Story rows and existing narrow `Tactic.Fork` Story rows;
+Material-3 adds only single-row StoryTable admission for proof-backed
+`Scene.Material`; Material-4 adds only the Material negative corpus;
+Material-5 reuses only existing `EngineCheck` for `Scene.Material`;
+Material-6 adds only StoryTable integration for existing Hanging, Fork, and
+Material rows. Stage 5-1
+assigns Lead, Support, Context, and
 Blocked roles inside that slice. Stage 5-2 fixes deterministic ordering inputs
 for those StoryTable rows. Stage 5-3 tightens close blockers and context
 relations for those rows. Stage 5-4 keeps Verdict diagnostics out of public
@@ -65,6 +72,32 @@ Stage 6-5 opens only the selected Verdict input guard. Explanation Plan accepts
 selected Verdict only. Raw BoardFacts, BoardMood, root atoms, CaptureResult,
 EngineCheck, EngineEval, EngineLine, raw PV, proofFailures text, unselected
 Story, unselected Verdict, and source rows remain forbidden inputs.
+Material-7 opens only ExplanationPlan mapping for selected `Scene.Material`
+Verdicts. It admits selected Verdict only, emits `material_balance_changes`
+first for uncapped Lead only, and opens no Material renderer text, LLM smoke,
+public route `200`, production API, winning, decisive, conversion, blunder,
+best-move, forced-win, or no-counterplay claim.
+Material-8 opens only deterministic renderer text for selected
+`Scene.Material` ExplanationPlan. Renderer receives `ExplanationPlan` only and
+may render bounded Material text such as `After {route}, White comes out ahead
+in material.` It opens no LLM smoke, public route `200`, production API,
+winning, decisive, blunder, forced, best-move, no-counterplay, engine-says,
+conversion, technically-winning, or full-evaluation claim.
+Material-9 opens only LLM smoke for selected Material ExplanationPlan and
+RenderedLine. 8B Material Codex CLI input is limited to renderedText,
+claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess
+facts.` It reads no raw Verdict, Story, material proof, CaptureResult,
+ExchangeResult, EngineCheck, BoardFacts, engine eval, raw PV, proofFailures,
+or source row data, and opens no public/user-facing LLM narration, public
+route `200`, production API, winning, decisive, forced, blunder, best-move,
+conversion, or stronger claim.
+Material Slice Closeout opens no new chess meaning beyond the narrow
+`Scene.Material` vertical slice. `CaptureResult` remains the simple capture
+and immediate bounded recapture proof home, `ExchangeResult` remains unopened,
+`Scene.Material` owns only the Story label, and `material_change` remains
+speech-claim vocabulary with runtime key `material_balance_changes`. The next
+named slice remains `Scene.Defense`; Material does not open Defense, Conversion,
+Winning, Plan, Strategy, or Blunder.
 Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
 engine-capped, and engine-refuted Verdicts create no allowed claim or public
 claim. Stage 7 deterministic renderer may receive Explanation Plan only and
@@ -114,21 +147,27 @@ systems in this branch checkpoint.
 
 `StoryInteractionLaw.md` owns the Stage 3 charter. This README only summarizes
 the current scope: backend Material proof evidence, the named
-`Tactic.Hanging` writer, and the narrow `Tactic.Fork` proof/writer vertical
-slice are open; other positive families, public/user-facing Fork LLM
+`Tactic.Hanging` writer, the narrow `Tactic.Fork` proof/writer vertical slice,
+and the narrow `Scene.Material` writer are open; other positive families,
+public/user-facing Fork LLM
 narration, and public route `200` are still closed.
 
 `StoryInteractionLaw.md` owns the Stage 4 charter. This README only summarizes
 the current scope: Story comes first, and engine evidence may check, cap, or
-refute only an existing `Tactic.Hanging` or narrow `Tactic.Fork` Story. Engine
-eval, engine line, reply line, and checked move data cannot create a Story,
-rank a Story, write a `Verdict`, feed a renderer, feed an LLM, or become
-public truth.
+refute only an existing `Tactic.Hanging`, narrow `Tactic.Fork`, or narrow
+`Scene.Material` Story. Engine eval, engine line, reply line, and checked move
+data cannot create a Story, rank a Story, write a `Verdict`, feed a renderer,
+feed an LLM, or become public truth.
 
 `StoryInteractionLaw.md` owns the Stage 5 charter. This README only summarizes
 the current scope: StoryTable may assign roles among existing
-`Tactic.Hanging` Story rows and existing narrow `Tactic.Fork` Story rows. It
-does not create Stories, open a new positive family, or turn engine eval, Board
+`Tactic.Hanging` Story rows and existing narrow `Tactic.Fork` Story rows.
+Material-3 adds only single-row StoryTable admission for proof-backed
+`Scene.Material`; Material-4 adds only the Material negative corpus;
+Material-5 reuses only existing `EngineCheck` for `Scene.Material`;
+Material-6 adds only StoryTable integration for existing Hanging, Fork, and
+Material rows. It does
+not create Stories, open another positive family, or turn engine eval, Board
 Facts, `CaptureResult`, or MultiTargetProof into direct public claims.
 This README summarizes Stage 5-1 only: complete Hanging rows may lead or
 support, refuted/incomplete/captureless rows are blocked, unknown engine checks
@@ -176,6 +215,21 @@ wording.
 This README summarizes Stage 6-5 only: Explanation Plan receives selected
 Verdict only. It accepts no raw proof material, unselected Story, unselected
 Verdict, source row, or proofFailures wording.
+This README summarizes Material-7 only: selected `Scene.Material` Verdicts may
+lower into ExplanationPlan data with bounded strength, forbidden wording, and
+the first emitted `material_balance_changes` claim key for uncapped Lead only.
+Support, Context, Blocked, capped, and engine-refuted Material plans create no
+standalone public claim. Material proof, `CaptureResult`, `ExchangeResult`,
+`EngineCheck`, `BoardFacts`, raw PV, proofFailures, source rows, Material
+renderer text, LLM smoke, public route `200`, production API, winning,
+decisive, conversion, blunder, best-move, forced-win, and no-counterplay remain
+closed.
+This README summarizes Material-8 only: deterministic renderer text may phrase
+selected Material ExplanationPlan through `ExplanationPlan` input only. The
+first route template is `After {route}, White comes out ahead in material.`
+The text must be no stronger than the Material ExplanationPlan and must not say
+winning, decisive, blunder, forced, best move, no counterplay, engine says,
+conversion, or technically winning.
 This README summarizes Stage 6 closeout only: Stage 6 closes with Explanation
 Plan only, without renderer, LLM, public route, user-facing prose, or pedagogy.
 Blocked, Support, Context, engine-capped, and engine-refuted Verdicts create
@@ -271,10 +325,91 @@ commentary, best-move explanation, material-win wording, wins-queen wording,
 and sibling tactic families remain closed.
 
 `StoryInteractionLaw.md` owns the Fork Slice Closeout Pass. This README only
-summarizes the current scope: closeout opens no sibling tactic,
-`Scene.Material`, `Scene.Defense`, Plan, Strategy, public route, production
-API, or public/user-facing LLM narration, and MultiTargetProof does not replace
-CaptureResult, StoryProof, EngineCheck, or StoryTable.
+summarizes the current scope: Fork closeout opens no sibling tactic,
+`Scene.Defense`, Plan, Strategy, public route, production API, or
+public/user-facing LLM narration. Fork does not open `Scene.Material` by
+implication; Material-3 opens only the narrow named `Scene.Material` writer.
+MultiTargetProof does not replace CaptureResult, StoryProof, EngineCheck, or
+StoryTable.
+
+`StoryInteractionLaw.md` owns Material-0 and Material-1. This README only
+summarizes the current scope: Material-0 fixes `Scene.Material` as a scene
+Story label, not a tactic and not proof. Material-1 reuses `CaptureResult` for
+the first simple capture and immediate bounded recapture proof home decision.
+`material_change` is the first Material speech claim key, but Material writer,
+StoryTable role rules, ExplanationPlan mapping, renderer text, LLM smoke,
+public route `200`, production API, winning, decisive, blunder, conversion,
+best-move, forced, no-counterplay, engine-says, and full-evaluation claims
+remain closed.
+`StoryInteractionLaw.md` owns Material-2. This README only summarizes that
+Material-2 extends `CaptureResult` with captured pieces and bounded exchange
+sequence proof fields. It calculates material result as proof only and does
+not create a public Story, sentence, Material writer, ExplanationPlan mapping,
+renderer text, LLM input, winning-position, decisive-advantage, conversion,
+blunder, best-move, or forced-line claim.
+`StoryInteractionLaw.md` owns Material-3. This README only summarizes that
+Material-3 opens `StoryWriter.SceneMaterial` as the named Material writer over
+complete `CaptureResult` proof, complete StoryProof, same-board proof, legal
+line, known material result, and no EngineCheck Refutes result. It opens no
+ExplanationPlan mapping, renderer text, LLM input, public route `200`,
+production API, winning, decisive, blunder, conversion, best-move, forced,
+no-counterplay, engine-says, or full-evaluation claims.
+`StoryInteractionLaw.md` owns Material-4. This README only summarizes that
+Material-4 adds the Material negative corpus. Legal-line missing, same-board
+missing, erased material result, unclear exchange result, king target, zero
+material result, EngineCheck Refutes, incomplete StoryProof, incomplete
+material proof, tactic-writer duplication, Hanging/Fork auto-duplication, and
+high Proof score only produce no Lead or Blocked. It opens no
+ExplanationPlan mapping, renderer text, LLM input, public route `200`,
+production API, winning, decisive, blunder, conversion, best-move, forced,
+no-counterplay, engine-says, or full-evaluation claims.
+`StoryInteractionLaw.md` owns Material-5. This README only summarizes that
+Material-5 reuses existing `EngineCheck` for `Scene.Material`. It may support,
+cap, or refute an already existing Material Story when same-board proof, same
+Story route, same legal line, and fresh or depth evidence are present. It
+creates no Material Story, public engine truth, PV explanation, best-move
+explanation, winning claim, or `MaterialEngineCheck` duplicate type.
+
+`StoryInteractionLaw.md` owns Material-6. This README only summarizes that
+Material-6 adds StoryTable integration for existing Hanging, Fork, and Material
+rows. Refuted, incomplete, writerless, or material-proof-missing Material rows
+are Blocked; Hanging, Fork, and Material can compete for Lead; Support and
+Context remain non-sentence roles. StoryTable creates no Material Story, raw
+engine eval does not rank Material, material proof text and renderer wording
+remain non-public, and Material does not open conversion or winning.
+
+`StoryInteractionLaw.md` owns Material-7. This README only summarizes that
+Material-7 opens ExplanationPlan mapping for selected `Scene.Material`
+Verdicts. Allowed Material claim keys are `material_balance_changes`,
+`line_leaves_material_gain`, and `exchange_leaves_side_ahead`; the first
+emitted key is `material_balance_changes`. It reads no material proof,
+`CaptureResult`, `ExchangeResult`, `EngineCheck`, `BoardFacts`, raw PV,
+proofFailures, or source row input, and it opens no Material renderer text,
+LLM smoke, public route, production API, winning, decisive, conversion,
+blunder, best-move, forced-win, or no-counterplay claim.
+
+`StoryInteractionLaw.md` owns Material-8. This README only summarizes that
+Material-8 opens deterministic renderer text for selected `Scene.Material`
+ExplanationPlan. Renderer input remains `ExplanationPlan` only, the first
+route template is `After {route}, White comes out ahead in material.`, and the
+text must not exceed the Material ExplanationPlan or use winning, decisive,
+blunder, forced, best-move, no-counterplay, engine-says, conversion, or
+technically-winning wording.
+
+`StoryInteractionLaw.md` owns Material-9. This README only summarizes that
+Material-9 opens LLM smoke for selected Material ExplanationPlan and
+RenderedLine. 8B receives only renderedText, claimKey, strength, forbidden
+wording, and `Rephrase only. Do not add chess facts.` Material LLM smoke must
+reject new moves, new lines, new tactics, new plans, engine mentions, winning,
+decisive, forced, blunder, best-move, conversion, and stronger claims.
+
+`StoryInteractionLaw.md` owns Material Slice Closeout. This README only
+summarizes that the closeout opened no sibling family or stronger result path.
+`CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`, `Scene.Material`,
+and `material_change` keep distinct homes, and `Scene.Defense` remains the
+next named slice. Material reuses the existing proof home, Story writer,
+EngineCheck, StoryTable, ExplanationPlan, Renderer, and LLM smoke skeleton
+before adding any new structure.
 
 - Public route no-go: `/api/commentary/render` and
   `/internal/commentary/render-local-probe` are registered only as fail-closed
@@ -287,12 +422,13 @@ CaptureResult, StoryProof, EngineCheck, or StoryTable.
   attacked piece, king-ring attack, and legal move facts are observations only.
   They are not public claims and must not bypass `Story`.
 - Story Proof no-go: `StoryProof` records the minimum proof bundle and missing
-  evidence, but only the named `Tactic.Hanging` writer and narrow
-  `Tactic.Fork` writer may open positive Story families in this checkpoint.
-  Numeric `Proof` scores may rank blocked/context `Verdict` rows only. They
-  cannot set `leadAllowed=true` or produce `Role.Lead` without the named
-  writer, complete StoryProof, same-board proof, and family proof:
-  `CaptureResult` for Hanging or `MultiTargetProof` for Fork.
+  evidence, but only the named `Tactic.Hanging` writer, narrow `Tactic.Fork`
+  writer, and narrow `Scene.Material` writer may open positive Story families
+  in this checkpoint. Numeric `Proof` scores may rank blocked/context
+  `Verdict` rows only. They cannot set `leadAllowed=true` or produce
+  `Role.Lead` without the named writer, complete StoryProof, same-board proof,
+  and family proof: `CaptureResult` for Hanging or Material, or
+  `MultiTargetProof` for Fork.
 - Proof no-go: missing side, target, anchor, route, rival, required legal line,
   or same-root proof sidecar is a hard public-output block, not weak scoring,
   deferred work, or renderer repair.
@@ -314,7 +450,7 @@ CaptureResult, StoryProof, EngineCheck, or StoryTable.
 - Stage 7-0 Deterministic Renderer no-go: the current scope may fix
   `ExplanationPlan` only input, deterministic template, `Tactic.Hanging`
   bounded claim phrasing, and forbidden wording checks only. It does not open
-  `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan, Strategy,
+  `Tactic.Fork`, Material renderer wording, `Scene.Defense`, Plan, Strategy,
   pedagogical advice, LLM, public route `200`, engine PV commentary,
   best-move explanation, engine explanation, or raw proof input.
 - Stage 7-1 Renderer Input Guard no-go: Renderer may accept

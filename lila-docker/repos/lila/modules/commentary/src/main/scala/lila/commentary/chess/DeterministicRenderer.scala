@@ -28,6 +28,8 @@ private[commentary] object DeterministicRenderer:
       Some(
         s"${moveRouteText(plan.evidenceLine.get)} forks the pieces on ${squareText(plan.target.get)} and ${squareText(plan.secondaryTarget.get)}."
       )
+    else if canPhraseMaterial(plan) then
+      Some(s"After ${captureRouteText(plan.evidenceLine.get)}, ${sideText(plan.side)} comes out ahead in material.")
     else None
 
   private def canPhraseHanging(plan: ExplanationPlan): Boolean =
@@ -51,6 +53,21 @@ private[commentary] object DeterministicRenderer:
       plan.strength == ExplanationStrength.Bounded &&
       plan.target.nonEmpty &&
       plan.secondaryTarget.nonEmpty &&
+      plan.route.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseMaterial(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Material &&
+      plan.tactic.isEmpty &&
+      plan.allowedClaim.contains(ExplanationClaim.MaterialBalanceChanges) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      (plan.side == Side.White || plan.side == Side.Black) &&
+      plan.target.nonEmpty &&
+      plan.anchor.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
       plan.route.nonEmpty &&
       plan.evidenceLine.contains(plan.route.get) &&
       plan.forbiddenWording.nonEmpty
@@ -141,3 +158,10 @@ private[commentary] object DeterministicRenderer:
 
   private def moveRouteText(line: Line): String =
     s"${squareText(line.from)}-${squareText(line.to)}"
+
+  private def sideText(side: Side): String =
+    side match
+      case Side.White => "White"
+      case Side.Black => "Black"
+      case Side.Both  => "Both sides"
+      case Side.None  => "The side"

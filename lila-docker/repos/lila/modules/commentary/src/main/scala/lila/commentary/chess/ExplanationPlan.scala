@@ -6,6 +6,9 @@ private[commentary] enum ExplanationClaim:
   case CaptureLeavesMaterialGain
   case ForksTwoTargets
   case AttacksTwoTargets
+  case MaterialBalanceChanges
+  case LineLeavesMaterialGain
+  case ExchangeLeavesSideAhead
 
   def key: String =
     this match
@@ -14,6 +17,9 @@ private[commentary] enum ExplanationClaim:
       case CaptureLeavesMaterialGain => "capture_leaves_material_gain"
       case ForksTwoTargets           => "forks_two_targets"
       case AttacksTwoTargets         => "attacks_two_targets"
+      case MaterialBalanceChanges    => "material_balance_changes"
+      case LineLeavesMaterialGain    => "line_leaves_material_gain"
+      case ExchangeLeavesSideAhead   => "exchange_leaves_side_ahead"
 
 private[commentary] object ExplanationClaim:
   val HangingAllowed: Vector[ExplanationClaim] =
@@ -48,6 +54,24 @@ private[commentary] object ExplanationClaim:
       "decisive_fork",
       "forced_win",
       "best_move",
+      "no_counterplay"
+    )
+
+  val MaterialAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.MaterialBalanceChanges,
+      ExplanationClaim.LineLeavesMaterialGain,
+      ExplanationClaim.ExchangeLeavesSideAhead
+    )
+
+  val MaterialForbiddenKeys: Vector[String] =
+    Vector(
+      "winning_position",
+      "decisive_advantage",
+      "conversion",
+      "blunder",
+      "best_move",
+      "forced_win",
       "no_counterplay"
     )
 
@@ -175,14 +199,21 @@ private[commentary] object ExplanationPlan:
         ForbiddenWording.DecisiveFork,
         ForbiddenWording.ForcedWin
       )
+  private val MaterialForbiddenWording =
+    ForbiddenWording.Basic :+ ForbiddenWording.ForcedWin
 
-  private def allowedClaim(verdict: Verdict, tactic: Tactic) =
+  private def tacticAllowedClaim(verdict: Verdict, tactic: Tactic) =
     if verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited then
       tactic match
         case Tactic.Hanging => Some(ExplanationClaim.CanWinPiece)
         case Tactic.Fork    => Some(ExplanationClaim.ForksTwoTargets)
         case _              => None
     else None
+
+  private def materialAllowedClaim(verdict: Verdict) =
+    Option.when(verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited)(
+      ExplanationClaim.MaterialBalanceChanges
+    )
 
   private def forbiddenWording(verdict: Verdict, tactic: Tactic) =
     val base =
@@ -191,6 +222,10 @@ private[commentary] object ExplanationPlan:
         case _           => HangingForbiddenWording
     if verdict.engineStrengthLimited then base :+ ForbiddenWording.StrongWording
     else base
+
+  private def materialForbiddenWording(verdict: Verdict) =
+    if verdict.engineStrengthLimited then MaterialForbiddenWording :+ ForbiddenWording.StrongWording
+    else MaterialForbiddenWording
 
   private def relations(verdict: Verdict, tactic: Tactic) =
     val roleRelation =
@@ -205,8 +240,22 @@ private[commentary] object ExplanationPlan:
     if verdict.engineStrengthLimited then roleRelation :+ ExplanationRelation.CappedSameStory
     else roleRelation
 
+  private def materialRelations(verdict: Verdict) =
+    val roleRelation =
+      verdict.role match
+        case Role.Support => Vector(ExplanationRelation.SameFamilyLowerRank)
+        case Role.Blocked if verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes) =>
+          Vector(ExplanationRelation.BlockedByEngineRefute)
+        case _ => Vector.empty
+    if verdict.engineStrengthLimited then roleRelation :+ ExplanationRelation.CappedSameStory
+    else roleRelation
+
   def fromSelected(verdict: Verdict): Option[ExplanationPlan] =
     val story = verdict.story
+    if story.scene == Scene.Material then fromSelectedMaterial(verdict, story)
+    else fromSelectedTactic(verdict, story)
+
+  private def fromSelectedTactic(verdict: Verdict, story: Story): Option[ExplanationPlan] =
     for
       tactic <- story.tactic
       target <- story.target
@@ -226,11 +275,38 @@ private[commentary] object ExplanationPlan:
       anchor = Some(anchor),
       route = Some(route),
       secondaryTarget = story.secondaryTarget,
-      allowedClaim = allowedClaim(verdict, tactic),
+      allowedClaim = tacticAllowedClaim(verdict, tactic),
       evidenceLine = Some(route),
       strength = ExplanationStrength.Bounded,
       forbiddenWording = forbiddenWording(verdict, tactic),
       relations = relations(verdict, tactic),
+      debugOnly = verdict.role == Role.Blocked,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedMaterial(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      if verdict.selected
+      if story.scene == Scene.Material
+      if story.tactic.isEmpty
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = None,
+      side = story.side,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      secondaryTarget = None,
+      allowedClaim = materialAllowedClaim(verdict),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = materialForbiddenWording(verdict),
+      relations = materialRelations(verdict),
       debugOnly = verdict.role == Role.Blocked,
       supportContextLinks = Vector.empty
     )

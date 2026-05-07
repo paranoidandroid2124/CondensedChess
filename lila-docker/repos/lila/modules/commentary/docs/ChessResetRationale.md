@@ -108,9 +108,10 @@ Stage 7-0 opens only the Deterministic Renderer charter: `ExplanationPlan`
 only input, deterministic template, `Tactic.Hanging` bounded claim phrasing,
 forbidden wording check, no LLM, and no public route. There is still no public
 surface opening, no `BoardMood` Sxxx expansion or re-entry, no positive
-`Story` proof writer beyond `Tactic.Hanging` and the narrow `Tactic.Fork`
-vertical slice, no engine PV commentary, no best-move explanation, no LLM
-narration, no pedagogy, and no engine explanation.
+`Story` proof writer beyond `Tactic.Hanging`, the narrow `Tactic.Fork`
+vertical slice, and the narrow `Scene.Material` writer, no engine PV
+commentary, no best-move explanation, no LLM narration, no pedagogy, and no
+engine explanation.
 Stage 7-1 opens only the Renderer input guard. Renderer receives
 `ExplanationPlan` only and exposes no raw Verdict, Story, BoardFacts,
 BoardMood, CaptureResult, EngineCheck, EngineEval, EngineLine, raw PV,

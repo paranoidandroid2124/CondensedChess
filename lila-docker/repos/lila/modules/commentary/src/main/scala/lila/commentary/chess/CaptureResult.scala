@@ -5,8 +5,10 @@ private[commentary] final case class CaptureResult(
     capturingPiece: Option[Piece],
     targetPiece: Option[Piece],
     captureLine: Line,
+    capturedPieces: Vector[Piece],
     capturedValue: Option[Int],
     recaptureCandidates: Vector[CaptureResult.Recapture],
+    boundedExchangeSequence: Vector[CaptureResult.ExchangeStep],
     materialResult: Option[Int],
     sameBoardProof: Boolean,
     missingEvidence: Vector[BoardFacts.MissingEvidence]
@@ -16,6 +18,7 @@ private[commentary] final case class CaptureResult(
 
 private[commentary] object CaptureResult:
   final case class Recapture(piece: Piece, line: Line)
+  final case class ExchangeStep(line: Line, capturedPiece: Piece, materialResultAfterStep: Int)
 
   def fromBoardFacts(facts: BoardFacts, captureLine: Line): CaptureResult =
     val sameBoardProof = BoardFacts.sameBoardReady(facts)
@@ -41,6 +44,9 @@ private[commentary] object CaptureResult:
       else Vector.empty
     val materialResult =
       Option.when(legalCapture && targetNonKing && materialKnown)(capturedValue.getOrElse(0) - recaptureCost(capturingPiece, recaptures))
+    val boundedSequence =
+      boundedExchangeSequence(captureLine, capturingPiece, targetPiece, capturedValue, recaptures, materialResult)
+    val capturedPieces = boundedSequence.map(_.capturedPiece)
 
     val missing = Vector(
       Option.when(!sameBoardProof)("same-board proof"),
@@ -57,8 +63,10 @@ private[commentary] object CaptureResult:
       capturingPiece = capturingPiece,
       targetPiece = targetPiece,
       captureLine = captureLine,
+      capturedPieces = capturedPieces,
       capturedValue = capturedValue,
       recaptureCandidates = recaptures,
+      boundedExchangeSequence = boundedSequence,
       materialResult = materialResult,
       sameBoardProof = sameBoardProof,
       missingEvidence =
@@ -74,6 +82,29 @@ private[commentary] object CaptureResult:
   private def recaptureCost(capturingPiece: Option[Piece], recaptures: Vector[Recapture]): Int =
     if recaptures.isEmpty then 0
     else capturingPiece.flatMap(pieceValue).getOrElse(0)
+
+  private def boundedExchangeSequence(
+      captureLine: Line,
+      capturingPiece: Option[Piece],
+      targetPiece: Option[Piece],
+      capturedValue: Option[Int],
+      recaptures: Vector[Recapture],
+      materialResult: Option[Int]
+  ): Vector[ExchangeStep] =
+    materialResult.toVector.flatMap: finalResult =>
+      targetPiece.toVector.flatMap: target =>
+        val captureStep =
+          ExchangeStep(captureLine, target, capturedValue.getOrElse(0))
+        val recaptureStep =
+          for
+            recapture <- recaptures.headOption
+            capturer <- capturingPiece
+          yield ExchangeStep(
+            recapture.line,
+            capturer.copy(square = captureLine.to),
+            finalResult
+          )
+        captureStep +: recaptureStep.toVector
 
   private def recaptureCandidates(
       pieces: Vector[Piece],

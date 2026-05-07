@@ -30,18 +30,26 @@ The current branch owns only:
 
 `Board Truth / Primitive Geometry / Story boundary / Verdict boundary / Explanation Plan boundary / Deterministic Renderer boundary`
 
-Current implementation scope is Stage 8 Prompt Smoke plus the narrow Fork-9
-LLM smoke slice. Stage 3 remains open only for Material proof kernel,
-`Tactic.Hanging`, Hanging negative corpus, and the narrow
-`Tactic.Fork` vertical slice. Stage 4 is named `Engine Check`. Stage 4 opens
+Current implementation scope is Stage 8 Prompt Smoke, the narrow Fork-9
+LLM smoke slice, and Material Slice Closeout Pass. Stage 3 remains open
+only for Material proof kernel, `Tactic.Hanging`, Hanging negative corpus, the
+narrow `Tactic.Fork` vertical slice, the narrow `Scene.Material` writer, and
+Material negative corpus and EngineCheck reuse.
+Stage 4 is named `Engine Check`. Stage 4 opens
 only `EngineCheck`, `EngineLine`, and `EngineEval` as internal evidence,
 same-board and stale guards, `Tactic.Hanging` attachment, narrow
-`Tactic.Fork` attachment, false-positive corpus, and conservative StoryTable
-diagnostics for existing `Tactic.Hanging` and narrow `Tactic.Fork` Stories.
-Stage 5 is named `Story Order` and opens only StoryTable role ordering for
-existing `Tactic.Hanging` Story rows and existing narrow `Tactic.Fork` Story
-rows. Stage 5-1 assigns Lead, Support, Context, and Blocked roles inside that
-slice. Stage 5-2 fixes deterministic ordering inputs for those rows. Stage
+`Tactic.Fork` attachment, narrow `Scene.Material` EngineCheck reuse,
+false-positive corpus, and conservative StoryTable diagnostics for existing
+`Tactic.Hanging`, narrow `Tactic.Fork`, and single proof-backed
+`Scene.Material` Stories. Stage 5 is named `Story Order` and opens only
+StoryTable role ordering for existing `Tactic.Hanging` Story rows and existing
+narrow `Tactic.Fork` Story rows; Material-3 adds only single-row StoryTable
+admission for proof-backed `Scene.Material`; Material-4 adds only the Material
+negative corpus; Material-5 reuses only existing `EngineCheck` for
+`Scene.Material`; Material-6 adds only StoryTable integration for existing
+Hanging, Fork, and Material rows. Stage 5-1 assigns Lead, Support, Context, and Blocked roles
+inside that slice. Stage 5-2 fixes deterministic
+ordering inputs for those rows. Stage
 5-3 tightens close blockers and context relations for those rows. Stage 5-4
 keeps Verdict diagnostics out of public numeric values and downstream public
 surfaces. Stage 5 closeout confirmed Story ordering only and selected-Verdict
@@ -67,6 +75,32 @@ Stage 6-5 opens only the selected Verdict input guard. Explanation Plan accepts
 selected Verdict only. Raw BoardFacts, BoardMood, root atoms, CaptureResult,
 EngineCheck, EngineEval, EngineLine, raw PV, proofFailures text, unselected
 Story, unselected Verdict, and source rows remain forbidden inputs.
+Material-7 opens only ExplanationPlan mapping for selected `Scene.Material`
+Verdicts. It admits selected Verdict only, emits `material_balance_changes`
+first for uncapped Lead only, and opens no Material renderer text, LLM smoke,
+public route `200`, production API, winning, decisive, conversion, blunder,
+best-move, forced-win, or no-counterplay claim.
+Material-8 opens only deterministic renderer text for selected
+`Scene.Material` ExplanationPlan. Renderer receives `ExplanationPlan` only and
+may render bounded Material text such as `After {route}, White comes out ahead
+in material.` It opens no LLM smoke, public route `200`, production API,
+winning, decisive, blunder, forced, best-move, no-counterplay, engine-says,
+conversion, technically-winning, or full-evaluation claim.
+Material-9 opens only LLM smoke for selected Material ExplanationPlan and
+RenderedLine. 8B Material Codex CLI input is limited to renderedText,
+claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess
+facts.` It reads no raw Verdict, Story, material proof, CaptureResult,
+ExchangeResult, EngineCheck, BoardFacts, engine eval, raw PV, proofFailures,
+or source row data, and opens no public/user-facing LLM narration, public
+route `200`, production API, winning, decisive, forced, blunder, best-move,
+conversion, or stronger claim.
+Material Slice Closeout opens no new chess meaning beyond the narrow
+`Scene.Material` vertical slice. `CaptureResult` remains the simple capture
+and immediate bounded recapture proof home, `ExchangeResult` remains unopened,
+`Scene.Material` owns only the Story label, and `material_change` remains
+speech-claim vocabulary with runtime key `material_balance_changes`. The next
+named slice remains `Scene.Defense`; Material does not open Defense, Conversion,
+Winning, Plan, Strategy, or Blunder.
 Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
 engine-capped, and engine-refuted Verdicts create no allowed claim or public
 claim. Stage 7 deterministic renderer may receive Explanation Plan only and
@@ -408,6 +442,41 @@ Stage 6-5 adds the selected Verdict input guard only. Explanation Plan accepts
 selected Verdict only and creates no chess meaning beyond that Verdict. Raw
 proof material, unselected Story, unselected Verdict, source rows, and
 proofFailures text remain outside its input boundary.
+
+Material-7 adds only `Scene.Material` ExplanationPlan lowering for selected
+Verdicts. The allowed Material claim keys are `material_balance_changes`,
+`line_leaves_material_gain`, and `exchange_leaves_side_ahead`; the first
+emitted key is `material_balance_changes`. Support, Context, Blocked, capped,
+and engine-refuted Material plans create no standalone public claim. Material
+proof, `CaptureResult`, `ExchangeResult`, `EngineCheck`, `BoardFacts`, raw PV,
+proofFailures, source rows, Material renderer text, LLM smoke, public route,
+production API, winning, decisive, conversion, blunder, best-move, forced-win,
+and no-counterplay remain closed.
+
+Material-8 adds only deterministic renderer text for selected Material
+ExplanationPlan. The route template is `After {route}, White comes out ahead
+in material.` Renderer input remains `ExplanationPlan` only. It reads no raw
+Verdict, Story, material proof, `CaptureResult`, `ExchangeResult`,
+`EngineCheck`, `BoardFacts`, raw PV, proofFailures, or source rows, and it
+does not open LLM smoke, public route, production API, winning, decisive,
+blunder, forced, best-move, no-counterplay, engine-says, conversion, or
+technically-winning wording.
+
+Material-9 adds only LLM smoke for selected Material ExplanationPlan and
+RenderedLine. 8B Material Codex CLI input is limited to renderedText,
+claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess
+facts.` It reads no raw Verdict, Story, material proof, `CaptureResult`,
+`ExchangeResult`, `EngineCheck`, `BoardFacts`, engine eval, raw PV,
+proofFailures, or source rows, and it does not open public/user-facing LLM
+narration, public route, production API, winning, decisive, forced, blunder,
+best-move, conversion, or stronger claims.
+
+Material Slice Closeout adds no runtime stage. It audits that `Scene.Material`
+opened no Defense, Conversion, Winning, Plan, Strategy, or Blunder path; that
+`CaptureResult`, `StoryProof`, `EngineCheck`, and `StoryTable` keep distinct
+authority; that the existing proof home, Story writer, EngineCheck, StoryTable,
+ExplanationPlan, Renderer, and LLM smoke skeleton was reused; and that
+`Scene.Defense` remains the next named slice.
 
 Stage 6 closeout confirms Explanation Plan only. It opens no renderer, LLM
 narration, public route, user-facing prose, or pedagogy. Stage 7 deterministic
