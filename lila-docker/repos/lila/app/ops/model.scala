@@ -241,12 +241,9 @@ object OpsMetricsSnapshot:
   private val samplePattern = "^([a-zA-Z_:][a-zA-Z0-9_:]*)(\\{.*\\})?\\s+([^\\s]+).*$".r
 
   private val sectionTitles = Map(
-    "active" -> "Commentary",
     "akka" -> "Akka",
     "cache" -> "Cache",
-    "commentary" -> "Commentary",
     "db" -> "Database",
-    "fullgame" -> "Commentary",
     "gc" -> "Runtime",
     "http" -> "HTTP",
     "jvm" -> "JVM",

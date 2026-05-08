@@ -55,7 +55,6 @@ import {
   type BoardLabelMode,
 } from './boardWorkspace';
 import { makeMoveExplanation, type MoveExplanationCtrl } from './chesstory/moveExplanation';
-import { makeLocalCevalProbeProvider } from './chesstory/localProbe';
 
 const recentImportStorageKey = 'analyse.import-recents.v1';
 const boardLabelModes = new Set<BoardLabelMode>(['off', 'inside', 'rim', 'full']);
@@ -175,18 +174,7 @@ export default class AnalyseCtrl implements CevalHandler {
 
     this.initialize(this.data, false);
     this.initCeval();
-    this.moveExplanation = makeMoveExplanation(
-      this,
-      this.localCommentaryProbeEnabled()
-        ? {
-            localProbe: makeLocalCevalProbeProvider({
-              ceval: () => this.ceval,
-              variant: () => this.data.game.variant.key,
-              canRun: () => this.isCevalAllowed(),
-            }),
-          }
-        : {},
-    );
+    this.moveExplanation = makeMoveExplanation(this);
     this.initWorkspacePrefs();
     this.syncWorkspacePrefs();
     this.pendingCopyPath = propWithEffect(null, this.redraw);
@@ -1013,10 +1001,6 @@ export default class AnalyseCtrl implements CevalHandler {
     };
     if (this.ceval) this.ceval.init(opts);
     else this.ceval = new CevalCtrl(opts);
-  }
-
-  private localCommentaryProbeEnabled(): boolean {
-    return !!this.opts.commentaryLocalProbe && new URL(window.location.href).searchParams.get('commentaryProbe') === 'local';
   }
 
   isCevalAllowed = () =>

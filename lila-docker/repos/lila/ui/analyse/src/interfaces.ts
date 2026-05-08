@@ -200,7 +200,6 @@ export interface AnalyseOpts {
   inlinePgn?: string;
   importHistory?: ImportHistoryView;
   externalEngineEndpoint: string;
-  commentaryLocalProbe?: boolean;
   embed?: boolean;
   socketUrl?: string;
   socketVersion?: number;

@@ -1,19 +1,19 @@
 package views.pages
 
 import lila.app.JournalContent
-import lila.app.UiEnv.{ *, given }
+import lila.app.UiEnv.*
 import lila.ui.Page
+import scala.annotation.unused
 
 object landing:
 
-  def apply(latestJournalPost: Option[JournalContent.Post])(using ctx: Context): Page =
+  def apply(latestJournalPost: Option[JournalContent.Post])(using @unused ctx: Context): Page =
     val samplePgn =
       "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7 6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Nb8 10. d4 Nbd7 11. c4"
     val sampleAnalysisUrl = routes.UserAnalysis.pgn(samplePgn).url
     val analysisUrl = routes.UserAnalysis.index.url
     val pgnImportUrl = routes.Importer.importGame.url
     val accountIntelUrl = routes.AccountIntel.landing("", "").url
-    val strategicPuzzleUrl = routes.StrategicPuzzle.home.url
     val journalUrl = routes.Main.journal.url
     val journalTitle = latestJournalPost.fold("Product notes from Chesstory")(_.title)
     val journalSummary = latestJournalPost.fold(
@@ -40,14 +40,14 @@ object landing:
                     h1(
                       "One position can become a pattern,",
                       br,
-                      span("an explanation, and a board study.")
+                      span("an analysis board, and a study notebook.")
                     ),
                     p(cls := "hero-summary")(
-                      "Chesstory turns games into recurring patterns, board-linked explanations, strategic puzzles, and direct analysis when you want the whole line."
+                      "Chesstory turns games into recurring patterns, direct analysis, and study notebooks when you want the whole line."
                     ),
                     div(cls := "hero-support-copy")(
                       p(
-                        "See recurring patterns from public games, read why a move mattered, ask for an explanation on demand, and continue on the board."
+                        "See recurring patterns from public games, import a PGN, and continue on the board with the tree, engine, explorer, and study flow."
                       )
                     ),
                     div(cls := "hero-cta")(
@@ -87,23 +87,23 @@ object landing:
                           )
                         ),
                         st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--review")(
-                          p(cls := "hero-surface-kicker")("Move Explanation"),
-                          h3(cls := "hero-surface-title")("Why this position matters"),
+                          p(cls := "hero-surface-kicker")("Imported Analysis"),
+                          h3(cls := "hero-surface-title")("The game stays on the board"),
                           p(cls := "hero-surface-copy")(
-                            "The same position can be read through the current board and exact evidence."
+                            "Paste a PGN and keep the moves, engine, and board context together."
                           ),
                           p(cls := "hero-artifact-proof")(
-                            "Output: board-linked evidence and a bounded explanation."
+                            "Output: one imported game with board and tree available."
                           )
                         ),
                         st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--move")(
-                          p(cls := "hero-surface-kicker")("Explain This Move"),
-                          h3(cls := "hero-surface-title")("Ask only when you want it"),
+                          p(cls := "hero-surface-kicker")("Study Notebook"),
+                          h3(cls := "hero-surface-title")("Save the work that should persist"),
                           p(cls := "hero-surface-copy")(
-                            "Move commentary stays on demand instead of taking over every board change."
+                            "Turn useful positions into reusable chapters instead of losing the trail."
                           ),
                           p(cls := "hero-artifact-proof")(
-                            "Output: one move, one reason, one board-linked explanation."
+                            "Output: saved chapters, notes, and analysis state."
                           )
                         ),
                         st.article(cls := "hero-surface hero-artifact-card hero-artifact-card--analysis")(
@@ -129,9 +129,9 @@ object landing:
                 div(cls := "landing-container")(
                   div(cls := "section-heading")(
                     p(cls := "section-kicker")("What Chesstory produces"),
-                    h2("Four artifacts that already exist in the product"),
+                    h2("Three artifacts that already exist in the product"),
                     p(
-                      "Chesstory does not promise a coaching persona. It gives you recurring positions, move explanations, strategic puzzles, and a direct analysis shell."
+                      "Chesstory does not promise a coaching persona. It gives you recurring positions, imported games, and a direct analysis shell."
                     )
                   ),
                   div(cls := "product-grid")(
@@ -143,22 +143,16 @@ object landing:
                     ),
                     st.article(cls := "feature-card artifact-card")(
                       p(cls := "feature-kicker")("Artifact 02"),
-                      h3("Move Explanation"),
-                      p("Ask for commentary on the current position through selected exact-board evidence."),
-                      p(cls := "artifact-card__proof")("Use it when the current board needs a bounded explanation.")
+                      h3("Imported Analysis"),
+                      p("Paste a PGN and review the game with the board, tree, engine, and explorer together."),
+                      p(cls := "artifact-card__proof")("Use it when you already have the game and want direct board work.")
                     ),
                     st.article(cls := "feature-card artifact-card")(
                       p(cls := "feature-kicker")("Artifact 03"),
-                      h3("Explain This Move"),
-                      p("Ask for commentary on the current move only when the current position needs more context."),
-                      p(cls := "artifact-card__proof")("Use it when one decision matters more than opening every branch.")
+                      h3("Study Notebook"),
+                      p("Save useful analysis positions into a notebook when the work should persist."),
+                      p(cls := "artifact-card__proof")("Use it when one game should become reusable study material.")
                     ),
-                    st.article(cls := "feature-card artifact-card")(
-                      p(cls := "feature-kicker")("Artifact 04"),
-                      h3("Strategic Puzzle"),
-                      p("Open a live position-shaped puzzle that keeps the idea on the board and reveals the explanation."),
-                      p(cls := "artifact-card__proof")("Use it when the same idea should be seen as a puzzle, not just a note.")
-                    )
                   )
                 )
               ),
@@ -166,7 +160,7 @@ object landing:
                 div(cls := "landing-container")(
                   div(cls := "section-heading")(
                     p(cls := "section-kicker")("One position story"),
-                    h2("The same board can move through four Chesstory surfaces"),
+                    h2("The same board can move through three Chesstory surfaces"),
                     p(
                       "The point is not a larger feature list. The point is that one chess problem can stay recognisable while the surface changes."
                     )
@@ -191,8 +185,7 @@ object landing:
                           )
                         ),
                         div(cls := "story-stage-footer")(
-                          a(href := sampleAnalysisUrl, cls := "btn-secondary")("Open the sample analysis"),
-                          a(href := strategicPuzzleUrl, cls := "btn-text")("Open Strategic Puzzle")
+                          a(href := sampleAnalysisUrl, cls := "btn-secondary")("Open the sample analysis")
                         )
                       )
                     ),
@@ -201,36 +194,27 @@ object landing:
                         p(cls := "story-card__label")("Pattern"),
                         h3("My Patterns keeps the recurring position in front of you"),
                         p(cls := "story-card__copy")(
-                          "Start with a public account and keep one typical board, one explanation, and one next place to look."
+                          "Start with a public account and keep one typical board, one recurring position, and one next place to look."
                         ),
                         p(cls := "story-card__proof")("Output: recurring pattern, openings you actually reach, and evidence games."),
                         a(href := accountIntelUrl, cls := "story-card__link")("See account patterns")
                       ),
                       st.article(cls := "timeline-card story-card")(
-                        p(cls := "story-card__label")("Explanation"),
-                        h3("Move Explanation keeps that board readable"),
+                        p(cls := "story-card__label")("Analysis"),
+                        h3("Imported Analysis keeps that board available"),
                         p(cls := "story-card__copy")(
-                          "The same position stays tied to exact-board evidence, current-node context, and bounded commentary."
+                          "The same position stays tied to the imported move tree, engine support, and direct board context."
                         ),
-                        p(cls := "story-card__proof")("Output: one board, one bounded reason, and direct analysis."),
+                        p(cls := "story-card__proof")("Output: one board, one move tree, and direct analysis."),
                         a(href := sampleAnalysisUrl, cls := "story-card__link")("Open a sample analysis")
-                      ),
-                      st.article(cls := "timeline-card story-card")(
-                        p(cls := "story-card__label")("Strategic Puzzle"),
-                        h3("Strategic Puzzle lets the idea stay on the board"),
-                        p(cls := "story-card__copy")(
-                          "The same theme can be seen as a live position with hints, a revealed line, and a compact explanation."
-                        ),
-                        p(cls := "story-card__proof")("Output: one board task, one revealed plan, and the next puzzle."),
-                        a(href := strategicPuzzleUrl, cls := "story-card__link")("Open Strategic Puzzle")
                       ),
                       st.article(cls := "timeline-card story-card")(
                         p(cls := "story-card__label")("Full Analysis"),
                         h3("Full Analysis keeps the board and tree available when you need them"),
                         p(cls := "story-card__copy")(
-                          "When the current explanation is not enough, continue on the same board with the move list, engine, explorer, and current-node explanation."
+                          "When the current board is not enough, continue on the same board with the move list, engine, explorer, and analysis context."
                         ),
-                        p(cls := "story-card__proof")("Output: board, tree, current node, and direct move explanation."),
+                        p(cls := "story-card__proof")("Output: board, tree, current node, and direct board analysis."),
                         a(href := analysisUrl, cls := "story-card__link")("Open full analysis")
                       )
                     )
@@ -264,10 +248,10 @@ object landing:
                     st.article(cls := "feature-card entry-card")(
                       p(cls := "feature-kicker")("Entry 02"),
                       h3("PGN"),
-                      p("Paste a game and go straight to the board, then keep Move Explanation one click away."),
+                      p("Paste a game and go straight to the board, move tree, engine, and explorer."),
                       p(cls := "entry-card__proof")("Best when you already know which game you want to understand."),
                       div(cls := "entry-card__chips sample-chip-row")(
-                        span("Move Explanation"),
+                        span("Imported game"),
                         span("Sample analysis"),
                         span("PGN import")
                       ),
@@ -279,12 +263,12 @@ object landing:
                     st.article(cls := "feature-card entry-card")(
                       p(cls := "feature-kicker")("Entry 03"),
                       h3("Current board"),
-                      p("Open Full Analysis when you want the board, tree, engine, explorer, and current-node explanation directly."),
+                      p("Open Full Analysis when you want the board, tree, engine, and explorer directly."),
                       p(cls := "entry-card__proof")("Best when you already have the position and want to stay inside direct analysis."),
                       div(cls := "entry-card__chips sample-chip-row")(
                         span("Full Analysis"),
-                        span("Explain This Move"),
-                        span("Board-first")
+                        span("Board-first"),
+                        span("Explorer")
                       ),
                       div(cls := "entry-card__actions")(
                         a(href := analysisUrl, cls := "btn-secondary")("Open full analysis")
@@ -310,16 +294,8 @@ object landing:
                         strong("Recurring positions, openings, evidence games")
                       ),
                       div(cls := "truth-row")(
-                        span("Move Explanation"),
-                        strong("On-demand exact-board commentary for the current node")
-                      ),
-                      div(cls := "truth-row")(
-                        span("Explain This Move"),
-                        strong("On-demand commentary for the current move")
-                      ),
-                      div(cls := "truth-row")(
-                        span("Strategic Puzzle"),
-                        strong("Live position, revealed line, next puzzle")
+                        span("Imported Analysis"),
+                        strong("PGN to board, tree, engine, explorer")
                       ),
                       div(cls := "truth-row")(
                         span("Full Analysis"),
@@ -328,10 +304,13 @@ object landing:
                       div(cls := "truth-row")(
                         span("Study notebook"),
                         strong("Saved history, reopen flow, study reuse")
+                      ),
+                      div(cls := "truth-row")(
+                        span("Beta feedback"),
+                        strong("Signals what needs polish next")
                       )
                     ),
                     div(cls := "truth-boundaries")(
-                      p("Explain This Move is on demand."),
                       p("Imported games start from the board and move list."),
                       p("Full Analysis stays available when you want the board and tree directly.")
                     ),

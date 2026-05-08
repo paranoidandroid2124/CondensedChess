@@ -58,32 +58,19 @@ const landingScala = readFileSync(
   fileURLToPath(new URL('../../../app/views/pages/landing.scala', import.meta.url)),
   'utf8',
 );
+const supportScala = readFileSync(
+  fileURLToPath(new URL('../../../app/views/pages/support.scala', import.meta.url)),
+  'utf8',
+);
+const betaFeedbackScala = readFileSync(
+  fileURLToPath(new URL('../../../app/views/pages/betaFeedback.scala', import.meta.url)),
+  'utf8',
+);
+const sitePackageJson = readFileSync(fileURLToPath(new URL('../../../ui/site/package.json', import.meta.url)), 'utf8');
+const monScala = readFileSync(fileURLToPath(new URL('../../../modules/common/src/main/mon.scala', import.meta.url)), 'utf8');
+const opsModelScala = readFileSync(fileURLToPath(new URL('../../../app/ops/model.scala', import.meta.url)), 'utf8');
 const authScss = readFileSync(fileURLToPath(new URL('../../../ui/site/css/_auth.scss', import.meta.url)), 'utf8');
 const accountScss = readFileSync(fileURLToPath(new URL('../../../ui/site/css/_account.scss', import.meta.url)), 'utf8');
-const strategicPuzzleTs = readFileSync(
-  fileURLToPath(new URL('../../../ui/site/src/strategicPuzzle.ts', import.meta.url)),
-  'utf8',
-);
-const strategicPuzzleController = readFileSync(
-  fileURLToPath(new URL('../../../app/controllers/StrategicPuzzle.scala', import.meta.url)),
-  'utf8',
-);
-const strategicPuzzleDemoView = readFileSync(
-  fileURLToPath(new URL('../../../app/views/pages/strategicPuzzleDemo.scala', import.meta.url)),
-  'utf8',
-);
-const strategicPuzzleEmptyView = readFileSync(
-  fileURLToPath(new URL('../../../app/views/pages/strategicPuzzleEmpty.scala', import.meta.url)),
-  'utf8',
-);
-const strategicPuzzlePageView = readFileSync(
-  fileURLToPath(new URL('../../../app/views/pages/strategicPuzzlePage.scala', import.meta.url)),
-  'utf8',
-);
-const strategicPuzzleScss = readFileSync(
-  fileURLToPath(new URL('../../../ui/site/css/_strategicPuzzle.scss', import.meta.url)),
-  'utf8',
-);
 const mainController = readFileSync(fileURLToPath(new URL('../../../app/controllers/Main.scala', import.meta.url)), 'utf8');
 const journalView = readFileSync(fileURLToPath(new URL('../../../app/views/pages/journal.scala', import.meta.url)), 'utf8');
 const topNavScala = readFileSync(
@@ -93,6 +80,16 @@ const topNavScala = readFileSync(
 const importerView = readFileSync(fileURLToPath(new URL('../../../app/views/importer.scala', import.meta.url)), 'utf8');
 
 describe('frontend audit regressions', () => {
+  const retiredRouteSlug = ['strategic', 'puzzle'].join('-');
+  const retiredController = ['Strategic', 'Puzzle'].join('');
+  const retiredBundle = ['strategic', 'Puzzle.ts'].join('');
+  const retiredMoveSurface = ['Move', 'Explanation'].join(' ');
+  const retiredMoveAction = ['Explain', 'This', 'Move'].join(' ');
+  const retiredChronicleKey = ['game', 'chronicle'].join('_');
+  const retiredChronicleLabel = ['Game', 'Chronicle'].join(' ');
+  const retiredLlmMetricPrefix = ['llm', 'commentary'].join('.');
+  const retiredOpsTitle = ['Commentary'].join('');
+
   test('FEN workspace binds Enter to the relaunch path', () => {
     assert.match(componentsTs, /label\.name', 'FEN'[\s\S]*?addEventListener\('keydown', \(e: KeyboardEvent\) => \{/);
     assert.match(componentsTs, /e\.key !== 'Enter'/);
@@ -130,11 +127,45 @@ describe('frontend audit regressions', () => {
     assert.match(topNavScala, /item\("\/import", "Import Games", isOn\("\/import"\), Some\("Import recent public games"\)\)/);
     assert.match(topNavScala, /item\("\/account-intel", "Account Reports", isOn\("\/account-intel"\), Some\("Open account reports"\)\)/);
     assert.match(topNavScala, /item\("\/analysis", "Analysis", isOn\("\/analysis"\)\)/);
-    assert.match(topNavScala, /item\("\/strategic-puzzle", "Strategic Puzzles", isOn\("\/strategic-puzzle"\)\)/);
     assert.match(topNavScala, /item\("\/notebook", "Notebook", isOn\("\/notebook"\)\)/);
     assert.doesNotMatch(topNavScala, /item\("\/journal", "Journal", isOn\("\/journal"\)\)/);
     assert.doesNotMatch(topNavScala, /item\("\/support", "Support", isOn\("\/support"\)/);
     assert.match(importerView, /div\(cls := "importer-hero__eyebrow"\)\("Recent games"\)/);
+  });
+
+  test('retired puzzle product surface stays removed from live entry points', () => {
+    const retiredRoutePattern = new RegExp(retiredRouteSlug);
+    const retiredControllerPattern = new RegExp(retiredController);
+    const retiredBundlePattern = new RegExp(retiredBundle.replace('.', '\\.'));
+
+    assert.doesNotMatch(routes, retiredRoutePattern);
+    assert.doesNotMatch(routes, retiredControllerPattern);
+    assert.doesNotMatch(topNavScala, retiredRoutePattern);
+    assert.doesNotMatch(landingScala, retiredControllerPattern);
+    assert.doesNotMatch(accountIntelView, retiredControllerPattern);
+    assert.doesNotMatch(domHandlersTs, retiredRoutePattern);
+    assert.doesNotMatch(sitePackageJson, retiredBundlePattern);
+  });
+
+  test('retired public commentary claims stay out of product copy and source hooks', () => {
+    const moveSurfacePattern = new RegExp(retiredMoveSurface);
+    const moveActionPattern = new RegExp(retiredMoveAction);
+    const chronicleKeyPattern = new RegExp(retiredChronicleKey);
+    const chronicleLabelPattern = new RegExp(retiredChronicleLabel);
+    const llmMetricPattern = new RegExp(retiredLlmMetricPrefix.replace('.', '\\.'));
+    const retiredOpsMappings = ['active', 'commentary', 'fullgame'].map(
+      key => new RegExp(`"${key}"\\s*->\\s*"${retiredOpsTitle}"`),
+    );
+
+    for (const source of [landingScala, supportScala]) {
+      assert.doesNotMatch(source, moveSurfacePattern);
+      assert.doesNotMatch(source, moveActionPattern);
+    }
+
+    assert.doesNotMatch(betaFeedbackScala, chronicleKeyPattern);
+    assert.doesNotMatch(betaFeedbackScala, chronicleLabelPattern);
+    assert.doesNotMatch(monScala, llmMetricPattern);
+    for (const mapping of retiredOpsMappings) assert.doesNotMatch(opsModelScala, mapping);
   });
 
   test('analysis import keeps an explicit CTA on mobile', () => {
@@ -167,21 +198,6 @@ describe('frontend audit regressions', () => {
     assert.doesNotMatch(analyseViewScala, /bookmaker:\s*Boolean/);
     assert.doesNotMatch(userAnalysisController, /bookmaker\s*=/);
     assert.doesNotMatch(analyseOptsBlock, /bookmaker\?:/);
-  });
-
-  test('strategic puzzle next navigation restores prior puzzle state through browser history', () => {
-    assert.match(strategicPuzzleTs, /window\.addEventListener\('popstate', this\.onPopState\)/);
-    assert.match(strategicPuzzleTs, /history\.replaceState\(\{ strategicPuzzle: this\.historySnapshot\(url\) \}, '', url\)/);
-    assert.match(strategicPuzzleTs, /history\.pushState\(\{ strategicPuzzle: this\.historySnapshot\(url\) \}, '', url\)/);
-    assert.match(strategicPuzzleTs, /puzzleId: this\.payload\.puzzle\.id/);
-    assert.doesNotMatch(strategicPuzzleTs, /payload: this\.payload/);
-    assert.match(strategicPuzzleTs, /this\.restoreSnapshot\(snapshot\)/);
-  });
-
-  test('strategic puzzle solved-next flow reloads by puzzle id instead of reusing next bootstrap payloads', () => {
-    assert.match(routes, /^GET\s+\/api\/strategic-puzzle\/:id\s+controllers\.StrategicPuzzle\.showJson\(id\)$/m);
-    assert.match(strategicPuzzleTs, /await fetch\(`\/api\/strategic-puzzle\/\$\{encodeURIComponent\(puzzleId\)\}`\)/);
-    assert.doesNotMatch(strategicPuzzleTs, /fetch\(`\/api\/strategic-puzzle\/next\?after=/);
   });
 
   test('analysis move navigation pushes user-visible ply history and restores it on popstate', () => {
@@ -229,8 +245,6 @@ describe('frontend audit regressions', () => {
     assert.match(studyIndexScss, /var\(---cs-content-max-width, 1320px\)/);
     assert.match(chesstoryScss, /\.notebook-shell \{[\s\S]*?var\(---cs-workspace-max-width, 100%\)/);
     assert.match(chesstoryScss, /\.notebook-shell > \.analyse \{[\s\S]*?padding: 0;/);
-    assert.match(strategicPuzzleScss, /var\(---cs-workspace-max-width/);
-    assert.doesNotMatch(strategicPuzzleScss, /width: min\(100%, 1460px\)/);
   });
 
   test('recent games intake stays utility-first on the index page', () => {
@@ -266,54 +280,6 @@ describe('frontend audit regressions', () => {
     assert.match(accountIntelView, /submitButton\(cls := "status-links__primary"\)\("Run again"\)/);
   });
 
-  test('strategic puzzle exposes live entry points and a non-404 exhausted state', () => {
-    const demoRouteIndex = routes.indexOf('GET   /strategic-puzzle/demo           controllers.Main.strategicPuzzleDemo');
-    const showRouteIndex = routes.indexOf('GET   /strategic-puzzle/:id            controllers.StrategicPuzzle.show(id)');
-    assert.ok(demoRouteIndex >= 0 && showRouteIndex >= 0 && demoRouteIndex < showRouteIndex);
-    assert.match(strategicPuzzleController, /_\.fold\(renderEmptyPage\):/);
-    assert.match(strategicPuzzleEmptyView, /No live strategic puzzle is ready right now\./);
-    assert.match(strategicPuzzleEmptyView, /finished the puzzles that are currently available/);
-    assert.doesNotMatch(strategicPuzzleEmptyView, /live shells/);
-    assert.match(strategicPuzzleController, /No live strategic puzzle is ready right now\./);
-    assert.match(strategicPuzzleController, /We could not record that puzzle result\./);
-    assert.match(strategicPuzzlePageView, /enable JavaScript to solve the live puzzle and open the review\./);
-    assert.doesNotMatch(strategicPuzzlePageView, /\.flag\(_\.noHeader\)/);
-    assert.doesNotMatch(strategicPuzzlePageView, /\.flag\(_\.fullScreen\)/);
-    assert.doesNotMatch(strategicPuzzlePageView, /sp-demo-header/);
-    assert.doesNotMatch(strategicPuzzleEmptyView, /\.flag\(_\.noHeader\)/);
-    assert.doesNotMatch(strategicPuzzleEmptyView, /\.flag\(_\.fullScreen\)/);
-    assert.doesNotMatch(strategicPuzzleEmptyView, /sp-demo-header/);
-    assert.doesNotMatch(strategicPuzzleDemoView, /sp-demo-header/);
-    assert.match(strategicPuzzleDemoView, /a\(href := routes\.StrategicPuzzle\.home\.url, cls := "sp-demo-link"\)\("Try a live puzzle"\)/);
-    assert.doesNotMatch(strategicPuzzleDemoView, /button\(tpe := "button", cls := "sp-choice/);
-    assert.match(strategicPuzzleDemoView, /Move list stays hidden/);
-    assert.doesNotMatch(strategicPuzzleDemoView, /div\(cls := "sp-choice is-primary", role := "listitem"\)/);
-    assert.doesNotMatch(strategicPuzzleDemoView, /Plan-first puzzle shell/);
-    assert.doesNotMatch(strategicPuzzleDemoView, /Dominant family key/);
-    assert.match(strategicPuzzleTs, /Give up and open review/);
-    assert.match(strategicPuzzleTs, /Started position/);
-    assert.match(strategicPuzzleTs, /How The Task Begins/);
-    assert.match(strategicPuzzleTs, /Open exact proof on the board/);
-    assert.match(strategicPuzzleTs, /The featured review is open from the stored start\./);
-    assert.match(strategicPuzzleTs, /The board above is paused immediately after/);
-    assert.match(strategicPuzzleTs, /The board is now showing the confirmed continuation\./);
-    assert.match(strategicPuzzleTs, /data-action="show-proof-board"/);
-    assert.match(strategicPuzzleTs, /data-action="show-start-board"/);
-    assert.doesNotMatch(strategicPuzzleTs, /Reveal best line/);
-    assert.doesNotMatch(strategicPuzzleTs, /Three-step shell/);
-    assert.doesNotMatch(strategicPuzzleTs, /quality score/);
-    assert.doesNotMatch(strategicPuzzleTs, /active choices/);
-    assert.doesNotMatch(strategicPuzzleTs, /Give up and reveal the line/);
-    assert.doesNotMatch(strategicPuzzleTs, /data-action="hint"/);
-    assert.match(strategicPuzzleScss, /\.sp-live-page \.sp-demo-lines:not\(\.is-open\) \{/);
-    assert.match(strategicPuzzleScss, /\.sp-demo-panel--solve \{\s*position: static;/);
-    assert.match(strategicPuzzleScss, /\.sp-runtime-board-stage\.is-success/);
-    assert.match(strategicPuzzleScss, /@keyframes sp-board-shake/);
-    assert.match(strategicPuzzleScss, /\.sp-runtime-actions__note \{/);
-    assert.match(strategicPuzzleScss, /\.sp-runtime-actions \.sp-demo-link \{\s*border: none;\s*cursor: pointer;\s*width: auto;/);
-    assert.match(strategicPuzzleScss, /\.sp-runtime-actions \{\s*flex-direction: column;\s*align-items: stretch;/);
-  });
-
   test('support route canonicalizes /plan and theme styles expose focus and busy states', () => {
     assert.match(routes, /^GET\s+\/plan\s+controllers\.Main\.plan$/m);
     assert.match(mainController, /def plan = Open:\s*Redirect\(routes\.Main\.support, MOVED_PERMANENTLY\)\.toFuccess/);
@@ -332,12 +298,10 @@ describe('frontend audit regressions', () => {
     assert.doesNotMatch(landingScala, /landing-theme-switch/);
   });
 
-  test('dark-theme contrast fixes cover account warnings and strategic puzzle overlays', () => {
+  test('dark-theme contrast fixes cover account warnings', () => {
     assert.match(accountScss, /p\.desc[\s\S]*?html\.dark &/);
     assert.match(accountScss, /\.warning-box[\s\S]*?html\.dark &/);
     assert.match(accountScss, /\.danger-box[\s\S]*?html\.dark &/);
-    assert.match(strategicPuzzleScss, /html\.dark \.sp-demo-page::after \{/);
-    assert.match(strategicPuzzleScss, /html\.dark \.sp-empty-state \{/);
   });
 
   test('journal root stays an archive landing instead of duplicating the latest article body', () => {

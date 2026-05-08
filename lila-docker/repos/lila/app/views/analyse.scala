@@ -28,8 +28,7 @@ object analyse:
         pov,
         chess960PositionNum = chess960PositionNum,
         inlinePgn = inlinePgn,
-        importHistory = importHistory,
-        commentaryLocalProbe = UiEnv.env.mode.notProd
+        importHistory = importHistory
       )
 
     def keyboardHelp =
@@ -72,8 +71,7 @@ object analyse:
         Json
           .obj(
             "data" -> data,
-            "embed" -> true,
-            "commentaryLocalProbe" -> false
+            "embed" -> true
           )
           .add("inlinePgn", inlinePgn) ++ analyseUi.explorerAndCevalConfig
       views.base.embed.site(

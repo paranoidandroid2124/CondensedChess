@@ -74,7 +74,6 @@ lazy val modules = Seq(
   analyse,
   study,
   accountintel,
-  strategicPuzzle,
   beta,
   
   // Analysis Pipeline (Level 7)
@@ -175,11 +174,6 @@ lazy val accountintel = module("accountintel",
   playWs.bundle ++ tests.bundle ++ Seq(chess.testKit)
 ).dependsOn(common % "test->test")
 
-lazy val strategicPuzzle = module("strategicPuzzle",
-  Seq(db, memo),
-  tests.bundle
-)
-
 lazy val beta = module("beta",
   Seq(db, user),
   tests.bundle
@@ -190,7 +184,7 @@ lazy val beta = module("beta",
 // ============================================================
 
 lazy val commentary = module("commentary",
-  Seq(db, memo, strategicPuzzle),
+  Seq(db, memo),
   playWs.bundle ++ tests.bundle
 )
 

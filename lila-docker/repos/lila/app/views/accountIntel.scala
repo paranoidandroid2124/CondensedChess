@@ -341,8 +341,7 @@ object accountIntel:
       attr("data-state-url") := surfaceApiUrl(state),
       attr("data-side") := side,
       attr("data-page-base-url") := s"/account-intel/${state.provider}/${state.username}",
-      attr("data-landing-url") := routes.AccountIntel.landing("", "").url,
-      attr("data-strategic-puzzle-url") := routes.StrategicPuzzle.home.url
+      attr("data-landing-url") := routes.AccountIntel.landing("", "").url
     )(
       div(cls := "account-product-header")(
         div(cls := "importer-hero importer-hero--account-product")(
@@ -751,12 +750,8 @@ object accountIntel:
   ): Frag =
     val primaryAction = actionCards.headOption
     val extraActions = actionCards.drop(1)
-    val primaryHref =
-      if kind == lila.accountintel.AccountIntel.ProductKind.OpponentPrep then notebookUrl
-      else Some(routes.StrategicPuzzle.home.url)
-    val primaryLabel =
-      if kind == lila.accountintel.AccountIntel.ProductKind.OpponentPrep then "Open study notebook"
-      else "Try the idea on the board"
+    val primaryHref = notebookUrl
+    val primaryLabel = "Open study notebook"
     div(cls := "importer-panel importer-panel--guide")(
       div(cls := "importer-panel__head")(
         strong(cls := "importer-panel__title")(if kind == lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite then "What to look for next" else "Game plan"),
@@ -781,13 +776,7 @@ object accountIntel:
         )
       ),
       div(cls := "account-product-action-cta-row")(
-        primaryHref.map(url => a(href := url, cls := "account-product-primary-link")(primaryLabel)),
-        notebookUrl
-          .filter(_ => kind == lila.accountintel.AccountIntel.ProductKind.MyAccountIntelligenceLite)
-          .map(url => a(href := url, cls := "account-product-secondary-link")("Open study notebook")),
-        Option.when(kind == lila.accountintel.AccountIntel.ProductKind.OpponentPrep)(
-          a(href := routes.StrategicPuzzle.home.url, cls := "account-product-secondary-link")("Try the idea on the board")
-        )
+        primaryHref.map(url => a(href := url, cls := "account-product-primary-link")(primaryLabel))
       )
     )
 

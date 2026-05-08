@@ -14,7 +14,6 @@
     },
     "bundle": [
       "src/site.*Embed.ts",
-      "src/strategicPuzzle.ts",
       {
         "module": "src/site.ts",
         "inline": "src/site.inline.ts"

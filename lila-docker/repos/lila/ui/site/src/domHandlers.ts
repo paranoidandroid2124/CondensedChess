@@ -280,7 +280,6 @@ function initAccountIntelProduct() {
   let expandedPatternCount = 3;
 
   const pageBaseUrl = root.dataset.pageBaseUrl || `/account-intel/${state.provider}/${state.username}`;
-  const strategicPuzzleUrl = root.dataset.strategicPuzzleUrl || '/strategic-puzzle';
   const setInner = (selector: string, html: string) => {
     const el = root.querySelector<HTMLElement>(selector);
     if (el) el.innerHTML = html;
@@ -664,8 +663,8 @@ function initAccountIntelProduct() {
       state?.kind === 'opponent_prep'
         ? 'Keep the prep short enough to carry into the next game.'
         : 'Use the actions below as the shortest route from the diagnosis to the board.';
-    const primaryHref = state?.kind === 'opponent_prep' ? notebookUrl : strategicPuzzleUrl;
-    const primaryLabel = state?.kind === 'opponent_prep' ? 'Open study notebook' : 'Try the idea on the board';
+    const primaryHref = notebookUrl;
+    const primaryLabel = 'Open study notebook';
     return `
       <div class="importer-panel importer-panel--guide">
         <div class="importer-panel__head">
@@ -686,8 +685,6 @@ function initAccountIntelProduct() {
         }
         <div class="account-product-action-cta-row">
           ${primaryHref ? `<a href="${escapeHtml(primaryHref)}" class="account-product-primary-link">${escapeHtml(primaryLabel)}</a>` : ''}
-          ${state?.kind === 'my_account_intelligence_lite' && notebookUrl ? `<a href="${escapeHtml(notebookUrl)}" class="account-product-secondary-link">Open study notebook</a>` : ''}
-          ${state?.kind === 'opponent_prep' ? `<a href="${escapeHtml(strategicPuzzleUrl)}" class="account-product-secondary-link">Try the idea on the board</a>` : ''}
         </div>
       </div>
     `;

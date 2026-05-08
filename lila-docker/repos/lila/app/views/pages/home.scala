@@ -137,7 +137,7 @@ object home:
           p(cls := "home-continue-card__eyebrow")("Start fresh"),
           h2(cls := "home-continue-card__title")("No recent work yet"),
           p(cls := "home-continue-card__summary")(
-            "Start from a PGN, open full analysis directly, look up account patterns, or open the current live strategic puzzle."
+            "Start from a PGN, open full analysis directly, look up account patterns, or reopen a study notebook."
           ),
           div(cls := "home-continue-card__actions")(
             a(href := routes.Importer.importGame.url, cls := "button button-fat")("Start from PGN"),

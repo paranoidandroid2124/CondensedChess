@@ -12,8 +12,6 @@ object betaFeedback:
 
   private val surfaces = List(
     "general" -> "General beta",
-    "strategic_puzzle" -> "Strategic Puzzle",
-    "game_chronicle" -> "Game Chronicle",
     "account_intel" -> "Account Intel"
   )
 
@@ -89,7 +87,7 @@ object betaFeedback:
                     id := "feature",
                     name := "feature",
                     value := feedbackForm("feature").value.getOrElse(""),
-                    placeholder := "Move explanation, PGN import flow, strategic puzzle pack..."
+                    placeholder := "Move explanation, PGN import flow, account pattern report..."
                   ),
                   p(cls := "legal-note")("Optional. Use this when a specific feature or prompt triggered the feedback request.")
                 ),

@@ -30,8 +30,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
       chess960PositionNum: Option[Int] = None,
       withForecast: Boolean = false,
       inlinePgn: Option[String] = None,
-      importHistory: Option[JsObject] = None,
-      commentaryLocalProbe: Boolean = false
+      importHistory: Option[JsObject] = None
   )(using ctx: Context): Page =
     Page("Analysis")
       .css("analyse.free")
@@ -43,8 +42,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
           "userAnalysis",
           Json
             .obj(
-              "data" -> data,
-              "commentaryLocalProbe" -> commentaryLocalProbe
+              "data" -> data
             )
             .add("inlinePgn", inlinePgn)
             .add("importHistory", importHistory) ++

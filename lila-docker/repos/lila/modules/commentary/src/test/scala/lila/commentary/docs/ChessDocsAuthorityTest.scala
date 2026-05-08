@@ -30,9 +30,53 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "LegacyArchiveIndex.md",
       "CommentaryFrontendBridgeContract.md"
     )
-  private val commentaryBridgeTest = Paths.get("ui/analyse/tests/commentaryBridge.test.ts")
+  private val moveExplanationTest = Paths.get("ui/analyse/tests/moveExplanation.test.ts")
   private val HardPublicOutputBlocker =
     "Missing side, target, anchor, route, rival, required legal line, or same-root proof sidecar is a hard public-output block."
+  private val LineDefenderCloseoutSummary =
+    "Line / Defender closeout summaries are non-authoritative: `StoryInteractionLaw.md` owns LNC-0 through LNC-7 and final completion detail, while this document only records that `Tactic.DiscoveredAttack`, `Tactic.Pin`, `Tactic.RemoveGuard`, and `Tactic.Skewer` close as four narrow proof-backed slices with broad line/ray/XRay, pressure, initiative, material-win, public route `200`, production API, and public/user-facing LLM narration surfaces closed."
+  private val LineDefenderManifestSummary =
+    "Line / Defender Closeout documentation simplification authority lives in `StoryInteractionLaw.md`. Summary documents do not repeat detailed LNC checklists, and legacy broad line/ray/XRay, pressure, initiative, material-win, public route, production API, and public/user-facing LLM paths remain closed."
+  private val LineDefenderSummaryForbiddenFragments =
+    Vector(
+      "Line / Defender Neighborhood Closeout opens no new chess meaning;",
+      "LNC-0 confirms",
+      "LNC-1 Scope Audit opens",
+      "LNC-1 confirms",
+      "Closed names are not backlog",
+      "LNC-2 Duplication Audit opens",
+      "LNC-2 confirms",
+      "LNC-3 Authority Audit opens",
+      "LNC-3 fixes",
+      "LNC-3 forbids",
+      "LNC-4 Collision Audit opens",
+      "LNC-4 requires",
+      "LNC-5 Downstream Boundary Audit opens",
+      "LNC-5 forbids",
+      "LNC-7 Test Helper / Runtime Boundary Audit opens",
+      "LNC Closeout final completion standard:",
+      "LNC-4 collision targets:",
+      "LNC-4 verification criteria:",
+      "LNC-5 downstream authority:",
+      "LNC-5 forbidden downstream wording:",
+      "LNC-7 runtime boundary:",
+      "LNC final verification:"
+    )
+
+  private def assertLineDefenderCloseoutSummaryDocs(
+      readme: String,
+      ssot: String,
+      architecture: String,
+      normalizedModelContract: String,
+      legacyManifest: String
+  ): Unit =
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(LineDefenderCloseoutSummary))
+      LineDefenderSummaryForbiddenFragments.foreach: fragment =>
+        assert(!doc.contains(fragment), s"summary docs must not repeat detailed Line / Defender closeout rule: $fragment")
+    assert(legacyManifest.contains(LineDefenderManifestSummary))
+    LineDefenderSummaryForbiddenFragments.foreach: fragment =>
+      assert(!legacyManifest.contains(fragment), s"LegacyPruneManifest must not repeat detailed Line / Defender closeout rule: $fragment")
 
   private val SplitSlots =
     Vector(
@@ -150,6 +194,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "Scene.Defense",
       "Scene.Opening",
       "Scene.Pawns",
+      "Scene.PawnAdvance",
       "Scene.Plan",
       "Scene.Pieces",
       "Scene.Space",
@@ -247,7 +292,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
   )
 
   private val commentaryController = Paths.get("app/controllers/Commentary.scala")
-  private val commentaryBridgeSource = Paths.get("ui/analyse/src/chesstory/commentaryBridge.ts")
+  private val moveExplanationSource = Paths.get("ui/analyse/src/chesstory/moveExplanation.ts")
 
   private def rootDocNames: Vector[String] =
     val stream = Files.list(docsRoot)
@@ -573,9 +618,12 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(controllerSource.contains("ServiceUnavailable(unavailable)"))
     assert(controllerSource.contains("\"noCommentary\" -> true"))
     assert(!controllerSource.contains("Ok("))
-    val bridgeSource = Files.readString(commentaryBridgeSource)
-    assert(bridgeSource.contains("const PublicRenderRoutesTombstoned = true"))
-    assert(bridgeSource.contains("if (PublicRenderRoutesTombstoned) return { kind: 'empty', reason: 'no_commentary' }"))
+    val moveExplanation = Files.readString(moveExplanationSource)
+    assert(moveExplanation.contains("const emptyState: MoveExplanationState = { kind: 'empty' }"))
+    assert(moveExplanation.contains("refresh: () => Promise.resolve()"))
+    assert(!moveExplanation.contains("/api/commentary/render"))
+    assert(!moveExplanation.contains("/internal/commentary/render-local-probe"))
+    assert(!moveExplanation.contains("fetch("))
     assert(readme.contains("Stage order no-go"))
     assert(readme.contains("Line / Ray Slice is a closed baseline."))
     assert(readme.contains("Current implementation scope is Line / Defender Contact Neighborhood."))
@@ -6021,33 +6069,910 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     ).foreach: lineDefenderScope =>
       assert(interactionLaw.contains(lineDefenderScope), s"LNC-0 scope must pin: $lineDefenderScope")
 
-    Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Line / Defender Neighborhood Closeout opens no new chess meaning; it audits only the four narrow proof-backed slices, their proof homes, existing collision targets, docs simplification, downstream no-overclaim boundaries, and next-neighborhood handoff."))
-      assert(doc.contains("Line/Defender closes as four narrow proof-backed slices. It opens no broad LineTactic, XRay, pressure, initiative, material-win tactic, or public surface."))
-      assert(doc.contains("LNC-0 confirms DiscoveredAttack, Pin, RemoveGuard, and Skewer keep separate proof paths; LineProof, PinProof, RemoveGuardProof, and SkewerProof stay proof homes only; Hanging, Fork, Material, and Defense keep existing claim homes; public route `200`, production API, and public/user-facing LLM narration remain closed."))
-      assert(!doc.contains("LNC-0 must confirm:"), "summary docs must not duplicate detailed LNC-0 checklist")
-      assert(!doc.contains("LNC-0 duplicate checks:"), "summary docs must not duplicate detailed LNC-0 duplicate checklist")
+    assertLineDefenderCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, legacyManifest)
 
-    assert(normalizedModelContract.contains("Line / Defender Neighborhood Closeout opens no new chess meaning."))
-    assert(normalizedModelContract.contains("It audits only the four narrow proof-backed slices, their proof homes, existing collision targets, docs simplification, downstream no-overclaim boundaries, and next-neighborhood handoff."))
-    assert(normalizedModelContract.contains("Line/Defender closes as four narrow proof-backed slices. It opens no broad LineTactic, XRay, pressure, initiative, material-win tactic, or public surface."))
-    assert(normalizedModelContract.contains("LNC-0 confirms DiscoveredAttack, Pin, RemoveGuard, and Skewer keep separate proof paths; LineProof, PinProof, RemoveGuardProof, and SkewerProof stay proof homes only; Hanging, Fork, Material, and Defense keep existing claim homes; public route `200`, production API, and public/user-facing LLM narration remain closed."))
-    assert(!normalizedModelContract.contains("LNC-0 must confirm:"), "model contract must summarize, not duplicate detailed LNC-0 checklist")
-    assert(!normalizedModelContract.contains("LNC-0 duplicate checks:"), "model contract must summarize, not duplicate detailed LNC-0 duplicate checklist")
-    assert(legacyManifest.contains("Line / Defender Neighborhood Closeout authority lives in `StoryInteractionLaw.md`."))
-    assert(legacyManifest.contains("Legacy broad LineTactic, XRay, broad Ray, broad deflection, overload, pressure, initiative, material-win tactic, forced response, new proof home, new Story writer, new renderer template, new LLM behavior, production API, public route, and public/user-facing LLM paths do not return."))
+  test("LNC-1 scope audit keeps Line Defender positive Stories to four narrow first scopes"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val legacyManifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val storySource = Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/Story.scala"))
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("### LNC-1 Scope Audit"))
+    Vector(
+      "LNC-1 opens only Line / Defender Contact Neighborhood scope audit.",
+      "LNC-1 confirms the neighborhood has exactly four opened positive Story labels:",
+      "- `Tactic.DiscoveredAttack`",
+      "- `Tactic.Pin`",
+      "- `Tactic.RemoveGuard`",
+      "- `Tactic.Skewer`",
+      "LNC-1 first-scope audit:",
+      "- `Tactic.DiscoveredAttack` speaks only one revealed slider attack on one non-king material target.",
+      "- `Tactic.Pin` speaks only one non-king piece pinned to its own king on a line.",
+      "- `Tactic.RemoveGuard` speaks only one removed defender guard relation from one non-king material target.",
+      "- `Tactic.Skewer` speaks only one front non-king material target and one rear non-king material target on the same line.",
+      "LNC-1 closed runtime positives:",
+      "- XRay is not an opened positive Story in this neighborhood.",
+      "- broad Ray is not an opened positive Story in this neighborhood.",
+      "- broad LineTactic is not an opened positive Story in this neighborhood.",
+      "- broad deflection is not an opened positive Story in this neighborhood.",
+      "- overload is not an opened positive Story in this neighborhood.",
+      "Closed names are not backlog inside this neighborhood. They remain closed until a separate charter opens them.",
+      "LNC-1 opens no new Story family, proof home, Story writer, renderer wording, LLM behavior, XRay, broad Ray, broad LineTactic, broad deflection, overload, pressure, initiative, material-win tactic, public route `200`, production API, or public/user-facing LLM narration."
+    ).foreach: lncScope =>
+      assert(interactionLaw.contains(lncScope), s"LNC-1 scope must pin: $lncScope")
+
+    assertLineDefenderCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, legacyManifest)
+
+    Vector(
+      "StoryWriter.TacticDiscoveredAttack",
+      "StoryWriter.TacticPin",
+      "StoryWriter.TacticRemoveGuard",
+      "StoryWriter.TacticSkewer"
+    ).foreach: writer =>
+      assert(storySource.contains(writer), s"Line Defender runtime writer must remain present: $writer")
+    Vector(
+      "StoryWriter.TacticXray",
+      "StoryWriter.TacticXRay",
+      "StoryWriter.TacticLineTactic",
+      "StoryWriter.TacticDeflect",
+      "StoryWriter.TacticOverload"
+    ).foreach: writer =>
+      assert(!storySource.contains(writer), s"closed Line Defender writer must not open: $writer")
+
+  test("LNC-2 duplication audit keeps one meaning one proof home one Story label one speech key"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val legacyManifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val explanationPlanSource = Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/ExplanationPlan.scala"))
+    val storySource = Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/Story.scala"))
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("### LNC-2 Duplication Audit"))
+    Vector(
+      "One chess meaning, one proof home, one Story label, one speech key, one live authority document.",
+      "LNC-2 opens only Line / Defender Contact Neighborhood duplication audit.",
+      "LNC-2 duplication audit checks:",
+      "- no same chess meaning is duplicated under two Story labels.",
+      "- no same proof responsibility is duplicated under two proof homes.",
+      "- no same speech claim is split across two claim keys.",
+      "- no same detailed rule repeats across multiple live documents.",
+      "LNC-2 specific ownership checks:",
+      "- DiscoveredAttack and Skewer do not duplicate ownership of `line attack`; DiscoveredAttack owns revealed slider attack on one non-king material target, while Skewer owns front-and-rear non-king material targets on one line.",
+      "- Pin and Skewer do not duplicate ownership of `front/rear line relation`; Pin owns pinned-to-own-king relation, while Skewer owns front target plus rear target relation.",
+      "- RemoveGuard does not grow into Material or Hanging precondition ownership; RemoveGuard owns only removed defender guard relation, Material owns actual material balance change, and Hanging owns capturable target with bounded material gain proof.",
+      "- LineProof does not absorb PinProof, RemoveGuardProof, or SkewerProof family-specific relations; LineProof binds only the revealed slider attack line admitted by DiscoveredAttack.",
+      "- XRay, Ray, LineTactic, and LineFamily terms are not live authority names for this neighborhood.",
+      "LNC-2 speech-key audit:",
+      "- `reveals_attack_on_piece` belongs only to `Tactic.DiscoveredAttack`.",
+      "- `pins_piece` belongs only to `Tactic.Pin`.",
+      "- `removes_defender` belongs only to `Tactic.RemoveGuard`.",
+      "- `skewers_piece_to_piece` belongs only to `Tactic.Skewer`.",
+      "LNC-2 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, XRay, Ray, LineTactic, LineFamily, broad deflection, overload, Material or Hanging precondition path, public route `200`, production API, or public/user-facing LLM narration."
+    ).foreach: lncScope =>
+      assert(interactionLaw.contains(lncScope), s"LNC-2 scope must pin: $lncScope")
+
+    assertLineDefenderCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, legacyManifest)
+
+    Vector(
+      "ExplanationClaim.RevealsAttackOnPiece",
+      "ExplanationClaim.PinsPiece",
+      "ExplanationClaim.RemovesDefender",
+      "ExplanationClaim.SkewersPieceToPiece"
+    ).foreach: claim =>
+      assert(explanationPlanSource.contains(claim), s"Line Defender speech key must remain present: $claim")
+    Vector(
+      "StoryWriter.TacticDiscoveredAttack",
+      "StoryWriter.TacticPin",
+      "StoryWriter.TacticRemoveGuard",
+      "StoryWriter.TacticSkewer"
+    ).foreach: writer =>
+      assert(storySource.contains(writer), s"Line Defender Story writer must remain present: $writer")
+
+  test("LNC-3 authority audit fixes each Line Defender layer to one job"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val legacyManifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("### LNC-3 Authority Audit"))
+    Vector(
+      "LNC-3 opens only Line / Defender Contact Neighborhood authority audit.",
+      "LNC-3 layer authority:",
+      "- `BoardFacts.LineFact`: geometry observation only.",
+      "- `LineProof`: revealed line / attack binding only.",
+      "- `PinProof`: pinned relation only.",
+      "- `RemoveGuardProof`: guard relation removal only.",
+      "- `SkewerProof`: front/rear target relation only.",
+      "- Story writers: named proof-backed Story permission only.",
+      "- StoryTable: ordering only.",
+      "- Verdict: selected result only.",
+      "- ExplanationPlan: bounded speech claim only.",
+      "- Renderer: phrasing only.",
+      "- LLM smoke: rephrase only.",
+      "LNC-3 forbidden authority shortcuts:",
+      "- proof home must not speak like a Story label.",
+      "- Story writer must not own material result.",
+      "- StoryTable must not create new chess meaning.",
+      "- ExplanationPlan must not read raw proof.",
+      "- Renderer and LLM smoke must not repair or upgrade proof.",
+      "LNC-3 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, raw proof downstream path, material-result ownership by Story writer, StoryTable-created meaning, public route `200`, production API, or public/user-facing LLM narration."
+    ).foreach: lncScope =>
+      assert(interactionLaw.contains(lncScope), s"LNC-3 scope must pin: $lncScope")
+
+    assertLineDefenderCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, legacyManifest)
+
+  test("LNC-4 collision audit locks Line Defender rows against existing homes"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val legacyManifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("### LNC-4 Collision Audit"))
+    Vector(
+      "LNC-4 opens only Line / Defender Contact Neighborhood collision audit.",
+      "LNC-4 collision targets:",
+      "- DiscoveredAttack vs Pin.",
+      "- DiscoveredAttack vs Skewer.",
+      "- Pin vs Skewer.",
+      "- RemoveGuard vs Material.",
+      "- RemoveGuard vs Hanging.",
+      "- Skewer vs Material.",
+      "- Line/Defender row vs Defense.",
+      "- EngineCheck Caps/Refutes over each line/defender row.",
+      "LNC-4 verification criteria:",
+      "- input order stable.",
+      "- no duplicate Lead.",
+      "- incomplete row is not Lead.",
+      "- capped and refuted rows create no standalone text.",
+      "- actual material change now stays in Scene.Material home.",
+      "- material gain proof stays in Hanging or Material home.",
+      "- line/defender rows speak only their own relation.",
+      "LNC-4 existing runtime coverage:",
+      "- `Pin-5 StoryTable prevents duplicate Lead for same-line DiscoveredAttack and Pin` covers DiscoveredAttack vs Pin.",
+      "- `Skewer-5 separates DiscoveredAttack collision and keeps incomplete Skewer silent` covers DiscoveredAttack vs Skewer.",
+      "- `Skewer-5 keeps Material Pin and RemoveGuard claim homes separate` covers Pin vs Skewer and Skewer vs Material.",
+      "- `LDH-1 fixture map covers complex same-board line defender interactions` covers RemoveGuard vs Material, RemoveGuard vs Hanging, and Line/Defender row vs Defense.",
+      "- `LDH-1 fixture map covers EngineCheck statuses over existing line defender rows` covers EngineCheck Caps/Refutes over DiscoveredAttack, Pin, RemoveGuard, and Skewer.",
+      "LNC-4 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, broad LineTactic, XRay, material-win tactic, public route `200`, production API, or public/user-facing LLM narration."
+    ).foreach: lncScope =>
+      assert(interactionLaw.contains(lncScope), s"LNC-4 scope must pin: $lncScope")
+
+    assertLineDefenderCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, legacyManifest)
+
+  test("LNC-5 downstream boundary audit keeps Line Defender expression bounded"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val legacyManifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("### LNC-5 Downstream Boundary Audit"))
+    Vector(
+      "LNC-5 opens only Line / Defender Contact Neighborhood downstream boundary audit.",
+      "LNC-5 downstream authority:",
+      "- selected uncapped Lead Verdict only may lower to ExplanationPlan.",
+      "- ExplanationPlan input is selected Verdict only.",
+      "- Renderer input is ExplanationPlan only.",
+      "- LLM smoke input is renderedText, claimKey, strength, forbidden wording, and rephrase-only instruction only.",
+      "- Support, Context, Blocked, capped, and refuted rows create no standalone text.",
+      "LNC-5 forbidden downstream wording:",
+      "- wins material.",
+      "- winning / decisive.",
+      "- best move / only move.",
+      "- forced.",
+      "- cannot move.",
+      "- no defense.",
+      "- front piece must move.",
+      "- wins rear piece.",
+      "- pressure / initiative.",
+      "- mate threat / king unsafe.",
+      "LNC-5 existing runtime coverage:",
+      "- `LNC-5 Downstream Boundary Audit keeps Line Defender speech bounded` covers DiscoveredAttack, Pin, RemoveGuard, and Skewer downstream handoff and forbidden wording.",
+      "- `LDH-6 Downstream Boundary Smoke sends only selected Lead Verdicts to text stages` covers existing Line/Defender selected Lead handoff.",
+      "- `Skewer-6 ExplanationPlan gives no standalone claim to non Lead capped refuted or unselected Skewer rows` covers Skewer non-Lead silence.",
+      "LNC-5 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, broad LineTactic, XRay, public route `200`, production API, or public/user-facing LLM narration."
+    ).foreach: lncScope =>
+      assert(interactionLaw.contains(lncScope), s"LNC-5 scope must pin: $lncScope")
+
+    assertLineDefenderCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, legacyManifest)
+
+  test("LNC-6 documentation simplification keeps Line Defender closeout detail in one authority"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val legacyManifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("### LNC-6 Documentation Simplification"))
+    Vector(
+      "LNC-6 opens only Line / Defender Contact Neighborhood documentation simplification.",
+      "LNC-6 documentation authority:",
+      "- detailed closeout authority lives only in `StoryInteractionLaw.md`.",
+      "- README, SSOT, Architecture, Contract, AGENTS, and LegacyPruneManifest carry summaries only.",
+      "- the same closeout rule must not repeat across live documents.",
+      "- closed terms must read as closed summaries, not backlog.",
+      "- Line family, Ray family, XRay, and line tactic wording must not read as live authority.",
+      "LNC-6 verification:",
+      "- docs authority tests enforce summary-only downstream documents.",
+      "- detailed closeout checklist appears in exactly one live document.",
+      "- live authority lists stay aligned across AGENTS.md, README, LegacyPruneManifest, and docs tests.",
+      "LNC-6 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, broad LineTactic, XRay, public route `200`, production API, or public/user-facing LLM narration."
+    ).foreach: lncScope =>
+      assert(interactionLaw.contains(lncScope), s"LNC-6 scope must pin: $lncScope")
+
+    assertLineDefenderCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, legacyManifest)
+
+    val liveDocs =
+      Map(
+        "AGENTS.md" -> agents,
+        "README.md" -> readme,
+        "ChessCommentarySSOT.md" -> ssot,
+        "ChessModelArchitecture.md" -> architecture,
+        "ChessModelContract.md" -> normalizedModelContract,
+        "LegacyPruneManifest.md" -> legacyManifest,
+        "StoryInteractionLaw.md" -> interactionLaw
+      )
+    Vector(
+      "LNC-0 must confirm:",
+      "LNC-0 duplicate checks:",
+      "LNC-1 first-scope audit:",
+      "LNC-1 closed runtime positives:",
+      "LNC-2 duplication audit checks:",
+      "LNC-2 specific ownership checks:",
+      "LNC-2 speech-key audit:",
+      "LNC-3 layer authority:",
+      "LNC-3 forbidden authority shortcuts:",
+      "LNC-4 collision targets:",
+      "LNC-4 verification criteria:",
+      "LNC-4 existing runtime coverage:",
+      "LNC-5 downstream authority:",
+      "LNC-5 forbidden downstream wording:",
+      "LNC-5 existing runtime coverage:",
+      "LNC-6 documentation authority:",
+      "LNC-6 verification:",
+      "LNC-7 runtime boundary:",
+      "LNC-7 verification:",
+      "LNC Closeout final completion standard:",
+      "LNC final verification:"
+    ).foreach: marker =>
+      val owners = liveDocs.collect { case (name, text) if text.contains(marker) => name }
+      assertEquals(
+        owners.toSet,
+        Set("StoryInteractionLaw.md"),
+        s"Line / Defender detailed closeout marker must live only in StoryInteractionLaw.md: $marker"
+      )
+
+  test("LNC-7 test helper runtime boundary audit keeps helpers below authority"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val legacyManifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("### LNC-7 Test Helper / Runtime Boundary Audit"))
+    Vector(
+      "LNC-7 opens only Line / Defender Contact Neighborhood test helper / runtime boundary audit.",
+      "LNC-7 runtime boundary:",
+      "- test helpers must not become runtime authority.",
+      "- fixture names must not read like new Story families.",
+      "- negative corpus helpers must not become production concepts.",
+      "- forbidden wording checks must reject public wording without treating snake_case internal field names as public prose.",
+      "- runtime source must not contain closeout-only terms.",
+      "LNC-7 verification:",
+      "- docs authority tests pin this section in StoryInteractionLaw only.",
+      "- runtime boundary tests scan production source for closeout-only terminology.",
+      "- LLM smoke tests keep forbidden wording matching on public phrases, not internal field keys.",
+      "LNC-7 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, fixture-derived runtime authority, negative-corpus production concept, broad LineTactic, XRay, public route `200`, production API, or public/user-facing LLM narration."
+    ).foreach: lncScope =>
+      assert(interactionLaw.contains(lncScope), s"LNC-7 scope must pin: $lncScope")
+
+    assertLineDefenderCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, legacyManifest)
+    assert(!normalizedModelContract.contains("LNC-7 runtime boundary:"), "model contract must summarize, not duplicate detailed LNC-7 checklist")
+    Vector(readme, ssot, architecture, legacyManifest).foreach: doc =>
+      assert(!doc.contains("LNC-7 runtime boundary:"), "summary docs must not duplicate detailed LNC-7 checklist")
+
+  test("LNC final completion standard closes Line Defender neighborhood"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val legacyManifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("### LNC Closeout Final Completion Standard"))
+    Vector(
+      "LNC Closeout final completion standard:",
+      "- no new Story family.",
+      "- no new proof home.",
+      "- no new renderer wording.",
+      "- no new LLM behavior.",
+      "- only `Tactic.DiscoveredAttack`, `Tactic.Pin`, `Tactic.RemoveGuard`, and `Tactic.Skewer` remain as the positive closeout baseline slices.",
+      "- no duplicate meaning.",
+      "- no duplicate authority.",
+      "- no duplicate terminology.",
+      "- no duplicate detailed docs.",
+      "- public route, production API, and public/user-facing LLM narration remain closed.",
+      "LNC final verification:",
+      "- docs authority tests pass.",
+      "- chess foundation tests pass.",
+      "- `git diff --check` is clean.",
+      "Final LNC closeout opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, fixture-derived runtime authority, negative-corpus production concept, broad LineTactic, XRay, public route `200`, production API, or public/user-facing LLM narration."
+    ).foreach: finalLine =>
+      assert(interactionLaw.contains(finalLine), s"LNC final completion must pin: $finalLine")
+
+    assertLineDefenderCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, legacyManifest)
+    Vector(readme, ssot, architecture, normalizedModelContract, legacyManifest).foreach: doc =>
+      assert(!doc.contains("LNC Closeout final completion standard:"), "summary docs must not duplicate detailed LNC final standard")
+      assert(!doc.contains("LNC final verification:"), "summary docs must not duplicate detailed LNC final verification")
+
+  test("PawnAdvance-0 charter opens only bounded passed pawn progress"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "## Pawn / Promotion Neighborhood",
+      "### PawnAdvance-0 Charter",
+      "PawnAdvance-0 opens only the first narrow Pawn / Promotion Neighborhood vertical slice.",
+      "Pawn facts observe structure. PawnAdvanceProof binds this legal advance. Scene.PawnAdvance may speak only bounded pawn progress, not conversion.",
+      "`Scene.PawnAdvance`",
+      "`PawnAdvanceProof`",
+      "`advances_passed_pawn`",
+      "`{route} advances the passed pawn.`",
+      "PawnAdvance-0 opens no broad PawnTactic, `Tactic.PawnPush`,",
+      "Completion standard: PawnAdvance-0 closes as one narrow proof-backed passed-pawn progress slice"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnAdvance-0 law must pin: $required")
+
+    Vector(readme, ssot, architecture, contract).foreach: doc =>
+      val normalizedDoc = doc.replaceAll("\\s+", " ")
+      assert(normalizedDoc.contains("PawnAdvance-0 is owned by `StoryInteractionLaw.md`."))
+      assert(normalizedDoc.contains("The only bounded claim key is `advances_passed_pawn`"))
+      assert(!doc.contains("Allowed deterministic wording:"), "summary docs must not duplicate detailed PawnAdvance renderer wording")
+
+    assert(manifest.contains("PawnAdvance-0 authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy broad PawnTactic"))
+
+  test("PawnStop-0 charter opens only bounded immediate passed pawn next-square stop"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### PawnStop-0 Charter",
+      "PawnStop-0 opens only the second narrow Pawn / Promotion Neighborhood vertical slice.",
+      "First positive scope is not broad pawn defense or endgame hold.",
+      "Pawn facts observe structure. PawnStopProof proves the next square is stopped. Scene.PawnStop may speak only bounded immediate stop, not endgame defense.",
+      "`Scene.PawnStop`",
+      "`PawnStopProof`",
+      "`stops_pawn_advance`",
+      "`{route} stops the passed pawn from advancing next.`",
+      "- an already-passed target pawn.",
+      "- the target pawn's next advance square.",
+      "- a legal move directly stops that next advance square on the exact after-board.",
+      "- promotion stop.",
+      "- permanent stop.",
+      "- tablebase draw.",
+      "- best defense or only move.",
+      "- winning or losing endgame.",
+      "- conversion stopped.",
+      "- pawn race.",
+      "- king route or opposition.",
+      "- broad pawn strategy.",
+      "PawnStop-0 opens no promotion stop, permanent stop, tablebase draw, best",
+      "Completion standard: PawnStop-0 closes as one narrow proof-backed passed-pawn"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnStop-0 law must pin: $required")
+
+    Vector(readme, ssot, architecture, contract).foreach: doc =>
+      val normalizedDoc = doc.replaceAll("\\s+", " ")
+      assert(normalizedDoc.contains("Current implementation scope is Pawn / Promotion Neighborhood second vertical slice."))
+      assert(normalizedDoc.contains("PawnStop-0 is owned by `StoryInteractionLaw.md`."))
+      assert(normalizedDoc.contains("The only bounded claim key is `stops_pawn_advance`"))
+      assert(!doc.contains("### PawnStop-0 Charter"), "summary docs must not duplicate detailed PawnStop charter")
+      assert(!doc.contains("Allowed deterministic wording:"), "summary docs must not duplicate detailed PawnStop renderer wording")
+
+    assert(manifest.contains("PawnStop-0 authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy broad pawn defense"))
+
+  test("PawnStop-1 pins PawnStopProof as diagnostic proof home only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnStop-1 PawnStopProof",
+      "`PawnStopProof` is the proof home for narrow `Scene.PawnStop`.",
+      "- stopping side",
+      "- passed pawn side",
+      "- passed pawn identity",
+      "- pawn current square",
+      "- pawn next advance square",
+      "- legal stopping move",
+      "- exact after-board replay",
+      "- pawn was passed before move",
+      "- stopping move directly occupies, attacks, or controls the next advance square",
+      "- same-board proof",
+      "- `NextSquareOccupied`",
+      "- `NextSquareAttacked`",
+      "- `NextSquareControlledByPawn`",
+      "- long-term blockade",
+      "- king opposition",
+      "- tablebase draw",
+      "- promotion race stop",
+      "- tactic sequence stop",
+      "- `cannot ever advance` claim",
+      "`PawnStopProof` is not a public `Story`.",
+      "`PassedPawnObservation` is not a public `Story`.",
+      "PawnStopProof may emit internal missing evidence, but those diagnostics do",
+      "Completion standard: PawnStop-1 closes when PawnStopProof exposes the named"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnStop-1 law must pin: $required")
+
+  test("PawnStop-2 pins ScenePawnStop writer identity and no-go meanings"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnStop-2 Scene.PawnStop Writer",
+      "`ScenePawnStop` is the named writer for `Scene.PawnStop`.",
+      "- complete StoryProof",
+      "- complete PawnStopProof",
+      "- same-board legal replay",
+      "- legal stopping move",
+      "- passed pawn exists",
+      "- next square stop relation complete",
+      "- writer = `ScenePawnStop`",
+      "- EngineCheck does not `Refute`",
+      "- `scene = PawnStop`",
+      "- `tactic = None`",
+      "- `plan = None`",
+      "- `side = stopping side`",
+      "- `rival = passed pawn side`",
+      "- `target = pawn next advance square`",
+      "- `anchor = stopping move origin square`",
+      "- `route = stopping move`",
+      "ScenePawnStop must not own `Scene.Defense` meaning.",
+      "ScenePawnStop must not say it stopped `PromotionThreat`.",
+      "ScenePawnStop must not create endgame-result or tablebase claims."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnStop-2 law must pin: $required")
+
+  test("PawnStop-3 pins negative corpus and complete proof or silence rule"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnStop-3 Negative Corpus",
+      "- legal move is absent",
+      "- same-board proof is absent",
+      "- target pawn is not a passed pawn",
+      "- target pawn next advance square cannot be calculated",
+      "- after the stopping move, the next square remains empty and safely advanceable",
+      "- stop expands into promotion-threat stop",
+      "- king opposition, tablebase, or draw claim enters",
+      "- `permanently stopped`, `cannot advance`, or `only move` wording enters",
+      "Stopping the next square is not stopping the pawn forever.",
+      "Complete PawnStopProof or silence."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnStop-3 law must pin: $required")
+
+  test("PawnStop-4 pins EngineCheck reuse without engine-owned claims"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnStop-4 EngineCheck Reuse",
+      "PawnStop-4 reuses only the existing `EngineCheck` sidecar.",
+      "`EngineCheck` cannot create `Scene.PawnStop`.",
+      "`Supports` does not create a new claim.",
+      "`Caps` suppresses standalone `stops_pawn_advance` speech or weakens it to bounded relation-only evidence.",
+      "`Refutes` blocks the PawnStop Story.",
+      "`Unknown` creates no engine expression.",
+      "- `engine says`",
+      "- eval numbers",
+      "- best defense",
+      "- only move",
+      "- tablebase draw",
+      "- winning or losing endgame"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnStop-4 law must pin: $required")
+
+  test("PawnStop-5 pins StoryTable integration and collision boundaries"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnStop-5 StoryTable Integration",
+      "PawnStop-5 integrates `Scene.PawnStop` into `StoryTable` as a lower",
+      "- `Tactic.Hanging`",
+      "- `Tactic.Fork`",
+      "- `Scene.Material`",
+      "- `Scene.Defense`",
+      "- `Tactic.DiscoveredAttack`",
+      "- `Tactic.Pin`",
+      "- `Tactic.RemoveGuard`",
+      "- `Tactic.Skewer`",
+      "- `Scene.PawnAdvance`",
+      "- `Scene.PawnStop`",
+      "- input order must not change selected role shape",
+      "- PawnStop must not own `Scene.Defense` claims",
+      "- PawnStop must not create `PromotionThreat` claims",
+      "- PawnAdvance and PawnStop over the same pawn must not both compete as Lead",
+      "- immediate tactic meaning stays in the tactic row home",
+      "- actual material change stays in `Scene.Material`",
+      "- capped or refuted PawnStop has no standalone text",
+      "existing immediate tactic, material, defense, and same-pawn PawnAdvance homes stay",
+      "cannot produce renderer or LLM standalone speech."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnStop-5 law must pin: $required")
+
+  test("PawnStop-6 pins ExplanationPlan selected uncapped Lead boundary"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnStop-6 ExplanationPlan",
+      "PawnStop-6 lowers only a selected uncapped `Lead` Verdict for `Scene.PawnStop`.",
+      "`ExplanationPlan` may admit only the `stops_pawn_advance` claim key.",
+      "- `stops_pawn_advance`",
+      "- `stops_promotion`",
+      "- `permanently_stops_pawn`",
+      "- `draws_endgame`",
+      "- `best_defense`",
+      "- `only_move`",
+      "- `tablebase_draw`",
+      "- `wins_endgame`",
+      "- `converts_advantage`",
+      "- `forced`",
+      "Support, Context, Blocked, capped, and refuted PawnStop rows have no standalone claim.",
+      "Completion standard: PawnStop-6 closes when only selected uncapped Lead PawnStop Verdicts"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnStop-6 law must pin: $required")
+
+  test("PawnStop-7 pins DeterministicRenderer bounded wording only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnStop-7 Deterministic Renderer",
+      "Renderer input is `ExplanationPlan` only.",
+      "- `{route} stops the passed pawn from advancing next.`",
+      "- `stops promotion`",
+      "- `stops the pawn for good`",
+      "- `draws`",
+      "- `holds the endgame`",
+      "- `best defense`",
+      "- `only move`",
+      "- `forces`",
+      "- `wins`",
+      "- `tablebase`",
+      "Renderer must not read `Story`, `Verdict`, `PawnStopProof`, `EngineCheck`, `proofFailures`, or `BoardFacts`.",
+      "Completion standard: PawnStop-7 closes when `DeterministicRenderer` accepts only `ExplanationPlan`"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnStop-7 law must pin: $required")
+
+  test("PawnStop-8 pins LLM smoke 8B-only prompt boundary"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnStop-8 LLM Smoke",
+      "PawnStop-8 reuses only the existing 8B LLM smoke boundary.",
+      "- renderedText",
+      "- claimKey",
+      "- strength",
+      "- forbidden wording",
+      "- `Rephrase only. Do not add chess facts.`",
+      "- raw `Story`",
+      "- raw `PawnStopProof`",
+      "- `BoardFacts`",
+      "- `EngineCheck`",
+      "- raw PV",
+      "- `proofFailures`",
+      "- new move",
+      "- new line",
+      "- promotion claim",
+      "- permanent stop claim",
+      "- draw claim",
+      "- tablebase claim",
+      "- winning claim",
+      "Completion standard: PawnStop-8 closes when LLM smoke receives only rendered text contract fields"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnStop-8 law must pin: $required")
+
+  test("PawnStop Closeout hard cleanup keeps authority separated and public surfaces closed"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### PawnStop Closeout Hard Cleanup",
+      "PawnStop Closeout opens no new chess meaning. It only audits the PawnStop hard cleanup surface.",
+      "PawnStop Closeout must confirm:",
+      "- `PassedPawnObservation` observes same-board passed-pawn structure only.",
+      "- `PawnStopProof` proves the legal move directly stops the already-passed pawn's next non-promotion advance square on the exact after-board.",
+      "- `Scene.PawnStop` is the only Story label for this bounded immediate next-square stop meaning.",
+      "- `stops_pawn_advance` is the only speech key for this meaning.",
+      "PawnStop owns no `Scene.PawnAdvance`, PromotionThreat, Promotion, or PawnBreak meaning.",
+      "PawnStop owns no `Scene.Defense`, `Scene.Material`, `Tactic.Hanging`, or Line / Defender tactic meaning.",
+      "`permanent stop`, `draw`, `tablebase`, `best defense`, and `only move` remain forbidden wording only, not live authority.",
+      "PawnStop Closeout duplicate checks:",
+      "- one chess meaning: bounded immediate passed-pawn next-square stop only",
+      "- one proof home: `PawnStopProof`",
+      "- one Story label: `Scene.PawnStop`",
+      "- one speech key: `stops_pawn_advance`",
+      "- one detailed live authority document: `StoryInteractionLaw.md`",
+      "`README.md`, SSOT, Architecture, Contract, and Manifest may summarize PawnStop only.",
+      "Renderer and LLM wording must remain no stronger than `stops_pawn_advance`.",
+      "Public route `200`, production API, and public/user-facing LLM narration remain closed.",
+      "Completion standard: PawnStop Closeout closes when `PassedPawnObservation`,"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnStop closeout law must pin: $required")
+
+    Vector(readme, ssot, architecture, contract, manifest).foreach: summaryDoc =>
+      assert(summaryDoc.contains("PawnStop Closeout opens no new chess meaning; it audits only"), "summary docs must summarize PawnStop closeout")
+      assert(summaryDoc.contains("StoryInteractionLaw.md"), "summary docs must point PawnStop authority to StoryInteractionLaw.md")
+      assert(!summaryDoc.contains("### PawnStop Closeout Hard Cleanup"), "summary docs must not duplicate detailed PawnStop closeout law")
+      assert(!summaryDoc.contains("PawnStop Closeout must confirm:"), "summary docs must not duplicate detailed PawnStop closeout checklist")
+      assert(!summaryDoc.contains("PawnStop Closeout duplicate checks:"), "summary docs must not duplicate detailed PawnStop duplicate checklist")
+
+  test("PawnAdvance-1 pins PawnAdvanceProof as diagnostic proof home only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnAdvance-1 PawnAdvanceProof",
+      "`PawnAdvanceProof` is the proof home for narrow `Scene.PawnAdvance`.",
+      "- advancing side",
+      "- pawn identity",
+      "- from square",
+      "- to square",
+      "- legal pawn advance",
+      "- move is non-capture",
+      "- move is non-promotion",
+      "- pawn was passed before move",
+      "- pawn remains passed after move",
+      "- same-board proof",
+      "- exact after-board replay",
+      "`PawnAdvanceProof` is not a public `Story`.",
+      "`PassedPawnObservation` is not a public `Story`.",
+      "- `unstoppable`",
+      "- `wins`",
+      "- `queens`",
+      "- `promotes next`",
+      "- `conversion`",
+      "- `clear path`",
+      "- `cannot be stopped`",
+      "proofFailures must not become renderer input or LLM input."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnAdvance-1 law must pin: $required")
+
+  test("PawnAdvance-2 pins ScenePawnAdvance writer identity only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnAdvance-2 Scene.PawnAdvance Writer",
+      "Named writer: `ScenePawnAdvance`.",
+      "- complete `StoryProof`",
+      "- complete `PawnAdvanceProof`",
+      "- same-board legal replay",
+      "- legal non-capturing non-promotion pawn advance",
+      "- passed-before and passed-after proof",
+      "- writer = `ScenePawnAdvance`",
+      "- `EngineCheck` does not `Refute`",
+      "- scene = `PawnAdvance`",
+      "- tactic = `None`",
+      "- plan = `None`",
+      "- side = advancing side",
+      "- rival = opposite side",
+      "- target = destination square",
+      "- anchor = pawn origin square",
+      "- route = pawn advance",
+      "ScenePawnAdvance must not create a PromotionThreat.",
+      "ScenePawnAdvance must not create winning, conversion, or material claims.",
+      "ScenePawnAdvance must not create pawn-race or unstoppable-pawn claims."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnAdvance-2 law must pin: $required")
+
+  test("PawnAdvance-3 pins negative corpus and silence rule"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnAdvance-3 Negative Corpus",
+      "- legal move is absent",
+      "- same-board proof is absent",
+      "- moving piece is not a pawn",
+      "- move is a capture",
+      "- move is a promotion",
+      "- pawn was not passed before the move",
+      "- moved pawn is not passed after the move",
+      "- en passant complexity enters the proof attempt",
+      "- proof attempt expands into immediate promotion threat",
+      "- `unstoppable`, `winning`, or `conversion` wording enters",
+      "A pawn move is not a passed-pawn Story. Complete PawnAdvanceProof or silence."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnAdvance-3 law must pin: $required")
+
+  test("PawnAdvance-4 pins EngineCheck reuse without engine-owned claims"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnAdvance-4 EngineCheck Reuse",
+      "PawnAdvance-4 reuses only the existing `EngineCheck` sidecar.",
+      "`EngineCheck` cannot create `Scene.PawnAdvance`.",
+      "`Supports` does not create a new claim.",
+      "`Caps` suppresses standalone `advances_passed_pawn` speech or weakens it to relation-only bounded evidence.",
+      "`Refutes` blocks the PawnAdvance Story.",
+      "`Unknown` creates no engine expression.",
+      "- `engine says`",
+      "- eval numbers",
+      "- best move",
+      "- only move",
+      "- winning endgame",
+      "- tablebase-like claim"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnAdvance-4 law must pin: $required")
+
+  test("PawnAdvance-5 pins StoryTable integration and lower bounded claim"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnAdvance-5 StoryTable Integration",
+      "PawnAdvance-5 integrates `Scene.PawnAdvance` into `StoryTable` as a lower",
+      "- `Tactic.Hanging`",
+      "- `Tactic.Fork`",
+      "- `Scene.Material`",
+      "- `Scene.Defense`",
+      "- `Tactic.DiscoveredAttack`",
+      "- `Tactic.Pin`",
+      "- `Tactic.RemoveGuard`",
+      "- `Tactic.Skewer`",
+      "- `Scene.PawnAdvance`",
+      "- input order must not change selected role shape",
+      "- PawnAdvance must not own tactical or material claims",
+      "- actual material change now stays in `Scene.Material`",
+      "- immediate tactic meaning stays in the tactic row home",
+      "- PawnAdvance remains a lower bounded scene claim only",
+      "- capped or refuted PawnAdvance has no standalone text",
+      "existing immediate tactic, material, and defense homes stay",
+      "cannot produce renderer or LLM standalone speech."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnAdvance-5 law must pin: $required")
+
+  test("PawnAdvance-6 pins ExplanationPlan bounded claim boundary"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnAdvance-6 ExplanationPlan",
+      "PawnAdvance-6 lowers only a selected uncapped `Lead` Verdict for `Scene.PawnAdvance`.",
+      "`ExplanationPlan` may admit only the `advances_passed_pawn` claim key.",
+      "- `advances_passed_pawn`",
+      "- `promotion_threat`",
+      "- `unstoppable_pawn`",
+      "- `wins_endgame`",
+      "- `converts_advantage`",
+      "- `best_move`",
+      "- `only_move`",
+      "- `forced`",
+      "- `decisive`",
+      "- `creates_pressure`",
+      "- `takes_initiative`",
+      "Support, Context, Blocked, capped, and refuted PawnAdvance rows have no standalone claim.",
+      "Completion standard: PawnAdvance-6 closes when only selected uncapped Lead PawnAdvance Verdicts"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnAdvance-6 law must pin: $required")
+
+  test("PawnAdvance-7 pins DeterministicRenderer bounded wording only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnAdvance-7 Deterministic Renderer",
+      "Renderer input is `ExplanationPlan` only.",
+      "- `{route} advances the passed pawn.`",
+      "- `cannot be stopped`",
+      "- `will promote`",
+      "- `wins`",
+      "- `winning endgame`",
+      "- `converts`",
+      "- `best move`",
+      "- `only move`",
+      "- `forces`",
+      "- `decisive`",
+      "- `creates pressure`",
+      "Renderer must not read `Story`, `Verdict`, `PawnAdvanceProof`, `EngineCheck`, `proofFailures`, or `BoardFacts`.",
+      "Completion standard: PawnAdvance-7 closes when `DeterministicRenderer` accepts only `ExplanationPlan`"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnAdvance-7 law must pin: $required")
+
+  test("PawnAdvance-8 pins LLM smoke 8B-only prompt boundary"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PawnAdvance-8 LLM Smoke",
+      "PawnAdvance-8 reuses only the existing 8B LLM smoke boundary.",
+      "- renderedText",
+      "- claimKey",
+      "- strength",
+      "- forbidden wording",
+      "- `Rephrase only. Do not add chess facts.`",
+      "- raw `Story`",
+      "- raw `PawnAdvanceProof`",
+      "- `BoardFacts`",
+      "- `EngineCheck`",
+      "- raw PV",
+      "- `proofFailures`",
+      "- new move",
+      "- new line",
+      "- promotion claim",
+      "- unstoppable claim",
+      "- winning claim",
+      "- conversion claim",
+      "Completion standard: PawnAdvance-8 closes when LLM smoke receives only rendered text contract fields"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnAdvance-8 law must pin: $required")
+
+  test("PawnAdvance Closeout pins hard cleanup ownership boundaries"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### PawnAdvance Closeout Hard Cleanup",
+      "- `PassedPawnObservation` observes same-board pawn structure only.",
+      "- `PawnAdvanceProof` binds the legal non-capturing non-promotion advance and exact after-board passed-pawn status.",
+      "- `Scene.PawnAdvance` is the only Story label for this bounded pawn-progress meaning.",
+      "- `advances_passed_pawn` is the only speech key for this meaning.",
+      "PawnAdvance owns no PromotionThreat, Promotion, PawnStop, PawnBreak, Material, Hanging,",
+      "- one chess meaning: bounded passed-pawn advance only",
+      "- one proof home: `PawnAdvanceProof`",
+      "- one Story label: `Scene.PawnAdvance`",
+      "- one speech key: `advances_passed_pawn`",
+      "- one detailed live authority document: `StoryInteractionLaw.md`",
+      "`README.md`, SSOT, Architecture, Contract, and Manifest may summarize PawnAdvance only.",
+      "Renderer and LLM wording must remain no stronger than `advances_passed_pawn`.",
+      "Public route `200`, production API, and public/user-facing LLM narration remain closed.",
+      "Completion standard: PawnAdvance Closeout closes when `PassedPawnObservation`,"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnAdvance closeout law must pin: $required")
+
+    Vector(readme, ssot, architecture, contract, manifest).foreach: summaryDoc =>
+      assert(summaryDoc.contains("StoryInteractionLaw.md"), "summary docs must point PawnAdvance authority to StoryInteractionLaw.md")
+      assert(!summaryDoc.contains("### PawnAdvance Closeout Hard Cleanup"), "summary docs must not duplicate detailed closeout law")
 
   test("agents and active frontend tests reject retired downstream authority"):
     assert(Files.exists(agentInstructions), "AGENTS.md must be available from the lila worktree")
-    assert(Files.exists(commentaryBridgeTest), "commentaryBridge.test.ts must remain an active frontend test")
+    assert(Files.exists(moveExplanationTest), "moveExplanation.test.ts must remain an active frontend no-op test")
 
     assert(!agents.contains("CommentaryOutline"), "AGENTS.md must not grant CommentaryOutline authority")
     assert(!agents.contains("CommentaryPlan"), "AGENTS.md must not grant CommentaryPlan authority")
     assert(agents.contains("selected `Verdict` data only"))
 
-    val bridgeTest = Files.readString(commentaryBridgeTest)
+    val bridgeTest = Files.readString(moveExplanationTest)
     RetiredRootDocs.foreach: docName =>
       assert(
         !bridgeTest.contains(docName),
-        s"active commentaryBridge.test.ts must not read retired doc $docName"
+        s"active moveExplanation.test.ts must not read retired doc $docName"
       )

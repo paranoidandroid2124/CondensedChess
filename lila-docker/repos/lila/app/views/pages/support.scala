@@ -24,7 +24,7 @@ object support:
             st.article(cls := "legal-content")(
               header(cls := "legal-header")(
                 h1("Support Chesstory"),
-                p(cls := "legal-meta")("Core analysis stays open. Deeper commentary paths still follow current usage limits.")
+                p(cls := "legal-meta")("Core analysis stays open. Deeper review paths still follow current usage limits.")
               ),
               st.section(cls := "legal-section")(
                 h2("Why Support"),
@@ -52,7 +52,7 @@ object support:
               st.section(cls := "legal-section")(
                 h2("Open Beta Feedback"),
                 p(
-                  "If you just used Strategic Puzzle, Move Explanation, or another core analysis surface, you can tell us whether it already feels worth paying for and optionally join the paid-plan waitlist."
+                  "If you just used account patterns, PGN import, full analysis, or another core analysis surface, you can tell us whether it already feels worth paying for and optionally join the paid-plan waitlist."
                 ),
                 div(cls := "legal-actions")(
                   a(

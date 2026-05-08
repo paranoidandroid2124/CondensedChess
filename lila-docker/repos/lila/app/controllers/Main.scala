@@ -68,12 +68,6 @@ final class Main(
             copy = "Open My Patterns or Prep for Opponent from a public account.",
             href = routes.AccountIntel.landing("", "").url
           ),
-          Main.HomeQuickAction(
-            label = "Puzzle",
-            title = "Open Strategic Puzzle",
-            copy = "Open the current live strategic puzzle without promising saved progress.",
-            href = routes.StrategicPuzzle.home.url
-          )
         ),
         recentAnalyses = summary.analyses.take(4),
         recentPatternReports = recentPatternReports,
@@ -112,9 +106,6 @@ final class Main(
     journalContent.bySlug(slug) match
       case Some(post) => Ok.page(views.pages.journal(journalContent.all, Some(post)))
       case None       => NotFound.page(views.site.message.notFound(Some("Journal post not found.")))
-
-  def strategicPuzzleDemo = Open:
-    Ok.page(views.pages.strategicPuzzleDemo.apply)
 
   def toggleBlindMode = OpenBody:
     bindForm(WebForms.blind)(

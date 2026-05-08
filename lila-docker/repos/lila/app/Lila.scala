@@ -128,7 +128,6 @@ final class LilaComponents(
   lazy val main: Main = wire[Main]
   lazy val ops: Ops = wire[Ops]
   lazy val pref: Pref = wire[Pref]
-  lazy val strategicPuzzle: StrategicPuzzle = wire[StrategicPuzzle]
   lazy val study: Study = wire[Study]
   lazy val user: User = wire[User]
   lazy val userAnalysis: UserAnalysis = wire[UserAnalysis]
