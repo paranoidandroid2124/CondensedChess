@@ -12,6 +12,10 @@ private[commentary] enum ExplanationClaim:
   case DefendsPiece
   case PreventsMaterialLoss
   case ProtectsTarget
+  case RevealsAttackOnPiece
+  case PinsPiece
+  case RemovesDefender
+  case SkewersPieceToPiece
 
   def key: String =
     this match
@@ -26,6 +30,10 @@ private[commentary] enum ExplanationClaim:
       case DefendsPiece              => "defends_piece"
       case PreventsMaterialLoss      => "prevents_material_loss"
       case ProtectsTarget            => "protects_target"
+      case RevealsAttackOnPiece      => "reveals_attack_on_piece"
+      case PinsPiece                 => "pins_piece"
+      case RemovesDefender           => "removes_defender"
+      case SkewersPieceToPiece       => "skewers_piece_to_piece"
 
 private[commentary] object ExplanationClaim:
   val HangingAllowed: Vector[ExplanationClaim] =
@@ -78,7 +86,8 @@ private[commentary] object ExplanationClaim:
       "blunder",
       "best_move",
       "forced_win",
-      "no_counterplay"
+      "no_counterplay",
+      "line_tactic_identity"
     )
 
   val DefenseAllowed: Vector[ExplanationClaim] =
@@ -98,6 +107,82 @@ private[commentary] object ExplanationClaim:
       "king_safe",
       "mate_defense",
       "no_counterplay"
+    )
+
+  val DiscoveredAttackAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.RevealsAttackOnPiece
+    )
+
+  val DiscoveredAttackForbiddenKeys: Vector[String] =
+    Vector(
+      "wins_material",
+      "pins_piece",
+      "skewers_piece",
+      "creates_pressure",
+      "takes_initiative",
+      "mate_threat",
+      "best_move",
+      "forced",
+      "decisive"
+    )
+
+  val PinAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.PinsPiece
+    )
+
+  val PinForbiddenKeys: Vector[String] =
+    Vector(
+      "wins_material",
+      "king_unsafe",
+      "mate_threat",
+      "best_move",
+      "only_move",
+      "forced",
+      "decisive",
+      "creates_pressure",
+      "takes_initiative",
+      "cannot_move"
+    )
+
+  val RemoveGuardAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.RemovesDefender
+    )
+
+  val RemoveGuardForbiddenKeys: Vector[String] =
+    Vector(
+      "wins_material",
+      "target_is_hanging",
+      "no_defense",
+      "refutes_defense",
+      "best_move",
+      "only_move",
+      "forced",
+      "decisive",
+      "creates_pressure",
+      "takes_initiative"
+    )
+
+  val SkewerAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.SkewersPieceToPiece
+    )
+
+  val SkewerForbiddenKeys: Vector[String] =
+    Vector(
+      "wins_material",
+      "wins_rear_piece",
+      "front_piece_must_move",
+      "best_move",
+      "only_move",
+      "forced",
+      "decisive",
+      "king_unsafe",
+      "mate_threat",
+      "creates_pressure",
+      "takes_initiative"
     )
 
 private[commentary] enum ExplanationStrength:
@@ -149,6 +234,22 @@ private[commentary] enum ForbiddenWording:
   case SolvesPosition
   case KingSafe
   case MateDefense
+  case WinsMaterial
+  case PinsPiece
+  case SkewersPiece
+  case CreatesPressure
+  case TakesInitiative
+  case MateThreat
+  case CannotMove
+  case TargetIsHanging
+  case NoDefense
+  case RefutesDefense
+  case LeavesUndefended
+  case NoDefenderRemains
+  case RemovesDefender
+  case LineTacticIdentity
+  case WinsRearPiece
+  case FrontPieceMustMove
 
   def key: String =
     this match
@@ -178,6 +279,22 @@ private[commentary] enum ForbiddenWording:
       case SolvesPosition     => "solves_position"
       case KingSafe           => "king_safe"
       case MateDefense        => "mate_defense"
+      case WinsMaterial       => "wins_material"
+      case PinsPiece          => "pins_piece"
+      case SkewersPiece       => "skewers_piece"
+      case CreatesPressure    => "creates_pressure"
+      case TakesInitiative    => "takes_initiative"
+      case MateThreat         => "mate_threat"
+      case CannotMove         => "cannot_move"
+      case TargetIsHanging    => "target_is_hanging"
+      case NoDefense          => "no_defense"
+      case RefutesDefense     => "refutes_defense"
+      case LeavesUndefended   => "leaves_undefended"
+      case NoDefenderRemains  => "no_defender_remains"
+      case RemovesDefender    => "removes_defender"
+      case LineTacticIdentity => "line_tactic_identity"
+      case WinsRearPiece      => "wins_rear_piece"
+      case FrontPieceMustMove => "front_piece_must_move"
 
 private[commentary] object ForbiddenWording:
   val Basic: Vector[ForbiddenWording] =
@@ -239,7 +356,11 @@ private[commentary] object ExplanationPlan:
         ForbiddenWording.ForcedWin
       )
   private val MaterialForbiddenWording =
-    ForbiddenWording.Basic :+ ForbiddenWording.ForcedWin
+    ForbiddenWording.Basic ++
+      Vector(
+        ForbiddenWording.ForcedWin,
+        ForbiddenWording.LineTacticIdentity
+      )
   private val DefenseForbiddenWording =
     ForbiddenWording.Basic ++
       Vector(
@@ -250,6 +371,63 @@ private[commentary] object ExplanationPlan:
         ForbiddenWording.KingSafe,
         ForbiddenWording.MateDefense
       )
+  private val DiscoveredAttackForbiddenWording =
+    Vector(
+      ForbiddenWording.WinsMaterial,
+      ForbiddenWording.Winning,
+      ForbiddenWording.PinsPiece,
+      ForbiddenWording.SkewersPiece,
+      ForbiddenWording.CreatesPressure,
+      ForbiddenWording.TakesInitiative,
+      ForbiddenWording.MateThreat,
+      ForbiddenWording.BestMove,
+      ForbiddenWording.Forced,
+      ForbiddenWording.Decisive
+    )
+  private val PinForbiddenWording =
+    Vector(
+      ForbiddenWording.WinsMaterial,
+      ForbiddenWording.Winning,
+      ForbiddenWording.KingUnsafe,
+      ForbiddenWording.MateThreat,
+      ForbiddenWording.BestMove,
+      ForbiddenWording.OnlyMove,
+      ForbiddenWording.Forced,
+      ForbiddenWording.Decisive,
+      ForbiddenWording.CreatesPressure,
+      ForbiddenWording.TakesInitiative,
+      ForbiddenWording.CannotMove
+    )
+  private val RemoveGuardForbiddenWording =
+    Vector(
+      ForbiddenWording.WinsMaterial,
+      ForbiddenWording.TargetIsHanging,
+      ForbiddenWording.LeavesUndefended,
+      ForbiddenWording.NoDefenderRemains,
+      ForbiddenWording.NoDefense,
+      ForbiddenWording.RefutesDefense,
+      ForbiddenWording.BestMove,
+      ForbiddenWording.OnlyMove,
+      ForbiddenWording.Forced,
+      ForbiddenWording.Decisive,
+      ForbiddenWording.CreatesPressure,
+      ForbiddenWording.TakesInitiative
+    )
+  private val SkewerForbiddenWording =
+    Vector(
+      ForbiddenWording.WinsMaterial,
+      ForbiddenWording.WinsRearPiece,
+      ForbiddenWording.FrontPieceMustMove,
+      ForbiddenWording.BestMove,
+      ForbiddenWording.OnlyMove,
+      ForbiddenWording.Forced,
+      ForbiddenWording.Decisive,
+      ForbiddenWording.Winning,
+      ForbiddenWording.KingUnsafe,
+      ForbiddenWording.MateThreat,
+      ForbiddenWording.CreatesPressure,
+      ForbiddenWording.TakesInitiative
+    )
 
   private def tacticAllowedClaim(verdict: Verdict, tactic: Tactic) =
     if verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited then
@@ -276,6 +454,39 @@ private[commentary] object ExplanationPlan:
         case _           => HangingForbiddenWording
     if verdict.engineStrengthLimited then base :+ ForbiddenWording.StrongWording
     else base
+
+  private def discoveredAttackAllowedClaim(verdict: Verdict) =
+    Option.when(verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited)(
+      ExplanationClaim.RevealsAttackOnPiece
+    )
+
+  private def discoveredAttackCanPlan(verdict: Verdict) =
+    verdict.selected &&
+      verdict.role == Role.Lead &&
+      verdict.leadAllowed &&
+      !verdict.engineStrengthLimited &&
+      !verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes)
+
+  private def pinCanPlan(verdict: Verdict) =
+    verdict.selected &&
+      verdict.role == Role.Lead &&
+      verdict.leadAllowed &&
+      !verdict.engineStrengthLimited &&
+      !verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes)
+
+  private def removeGuardCanPlan(verdict: Verdict) =
+    verdict.selected &&
+      verdict.role == Role.Lead &&
+      verdict.leadAllowed &&
+      !verdict.engineStrengthLimited &&
+      !verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes)
+
+  private def skewerCanPlan(verdict: Verdict) =
+    verdict.selected &&
+      verdict.role == Role.Lead &&
+      verdict.leadAllowed &&
+      !verdict.engineStrengthLimited &&
+      !verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes)
 
   private def materialForbiddenWording(verdict: Verdict) =
     if verdict.engineStrengthLimited then MaterialForbiddenWording :+ ForbiddenWording.StrongWording
@@ -322,6 +533,10 @@ private[commentary] object ExplanationPlan:
     val story = verdict.story
     if story.scene == Scene.Material then fromSelectedMaterial(verdict, story)
     else if story.scene == Scene.Defense then fromSelectedDefense(verdict, story)
+    else if story.tactic.contains(Tactic.DiscoveredAttack) then fromSelectedDiscoveredAttack(verdict, story)
+    else if story.tactic.contains(Tactic.Pin) then fromSelectedPin(verdict, story)
+    else if story.tactic.contains(Tactic.RemoveGuard) then fromSelectedRemoveGuard(verdict, story)
+    else if story.tactic.contains(Tactic.Skewer) then fromSelectedSkewer(verdict, story)
     else fromSelectedTactic(verdict, story)
 
   private def fromSelectedTactic(verdict: Verdict, story: Story): Option[ExplanationPlan] =
@@ -352,6 +567,129 @@ private[commentary] object ExplanationPlan:
       forbiddenWording = forbiddenWording(verdict, tactic),
       relations = relations(verdict, tactic),
       debugOnly = verdict.role == Role.Blocked,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedDiscoveredAttack(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      if discoveredAttackCanPlan(verdict)
+      if story.scene == Scene.Tactic
+      if story.tactic.contains(Tactic.DiscoveredAttack)
+      if story.secondaryTarget.isEmpty
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = Some(Tactic.DiscoveredAttack),
+      side = story.side,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = None,
+      allowedClaim = discoveredAttackAllowedClaim(verdict),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = DiscoveredAttackForbiddenWording,
+      relations = Vector.empty,
+      debugOnly = false,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedPin(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      if pinCanPlan(verdict)
+      if story.scene == Scene.Tactic
+      if story.tactic.contains(Tactic.Pin)
+      if story.writer.contains(StoryWriter.TacticPin)
+      if story.secondaryTarget.isEmpty
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = Some(Tactic.Pin),
+      side = story.side,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = None,
+      allowedClaim = Some(ExplanationClaim.PinsPiece),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = PinForbiddenWording,
+      relations = Vector.empty,
+      debugOnly = false,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedRemoveGuard(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      if removeGuardCanPlan(verdict)
+      if story.scene == Scene.Tactic
+      if story.tactic.contains(Tactic.RemoveGuard)
+      if story.writer.contains(StoryWriter.TacticRemoveGuard)
+      if story.secondaryTarget.isEmpty
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = Some(Tactic.RemoveGuard),
+      side = story.side,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = None,
+      allowedClaim = Some(ExplanationClaim.RemovesDefender),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = RemoveGuardForbiddenWording,
+      relations = Vector.empty,
+      debugOnly = false,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedSkewer(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      secondaryTarget <- story.secondaryTarget
+      if skewerCanPlan(verdict)
+      if story.scene == Scene.Tactic
+      if story.tactic.contains(Tactic.Skewer)
+      if story.writer.contains(StoryWriter.TacticSkewer)
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = Some(Tactic.Skewer),
+      side = story.side,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = Some(secondaryTarget),
+      allowedClaim = Some(ExplanationClaim.SkewersPieceToPiece),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = SkewerForbiddenWording,
+      relations = Vector.empty,
+      debugOnly = false,
       supportContextLinks = Vector.empty
     )
 

@@ -26,7 +26,179 @@ mismatch is a no-go state, not a second source of authority.
 
 This reset is intentionally closed at the public boundary.
 
-Current implementation scope is Middlegame Interaction Hardening.
+Line / Ray Slice is a closed baseline.
+Line-0 opens only the charter for the first narrow line/ray proof slice.
+Line-1 opens only `LineProof` as a narrow proof home.
+Line-2 opens only the named `TacticDiscoveredAttack` writer for one narrow `Tactic.DiscoveredAttack` Story.
+Line-3 opens only the negative corpus for the narrow `Tactic.DiscoveredAttack` slice.
+Line-4 opens only existing `EngineCheck` reuse for existing `Tactic.DiscoveredAttack` Stories.
+Line-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, and `Tactic.DiscoveredAttack` rows.
+Line-6 opens only ExplanationPlan mapping for selected Lead `Tactic.DiscoveredAttack` Verdicts.
+Line-7 opens only deterministic renderer text for selected `Tactic.DiscoveredAttack` ExplanationPlan.
+Line-8 opens only LLM smoke for selected DiscoveredAttack ExplanationPlan and RenderedLine.
+Line Closeout opens no new chess meaning; it audits only LineFact, LineProof, Tactic.DiscoveredAttack, speech key, renderer/LLM, docs authority, and closed public surfaces.
+First Line scope: a legal move reveals one slider attack on one non-king material target.
+LineFact observes geometry. LineProof binds the revealed line. Tactic.DiscoveredAttack may speak only after proof.
+Geometry is not enough. Revealed attack proof or silence.
+LineProof is not a public Story. LineFact is not a public Story.
+Current implementation scope is Line / Defender Contact Neighborhood.
+Pin-0 opens only the charter for the second narrow line/defender contact vertical slice.
+Pin first positive scope is not a broad pin family.
+Pin first scope: a legal move creates or reveals a line where one non-king piece is pinned to its king.
+LineFact observes geometry. LineProof binds the line. PinProof proves the pinned relation. Tactic.Pin may speak only after proof.
+Pin-0 opens only narrow Tactic.Pin, king-behind line relation, one non-king pinned target, a legal move that creates or reveals the pin relation, and bounded pin wording after selected Verdict only.
+Pin-0 opens no broad LineTactic, broad AbsPin or RelPin family, Skewer, XRay public Story, RemoveGuard, DiscoveredAttack expansion, mate threat, king safety, winning material, decisive tactic, forced move, best move, cannot move wording, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration.
+Pin-1 opens only `PinProof` as a narrow proof home.
+PinProof proves side creating the pin, pinned target, pinning slider, king behind target, legal pinning or revealing move, line kind, same-board proof, before/after relation, target non-king, target and king same side, and slider attacks through target toward king after move.
+PinProof is not a public Story. LineFact and LineProof are not public Stories.
+PinProof says no material gain, king unsafe, mate, pressure, or initiative; proofFailures stay out of renderer/LLM input.
+Pin-2 opens only the named `TacticPin` writer for one narrow `Tactic.Pin` Story.
+TacticPin requires complete StoryProof, complete PinProof, same-board legal replay, legal pinning or revealing move, pinned target, pinning slider, king-behind-target relation, writer identity, and no EngineCheck Refutes status.
+Pin Story identity is tactic Pin, scene Tactic, pinning side, pinned-side rival, pinned target square, pinning slider or moved-piece anchor, and pinning/revealing route.
+Pin-2 opens no Material claim, Defense ownership, RemoveGuard ownership, king target speech, broad AbsPin or RelPin family, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+Pin-3 opens only the negative corpus for the narrow `Tactic.Pin` slice.
+Pin-3 keeps illegal moves, missing same-board proof, non-sliders, missing king-behind-target relation, wrong-side king relation, broken target-to-king line, king targets, extra blockers, stale pin-looking geometry, discovered-only lines, skewer-looking lines, and mate, king-safety, or pressure wording silent.
+A line to a king is not enough. Complete pinned relation or silence.
+Pin-4 opens only existing `EngineCheck` reuse for existing `Tactic.Pin` Stories.
+EngineCheck cannot create Pin; Supports creates no new claim; Caps suppresses allowed claim or keeps downstream speech bounded when opened later; Refutes blocks the Pin Story; Unknown creates no engine expression.
+Pin-4 opens no engine-says wording, best-move wording, only-move wording, winning tactic, forced win, raw PV explanation, eval number public value, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+Pin-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, and `Tactic.Pin` rows.
+Pin-5 keeps selected Verdict stable across input order, prevents duplicate Lead for same-line DiscoveredAttack and Pin, keeps Pin from owning Material or king-safety claims, keeps actual material change in Scene.Material, and gives Defense no claim without complete ThreatProof and DefenseProof.
+Pin-5 opens no new Pin proof home, new Story family, broad AbsPin or RelPin family, Material claim from Pin, king-safety claim from Pin, Defense claim from incomplete Defense rows, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+Pin-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.Pin` Verdicts.
+Pin-6 allows only the `pins_piece` claim key and forbids wins_material, king_unsafe, mate_threat, best_move, only_move, forced, decisive, creates_pressure, takes_initiative, and cannot_move.
+Support, Context, Blocked, capped, and refuted Pin rows create no standalone claim.
+Pin-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+Pin-7 opens only deterministic renderer text for selected `Tactic.Pin` ExplanationPlan.
+Pin-7 renderer input is ExplanationPlan only and may render `{route} pins the piece on {target}.`
+Pin-7 forbids cannot move, the king is unsafe, wins material, winning, decisive, best move, only move, forces, creates pressure, and threatens mate.
+Pin-7 opens no raw Verdict, raw Story, PinProof, LineFact, LineProof, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+Pin-8 opens only LLM smoke for selected Pin ExplanationPlan and RenderedLine.
+Pin-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`
+Pin-8 forbids raw Story, raw PinProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, mate, pressure, initiative, winning, and cannot-move claims.
+Pin-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation.
+Pin Closeout opens no new chess meaning; it audits only LineFact, LineProof, PinProof, Tactic.Pin, speech key, renderer/LLM, docs authority, test-helper boundary, and closed public surfaces.
+Pin Closeout confirms Pin owns no Material, Defense, DiscoveredAttack, Skewer, or RemoveGuard meaning; broad Line, Ray, XRay, and broad Pin family terms are not live authority; renderer/LLM wording stays no stronger than `pins_piece`; public route `200`, production API, and public/user-facing LLM narration remain closed.
+RemoveGuard-0 opens only the charter for the third narrow line/defender contact vertical slice.
+First RemoveGuard positive scope is not a broad remove-the-guard motif.
+RemoveGuard first scope: a legal move removes one defender from one non-king material target.
+First runtime positive path stays centered on defender capture when possible; deflection is allowed only when exact-board proof immediately after the same move shows the defender no longer guards the target.
+BoardFacts observes guard relation. RemoveGuardProof proves the guard was removed. Tactic.RemoveGuard may speak only after proof.
+RemoveGuard-0 opens only narrow Tactic.RemoveGuard, one non-king material target, one defender, one legal move that removes the defender guard relation, and bounded remove-guard wording after selected Verdict only.
+RemoveGuard-0 opens no broad deflection tactic, overloaded defender theory, discovered attack expansion, Pin/Skewer/XRay expansion, material win claim, winning, decisive, forced, best move, only move, no defense, refutes defense, collapses position, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration.
+RemoveGuard-1 opens only `RemoveGuardProof` as a narrow proof home.
+RemoveGuardProof proves side removing the guard, rival side, guarded target, removed defender, legal remove-guard move, target non-king material piece, defender guarded target before move, after move defender no longer guards target, same-board proof, and exact-board after-move relation.
+RemoveGuard-1 permits DefenderCaptured first and GuardLineBlocked only when one legal move blocks a slider defender guard line and exact-board proof shows the defender no longer guards the target.
+RemoveGuard-1 keeps opponent-reply deflection, sacrifice lure, overloaded defender, remove guard by long tactic sequence, and defender-cannot-defend general theory closed.
+RemoveGuardProof is not a public Story and owns no material result; proofFailures stay out of renderer/LLM input.
+RemoveGuard-1 opens no Tactic.RemoveGuard writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, material win claim, public route `200`, production API, or public/user-facing LLM narration.
+RemoveGuard-2 opens only the named `TacticRemoveGuard` writer for one narrow `Tactic.RemoveGuard` Story.
+TacticRemoveGuard requires complete StoryProof, complete RemoveGuardProof, same-board legal replay, legal remove-guard move, guarded target, removed defender that guarded the target before move, defender no longer guards target after move, writer identity, and no EngineCheck Refutes status.
+RemoveGuard Story identity is tactic RemoveGuard, scene Tactic, guard-removing side, target/defender-side rival, guarded target square, removed-defender or moving-piece anchor, and remove-guard route.
+RemoveGuard-2 opens no Scene.Material claim, Tactic.Hanging replacement, Defense refutation wording, material win claim, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+RemoveGuard-3 opens only the negative corpus for the narrow `Tactic.RemoveGuard` slice.
+RemoveGuard-3 keeps illegal moves, missing same-board proof, king targets, non-guarding defenders, still-guarding defenders, broad claims from other defenders, material-gain claims, Pin/DiscoveredAttack/Skewer misclassification, opponent-reply deflection, overloaded-defender claims, and no-defense, wins-material, and best-move wording silent.
+Removing one guard is not winning material. Complete guard-removal proof or silence.
+RemoveGuard-3 opens no new proof home, new writer, StoryTable ordering change, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+RemoveGuard-4 opens only existing `EngineCheck` reuse for existing `Tactic.RemoveGuard` Stories.
+EngineCheck cannot create RemoveGuard; Supports creates no new claim; Caps suppresses standalone claim or keeps downstream speech bounded when opened later; Refutes blocks the RemoveGuard Story; Unknown creates no engine expression.
+RemoveGuard-4 opens no engine-says wording, best-move wording, only-move wording, winning tactic, raw PV explanation, eval number public value, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+RemoveGuard-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, `Tactic.Pin`, and `Tactic.RemoveGuard` rows.
+RemoveGuard-5 keeps selected Verdict stable across input order, keeps RemoveGuard from owning Material or Hanging claims, blocks incomplete Defense responses, prevents duplicate Lead for same-line Pin and RemoveGuard, and keeps actual material change now in Scene.Material.
+RemoveGuard-5 opens no new proof home, new Story family, Material claim from RemoveGuard, Hanging claim from RemoveGuard, incomplete Defense response claim, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+RemoveGuard-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.RemoveGuard` Verdicts.
+RemoveGuard-6 allows only the `removes_defender` claim key and forbids wins_material, target_is_hanging, no_defense, refutes_defense, best_move, only_move, forced, decisive, creates_pressure, and takes_initiative.
+Support, Context, Blocked, capped, and refuted RemoveGuard rows create no standalone claim.
+RemoveGuard-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+RemoveGuard-7 opens only deterministic renderer text for selected `Tactic.RemoveGuard` ExplanationPlan.
+RemoveGuard-7 renderer input is ExplanationPlan only and may render `{route} removes the defender of the piece on {target}.`
+RemoveGuard-7 forbids wins material, leaves it undefended, no defender remains, best move, only move, forces, decisive, refutes the defense, and creates pressure.
+RemoveGuard-7 opens no raw Verdict, raw Story, RemoveGuardProof, BoardFacts, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+RemoveGuard-8 opens only LLM smoke for selected RemoveGuard ExplanationPlan and RenderedLine.
+RemoveGuard-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`
+RemoveGuard-8 forbids raw Story, raw RemoveGuardProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, material-win, no-defense, pressure, and initiative claims.
+RemoveGuard-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation.
+RemoveGuard Closeout opens no new chess meaning; it audits only BoardFacts guard relation, RemoveGuardProof, Tactic.RemoveGuard, speech key, renderer/LLM, docs authority, test-helper boundary, and closed public surfaces.
+RemoveGuard Closeout confirms RemoveGuard owns no Material, Hanging, Defense, Pin, or DiscoveredAttack meaning; deflection, overload, no-defender, and wins-material terms are not live authority; renderer/LLM wording stays no stronger than `removes_defender`; public route `200`, production API, and public/user-facing LLM narration remain closed.
+Line / Defender Interaction Hardening is a closed baseline.
+Line/Defender hardening opens no new Story. It proves that existing line and defender Stories do not steal each other's meaning.
+LDH-0 opens only existing Line/Defender rows interaction hardening, complex same-board fixtures, StoryTable role stability, downstream no-overclaim smoke, and the minimum StoryTable ordering fix if an existing DiscoveredAttack ordering bug is exposed.
+LDH-0 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration.
+LDH-1 opens only the Fixture Map for complex same-board Line/Defender interaction fixtures.
+LDH-1 fixtures must state same-board FEN, side to move, candidate legal lines, expected open rows, expected blocked rows, expected Lead/Support/Context/Blocked role, expected selected Verdict, and forbidden claims.
+LDH-1 required fixture categories are DiscoveredAttack vs Pin, DiscoveredAttack vs RemoveGuard, Pin vs RemoveGuard, DiscoveredAttack + Pin + RemoveGuard same-board, Line/Defender row vs Material, Line/Defender row vs Hanging, Line/Defender row vs Defense, and EngineCheck Supports/Caps/Refutes over existing Line/Defender rows.
+LDH-1 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration.
+LDH-2 opens only StoryTable role stability checks over existing Line/Defender rows.
+LDH-2 verifies input-order stable selected Verdicts, no duplicate Lead for the same meaning, incomplete rows not Lead, refuted rows Blocked, capped rows without standalone claims, and separated ownership for same-line Pin/DiscoveredAttack, Pin/RemoveGuard, and DiscoveredAttack/RemoveGuard collisions.
+LDH-2 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration.
+LDH-3 opens only Meaning Ownership Boundary checks over existing Line/Defender and collision rows.
+LDH-3 fixes each row to its own meaning: DiscoveredAttack reveals one slider attack on one material target, Pin pins one non-king piece to its own king on a line, RemoveGuard removes one defender guard relation from one target, Scene.Material owns actual material balance change now, Tactic.Hanging owns capturable target with bounded material gain proof, and Scene.Defense owns complete ThreatProof plus DefenseProof preventing immediate material loss.
+LDH-3 forbids RemoveGuard material-gain claims, Pin cannot-move or king-unsafe claims, DiscoveredAttack wins-material claims, Material line-tactic identity, and Defense stopped-threat wording without complete threat proof.
+LDH-3 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration.
+LDH-4 opens only existing EngineCheck interaction checks over existing Line/Defender rows.
+LDH-4 verifies Supports creates no new claim, Caps suppresses allowed claim or keeps downstream speech bounded, Refutes blocks the checked Story, and Unknown creates no engine-related expression.
+LDH-4 forbids engine-says wording, raw PV explanation, eval number public value, best move, only move, forced line, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration.
+LDH-5 opens only close false-positive negative corpus tests over existing Line/Defender rows and already-open collision rows.
+LDH-5 keeps line-open-without-attack, king targets, pin-looking lines without king-behind-target, still-guarding defenders, incomplete Material or Hanging proof after defender removal, incomplete DiscoveredAttack or Pin proof, wrong-board or stale same-board proof, route mismatch, engine-refuted plausible rows, and Skewer-looking relations silent.
+LDH-5 rule: Looks like a line tactic is not enough. Existing complete proof or silence.
+LDH-5 opens no new Story family, proof home, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration.
+LDH-6 opens only downstream boundary smoke over selected Lead Verdicts from existing Line/Defender rows.
+LDH-6 verifies ExplanationPlan receives selected Verdict only, Renderer receives ExplanationPlan only, LLM smoke prompt carries only renderedText, claimKey, strength, forbidden wording, and the rephrase-only instruction, and Support, Context, Blocked, capped, and refuted rows create no standalone text.
+LDH-6 forbids new renderer templates, new LLM behavior, and raw Story, Proof, or EngineCheck passing into renderer or LLM smoke.
+LDH-6 opens no new Story family, proof home, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration.
+LDH-7 opens only diagnostics boundary smoke over existing Line/Defender rows, StoryTable, selected Verdict, ExplanationPlan, renderer, LLM smoke, and test-helper authority.
+LDH-7 verifies proofFailures stay internal diagnostic only, raw proof text stays out of Verdict.values, EngineCheck text does not flow directly into ExplanationPlan, StoryTable debug relations do not become renderer wording, and test helpers do not become runtime authority.
+LDH-7 opens no new Story family, proof home, renderer wording, LLM behavior, runtime authority helper, raw Story, raw Proof, raw EngineCheck downstream path, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration.
+LDH Closeout opens no chess meaning. It only audits the Line / Defender Interaction Hardening surface.
+Completion standard: LDH closes as interaction hardening only, with no new Story family, no new proof home, no mixed LineFact, LineProof, PinProof, or RemoveGuardProof authority, no Line/Defender meaning theft, no Material, Hanging, or Defense claim-home invasion, no broad-term authority, no duplicated live rule authority outside StoryInteractionLaw.md, no public route 200, no production API, and no public/user-facing LLM narration.
+Skewer Slice is the current scope.
+Current implementation scope is Line / Defender Contact Neighborhood late vertical slice.
+Skewer-0 opens only the charter for the fourth narrow line/defender contact vertical slice.
+First Skewer positive scope is not a broad skewer tactic.
+Skewer first scope: a legal move creates or reveals a slider attack on one front non-king material target, with a second non-king material target behind it on the same line.
+LineFact observes geometry. SkewerProof proves the front-and-back target relation. Tactic.Skewer may speak only after proof.
+Skewer-0 opens only narrow Tactic.Skewer, one slider, one front target, one rear target, front/rear target same-line relation, a legal move that creates or reveals the front/rear relation, and bounded skewer wording after selected Verdict only.
+Skewer-0 opens no broad LineTactic, XRay public Story, Pin expansion, RemoveGuard expansion, material win claim, front piece must move, wins rear piece, forced line, best move, only move, winning, decisive, king safety, mate threat, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration.
+Skewer-1 opens only `SkewerProof` as a narrow proof home.
+SkewerProof proves side creating the skewer, rival side, skewer slider, front target, rear target, legal skewer or revealing move, line kind, same-board proof, front target non-king material piece, rear target non-king material piece, front and rear target same rival side, after move slider attacks front target, rear target behind front target on the same ray, no extra blocker breaks the front-to-rear relation, and before move the skewer relation was absent or blocked.
+SkewerProof is not a public Story. LineFact and LineProof are not public Stories.
+SkewerProof says no material gain, front piece must move, or wins rear piece; proofFailures stay out of renderer/LLM input.
+Skewer-1 opens no Tactic.Skewer writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, material gain claim, front piece must move wording, wins rear piece claim, public route `200`, production API, or public/user-facing LLM narration.
+Skewer-2 opens only the named `TacticSkewer` writer for one narrow `Tactic.Skewer` Story.
+TacticSkewer requires complete StoryProof, complete SkewerProof, same-board legal replay, legal skewer or revealing move, front target, rear target, slider, complete front-and-back line relation, writer identity, and no EngineCheck Refutes status.
+Skewer Story identity is tactic Skewer, scene Tactic, skewer-creating side, front/rear target side as rival, front target square, rear target square as secondaryTarget, slider or moved-piece anchor, and skewer/revealing route.
+TacticSkewer creates no Scene.Material claim, does not replace Tactic.Pin, and keeps rear-target king positions silent.
+Skewer-2 opens no StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, material gain claim, front piece must move wording, wins rear piece claim, Pin replacement, public route `200`, production API, or public/user-facing LLM narration.
+Skewer-3 opens only the negative corpus for the narrow `Tactic.Skewer` slice.
+Skewer-3 keeps illegal moves, missing same-board proof, non-sliders, missing front target, missing rear target, front or rear king targets, front/rear targets not on the same rival side, rear targets not behind the front target on the same line, extra blockers between front and rear target, DiscoveredAttack-only lines, Pin-looking positions, front-piece-must-move assumptions, and material-win, forced, or best-move wording silent.
+Skewer-3 rule: Two pieces on a line is not enough. Complete front-and-back skewer proof or silence.
+Skewer-3 opens no new proof home, new writer, StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, Scene.Material claim, Pin replacement, front piece must move wording, wins rear piece claim, public route `200`, production API, or public/user-facing LLM narration.
+Skewer-4 opens only existing `EngineCheck` reuse for existing `Tactic.Skewer` Stories.
+EngineCheck cannot create Skewer; Supports creates no new claim; Caps suppresses standalone claim or keeps downstream speech bounded when opened later; Refutes blocks the Skewer Story; Unknown creates no engine expression.
+Skewer-4 opens no engine-says wording, best-move wording, only-move wording, forced-win wording, winning tactic, raw PV explanation, eval number public value, StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+Skewer-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, `Tactic.Pin`, `Tactic.RemoveGuard`, and `Tactic.Skewer` rows.
+Skewer-5 keeps selected Verdict stable across input order, prevents duplicate Lead for DiscoveredAttack and Skewer, keeps Skewer from owning Material, Pin king-relation, or RemoveGuard defender-relation claims, keeps actual material change now in Scene.Material, and keeps incomplete front/rear relations silent so only complete existing rows remain.
+Skewer-5 opens no new proof home, new Story family, broad LineTactic, broad XRay, Material claim from Skewer, DiscoveredAttack duplicate Lead from Skewer, Pin king relation from Skewer, RemoveGuard defender relation from Skewer, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+Skewer-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.Skewer` Verdicts.
+Skewer-6 allows only the `skewers_piece_to_piece` claim key and forbids wins_material, wins_rear_piece, front_piece_must_move, best_move, only_move, forced, decisive, king_unsafe, mate_threat, creates_pressure, and takes_initiative.
+Support, Context, Blocked, capped, and refuted Skewer rows create no standalone claim.
+Skewer-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+Skewer-7 opens only deterministic renderer text for selected `Tactic.Skewer` ExplanationPlan.
+Skewer-7 renderer input is ExplanationPlan only and may render `{route} skewers the piece on {target} to the piece on {secondaryTarget}.`
+Skewer-7 forbids wins material, wins the piece behind it, the front piece must move, best move, only move, forces, decisive, king is unsafe, threatens mate, and creates pressure.
+Skewer-7 opens no raw Verdict, raw Story, SkewerProof, LineFact, LineProof, BoardFacts, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+Skewer-8 opens only LLM smoke for selected Skewer ExplanationPlan and RenderedLine.
+Skewer-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`
+Skewer-8 forbids raw Story, raw SkewerProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, material-win, forced, pressure, initiative, and mate claims.
+Skewer-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation.
+Skewer Closeout opens no new chess meaning; it audits only LineFact, LineProof, SkewerProof, Tactic.Skewer, speech key, renderer/LLM, docs authority, test-helper boundary, and closed public surfaces.
+Skewer Closeout confirms Skewer owns no Material, Hanging, Pin, DiscoveredAttack, RemoveGuard, or Defense meaning; front-piece-must-move, wins-rear-piece, wins-material, and forced-skewer terms are not live authority; renderer/LLM wording stays no stronger than `skewers_piece_to_piece`; public route `200`, production API, and public/user-facing LLM narration remain closed.
+Skewer Closeout also audits meaning, authority, terminology, and document duplication without duplicating detailed rules outside StoryInteractionLaw.md.
+Line / Defender Neighborhood Closeout opens no new chess meaning; it audits only the four narrow proof-backed slices, their proof homes, existing collision targets, docs simplification, downstream no-overclaim boundaries, and next-neighborhood handoff.
+Line/Defender closes as four narrow proof-backed slices. It opens no broad LineTactic, XRay, pressure, initiative, material-win tactic, or public surface.
+LNC-0 confirms DiscoveredAttack, Pin, RemoveGuard, and Skewer keep separate proof paths; LineProof, PinProof, RemoveGuardProof, and SkewerProof stay proof homes only; Hanging, Fork, Material, and Defense keep existing claim homes; public route `200`, production API, and public/user-facing LLM narration remain closed.
+Public route `200`, production API, and public/user-facing LLM narration remain closed.
+Middlegame Interaction Hardening is a closed baseline.
 Middlegame Interaction Hardening opens no chess meaning. It stress-tests already-open meanings.
 MIH-0 opens no new Story family, proof home, renderer wording, public route, production API, or public/user-facing LLM narration.
 MIH-0 opens only interaction hardening among existing Hanging, Fork, Material, and Defense rows.

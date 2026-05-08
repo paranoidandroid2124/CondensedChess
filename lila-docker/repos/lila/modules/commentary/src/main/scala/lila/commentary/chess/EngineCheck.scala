@@ -175,6 +175,80 @@ private[commentary] object EngineCheck:
                   defense.defenseMove.exists(move => story.route.contains(move)) &&
                   defense.defenseMove.exists(move => facts.sideLegal.lines.contains(move)) &&
                   defense.defendedTarget.exists(pieces.contains)
+      case Some(StoryWriter.TacticDiscoveredAttack) =>
+        story.scene == Scene.Tactic &&
+          story.tactic.contains(Tactic.DiscoveredAttack) &&
+          story.proofFailures.isEmpty &&
+          story.lineProof.exists: proof =>
+            proof.complete &&
+              proof.sameBoardProof &&
+              proof.revealingMove.exists(move =>
+                story.route.contains(move) &&
+                  (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+              ) &&
+              proof.movedPiece.exists(pieces.contains) &&
+              proof.slider.exists(pieces.contains) &&
+              proof.revealedTarget.exists(pieces.contains)
+      case Some(StoryWriter.TacticPin) =>
+        story.scene == Scene.Tactic &&
+          story.tactic.contains(Tactic.Pin) &&
+          story.proofFailures.isEmpty &&
+          story.pinProof.exists: proof =>
+            proof.complete &&
+              proof.sameBoardProof &&
+              proof.pinningMove.exists(move =>
+                story.route.contains(move) &&
+                  (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+              ) &&
+              proof.pinnedTarget.exists(pieces.contains) &&
+              proof.kingBehindTarget.exists(pieces.contains) &&
+              proof.pinningSlider.exists(slider =>
+                pieces.contains(slider) ||
+                  proof.pinningMove.exists(move =>
+                    story.route.contains(move) &&
+                      move.to == slider.square &&
+                      pieces.exists(piece =>
+                        piece.side == slider.side && piece.man == slider.man && piece.square == move.from
+                      )
+                  )
+              )
+      case Some(StoryWriter.TacticRemoveGuard) =>
+        story.scene == Scene.Tactic &&
+          story.tactic.contains(Tactic.RemoveGuard) &&
+          story.proofFailures.isEmpty &&
+          story.removeGuardProof.exists: proof =>
+            proof.complete &&
+              proof.sameBoardProof &&
+              proof.exactBoardAfterMoveRelation &&
+              proof.removeGuardMove.exists(move =>
+                story.route.contains(move) &&
+                  (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+              ) &&
+              proof.guardedTarget.exists(pieces.contains) &&
+              proof.removedDefender.exists(pieces.contains)
+      case Some(StoryWriter.TacticSkewer) =>
+        story.scene == Scene.Tactic &&
+          story.tactic.contains(Tactic.Skewer) &&
+          story.proofFailures.isEmpty &&
+          story.skewerProof.exists: proof =>
+            proof.complete &&
+              proof.sameBoardProof &&
+              proof.skewerMove.exists(move =>
+                story.route.contains(move) &&
+                  (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+              ) &&
+              proof.frontTarget.exists(pieces.contains) &&
+              proof.rearTarget.exists(pieces.contains) &&
+              proof.skewerSlider.exists(slider =>
+                pieces.contains(slider) ||
+                  proof.skewerMove.exists(move =>
+                    story.route.contains(move) &&
+                      move.to == slider.square &&
+                      pieces.exists(piece =>
+                        piece.side == slider.side && piece.man == slider.man && piece.square == move.from
+                      )
+                  )
+              )
       case _ => false
 
   private def checkedStatus(

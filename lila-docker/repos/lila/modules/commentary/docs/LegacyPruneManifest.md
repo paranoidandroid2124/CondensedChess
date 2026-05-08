@@ -195,11 +195,36 @@ smoke over selected Fork ExplanationPlan and RenderedLine; raw Verdict, Story,
 MultiTargetProof, EngineCheck, BoardFacts, engine eval, raw PV,
 proofFailures, production API, and public route paths do not return.
 Fork Slice Closeout authority lives in `StoryInteractionLaw.md`. Legacy broad
-Fork family expansion does not return. PawnFork, Skewer, QueenHit, Tempo,
+Fork family expansion does not return. PawnFork, QueenHit, Tempo,
 Scene.Defense, Plan, Strategy, production API, public route, and
-public/user-facing LLM paths remain closed by the closeout. Fork does not open
-Scene.Material by implication; Material-3 separately opens only the narrow
-named Scene.Material writer.
+public/user-facing LLM paths remain closed by the closeout. Skewer does not
+return through Fork; the separate Skewer-0 charter lives in
+`StoryInteractionLaw.md` and does not reopen broad Fork family expansion. Fork
+does not open Scene.Material by implication; Material-3 separately opens only
+the narrow named Scene.Material writer.
+Skewer-1 SkewerProof authority lives in `StoryInteractionLaw.md`. It opens
+only the narrow proof home for one slider, one front non-king material target,
+and one rear non-king material target on the same ray after a legal move.
+Legacy broad skewer, XRay, material win, front-piece-must-move, wins-rear-piece, production API, public route, and public/user-facing LLM paths do not return.
+Skewer-2 TacticSkewer authority lives in `StoryInteractionLaw.md`. It opens
+only the narrow named writer for proof-backed `Tactic.Skewer` Story identity.
+Legacy broad skewer, Scene.Material-by-skewer, Pin replacement, rear-king skewer, production API, public route, and public/user-facing LLM paths do not return.
+Skewer-3 negative corpus authority lives in `StoryInteractionLaw.md`. It keeps skewer-looking false positives silent unless complete front-and-back SkewerProof and TacticSkewer writer conditions hold.
+Legacy broad skewer, front-piece-must-move, material win, forced, best-move, Pin replacement, Scene.Material-by-skewer, production API, public route, and public/user-facing LLM paths do not return.
+Skewer-4 EngineCheck reuse authority lives in `StoryInteractionLaw.md`. Existing EngineCheck may only support, cap, or refute an already proof-backed `Tactic.Skewer` Story, and cannot create Skewer from engine evidence.
+Legacy engine-says, raw PV explanation, eval-number public value, best-move, only-move, forced-win, winning-tactic, StoryTable Lead admission, ExplanationPlan, renderer, LLM, production API, public route, and public/user-facing LLM paths do not return.
+Skewer-5 StoryTable integration authority lives in `StoryInteractionLaw.md`. StoryTable may order existing Skewer rows with existing Hanging, Fork, Material, Defense, DiscoveredAttack, Pin, and RemoveGuard rows, but Skewer does not own Material, Pin king-relation, RemoveGuard defender-relation, or duplicate DiscoveredAttack Lead meaning.
+Legacy broad LineTactic, broad XRay, material-by-skewer, pin-by-skewer, remove-guard-by-skewer, duplicate discovered-attack, ExplanationPlan, renderer, LLM, production API, public route, and public/user-facing LLM paths do not return.
+Skewer-6 ExplanationPlan authority lives in `StoryInteractionLaw.md`. Only selected uncapped Lead Skewer Verdicts may lower to the bounded `skewers_piece_to_piece` claim key; Support, Context, Blocked, capped, and refuted Skewer rows create no standalone claim.
+Legacy Skewer material-win, wins-rear-piece, front-piece-must-move, best-move, only-move, forced, decisive, king-safety, mate-threat, pressure, initiative, renderer, LLM, production API, public route, and public/user-facing LLM paths do not return.
+Skewer-7 deterministic renderer authority lives in `StoryInteractionLaw.md`. It opens only bounded deterministic renderer text from selected Skewer ExplanationPlan input.
+Legacy Skewer material-win, wins-piece-behind, front-piece-must-move, best-move, only-move, forced, decisive, king-safety, mate-threat, pressure, LLM, production API, public route, and public/user-facing LLM paths do not return.
+Skewer-8 LLM smoke authority lives in `StoryInteractionLaw.md`. It reuses only the existing 8B prompt smoke boundary for selected Skewer ExplanationPlan and RenderedLine.
+Legacy Skewer raw Story, raw SkewerProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new-move, new-line, material-win, forced, pressure, initiative, mate, public/user-facing LLM, production API, public route, raw-proof-repair, and engine-explanation paths do not return.
+Skewer Closeout hard cleanup authority lives in `StoryInteractionLaw.md`. It audits only the narrow proof-backed front-and-rear target slice and keeps summary docs from duplicating the detailed checklist.
+Legacy Skewer Material, Hanging, Pin, DiscoveredAttack, RemoveGuard, Defense, front-piece-must-move, wins-rear-piece, wins-material, forced-skewer, broad LineTactic, broad Skewer, XRay, renderer-beyond-Skewer-7, LLM-beyond-Skewer-8, test-helper-authority, production API, public route, and public/user-facing LLM paths do not return.
+Line / Defender Neighborhood Closeout authority lives in `StoryInteractionLaw.md`. It audits only the four narrow proof-backed slices, their proof homes, existing collision targets, docs simplification, downstream no-overclaim boundaries, and next-neighborhood handoff.
+Legacy broad LineTactic, XRay, broad Ray, broad deflection, overload, pressure, initiative, material-win tactic, forced response, new proof home, new Story writer, new renderer template, new LLM behavior, production API, public route, and public/user-facing LLM paths do not return.
 Material-0 and Material-1 authority lives in `StoryInteractionLaw.md`.
 `Scene.Material` is fixed as a scene Story label, not a tactic and not proof.
 The first Material proof-home decision reuses `CaptureResult` for simple

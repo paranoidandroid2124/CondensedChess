@@ -107,6 +107,7 @@ Forbidden public claims:
 - forced tactic
 
 Line means geometry. It is not a tactic.
+LineFact observes geometry; it does not prove `LineProof` and it is not a public Story.
 
 `LineFact` is the only line row family for line observation, ray, blocker,
 x-ray shape, and pin-to-king geometry. It is not separate `LineObservation`,

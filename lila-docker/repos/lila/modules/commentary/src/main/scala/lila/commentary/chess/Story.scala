@@ -57,10 +57,11 @@ enum Tactic:
   case Hanging
   case AbsPin
   case RelPin
+  case Pin
   case Skewer
   case Xray
   case Fork
-  case Discover
+  case DiscoveredAttack
   case RemoveGuard
   case Overload
   case BackRank
@@ -232,6 +233,10 @@ private[commentary] enum StoryWriter:
   case TacticFork
   case SceneMaterial
   case SceneDefense
+  case TacticDiscoveredAttack
+  case TacticPin
+  case TacticRemoveGuard
+  case TacticSkewer
 
 final case class Story(
     scene: Scene,
@@ -251,7 +256,11 @@ final case class Story(
     secondaryTarget: Option[Square] = None,
     private[commentary] val multiTargetProof: Option[MultiTargetProof] = None,
     private[commentary] val threatProof: Option[ThreatProof] = None,
-    private[commentary] val defenseProof: Option[DefenseProof] = None
+    private[commentary] val defenseProof: Option[DefenseProof] = None,
+    private[commentary] val lineProof: Option[LineProof] = None,
+    private[commentary] val pinProof: Option[PinProof] = None,
+    private[commentary] val removeGuardProof: Option[RemoveGuardProof] = None,
+    private[commentary] val skewerProof: Option[SkewerProof] = None
 ):
   def proofFailures: Vector[BoardFacts.MissingEvidence] =
     storyProof.failures(this)
@@ -279,10 +288,10 @@ final case class Story(
   private def squareValue(square: Option[Square]) = square.fold(0)(_.index + 1)
 
 object Story:
-  val Size = 160
+  val Size = 161
   val SceneSlots = 16
   val PlanSlots = 32
-  val TacticSlots = 24
+  val TacticSlots = 25
   val PawnSlots = 16
   val PieceSlots = 16
   val KingSlots = 16
@@ -351,11 +360,11 @@ final case class Verdict(
     data.toVector
 
 object Verdict:
-  val Size = 96
+  val Size = 97
   val FinalSlots = 8
   val SceneSlots = 16
   val PlanSlots = 32
-  val TacticSlots = 24
+  val TacticSlots = 25
   val ProofSlots = 16
 
   object Slots:
@@ -388,7 +397,7 @@ object StoryTable:
     rows
       .sortBy(row =>
         (
-          roleSortPriority(row),
+          roleSortPriority(row) * 2 + engineCapPriority(row.story),
           interactionPriority(row.story, stories),
           -row.strength,
           familyKey(row.story),
@@ -430,7 +439,14 @@ object StoryTable:
     if materialOverlapsHanging(story, stories) then 1
     else if defenseCollidesWithMaterial(story, stories) then 1
     else if defenseOverlapsImmediateMaterialGain(story, stories) then 1
+    else if lineDefenderOverlapsOpenedClaimHome(story, stories) then 1
+    else if discoveredAttackOverlapsDefenderContact(story, stories) then 1
+    else if removeGuardOverlapsMaterial(story, stories) then 1
+    else if removeGuardOverlapsHanging(story, stories) then 1
     else 0
+
+  private def engineCapPriority(story: Story) =
+    if story.engineCheck.exists(_.status == EngineCheckStatus.Caps) then 1 else 0
 
   private def defenseCollidesWithMaterial(story: Story, stories: Vector[Story]) =
     positiveDefenseWriter(story) &&
@@ -443,11 +459,56 @@ object StoryTable:
           positiveHangingWriter(other) &&
           sameCaptureMaterialResult(story, other)
 
+  private def removeGuardOverlapsMaterial(story: Story, stories: Vector[Story]) =
+    positiveRemoveGuardWriter(story) &&
+      stories.exists: other =>
+        other != story &&
+          positiveMaterialWriter(other) &&
+          sameSideRoute(story, other)
+
+  private def removeGuardOverlapsHanging(story: Story, stories: Vector[Story]) =
+    positiveRemoveGuardWriter(story) &&
+      stories.exists: other =>
+        other != story &&
+          positiveHangingWriter(other) &&
+          sameSideRoute(story, other)
+
+  private def lineDefenderOverlapsOpenedClaimHome(story: Story, stories: Vector[Story]) =
+    positiveLineDefenderWriter(story) &&
+      stories.exists: other =>
+        other != story &&
+          sameSideRoute(story, other) &&
+          (
+            positiveHangingWriter(other) ||
+              positiveForkWriter(other) ||
+              positiveMaterialWriter(other) ||
+              positiveDefenseWriter(other)
+          )
+
+  private def discoveredAttackOverlapsDefenderContact(story: Story, stories: Vector[Story]) =
+    positiveDiscoveredAttackWriter(story) &&
+      stories.exists: other =>
+        other != story &&
+          sameSideRoute(story, other) &&
+          story.target == other.target &&
+          (positivePinWriter(other) || positiveRemoveGuardWriter(other))
+
+  private def positiveLineDefenderWriter(story: Story) =
+    positiveDiscoveredAttackWriter(story) ||
+      positivePinWriter(story) ||
+      positiveRemoveGuardWriter(story) ||
+      positiveSkewerWriter(story)
+
   private def sameCaptureMaterialResult(story: Story, other: Story) =
     story.side == other.side &&
       story.route == other.route &&
       story.target == other.target &&
       story.captureResult.flatMap(_.materialResult) == other.captureResult.flatMap(_.materialResult)
+
+  private def sameSideRoute(story: Story, other: Story) =
+    story.side == other.side &&
+      story.route.nonEmpty &&
+      story.route == other.route
 
   private def defenseOverlapsImmediateMaterialGain(story: Story, stories: Vector[Story]) =
     positiveDefenseWriter(story) &&
@@ -479,9 +540,17 @@ object StoryTable:
       hangingWithoutWriter(story) ||
       hangingWriterWithoutCapture(story) ||
       forkWithoutWriter(story) ||
+      pinWithoutWriter(story) ||
+      removeGuardWithoutWriter(story) ||
+      skewerWithoutWriter(story) ||
+      discoveredAttackWithoutWriter(story) ||
       invalidForkWriter(story) ||
       invalidMaterialWriter(story) ||
       invalidDefenseWriter(story) ||
+      invalidDiscoveredAttackWriter(story) ||
+      invalidPinWriter(story) ||
+      invalidRemoveGuardWriter(story) ||
+      invalidSkewerWriter(story) ||
       (!leadByStoryRules(story, Vector(story)) && base(story))
 
   private def hangingWithoutWriter(story: Story) =
@@ -500,6 +569,26 @@ object StoryTable:
       story.scene == Scene.Tactic &&
       story.tactic.contains(Tactic.Fork)
 
+  private def discoveredAttackWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.DiscoveredAttack)
+
+  private def pinWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Pin)
+
+  private def removeGuardWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.RemoveGuard)
+
+  private def skewerWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Skewer)
+
   private def invalidForkWriter(story: Story) =
     story.writer.contains(StoryWriter.TacticFork) &&
       !positiveForkWriter(story)
@@ -511,6 +600,22 @@ object StoryTable:
   private def invalidDefenseWriter(story: Story) =
     story.writer.contains(StoryWriter.SceneDefense) &&
       !positiveDefenseWriter(story)
+
+  private def invalidDiscoveredAttackWriter(story: Story) =
+    story.writer.contains(StoryWriter.TacticDiscoveredAttack) &&
+      !positiveDiscoveredAttackWriter(story)
+
+  private def invalidPinWriter(story: Story) =
+    story.writer.contains(StoryWriter.TacticPin) &&
+      !positivePinWriter(story)
+
+  private def invalidRemoveGuardWriter(story: Story) =
+    story.writer.contains(StoryWriter.TacticRemoveGuard) &&
+      !positiveRemoveGuardWriter(story)
+
+  private def invalidSkewerWriter(story: Story) =
+    story.writer.contains(StoryWriter.TacticSkewer) &&
+      !skewerWriterShape(story)
 
   private def base(story: Story) =
     story.proof.publicStrength >= 65 &&
@@ -534,6 +639,10 @@ object StoryTable:
       case Some(StoryWriter.TacticFork)    => positiveForkWriter(story)
       case Some(StoryWriter.SceneMaterial) => positiveMaterialWriter(story)
       case Some(StoryWriter.SceneDefense)  => positiveDefenseWriter(story)
+      case Some(StoryWriter.TacticDiscoveredAttack) => positiveDiscoveredAttackWriter(story)
+      case Some(StoryWriter.TacticPin)     => positivePinWriter(story)
+      case Some(StoryWriter.TacticRemoveGuard) => positiveRemoveGuardWriter(story)
+      case Some(StoryWriter.TacticSkewer)  => positiveSkewerWriter(story)
       case _                               => false
 
   private def positiveHangingWriter(story: Story) =
@@ -586,6 +695,89 @@ object StoryTable:
         proof.materialLossPrevented.exists(_ > 0) &&
         defenseProofBindsStory(story, proof)
 
+  private def positiveDiscoveredAttackWriter(story: Story) =
+    story.scene == Scene.Tactic &&
+    story.tactic.contains(Tactic.DiscoveredAttack) &&
+    story.plan.isEmpty &&
+    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+    story.lineProof.exists: proof =>
+      proof.complete &&
+        proof.sameBoardProof &&
+        proof.afterSliderAttacksTarget &&
+        proof.targetNonKingMaterial &&
+        lineProofBindsStory(story, proof)
+
+  private def positivePinWriter(story: Story) =
+    story.scene == Scene.Tactic &&
+    story.tactic.contains(Tactic.Pin) &&
+    story.plan.isEmpty &&
+    story.captureResult.isEmpty &&
+    story.threatProof.isEmpty &&
+    story.defenseProof.isEmpty &&
+    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+    story.pinProof.exists: proof =>
+      proof.complete &&
+        proof.sameBoardProof &&
+        proof.afterPinRelation &&
+        proof.targetNonKing &&
+        proof.targetAndKingSameSide &&
+        proof.sliderAttacksThroughTargetTowardKingAfterMove &&
+        pinProofBindsStory(story, proof)
+
+  private def positiveRemoveGuardWriter(story: Story) =
+    story.scene == Scene.Tactic &&
+    story.tactic.contains(Tactic.RemoveGuard) &&
+    story.plan.isEmpty &&
+    story.captureResult.isEmpty &&
+    story.threatProof.isEmpty &&
+    story.defenseProof.isEmpty &&
+    story.multiTargetProof.isEmpty &&
+    story.lineProof.isEmpty &&
+    story.pinProof.isEmpty &&
+    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+    story.removeGuardProof.exists: proof =>
+      proof.complete &&
+        proof.sameBoardProof &&
+        proof.exactBoardAfterMoveRelation &&
+        proof.targetNonKingMaterial &&
+        proof.defenderGuardedTargetBeforeMove &&
+        proof.afterMoveDefenderNoLongerGuardsTarget &&
+        proof.removeGuardMove.nonEmpty &&
+        proof.guardedTarget.nonEmpty &&
+        proof.removedDefender.nonEmpty &&
+        removeGuardProofBindsStory(story, proof)
+
+  private def skewerWriterShape(story: Story) =
+    story.scene == Scene.Tactic &&
+    story.tactic.contains(Tactic.Skewer) &&
+    story.plan.isEmpty &&
+    story.captureResult.isEmpty &&
+    story.threatProof.isEmpty &&
+    story.defenseProof.isEmpty &&
+    story.multiTargetProof.isEmpty &&
+    story.lineProof.isEmpty &&
+    story.pinProof.isEmpty &&
+    story.removeGuardProof.isEmpty &&
+    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+    story.skewerProof.exists: proof =>
+      proof.complete &&
+        proof.sameBoardProof &&
+        proof.frontTargetNonKingMaterial &&
+        proof.rearTargetNonKingMaterial &&
+        proof.frontAndRearSameRivalSide &&
+        proof.afterMoveSliderAttacksFrontTarget &&
+        proof.rearTargetBehindFrontTargetOnSameRay &&
+        proof.noExtraBlockerBreaksFrontToRearRelation &&
+        proof.beforeSkewerRelationAbsentOrBlocked &&
+        proof.skewerMove.nonEmpty &&
+        proof.skewerSlider.nonEmpty &&
+        proof.frontTarget.nonEmpty &&
+        proof.rearTarget.nonEmpty &&
+        skewerProofBindsStory(story, proof)
+
+  private def positiveSkewerWriter(story: Story) =
+    skewerWriterShape(story)
+
   private def captureResultBindsStory(story: Story, result: CaptureResult) =
     result.side == story.side &&
       story.route.contains(result.captureLine) &&
@@ -605,6 +797,45 @@ object StoryTable:
       proof.defenseMove.exists(move => story.route.contains(move)) &&
       proof.defendedTarget.exists(piece => story.target.contains(piece.square)) &&
       proof.defenseMove.exists(move => story.anchor.contains(move.from))
+
+  private def lineProofBindsStory(story: Story, proof: LineProof) =
+    proof.side == story.side &&
+      proof.revealingMove.exists(move => story.route.contains(move)) &&
+      proof.revealedTarget.exists(piece => story.target.contains(piece.square)) &&
+      proof.movedPiece.orElse(proof.slider).exists(piece => story.anchor.contains(piece.square))
+
+  private def pinProofBindsStory(story: Story, proof: PinProof) =
+    proof.side == story.side &&
+      proof.pinningMove.exists(move => story.route.contains(move)) &&
+      proof.pinnedTarget.exists(piece => story.target.contains(piece.square) && story.rival == piece.side) &&
+      proof.pinningSlider.exists(piece => story.anchor.contains(piece.square)) &&
+      proof.kingBehindTarget.exists(king => proof.pinnedTarget.exists(_.side == king.side))
+
+  private def removeGuardProofBindsStory(story: Story, proof: RemoveGuardProof) =
+    proof.side == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.removeGuardMove.exists(move => story.route.contains(move)) &&
+      proof.guardedTarget.exists(piece => story.target.contains(piece.square) && story.rival == piece.side) &&
+      proof.removedDefender.exists(piece => story.rival == piece.side) &&
+      (
+        proof.removedDefender.exists(piece => story.anchor.contains(piece.square)) ||
+          proof.removeGuardMove.exists(move => story.anchor.contains(move.from))
+      )
+
+  private def skewerProofBindsStory(story: Story, proof: SkewerProof) =
+    proof.side == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.skewerMove.exists(move => story.route.contains(move)) &&
+      proof.frontTarget.exists(piece => story.target.contains(piece.square) && story.rival == piece.side) &&
+      proof.rearTarget.exists(piece =>
+        story.secondaryTarget.contains(piece.square) &&
+          story.rival == piece.side &&
+          piece.man != Man.King
+      ) &&
+      (
+        proof.skewerSlider.exists(piece => story.anchor.contains(piece.square)) ||
+          proof.skewerMove.exists(move => story.anchor.contains(move.from))
+      )
 
   private def multiTargetRelationProven(proof: MultiTargetProof) =
     proof.targetSquares.size == 2 &&

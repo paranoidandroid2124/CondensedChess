@@ -37,7 +37,7 @@ private[commentary] object LlmNarrationSmoke:
         Option.when(addsNewMoveOrLine(output, plan, rendered))("new_move_or_line"),
         Option.when(addsNewTacticOrPlan(output, plan))("new_tactic_or_plan"),
         Option.when(addsNewCauseOrEvaluation(output))("new_cause_or_evaluation"),
-        Option.when(mentionsEngine(output))("engine_mention"),
+        Option.when(mentionsEngine(output) || mentionsEngineEvalValue(output))("engine_mention"),
         Option.when(strongerThanRendered(output, plan, rendered))("stronger_claim")
       ).flatten.distinct
     NarrationSmokeCheck(violations.isEmpty, violations)
@@ -67,14 +67,19 @@ private[commentary] object LlmNarrationSmoke:
 
   private def claimMatchesTactic(plan: ExplanationPlan, tactic: Tactic): Boolean =
     tactic match
-      case Tactic.Hanging => plan.allowedClaim.contains(ExplanationClaim.CanWinPiece)
-      case Tactic.Fork    => plan.allowedClaim.contains(ExplanationClaim.ForksTwoTargets)
-      case _              => false
+      case Tactic.Hanging          => plan.allowedClaim.contains(ExplanationClaim.CanWinPiece)
+      case Tactic.Fork             => plan.allowedClaim.contains(ExplanationClaim.ForksTwoTargets)
+      case Tactic.DiscoveredAttack => plan.allowedClaim.contains(ExplanationClaim.RevealsAttackOnPiece)
+      case Tactic.Pin              => plan.allowedClaim.contains(ExplanationClaim.PinsPiece)
+      case Tactic.RemoveGuard      => plan.allowedClaim.contains(ExplanationClaim.RemovesDefender)
+      case Tactic.Skewer           => plan.allowedClaim.contains(ExplanationClaim.SkewersPieceToPiece)
+      case _                       => false
 
   private def violatesForbiddenWording(text: String, plan: ExplanationPlan): Boolean =
     val normalized = normalize(text)
     val forbiddenPhrases = plan.forbiddenWording.flatMap(forbiddenMeaning)
     forbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
+      publicForbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
       !materialWinAllowed(normalized, plan)
 
   private def strongerThanRendered(text: String, plan: ExplanationPlan, rendered: RenderedLine): Boolean =
@@ -125,13 +130,48 @@ private[commentary] object LlmNarrationSmoke:
     val normalized = normalize(text)
     val allowed =
       plan.tactic match
-        case Some(Tactic.Fork) => Set("fork", "forks")
-        case _                 => Set.empty[String]
+        case Some(Tactic.Fork) =>
+          Set("fork", "forks")
+        case Some(Tactic.DiscoveredAttack) =>
+          Set("reveals attack", "reveals an attack", "discovered attack")
+        case Some(Tactic.Pin) =>
+          Set("pin", "pins")
+        case Some(Tactic.RemoveGuard) =>
+          Set("removes defender", "removes the defender", "remove guard", "removes guard", "guard removal")
+        case Some(Tactic.Skewer) =>
+          Set("skewer", "skewers", "skewered")
+        case _ =>
+          Set.empty[String]
     val tacticOrPlanPhrases = Vector(
       "fork",
       "forks",
+      "reveals attack",
+      "reveals an attack",
+      "discovered attack",
       "pin",
+      "pins",
+      "removes defender",
+      "removes the defender",
+      "remove guard",
+      "removes guard",
+      "guard removal",
+      "line tactic",
+      "line tactics",
+      "creates pressure",
+      "pressure",
+      "takes initiative",
+      "initiative",
+      "deflection",
+      "deflect",
+      "deflects",
+      "deflected",
+      "overload",
+      "overloads",
+      "overloaded",
+      "overloading",
       "skewer",
+      "skewers",
+      "skewered",
       "x ray",
       "xray",
       "mate",
@@ -166,10 +206,43 @@ private[commentary] object LlmNarrationSmoke:
 
   private def mentionsEngine(text: String): Boolean =
     val normalized = normalize(text)
-    Vector("engine", "stockfish", "eval", "pv").exists(phrase => containsPhrase(normalized, phrase))
+    Vector(
+      "engine",
+      "stockfish",
+      "eval",
+      "evaluation",
+      "pv",
+      "principal variation",
+      "raw pv",
+      "centipawn",
+      "centipawns"
+    ).exists(phrase => containsPhrase(normalized, phrase))
+
+  private def mentionsEngineEvalValue(text: String): Boolean =
+    EvalNumberPattern.findFirstIn(text).nonEmpty ||
+      CentipawnPattern.findFirstIn(text).nonEmpty
+
+  private val EvalNumberPattern =
+    """(?<![A-Za-z0-9])[+-](?:\d+(?:\.\d+)?|\.\d+)(?![A-Za-z0-9])""".r
+
+  private val CentipawnPattern =
+    """(?i)\b\d+(?:\.\d+)?\s*(?:cp|centipawns?)\b""".r
 
   private val materialWinPhrases =
-    Vector("wins material", "win material", "winning material", "material win")
+    Vector(
+      "wins material",
+      "win material",
+      "winning material",
+      "material win",
+      "gains material",
+      "gain material",
+      "gaining material",
+      "material gain",
+      "material gains"
+    )
+
+  private val publicForbiddenPhrases =
+    Vector("best move", "only move", "forced", "forces", "forced line")
 
   private val pieceIdentityPhrases =
     Vector("queen", "rook", "bishop", "knight", "pawn", "king")
@@ -193,17 +266,29 @@ private[commentary] object LlmNarrationSmoke:
       case ForbiddenWording.Decisive =>
         Vector("decisive")
       case ForbiddenWording.Forced =>
-        Vector("forced")
+        Vector("forced", "forces")
       case ForbiddenWording.BestMove =>
         Vector("best move")
       case ForbiddenWording.OnlyMove =>
         Vector("only move")
       case ForbiddenWording.EngineSays =>
-        Vector("engine says", "engine approved")
+        Vector(
+          "engine says",
+          "engine approved",
+          "engine",
+          "stockfish",
+          "eval",
+          "evaluation",
+          "pv",
+          "principal variation",
+          "raw pv",
+          "centipawn",
+          "centipawns"
+        )
       case ForbiddenWording.NoCounterplay =>
         Vector("no counterplay")
       case ForbiddenWording.KingUnsafe =>
-        Vector("king unsafe", "unsafe king", "king safety")
+        Vector("king unsafe", "king is unsafe", "the king is unsafe", "unsafe king", "king safety")
       case ForbiddenWording.FileControl =>
         Vector("file control")
       case ForbiddenWording.Outpost =>
@@ -248,6 +333,64 @@ private[commentary] object LlmNarrationSmoke:
         Vector("king safe", "king is safe")
       case ForbiddenWording.MateDefense =>
         Vector("mate defense", "stops mate", "mate is stopped")
+      case ForbiddenWording.WinsMaterial =>
+        Vector(
+          "wins material",
+          "win material",
+          "winning material",
+          "material win",
+          "gains material",
+          "gain material",
+          "gaining material",
+          "material gain",
+          "material gains"
+        )
+      case ForbiddenWording.PinsPiece =>
+        Vector("pins piece", "pins the piece", "pin")
+      case ForbiddenWording.SkewersPiece =>
+        Vector("skewers piece", "skewers the piece", "skewer")
+      case ForbiddenWording.WinsRearPiece =>
+        Vector(
+          "wins rear piece",
+          "wins the rear piece",
+          "win rear piece",
+          "win the rear piece",
+          "wins the piece behind it",
+          "win the piece behind it",
+          "wins piece behind it",
+          "win piece behind it"
+        )
+      case ForbiddenWording.FrontPieceMustMove =>
+        Vector(
+          "front piece must move",
+          "front target must move",
+          "front piece has to move",
+          "front target has to move",
+          "must move the front piece",
+          "must move the front target"
+        )
+      case ForbiddenWording.CreatesPressure =>
+        Vector("creates pressure", "pressure")
+      case ForbiddenWording.TakesInitiative =>
+        Vector("takes initiative", "initiative")
+      case ForbiddenWording.MateThreat =>
+        Vector("mate threat", "mating threat", "creates a mating threat", "threatens mate", "mate")
+      case ForbiddenWording.CannotMove =>
+        Vector("cannot move", "can't move", "can not move")
+      case ForbiddenWording.TargetIsHanging =>
+        Vector("target is hanging", "target hangs", "hanging target")
+      case ForbiddenWording.NoDefense =>
+        Vector("no defense", "no defence")
+      case ForbiddenWording.RefutesDefense =>
+        Vector("refutes defense", "refutes the defense", "refutes defence", "refutes the defence")
+      case ForbiddenWording.LeavesUndefended =>
+        Vector("leaves it undefended", "leaves the piece undefended", "leaves target undefended")
+      case ForbiddenWording.NoDefenderRemains =>
+        Vector("no defender remains", "no defenders remain", "no defender left", "no defender", "no defenders")
+      case ForbiddenWording.RemovesDefender =>
+        Vector("removes defender", "removes the defender")
+      case ForbiddenWording.LineTacticIdentity =>
+        Vector("line tactic", "line tactics")
 
   private def forbiddenLabel(forbidden: ForbiddenWording): String =
     forbiddenMeaning(forbidden).head
