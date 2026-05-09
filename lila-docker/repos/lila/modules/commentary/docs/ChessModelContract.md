@@ -728,15 +728,15 @@ themselves.
 
 Fixed shape:
 
-- story size: `160`
-- verdict size: `96`
+- story size: `163`
+- verdict size: `99`
 - top stories: `8`
 
 Story slots:
 
-- `16` scene slots
+- `18` scene slots
 - `32` plan slots
-- `24` tactic slots
+- `25` tactic slots
 - `16` pawn slots
 - `16` piece slots
 - `16` king slots
@@ -1694,16 +1694,93 @@ Lead fail-closed rules:
   and public/user-facing LLM narration remain closed. It also audits meaning,
   authority, terminology, and document duplication without duplicating detailed
   rules outside StoryInteractionLaw.md.
-- Line / Defender Neighborhood Closeout opens no new chess meaning. It audits
-  only the four narrow proof-backed slices, their proof homes, existing
-  collision targets, docs simplification, downstream no-overclaim boundaries,
-  and next-neighborhood handoff. Line/Defender closes as four narrow
-  proof-backed slices. It opens no broad LineTactic, XRay, pressure,
-  initiative, material-win tactic, or public surface. LNC-0 confirms
-  DiscoveredAttack, Pin, RemoveGuard, and Skewer keep separate proof paths;
-  LineProof, PinProof, RemoveGuardProof, and SkewerProof stay proof homes only;
-  Hanging, Fork, Material, and Defense keep existing claim homes; public route
-  `200`, production API, and public/user-facing LLM narration remain closed.
+- Line / Defender closeout summaries are non-authoritative:
+  `StoryInteractionLaw.md` owns LNC-0 through LNC-7 and final completion
+  detail, while this document only records that `Tactic.DiscoveredAttack`, `Tactic.Pin`,
+  `Tactic.RemoveGuard`, and `Tactic.Skewer` close as four narrow proof-backed
+  slices with broad line/ray/XRay, pressure, initiative, material-win, public
+  route `200`, production API, and public/user-facing LLM narration surfaces
+  closed.
+- Current implementation scope is Pawn / Promotion Neighborhood third vertical slice.
+- PawnAdvance-0 is owned by `StoryInteractionLaw.md`. It opens only narrow
+  `Scene.PawnAdvance` over `PawnAdvanceProof` for an already-passed non-king
+  pawn making a legal one-square non-capturing non-promotion advance and
+  remaining passed on the exact after-board. The only bounded claim key is
+  `advances_passed_pawn`; broad PawnTactic, `Tactic.PawnPush`, promotion
+  threat, unstoppable pawn, winning endgame, conversion, pawn race, strategy,
+  public route `200`, production API, and public/user-facing LLM narration
+  remain closed.
+- PawnStop-0 is owned by `StoryInteractionLaw.md`. It opens only narrow
+  `Scene.PawnStop` over `PawnStopProof` for a legal move directly stopping an
+  already-passed pawn's next non-promotion advance square on the exact
+  after-board. The only bounded claim key is
+  `stops_pawn_advance`; broad pawn defense, promotion stop,
+  permanent stop, tablebase draw, best defense, only move, endgame hold,
+  conversion stopped, pawn race, king route, opposition, broad pawn strategy,
+  public route `200`, production API, and public/user-facing LLM narration
+  remain closed.
+- PawnStop Closeout opens no new chess meaning; it audits only
+  `PassedPawnObservation`, `PawnStopProof`, `Scene.PawnStop`,
+  `stops_pawn_advance`, renderer/LLM bounds, docs authority, and closed
+  public surfaces. PawnStop Closeout confirms PawnStop owns no PawnAdvance,
+  PromotionThreat, Promotion, PawnBreak, Defense, Material, Hanging, or
+  Line/Defender tactic meaning; permanent stop, draw, tablebase, best defense,
+  and only move remain forbidden wording, not live authority.
+- PromotionThreat-0 is owned by `StoryInteractionLaw.md`. It opens only narrow
+  `Scene.PromotionThreat` over `PromotionThreatProof` for a legal pawn move
+  that creates a legal next-move promotion route on the exact after-board. The
+  only bounded claim key is `threatens_promotion_next`; actual Promotion, unstoppable
+  pawn, cannot-be-stopped, winning endgame, conversion, tablebase, pawn race,
+  best move, only move, forced win, no-counterplay, public route `200`,
+  production API, and public/user-facing LLM narration remain closed.
+- PIH-0 is owned by `StoryInteractionLaw.md`. It opens no new pawn meaning and
+  hardens existing `Scene.PawnAdvance` and `Scene.PawnStop` interactions so
+  pawn rows do not steal promotion, conversion, defense, material, or tactic
+  meaning. Public route `200`, production API, and public/user-facing LLM
+  narration remain closed.
+- PIH-1 is owned by `StoryInteractionLaw.md`. It opens only the Pawn
+  Interaction Hardening fixture map over already-open rows and keeps
+  PromotionThreat, Promotion, PawnBreak, tablebase, endgame-result, public route
+  `200`, production API, and public/user-facing LLM narration closed.
+- PIH-2 is owned by `StoryInteractionLaw.md`. It opens only StoryTable role
+  stability checks over already-open pawn and collision rows, including
+  input-order stability, duplicate Lead prevention, incomplete/refuted/capped
+  row boundaries, and pawn rows not owning Defense, promotion, or conversion
+  claims.
+- PIH-3 is owned by `StoryInteractionLaw.md`. It opens only Meaning Ownership
+  Boundary checks proving each already-open pawn, material, defense, and
+  line/defender row keeps its own claim and cannot steal promotion, conversion,
+  endgame, defense, pawn progress, or sibling tactic meaning.
+- PIH-4 is owned by `StoryInteractionLaw.md`. It opens only EngineCheck
+  interaction checks over already-open PawnAdvance and PawnStop rows, reusing
+  existing Supports, Caps, Refutes, and Unknown boundaries without engine-owned
+  claims, raw PV, eval numbers, best move, only move, tablebase-like authority,
+  public route `200`, production API, or public/user-facing LLM narration.
+- PIH-5 is owned by `StoryInteractionLaw.md`. It opens only the close pawn
+  false-positive negative corpus and enforces existing complete proof or silence
+  for not-passed advances, missing exact after-board replay, stop-looking
+  non-stops, long-term blockade, promotion-looking, tablebase-looking,
+  opposition-looking, pawn-race-looking, route mismatch, stale/wrong-board, and
+  refuted pawn rows.
+- PIH-6 is owned by `StoryInteractionLaw.md`. It opens only downstream boundary
+  smoke for already-open PawnAdvance and PawnStop rows, sends only selected Lead
+  Verdict data through ExplanationPlan, renderer, and LLM smoke, and keeps
+  Support, Context, Blocked, capped, and refuted rows textless while forbidding
+  promotion, unstoppable, winning, conversion, draw/hold, tablebase, best/only,
+  forced, pressure, initiative, public route `200`, production API, and
+  public/user-facing LLM narration.
+- PIH-7 is owned by `StoryInteractionLaw.md`. It opens only diagnostics
+  boundary hardening for already-open PawnAdvance and PawnStop rows, keeping
+  proofFailures, raw proof text, EngineCheck text, StoryTable debug relations,
+  and test-helper terminology out of Verdict values, ExplanationPlan, renderer
+  wording, LLM smoke, production API, public route `200`, and public/user-facing
+  LLM narration.
+- PIH Closeout is owned by `StoryInteractionLaw.md`. It opens no new pawn
+  meaning, Story family, proof home, Story writer, claim key, renderer wording,
+  LLM behavior, public route `200`, production API, or public/user-facing LLM
+  narration; it confirms PawnAdvance and PawnStop remain separated from each
+  other, promotion, pawn-break, tablebase, race, king-route, opposition,
+  Material, Defense, Hanging, and Line/Defender homes.
 - Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
   engine-capped, and engine-refuted Verdicts create no allowed claim or public
   claim. Stage 7 deterministic renderer may receive Explanation Plan only and
@@ -1778,7 +1855,7 @@ or renderer repair.
 
 ## Verdict Layout
 
-`Verdict.values` has exactly `96` slots:
+`Verdict.values` has exactly `99` slots:
 
 - `0`: role code
 - `1`: rank
@@ -1788,17 +1865,17 @@ or renderer repair.
 - `5`: rival ordinal
 - `6`: target square index + 1, or `0` absent
 - `7`: anchor square index + 1, or `0` absent
-- `8..23`: scene one-hot
-- `24..55`: plan one-hot
-- `56..79`: tactic one-hot
-- `80..95`: all `16` proof values
+- `8..24`: scene one-hot
+- `25..56`: plan one-hot
+- `57..81`: tactic one-hot
+- `82..97`: all `16` proof values
 
 Route identity remains in `Verdict.story.route` and in `Story.values`; it is not
-duplicated in the `96`-slot verdict vector.
+duplicated in the `99`-slot verdict vector.
 
 ## Scenes
 
-The model has exactly `16` public scene families:
+The model has exactly `18` public scene families:
 
 - `Tactic`
 - `Blunder`
@@ -1807,6 +1884,8 @@ The model has exactly `16` public scene families:
 - `Defense`
 - `Opening`
 - `Pawns`
+- `PawnAdvance`
+- `PawnStop`
 - `Plan`
 - `Pieces`
 - `Space`

@@ -16,6 +16,9 @@ private[commentary] enum ExplanationClaim:
   case PinsPiece
   case RemovesDefender
   case SkewersPieceToPiece
+  case AdvancesPassedPawn
+  case StopsPassedPawnNextAdvance
+  case CreatesPromotionThreat
 
   def key: String =
     this match
@@ -34,6 +37,9 @@ private[commentary] enum ExplanationClaim:
       case PinsPiece                 => "pins_piece"
       case RemovesDefender           => "removes_defender"
       case SkewersPieceToPiece       => "skewers_piece_to_piece"
+      case AdvancesPassedPawn        => "advances_passed_pawn"
+      case StopsPassedPawnNextAdvance => "stops_pawn_advance"
+      case CreatesPromotionThreat    => "threatens_promotion_next"
 
 private[commentary] object ExplanationClaim:
   val HangingAllowed: Vector[ExplanationClaim] =
@@ -185,6 +191,68 @@ private[commentary] object ExplanationClaim:
       "takes_initiative"
     )
 
+  val PawnAdvanceAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.AdvancesPassedPawn
+    )
+
+  val PawnAdvanceForbiddenKeys: Vector[String] =
+    Vector(
+      "promotion_threat",
+      "unstoppable_pawn",
+      "wins_endgame",
+      "converts_advantage",
+      "queens",
+      "promotes_next",
+      "clear_path",
+      "cannot_be_stopped",
+      "pawn_race",
+      "passed_pawn_strategy",
+      "best_move",
+      "only_move",
+      "forced",
+      "decisive",
+      "creates_pressure",
+      "takes_initiative"
+    )
+
+  val PawnStopAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.StopsPassedPawnNextAdvance
+    )
+
+  val PromotionThreatAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.CreatesPromotionThreat
+    )
+
+  val PromotionThreatForbiddenKeys: Vector[String] =
+    Vector(
+      "unstoppable_pawn",
+      "will_promote",
+      "cannot_be_stopped",
+      "wins_endgame",
+      "converts_advantage",
+      "best_move",
+      "only_move",
+      "forced",
+      "tablebase_win",
+      "no_counterplay"
+    )
+
+  val PawnStopForbiddenKeys: Vector[String] =
+    Vector(
+      "stops_promotion",
+      "permanently_stops_pawn",
+      "draws_endgame",
+      "best_defense",
+      "only_move",
+      "tablebase_draw",
+      "wins_endgame",
+      "converts_advantage",
+      "forced"
+    )
+
 private[commentary] enum ExplanationStrength:
   case Bounded
 
@@ -250,6 +318,20 @@ private[commentary] enum ForbiddenWording:
   case LineTacticIdentity
   case WinsRearPiece
   case FrontPieceMustMove
+  case PromotionThreat
+  case ActualPromotion
+  case UnstoppablePawn
+  case WinningEndgame
+  case ConvertsAdvantage
+  case PromotionStop
+  case PermanentStop
+  case DrawsEndgame
+  case TablebaseDraw
+  case ConversionStopped
+  case KingRoute
+  case Opposition
+  case PawnRace
+  case PassedPawnStrategy
 
   def key: String =
     this match
@@ -295,6 +377,20 @@ private[commentary] enum ForbiddenWording:
       case LineTacticIdentity => "line_tactic_identity"
       case WinsRearPiece      => "wins_rear_piece"
       case FrontPieceMustMove => "front_piece_must_move"
+      case PromotionThreat    => "promotion_threat"
+      case ActualPromotion    => "actual_promotion"
+      case UnstoppablePawn    => "unstoppable_pawn"
+      case WinningEndgame     => "wins_endgame"
+      case ConvertsAdvantage  => "converts_advantage"
+      case PromotionStop      => "stops_promotion"
+      case PermanentStop      => "permanently_stops_pawn"
+      case DrawsEndgame       => "draws_endgame"
+      case TablebaseDraw      => "tablebase_draw"
+      case ConversionStopped  => "conversion_stopped"
+      case KingRoute          => "king_route"
+      case Opposition         => "opposition"
+      case PawnRace           => "pawn_race"
+      case PassedPawnStrategy => "passed_pawn_strategy"
 
 private[commentary] object ForbiddenWording:
   val Basic: Vector[ForbiddenWording] =
@@ -371,63 +467,91 @@ private[commentary] object ExplanationPlan:
         ForbiddenWording.KingSafe,
         ForbiddenWording.MateDefense
       )
-  private val DiscoveredAttackForbiddenWording =
+  private val LineDefenderForbiddenWording =
     Vector(
       ForbiddenWording.WinsMaterial,
       ForbiddenWording.Winning,
-      ForbiddenWording.PinsPiece,
-      ForbiddenWording.SkewersPiece,
-      ForbiddenWording.CreatesPressure,
-      ForbiddenWording.TakesInitiative,
-      ForbiddenWording.MateThreat,
-      ForbiddenWording.BestMove,
-      ForbiddenWording.Forced,
-      ForbiddenWording.Decisive
-    )
-  private val PinForbiddenWording =
-    Vector(
-      ForbiddenWording.WinsMaterial,
-      ForbiddenWording.Winning,
-      ForbiddenWording.KingUnsafe,
-      ForbiddenWording.MateThreat,
+      ForbiddenWording.Decisive,
       ForbiddenWording.BestMove,
       ForbiddenWording.OnlyMove,
       ForbiddenWording.Forced,
-      ForbiddenWording.Decisive,
-      ForbiddenWording.CreatesPressure,
-      ForbiddenWording.TakesInitiative,
-      ForbiddenWording.CannotMove
-    )
-  private val RemoveGuardForbiddenWording =
-    Vector(
-      ForbiddenWording.WinsMaterial,
-      ForbiddenWording.TargetIsHanging,
-      ForbiddenWording.LeavesUndefended,
-      ForbiddenWording.NoDefenderRemains,
+      ForbiddenWording.CannotMove,
       ForbiddenWording.NoDefense,
-      ForbiddenWording.RefutesDefense,
-      ForbiddenWording.BestMove,
-      ForbiddenWording.OnlyMove,
-      ForbiddenWording.Forced,
-      ForbiddenWording.Decisive,
-      ForbiddenWording.CreatesPressure,
-      ForbiddenWording.TakesInitiative
-    )
-  private val SkewerForbiddenWording =
-    Vector(
-      ForbiddenWording.WinsMaterial,
-      ForbiddenWording.WinsRearPiece,
       ForbiddenWording.FrontPieceMustMove,
-      ForbiddenWording.BestMove,
-      ForbiddenWording.OnlyMove,
-      ForbiddenWording.Forced,
-      ForbiddenWording.Decisive,
-      ForbiddenWording.Winning,
-      ForbiddenWording.KingUnsafe,
-      ForbiddenWording.MateThreat,
+      ForbiddenWording.WinsRearPiece,
       ForbiddenWording.CreatesPressure,
-      ForbiddenWording.TakesInitiative
+      ForbiddenWording.TakesInitiative,
+      ForbiddenWording.MateThreat,
+      ForbiddenWording.KingUnsafe
     )
+  private val DiscoveredAttackForbiddenWording =
+    (
+      LineDefenderForbiddenWording ++
+        Vector(
+          ForbiddenWording.PinsPiece,
+          ForbiddenWording.SkewersPiece
+        )
+    ).distinct
+  private val PinForbiddenWording =
+    LineDefenderForbiddenWording
+  private val RemoveGuardForbiddenWording =
+    (
+      LineDefenderForbiddenWording ++
+        Vector(
+          ForbiddenWording.TargetIsHanging,
+          ForbiddenWording.LeavesUndefended,
+          ForbiddenWording.NoDefenderRemains,
+          ForbiddenWording.RefutesDefense
+        )
+    ).distinct
+  private val SkewerForbiddenWording =
+    LineDefenderForbiddenWording
+  private val PawnInteractionForbiddenWording =
+    ForbiddenWording.Basic ++
+      Vector(
+        ForbiddenWording.PromotionThreat,
+        ForbiddenWording.UnstoppablePawn,
+        ForbiddenWording.WinningEndgame,
+        ForbiddenWording.ConvertsAdvantage,
+        ForbiddenWording.DrawsEndgame,
+        ForbiddenWording.TablebaseDraw,
+        ForbiddenWording.PromotionStop,
+        ForbiddenWording.PermanentStop,
+        ForbiddenWording.Decisive,
+        ForbiddenWording.CreatesPressure,
+        ForbiddenWording.TakesInitiative,
+        ForbiddenWording.PawnRace,
+        ForbiddenWording.KingRoute,
+        ForbiddenWording.Opposition,
+        ForbiddenWording.PassedPawnStrategy
+      )
+  private val PawnAdvanceForbiddenWording =
+    PawnInteractionForbiddenWording
+  private val PawnStopForbiddenWording =
+    (
+      PawnInteractionForbiddenWording ++
+        Vector(
+          ForbiddenWording.BestDefense
+        )
+    ).distinct
+  private val PromotionThreatForbiddenWording =
+    ForbiddenWording.Basic ++
+      Vector(
+        ForbiddenWording.ActualPromotion,
+        ForbiddenWording.UnstoppablePawn,
+        ForbiddenWording.WinningEndgame,
+        ForbiddenWording.ConvertsAdvantage,
+        ForbiddenWording.DrawsEndgame,
+        ForbiddenWording.TablebaseDraw,
+        ForbiddenWording.PromotionStop,
+        ForbiddenWording.PermanentStop,
+        ForbiddenWording.Decisive,
+        ForbiddenWording.NoCounterplay,
+        ForbiddenWording.PawnRace,
+        ForbiddenWording.KingRoute,
+        ForbiddenWording.Opposition,
+        ForbiddenWording.PassedPawnStrategy
+      )
 
   private def tacticAllowedClaim(verdict: Verdict, tactic: Tactic) =
     if verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited then
@@ -445,6 +569,21 @@ private[commentary] object ExplanationPlan:
   private def defenseAllowedClaim(verdict: Verdict) =
     Option.when(verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited)(
       ExplanationClaim.DefendsPiece
+    )
+
+  private def pawnAdvanceAllowedClaim(verdict: Verdict) =
+    Option.when(verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited)(
+      ExplanationClaim.AdvancesPassedPawn
+    )
+
+  private def pawnStopAllowedClaim(verdict: Verdict) =
+    Option.when(verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited)(
+      ExplanationClaim.StopsPassedPawnNextAdvance
+    )
+
+  private def promotionThreatAllowedClaim(verdict: Verdict) =
+    Option.when(verdict.role == Role.Lead && verdict.leadAllowed && !verdict.engineStrengthLimited)(
+      ExplanationClaim.CreatesPromotionThreat
     )
 
   private def forbiddenWording(verdict: Verdict, tactic: Tactic) =
@@ -482,6 +621,27 @@ private[commentary] object ExplanationPlan:
       !verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes)
 
   private def skewerCanPlan(verdict: Verdict) =
+    verdict.selected &&
+      verdict.role == Role.Lead &&
+      verdict.leadAllowed &&
+      !verdict.engineStrengthLimited &&
+      !verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes)
+
+  private def pawnAdvanceCanPlan(verdict: Verdict) =
+    verdict.selected &&
+      verdict.role == Role.Lead &&
+      verdict.leadAllowed &&
+      !verdict.engineStrengthLimited &&
+      !verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes)
+
+  private def pawnStopCanPlan(verdict: Verdict) =
+    verdict.selected &&
+      verdict.role == Role.Lead &&
+      verdict.leadAllowed &&
+      !verdict.engineStrengthLimited &&
+      !verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes)
+
+  private def promotionThreatCanPlan(verdict: Verdict) =
     verdict.selected &&
       verdict.role == Role.Lead &&
       verdict.leadAllowed &&
@@ -537,6 +697,9 @@ private[commentary] object ExplanationPlan:
     else if story.tactic.contains(Tactic.Pin) then fromSelectedPin(verdict, story)
     else if story.tactic.contains(Tactic.RemoveGuard) then fromSelectedRemoveGuard(verdict, story)
     else if story.tactic.contains(Tactic.Skewer) then fromSelectedSkewer(verdict, story)
+    else if story.scene == Scene.PawnAdvance then fromSelectedPawnAdvance(verdict, story)
+    else if story.scene == Scene.PawnStop then fromSelectedPawnStop(verdict, story)
+    else if story.scene == Scene.PromotionThreat then fromSelectedPromotionThreat(verdict, story)
     else fromSelectedTactic(verdict, story)
 
   private def fromSelectedTactic(verdict: Verdict, story: Story): Option[ExplanationPlan] =
@@ -719,6 +882,102 @@ private[commentary] object ExplanationPlan:
       forbiddenWording = materialForbiddenWording(verdict),
       relations = materialRelations(verdict),
       debugOnly = verdict.role == Role.Blocked,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedPawnAdvance(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      if pawnAdvanceCanPlan(verdict)
+      if story.scene == Scene.PawnAdvance
+      if story.tactic.isEmpty
+      if story.plan.isEmpty
+      if story.writer.contains(StoryWriter.ScenePawnAdvance)
+      if story.secondaryTarget.isEmpty
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = None,
+      side = story.side,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = None,
+      allowedClaim = pawnAdvanceAllowedClaim(verdict),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = PawnAdvanceForbiddenWording,
+      relations = Vector.empty,
+      debugOnly = false,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedPawnStop(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      if pawnStopCanPlan(verdict)
+      if story.scene == Scene.PawnStop
+      if story.tactic.isEmpty
+      if story.plan.isEmpty
+      if story.writer.contains(StoryWriter.ScenePawnStop)
+      if story.secondaryTarget.isEmpty
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = None,
+      side = story.side,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = None,
+      allowedClaim = pawnStopAllowedClaim(verdict),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = PawnStopForbiddenWording,
+      relations = Vector.empty,
+      debugOnly = false,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedPromotionThreat(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      if promotionThreatCanPlan(verdict)
+      if story.scene == Scene.PromotionThreat
+      if story.tactic.isEmpty
+      if story.plan.isEmpty
+      if story.writer.contains(StoryWriter.ScenePromotionThreat)
+      if story.secondaryTarget.isEmpty
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = None,
+      side = story.side,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = None,
+      allowedClaim = promotionThreatAllowedClaim(verdict),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = PromotionThreatForbiddenWording,
+      relations = Vector.empty,
+      debugOnly = false,
       supportContextLinks = Vector.empty
     )
 

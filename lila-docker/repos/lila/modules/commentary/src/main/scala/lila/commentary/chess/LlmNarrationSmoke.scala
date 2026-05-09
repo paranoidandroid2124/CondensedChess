@@ -32,6 +32,7 @@ private[commentary] object LlmNarrationSmoke:
     val violations =
       Vector(
         Option.when(!inputMatches(plan, rendered))("input_mismatch"),
+        Option.when(mentionsRawInput(output))("raw_input"),
         Option.when(violatesForbiddenWording(output, plan))("forbidden_wording"),
         Option.when(usesCoordinateMoveText(output))("non_san_move_text"),
         Option.when(addsNewMoveOrLine(output, plan, rendered))("new_move_or_line"),
@@ -62,6 +63,12 @@ private[commentary] object LlmNarrationSmoke:
         plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.MaterialBalanceChanges)
       case Scene.Defense =>
         plan.tactic.isEmpty && plan.allowedClaim.exists(ExplanationClaim.DefenseAllowed.contains)
+      case Scene.PawnAdvance =>
+        plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.AdvancesPassedPawn)
+      case Scene.PawnStop =>
+        plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.StopsPassedPawnNextAdvance)
+      case Scene.PromotionThreat =>
+        plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.CreatesPromotionThreat)
       case _ =>
         false
 
@@ -141,7 +148,31 @@ private[commentary] object LlmNarrationSmoke:
         case Some(Tactic.Skewer) =>
           Set("skewer", "skewers", "skewered")
         case _ =>
-          Set.empty[String]
+          if plan.scene == Scene.PawnAdvance then Set("passed pawn", "advances passed pawn", "advances the passed pawn")
+          else if plan.scene == Scene.PawnStop then
+            Set(
+              "passed pawn",
+              "stops passed pawn",
+              "stops the passed pawn",
+              "next advance",
+              "stops the passed pawn next advance"
+            )
+          else if plan.scene == Scene.PromotionThreat then
+            Set(
+              "promotion",
+              "promote",
+              "promotion threat",
+              "next move promotion threat",
+              "next-move promotion threat",
+              "threatens to promote next",
+              "creates promotion threat",
+              "creates a promotion threat",
+              "creates a next move promotion threat",
+              "creates a next-move promotion threat"
+            )
+          else if plan.scene == Scene.Defense then
+            Set("defend", "defends", "defended", "defends piece", "defends the piece")
+          else Set.empty[String]
     val tacticOrPlanPhrases = Vector(
       "fork",
       "forks",
@@ -181,10 +212,46 @@ private[commentary] object LlmNarrationSmoke:
       "strategic",
       "king safety",
       "counterplay",
+      "convert",
+      "converts",
       "conversion",
+      "promote",
+      "promotion",
+      "promotes",
+      "will promote",
+      "queens",
+      "promotes next",
+      "promotion stop",
+      "permanent stop",
+      "stops passed pawn",
+      "stops the passed pawn",
+      "stops pawn advance",
+      "stops the pawn advance",
+      "next advance",
+      "draw",
+      "draws",
+      "drawn endgame",
+      "draws endgame",
+      "draws the endgame",
+      "wins endgame",
+      "wins the endgame",
+      "tablebase",
+      "clear path",
+      "cannot be stopped",
+      "can't be stopped",
+      "can not be stopped",
+      "pawn race",
+      "race",
+      "king route",
+      "opposition",
       "outpost",
       "file control",
-      "defense"
+      "defense",
+      "defend",
+      "defends",
+      "defended",
+      "defends piece",
+      "defends the piece"
     )
     tacticOrPlanPhrases.exists: phrase =>
       !allowed.contains(phrase) && containsPhrase(normalized, phrase)
@@ -254,6 +321,42 @@ private[commentary] object LlmNarrationSmoke:
   private def materialWinAllowed(normalized: String, plan: ExplanationPlan): Boolean =
     !materialWinPhrases.exists(containsPhrase(normalized, _)) ||
       plan.allowedClaim.contains(ExplanationClaim.CanWinPiece)
+
+  private def mentionsRawInput(text: String): Boolean =
+    val normalized = normalize(text)
+    Vector(
+      "raw story",
+      "story row",
+      "pawnadvanceproof",
+      "pawn advance proof",
+      "pawnstopproof",
+      "pawn stop proof",
+      "promotionthreatproof",
+      "promotion threat proof",
+      "boardfacts",
+      "board facts",
+      "enginecheck",
+      "engine check",
+      "engineline",
+      "engine line",
+      "raw pv",
+      "prooffailures",
+      "proof failures",
+      "missing evidence",
+      "same-board proof",
+      "same board proof",
+      "exact after-board replay",
+      "exact after board replay",
+      "storytable",
+      "story table",
+      "debug relation",
+      "blocked_by_engine_refute",
+      "blocked by engine refute",
+      "capped_same_story",
+      "capped same story",
+      "same_family_lower_rank",
+      "same family lower rank"
+    ).exists(phrase => containsPhrase(normalized, phrase))
 
   private def forbiddenMeaning(forbidden: ForbiddenWording): Vector[String] =
     forbidden match
@@ -391,6 +494,51 @@ private[commentary] object LlmNarrationSmoke:
         Vector("removes defender", "removes the defender")
       case ForbiddenWording.LineTacticIdentity =>
         Vector("line tactic", "line tactics")
+      case ForbiddenWording.PromotionThreat =>
+        Vector("promotion threat", "threatens promotion", "will promote", "promotes", "promotion", "queens", "promotes next")
+      case ForbiddenWording.ActualPromotion =>
+        Vector(
+          "actual promotion",
+          "will promote",
+          "promotes next",
+          "queens",
+          "queens next",
+          "is queening",
+          "guarantees promotion",
+          "promotion is guaranteed"
+        )
+      case ForbiddenWording.UnstoppablePawn =>
+        Vector("unstoppable pawn", "unstoppable", "cannot be stopped", "can't be stopped", "can not be stopped")
+      case ForbiddenWording.WinningEndgame =>
+        Vector("winning endgame", "losing endgame", "won endgame", "lost endgame", "wins", "loses")
+      case ForbiddenWording.ConvertsAdvantage =>
+        Vector("converts advantage", "conversion", "convert", "converts")
+      case ForbiddenWording.PromotionStop =>
+        Vector(
+          "promotion stop",
+          "stops promotion",
+          "stops the promotion",
+          "prevents promotion",
+          "prevents the pawn from queening",
+          "stops the pawn from queening",
+          "prevents queening"
+        )
+      case ForbiddenWording.PermanentStop =>
+        Vector("permanent stop", "permanently stops", "stops permanently", "stops the pawn for good", "cannot advance", "can not advance", "can't advance")
+      case ForbiddenWording.DrawsEndgame =>
+        Vector("draws endgame", "draws the endgame", "drawn endgame", "draws the position", "draw", "holds the endgame")
+      case ForbiddenWording.TablebaseDraw =>
+        Vector("tablebase draw", "draws the tablebase", "tablebase", "drawn endgame", "draw", "draws", "draws the position")
+      case ForbiddenWording.ConversionStopped =>
+        Vector("conversion stopped", "stops conversion", "stops the conversion", "prevents conversion")
+      case ForbiddenWording.KingRoute =>
+        Vector("king route", "king path", "king walk")
+      case ForbiddenWording.Opposition =>
+        Vector("opposition", "takes the opposition", "has the opposition")
+      case ForbiddenWording.PawnRace =>
+        Vector("pawn race", "race")
+      case ForbiddenWording.PassedPawnStrategy =>
+        Vector("passed pawn strategy", "strategy", "strategic", "clear path")
 
   private def forbiddenLabel(forbidden: ForbiddenWording): String =
     forbiddenMeaning(forbidden).head
@@ -419,7 +567,7 @@ private[commentary] object LlmNarrationSmoke:
   private def normalize(text: String): String =
     text
       .toLowerCase(Locale.ROOT)
-      .replaceAll("[^a-z0-9]+", " ")
+      .replaceAll("[^a-z0-9_]+", " ")
       .replaceAll("\\s+", " ")
       .trim
 

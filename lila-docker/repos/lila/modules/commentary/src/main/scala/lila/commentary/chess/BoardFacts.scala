@@ -240,8 +240,12 @@ object BoardFacts:
   private val sameBoardFacts =
     Collections.synchronizedMap(new WeakHashMap[BoardFacts, java.lang.Boolean])
 
-  private def markSameBoard(facts: BoardFacts): BoardFacts =
+  private val positionFacts =
+    Collections.synchronizedMap(new WeakHashMap[BoardFacts, Position])
+
+  private def markSameBoard(facts: BoardFacts, position: Position): BoardFacts =
     sameBoardFacts.put(facts, java.lang.Boolean.TRUE)
+    positionFacts.put(facts, position)
     facts
 
   private[commentary] def sameBoardReady(facts: BoardFacts): Boolean =
@@ -249,6 +253,25 @@ object BoardFacts:
 
   private[commentary] def sanFor(facts: BoardFacts, line: Line): Option[String] =
     facts.sideLegal.sanFor(line).orElse(facts.rivalLegal.sanFor(line))
+
+  private[commentary] final case class LegalContinuation(line: Line, san: String, promotion: Boolean)
+
+  private[commentary] def sameSideLegalContinuationsAfter(facts: BoardFacts, line: Line): Vector[LegalContinuation] =
+    Option(positionFacts.get(facts)).toVector.flatMap: position =>
+      position.legalMoves.toVector
+        .find(move => Line(Square.fromIndex(move.orig.value), Square.fromIndex(move.dest.value)) == line)
+        .toVector
+        .flatMap: move =>
+          move.after
+            .withColor(position.color)
+            .legalMoves
+            .toVector
+            .map: next =>
+              LegalContinuation(
+                line = Line(Square.fromIndex(next.orig.value), Square.fromIndex(next.dest.value)),
+                san = next.toSanStr.toString,
+                promotion = next.promotion.isDefined
+              )
 
   private[chess] final case class LegalMove(side: Side, piece: Piece, line: Line)
   private[chess] final case class Attack(attacker: Piece, target: Piece)
@@ -1044,7 +1067,8 @@ object BoardFacts:
         material = material(position.board),
         pawns = pawns(position.board, rooted.root),
         pieces = pieces(position.board)
-      )
+      ),
+      position
     )
 
   private def fenHeader(fen: Fen.Full): Either[String, HeaderParts] =

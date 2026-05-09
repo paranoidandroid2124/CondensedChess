@@ -1,8 +1,11 @@
 package lila.commentary.chess
 
+import java.nio.file.{ Files, Paths }
+
 import chess.format.Fen
 import chess.variant
 import lila.commentary.root.{ RootAtomRegistry, RootStateVector }
+import scala.jdk.CollectionConverters.*
 
 class ChessFoundationTest extends munit.FunSuite:
 
@@ -1644,6 +1647,8 @@ class ChessFoundationTest extends munit.FunSuite:
         Scene.Defense,
         Scene.Opening,
         Scene.Pawns,
+        Scene.PawnAdvance,
+        Scene.PawnStop,
         Scene.Plan,
         Scene.Pieces,
         Scene.Space,
@@ -1652,7 +1657,8 @@ class ChessFoundationTest extends munit.FunSuite:
         Scene.Endgame,
         Scene.Counterplay,
         Scene.Source,
-        Scene.Quiet
+        Scene.Quiet,
+        Scene.PromotionThreat
       )
     )
     assertEquals(
@@ -1779,8 +1785,8 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(exact.values(Proof.Slots.SourceFit), 82)
 
   test("Story constants preserve the fixed story shape"):
-    assertEquals(Story.Size, 161)
-    assertEquals(Story.SceneSlots, 16)
+    assertEquals(Story.Size, 164)
+    assertEquals(Story.SceneSlots, 19)
     assertEquals(Story.PlanSlots, 32)
     assertEquals(Story.TacticSlots, 25)
     assertEquals(Story.PawnSlots, 16)
@@ -1789,13 +1795,13 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(Story.OpeningSlots, 8)
     assertEquals(Story.ProofSlots, 32)
     assertEquals(Story.Slots.Scene, 0)
-    assertEquals(Story.Slots.Plan, 16)
-    assertEquals(Story.Slots.Tactic, 48)
-    assertEquals(Story.Slots.Pawn, 73)
-    assertEquals(Story.Slots.Piece, 89)
-    assertEquals(Story.Slots.King, 105)
-    assertEquals(Story.Slots.Opening, 121)
-    assertEquals(Story.Slots.Proof, 129)
+    assertEquals(Story.Slots.Plan, 19)
+    assertEquals(Story.Slots.Tactic, 51)
+    assertEquals(Story.Slots.Pawn, 76)
+    assertEquals(Story.Slots.Piece, 92)
+    assertEquals(Story.Slots.King, 108)
+    assertEquals(Story.Slots.Opening, 124)
+    assertEquals(Story.Slots.Proof, 132)
     assertEquals(Story.Slots.End, Story.Size)
 
   test("Story values encode exact shape, public family, identity, and proof"):
@@ -4264,7 +4270,10 @@ class ChessFoundationTest extends munit.FunSuite:
         StoryWriter.TacticDiscoveredAttack,
         StoryWriter.TacticPin,
         StoryWriter.TacticRemoveGuard,
-        StoryWriter.TacticSkewer
+        StoryWriter.TacticSkewer,
+        StoryWriter.ScenePawnAdvance,
+        StoryWriter.ScenePawnStop,
+        StoryWriter.ScenePromotionThreat
       )
     )
     assertEquals(ExplanationStrength.values.toVector, Vector(ExplanationStrength.Bounded))
@@ -4444,10 +4453,10 @@ class ChessFoundationTest extends munit.FunSuite:
     val unknownVerdict = StoryTable.choose(Vector(unknown)).head
     val refutesVerdict = StoryTable.choose(Vector(refutes)).head
 
-    assertEquals(supports.engineCheck.map(_.status), Some(EngineCheckStatus.Supports))
-    assertEquals(caps.engineCheck.map(_.status), Some(EngineCheckStatus.Caps))
-    assertEquals(unknown.engineCheck.map(_.status), Some(EngineCheckStatus.Unknown))
-    assertEquals(refutes.engineCheck.map(_.status), Some(EngineCheckStatus.Refutes))
+    assertEquals(supports.engineCheck.map(_.status), Option(EngineCheckStatus.Supports))
+    assertEquals(caps.engineCheck.map(_.status), Option(EngineCheckStatus.Caps))
+    assertEquals(unknown.engineCheck.map(_.status), Option(EngineCheckStatus.Unknown))
+    assertEquals(refutes.engineCheck.map(_.status), Option(EngineCheckStatus.Refutes))
     assertEquals(supportsVerdict.role, Role.Lead)
     assertEquals(capsVerdict.role, Role.Lead)
     assertEquals(capsVerdict.engineStrengthLimited, true)
@@ -7558,7 +7567,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assert(prompt.contains("renderedText: Nf4 reveals an attack on the piece on g6."))
     assert(prompt.contains("claimKey: reveals_attack_on_piece"))
     assert(prompt.contains("strength: bounded"))
-    assert(prompt.contains("forbiddenWording: wins material, winning, pins piece, skewers piece, creates pressure, takes initiative, mate threat, best move, forced, decisive"))
+    assert(prompt.contains("forbiddenWording: wins material, winning, decisive, best move, only move, forced, cannot move, no defense, front piece must move, wins rear piece, creates pressure, takes initiative, mate threat, king unsafe, pins piece, skewers piece"))
     assert(prompt.contains("instruction: Rephrase only. Do not add chess facts."))
     Vector("raw Story", "LineProof", "LineFact", "BoardFacts", "EngineCheck", "raw PV", "proofFailures").foreach: forbiddenInput =>
       assert(!prompt.contains(forbiddenInput), forbiddenInput)
@@ -8391,7 +8400,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assert(prompt.contains("renderedText: Re8 pins the piece on e2."))
     assert(prompt.contains("claimKey: pins_piece"))
     assert(prompt.contains("strength: bounded"))
-    assert(prompt.contains("forbiddenWording: wins material, winning, king unsafe, mate threat, best move, only move, forced, decisive, creates pressure, takes initiative, cannot move"))
+    assert(prompt.contains("forbiddenWording: wins material, winning, decisive, best move, only move, forced, cannot move, no defense, front piece must move, wins rear piece, creates pressure, takes initiative, mate threat, king unsafe"))
     assert(prompt.contains("instruction: Rephrase only. Do not add chess facts."))
     Vector("raw Story", "PinProof", "LineProof", "BoardFacts", "EngineCheck", "raw PV", "proofFailures").foreach: forbiddenInput =>
       assert(!prompt.contains(forbiddenInput), forbiddenInput)
@@ -9239,8 +9248,26 @@ class ChessFoundationTest extends munit.FunSuite:
       TacticRemoveGuard.write(removeGuardFacts, Some(removeGuardMove), Some(Square('e', 5)), Some(Square('c', 4))).get
     val skewerFacts = BoardFacts.fromFen("4r2k/8/8/4q3/8/8/8/R6K w - - 0 1").toOption.get
     val skewerMove = Line(Square('a', 1), Square('e', 1))
-    val skewer =
+    val skewerBase =
       TacticSkewer.write(skewerFacts, Some(skewerMove), Some(Square('e', 1)), Some(Square('e', 5)), Some(Square('e', 8))).get
+    val skewerHighProof =
+      proof(
+        boardProof = 99,
+        lineProof = 99,
+        ownerProof = 99,
+        anchorProof = 99,
+        routeProof = 99,
+        persistence = 99,
+        immediacy = 99,
+        forcing = 99,
+        conversionPrize = 99,
+        counterplayRisk = 20,
+        kingHeat = 0,
+        pieceSupport = 99,
+        pawnSupport = 0,
+        clarity = 99
+      )
+    val skewer = skewerBase.copy(proof = skewerHighProof)
 
     def score(value: Int): Proof =
       proof(
@@ -9662,7 +9689,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assert(prompt.contains(s"renderedText: ${rendered.text}"))
     assert(prompt.contains("claimKey: skewers_piece_to_piece"))
     assert(prompt.contains("strength: bounded"))
-    assert(prompt.contains("forbiddenWording: wins material, wins rear piece, front piece must move, best move, only move, forced, decisive, winning, king unsafe, mate threat, creates pressure, takes initiative"))
+    assert(prompt.contains("forbiddenWording: wins material, winning, decisive, best move, only move, forced, cannot move, no defense, front piece must move, wins rear piece, creates pressure, takes initiative, mate threat, king unsafe"))
     assert(prompt.contains("instruction: Rephrase only. Do not add chess facts."))
     Vector("raw Story", "SkewerProof", "LineProof", "BoardFacts", "EngineCheck", "raw PV", "proofFailures").foreach:
       forbiddenInput =>
@@ -10528,7 +10555,7 @@ class ChessFoundationTest extends munit.FunSuite:
     assert(prompt.contains("renderedText: Bxc4 removes the defender of the piece on e5."))
     assert(prompt.contains("claimKey: removes_defender"))
     assert(prompt.contains("strength: bounded"))
-    assert(prompt.contains("forbiddenWording: wins material, target is hanging, leaves it undefended, no defender remains, no defense, refutes defense, best move, only move, forced, decisive, creates pressure, takes initiative"))
+    assert(prompt.contains("forbiddenWording: wins material, winning, decisive, best move, only move, forced, cannot move, no defense, front piece must move, wins rear piece, creates pressure, takes initiative, mate threat, king unsafe, target is hanging, leaves it undefended, no defender remains, refutes defense"))
     assert(prompt.contains("instruction: Rephrase only. Do not add chess facts."))
     Vector("raw Story", "RemoveGuardProof", "BoardFacts", "EngineCheck", "raw PV", "proofFailures").foreach: forbiddenInput =>
       assert(!prompt.contains(forbiddenInput), forbiddenInput)
@@ -11067,7 +11094,9 @@ class ChessFoundationTest extends munit.FunSuite:
         baseRowId: String,
         baseStory: Story,
         attach: (Story, EngineCheck) => Option[Story],
-        expectedClaim: ExplanationClaim,
+        expectedSupportsRole: Role,
+        expectedCapsRole: Role,
+        expectedClaim: Option[ExplanationClaim],
         forbiddenClaims: Vector[String]
     )
 
@@ -11095,6 +11124,8 @@ class ChessFoundationTest extends munit.FunSuite:
         case "reveals_attack_on_piece"    => s"$san reveals an attack."
         case "pins_piece"                 => s"$san pins the piece."
         case "removes_defender"           => s"$san removes the defender."
+        case "wins_rear_piece"            => s"$san wins the rear piece."
+        case "front_piece_must_move"      => s"$san forces the front piece to move."
         case other                        => s"$san adds $other."
 
     val discoveredFen = "7k/8/6r1/8/8/3N4/8/1B5K w - - 0 1"
@@ -11111,6 +11142,11 @@ class ChessFoundationTest extends munit.FunSuite:
     val removeMove = Line(Square('g', 8), Square('c', 4))
     val remove =
       TacticRemoveGuard.write(removeFacts, Some(removeMove), Some(Square('e', 5)), Some(Square('c', 4))).get
+    val skewerFen = "4r2k/8/8/4q3/8/8/8/R6K w - - 0 1"
+    val skewerFacts = BoardFacts.fromFen(skewerFen).toOption.get
+    val skewerMove = Line(Square('a', 1), Square('e', 1))
+    val skewer =
+      TacticSkewer.write(skewerFacts, Some(skewerMove), Some(Square('e', 1)), Some(Square('e', 5)), Some(Square('e', 8))).get
 
     val fixtures = Vector(
       EngineLdhFixture(
@@ -11121,7 +11157,9 @@ class ChessFoundationTest extends munit.FunSuite:
         baseRowId = "Tactic.DiscoveredAttack",
         baseStory = discovered,
         attach = TacticDiscoveredAttack.withEngineCheck,
-        expectedClaim = ExplanationClaim.RevealsAttackOnPiece,
+        expectedSupportsRole = Role.Lead,
+        expectedCapsRole = Role.Lead,
+        expectedClaim = Some(ExplanationClaim.RevealsAttackOnPiece),
         forbiddenClaims = Vector("wins_material", "pins_piece", "removes_defender", "best_move", "creates_pressure", "takes_initiative", "mate_threat")
       ),
       EngineLdhFixture(
@@ -11132,7 +11170,9 @@ class ChessFoundationTest extends munit.FunSuite:
         baseRowId = "Tactic.Pin",
         baseStory = pin,
         attach = TacticPin.withEngineCheck,
-        expectedClaim = ExplanationClaim.PinsPiece,
+        expectedSupportsRole = Role.Lead,
+        expectedCapsRole = Role.Lead,
+        expectedClaim = Some(ExplanationClaim.PinsPiece),
         forbiddenClaims = Vector("wins_material", "reveals_attack_on_piece", "removes_defender", "best_move", "creates_pressure", "takes_initiative", "mate_threat")
       ),
       EngineLdhFixture(
@@ -11143,8 +11183,23 @@ class ChessFoundationTest extends munit.FunSuite:
         baseRowId = "Tactic.RemoveGuard",
         baseStory = remove,
         attach = TacticRemoveGuard.withEngineCheck,
-        expectedClaim = ExplanationClaim.RemovesDefender,
+        expectedSupportsRole = Role.Lead,
+        expectedCapsRole = Role.Lead,
+        expectedClaim = Some(ExplanationClaim.RemovesDefender),
         forbiddenClaims = Vector("wins_material", "reveals_attack_on_piece", "pins_piece", "best_move", "creates_pressure", "takes_initiative", "mate_threat")
+      ),
+      EngineLdhFixture(
+        category = "EngineCheck over Tactic.Skewer",
+        fen = skewerFen,
+        sideToMove = Side.White,
+        candidateLegalLines = Vector(skewerMove),
+        baseRowId = "Tactic.Skewer",
+        baseStory = skewer,
+        attach = TacticSkewer.withEngineCheck,
+        expectedSupportsRole = Role.Context,
+        expectedCapsRole = Role.Context,
+        expectedClaim = None,
+        forbiddenClaims = Vector("wins_material", "wins_rear_piece", "front_piece_must_move", "best_move", "creates_pressure", "takes_initiative", "mate_threat")
       )
     )
 
@@ -11167,15 +11222,19 @@ class ChessFoundationTest extends munit.FunSuite:
       val capsVerdict = StoryTable.choose(Vector(caps)).head
       val refutesVerdict = StoryTable.choose(Vector(refutes)).head
 
-      assertEquals(supportsVerdict.role, Role.Lead, fixture.category)
+      assertEquals(supportsVerdict.role, fixture.expectedSupportsRole, fixture.category)
       assertEquals(supportsVerdict.engineCheckStatus, Some(EngineCheckStatus.Supports), fixture.category)
-      val supportsPlan = ExplanationPlan.fromSelected(supportsVerdict).get
-      val supportsRendered = DeterministicRenderer.fromPlan(supportsPlan).get
-      assertEquals(supportsPlan.allowedClaim, Some(fixture.expectedClaim), fixture.category)
-      fixture.forbiddenClaims.foreach: claim =>
-        assertEquals(LlmNarrationSmoke.check(supportsPlan, supportsRendered, forbiddenOutput(claim, supportsPlan)).accepted, false, s"${fixture.category}: $claim")
+      fixture.expectedClaim match
+        case Some(expectedClaim) =>
+          val supportsPlan = ExplanationPlan.fromSelected(supportsVerdict).get
+          val supportsRendered = DeterministicRenderer.fromPlan(supportsPlan).get
+          assertEquals(supportsPlan.allowedClaim, Some(expectedClaim), fixture.category)
+          fixture.forbiddenClaims.foreach: claim =>
+            assertEquals(LlmNarrationSmoke.check(supportsPlan, supportsRendered, forbiddenOutput(claim, supportsPlan)).accepted, false, s"${fixture.category}: $claim")
+        case None =>
+          assertEquals(ExplanationPlan.fromSelected(supportsVerdict), None, fixture.category)
 
-      assertEquals(capsVerdict.role, Role.Lead, fixture.category)
+      assertEquals(capsVerdict.role, fixture.expectedCapsRole, fixture.category)
       assertEquals(capsVerdict.engineCheckStatus, Some(EngineCheckStatus.Caps), fixture.category)
       assertEquals(capsVerdict.engineStrengthLimited, true, fixture.category)
       assertEquals(ExplanationPlan.fromSelected(capsVerdict), None, fixture.category)
@@ -12111,7 +12170,10 @@ class ChessFoundationTest extends munit.FunSuite:
         StoryWriter.TacticDiscoveredAttack,
         StoryWriter.TacticPin,
         StoryWriter.TacticRemoveGuard,
-        StoryWriter.TacticSkewer
+        StoryWriter.TacticSkewer,
+        StoryWriter.ScenePawnAdvance,
+        StoryWriter.ScenePawnStop,
+        StoryWriter.ScenePromotionThreat
       )
     )
     Vector(
@@ -12280,6 +12342,4162 @@ class ChessFoundationTest extends munit.FunSuite:
         ExplanationRelation.values.map(_.key).toVector
     Vector("ldh_closeout", "public_route", "production_api", "public_llm", "user_facing_llm").foreach: forbidden =>
       assert(!runtimeAuthorityNames.exists(_.toLowerCase.contains(forbidden)), s"closed surface became runtime authority: $forbidden")
+
+  test("LNC-5 Downstream Boundary Audit keeps Line Defender speech bounded"):
+    final case class DownstreamFixture(
+        label: String,
+        facts: BoardFacts,
+        story: Story,
+        line: Line,
+        attach: (Story, EngineCheck) => Option[Story],
+        expectedClaim: ExplanationClaim
+    )
+
+    def highProof: Proof =
+      proof(
+        boardProof = 99,
+        lineProof = 99,
+        ownerProof = 99,
+        anchorProof = 99,
+        routeProof = 99,
+        persistence = 99,
+        immediacy = 99,
+        forcing = 99,
+        conversionPrize = 99,
+        counterplayRisk = 20,
+        kingHeat = 0,
+        pieceSupport = 99,
+        pawnSupport = 0,
+        clarity = 99
+      )
+
+    def engineCheck(facts: BoardFacts, story: Story, line: Line, status: EngineCheckStatus, before: Int = 20, after: Int = 20): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(line))),
+        replyLine = Some(EngineLine(Vector(Line(Square('h', 8), Square('h', 7))))),
+        evalBefore = Some(EngineEval(before)),
+        evalAfter = Some(EngineEval(after)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    val discoveredFacts = BoardFacts.fromFen("7k/8/6r1/8/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val discoveredLine = Line(Square('d', 3), Square('f', 4))
+    val discovered =
+      TacticDiscoveredAttack.write(discoveredFacts, Some(discoveredLine), Some(Square('b', 1)), Some(Square('g', 6))).get
+    val pinFacts = BoardFacts.fromFen("r5k1/8/8/8/8/8/4N3/4K3 b - - 0 1").toOption.get
+    val pinLine = Line(Square('a', 8), Square('e', 8))
+    val pin = TacticPin.write(pinFacts, Some(pinLine), Some(Square('e', 8)), Some(Square('e', 2)), Some(Square('e', 1))).get
+    val removeFacts = BoardFacts.fromFen("6Bk/8/8/4r3/2n5/8/8/7K w - - 0 1").toOption.get
+    val removeLine = Line(Square('g', 8), Square('c', 4))
+    val remove = TacticRemoveGuard.write(removeFacts, Some(removeLine), Some(Square('e', 5)), Some(Square('c', 4))).get
+    val skewerFacts = BoardFacts.fromFen("4r2k/8/8/4q3/8/8/8/R6K w - - 0 1").toOption.get
+    val skewerLine = Line(Square('a', 1), Square('e', 1))
+    val skewer =
+      TacticSkewer
+        .write(skewerFacts, Some(skewerLine), Some(Square('e', 1)), Some(Square('e', 5)), Some(Square('e', 8)))
+        .get
+        .copy(
+          proof = proof(
+            boardProof = 99,
+            lineProof = 99,
+            ownerProof = 99,
+            anchorProof = 99,
+            routeProof = 99,
+            pieceSupport = 99,
+            clarity = 99
+          )
+        )
+        .copy(proof = highProof)
+
+    val requiredForbiddenKeys =
+      Vector(
+        "wins_material",
+        "winning",
+        "decisive",
+        "best_move",
+        "only_move",
+        "forced",
+        "cannot_move",
+        "no_defense",
+        "front_piece_must_move",
+        "wins_rear_piece",
+        "creates_pressure",
+        "takes_initiative",
+        "mate_threat",
+        "king_unsafe"
+      )
+    val forbiddenOutputs =
+      Vector(
+        "wins material" -> ((san: String) => s"$san wins material."),
+        "winning" -> ((san: String) => s"$san is winning."),
+        "decisive" -> ((san: String) => s"$san is decisive."),
+        "best move" -> ((san: String) => s"$san is the best move."),
+        "only move" -> ((san: String) => s"$san is the only move."),
+        "forced" -> ((san: String) => s"$san starts a forced line."),
+        "cannot move" -> ((san: String) => s"$san means the piece cannot move."),
+        "no defense" -> ((san: String) => s"$san leaves no defense."),
+        "front piece must move" -> ((san: String) => s"$san means the front piece must move."),
+        "wins rear piece" -> ((san: String) => s"$san wins the rear piece."),
+        "pressure" -> ((san: String) => s"$san creates pressure."),
+        "initiative" -> ((san: String) => s"$san takes the initiative."),
+        "mate threat" -> ((san: String) => s"$san creates a mate threat."),
+        "king unsafe" -> ((san: String) => s"$san makes the king unsafe.")
+      )
+
+    val fixtures = Vector(
+      DownstreamFixture("Tactic.DiscoveredAttack", discoveredFacts, discovered, discoveredLine, TacticDiscoveredAttack.withEngineCheck, ExplanationClaim.RevealsAttackOnPiece),
+      DownstreamFixture("Tactic.Pin", pinFacts, pin, pinLine, TacticPin.withEngineCheck, ExplanationClaim.PinsPiece),
+      DownstreamFixture("Tactic.RemoveGuard", removeFacts, remove, removeLine, TacticRemoveGuard.withEngineCheck, ExplanationClaim.RemovesDefender),
+      DownstreamFixture("Tactic.Skewer", skewerFacts, skewer, skewerLine, TacticSkewer.withEngineCheck, ExplanationClaim.SkewersPieceToPiece)
+    )
+
+    fixtures.foreach: fixture =>
+      val leadVerdict = StoryTable.choose(Vector(fixture.story)).head
+      assertEquals(leadVerdict.role, Role.Lead, fixture.label)
+      val plan = ExplanationPlan.fromSelected(leadVerdict).get
+      assertEquals(plan.allowedClaim, Some(fixture.expectedClaim), fixture.label)
+      val forbiddenKeys = plan.forbiddenWording.map(_.key)
+      requiredForbiddenKeys.foreach: key =>
+        assert(forbiddenKeys.contains(key), s"${fixture.label} missing forbidden wording key: $key")
+      val rendered = DeterministicRenderer.fromPlan(plan).get
+      val prompt = LlmNarrationSmoke.codexCliPrompt(plan, rendered).get
+      Vector(
+        s"renderedText: ${rendered.text}",
+        s"claimKey: ${rendered.claimKey}",
+        s"strength: ${rendered.strength}",
+        "forbiddenWording:",
+        "instruction: Rephrase only. Do not add chess facts."
+      ).foreach: expectedInput =>
+        assert(prompt.contains(expectedInput), s"${fixture.label} prompt missing $expectedInput")
+      forbiddenOutputs.foreach: (label, outputFor) =>
+        val result = LlmNarrationSmoke.check(plan, rendered, outputFor(plan.routeSan.get))
+        assertEquals(result.accepted, false, s"${fixture.label}: $label")
+        assert(result.violations.contains("forbidden_wording"), s"${fixture.label}: $label -> $result")
+
+      val supportVerdict = leadVerdict.copy(role = Role.Support, leadAllowed = false)
+      val contextVerdict = leadVerdict.copy(role = Role.Context, leadAllowed = false)
+      val blockedVerdict = leadVerdict.copy(role = Role.Blocked, leadAllowed = false)
+      val unselectedVerdict = leadVerdict.copy(selected = false)
+      val cappedVerdict =
+        StoryTable.choose(Vector(fixture.attach(fixture.story, engineCheck(fixture.facts, fixture.story, fixture.line, EngineCheckStatus.Caps)).get)).head
+      val refutedVerdict =
+        StoryTable
+          .choose(Vector(fixture.attach(fixture.story, engineCheck(fixture.facts, fixture.story, fixture.line, EngineCheckStatus.Supports, before = 220, after = 20)).get))
+          .head
+      Vector(supportVerdict, contextVerdict, blockedVerdict, unselectedVerdict, cappedVerdict, refutedVerdict).foreach: verdict =>
+        assertEquals(ExplanationPlan.fromSelected(verdict), None, s"${fixture.label}: $verdict")
+
+  test("LNC-7 Test Helper Runtime Boundary Audit keeps helpers out of runtime authority"):
+    val runtimeRoot = Paths.get("modules/commentary/src/main/scala/lila/commentary/chess")
+    val runtimeSourceStream = Files.walk(runtimeRoot)
+    val runtimeText =
+      try
+        runtimeSourceStream
+        .iterator()
+        .asScala
+        .filter(path => Files.isRegularFile(path) && path.toString.endsWith(".scala"))
+        .map(Files.readString)
+        .mkString("\n")
+      finally runtimeSourceStream.close()
+
+    Vector(
+      "LNC-",
+      "LDH-",
+      "Closeout",
+      "closeout",
+      "fixture map",
+      "negative corpus",
+      "Line Defender Neighborhood",
+      "Contact Neighborhood"
+    ).foreach: closeoutOnlyTerm =>
+      assert(!runtimeText.contains(closeoutOnlyTerm), s"runtime source must not contain closeout-only term: $closeoutOnlyTerm")
+
+    val runtimeAuthorityNames =
+      StoryWriter.values.map(_.toString).toVector ++
+        Scene.values.map(_.toString).toVector ++
+        Tactic.values.map(_.toString).toVector ++
+        ExplanationClaim.values.map(_.key).toVector ++
+        ExplanationRelation.values.map(_.key).toVector
+    Vector("Fixture", "Corpus", "Closeout", "Neighborhood", "Audit").foreach: helperName =>
+      assert(!runtimeAuthorityNames.exists(_.contains(helperName)), s"test helper name became runtime authority: $helperName")
+
+    val skewerFacts = BoardFacts.fromFen("4r2k/8/8/4q3/8/8/8/R6K w - - 0 1").toOption.get
+    val skewerLine = Line(Square('a', 1), Square('e', 1))
+    val skewer =
+      TacticSkewer
+        .write(skewerFacts, Some(skewerLine), Some(Square('e', 1)), Some(Square('e', 5)), Some(Square('e', 8)))
+        .get
+        .copy(
+          proof = proof(
+            boardProof = 99,
+            lineProof = 99,
+            ownerProof = 99,
+            anchorProof = 99,
+            routeProof = 99,
+            pieceSupport = 99,
+            clarity = 99
+          )
+        )
+    val plan = ExplanationPlan.fromSelected(StoryTable.choose(Vector(skewer)).head).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    Vector("front_piece_must_move", "wins_rear_piece", "mate_threat", "king_unsafe", "creates_pressure").foreach: internalKey =>
+      val result = LlmNarrationSmoke.check(plan, rendered, s"${rendered.text} $internalKey")
+      assert(!result.violations.contains("forbidden_wording"), s"internal key must not be treated as public prose: $internalKey -> $result")
+
+  test("PawnAdvance-0 opens only bounded passed pawn advance"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advance = Line(Square('e', 5), Square('e', 6))
+
+    val story = ScenePawnAdvance.write(facts, advance).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    assertEquals(story.scene, Scene.PawnAdvance)
+    assertEquals(story.tactic, None)
+    assertEquals(story.plan, None)
+    assertEquals(story.side, Side.White)
+    assertEquals(story.rival, Side.Black)
+    assertEquals(story.target, Some(Square('e', 6)))
+    assertEquals(story.anchor, Some(Square('e', 5)))
+    assertEquals(story.route, Some(advance))
+    assertEquals(story.routeSan, Some("e6"))
+    assertEquals(story.writer, Some(StoryWriter.ScenePawnAdvance))
+    assert(story.pawnAdvanceProof.exists(_.complete))
+    assertEquals(story.pawnAdvanceProof.exists(_.publicClaimAllowed), false)
+    assertEquals(story.pawnAdvanceProof.exists(_.alreadyPassedBefore), true)
+    assertEquals(story.pawnAdvanceProof.exists(_.afterBoardPassedPawn), true)
+    assertEquals(story.captureResult, None)
+    assertEquals(story.multiTargetProof, None)
+    assertEquals(story.threatProof, None)
+    assertEquals(story.defenseProof, None)
+    assertEquals(story.lineProof, None)
+    assertEquals(story.pinProof, None)
+    assertEquals(story.removeGuardProof, None)
+    assertEquals(story.skewerProof, None)
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(plan.allowedClaim.map(_.key), Some("advances_passed_pawn"))
+    assertEquals(rendered.text, "e6 advances the passed pawn.")
+    assertEquals(rendered.claimKey, "advances_passed_pawn")
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, rendered), Some(rendered.text))
+
+    Vector(
+      "e6 threatens promotion.",
+      "e6 is a winning passed-pawn strategy.",
+      "e6 is the best move.",
+      "e6 is forced.",
+      "e6 starts conversion.",
+      "e6 creates a pawn race.",
+      "e6 is unstoppable.",
+      "e6 wins.",
+      "e6 queens.",
+      "e6 promotes next.",
+      "e6 has a clear path.",
+      "e6 cannot be stopped."
+    ).foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, output)
+
+  test("PawnAdvance-1 PawnAdvanceProof binds exact legal passed-pawn advance without public claim"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advance = Line(Square('e', 5), Square('e', 6))
+    val proof = PawnAdvanceProof.fromBoardFacts(facts, advance)
+
+    assertEquals(proof.side, Side.White)
+    assertEquals(proof.rivalSide, Side.Black)
+    assertEquals(proof.pawnBefore, Some(Piece(Side.White, Man.Pawn, Square('e', 5))))
+    assertEquals(proof.pawnAfter, Some(Piece(Side.White, Man.Pawn, Square('e', 6))))
+    assertEquals(proof.fromSquare, Some(Square('e', 5)))
+    assertEquals(proof.toSquare, Some(Square('e', 6)))
+    assertEquals(proof.advanceMove, Some(advance))
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.legalPawnAdvance, true)
+    assertEquals(proof.nonCapture, true)
+    assertEquals(proof.nonPromotion, true)
+    assertEquals(proof.legalOneStepNonCaptureNonPromotion, true)
+    assertEquals(proof.alreadyPassedBefore, true)
+    assertEquals(proof.exactAfterBoardReplay, true)
+    assertEquals(proof.afterBoardPassedPawn, true)
+    assertEquals(proof.publicClaimAllowed, false)
+    assertEquals(proof.complete, true)
+    assertEquals(proof.missingEvidence, Vector.empty)
+    assert(facts.seen.passedPawnObservations.exists(row => row.side == Side.White && row.pawn == proof.pawnBefore.get))
+
+  test("PawnAdvance-1 PawnAdvanceProof stays diagnostic for forged or converting moves"):
+    val fakeAdvance = Line(Square('e', 5), Square('e', 6))
+    val sameBoardProofMissing =
+      minimalBoardFacts(
+        pieces = Vector(
+          Piece(Side.White, Man.King, Square('e', 1)),
+          Piece(Side.Black, Man.King, Square('e', 8)),
+          Piece(Side.White, Man.Pawn, Square('e', 5))
+        ),
+        sideLegal = Moves(
+          known = true,
+          lines = Vector(fakeAdvance),
+          san = Vector("e6"),
+          moveCount = 1
+        )
+      )
+    val fakeProof = PawnAdvanceProof.fromBoardFacts(sameBoardProofMissing, fakeAdvance)
+
+    assertEquals(fakeProof.sameBoardProof, false)
+    assertEquals(fakeProof.exactAfterBoardReplay, false)
+    assertEquals(fakeProof.afterBoardPassedPawn, false)
+    assertEquals(fakeProof.publicClaimAllowed, false)
+    assert(fakeProof.missingEvidence.exists(_.missing.contains("same-board proof")))
+    assertEquals(ScenePawnAdvance.write(sameBoardProofMissing, fakeAdvance), None)
+
+    val captureFacts = BoardFacts.fromFen("4k3/8/3n4/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val captureProof = PawnAdvanceProof.fromBoardFacts(captureFacts, Line(Square('e', 5), Square('d', 6)))
+    assertEquals(captureProof.nonCapture, false)
+    assertEquals(captureProof.legalPawnAdvance, false)
+    assertEquals(captureProof.exactAfterBoardReplay, false)
+    assertEquals(captureProof.publicClaimAllowed, false)
+
+    val promotionFacts = BoardFacts.fromFen("k7/4P3/8/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val promotionProof = PawnAdvanceProof.fromBoardFacts(promotionFacts, Line(Square('e', 7), Square('e', 8)))
+    assertEquals(promotionProof.nonPromotion, false)
+    assertEquals(promotionProof.exactAfterBoardReplay, false)
+    assertEquals(promotionProof.publicClaimAllowed, false)
+
+  test("PawnAdvance-2 ScenePawnAdvance writer pins bounded Story identity"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advance = Line(Square('e', 5), Square('e', 6))
+    val story = ScenePawnAdvance.write(facts, advance).get
+    val proof = story.pawnAdvanceProof.get
+
+    assertEquals(story.writer, Some(StoryWriter.ScenePawnAdvance))
+    assertEquals(story.scene, Scene.PawnAdvance)
+    assertEquals(story.tactic, None)
+    assertEquals(story.plan, None)
+    assertEquals(story.side, proof.side)
+    assertEquals(story.rival, proof.rivalSide)
+    assertEquals(story.target, proof.toSquare)
+    assertEquals(story.anchor, proof.fromSquare)
+    assertEquals(story.route, proof.advanceMove)
+    assertEquals(story.proofFailures, Vector.empty)
+    assertEquals(proof.complete, true)
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.legalOneStepNonCaptureNonPromotion, true)
+    assertEquals(proof.alreadyPassedBefore, true)
+    assertEquals(proof.afterBoardPassedPawn, true)
+    assertEquals(story.captureResult, None)
+    assertEquals(story.multiTargetProof, None)
+    assertEquals(story.threatProof, None)
+    assertEquals(story.defenseProof, None)
+    assertEquals(story.lineProof, None)
+    assertEquals(story.pinProof, None)
+    assertEquals(story.removeGuardProof, None)
+    assertEquals(story.skewerProof, None)
+    assertEquals(story.proof.conversionPrize, 0)
+    assertEquals(story.proof.pieceSupport, 0)
+
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(plan.allowedClaim.map(_.key), Some("advances_passed_pawn"))
+
+  test("PawnAdvance-2 ScenePawnAdvance writer rejects refuted or stronger forged rows"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advance = Line(Square('e', 5), Square('e', 6))
+    val story = ScenePawnAdvance.write(facts, advance).get
+    val refutingCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(advance))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('d', 7))))),
+        evalBefore = Some(EngineEval(50)),
+        evalAfter = Some(EngineEval(-200)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = EngineCheckStatus.Refutes
+      )
+    val refuted = story.copy(engineCheck = Some(refutingCheck))
+    val forgedPromotionThreat = story.copy(tactic = Some(Tactic.PawnFork))
+    val forgedWinningConversion = story.copy(scene = Scene.Convert, proof = story.proof.copy(conversionPrize = 100))
+    val forgedPlan = story.copy(plan = Some(Plan.Convert))
+
+    assertEquals(refutingCheck.status, EngineCheckStatus.Refutes)
+    assertEquals(StoryTable.choose(Vector(refuted)).head.role, Role.Blocked)
+    assertEquals(ExplanationPlan.fromSelected(StoryTable.choose(Vector(refuted)).head), None)
+    Vector(forgedPromotionThreat, forgedWinningConversion, forgedPlan).foreach: forged =>
+      val verdict = StoryTable.choose(Vector(forged)).head
+      assertEquals(verdict.role, Role.Blocked)
+      assertEquals(ExplanationPlan.fromSelected(verdict), None)
+
+  test("PawnAdvance-0 rejects near passed pawn advance false positives"):
+    val notPassedFacts = BoardFacts.fromFen("4k3/8/3p4/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val captureFacts = BoardFacts.fromFen("4k3/8/3n4/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val promotionFacts = BoardFacts.fromFen("k7/4P3/8/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val doubleAdvanceFacts = BoardFacts.fromFen("4k3/8/8/8/8/8/4P3/4K3 w - - 0 1").toOption.get
+    val sameBoardProofMissing =
+      minimalBoardFacts(
+        pieces = Vector(
+          Piece(Side.White, Man.King, Square('e', 1)),
+          Piece(Side.Black, Man.King, Square('e', 8)),
+          Piece(Side.White, Man.Pawn, Square('e', 5))
+        ),
+        sideLegal = Moves(
+          known = true,
+          lines = Vector(Line(Square('e', 5), Square('e', 6))),
+          san = Vector("e6"),
+          moveCount = 1
+        )
+      )
+
+    assertEquals(ScenePawnAdvance.write(notPassedFacts, Line(Square('e', 5), Square('e', 6))), None, "not already passed")
+    assertEquals(ScenePawnAdvance.write(captureFacts, Line(Square('e', 5), Square('d', 6))), None, "capture")
+    assertEquals(ScenePawnAdvance.write(promotionFacts, Line(Square('e', 7), Square('e', 8))), None, "promotion")
+    assertEquals(ScenePawnAdvance.write(doubleAdvanceFacts, Line(Square('e', 2), Square('e', 4))), None, "double advance")
+    assertEquals(ScenePawnAdvance.write(sameBoardProofMissing, Line(Square('e', 5), Square('e', 6))), None, "same-board proof")
+
+  test("PawnAdvance-3 negative corpus requires complete PawnAdvanceProof or silence"):
+    val legalAdvanceFacts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val legalAdvance = Line(Square('e', 5), Square('e', 6))
+    val illegalLine = Line(Square('e', 5), Square('e', 7))
+    val rookMoveFacts = BoardFacts.fromFen("k7/8/8/4R3/8/8/8/7K w - - 0 1").toOption.get
+    val rookMove = Line(Square('e', 5), Square('e', 6))
+    val enPassantFacts = BoardFacts.fromFen("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1").toOption.get
+    val enPassantCapture = Line(Square('e', 5), Square('d', 6))
+
+    val illegalProof = PawnAdvanceProof.fromBoardFacts(legalAdvanceFacts, illegalLine)
+    assertEquals(illegalProof.legalPawnAdvance, false)
+    assertEquals(illegalProof.complete, false)
+    assertEquals(ScenePawnAdvance.write(legalAdvanceFacts, illegalLine), None, "not a legal move")
+
+    val rookProof = PawnAdvanceProof.fromBoardFacts(rookMoveFacts, rookMove)
+    assertEquals(rookProof.pawnBefore, None)
+    assertEquals(rookProof.complete, false)
+    assertEquals(ScenePawnAdvance.write(rookMoveFacts, rookMove), None, "not a pawn")
+
+    val enPassantProof = PawnAdvanceProof.fromBoardFacts(enPassantFacts, enPassantCapture)
+    assertEquals(enPassantProof.nonCapture, false)
+    assertEquals(enPassantProof.legalOneStepNonCaptureNonPromotion, false)
+    assertEquals(ScenePawnAdvance.write(enPassantFacts, enPassantCapture), None, "en passant is capture complexity")
+
+    val story = ScenePawnAdvance.write(legalAdvanceFacts, legalAdvance).get
+    val afterNotPassed =
+      story.copy(pawnAdvanceProof =
+        story.pawnAdvanceProof.map(_.copy(afterBoardPassedPawn = false, missingEvidence = Vector.empty))
+      )
+    val promotionThreatForgery = story.copy(tactic = Some(Tactic.PawnPush))
+    Vector(afterNotPassed, promotionThreatForgery).foreach: forged =>
+      val verdict = StoryTable.choose(Vector(forged)).head
+      assertEquals(verdict.role, Role.Blocked)
+      assertEquals(ExplanationPlan.fromSelected(verdict), None)
+
+  test("PawnAdvance-3 closes immediate promotion and stronger wording expansion"):
+    val nearPromotionFacts = BoardFacts.fromFen("4k3/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val advance = Line(Square('e', 6), Square('e', 7))
+    val story = ScenePawnAdvance.write(nearPromotionFacts, advance).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    assertEquals(plan.allowedClaim.map(_.key), Some("advances_passed_pawn"))
+    Vector(
+      "e7 promotes next.",
+      "e7 is unstoppable.",
+      "e7 is winning.",
+      "e7 starts conversion.",
+      "e7 creates a promotion threat."
+    ).foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, output)
+
+  test("PawnAdvance-4 reuses EngineCheck without creating engine-owned claims"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advance = Line(Square('e', 5), Square('e', 6))
+    val story = ScenePawnAdvance.write(facts, advance).get
+    val reply = Line(Square('e', 8), Square('e', 7))
+
+    def check(status: EngineCheckStatus, boundStory: Option[Story] = Some(story)): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = boundStory,
+        engineLine = Some(EngineLine(Vector(advance))),
+        replyLine = Some(EngineLine(Vector(reply))),
+        evalBefore = Some(EngineEval(1234)),
+        evalAfter = Some(EngineEval(1240)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    def selected(attached: Story): Verdict =
+      StoryTable.choose(Vector(attached)).head
+
+    def noStandaloneEngineText(label: String, verdict: Verdict): Unit =
+      val plan = ExplanationPlan.fromSelected(verdict)
+      val rendered = plan.flatMap(DeterministicRenderer.fromPlan)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("engine says")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("best move")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("only move")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("winning endgame")), false, label)
+      assertEquals(rendered.exists(_.text.contains("+3.2")), false, label)
+      assertEquals(rendered.exists(_.text.contains("40")), false, label)
+      assertEquals(rendered.exists(_.text.contains("45")), false, label)
+
+    val supports = ScenePawnAdvance.withEngineCheck(story, check(EngineCheckStatus.Supports)).get
+    val caps = ScenePawnAdvance.withEngineCheck(story, check(EngineCheckStatus.Caps)).get
+    val unknown = ScenePawnAdvance.withEngineCheck(story, check(EngineCheckStatus.Unknown)).get
+    val refutes = ScenePawnAdvance.withEngineCheck(story, check(EngineCheckStatus.Refutes)).get
+    val unbound = check(EngineCheckStatus.Supports, boundStory = None)
+    val wrongRoute =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(Line(Square('e', 5), Square('e', 7))))),
+        replyLine = Some(EngineLine(Vector(reply))),
+        evalBefore = Some(EngineEval(1234)),
+        evalAfter = Some(EngineEval(1240)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = EngineCheckStatus.Supports
+      )
+
+    val supportsVerdict = selected(supports)
+    val capsVerdict = selected(caps)
+    val unknownVerdict = selected(unknown)
+    val refutesVerdict = selected(refutes)
+    val capsPlan = ExplanationPlan.fromSelected(capsVerdict)
+    val refutesPlan = ExplanationPlan.fromSelected(refutesVerdict)
+
+    assertEquals(
+      ScenePawnAdvance.withEngineCheck(story, unbound),
+      Option.empty[Story],
+      "EngineCheck cannot attach without Story binding"
+    )
+    assertEquals(
+      ScenePawnAdvance.withEngineCheck(story, wrongRoute),
+      Option.empty[Story],
+      "EngineCheck cannot attach a different route"
+    )
+    assertEquals(StoryTable.choose(Vector.empty), Vector.empty, "EngineCheck alone cannot create PawnAdvance")
+
+    assertEquals(supports.engineCheck.map(_.status), Option(EngineCheckStatus.Supports))
+    assertEquals(caps.engineCheck.map(_.status), Option(EngineCheckStatus.Caps))
+    assertEquals(unknown.engineCheck.map(_.status), Option(EngineCheckStatus.Unknown))
+    assertEquals(refutes.engineCheck.map(_.status), Option(EngineCheckStatus.Refutes))
+
+    assertEquals(supportsVerdict.role, Role.Lead)
+    assertEquals(supportsVerdict.leadAllowed, true)
+    assertEquals(supportsVerdict.engineStrengthLimited, false)
+    assertEquals(capsVerdict.role, Role.Lead)
+    assertEquals(capsVerdict.leadAllowed, true)
+    assertEquals(capsVerdict.engineStrengthLimited, true)
+    assertEquals(capsPlan, Option.empty[ExplanationPlan])
+    assertEquals(unknownVerdict.role, Role.Lead)
+    assertEquals(unknownVerdict.engineStrengthLimited, false)
+    assertEquals(refutesVerdict.role, Role.Blocked)
+    assertEquals(refutesVerdict.leadAllowed, false)
+    assertEquals(refutesPlan, Option.empty[ExplanationPlan])
+
+    Vector(
+      "supports" -> supportsVerdict,
+      "caps" -> capsVerdict,
+      "unknown" -> unknownVerdict,
+      "refutes" -> refutesVerdict
+    ).foreach: (label, verdict) =>
+      noStandaloneEngineText(label, verdict)
+
+    val supportsPlan = ExplanationPlan.fromSelected(supportsVerdict).get
+    val supportsRendered = DeterministicRenderer.fromPlan(supportsPlan).get
+    Vector(
+      "engine says e6 is best",
+      "+3.2 and winning endgame",
+      "only move for a tablebase-like win",
+      "best move",
+      "only move",
+      "winning endgame"
+    ).foreach: phrase =>
+      assertEquals(LlmNarrationSmoke.mockNarrate(supportsPlan, supportsRendered.copy(text = phrase)), None, phrase)
+
+  test("PawnAdvance-5 StoryTable keeps existing tactical material and defense homes ahead of PawnAdvance"):
+    def strongProof(value: Int): Proof =
+      proof(
+        boardProof = value,
+        lineProof = value,
+        ownerProof = value,
+        anchorProof = value,
+        routeProof = value,
+        persistence = value,
+        immediacy = value,
+        forcing = value,
+        conversionPrize = value,
+        counterplayRisk = 20,
+        kingHeat = 0,
+        pieceSupport = value,
+        pawnSupport = value,
+        clarity = value
+      )
+
+    def rowId(rows: Vector[(String, Story)], story: Story): String =
+      rows.collectFirst { case (id, row) if row == story => id }.get
+
+    def shape(rows: Vector[(String, Story)], verdicts: Vector[Verdict]) =
+      verdicts.map: verdict =>
+        (
+          rowId(rows, verdict.story),
+          verdict.role,
+          verdict.leadAllowed,
+          ExplanationPlan.fromSelected(verdict).flatMap(_.allowedClaim),
+          verdict.engineStrengthLimited
+        )
+
+    def assertNoStandaloneText(label: String, verdict: Verdict): Unit =
+      assertEquals(ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan), None, label)
+
+    val pawnFacts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val pawnMove = Line(Square('e', 5), Square('e', 6))
+    val pawnAdvance = ScenePawnAdvance.write(pawnFacts, pawnMove).get.copy(proof = strongProof(100))
+
+    val materialFacts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val materialLine = Line(Square('d', 4), Square('e', 5))
+    val hanging = TacticHanging.write(materialFacts, materialLine).get.copy(proof = strongProof(90))
+    val material = SceneMaterial.write(materialFacts, materialLine).get.copy(proof = strongProof(90))
+
+    val forkFacts = BoardFacts.fromFen("6k1/8/7n/1q3r2/8/5N2/3Q4/6K1 w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork =
+      TacticFork.write(forkFacts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get.copy(proof = strongProof(90))
+
+    val defenseFacts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val defense = SceneDefense.write(defenseFacts, threatLine, defenseLine).get.copy(proof = strongProof(90))
+
+    val discoveredFacts = BoardFacts.fromFen("7k/8/6r1/8/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val revealLine = Line(Square('d', 3), Square('f', 4))
+    val discovered =
+      TacticDiscoveredAttack
+        .write(discoveredFacts, Some(revealLine), Some(Square('b', 1)), Some(Square('g', 6)))
+        .get
+        .copy(proof = strongProof(90))
+
+    val pinFacts = BoardFacts.fromFen("8/7k/6r1/8/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val pin =
+      TacticPin
+        .write(pinFacts, Some(revealLine), Some(Square('b', 1)), Some(Square('g', 6)), Some(Square('h', 7)))
+        .get
+        .copy(proof = strongProof(90))
+
+    val removeGuardFacts = BoardFacts.fromFen("7k/8/6r1/4n3/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val removeGuardLine = Line(Square('d', 3), Square('e', 5))
+    val removeGuard =
+      TacticRemoveGuard
+        .write(removeGuardFacts, Some(removeGuardLine), Some(Square('g', 6)), Some(Square('e', 5)))
+        .get
+        .copy(proof = strongProof(90))
+
+    val skewerFacts = BoardFacts.fromFen("4r2k/8/8/4q3/8/8/8/R6K w - - 0 1").toOption.get
+    val skewerLine = Line(Square('a', 1), Square('e', 1))
+    val skewer =
+      TacticSkewer
+        .write(skewerFacts, Some(skewerLine), Some(Square('e', 1)), Some(Square('e', 5)), Some(Square('e', 8)))
+        .get
+        .copy(proof = strongProof(90))
+
+    val existingRows =
+      Vector(
+        "Tactic.Hanging" -> hanging,
+        "Tactic.Fork" -> fork,
+        "Scene.Material" -> material,
+        "Scene.Defense" -> defense,
+        "Tactic.DiscoveredAttack" -> discovered,
+        "Tactic.Pin" -> pin,
+        "Tactic.RemoveGuard" -> removeGuard,
+        "Tactic.Skewer" -> skewer
+      )
+    val mixedRows = existingRows :+ ("Scene.PawnAdvance" -> pawnAdvance)
+    val forward = StoryTable.choose(mixedRows.map(_._2))
+    val reverse = StoryTable.choose(mixedRows.reverse.map(_._2))
+    val shuffled =
+      StoryTable.choose(
+        Vector(
+          mixedRows(8),
+          mixedRows(2),
+          mixedRows(5),
+          mixedRows(0),
+          mixedRows(7),
+          mixedRows(3),
+          mixedRows(1),
+          mixedRows(6),
+          mixedRows(4)
+        ).map(_._2)
+      )
+
+    assertEquals(shape(mixedRows, forward), shape(mixedRows, reverse))
+    assertEquals(shape(mixedRows, forward), shape(mixedRows, shuffled))
+    assert(rowId(mixedRows, forward.head.story) != "Scene.PawnAdvance")
+    assertEquals(forward.count(_.role == Role.Lead), 1)
+    assert(!forward.exists(verdict => verdict.story == pawnAdvance && verdict.role == Role.Lead))
+
+    existingRows.foreach: (label, row) =>
+      val verdicts = StoryTable.choose(Vector(pawnAdvance, row))
+      val existingVerdict = verdicts.find(_.story == row).get
+      val pawnVerdict = verdicts.find(_.story == pawnAdvance).get
+
+      assertEquals(existingVerdict.role, Role.Lead, label)
+      assertEquals(existingVerdict.leadAllowed, true, label)
+      assertEquals(pawnVerdict.role, Role.Support, label)
+      assertEquals(pawnVerdict.leadAllowed, false, label)
+      val existingPlan = ExplanationPlan.fromSelected(existingVerdict).get
+      val existingRendered = DeterministicRenderer.fromPlan(existingPlan).get
+      assertEquals(ExplanationPlan.fromSelected(pawnVerdict), None, label)
+      assertEquals(existingPlan.allowedClaim.exists(_ == ExplanationClaim.AdvancesPassedPawn), false, label)
+      assert(!existingRendered.text.toLowerCase.contains("passed pawn"), label)
+
+    val materialCollision = StoryTable.choose(Vector(pawnAdvance, material))
+    val materialLead = materialCollision.find(_.story == material).get
+    val pawnWithMaterial = materialCollision.find(_.story == pawnAdvance).get
+    assertEquals(materialLead.role, Role.Lead)
+    assertEquals(ExplanationPlan.fromSelected(materialLead).flatMap(_.allowedClaim), Some(ExplanationClaim.MaterialBalanceChanges))
+    assertEquals(pawnWithMaterial.role, Role.Support)
+
+    val immediateTacticRows = Vector(hanging, fork, discovered, pin, removeGuard, skewer)
+    immediateTacticRows.foreach: tacticRow =>
+      val verdicts = StoryTable.choose(Vector(pawnAdvance, tacticRow))
+      val tacticVerdict = verdicts.find(_.story == tacticRow).get
+      val pawnVerdict = verdicts.find(_.story == pawnAdvance).get
+      assertEquals(tacticVerdict.role, Role.Lead, tacticRow.toString)
+      assertEquals(tacticVerdict.story.scene, Scene.Tactic, tacticRow.toString)
+      assertEquals(pawnVerdict.role, Role.Support, tacticRow.toString)
+      assertNoStandaloneText("PawnAdvance support under immediate tactic", pawnVerdict)
+
+    def pawnCheck(status: EngineCheckStatus): EngineCheck =
+      EngineCheck.fromStory(
+        facts = pawnFacts,
+        story = Some(pawnAdvance),
+        engineLine = Some(EngineLine(Vector(pawnMove))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(40)),
+        evalAfter = Some(EngineEval(45)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    val cappedPawn = ScenePawnAdvance.withEngineCheck(pawnAdvance, pawnCheck(EngineCheckStatus.Caps)).get
+    val refutedPawn = ScenePawnAdvance.withEngineCheck(pawnAdvance, pawnCheck(EngineCheckStatus.Refutes)).get
+    Vector("capped" -> cappedPawn, "refuted" -> refutedPawn).foreach: (label, row) =>
+      val verdict = StoryTable.choose(Vector(row)).head
+      assertEquals(ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan), None, label)
+
+  test("PawnAdvance-6 ExplanationPlan accepts only selected uncapped PawnAdvance Lead"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advance = Line(Square('e', 5), Square('e', 6))
+    val story = ScenePawnAdvance.write(facts, advance).get
+    val leadVerdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(leadVerdict).get
+
+    assertEquals(leadVerdict.selected, true)
+    assertEquals(leadVerdict.role, Role.Lead)
+    assertEquals(leadVerdict.leadAllowed, true)
+    assertEquals(leadVerdict.engineStrengthLimited, false)
+    assertEquals(plan.scene, Scene.PawnAdvance)
+    assertEquals(plan.tactic, None)
+    assertEquals(plan.allowedClaim.map(_.key), Some("advances_passed_pawn"))
+    assertEquals(ExplanationClaim.PawnAdvanceAllowed.map(_.key), Vector("advances_passed_pawn"))
+
+    val forbiddenClaimKeys =
+      Vector(
+        "promotion_threat",
+        "unstoppable_pawn",
+        "wins_endgame",
+        "converts_advantage",
+        "best_move",
+        "only_move",
+        "forced",
+        "decisive",
+        "creates_pressure",
+        "takes_initiative"
+      )
+    forbiddenClaimKeys.foreach: key =>
+      assert(ExplanationClaim.PawnAdvanceForbiddenKeys.contains(key), s"PawnAdvance missing forbidden claim key: $key")
+      assert(plan.forbiddenWording.map(_.key).contains(key), s"PawnAdvance plan missing forbidden wording key: $key")
+    assertEquals(
+      ExplanationClaim.PawnAdvanceAllowed.map(_.key).toSet.intersect(ExplanationClaim.PawnAdvanceForbiddenKeys.toSet),
+      Set.empty[String]
+    )
+
+    def pawnCheck(status: EngineCheckStatus): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(advance))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(40)),
+        evalAfter = Some(EngineEval(45)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    val supportVerdict = leadVerdict.copy(role = Role.Support, leadAllowed = false)
+    val contextVerdict = leadVerdict.copy(role = Role.Context, leadAllowed = false)
+    val blockedVerdict =
+      leadVerdict.copy(role = Role.Blocked, leadAllowed = false, engineCheckStatus = Some(EngineCheckStatus.Refutes))
+    val unselectedVerdict = leadVerdict.copy(selected = false)
+    val cappedVerdict =
+      StoryTable.choose(Vector(ScenePawnAdvance.withEngineCheck(story, pawnCheck(EngineCheckStatus.Caps)).get)).head
+    val refutedVerdict =
+      StoryTable.choose(Vector(ScenePawnAdvance.withEngineCheck(story, pawnCheck(EngineCheckStatus.Refutes)).get)).head
+
+    Vector(
+      "Support" -> supportVerdict,
+      "Context" -> contextVerdict,
+      "Blocked" -> blockedVerdict,
+      "unselected" -> unselectedVerdict,
+      "capped" -> cappedVerdict,
+      "refuted" -> refutedVerdict
+    ).foreach: (label, verdict) =>
+      assertEquals(ExplanationPlan.fromSelected(verdict), None, label)
+
+  test("PawnAdvance-7 DeterministicRenderer phrases only bounded passed-pawn advance"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advance = Line(Square('e', 5), Square('e', 6))
+    val story = ScenePawnAdvance.write(facts, advance).get
+    val plan = ExplanationPlan.fromSelected(StoryTable.choose(Vector(story)).head).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    val fromPlanMethods = DeterministicRenderer.getClass.getDeclaredMethods.toVector.filter(_.getName == "fromPlan")
+    assertEquals(fromPlanMethods.map(_.getParameterTypes.toVector.map(_.getSimpleName)), Vector(Vector("ExplanationPlan")))
+    assertEquals(rendered.text, "e6 advances the passed pawn.")
+    assertEquals(rendered.claimKey, "advances_passed_pawn")
+    assertEquals(rendered.strength, "bounded")
+    assertEquals(rendered.forbiddenCheckPassed, true)
+
+    Vector(
+      "cannot be stopped" -> "e6 cannot be stopped",
+      "will promote" -> "e6 will promote",
+      "wins" -> "e6 wins",
+      "winning endgame" -> "e6 is a winning endgame",
+      "converts" -> "e6 converts",
+      "best move" -> "e6 is the best move",
+      "only move" -> "e6 is the only move",
+      "forces" -> "e6 forces",
+      "decisive" -> "e6 is decisive",
+      "creates pressure" -> "e6 creates pressure"
+    ).foreach: (label, forgedRouteSan) =>
+      assertEquals(DeterministicRenderer.fromPlan(plan.copy(routeSan = Some(forgedRouteSan))), None, label)
+
+  test("PawnAdvance-8 LLM smoke reuses 8B prompt boundary without new chess facts"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advance = Line(Square('e', 5), Square('e', 6))
+    val story = ScenePawnAdvance.write(facts, advance).get
+    val plan = ExplanationPlan.fromSelected(StoryTable.choose(Vector(story)).head).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val prompt = LlmNarrationSmoke.codexCliPrompt(plan, rendered).get
+
+    Vector(
+      "renderedText: e6 advances the passed pawn.",
+      "claimKey: advances_passed_pawn",
+      "strength: bounded",
+      "forbiddenWording:",
+      "instruction: Rephrase only. Do not add chess facts."
+    ).foreach: required =>
+      assert(prompt.contains(required), s"PawnAdvance prompt must include allowed field: $required")
+    Vector(
+      "Story",
+      "PawnAdvanceProof",
+      "BoardFacts",
+      "EngineCheck",
+      "EngineLine",
+      "raw PV",
+      "proofFailures",
+      "FEN",
+      "route:",
+      "evidence line:"
+    ).foreach: forbidden =>
+      assert(!prompt.contains(forbidden), s"PawnAdvance prompt must not include raw input label: $forbidden")
+
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, rendered), Some("e6 advances the passed pawn."))
+    assertEquals(LlmNarrationSmoke.check(plan, rendered, "e6 advances the passed pawn.").accepted, true)
+
+    Vector(
+      "raw Story" -> "The raw Story says e6 advances the passed pawn.",
+      "raw PawnAdvanceProof" -> "PawnAdvanceProof says e6 advances the passed pawn.",
+      "BoardFacts" -> "BoardFacts show e6 advances the passed pawn.",
+      "EngineCheck" -> "EngineCheck supports e6.",
+      "raw PV" -> "raw PV e6 Ke7 proves it.",
+      "proofFailures" -> "proofFailures are empty, so e6 is right."
+    ).foreach: (label, output) =>
+      val result = LlmNarrationSmoke.check(plan, rendered, output)
+      assertEquals(result.accepted, false, label)
+      assert(result.violations.contains("raw_input"), s"$label must be rejected as raw input leak: $result")
+
+    Vector(
+      "new move" -> "e6 and then e7 advances again.",
+      "new line" -> "After e6 Ke7, the pawn keeps going.",
+      "promotion" -> "e6 will promote.",
+      "unstoppable" -> "e6 cannot be stopped.",
+      "winning" -> "e6 wins the endgame.",
+      "conversion" -> "e6 converts the advantage."
+    ).foreach: (label, output) =>
+      val result = LlmNarrationSmoke.check(plan, rendered, output)
+      assertEquals(result.accepted, false, label)
+      assert(
+        result.violations.exists(v => v == "new_move_or_line" || v == "forbidden_wording" || v == "new_tactic_or_plan" || v == "stronger_claim"),
+        s"$label must be rejected as new chess fact or stronger claim: $result"
+      )
+
+  test("PawnAdvance Closeout hard cleanup keeps ownership layers separated and surfaces closed"):
+    val facts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advance = Line(Square('e', 5), Square('e', 6))
+    val observation =
+      facts.seen.passedPawnObservations.find(row => row.side == Side.White && row.pawn.square == Square('e', 5)).get
+    val proof = PawnAdvanceProof.fromBoardFacts(facts, advance)
+    val story = ScenePawnAdvance.write(facts, advance).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    assertEquals(observation.pawn.man, Man.Pawn)
+    assertEquals(proof.publicClaimAllowed, false)
+    assertEquals(proof.complete, true)
+    assertEquals(proof.alreadyPassedBefore, true)
+    assertEquals(proof.afterBoardPassedPawn, true)
+    assertEquals(story.pawnAdvanceProof.contains(proof), true)
+    assertEquals(story.scene, Scene.PawnAdvance)
+    assertEquals(story.tactic, None)
+    assertEquals(story.plan, None)
+    assertEquals(story.writer, Some(StoryWriter.ScenePawnAdvance))
+    assertEquals(story.side, proof.side)
+    assertEquals(story.rival, proof.rivalSide)
+    assertEquals(story.anchor, proof.fromSquare)
+    assertEquals(story.target, proof.toSquare)
+    assertEquals(story.route, proof.advanceMove)
+    assertEquals(story.proof.conversionPrize, 0)
+    assertEquals(story.proof.forcing, 0)
+    assertEquals(story.proof.kingHeat, 0)
+    assertEquals(story.captureResult, None)
+    assertEquals(story.threatProof, None)
+    assertEquals(story.defenseProof, None)
+    assertEquals(story.multiTargetProof, None)
+    assertEquals(story.lineProof, None)
+    assertEquals(story.pinProof, None)
+    assertEquals(story.removeGuardProof, None)
+    assertEquals(story.skewerProof, None)
+
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.AdvancesPassedPawn))
+    assertEquals(ExplanationClaim.PawnAdvanceAllowed.map(_.key), Vector("advances_passed_pawn"))
+    assertEquals(rendered.text, "e6 advances the passed pawn.")
+    assertEquals(rendered.claimKey, "advances_passed_pawn")
+    assert(!rendered.text.toLowerCase.contains("promot"))
+    assert(!rendered.text.toLowerCase.contains("unstoppable"))
+    assert(!rendered.text.toLowerCase.contains("conversion"))
+    assert(!rendered.text.toLowerCase.contains("clear path"))
+    assert(!rendered.text.toLowerCase.contains("strategy"))
+    assert(!rendered.text.toLowerCase.contains("wins"))
+
+    val forbiddenKeys = plan.forbiddenWording.map(_.key).toSet
+    Vector(
+      "promotion_threat",
+      "unstoppable_pawn",
+      "wins_endgame",
+      "converts_advantage",
+      "pawn_race",
+      "passed_pawn_strategy",
+      "best_move",
+      "only_move",
+      "forced",
+      "decisive",
+      "creates_pressure",
+      "takes_initiative"
+    ).foreach: key =>
+      assert(forbiddenKeys.contains(key), s"PawnAdvance closeout must forbid $key")
+
+    Vector(
+      "e6 will promote.",
+      "e6 cannot be stopped.",
+      "e6 converts the advantage.",
+      "e6 has a clear path.",
+      "e6 is the passed pawn strategy.",
+      "e6 creates pressure.",
+      "e6 is the best move."
+    ).foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, output)
+
+  test("PawnStop-0 opens only bounded immediate passed pawn next-square stop"):
+    val facts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stop = Line(Square('g', 7), Square('e', 6))
+
+    val story = ScenePawnStop.write(facts, stop).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    assertEquals(story.scene, Scene.PawnStop)
+    assertEquals(story.tactic, None)
+    assertEquals(story.plan, None)
+    assertEquals(story.side, Side.Black)
+    assertEquals(story.rival, Side.White)
+    assertEquals(story.target, Some(Square('e', 6)))
+    assertEquals(story.anchor, Some(Square('g', 7)))
+    assertEquals(story.route, Some(stop))
+    assertEquals(story.routeSan, Some("Ne6"))
+    assertEquals(story.writer, Some(StoryWriter.ScenePawnStop))
+    assert(story.pawnStopProof.exists(_.complete))
+    assertEquals(story.pawnStopProof.exists(_.publicClaimAllowed), false)
+    assertEquals(story.pawnStopProof.exists(_.targetPawnAlreadyPassed), true)
+    assertEquals(story.pawnStopProof.exists(_.nextAdvanceSquareStoppedAfter), true)
+    assertEquals(story.captureResult, None)
+    assertEquals(story.multiTargetProof, None)
+    assertEquals(story.threatProof, None)
+    assertEquals(story.defenseProof, None)
+    assertEquals(story.lineProof, None)
+    assertEquals(story.pinProof, None)
+    assertEquals(story.removeGuardProof, None)
+    assertEquals(story.skewerProof, None)
+    assertEquals(story.pawnAdvanceProof, None)
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(plan.allowedClaim.map(_.key), Some("stops_pawn_advance"))
+    assertEquals(rendered.text, "Ne6 stops the passed pawn from advancing next.")
+    assertEquals(rendered.claimKey, "stops_pawn_advance")
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, rendered), Some(rendered.text))
+
+    Vector(
+      "Ne6 stops promotion.",
+      "Ne6 permanently stops the pawn.",
+      "Ne6 draws the tablebase.",
+      "Ne6 is the best defense.",
+      "Ne6 is the only move.",
+      "Ne6 wins the endgame.",
+      "Ne6 stops conversion.",
+      "Ne6 wins the pawn race.",
+      "Ne6 uses the king route.",
+      "Ne6 has the opposition.",
+      "Ne6 is passed pawn strategy."
+    ).foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, output)
+
+  test("PawnStop-1 PawnStopProof binds exact legal move to already-passed pawn next square"):
+    val facts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stop = Line(Square('g', 7), Square('e', 6))
+    val proof = PawnStopProof.fromBoardFacts(facts, stop)
+
+    assertEquals(proof.side, Side.Black)
+    assertEquals(proof.rivalSide, Side.White)
+    assertEquals(proof.targetPawn, Some(Piece(Side.White, Man.Pawn, Square('e', 5))))
+    assertEquals(proof.nextAdvanceSquare, Some(Square('e', 6)))
+    assertEquals(proof.stoppingPieceBefore, Some(Piece(Side.Black, Man.Knight, Square('g', 7))))
+    assertEquals(proof.stoppingPieceAfter, Some(Piece(Side.Black, Man.Knight, Square('e', 6))))
+    assertEquals(proof.stopMove, Some(stop))
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.legalStopMove, true)
+    assertEquals(proof.targetPawnAlreadyPassed, true)
+    assertEquals(proof.nextAdvanceSquareNonPromotion, true)
+    assertEquals(proof.nextAdvanceSquareEmptyBefore, true)
+    assertEquals(proof.stopKind, Some(PawnStopKind.NextSquareOccupied))
+    assertEquals(proof.nextAdvanceSquareOccupiedAfter, true)
+    assertEquals(proof.nextAdvanceSquareAttackedAfter, false)
+    assertEquals(proof.nextAdvanceSquareControlledByPawnAfter, false)
+    assertEquals(proof.exactAfterBoardReplay, true)
+    assertEquals(proof.targetPawnStillPresentAfter, true)
+    assertEquals(proof.nextAdvanceSquareStoppedAfter, true)
+    assertEquals(proof.publicClaimAllowed, false)
+    assertEquals(proof.complete, true)
+    assertEquals(proof.missingEvidence, Vector.empty)
+    assert(facts.seen.passedPawnObservations.exists(row => row.side == Side.White && row.pawn == proof.targetPawn.get))
+    assertEquals(
+      PawnStopKind.values.toVector,
+      Vector(
+        PawnStopKind.NextSquareOccupied,
+        PawnStopKind.NextSquareAttacked,
+        PawnStopKind.NextSquareControlledByPawn
+      )
+    )
+
+  test("PawnStop-1 PawnStopProof admits direct next-square attack but not pre-existing blockade"):
+    val attackedFacts = BoardFacts.fromFen("k3r3/8/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val attackStop = Line(Square('e', 8), Square('e', 7))
+    val attackedProof = PawnStopProof.fromBoardFacts(attackedFacts, attackStop)
+
+    assertEquals(attackedProof.targetPawn, Some(Piece(Side.White, Man.Pawn, Square('e', 5))))
+    assertEquals(attackedProof.nextAdvanceSquare, Some(Square('e', 6)))
+    assertEquals(attackedProof.stoppingPieceAfter, Some(Piece(Side.Black, Man.Rook, Square('e', 7))))
+    assertEquals(attackedProof.stopKind, Some(PawnStopKind.NextSquareAttacked))
+    assertEquals(attackedProof.nextAdvanceSquareOccupiedAfter, false)
+    assertEquals(attackedProof.nextAdvanceSquareAttackedAfter, true)
+    assertEquals(attackedProof.nextAdvanceSquareControlledByPawnAfter, false)
+    assertEquals(attackedProof.nextAdvanceSquareStoppedAfter, true)
+    assertEquals(attackedProof.complete, true)
+    assert(ScenePawnStop.write(attackedFacts, attackStop).nonEmpty)
+
+    val preBlockedFacts = BoardFacts.fromFen("4k3/8/4n3/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val unrelatedMove = Line(Square('e', 8), Square('d', 8))
+    val preBlockedProof = PawnStopProof.fromBoardFacts(preBlockedFacts, unrelatedMove)
+    assertEquals(preBlockedProof.nextAdvanceSquareEmptyBefore, false)
+    assertEquals(preBlockedProof.stopKind, None)
+    assertEquals(preBlockedProof.nextAdvanceSquareStoppedAfter, false)
+    assertEquals(ScenePawnStop.write(preBlockedFacts, unrelatedMove), None)
+
+  test("PawnStop-2 ScenePawnStop writer binds only bounded pawn-stop Story identity"):
+    val facts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stop = Line(Square('g', 7), Square('e', 6))
+    val story = ScenePawnStop.write(facts, stop).get
+    val proof = story.pawnStopProof.get
+
+    assertEquals(story.scene, Scene.PawnStop)
+    assertEquals(story.tactic, None)
+    assertEquals(story.plan, None)
+    assertEquals(story.side, Side.Black)
+    assertEquals(story.rival, Side.White)
+    assertEquals(story.target, Some(Square('e', 6)))
+    assertEquals(story.anchor, Some(Square('g', 7)))
+    assertEquals(story.route, Some(stop))
+    assertEquals(story.writer, Some(StoryWriter.ScenePawnStop))
+    assertEquals(story.proofFailures, Vector.empty)
+    assertEquals(proof.complete, true)
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.exactAfterBoardReplay, true)
+    assertEquals(proof.legalStopMove, true)
+    assertEquals(proof.targetPawn.nonEmpty, true)
+    assertEquals(proof.nextAdvanceSquareStoppedAfter, true)
+    assertEquals(
+      proof.nextAdvanceSquareOccupiedAfter ||
+        proof.nextAdvanceSquareAttackedAfter ||
+        proof.nextAdvanceSquareControlledByPawnAfter,
+      true
+    )
+
+    val supportedCheck = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(stop))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 1), Square('e', 2))))),
+      evalBefore = Some(EngineEval(0)),
+      evalAfter = Some(EngineEval(0)),
+      depth = Some(18),
+      freshnessPly = Some(0)
+    )
+    assertEquals(ScenePawnStop.withEngineCheck(story, supportedCheck).nonEmpty, true)
+
+    val refutingCheck = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(stop))),
+      replyLine = Some(EngineLine(Vector(Line(Square('e', 1), Square('e', 2))))),
+      evalBefore = Some(EngineEval(200)),
+      evalAfter = Some(EngineEval(0)),
+      depth = Some(18),
+      freshnessPly = Some(0)
+    )
+    assertEquals(refutingCheck.status, EngineCheckStatus.Refutes)
+    val refutedStory = ScenePawnStop.withEngineCheck(story, refutingCheck).get
+    val refutedVerdict = StoryTable.choose(Vector(refutedStory)).head
+    assertEquals(refutedVerdict.role, Role.Blocked)
+    assertEquals(refutedVerdict.leadAllowed, false)
+    assertEquals(ExplanationPlan.fromSelected(refutedVerdict), None)
+
+    val forgedAnchor = story.copy(anchor = proof.targetPawn.map(_.square))
+    val forgedDefense = story.copy(scene = Scene.Defense)
+    val forgedPromotion = story.copy(tactic = Some(Tactic.Promote))
+    val forgedEndgame = story.copy(scene = Scene.Endgame)
+
+    Vector(forgedAnchor, forgedDefense, forgedPromotion, forgedEndgame).foreach: forged =>
+      val verdict = StoryTable.choose(Vector(forged)).head
+      assertEquals(verdict.role, Role.Blocked)
+      val plan = ExplanationPlan.fromSelected(verdict)
+      assertEquals(plan.flatMap(_.allowedClaim), None)
+      assertEquals(plan.flatMap(DeterministicRenderer.fromPlan), None)
+
+  test("PawnStop-3 negative corpus requires complete PawnStopProof or silence"):
+    val positiveFacts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val notPassedFacts = BoardFacts.fromFen("4k3/6n1/3p4/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val promotionStopFacts = BoardFacts.fromFen("3k4/4P3/8/8/8/8/8/4K3 b - - 0 1").toOption.get
+    val illegalMove = Line(Square('g', 7), Square('g', 8))
+    val safeNextAdvanceMove = Line(Square('g', 7), Square('f', 5))
+    val sameBoardProofMissing =
+      minimalBoardFacts(
+        pieces = Vector(
+          Piece(Side.White, Man.King, Square('e', 1)),
+          Piece(Side.Black, Man.King, Square('e', 8)),
+          Piece(Side.White, Man.Pawn, Square('e', 5)),
+          Piece(Side.Black, Man.Knight, Square('g', 7))
+        ),
+        sideLegal = Moves(
+          known = true,
+          lines = Vector(Line(Square('g', 7), Square('e', 6))),
+          san = Vector("Ne6"),
+          moveCount = 1
+        )
+      )
+
+    val illegalProof = PawnStopProof.fromBoardFacts(positiveFacts, illegalMove)
+    assertEquals(illegalProof.legalStopMove, false)
+    assertEquals(illegalProof.complete, false)
+    assertEquals(ScenePawnStop.write(positiveFacts, illegalMove), None, "legal move absent")
+
+    assertEquals(ScenePawnStop.write(notPassedFacts, Line(Square('g', 7), Square('e', 6))), None, "not already passed")
+    assertEquals(ScenePawnStop.write(promotionStopFacts, Line(Square('d', 8), Square('e', 8))), None, "promotion stop")
+    assertEquals(ScenePawnStop.write(sameBoardProofMissing, Line(Square('g', 7), Square('e', 6))), None, "same-board proof")
+
+    val safeNextAdvanceProof = PawnStopProof.fromBoardFacts(positiveFacts, safeNextAdvanceMove)
+    assertEquals(safeNextAdvanceProof.nextAdvanceSquare, Some(Square('e', 6)))
+    assertEquals(safeNextAdvanceProof.nextAdvanceSquareOccupiedAfter, false)
+    assertEquals(safeNextAdvanceProof.nextAdvanceSquareAttackedAfter, false)
+    assertEquals(safeNextAdvanceProof.nextAdvanceSquareControlledByPawnAfter, false)
+    assertEquals(safeNextAdvanceProof.nextAdvanceSquareStoppedAfter, false)
+    assertEquals(ScenePawnStop.write(positiveFacts, safeNextAdvanceMove), None, "next advance square remains empty and safe")
+
+    val story = ScenePawnStop.write(positiveFacts, Line(Square('g', 7), Square('e', 6))).get
+    val forgedEndgameDefense = story.copy(scene = Scene.Endgame)
+    val forgedPlan = story.copy(plan = Some(Plan.PasserBlock))
+    val missingNextSquare =
+      story.copy(pawnStopProof =
+        story.pawnStopProof.map(_.copy(nextAdvanceSquare = None, missingEvidence = Vector.empty))
+      )
+    val incompleteStop =
+      story.copy(pawnStopProof =
+        story.pawnStopProof.map(_.copy(nextAdvanceSquareStoppedAfter = false, missingEvidence = Vector.empty))
+      )
+    val missingStopKind =
+      story.copy(pawnStopProof =
+        story.pawnStopProof.map(_.copy(stopKind = None, missingEvidence = Vector.empty))
+      )
+    Vector(forgedEndgameDefense, forgedPlan, missingNextSquare, incompleteStop, missingStopKind).foreach: forged =>
+      val verdict = StoryTable.choose(Vector(forged)).head
+      assertEquals(verdict.role, Role.Blocked)
+      assertEquals(ExplanationPlan.fromSelected(verdict), None)
+
+  test("PawnStop-4 reuses EngineCheck without creating engine-owned claims"):
+    val facts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stop = Line(Square('g', 7), Square('e', 6))
+    val story = ScenePawnStop.write(facts, stop).get
+    val reply = Line(Square('e', 1), Square('e', 2))
+
+    def check(status: EngineCheckStatus, boundStory: Option[Story] = Some(story)): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = boundStory,
+        engineLine = Some(EngineLine(Vector(stop))),
+        replyLine = Some(EngineLine(Vector(reply))),
+        evalBefore = Some(EngineEval(40)),
+        evalAfter = Some(EngineEval(45)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    def selected(attached: Story): Verdict =
+      StoryTable.choose(Vector(attached)).head
+
+    def noStandaloneEngineText(label: String, verdict: Verdict): Unit =
+      val plan = ExplanationPlan.fromSelected(verdict)
+      val rendered = plan.flatMap(DeterministicRenderer.fromPlan)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("engine says")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("best defense")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("only move")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("tablebase")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("winning endgame")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("losing endgame")), false, label)
+      assertEquals(rendered.exists(_.text.contains("+3.2")), false, label)
+      assertEquals(rendered.exists(_.text.contains("40")), false, label)
+      assertEquals(rendered.exists(_.text.contains("45")), false, label)
+
+    val supports = ScenePawnStop.withEngineCheck(story, check(EngineCheckStatus.Supports)).get
+    val caps = ScenePawnStop.withEngineCheck(story, check(EngineCheckStatus.Caps)).get
+    val unknown = ScenePawnStop.withEngineCheck(story, check(EngineCheckStatus.Unknown)).get
+    val refutes = ScenePawnStop.withEngineCheck(story, check(EngineCheckStatus.Refutes)).get
+    val unbound = check(EngineCheckStatus.Supports, boundStory = None)
+    val wrongRoute =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(Line(Square('g', 7), Square('f', 5))))),
+        replyLine = Some(EngineLine(Vector(reply))),
+        evalBefore = Some(EngineEval(40)),
+        evalAfter = Some(EngineEval(45)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = EngineCheckStatus.Supports
+      )
+
+    val supportsVerdict = selected(supports)
+    val capsVerdict = selected(caps)
+    val unknownVerdict = selected(unknown)
+    val refutesVerdict = selected(refutes)
+    val capsPlan = ExplanationPlan.fromSelected(capsVerdict)
+    val refutesPlan = ExplanationPlan.fromSelected(refutesVerdict)
+
+    assertEquals(
+      ScenePawnStop.withEngineCheck(story, unbound),
+      Option.empty[Story],
+      "EngineCheck cannot attach without Story binding"
+    )
+    assertEquals(
+      ScenePawnStop.withEngineCheck(story, wrongRoute),
+      Option.empty[Story],
+      "EngineCheck cannot attach a different route"
+    )
+    assertEquals(StoryTable.choose(Vector.empty), Vector.empty, "EngineCheck alone cannot create PawnStop")
+
+    assertEquals(supports.engineCheck.map(_.status), Option(EngineCheckStatus.Supports))
+    assertEquals(caps.engineCheck.map(_.status), Option(EngineCheckStatus.Caps))
+    assertEquals(unknown.engineCheck.map(_.status), Option(EngineCheckStatus.Unknown))
+    assertEquals(refutes.engineCheck.map(_.status), Option(EngineCheckStatus.Refutes))
+
+    assertEquals(supportsVerdict.role, Role.Lead)
+    assertEquals(supportsVerdict.leadAllowed, true)
+    assertEquals(supportsVerdict.engineStrengthLimited, false)
+    assertEquals(capsVerdict.role, Role.Lead)
+    assertEquals(capsVerdict.leadAllowed, true)
+    assertEquals(capsVerdict.engineStrengthLimited, true)
+    assertEquals(capsPlan, Option.empty[ExplanationPlan])
+    assertEquals(unknownVerdict.role, Role.Lead)
+    assertEquals(unknownVerdict.engineStrengthLimited, false)
+    assertEquals(refutesVerdict.role, Role.Blocked)
+    assertEquals(refutesVerdict.leadAllowed, false)
+    assertEquals(refutesPlan, Option.empty[ExplanationPlan])
+
+    Vector(
+      "supports" -> supportsVerdict,
+      "caps" -> capsVerdict,
+      "unknown" -> unknownVerdict,
+      "refutes" -> refutesVerdict
+    ).foreach: (label, verdict) =>
+      noStandaloneEngineText(label, verdict)
+
+    val supportsPlan = ExplanationPlan.fromSelected(supportsVerdict).get
+    val supportsRendered = DeterministicRenderer.fromPlan(supportsPlan).get
+    Vector(
+      "engine says Ne6 is best defense",
+      "+3.2 and winning endgame",
+      "only move for a tablebase draw",
+      "best defense",
+      "only move",
+      "tablebase draw",
+      "winning endgame",
+      "losing endgame"
+    ).foreach: phrase =>
+      assertEquals(LlmNarrationSmoke.mockNarrate(supportsPlan, supportsRendered.copy(text = phrase)), None, phrase)
+
+  test("PawnStop-5 StoryTable keeps existing claim homes and same-pawn PawnAdvance ahead of PawnStop"):
+    def strongProof(value: Int): Proof =
+      proof(
+        boardProof = value,
+        lineProof = value,
+        ownerProof = value,
+        anchorProof = value,
+        routeProof = value,
+        persistence = value,
+        immediacy = value,
+        forcing = value,
+        conversionPrize = value,
+        counterplayRisk = 20,
+        kingHeat = 0,
+        pieceSupport = value,
+        pawnSupport = value,
+        clarity = value
+      )
+
+    def rowId(rows: Vector[(String, Story)], story: Story): String =
+      rows.collectFirst { case (id, row) if row == story => id }.get
+
+    def shape(rows: Vector[(String, Story)], verdicts: Vector[Verdict]) =
+      verdicts.map: verdict =>
+        (
+          rowId(rows, verdict.story),
+          verdict.role,
+          verdict.leadAllowed,
+          ExplanationPlan.fromSelected(verdict).flatMap(_.allowedClaim),
+          verdict.engineStrengthLimited
+        )
+
+    def assertNoStandaloneText(label: String, verdict: Verdict): Unit =
+      assertEquals(ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan), None, label)
+
+    val pawnStopFacts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val pawnStopMove = Line(Square('g', 7), Square('e', 6))
+    val pawnStop = ScenePawnStop.write(pawnStopFacts, pawnStopMove).get.copy(proof = strongProof(100))
+
+    val pawnAdvanceFacts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val pawnAdvanceMove = Line(Square('e', 5), Square('e', 6))
+    val pawnAdvance = ScenePawnAdvance.write(pawnAdvanceFacts, pawnAdvanceMove).get.copy(proof = strongProof(90))
+
+    val materialFacts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val materialLine = Line(Square('d', 4), Square('e', 5))
+    val hanging = TacticHanging.write(materialFacts, materialLine).get.copy(proof = strongProof(90))
+    val material = SceneMaterial.write(materialFacts, materialLine).get.copy(proof = strongProof(90))
+
+    val forkFacts = BoardFacts.fromFen("6k1/8/7n/1q3r2/8/5N2/3Q4/6K1 w - - 0 1").toOption.get
+    val forkMove = Line(Square('f', 3), Square('d', 4))
+    val fork =
+      TacticFork.write(forkFacts, Some(forkMove), Some(Square('b', 5)), Some(Square('f', 5))).get.copy(proof = strongProof(90))
+
+    val defenseFacts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val threatLine = Line(Square('f', 5), Square('d', 4))
+    val defenseLine = Line(Square('d', 4), Square('e', 4))
+    val defense = SceneDefense.write(defenseFacts, threatLine, defenseLine).get.copy(proof = strongProof(90))
+
+    val discoveredFacts = BoardFacts.fromFen("7k/8/6r1/8/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val revealLine = Line(Square('d', 3), Square('f', 4))
+    val discovered =
+      TacticDiscoveredAttack
+        .write(discoveredFacts, Some(revealLine), Some(Square('b', 1)), Some(Square('g', 6)))
+        .get
+        .copy(proof = strongProof(90))
+
+    val pinFacts = BoardFacts.fromFen("8/7k/6r1/8/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val pin =
+      TacticPin
+        .write(pinFacts, Some(revealLine), Some(Square('b', 1)), Some(Square('g', 6)), Some(Square('h', 7)))
+        .get
+        .copy(proof = strongProof(90))
+
+    val removeGuardFacts = BoardFacts.fromFen("7k/8/6r1/4n3/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val removeGuardLine = Line(Square('d', 3), Square('e', 5))
+    val removeGuard =
+      TacticRemoveGuard
+        .write(removeGuardFacts, Some(removeGuardLine), Some(Square('g', 6)), Some(Square('e', 5)))
+        .get
+        .copy(proof = strongProof(90))
+
+    val skewerFacts = BoardFacts.fromFen("4r2k/8/8/4q3/8/8/8/R6K w - - 0 1").toOption.get
+    val skewerLine = Line(Square('a', 1), Square('e', 1))
+    val skewer =
+      TacticSkewer
+        .write(skewerFacts, Some(skewerLine), Some(Square('e', 1)), Some(Square('e', 5)), Some(Square('e', 8)))
+        .get
+        .copy(proof = strongProof(90))
+
+    val existingRows =
+      Vector(
+        "Tactic.Hanging" -> hanging,
+        "Tactic.Fork" -> fork,
+        "Scene.Material" -> material,
+        "Scene.Defense" -> defense,
+        "Tactic.DiscoveredAttack" -> discovered,
+        "Tactic.Pin" -> pin,
+        "Tactic.RemoveGuard" -> removeGuard,
+        "Tactic.Skewer" -> skewer
+      )
+    val mixedRows = existingRows :+ ("Scene.PawnAdvance" -> pawnAdvance) :+ ("Scene.PawnStop" -> pawnStop)
+    val forward = StoryTable.choose(mixedRows.map(_._2))
+    val reverse = StoryTable.choose(mixedRows.reverse.map(_._2))
+    val shuffled =
+      StoryTable.choose(
+        Vector(
+          mixedRows(9),
+          mixedRows(2),
+          mixedRows(8),
+          mixedRows(5),
+          mixedRows(0),
+          mixedRows(7),
+          mixedRows(3),
+          mixedRows(1),
+          mixedRows(6),
+          mixedRows(4)
+        ).map(_._2)
+      )
+
+    assertEquals(shape(mixedRows, forward), shape(mixedRows, reverse))
+    assertEquals(shape(mixedRows, forward), shape(mixedRows, shuffled))
+    assert(rowId(mixedRows, forward.head.story) != "Scene.PawnStop")
+    assertEquals(forward.count(_.role == Role.Lead), 1)
+
+    existingRows.foreach: (label, row) =>
+      val verdicts = StoryTable.choose(Vector(pawnStop, row))
+      val existingVerdict = verdicts.find(_.story == row).get
+      val pawnStopVerdict = verdicts.find(_.story == pawnStop).get
+
+      assertEquals(existingVerdict.role, Role.Lead, label)
+      assertEquals(existingVerdict.leadAllowed, true, label)
+      assertEquals(pawnStopVerdict.role, Role.Support, label)
+      assertEquals(pawnStopVerdict.leadAllowed, false, label)
+      val existingPlan = ExplanationPlan.fromSelected(existingVerdict).get
+      val existingRendered = DeterministicRenderer.fromPlan(existingPlan).get
+      assertEquals(ExplanationPlan.fromSelected(pawnStopVerdict), None, label)
+      assertEquals(existingPlan.allowedClaim.exists(_ == ExplanationClaim.StopsPassedPawnNextAdvance), false, label)
+      assertEquals(existingPlan.allowedClaim.map(_.key).contains("threatens_promotion_next"), false, label)
+      assert(!existingRendered.text.toLowerCase.contains("passed pawn"), label)
+
+    val defenseCollision = StoryTable.choose(Vector(pawnStop, defense))
+    val defenseLead = defenseCollision.find(_.story == defense).get
+    val pawnStopWithDefense = defenseCollision.find(_.story == pawnStop).get
+    assertEquals(defenseLead.role, Role.Lead)
+    assertEquals(ExplanationPlan.fromSelected(defenseLead).flatMap(_.allowedClaim), Some(ExplanationClaim.DefendsPiece))
+    assertEquals(pawnStopWithDefense.role, Role.Support)
+
+    val materialCollision = StoryTable.choose(Vector(pawnStop, material))
+    val materialLead = materialCollision.find(_.story == material).get
+    val pawnStopWithMaterial = materialCollision.find(_.story == pawnStop).get
+    assertEquals(materialLead.role, Role.Lead)
+    assertEquals(ExplanationPlan.fromSelected(materialLead).flatMap(_.allowedClaim), Some(ExplanationClaim.MaterialBalanceChanges))
+    assertEquals(pawnStopWithMaterial.role, Role.Support)
+
+    val samePawnRows = Vector("Scene.PawnAdvance" -> pawnAdvance, "Scene.PawnStop" -> pawnStop)
+    val samePawnForward = StoryTable.choose(samePawnRows.map(_._2))
+    val samePawnReverse = StoryTable.choose(samePawnRows.reverse.map(_._2))
+    val advanceVerdict = samePawnForward.find(_.story == pawnAdvance).get
+    val stopVerdict = samePawnForward.find(_.story == pawnStop).get
+    assertEquals(shape(samePawnRows, samePawnForward), shape(samePawnRows, samePawnReverse))
+    assertEquals(advanceVerdict.role, Role.Lead)
+    assertEquals(advanceVerdict.leadAllowed, true)
+    assertEquals(stopVerdict.role, Role.Support)
+    assertEquals(stopVerdict.leadAllowed, false)
+    assertNoStandaloneText("PawnStop support under same-pawn PawnAdvance", stopVerdict)
+
+    def pawnStopCheck(status: EngineCheckStatus): EngineCheck =
+      EngineCheck.fromStory(
+        facts = pawnStopFacts,
+        story = Some(pawnStop),
+        engineLine = Some(EngineLine(Vector(pawnStopMove))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 1), Square('e', 2))))),
+        evalBefore = Some(EngineEval(40)),
+        evalAfter = Some(EngineEval(45)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    val cappedPawnStop = ScenePawnStop.withEngineCheck(pawnStop, pawnStopCheck(EngineCheckStatus.Caps)).get
+    val refutedPawnStop = ScenePawnStop.withEngineCheck(pawnStop, pawnStopCheck(EngineCheckStatus.Refutes)).get
+    Vector("capped" -> cappedPawnStop, "refuted" -> refutedPawnStop).foreach: (label, row) =>
+      val verdict = StoryTable.choose(Vector(row)).head
+      assertEquals(ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan), None, label)
+
+  test("PawnStop-6 ExplanationPlan accepts only selected uncapped PawnStop Lead"):
+    val facts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stop = Line(Square('g', 7), Square('e', 6))
+    val story = ScenePawnStop.write(facts, stop).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    assertEquals(plan.scene, Scene.PawnStop)
+    assertEquals(plan.tactic, None)
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.StopsPassedPawnNextAdvance))
+    assertEquals(plan.allowedClaim.map(_.key), Some("stops_pawn_advance"))
+    assertEquals(ExplanationClaim.PawnStopAllowed.map(_.key), Vector("stops_pawn_advance"))
+    assertEquals(ExplanationClaim.PawnStopForbiddenKeys.toSet.contains("stops_pawn_advance"), false)
+    assertEquals(rendered.text, "Ne6 stops the passed pawn from advancing next.")
+    assert(!rendered.text.toLowerCase.contains("promotion"))
+    assert(!rendered.text.toLowerCase.contains("permanent"))
+    assert(!rendered.text.toLowerCase.contains("endgame"))
+    assert(!rendered.text.toLowerCase.contains("best"))
+    assert(!rendered.text.toLowerCase.contains("only"))
+    assert(!rendered.text.toLowerCase.contains("draw"))
+    assert(!rendered.text.toLowerCase.contains("strategy"))
+
+    Vector(
+      "stops_promotion",
+      "permanently_stops_pawn",
+      "draws_endgame",
+      "best_defense",
+      "only_move",
+      "tablebase_draw",
+      "wins_endgame",
+      "converts_advantage",
+      "forced"
+    ).foreach: key =>
+      assert(ExplanationClaim.PawnStopForbiddenKeys.contains(key), s"PawnStop must forbid $key")
+      assert(plan.forbiddenWording.map(_.key).contains(key), s"PawnStop plan must forbid $key")
+
+    Vector(
+      "stops_passed_pawn_next_advance",
+      "promotion_stop",
+      "permanent_stop",
+      "conversion_stopped"
+    ).foreach: key =>
+      assertEquals(ExplanationClaim.PawnStopAllowed.map(_.key).contains(key), false, key)
+
+    Vector(
+      "support" -> verdict.copy(role = Role.Support, leadAllowed = false),
+      "context" -> verdict.copy(role = Role.Context, leadAllowed = false),
+      "blocked" -> verdict.copy(role = Role.Blocked, leadAllowed = false),
+      "unselected" -> verdict.copy(selected = false),
+      "capped" -> verdict.copy(engineStrengthLimited = true, engineCheckStatus = Some(EngineCheckStatus.Caps)),
+      "refuted" -> verdict.copy(role = Role.Blocked, leadAllowed = false, engineCheckStatus = Some(EngineCheckStatus.Refutes))
+    ).foreach: (label, row) =>
+      assertEquals(ExplanationPlan.fromSelected(row), None, label)
+
+    Vector(
+      "promotion_stop",
+      "permanent_stop",
+      "conversion_stopped",
+      "pawn_race",
+      "king_route",
+      "opposition",
+      "passed_pawn_strategy"
+    ).foreach: key =>
+      assertEquals(ExplanationClaim.PawnStopForbiddenKeys.contains(key), false, key)
+
+    Vector(
+      "Ne6 stops promotion.",
+      "Ne6 stops the promotion threat.",
+      "Ne6 creates a tablebase draw.",
+      "Ne6 draws the position.",
+      "Ne6 reaches king opposition.",
+      "Ne6 permanently stops the pawn.",
+      "Ne6 means the pawn cannot advance.",
+      "Ne6 is the only move.",
+      "Engine says Ne6 stops the passed pawn's next advance."
+    ).foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, output)
+
+  test("PawnStop-7 DeterministicRenderer phrases only bounded next-advance stop"):
+    val facts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stop = Line(Square('g', 7), Square('e', 6))
+    val story = ScenePawnStop.write(facts, stop).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    assertEquals(rendered.text, "Ne6 stops the passed pawn from advancing next.")
+    assertEquals(rendered.claimKey, "stops_pawn_advance")
+    assertEquals(rendered.strength, "bounded")
+    assertEquals(rendered.forbiddenCheckPassed, true)
+
+    Vector(
+      "stops promotion",
+      "stops the pawn for good",
+      "draws",
+      "holds the endgame",
+      "best defense",
+      "only move",
+      "forces",
+      "wins",
+      "tablebase"
+    ).foreach: forbidden =>
+      val forged = plan.copy(routeSan = Some(forbidden))
+      assertEquals(DeterministicRenderer.fromPlan(forged), None, forbidden)
+
+    val methodNames = DeterministicRenderer.getClass.getDeclaredMethods.map(_.getName).toSet
+    val parameterNames =
+      DeterministicRenderer.getClass.getDeclaredMethods.toVector
+        .flatMap(_.getParameterTypes.toVector)
+        .map(_.getSimpleName)
+
+    assert(methodNames.contains("fromPlan"))
+    Vector("fromVerdict", "fromStory", "fromBoardFacts", "fromPawnStopProof", "fromEngineCheck").foreach: method =>
+      assert(!methodNames.contains(method), s"renderer must not expose $method")
+    Vector("Verdict", "Story", "BoardFacts", "PawnStopProof", "EngineCheck").foreach: parameter =>
+      assert(!parameterNames.contains(parameter), s"renderer must not accept $parameter")
+
+  test("PawnStop-8 LLM smoke reuses 8B prompt boundary without new chess facts"):
+    val facts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stop = Line(Square('g', 7), Square('e', 6))
+    val story = ScenePawnStop.write(facts, stop).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val prompt = LlmNarrationSmoke.codexCliPrompt(plan, rendered).get
+
+    Vector(
+      "renderedText: Ne6 stops the passed pawn from advancing next.",
+      "claimKey: stops_pawn_advance",
+      "strength: bounded",
+      "forbiddenWording:",
+      "instruction: Rephrase only. Do not add chess facts."
+    ).foreach: required =>
+      assert(prompt.contains(required), s"PawnStop prompt must include allowed field: $required")
+    Vector(
+      "Story",
+      "PawnStopProof",
+      "BoardFacts",
+      "EngineCheck",
+      "EngineLine",
+      "EngineEval",
+      "raw PV",
+      "proofFailures",
+      "FEN",
+      "PGN",
+      "BoardMood",
+      "Verdict",
+      "raw Story",
+      "source row",
+      "role:",
+      "scene:",
+      "route:",
+      "evidence line:"
+    ).foreach: forbidden =>
+      assert(!prompt.contains(forbidden), s"PawnStop prompt must not include raw input label: $forbidden")
+
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, rendered), Some("Ne6 stops the passed pawn from advancing next."))
+    assertEquals(LlmNarrationSmoke.check(plan, rendered, "Ne6 stops the passed pawn from advancing next.").accepted, true)
+
+    Vector(
+      "raw Story" -> "Raw Story says Ne6 stops the pawn.",
+      "raw PawnStopProof" -> "PawnStopProof says Ne6 stops the passed pawn.",
+      "BoardFacts" -> "BoardFacts show e6 is stopped.",
+      "EngineCheck" -> "EngineCheck supports Ne6.",
+      "raw PV" -> "Raw PV: Ne6 e2.",
+      "proofFailures" -> "proofFailures are empty, so Ne6 works."
+    ).foreach: (label, output) =>
+      val result = LlmNarrationSmoke.check(plan, rendered, output)
+      assertEquals(result.accepted, false, label)
+      assert(result.violations.contains("raw_input"), s"$label must be rejected as raw input leak: $result")
+
+    Vector(
+      "new move" -> "Nf5 also stops the passed pawn.",
+      "new line" -> "After Ne6 Kd7 the pawn is stopped.",
+      "promotion" -> "Ne6 stops promotion.",
+      "permanent stop" -> "Ne6 stops the pawn for good.",
+      "draw" -> "Ne6 draws the endgame.",
+      "tablebase" -> "Ne6 is a tablebase draw.",
+      "winning" -> "Ne6 wins the endgame."
+    ).foreach: (label, output) =>
+      val result = LlmNarrationSmoke.check(plan, rendered, output)
+      assertEquals(result.accepted, false, label)
+      assert(
+        result.violations.exists(v => v == "new_move_or_line" || v == "forbidden_wording" || v == "new_tactic_or_plan" || v == "stronger_claim"),
+        s"$label must be rejected as new chess fact or stronger claim: $result"
+      )
+
+    val supportPlan = plan.copy(role = Role.Support, allowedClaim = None)
+    val mismatchedRendered = rendered.copy(claimKey = "stops_promotion")
+    assertEquals(LlmNarrationSmoke.mockNarrate(supportPlan, rendered), None)
+    assertEquals(LlmNarrationSmoke.codexCliPrompt(supportPlan, rendered), None)
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, mismatchedRendered), None)
+    assertEquals(LlmNarrationSmoke.codexCliPrompt(plan, mismatchedRendered), None)
+
+    val methodNames = LlmNarrationSmoke.getClass.getDeclaredMethods.map(_.getName).toSet
+    val parameterNames =
+      LlmNarrationSmoke.getClass.getDeclaredMethods.toVector
+        .flatMap(_.getParameterTypes.toVector)
+        .map(_.getSimpleName)
+
+    Vector("fromStory", "fromPawnStopProof", "fromBoardFacts", "fromEngineCheck", "fromEngineLine", "callApi", "productionApi").foreach:
+      method =>
+        assert(!methodNames.contains(method), s"LLM smoke must not expose $method")
+    Vector("Story", "PawnStopProof", "BoardFacts", "EngineCheck", "EngineLine", "EngineEval").foreach: parameter =>
+      assert(!parameterNames.contains(parameter), s"LLM smoke must not accept $parameter")
+
+  test("PromotionThreat-0 opens only immediate next-move promotion threat after a legal pawn move"):
+    val facts = BoardFacts.fromFen("k7/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val creatingMove = Line(Square('e', 6), Square('e', 7))
+    val promotionRoute = Line(Square('e', 7), Square('e', 8))
+    val proof = PromotionThreatProof.fromBoardFacts(facts, creatingMove)
+    val story = ScenePromotionThreat.write(facts, creatingMove).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    assertEquals(proof.side, Side.White)
+    assertEquals(proof.rivalSide, Side.Black)
+    assertEquals(proof.pawnBefore, Some(Piece(Side.White, Man.Pawn, Square('e', 6))))
+    assertEquals(proof.pawnAfter, Some(Piece(Side.White, Man.Pawn, Square('e', 7))))
+    assertEquals(proof.creatingMove, Some(creatingMove))
+    assertEquals(proof.nextPromotionMove, Some(promotionRoute))
+    assertEquals(proof.promotionSquare, Some(Square('e', 8)))
+    assertEquals(proof.promotionRoute, Some(promotionRoute))
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.legalPawnMove, true)
+    assertEquals(proof.nonPromotionCreatingMove, true)
+    assertEquals(proof.exactAfterBoardReplay, true)
+    assertEquals(proof.pawnOnPenultimateRankAfter, true)
+    assertEquals(proof.nextMovePromotionLegal, true)
+    assertEquals(proof.publicClaimAllowed, false)
+    assertEquals(proof.complete, true)
+
+    assertEquals(story.scene, Scene.PromotionThreat)
+    assertEquals(story.writer, Some(StoryWriter.ScenePromotionThreat))
+    assertEquals(story.side, Side.White)
+    assertEquals(story.rival, Side.Black)
+    assertEquals(story.anchor, Some(Square('e', 6)))
+    assertEquals(story.target, Some(Square('e', 8)))
+    assertEquals(story.route, Some(creatingMove))
+    assertEquals(story.promotionThreatProof, Some(proof))
+    assertEquals(story.pawnAdvanceProof, None)
+    assertEquals(story.pawnStopProof, None)
+    assertEquals(story.captureResult, None)
+    assertEquals(story.threatProof, None)
+    assertEquals(story.defenseProof, None)
+
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(plan.scene, Scene.PromotionThreat)
+    assertEquals(plan.allowedClaim.map(_.key), Some("threatens_promotion_next"))
+    assertEquals(ExplanationClaim.PromotionThreatAllowed.map(_.key), Vector("threatens_promotion_next"))
+    assertEquals(rendered.text, "e7 threatens to promote next.")
+    assertEquals(rendered.claimKey, "threatens_promotion_next")
+    assertEquals(rendered.strength, "bounded")
+
+    Vector(
+      ForbiddenWording.ActualPromotion,
+      ForbiddenWording.UnstoppablePawn,
+      ForbiddenWording.WinningEndgame,
+      ForbiddenWording.ConvertsAdvantage,
+      ForbiddenWording.PawnRace,
+      ForbiddenWording.BestMove,
+      ForbiddenWording.OnlyMove,
+      ForbiddenWording.Forced
+    ).foreach: forbidden =>
+      assert(plan.forbiddenWording.contains(forbidden), s"PromotionThreat must forbid ${forbidden.key}")
+
+    Vector(
+      "e7 will promote.",
+      "e7 will queen.",
+      "e7 cannot be stopped.",
+      "e7 wins the endgame.",
+      "e7 is the best move.",
+      "e7 starts conversion.",
+      "e7 wins the pawn race."
+    ).foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, output)
+
+  test("PromotionThreat-0 stays silent for actual promotion and non-immediate promotion-looking moves"):
+    val notImmediateMove = Line(Square('e', 5), Square('e', 6))
+    val notImmediateFacts = BoardFacts.fromFen("k7/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val actualPromotionMove = Line(Square('e', 7), Square('e', 8))
+    val actualPromotionFacts = BoardFacts.fromFen("k7/4P3/8/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val blockedPromotionMove = Line(Square('e', 6), Square('e', 7))
+    val blockedPromotionFacts = BoardFacts.fromFen("4r1k1/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+
+    val notImmediateProof = PromotionThreatProof.fromBoardFacts(notImmediateFacts, notImmediateMove)
+    val actualPromotionProof = PromotionThreatProof.fromBoardFacts(actualPromotionFacts, actualPromotionMove)
+    val blockedPromotionProof = PromotionThreatProof.fromBoardFacts(blockedPromotionFacts, blockedPromotionMove)
+
+    assertEquals(notImmediateProof.pawnOnPenultimateRankAfter, false)
+    assertEquals(notImmediateProof.nextMovePromotionLegal, false)
+    assertEquals(notImmediateProof.complete, false)
+    assertEquals(ScenePromotionThreat.write(notImmediateFacts, notImmediateMove), None)
+
+    assertEquals(actualPromotionProof.nonPromotionCreatingMove, false)
+    assertEquals(actualPromotionProof.exactAfterBoardReplay, false)
+    assertEquals(actualPromotionProof.complete, false)
+    assertEquals(ScenePromotionThreat.write(actualPromotionFacts, actualPromotionMove), None)
+
+    assertEquals(blockedPromotionProof.pawnOnPenultimateRankAfter, true)
+    assertEquals(blockedPromotionProof.nextMovePromotionLegal, false)
+    assertEquals(blockedPromotionProof.complete, false)
+    assertEquals(ScenePromotionThreat.write(blockedPromotionFacts, blockedPromotionMove), None)
+
+    val advanceStory = ScenePawnAdvance.write(BoardFacts.fromFen("k7/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get, blockedPromotionMove).get
+    val forgedPromotionThreat = advanceStory.copy(scene = Scene.PromotionThreat, promotionThreatProof = None)
+    val verdict = StoryTable.choose(Vector(forgedPromotionThreat)).head
+    assertEquals(verdict.role, Role.Blocked)
+    assertEquals(ExplanationPlan.fromSelected(verdict), None)
+
+  test("PromotionThreat-1 PromotionThreatProof owns only diagnostic next-move promotion evidence"):
+    val facts = BoardFacts.fromFen("k7/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val creatingMove = Line(Square('e', 6), Square('e', 7))
+    val nextPromotionMove = Line(Square('e', 7), Square('e', 8))
+    val proof = PromotionThreatProof.fromBoardFacts(facts, creatingMove)
+    val advanceProof = PawnAdvanceProof.fromBoardFacts(facts, creatingMove)
+    val stopProof = PawnStopProof.fromBoardFacts(facts, creatingMove)
+    val promotionStory = ScenePromotionThreat.write(facts, creatingMove).get
+    val advanceStory = ScenePawnAdvance.write(facts, creatingMove).get
+    val verdicts = StoryTable.choose(Vector(advanceStory, promotionStory))
+
+    assertEquals(proof.side, Side.White)
+    assertEquals(proof.rivalSide, Side.Black)
+    assertEquals(proof.pawnBefore.exists(piece => piece.man == Man.Pawn && piece.side == Side.White), true)
+    assertEquals(proof.nonPromotionCreatingMove, true)
+    assertEquals(proof.exactAfterBoardReplay, true)
+    assertEquals(proof.nextPromotionMove, Some(nextPromotionMove))
+    assertEquals(proof.promotionRoute, Some(nextPromotionMove))
+    assertEquals(proof.nextMovePromotionLegal, true)
+    assertEquals(proof.publicClaimAllowed, false)
+    assertEquals(proof.complete, true)
+
+    assertEquals(advanceProof.publicClaimAllowed, false)
+    assertEquals(stopProof.complete, false)
+    assertEquals(ScenePawnStop.write(facts, creatingMove), None)
+    assertEquals(advanceStory.promotionThreatProof, None)
+    assertEquals(advanceStory.scene, Scene.PawnAdvance)
+    assertEquals(promotionStory.promotionThreatProof, Some(proof))
+    assertEquals(verdicts.find(_.story.scene == Scene.PromotionThreat).map(_.role), Some(Role.Lead))
+    assertEquals(verdicts.find(_.story.scene == Scene.PawnAdvance).exists(_.role == Role.Lead), false)
+
+  test("PromotionThreat-2 ScenePromotionThreat writer binds identity and blocks EngineCheck Refutes"):
+    val facts = BoardFacts.fromFen("k7/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val creatingMove = Line(Square('e', 6), Square('e', 7))
+    val nextPromotionMove = Line(Square('e', 7), Square('e', 8))
+    val story = ScenePromotionThreat.write(facts, creatingMove).get
+    val proof = story.promotionThreatProof.get
+
+    assertEquals(story.proofFailures, Vector.empty)
+    assertEquals(proof.complete, true)
+    assertEquals(story.writer, Some(StoryWriter.ScenePromotionThreat))
+    assertEquals(story.scene, Scene.PromotionThreat)
+    assertEquals(story.tactic, None)
+    assertEquals(story.plan, None)
+    assertEquals(story.side, proof.side)
+    assertEquals(story.rival, proof.rivalSide)
+    assertEquals(story.target, proof.promotionSquare)
+    assertEquals(story.anchor, proof.pawnBefore.map(_.square))
+    assertEquals(story.route, Some(creatingMove))
+    assertEquals(story.secondaryTarget, None)
+    assertEquals(story.pawnAdvanceProof, None)
+    assertEquals(story.pawnStopProof, None)
+    assertEquals(proof.nextPromotionMove, Some(nextPromotionMove))
+
+    val refutingCheck = EngineCheck.fromStory(
+      facts = facts,
+      story = Some(story),
+      engineLine = Some(EngineLine(Vector(creatingMove))),
+      replyLine = Some(EngineLine(Vector(nextPromotionMove))),
+      evalBefore = Some(EngineEval(120)),
+      evalAfter = Some(EngineEval(-80)),
+      depth = Some(18),
+      freshnessPly = Some(0),
+      requestedStatus = EngineCheckStatus.Supports
+    )
+    assertEquals(refutingCheck.storyBound, true)
+    assertEquals(refutingCheck.evidenceReady, true)
+    assertEquals(refutingCheck.status, EngineCheckStatus.Refutes)
+
+    val refutedStory = ScenePromotionThreat.withEngineCheck(story, refutingCheck).get
+    val verdict = StoryTable.choose(Vector(refutedStory)).head
+    assertEquals(verdict.role, Role.Blocked)
+    assertEquals(ExplanationPlan.fromSelected(verdict), None)
+
+    val actualPromotionStory = story.copy(
+      route = Some(nextPromotionMove),
+      anchor = Some(Square('e', 7)),
+      target = Some(Square('e', 8))
+    )
+    assertEquals(StoryTable.choose(Vector(actualPromotionStory)).head.role, Role.Blocked)
+
+  test("PromotionThreat-3 negative corpus requires legal next-move promotion proof or silence"):
+    val legalFacts = BoardFacts.fromFen("k7/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val legalCreatingMove = Line(Square('e', 6), Square('e', 7))
+    val legalStory = ScenePromotionThreat.write(legalFacts, legalCreatingMove).get
+    val legalVerdict = StoryTable.choose(Vector(legalStory)).head
+    val legalPlan = ExplanationPlan.fromSelected(legalVerdict).get
+    val legalRendered = DeterministicRenderer.fromPlan(legalPlan).get
+
+    val illegalCreatingMove = Line(Square('e', 6), Square('e', 8))
+    val nonPawnMove = Line(Square('e', 1), Square('e', 2))
+    val actualPromotionMove = Line(Square('e', 7), Square('e', 8))
+    val twoMovesNeeded = Line(Square('e', 5), Square('e', 6))
+    val blockedPromotionMove = Line(Square('e', 6), Square('e', 7))
+    val manualFacts = minimalBoardFacts(
+      sideLegal = readyMoves(line = legalCreatingMove),
+      pieces = Vector(Piece(Side.White, Man.Pawn, Square('e', 6)), Piece(Side.White, Man.King, Square('e', 1)), Piece(Side.Black, Man.King, Square('a', 8)))
+    )
+    val nonPawnFacts = BoardFacts.fromFen("k7/8/8/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val actualPromotionFacts = BoardFacts.fromFen("k7/4P3/8/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val twoMovesNeededFacts = BoardFacts.fromFen("k7/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val blockedPromotionFacts = BoardFacts.fromFen("4r1k1/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+
+    val negativeCases: Vector[(String, BoardFacts, Line, String)] = Vector(
+      "illegal creating move" -> (legalFacts, illegalCreatingMove, "legal pawn move"),
+      "no same-board proof" -> (manualFacts, legalCreatingMove, "same-board proof"),
+      "not a pawn move" -> (nonPawnFacts, nonPawnMove, "pawn identity"),
+      "creating move itself promotes" -> (actualPromotionFacts, actualPromotionMove, "creating move is non-promotion"),
+      "next promotion move illegal on after-board" -> (blockedPromotionFacts, blockedPromotionMove, "legal next-move promotion"),
+      "promotion square cannot be computed" -> (nonPawnFacts, nonPawnMove, "promotion square"),
+      "two or more moves still needed" -> (twoMovesNeededFacts, twoMovesNeeded, "pawn on penultimate rank after move")
+    ).map((label, data) => (label, data._1, data._2, data._3))
+
+    negativeCases.foreach:
+      case (label, facts, move, expectedMissing) =>
+      val proof = PromotionThreatProof.fromBoardFacts(facts, move)
+      assertEquals(proof.complete, false, label)
+      assertEquals(ScenePromotionThreat.write(facts, move), None, label)
+      assert(
+        proof.missingEvidence.exists(_.missing.contains(expectedMissing)),
+        s"$label must report $expectedMissing"
+      )
+
+    Vector(
+      "e7 is unstoppable.",
+      "e7 cannot be stopped.",
+      "e7 wins.",
+      "e7 wins by tablebase.",
+      "e7 converts the endgame.",
+      "e7 will queen."
+    ).foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(legalPlan, legalRendered, output).accepted, false, output)
+
+  test("PromotionThreat-4 reuses EngineCheck without creating engine-owned claims"):
+    val facts = BoardFacts.fromFen("k7/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val creatingMove = Line(Square('e', 6), Square('e', 7))
+    val nextPromotionMove = Line(Square('e', 7), Square('e', 8))
+    val story = ScenePromotionThreat.write(facts, creatingMove).get
+
+    def check(status: EngineCheckStatus, boundStory: Option[Story] = Some(story)): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = boundStory,
+        engineLine = Some(EngineLine(Vector(creatingMove))),
+        replyLine = Some(EngineLine(Vector(nextPromotionMove))),
+        evalBefore = Some(EngineEval(40)),
+        evalAfter = Some(EngineEval(45)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    def selected(attached: Story): Verdict =
+      StoryTable.choose(Vector(attached)).head
+
+    def noEngineText(label: String, verdict: Verdict): Unit =
+      val rendered = ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("engine says")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("best move")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("only move")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("tablebase")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("winning endgame")), false, label)
+      assertEquals(rendered.exists(_.text.toLowerCase.contains("forced win")), false, label)
+      assertEquals(rendered.exists(_.text.contains("+3.2")), false, label)
+      assertEquals(rendered.exists(_.text.contains("40")), false, label)
+      assertEquals(rendered.exists(_.text.contains("45")), false, label)
+
+    val supports = ScenePromotionThreat.withEngineCheck(story, check(EngineCheckStatus.Supports)).get
+    val caps = ScenePromotionThreat.withEngineCheck(story, check(EngineCheckStatus.Caps)).get
+    val unknown = ScenePromotionThreat.withEngineCheck(story, check(EngineCheckStatus.Unknown)).get
+    val refutes = ScenePromotionThreat.withEngineCheck(story, check(EngineCheckStatus.Refutes)).get
+    val unbound = check(EngineCheckStatus.Supports, boundStory = None)
+    val wrongRoute =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(Line(Square('e', 6), Square('e', 8))))),
+        replyLine = Some(EngineLine(Vector(nextPromotionMove))),
+        evalBefore = Some(EngineEval(40)),
+        evalAfter = Some(EngineEval(45)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = EngineCheckStatus.Supports
+      )
+    val forgedWithoutProof = story.copy(promotionThreatProof = None)
+
+    assertEquals(
+      ScenePromotionThreat.withEngineCheck(story, unbound),
+      Option.empty[Story],
+      "EngineCheck cannot attach without Story binding"
+    )
+    assertEquals(
+      ScenePromotionThreat.withEngineCheck(story, wrongRoute),
+      Option.empty[Story],
+      "EngineCheck cannot attach a different route"
+    )
+    assertEquals(
+      ScenePromotionThreat.withEngineCheck(forgedWithoutProof, supports.engineCheck.get),
+      Option.empty[Story],
+      "EngineCheck cannot repair or create PromotionThreat without proof"
+    )
+    assertEquals(StoryTable.choose(Vector.empty), Vector.empty, "EngineCheck alone cannot create PromotionThreat")
+
+    assertEquals(supports.engineCheck.map(_.status), Option(EngineCheckStatus.Supports))
+    assertEquals(caps.engineCheck.map(_.status), Option(EngineCheckStatus.Caps))
+    assertEquals(unknown.engineCheck.map(_.status), Option(EngineCheckStatus.Unknown))
+    assertEquals(refutes.engineCheck.map(_.status), Option(EngineCheckStatus.Refutes))
+
+    val supportsVerdict = selected(supports)
+    val capsVerdict = selected(caps)
+    val unknownVerdict = selected(unknown)
+    val refutesVerdict = selected(refutes)
+
+    assertEquals(supportsVerdict.role, Role.Lead)
+    assertEquals(supportsVerdict.engineStrengthLimited, false)
+    assertEquals(capsVerdict.role, Role.Lead)
+    assertEquals(capsVerdict.engineStrengthLimited, true)
+    assertEquals(ExplanationPlan.fromSelected(capsVerdict), Option.empty[ExplanationPlan])
+    assertEquals(unknownVerdict.role, Role.Lead)
+    assertEquals(unknownVerdict.engineStrengthLimited, false)
+    assertEquals(refutesVerdict.role, Role.Blocked)
+    assertEquals(refutesVerdict.leadAllowed, false)
+    assertEquals(ExplanationPlan.fromSelected(refutesVerdict), Option.empty[ExplanationPlan])
+
+    Vector(
+      "supports" -> supportsVerdict,
+      "caps" -> capsVerdict,
+      "unknown" -> unknownVerdict,
+      "refutes" -> refutesVerdict
+    ).foreach: (label, verdict) =>
+      noEngineText(label, verdict)
+
+    val supportsPlan = ExplanationPlan.fromSelected(supportsVerdict).get
+    val supportsRendered = DeterministicRenderer.fromPlan(supportsPlan).get
+    Vector(
+      "engine says e7 is best move",
+      "+3.2 and winning endgame",
+      "only move by tablebase",
+      "forced win",
+      "best move",
+      "only move",
+      "tablebase result",
+      "winning endgame"
+    ).foreach: phrase =>
+      assertEquals(LlmNarrationSmoke.mockNarrate(supportsPlan, supportsRendered.copy(text = phrase)), None, phrase)
+
+  test("PromotionThreat-5 StoryTable keeps existing rows stable and claim homes separate"):
+    def strongProof(value: Int): Proof =
+      proof(
+        boardProof = value,
+        lineProof = value,
+        ownerProof = value,
+        anchorProof = value,
+        routeProof = value,
+        persistence = value,
+        immediacy = value,
+        forcing = value,
+        conversionPrize = 0,
+        counterplayRisk = 20,
+        kingHeat = 0,
+        pieceSupport = value,
+        pawnSupport = value,
+        clarity = value
+      )
+
+    def strong(story: Story, value: Int): Story =
+      story.copy(proof = strongProof(value))
+
+    def rowId(rows: Vector[(String, Story)], story: Story): String =
+      rows.collectFirst { case (id, row) if row == story => id }.getOrElse(s"unknown:$story")
+
+    def shape(rows: Vector[(String, Story)], verdicts: Vector[Verdict]) =
+      verdicts.map: verdict =>
+        (
+          rowId(rows, verdict.story),
+          verdict.role,
+          verdict.leadAllowed,
+          verdict.engineCheckStatus,
+          verdict.engineStrengthLimited,
+          ExplanationPlan.fromSelected(verdict).flatMap(_.allowedClaim).map(_.key)
+        )
+
+    def assertStable(rows: Vector[(String, Story)], expectedLead: String): Vector[Verdict] =
+      val forward = StoryTable.choose(rows.map(_._2))
+      val reverse = StoryTable.choose(rows.reverse.map(_._2))
+      val shuffled = StoryTable.choose(rows.sortBy(_._1).map(_._2))
+      val forwardShape = shape(rows, forward)
+      assertEquals(shape(rows, reverse), forwardShape)
+      assertEquals(shape(rows, shuffled), forwardShape)
+      assertEquals(rowId(rows, forward.head.story), expectedLead)
+      assertEquals(forward.head.role, Role.Lead)
+      forward
+
+    def assertNoStandaloneText(label: String, verdict: Verdict): Unit =
+      assertEquals(ExplanationPlan.fromSelected(verdict), None, label)
+      assertEquals(ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan), None, label)
+
+    def assertLeadClaim(verdict: Verdict, expected: ExplanationClaim): (ExplanationPlan, RenderedLine) =
+      val plan = ExplanationPlan.fromSelected(verdict).get
+      val rendered = DeterministicRenderer.fromPlan(plan).get
+      assertEquals(plan.allowedClaim, Some(expected))
+      (plan, rendered)
+
+    def engineCheck(facts: BoardFacts, story: Story, line: Line, status: EngineCheckStatus): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(line))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 7), Square('e', 8))))),
+        evalBefore = Some(EngineEval(40)),
+        evalAfter = Some(EngineEval(45)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    val advanceThreatFacts = BoardFacts.fromFen("k7/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val advanceThreatMove = Line(Square('e', 6), Square('e', 7))
+    val advance = strong(ScenePawnAdvance.write(advanceThreatFacts, advanceThreatMove).get, 90)
+    val promotionThreat = strong(ScenePromotionThreat.write(advanceThreatFacts, advanceThreatMove).get, 99)
+    val advanceRows = Vector("Scene.PawnAdvance" -> advance, "Scene.PromotionThreat" -> promotionThreat)
+    val advanceVerdicts = assertStable(advanceRows, "Scene.PromotionThreat")
+    val advanceSupport = advanceVerdicts.find(_.story == advance).get
+    val promotionLead = advanceVerdicts.find(_.story == promotionThreat).get
+    val (promotionPlan, promotionRendered) = assertLeadClaim(promotionLead, ExplanationClaim.CreatesPromotionThreat)
+    assertNoStandaloneText("PawnAdvance support must not speak under PromotionThreat", advanceSupport)
+    assertEquals(LlmNarrationSmoke.check(promotionPlan, promotionRendered, "e7 advances the passed pawn.").accepted, false)
+
+    val stopThreatFacts = BoardFacts.fromFen("r5k1/5n2/8/7P/8/4p3/8/3K4 b - - 0 1").toOption.get
+    val stopMove = Line(Square('f', 7), Square('h', 6))
+    val blackThreatMove = Line(Square('e', 3), Square('e', 2))
+    val stop = strong(ScenePawnStop.write(stopThreatFacts, stopMove).get, 99)
+    val blackThreat = strong(ScenePromotionThreat.write(stopThreatFacts, blackThreatMove).get, 90)
+    val stopRows = Vector("Scene.PawnStop" -> stop, "Scene.PromotionThreat" -> blackThreat)
+    val stopVerdicts = assertStable(stopRows, "Scene.PawnStop")
+    val (stopPlan, stopRendered) = assertLeadClaim(stopVerdicts.head, ExplanationClaim.StopsPassedPawnNextAdvance)
+    val stopThreatSupport = stopVerdicts.find(_.story == blackThreat).get
+    assertNoStandaloneText("PromotionThreat support must not own PawnStop meaning", stopThreatSupport)
+    Vector("Nh6 stops promotion.", "Nh6 prevents the pawn from queening.").foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(stopPlan, stopRendered, output).accepted, false, output)
+
+    val materialThreatFacts = BoardFacts.fromFen("k7/8/4P3/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val materialMove = Line(Square('d', 4), Square('e', 5))
+    val materialThreatMove = Line(Square('e', 6), Square('e', 7))
+    val material = strong(SceneMaterial.write(materialThreatFacts, materialMove).get, 90)
+    val hanging = strong(TacticHanging.write(materialThreatFacts, materialMove).get, 90)
+    val materialThreat = strong(ScenePromotionThreat.write(materialThreatFacts, materialThreatMove).get, 99)
+
+    val defenseThreatFacts = BoardFacts.fromFen("k7/8/4P3/5n1P/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val defenseThreat = Line(Square('f', 5), Square('d', 4))
+    val defenseMove = Line(Square('d', 4), Square('e', 4))
+    val defensePromotionMove = Line(Square('e', 6), Square('e', 7))
+    val defense = strong(SceneDefense.write(defenseThreatFacts, defenseThreat, defenseMove).get, 90)
+    val defensePromotionThreat = strong(ScenePromotionThreat.write(defenseThreatFacts, defensePromotionMove).get, 99)
+
+    val lineThreatFacts = BoardFacts.fromFen("7k/8/4P1r1/8/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val lineMove = Line(Square('d', 3), Square('f', 4))
+    val linePromotionMove = Line(Square('e', 6), Square('e', 7))
+    val line = strong(
+      TacticDiscoveredAttack.write(lineThreatFacts, Some(lineMove), Some(Square('b', 1)), Some(Square('g', 6))).get,
+      90
+    )
+    val linePromotionThreat = strong(ScenePromotionThreat.write(lineThreatFacts, linePromotionMove).get, 99)
+
+    Vector(
+      ("Scene.Material", material, materialThreat, ExplanationClaim.MaterialBalanceChanges),
+      ("Tactic.Hanging", hanging, materialThreat, ExplanationClaim.CanWinPiece),
+      ("Scene.Defense", defense, defensePromotionThreat, ExplanationClaim.DefendsPiece),
+      ("Tactic.DiscoveredAttack", line, linePromotionThreat, ExplanationClaim.RevealsAttackOnPiece)
+    ).foreach: (label, existing, threat, expectedClaim) =>
+      val rows = Vector(label -> existing, "Scene.PromotionThreat" -> threat)
+      val verdicts = assertStable(rows, label)
+      val existingLead = verdicts.find(_.story == existing).get
+      val threatSupport = verdicts.find(_.story == threat).get
+      val (plan, rendered) = assertLeadClaim(existingLead, expectedClaim)
+      assertNoStandaloneText(s"$label keeps PromotionThreat support silent", threatSupport)
+      assertEquals(LlmNarrationSmoke.check(plan, rendered, s"${plan.routeSan.getOrElse("Move")} creates a next-move promotion threat.").accepted, false)
+
+    val cappedThreat =
+      ScenePromotionThreat.withEngineCheck(
+        promotionThreat,
+        engineCheck(advanceThreatFacts, promotionThreat, advanceThreatMove, EngineCheckStatus.Caps)
+      ).get
+    val refutedThreat =
+      ScenePromotionThreat.withEngineCheck(
+        promotionThreat,
+        engineCheck(advanceThreatFacts, promotionThreat, advanceThreatMove, EngineCheckStatus.Refutes)
+      ).get
+    val cappedVerdict = StoryTable.choose(Vector(cappedThreat)).head
+    val refutedVerdict = StoryTable.choose(Vector(refutedThreat)).head
+    assertEquals(cappedVerdict.engineStrengthLimited, true)
+    assertEquals(refutedVerdict.role, Role.Blocked)
+    assertNoStandaloneText("capped PromotionThreat has no standalone text", cappedVerdict)
+    assertNoStandaloneText("refuted PromotionThreat has no standalone text", refutedVerdict)
+
+  test("PromotionThreat-6 ExplanationPlan admits only selected uncapped Lead threat claim"):
+    val facts = BoardFacts.fromFen("k7/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val creatingMove = Line(Square('e', 6), Square('e', 7))
+    val story = ScenePromotionThreat.write(facts, creatingMove).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val forbiddenClaimKeys =
+      Vector(
+        "unstoppable_pawn",
+        "will_promote",
+        "cannot_be_stopped",
+        "wins_endgame",
+        "converts_advantage",
+        "best_move",
+        "only_move",
+        "forced",
+        "tablebase_win",
+        "no_counterplay"
+      )
+
+    assertEquals(verdict.selected, true)
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(verdict.engineStrengthLimited, false)
+    assertEquals(verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes), false)
+    assertEquals(plan.allowedClaim.map(_.key), Some("threatens_promotion_next"))
+    assertEquals(ExplanationClaim.PromotionThreatAllowed.map(_.key), Vector("threatens_promotion_next"))
+    assertEquals(ExplanationClaim.PromotionThreatForbiddenKeys, forbiddenClaimKeys)
+    forbiddenClaimKeys.foreach: forbiddenKey =>
+      assertEquals(ExplanationClaim.PromotionThreatAllowed.map(_.key).contains(forbiddenKey), false, forbiddenKey)
+
+    Vector(
+      verdict.copy(selected = false),
+      verdict.copy(role = Role.Support, leadAllowed = false, rank = 2),
+      verdict.copy(role = Role.Context, leadAllowed = false, rank = 3),
+      verdict.copy(role = Role.Blocked, leadAllowed = false, rank = 4, engineCheckStatus = Some(EngineCheckStatus.Refutes))
+    ).foreach: nonStandalone =>
+      assertEquals(ExplanationPlan.fromSelected(nonStandalone), None)
+
+    def checked(status: EngineCheckStatus): Verdict =
+      val check = EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(creatingMove))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 7), Square('e', 8))))),
+        evalBefore = Some(EngineEval(30)),
+        evalAfter = Some(EngineEval(35)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+      StoryTable.choose(Vector(ScenePromotionThreat.withEngineCheck(story, check).get)).head
+
+    val capped = checked(EngineCheckStatus.Caps)
+    val refuted = checked(EngineCheckStatus.Refutes)
+
+    assertEquals(capped.engineStrengthLimited, true)
+    assertEquals(refuted.role, Role.Blocked)
+    assertEquals(ExplanationPlan.fromSelected(capped), None)
+    assertEquals(ExplanationPlan.fromSelected(refuted), None)
+
+  test("PromotionThreat-7 DeterministicRenderer phrases only bounded next promotion threat"):
+    val facts = BoardFacts.fromFen("k7/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val creatingMove = Line(Square('e', 6), Square('e', 7))
+    val story = ScenePromotionThreat.write(facts, creatingMove).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val forbiddenOutputs =
+      Vector(
+        "e7 will promote.",
+        "e7 cannot be stopped.",
+        "e7 is unstoppable.",
+        "e7 wins.",
+        "e7 wins the winning endgame.",
+        "e7 converts the advantage.",
+        "e7 is the best move.",
+        "e7 is the only move.",
+        "e7 forces promotion.",
+        "e7 is a tablebase win.",
+        "e7 gives no counterplay."
+      )
+
+    assertEquals(rendered.text, "e7 threatens to promote next.")
+    assertEquals(rendered.claimKey, "threatens_promotion_next")
+    assertEquals(rendered.strength, "bounded")
+    assertEquals(rendered.forbiddenCheckPassed, true)
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, rendered), Some(rendered.text))
+    forbiddenOutputs.foreach: output =>
+      val candidate = rendered.copy(text = output)
+      assertEquals(LlmNarrationSmoke.mockNarrate(plan, candidate), None, output)
+      assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, output)
+
+    Vector(
+      plan.copy(role = Role.Support),
+      plan.copy(role = Role.Context),
+      plan.copy(role = Role.Blocked, debugOnly = true),
+      plan.copy(allowedClaim = None),
+      plan.copy(allowedClaim = Some(ExplanationClaim.AdvancesPassedPawn)),
+      plan.copy(route = None),
+      plan.copy(routeSan = None),
+      plan.copy(evidenceLine = None),
+      plan.copy(target = None),
+      plan.copy(anchor = None),
+      plan.copy(forbiddenWording = Vector.empty)
+    ).foreach: invalidPlan =>
+      assertEquals(DeterministicRenderer.fromPlan(invalidPlan), None)
+
+    val rendererMethodNames = DeterministicRenderer.getClass.getDeclaredMethods.map(_.getName).toSet
+    val rendererParameterNames =
+      DeterministicRenderer.getClass.getDeclaredMethods.toVector
+        .flatMap(_.getParameterTypes.toVector)
+        .map(_.getSimpleName)
+
+    assert(!rendererMethodNames.contains("fromVerdict"))
+    assert(!rendererMethodNames.contains("fromStory"))
+    assert(!rendererMethodNames.contains("fromPromotionThreatProof"))
+    Vector("Verdict", "Story", "PromotionThreatProof", "BoardFacts", "EngineCheck").foreach: forbiddenInput =>
+      assert(!rendererParameterNames.contains(forbiddenInput), s"renderer must not accept $forbiddenInput")
+
+  test("PromotionThreat-8 LLM smoke reuses 8B boundary without new chess facts"):
+    val facts = BoardFacts.fromFen("k7/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val creatingMove = Line(Square('e', 6), Square('e', 7))
+    val story = ScenePromotionThreat.write(facts, creatingMove).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val prompt = LlmNarrationSmoke.codexCliPrompt(plan, rendered).get
+
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, rendered), Some("e7 threatens to promote next."))
+    assertEquals(LlmNarrationSmoke.check(plan, rendered, "e7 threatens to promote next.").accepted, true)
+
+    Vector(
+      "renderedText: e7 threatens to promote next.",
+      "claimKey: threatens_promotion_next",
+      "strength: bounded",
+      "forbiddenWording:",
+      "instruction: Rephrase only. Do not add chess facts."
+    ).foreach: required =>
+      assert(prompt.contains(required), s"LLM smoke prompt must include $required")
+
+    Vector(
+      "ExplanationPlan",
+      "FEN",
+      "PGN",
+      "raw Story",
+      "Story:",
+      "PromotionThreatProof",
+      "BoardFacts",
+      "EngineCheck",
+      "EngineLine",
+      "EngineEval",
+      "raw PV",
+      "proofFailures",
+      "role:",
+      "scene:",
+      "target:",
+      "route:",
+      "evidence line:"
+    ).foreach: forbiddenInput =>
+      assert(!prompt.contains(forbiddenInput), s"LLM smoke prompt must not expose $forbiddenInput")
+
+    Vector(
+      "raw Story" -> "Raw Story says e7 threatens to promote next.",
+      "raw PromotionThreatProof" -> "PromotionThreatProof proves e7.",
+      "BoardFacts" -> "BoardFacts show the route.",
+      "EngineCheck" -> "EngineCheck supports e7.",
+      "raw PV" -> "Raw PV: e7 e8=Q.",
+      "proofFailures" -> "proofFailures are empty."
+    ).foreach: (label, output) =>
+      val check = LlmNarrationSmoke.check(plan, rendered, output)
+      assertEquals(check.accepted, false, label)
+      assert(check.violations.contains("raw_input"), label)
+
+    Vector(
+      "new move" -> "e7 and Kd2 threaten promotion.",
+      "new line" -> "After e7 Kd7, White threatens to promote next.",
+      "actual promotion" -> "e7 is an actual promotion.",
+      "will promote" -> "e7 will promote.",
+      "unstoppable" -> "e7 cannot be stopped.",
+      "winning" -> "e7 wins the endgame.",
+      "conversion" -> "e7 converts the advantage.",
+      "tablebase" -> "e7 is a tablebase win."
+    ).foreach: (label, output) =>
+      val check = LlmNarrationSmoke.check(plan, rendered, output)
+      assertEquals(check.accepted, false, label)
+
+    val supportPlan = plan.copy(role = Role.Support, allowedClaim = None)
+    val mismatchedRendered = rendered.copy(claimKey = "will_promote")
+    assertEquals(LlmNarrationSmoke.mockNarrate(supportPlan, rendered), None)
+    assertEquals(LlmNarrationSmoke.codexCliPrompt(supportPlan, rendered), None)
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, mismatchedRendered), None)
+    assertEquals(LlmNarrationSmoke.codexCliPrompt(plan, mismatchedRendered), None)
+
+    val llmMethodNames = LlmNarrationSmoke.getClass.getDeclaredMethods.map(_.getName).toSet
+    val llmParameterNames =
+      LlmNarrationSmoke.getClass.getDeclaredMethods.toVector
+        .flatMap(_.getParameterTypes.toVector)
+        .map(_.getSimpleName)
+
+    Vector(
+      "fromStory",
+      "fromPromotionThreatProof",
+      "fromBoardFacts",
+      "fromEngineCheck",
+      "fromEngineLine",
+      "callApi",
+      "productionApi"
+    ).foreach: forbiddenMethod =>
+      assert(!llmMethodNames.contains(forbiddenMethod), s"LLM smoke must not expose $forbiddenMethod")
+
+    Vector("Story", "PromotionThreatProof", "BoardFacts", "EngineCheck", "EngineLine", "EngineEval").foreach: forbiddenInput =>
+      assert(!llmParameterNames.contains(forbiddenInput), s"LLM smoke must not accept $forbiddenInput")
+
+  test("PromotionThreat Closeout hard cleanup keeps ownership layers separated and surfaces closed"):
+    val facts = BoardFacts.fromFen("k7/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val creatingMove = Line(Square('e', 6), Square('e', 7))
+    val proof = PromotionThreatProof.fromBoardFacts(facts, creatingMove)
+    val story = ScenePromotionThreat.write(facts, creatingMove).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    assertEquals(proof.publicClaimAllowed, false)
+    assertEquals(proof.complete, true)
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.legalPawnMove, true)
+    assertEquals(proof.nonPromotionCreatingMove, true)
+    assertEquals(proof.exactAfterBoardReplay, true)
+    assertEquals(proof.pawnOnPenultimateRankAfter, true)
+    assertEquals(proof.nextMovePromotionLegal, true)
+    assertEquals(proof.creatingMove, Some(creatingMove))
+    assertEquals(proof.nextPromotionMove, Some(Line(Square('e', 7), Square('e', 8))))
+    assertEquals(proof.promotionSquare, Some(Square('e', 8)))
+    assertEquals(proof.promotionRoute, proof.nextPromotionMove)
+
+    assertEquals(story.scene, Scene.PromotionThreat)
+    assertEquals(story.tactic, None)
+    assertEquals(story.plan, None)
+    assertEquals(story.writer, Some(StoryWriter.ScenePromotionThreat))
+    assertEquals(story.side, proof.side)
+    assertEquals(story.rival, proof.rivalSide)
+    assertEquals(story.target, proof.promotionSquare)
+    assertEquals(story.anchor, proof.pawnBefore.map(_.square))
+    assertEquals(story.route, proof.creatingMove)
+    assertEquals(story.promotionThreatProof, Some(proof))
+    assertEquals(story.pawnAdvanceProof, None)
+    assertEquals(story.pawnStopProof, None)
+    assertEquals(story.captureResult, None)
+    assertEquals(story.threatProof, None)
+    assertEquals(story.defenseProof, None)
+    assertEquals(story.multiTargetProof, None)
+    assertEquals(story.lineProof, None)
+    assertEquals(story.pinProof, None)
+    assertEquals(story.removeGuardProof, None)
+    assertEquals(story.skewerProof, None)
+    assertEquals(story.proof.conversionPrize, 0)
+    assertEquals(story.proof.forcing, 0)
+    assertEquals(story.proof.kingHeat, 0)
+
+    assertEquals(verdict.role, Role.Lead)
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.CreatesPromotionThreat))
+    assertEquals(ExplanationClaim.PromotionThreatAllowed.map(_.key), Vector("threatens_promotion_next"))
+    assertEquals(rendered.text, "e7 threatens to promote next.")
+    assertEquals(rendered.claimKey, "threatens_promotion_next")
+    assertEquals(rendered.strength, "bounded")
+    assertEquals(LlmNarrationSmoke.mockNarrate(plan, rendered), Some(rendered.text))
+
+    Vector(
+      ExplanationClaim.PawnAdvanceAllowed,
+      ExplanationClaim.PawnStopAllowed,
+      ExplanationClaim.MaterialAllowed,
+      ExplanationClaim.DefenseAllowed,
+      ExplanationClaim.HangingAllowed,
+      ExplanationClaim.DiscoveredAttackAllowed,
+      ExplanationClaim.PinAllowed,
+      ExplanationClaim.RemoveGuardAllowed,
+      ExplanationClaim.SkewerAllowed
+    ).foreach: openedHomeClaims =>
+      assertEquals(openedHomeClaims.contains(ExplanationClaim.CreatesPromotionThreat), false)
+
+    val livePositiveClaimKeys = ExplanationClaim.values.map(_.key).toVector
+    Vector(
+      "will_promote",
+      "cannot_be_stopped",
+      "unstoppable_pawn",
+      "wins_endgame",
+      "converts_advantage",
+      "tablebase_win",
+      "actual_promotion",
+      "pawn_break",
+      "promotion_story",
+      "pawn_race"
+    ).foreach: closedClaim =>
+      assert(!livePositiveClaimKeys.contains(closedClaim), s"closed PromotionThreat meaning became a live claim key: $closedClaim")
+
+    val storyFieldNames = classOf[Story].getDeclaredFields.map(_.getName).toSet
+    Vector(
+      "promotionProof",
+      "actualPromotionProof",
+      "pawnBreakProof",
+      "tablebaseProof",
+      "conversionProof",
+      "winningEndgameProof",
+      "unstoppablePawnProof",
+      "pawnRaceProof"
+    ).foreach: closedProofHome =>
+      assert(!storyFieldNames.contains(closedProofHome), s"closed proof home reached Story: $closedProofHome")
+
+    val forbiddenKeys = plan.forbiddenWording.map(_.key).toSet
+    Vector(
+      "actual_promotion",
+      "unstoppable_pawn",
+      "wins_endgame",
+      "converts_advantage",
+      "tablebase_draw",
+      "stops_promotion",
+      "permanently_stops_pawn",
+      "pawn_race",
+      "king_route",
+      "opposition",
+      "passed_pawn_strategy"
+    ).foreach: forbiddenKey =>
+      assert(forbiddenKeys.contains(forbiddenKey), s"closed PromotionThreat wording must remain forbidden only: $forbiddenKey")
+
+    Vector(
+      "e7 will promote.",
+      "e7 cannot be stopped.",
+      "e7 is unstoppable.",
+      "e7 converts the advantage.",
+      "e7 is a tablebase win.",
+      "e7 wins material.",
+      "e7 is a pawn break.",
+      "e7 wins the endgame.",
+      "e7 forces promotion.",
+      "e7 creates no counterplay."
+    ).foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, output)
+
+    val renderedLower = rendered.text.toLowerCase
+    Vector(
+      "will promote",
+      "cannot be stopped",
+      "unstoppable",
+      "conversion",
+      "tablebase",
+      "wins",
+      "winning",
+      "pawn break",
+      "best move",
+      "only move",
+      "forced",
+      "no counterplay"
+    ).foreach: forbidden =>
+      assert(!renderedLower.contains(forbidden), s"closed PromotionThreat wording leaked to renderer: $forbidden")
+
+    val runtimeRoot = Paths.get("modules/commentary/src/main/scala/lila/commentary/chess")
+    val runtimeSourceStream = Files.walk(runtimeRoot)
+    val runtimeText =
+      try
+        runtimeSourceStream
+          .iterator()
+          .asScala
+          .filter(path => Files.isRegularFile(path) && path.toString.endsWith(".scala"))
+          .map(Files.readString)
+          .mkString("\n")
+      finally runtimeSourceStream.close()
+    Vector(
+      "PromotionThreat Closeout",
+      "Hard Cleanup",
+      "one live authority document",
+      "public route 200",
+      "production API",
+      "user-facing LLM"
+    ).foreach: closeoutOnlyTerm =>
+      assert(!runtimeText.contains(closeoutOnlyTerm), s"closeout-only term became runtime authority: $closeoutOnlyTerm")
+
+  test("PawnStop Closeout hard cleanup keeps ownership layers separated and surfaces closed"):
+    val facts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stop = Line(Square('g', 7), Square('e', 6))
+    val observation =
+      facts.seen.passedPawnObservations.find(row => row.side == Side.White && row.pawn.square == Square('e', 5)).get
+    val proof = PawnStopProof.fromBoardFacts(facts, stop)
+    val story = ScenePawnStop.write(facts, stop).get
+    val verdict = StoryTable.choose(Vector(story)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+
+    assertEquals(observation.pawn.man, Man.Pawn)
+    assertEquals(observation.side, Side.White)
+    assertEquals(proof.publicClaimAllowed, false)
+    assertEquals(proof.complete, true)
+    assertEquals(proof.targetPawn, Some(observation.pawn))
+    assertEquals(proof.nextAdvanceSquare, Some(Square('e', 6)))
+    assertEquals(proof.stopMove, Some(stop))
+    assertEquals(proof.sameBoardProof, true)
+    assertEquals(proof.legalStopMove, true)
+    assertEquals(proof.targetPawnAlreadyPassed, true)
+    assertEquals(proof.exactAfterBoardReplay, true)
+    assertEquals(proof.nextAdvanceSquareStoppedAfter, true)
+    assertEquals(
+      proof.nextAdvanceSquareOccupiedAfter || proof.nextAdvanceSquareAttackedAfter || proof.nextAdvanceSquareControlledByPawnAfter,
+      true
+    )
+
+    assertEquals(story.scene, Scene.PawnStop)
+    assertEquals(story.tactic, None)
+    assertEquals(story.plan, None)
+    assertEquals(story.writer, Some(StoryWriter.ScenePawnStop))
+    assertEquals(story.side, proof.side)
+    assertEquals(story.rival, proof.rivalSide)
+    assertEquals(story.target, proof.nextAdvanceSquare)
+    assertEquals(story.anchor, Some(stop.from))
+    assertEquals(story.route, proof.stopMove)
+    assertEquals(story.pawnStopProof, Some(proof))
+    assertEquals(story.pawnAdvanceProof, None)
+    assertEquals(story.captureResult, None)
+    assertEquals(story.threatProof, None)
+    assertEquals(story.defenseProof, None)
+    assertEquals(story.multiTargetProof, None)
+    assertEquals(story.lineProof, None)
+    assertEquals(story.pinProof, None)
+    assertEquals(story.removeGuardProof, None)
+    assertEquals(story.skewerProof, None)
+    assertEquals(story.proof.conversionPrize, 0)
+    assertEquals(story.proof.forcing, 0)
+    assertEquals(story.proof.kingHeat, 0)
+
+    assertEquals(ExplanationClaim.PawnStopAllowed.map(_.key), Vector("stops_pawn_advance"))
+    assertEquals(ExplanationClaim.PawnAdvanceAllowed.map(_.key).contains("stops_pawn_advance"), false)
+    assertEquals(ExplanationClaim.DefenseAllowed.map(_.key).contains("stops_pawn_advance"), false)
+    assertEquals(ExplanationClaim.MaterialAllowed.map(_.key).contains("stops_pawn_advance"), false)
+    assertEquals(ExplanationClaim.HangingAllowed.map(_.key).contains("stops_pawn_advance"), false)
+    assertEquals(ExplanationClaim.DiscoveredAttackAllowed.map(_.key).contains("stops_pawn_advance"), false)
+    assertEquals(ExplanationClaim.PinAllowed.map(_.key).contains("stops_pawn_advance"), false)
+    assertEquals(ExplanationClaim.RemoveGuardAllowed.map(_.key).contains("stops_pawn_advance"), false)
+    assertEquals(ExplanationClaim.SkewerAllowed.map(_.key).contains("stops_pawn_advance"), false)
+    Vector(
+      "stops_promotion",
+      "permanently_stops_pawn",
+      "draws_endgame",
+      "best_defense",
+      "only_move",
+      "tablebase_draw",
+      "wins_endgame",
+      "converts_advantage",
+      "forced"
+    ).foreach: key =>
+      assert(!ExplanationClaim.PawnStopAllowed.map(_.key).contains(key), s"$key must not be a PawnStop live claim")
+
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.StopsPassedPawnNextAdvance))
+    assertEquals(rendered.text, "Ne6 stops the passed pawn from advancing next.")
+    assertEquals(rendered.claimKey, "stops_pawn_advance")
+    assertEquals(rendered.strength, "bounded")
+    val renderedLower = rendered.text.toLowerCase
+    Vector("promotion", "promotes", "permanent", "for good", "draw", "tablebase", "best defense", "only move", "wins").foreach:
+      forbidden =>
+        assert(!renderedLower.contains(forbidden), s"PawnStop rendered text must not contain $forbidden")
+
+    val forbiddenKeys = plan.forbiddenWording.map(_.key).toSet
+    Vector(
+      "stops_promotion",
+      "permanently_stops_pawn",
+      "draws_endgame",
+      "best_defense",
+      "only_move",
+      "tablebase_draw",
+      "wins_endgame",
+      "converts_advantage",
+      "forced"
+    ).foreach: key =>
+      assert(forbiddenKeys.contains(key), s"PawnStop closeout must keep $key forbidden")
+    Vector(
+      "Ne6 stops promotion.",
+      "Ne6 stops the pawn for good.",
+      "Ne6 draws the endgame.",
+      "Ne6 is a tablebase draw.",
+      "Ne6 is the best defense.",
+      "Ne6 is the only move.",
+      "Ne6 wins the endgame."
+    ).foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, output)
+
+    val methodNames =
+      (DeterministicRenderer.getClass.getDeclaredMethods ++ LlmNarrationSmoke.getClass.getDeclaredMethods).map(_.getName).toSet
+    Vector("callApi", "productionApi", "fromPawnStopProof", "fromBoardFacts", "fromEngineCheck").foreach: method =>
+      assert(!methodNames.contains(method), s"PawnStop closeout must not expose downstream method $method")
+
+  test("PIH-0 Pawn Interaction Hardening keeps pawn rows below same-board tactic and separated proof homes"):
+    def strongProof(value: Int): Proof =
+      proof(
+        boardProof = value,
+        lineProof = value,
+        ownerProof = value,
+        anchorProof = value,
+        routeProof = value,
+        persistence = value,
+        immediacy = value,
+        forcing = value,
+        conversionPrize = value,
+        counterplayRisk = 20,
+        kingHeat = 0,
+        pieceSupport = value,
+        pawnSupport = value,
+        clarity = value
+      )
+
+    val sameBoardFacts = BoardFacts.fromFen("7k/8/6r1/4P3/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val pawnAdvanceMove = Line(Square('e', 5), Square('e', 6))
+    val discoveredMove = Line(Square('d', 3), Square('f', 4))
+    val pawnAdvance = ScenePawnAdvance.write(sameBoardFacts, pawnAdvanceMove).get.copy(proof = strongProof(99))
+    val discovered =
+      TacticDiscoveredAttack
+        .write(sameBoardFacts, Some(discoveredMove), Some(Square('b', 1)), Some(Square('g', 6)))
+        .get
+        .copy(proof = strongProof(99))
+
+    val sameBoardRows = Vector("Scene.PawnAdvance" -> pawnAdvance, "Tactic.DiscoveredAttack" -> discovered)
+    val forward = StoryTable.choose(sameBoardRows.map(_._2))
+    val reverse = StoryTable.choose(sameBoardRows.reverse.map(_._2))
+
+    def rowId(rows: Vector[(String, Story)], story: Story): String =
+      rows.collectFirst { case (id, row) if row == story => id }.get
+
+    def shape(verdicts: Vector[Verdict]) =
+      verdicts.map(verdict =>
+        (
+          rowId(sameBoardRows, verdict.story),
+          verdict.role,
+          verdict.leadAllowed,
+          ExplanationPlan.fromSelected(verdict).flatMap(_.allowedClaim)
+        )
+      )
+
+    assertEquals(shape(forward), shape(reverse))
+    assertEquals(forward.find(_.story == discovered).map(_.role), Some(Role.Lead))
+    assertEquals(forward.find(_.story == pawnAdvance).map(_.role), Some(Role.Support))
+    assertEquals(ExplanationPlan.fromSelected(forward.find(_.story == pawnAdvance).get), None)
+    val discoveredPlan = ExplanationPlan.fromSelected(forward.find(_.story == discovered).get).get
+    val discoveredRendered = DeterministicRenderer.fromPlan(discoveredPlan).get
+    assertEquals(discoveredPlan.allowedClaim, Some(ExplanationClaim.RevealsAttackOnPiece))
+    Vector(
+      "Nf4 will promote the pawn.",
+      "Nf4 converts the endgame.",
+      "Nf4 is the best move.",
+      "Nf4 advances the passed pawn."
+    ).foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(discoveredPlan, discoveredRendered, output).accepted, false, output)
+
+    val stopFacts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stopMove = Line(Square('g', 7), Square('e', 6))
+    val contaminatedAdvance =
+      pawnAdvance.copy(pawnStopProof = Some(PawnStopProof.fromBoardFacts(stopFacts, stopMove)))
+    val contaminatedStop =
+      ScenePawnStop.write(stopFacts, stopMove).get.copy(pawnAdvanceProof = pawnAdvance.pawnAdvanceProof)
+
+    Vector("PawnAdvance with PawnStopProof" -> contaminatedAdvance, "PawnStop with PawnAdvanceProof" -> contaminatedStop).foreach:
+      (label, row) =>
+        val verdict = StoryTable.choose(Vector(row)).head
+        assertEquals(verdict.role, Role.Blocked, label)
+        assertEquals(verdict.leadAllowed, false, label)
+        assertEquals(ExplanationPlan.fromSelected(verdict), None, label)
+
+  test("PIH-1 fixture map covers pawn interaction hardening categories"):
+    final case class PihFixture(
+        category: String,
+        fen: String,
+        sideToMove: Side,
+        candidateLegalLines: Vector[Line],
+        rows: Vector[(String, Story)],
+        expectedOpenRows: Set[String],
+        expectedBlockedRows: Set[String],
+        expectedRoles: Map[String, Role],
+        expectedSelectedVerdict: String,
+        expectedSelectedRole: Role,
+        forbiddenClaims: Vector[String]
+    )
+
+    def strongProof(value: Int): Proof =
+      proof(
+        boardProof = value,
+        lineProof = value,
+        ownerProof = value,
+        anchorProof = value,
+        routeProof = value,
+        persistence = value,
+        immediacy = value,
+        forcing = value,
+        conversionPrize = value,
+        counterplayRisk = 20,
+        kingHeat = 0,
+        pieceSupport = value,
+        pawnSupport = value,
+        clarity = value
+      )
+
+    def strong(story: Story): Story =
+      story.copy(proof = strongProof(99))
+
+    def rowId(rows: Vector[(String, Story)], story: Story): String =
+      rows.collectFirst { case (id, row) if row == story => id }.getOrElse(s"unknown:$story")
+
+    def engineCheck(
+        facts: BoardFacts,
+        story: Story,
+        line: Line,
+        status: EngineCheckStatus,
+        before: Int = 20,
+        after: Int = 20
+    ): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(line))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(before)),
+        evalAfter = Some(EngineEval(after)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    def forbiddenOutput(claim: String, plan: ExplanationPlan): String =
+      val san = plan.routeSan.getOrElse("Move")
+      claim match
+        case "promotion_threat"          => s"$san will promote next."
+        case "threatens_promotion_next"  => s"$san will promote next."
+        case "stops_promotion"          => s"$san stops promotion."
+        case "converts_advantage"       => s"$san converts the advantage."
+        case "wins_endgame"             => s"$san wins the endgame."
+        case "draws_endgame"            => s"$san draws the endgame."
+        case "tablebase_draw"           => s"$san is a tablebase draw."
+        case "best_move"                => s"$san is the best move."
+        case "only_move"                => s"$san is the only move."
+        case "forced"                   => s"$san is forced."
+        case "defends_piece"            => s"$san defends the piece."
+        case "reveals_attack_on_piece"  => s"$san reveals an attack."
+        case "pins_piece"               => s"$san pins the piece."
+        case "removes_defender"         => s"$san removes the defender."
+        case "skewers_piece_to_piece"   => s"$san skewers the piece."
+        case "material_balance_changes" => s"$san changes the material balance."
+        case "advances_passed_pawn"     => s"$san advances the passed pawn."
+        case "stops_pawn_advance"       => s"$san stops the passed pawn from advancing next."
+        case other                      => s"$san adds $other."
+
+    def assertFixture(fixture: PihFixture): Unit =
+      val facts = BoardFacts.fromFen(fixture.fen).toOption.get
+      assertEquals(facts.sideToMove, fixture.sideToMove, fixture.category)
+      fixture.candidateLegalLines.foreach: line =>
+        assert(facts.sideLegal.lines.contains(line), s"${fixture.category} legal line missing: $line")
+      assertEquals(fixture.rows.map(_._1).toSet, fixture.expectedOpenRows ++ fixture.expectedBlockedRows, fixture.category)
+
+      val forward = StoryTable.choose(fixture.rows.map(_._2))
+      val reverse = StoryTable.choose(fixture.rows.reverse.map(_._2))
+
+      def shape(verdicts: Vector[Verdict]) =
+        verdicts.map(verdict =>
+          (
+            rowId(fixture.rows, verdict.story),
+            verdict.role,
+            verdict.leadAllowed,
+            verdict.engineCheckStatus,
+            verdict.engineStrengthLimited
+          )
+        )
+
+      val roleMap = forward.map(verdict => rowId(fixture.rows, verdict.story) -> verdict.role).toMap
+      val selected = forward.head
+      val selectedId = rowId(fixture.rows, selected.story)
+
+      assertEquals(shape(forward), shape(reverse), fixture.category)
+      assertEquals(roleMap, fixture.expectedRoles, fixture.category)
+      fixture.expectedOpenRows.foreach: id =>
+        assert(roleMap.get(id).exists(_ != Role.Blocked), s"${fixture.category} open row blocked: $id")
+      fixture.expectedBlockedRows.foreach: id =>
+        assertEquals(roleMap.get(id), Some(Role.Blocked), s"${fixture.category} blocked row role: $id")
+      assertEquals(selectedId, fixture.expectedSelectedVerdict, fixture.category)
+      assertEquals(selected.role, fixture.expectedSelectedRole, fixture.category)
+      assertEquals(forward.count(_.role == Role.Lead), fixture.expectedRoles.values.count(_ == Role.Lead), fixture.category)
+
+      forward.filter(_.role != Role.Lead).foreach: verdict =>
+        assertEquals(ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan), None, verdict.toString)
+
+      if selected.role == Role.Lead && !selected.engineStrengthLimited then
+        val plan = ExplanationPlan.fromSelected(selected).get
+        val rendered = DeterministicRenderer.fromPlan(plan).get
+        fixture.forbiddenClaims.foreach: claim =>
+          val output = forbiddenOutput(claim, plan)
+          assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, s"${fixture.category}: $claim")
+      else
+        assertEquals(ExplanationPlan.fromSelected(selected), None, fixture.category)
+
+    val pawnAdvanceStopFen = "4k3/8/8/4P3/8/8/8/4K3 w - - 0 1"
+    val pawnAdvanceStopFacts = BoardFacts.fromFen(pawnAdvanceStopFen).toOption.get
+    val pawnAdvanceStopMove = Line(Square('e', 5), Square('e', 6))
+    val pawnAdvanceForStopFixture = strong(ScenePawnAdvance.write(pawnAdvanceStopFacts, pawnAdvanceStopMove).get)
+    val blockedPawnStopSameBoard =
+      pawnAdvanceForStopFixture.copy(scene = Scene.PawnStop, writer = None, pawnAdvanceProof = None)
+
+    val advanceMaterialFen = "4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1"
+    val advanceMaterialFacts = BoardFacts.fromFen(advanceMaterialFen).toOption.get
+    val advanceMaterialPawnMove = Line(Square('d', 4), Square('d', 5))
+    val advanceMaterialCapture = Line(Square('d', 4), Square('e', 5))
+    val advanceMaterialPawn = strong(ScenePawnAdvance.write(advanceMaterialFacts, advanceMaterialPawnMove).get)
+    val advanceMaterial = strong(SceneMaterial.write(advanceMaterialFacts, advanceMaterialCapture).get)
+
+    val advanceDefenseFen = "4k3/8/8/5n1P/3Q4/8/8/4K3 w - - 0 1"
+    val advanceDefenseFacts = BoardFacts.fromFen(advanceDefenseFen).toOption.get
+    val advanceDefensePawnMove = Line(Square('h', 5), Square('h', 6))
+    val advanceDefenseThreat = Line(Square('f', 5), Square('d', 4))
+    val advanceDefenseMove = Line(Square('d', 4), Square('e', 4))
+    val advanceDefensePawn = strong(ScenePawnAdvance.write(advanceDefenseFacts, advanceDefensePawnMove).get)
+    val advanceDefense = strong(SceneDefense.write(advanceDefenseFacts, advanceDefenseThreat, advanceDefenseMove).get)
+
+    val stopDefenseFen = "4k3/6n1/8/3qP3/5N2/8/8/4K3 b - - 0 1"
+    val stopDefenseFacts = BoardFacts.fromFen(stopDefenseFen).toOption.get
+    val stopDefenseStopMove = Line(Square('g', 7), Square('e', 6))
+    val stopDefenseThreat = Line(Square('f', 4), Square('d', 5))
+    val stopDefenseMove = Line(Square('d', 5), Square('c', 6))
+    val stopDefensePawnStop = strong(ScenePawnStop.write(stopDefenseFacts, stopDefenseStopMove).get)
+    val stopDefense = strong(SceneDefense.write(stopDefenseFacts, stopDefenseThreat, stopDefenseMove).get)
+
+    val stopLineFen = "r5k1/5n2/8/7P/8/8/4N3/4K3 b - - 0 1"
+    val stopLineFacts = BoardFacts.fromFen(stopLineFen).toOption.get
+    val stopLineStopMove = Line(Square('f', 7), Square('h', 6))
+    val stopLinePinMove = Line(Square('a', 8), Square('e', 8))
+    val stopLinePawnStop = strong(ScenePawnStop.write(stopLineFacts, stopLineStopMove).get)
+    val stopLinePin =
+      strong(TacticPin.write(stopLineFacts, Some(stopLinePinMove), Some(Square('e', 8)), Some(Square('e', 2)), Some(Square('e', 1))).get)
+
+    val engineFen = pawnAdvanceStopFen
+    val engineFacts = pawnAdvanceStopFacts
+    val engineMove = pawnAdvanceStopMove
+    val enginePawnBase = strong(ScenePawnAdvance.write(engineFacts, engineMove).get)
+    val engineSupports =
+      strong(ScenePawnAdvance.withEngineCheck(enginePawnBase, engineCheck(engineFacts, enginePawnBase, engineMove, EngineCheckStatus.Supports)).get)
+    val engineCaps =
+      strong(ScenePawnAdvance.withEngineCheck(enginePawnBase, engineCheck(engineFacts, enginePawnBase, engineMove, EngineCheckStatus.Caps)).get)
+    val engineRefutes =
+      strong(ScenePawnAdvance.withEngineCheck(enginePawnBase, engineCheck(engineFacts, enginePawnBase, engineMove, EngineCheckStatus.Refutes)).get)
+
+    val promotionLookingFen = "4k3/8/4P3/8/8/8/8/4K3 w - - 0 1"
+    val promotionLookingFacts = BoardFacts.fromFen(promotionLookingFen).toOption.get
+    val promotionLookingMove = Line(Square('e', 6), Square('e', 7))
+    val promotionLookingAdvance = strong(ScenePawnAdvance.write(promotionLookingFacts, promotionLookingMove).get)
+    val blockedPromotionLooking =
+      promotionLookingAdvance.copy(scene = Scene.Pawns, writer = None, pawnAdvanceProof = None)
+
+    val tablebaseLookingFen = "4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1"
+    val tablebaseLookingFacts = BoardFacts.fromFen(tablebaseLookingFen).toOption.get
+    val tablebaseLookingStopMove = Line(Square('g', 7), Square('e', 6))
+    val tablebaseLookingStop = strong(ScenePawnStop.write(tablebaseLookingFacts, tablebaseLookingStopMove).get)
+    val blockedTablebase =
+      tablebaseLookingStop.copy(scene = Scene.Endgame, writer = None, pawnStopProof = None)
+
+    Vector(
+      PihFixture(
+        category = "PawnAdvance vs PawnStop",
+        fen = pawnAdvanceStopFen,
+        sideToMove = Side.White,
+        candidateLegalLines = Vector(pawnAdvanceStopMove),
+        rows = Vector(
+          "Scene.PawnAdvance" -> pawnAdvanceForStopFixture,
+          "Scene.PawnStop/blocked" -> blockedPawnStopSameBoard
+        ),
+        expectedOpenRows = Set("Scene.PawnAdvance"),
+        expectedBlockedRows = Set("Scene.PawnStop/blocked"),
+        expectedRoles = Map("Scene.PawnAdvance" -> Role.Lead, "Scene.PawnStop/blocked" -> Role.Blocked),
+        expectedSelectedVerdict = "Scene.PawnAdvance",
+        expectedSelectedRole = Role.Lead,
+        forbiddenClaims = Vector("stops_pawn_advance", "promotion_threat", "converts_advantage", "best_move", "only_move")
+      ),
+      PihFixture(
+        category = "PawnAdvance vs Material",
+        fen = advanceMaterialFen,
+        sideToMove = Side.White,
+        candidateLegalLines = Vector(advanceMaterialPawnMove, advanceMaterialCapture),
+        rows = Vector(
+          "Scene.PawnAdvance" -> advanceMaterialPawn,
+          "Scene.Material" -> advanceMaterial
+        ),
+        expectedOpenRows = Set("Scene.PawnAdvance", "Scene.Material"),
+        expectedBlockedRows = Set.empty,
+        expectedRoles = Map("Scene.Material" -> Role.Lead, "Scene.PawnAdvance" -> Role.Support),
+        expectedSelectedVerdict = "Scene.Material",
+        expectedSelectedRole = Role.Lead,
+        forbiddenClaims = Vector("advances_passed_pawn", "promotion_threat", "converts_advantage", "best_move")
+      ),
+      PihFixture(
+        category = "PawnAdvance vs Defense",
+        fen = advanceDefenseFen,
+        sideToMove = Side.White,
+        candidateLegalLines = Vector(advanceDefensePawnMove, advanceDefenseMove),
+        rows = Vector(
+          "Scene.PawnAdvance" -> advanceDefensePawn,
+          "Scene.Defense" -> advanceDefense
+        ),
+        expectedOpenRows = Set("Scene.PawnAdvance", "Scene.Defense"),
+        expectedBlockedRows = Set.empty,
+        expectedRoles = Map("Scene.Defense" -> Role.Lead, "Scene.PawnAdvance" -> Role.Support),
+        expectedSelectedVerdict = "Scene.Defense",
+        expectedSelectedRole = Role.Lead,
+        forbiddenClaims = Vector("advances_passed_pawn", "promotion_threat", "converts_advantage", "best_move", "only_move")
+      ),
+      PihFixture(
+        category = "PawnStop vs Defense",
+        fen = stopDefenseFen,
+        sideToMove = Side.Black,
+        candidateLegalLines = Vector(stopDefenseStopMove, stopDefenseMove),
+        rows = Vector(
+          "Scene.PawnStop" -> stopDefensePawnStop,
+          "Scene.Defense" -> stopDefense
+        ),
+        expectedOpenRows = Set("Scene.PawnStop", "Scene.Defense"),
+        expectedBlockedRows = Set.empty,
+        expectedRoles = Map("Scene.Defense" -> Role.Lead, "Scene.PawnStop" -> Role.Support),
+        expectedSelectedVerdict = "Scene.Defense",
+        expectedSelectedRole = Role.Lead,
+        forbiddenClaims = Vector("stops_pawn_advance", "stops_promotion", "draws_endgame", "tablebase_draw", "best_move", "only_move")
+      ),
+      PihFixture(
+        category = "PawnStop vs Line/Defender tactic",
+        fen = stopLineFen,
+        sideToMove = Side.Black,
+        candidateLegalLines = Vector(stopLineStopMove, stopLinePinMove),
+        rows = Vector(
+          "Scene.PawnStop" -> stopLinePawnStop,
+          "Tactic.Pin" -> stopLinePin
+        ),
+        expectedOpenRows = Set("Scene.PawnStop", "Tactic.Pin"),
+        expectedBlockedRows = Set.empty,
+        expectedRoles = Map("Tactic.Pin" -> Role.Lead, "Scene.PawnStop" -> Role.Support),
+        expectedSelectedVerdict = "Tactic.Pin",
+        expectedSelectedRole = Role.Lead,
+        forbiddenClaims = Vector("stops_pawn_advance", "stops_promotion", "draws_endgame", "tablebase_draw", "best_move", "only_move")
+      ),
+      PihFixture(
+        category = "Pawn row vs EngineCheck Supports/Caps/Refutes",
+        fen = engineFen,
+        sideToMove = Side.White,
+        candidateLegalLines = Vector(engineMove),
+        rows = Vector(
+          "Scene.PawnAdvance#Supports" -> engineSupports,
+          "Scene.PawnAdvance#Caps" -> engineCaps,
+          "Scene.PawnAdvance#Refutes" -> engineRefutes
+        ),
+        expectedOpenRows = Set("Scene.PawnAdvance#Supports", "Scene.PawnAdvance#Caps"),
+        expectedBlockedRows = Set("Scene.PawnAdvance#Refutes"),
+        expectedRoles = Map(
+          "Scene.PawnAdvance#Supports" -> Role.Lead,
+          "Scene.PawnAdvance#Caps" -> Role.Support,
+          "Scene.PawnAdvance#Refutes" -> Role.Blocked
+        ),
+        expectedSelectedVerdict = "Scene.PawnAdvance#Supports",
+        expectedSelectedRole = Role.Lead,
+        forbiddenClaims = Vector("promotion_threat", "converts_advantage", "wins_endgame", "best_move", "only_move")
+      ),
+      PihFixture(
+        category = "Promotion-looking but no PromotionThreat yet",
+        fen = promotionLookingFen,
+        sideToMove = Side.White,
+        candidateLegalLines = Vector(promotionLookingMove),
+        rows = Vector(
+          "Scene.PawnAdvance" -> promotionLookingAdvance,
+          "promotion-looking/blocked" -> blockedPromotionLooking
+        ),
+        expectedOpenRows = Set("Scene.PawnAdvance"),
+        expectedBlockedRows = Set("promotion-looking/blocked"),
+        expectedRoles = Map("Scene.PawnAdvance" -> Role.Lead, "promotion-looking/blocked" -> Role.Blocked),
+        expectedSelectedVerdict = "Scene.PawnAdvance",
+        expectedSelectedRole = Role.Lead,
+        forbiddenClaims = Vector("promotion_threat", "converts_advantage", "wins_endgame", "best_move", "only_move")
+      ),
+      PihFixture(
+        category = "tablebase-looking but no tablebase authority",
+        fen = tablebaseLookingFen,
+        sideToMove = Side.Black,
+        candidateLegalLines = Vector(tablebaseLookingStopMove),
+        rows = Vector(
+          "Scene.PawnStop" -> tablebaseLookingStop,
+          "endgame-result/blocked" -> blockedTablebase
+        ),
+        expectedOpenRows = Set("Scene.PawnStop"),
+        expectedBlockedRows = Set("endgame-result/blocked"),
+        expectedRoles = Map("Scene.PawnStop" -> Role.Lead, "endgame-result/blocked" -> Role.Blocked),
+        expectedSelectedVerdict = "Scene.PawnStop",
+        expectedSelectedRole = Role.Lead,
+        forbiddenClaims = Vector("draws_endgame", "tablebase_draw", "wins_endgame", "best_move", "only_move", "forced")
+      )
+    ).foreach(assertFixture)
+
+  test("PIH-2 Role Stability keeps pawn rows deterministic without duplicate pawn claims"):
+    def strongProof(value: Int): Proof =
+      proof(
+        boardProof = value,
+        lineProof = value,
+        ownerProof = value,
+        anchorProof = value,
+        routeProof = value,
+        persistence = value,
+        immediacy = value,
+        forcing = value,
+        conversionPrize = value,
+        counterplayRisk = 20,
+        kingHeat = 0,
+        pieceSupport = value,
+        pawnSupport = value,
+        clarity = value
+      )
+
+    def strong(story: Story): Story =
+      story.copy(proof = strongProof(99))
+
+    def rowId(rows: Vector[(String, Story)], story: Story): String =
+      rows.collectFirst { case (id, row) if row == story => id }.getOrElse(s"unknown:$story")
+
+    def shape(rows: Vector[(String, Story)], verdicts: Vector[Verdict]) =
+      verdicts.map: verdict =>
+        (
+          rowId(rows, verdict.story),
+          verdict.role,
+          verdict.leadAllowed,
+          verdict.engineCheckStatus,
+          verdict.engineStrengthLimited,
+          ExplanationPlan.fromSelected(verdict).flatMap(_.allowedClaim).map(_.key)
+        )
+
+    def assertNoStandaloneClaim(label: String, verdict: Verdict): Unit =
+      assertEquals(ExplanationPlan.fromSelected(verdict), None, label)
+      assertEquals(ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan), None, label)
+
+    def engineCheck(facts: BoardFacts, story: Story, line: Line, status: EngineCheckStatus): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(line))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(40)),
+        evalAfter = Some(EngineEval(45)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    def leadPlan(story: Story): (Verdict, ExplanationPlan, RenderedLine) =
+      val verdict = StoryTable.choose(Vector(story)).head
+      val plan = ExplanationPlan.fromSelected(verdict).get
+      val rendered = DeterministicRenderer.fromPlan(plan).get
+      (verdict, plan, rendered)
+
+    val advanceFacts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advanceMove = Line(Square('e', 5), Square('e', 6))
+    val pawnAdvance = strong(ScenePawnAdvance.write(advanceFacts, advanceMove).get)
+
+    val stopFacts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stopMove = Line(Square('g', 7), Square('e', 6))
+    val pawnStop = strong(ScenePawnStop.write(stopFacts, stopMove).get)
+
+    val defenseFacts = BoardFacts.fromFen("4k3/6n1/8/3qP3/5N2/8/8/4K3 b - - 0 1").toOption.get
+    val defenseThreat = Line(Square('f', 4), Square('d', 5))
+    val defenseMove = Line(Square('d', 5), Square('c', 6))
+    val defense = strong(SceneDefense.write(defenseFacts, defenseThreat, defenseMove).get)
+
+    val incompleteAdvance = pawnAdvance.copy(pawnAdvanceProof = None)
+    val incompleteStop = pawnStop.copy(pawnStopProof = None)
+    val refutedAdvance =
+      ScenePawnAdvance.withEngineCheck(pawnAdvance, engineCheck(advanceFacts, pawnAdvance, advanceMove, EngineCheckStatus.Refutes)).get
+    val refutedStop =
+      ScenePawnStop.withEngineCheck(pawnStop, engineCheck(stopFacts, pawnStop, stopMove, EngineCheckStatus.Refutes)).get
+    val cappedAdvance =
+      ScenePawnAdvance.withEngineCheck(pawnAdvance, engineCheck(advanceFacts, pawnAdvance, advanceMove, EngineCheckStatus.Caps)).get
+
+    val rows = Vector(
+      "Scene.Defense" -> defense,
+      "Scene.PawnAdvance" -> pawnAdvance,
+      "Scene.PawnStop" -> pawnStop,
+      "Scene.PawnAdvance/incomplete" -> incompleteAdvance,
+      "Scene.PawnStop/incomplete" -> incompleteStop,
+      "Scene.PawnAdvance/refuted" -> refutedAdvance,
+      "Scene.PawnStop/refuted" -> refutedStop,
+      "Scene.PawnAdvance/capped" -> cappedAdvance
+    )
+    val permutations =
+      Vector(
+        rows,
+        rows.reverse,
+        Vector(rows(5), rows(2), rows(7), rows(0), rows(4), rows(1), rows(6), rows(3))
+      )
+    val baseline = StoryTable.choose(rows.map(_._2))
+    val baselineShape = shape(rows, baseline)
+
+    permutations.foreach: ordered =>
+      val verdicts = StoryTable.choose(ordered.map(_._2))
+      assertEquals(rowId(rows, verdicts.head.story), "Scene.Defense")
+      assertEquals(shape(rows, verdicts), baselineShape)
+
+    assertEquals(baseline.count(_.role == Role.Lead), 1)
+    assertEquals(baseline.find(_.story == incompleteAdvance).map(_.role), Some(Role.Blocked))
+    assertEquals(baseline.find(_.story == incompleteStop).map(_.role), Some(Role.Blocked))
+    assertEquals(baseline.find(_.story == refutedAdvance).map(_.role), Some(Role.Blocked))
+    assertEquals(baseline.find(_.story == refutedStop).map(_.role), Some(Role.Blocked))
+    assertEquals(baseline.find(_.story == cappedAdvance).map(_.role), Some(Role.Support))
+    Vector(incompleteAdvance, incompleteStop, refutedAdvance, refutedStop, cappedAdvance).foreach: row =>
+      assertNoStandaloneClaim(row.toString, StoryTable.choose(Vector(row)).head)
+
+    val samePawnRows = Vector("Scene.PawnAdvance" -> pawnAdvance, "Scene.PawnStop" -> pawnStop)
+    val samePawnForward = StoryTable.choose(samePawnRows.map(_._2))
+    val samePawnReverse = StoryTable.choose(samePawnRows.reverse.map(_._2))
+    val samePawnAdvanceVerdict = samePawnForward.find(_.story == pawnAdvance).get
+    val samePawnStopVerdict = samePawnForward.find(_.story == pawnStop).get
+
+    assertEquals(shape(samePawnRows, samePawnForward), shape(samePawnRows, samePawnReverse))
+    assertEquals(samePawnForward.count(_.role == Role.Lead), 1)
+    assertEquals(samePawnAdvanceVerdict.role, Role.Lead)
+    assertEquals(samePawnStopVerdict.role, Role.Support)
+    assertNoStandaloneClaim("same-pawn PawnStop support", samePawnStopVerdict)
+
+    assertEquals(StoryTable.choose(Vector(pawnAdvance, pawnAdvance.copy(anchor = pawnAdvance.anchor))).count(_.role == Role.Lead), 1)
+    assertEquals(StoryTable.choose(Vector(pawnStop, pawnStop.copy(anchor = pawnStop.anchor))).count(_.role == Role.Lead), 1)
+
+    val defenseCollision = StoryTable.choose(Vector(pawnStop, defense))
+    val defenseLead = defenseCollision.find(_.story == defense).get
+    val pawnStopSupport = defenseCollision.find(_.story == pawnStop).get
+    assertEquals(defenseLead.role, Role.Lead)
+    assertEquals(ExplanationPlan.fromSelected(defenseLead).flatMap(_.allowedClaim), Some(ExplanationClaim.DefendsPiece))
+    assertEquals(pawnStopSupport.role, Role.Support)
+    assertNoStandaloneClaim("PawnStop must not own Defense claim", pawnStopSupport)
+
+    val (_, advancePlan, advanceRendered) = leadPlan(pawnAdvance)
+    assertEquals(advancePlan.allowedClaim, Some(ExplanationClaim.AdvancesPassedPawn))
+    Vector("e6 will promote next.", "e6 converts the advantage.", "e6 wins the endgame.").foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(advancePlan, advanceRendered, output).accepted, false, output)
+
+    val (_, stopPlan, stopRendered) = leadPlan(pawnStop)
+    assertEquals(stopPlan.allowedClaim, Some(ExplanationClaim.StopsPassedPawnNextAdvance))
+    assertEquals(stopPlan.allowedClaim.exists(_ == ExplanationClaim.DefendsPiece), false)
+    assertEquals(LlmNarrationSmoke.check(stopPlan, stopRendered, "Ne6 defends the piece.").accepted, false)
+
+  test("PIH-3 Meaning Ownership Boundary keeps pawn collision rows on their own claims"):
+    def strongProof(value: Int): Proof =
+      proof(
+        boardProof = value,
+        lineProof = value,
+        ownerProof = value,
+        anchorProof = value,
+        routeProof = value,
+        persistence = value,
+        immediacy = value,
+        forcing = value,
+        conversionPrize = value,
+        counterplayRisk = 20,
+        kingHeat = 0,
+        pieceSupport = value,
+        pawnSupport = value,
+        clarity = value
+      )
+
+    def strong(story: Story): Story =
+      story.copy(proof = strongProof(99))
+
+    def leadPlan(story: Story): (Verdict, ExplanationPlan, RenderedLine) =
+      val verdict = StoryTable.choose(Vector(story)).head
+      val plan = ExplanationPlan.fromSelected(verdict).get
+      val rendered = DeterministicRenderer.fromPlan(plan).get
+      (verdict, plan, rendered)
+
+    def assertOwnsOnly(
+        label: String,
+        story: Story,
+        expectedClaim: ExplanationClaim,
+        rejectedOutputs: Vector[String]
+    ): ExplanationPlan =
+      val (verdict, plan, rendered) = leadPlan(story)
+      assertEquals(verdict.role, Role.Lead, label)
+      assertEquals(plan.allowedClaim, Some(expectedClaim), label)
+      rejectedOutputs.foreach: output =>
+        assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, s"$label: $output")
+      plan
+
+    val advanceFacts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advanceMove = Line(Square('e', 5), Square('e', 6))
+    val pawnAdvance = strong(ScenePawnAdvance.write(advanceFacts, advanceMove).get)
+    assert(pawnAdvance.pawnAdvanceProof.exists(proof =>
+      proof.alreadyPassedBefore &&
+        proof.legalOneStepNonCaptureNonPromotion &&
+        proof.afterBoardPassedPawn
+    ))
+    assertOwnsOnly(
+      "Scene.PawnAdvance",
+      pawnAdvance,
+      ExplanationClaim.AdvancesPassedPawn,
+      Vector(
+        "e6 will promote.",
+        "e6 is unstoppable.",
+        "e6 converts the advantage.",
+        "e6 wins the endgame.",
+        "e6 is the only move."
+      )
+    )
+
+    val stopFacts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stopMove = Line(Square('g', 7), Square('e', 6))
+    val pawnStop = strong(ScenePawnStop.write(stopFacts, stopMove).get)
+    assert(pawnStop.pawnStopProof.exists(proof =>
+      proof.legalStopMove &&
+        proof.targetPawnAlreadyPassed &&
+        proof.nextAdvanceSquareNonPromotion &&
+        proof.nextAdvanceSquareStoppedAfter
+    ))
+    assertOwnsOnly(
+      "Scene.PawnStop",
+      pawnStop,
+      ExplanationClaim.StopsPassedPawnNextAdvance,
+      Vector(
+        "Ne6 stops promotion.",
+        "Ne6 draws the endgame.",
+        "Ne6 holds the endgame.",
+        "Ne6 defends the piece.",
+        "Ne6 is the only move."
+      )
+    )
+
+    val materialFacts = BoardFacts.fromFen("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1").toOption.get
+    val materialCapture = Line(Square('d', 4), Square('e', 5))
+    val material = strong(SceneMaterial.write(materialFacts, materialCapture).get)
+    assert(material.captureResult.exists(_.positiveMaterial))
+    assertOwnsOnly(
+      "Scene.Material",
+      material,
+      ExplanationClaim.MaterialBalanceChanges,
+      Vector(
+        "dxe5 advances the passed pawn.",
+        "dxe5 stops the passed pawn from advancing next.",
+        "dxe5 will promote.",
+        "dxe5 converts the advantage."
+      )
+    )
+
+    val hanging = strong(TacticHanging.write(materialFacts, materialCapture).get)
+    assert(hanging.captureResult.exists(result => result.positiveMaterial && result.targetPiece.exists(_.man != Man.Pawn)))
+    assertOwnsOnly(
+      "Tactic.Hanging",
+      hanging,
+      ExplanationClaim.CanWinPiece,
+      Vector(
+        "dxe5 advances the passed pawn.",
+        "dxe5 stops the passed pawn from advancing next.",
+        "dxe5 will promote.",
+        "dxe5 converts the advantage."
+      )
+    )
+
+    val defenseFacts = BoardFacts.fromFen("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1").toOption.get
+    val defenseThreat = Line(Square('f', 5), Square('d', 4))
+    val defenseMove = Line(Square('d', 4), Square('e', 4))
+    val defense = strong(SceneDefense.write(defenseFacts, defenseThreat, defenseMove).get)
+    assert(defense.threatProof.exists(_.complete))
+    assert(defense.defenseProof.exists(_.complete))
+    assertOwnsOnly(
+      "Scene.Defense",
+      defense,
+      ExplanationClaim.DefendsPiece,
+      Vector(
+        "Qe4+ advances the passed pawn.",
+        "Qe4+ stops promotion.",
+        "Qe4+ converts the advantage.",
+        "Qe4+ is the only move."
+      )
+    )
+
+    val discoveredFacts = BoardFacts.fromFen("7k/8/6r1/8/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val discoveredLine = Line(Square('d', 3), Square('f', 4))
+    val discovered =
+      strong(TacticDiscoveredAttack.write(discoveredFacts, Some(discoveredLine), Some(Square('b', 1)), Some(Square('g', 6))).get)
+    assertOwnsOnly(
+      "Tactic.DiscoveredAttack",
+      discovered,
+      ExplanationClaim.RevealsAttackOnPiece,
+      Vector(
+        "Nf4 pins the piece.",
+        "Nf4 removes the defender.",
+        "Nf4 advances the passed pawn.",
+        "Nf4 wins material."
+      )
+    )
+
+    val pinFacts = BoardFacts.fromFen("8/7k/6r1/8/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val pin =
+      strong(TacticPin.write(pinFacts, Some(discoveredLine), Some(Square('b', 1)), Some(Square('g', 6)), Some(Square('h', 7))).get)
+    assertOwnsOnly(
+      "Tactic.Pin",
+      pin,
+      ExplanationClaim.PinsPiece,
+      Vector(
+        "Nf4 reveals an attack.",
+        "Nf4 removes the defender.",
+        "Nf4 advances the passed pawn.",
+        "Nf4 wins material."
+      )
+    )
+
+    val removeGuardFacts = BoardFacts.fromFen("7k/8/6r1/4n3/8/3N4/8/1B5K w - - 0 1").toOption.get
+    val removeGuardLine = Line(Square('d', 3), Square('e', 5))
+    val removeGuard =
+      strong(TacticRemoveGuard.write(removeGuardFacts, Some(removeGuardLine), Some(Square('g', 6)), Some(Square('e', 5))).get)
+    assertOwnsOnly(
+      "Tactic.RemoveGuard",
+      removeGuard,
+      ExplanationClaim.RemovesDefender,
+      Vector(
+        "Nxe5 pins the piece.",
+        "Nxe5 reveals an attack.",
+        "Nxe5 advances the passed pawn.",
+        "Nxe5 wins material."
+      )
+    )
+
+    val skewerFacts = BoardFacts.fromFen("4r2k/8/8/4q3/8/8/8/R6K w - - 0 1").toOption.get
+    val skewerLine = Line(Square('a', 1), Square('e', 1))
+    val skewer =
+      strong(TacticSkewer.write(skewerFacts, Some(skewerLine), Some(Square('e', 1)), Some(Square('e', 5)), Some(Square('e', 8))).get)
+    assertOwnsOnly(
+      "Tactic.Skewer",
+      skewer,
+      ExplanationClaim.SkewersPieceToPiece,
+      Vector(
+        "Re1 pins the piece.",
+        "Re1 removes the defender.",
+        "Re1 advances the passed pawn.",
+        "Re1 wins material."
+      )
+    )
+
+    val defenseCollision = StoryTable.choose(Vector(pawnStop, defense))
+    val defenseVerdict = defenseCollision.find(_.story == defense).get
+    val pawnStopVerdict = defenseCollision.find(_.story == pawnStop).get
+    assertEquals(defenseVerdict.role, Role.Lead)
+    assertEquals(ExplanationPlan.fromSelected(defenseVerdict).flatMap(_.allowedClaim), Some(ExplanationClaim.DefendsPiece))
+    assertEquals(pawnStopVerdict.role, Role.Support)
+    assertEquals(ExplanationPlan.fromSelected(pawnStopVerdict), None)
+
+  test("PIH-4 EngineCheck Interaction reuses existing pawn statuses without engine-owned claims"):
+    final case class PawnEngineFixture(
+        label: String,
+        facts: BoardFacts,
+        story: Story,
+        line: Line,
+        reply: Line,
+        expectedClaim: ExplanationClaim,
+        attach: (Story, EngineCheck) => Option[Story]
+    )
+
+    def engineCheck(fixture: PawnEngineFixture, status: EngineCheckStatus): EngineCheck =
+      EngineCheck.fromStory(
+        facts = fixture.facts,
+        story = Some(fixture.story),
+        engineLine = Some(EngineLine(Vector(fixture.line))),
+        replyLine = Some(EngineLine(Vector(fixture.reply))),
+        evalBefore = Some(EngineEval(40)),
+        evalAfter = Some(EngineEval(45)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    def selected(story: Story): Verdict =
+      StoryTable.choose(Vector(story)).head
+
+    def assertNoEnginePublicValues(label: String, verdict: Verdict): Unit =
+      assertEquals(verdict.values.contains(1234.0), false, label)
+      assertEquals(verdict.values.contains(1240.0), false, label)
+
+    def assertRejectsEngineSpeech(label: String, plan: ExplanationPlan, rendered: RenderedLine): Unit =
+      Vector(
+        "The engine says this is best.",
+        "Raw PV: e6 Ke7 proves it.",
+        "+12.34 is the public eval.",
+        "1234 centipawns proves the move.",
+        "This is the best move.",
+        "This is the only move.",
+        "This is a tablebase-like claim.",
+        "This is a tablebase draw."
+      ).foreach: output =>
+        assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, s"$label: $output")
+
+    val advanceFacts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advanceLine = Line(Square('e', 5), Square('e', 6))
+    val advanceStory = ScenePawnAdvance.write(advanceFacts, advanceLine).get
+    val stopFacts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stopLine = Line(Square('g', 7), Square('e', 6))
+    val stopStory = ScenePawnStop.write(stopFacts, stopLine).get
+
+    Vector(
+      PawnEngineFixture(
+        label = "Scene.PawnAdvance",
+        facts = advanceFacts,
+        story = advanceStory,
+        line = advanceLine,
+        reply = Line(Square('e', 8), Square('e', 7)),
+        expectedClaim = ExplanationClaim.AdvancesPassedPawn,
+        attach = ScenePawnAdvance.withEngineCheck
+      ),
+      PawnEngineFixture(
+        label = "Scene.PawnStop",
+        facts = stopFacts,
+        story = stopStory,
+        line = stopLine,
+        reply = Line(Square('e', 1), Square('e', 2)),
+        expectedClaim = ExplanationClaim.StopsPassedPawnNextAdvance,
+        attach = ScenePawnStop.withEngineCheck
+      )
+    ).foreach: fixture =>
+      val baseVerdict = selected(fixture.story)
+      val basePlan = ExplanationPlan.fromSelected(baseVerdict).get
+      val baseRendered = DeterministicRenderer.fromPlan(basePlan).get
+      val supports = fixture.attach(fixture.story, engineCheck(fixture, EngineCheckStatus.Supports)).get
+      val caps = fixture.attach(fixture.story, engineCheck(fixture, EngineCheckStatus.Caps)).get
+      val refutes = fixture.attach(fixture.story, engineCheck(fixture, EngineCheckStatus.Refutes)).get
+      val unknown = fixture.attach(fixture.story, engineCheck(fixture, EngineCheckStatus.Unknown)).get
+
+      val supportsVerdict = selected(supports)
+      val supportsPlan = ExplanationPlan.fromSelected(supportsVerdict).get
+      val supportsRendered = DeterministicRenderer.fromPlan(supportsPlan).get
+      val capsVerdict = selected(caps)
+      val refutesVerdict = selected(refutes)
+      val unknownVerdict = selected(unknown)
+      val unknownPlan = ExplanationPlan.fromSelected(unknownVerdict).get
+      val unknownRendered = DeterministicRenderer.fromPlan(unknownPlan).get
+
+      assertEquals(basePlan.allowedClaim, Some(fixture.expectedClaim), fixture.label)
+      assertEquals(supportsVerdict.role, Role.Lead, fixture.label)
+      assertEquals(supportsPlan.allowedClaim, basePlan.allowedClaim, fixture.label)
+      assertEquals(supportsRendered.text, baseRendered.text, fixture.label)
+      assertRejectsEngineSpeech(s"${fixture.label} Supports", supportsPlan, supportsRendered)
+
+      assertEquals(capsVerdict.engineCheckStatus, Some(EngineCheckStatus.Caps), fixture.label)
+      assertEquals(capsVerdict.engineStrengthLimited, true, fixture.label)
+      assertEquals(ExplanationPlan.fromSelected(capsVerdict), None, fixture.label)
+      assertEquals(DeterministicRenderer.fromPlan(basePlan.copy(allowedClaim = None)), None, fixture.label)
+
+      assertEquals(refutesVerdict.role, Role.Blocked, fixture.label)
+      assertEquals(refutesVerdict.leadAllowed, false, fixture.label)
+      assertEquals(refutesVerdict.engineCheckStatus, Some(EngineCheckStatus.Refutes), fixture.label)
+      assertEquals(ExplanationPlan.fromSelected(refutesVerdict), None, fixture.label)
+
+      assertEquals(unknownVerdict.role, Role.Lead, fixture.label)
+      assertEquals(unknownVerdict.engineCheckStatus, Some(EngineCheckStatus.Unknown), fixture.label)
+      assertEquals(unknownPlan.allowedClaim, basePlan.allowedClaim, fixture.label)
+      assertEquals(unknownRendered.text, baseRendered.text, fixture.label)
+      assertRejectsEngineSpeech(s"${fixture.label} Unknown", unknownPlan, unknownRendered)
+
+      Vector(baseVerdict, supportsVerdict, capsVerdict, refutesVerdict, unknownVerdict).foreach: verdict =>
+        assertNoEnginePublicValues(fixture.label, verdict)
+
+  test("PIH-5 Negative Corpus keeps close pawn false positives silent"):
+    def selected(story: Story): Verdict =
+      StoryTable.choose(Vector(story)).head
+
+    def assertSilent(label: String, story: Story): Unit =
+      val verdict = selected(story)
+      assertEquals(verdict.role, Role.Blocked, label)
+      assertEquals(verdict.leadAllowed, false, label)
+      assertEquals(ExplanationPlan.fromSelected(verdict), None, label)
+      assertEquals(ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan), None, label)
+
+    def engineCheck(
+        facts: BoardFacts,
+        story: Story,
+        line: Line,
+        status: EngineCheckStatus,
+        before: Int = 20,
+        after: Int = 20,
+        freshness: Option[Int] = Some(0)
+    ): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(line))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(before)),
+        evalAfter = Some(EngineEval(after)),
+        depth = Some(18),
+        freshnessPly = freshness,
+        requestedStatus = status
+      )
+
+    val notPassedFacts = BoardFacts.fromFen("4k3/8/3p4/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val notPassedAdvance = Line(Square('e', 5), Square('e', 6))
+    val notPassedProof = PawnAdvanceProof.fromBoardFacts(notPassedFacts, notPassedAdvance)
+    assertEquals(notPassedProof.legalOneStepNonCaptureNonPromotion, true)
+    assertEquals(notPassedProof.alreadyPassedBefore, false)
+    assertEquals(notPassedProof.complete, false)
+    assertEquals(ScenePawnAdvance.write(notPassedFacts, notPassedAdvance), None, "pawn advances but was not passed")
+
+    val advanceFacts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advanceLine = Line(Square('e', 5), Square('e', 6))
+    val advanceStory = ScenePawnAdvance.write(advanceFacts, advanceLine).get
+    val noAfterReplay =
+      advanceStory.copy(pawnAdvanceProof =
+        advanceStory.pawnAdvanceProof.map(_.copy(exactAfterBoardReplay = false, missingEvidence = Vector.empty))
+      )
+    assertSilent("passed pawn advances but no exact after-board proof", noAfterReplay)
+
+    val routeMismatch =
+      advanceStory.copy(route = Some(Line(Square('e', 5), Square('e', 7))))
+    assertSilent("route mismatch", routeMismatch)
+
+    val stopFacts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stopLine = Line(Square('g', 7), Square('e', 6))
+    val safeNextAdvanceMove = Line(Square('g', 7), Square('f', 5))
+    val safeNextAdvanceProof = PawnStopProof.fromBoardFacts(stopFacts, safeNextAdvanceMove)
+    assertEquals(safeNextAdvanceProof.nextAdvanceSquare, Some(Square('e', 6)))
+    assertEquals(safeNextAdvanceProof.nextAdvanceSquareOccupiedAfter, false)
+    assertEquals(safeNextAdvanceProof.nextAdvanceSquareAttackedAfter, false)
+    assertEquals(safeNextAdvanceProof.nextAdvanceSquareControlledByPawnAfter, false)
+    assertEquals(safeNextAdvanceProof.nextAdvanceSquareStoppedAfter, false)
+    assertEquals(ScenePawnStop.write(stopFacts, safeNextAdvanceMove), None, "next square still available")
+
+    val stopStory = ScenePawnStop.write(stopFacts, stopLine).get
+    assertSilent("long-term blockade claim", stopStory.copy(plan = Some(Plan.PasserBlock)))
+
+    val promotionLookingFacts = BoardFacts.fromFen("4k3/8/4P3/8/8/8/8/4K3 w - - 0 1").toOption.get
+    val promotionLookingLine = Line(Square('e', 6), Square('e', 7))
+    val promotionLookingAdvance = ScenePawnAdvance.write(promotionLookingFacts, promotionLookingLine).get
+    val promotionPlan = ExplanationPlan.fromSelected(selected(promotionLookingAdvance)).get
+    val promotionRendered = DeterministicRenderer.fromPlan(promotionPlan).get
+    Vector("e7 will promote next.", "e7 is unstoppable.", "e7 converts the advantage.").foreach: output =>
+      assertEquals(LlmNarrationSmoke.check(promotionPlan, promotionRendered, output).accepted, false, output)
+
+    assertSilent("tablebase-looking position", stopStory.copy(scene = Scene.Endgame, pawnStopProof = None))
+    assertSilent("king opposition-looking position", stopStory.copy(scene = Scene.Endgame, plan = Some(Plan.KingConvert), pawnStopProof = None))
+    assertSilent("pawn race-looking position", promotionLookingAdvance.copy(scene = Scene.Pawns, plan = Some(Plan.Race), pawnAdvanceProof = None))
+
+    val wrongBoard = BoardFacts.fromFen("4k3/8/8/8/4P3/8/8/4K3 w - - 0 1").toOption.get
+    val wrongBoardCheck = engineCheck(wrongBoard, advanceStory, advanceLine, EngineCheckStatus.Supports)
+    val staleCheck = engineCheck(advanceFacts, advanceStory, advanceLine, EngineCheckStatus.Supports, freshness = Some(2))
+    val routeMismatchCheck =
+      EngineCheck.fromStory(
+        facts = advanceFacts,
+        story = Some(advanceStory),
+        engineLine = Some(EngineLine(Vector(Line(Square('e', 5), Square('e', 7))))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(20)),
+        evalAfter = Some(EngineEval(20)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = EngineCheckStatus.Supports
+      )
+    Vector("wrong board" -> wrongBoardCheck, "stale board" -> staleCheck, "route mismatch check" -> routeMismatchCheck).foreach:
+      (label, check) =>
+        assertEquals(check.status, EngineCheckStatus.Unknown, label)
+        assertEquals(ScenePawnAdvance.withEngineCheck(advanceStory, check), None, label)
+
+    val refutingCheck =
+      engineCheck(advanceFacts, advanceStory, advanceLine, EngineCheckStatus.Supports, before = 220, after = 20)
+    val refutedStory = ScenePawnAdvance.withEngineCheck(advanceStory, refutingCheck).get
+    assertEquals(refutingCheck.status, EngineCheckStatus.Refutes)
+    assertSilent("engine refutes plausible pawn row", refutedStory)
+
+  test("PIH-6 Downstream Boundary Smoke sends only selected Lead pawn Verdicts to text stages"):
+    def engineCheck(facts: BoardFacts, story: Story, line: Line, status: EngineCheckStatus): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(line))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(1234)),
+        evalAfter = Some(EngineEval(1240)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    def assertDownstreamBoundary(
+        label: String,
+        leadStory: Story,
+        supportStory: Story,
+        contextStory: Story,
+        blockedStory: Story,
+        cappedStory: Story,
+        refutedStory: Story,
+        expectedClaim: ExplanationClaim
+    ): Unit =
+      val rows =
+        Vector(
+          "Lead" -> leadStory,
+          "Support" -> supportStory,
+          "Context" -> contextStory,
+          "Blocked" -> blockedStory,
+          "Capped" -> cappedStory,
+          "Refuted" -> refutedStory
+        )
+      val verdicts = StoryTable.choose(rows.map(_._2))
+      val byId = verdicts.map(verdict => rows.collectFirst { case (id, story) if story == verdict.story => id }.get -> verdict).toMap
+      assertEquals(byId("Lead").role, Role.Lead, label)
+      assertEquals(byId("Support").role, Role.Support, label)
+      assertEquals(byId("Context").role, Role.Context, label)
+      assertEquals(byId("Blocked").role, Role.Blocked, label)
+      assertEquals(byId("Capped").engineStrengthLimited, true, label)
+      assertEquals(byId("Refuted").engineCheckStatus, Some(EngineCheckStatus.Refutes), label)
+
+      val leadPlan = ExplanationPlan.fromSelected(byId("Lead")).get
+      val rendered = DeterministicRenderer.fromPlan(leadPlan).get
+      val prompt = LlmNarrationSmoke.codexCliPrompt(leadPlan, rendered).get
+      assertEquals(leadPlan.allowedClaim, Some(expectedClaim), label)
+      assertEquals(rendered.claimKey, expectedClaim.key, label)
+      assert(prompt.contains("instruction: Rephrase only. Do not add chess facts."), label)
+      Vector("renderedText:", "claimKey:", "strength:", "forbiddenWording:").foreach: field =>
+        assert(prompt.contains(field), s"$label prompt missing $field")
+      Vector(
+        "BoardFacts",
+        "Story(",
+        "Verdict(",
+        "EngineCheck",
+        "EngineEval",
+        "EngineLine",
+        "proofFailures",
+        "sourceRow",
+        "FEN",
+        "raw PV",
+        "routeSan"
+      ).foreach: forbiddenInput =>
+        assertEquals(prompt.contains(forbiddenInput), false, s"$label prompt leaked $forbiddenInput")
+
+      Vector(
+        ForbiddenWording.PromotionThreat,
+        ForbiddenWording.UnstoppablePawn,
+        ForbiddenWording.WinningEndgame,
+        ForbiddenWording.ConvertsAdvantage,
+        ForbiddenWording.DrawsEndgame,
+        ForbiddenWording.TablebaseDraw,
+        ForbiddenWording.BestMove,
+        ForbiddenWording.OnlyMove,
+        ForbiddenWording.Forced,
+        ForbiddenWording.CreatesPressure,
+        ForbiddenWording.TakesInitiative
+      ).foreach: forbidden =>
+        assert(leadPlan.forbiddenWording.contains(forbidden), s"$label missing forbidden wording ${forbidden.key}")
+
+      Vector("Support", "Context", "Blocked", "Capped", "Refuted").foreach: id =>
+        assertEquals(ExplanationPlan.fromSelected(byId(id)), None, s"$label $id plan")
+        assertEquals(ExplanationPlan.fromSelected(byId(id)).flatMap(DeterministicRenderer.fromPlan), None, s"$label $id render")
+
+      Vector(
+        "will promote",
+        "is unstoppable",
+        "wins the endgame",
+        "is winning",
+        "conversion",
+        "draws the endgame",
+        "holds the endgame",
+        "tablebase",
+        "is the best move",
+        "is the only move",
+        "is forced",
+        "creates pressure",
+        "takes the initiative"
+      ).foreach: phrase =>
+        val output = s"${rendered.text} It $phrase."
+        assertEquals(LlmNarrationSmoke.check(leadPlan, rendered, output).accepted, false, s"$label: $phrase")
+
+    val advanceFacts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advanceLine = Line(Square('e', 5), Square('e', 6))
+    val advanceLead = ScenePawnAdvance.write(advanceFacts, advanceLine).get
+    val advanceSupport = advanceLead.copy(proof = advanceLead.proof.copy(clarity = 99))
+    val advanceContext = advanceLead.copy(proof = advanceLead.proof.copy(boardProof = 20))
+    val advanceBlocked =
+      advanceLead.copy(pawnAdvanceProof =
+        advanceLead.pawnAdvanceProof.map(_.copy(exactAfterBoardReplay = false, missingEvidence = Vector.empty))
+      )
+    val advanceCapped =
+      ScenePawnAdvance.withEngineCheck(advanceLead, engineCheck(advanceFacts, advanceLead, advanceLine, EngineCheckStatus.Caps)).get
+    val advanceRefuted =
+      ScenePawnAdvance.withEngineCheck(advanceLead, engineCheck(advanceFacts, advanceLead, advanceLine, EngineCheckStatus.Refutes)).get
+    assertDownstreamBoundary(
+      "Scene.PawnAdvance",
+      advanceLead,
+      advanceSupport,
+      advanceContext,
+      advanceBlocked,
+      advanceCapped,
+      advanceRefuted,
+      ExplanationClaim.AdvancesPassedPawn
+    )
+
+    val stopFacts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stopLine = Line(Square('g', 7), Square('e', 6))
+    val stopLead = ScenePawnStop.write(stopFacts, stopLine).get
+    val stopSupport = stopLead.copy(proof = stopLead.proof.copy(clarity = 99))
+    val stopContext = stopLead.copy(proof = stopLead.proof.copy(boardProof = 20))
+    val stopBlocked =
+      stopLead.copy(pawnStopProof =
+        stopLead.pawnStopProof.map(_.copy(nextAdvanceSquareStoppedAfter = false, missingEvidence = Vector.empty))
+      )
+    val stopCapped =
+      ScenePawnStop.withEngineCheck(stopLead, engineCheck(stopFacts, stopLead, stopLine, EngineCheckStatus.Caps)).get
+    val stopRefuted =
+      ScenePawnStop.withEngineCheck(stopLead, engineCheck(stopFacts, stopLead, stopLine, EngineCheckStatus.Refutes)).get
+    assertDownstreamBoundary(
+      "Scene.PawnStop",
+      stopLead,
+      stopSupport,
+      stopContext,
+      stopBlocked,
+      stopCapped,
+      stopRefuted,
+      ExplanationClaim.StopsPassedPawnNextAdvance
+    )
+
+  test("PIH-7 Diagnostics Boundary keeps pawn diagnostics out of public meaning"):
+    def engineCheck(facts: BoardFacts, story: Story, line: Line, status: EngineCheckStatus): EngineCheck =
+      EngineCheck.fromStory(
+        facts = facts,
+        story = Some(story),
+        engineLine = Some(EngineLine(Vector(line))),
+        replyLine = Some(EngineLine(Vector(Line(Square('e', 8), Square('e', 7))))),
+        evalBefore = Some(EngineEval(1234)),
+        evalAfter = Some(EngineEval(1240)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+
+    def assertDiagnosticBoundary(
+        label: String,
+        story: Story,
+        blockedStory: Story,
+        cappedStory: Story,
+        refutedStory: Story,
+        expectedClaim: ExplanationClaim
+    ): Unit =
+      val blockedVerdict = StoryTable.choose(Vector(blockedStory)).head
+      assertEquals(blockedVerdict.role, Role.Blocked, label)
+      assertEquals(blockedVerdict.proofFailures.nonEmpty, true, label)
+      assertEquals(ExplanationPlan.fromSelected(blockedVerdict), None, label)
+      assertEquals(DeterministicRenderer.fromPlan(ExplanationPlan(
+        role = Role.Blocked,
+        scene = story.scene,
+        tactic = None,
+        side = story.side,
+        target = story.target,
+        anchor = story.anchor,
+        route = story.route,
+        routeSan = story.routeSan,
+        secondaryTarget = None,
+        allowedClaim = Some(expectedClaim),
+        evidenceLine = story.route,
+        strength = ExplanationStrength.Bounded,
+        forbiddenWording = Vector(ForbiddenWording.EngineSays),
+        relations = Vector(ExplanationRelation.BlockedByEngineRefute),
+        debugOnly = true,
+        supportContextLinks = Vector.empty
+      )), None, label)
+
+      Vector(
+        "PawnAdvanceProof",
+        "PawnStopProof",
+        "exact after-board replay",
+        "missing evidence",
+        "same-board proof",
+        "EngineCheck",
+        "EngineLine",
+        "EngineEval",
+        "1234",
+        "1240"
+      ).foreach: diagnostic =>
+        assertEquals(blockedVerdict.values.mkString(" ").contains(diagnostic), false, s"$label Verdict.values leaked $diagnostic")
+
+      val cappedVerdict = StoryTable.choose(Vector(cappedStory)).head
+      assertEquals(cappedVerdict.engineStrengthLimited, true, label)
+      assertEquals(ExplanationPlan.fromSelected(cappedVerdict), None, label)
+
+      val refutedVerdict = StoryTable.choose(Vector(refutedStory)).head
+      assertEquals(refutedVerdict.role, Role.Blocked, label)
+      assertEquals(refutedVerdict.engineCheckStatus, Some(EngineCheckStatus.Refutes), label)
+      assertEquals(ExplanationPlan.fromSelected(refutedVerdict), None, label)
+
+      val leadPlan = ExplanationPlan.fromSelected(StoryTable.choose(Vector(story)).head).get
+      val rendered = DeterministicRenderer.fromPlan(leadPlan).get
+      val prompt = LlmNarrationSmoke.codexCliPrompt(leadPlan, rendered).get
+      Vector(
+        "proofFailures",
+        "missing evidence",
+        "exact after-board replay",
+        "same-board proof",
+        "EngineCheck",
+        "EngineLine",
+        "EngineEval",
+        "StoryTable",
+        "debug relation",
+        "blocked_by_engine_refute",
+        "capped_same_story"
+      ).foreach: diagnostic =>
+        assertEquals(prompt.contains(diagnostic), false, s"$label prompt leaked $diagnostic")
+
+      val relationInjectedPlan =
+        leadPlan.copy(relations =
+          Vector(
+            ExplanationRelation.BlockedByEngineRefute,
+            ExplanationRelation.CappedSameStory,
+            ExplanationRelation.SameFamilyLowerRank
+          )
+        )
+      val relationRendered = DeterministicRenderer.fromPlan(relationInjectedPlan).get
+      Vector("blocked_by_engine_refute", "capped_same_story", "same_family_lower_rank", "debug relation", "StoryTable").foreach:
+        diagnostic =>
+          assertEquals(relationRendered.text.contains(diagnostic), false, s"$label renderer leaked $diagnostic")
+
+      Vector(
+        s"${rendered.text} Missing evidence: exact after-board replay.",
+        s"${rendered.text} StoryTable debug relation: blocked_by_engine_refute.",
+        s"${rendered.text} EngineCheck text says +12.34.",
+        s"${rendered.text} capped_same_story proves the row.",
+        s"${rendered.text} proofFailures show same-board proof failed."
+      ).foreach: output =>
+        assertEquals(LlmNarrationSmoke.check(leadPlan, rendered, output).accepted, false, s"$label accepted diagnostic output: $output")
+
+      val runtimeRoot = Paths.get("modules/commentary/src/main/scala/lila/commentary/chess")
+      val runtimeSourceStream = Files.walk(runtimeRoot)
+      val runtimeText =
+        try
+          runtimeSourceStream
+            .iterator()
+            .asScala
+            .filter(path => Files.isRegularFile(path) && path.toString.endsWith(".scala"))
+            .map(Files.readString)
+            .mkString("\n")
+        finally runtimeSourceStream.close()
+      Vector(
+        "PIH-",
+        "fixture map",
+        "negative corpus",
+        "Pawn Interaction Hardening"
+      ).foreach: helperOnlyTerm =>
+        assert(!runtimeText.contains(helperOnlyTerm), s"$label test helper term became runtime authority: $helperOnlyTerm")
+
+    val advanceFacts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advanceLine = Line(Square('e', 5), Square('e', 6))
+    val advanceStory = ScenePawnAdvance.write(advanceFacts, advanceLine).get
+    val advanceBlocked =
+      advanceStory.copy(
+        pawnAdvanceProof =
+          advanceStory.pawnAdvanceProof.map(_.copy(exactAfterBoardReplay = false, missingEvidence = Vector.empty)),
+        storyProof = StoryProof.empty
+      )
+    assertDiagnosticBoundary(
+      "Scene.PawnAdvance",
+      advanceStory,
+      advanceBlocked,
+      ScenePawnAdvance.withEngineCheck(advanceStory, engineCheck(advanceFacts, advanceStory, advanceLine, EngineCheckStatus.Caps)).get,
+      ScenePawnAdvance.withEngineCheck(advanceStory, engineCheck(advanceFacts, advanceStory, advanceLine, EngineCheckStatus.Refutes)).get,
+      ExplanationClaim.AdvancesPassedPawn
+    )
+
+    val stopFacts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stopLine = Line(Square('g', 7), Square('e', 6))
+    val stopStory = ScenePawnStop.write(stopFacts, stopLine).get
+    val stopBlocked =
+      stopStory.copy(
+        pawnStopProof =
+          stopStory.pawnStopProof.map(_.copy(nextAdvanceSquareStoppedAfter = false, missingEvidence = Vector.empty)),
+        storyProof = StoryProof.empty
+      )
+    assertDiagnosticBoundary(
+      "Scene.PawnStop",
+      stopStory,
+      stopBlocked,
+      ScenePawnStop.withEngineCheck(stopStory, engineCheck(stopFacts, stopStory, stopLine, EngineCheckStatus.Caps)).get,
+      ScenePawnStop.withEngineCheck(stopStory, engineCheck(stopFacts, stopStory, stopLine, EngineCheckStatus.Refutes)).get,
+      ExplanationClaim.StopsPassedPawnNextAdvance
+    )
+
+  test("PIH Closeout Hard Cleanup keeps pawn interaction authority separated and surfaces closed"):
+    val advanceFacts = BoardFacts.fromFen("4k3/8/8/4P3/8/8/8/4K3 w - - 0 1").toOption.get
+    val advanceLine = Line(Square('e', 5), Square('e', 6))
+    val advanceObservation =
+      advanceFacts.seen.passedPawnObservations.find(row => row.side == Side.White && row.pawn.square == Square('e', 5)).get
+    val advanceProof = PawnAdvanceProof.fromBoardFacts(advanceFacts, advanceLine)
+    val advanceStory = ScenePawnAdvance.write(advanceFacts, advanceLine).get
+    val advancePlan = ExplanationPlan.fromSelected(StoryTable.choose(Vector(advanceStory)).head).get
+    val advanceRendered = DeterministicRenderer.fromPlan(advancePlan).get
+
+    val stopFacts = BoardFacts.fromFen("4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1").toOption.get
+    val stopLine = Line(Square('g', 7), Square('e', 6))
+    val stopObservation =
+      stopFacts.seen.passedPawnObservations.find(row => row.side == Side.White && row.pawn.square == Square('e', 5)).get
+    val stopProof = PawnStopProof.fromBoardFacts(stopFacts, stopLine)
+    val stopStory = ScenePawnStop.write(stopFacts, stopLine).get
+    val stopPlan = ExplanationPlan.fromSelected(StoryTable.choose(Vector(stopStory)).head).get
+    val stopRendered = DeterministicRenderer.fromPlan(stopPlan).get
+
+    assertEquals(advanceObservation.pawn, advanceProof.pawnBefore.get)
+    assertEquals(advanceObservation.pawn, stopObservation.pawn)
+    assertEquals(stopProof.targetPawn, Some(stopObservation.pawn))
+    assertEquals(advanceProof.publicClaimAllowed, false)
+    assertEquals(stopProof.publicClaimAllowed, false)
+
+    assertEquals(advanceStory.scene, Scene.PawnAdvance)
+    assertEquals(advanceStory.writer, Some(StoryWriter.ScenePawnAdvance))
+    assertEquals(advanceStory.pawnAdvanceProof, Some(advanceProof))
+    assertEquals(advanceStory.pawnStopProof, None)
+    assertEquals(advanceStory.threatProof, None)
+    assertEquals(advanceStory.defenseProof, None)
+    assertEquals(advanceStory.captureResult, None)
+    assertEquals(advanceStory.lineProof, None)
+    assertEquals(advanceStory.pinProof, None)
+    assertEquals(advanceStory.removeGuardProof, None)
+    assertEquals(advanceStory.skewerProof, None)
+    assertEquals(advancePlan.allowedClaim, Some(ExplanationClaim.AdvancesPassedPawn))
+    assertEquals(advanceRendered.claimKey, "advances_passed_pawn")
+
+    assertEquals(stopStory.scene, Scene.PawnStop)
+    assertEquals(stopStory.writer, Some(StoryWriter.ScenePawnStop))
+    assertEquals(stopStory.pawnStopProof, Some(stopProof))
+    assertEquals(stopStory.pawnAdvanceProof, None)
+    assertEquals(stopStory.threatProof, None)
+    assertEquals(stopStory.defenseProof, None)
+    assertEquals(stopStory.captureResult, None)
+    assertEquals(stopStory.lineProof, None)
+    assertEquals(stopStory.pinProof, None)
+    assertEquals(stopStory.removeGuardProof, None)
+    assertEquals(stopStory.skewerProof, None)
+    assertEquals(stopPlan.allowedClaim, Some(ExplanationClaim.StopsPassedPawnNextAdvance))
+    assertEquals(stopRendered.claimKey, "stops_pawn_advance")
+
+    assertEquals(ExplanationClaim.PawnAdvanceAllowed.map(_.key), Vector("advances_passed_pawn"))
+    assertEquals(ExplanationClaim.PawnStopAllowed.map(_.key), Vector("stops_pawn_advance"))
+    assertEquals(ExplanationClaim.PawnAdvanceAllowed.intersect(ExplanationClaim.PawnStopAllowed), Vector.empty)
+    Vector(
+      ExplanationClaim.MaterialAllowed,
+      ExplanationClaim.DefenseAllowed,
+      ExplanationClaim.HangingAllowed,
+      ExplanationClaim.DiscoveredAttackAllowed,
+      ExplanationClaim.PinAllowed,
+      ExplanationClaim.RemoveGuardAllowed,
+      ExplanationClaim.SkewerAllowed
+    ).foreach: openedHomeClaims =>
+      assertEquals(openedHomeClaims.contains(ExplanationClaim.AdvancesPassedPawn), false)
+      assertEquals(openedHomeClaims.contains(ExplanationClaim.StopsPassedPawnNextAdvance), false)
+
+    assertEquals(
+      StoryWriter.values.toVector,
+      Vector(
+        StoryWriter.TacticHanging,
+        StoryWriter.TacticFork,
+        StoryWriter.SceneMaterial,
+        StoryWriter.SceneDefense,
+        StoryWriter.TacticDiscoveredAttack,
+        StoryWriter.TacticPin,
+        StoryWriter.TacticRemoveGuard,
+        StoryWriter.TacticSkewer,
+        StoryWriter.ScenePawnAdvance,
+        StoryWriter.ScenePawnStop,
+        StoryWriter.ScenePromotionThreat
+      )
+    )
+    val livePositiveClaimKeys = ExplanationClaim.values.map(_.key).toVector
+    Vector(
+      "promotion",
+      "pawn_break",
+      "tablebase",
+      "tablebase_draw",
+      "pawn_race",
+      "king_route",
+      "opposition",
+      "unstoppable",
+      "conversion",
+      "winning_endgame",
+      "draws_endgame"
+    ).foreach: closedClaim =>
+      assert(!livePositiveClaimKeys.contains(closedClaim), s"closed pawn meaning became a live claim key: $closedClaim")
+
+    val storyFieldNames = classOf[Story].getDeclaredFields.map(_.getName).toSet
+    Vector(
+      "promotionProof",
+      "pawnBreakProof",
+      "tablebaseProof",
+      "pawnRaceProof",
+      "kingRouteProof",
+      "oppositionProof",
+      "conversionProof",
+      "winningEndgameProof"
+    ).foreach: closedProofHome =>
+      assert(!storyFieldNames.contains(closedProofHome), s"closed proof home reached Story: $closedProofHome")
+
+    val pawnForbiddenKeys = (advancePlan.forbiddenWording ++ stopPlan.forbiddenWording).map(_.key).toSet
+    Vector("promotion_threat", "tablebase_draw", "pawn_race", "king_route", "opposition").foreach: forbiddenKey =>
+      assert(pawnForbiddenKeys.contains(forbiddenKey), s"closed meaning must remain forbidden wording only: $forbiddenKey")
+
+    Vector(advanceRendered.text, stopRendered.text).foreach: text =>
+      val lowered = text.toLowerCase
+      Vector(
+        "will promote",
+        "promotion",
+        "pawn break",
+        "tablebase",
+        "pawn race",
+        "king route",
+        "opposition",
+        "unstoppable",
+        "conversion",
+        "winning",
+        "draw"
+      ).foreach: forbidden =>
+        assert(!lowered.contains(forbidden), s"closed pawn wording leaked to renderer: $forbidden")
+
+    val runtimeRoot = Paths.get("modules/commentary/src/main/scala/lila/commentary/chess")
+    val runtimeSourceStream = Files.walk(runtimeRoot)
+    val runtimeText =
+      try
+        runtimeSourceStream
+          .iterator()
+          .asScala
+          .filter(path => Files.isRegularFile(path) && path.toString.endsWith(".scala"))
+          .map(Files.readString)
+          .mkString("\n")
+      finally runtimeSourceStream.close()
+    Vector(
+      "PIH Closeout",
+      "Pawn Interaction Hardening",
+      "fixture map",
+      "negative corpus",
+      "tablebase authority",
+      "public route 200",
+      "production API",
+      "user-facing LLM"
+    ).foreach: closeoutOnlyTerm =>
+      assert(!runtimeText.contains(closeoutOnlyTerm), s"closeout-only term became runtime authority: $closeoutOnlyTerm")
 
   test("Board Facts legal rows cannot become public claims without Story Proof"):
     val facts = BoardFacts.fromFen(Fen.initial).toOption.get
@@ -12563,7 +16781,7 @@ class ChessFoundationTest extends munit.FunSuite:
     val verdict = Verdict(story, rank = 2, leadAllowed = false, strength = 87.5, role = Role.Blocked)
     val values = verdict.values
 
-    assertEquals(Verdict.Size, 97)
+    assertEquals(Verdict.Size, 100)
     assertEquals(values.size, Verdict.Size)
     assertEquals(Verdict.Slots.Role, 0)
     assertEquals(Verdict.Slots.Rank, 1)
@@ -12574,9 +16792,9 @@ class ChessFoundationTest extends munit.FunSuite:
     assertEquals(Verdict.Slots.Target, 6)
     assertEquals(Verdict.Slots.Anchor, 7)
     assertEquals(Verdict.Slots.Scene, 8)
-    assertEquals(Verdict.Slots.Plan, 24)
-    assertEquals(Verdict.Slots.Tactic, 56)
-    assertEquals(Verdict.Slots.Proof, 81)
+    assertEquals(Verdict.Slots.Plan, 27)
+    assertEquals(Verdict.Slots.Tactic, 59)
+    assertEquals(Verdict.Slots.Proof, 84)
     assertEquals(Verdict.Slots.End, Verdict.Size)
     assertEqualsDouble(values(Verdict.Slots.Role), Role.Blocked.ordinal.toDouble, 0.0)
     assertEqualsDouble(values(Verdict.Slots.Rank), 2.0, 0.0)

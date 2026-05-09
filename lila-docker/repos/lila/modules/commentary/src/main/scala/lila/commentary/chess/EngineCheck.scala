@@ -249,6 +249,74 @@ private[commentary] object EngineCheck:
                       )
                   )
               )
+      case Some(StoryWriter.ScenePawnAdvance) =>
+        story.scene == Scene.PawnAdvance &&
+          story.tactic.isEmpty &&
+          story.plan.isEmpty &&
+          story.proofFailures.isEmpty &&
+          story.pawnAdvanceProof.exists: proof =>
+            proof.complete &&
+              proof.sameBoardProof &&
+              proof.legalOneStepNonCaptureNonPromotion &&
+              proof.alreadyPassedBefore &&
+              proof.afterBoardPassedPawn &&
+              proof.exactAfterBoardReplay &&
+              proof.advanceMove.exists(move =>
+                story.route.contains(move) &&
+                  (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+              ) &&
+              proof.pawnBefore.exists(pieces.contains) &&
+              proof.fromSquare == story.anchor &&
+              proof.toSquare == story.target
+      case Some(StoryWriter.ScenePawnStop) =>
+        story.scene == Scene.PawnStop &&
+          story.tactic.isEmpty &&
+          story.plan.isEmpty &&
+          story.proofFailures.isEmpty &&
+          story.pawnStopProof.exists: proof =>
+            proof.complete &&
+              proof.sameBoardProof &&
+              proof.legalStopMove &&
+              proof.targetPawn.nonEmpty &&
+              proof.targetPawnAlreadyPassed &&
+              proof.nextAdvanceSquareNonPromotion &&
+              proof.nextAdvanceSquareEmptyBefore &&
+              proof.stopKind.exists(PawnStopKind.values.contains) &&
+              (
+                proof.nextAdvanceSquareOccupiedAfter ||
+                  proof.nextAdvanceSquareAttackedAfter ||
+                  proof.nextAdvanceSquareControlledByPawnAfter
+              ) &&
+              proof.exactAfterBoardReplay &&
+              proof.targetPawnStillPresentAfter &&
+              proof.nextAdvanceSquareStoppedAfter &&
+              proof.stopMove.exists(move =>
+                story.route.contains(move) &&
+                  (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+              ) &&
+              proof.targetPawn.exists(pieces.contains) &&
+              proof.nextAdvanceSquare == story.target &&
+              proof.stopMove.map(_.from) == story.anchor
+      case Some(StoryWriter.ScenePromotionThreat) =>
+        story.scene == Scene.PromotionThreat &&
+          story.tactic.isEmpty &&
+          story.plan.isEmpty &&
+          story.proofFailures.isEmpty &&
+          story.promotionThreatProof.exists: proof =>
+            proof.complete &&
+              proof.sameBoardProof &&
+              proof.legalPawnMove &&
+              proof.nonPromotionCreatingMove &&
+              proof.exactAfterBoardReplay &&
+              proof.nextMovePromotionLegal &&
+              proof.creatingMove.exists(move =>
+                story.route.contains(move) &&
+                  (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+              ) &&
+              proof.pawnBefore.exists(pieces.contains) &&
+              proof.pawnBefore.map(_.square) == story.anchor &&
+              proof.promotionSquare == story.target &&
+              proof.nextPromotionMove == proof.promotionRoute
       case _ => false
 
   private def checkedStatus(

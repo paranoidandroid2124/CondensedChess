@@ -6492,7 +6492,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture, contract).foreach: doc =>
       val normalizedDoc = doc.replaceAll("\\s+", " ")
-      assert(normalizedDoc.contains("Current implementation scope is Pawn / Promotion Neighborhood second vertical slice."))
+      assert(normalizedDoc.contains("Current implementation scope is Pawn / Promotion Neighborhood third vertical slice."))
       assert(normalizedDoc.contains("PawnStop-0 is owned by `StoryInteractionLaw.md`."))
       assert(normalizedDoc.contains("The only bounded claim key is `stops_pawn_advance`"))
       assert(!doc.contains("### PawnStop-0 Charter"), "summary docs must not duplicate detailed PawnStop charter")
@@ -6500,6 +6500,288 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     assert(manifest.contains("PawnStop-0 authority lives in `StoryInteractionLaw.md`."))
     assert(manifest.contains("legacy broad pawn defense"))
+
+  test("PromotionThreat-0 charter opens only immediate next-move promotion threat"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### PromotionThreat-0 Charter",
+      "PromotionThreat-0 opens only the third narrow Pawn / Promotion Neighborhood vertical slice.",
+      "Pawn facts observe structure. PromotionThreatProof proves the next-move",
+      "promotion threat. Scene.PromotionThreat may speak only immediate threat, not",
+      "`Scene.PromotionThreat`",
+      "`PromotionThreatProof`",
+      "`threatens_promotion_next`",
+      "- legal pawn move",
+      "- exact after-board",
+      "- next move promotion is legal for the same pawn on that after-board",
+      "- promotion square",
+      "- promotion route",
+      "- actual Promotion Story",
+      "- unstoppable pawn",
+      "- cannot be stopped",
+      "- winning endgame",
+      "- conversion",
+      "- tablebase claim",
+      "- pawn race result",
+      "- best move or only move",
+      "- forced win",
+      "- no counterplay",
+      "- `{route} threatens to promote next.`",
+      "Renderer input is `ExplanationPlan` only.",
+      "It does not open public/user-facing LLM narration.",
+      "Completion standard: PromotionThreat-0 closes when a legal pawn move creating a"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PromotionThreat-0 law must pin: $required")
+
+    Vector(readme, ssot, architecture, contract).foreach: doc =>
+      val normalizedDoc = doc.replaceAll("\\s+", " ")
+      assert(normalizedDoc.contains("Current implementation scope is Pawn / Promotion Neighborhood third vertical slice."))
+      assert(normalizedDoc.contains("PromotionThreat-0 is owned by `StoryInteractionLaw.md`."))
+      assert(normalizedDoc.contains("The only bounded claim key is `threatens_promotion_next`"))
+      assert(!doc.contains("### PromotionThreat-0 Charter"), "summary docs must not duplicate detailed PromotionThreat charter")
+      assert(!doc.contains("PromotionThreat-0 duplicate audit:"), "summary docs must not duplicate PromotionThreat duplicate audit")
+
+    assert(manifest.contains("PromotionThreat-0 authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy actual Promotion Story"))
+
+  test("PromotionThreat-1 pins PromotionThreatProof as diagnostic proof home only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PromotionThreat-1 PromotionThreatProof",
+      "`PromotionThreatProof` is the proof home for the narrow",
+      "- threatening side",
+      "- rival side",
+      "- pawn identity",
+      "- pawn move that creates the threat",
+      "- exact after-board replay",
+      "- next promotion move",
+      "- promotion square",
+      "- promotion route",
+      "- next promotion move is legal on the after-board",
+      "- pawn is non-promoted before the creating move",
+      "- same-board proof",
+      "`PromotionThreatProof` is not a public `Story`.",
+      "`PawnAdvanceProof` does not own `PromotionThreat`.",
+      "`PawnStopProof` does not own `PromotionThreat`.",
+      "- `unstoppable`",
+      "- `cannot be stopped`",
+      "- `will queen`",
+      "- `wins`",
+      "- `conversion`",
+      "- `forced`",
+      "- `tablebase`",
+      "proofFailures must not become renderer input or LLM input."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PromotionThreat-1 law must pin: $required")
+
+  test("PromotionThreat-2 pins ScenePromotionThreat writer identity and EngineCheck boundary"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PromotionThreat-2 ScenePromotionThreat Writer",
+      "`ScenePromotionThreat` is the named writer for narrow `Scene.PromotionThreat`.",
+      "- complete `StoryProof`",
+      "- complete `PromotionThreatProof`",
+      "- same-board legal replay",
+      "- legal creating pawn move",
+      "- legal next promotion move on exact after-board",
+      "- writer = `ScenePromotionThreat`",
+      "- `EngineCheck` does not `Refute`",
+      "- `scene = PromotionThreat`",
+      "- `tactic = None`",
+      "- `plan = None`",
+      "- `side = threatening side`",
+      "- `rival = rival side`",
+      "- `target = promotion square`",
+      "- `anchor = pawn origin square`",
+      "- `route = creating pawn move`",
+      "- `secondaryTarget = None` unless the fixed identity shape requires the promotion destination",
+      "`ScenePromotionThreat` must not create actual Promotion.",
+      "`ScenePromotionThreat` must not replace `PawnAdvance` or `PawnStop` meaning.",
+      "`ScenePromotionThreat` must not create `unstoppable` or `wins` meaning."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PromotionThreat-2 law must pin: $required")
+
+  test("PromotionThreat-3 pins negative corpus as proof or silence"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PromotionThreat-3 Negative Corpus",
+      "A pawn near promotion is not a PromotionThreat. Legal next-move promotion proof or silence.",
+      "- legal creating move missing",
+      "- same-board proof missing",
+      "- move is not a pawn move",
+      "- creating move itself is promotion",
+      "- next promotion move is not legal on the exact after-board",
+      "- promotion square cannot be computed",
+      "- next move is not promotion because two or more moves are still needed",
+      "- rival stoppability check tries to expand into `unstoppable`",
+      "- tablebase, winning, or conversion wording enters the path",
+      "`ScenePromotionThreat` must return no Story for every negative corpus row.",
+      "`PromotionThreatProof` may record internal missing evidence only.",
+      "Renderer and LLM smoke must reject `unstoppable`, `wins`, `tablebase`, and `conversion` wording."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PromotionThreat-3 law must pin: $required")
+
+  test("PromotionThreat-4 pins EngineCheck reuse without engine-owned claims"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PromotionThreat-4 EngineCheck Reuse",
+      "PromotionThreat-4 reuses only the existing `EngineCheck` sidecar.",
+      "`EngineCheck` cannot create `Scene.PromotionThreat`.",
+      "- `Supports` does not create a new claim.",
+      "- `Caps` suppresses standalone `threatens_promotion_next` speech or weakens it to bounded relation-only evidence.",
+      "- `Refutes` blocks the PromotionThreat Story.",
+      "- `Unknown` creates no engine expression.",
+      "- `engine says`",
+      "- eval numbers",
+      "- tablebase result",
+      "- best move",
+      "- only move",
+      "- winning endgame",
+      "- forced win",
+      "Completion standard: PromotionThreat-4 closes when `EngineCheck` can attach only to an existing same-board `ScenePromotionThreat` Story route, cannot create PromotionThreat, cannot add a new claim under Supports, suppresses or bounds capped rows, blocks refuted rows, keeps Unknown engine-silent, and exposes no engine wording, eval numbers, tablebase, best-move, only-move, winning-endgame, or forced-win claims."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PromotionThreat-4 law must pin: $required")
+
+  test("PromotionThreat-5 pins StoryTable integration and collision boundaries"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PromotionThreat-5 StoryTable Integration",
+      "PromotionThreat-5 integrates `Scene.PromotionThreat` into `StoryTable` collision behavior only.",
+      "- `Scene.PawnAdvance`",
+      "- `Scene.PawnStop`",
+      "- existing Material / Defense / Hanging / Line rows",
+      "- `Scene.PromotionThreat`",
+      "- input order remains stable",
+      "- PromotionThreat does not own PawnAdvance meaning",
+      "- PromotionThreat does not own PawnStop meaning",
+      "- PawnStop must not create a `stops promotion` claim",
+      "- actual material or tactical claim remains in the existing home",
+      "- capped or refuted PromotionThreat creates no standalone text",
+      "Completion standard: PromotionThreat-5 closes when `StoryTable` orders PromotionThreat deterministically against PawnAdvance, PawnStop, Material, Defense, Hanging, and Line rows; no row borrows another row's claim meaning; actual material and tactical claims stay in their existing homes; and capped or refuted PromotionThreat rows do not reach standalone ExplanationPlan, renderer, or LLM wording."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PromotionThreat-5 law must pin: $required")
+
+  test("PromotionThreat-6 pins ExplanationPlan selected uncapped Lead boundary"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PromotionThreat-6 ExplanationPlan",
+      "PromotionThreat-6 lowers only a selected uncapped `Lead` Verdict for `Scene.PromotionThreat`.",
+      "`ExplanationPlan` may admit only the `threatens_promotion_next` claim key.",
+      "- `threatens_promotion_next`",
+      "- `unstoppable_pawn`",
+      "- `will_promote`",
+      "- `cannot_be_stopped`",
+      "- `wins_endgame`",
+      "- `converts_advantage`",
+      "- `best_move`",
+      "- `only_move`",
+      "- `forced`",
+      "- `tablebase_win`",
+      "- `no_counterplay`",
+      "Support, Context, Blocked, capped, and refuted PromotionThreat rows have no standalone claim.",
+      "Completion standard: PromotionThreat-6 closes when only selected uncapped Lead PromotionThreat Verdicts"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PromotionThreat-6 law must pin: $required")
+
+  test("PromotionThreat-7 pins DeterministicRenderer bounded wording only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PromotionThreat-7 Deterministic Renderer",
+      "Renderer input is `ExplanationPlan` only.",
+      "- `{route} threatens to promote next.`",
+      "- `will promote`",
+      "- `cannot be stopped`",
+      "- `unstoppable`",
+      "- `wins`",
+      "- `winning endgame`",
+      "- `converts`",
+      "- `best move`",
+      "- `only move`",
+      "- `forces`",
+      "- `tablebase win`",
+      "- `no counterplay`",
+      "Renderer must not read `Story`, `Verdict`, `PromotionThreatProof`, `BoardFacts`, `EngineCheck`, `proofFailures`, raw legal continuations, or source rows.",
+      "Completion standard: PromotionThreat-7 closes when `DeterministicRenderer` accepts only `ExplanationPlan`"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PromotionThreat-7 law must pin: $required")
+
+  test("PromotionThreat-8 pins LLM smoke 8B-only prompt boundary"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+
+    Vector(
+      "### PromotionThreat-8 LLM Smoke",
+      "PromotionThreat-8 reuses only the existing 8B LLM smoke boundary.",
+      "- renderedText",
+      "- claimKey",
+      "- strength",
+      "- forbidden wording",
+      "- `Rephrase only. Do not add chess facts.`",
+      "- raw `Story`",
+      "- raw `PromotionThreatProof`",
+      "- `BoardFacts`",
+      "- `EngineCheck`",
+      "- raw PV",
+      "- `proofFailures`",
+      "- new move",
+      "- new line",
+      "- actual promotion claim",
+      "- unstoppable claim",
+      "- winning claim",
+      "- conversion claim",
+      "- tablebase claim",
+      "Completion standard: PromotionThreat-8 closes when LLM smoke receives only rendered text contract fields for PromotionThreat"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PromotionThreat-8 law must pin: $required")
+
+  test("PromotionThreat Closeout hard cleanup keeps authority separated and public surfaces closed"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### PromotionThreat Closeout Hard Cleanup",
+      "PromotionThreat Closeout opens no new chess meaning. It only audits the PromotionThreat hard cleanup surface.",
+      "PromotionThreat Closeout must confirm:",
+      "- `PromotionThreatProof` proves only immediate next-move promotion-threat evidence on the exact after-board.",
+      "- `Scene.PromotionThreat` is the only Story label for this immediate threat meaning.",
+      "- `threatens_promotion_next` is the only speech key for this meaning.",
+      "PromotionThreat owns no `Scene.PawnAdvance`, `Scene.PawnStop`, actual Promotion, or PawnBreak meaning.",
+      "PromotionThreat owns no `Scene.Material`, `Scene.Defense`, `Tactic.Hanging`, or Line / Defender tactic meaning.",
+      "`unstoppable`, `will promote`, `cannot be stopped`, `conversion`, and `tablebase` remain forbidden wording only, not live authority.",
+      "PromotionThreat Closeout duplicate checks:",
+      "- one chess meaning: immediate next-move promotion threat only",
+      "- one proof home: `PromotionThreatProof`",
+      "- one Story label: `Scene.PromotionThreat`",
+      "- one speech key: `threatens_promotion_next`",
+      "- one detailed live authority document: `StoryInteractionLaw.md`",
+      "`README.md`, SSOT, Architecture, Contract, and Manifest may summarize PromotionThreat only.",
+      "Renderer and LLM wording must remain no stronger than `threatens_promotion_next`.",
+      "Public route `200`, production API, and public/user-facing LLM narration remain closed.",
+      "Completion standard: PromotionThreat Closeout closes when `PromotionThreatProof`,"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PromotionThreat closeout law must pin: $required")
+
+    Vector(readme, ssot, architecture, contract, manifest).foreach: summaryDoc =>
+      assert(summaryDoc.contains("StoryInteractionLaw.md"), "summary docs must point PromotionThreat authority to StoryInteractionLaw.md")
+      assert(!summaryDoc.contains("### PromotionThreat Closeout Hard Cleanup"), "summary docs must not duplicate detailed PromotionThreat closeout law")
+      assert(!summaryDoc.contains("PromotionThreat Closeout must confirm:"), "summary docs must not duplicate PromotionThreat closeout checklist")
+      assert(!summaryDoc.contains("PromotionThreat Closeout duplicate checks:"), "summary docs must not duplicate PromotionThreat duplicate audit")
 
   test("PawnStop-1 pins PawnStopProof as diagnostic proof home only"):
     val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
@@ -6961,6 +7243,44 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     Vector(readme, ssot, architecture, contract, manifest).foreach: summaryDoc =>
       assert(summaryDoc.contains("StoryInteractionLaw.md"), "summary docs must point PawnAdvance authority to StoryInteractionLaw.md")
       assert(!summaryDoc.contains("### PawnAdvance Closeout Hard Cleanup"), "summary docs must not duplicate detailed closeout law")
+
+  test("PIH Closeout hard cleanup keeps pawn interaction authority separated and summaries short"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### PIH Closeout Hard Cleanup",
+      "PIH Closeout opened no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, public route `200`, production API, or public/user-facing LLM narration at the PawnAdvance/PawnStop baseline.",
+      "PromotionThreat-0 is the third Pawn / Promotion Neighborhood slice.",
+      "PIH Closeout must confirm:",
+      "- no new Story family was added beyond already-open `Scene.PawnAdvance` and `Scene.PawnStop`.",
+      "- no new proof home was added beyond already-open `PawnAdvanceProof` and `PawnStopProof`.",
+      "- `PassedPawnObservation`, `PawnAdvanceProof`, and `PawnStopProof` authority remains separated.",
+      "- `Scene.PawnAdvance` and `Scene.PawnStop` do not invade each other's meaning.",
+      "- PromotionThreat, Promotion, PawnBreak, tablebase, pawn race, king route, and opposition remain closed authority and forbidden wording only.",
+      "- Material, Defense, Hanging, and Line / Defender tactic homes are not invaded.",
+      "PIH Closeout duplicate audit:",
+      "- one chess meaning: bounded passed-pawn advance belongs to `Scene.PawnAdvance`; bounded immediate next-square stop belongs to `Scene.PawnStop`.",
+      "- one proof home for each pawn meaning: `PawnAdvanceProof` for advance; `PawnStopProof` for stop.",
+      "- one Story label for each pawn meaning: `Scene.PawnAdvance` and `Scene.PawnStop`.",
+      "- one speech key for each pawn meaning: `advances_passed_pawn` and `stops_pawn_advance`.",
+      "- one detailed live authority document: `StoryInteractionLaw.md`.",
+      "`README.md`, SSOT, Architecture, Contract, and Manifest may summarize PIH Closeout only.",
+      "Public route `200`, production API, and public/user-facing LLM narration remain closed.",
+      "Completion standard: PIH Closeout closes when PawnAdvance and PawnStop interaction hardening has no new pawn meaning, no mixed proof authority, no sibling claim-home invasion, no duplicated detailed authority outside StoryInteractionLaw.md, no promoted test helper, no public route `200`, no production API, and no public/user-facing LLM narration."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PIH closeout law must pin: $required")
+
+    Vector(readme, ssot, architecture, contract, manifest).foreach: summaryDoc =>
+      assert(summaryDoc.contains("PIH Closeout"), "summary docs must summarize PIH closeout")
+      assert(summaryDoc.contains("StoryInteractionLaw.md"), "summary docs must point PIH closeout authority to StoryInteractionLaw.md")
+      assert(!summaryDoc.contains("### PIH Closeout Hard Cleanup"), "summary docs must not duplicate detailed PIH closeout law")
+      assert(!summaryDoc.contains("PIH Closeout must confirm:"), "summary docs must not duplicate detailed PIH checklist")
+      assert(!summaryDoc.contains("PIH Closeout duplicate audit:"), "summary docs must not duplicate detailed PIH duplicate audit")
 
   test("agents and active frontend tests reject retired downstream authority"):
     assert(Files.exists(agentInstructions), "AGENTS.md must be available from the lila worktree")

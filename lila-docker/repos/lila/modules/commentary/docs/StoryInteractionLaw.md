@@ -1219,6 +1219,7 @@ LLM rephrases. It does not add chess meaning.
 | Scene.Defense | live response | rival threat, defensive move or resource, protected target | rival threat unproven, defense illegal, stronger tactic override | defense wording only against named threat. |
 | Scene.Opening | context-only | opening label, current board match, known line source | board mismatch, tactical refutation, source-only claim, board-backed Story at public floor | opening context only, no truth override or lead over board-backed Story. |
 | Scene.Pawns | split public | exact pawn feature, square/file, blocker, lever, guard or passer identity | tactic override, no pawn identity, engine contradiction for plan wording | pawn structure wording for named feature. |
+| Scene.PawnAdvance | split public | already-passed pawn, legal one-square non-capturing non-promotion route, exact after-board passed-pawn persistence | pawn not already passed, capture, promotion, double push, after-board passer missing, conversion or strategy wording | bounded passed-pawn advance wording only. |
 | Scene.Plan | split public | one Plan row, affordance fact, route, anchor, proof | opposing tactic or blunder at public floor, missing route, engine contradiction | plan wording only as a plan, not as forced truth. |
 | Scene.Pieces | split public | exact piece, mobility or route fact, target or anchor | no named piece, route illegal, tactical override | piece wording for named piece only. |
 | Scene.Space | live static | controlled squares, safe mobility, space region, side identity | no same-board control, immediate tactic override | space wording only as board condition. |
@@ -4884,6 +4885,1681 @@ LNC-0 duplicate checks:
 LNC-0 opens no new Story family, new proof home, new Story writer, new renderer template, new LLM behavior, XRay, broad LineTactic, broad Ray, broad deflection, overload, pressure, initiative, material win by line tactic, forced response, public route `200`, production API, or public/user-facing LLM narration.
 
 Completion standard: Line / Defender Contact Neighborhood closes as four narrow proof-backed slices, with no sibling meaning ownership, no broad-term authority, no collision-home invasion, no duplicated detailed authority outside StoryInteractionLaw.md, no promoted test helper, no new downstream wording or LLM behavior, no public route `200`, no production API, and no public/user-facing LLM narration.
+
+### LNC-1 Scope Audit
+
+LNC-1 opens only Line / Defender Contact Neighborhood scope audit.
+
+LNC-1 confirms the neighborhood has exactly four opened positive Story labels:
+
+- `Tactic.DiscoveredAttack`
+- `Tactic.Pin`
+- `Tactic.RemoveGuard`
+- `Tactic.Skewer`
+
+LNC-1 first-scope audit:
+
+- `Tactic.DiscoveredAttack` speaks only one revealed slider attack on one non-king material target.
+- `Tactic.Pin` speaks only one non-king piece pinned to its own king on a line.
+- `Tactic.RemoveGuard` speaks only one removed defender guard relation from one non-king material target.
+- `Tactic.Skewer` speaks only one front non-king material target and one rear non-king material target on the same line.
+
+LNC-1 closed runtime positives:
+
+- XRay is not an opened positive Story in this neighborhood.
+- broad Ray is not an opened positive Story in this neighborhood.
+- broad LineTactic is not an opened positive Story in this neighborhood.
+- broad deflection is not an opened positive Story in this neighborhood.
+- overload is not an opened positive Story in this neighborhood.
+
+Closed names are not backlog inside this neighborhood. They remain closed until a separate charter opens them.
+
+LNC-1 opens no new Story family, proof home, Story writer, renderer wording, LLM behavior, XRay, broad Ray, broad LineTactic, broad deflection, overload, pressure, initiative, material-win tactic, public route `200`, production API, or public/user-facing LLM narration.
+
+### LNC-2 Duplication Audit
+
+One chess meaning, one proof home, one Story label, one speech key, one live authority document.
+
+LNC-2 opens only Line / Defender Contact Neighborhood duplication audit.
+
+LNC-2 duplication audit checks:
+
+- no same chess meaning is duplicated under two Story labels.
+- no same proof responsibility is duplicated under two proof homes.
+- no same speech claim is split across two claim keys.
+- no same detailed rule repeats across multiple live documents.
+
+LNC-2 specific ownership checks:
+
+- DiscoveredAttack and Skewer do not duplicate ownership of `line attack`; DiscoveredAttack owns revealed slider attack on one non-king material target, while Skewer owns front-and-rear non-king material targets on one line.
+- Pin and Skewer do not duplicate ownership of `front/rear line relation`; Pin owns pinned-to-own-king relation, while Skewer owns front target plus rear target relation.
+- RemoveGuard does not grow into Material or Hanging precondition ownership; RemoveGuard owns only removed defender guard relation, Material owns actual material balance change, and Hanging owns capturable target with bounded material gain proof.
+- LineProof does not absorb PinProof, RemoveGuardProof, or SkewerProof family-specific relations; LineProof binds only the revealed slider attack line admitted by DiscoveredAttack.
+- XRay, Ray, LineTactic, and LineFamily terms are not live authority names for this neighborhood.
+
+LNC-2 speech-key audit:
+
+- `reveals_attack_on_piece` belongs only to `Tactic.DiscoveredAttack`.
+- `pins_piece` belongs only to `Tactic.Pin`.
+- `removes_defender` belongs only to `Tactic.RemoveGuard`.
+- `skewers_piece_to_piece` belongs only to `Tactic.Skewer`.
+
+LNC-2 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, XRay, Ray, LineTactic, LineFamily, broad deflection, overload, Material or Hanging precondition path, public route `200`, production API, or public/user-facing LLM narration.
+
+### LNC-3 Authority Audit
+
+LNC-3 opens only Line / Defender Contact Neighborhood authority audit.
+
+LNC-3 layer authority:
+
+- `BoardFacts.LineFact`: geometry observation only.
+- `LineProof`: revealed line / attack binding only.
+- `PinProof`: pinned relation only.
+- `RemoveGuardProof`: guard relation removal only.
+- `SkewerProof`: front/rear target relation only.
+- Story writers: named proof-backed Story permission only.
+- StoryTable: ordering only.
+- Verdict: selected result only.
+- ExplanationPlan: bounded speech claim only.
+- Renderer: phrasing only.
+- LLM smoke: rephrase only.
+
+LNC-3 forbidden authority shortcuts:
+
+- proof home must not speak like a Story label.
+- Story writer must not own material result.
+- StoryTable must not create new chess meaning.
+- ExplanationPlan must not read raw proof.
+- Renderer and LLM smoke must not repair or upgrade proof.
+
+LNC-3 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, raw proof downstream path, material-result ownership by Story writer, StoryTable-created meaning, public route `200`, production API, or public/user-facing LLM narration.
+
+### LNC-4 Collision Audit
+
+LNC-4 opens only Line / Defender Contact Neighborhood collision audit.
+
+LNC-4 collision targets:
+
+- DiscoveredAttack vs Pin.
+- DiscoveredAttack vs Skewer.
+- Pin vs Skewer.
+- RemoveGuard vs Material.
+- RemoveGuard vs Hanging.
+- Skewer vs Material.
+- Line/Defender row vs Defense.
+- EngineCheck Caps/Refutes over each line/defender row.
+
+LNC-4 verification criteria:
+
+- input order stable.
+- no duplicate Lead.
+- incomplete row is not Lead.
+- capped and refuted rows create no standalone text.
+- actual material change now stays in Scene.Material home.
+- material gain proof stays in Hanging or Material home.
+- line/defender rows speak only their own relation.
+
+LNC-4 existing runtime coverage:
+
+- `Pin-5 StoryTable prevents duplicate Lead for same-line DiscoveredAttack and Pin` covers DiscoveredAttack vs Pin.
+- `Skewer-5 separates DiscoveredAttack collision and keeps incomplete Skewer silent` covers DiscoveredAttack vs Skewer.
+- `Skewer-5 keeps Material Pin and RemoveGuard claim homes separate` covers Pin vs Skewer and Skewer vs Material.
+- `LDH-1 fixture map covers complex same-board line defender interactions` covers RemoveGuard vs Material, RemoveGuard vs Hanging, and Line/Defender row vs Defense.
+- `LDH-1 fixture map covers EngineCheck statuses over existing line defender rows` covers EngineCheck Caps/Refutes over DiscoveredAttack, Pin, RemoveGuard, and Skewer.
+
+LNC-4 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, broad LineTactic, XRay, material-win tactic, public route `200`, production API, or public/user-facing LLM narration.
+
+### LNC-5 Downstream Boundary Audit
+
+LNC-5 opens only Line / Defender Contact Neighborhood downstream boundary audit.
+
+LNC-5 downstream authority:
+
+- selected uncapped Lead Verdict only may lower to ExplanationPlan.
+- ExplanationPlan input is selected Verdict only.
+- Renderer input is ExplanationPlan only.
+- LLM smoke input is renderedText, claimKey, strength, forbidden wording, and rephrase-only instruction only.
+- Support, Context, Blocked, capped, and refuted rows create no standalone text.
+
+LNC-5 forbidden downstream wording:
+
+- wins material.
+- winning / decisive.
+- best move / only move.
+- forced.
+- cannot move.
+- no defense.
+- front piece must move.
+- wins rear piece.
+- pressure / initiative.
+- mate threat / king unsafe.
+
+LNC-5 existing runtime coverage:
+
+- `LNC-5 Downstream Boundary Audit keeps Line Defender speech bounded` covers DiscoveredAttack, Pin, RemoveGuard, and Skewer downstream handoff and forbidden wording.
+- `LDH-6 Downstream Boundary Smoke sends only selected Lead Verdicts to text stages` covers existing Line/Defender selected Lead handoff.
+- `Skewer-6 ExplanationPlan gives no standalone claim to non Lead capped refuted or unselected Skewer rows` covers Skewer non-Lead silence.
+
+LNC-5 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, broad LineTactic, XRay, public route `200`, production API, or public/user-facing LLM narration.
+
+### LNC-6 Documentation Simplification
+
+LNC-6 opens only Line / Defender Contact Neighborhood documentation simplification.
+
+LNC-6 documentation authority:
+
+- detailed closeout authority lives only in `StoryInteractionLaw.md`.
+- README, SSOT, Architecture, Contract, AGENTS, and LegacyPruneManifest carry summaries only.
+- the same closeout rule must not repeat across live documents.
+- closed terms must read as closed summaries, not backlog.
+- Line family, Ray family, XRay, and line tactic wording must not read as live authority.
+
+LNC-6 verification:
+
+- docs authority tests enforce summary-only downstream documents.
+- detailed closeout checklist appears in exactly one live document.
+- live authority lists stay aligned across AGENTS.md, README, LegacyPruneManifest, and docs tests.
+
+LNC-6 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, broad LineTactic, XRay, public route `200`, production API, or public/user-facing LLM narration.
+
+### LNC-7 Test Helper / Runtime Boundary Audit
+
+LNC-7 opens only Line / Defender Contact Neighborhood test helper / runtime boundary audit.
+
+LNC-7 runtime boundary:
+
+- test helpers must not become runtime authority.
+- fixture names must not read like new Story families.
+- negative corpus helpers must not become production concepts.
+- forbidden wording checks must reject public wording without treating snake_case internal field names as public prose.
+- runtime source must not contain closeout-only terms.
+
+LNC-7 verification:
+
+- docs authority tests pin this section in StoryInteractionLaw only.
+- runtime boundary tests scan production source for closeout-only terminology.
+- LLM smoke tests keep forbidden wording matching on public phrases, not internal field keys.
+
+LNC-7 opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, fixture-derived runtime authority, negative-corpus production concept, broad LineTactic, XRay, public route `200`, production API, or public/user-facing LLM narration.
+
+### LNC Closeout Final Completion Standard
+
+LNC Closeout final completion standard:
+
+- no new Story family.
+- no new proof home.
+- no new renderer wording.
+- no new LLM behavior.
+- only `Tactic.DiscoveredAttack`, `Tactic.Pin`, `Tactic.RemoveGuard`, and `Tactic.Skewer` remain as the positive closeout baseline slices.
+- no duplicate meaning.
+- no duplicate authority.
+- no duplicate terminology.
+- no duplicate detailed docs.
+- public route, production API, and public/user-facing LLM narration remain closed.
+
+LNC final verification:
+
+- docs authority tests pass.
+- chess foundation tests pass.
+- `git diff --check` is clean.
+
+Final LNC closeout opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, fixture-derived runtime authority, negative-corpus production concept, broad LineTactic, XRay, public route `200`, production API, or public/user-facing LLM narration.
+
+## Pawn / Promotion Neighborhood
+
+### PawnAdvance-0 Charter
+
+PawnAdvance-0 opens only the first narrow Pawn / Promotion Neighborhood vertical slice.
+
+First positive scope is not broad PawnTactic or passed-pawn strategy.
+
+Opened positive Story label:
+
+- `Scene.PawnAdvance`
+
+Opened proof home:
+
+- `PawnAdvanceProof`
+
+Core sentence:
+
+Pawn facts observe structure. PawnAdvanceProof binds this legal advance. Scene.PawnAdvance may speak only bounded pawn progress, not conversion.
+
+PawnAdvance-0 positive scope:
+
+- an already-passed non-king pawn.
+- legal one-square non-capturing pawn advance.
+- non-promotion advance.
+- exact after-board still has the same pawn as a passed pawn.
+- complete StoryProof and same-board legal replay.
+- selected Lead Verdict may lower to bounded pawn-advance wording only.
+
+Allowed bounded claim:
+
+- `advances_passed_pawn`
+
+Allowed deterministic wording:
+
+- `{route} advances the passed pawn.`
+
+PawnAdvance-0 must stay silent for:
+
+- pawn that was not already passed before the move.
+- illegal pawn move.
+- capturing pawn move.
+- promotion move.
+- double pawn push.
+- missing same-board proof.
+- missing StoryProof.
+- after-board where the moved pawn is not a passed pawn.
+
+PawnAdvance-0 opens no broad PawnTactic, `Tactic.PawnPush`, `Tactic.PawnFork`,
+passed-pawn strategy, promotion threat, unstoppable pawn, winning endgame,
+conversion, pawn race, pawn majority plan, king route, opposition, tablebase
+claim, best move, only move, forced move, pressure, initiative, public route
+`200`, production API, or public/user-facing LLM narration.
+
+Authority split:
+
+- `BoardFacts.PassedPawnObservation` observes current pawn structure only.
+- `PawnAdvanceProof` proves the legal non-capturing non-promotion one-step advance and after-board passed-pawn persistence.
+- `ScenePawnAdvance` is the only writer that may create `Scene.PawnAdvance`.
+- `StoryTable` orders an existing `Scene.PawnAdvance`; it does not create it.
+- `ExplanationPlan` may expose only `advances_passed_pawn` from selected Verdict data.
+- Renderer phrases only from ExplanationPlan.
+- LLM smoke may rephrase only renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`
+
+Duplication audit:
+
+- Passed-pawn structure stays in Board Facts.
+- Legal advance persistence stays in `PawnAdvanceProof`.
+- Public claim identity stays in `Scene.PawnAdvance`.
+- Speech key stays `advances_passed_pawn`.
+- Promotion, conversion, race, strategy, and tablebase claims remain closed.
+
+Completion standard: PawnAdvance-0 closes as one narrow proof-backed passed-pawn progress slice with no broad pawn tactic, promotion-route, strategy, conversion, public route, production API, or public/user-facing LLM narration opening.
+
+### PawnAdvance-1 PawnAdvanceProof
+
+`PawnAdvanceProof` is the proof home for narrow `Scene.PawnAdvance`.
+
+PawnAdvanceProof must prove:
+
+- advancing side
+- pawn identity
+- from square
+- to square
+- legal pawn advance
+- move is non-capture
+- move is non-promotion
+- pawn was passed before move
+- pawn remains passed after move
+- same-board proof
+- exact after-board replay
+
+`PawnAdvanceProof` is not a public `Story`.
+
+`PassedPawnObservation` is not a public `Story`.
+
+PawnAdvanceProof may emit internal missing evidence, but those diagnostics do
+not create a Story, rank a Story, repair a Story, or feed speech.
+proofFailures must not become renderer input or LLM input.
+
+PawnAdvance-1 forbidden public wording:
+
+- `unstoppable`
+- `wins`
+- `queens`
+- `promotes next`
+- `conversion`
+- `clear path`
+- `cannot be stopped`
+
+PawnAdvanceProof owns only the proof that this exact legal move advanced an
+already-passed pawn and that the moved pawn remains passed on the exact
+after-board. It does not own promotion threat, queening, conversion,
+unstoppable-pawn, strategy, tablebase, race, best-move, only-move, forced, or
+winning claims.
+
+Completion standard: PawnAdvance-1 closes when PawnAdvanceProof exposes the
+named proof bits, remains diagnostic below public Story identity, treats
+PassedPawnObservation as observation only, and keeps proofFailures and stronger
+pawn-conversion wording out of renderer and LLM inputs.
+
+### PawnAdvance-2 Scene.PawnAdvance Writer
+
+Named writer: `ScenePawnAdvance`.
+
+ScenePawnAdvance writer conditions:
+
+- complete `StoryProof`
+- complete `PawnAdvanceProof`
+- same-board legal replay
+- legal non-capturing non-promotion pawn advance
+- passed-before and passed-after proof
+- writer = `ScenePawnAdvance`
+- `EngineCheck` does not `Refute`
+
+ScenePawnAdvance Story identity:
+
+- scene = `PawnAdvance`
+- tactic = `None`
+- plan = `None`
+- side = advancing side
+- rival = opposite side
+- target = destination square
+- anchor = pawn origin square
+- route = pawn advance
+
+ScenePawnAdvance must not create a PromotionThreat.
+
+ScenePawnAdvance must not create winning, conversion, or material claims.
+
+ScenePawnAdvance must not create pawn-race or unstoppable-pawn claims.
+
+ScenePawnAdvance owns only the proof-backed public identity that this move
+advances an already-passed pawn. It does not own queening, promotion threat,
+passed-pawn strategy, race, conversion, material gain, best-move, only-move,
+forced, tablebase, winning, or unstoppable-pawn meaning.
+
+Completion standard: PawnAdvance-2 closes when `ScenePawnAdvance` is the only
+named writer for `Scene.PawnAdvance`, writer output carries only the named
+identity fields above, refuted rows cannot lead, and no stronger pawn,
+promotion, material, race, conversion, or winning claim can be created by the
+writer.
+
+### PawnAdvance-3 Negative Corpus
+
+PawnAdvance-3 keeps pawn-looking moves silent unless the narrow proof home is
+complete.
+
+Required silent negative corpus:
+
+- legal move is absent
+- same-board proof is absent
+- moving piece is not a pawn
+- move is a capture
+- move is a promotion
+- pawn was not passed before the move
+- moved pawn is not passed after the move
+- en passant complexity enters the proof attempt
+- proof attempt expands into immediate promotion threat
+- `unstoppable`, `winning`, or `conversion` wording enters
+
+A pawn move is not a passed-pawn Story. Complete PawnAdvanceProof or silence.
+
+En passant is capture complexity for this slice. A pawn move near promotion may
+still only be considered through the bounded `advances_passed_pawn` claim when
+`PawnAdvanceProof` is complete; it must not become promotion threat, promotes
+next, queening, conversion, unstoppable, winning, or race wording.
+
+Completion standard: PawnAdvance-3 closes when every listed false positive is
+silent as a Story without complete `PawnAdvanceProof`, and downstream wording
+rejects immediate-promotion, unstoppable, winning, and conversion expansions.
+
+### PawnAdvance-4 EngineCheck Reuse
+
+PawnAdvance-4 reuses only the existing `EngineCheck` sidecar.
+
+`EngineCheck` cannot create `Scene.PawnAdvance`.
+
+EngineCheck status meaning for PawnAdvance:
+
+- `Supports` does not create a new claim.
+- `Caps` suppresses standalone `advances_passed_pawn` speech or weakens it to relation-only bounded evidence.
+- `Refutes` blocks the PawnAdvance Story.
+- `Unknown` creates no engine expression.
+
+Forbidden EngineCheck-derived wording:
+
+- `engine says`
+- eval numbers
+- best move
+- only move
+- winning endgame
+- tablebase-like claim
+
+Completion standard: PawnAdvance-4 closes when `EngineCheck` can attach only to
+an existing same-board `ScenePawnAdvance` Story, cannot create PawnAdvance by
+itself, preserves bounded passed-pawn advance identity under `Supports`,
+suppresses standalone speech under `Caps`, blocks the Story under `Refutes`,
+and leaves no engine expression under `Unknown`.
+
+### PawnAdvance-5 StoryTable Integration
+
+PawnAdvance-5 integrates `Scene.PawnAdvance` into `StoryTable` as a lower
+bounded scene claim when existing opened claim homes are present.
+
+Collision rows:
+
+- `Tactic.Hanging`
+- `Tactic.Fork`
+- `Scene.Material`
+- `Scene.Defense`
+- `Tactic.DiscoveredAttack`
+- `Tactic.Pin`
+- `Tactic.RemoveGuard`
+- `Tactic.Skewer`
+- `Scene.PawnAdvance`
+
+StoryTable requirements:
+
+- input order must not change selected role shape
+- PawnAdvance must not own tactical or material claims
+- actual material change now stays in `Scene.Material`
+- immediate tactic meaning stays in the tactic row home
+- PawnAdvance remains a lower bounded scene claim only
+- capped or refuted PawnAdvance has no standalone text
+
+Completion standard: PawnAdvance-5 closes when `StoryTable` remains stable
+across input order, existing immediate tactic, material, and defense homes stay
+ahead of `Scene.PawnAdvance`, and non-lead, capped, or refuted PawnAdvance rows
+cannot produce renderer or LLM standalone speech.
+
+### PawnAdvance-6 ExplanationPlan
+
+PawnAdvance-6 lowers only a selected uncapped `Lead` Verdict for `Scene.PawnAdvance`.
+
+`ExplanationPlan` may admit only the `advances_passed_pawn` claim key.
+
+Allowed claim key:
+
+- `advances_passed_pawn`
+
+Forbidden claim keys:
+
+- `promotion_threat`
+- `unstoppable_pawn`
+- `wins_endgame`
+- `converts_advantage`
+- `best_move`
+- `only_move`
+- `forced`
+- `decisive`
+- `creates_pressure`
+- `takes_initiative`
+
+Support, Context, Blocked, capped, and refuted PawnAdvance rows have no standalone claim.
+
+Completion standard: PawnAdvance-6 closes when only selected uncapped Lead PawnAdvance Verdicts
+lower to `advances_passed_pawn`, every forbidden claim key remains unavailable,
+and Support, Context, Blocked, capped, or refuted rows stay silent as standalone claims.
+
+### PawnAdvance-7 Deterministic Renderer
+
+Renderer input is `ExplanationPlan` only.
+
+Allowed deterministic wording:
+
+- `{route} advances the passed pawn.`
+
+Forbidden renderer wording:
+
+- `cannot be stopped`
+- `will promote`
+- `wins`
+- `winning endgame`
+- `converts`
+- `best move`
+- `only move`
+- `forces`
+- `decisive`
+- `creates pressure`
+
+Renderer must not read `Story`, `Verdict`, `PawnAdvanceProof`, `EngineCheck`, `proofFailures`, or `BoardFacts`.
+
+Completion standard: PawnAdvance-7 closes when `DeterministicRenderer` accepts only `ExplanationPlan`,
+phrases selected PawnAdvance plans only as bounded passed-pawn advance text,
+and rejects promotion, unstoppable, winning, conversion, best-move, only-move,
+forced, decisive, or pressure wording.
+
+### PawnAdvance-8 LLM Smoke
+
+PawnAdvance-8 reuses only the existing 8B LLM smoke boundary.
+
+Allowed LLM smoke input:
+
+- renderedText
+- claimKey
+- strength
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+Forbidden LLM smoke input or output expansion:
+
+- raw `Story`
+- raw `PawnAdvanceProof`
+- `BoardFacts`
+- `EngineCheck`
+- raw PV
+- `proofFailures`
+- new move
+- new line
+- promotion claim
+- unstoppable claim
+- winning claim
+- conversion claim
+
+LLM smoke must not receive proof homes, BoardFacts, EngineCheck, raw PV, or diagnostics.
+It may only rephrase the rendered line without adding chess facts.
+
+Completion standard: PawnAdvance-8 closes when LLM smoke receives only rendered text contract fields,
+rejects raw proof, board, engine, or diagnostic leaks,
+and rejects new moves, new lines, promotion, unstoppable, winning, or conversion claims.
+
+### PawnAdvance Closeout Hard Cleanup
+
+PawnAdvance closes as one narrow bounded scene only.
+
+Authority ownership:
+
+- `PassedPawnObservation` observes same-board pawn structure only.
+- `PawnAdvanceProof` binds the legal non-capturing non-promotion advance and exact after-board passed-pawn status.
+- `Scene.PawnAdvance` is the only Story label for this bounded pawn-progress meaning.
+- `advances_passed_pawn` is the only speech key for this meaning.
+
+PawnAdvance owns no PromotionThreat, Promotion, PawnStop, PawnBreak, Material, Hanging,
+Defense, DiscoveredAttack, Pin, RemoveGuard, Skewer, broad Line/Defender tactic,
+passed-pawn strategy, unstoppable-pawn, conversion, clear-path, pawn-race, best-move,
+only-move, forced, decisive, pressure, initiative, or winning-endgame meaning.
+
+Duplication audit:
+
+- one chess meaning: bounded passed-pawn advance only
+- one proof home: `PawnAdvanceProof`
+- one Story label: `Scene.PawnAdvance`
+- one speech key: `advances_passed_pawn`
+- one detailed live authority document: `StoryInteractionLaw.md`
+
+`README.md`, SSOT, Architecture, Contract, and Manifest may summarize PawnAdvance only.
+They must not carry detailed PawnAdvance stage law, negative corpus, renderer law,
+LLM law, or closeout completion authority.
+
+Renderer and LLM wording must remain no stronger than `advances_passed_pawn`.
+They may say only bounded pawn progress and must reject promotion, unstoppable,
+winning, conversion, clear-path, strategy, pressure, initiative, best-move,
+only-move, forced, decisive, raw proof, raw BoardFacts, EngineCheck, raw PV,
+and proofFailures wording.
+
+Public route `200`, production API, and public/user-facing LLM narration remain closed.
+
+Completion standard: PawnAdvance Closeout closes when `PassedPawnObservation`,
+`PawnAdvanceProof`, `Scene.PawnAdvance`, and `advances_passed_pawn` stay in separate
+authority layers; PawnAdvance owns no promotion, stopping, breaking, material,
+tactical, strategic, conversion, or public-surface meaning; detailed authority remains
+only in `StoryInteractionLaw.md`; renderer and LLM smoke remain bounded to
+`advances_passed_pawn`.
+
+### PawnStop-0 Charter
+
+PawnStop-0 opens only the second narrow Pawn / Promotion Neighborhood vertical slice.
+
+First positive scope is not broad pawn defense or endgame hold.
+
+Opened positive Story label:
+
+- `Scene.PawnStop`
+
+Opened proof home:
+
+- `PawnStopProof`
+
+Core sentence:
+
+Pawn facts observe structure. PawnStopProof proves the next square is stopped. Scene.PawnStop may speak only bounded immediate stop, not endgame defense.
+
+PawnStop-0 positive scope:
+
+- an already-passed target pawn.
+- the target pawn's next advance square.
+- a legal move directly stops that next advance square on the exact after-board.
+- the target pawn remains present on the exact after-board.
+- the next advance square is non-promotion.
+- complete StoryProof and same-board legal replay.
+- selected Lead Verdict may lower to bounded pawn-stop wording only.
+
+Allowed bounded claim:
+
+- `stops_pawn_advance`
+
+Allowed deterministic wording:
+
+- `{route} stops the passed pawn from advancing next.`
+
+PawnStop-0 must stay silent for:
+
+- pawn that was not already passed before the move.
+- move that does not stop the target pawn's next advance square.
+- promotion stop.
+- permanent stop.
+- tablebase draw.
+- best defense or only move.
+- winning or losing endgame.
+- conversion stopped.
+- pawn race.
+- king route or opposition.
+- broad pawn strategy.
+- missing same-board proof.
+- missing StoryProof.
+
+PawnStop-0 opens no promotion stop, permanent stop, tablebase draw, best
+defense, only move, winning/losing endgame, conversion stopped, pawn race, king
+route, opposition, broad pawn strategy, public route `200`, production API, or
+public/user-facing LLM narration.
+
+Authority split:
+
+- `BoardFacts.PassedPawnObservation` observes current pawn structure only.
+- `PawnStopProof` proves the legal move directly stops the already-passed pawn's next advance square on the exact after-board.
+- `ScenePawnStop` is the only writer that may create `Scene.PawnStop`.
+- `StoryTable` orders an existing `Scene.PawnStop`; it does not create it.
+- `ExplanationPlan` may expose only `stops_pawn_advance` from selected Verdict data.
+- Renderer phrases only from ExplanationPlan.
+- LLM smoke may rephrase only renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`
+
+Duplication audit:
+
+- Passed-pawn structure stays in Board Facts.
+- Next-square stop proof stays in `PawnStopProof`.
+- Public claim identity stays in `Scene.PawnStop`.
+- Speech key stays `stops_pawn_advance`.
+- Promotion stop, permanent stop, endgame defense, race, strategy, king-route, opposition, and tablebase claims remain closed.
+
+Completion standard: PawnStop-0 closes as one narrow proof-backed passed-pawn
+next-square stop slice with no broad pawn defense, promotion-stop, permanent-stop,
+endgame-hold, tablebase, strategy, conversion, public route, production API, or
+public/user-facing LLM narration opening.
+
+### PawnStop-1 PawnStopProof
+
+`PawnStopProof` is the proof home for narrow `Scene.PawnStop`.
+
+PawnStopProof must prove:
+
+- stopping side
+- passed pawn side
+- passed pawn identity
+- pawn current square
+- pawn next advance square
+- legal stopping move
+- exact after-board replay
+- pawn was passed before move
+- stopping move directly occupies, attacks, or controls the next advance square
+- same-board proof
+
+First allowed stop kinds:
+
+- `NextSquareOccupied`
+- `NextSquareAttacked`
+- `NextSquareControlledByPawn`
+
+Closed stop kinds:
+
+- long-term blockade
+- king opposition
+- tablebase draw
+- promotion race stop
+- tactic sequence stop
+- `cannot ever advance` claim
+
+`PawnStopProof` is not a public `Story`.
+
+`PassedPawnObservation` is not a public `Story`.
+
+PawnStopProof may emit internal missing evidence, but those diagnostics do
+not create a Story, rank a Story, repair a Story, or feed speech.
+proofFailures must not become renderer input or LLM input.
+
+PawnStopProof owns only the proof that this exact legal move immediately stops
+an already-passed pawn's next advance square by one of the admitted stop kinds
+on the exact after-board. It does not own promotion stop, permanent blockade,
+king opposition, tablebase draw, pawn-race, tactic-sequence, cannot-ever-advance,
+best-defense, only-move, forced, winning, losing, conversion, or endgame-hold
+claims.
+
+Completion standard: PawnStop-1 closes when PawnStopProof exposes the named
+proof bits, admits only `NextSquareOccupied`, `NextSquareAttacked`, and
+`NextSquareControlledByPawn`, remains diagnostic below public Story identity,
+treats `PassedPawnObservation` as observation only, and keeps proofFailures and
+stronger pawn-defense wording out of renderer and LLM inputs.
+
+### PawnStop-2 Scene.PawnStop Writer
+
+`ScenePawnStop` is the named writer for `Scene.PawnStop`.
+
+Writer conditions:
+
+- complete StoryProof
+- complete PawnStopProof
+- same-board legal replay
+- legal stopping move
+- passed pawn exists
+- next square stop relation complete
+- writer = `ScenePawnStop`
+- EngineCheck does not `Refute`
+
+Story identity:
+
+- `scene = PawnStop`
+- `tactic = None`
+- `plan = None`
+- `side = stopping side`
+- `rival = passed pawn side`
+- `target = pawn next advance square`
+- `anchor = stopping move origin square`
+- `route = stopping move`
+
+ScenePawnStop must not own `Scene.Defense` meaning.
+
+ScenePawnStop must not say it stopped `PromotionThreat`.
+
+ScenePawnStop must not create endgame-result or tablebase claims.
+
+Completion standard: PawnStop-2 closes when only `ScenePawnStop` can write the
+bounded `Scene.PawnStop` identity above from complete StoryProof and
+PawnStopProof, EngineCheck refutation prevents writer-backed public speech, and
+defense, promotion-threat, endgame-result, and tablebase meanings remain closed.
+
+### PawnStop-3 Negative Corpus
+
+PawnStop-3 keeps pawn-stop-looking moves silent unless the narrow proof home is
+complete.
+
+Required silent negative corpus:
+
+- legal move is absent
+- same-board proof is absent
+- target pawn is not a passed pawn
+- target pawn next advance square cannot be calculated
+- after the stopping move, the next square remains empty and safely advanceable
+- stop expands into promotion-threat stop
+- king opposition, tablebase, or draw claim enters
+- `permanently stopped`, `cannot advance`, or `only move` wording enters
+
+Stopping the next square is not stopping the pawn forever.
+
+Complete PawnStopProof or silence.
+
+PawnStop-3 opens no promotion-threat stop, permanent stop, cannot-advance
+claim, only-move claim, king opposition, tablebase draw, endgame result,
+best-defense, pawn-race, conversion, public route `200`, production API, or
+public/user-facing LLM narration.
+
+Completion standard: PawnStop-3 closes when every listed false positive is
+silent at the writer/proof boundary or rejected by downstream forbidden wording,
+and no incomplete PawnStopProof can create `Scene.PawnStop` speech.
+
+### PawnStop-4 EngineCheck Reuse
+
+PawnStop-4 reuses only the existing `EngineCheck` sidecar.
+
+`EngineCheck` cannot create `Scene.PawnStop`.
+
+EngineCheck status handling:
+
+- `Supports` does not create a new claim.
+- `Caps` suppresses standalone `stops_pawn_advance` speech or weakens it to bounded relation-only evidence.
+- `Refutes` blocks the PawnStop Story.
+- `Unknown` creates no engine expression.
+
+PawnStop-4 forbidden engine wording:
+
+- `engine says`
+- eval numbers
+- best defense
+- only move
+- tablebase draw
+- winning or losing endgame
+
+Completion standard: PawnStop-4 closes when `EngineCheck` can attach only to
+an existing same-board `ScenePawnStop` Story route, cannot create PawnStop,
+cannot add a new claim under Supports, suppresses or bounds capped rows, blocks
+refuted rows, keeps Unknown engine-silent, and exposes no engine wording, eval
+numbers, best-defense, only-move, tablebase, or endgame-result claims.
+
+### PawnStop-5 StoryTable Integration
+
+PawnStop-5 integrates `Scene.PawnStop` into `StoryTable` as a lower
+bounded scene claim when existing opened claim homes are present.
+
+Collision rows:
+
+- `Tactic.Hanging`
+- `Tactic.Fork`
+- `Scene.Material`
+- `Scene.Defense`
+- `Tactic.DiscoveredAttack`
+- `Tactic.Pin`
+- `Tactic.RemoveGuard`
+- `Tactic.Skewer`
+- `Scene.PawnAdvance`
+- `Scene.PawnStop`
+
+StoryTable requirements:
+
+- input order must not change selected role shape
+- PawnStop must not own `Scene.Defense` claims
+- PawnStop must not create `PromotionThreat` claims
+- PawnAdvance and PawnStop over the same pawn must not both compete as Lead
+- immediate tactic meaning stays in the tactic row home
+- actual material change stays in `Scene.Material`
+- PawnStop remains a lower bounded scene claim only
+- capped or refuted PawnStop has no standalone text
+
+Completion standard: PawnStop-5 closes when `StoryTable` remains stable across input order, existing immediate tactic, material, defense, and same-pawn PawnAdvance homes stay ahead of `Scene.PawnStop`, and non-lead, capped, or refuted PawnStop rows cannot produce renderer or LLM standalone speech.
+
+### PawnStop-6 ExplanationPlan
+
+PawnStop-6 lowers only a selected uncapped `Lead` Verdict for `Scene.PawnStop`.
+
+`ExplanationPlan` may admit only the `stops_pawn_advance` claim key.
+
+Allowed claim key:
+
+- `stops_pawn_advance`
+
+Forbidden claim keys:
+
+- `stops_promotion`
+- `permanently_stops_pawn`
+- `draws_endgame`
+- `best_defense`
+- `only_move`
+- `tablebase_draw`
+- `wins_endgame`
+- `converts_advantage`
+- `forced`
+
+Support, Context, Blocked, capped, and refuted PawnStop rows have no standalone claim.
+
+Completion standard: PawnStop-6 closes when only selected uncapped Lead PawnStop Verdicts
+lower to `stops_pawn_advance`, every forbidden claim key remains unavailable,
+and Support, Context, Blocked, capped, or refuted rows stay silent as standalone claims.
+
+### PawnStop-7 Deterministic Renderer
+
+Renderer input is `ExplanationPlan` only.
+
+Allowed deterministic wording:
+
+- `{route} stops the passed pawn from advancing next.`
+
+Forbidden renderer wording:
+
+- `stops promotion`
+- `stops the pawn for good`
+- `draws`
+- `holds the endgame`
+- `best defense`
+- `only move`
+- `forces`
+- `wins`
+- `tablebase`
+
+Renderer must not read `Story`, `Verdict`, `PawnStopProof`, `EngineCheck`, `proofFailures`, or `BoardFacts`.
+
+Completion standard: PawnStop-7 closes when `DeterministicRenderer` accepts only `ExplanationPlan`,
+phrases selected PawnStop plans only as bounded next-advance stop text,
+rejects every forbidden renderer wording above, and opens no raw Story,
+raw Verdict, PawnStopProof, EngineCheck, proofFailures, BoardFacts, public route
+`200`, production API, or public/user-facing LLM narration.
+
+### PawnStop-8 LLM Smoke
+
+PawnStop-8 reuses only the existing 8B LLM smoke boundary.
+
+PawnStop-8 LLM smoke input:
+
+- renderedText
+- claimKey
+- strength
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+PawnStop-8 forbidden LLM smoke inputs:
+
+- raw `Story`
+- raw `PawnStopProof`
+- `BoardFacts`
+- `EngineCheck`
+- raw PV
+- `proofFailures`
+
+PawnStop-8 LLM smoke must reject output that adds:
+
+- new move
+- new line
+- promotion claim
+- permanent stop claim
+- draw claim
+- tablebase claim
+- winning claim
+
+Completion standard: PawnStop-8 closes when LLM smoke receives only rendered text contract fields,
+returns only bounded rephrasing of selected uncapped PawnStop rendered text,
+rejects raw Story, raw PawnStopProof, BoardFacts, EngineCheck, raw PV, proofFailures,
+new move, new line, promotion, permanent stop, draw, tablebase, and winning claims,
+and opens no new LLM channel, production API, public route `200`, or chess-fact creation path.
+
+### PawnStop Closeout Hard Cleanup
+
+PawnStop Closeout opens no new chess meaning. It only audits the PawnStop hard cleanup surface.
+
+PawnStop Closeout must confirm:
+
+- `PassedPawnObservation` observes same-board passed-pawn structure only.
+- `PawnStopProof` proves the legal move directly stops the already-passed pawn's next non-promotion advance square on the exact after-board.
+- `Scene.PawnStop` is the only Story label for this bounded immediate next-square stop meaning.
+- `stops_pawn_advance` is the only speech key for this meaning.
+
+PawnStop owns no `Scene.PawnAdvance`, PromotionThreat, Promotion, or PawnBreak meaning.
+PawnStop owns no `Scene.Defense`, `Scene.Material`, `Tactic.Hanging`, or Line / Defender tactic meaning.
+`permanent stop`, `draw`, `tablebase`, `best defense`, and `only move` remain forbidden wording only, not live authority.
+
+PawnStop Closeout duplicate checks:
+
+- one chess meaning: bounded immediate passed-pawn next-square stop only
+- one proof home: `PawnStopProof`
+- one Story label: `Scene.PawnStop`
+- one speech key: `stops_pawn_advance`
+- one detailed live authority document: `StoryInteractionLaw.md`
+
+`README.md`, SSOT, Architecture, Contract, and Manifest may summarize PawnStop only.
+Renderer and LLM wording must remain no stronger than `stops_pawn_advance`.
+Public route `200`, production API, and public/user-facing LLM narration remain closed.
+
+Completion standard: PawnStop Closeout closes when `PassedPawnObservation`,
+`PawnStopProof`, `Scene.PawnStop`, and `stops_pawn_advance` remain separate authority homes,
+PawnStop owns no PawnAdvance, PromotionThreat, Promotion, PawnBreak, Defense, Material,
+Hanging, or Line / Defender tactic meaning, closed endgame and defense wording remains forbidden only,
+renderer and LLM smoke stay bounded to `stops_pawn_advance`, detailed authority stays only in
+`StoryInteractionLaw.md`, and public route `200`, production API, and public/user-facing LLM
+narration remain closed.
+
+### PIH-0 Pawn Interaction Hardening Charter
+
+Pawn Interaction Hardening opens no new pawn meaning. It proves PawnAdvance
+and PawnStop do not steal promotion, conversion, defense, or tactic meaning.
+
+PIH-0 opens only:
+
+- existing `Scene.PawnAdvance` and `Scene.PawnStop` interaction hardening
+- complex same-board fixtures over already-opened rows
+- `StoryTable` role stability
+- downstream no-overclaim smoke
+- minimum fixes for discovered ordering or boundary bugs
+
+PIH-0 collision rows are only:
+
+- `Scene.PawnAdvance`
+- `Scene.PawnStop`
+- `Tactic.Hanging`
+- `Tactic.Fork`
+- `Scene.Material`
+- `Scene.Defense`
+- `Tactic.DiscoveredAttack`
+- `Tactic.Pin`
+- `Tactic.RemoveGuard`
+- `Tactic.Skewer`
+
+PIH-0 opens no `Scene.PromotionThreat`, `Scene.Promotion`, `Scene.PawnBreak`,
+broad PawnTactic, unstoppable pawn, conversion, winning endgame, tablebase,
+pawn race, king route, opposition, best move, only move, public route `200`,
+production API, or public/user-facing LLM narration.
+
+Completion standard: PIH-0 closes when existing PawnAdvance and PawnStop rows
+remain lower bounded scene claims under opened tactic, material, and defense
+homes; same-board role shape is input-order stable; PawnAdvance and PawnStop
+proof sidecars cannot contaminate each other; renderer and LLM smoke reject
+promotion, conversion, defense, tactic, engine, best-move, only-move, and
+public-surface overclaims; and no new pawn Story label, proof home, or speech
+key appears.
+
+### PIH-1 Fixture Map
+
+PIH-1 opens only the fixture map for complex same-board Pawn Interaction
+Hardening over already-open rows. It does not open PromotionThreat, Promotion,
+PawnBreak, broad PawnTactic, unstoppable pawn, conversion, winning endgame,
+tablebase, pawn race, king route, opposition, best move, only move, public
+route `200`, production API, or public/user-facing LLM narration.
+
+Every PIH-1 fixture must state:
+
+- same-board FEN
+- side to move
+- legal lines under test
+- expected open rows
+- expected blocked rows
+- expected Lead, Support, Context, or Blocked role for each row
+- expected selected Verdict
+- forbidden claims
+
+The fixture map is:
+
+| fixture | same-board FEN | side to move | legal lines under test | expected open rows | expected blocked rows | expected roles | expected selected Verdict | forbidden claims |
+|---|---|---|---|---|---|---|---|---|
+| PawnAdvance vs PawnStop | `4k3/8/8/4P3/8/8/8/4K3 w - - 0 1` | White | `e5e6` | `Scene.PawnAdvance` | `Scene.PawnStop/blocked` | `Scene.PawnAdvance` Lead; `Scene.PawnStop/blocked` Blocked | `Scene.PawnAdvance` | promotion, promotion threat, pawn break, permanent stop, best move, only move |
+| PawnAdvance vs Material | `4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1` | White | `d4d5`, `d4e5` | `Scene.PawnAdvance`, `Scene.Material` | none | `Scene.Material` Lead; `Scene.PawnAdvance` Support | `Scene.Material` | promotion, tactic, fork, best move, only move |
+| PawnAdvance vs Defense | `4k3/8/8/5n1P/3Q4/8/8/4K3 w - - 0 1` | White | `h5h6`, `d4e4` | `Scene.PawnAdvance`, `Scene.Defense` | none | `Scene.Defense` Lead; `Scene.PawnAdvance` Support | `Scene.Defense` | promotion, tactic, fork, discovered attack, best move, only move |
+| PawnStop vs Defense | `4k3/6n1/8/3qP3/5N2/8/8/4K3 b - - 0 1` | Black | `g7e6`, `d5c6` | `Scene.PawnStop`, `Scene.Defense` | none | `Scene.Defense` Lead; `Scene.PawnStop` Support | `Scene.Defense` | promotion stop, permanent stop, draw, tablebase, best defense, only move |
+| PawnStop vs Line/Defender tactic | `r5k1/5n2/8/7P/8/8/4N3/4K3 b - - 0 1` | Black | `f7h6`, `a8e8` | `Scene.PawnStop`, `Tactic.Pin` | none | `Tactic.Pin` Lead; `Scene.PawnStop` Support | `Tactic.Pin` | promotion stop, permanent stop, skewer, discovered attack, best move, only move |
+| Pawn row vs EngineCheck Supports/Caps/Refutes | `4k3/8/8/4P3/8/8/8/4K3 w - - 0 1` | White | `e5e6` | `Scene.PawnAdvance#Supports`, `Scene.PawnAdvance#Caps`, `Scene.PawnAdvance#Refutes` | `Scene.PawnAdvance#Refutes` | `Scene.PawnAdvance#Supports` Lead; `Scene.PawnAdvance#Caps` Support; `Scene.PawnAdvance#Refutes` Blocked | `Scene.PawnAdvance#Supports` | engine says, best move, only move, winning, conversion |
+| Promotion-looking but no PromotionThreat yet | `4k3/8/4P3/8/8/8/8/4K3 w - - 0 1` | White | `e6e7` | `Scene.PawnAdvance` | `promotion-looking/blocked` | `Scene.PawnAdvance` Lead; `promotion-looking/blocked` Blocked | `Scene.PawnAdvance` | promotion, promotion threat, queens, unstoppable, winning, conversion |
+| tablebase-looking but no tablebase authority | `4k3/6n1/8/4P3/8/8/8/4K3 b - - 0 1` | Black | `g7e6` | `Scene.PawnStop` | `endgame-result/blocked` | `Scene.PawnStop` Lead; `endgame-result/blocked` Blocked | `Scene.PawnStop` | tablebase, draw, permanent stop, best move, only move |
+
+PIH-1 negative rows are fixture probes only. They do not create source-row
+authority, proof homes, Story labels, speech keys, public JSON, renderer input,
+LLM input, or public expected output. `PromotionThreat` must not appear as a
+positive expected row. Endgame-result and tablebase-looking probes must remain
+blocked and must not become public claims. `proofFailures` text remains internal
+diagnostic material only.
+
+### PIH-2 Role Stability
+
+PIH-2 opens only `StoryTable` role stability checks over already-open
+`Scene.PawnAdvance`, `Scene.PawnStop`, Defense, Material, Hanging, Fork,
+DiscoveredAttack, Pin, RemoveGuard, and Skewer rows. It opens no new pawn
+meaning, no PromotionThreat, no Promotion, no PawnBreak, no conversion, no
+tablebase, no endgame-result authority, no public route `200`, no production
+API, and no public/user-facing LLM narration.
+
+PIH-2 requires:
+
+- selected Verdict identity remains stable when input order changes
+- the same pawn meaning cannot become duplicate Lead
+- incomplete PawnAdvance and PawnStop rows cannot Lead
+- EngineCheck Refutes rows become Blocked
+- EngineCheck Caps rows create no standalone claim, ExplanationPlan, renderer
+  output, or LLM claim
+- PawnAdvance and PawnStop over the same passed pawn cannot both Lead
+- PawnStop cannot own Defense claim meaning
+- PawnAdvance cannot own promotion or conversion claim meaning
+
+PIH-2 may fix only ordering or downstream-boundary bugs exposed by those
+checks. Such fixes must not use `proofFailures` text as public ordering, must
+not make raw engine status public meaning, and must not add a new Story label,
+proof home, speech key, renderer route, production API, or public surface.
+
+### PIH-3 Meaning Ownership Boundary
+
+PIH-3 opens only Meaning Ownership Boundary checks over already-open
+PawnAdvance, PawnStop, Material, Defense, and Line/Defender tactic rows. It
+does not open PromotionThreat, Promotion, PawnBreak, broad PawnTactic,
+conversion, unstoppable pawn, tablebase, endgame-result, public route `200`,
+production API, or public/user-facing LLM narration.
+
+PIH-3 fixes each row to one meaning:
+
+- `Scene.PawnAdvance` owns only an already-passed pawn making a legal
+  non-capturing non-promotion advance and remaining passed.
+- `Scene.PawnStop` owns only a legal move directly stopping the passed pawn's
+  next advance square.
+- `Scene.Material` owns only an actual material balance change now.
+- `Scene.Defense` owns only complete `ThreatProof` plus `DefenseProof`
+  preventing immediate material loss.
+- Line/Defender tactics own only their own line or guard relation:
+  DiscoveredAttack reveals an attack, Pin pins, RemoveGuard removes a defender,
+  and Skewer skewers one front and one rear target.
+
+PIH-3 forbidden ownership:
+
+- PawnAdvance must not speak will-promote, unstoppable-pawn, conversion,
+  winning-endgame, best-move, or only-move meaning.
+- PawnStop must not speak promotion-stop, draw, endgame-hold, permanent-stop,
+  best-defense, best-move, or only-move meaning.
+- PawnStop must not replace general Defense or own `defends_piece` meaning.
+- Material and Hanging must not own pawn progress, pawn stop, promotion, or
+  conversion meaning.
+- Line/Defender tactics must not steal sibling line or guard relation meaning
+  and must not own pawn progress or material-win meaning.
+
+PIH-3 downstream smoke is allowed only as a boundary check over selected Lead
+Verdicts from existing rows. Support, Context, Blocked, capped, and refuted
+rows create no standalone claim, ExplanationPlan, renderer text, LLM input, or
+public expected output.
+
+### PIH-4 EngineCheck Interaction
+
+PIH-4 opens only EngineCheck interaction checks over already-open
+`Scene.PawnAdvance` and `Scene.PawnStop` rows. It reuses the existing
+EngineCheck sidecar and status semantics only. EngineCheck remains incapable of
+creating a Story, choosing a Verdict, owning a public claim, feeding renderer or
+LLM stages directly, or replacing pawn proof.
+
+PIH-4 requires:
+
+- `Supports` creates no new pawn, engine, promotion, conversion, defense, or
+  tactic claim. It may leave an already-selected uncapped pawn Story with the
+  same bounded pawn claim.
+- `Caps` suppresses standalone pawn expression or weakens it through the
+  existing bounded engine-limited path. It must not create renderer text,
+  LLM input, or an engine-owned claim.
+- `Refutes` makes the corresponding PawnAdvance or PawnStop Story `Blocked`.
+  The blocked row must not create an ExplanationPlan, renderer text, LLM input,
+  or public expected output.
+- `Unknown` creates no engine-related expression. If the underlying pawn row is
+  otherwise selected, its text must be identical to the non-engine bounded pawn
+  text and must not mention engine evidence.
+
+PIH-4 forbids public or downstream wording that says or implies `engine says`,
+raw PV explanation, public eval numbers, best move, only move, tablebase-like
+authority, promotion, conversion, unstoppable pawn, draw, or winning endgame.
+Raw engine evals, engine lines, source rows, EngineCheck diagnostics, and
+`proofFailures` remain internal diagnostics and must not enter `Verdict.values`,
+ExplanationPlan, renderer text, LLM prompt input, or public JSON.
+
+PIH-4 does not open a new EngineCheck proof home, Story label, speech key,
+public route `200`, production API, public/user-facing LLM narration, or any
+new pawn meaning.
+
+### PIH-5 Negative Corpus
+
+PIH-5 opens only the negative corpus for close PawnAdvance and PawnStop false
+positives. It proves that looking like pawn progress, a pawn stop, a promotion
+race, an endgame tablebase case, or a king-route idea is not enough. Existing
+complete proof or silence is the rule.
+
+PIH-5 must keep these rows silent:
+
+- a pawn advances but was not already passed
+- a passed pawn advances but lacks exact after-board replay proof
+- a pawn-stop-looking move leaves the passed pawn's next advance square still
+  available
+- a pawn-stop-looking move only claims long-term blockade instead of directly
+  stopping the next advance square
+- a promotion-looking position before PromotionThreat opens
+- a tablebase-looking position
+- a king opposition-looking position
+- a pawn race-looking position
+- a route mismatch between Story identity, proof sidecar, and EngineCheck line
+- stale or wrong-board engine evidence
+- EngineCheck `Refutes` over a plausible pawn row
+
+PIH-5 negative rows may use proofFailures and diagnostic fields internally, but
+they must not become public expected output, `Verdict.values`, ExplanationPlan,
+renderer text, LLM prompt input, public JSON, or source-row authority.
+
+PIH-5 does not open PromotionThreat, Promotion, PawnBreak, broad PawnTactic,
+long-term blockade, unstoppable pawn, conversion, winning or drawn endgame,
+tablebase, pawn race, king route, opposition, best move, only move, public route
+`200`, production API, public/user-facing LLM narration, a new proof home, a new
+Story label, or a new speech key.
+
+### PIH-6 Downstream Boundary Smoke
+
+PIH-6 opens only downstream boundary smoke over already-open PawnAdvance and
+PawnStop rows. It proves that selected Lead Verdict data is the only pawn data
+allowed to reach expression stages. Support, Context, Blocked, capped, and
+refuted pawn rows remain relation or diagnostic rows and create no standalone
+text.
+
+PIH-6 requires:
+
+- ExplanationPlan receives selected Lead Verdict data only for pawn expression.
+- DeterministicRenderer receives ExplanationPlan only.
+- LLM smoke receives only rendered text, claim key, strength, forbidden wording,
+  and the rephrase-only instruction: `Rephrase only. Do not add chess facts.`
+- Support, Context, Blocked, capped, and refuted pawn rows produce no standalone
+  ExplanationPlan, renderer text, LLM input, prompt, public JSON, or public
+  expected output.
+- Prompt smoke must not expose BoardFacts, Story rows, Verdict internals,
+  EngineCheck, EngineEval, EngineLine, proofFailures, source rows, FEN, raw PV,
+  route internals, proof sidecars, or diagnostics.
+
+PIH-6 forbidden downstream wording includes: will promote, unstoppable, wins,
+winning, conversion, draws, holds, tablebase, best move, only move, forced,
+pressure, and initiative. These are forbidden for both PawnAdvance and PawnStop
+selected Lead expression, even when the raw row looks promotion-like,
+endgame-like, engine-supported, or strategically suggestive.
+
+PIH-6 does not open PromotionThreat, Promotion, PawnBreak, broad PawnTactic,
+unstoppable pawn, conversion, winning or drawn endgame, tablebase, pawn race,
+king route, opposition, pressure, initiative, best move, only move, public route
+`200`, production API, public/user-facing LLM narration, new renderer routes,
+new LLM authority, a new proof home, a new Story label, or a new speech key.
+
+### PIH-7 Diagnostics Boundary
+
+PIH-7 opens only diagnostics boundary hardening over already-open PawnAdvance
+and PawnStop rows.
+
+PIH-7 requires:
+
+- proofFailures remain internal diagnostics only.
+- raw proof text does not enter `Verdict.values`.
+- EngineCheck text, raw PV, eval numbers, and engine sidecar text do not lower
+  directly into ExplanationPlan, renderer text, or LLM smoke output.
+- StoryTable debug relations, including capped and refuted relation keys, do not
+  become renderer wording.
+- test helper names, fixture-map language, negative-corpus language, and PIH
+  stage labels do not become runtime authority names or production source
+  concepts.
+
+PIH-7 diagnostic wording forbidden in public expression includes:
+
+- proofFailures.
+- missing evidence.
+- same-board proof.
+- exact after-board replay.
+- EngineCheck, EngineLine, and EngineEval.
+- StoryTable debug relation.
+- blocked_by_engine_refute.
+- capped_same_story.
+- same_family_lower_rank.
+- raw eval numbers or PV text.
+
+PIH-7 may use diagnostic text inside tests and debugging only. It does not open
+a public diagnostic explanation, public JSON diagnostic payload, public route
+`200`, production API, public/user-facing LLM narration, a new proof home, a new
+Story label, or a new speech key.
+
+### PIH Closeout Hard Cleanup
+
+PIH Closeout opened no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, public route `200`, production API, or public/user-facing LLM narration at the PawnAdvance/PawnStop baseline. PromotionThreat-0 is the third Pawn / Promotion Neighborhood slice.
+
+PIH Closeout must confirm:
+
+- no new Story family was added beyond already-open `Scene.PawnAdvance` and `Scene.PawnStop`.
+- no new proof home was added beyond already-open `PawnAdvanceProof` and `PawnStopProof`.
+- `PassedPawnObservation`, `PawnAdvanceProof`, and `PawnStopProof` authority remains separated.
+- `Scene.PawnAdvance` and `Scene.PawnStop` do not invade each other's meaning.
+- PromotionThreat, Promotion, PawnBreak, tablebase, pawn race, king route, and opposition remain closed authority and forbidden wording only.
+- Material, Defense, Hanging, and Line / Defender tactic homes are not invaded.
+
+PIH Closeout duplicate audit:
+
+- one chess meaning: bounded passed-pawn advance belongs to `Scene.PawnAdvance`; bounded immediate next-square stop belongs to `Scene.PawnStop`.
+- one proof home for each pawn meaning: `PawnAdvanceProof` for advance; `PawnStopProof` for stop.
+- one Story label for each pawn meaning: `Scene.PawnAdvance` and `Scene.PawnStop`.
+- one speech key for each pawn meaning: `advances_passed_pawn` and `stops_pawn_advance`.
+- one detailed live authority document: `StoryInteractionLaw.md`.
+
+`README.md`, SSOT, Architecture, Contract, and Manifest may summarize PIH Closeout only.
+
+Public route `200`, production API, and public/user-facing LLM narration remain closed.
+
+Completion standard: PIH Closeout closes when PawnAdvance and PawnStop interaction hardening has no new pawn meaning, no mixed proof authority, no sibling claim-home invasion, no duplicated detailed authority outside StoryInteractionLaw.md, no promoted test helper, no public route `200`, no production API, and no public/user-facing LLM narration.
+
+### PromotionThreat-0 Charter
+
+PromotionThreat-0 opens only the third narrow Pawn / Promotion Neighborhood vertical slice.
+
+First positive scope is not broad promotion race, winning pawn, conversion, or
+actual Promotion Story.
+
+Core sentence:
+
+Pawn facts observe structure. PromotionThreatProof proves the next-move
+promotion threat. Scene.PromotionThreat may speak only immediate threat, not
+unstoppable conversion.
+
+PromotionThreat-0 opens:
+
+- narrow `Scene.PromotionThreat`
+- legal pawn move
+- exact after-board
+- next move promotion is legal for the same pawn on that after-board
+- promotion square
+- promotion route
+- selected Verdict after bounded promotion-threat wording
+- the bounded speech key `threatens_promotion_next`
+
+PromotionThreat-0 does not open:
+
+- actual Promotion Story
+- unstoppable pawn
+- cannot be stopped
+- winning endgame
+- conversion
+- tablebase claim
+- pawn race result
+- best move or only move
+- forced win
+- no counterplay
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+`PromotionThreatProof` is the proof home for this slice. It is not a public
+`Story` and does not own conversion, endgame result, tablebase, race, or
+unstoppable-pawn meaning.
+
+### PromotionThreat-1 PromotionThreatProof
+
+`PromotionThreatProof` is the proof home for the narrow
+`Scene.PromotionThreat` slice. It proves immediate next-move promotion-threat
+evidence only; it is not a public `Story`.
+
+PromotionThreatProof must prove:
+
+- threatening side
+- rival side
+- pawn identity
+- pawn move that creates the threat
+- exact after-board replay
+- next promotion move
+- promotion square
+- promotion route
+- next promotion move is legal on the after-board
+- pawn is non-promoted before the creating move
+- same-board proof
+
+`PromotionThreatProof` is not a public `Story`.
+`PawnAdvanceProof` does not own `PromotionThreat`.
+`PawnStopProof` does not own `PromotionThreat`.
+
+PromotionThreat-1 forbids:
+
+- `unstoppable`
+- `cannot be stopped`
+- `will queen`
+- `wins`
+- `conversion`
+- `forced`
+- `tablebase`
+
+proofFailures must not become renderer input or LLM input.
+
+### PromotionThreat-2 ScenePromotionThreat Writer
+
+`ScenePromotionThreat` is the named writer for narrow `Scene.PromotionThreat`.
+
+ScenePromotionThreat writer conditions:
+
+- complete `StoryProof`
+- complete `PromotionThreatProof`
+- same-board legal replay
+- legal creating pawn move
+- legal next promotion move on exact after-board
+- writer = `ScenePromotionThreat`
+- `EngineCheck` does not `Refute`
+
+ScenePromotionThreat Story identity:
+
+- `scene = PromotionThreat`
+- `tactic = None`
+- `plan = None`
+- `side = threatening side`
+- `rival = rival side`
+- `target = promotion square`
+- `anchor = pawn origin square`
+- `route = creating pawn move`
+- `secondaryTarget = None` unless the fixed identity shape requires the promotion destination
+
+`ScenePromotionThreat` must not create actual Promotion.
+`ScenePromotionThreat` must not replace `PawnAdvance` or `PawnStop` meaning.
+`ScenePromotionThreat` must not create `unstoppable` or `wins` meaning.
+
+### PromotionThreat-3 Negative Corpus
+
+A pawn near promotion is not a PromotionThreat. Legal next-move promotion proof or silence.
+
+PromotionThreat-3 keeps these rows closed:
+
+- legal creating move missing
+- same-board proof missing
+- move is not a pawn move
+- creating move itself is promotion
+- next promotion move is not legal on the exact after-board
+- promotion square cannot be computed
+- next move is not promotion because two or more moves are still needed
+- rival stoppability check tries to expand into `unstoppable`
+- tablebase, winning, or conversion wording enters the path
+
+`ScenePromotionThreat` must return no Story for every negative corpus row.
+`PromotionThreatProof` may record internal missing evidence only.
+Renderer and LLM smoke must reject `unstoppable`, `wins`, `tablebase`, and `conversion` wording.
+
+### PromotionThreat-4 EngineCheck Reuse
+
+PromotionThreat-4 reuses only the existing `EngineCheck` sidecar.
+
+`EngineCheck` cannot create `Scene.PromotionThreat`.
+
+EngineCheck status handling for PromotionThreat:
+
+- `Supports` does not create a new claim.
+- `Caps` suppresses standalone `threatens_promotion_next` speech or weakens it to bounded relation-only evidence.
+- `Refutes` blocks the PromotionThreat Story.
+- `Unknown` creates no engine expression.
+
+PromotionThreat-4 forbidden engine wording:
+
+- `engine says`
+- eval numbers
+- tablebase result
+- best move
+- only move
+- winning endgame
+- forced win
+
+Completion standard: PromotionThreat-4 closes when `EngineCheck` can attach only to an existing same-board `ScenePromotionThreat` Story route, cannot create PromotionThreat, cannot add a new claim under Supports, suppresses or bounds capped rows, blocks refuted rows, keeps Unknown engine-silent, and exposes no engine wording, eval numbers, tablebase, best-move, only-move, winning-endgame, or forced-win claims.
+
+### PromotionThreat-5 StoryTable Integration
+
+PromotionThreat-5 integrates `Scene.PromotionThreat` into `StoryTable` collision behavior only.
+
+PromotionThreat-5 collision rows:
+
+- `Scene.PawnAdvance`
+- `Scene.PawnStop`
+- existing Material / Defense / Hanging / Line rows
+- `Scene.PromotionThreat`
+
+PromotionThreat-5 verification:
+
+- input order remains stable
+- PromotionThreat does not own PawnAdvance meaning
+- PromotionThreat does not own PawnStop meaning
+- PawnStop must not create a `stops promotion` claim
+- actual material or tactical claim remains in the existing home
+- capped or refuted PromotionThreat creates no standalone text
+
+Completion standard: PromotionThreat-5 closes when `StoryTable` orders PromotionThreat deterministically against PawnAdvance, PawnStop, Material, Defense, Hanging, and Line rows; no row borrows another row's claim meaning; actual material and tactical claims stay in their existing homes; and capped or refuted PromotionThreat rows do not reach standalone ExplanationPlan, renderer, or LLM wording.
+
+### PromotionThreat-6 ExplanationPlan
+
+PromotionThreat-6 lowers only a selected uncapped `Lead` Verdict for `Scene.PromotionThreat`.
+
+`ExplanationPlan` may admit only the `threatens_promotion_next` claim key.
+
+PromotionThreat-6 allowed claim keys:
+
+- `threatens_promotion_next`
+
+PromotionThreat-6 forbidden claim keys:
+
+- `unstoppable_pawn`
+- `will_promote`
+- `cannot_be_stopped`
+- `wins_endgame`
+- `converts_advantage`
+- `best_move`
+- `only_move`
+- `forced`
+- `tablebase_win`
+- `no_counterplay`
+
+Support, Context, Blocked, capped, and refuted PromotionThreat rows have no standalone claim.
+
+Completion standard: PromotionThreat-6 closes when only selected uncapped Lead PromotionThreat Verdicts lower to `threatens_promotion_next`; Support, Context, Blocked, capped, and refuted rows create no standalone claim; and forbidden promotion, unstoppable, winning, conversion, best/only, forced, tablebase, and no-counterplay claim keys remain absent.
+
+### PromotionThreat-7 Deterministic Renderer
+
+Renderer input is `ExplanationPlan` only.
+
+PromotionThreat-7 allowed deterministic wording:
+
+- `{route} threatens to promote next.`
+
+PromotionThreat-7 forbidden renderer wording:
+
+- `will promote`
+- `cannot be stopped`
+- `unstoppable`
+- `wins`
+- `winning endgame`
+- `converts`
+- `best move`
+- `only move`
+- `forces`
+- `tablebase win`
+- `no counterplay`
+
+Renderer must not read `Story`, `Verdict`, `PromotionThreatProof`, `BoardFacts`, `EngineCheck`, `proofFailures`, raw legal continuations, or source rows.
+
+Completion standard: PromotionThreat-7 closes when `DeterministicRenderer` accepts only `ExplanationPlan`, phrases selected uncapped Lead PromotionThreat as `{route} threatens to promote next.`, rejects Support, Context, Blocked, capped, refuted, no-claim, and malformed plans, and emits none of the forbidden promotion, unstoppable, winning, conversion, best/only, forced, tablebase, or no-counterplay wording.
+
+### PromotionThreat-8 LLM Smoke
+
+PromotionThreat-8 reuses only the existing 8B LLM smoke boundary.
+
+PromotionThreat-8 LLM input:
+
+- renderedText
+- claimKey
+- strength
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+PromotionThreat-8 forbidden LLM input and additions:
+
+- raw `Story`
+- raw `PromotionThreatProof`
+- `BoardFacts`
+- `EngineCheck`
+- raw PV
+- `proofFailures`
+- new move
+- new line
+- actual promotion claim
+- unstoppable claim
+- winning claim
+- conversion claim
+- tablebase claim
+
+Completion standard: PromotionThreat-8 closes when LLM smoke receives only rendered text contract fields for PromotionThreat, rejects raw Story, PromotionThreatProof, BoardFacts, EngineCheck, raw PV, proofFailures, new moves, new lines, actual promotion, unstoppable, winning, conversion, and tablebase claims, and opens no public/user-facing LLM narration, production API, or public route 200.
+
+PromotionThreatProof must prove:
+
+- moving side
+- rival side
+- pawn identity before the creating move
+- pawn identity after the creating move
+- legal pawn creating move
+- creating move is not itself a promotion
+- exact after-board replay
+- pawn is on the penultimate rank after the creating move
+- promotion square
+- promotion route
+- same-board proof
+- legal next-move promotion continuation on the exact after-board
+
+`ScenePromotionThreat` is the only writer that may create
+`Scene.PromotionThreat`.
+
+ScenePromotionThreat writer conditions:
+
+- complete `StoryProof`
+- complete `PromotionThreatProof`
+- same-board legal replay
+- legal pawn creating move
+- legal next-move promotion route
+- writer = `ScenePromotionThreat`
+- `scene = PromotionThreat`
+- `tactic = None`
+- `plan = None`
+- `side = creating pawn side`
+- `rival = opposite side`
+- `target = promotion square`
+- `anchor = creating pawn origin square`
+- `route = creating pawn move`
+
+`Scene.PromotionThreat` must not create `Scene.PawnAdvance`,
+`Scene.PawnStop`, `Scene.Promotion`, `Tactic.Promote`, broad PawnTactic,
+conversion, race, tablebase, or endgame-result meaning.
+
+ExplanationPlan may admit only selected uncapped Lead
+`Scene.PromotionThreat` Verdict data. The only allowed claim key is
+`threatens_promotion_next`. Support, Context, Blocked, capped, and refuted rows have no
+standalone claim.
+
+Allowed deterministic wording:
+
+- `{route} threatens to promote next.`
+
+Forbidden wording includes:
+
+- `will promote`
+- `queens`
+- `unstoppable`
+- `cannot be stopped`
+- `wins`
+- `winning endgame`
+- `conversion`
+- `tablebase`
+- `pawn race`
+- `best move`
+- `only move`
+- `forced`
+- `no counterplay`
+
+Renderer input is `ExplanationPlan` only. Renderer must not read `Story`,
+`Verdict`, `PromotionThreatProof`, `BoardFacts`, `EngineCheck`,
+`proofFailures`, raw legal continuations, or source rows.
+
+The existing LLM smoke boundary may rephrase only rendered text, claim key,
+strength, forbidden wording, and the instruction `Rephrase only. Do not add
+chess facts.` It does not open public/user-facing LLM narration.
+
+PromotionThreat-0 duplicate audit:
+
+- one chess meaning: immediate next-move promotion threat only
+- one proof home: `PromotionThreatProof`
+- one Story label: `Scene.PromotionThreat`
+- one speech key: `threatens_promotion_next`
+- one detailed live authority document: `StoryInteractionLaw.md`
+
+Completion standard: PromotionThreat-0 closes when a legal pawn move creating a
+legal next-move promotion route on the exact after-board can produce only
+bounded `Scene.PromotionThreat` wording, while actual promotion, unstoppable
+conversion, endgame, tablebase, pawn-race, best/only/forced, public route
+`200`, production API, and public/user-facing LLM narration remain closed.
+
+### PromotionThreat Closeout Hard Cleanup
+
+PromotionThreat Closeout opens no new chess meaning. It only audits the PromotionThreat hard cleanup surface.
+
+PromotionThreat Closeout must confirm:
+
+- `PromotionThreatProof` proves only immediate next-move promotion-threat evidence on the exact after-board.
+- `Scene.PromotionThreat` is the only Story label for this immediate threat meaning.
+- `threatens_promotion_next` is the only speech key for this meaning.
+
+PromotionThreat owns no `Scene.PawnAdvance`, `Scene.PawnStop`, actual Promotion, or PawnBreak meaning.
+PromotionThreat owns no `Scene.Material`, `Scene.Defense`, `Tactic.Hanging`, or Line / Defender tactic meaning.
+`unstoppable`, `will promote`, `cannot be stopped`, `conversion`, and `tablebase` remain forbidden wording only, not live authority.
+
+PromotionThreat Closeout duplicate checks:
+
+- one chess meaning: immediate next-move promotion threat only
+- one proof home: `PromotionThreatProof`
+- one Story label: `Scene.PromotionThreat`
+- one speech key: `threatens_promotion_next`
+- one detailed live authority document: `StoryInteractionLaw.md`
+
+`README.md`, SSOT, Architecture, Contract, and Manifest may summarize PromotionThreat only.
+Renderer and LLM wording must remain no stronger than `threatens_promotion_next`.
+Public route `200`, production API, and public/user-facing LLM narration remain closed.
+
+Completion standard: PromotionThreat Closeout closes when `PromotionThreatProof`,
+`Scene.PromotionThreat`, and `threatens_promotion_next` remain separate authority homes,
+PromotionThreat owns no PawnAdvance, PawnStop, actual Promotion, PawnBreak, Material,
+Defense, Hanging, or Line / Defender tactic meaning, closed promotion, unstoppable,
+conversion, and tablebase wording remains forbidden only, renderer and LLM smoke stay
+bounded to `threatens_promotion_next`, detailed authority stays only in
+`StoryInteractionLaw.md`, and public route `200`, production API, and public/user-facing
+LLM narration remain closed.
 
 ## Proof And Interaction Law
 
