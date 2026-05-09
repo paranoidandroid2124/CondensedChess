@@ -10,6 +10,7 @@ enum Scene:
   case Pawns
   case PawnAdvance
   case PawnStop
+  case PawnBreak
   case Plan
   case Pieces
   case Space
@@ -20,6 +21,10 @@ enum Scene:
   case Source
   case Quiet
   case PromotionThreat
+  case Promotion
+  case PawnCapture
+  case PassedPawnCreated
+  case FileOpened
 
 enum Plan:
   case Minority
@@ -242,7 +247,12 @@ private[commentary] enum StoryWriter:
   case TacticSkewer
   case ScenePawnAdvance
   case ScenePawnStop
+  case ScenePawnBreak
   case ScenePromotionThreat
+  case ScenePromotion
+  case ScenePawnCapture
+  case ScenePassedPawnCreated
+  case SceneFileOpened
 
 final case class Story(
     scene: Scene,
@@ -269,7 +279,13 @@ final case class Story(
     private[commentary] val skewerProof: Option[SkewerProof] = None,
     private[commentary] val pawnAdvanceProof: Option[PawnAdvanceProof] = None,
     private[commentary] val pawnStopProof: Option[PawnStopProof] = None,
-    private[commentary] val promotionThreatProof: Option[PromotionThreatProof] = None
+    private[commentary] val pawnBreakProof: Option[PawnBreakProof] = None,
+    private[commentary] val promotionThreatProof: Option[PromotionThreatProof] = None,
+    private[commentary] val promotionProof: Option[PromotionProof] = None,
+    private[commentary] val pawnCaptureProof: Option[PawnCaptureProof] = None,
+    private[commentary] val passedPawnCreatedProof: Option[PassedPawnCreatedProof] = None,
+    private[commentary] val openedFile: Option[Int] = None,
+    private[commentary] val fileOpenedProof: Option[FileOpenedProof] = None
 ):
   def proofFailures: Vector[BoardFacts.MissingEvidence] =
     storyProof.failures(this)
@@ -297,8 +313,8 @@ final case class Story(
   private def squareValue(square: Option[Square]) = square.fold(0)(_.index + 1)
 
 object Story:
-  val Size = 164
-  val SceneSlots = 19
+  val Size = 169
+  val SceneSlots = 24
   val PlanSlots = 32
   val TacticSlots = 25
   val PawnSlots = 16
@@ -369,9 +385,9 @@ final case class Verdict(
     data.toVector
 
 object Verdict:
-  val Size = 100
+  val Size = 105
   val FinalSlots = 8
-  val SceneSlots = 19
+  val SceneSlots = 24
   val PlanSlots = 32
   val TacticSlots = 25
   val ProofSlots = 16
@@ -402,7 +418,13 @@ object StoryTable:
       stories.map: story =>
         val leadCandidate = leadByStoryRules(story, stories)
         val proofFailures = story.proofFailures
-        Row(story, story.proof.publicStrength, leadCandidate, blockedByStoryRules(story, proofFailures), proofFailures)
+        Row(
+          story,
+          story.proof.publicStrength,
+          leadCandidate,
+          blockedByStoryRules(story, proofFailures),
+          proofFailures
+        )
     rows
       .sortBy(row =>
         (
@@ -446,11 +468,16 @@ object StoryTable:
     roleKey * 8 + engineCapPriority(row.story) * 4 + engineStatusKey(row.story)
 
   private def interactionPriority(story: Story, stories: Vector[Story]) =
-    if promotionThreatYieldsToOpenedClaimHome(story, stories) then 1
+    if promotionYieldsToOpenedClaimHome(story, stories) then 1
+    else if promotionThreatYieldsToOpenedClaimHome(story, stories) then 1
+    else if pawnBreakYieldsToOpenedClaimHome(story, stories) then 1
     else if pawnStopYieldsToOpenedClaimHome(story, stories) then 1
     else if pawnStopYieldsToSamePawnAdvance(story, stories) then 1
     else if pawnAdvanceYieldsToOpenedClaimHome(story, stories) then 1
     else if pawnAdvanceYieldsToPromotionThreat(story, stories) then 1
+    else if pawnCaptureYieldsToOpenedClaimHome(story, stories) then 1
+    else if passedPawnCreatedYieldsToOpenedClaimHome(story, stories) then 1
+    else if fileOpenedYieldsToOpenedClaimHome(story, stories) then 1
     else if materialOverlapsHanging(story, stories) then 1
     else if defenseCollidesWithMaterial(story, stories) then 1
     else if defenseOverlapsImmediateMaterialGain(story, stories) then 1
@@ -459,6 +486,18 @@ object StoryTable:
     else if removeGuardOverlapsMaterial(story, stories) then 1
     else if removeGuardOverlapsHanging(story, stories) then 1
     else 0
+
+  private def promotionYieldsToOpenedClaimHome(story: Story, stories: Vector[Story]) =
+    positivePromotionWriter(story) &&
+      stories.exists: other =>
+        other != story &&
+          (
+            positiveHangingWriter(other) ||
+              positiveForkWriter(other) ||
+              positiveMaterialWriter(other) ||
+              positiveDefenseWriter(other) ||
+              positiveLineDefenderWriter(other)
+          )
 
   private def engineCapPriority(story: Story) =
     if story.engineCheck.exists(_.status == EngineCheckStatus.Caps) then 1 else 0
@@ -476,6 +515,76 @@ object StoryTable:
               positiveMaterialWriter(other) ||
               positiveDefenseWriter(other) ||
               positiveLineDefenderWriter(other)
+          )
+
+  private def pawnBreakYieldsToOpenedClaimHome(story: Story, stories: Vector[Story]) =
+    positivePawnBreakWriter(story) &&
+      stories.exists: other =>
+        other != story &&
+          (
+            positiveHangingWriter(other) ||
+              positiveForkWriter(other) ||
+              positiveMaterialWriter(other) ||
+              positiveDefenseWriter(other) ||
+              positiveLineDefenderWriter(other) ||
+              positivePawnAdvanceWriter(other) ||
+              positivePawnStopWriter(other) ||
+              positivePromotionThreatWriter(other) ||
+              positivePromotionWriter(other)
+          )
+
+  private def pawnCaptureYieldsToOpenedClaimHome(story: Story, stories: Vector[Story]) =
+    positivePawnCaptureWriter(story) &&
+      stories.exists: other =>
+        other != story &&
+          (
+            positiveHangingWriter(other) ||
+              positiveForkWriter(other) ||
+              positiveMaterialWriter(other) ||
+              positiveDefenseWriter(other) ||
+              positiveLineDefenderWriter(other) ||
+              positivePawnAdvanceWriter(other) ||
+              positivePawnStopWriter(other) ||
+              positivePawnBreakWriter(other) ||
+              positivePromotionThreatWriter(other) ||
+              positivePromotionWriter(other)
+          )
+
+  private def passedPawnCreatedYieldsToOpenedClaimHome(story: Story, stories: Vector[Story]) =
+    positivePassedPawnCreatedWriter(story) &&
+      stories.exists: other =>
+        other != story &&
+          (
+            positiveHangingWriter(other) ||
+              positiveForkWriter(other) ||
+              positiveMaterialWriter(other) ||
+              positiveDefenseWriter(other) ||
+              positiveLineDefenderWriter(other) ||
+              positivePawnAdvanceWriter(other) ||
+              positivePawnStopWriter(other) ||
+              positivePawnBreakWriter(other) ||
+              positivePawnCaptureWriter(other) ||
+              positivePromotionThreatWriter(other) ||
+              positivePromotionWriter(other)
+          )
+
+  private def fileOpenedYieldsToOpenedClaimHome(story: Story, stories: Vector[Story]) =
+    positiveFileOpenedWriter(story) &&
+      stories.exists: other =>
+        other != story &&
+          (
+            positiveHangingWriter(other) ||
+              positiveForkWriter(other) ||
+              positiveMaterialWriter(other) ||
+              positiveDefenseWriter(other) ||
+              positiveLineDefenderWriter(other) ||
+              positivePawnAdvanceWriter(other) ||
+              positivePawnStopWriter(other) ||
+              positivePawnBreakWriter(other) ||
+              positivePawnCaptureWriter(other) ||
+              positivePassedPawnCreatedWriter(other) ||
+              positivePromotionThreatWriter(other) ||
+              positivePromotionWriter(other)
           )
 
   private def pawnAdvanceYieldsToPromotionThreat(story: Story, stories: Vector[Story]) =
@@ -605,7 +714,7 @@ object StoryTable:
     defense.side == material.side &&
       defense.route == material.route &&
       defense.threatProof.flatMap(_.attackingPiece).map(_.square) ==
-        material.captureResult.flatMap(_.targetPiece).map(_.square)
+      material.captureResult.flatMap(_.targetPiece).map(_.square)
 
   private def leadByStoryRules(story: Story, stories: Vector[Story]) =
     story.proofFailures.isEmpty &&
@@ -636,10 +745,20 @@ object StoryTable:
       invalidSkewerWriter(story) ||
       invalidPawnAdvanceWriter(story) ||
       invalidPawnStopWriter(story) ||
+      invalidPawnBreakWriter(story) ||
+      invalidPawnCaptureWriter(story) ||
+      invalidPassedPawnCreatedWriter(story) ||
+      invalidFileOpenedWriter(story) ||
       invalidPromotionThreatWriter(story) ||
+      invalidPromotionWriter(story) ||
       pawnAdvanceWithoutWriter(story) ||
       pawnStopWithoutWriter(story) ||
+      pawnBreakWithoutWriter(story) ||
+      pawnCaptureWithoutWriter(story) ||
+      passedPawnCreatedWithoutWriter(story) ||
+      fileOpenedWithoutWriter(story) ||
       promotionThreatWithoutWriter(story) ||
+      promotionWithoutWriter(story) ||
       (!leadByStoryRules(story, Vector(story)) && base(story))
 
   private def hangingWithoutWriter(story: Story) =
@@ -686,9 +805,29 @@ object StoryTable:
     story.writer.isEmpty &&
       story.scene == Scene.PawnStop
 
+  private def pawnBreakWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.PawnBreak
+
+  private def pawnCaptureWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.PawnCapture
+
+  private def passedPawnCreatedWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.PassedPawnCreated
+
+  private def fileOpenedWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.FileOpened
+
   private def promotionThreatWithoutWriter(story: Story) =
     story.writer.isEmpty &&
       story.scene == Scene.PromotionThreat
+
+  private def promotionWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.Promotion
 
   private def invalidForkWriter(story: Story) =
     story.writer.contains(StoryWriter.TacticFork) &&
@@ -726,9 +865,29 @@ object StoryTable:
     story.writer.contains(StoryWriter.ScenePawnStop) &&
       !positivePawnStopWriter(story)
 
+  private def invalidPawnBreakWriter(story: Story) =
+    story.writer.contains(StoryWriter.ScenePawnBreak) &&
+      !positivePawnBreakWriter(story)
+
+  private def invalidPawnCaptureWriter(story: Story) =
+    story.writer.contains(StoryWriter.ScenePawnCapture) &&
+      !positivePawnCaptureWriter(story)
+
+  private def invalidPassedPawnCreatedWriter(story: Story) =
+    story.writer.contains(StoryWriter.ScenePassedPawnCreated) &&
+      !positivePassedPawnCreatedWriter(story)
+
+  private def invalidFileOpenedWriter(story: Story) =
+    story.writer.contains(StoryWriter.SceneFileOpened) &&
+      !positiveFileOpenedWriter(story)
+
   private def invalidPromotionThreatWriter(story: Story) =
     story.writer.contains(StoryWriter.ScenePromotionThreat) &&
       !positivePromotionThreatWriter(story)
+
+  private def invalidPromotionWriter(story: Story) =
+    story.writer.contains(StoryWriter.ScenePromotion) &&
+      !positivePromotionWriter(story)
 
   private def base(story: Story) =
     story.proof.publicStrength >= 65 &&
@@ -749,233 +908,427 @@ object StoryTable:
   private def positiveWriter(story: Story) =
     story.writer match
       case Some(StoryWriter.TacticHanging) => positiveHangingWriter(story)
-      case Some(StoryWriter.TacticFork)    => positiveForkWriter(story)
+      case Some(StoryWriter.TacticFork) => positiveForkWriter(story)
       case Some(StoryWriter.SceneMaterial) => positiveMaterialWriter(story)
-      case Some(StoryWriter.SceneDefense)  => positiveDefenseWriter(story)
+      case Some(StoryWriter.SceneDefense) => positiveDefenseWriter(story)
       case Some(StoryWriter.TacticDiscoveredAttack) => positiveDiscoveredAttackWriter(story)
-      case Some(StoryWriter.TacticPin)     => positivePinWriter(story)
+      case Some(StoryWriter.TacticPin) => positivePinWriter(story)
       case Some(StoryWriter.TacticRemoveGuard) => positiveRemoveGuardWriter(story)
-      case Some(StoryWriter.TacticSkewer)  => positiveSkewerWriter(story)
+      case Some(StoryWriter.TacticSkewer) => positiveSkewerWriter(story)
       case Some(StoryWriter.ScenePawnAdvance) => positivePawnAdvanceWriter(story)
       case Some(StoryWriter.ScenePawnStop) => positivePawnStopWriter(story)
+      case Some(StoryWriter.ScenePawnBreak) => positivePawnBreakWriter(story)
       case Some(StoryWriter.ScenePromotionThreat) => positivePromotionThreatWriter(story)
-      case _                               => false
+      case Some(StoryWriter.ScenePromotion) => positivePromotionWriter(story)
+      case Some(StoryWriter.ScenePawnCapture) => positivePawnCaptureWriter(story)
+      case Some(StoryWriter.ScenePassedPawnCreated) => positivePassedPawnCreatedWriter(story)
+      case Some(StoryWriter.SceneFileOpened) => positiveFileOpenedWriter(story)
+      case _ => false
 
   private def positiveHangingWriter(story: Story) =
-    story.scene == Scene.Tactic &&
-    story.tactic.contains(Tactic.Hanging) &&
-    story.plan.isEmpty &&
-    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-    story.captureResult.exists: result =>
-      result.positiveMaterial &&
-        result.sameBoardProof &&
-        result.missingEvidence.isEmpty &&
-        captureResultBindsStory(story, result) &&
-        result.targetPiece.exists(piece => piece.man != Man.Pawn && piece.man != Man.King)
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Hanging) &&
+      story.plan.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.captureResult.exists: result =>
+        result.positiveMaterial &&
+          result.sameBoardProof &&
+          result.missingEvidence.isEmpty &&
+          captureResultBindsStory(story, result) &&
+          result.targetPiece.exists(piece => piece.man != Man.Pawn && piece.man != Man.King)
 
   private def positiveForkWriter(story: Story) =
-    story.scene == Scene.Tactic &&
-    story.tactic.contains(Tactic.Fork) &&
-    story.plan.isEmpty &&
-    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-    story.multiTargetProof.exists: proof =>
-      proof.complete &&
-        proof.sameBoardProof &&
-        multiTargetProofBindsStory(story, proof) &&
-        multiTargetRelationProven(proof)
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Fork) &&
+      story.plan.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.multiTargetProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          multiTargetProofBindsStory(story, proof) &&
+          multiTargetRelationProven(proof)
 
   private def positiveMaterialWriter(story: Story) =
-    story.scene == Scene.Material &&
-    story.tactic.isEmpty &&
-    story.plan.isEmpty &&
-    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-    story.captureResult.exists: result =>
-      result.positiveMaterial &&
-        result.sameBoardProof &&
-        result.missingEvidence.isEmpty &&
-        result.materialResult.nonEmpty &&
-        result.boundedExchangeSequence.nonEmpty &&
-        captureResultBindsStory(story, result)
+      story.scene == Scene.Material &&
+      story.tactic.isEmpty &&
+      story.plan.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.captureResult.exists: result =>
+        result.positiveMaterial &&
+          result.sameBoardProof &&
+          result.missingEvidence.isEmpty &&
+          result.materialResult.nonEmpty &&
+          result.boundedExchangeSequence.nonEmpty &&
+          captureResultBindsStory(story, result)
 
   private def positiveDefenseWriter(story: Story) =
-    story.scene == Scene.Defense &&
-    story.tactic.isEmpty &&
-    story.plan.isEmpty &&
-    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-    story.threatProof.exists(proof => proof.complete && proof.sameBoardProof) &&
-    story.defenseProof.exists: proof =>
-      proof.complete &&
-        proof.sameBoardProof &&
-        proof.defenseMove.nonEmpty &&
-        proof.defendedTarget.nonEmpty &&
-        proof.materialLossPrevented.exists(_ > 0) &&
-        defenseProofBindsStory(story, proof)
+      story.scene == Scene.Defense &&
+      story.tactic.isEmpty &&
+      story.plan.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.threatProof.exists(proof => proof.complete && proof.sameBoardProof) &&
+      story.defenseProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.defenseMove.nonEmpty &&
+          proof.defendedTarget.nonEmpty &&
+          proof.materialLossPrevented.exists(_ > 0) &&
+          defenseProofBindsStory(story, proof)
 
   private def positiveDiscoveredAttackWriter(story: Story) =
-    story.scene == Scene.Tactic &&
-    story.tactic.contains(Tactic.DiscoveredAttack) &&
-    story.plan.isEmpty &&
-    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-    story.lineProof.exists: proof =>
-      proof.complete &&
-        proof.sameBoardProof &&
-        proof.afterSliderAttacksTarget &&
-        proof.targetNonKingMaterial &&
-        lineProofBindsStory(story, proof)
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.DiscoveredAttack) &&
+      story.plan.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.lineProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.afterSliderAttacksTarget &&
+          proof.targetNonKingMaterial &&
+          lineProofBindsStory(story, proof)
 
   private def positivePinWriter(story: Story) =
     story.scene == Scene.Tactic &&
-    story.tactic.contains(Tactic.Pin) &&
-    story.plan.isEmpty &&
-    story.captureResult.isEmpty &&
-    story.threatProof.isEmpty &&
-    story.defenseProof.isEmpty &&
-    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-    story.pinProof.exists: proof =>
-      proof.complete &&
-        proof.sameBoardProof &&
-        proof.afterPinRelation &&
-        proof.targetNonKing &&
-        proof.targetAndKingSameSide &&
-        proof.sliderAttacksThroughTargetTowardKingAfterMove &&
-        pinProofBindsStory(story, proof)
+      story.tactic.contains(Tactic.Pin) &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.pinProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.afterPinRelation &&
+          proof.targetNonKing &&
+          proof.targetAndKingSameSide &&
+          proof.sliderAttacksThroughTargetTowardKingAfterMove &&
+          pinProofBindsStory(story, proof)
 
   private def positiveRemoveGuardWriter(story: Story) =
     story.scene == Scene.Tactic &&
-    story.tactic.contains(Tactic.RemoveGuard) &&
-    story.plan.isEmpty &&
-    story.captureResult.isEmpty &&
-    story.threatProof.isEmpty &&
-    story.defenseProof.isEmpty &&
-    story.multiTargetProof.isEmpty &&
-    story.lineProof.isEmpty &&
-    story.pinProof.isEmpty &&
-    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-    story.removeGuardProof.exists: proof =>
-      proof.complete &&
-        proof.sameBoardProof &&
-        proof.exactBoardAfterMoveRelation &&
-        proof.targetNonKingMaterial &&
-        proof.defenderGuardedTargetBeforeMove &&
-        proof.afterMoveDefenderNoLongerGuardsTarget &&
-        proof.removeGuardMove.nonEmpty &&
-        proof.guardedTarget.nonEmpty &&
-        proof.removedDefender.nonEmpty &&
-        removeGuardProofBindsStory(story, proof)
+      story.tactic.contains(Tactic.RemoveGuard) &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.removeGuardProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.exactBoardAfterMoveRelation &&
+          proof.targetNonKingMaterial &&
+          proof.defenderGuardedTargetBeforeMove &&
+          proof.afterMoveDefenderNoLongerGuardsTarget &&
+          proof.removeGuardMove.nonEmpty &&
+          proof.guardedTarget.nonEmpty &&
+          proof.removedDefender.nonEmpty &&
+          removeGuardProofBindsStory(story, proof)
 
   private def skewerWriterShape(story: Story) =
     story.scene == Scene.Tactic &&
-    story.tactic.contains(Tactic.Skewer) &&
-    story.plan.isEmpty &&
-    story.captureResult.isEmpty &&
-    story.threatProof.isEmpty &&
-    story.defenseProof.isEmpty &&
-    story.multiTargetProof.isEmpty &&
-    story.lineProof.isEmpty &&
-    story.pinProof.isEmpty &&
-    story.removeGuardProof.isEmpty &&
-    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-    story.skewerProof.exists: proof =>
-      proof.complete &&
-        proof.sameBoardProof &&
-        proof.frontTargetNonKingMaterial &&
-        proof.rearTargetNonKingMaterial &&
-        proof.frontAndRearSameRivalSide &&
-        proof.afterMoveSliderAttacksFrontTarget &&
-        proof.rearTargetBehindFrontTargetOnSameRay &&
-        proof.noExtraBlockerBreaksFrontToRearRelation &&
-        proof.beforeSkewerRelationAbsentOrBlocked &&
-        proof.skewerMove.nonEmpty &&
-        proof.skewerSlider.nonEmpty &&
-        proof.frontTarget.nonEmpty &&
-        proof.rearTarget.nonEmpty &&
-        skewerProofBindsStory(story, proof)
+      story.tactic.contains(Tactic.Skewer) &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.skewerProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.frontTargetNonKingMaterial &&
+          proof.rearTargetNonKingMaterial &&
+          proof.frontAndRearSameRivalSide &&
+          proof.afterMoveSliderAttacksFrontTarget &&
+          proof.rearTargetBehindFrontTargetOnSameRay &&
+          proof.noExtraBlockerBreaksFrontToRearRelation &&
+          proof.beforeSkewerRelationAbsentOrBlocked &&
+          proof.skewerMove.nonEmpty &&
+          proof.skewerSlider.nonEmpty &&
+          proof.frontTarget.nonEmpty &&
+          proof.rearTarget.nonEmpty &&
+          skewerProofBindsStory(story, proof)
 
   private def positiveSkewerWriter(story: Story) =
     skewerWriterShape(story)
 
   private def positivePawnAdvanceWriter(story: Story) =
     story.scene == Scene.PawnAdvance &&
-    story.tactic.isEmpty &&
-    story.plan.isEmpty &&
-    story.captureResult.isEmpty &&
-    story.threatProof.isEmpty &&
-    story.defenseProof.isEmpty &&
-    story.multiTargetProof.isEmpty &&
-    story.lineProof.isEmpty &&
-    story.pinProof.isEmpty &&
-    story.removeGuardProof.isEmpty &&
-    story.skewerProof.isEmpty &&
-    story.pawnStopProof.isEmpty &&
-    story.promotionThreatProof.isEmpty &&
-    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-    story.pawnAdvanceProof.exists: proof =>
-      proof.complete &&
-        proof.sameBoardProof &&
-        proof.legalOneStepNonCaptureNonPromotion &&
-        proof.alreadyPassedBefore &&
-        proof.exactAfterBoardReplay &&
-        proof.afterBoardPassedPawn &&
-        pawnAdvanceProofBindsStory(story, proof)
+      story.tactic.isEmpty &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.pawnStopProof.isEmpty &&
+      story.pawnBreakProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.promotionThreatProof.isEmpty &&
+      story.promotionProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.pawnAdvanceProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.legalOneStepNonCaptureNonPromotion &&
+          proof.alreadyPassedBefore &&
+          proof.exactAfterBoardReplay &&
+          proof.afterBoardPassedPawn &&
+          pawnAdvanceProofBindsStory(story, proof)
 
   private def positivePawnStopWriter(story: Story) =
     story.scene == Scene.PawnStop &&
-    story.tactic.isEmpty &&
-    story.plan.isEmpty &&
-    story.captureResult.isEmpty &&
-    story.threatProof.isEmpty &&
-    story.defenseProof.isEmpty &&
-    story.multiTargetProof.isEmpty &&
-    story.lineProof.isEmpty &&
-    story.pinProof.isEmpty &&
-    story.removeGuardProof.isEmpty &&
-    story.skewerProof.isEmpty &&
-    story.pawnAdvanceProof.isEmpty &&
-    story.promotionThreatProof.isEmpty &&
-    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-    story.pawnStopProof.exists: proof =>
-      proof.complete &&
-        proof.sameBoardProof &&
-        proof.legalStopMove &&
-        proof.targetPawn.nonEmpty &&
-        proof.targetPawnAlreadyPassed &&
-        proof.nextAdvanceSquareNonPromotion &&
-        proof.nextAdvanceSquareEmptyBefore &&
-        proof.stopKind.exists(PawnStopKind.values.contains) &&
-        (
-          proof.nextAdvanceSquareOccupiedAfter ||
-            proof.nextAdvanceSquareAttackedAfter ||
-            proof.nextAdvanceSquareControlledByPawnAfter
-        ) &&
-        proof.exactAfterBoardReplay &&
-        proof.targetPawnStillPresentAfter &&
-        proof.nextAdvanceSquareStoppedAfter &&
-        pawnStopProofBindsStory(story, proof)
+      story.tactic.isEmpty &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.pawnAdvanceProof.isEmpty &&
+      story.pawnBreakProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.promotionThreatProof.isEmpty &&
+      story.promotionProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.pawnStopProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.legalStopMove &&
+          proof.targetPawn.nonEmpty &&
+          proof.targetPawnAlreadyPassed &&
+          proof.nextAdvanceSquareNonPromotion &&
+          proof.nextAdvanceSquareEmptyBefore &&
+          proof.stopKind.exists(PawnStopKind.values.contains) &&
+          (
+            proof.nextAdvanceSquareOccupiedAfter ||
+              proof.nextAdvanceSquareAttackedAfter ||
+              proof.nextAdvanceSquareControlledByPawnAfter
+          ) &&
+          proof.exactAfterBoardReplay &&
+          proof.targetPawnStillPresentAfter &&
+          proof.nextAdvanceSquareStoppedAfter &&
+          pawnStopProofBindsStory(story, proof)
+
+  private def positivePawnBreakWriter(story: Story) =
+    story.scene == Scene.PawnBreak &&
+      story.tactic.isEmpty &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.pawnAdvanceProof.isEmpty &&
+      story.pawnStopProof.isEmpty &&
+      story.pawnCaptureProof.isEmpty &&
+      story.passedPawnCreatedProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.promotionThreatProof.isEmpty &&
+      story.promotionProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.pawnBreakProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.legalPawnMove &&
+          proof.nonPromotionMove &&
+          proof.nonCapturingMove &&
+          proof.exactAfterBoardReplay &&
+          proof.directPawnLeverAfterMove &&
+          proof.leverCreatedByMove &&
+          proof.singleRivalPawnTarget &&
+          proof.contactKinds == Vector(
+            PawnBreakContactKind.PawnChallengesPawn,
+            PawnBreakContactKind.PawnLeverCreated
+          ) &&
+          pawnBreakProofBindsStory(story, proof)
 
   private def positivePromotionThreatWriter(story: Story) =
     story.scene == Scene.PromotionThreat &&
-    story.tactic.isEmpty &&
-    story.plan.isEmpty &&
-    story.captureResult.isEmpty &&
-    story.threatProof.isEmpty &&
-    story.defenseProof.isEmpty &&
-    story.multiTargetProof.isEmpty &&
-    story.lineProof.isEmpty &&
-    story.pinProof.isEmpty &&
-    story.removeGuardProof.isEmpty &&
-    story.skewerProof.isEmpty &&
-    story.pawnAdvanceProof.isEmpty &&
-    story.pawnStopProof.isEmpty &&
-    !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
-    story.promotionThreatProof.exists: proof =>
-      proof.complete &&
-        proof.sameBoardProof &&
-        proof.legalPawnMove &&
-        proof.nonPromotionCreatingMove &&
-        proof.exactAfterBoardReplay &&
-        proof.pawnOnPenultimateRankAfter &&
-        proof.nextMovePromotionLegal &&
-        promotionThreatProofBindsStory(story, proof)
+      story.tactic.isEmpty &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.pawnAdvanceProof.isEmpty &&
+      story.pawnStopProof.isEmpty &&
+      story.pawnBreakProof.isEmpty &&
+      story.pawnCaptureProof.isEmpty &&
+      story.passedPawnCreatedProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.promotionProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.promotionThreatProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.legalPawnMove &&
+          proof.nonPromotionCreatingMove &&
+          proof.exactAfterBoardReplay &&
+          proof.pawnOnPenultimateRankAfter &&
+          proof.nextMovePromotionLegal &&
+          promotionThreatProofBindsStory(story, proof)
+
+  private def positivePawnCaptureWriter(story: Story) =
+    story.scene == Scene.PawnCapture &&
+      story.tactic.isEmpty &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.pawnAdvanceProof.isEmpty &&
+      story.pawnStopProof.isEmpty &&
+      story.pawnBreakProof.isEmpty &&
+      story.passedPawnCreatedProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.promotionThreatProof.isEmpty &&
+      story.promotionProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.pawnCaptureProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.legalPawnMove &&
+          proof.legalPawnCapture &&
+          proof.nonPromotionMove &&
+          proof.ordinaryDiagonalPawnCapture &&
+          proof.pawnCapturesPawn &&
+          proof.exactAfterBoardReplay &&
+          proof.singleRivalPawnCaptured &&
+          pawnCaptureProofBindsStory(story, proof)
+
+  private def positivePassedPawnCreatedWriter(story: Story) =
+    story.scene == Scene.PassedPawnCreated &&
+      story.tactic.isEmpty &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.pawnAdvanceProof.isEmpty &&
+      story.pawnStopProof.isEmpty &&
+      story.pawnBreakProof.isEmpty &&
+      story.pawnCaptureProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.promotionThreatProof.isEmpty &&
+      story.promotionProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.passedPawnCreatedProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.exactBeforeBoard &&
+          proof.legalPawnMove &&
+          proof.ordinaryPawnMoveOrCapture &&
+          proof.nonPromotionMove &&
+          !proof.passedBefore &&
+          proof.exactAfterBoardReplay &&
+          proof.passedAfter &&
+          proof.exactlyOneNewPassedPawn &&
+          passedPawnCreatedProofBindsStory(story, proof)
+
+  private def positiveFileOpenedWriter(story: Story) =
+    story.scene == Scene.FileOpened &&
+      story.tactic.isEmpty &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.pawnAdvanceProof.isEmpty &&
+      story.pawnStopProof.isEmpty &&
+      story.pawnBreakProof.isEmpty &&
+      story.pawnCaptureProof.isEmpty &&
+      story.passedPawnCreatedProof.isEmpty &&
+      story.promotionThreatProof.isEmpty &&
+      story.promotionProof.isEmpty &&
+      story.openedFile.nonEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.fileOpenedProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.legalPawnMove &&
+          proof.nonPromotionMove &&
+          proof.ordinaryPawnMoveOrCapture &&
+          !proof.enPassantMove &&
+          proof.leavesOriginFile &&
+          proof.originFileOccupiedBeforeByMovingPawn &&
+          !proof.originFileOpenBefore &&
+          proof.exactAfterBoardReplay &&
+          proof.afterBoardHasNoWhitePawnOnOriginFile &&
+          proof.afterBoardHasNoBlackPawnOnOriginFile &&
+          proof.originFileOpenAfter &&
+          proof.openedFileIsOriginFile &&
+          fileOpenedProofBindsStory(story, proof)
+
+  private def positivePromotionWriter(story: Story) =
+    story.scene == Scene.Promotion &&
+      story.tactic.isEmpty &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.pawnAdvanceProof.isEmpty &&
+      story.pawnStopProof.isEmpty &&
+      story.pawnBreakProof.isEmpty &&
+      story.pawnCaptureProof.isEmpty &&
+      story.passedPawnCreatedProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.promotionThreatProof.isEmpty &&
+      story.proof.conversionPrize == 0 &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.promotionProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.legalPromotionMove &&
+          proof.nonCapturing &&
+          proof.exactBoardReplay &&
+          proof.pawnReachesFinalRank &&
+          proof.promotedPiece.nonEmpty &&
+          promotionProofBindsStory(story, proof)
 
   private def captureResultBindsStory(story: Story, result: CaptureResult) =
     result.side == story.side &&
@@ -1044,11 +1397,42 @@ object StoryTable:
       proof.pawnAfter.exists(piece => story.target.contains(piece.square))
 
   private def pawnStopProofBindsStory(story: Story, proof: PawnStopProof) =
-      proof.side == story.side &&
+    proof.side == story.side &&
       proof.rivalSide == story.rival &&
       proof.stopMove.exists(move => story.route.contains(move)) &&
       proof.stopMove.exists(move => story.anchor.contains(move.from)) &&
       proof.nextAdvanceSquare.exists(square => story.target.contains(square))
+
+  private def pawnBreakProofBindsStory(story: Story, proof: PawnBreakProof) =
+    proof.side == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.breakMove.exists(move => story.route.contains(move)) &&
+      proof.pawnBefore.exists(piece => story.anchor.contains(piece.square)) &&
+      proof.targetPawn.exists(piece => story.target.contains(piece.square))
+
+  private def pawnCaptureProofBindsStory(story: Story, proof: PawnCaptureProof) =
+    proof.side == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.captureMove.exists(move => story.route.contains(move)) &&
+      proof.pawnBefore.exists(piece => story.anchor.contains(piece.square)) &&
+      proof.capturedPawn.exists(piece => story.target.contains(piece.square))
+
+  private def passedPawnCreatedProofBindsStory(story: Story, proof: PassedPawnCreatedProof) =
+    proof.side == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.creatingMove.exists(move => story.route.contains(move)) &&
+      proof.originSquare.exists(square => story.anchor.contains(square)) &&
+      proof.createdPassedPawn.exists(piece => story.target.contains(piece.square))
+
+  private def fileOpenedProofBindsStory(story: Story, proof: FileOpenedProof) =
+    proof.side == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.openingMove.exists(move => story.route.contains(move)) &&
+      proof.originSquare.exists(square => story.anchor.contains(square)) &&
+      proof.destinationSquare.exists(square => story.target.contains(square)) &&
+      proof.openedFileIsOriginFile &&
+      proof.openedFile == story.openedFile &&
+      proof.openedFile == proof.originFile
 
   private def promotionThreatProofBindsStory(story: Story, proof: PromotionThreatProof) =
     proof.side == story.side &&
@@ -1056,6 +1440,14 @@ object StoryTable:
       proof.creatingMove.exists(move => story.route.contains(move)) &&
       proof.pawnBefore.exists(piece => story.anchor.contains(piece.square)) &&
       proof.promotionSquare.exists(square => story.target.contains(square))
+
+  private def promotionProofBindsStory(story: Story, proof: PromotionProof) =
+    proof.side == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.promotionMove.exists(move => story.route.contains(move)) &&
+      proof.originSquare.exists(square => story.anchor.contains(square)) &&
+      proof.promotionSquare.exists(square => story.target.contains(square)) &&
+      proof.promotedPiece.exists(piece => story.target.contains(piece.square))
 
   private def multiTargetRelationProven(proof: MultiTargetProof) =
     proof.targetSquares.size == 2 &&
@@ -1093,11 +1485,11 @@ object StoryTable:
     (story.side, other.side) match
       case (Side.White, Side.Black) => true
       case (Side.Black, Side.White) => true
-      case (Side.White, Side.Both)  => true
-      case (Side.Black, Side.Both)  => true
-      case (Side.Both, Side.White)  => true
-      case (Side.Both, Side.Black)  => true
-      case _                        => false
+      case (Side.White, Side.Both) => true
+      case (Side.Black, Side.Both) => true
+      case (Side.Both, Side.White) => true
+      case (Side.Both, Side.Black) => true
+      case _ => false
 
   private def tag(story: Story) =
     story.plan.map(_.ordinal).orElse(story.tactic.map(_.ordinal)).getOrElse(Int.MaxValue)

@@ -1701,7 +1701,7 @@ Lead fail-closed rules:
   slices with broad line/ray/XRay, pressure, initiative, material-win, public
   route `200`, production API, and public/user-facing LLM narration surfaces
   closed.
-- Current implementation scope is Pawn / Promotion Neighborhood third vertical slice.
+- Current implementation scope is Pawn / Promotion Neighborhood closeout.
 - PawnAdvance-0 is owned by `StoryInteractionLaw.md`. It opens only narrow
   `Scene.PawnAdvance` over `PawnAdvanceProof` for an already-passed non-king
   pawn making a legal one-square non-capturing non-promotion advance and
@@ -1733,6 +1733,17 @@ Lead fail-closed rules:
   pawn, cannot-be-stopped, winning endgame, conversion, tablebase, pawn race,
   best move, only move, forced win, no-counterplay, public route `200`,
   production API, and public/user-facing LLM narration remain closed.
+- Promotion-1 is owned by `StoryInteractionLaw.md`. It adds only
+  `PromotionProof` as a diagnostic proof home for legal non-capturing pawn
+  promotion on the exact board, including promotion square and promoted piece
+  identity. `Scene.Promotion`, bounded promotion wording, capture promotion,
+  material result, conversion, winning/endgame/tablebase claims, public route
+  `200`, production API, and public/user-facing LLM narration remain closed.
+- Promotion-2 is owned by `StoryInteractionLaw.md`. It opens only the named
+  `ScenePromotion` writer and `Scene.Promotion` Story identity for complete
+  `PromotionProof`; PromotionThreat, Material, winning, conversion, tablebase,
+  ExplanationPlan, renderer, LLM narration, public route `200`, and production
+  API remain closed.
 - PIH-0 is owned by `StoryInteractionLaw.md`. It opens no new pawn meaning and
   hardens existing `Scene.PawnAdvance` and `Scene.PawnStop` interactions so
   pawn rows do not steal promotion, conversion, defense, material, or tactic
@@ -1781,6 +1792,56 @@ Lead fail-closed rules:
   narration; it confirms PawnAdvance and PawnStop remain separated from each
   other, promotion, pawn-break, tablebase, race, king-route, opposition,
   Material, Defense, Hanging, and Line/Defender homes.
+- Pawn / Promotion closeout summaries are non-authoritative:
+  `StoryInteractionLaw.md` owns PNC-0 through PNC-7 and final completion
+  detail, while this document only records that `Scene.PawnAdvance`, `Scene.PawnStop`,
+  `Scene.PromotionThreat`, and `Scene.Promotion` close as four narrow
+  proof-backed slices; PawnBreak was not opened by PNC and is now governed
+  only by the later PawnBreak-0 charter, while broad PawnTactic, pawn strategy,
+  conversion, winning endgame, tablebase, pawn race, king route, opposition,
+  public route `200`, production API, and public/user-facing LLM narration
+  surfaces remain closed.
+- PawnBreak-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the
+  Pawn Structure / Break Neighborhood charter; runtime opens only narrow
+  `Scene.PawnBreak` through `PawnBreakProof` for a legal pawn move creating one
+  direct rival-pawn lever on the exact board, with broad PawnTactic, pawn
+  strategy, opens-position, breaks-through, passed-pawn, weakens-structure,
+  wins-space, initiative, pressure, conversion, public route `200`, production
+  API, and public/user-facing LLM narration closed.
+- PawnCapture-0 summary is non-authoritative: `StoryInteractionLaw.md` owns
+  the second Pawn Structure / Break Neighborhood charter; runtime opens only
+  narrow `Scene.PawnCapture` through `PawnCaptureProof` for a legal pawn move
+  capturing one rival pawn on the exact board, with material gain, wins-pawn,
+  passed-pawn, open-file, structure advantage, breakthrough, initiative,
+  pressure, conversion, public route `200`, production API, and
+  public/user-facing LLM narration closed.
+- PassedPawnCreated-0 summary is non-authoritative: `StoryInteractionLaw.md`
+  owns the third Pawn Structure / Break Neighborhood charter; runtime opens
+  only narrow `Scene.PassedPawnCreated` through `PassedPawnCreatedProof` for a
+  legal non-promotion pawn move creating exactly one newly passed pawn on the
+  exact after-board, with promotion threat, actual promotion, unstoppable
+  passer, conversion, winning endgame, pawn race, tablebase, breakthrough,
+  initiative, pressure, public route `200`, production API, and
+  public/user-facing LLM narration closed.
+- PSBNC-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the Pawn
+  Structure / Break Neighborhood closeout; it opens no new chess meaning and
+  closes only `Scene.PawnBreak`, `Scene.PawnCapture`, and
+  `Scene.PassedPawnCreated` as three narrow proof-backed event slices with
+  separate proof homes and speech keys.
+- FileOpened-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the
+  File Opened Neighborhood charter; runtime opens only narrow
+  `Scene.FileOpened` through `FileOpenedProof` for a legal pawn move that
+  leaves its origin file with no pawns on the exact after-board, with rook
+  activity, file control, pressure, initiative, weakness, breakthrough,
+  material gain, passed-pawn creation, pawn-majority change, best/only/forced,
+  public route `200`, production API, and public/user-facing LLM narration
+  closed.
+- FPSNC-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the File
+  / Pawn Structure Neighborhood closeout; it opens no new chess meaning and
+  closes only `Scene.PawnBreak`, `Scene.PawnCapture`,
+  `Scene.PassedPawnCreated`, and `Scene.FileOpened` as four narrow
+  proof-backed event slices with separate proof homes and speech keys; broad
+  pawn-structure and file interpretation remains closed.
 - Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
   engine-capped, and engine-refuted Verdicts create no allowed claim or public
   claim. Stage 7 deterministic renderer may receive Explanation Plan only and

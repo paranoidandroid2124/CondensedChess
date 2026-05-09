@@ -1,41 +1,46 @@
 package lila.commentary.chess
 
-private[commentary] object ScenePromotionThreat:
+private[commentary] object ScenePassedPawnCreated:
   val WriterOpen = true
 
   def withEngineCheck(story: Story, check: EngineCheck): Option[Story] =
-    Option.when(promotionThreatStory(story) && check.storyBound && check.evidenceReady && checkBindsStoryRoute(story, check)):
+    Option.when(
+      passedPawnCreatedStory(story) &&
+        check.storyBound &&
+        check.evidenceReady &&
+        checkBindsStoryRoute(story, check)
+    ):
       story.copy(engineCheck = Some(check))
 
   def write(facts: BoardFacts, creatingMove: Line): Option[Story] =
-    val promotionThreatProof = PromotionThreatProof.fromBoardFacts(facts, creatingMove)
+    val passedPawnCreatedProof = PassedPawnCreatedProof.fromBoardFacts(facts, creatingMove)
     for
       routeSan <- BoardFacts.sanFor(facts, creatingMove)
-      pawnBefore <- promotionThreatProof.pawnBefore
-      promotionSquare <- promotionThreatProof.promotionSquare
+      pawnBefore <- passedPawnCreatedProof.pawnBefore
+      createdPawn <- passedPawnCreatedProof.createdPassedPawn
       if WriterOpen
-      if promotionThreatProof.complete
+      if passedPawnCreatedProof.complete
       story = Story(
-        scene = Scene.PromotionThreat,
+        scene = Scene.PassedPawnCreated,
         tactic = None,
         plan = None,
-        side = promotionThreatProof.side,
-        rival = promotionThreatProof.rivalSide,
-        target = Some(promotionSquare),
+        side = passedPawnCreatedProof.side,
+        rival = passedPawnCreatedProof.rivalSide,
+        target = Some(createdPawn.square),
         anchor = Some(pawnBefore.square),
         route = Some(creatingMove),
         routeSan = Some(routeSan),
-        proof = promotionThreatProofScore,
+        proof = passedPawnCreatedProofScore,
         storyProof = StoryProof.fromBoardFacts(facts, creatingMove),
-        writer = Some(StoryWriter.ScenePromotionThreat),
-        promotionThreatProof = Some(promotionThreatProof)
+        writer = Some(StoryWriter.ScenePassedPawnCreated),
+        passedPawnCreatedProof = Some(passedPawnCreatedProof)
       )
       if story.proofFailures.isEmpty
     yield story
 
-  private def promotionThreatStory(story: Story): Boolean =
-    story.writer.contains(StoryWriter.ScenePromotionThreat) &&
-      story.scene == Scene.PromotionThreat &&
+  private def passedPawnCreatedStory(story: Story): Boolean =
+    story.writer.contains(StoryWriter.ScenePassedPawnCreated) &&
+      story.scene == Scene.PassedPawnCreated &&
       story.tactic.isEmpty &&
       story.plan.isEmpty &&
       story.captureResult.isEmpty &&
@@ -50,31 +55,33 @@ private[commentary] object ScenePromotionThreat:
       story.pawnStopProof.isEmpty &&
       story.pawnBreakProof.isEmpty &&
       story.pawnCaptureProof.isEmpty &&
-      story.passedPawnCreatedProof.isEmpty &&
       story.fileOpenedProof.isEmpty &&
+      story.promotionThreatProof.isEmpty &&
       story.promotionProof.isEmpty &&
       story.proofFailures.isEmpty &&
-      story.promotionThreatProof.exists(proofBindsStory(story, _))
+      story.passedPawnCreatedProof.exists(proofBindsStory(story, _))
 
-  private def proofBindsStory(story: Story, proof: PromotionThreatProof): Boolean =
+  private def proofBindsStory(story: Story, proof: PassedPawnCreatedProof): Boolean =
     proof.complete &&
       proof.sameBoardProof &&
+      proof.exactBeforeBoard &&
       proof.legalPawnMove &&
-      proof.nonPromotionCreatingMove &&
+      proof.ordinaryPawnMoveOrCapture &&
+      proof.nonPromotionMove &&
+      !proof.passedBefore &&
       proof.exactAfterBoardReplay &&
-      proof.pawnOnPenultimateRankAfter &&
-      proof.nextMovePromotionLegal &&
+      proof.passedAfter &&
+      proof.exactlyOneNewPassedPawn &&
       proof.side == story.side &&
       proof.rivalSide == story.rival &&
       proof.creatingMove.exists(move => story.route.contains(move)) &&
-      proof.pawnBefore.exists(piece => story.anchor.contains(piece.square)) &&
-      proof.promotionSquare.exists(square => story.target.contains(square)) &&
-      proof.nextPromotionMove == proof.promotionRoute
+      proof.originSquare == story.anchor &&
+      proof.createdPassedPawn.exists(piece => story.target.contains(piece.square))
 
   private def checkBindsStoryRoute(story: Story, check: EngineCheck): Boolean =
     check.checkedMove.exists(move => story.route.contains(move))
 
-  private def promotionThreatProofScore: Proof =
+  private def passedPawnCreatedProofScore: Proof =
     Proof(
       boardProof = 90,
       lineProof = 90,
@@ -82,7 +89,7 @@ private[commentary] object ScenePromotionThreat:
       anchorProof = 90,
       routeProof = 90,
       persistence = 100,
-      immediacy = 100,
+      immediacy = 80,
       forcing = 0,
       conversionPrize = 0,
       counterplayRisk = 0,

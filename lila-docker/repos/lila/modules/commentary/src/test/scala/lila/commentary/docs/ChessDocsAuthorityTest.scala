@@ -62,6 +62,117 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "LNC-7 runtime boundary:",
       "LNC final verification:"
     )
+  private val PawnPromotionCloseoutSummary =
+    "Pawn / Promotion closeout summaries are non-authoritative: `StoryInteractionLaw.md` owns PNC-0 through PNC-7 and final completion detail, while this document only records that `Scene.PawnAdvance`, `Scene.PawnStop`, `Scene.PromotionThreat`, and `Scene.Promotion` close as four narrow proof-backed slices; PawnBreak was not opened by PNC and is now governed only by the later PawnBreak-0 charter, while broad PawnTactic, pawn strategy, conversion, winning endgame, tablebase, pawn race, king route, opposition, public route `200`, production API, and public/user-facing LLM narration surfaces remain closed."
+  private val PawnPromotionManifestSummary =
+    "Pawn / Promotion Closeout documentation simplification authority lives in `StoryInteractionLaw.md`. Summary documents do not repeat detailed PNC checklists; PawnBreak was not opened by PNC and is now governed only by the later PawnBreak-0 charter, while broad PawnTactic, pawn strategy, conversion, winning endgame, tablebase, pawn race, king route, opposition, production API, public route, and public/user-facing LLM paths remain closed."
+  private val PawnBreakSummary =
+    "PawnBreak-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the Pawn Structure / Break Neighborhood charter; runtime opens only narrow `Scene.PawnBreak` through `PawnBreakProof` for a legal pawn move creating one direct rival-pawn lever on the exact board, with broad PawnTactic, pawn strategy, opens-position, breaks-through, passed-pawn, weakens-structure, wins-space, initiative, pressure, conversion, public route `200`, production API, and public/user-facing LLM narration closed."
+  private val PawnCaptureSummary =
+    "PawnCapture-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the second Pawn Structure / Break Neighborhood charter; runtime opens only narrow `Scene.PawnCapture` through `PawnCaptureProof` for a legal pawn move capturing one rival pawn on the exact board, with material gain, wins-pawn, passed-pawn, open-file, structure advantage, breakthrough, initiative, pressure, conversion, public route `200`, production API, and public/user-facing LLM narration closed."
+  private val PassedPawnCreatedSummary =
+    "PassedPawnCreated-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the third Pawn Structure / Break Neighborhood charter; runtime opens only narrow `Scene.PassedPawnCreated` through `PassedPawnCreatedProof` for a legal non-promotion pawn move creating exactly one newly passed pawn on the exact after-board, with promotion threat, actual promotion, unstoppable passer, conversion, winning endgame, pawn race, tablebase, breakthrough, initiative, pressure, public route `200`, production API, and public/user-facing LLM narration closed."
+  private val PawnStructureBreakCloseoutSummary =
+    "PSBNC-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the Pawn Structure / Break Neighborhood closeout; it opens no new chess meaning and closes only `Scene.PawnBreak`, `Scene.PawnCapture`, and `Scene.PassedPawnCreated` as three narrow proof-backed event slices with separate proof homes and speech keys."
+  private val FileOpenedSummary =
+    "FileOpened-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the File Opened Neighborhood charter; runtime opens only narrow `Scene.FileOpened` through `FileOpenedProof` for a legal pawn move that leaves its origin file with no pawns on the exact after-board, with rook activity, file control, pressure, initiative, weakness, breakthrough, material gain, passed-pawn creation, pawn-majority change, best/only/forced, public route `200`, production API, and public/user-facing LLM narration closed."
+  private val FilePawnStructureCloseoutSummary =
+    "FPSNC-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the File / Pawn Structure Neighborhood closeout; it opens no new chess meaning and closes only `Scene.PawnBreak`, `Scene.PawnCapture`, `Scene.PassedPawnCreated`, and `Scene.FileOpened` as four narrow proof-backed event slices with separate proof homes and speech keys; broad pawn-structure and file interpretation remains closed."
+  private val FilePawnStructureCloseoutDetailedMarkers =
+    Vector(
+      "### FPSNC-0 File / Pawn Structure Neighborhood Closeout Charter",
+      "FPSNC-0 closes only already-open narrow meanings:",
+      "### FPSNC-1 Scope Audit",
+      "FPSNC-1 open positive Stories are exactly:",
+      "### FPSNC-2 Authority / Duplication Audit",
+      "FPSNC-2 duplication audit:",
+      "### FPSNC-3 Cross-Slice Collision Fixtures",
+      "FPSNC-3 required fixture candidates:",
+      "### FPSNC-4 StoryTable Interaction Audit",
+      "FPSNC-4 collision targets:",
+      "### FPSNC-5 ExplanationPlan Boundary Audit",
+      "FPSNC-5 allowed claim keys:",
+      "### FPSNC-6 Renderer Boundary Audit",
+      "FPSNC-6 allowed bounded templates:",
+      "### FPSNC-7 LLM Smoke Boundary Audit",
+      "FPSNC-7 forbidden LLM input:",
+      "### FPSNC-8 Forbidden Wording Audit",
+      "FPSNC-8 forbidden live-authority wording:",
+      "### FPSNC-9 Documentation Simplification Audit",
+      "FPSNC-9 documentation simplification audit:",
+      "FPSNC-9 summary-only documents:",
+      "FPSNC-9 forbidden documentation duplication:",
+      "### FPSNC-10 Runtime Boundary Audit",
+      "FPSNC-10 runtime boundary audit:",
+      "FPSNC-10 forbids new runtime authority:",
+      "FPSNC-10 allowed closeout changes:",
+      "FPSNC-10 runtime source guard:",
+      "### FPSNC Final Completion Standard",
+      "FPSNC final completion standard:",
+      "FPSNC final verification:"
+    )
+  private val PawnStructureBreakCloseoutDetailedMarkers =
+    Vector(
+      "### PSBNC-0 Pawn Structure / Break Neighborhood Closeout Charter",
+      "PSBNC-0 closes only already-open narrow meanings:",
+      "### PSBNC-1 Scope Audit",
+      "PSBNC-1 open positive Stories are exactly:",
+      "### PSBNC-2 Duplication Audit",
+      "PSBNC-2 duplication audit:",
+      "### PSBNC-3 StoryTable Interaction Audit",
+      "PSBNC-3 target rows:",
+      "### PSBNC-4 Downstream Boundary Audit",
+      "PSBNC-4 boundary rules:",
+      "### PSBNC-5 Forbidden Wording Audit",
+      "PSBNC-5 forbidden live-authority wording:",
+      "### PSBNC-6 Documentation Simplification Audit",
+      "PSBNC-6 documentation simplification audit:",
+      "PSBNC-6 summary-only documents:",
+      "PSBNC-6 forbidden documentation duplication:"
+    )
+  private val PawnPromotionSummaryForbiddenFragments =
+    Vector(
+      "PNC-0 opens only closeout work:",
+      "PNC-0 closes only already-open narrow slices:",
+      "PNC-0 related proof homes:",
+      "PNC-0 opens no:",
+      "PNC-0 scope audit:",
+      "PNC-0 duplication audit:",
+      "PNC-0 authority audit:",
+      "PNC-0 collision and downstream audit:",
+      "PNC-0 docs simplification:",
+      "PNC-0 next-neighborhood handoff:",
+      "Completion standard: PNC-0 closes when",
+      "PNC-1 confirms:",
+      "PNC-1 runtime path audit:",
+      "Closed pawn names are not missing features inside this neighborhood.",
+      "PNC-2 confirms:",
+      "PNC-2 specific duplication checks:",
+      "One chess meaning, one proof home, one Story label, one speech key, one live authority document.",
+      "PNC-3 layer authority:",
+      "PNC-3 forbids:",
+      "PNC-3 confirms the authority chain stays:",
+      "Completion standard: PNC-3 closes when",
+      "PNC-4 collision targets:",
+      "PNC-4 runtime checks:",
+      "PNC-4 reuses existing runtime tests:",
+      "Completion standard: PNC-4 closes when",
+      "PNC-5 downstream authority:",
+      "PNC-5 non-Lead rows:",
+      "PNC-5 forbidden downstream wording:",
+      "PNC-5 reuses existing runtime tests:",
+      "Completion standard: PNC-5 closes when",
+      "PNC-6 documentation simplification:",
+      "PNC-6 summary-only documents:",
+      "PNC-6 closed-summary wording:",
+      "Completion standard: PNC-6 closes when",
+      "PNC-7 test helper runtime boundary:",
+      "PNC-7 forbids helper promotion:",
+      "PNC-7 runtime source guard:",
+      "Completion standard: PNC-7 closes when",
+      "PNC Closeout final completion standard:",
+      "PNC final verification:"
+    )
 
   private def assertLineDefenderCloseoutSummaryDocs(
       readme: String,
@@ -73,10 +184,61 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
       assert(doc.contains(LineDefenderCloseoutSummary))
       LineDefenderSummaryForbiddenFragments.foreach: fragment =>
-        assert(!doc.contains(fragment), s"summary docs must not repeat detailed Line / Defender closeout rule: $fragment")
+        assert(
+          !doc.contains(fragment),
+          s"summary docs must not repeat detailed Line / Defender closeout rule: $fragment"
+        )
     assert(legacyManifest.contains(LineDefenderManifestSummary))
     LineDefenderSummaryForbiddenFragments.foreach: fragment =>
-      assert(!legacyManifest.contains(fragment), s"LegacyPruneManifest must not repeat detailed Line / Defender closeout rule: $fragment")
+      assert(
+        !legacyManifest.contains(fragment),
+        s"LegacyPruneManifest must not repeat detailed Line / Defender closeout rule: $fragment"
+      )
+
+  private def assertPawnPromotionCloseoutSummaryDocs(
+      readme: String,
+      ssot: String,
+      architecture: String,
+      normalizedModelContract: String,
+      legacyManifest: String
+  ): Unit =
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnPromotionCloseoutSummary))
+      assert(doc.contains(PawnBreakSummary))
+      assert(doc.contains(PawnCaptureSummary))
+      assert(doc.contains(PassedPawnCreatedSummary))
+      assert(doc.contains(PawnStructureBreakCloseoutSummary))
+      assert(doc.contains(FileOpenedSummary))
+      assert(doc.contains(FilePawnStructureCloseoutSummary))
+      PawnPromotionSummaryForbiddenFragments.foreach: fragment =>
+        assert(
+          !doc.contains(fragment),
+          s"summary docs must not repeat detailed Pawn / Promotion closeout rule: $fragment"
+        )
+    assert(legacyManifest.contains(PawnPromotionManifestSummary))
+    assert(legacyManifest.contains(PawnBreakSummary))
+    assert(legacyManifest.contains(PawnCaptureSummary))
+    assert(legacyManifest.contains(PassedPawnCreatedSummary))
+    assert(legacyManifest.contains(PawnStructureBreakCloseoutSummary))
+    assert(legacyManifest.contains(FileOpenedSummary))
+    assert(legacyManifest.contains(FilePawnStructureCloseoutSummary))
+    PawnPromotionSummaryForbiddenFragments.foreach: fragment =>
+      assert(
+        !legacyManifest.contains(fragment),
+        s"LegacyPruneManifest must not repeat detailed Pawn / Promotion closeout rule: $fragment"
+      )
+
+  private def runtimeChessSourceText: String =
+    val runtimeRoot = Paths.get("modules/commentary/src/main/scala/lila/commentary/chess")
+    val runtimeSourceStream = Files.walk(runtimeRoot)
+    try
+      runtimeSourceStream
+        .iterator()
+        .asScala
+        .filter(path => Files.isRegularFile(path) && path.toString.endsWith(".scala"))
+        .map(Files.readString)
+        .mkString("\n")
+    finally runtimeSourceStream.close()
 
   private val SplitSlots =
     Vector(
@@ -289,7 +451,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "sourceFit",
       "novelty",
       "clarity"
-  )
+    )
 
   private val commentaryController = Paths.get("app/controllers/Commentary.scala")
   private val moveExplanationSource = Paths.get("ui/analyse/src/chesstory/moveExplanation.ts")
@@ -353,8 +515,14 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       if term.exists(_.toInt > 127) then
         assert(!contents.contains(term), s"$term must not appear in law docs")
       else assert(s"(?i)\\b$term\\b".r.findFirstIn(contents).isEmpty, s"$term must not appear in law docs")
+    val allowedFpsncFixtureCandidateText = contents
+      .replace("- FileOpened candidate that is only half-open and must stay silent", "")
+      .replace("- FileOpened candidate with another pawn still on origin file and must stay silent", "")
     val nonPawnCandidate = """(?i)\bcandidate\b(?!_passer)""".r
-    assert(nonPawnCandidate.findFirstIn(contents).isEmpty, "candidate is allowed only as candidate_passer")
+    assert(
+      nonPawnCandidate.findFirstIn(allowedFpsncFixtureCandidateText).isEmpty,
+      "candidate is allowed only as candidate_passer or exact FPSNC-3 FileOpened fixture wording"
+    )
 
   test("chess model branch exposes only live reset docs as root authority"):
     val liveDocs = rootDocNames
@@ -543,9 +711,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(contents.contains("Split/cut re-entry requires a named law and same-board producer proof"))
     assert(ssot.contains("`BoardMood` Sxxx expansion or re-entry"))
     assert(
-      rationale.replaceAll("\\s+", " ").contains(
-        "no positive `Story` proof writer beyond `Tactic.Hanging`, the narrow `Tactic.Fork` vertical slice, and the narrow `Scene.Material` writer"
-      )
+      rationale
+        .replaceAll("\\s+", " ")
+        .contains(
+          "no positive `Story` proof writer beyond `Tactic.Hanging`, the narrow `Tactic.Fork` vertical slice, and the narrow `Scene.Material` writer"
+        )
     )
     assert(manifest.contains("default runtime FEN to public"))
     assert(
@@ -566,7 +736,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(modelContract.contains("`StoryWriter`"))
     assert(modelContract.contains("`TacticHanging`"))
     assert(modelContract.contains("Legal line binding is not tactical success proof"))
-    assert(modelContract.contains("StoryProof is only the minimum evidence form needed before a Story could speak."))
+    assert(
+      modelContract.contains(
+        "StoryProof is only the minimum evidence form needed before a Story could speak."
+      )
+    )
     assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 3 charter."))
     assert(modelContract.contains("proofFailures are internal diagnostics only."))
     assert(modelContract.contains("proofFailures are not public payload."))
@@ -603,12 +777,20 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(rationale.contains("FEN to public `Verdict`"))
     assert(interactionLaw.contains("| Scene.Opening | context-only |"))
     assert(interactionLaw.contains("no truth override or lead over board-backed Story"))
-    assert(interactionLaw.contains("This diagnostic shape is internal validation, test, and debugging output only."))
-    assert(interactionLaw.contains("It is not API/public JSON, renderer input, LLM input, or user commentary."))
+    assert(
+      interactionLaw.contains(
+        "This diagnostic shape is internal validation, test, and debugging output only."
+      )
+    )
+    assert(
+      interactionLaw.contains("It is not API/public JSON, renderer input, LLM input, or user commentary.")
+    )
     assert(interactionLaw.contains("it does not provide text that may be spoken."))
     assert(modelContract.contains("`Source` and `Opening` never lead over a board-backed story"))
     val chessFoundationTest =
-      Files.readString(Paths.get("modules/commentary/src/test/scala/lila/commentary/chess/ChessFoundationTest.scala"))
+      Files.readString(
+        Paths.get("modules/commentary/src/test/scala/lila/commentary/chess/ChessFoundationTest.scala")
+      )
     assert(chessFoundationTest.contains("Verdict proofFailures are internal diagnostics, not public payload"))
     assert(chessFoundationTest.contains("assertEquals(verdict.values, cleared.values)"))
     assert(chessFoundationTest.contains("Stage 2 ordering does not use proofFailures as public sort input"))
@@ -693,9 +875,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(architecture.replaceAll("\\s+", " ").contains("Stages 9-11 below"))
     assert(architecture.replaceAll("\\s+", " ").contains("dependency map for product design"))
     assert(
-      architecture.replaceAll("\\s+", " ").contains(
-        "Only Stage 8 Prompt Smoke is active implementation authority"
-      )
+      architecture
+        .replaceAll("\\s+", " ")
+        .contains(
+          "Only Stage 8 Prompt Smoke is active implementation authority"
+        )
     )
     assert(architecture.contains("Stages 9-11"))
     assert(architecture.contains("dependency-map-only"))
@@ -737,24 +921,48 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(interactionLaw.contains("Failed `CaptureResult` rows leave missing evidence and stay silent."))
     assert(interactionLaw.contains("## Stage 4 Charter"))
     assert(interactionLaw.contains("Stage 4 name is `Engine Check`."))
-    assert(interactionLaw.contains("Story comes first. Engine checks, caps, or refutes. Engine never speaks alone."))
+    assert(
+      interactionLaw.contains(
+        "Story comes first. Engine checks, caps, or refutes. Engine never speaks alone."
+      )
+    )
     assert(interactionLaw.contains("Stage 4-1 opens only the internal engine evidence shape."))
-    assert(interactionLaw.contains("Engine eval, engine line, reply line, and checked move data cannot create a Story."))
+    assert(
+      interactionLaw.contains(
+        "Engine eval, engine line, reply line, and checked move data cannot create a Story."
+      )
+    )
     assert(interactionLaw.contains("Renderer, LLM, and public route `200` remain closed."))
     assert(interactionLaw.contains("Stage 4-2 adds same-board and stale engine guards."))
-    assert(interactionLaw.contains("Engine evidence must bind to the same board, the same Story route, and the same legal line."))
+    assert(
+      interactionLaw.contains(
+        "Engine evidence must bind to the same board, the same Story route, and the same legal line."
+      )
+    )
     assert(
       interactionLaw.contains(
         "Different-FEN engine lines, route-mismatched engine lines, stale engine data, depth-missing engine data, eval-only input without a Story, and PV-only input without a Story are diagnostic only."
       )
     )
     assert(interactionLaw.contains("Stage 4-3 attaches EngineCheck only to `Tactic.Hanging`."))
-    assert(interactionLaw.contains("EngineCheck status starts with exactly `Unknown`, `Supports`, `Caps`, and `Refutes`."))
+    assert(
+      interactionLaw.contains(
+        "EngineCheck status starts with exactly `Unknown`, `Supports`, `Caps`, and `Refutes`."
+      )
+    )
     assert(interactionLaw.contains("`Refutes` blocks the Hanging Story."))
-    assert(interactionLaw.contains("`Supports` does not mean winning, best move, decisive, PV explanation, or public truth."))
+    assert(
+      interactionLaw.contains(
+        "`Supports` does not mean winning, best move, decisive, PV explanation, or public truth."
+      )
+    )
     assert(interactionLaw.contains("`Caps` leaves the Story available but forbids strong expression."))
-    assert(interactionLaw.contains("Stage 4 negative corpus covers local material gain that fails to a larger"))
-    assert(interactionLaw.contains("without `CaptureResult`, engine data without complete StoryProof, and engine"))
+    assert(
+      interactionLaw.contains("Stage 4 negative corpus covers local material gain that fails to a larger")
+    )
+    assert(
+      interactionLaw.contains("without `CaptureResult`, engine data without complete StoryProof, and engine")
+    )
     assert(interactionLaw.contains("writerless, or proofless engine evidence"))
     assert(interactionLaw.contains("Stage 4 StoryTable integration is conservative."))
     assert(interactionLaw.contains("EngineCheck never creates a Story in StoryTable."))
@@ -764,18 +972,30 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(interactionLaw.contains("One chess meaning, one home. One rule, one live authority."))
     assert(interactionLaw.contains("Stage 4 ends with `Tactic.Hanging` as the only EngineCheck consumer."))
     assert(interactionLaw.contains("`EngineCheck` is not a Story writer and does not create public truth."))
-    assert(interactionLaw.contains("`StoryInteractionLaw.md` owns this closeout; other live docs may summarize scope only."))
-    assert(interactionLaw.contains("Stage 5 Story Order may receive internal EngineCheck diagnostics from selected"))
     assert(
-      interactionLaw.replaceAll("\\s+", " ").contains(
-        "Stage 5 must not open renderer, LLM, public route `200`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan, Strategy, engine PV commentary, or best-move explanation."
+      interactionLaw.contains(
+        "`StoryInteractionLaw.md` owns this closeout; other live docs may summarize scope only."
       )
+    )
+    assert(
+      interactionLaw.contains(
+        "Stage 5 Story Order may receive internal EngineCheck diagnostics from selected"
+      )
+    )
+    assert(
+      interactionLaw
+        .replaceAll("\\s+", " ")
+        .contains(
+          "Stage 5 must not open renderer, LLM, public route `200`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, Plan, Strategy, engine PV commentary, or best-move explanation."
+        )
     )
     assert(interactionLaw.contains("## Stage 5 Charter"))
     assert(interactionLaw.contains("Stage 5 name is `Story Order`."))
     assert(interactionLaw.contains("Stage 5 may be described as `StoryTable Arbitration`"))
     assert(interactionLaw.contains("Core sentence: StoryTable orders. It does not invent."))
-    assert(interactionLaw.contains("Many Stories may exist. StoryTable chooses roles. No new chess meaning is"))
+    assert(
+      interactionLaw.contains("Many Stories may exist. StoryTable chooses roles. No new chess meaning is")
+    )
     assert(interactionLaw.contains("Stage 5 first"))
     assert(interactionLaw.contains("scope is limited to the existing `Tactic.Hanging` vertical slice."))
     Vector(
@@ -811,7 +1031,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(forbidden), s"Stage 5 charter must forbid $forbidden")
     assert(interactionLaw.contains("StoryTable may order only existing Story rows."))
     assert(interactionLaw.contains("A `Refutes` EngineCheck sends the Hanging Story"))
-    assert(interactionLaw.contains("`StoryInteractionLaw.md` is the single live authority for the Stage 5 charter."))
+    assert(
+      interactionLaw.contains(
+        "`StoryInteractionLaw.md` is the single live authority for the Stage 5 charter."
+      )
+    )
     assert(interactionLaw.contains("Other live documents may summarize Stage 5 scope only."))
     assert(interactionLaw.contains("## Stage 5-1 Hanging Role Rules"))
     assert(interactionLaw.contains("Stage 5-1 goal: assign roles for existing `Tactic.Hanging` Story rows."))
@@ -857,7 +1081,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(interactionLaw.contains("proofFailures text must not sort public rows."))
     assert(interactionLaw.replaceAll("\\s+", " ").contains("Raw engine eval and raw PV text"))
     assert(interactionLaw.contains("## Stage 5-3 Conflict and Block Rules"))
-    assert(interactionLaw.contains("Stage 5-3 goal: resolve close blocker relationships for Hanging Story rows"))
+    assert(
+      interactionLaw.contains("Stage 5-3 goal: resolve close blocker relationships for Hanging Story rows")
+    )
     Vector(
       "- `EngineCheck.Refutes` blocks Hanging.",
       "- Missing StoryProof blocks Hanging.",
@@ -877,7 +1103,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(notImplemented), s"Stage 5-3 must keep closed: $notImplemented")
     assert(interactionLaw.contains("Stage 5-3 does not create a Story"))
     assert(interactionLaw.contains("## Stage 5-4 Verdict Diagnostic Boundary"))
-    assert(interactionLaw.contains("Stage 5-4 goal: keep StoryTable results from being mistaken for renderer or LLM input."))
+    assert(
+      interactionLaw.contains(
+        "Stage 5-4 goal: keep StoryTable results from being mistaken for renderer or LLM input."
+      )
+    )
     Vector(
       "- `Verdict.values` shape stays fixed.",
       "- proofFailures do not enter `Verdict.values`.",
@@ -988,7 +1218,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(interactionLaw.contains("## Stage 6-1 Explanation Plan Shape"))
     assert(interactionLaw.contains("Stage 6-1 goal: turn one selected Verdict into a small pre-speech plan."))
     assert(interactionLaw.contains("First scope handles exactly one `Tactic.Hanging` Lead Verdict."))
-    assert(interactionLaw.contains("`allowedClaim` is a structured claim key, not a natural-language sentence."))
+    assert(
+      interactionLaw.contains("`allowedClaim` is a structured claim key, not a natural-language sentence.")
+    )
     assert(interactionLaw.contains("The first live claim key is `can_win_piece`."))
     assert(interactionLaw.contains("The first live strength key is `bounded`."))
     assert(interactionLaw.contains("support/context links stay empty in the first scope."))
@@ -1238,7 +1470,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       )
     assert(interactionLaw.contains("## Stage 7-0 Deterministic Renderer Charter"))
     assert(interactionLaw.contains("Stage 7 name is `Deterministic Renderer`."))
-    assert(interactionLaw.contains("Core sentence: Explanation Plan bounds speech. Renderer only phrases it."))
+    assert(
+      interactionLaw.contains("Core sentence: Explanation Plan bounds speech. Renderer only phrases it.")
+    )
     Vector(
       "Stage 7-0 fixes what the Deterministic Renderer may open before LLM narration or public route work.",
       "The goal is a deterministic template baseline that turns `ExplanationPlan` into internal text without making chess meaning.",
@@ -1648,7 +1882,10 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "- renderer does not overlap EngineCheck ownership",
       "- renderer does not overlap CaptureResult ownership"
     ).foreach: authorityAudit =>
-      assert(interactionLaw.contains(authorityAudit), s"Stage 7 closeout must pin authority audit: $authorityAudit")
+      assert(
+        interactionLaw.contains(authorityAudit),
+        s"Stage 7 closeout must pin authority audit: $authorityAudit"
+      )
     Vector(
       "- Support plans produce no text",
       "- Context plans produce no text",
@@ -1657,7 +1894,10 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "- refuted plans produce no text",
       "- no-claim plans produce no text"
     ).foreach: negativeAudit =>
-      assert(interactionLaw.contains(negativeAudit), s"Stage 7 closeout must pin negative audit: $negativeAudit")
+      assert(
+        interactionLaw.contains(negativeAudit),
+        s"Stage 7 closeout must pin negative audit: $negativeAudit"
+      )
     Vector(
       "Stage 7 closeout adds no new Story family, row, route, public payload, or markdown authority file.",
       "Renderer rules live in `StoryInteractionLaw.md` only; other documents may summarize scope only.",
@@ -1778,7 +2018,10 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "- cost and latency acceptable",
       "- failure / retry / timeout fail closed"
     ).foreach: apiCheck =>
-      assert(interactionLaw.contains(apiCheck), s"Stage 8 production API closed check must be pinned: $apiCheck")
+      assert(
+        interactionLaw.contains(apiCheck),
+        s"Stage 8 production API closed check must be pinned: $apiCheck"
+      )
     Vector(
       "Stage 8 Prompt Smoke",
       "Stage 8 opens only 8A Mock narrator and 8B Codex CLI prompt smoke test",
@@ -1815,20 +2058,59 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "- LLM only polishes below it.",
       "- No raw proof material enters narration."
     ).foreach: closeoutStandard =>
-      assert(interactionLaw.contains(closeoutStandard), s"Stage 8 closeout standard must include: $closeoutStandard")
+      assert(
+        interactionLaw.contains(closeoutStandard),
+        s"Stage 8 closeout standard must include: $closeoutStandard"
+      )
     assert(modelContract.contains("positive `CaptureResult`"))
     assert(modelContract.contains("EngineCheck is internal evidence only."))
-    assert(modelContract.contains("It records same-board proof, checked move, engine line, reply line, eval before, eval after, depth or freshness, and missing evidence."))
-    assert(modelContract.contains("EngineCheck does not create a Story, select a Story, rank a Story, write a Verdict, feed a renderer, or feed an LLM."))
-    assert(modelContract.contains("EngineCheck.fromStory binds engine evidence to same-board BoardFacts, an existing Story route, and a same-board legal line."))
-    assert(modelContract.contains("EngineCheckStatus has exactly `Unknown`, `Supports`, `Caps`, and `Refutes`."))
-    assert(modelContract.contains("Only `Tactic.Hanging`, the narrow `Tactic.Fork` vertical slice, and the narrow `Scene.Material` writer may carry EngineCheck in this checkpoint."))
-    assert(modelContract.contains("Eval collapse after capture or fork route may refute an existing EngineCheck only after same-board Story proof"))
-    assert(modelContract.contains("Eval collapse cannot create a Story, public eval claim, or engine-authored explanation."))
-    assert(modelContract.contains("Verdict carries `engineCheckStatus` and `engineStrengthLimited` as internal diagnostics only."))
-    assert(modelContract.contains("`Verdict.values`, renderer, and LLM inputs must not consume EngineCheck diagnostics."))
+    assert(
+      modelContract.contains(
+        "It records same-board proof, checked move, engine line, reply line, eval before, eval after, depth or freshness, and missing evidence."
+      )
+    )
+    assert(
+      modelContract.contains(
+        "EngineCheck does not create a Story, select a Story, rank a Story, write a Verdict, feed a renderer, or feed an LLM."
+      )
+    )
+    assert(
+      modelContract.contains(
+        "EngineCheck.fromStory binds engine evidence to same-board BoardFacts, an existing Story route, and a same-board legal line."
+      )
+    )
+    assert(
+      modelContract.contains("EngineCheckStatus has exactly `Unknown`, `Supports`, `Caps`, and `Refutes`.")
+    )
+    assert(
+      modelContract.contains(
+        "Only `Tactic.Hanging`, the narrow `Tactic.Fork` vertical slice, and the narrow `Scene.Material` writer may carry EngineCheck in this checkpoint."
+      )
+    )
+    assert(
+      modelContract.contains(
+        "Eval collapse after capture or fork route may refute an existing EngineCheck only after same-board Story proof"
+      )
+    )
+    assert(
+      modelContract.contains(
+        "Eval collapse cannot create a Story, public eval claim, or engine-authored explanation."
+      )
+    )
+    assert(
+      modelContract.contains(
+        "Verdict carries `engineCheckStatus` and `engineStrengthLimited` as internal diagnostics only."
+      )
+    )
+    assert(
+      modelContract.contains(
+        "`Verdict.values`, renderer, and LLM inputs must not consume EngineCheck diagnostics."
+      )
+    )
     assert(modelContract.contains("`StoryInteractionLaw.md` owns the Stage 5 charter."))
-    assert(modelContract.contains("Stage 5 Story Order baseline is limited to existing `Tactic.Hanging` Story"))
+    assert(
+      modelContract.contains("Stage 5 Story Order baseline is limited to existing `Tactic.Hanging` Story")
+    )
     assert(modelContract.contains("The current Fork-6 slice adds only deterministic ordering between"))
     assert(modelContract.contains("existing `Tactic.Hanging` rows and existing narrow `Tactic.Fork` rows"))
     assert(modelContract.contains("Material-3 adds only single-row StoryTable admission for proof-backed"))
@@ -1837,17 +2119,25 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(modelContract.contains("It must not use raw engine eval, raw PV text, proofFailures text"))
     assert(modelContract.contains("Stage 5-3 conflict rules may block Hanging-shaped rows"))
     assert(modelContract.contains("Fork-6 role rules block refuted Fork, incomplete Fork, writerless Fork"))
-    assert(modelContract.contains("Fork-7 opens only ExplanationPlan mapping for selected narrow `Tactic.Fork`"))
+    assert(
+      modelContract.contains("Fork-7 opens only ExplanationPlan mapping for selected narrow `Tactic.Fork`")
+    )
     assert(modelContract.contains("Fork allowed claim keys are `forks_two_targets` and"))
     assert(modelContract.contains("`attacks_two_targets`; the first emitted Fork claim key is"))
     assert(modelContract.contains("`forks_two_targets`. Fork plans may carry secondaryTarget"))
-    assert(modelContract.contains("Support, Context, Blocked, capped, and engine-refuted Fork plans create no"))
+    assert(
+      modelContract.contains("Support, Context, Blocked, capped, and engine-refuted Fork plans create no")
+    )
     assert(
       modelContract
         .replaceAll("\\s+", " ")
         .contains("without opening Plan, Blunder, Defense, extra counterplay, or Strategy relations")
     )
-    assert(modelContract.contains("Stage 5-4 Verdict Diagnostic Boundary is also owned by `StoryInteractionLaw.md`"))
+    assert(
+      modelContract.contains(
+        "Stage 5-4 Verdict Diagnostic Boundary is also owned by `StoryInteractionLaw.md`"
+      )
+    )
     assert(
       modelContract
         .replaceAll("\\s+", " ")
@@ -1888,13 +2178,21 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(modelContract.contains("Stage 5-1 Hanging Role Rules are also owned by `StoryInteractionLaw.md`"))
     assert(manifest.contains("Stage 5-1 Hanging Role Rules also live in `StoryInteractionLaw.md`"))
     assert(ssot.contains("Stage 5-2 deterministic ordering rules also live in `StoryInteractionLaw.md`"))
-    assert(modelContract.contains("Stage 5-2 Deterministic Ordering is also owned by `StoryInteractionLaw.md`"))
+    assert(
+      modelContract.contains("Stage 5-2 Deterministic Ordering is also owned by `StoryInteractionLaw.md`")
+    )
     assert(manifest.contains("Stage 5-2 Deterministic Ordering also lives in `StoryInteractionLaw.md`"))
     assert(ssot.contains("Stage 5-3 conflict and block rules also live in `StoryInteractionLaw.md`"))
-    assert(modelContract.contains("Stage 5-3 Conflict and Block Rules are also owned by `StoryInteractionLaw.md`"))
+    assert(
+      modelContract.contains("Stage 5-3 Conflict and Block Rules are also owned by `StoryInteractionLaw.md`")
+    )
     assert(manifest.contains("Stage 5-3 Conflict and Block Rules also live in `StoryInteractionLaw.md`"))
     assert(ssot.contains("Stage 5-4 Verdict diagnostic boundary also lives in `StoryInteractionLaw.md`"))
-    assert(modelContract.contains("Stage 5-4 Verdict Diagnostic Boundary is also owned by `StoryInteractionLaw.md`"))
+    assert(
+      modelContract.contains(
+        "Stage 5-4 Verdict Diagnostic Boundary is also owned by `StoryInteractionLaw.md`"
+      )
+    )
     assert(manifest.contains("Stage 5-4 Verdict Diagnostic Boundary also lives in `StoryInteractionLaw.md`"))
     assert(ssot.contains("Stage 5 closeout also lives in `StoryInteractionLaw.md`"))
     assert(modelContract.contains("Stage 5 closeout is also owned by `StoryInteractionLaw.md`"))
@@ -2431,8 +2729,14 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     )
     assert(modelContract.contains("post-move attacked target squares"))
     assert(interactionLaw.contains("## Fork-2 MultiTargetProof"))
-    assert(interactionLaw.contains("`MultiTargetProof` is the family-specific proof home for the first Fork slice."))
-    assert(interactionLaw.contains("It creates Fork evidence, but it does not directly create a public Story."))
+    assert(
+      interactionLaw.contains(
+        "`MultiTargetProof` is the family-specific proof home for the first Fork slice."
+      )
+    )
+    assert(
+      interactionLaw.contains("It creates Fork evidence, but it does not directly create a public Story.")
+    )
     assert(interactionLaw.contains("target A"))
     assert(interactionLaw.contains("target B"))
     assert(interactionLaw.contains("target value or target class"))
@@ -2443,7 +2747,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     )
     assert(normalizedModelContract.contains("fork square, target A, and target B as proof evidence only"))
     assert(interactionLaw.contains("## Fork-3 TacticFork Writer"))
-    assert(interactionLaw.contains("`TacticFork` is the named positive writer for the first narrow `Tactic.Fork`"))
+    assert(
+      interactionLaw.contains("`TacticFork` is the named positive writer for the first narrow `Tactic.Fork`")
+    )
     assert(interactionLaw.contains("target relation is proven after the move"))
     assert(interactionLaw.contains("EngineCheck does not `Refutes`"))
     assert(
@@ -2463,8 +2769,7 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     )
     assert(
       normalizedModelContract.toLowerCase.contains(
-        "reply-map entries showing one reply can save both targets block Fork Lead."
-          .toLowerCase
+        "reply-map entries showing one reply can save both targets block Fork Lead.".toLowerCase
       )
     )
     assert(interactionLaw.contains("## Fork-4 Negative Corpus"))
@@ -2482,7 +2787,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     )
     assert(normalizedModelContract.contains("Fork reuses `EngineCheck`; no `ForkEngineCheck` type exists."))
     assert(interactionLaw.contains("## Fork-6 StoryTable Hanging Vs Fork"))
-    assert(interactionLaw.contains("Fork-6 opens only StoryTable role ordering for existing `Tactic.Hanging` Story"))
+    assert(
+      interactionLaw.contains(
+        "Fork-6 opens only StoryTable role ordering for existing `Tactic.Hanging` Story"
+      )
+    )
     assert(interactionLaw.contains("A refuted Fork, incomplete Fork, writerless Fork, or"))
     assert(interactionLaw.contains("Fork without `MultiTargetProof` becomes `Blocked`."))
     assert(normalizedInteractionLaw.contains("Hanging and Fork may both be eligible for `Lead`"))
@@ -2494,7 +2803,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       )
     )
     assert(interactionLaw.contains("## Fork-7 ExplanationPlan For Fork"))
-    assert(interactionLaw.contains("Fork-7 opens only ExplanationPlan mapping for a selected narrow `Tactic.Fork`"))
+    assert(
+      interactionLaw.contains("Fork-7 opens only ExplanationPlan mapping for a selected narrow `Tactic.Fork`")
+    )
     assert(interactionLaw.contains("- selected Verdict only"))
     assert(interactionLaw.contains("- MultiTargetProof"))
     assert(interactionLaw.contains("- `forks_two_targets`"))
@@ -2506,17 +2817,27 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(interactionLaw.contains("secondaryTarget"))
     assert(interactionLaw.contains("Support, Context, and Blocked Fork Verdicts create no standalone claim"))
     assert(interactionLaw.contains("Fork-7 does not open Fork renderer text"))
-    assert(interactionLaw.contains("Completion standard: Fork ExplanationPlan creates no meaning stronger than the"))
+    assert(
+      interactionLaw.contains(
+        "Completion standard: Fork ExplanationPlan creates no meaning stronger than the"
+      )
+    )
     assert(interactionLaw.contains("## Fork-8 Deterministic Renderer For Fork"))
     assert(interactionLaw.contains("Fork-8 opens only deterministic renderer text for a selected Fork"))
     assert(interactionLaw.contains("- ExplanationPlan only"))
     assert(interactionLaw.contains("`{route} forks the pieces on {targetA} and {targetB}.`"))
     assert(interactionLaw.contains("`targetA` and `targetB` must come from structured `target` and"))
     assert(interactionLaw.contains("- allowed claim is `forks_two_targets`"))
-    assert(interactionLaw.contains("Support, Context, Blocked, capped, and engine-refuted Fork plans produce no"))
-    assert(interactionLaw.contains("The `attacks_two_targets` claim key remains an internal allowed claim key"))
+    assert(
+      interactionLaw.contains("Support, Context, Blocked, capped, and engine-refuted Fork plans produce no")
+    )
+    assert(
+      interactionLaw.contains("The `attacks_two_targets` claim key remains an internal allowed claim key")
+    )
     assert(interactionLaw.contains("Fork-8 itself does not open Fork LLM smoke"))
-    assert(interactionLaw.contains("Completion standard: Fork renderer text is no stronger than the selected Fork"))
+    assert(
+      interactionLaw.contains("Completion standard: Fork renderer text is no stronger than the selected Fork")
+    )
     assert(
       normalizedInteractionLaw.contains(
         "Renderer wording opens tactic by tactic only; the current Fork slice opens deterministic Fork renderer text in Fork-8 and Fork LLM smoke in Fork-9."
@@ -2528,7 +2849,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       )
     )
     assert(interactionLaw.contains("## Fork-9 LLM Smoke For Fork"))
-    assert(interactionLaw.contains("Fork-9 opens only LLM smoke for selected Fork ExplanationPlan and RenderedLine."))
+    assert(
+      interactionLaw.contains(
+        "Fork-9 opens only LLM smoke for selected Fork ExplanationPlan and RenderedLine."
+      )
+    )
     Vector(
       "Allowed input:",
       "- ExplanationPlan",
@@ -2574,8 +2899,14 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "- claim stronger than deterministic text"
     ).foreach: forbidden =>
       assert(interactionLaw.contains(forbidden), s"Fork-9 must reject stronger output: $forbidden")
-    assert(interactionLaw.contains("Completion standard: Fork LLM smoke does not strengthen Fork deterministic"))
-    assert(normalizedModelContract.contains("Fork-9 opens only LLM smoke for selected Fork ExplanationPlan and RenderedLine."))
+    assert(
+      interactionLaw.contains("Completion standard: Fork LLM smoke does not strengthen Fork deterministic")
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Fork-9 opens only LLM smoke for selected Fork ExplanationPlan and RenderedLine."
+      )
+    )
     assert(interactionLaw.contains("## Fork Slice Closeout Pass"))
     Vector(
       "Fork slice closeout goal: audit that the Fork closeout opened only the narrow `Tactic.Fork` vertical slice.",
@@ -2780,14 +3111,24 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "Completion standard: Material ExplanationPlan creates no meaning stronger than the selected Verdict."
     ).foreach: materialPlanLine =>
       assert(interactionLaw.contains(materialPlanLine), s"Material-7 must pin: $materialPlanLine")
-    assert(normalizedModelContract.contains("Material-0 and Material-1 are owned by `StoryInteractionLaw.md`."))
+    assert(
+      normalizedModelContract.contains("Material-0 and Material-1 are owned by `StoryInteractionLaw.md`.")
+    )
     assert(
       normalizedModelContract.contains(
         "Material-1 reuses `CaptureResult` for the first simple capture and immediate bounded recapture scope."
       )
     )
-    assert(normalizedModelContract.contains("Material-2 extends `CaptureResult` with captured pieces and bounded exchange sequence proof fields."))
-    assert(normalizedModelContract.contains("Material-3 opens `StoryWriter.SceneMaterial` as the named Material writer."))
+    assert(
+      normalizedModelContract.contains(
+        "Material-2 extends `CaptureResult` with captured pieces and bounded exchange sequence proof fields."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Material-3 opens `StoryWriter.SceneMaterial` as the named Material writer."
+      )
+    )
     assert(normalizedModelContract.contains("Material-4 adds only the Material negative corpus."))
     assert(normalizedModelContract.contains("Material-5 reuses existing `EngineCheck` for `Scene.Material`."))
     assert(
@@ -2795,7 +3136,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
         "Material-6 adds only StoryTable integration for existing Hanging, Fork, and Material rows."
       )
     )
-    assert(normalizedModelContract.contains("Material-7 opens only ExplanationPlan mapping for selected `Scene.Material` Verdicts."))
+    assert(
+      normalizedModelContract.contains(
+        "Material-7 opens only ExplanationPlan mapping for selected `Scene.Material` Verdicts."
+      )
+    )
     assert(
       normalizedModelContract.contains(
         "Material allowed claim keys are `material_balance_changes`, `line_leaves_material_gain`, and `exchange_leaves_side_ahead`; the first emitted Material claim key is `material_balance_changes`."
@@ -2823,7 +3168,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "Completion standard: Renderer text is no stronger than the Material ExplanationPlan."
     ).foreach: materialRendererLine =>
       assert(interactionLaw.contains(materialRendererLine), s"Material-8 must pin: $materialRendererLine")
-    assert(normalizedModelContract.contains("Material-8 opens only deterministic renderer text for selected `Scene.Material` ExplanationPlan."))
+    assert(
+      normalizedModelContract.contains(
+        "Material-8 opens only deterministic renderer text for selected `Scene.Material` ExplanationPlan."
+      )
+    )
     assert(interactionLaw.contains("## Material-9 LLM Smoke"))
     Vector(
       "Material-9 opens only LLM smoke for selected Material ExplanationPlan and RenderedLine.",
@@ -2860,7 +3209,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "Completion standard: LLM smoke does not strengthen Material text."
     ).foreach: materialSmokeLine =>
       assert(interactionLaw.contains(materialSmokeLine), s"Material-9 must pin: $materialSmokeLine")
-    assert(normalizedModelContract.contains("Material-9 opens only LLM smoke for selected Material ExplanationPlan and RenderedLine."))
+    assert(
+      normalizedModelContract.contains(
+        "Material-9 opens only LLM smoke for selected Material ExplanationPlan and RenderedLine."
+      )
+    )
     assert(interactionLaw.contains("## Material Slice Closeout Pass"))
     Vector(
       "Material slice closeout opens no new chess meaning beyond the narrow `Scene.Material` vertical slice.",
@@ -2899,8 +3252,15 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "`One chess meaning, one home.`",
       "Completion standard: Material slice is closed as a narrow bounded material-result Story label."
     ).foreach: materialCloseoutLine =>
-      assert(interactionLaw.contains(materialCloseoutLine), s"Material closeout must pin: $materialCloseoutLine")
-    assert(normalizedModelContract.contains("Material Slice Closeout confirms `Scene.Material` opened no Defense, Conversion, Winning, Plan, Strategy, or Blunder path."))
+      assert(
+        interactionLaw.contains(materialCloseoutLine),
+        s"Material closeout must pin: $materialCloseoutLine"
+      )
+    assert(
+      normalizedModelContract.contains(
+        "Material Slice Closeout confirms `Scene.Material` opened no Defense, Conversion, Winning, Plan, Strategy, or Blunder path."
+      )
+    )
     assertEquals(widthRows.size, 25)
     assertEquals(mappedTactics, Tactics.sorted)
     widthRows.foreach: row =>
@@ -2908,7 +3268,10 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(row(2).nonEmpty, s"width map must name proof shape for ${row(1)}")
       assert(row(3).contains("StoryProof"), s"width map must keep StoryProof reuse visible for ${row(1)}")
       assert(row(5).nonEmpty, s"width map must name false-positive risks for ${row(1)}")
-      assert(row(6).contains("yes") || row(6).contains("attached"), s"width map must name EngineCheck need for ${row(1)}")
+      assert(
+        row(6).contains("yes") || row(6).contains("attached"),
+        s"width map must name EngineCheck need for ${row(1)}"
+      )
     Vector(
       "CaptureProof",
       "TargetProof",
@@ -2968,7 +3331,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(doc.contains("Defense is not no-counterplay."))
     assert(normalizedModelContract.contains("Defense-0 is owned by `StoryInteractionLaw.md`."))
     assert(normalizedModelContract.contains("Defense-0 opens only the `Scene.Defense` charter."))
-    assert(normalizedModelContract.contains("It opens no writer, proof sidecar, StoryTable integration, ExplanationPlan, renderer, LLM smoke, public route `200`, or production API."))
+    assert(
+      normalizedModelContract.contains(
+        "It opens no writer, proof sidecar, StoryTable integration, ExplanationPlan, renderer, LLM smoke, public route `200`, or production API."
+      )
+    )
 
   test("Defense-1 ThreatProof pins what Defense must stop without creating Story"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3015,7 +3382,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(doc.contains("ThreatProof proves what must be stopped."))
     assert(normalizedModelContract.contains("Defense-1 is owned by `StoryInteractionLaw.md`."))
     assert(normalizedModelContract.contains("Defense-1 opens only `ThreatProof`."))
-    assert(normalizedModelContract.contains("ThreatProof proves what must be stopped, but it does not create a Defense Story or public claim."))
+    assert(
+      normalizedModelContract.contains(
+        "ThreatProof proves what must be stopped, but it does not create a Defense Story or public claim."
+      )
+    )
 
   test("Defense-2 DefenseProof pins how a specific move stops a ThreatProof"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3067,7 +3438,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(doc.contains("DefenseProof proves how a specific move stops a specific ThreatProof."))
     assert(normalizedModelContract.contains("Defense-2 is owned by `StoryInteractionLaw.md`."))
     assert(normalizedModelContract.contains("Defense-2 opens only `DefenseProof`."))
-    assert(normalizedModelContract.contains("DefenseProof proves whether a specific threat is stopped, but it does not create a Defense Story or public claim."))
+    assert(
+      normalizedModelContract.contains(
+        "DefenseProof proves whether a specific threat is stopped, but it does not create a Defense Story or public claim."
+      )
+    )
 
   test("Defense-3 SceneDefense writer pins the first narrow Defense Story"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3109,13 +3484,29 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(defenseLine), s"Defense-3 must pin: $defenseLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Defense-3 opens only the named `SceneDefense` writer for one narrow `Scene.Defense` Story."))
+      assert(
+        doc.contains(
+          "Defense-3 opens only the named `SceneDefense` writer for one narrow `Scene.Defense` Story."
+        )
+      )
       assert(doc.contains("ThreatProof proves what must be stopped."))
       assert(doc.contains("DefenseProof proves how a specific move stops a specific ThreatProof."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Defense-3 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Defense-3 opens only the named `SceneDefense` writer for one narrow `Scene.Defense` Story."))
-    assert(normalizedModelContract.contains("A SceneDefense Story requires complete StoryProof, complete ThreatProof, complete DefenseProof, same-board proof, legal defense move, identified protected target, prevented material loss, writer `SceneDefense`, and no refuting EngineCheck."))
+    assert(
+      normalizedModelContract.contains(
+        "Defense-3 opens only the named `SceneDefense` writer for one narrow `Scene.Defense` Story."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "A SceneDefense Story requires complete StoryProof, complete ThreatProof, complete DefenseProof, same-board proof, legal defense move, identified protected target, prevented material loss, writer `SceneDefense`, and no refuting EngineCheck."
+      )
+    )
 
   test("Defense-4 negative corpus pins defense-looking false positives silent"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3153,11 +3544,23 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Defense-4 opens only the Defense negative corpus."))
-      assert(doc.contains("Defense-looking false positives must stay silent without complete ThreatProof and complete DefenseProof."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Defense-looking false positives must stay silent without complete ThreatProof and complete DefenseProof."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Defense-4 is owned by `StoryInteractionLaw.md`."))
     assert(normalizedModelContract.contains("Defense-4 opens only the Defense negative corpus."))
-    assert(normalizedModelContract.contains("Defense-looking rows have no Lead or are Blocked unless ThreatProof and DefenseProof are complete."))
+    assert(
+      normalizedModelContract.contains(
+        "Defense-looking rows have no Lead or are Blocked unless ThreatProof and DefenseProof are complete."
+      )
+    )
 
   test("Defense-5 EngineCheck reuse pins Defense engine evidence boundary"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3202,12 +3605,30 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(defenseLine), s"Defense-5 must pin: $defenseLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Defense-5 opens only existing EngineCheck reuse for existing `Scene.Defense` Stories."))
-      assert(doc.contains("EngineCheck may support, cap, or refute an existing Defense Story, but it does not create Defense."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains("Defense-5 opens only existing EngineCheck reuse for existing `Scene.Defense` Stories.")
+      )
+      assert(
+        doc.contains(
+          "EngineCheck may support, cap, or refute an existing Defense Story, but it does not create Defense."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Defense-5 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Defense-5 opens only existing EngineCheck reuse for existing `Scene.Defense` Stories."))
-    assert(normalizedModelContract.contains("EngineCheck may support, cap, or refute an existing Defense Story, but it does not create Defense."))
+    assert(
+      normalizedModelContract.contains(
+        "Defense-5 opens only existing EngineCheck reuse for existing `Scene.Defense` Stories."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "EngineCheck may support, cap, or refute an existing Defense Story, but it does not create Defense."
+      )
+    )
     assert(!chessSources.contains("DefenseEngineCheck"))
 
   test("Defense-6 StoryTable integration pins four-family deterministic ordering"):
@@ -3246,12 +3667,32 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(defenseLine), s"Defense-6 must pin: $defenseLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows."))
-      assert(doc.contains("StoryTable deterministically orders Hanging, Fork, Material, and Defense without creating new chess meaning."))
-      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, Defense-9, and Defense Slice Closeout scopes remain closed baselines."))
+      assert(
+        doc.contains(
+          "Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "StoryTable deterministically orders Hanging, Fork, Material, and Defense without creating new chess meaning."
+        )
+      )
+      assert(
+        doc.contains(
+          "The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, Defense-9, and Defense Slice Closeout scopes remain closed baselines."
+        )
+      )
     assert(normalizedModelContract.contains("Defense-6 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows."))
-    assert(normalizedModelContract.contains("StoryTable deterministically orders Hanging, Fork, Material, and Defense without creating new chess meaning."))
+    assert(
+      normalizedModelContract.contains(
+        "Defense-6 opens only StoryTable integration for existing Hanging, Fork, Material, and Defense rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "StoryTable deterministically orders Hanging, Fork, Material, and Defense without creating new chess meaning."
+      )
+    )
 
   test("Defense-7 ExplanationPlan pins selected Defense Verdict speech boundary"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3292,12 +3733,26 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(defenseLine), s"Defense-7 must pin: $defenseLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts."))
+      assert(
+        doc.contains("Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts.")
+      )
       assert(doc.contains("Defense ExplanationPlan creates no meaning stronger than the selected Verdict."))
-      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, Defense-9, and Defense Slice Closeout scopes remain closed baselines."))
+      assert(
+        doc.contains(
+          "The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, Defense-9, and Defense Slice Closeout scopes remain closed baselines."
+        )
+      )
     assert(normalizedModelContract.contains("Defense-7 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts."))
-    assert(normalizedModelContract.contains("Defense ExplanationPlan creates no meaning stronger than the selected Verdict."))
+    assert(
+      normalizedModelContract.contains(
+        "Defense-7 opens only ExplanationPlan mapping for selected `Scene.Defense` Verdicts."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Defense ExplanationPlan creates no meaning stronger than the selected Verdict."
+      )
+    )
 
   test("Defense-8 deterministic renderer pins Defense text boundary"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3331,11 +3786,21 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(defenseLine), s"Defense-8 must pin: $defenseLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan."))
+      assert(
+        doc.contains("Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan.")
+      )
       assert(doc.contains("Renderer text is no stronger than the Defense ExplanationPlan."))
-      assert(doc.contains("The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, Defense-9, and Defense Slice Closeout scopes remain closed baselines."))
+      assert(
+        doc.contains(
+          "The completed Stage 8, Fork-9, Material Slice Closeout, Defense-0, Defense-1, Defense-2, Defense-3, Defense-4, Defense-5, Defense-6, Defense-7, Defense-8, Defense-9, and Defense Slice Closeout scopes remain closed baselines."
+        )
+      )
     assert(normalizedModelContract.contains("Defense-8 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan."))
+    assert(
+      normalizedModelContract.contains(
+        "Defense-8 opens only deterministic renderer text for selected Defense ExplanationPlan."
+      )
+    )
     assert(normalizedModelContract.contains("Renderer text is no stronger than the Defense ExplanationPlan."))
 
   test("Defense-9 LLM smoke pins Defense rephrase boundary"):
@@ -3386,11 +3851,21 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(defenseLine), s"Defense-9 must pin: $defenseLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Defense-9 opens only LLM smoke for selected Defense ExplanationPlan and RenderedLine."))
+      assert(
+        doc.contains("Defense-9 opens only LLM smoke for selected Defense ExplanationPlan and RenderedLine.")
+      )
       assert(doc.contains("LLM smoke does not make Defense text stronger."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Defense-9 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Defense-9 opens only LLM smoke for selected Defense ExplanationPlan and RenderedLine."))
+    assert(
+      normalizedModelContract.contains(
+        "Defense-9 opens only LLM smoke for selected Defense ExplanationPlan and RenderedLine."
+      )
+    )
     assert(normalizedModelContract.contains("LLM smoke does not make Defense text stronger."))
 
   test("Defense slice closeout pins audit and next-stage handoff"):
@@ -3432,11 +3907,31 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(closeoutLine), s"Defense closeout must pin: $closeoutLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Defense Slice Closeout opens no new chess meaning beyond the narrow `Scene.Defense` vertical slice."))
-      assert(doc.contains("Defense closes as a narrow proof-backed attacked-piece material-loss defense slice only."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
-    assert(normalizedModelContract.contains("Defense Slice Closeout confirms `Scene.Defense` opened no King safety, Mate defense, Plan, Strategy, Counterplay, or Prophylaxis path."))
-    assert(normalizedModelContract.contains("`ThreatProof`, `DefenseProof`, `Scene.Defense`, and `defends_piece` each keep one home."))
+      assert(
+        doc.contains(
+          "Defense Slice Closeout opens no new chess meaning beyond the narrow `Scene.Defense` vertical slice."
+        )
+      )
+      assert(
+        doc.contains(
+          "Defense closes as a narrow proof-backed attacked-piece material-loss defense slice only."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
+    assert(
+      normalizedModelContract.contains(
+        "Defense Slice Closeout confirms `Scene.Defense` opened no King safety, Mate defense, Plan, Strategy, Counterplay, or Prophylaxis path."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "`ThreatProof`, `DefenseProof`, `Scene.Defense`, and `defends_piece` each keep one home."
+      )
+    )
 
   test("MIH-0 charter pins Middlegame Interaction Hardening scope"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3498,12 +3993,36 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Middlegame Interaction Hardening is a closed baseline."))
-      assert(doc.contains("Middlegame Interaction Hardening opens no chess meaning. It stress-tests already-open meanings."))
-      assert(doc.contains("MIH-0 opens only interaction hardening among existing Hanging, Fork, Material, and Defense rows."))
-      assert(doc.contains("Material vs Defense is the first and highest-risk case because `Scene.Defense` prevents immediate material loss while `Scene.Material` describes material balance changing now."))
-    assert(normalizedModelContract.contains("Middlegame Interaction Hardening checks StoryTable role stability, selected Verdict stability, ExplanationPlan stability, and renderer/LLM smoke boundaries among already-open Hanging, Fork, Material, and Defense rows."))
-    assert(normalizedModelContract.contains("Middlegame Interaction Hardening opens no chess meaning. It stress-tests already-open meanings."))
-    assert(normalizedModelContract.contains("Same-board Material vs Defense collisions are resolved by actual material change now over prevented immediate loss, with speculative material loss blocked."))
+      assert(
+        doc.contains(
+          "Middlegame Interaction Hardening opens no chess meaning. It stress-tests already-open meanings."
+        )
+      )
+      assert(
+        doc.contains(
+          "MIH-0 opens only interaction hardening among existing Hanging, Fork, Material, and Defense rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "Material vs Defense is the first and highest-risk case because `Scene.Defense` prevents immediate material loss while `Scene.Material` describes material balance changing now."
+        )
+      )
+    assert(
+      normalizedModelContract.contains(
+        "Middlegame Interaction Hardening checks StoryTable role stability, selected Verdict stability, ExplanationPlan stability, and renderer/LLM smoke boundaries among already-open Hanging, Fork, Material, and Defense rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Middlegame Interaction Hardening opens no chess meaning. It stress-tests already-open meanings."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Same-board Material vs Defense collisions are resolved by actual material change now over prevented immediate loss, with speculative material loss blocked."
+      )
+    )
 
   test("MIH-1 fixture map pins complex middlegame fixture contract"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3544,10 +4063,26 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(fixtureLine), s"MIH-1 must pin: $fixtureLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("MIH-1 opens only complex middlegame test fixtures for already-open Hanging, Fork, Material, and Defense rows."))
-      assert(doc.contains("Completion standard: Fixture Map names board, rows, roles, selected Verdict, and forbidden claims without opening new meaning."))
-    assert(normalizedModelContract.contains("MIH-1 opens only complex middlegame test fixtures for already-open Hanging, Fork, Material, and Defense rows."))
-    assert(normalizedModelContract.contains("Fixture Map names board, rows, roles, selected Verdict, and forbidden claims without opening new meaning."))
+      assert(
+        doc.contains(
+          "MIH-1 opens only complex middlegame test fixtures for already-open Hanging, Fork, Material, and Defense rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "Completion standard: Fixture Map names board, rows, roles, selected Verdict, and forbidden claims without opening new meaning."
+        )
+      )
+    assert(
+      normalizedModelContract.contains(
+        "MIH-1 opens only complex middlegame test fixtures for already-open Hanging, Fork, Material, and Defense rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Fixture Map names board, rows, roles, selected Verdict, and forbidden claims without opening new meaning."
+      )
+    )
 
   test("MIH-2 role stability pins deterministic StoryTable hardening"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3582,10 +4117,26 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(roleLine), s"MIH-2 must pin: $roleLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("MIH-2 opens only StoryTable role stability checks over existing Hanging, Fork, Material, and Defense rows."))
-      assert(doc.contains("Completion standard: Role Stability keeps selected Verdict deterministic, prevents duplicate Lead, blocks incomplete or refuted rows, and keeps capped rows from standalone strong claims without opening new meaning."))
-    assert(normalizedModelContract.contains("MIH-2 opens only StoryTable role stability checks over existing Hanging, Fork, Material, and Defense rows."))
-    assert(normalizedModelContract.contains("Role Stability keeps selected Verdict deterministic, prevents duplicate Lead, blocks incomplete or refuted rows, and keeps capped rows from standalone strong claims without opening new meaning."))
+      assert(
+        doc.contains(
+          "MIH-2 opens only StoryTable role stability checks over existing Hanging, Fork, Material, and Defense rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "Completion standard: Role Stability keeps selected Verdict deterministic, prevents duplicate Lead, blocks incomplete or refuted rows, and keeps capped rows from standalone strong claims without opening new meaning."
+        )
+      )
+    assert(
+      normalizedModelContract.contains(
+        "MIH-2 opens only StoryTable role stability checks over existing Hanging, Fork, Material, and Defense rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Role Stability keeps selected Verdict deterministic, prevents duplicate Lead, blocks incomplete or refuted rows, and keeps capped rows from standalone strong claims without opening new meaning."
+      )
+    )
 
   test("MIH-3 material defense collision pins actual material change priority"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3622,10 +4173,26 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(collisionLine), s"MIH-3 must pin: $collisionLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("MIH-3 opens only the Material vs Defense collision rule over existing `Scene.Material` and `Scene.Defense` rows."))
-      assert(doc.contains("Completion standard: Material vs Defense collision selects actual material change now over prevented immediate loss, blocks speculative material loss, and keeps both public boundaries bounded."))
-    assert(normalizedModelContract.contains("MIH-3 opens only the Material vs Defense collision rule over existing `Scene.Material` and `Scene.Defense` rows."))
-    assert(normalizedModelContract.contains("Material vs Defense collision selects actual material change now over prevented immediate loss, blocks speculative material loss, and keeps both public boundaries bounded."))
+      assert(
+        doc.contains(
+          "MIH-3 opens only the Material vs Defense collision rule over existing `Scene.Material` and `Scene.Defense` rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "Completion standard: Material vs Defense collision selects actual material change now over prevented immediate loss, blocks speculative material loss, and keeps both public boundaries bounded."
+        )
+      )
+    assert(
+      normalizedModelContract.contains(
+        "MIH-3 opens only the Material vs Defense collision rule over existing `Scene.Material` and `Scene.Defense` rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Material vs Defense collision selects actual material change now over prevented immediate loss, blocks speculative material loss, and keeps both public boundaries bounded."
+      )
+    )
 
   test("MIH-4 engine check interaction pins existing status boundaries"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3662,10 +4229,26 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(engineLine), s"MIH-4 must pin: $engineLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("MIH-4 opens only existing EngineCheck interaction checks over already-open Hanging, Fork, Material, and Defense rows."))
-      assert(doc.contains("Completion standard: EngineCheck Interaction reuses existing EngineCheck statuses, keeps Supports and Unknown non-speaking, suppresses or weakens Caps, blocks Refutes, and prevents engine eval, raw PV, engine-says, best-move, and eval-number public leakage."))
-    assert(normalizedModelContract.contains("MIH-4 opens only existing EngineCheck interaction checks over already-open Hanging, Fork, Material, and Defense rows."))
-    assert(normalizedModelContract.contains("EngineCheck Interaction reuses existing EngineCheck statuses, keeps Supports and Unknown non-speaking, suppresses or weakens Caps, blocks Refutes, and prevents engine eval, raw PV, engine-says, best-move, and eval-number public leakage."))
+      assert(
+        doc.contains(
+          "MIH-4 opens only existing EngineCheck interaction checks over already-open Hanging, Fork, Material, and Defense rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "Completion standard: EngineCheck Interaction reuses existing EngineCheck statuses, keeps Supports and Unknown non-speaking, suppresses or weakens Caps, blocks Refutes, and prevents engine eval, raw PV, engine-says, best-move, and eval-number public leakage."
+        )
+      )
+    assert(
+      normalizedModelContract.contains(
+        "MIH-4 opens only existing EngineCheck interaction checks over already-open Hanging, Fork, Material, and Defense rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "EngineCheck Interaction reuses existing EngineCheck statuses, keeps Supports and Unknown non-speaking, suppresses or weakens Caps, blocks Refutes, and prevents engine eval, raw PV, engine-says, best-move, and eval-number public leakage."
+      )
+    )
 
   test("MIH-5 negative corpus pins close false positives silent"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3702,10 +4285,26 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(negativeLine), s"MIH-5 must pin: $negativeLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("MIH-5 opens only close false-positive negative corpus tests over already-open Hanging, Fork, Material, Defense, and EngineCheck rows."))
-      assert(doc.contains("Completion standard: Negative Corpus keeps close false positives silent unless complete proof exists, and no plausible-looking row may reach selected public output through StoryTable, ExplanationPlan, renderer, or LLM smoke boundaries."))
-    assert(normalizedModelContract.contains("MIH-5 opens only close false-positive negative corpus tests over already-open Hanging, Fork, Material, Defense, and EngineCheck rows."))
-    assert(normalizedModelContract.contains("Negative Corpus keeps close false positives silent unless complete proof exists, and no plausible-looking row may reach selected public output through StoryTable, ExplanationPlan, renderer, or LLM smoke boundaries."))
+      assert(
+        doc.contains(
+          "MIH-5 opens only close false-positive negative corpus tests over already-open Hanging, Fork, Material, Defense, and EngineCheck rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "Completion standard: Negative Corpus keeps close false positives silent unless complete proof exists, and no plausible-looking row may reach selected public output through StoryTable, ExplanationPlan, renderer, or LLM smoke boundaries."
+        )
+      )
+    assert(
+      normalizedModelContract.contains(
+        "MIH-5 opens only close false-positive negative corpus tests over already-open Hanging, Fork, Material, Defense, and EngineCheck rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Negative Corpus keeps close false positives silent unless complete proof exists, and no plausible-looking row may reach selected public output through StoryTable, ExplanationPlan, renderer, or LLM smoke boundaries."
+      )
+    )
 
   test("MIH-6 downstream boundary smoke pins selected Verdict handoff only"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3737,10 +4336,26 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(boundaryLine), s"MIH-6 must pin: $boundaryLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("MIH-6 opens only downstream boundary smoke over selected Verdict, existing ExplanationPlan, existing DeterministicRenderer, and existing LLM smoke."))
-      assert(doc.contains("Completion standard: Downstream Boundary Smoke passes only selected Lead Verdict data through existing ExplanationPlan, renderer, and LLM smoke boundaries, while non-Lead, capped, and refuted rows stay silent."))
-    assert(normalizedModelContract.contains("MIH-6 opens only downstream boundary smoke over selected Verdict, existing ExplanationPlan, existing DeterministicRenderer, and existing LLM smoke."))
-    assert(normalizedModelContract.contains("Downstream Boundary Smoke passes only selected Lead Verdict data through existing ExplanationPlan, renderer, and LLM smoke boundaries, while non-Lead, capped, and refuted rows stay silent."))
+      assert(
+        doc.contains(
+          "MIH-6 opens only downstream boundary smoke over selected Verdict, existing ExplanationPlan, existing DeterministicRenderer, and existing LLM smoke."
+        )
+      )
+      assert(
+        doc.contains(
+          "Completion standard: Downstream Boundary Smoke passes only selected Lead Verdict data through existing ExplanationPlan, renderer, and LLM smoke boundaries, while non-Lead, capped, and refuted rows stay silent."
+        )
+      )
+    assert(
+      normalizedModelContract.contains(
+        "MIH-6 opens only downstream boundary smoke over selected Verdict, existing ExplanationPlan, existing DeterministicRenderer, and existing LLM smoke."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Downstream Boundary Smoke passes only selected Lead Verdict data through existing ExplanationPlan, renderer, and LLM smoke boundaries, while non-Lead, capped, and refuted rows stay silent."
+      )
+    )
 
   test("MIH-7 diagnostics boundary pins diagnostics as non-public meaning"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3774,10 +4389,26 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(diagnosticsLine), s"MIH-7 must pin: $diagnosticsLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("MIH-7 opens only diagnostics boundary smoke over already-open Hanging, Fork, Material, Defense, StoryTable, selected Verdict, ExplanationPlan, renderer, and LLM smoke."))
-      assert(doc.contains("Completion standard: Diagnostics Boundary keeps proofFailures, raw proof failure text, engine text, source row data, and StoryTable debug relations out of public meaning, Verdict.values, ExplanationPlan source inputs, renderer wording, and LLM smoke prompts."))
-    assert(normalizedModelContract.contains("MIH-7 opens only diagnostics boundary smoke over already-open Hanging, Fork, Material, Defense, StoryTable, selected Verdict, ExplanationPlan, renderer, and LLM smoke."))
-    assert(normalizedModelContract.contains("Diagnostics Boundary keeps proofFailures, raw proof failure text, engine text, source row data, and StoryTable debug relations out of public meaning, Verdict.values, ExplanationPlan source inputs, renderer wording, and LLM smoke prompts."))
+      assert(
+        doc.contains(
+          "MIH-7 opens only diagnostics boundary smoke over already-open Hanging, Fork, Material, Defense, StoryTable, selected Verdict, ExplanationPlan, renderer, and LLM smoke."
+        )
+      )
+      assert(
+        doc.contains(
+          "Completion standard: Diagnostics Boundary keeps proofFailures, raw proof failure text, engine text, source row data, and StoryTable debug relations out of public meaning, Verdict.values, ExplanationPlan source inputs, renderer wording, and LLM smoke prompts."
+        )
+      )
+    assert(
+      normalizedModelContract.contains(
+        "MIH-7 opens only diagnostics boundary smoke over already-open Hanging, Fork, Material, Defense, StoryTable, selected Verdict, ExplanationPlan, renderer, and LLM smoke."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Diagnostics Boundary keeps proofFailures, raw proof failure text, engine text, source row data, and StoryTable debug relations out of public meaning, Verdict.values, ExplanationPlan source inputs, renderer wording, and LLM smoke prompts."
+      )
+    )
 
   test("MIH closeout hard cleanup pins authority cleanup and closed public surfaces"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -3812,11 +4443,23 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("MIH Closeout opens no chess meaning. It only audits the MIH hardening surface."))
-      assert(doc.contains("Completion standard: MIH closes as interaction hardening only, with no new Story family, no new proof home, no duplicate meaning owner, no broad-term authority, no duplicated live rule authority outside StoryInteractionLaw.md, no promoted test helper, no public route 200, no production API, and no public/user-facing LLM narration."))
+      assert(
+        doc.contains(
+          "Completion standard: MIH closes as interaction hardening only, with no new Story family, no new proof home, no duplicate meaning owner, no broad-term authority, no duplicated live rule authority outside StoryInteractionLaw.md, no promoted test helper, no public route 200, no production API, and no public/user-facing LLM narration."
+        )
+      )
       assert(!doc.contains("MIH Closeout audit checklist:"))
       assert(!doc.contains("MIH Closeout ownership map:"))
-    assert(normalizedModelContract.contains("MIH Closeout opens no chess meaning. It only audits the MIH hardening surface."))
-    assert(normalizedModelContract.contains("MIH closes as interaction hardening only, with no new Story family, no new proof home, no duplicate meaning owner, no broad-term authority, no duplicated live rule authority outside StoryInteractionLaw.md, no promoted test helper, no public route 200, no production API, and no public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "MIH Closeout opens no chess meaning. It only audits the MIH hardening surface."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "MIH closes as interaction hardening only, with no new Story family, no new proof home, no duplicate meaning owner, no broad-term authority, no duplicated live rule authority outside StoryInteractionLaw.md, no promoted test helper, no public route 200, no production API, and no public/user-facing LLM narration."
+      )
+    )
     assert(!modelContract.contains("MIH Closeout audit checklist:"))
     assert(!modelContract.contains("MIH Closeout ownership map:"))
 
@@ -3833,9 +4476,15 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       finally sourceStream.close()
     val productionText = productionSource.map(_._2).mkString("\n")
     Vector("MIH", "Middlegame Interaction Hardening", "Hard Cleanup", "Closeout").foreach: testOnlyTerm =>
-      assert(!productionText.contains(testOnlyTerm), s"test-only MIH term reached production source: $testOnlyTerm")
+      assert(
+        !productionText.contains(testOnlyTerm),
+        s"test-only MIH term reached production source: $testOnlyTerm"
+      )
     Vector("ProofHome", "Mih", "Hardening", "Cleanup", "Closeout").foreach: forbiddenFileName =>
-      assert(!productionSource.exists(_._1.contains(forbiddenFileName)), s"unexpected production authority file: $forbiddenFileName")
+      assert(
+        !productionSource.exists(_._1.contains(forbiddenFileName)),
+        s"unexpected production authority file: $forbiddenFileName"
+      )
 
     val controller = Files.readString(Paths.get("app/controllers/Commentary.scala"))
     assert(controller.contains("ServiceUnavailable(unavailable).toFuccess"))
@@ -3844,7 +4493,9 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(!controller.contains("Ok("))
     assert(!controller.contains("env.mode.isProd"))
 
-  test("Line-0 through Line Closeout pin narrow discovered attack proof writer corpus EngineCheck StoryTable ExplanationPlan renderer LLM smoke and hard cleanup only"):
+  test(
+    "Line-0 through Line Closeout pin narrow discovered attack proof writer corpus EngineCheck StoryTable ExplanationPlan renderer LLM smoke and hard cleanup only"
+  ):
     val readme = Files.readString(docsRoot.resolve("README.md"))
     val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
     val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
@@ -4011,42 +4662,156 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(doc.contains("Line / Ray Slice is a closed baseline."))
       assert(doc.contains("Line-0 opens only the charter for the first narrow line/ray proof slice."))
       assert(doc.contains("Line-1 opens only `LineProof` as a narrow proof home."))
-      assert(doc.contains("Line-2 opens only the named `TacticDiscoveredAttack` writer for one narrow `Tactic.DiscoveredAttack` Story."))
-      assert(doc.contains("Line-3 opens only the negative corpus for the narrow `Tactic.DiscoveredAttack` slice."))
-      assert(doc.contains("Line-4 opens only existing `EngineCheck` reuse for existing `Tactic.DiscoveredAttack` Stories."))
-      assert(doc.contains("Line-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, and `Tactic.DiscoveredAttack` rows."))
-      assert(doc.contains("Line-6 opens only ExplanationPlan mapping for selected Lead `Tactic.DiscoveredAttack` Verdicts."))
-      assert(doc.contains("Line-7 opens only deterministic renderer text for selected `Tactic.DiscoveredAttack` ExplanationPlan."))
-      assert(doc.contains("Line-8 opens only LLM smoke for selected DiscoveredAttack ExplanationPlan and RenderedLine."))
-      assert(doc.contains("Line Closeout opens no new chess meaning; it audits only LineFact, LineProof, Tactic.DiscoveredAttack, speech key, renderer/LLM, docs authority, and closed public surfaces."))
-      assert(doc.contains("LineFact observes geometry. LineProof binds the revealed line. Tactic.DiscoveredAttack may speak only after proof."))
+      assert(
+        doc.contains(
+          "Line-2 opens only the named `TacticDiscoveredAttack` writer for one narrow `Tactic.DiscoveredAttack` Story."
+        )
+      )
+      assert(
+        doc.contains("Line-3 opens only the negative corpus for the narrow `Tactic.DiscoveredAttack` slice.")
+      )
+      assert(
+        doc.contains(
+          "Line-4 opens only existing `EngineCheck` reuse for existing `Tactic.DiscoveredAttack` Stories."
+        )
+      )
+      assert(
+        doc.contains(
+          "Line-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, and `Tactic.DiscoveredAttack` rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "Line-6 opens only ExplanationPlan mapping for selected Lead `Tactic.DiscoveredAttack` Verdicts."
+        )
+      )
+      assert(
+        doc.contains(
+          "Line-7 opens only deterministic renderer text for selected `Tactic.DiscoveredAttack` ExplanationPlan."
+        )
+      )
+      assert(
+        doc.contains(
+          "Line-8 opens only LLM smoke for selected DiscoveredAttack ExplanationPlan and RenderedLine."
+        )
+      )
+      assert(
+        doc.contains(
+          "Line Closeout opens no new chess meaning; it audits only LineFact, LineProof, Tactic.DiscoveredAttack, speech key, renderer/LLM, docs authority, and closed public surfaces."
+        )
+      )
+      assert(
+        doc.contains(
+          "LineFact observes geometry. LineProof binds the revealed line. Tactic.DiscoveredAttack may speak only after proof."
+        )
+      )
       assert(doc.contains("Geometry is not enough. Revealed attack proof or silence."))
       assert(doc.contains("LineProof is not a public Story. LineFact is not a public Story."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
-    assert(boardFacts.contains("LineFact observes geometry; it does not prove `LineProof` and it is not a public Story."))
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
+    assert(
+      boardFacts.contains(
+        "LineFact observes geometry; it does not prove `LineProof` and it is not a public Story."
+      )
+    )
     assert(normalizedModelContract.contains("Line-0 and Line-1 are owned by `StoryInteractionLaw.md`."))
     assert(normalizedModelContract.contains("Line-1 opens only `LineProof` as a narrow proof home."))
-    assert(normalizedModelContract.contains("LineProof is not a public Story, LineFact is not a public Story, and proof failure text must not become renderer or LLM input."))
-    assert(normalizedModelContract.contains("Line-1 opens no Story writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, pin, skewer, x-ray public Story, RemoveGuard, pressure, initiative, winning, decisive, blunder, best-move, forced-line, mate threat, or king-safety claim."))
-    assert(normalizedModelContract.contains("Line-2 opens only the named `TacticDiscoveredAttack` writer for one narrow `Tactic.DiscoveredAttack` Story."))
-    assert(normalizedModelContract.contains("Line-2 opens no Tactic.Pin, Tactic.Skewer, Tactic.XRay, RemoveGuard, king-target speech, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, winning, decisive, blunder, best-move, forced-line, pressure, initiative, mate threat, or king-safety claim."))
-    assert(normalizedModelContract.contains("Line-3 opens only the negative corpus for the narrow `Tactic.DiscoveredAttack` slice."))
+    assert(
+      normalizedModelContract.contains(
+        "LineProof is not a public Story, LineFact is not a public Story, and proof failure text must not become renderer or LLM input."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Line-1 opens no Story writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, pin, skewer, x-ray public Story, RemoveGuard, pressure, initiative, winning, decisive, blunder, best-move, forced-line, mate threat, or king-safety claim."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Line-2 opens only the named `TacticDiscoveredAttack` writer for one narrow `Tactic.DiscoveredAttack` Story."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Line-2 opens no Tactic.Pin, Tactic.Skewer, Tactic.XRay, RemoveGuard, king-target speech, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, winning, decisive, blunder, best-move, forced-line, pressure, initiative, mate threat, or king-safety claim."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Line-3 opens only the negative corpus for the narrow `Tactic.DiscoveredAttack` slice."
+      )
+    )
     assert(normalizedModelContract.contains("Geometry is not enough. Revealed attack proof or silence."))
-    assert(normalizedModelContract.contains("Line-4 opens only existing `EngineCheck` reuse for existing `Tactic.DiscoveredAttack` Stories."))
-    assert(normalizedModelContract.contains("EngineCheck cannot create DiscoveredAttack, Supports creates no new claim, Caps suppresses strong expression, Refutes blocks the Story, and Unknown creates no engine expression."))
-    assert(normalizedModelContract.contains("Line-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, and `Tactic.DiscoveredAttack` rows."))
-    assert(normalizedModelContract.contains("DiscoveredAttack does not own a Material claim, Hanging and Material on the same target do not both become Lead, Defense without an actual threat cannot create a claim that blocks DiscoveredAttack, and Fork without two-target proof cannot absorb DiscoveredAttack."))
-    assert(normalizedModelContract.contains("Line-6 opens only ExplanationPlan mapping for selected Lead `Tactic.DiscoveredAttack` Verdicts."))
-    assert(normalizedModelContract.contains("Support, Context, Blocked, capped, and refuted DiscoveredAttack rows create no standalone claim."))
-    assert(normalizedModelContract.contains("Line-7 opens only deterministic renderer text for selected `Tactic.DiscoveredAttack` ExplanationPlan."))
-    assert(normalizedModelContract.contains("Renderer receives `ExplanationPlan` only and may render `{route} reveals an attack on the piece on {target}.`"))
-    assert(normalizedModelContract.contains("It must not render `wins material`, `winning`, `decisive`, `best move`, `forces`, `pins`, `skewers`, `puts pressure`, or `creates a mating threat`."))
-    assert(normalizedModelContract.contains("Line-8 opens only LLM smoke for selected DiscoveredAttack ExplanationPlan and RenderedLine."))
+    assert(
+      normalizedModelContract.contains(
+        "Line-4 opens only existing `EngineCheck` reuse for existing `Tactic.DiscoveredAttack` Stories."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "EngineCheck cannot create DiscoveredAttack, Supports creates no new claim, Caps suppresses strong expression, Refutes blocks the Story, and Unknown creates no engine expression."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Line-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, and `Tactic.DiscoveredAttack` rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "DiscoveredAttack does not own a Material claim, Hanging and Material on the same target do not both become Lead, Defense without an actual threat cannot create a claim that blocks DiscoveredAttack, and Fork without two-target proof cannot absorb DiscoveredAttack."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Line-6 opens only ExplanationPlan mapping for selected Lead `Tactic.DiscoveredAttack` Verdicts."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Support, Context, Blocked, capped, and refuted DiscoveredAttack rows create no standalone claim."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Line-7 opens only deterministic renderer text for selected `Tactic.DiscoveredAttack` ExplanationPlan."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Renderer receives `ExplanationPlan` only and may render `{route} reveals an attack on the piece on {target}.`"
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "It must not render `wins material`, `winning`, `decisive`, `best move`, `forces`, `pins`, `skewers`, `puts pressure`, or `creates a mating threat`."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Line-8 opens only LLM smoke for selected DiscoveredAttack ExplanationPlan and RenderedLine."
+      )
+    )
     assert(normalizedModelContract.contains("It reuses existing 8B prompt smoke only."))
-    assert(normalizedModelContract.contains("LLM input is renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"))
-    assert(normalizedModelContract.contains("It must not read raw Story, raw LineProof, LineFact, BoardFacts, EngineCheck, raw PV, or proofFailures, and it must reject new moves, new lines, mate, pressure, initiative, and winning claims."))
+    assert(
+      normalizedModelContract.contains(
+        "LLM input is renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "It must not read raw Story, raw LineProof, LineFact, BoardFacts, EngineCheck, raw PV, or proofFailures, and it must reject new moves, new lines, mate, pressure, initiative, and winning claims."
+      )
+    )
     assert(normalizedModelContract.contains("Line Closeout opens no new chess meaning."))
-    assert(normalizedModelContract.contains("It audits only that LineFact observes geometry, LineProof proves one revealed line, Tactic.DiscoveredAttack owns the Story identity, `reveals_attack_on_piece` owns speech vocabulary, renderer/LLM stay no stronger than the selected ExplanationPlan, detailed Line closeout authority stays in `StoryInteractionLaw.md`, and public route `200`, production API, and public/user-facing LLM narration remain closed."))
+    assert(
+      normalizedModelContract.contains(
+        "It audits only that LineFact observes geometry, LineProof proves one revealed line, Tactic.DiscoveredAttack owns the Story identity, `reveals_attack_on_piece` owns speech vocabulary, renderer/LLM stay no stronger than the selected ExplanationPlan, detailed Line closeout authority stays in `StoryInteractionLaw.md`, and public route `200`, production API, and public/user-facing LLM narration remain closed."
+      )
+    )
 
   test("Pin-0 charter opens only the narrow pinned-to-king line relation"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4100,20 +4865,64 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Line / Ray Slice is a closed baseline."))
       assert(doc.contains("Current implementation scope is Line / Defender Contact Neighborhood."))
-      assert(doc.contains("Pin-0 opens only the charter for the second narrow line/defender contact vertical slice."))
+      assert(
+        doc.contains(
+          "Pin-0 opens only the charter for the second narrow line/defender contact vertical slice."
+        )
+      )
       assert(doc.contains("Pin first positive scope is not a broad pin family."))
-      assert(doc.contains("Pin first scope: a legal move creates or reveals a line where one non-king piece is pinned to its king."))
-      assert(doc.contains("LineFact observes geometry. LineProof binds the line. PinProof proves the pinned relation. Tactic.Pin may speak only after proof."))
-      assert(doc.contains("Pin-0 opens only narrow Tactic.Pin, king-behind line relation, one non-king pinned target, a legal move that creates or reveals the pin relation, and bounded pin wording after selected Verdict only."))
-      assert(doc.contains("Pin-0 opens no broad LineTactic, broad AbsPin or RelPin family, Skewer, XRay public Story, RemoveGuard, DiscoveredAttack expansion, mate threat, king safety, winning material, decisive tactic, forced move, best move, cannot move wording, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Pin first scope: a legal move creates or reveals a line where one non-king piece is pinned to its king."
+        )
+      )
+      assert(
+        doc.contains(
+          "LineFact observes geometry. LineProof binds the line. PinProof proves the pinned relation. Tactic.Pin may speak only after proof."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-0 opens only narrow Tactic.Pin, king-behind line relation, one non-king pinned target, a legal move that creates or reveals the pin relation, and bounded pin wording after selected Verdict only."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-0 opens no broad LineTactic, broad AbsPin or RelPin family, Skewer, XRay public Story, RemoveGuard, DiscoveredAttack expansion, mate threat, king safety, winning material, decisive tactic, forced move, best move, cannot move wording, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Pin-0 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Pin-0 opens only the charter for the second narrow line/defender contact vertical slice."))
+    assert(
+      normalizedModelContract.contains(
+        "Pin-0 opens only the charter for the second narrow line/defender contact vertical slice."
+      )
+    )
     assert(normalizedModelContract.contains("The first positive Pin scope is not a broad pin family."))
-    assert(normalizedModelContract.contains("The Pin first scope is a legal move that creates or reveals a line where one non-king piece is pinned to its king."))
-    assert(normalizedModelContract.contains("LineFact observes geometry, LineProof binds the line, PinProof proves the pinned relation, and Tactic.Pin may speak only after proof."))
-    assert(normalizedModelContract.contains("Pin-0 opens only narrow Tactic.Pin, king-behind line relation, one non-king pinned target, a legal move that creates or reveals the pin relation, and bounded pin wording after selected Verdict only."))
-    assert(normalizedModelContract.contains("Pin-0 opens no broad LineTactic, broad AbsPin or RelPin family, Skewer, XRay public Story, RemoveGuard, DiscoveredAttack expansion, mate threat, king safety, winning material, decisive tactic, forced move, best move, cannot move wording, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "The Pin first scope is a legal move that creates or reveals a line where one non-king piece is pinned to its king."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LineFact observes geometry, LineProof binds the line, PinProof proves the pinned relation, and Tactic.Pin may speak only after proof."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-0 opens only narrow Tactic.Pin, king-behind line relation, one non-king pinned target, a legal move that creates or reveals the pin relation, and bounded pin wording after selected Verdict only."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-0 opens no broad LineTactic, broad AbsPin or RelPin family, Skewer, XRay public Story, RemoveGuard, DiscoveredAttack expansion, mate threat, king safety, winning material, decisive tactic, forced move, best move, cannot move wording, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("Pin-1 PinProof opens only the narrow pinned relation proof home"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4163,15 +4972,39 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Pin-1 opens only `PinProof` as a narrow proof home."))
-      assert(doc.contains("PinProof proves side creating the pin, pinned target, pinning slider, king behind target, legal pinning or revealing move, line kind, same-board proof, before/after relation, target non-king, target and king same side, and slider attacks through target toward king after move."))
+      assert(
+        doc.contains(
+          "PinProof proves side creating the pin, pinned target, pinning slider, king behind target, legal pinning or revealing move, line kind, same-board proof, before/after relation, target non-king, target and king same side, and slider attacks through target toward king after move."
+        )
+      )
       assert(doc.contains("PinProof is not a public Story. LineFact and LineProof are not public Stories."))
-      assert(doc.contains("PinProof says no material gain, king unsafe, mate, pressure, or initiative; proofFailures stay out of renderer/LLM input."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "PinProof says no material gain, king unsafe, mate, pressure, or initiative; proofFailures stay out of renderer/LLM input."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Pin-1 is owned by `StoryInteractionLaw.md`."))
     assert(normalizedModelContract.contains("Pin-1 opens only `PinProof` as a narrow proof home."))
-    assert(normalizedModelContract.contains("PinProof proves side creating the pin, pinned target, pinning slider, king behind target, legal pinning or revealing move, line kind, same-board proof, before/after relation, target non-king, target and king same side, and slider attacks through target toward king after move."))
-    assert(normalizedModelContract.contains("PinProof is not a public Story, LineFact is not a public Story, and LineProof is not a public Story."))
-    assert(normalizedModelContract.contains("PinProof says no material gain, king unsafe, mate, pressure, or initiative, and proof failure text must not become renderer or LLM input."))
+    assert(
+      normalizedModelContract.contains(
+        "PinProof proves side creating the pin, pinned target, pinning slider, king behind target, legal pinning or revealing move, line kind, same-board proof, before/after relation, target non-king, target and king same side, and slider attacks through target toward king after move."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "PinProof is not a public Story, LineFact is not a public Story, and LineProof is not a public Story."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "PinProof says no material gain, king unsafe, mate, pressure, or initiative, and proof failure text must not become renderer or LLM input."
+      )
+    )
 
   test("Pin-2 TacticPin writer opens only proof-backed Tactic.Pin Story identity"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4229,15 +5062,47 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Pin-2 opens only the named `TacticPin` writer for one narrow `Tactic.Pin` Story."))
-      assert(doc.contains("TacticPin requires complete StoryProof, complete PinProof, same-board legal replay, legal pinning or revealing move, pinned target, pinning slider, king-behind-target relation, writer identity, and no EngineCheck Refutes status."))
-      assert(doc.contains("Pin Story identity is tactic Pin, scene Tactic, pinning side, pinned-side rival, pinned target square, pinning slider or moved-piece anchor, and pinning/revealing route."))
-      assert(doc.contains("Pin-2 opens no Material claim, Defense ownership, RemoveGuard ownership, king target speech, broad AbsPin or RelPin family, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "TacticPin requires complete StoryProof, complete PinProof, same-board legal replay, legal pinning or revealing move, pinned target, pinning slider, king-behind-target relation, writer identity, and no EngineCheck Refutes status."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin Story identity is tactic Pin, scene Tactic, pinning side, pinned-side rival, pinned target square, pinning slider or moved-piece anchor, and pinning/revealing route."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-2 opens no Material claim, Defense ownership, RemoveGuard ownership, king target speech, broad AbsPin or RelPin family, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Pin-2 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Pin-2 opens only the named `TacticPin` writer for one narrow `Tactic.Pin` Story."))
-    assert(normalizedModelContract.contains("TacticPin requires complete StoryProof, complete PinProof, same-board legal replay, legal pinning or revealing move, pinned target, pinning slider, king-behind-target relation, writer identity, and no EngineCheck Refutes status."))
-    assert(normalizedModelContract.contains("Pin Story identity is tactic Pin, scene Tactic, pinning side, pinned-side rival, pinned target square, pinning slider or moved-piece anchor, and pinning/revealing route."))
-    assert(normalizedModelContract.contains("Pin-2 opens no Material claim, Defense ownership, RemoveGuard ownership, king target speech, broad AbsPin or RelPin family, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "Pin-2 opens only the named `TacticPin` writer for one narrow `Tactic.Pin` Story."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "TacticPin requires complete StoryProof, complete PinProof, same-board legal replay, legal pinning or revealing move, pinned target, pinning slider, king-behind-target relation, writer identity, and no EngineCheck Refutes status."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin Story identity is tactic Pin, scene Tactic, pinning side, pinned-side rival, pinned target square, pinning slider or moved-piece anchor, and pinning/revealing route."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-2 opens no Material claim, Defense ownership, RemoveGuard ownership, king target speech, broad AbsPin or RelPin family, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("Pin-3 negative corpus keeps pin-looking false positives silent"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4285,13 +5150,31 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Pin-3 opens only the negative corpus for the narrow `Tactic.Pin` slice."))
-      assert(doc.contains("Pin-3 keeps illegal moves, missing same-board proof, non-sliders, missing king-behind-target relation, wrong-side king relation, broken target-to-king line, king targets, extra blockers, stale pin-looking geometry, discovered-only lines, skewer-looking lines, and mate, king-safety, or pressure wording silent."))
+      assert(
+        doc.contains(
+          "Pin-3 keeps illegal moves, missing same-board proof, non-sliders, missing king-behind-target relation, wrong-side king relation, broken target-to-king line, king targets, extra blockers, stale pin-looking geometry, discovered-only lines, skewer-looking lines, and mate, king-safety, or pressure wording silent."
+        )
+      )
       assert(doc.contains("A line to a king is not enough. Complete pinned relation or silence."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Pin-3 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Pin-3 opens only the negative corpus for the narrow `Tactic.Pin` slice."))
-    assert(normalizedModelContract.contains("Pin-3 keeps illegal moves, missing same-board proof, non-sliders, missing king-behind-target relation, wrong-side king relation, broken target-to-king line, king targets, extra blockers, stale pin-looking geometry, discovered-only lines, skewer-looking lines, and mate, king-safety, or pressure wording silent."))
-    assert(normalizedModelContract.contains("A line to a king is not enough. Complete pinned relation or silence."))
+    assert(
+      normalizedModelContract.contains(
+        "Pin-3 opens only the negative corpus for the narrow `Tactic.Pin` slice."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-3 keeps illegal moves, missing same-board proof, non-sliders, missing king-behind-target relation, wrong-side king relation, broken target-to-king line, king targets, extra blockers, stale pin-looking geometry, discovered-only lines, skewer-looking lines, and mate, king-safety, or pressure wording silent."
+      )
+    )
+    assert(
+      normalizedModelContract.contains("A line to a king is not enough. Complete pinned relation or silence.")
+    )
 
   test("Pin-4 EngineCheck reuse keeps engine evidence internal for Pin"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4330,13 +5213,37 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Pin-4 opens only existing `EngineCheck` reuse for existing `Tactic.Pin` Stories."))
-      assert(doc.contains("EngineCheck cannot create Pin; Supports creates no new claim; Caps suppresses allowed claim or keeps downstream speech bounded when opened later; Refutes blocks the Pin Story; Unknown creates no engine expression."))
-      assert(doc.contains("Pin-4 opens no engine-says wording, best-move wording, only-move wording, winning tactic, forced win, raw PV explanation, eval number public value, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "EngineCheck cannot create Pin; Supports creates no new claim; Caps suppresses allowed claim or keeps downstream speech bounded when opened later; Refutes blocks the Pin Story; Unknown creates no engine expression."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-4 opens no engine-says wording, best-move wording, only-move wording, winning tactic, forced win, raw PV explanation, eval number public value, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Pin-4 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Pin-4 opens only existing `EngineCheck` reuse for existing `Tactic.Pin` Stories."))
-    assert(normalizedModelContract.contains("EngineCheck cannot create Pin; Supports creates no new claim; Caps suppresses allowed claim or keeps downstream speech bounded when opened later; Refutes blocks the Pin Story; Unknown creates no engine expression."))
-    assert(normalizedModelContract.contains("Pin-4 opens no engine-says wording, best-move wording, only-move wording, winning tactic, forced win, raw PV explanation, eval number public value, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "Pin-4 opens only existing `EngineCheck` reuse for existing `Tactic.Pin` Stories."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "EngineCheck cannot create Pin; Supports creates no new claim; Caps suppresses allowed claim or keeps downstream speech bounded when opened later; Refutes blocks the Pin Story; Unknown creates no engine expression."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-4 opens no engine-says wording, best-move wording, only-move wording, winning tactic, forced win, raw PV explanation, eval number public value, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("Pin-5 StoryTable integration keeps Pin claim ownership bounded"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4374,14 +5281,42 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(pinScope), s"Pin-5 scope must pin: $pinScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Pin-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, and `Tactic.Pin` rows."))
-      assert(doc.contains("Pin-5 keeps selected Verdict stable across input order, prevents duplicate Lead for same-line DiscoveredAttack and Pin, keeps Pin from owning Material or king-safety claims, keeps actual material change in Scene.Material, and gives Defense no claim without complete ThreatProof and DefenseProof."))
-      assert(doc.contains("Pin-5 opens no new Pin proof home, new Story family, broad AbsPin or RelPin family, Material claim from Pin, king-safety claim from Pin, Defense claim from incomplete Defense rows, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Pin-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, and `Tactic.Pin` rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-5 keeps selected Verdict stable across input order, prevents duplicate Lead for same-line DiscoveredAttack and Pin, keeps Pin from owning Material or king-safety claims, keeps actual material change in Scene.Material, and gives Defense no claim without complete ThreatProof and DefenseProof."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-5 opens no new Pin proof home, new Story family, broad AbsPin or RelPin family, Material claim from Pin, king-safety claim from Pin, Defense claim from incomplete Defense rows, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Pin-5 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Pin-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, and `Tactic.Pin` rows."))
-    assert(normalizedModelContract.contains("Pin-5 keeps selected Verdict stable across input order, prevents duplicate Lead for same-line DiscoveredAttack and Pin, keeps Pin from owning Material or king-safety claims, keeps actual material change in Scene.Material, and gives Defense no claim without complete ThreatProof and DefenseProof."))
-    assert(normalizedModelContract.contains("Pin-5 opens no new Pin proof home, new Story family, broad AbsPin or RelPin family, Material claim from Pin, king-safety claim from Pin, Defense claim from incomplete Defense rows, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "Pin-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, and `Tactic.Pin` rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-5 keeps selected Verdict stable across input order, prevents duplicate Lead for same-line DiscoveredAttack and Pin, keeps Pin from owning Material or king-safety claims, keeps actual material change in Scene.Material, and gives Defense no claim without complete ThreatProof and DefenseProof."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-5 opens no new Pin proof home, new Story family, broad AbsPin or RelPin family, Material claim from Pin, king-safety claim from Pin, Defense claim from incomplete Defense rows, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("Pin-6 ExplanationPlan opens only bounded pins_piece for selected Pin Lead"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4429,16 +5364,50 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(pinScope), s"Pin-6 scope must pin: $pinScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Pin-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.Pin` Verdicts."))
-      assert(doc.contains("Pin-6 allows only the `pins_piece` claim key and forbids wins_material, king_unsafe, mate_threat, best_move, only_move, forced, decisive, creates_pressure, takes_initiative, and cannot_move."))
-      assert(doc.contains("Support, Context, Blocked, capped, and refuted Pin rows create no standalone claim."))
-      assert(doc.contains("Pin-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Pin-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.Pin` Verdicts."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-6 allows only the `pins_piece` claim key and forbids wins_material, king_unsafe, mate_threat, best_move, only_move, forced, decisive, creates_pressure, takes_initiative, and cannot_move."
+        )
+      )
+      assert(
+        doc.contains("Support, Context, Blocked, capped, and refuted Pin rows create no standalone claim.")
+      )
+      assert(
+        doc.contains(
+          "Pin-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Pin-6 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Pin-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.Pin` Verdicts."))
-    assert(normalizedModelContract.contains("Pin-6 allows only the `pins_piece` claim key and forbids wins_material, king_unsafe, mate_threat, best_move, only_move, forced, decisive, creates_pressure, takes_initiative, and cannot_move."))
-    assert(normalizedModelContract.contains("Support, Context, Blocked, capped, and refuted Pin rows create no standalone claim."))
-    assert(normalizedModelContract.contains("Pin-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "Pin-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.Pin` Verdicts."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-6 allows only the `pins_piece` claim key and forbids wins_material, king_unsafe, mate_threat, best_move, only_move, forced, decisive, creates_pressure, takes_initiative, and cannot_move."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Support, Context, Blocked, capped, and refuted Pin rows create no standalone claim."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("Pin-7 deterministic renderer opens only bounded Pin template"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4481,16 +5450,52 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(pinScope), s"Pin-7 scope must pin: $pinScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Pin-7 opens only deterministic renderer text for selected `Tactic.Pin` ExplanationPlan."))
-      assert(doc.contains("Pin-7 renderer input is ExplanationPlan only and may render `{route} pins the piece on {target}.`"))
-      assert(doc.contains("Pin-7 forbids cannot move, the king is unsafe, wins material, winning, decisive, best move, only move, forces, creates pressure, and threatens mate."))
-      assert(doc.contains("Pin-7 opens no raw Verdict, raw Story, PinProof, LineFact, LineProof, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Pin-7 opens only deterministic renderer text for selected `Tactic.Pin` ExplanationPlan."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-7 renderer input is ExplanationPlan only and may render `{route} pins the piece on {target}.`"
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-7 forbids cannot move, the king is unsafe, wins material, winning, decisive, best move, only move, forces, creates pressure, and threatens mate."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-7 opens no raw Verdict, raw Story, PinProof, LineFact, LineProof, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Pin-7 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Pin-7 opens only deterministic renderer text for selected `Tactic.Pin` ExplanationPlan."))
-    assert(normalizedModelContract.contains("Pin-7 renderer input is ExplanationPlan only and may render `{route} pins the piece on {target}.`"))
-    assert(normalizedModelContract.contains("Pin-7 forbids cannot move, the king is unsafe, wins material, winning, decisive, best move, only move, forces, creates pressure, and threatens mate."))
-    assert(normalizedModelContract.contains("Pin-7 opens no raw Verdict, raw Story, PinProof, LineFact, LineProof, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "Pin-7 opens only deterministic renderer text for selected `Tactic.Pin` ExplanationPlan."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-7 renderer input is ExplanationPlan only and may render `{route} pins the piece on {target}.`"
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-7 forbids cannot move, the king is unsafe, wins material, winning, decisive, best move, only move, forces, creates pressure, and threatens mate."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-7 opens no raw Verdict, raw Story, PinProof, LineFact, LineProof, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("Pin-8 LLM smoke reuses 8B prompt contract for selected Pin RenderedLine"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4537,15 +5542,47 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Pin-8 opens only LLM smoke for selected Pin ExplanationPlan and RenderedLine."))
-      assert(doc.contains("Pin-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"))
-      assert(doc.contains("Pin-8 forbids raw Story, raw PinProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, mate, pressure, initiative, winning, and cannot-move claims."))
-      assert(doc.contains("Pin-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Pin-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-8 forbids raw Story, raw PinProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, mate, pressure, initiative, winning, and cannot-move claims."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Pin-8 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Pin-8 opens only LLM smoke for selected Pin ExplanationPlan and RenderedLine."))
-    assert(normalizedModelContract.contains("Pin-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"))
-    assert(normalizedModelContract.contains("Pin-8 forbids raw Story, raw PinProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, mate, pressure, initiative, winning, and cannot-move claims."))
-    assert(normalizedModelContract.contains("Pin-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."))
+    assert(
+      normalizedModelContract.contains(
+        "Pin-8 opens only LLM smoke for selected Pin ExplanationPlan and RenderedLine."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-8 forbids raw Story, raw PinProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, mate, pressure, initiative, winning, and cannot-move claims."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Pin-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."
+      )
+    )
 
   test("Pin Closeout hard cleanup keeps Pin authority separated and public surfaces closed"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4576,13 +5613,35 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(pinScope), s"Pin Closeout scope must pin: $pinScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Pin Closeout opens no new chess meaning; it audits only LineFact, LineProof, PinProof, Tactic.Pin, speech key, renderer/LLM, docs authority, test-helper boundary, and closed public surfaces."))
-      assert(doc.contains("Pin Closeout confirms Pin owns no Material, Defense, DiscoveredAttack, Skewer, or RemoveGuard meaning; broad Line, Ray, XRay, and broad Pin family terms are not live authority; renderer/LLM wording stays no stronger than `pins_piece`; public route `200`, production API, and public/user-facing LLM narration remain closed."))
-      assert(!doc.contains("Pin Closeout must confirm:"), "summary docs must not duplicate detailed Pin Closeout checklist")
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Pin Closeout opens no new chess meaning; it audits only LineFact, LineProof, PinProof, Tactic.Pin, speech key, renderer/LLM, docs authority, test-helper boundary, and closed public surfaces."
+        )
+      )
+      assert(
+        doc.contains(
+          "Pin Closeout confirms Pin owns no Material, Defense, DiscoveredAttack, Skewer, or RemoveGuard meaning; broad Line, Ray, XRay, and broad Pin family terms are not live authority; renderer/LLM wording stays no stronger than `pins_piece`; public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
+      assert(
+        !doc.contains("Pin Closeout must confirm:"),
+        "summary docs must not duplicate detailed Pin Closeout checklist"
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Pin Closeout opens no new chess meaning."))
-    assert(normalizedModelContract.contains("It audits only that LineFact observes geometry, LineProof binds line evidence, PinProof proves one pinned-to-king relation, Tactic.Pin owns the Story identity, `pins_piece` owns speech vocabulary, renderer/LLM stay no stronger than the selected ExplanationPlan, test helpers are not runtime authority, detailed Pin closeout authority stays in `StoryInteractionLaw.md`, and public route `200`, production API, and public/user-facing LLM narration remain closed."))
-    assert(!normalizedModelContract.contains("Pin Closeout must confirm:"), "model contract must summarize, not duplicate detailed Pin Closeout checklist")
+    assert(
+      normalizedModelContract.contains(
+        "It audits only that LineFact observes geometry, LineProof binds line evidence, PinProof proves one pinned-to-king relation, Tactic.Pin owns the Story identity, `pins_piece` owns speech vocabulary, renderer/LLM stay no stronger than the selected ExplanationPlan, test helpers are not runtime authority, detailed Pin closeout authority stays in `StoryInteractionLaw.md`, and public route `200`, production API, and public/user-facing LLM narration remain closed."
+      )
+    )
+    assert(
+      !normalizedModelContract.contains("Pin Closeout must confirm:"),
+      "model contract must summarize, not duplicate detailed Pin Closeout checklist"
+    )
 
   test("RemoveGuard-0 charter opens only one defender removed from one target"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4637,22 +5696,78 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Current implementation scope is Line / Defender Contact Neighborhood."))
-      assert(doc.contains("RemoveGuard-0 opens only the charter for the third narrow line/defender contact vertical slice."))
+      assert(
+        doc.contains(
+          "RemoveGuard-0 opens only the charter for the third narrow line/defender contact vertical slice."
+        )
+      )
       assert(doc.contains("First RemoveGuard positive scope is not a broad remove-the-guard motif."))
-      assert(doc.contains("RemoveGuard first scope: a legal move removes one defender from one non-king material target."))
-      assert(doc.contains("First runtime positive path stays centered on defender capture when possible; deflection is allowed only when exact-board proof immediately after the same move shows the defender no longer guards the target."))
-      assert(doc.contains("BoardFacts observes guard relation. RemoveGuardProof proves the guard was removed. Tactic.RemoveGuard may speak only after proof."))
-      assert(doc.contains("RemoveGuard-0 opens only narrow Tactic.RemoveGuard, one non-king material target, one defender, one legal move that removes the defender guard relation, and bounded remove-guard wording after selected Verdict only."))
-      assert(doc.contains("RemoveGuard-0 opens no broad deflection tactic, overloaded defender theory, discovered attack expansion, Pin/Skewer/XRay expansion, material win claim, winning, decisive, forced, best move, only move, no defense, refutes defense, collapses position, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "RemoveGuard first scope: a legal move removes one defender from one non-king material target."
+        )
+      )
+      assert(
+        doc.contains(
+          "First runtime positive path stays centered on defender capture when possible; deflection is allowed only when exact-board proof immediately after the same move shows the defender no longer guards the target."
+        )
+      )
+      assert(
+        doc.contains(
+          "BoardFacts observes guard relation. RemoveGuardProof proves the guard was removed. Tactic.RemoveGuard may speak only after proof."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-0 opens only narrow Tactic.RemoveGuard, one non-king material target, one defender, one legal move that removes the defender guard relation, and bounded remove-guard wording after selected Verdict only."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-0 opens no broad deflection tactic, overloaded defender theory, discovered attack expansion, Pin/Skewer/XRay expansion, material win claim, winning, decisive, forced, best move, only move, no defense, refutes defense, collapses position, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("RemoveGuard-0 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("RemoveGuard-0 opens only the charter for the third narrow line/defender contact vertical slice."))
-    assert(normalizedModelContract.contains("The first positive RemoveGuard scope is not a broad remove-the-guard motif."))
-    assert(normalizedModelContract.contains("The RemoveGuard first scope is a legal move that removes one defender from one non-king material target."))
-    assert(normalizedModelContract.contains("First runtime positive path stays centered on defender capture when possible; deflection is allowed only when exact-board proof immediately after the same move shows the defender no longer guards the target."))
-    assert(normalizedModelContract.contains("BoardFacts observes guard relation, RemoveGuardProof proves the guard was removed, and Tactic.RemoveGuard may speak only after proof."))
-    assert(normalizedModelContract.contains("RemoveGuard-0 opens only narrow Tactic.RemoveGuard, one non-king material target, one defender, one legal move that removes the defender guard relation, and bounded remove-guard wording after selected Verdict only."))
-    assert(normalizedModelContract.contains("RemoveGuard-0 opens no broad deflection tactic, overloaded defender theory, discovered attack expansion, Pin/Skewer/XRay expansion, material win claim, winning, decisive, forced, best move, only move, no defense, refutes defense, collapses position, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-0 opens only the charter for the third narrow line/defender contact vertical slice."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "The first positive RemoveGuard scope is not a broad remove-the-guard motif."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "The RemoveGuard first scope is a legal move that removes one defender from one non-king material target."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "First runtime positive path stays centered on defender capture when possible; deflection is allowed only when exact-board proof immediately after the same move shows the defender no longer guards the target."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "BoardFacts observes guard relation, RemoveGuardProof proves the guard was removed, and Tactic.RemoveGuard may speak only after proof."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-0 opens only narrow Tactic.RemoveGuard, one non-king material target, one defender, one legal move that removes the defender guard relation, and bounded remove-guard wording after selected Verdict only."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-0 opens no broad deflection tactic, overloaded defender theory, discovered attack expansion, Pin/Skewer/XRay expansion, material win claim, winning, decisive, forced, best move, only move, no defense, refutes defense, collapses position, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("RemoveGuard-1 RemoveGuardProof opens only the removed guard relation proof home"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4713,21 +5828,67 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("RemoveGuard-1 opens only `RemoveGuardProof` as a narrow proof home."))
-      assert(doc.contains("RemoveGuardProof proves side removing the guard, rival side, guarded target, removed defender, legal remove-guard move, target non-king material piece, defender guarded target before move, after move defender no longer guards target, same-board proof, and exact-board after-move relation."))
-      assert(doc.contains("RemoveGuard-1 permits DefenderCaptured first and GuardLineBlocked only when one legal move blocks a slider defender guard line and exact-board proof shows the defender no longer guards the target."))
-      assert(doc.contains("RemoveGuard-1 keeps opponent-reply deflection, sacrifice lure, overloaded defender, remove guard by long tactic sequence, and defender-cannot-defend general theory closed."))
-      assert(doc.contains("RemoveGuardProof is not a public Story and owns no material result; proofFailures stay out of renderer/LLM input."))
-      assert(doc.contains("RemoveGuard-1 opens no Tactic.RemoveGuard writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "RemoveGuardProof proves side removing the guard, rival side, guarded target, removed defender, legal remove-guard move, target non-king material piece, defender guarded target before move, after move defender no longer guards target, same-board proof, and exact-board after-move relation."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-1 permits DefenderCaptured first and GuardLineBlocked only when one legal move blocks a slider defender guard line and exact-board proof shows the defender no longer guards the target."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-1 keeps opponent-reply deflection, sacrifice lure, overloaded defender, remove guard by long tactic sequence, and defender-cannot-defend general theory closed."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuardProof is not a public Story and owns no material result; proofFailures stay out of renderer/LLM input."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-1 opens no Tactic.RemoveGuard writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("- `RemoveGuardProof`"))
     assert(normalizedModelContract.contains("- `RemoveGuardRemovalKind`"))
     assert(normalizedModelContract.contains("RemoveGuard-1 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("RemoveGuard-1 opens only `RemoveGuardProof` as a narrow proof home."))
-    assert(normalizedModelContract.contains("RemoveGuardProof proves side removing the guard, rival side, guarded target, removed defender, legal remove-guard move, target non-king material piece, defender guarded target before move, after move defender no longer guards target, same-board proof, and exact-board after-move relation."))
-    assert(normalizedModelContract.contains("RemoveGuard-1 permits DefenderCaptured first and GuardLineBlocked only when one legal move blocks a slider defender guard line and exact-board proof shows the defender no longer guards the target."))
-    assert(normalizedModelContract.contains("RemoveGuard-1 keeps opponent-reply deflection, sacrifice lure, overloaded defender, remove guard by long tactic sequence, and defender-cannot-defend general theory closed."))
-    assert(normalizedModelContract.contains("RemoveGuardProof is not a public Story and owns no material result, and proofFailures stay out of renderer/LLM input."))
-    assert(normalizedModelContract.contains("RemoveGuard-1 opens no Tactic.RemoveGuard writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains("RemoveGuard-1 opens only `RemoveGuardProof` as a narrow proof home.")
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuardProof proves side removing the guard, rival side, guarded target, removed defender, legal remove-guard move, target non-king material piece, defender guarded target before move, after move defender no longer guards target, same-board proof, and exact-board after-move relation."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-1 permits DefenderCaptured first and GuardLineBlocked only when one legal move blocks a slider defender guard line and exact-board proof shows the defender no longer guards the target."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-1 keeps opponent-reply deflection, sacrifice lure, overloaded defender, remove guard by long tactic sequence, and defender-cannot-defend general theory closed."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuardProof is not a public Story and owns no material result, and proofFailures stay out of renderer/LLM input."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-1 opens no Tactic.RemoveGuard writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("RemoveGuard-2 TacticRemoveGuard writer opens only proof-backed Tactic.RemoveGuard Story identity"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4788,17 +5949,53 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(removeGuardScope), s"RemoveGuard-2 scope must pin: $removeGuardScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("RemoveGuard-2 opens only the named `TacticRemoveGuard` writer for one narrow `Tactic.RemoveGuard` Story."))
-      assert(doc.contains("TacticRemoveGuard requires complete StoryProof, complete RemoveGuardProof, same-board legal replay, legal remove-guard move, guarded target, removed defender that guarded the target before move, defender no longer guards target after move, writer identity, and no EngineCheck Refutes status."))
-      assert(doc.contains("RemoveGuard Story identity is tactic RemoveGuard, scene Tactic, guard-removing side, target/defender-side rival, guarded target square, removed-defender or moving-piece anchor, and remove-guard route."))
-      assert(doc.contains("RemoveGuard-2 opens no Scene.Material claim, Tactic.Hanging replacement, Defense refutation wording, material win claim, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "RemoveGuard-2 opens only the named `TacticRemoveGuard` writer for one narrow `Tactic.RemoveGuard` Story."
+        )
+      )
+      assert(
+        doc.contains(
+          "TacticRemoveGuard requires complete StoryProof, complete RemoveGuardProof, same-board legal replay, legal remove-guard move, guarded target, removed defender that guarded the target before move, defender no longer guards target after move, writer identity, and no EngineCheck Refutes status."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard Story identity is tactic RemoveGuard, scene Tactic, guard-removing side, target/defender-side rival, guarded target square, removed-defender or moving-piece anchor, and remove-guard route."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-2 opens no Scene.Material claim, Tactic.Hanging replacement, Defense refutation wording, material win claim, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("- `TacticRemoveGuard`"))
     assert(normalizedModelContract.contains("RemoveGuard-2 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("RemoveGuard-2 opens only the named `TacticRemoveGuard` writer for one narrow `Tactic.RemoveGuard` Story."))
-    assert(normalizedModelContract.contains("TacticRemoveGuard requires complete StoryProof, complete RemoveGuardProof, same-board legal replay, legal remove-guard move, guarded target, removed defender that guarded the target before move, defender no longer guards target after move, writer identity, and no EngineCheck Refutes status."))
-    assert(normalizedModelContract.contains("RemoveGuard Story identity is tactic RemoveGuard, scene Tactic, guard-removing side, target/defender-side rival, guarded target square, removed-defender or moving-piece anchor, and remove-guard route."))
-    assert(normalizedModelContract.contains("RemoveGuard-2 opens no Scene.Material claim, Tactic.Hanging replacement, Defense refutation wording, material win claim, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-2 opens only the named `TacticRemoveGuard` writer for one narrow `Tactic.RemoveGuard` Story."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "TacticRemoveGuard requires complete StoryProof, complete RemoveGuardProof, same-board legal replay, legal remove-guard move, guarded target, removed defender that guarded the target before move, defender no longer guards target after move, writer identity, and no EngineCheck Refutes status."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard Story identity is tactic RemoveGuard, scene Tactic, guard-removing side, target/defender-side rival, guarded target square, removed-defender or moving-piece anchor, and remove-guard route."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-2 opens no Scene.Material claim, Tactic.Hanging replacement, Defense refutation wording, material win claim, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("RemoveGuard-3 negative corpus keeps remove-guard false positives silent"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4855,16 +6052,50 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(removeGuardScope), s"RemoveGuard-3 scope must pin: $removeGuardScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("RemoveGuard-3 opens only the negative corpus for the narrow `Tactic.RemoveGuard` slice."))
-      assert(doc.contains("RemoveGuard-3 keeps illegal moves, missing same-board proof, king targets, non-guarding defenders, still-guarding defenders, broad claims from other defenders, material-gain claims, Pin/DiscoveredAttack/Skewer misclassification, opponent-reply deflection, overloaded-defender claims, and no-defense, wins-material, and best-move wording silent."))
-      assert(doc.contains("Removing one guard is not winning material. Complete guard-removal proof or silence."))
-      assert(doc.contains("RemoveGuard-3 opens no new proof home, new writer, StoryTable ordering change, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "RemoveGuard-3 opens only the negative corpus for the narrow `Tactic.RemoveGuard` slice."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-3 keeps illegal moves, missing same-board proof, king targets, non-guarding defenders, still-guarding defenders, broad claims from other defenders, material-gain claims, Pin/DiscoveredAttack/Skewer misclassification, opponent-reply deflection, overloaded-defender claims, and no-defense, wins-material, and best-move wording silent."
+        )
+      )
+      assert(
+        doc.contains("Removing one guard is not winning material. Complete guard-removal proof or silence.")
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-3 opens no new proof home, new writer, StoryTable ordering change, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("RemoveGuard-3 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("RemoveGuard-3 opens only the negative corpus for the narrow `Tactic.RemoveGuard` slice."))
-    assert(normalizedModelContract.contains("RemoveGuard-3 keeps illegal moves, missing same-board proof, king targets, non-guarding defenders, still-guarding defenders, broad claims from other defenders, material-gain claims, Pin/DiscoveredAttack/Skewer misclassification, opponent-reply deflection, overloaded-defender claims, and no-defense, wins-material, and best-move wording silent."))
-    assert(normalizedModelContract.contains("Removing one guard is not winning material. Complete guard-removal proof or silence."))
-    assert(normalizedModelContract.contains("RemoveGuard-3 opens no new proof home, new writer, StoryTable ordering change, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-3 opens only the negative corpus for the narrow `Tactic.RemoveGuard` slice."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-3 keeps illegal moves, missing same-board proof, king targets, non-guarding defenders, still-guarding defenders, broad claims from other defenders, material-gain claims, Pin/DiscoveredAttack/Skewer misclassification, opponent-reply deflection, overloaded-defender claims, and no-defense, wins-material, and best-move wording silent."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Removing one guard is not winning material. Complete guard-removal proof or silence."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-3 opens no new proof home, new writer, StoryTable ordering change, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("RemoveGuard-4 EngineCheck reuse pins RemoveGuard engine boundary"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4903,14 +6134,42 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(removeGuardScope), s"RemoveGuard-4 scope must pin: $removeGuardScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("RemoveGuard-4 opens only existing `EngineCheck` reuse for existing `Tactic.RemoveGuard` Stories."))
-      assert(doc.contains("EngineCheck cannot create RemoveGuard; Supports creates no new claim; Caps suppresses standalone claim or keeps downstream speech bounded when opened later; Refutes blocks the RemoveGuard Story; Unknown creates no engine expression."))
-      assert(doc.contains("RemoveGuard-4 opens no engine-says wording, best-move wording, only-move wording, winning tactic, raw PV explanation, eval number public value, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "RemoveGuard-4 opens only existing `EngineCheck` reuse for existing `Tactic.RemoveGuard` Stories."
+        )
+      )
+      assert(
+        doc.contains(
+          "EngineCheck cannot create RemoveGuard; Supports creates no new claim; Caps suppresses standalone claim or keeps downstream speech bounded when opened later; Refutes blocks the RemoveGuard Story; Unknown creates no engine expression."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-4 opens no engine-says wording, best-move wording, only-move wording, winning tactic, raw PV explanation, eval number public value, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("RemoveGuard-4 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("RemoveGuard-4 opens only existing `EngineCheck` reuse for existing `Tactic.RemoveGuard` Stories."))
-    assert(normalizedModelContract.contains("EngineCheck cannot create RemoveGuard; Supports creates no new claim; Caps suppresses standalone claim or keeps downstream speech bounded when opened later; Refutes blocks the RemoveGuard Story; Unknown creates no engine expression."))
-    assert(normalizedModelContract.contains("RemoveGuard-4 opens no engine-says wording, best-move wording, only-move wording, winning tactic, raw PV explanation, eval number public value, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-4 opens only existing `EngineCheck` reuse for existing `Tactic.RemoveGuard` Stories."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "EngineCheck cannot create RemoveGuard; Supports creates no new claim; Caps suppresses standalone claim or keeps downstream speech bounded when opened later; Refutes blocks the RemoveGuard Story; Unknown creates no engine expression."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-4 opens no engine-says wording, best-move wording, only-move wording, winning tactic, raw PV explanation, eval number public value, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("RemoveGuard-5 StoryTable integration keeps RemoveGuard claim ownership bounded"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -4948,14 +6207,42 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(removeGuardScope), s"RemoveGuard-5 scope must pin: $removeGuardScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("RemoveGuard-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, `Tactic.Pin`, and `Tactic.RemoveGuard` rows."))
-      assert(doc.contains("RemoveGuard-5 keeps selected Verdict stable across input order, keeps RemoveGuard from owning Material or Hanging claims, blocks incomplete Defense responses, prevents duplicate Lead for same-line Pin and RemoveGuard, and keeps actual material change now in Scene.Material."))
-      assert(doc.contains("RemoveGuard-5 opens no new proof home, new Story family, Material claim from RemoveGuard, Hanging claim from RemoveGuard, incomplete Defense response claim, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "RemoveGuard-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, `Tactic.Pin`, and `Tactic.RemoveGuard` rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-5 keeps selected Verdict stable across input order, keeps RemoveGuard from owning Material or Hanging claims, blocks incomplete Defense responses, prevents duplicate Lead for same-line Pin and RemoveGuard, and keeps actual material change now in Scene.Material."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-5 opens no new proof home, new Story family, Material claim from RemoveGuard, Hanging claim from RemoveGuard, incomplete Defense response claim, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("RemoveGuard-5 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("RemoveGuard-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, `Tactic.Pin`, and `Tactic.RemoveGuard` rows."))
-    assert(normalizedModelContract.contains("RemoveGuard-5 keeps selected Verdict stable across input order, keeps RemoveGuard from owning Material or Hanging claims, blocks incomplete Defense responses, prevents duplicate Lead for same-line Pin and RemoveGuard, and keeps actual material change now in Scene.Material."))
-    assert(normalizedModelContract.contains("RemoveGuard-5 opens no new proof home, new Story family, Material claim from RemoveGuard, Hanging claim from RemoveGuard, incomplete Defense response claim, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, `Tactic.Pin`, and `Tactic.RemoveGuard` rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-5 keeps selected Verdict stable across input order, keeps RemoveGuard from owning Material or Hanging claims, blocks incomplete Defense responses, prevents duplicate Lead for same-line Pin and RemoveGuard, and keeps actual material change now in Scene.Material."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-5 opens no new proof home, new Story family, Material claim from RemoveGuard, Hanging claim from RemoveGuard, incomplete Defense response claim, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("RemoveGuard-6 ExplanationPlan opens only bounded removes_defender for selected RemoveGuard Lead"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5004,16 +6291,52 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(removeGuardScope), s"RemoveGuard-6 scope must pin: $removeGuardScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("RemoveGuard-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.RemoveGuard` Verdicts."))
-      assert(doc.contains("RemoveGuard-6 allows only the `removes_defender` claim key and forbids wins_material, target_is_hanging, no_defense, refutes_defense, best_move, only_move, forced, decisive, creates_pressure, and takes_initiative."))
-      assert(doc.contains("Support, Context, Blocked, capped, and refuted RemoveGuard rows create no standalone claim."))
-      assert(doc.contains("RemoveGuard-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "RemoveGuard-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.RemoveGuard` Verdicts."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-6 allows only the `removes_defender` claim key and forbids wins_material, target_is_hanging, no_defense, refutes_defense, best_move, only_move, forced, decisive, creates_pressure, and takes_initiative."
+        )
+      )
+      assert(
+        doc.contains(
+          "Support, Context, Blocked, capped, and refuted RemoveGuard rows create no standalone claim."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("RemoveGuard-6 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("RemoveGuard-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.RemoveGuard` Verdicts."))
-    assert(normalizedModelContract.contains("RemoveGuard-6 allows only the `removes_defender` claim key and forbids wins_material, target_is_hanging, no_defense, refutes_defense, best_move, only_move, forced, decisive, creates_pressure, and takes_initiative."))
-    assert(normalizedModelContract.contains("Support, Context, Blocked, capped, and refuted RemoveGuard rows create no standalone claim."))
-    assert(normalizedModelContract.contains("RemoveGuard-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.RemoveGuard` Verdicts."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-6 allows only the `removes_defender` claim key and forbids wins_material, target_is_hanging, no_defense, refutes_defense, best_move, only_move, forced, decisive, creates_pressure, and takes_initiative."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Support, Context, Blocked, capped, and refuted RemoveGuard rows create no standalone claim."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("RemoveGuard-7 deterministic renderer opens only bounded RemoveGuard template"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5055,16 +6378,52 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(removeGuardScope), s"RemoveGuard-7 scope must pin: $removeGuardScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("RemoveGuard-7 opens only deterministic renderer text for selected `Tactic.RemoveGuard` ExplanationPlan."))
-      assert(doc.contains("RemoveGuard-7 renderer input is ExplanationPlan only and may render `{route} removes the defender of the piece on {target}.`"))
-      assert(doc.contains("RemoveGuard-7 forbids wins material, leaves it undefended, no defender remains, best move, only move, forces, decisive, refutes the defense, and creates pressure."))
-      assert(doc.contains("RemoveGuard-7 opens no raw Verdict, raw Story, RemoveGuardProof, BoardFacts, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "RemoveGuard-7 opens only deterministic renderer text for selected `Tactic.RemoveGuard` ExplanationPlan."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-7 renderer input is ExplanationPlan only and may render `{route} removes the defender of the piece on {target}.`"
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-7 forbids wins material, leaves it undefended, no defender remains, best move, only move, forces, decisive, refutes the defense, and creates pressure."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-7 opens no raw Verdict, raw Story, RemoveGuardProof, BoardFacts, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("RemoveGuard-7 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("RemoveGuard-7 opens only deterministic renderer text for selected `Tactic.RemoveGuard` ExplanationPlan."))
-    assert(normalizedModelContract.contains("RemoveGuard-7 renderer input is ExplanationPlan only and may render `{route} removes the defender of the piece on {target}.`"))
-    assert(normalizedModelContract.contains("RemoveGuard-7 forbids wins material, leaves it undefended, no defender remains, best move, only move, forces, decisive, refutes the defense, and creates pressure."))
-    assert(normalizedModelContract.contains("RemoveGuard-7 opens no raw Verdict, raw Story, RemoveGuardProof, BoardFacts, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-7 opens only deterministic renderer text for selected `Tactic.RemoveGuard` ExplanationPlan."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-7 renderer input is ExplanationPlan only and may render `{route} removes the defender of the piece on {target}.`"
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-7 forbids wins material, leaves it undefended, no defender remains, best move, only move, forces, decisive, refutes the defense, and creates pressure."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-7 opens no raw Verdict, raw Story, RemoveGuardProof, BoardFacts, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("RemoveGuard-8 LLM smoke reuses 8B prompt contract for selected RemoveGuard RenderedLine"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5108,16 +6467,52 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(removeGuardScope), s"RemoveGuard-8 scope must pin: $removeGuardScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("RemoveGuard-8 opens only LLM smoke for selected RemoveGuard ExplanationPlan and RenderedLine."))
-      assert(doc.contains("RemoveGuard-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"))
-      assert(doc.contains("RemoveGuard-8 forbids raw Story, raw RemoveGuardProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, material-win, no-defense, pressure, and initiative claims."))
-      assert(doc.contains("RemoveGuard-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "RemoveGuard-8 opens only LLM smoke for selected RemoveGuard ExplanationPlan and RenderedLine."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-8 forbids raw Story, raw RemoveGuardProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, material-win, no-defense, pressure, and initiative claims."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("RemoveGuard-8 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("RemoveGuard-8 opens only LLM smoke for selected RemoveGuard ExplanationPlan and RenderedLine."))
-    assert(normalizedModelContract.contains("RemoveGuard-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"))
-    assert(normalizedModelContract.contains("RemoveGuard-8 forbids raw Story, raw RemoveGuardProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, material-win, no-defense, pressure, and initiative claims."))
-    assert(normalizedModelContract.contains("RemoveGuard-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."))
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-8 opens only LLM smoke for selected RemoveGuard ExplanationPlan and RenderedLine."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-8 forbids raw Story, raw RemoveGuardProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, material-win, no-defense, pressure, and initiative claims."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "RemoveGuard-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."
+      )
+    )
 
   test("RemoveGuard Closeout hard cleanup keeps authority separated and public surfaces closed"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5144,21 +6539,53 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "RemoveGuard Closeout opens no broad deflection tactic, overloaded defender theory, no-defender claim, wins-material claim, Material claim, Hanging claim, Defense claim, Pin expansion, DiscoveredAttack expansion, Skewer, XRay, pressure, initiative, best-move, only-move, forced-line, winning, decisive, new proof home, new Story family, renderer wording beyond RemoveGuard-7, LLM input beyond RemoveGuard-8, public route `200`, production API, or public/user-facing LLM narration.",
       "Completion standard: RemoveGuard closes as a narrow proof-backed guard-removal slice only, with BoardFacts guard relation, RemoveGuardProof, Tactic.RemoveGuard, StoryTable, ExplanationPlan, Renderer, and LLM smoke keeping separate authority and no downstream layer speaking beyond selected proof-backed `removes_defender`."
     ).foreach: removeGuardScope =>
-      assert(interactionLaw.contains(removeGuardScope), s"RemoveGuard Closeout scope must pin: $removeGuardScope")
+      assert(
+        interactionLaw.contains(removeGuardScope),
+        s"RemoveGuard Closeout scope must pin: $removeGuardScope"
+      )
 
     assert(interactionLaw.contains("| RemoveGuardProof | `Tactic.RemoveGuard` |"))
-    assert(!interactionLaw.contains("| DefenderProof | `Tactic.RemoveGuard`"), "RemoveGuard must not remain under broad DefenderProof authority")
+    assert(
+      !interactionLaw.contains("| DefenderProof | `Tactic.RemoveGuard`"),
+      "RemoveGuard must not remain under broad DefenderProof authority"
+    )
     assert(interactionLaw.contains("| W14 | `Tactic.RemoveGuard` | RemoveGuardProof plus StoryProof"))
-    assert(interactionLaw.contains("RemoveGuardProof admitted for narrow `Tactic.RemoveGuard`; broader DefenderProof for overload, deflection, and decoy remains closed."))
+    assert(
+      interactionLaw.contains(
+        "RemoveGuardProof admitted for narrow `Tactic.RemoveGuard`; broader DefenderProof for overload, deflection, and decoy remains closed."
+      )
+    )
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("RemoveGuard Closeout opens no new chess meaning; it audits only BoardFacts guard relation, RemoveGuardProof, Tactic.RemoveGuard, speech key, renderer/LLM, docs authority, test-helper boundary, and closed public surfaces."))
-      assert(doc.contains("RemoveGuard Closeout confirms RemoveGuard owns no Material, Hanging, Defense, Pin, or DiscoveredAttack meaning; deflection, overload, no-defender, and wins-material terms are not live authority; renderer/LLM wording stays no stronger than `removes_defender`; public route `200`, production API, and public/user-facing LLM narration remain closed."))
-      assert(!doc.contains("RemoveGuard Closeout must confirm:"), "summary docs must not duplicate detailed RemoveGuard Closeout checklist")
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "RemoveGuard Closeout opens no new chess meaning; it audits only BoardFacts guard relation, RemoveGuardProof, Tactic.RemoveGuard, speech key, renderer/LLM, docs authority, test-helper boundary, and closed public surfaces."
+        )
+      )
+      assert(
+        doc.contains(
+          "RemoveGuard Closeout confirms RemoveGuard owns no Material, Hanging, Defense, Pin, or DiscoveredAttack meaning; deflection, overload, no-defender, and wins-material terms are not live authority; renderer/LLM wording stays no stronger than `removes_defender`; public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
+      assert(
+        !doc.contains("RemoveGuard Closeout must confirm:"),
+        "summary docs must not duplicate detailed RemoveGuard Closeout checklist"
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("RemoveGuard Closeout opens no new chess meaning."))
-    assert(normalizedModelContract.contains("It audits only that BoardFacts guard relation observes same-side guard contact, RemoveGuardProof proves one removed guard relation, Tactic.RemoveGuard owns the Story identity, `removes_defender` owns speech vocabulary, RemoveGuard owns no Material, Hanging, Defense, Pin, or DiscoveredAttack meaning, deflection, overload, no-defender, and wins-material terms are not live public authority, renderer/LLM stay no stronger than the selected ExplanationPlan, test helpers are not runtime authority, detailed RemoveGuard closeout authority stays in `StoryInteractionLaw.md`, and public route `200`, production API, and public/user-facing LLM narration remain closed."))
-    assert(!normalizedModelContract.contains("RemoveGuard Closeout must confirm:"), "model contract must summarize, not duplicate detailed RemoveGuard Closeout checklist")
+    assert(
+      normalizedModelContract.contains(
+        "It audits only that BoardFacts guard relation observes same-side guard contact, RemoveGuardProof proves one removed guard relation, Tactic.RemoveGuard owns the Story identity, `removes_defender` owns speech vocabulary, RemoveGuard owns no Material, Hanging, Defense, Pin, or DiscoveredAttack meaning, deflection, overload, no-defender, and wins-material terms are not live public authority, renderer/LLM stay no stronger than the selected ExplanationPlan, test helpers are not runtime authority, detailed RemoveGuard closeout authority stays in `StoryInteractionLaw.md`, and public route `200`, production API, and public/user-facing LLM narration remain closed."
+      )
+    )
+    assert(
+      !normalizedModelContract.contains("RemoveGuard Closeout must confirm:"),
+      "model contract must summarize, not duplicate detailed RemoveGuard Closeout checklist"
+    )
 
   test("LDH-0 charter pins Line Defender Interaction Hardening scope"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5205,13 +6632,36 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Line / Defender Interaction Hardening is a closed baseline."))
-      assert(doc.contains("Line/Defender hardening opens no new Story. It proves that existing line and defender Stories do not steal each other's meaning."))
-      assert(doc.contains("LDH-0 opens only existing Line/Defender rows interaction hardening, complex same-board fixtures, StoryTable role stability, downstream no-overclaim smoke, and the minimum StoryTable ordering fix if an existing DiscoveredAttack ordering bug is exposed."))
-      assert(doc.contains("LDH-0 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(!doc.contains("LDH-0 allowed line and defender rows:"), "summary docs must not duplicate detailed LDH-0 checklist")
+      assert(
+        doc.contains(
+          "Line/Defender hardening opens no new Story. It proves that existing line and defender Stories do not steal each other's meaning."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-0 opens only existing Line/Defender rows interaction hardening, complex same-board fixtures, StoryTable role stability, downstream no-overclaim smoke, and the minimum StoryTable ordering fix if an existing DiscoveredAttack ordering bug is exposed."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-0 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        !doc.contains("LDH-0 allowed line and defender rows:"),
+        "summary docs must not duplicate detailed LDH-0 checklist"
+      )
     assert(normalizedModelContract.contains("Line / Defender Interaction Hardening opens no new Story."))
-    assert(normalizedModelContract.contains("It proves that existing DiscoveredAttack, Pin, and RemoveGuard rows do not steal each other's meaning or the existing Hanging, Fork, Material, and Defense claim homes."))
-    assert(normalizedModelContract.contains("LDH-0 may apply only the minimum StoryTable ordering fix if an existing DiscoveredAttack ordering bug is exposed."))
+    assert(
+      normalizedModelContract.contains(
+        "It proves that existing DiscoveredAttack, Pin, and RemoveGuard rows do not steal each other's meaning or the existing Hanging, Fork, Material, and Defense claim homes."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-0 may apply only the minimum StoryTable ordering fix if an existing DiscoveredAttack ordering bug is exposed."
+      )
+    )
 
   test("LDH-1 fixture map pins required same-board interaction fixtures"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5250,16 +6700,51 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(ldhLine), s"LDH-1 must pin: $ldhLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("LDH-1 opens only the Fixture Map for complex same-board Line/Defender interaction fixtures."))
-      assert(doc.contains("LDH-1 fixtures must state same-board FEN, side to move, candidate legal lines, expected open rows, expected blocked rows, expected Lead/Support/Context/Blocked role, expected selected Verdict, and forbidden claims."))
-      assert(doc.contains("LDH-1 required fixture categories are DiscoveredAttack vs Pin, DiscoveredAttack vs RemoveGuard, Pin vs RemoveGuard, DiscoveredAttack + Pin + RemoveGuard same-board, Line/Defender row vs Material, Line/Defender row vs Hanging, Line/Defender row vs Defense, and EngineCheck Supports/Caps/Refutes over existing Line/Defender rows."))
-      assert(doc.contains("LDH-1 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(!doc.contains("Each LDH-1 fixture must state:"), "summary docs must not duplicate detailed LDH-1 checklist")
+      assert(
+        doc.contains(
+          "LDH-1 opens only the Fixture Map for complex same-board Line/Defender interaction fixtures."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-1 fixtures must state same-board FEN, side to move, candidate legal lines, expected open rows, expected blocked rows, expected Lead/Support/Context/Blocked role, expected selected Verdict, and forbidden claims."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-1 required fixture categories are DiscoveredAttack vs Pin, DiscoveredAttack vs RemoveGuard, Pin vs RemoveGuard, DiscoveredAttack + Pin + RemoveGuard same-board, Line/Defender row vs Material, Line/Defender row vs Hanging, Line/Defender row vs Defense, and EngineCheck Supports/Caps/Refutes over existing Line/Defender rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-1 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        !doc.contains("Each LDH-1 fixture must state:"),
+        "summary docs must not duplicate detailed LDH-1 checklist"
+      )
 
-    assert(normalizedModelContract.contains("LDH-1 opens only the Fixture Map for complex same-board Line/Defender interaction fixtures."))
-    assert(normalizedModelContract.contains("Each fixture states same-board FEN, side to move, candidate legal lines, expected open rows, expected blocked rows, expected Lead, Support, Context, or Blocked role, expected selected Verdict, and forbidden claims."))
-    assert(normalizedModelContract.contains("The required LDH-1 categories are DiscoveredAttack vs Pin, DiscoveredAttack vs RemoveGuard, Pin vs RemoveGuard, DiscoveredAttack + Pin + RemoveGuard same-board, Line/Defender row vs Material, Line/Defender row vs Hanging, Line/Defender row vs Defense, and EngineCheck Supports/Caps/Refutes over existing Line/Defender rows."))
-    assert(normalizedModelContract.contains("LDH-1 does not open Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "LDH-1 opens only the Fixture Map for complex same-board Line/Defender interaction fixtures."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Each fixture states same-board FEN, side to move, candidate legal lines, expected open rows, expected blocked rows, expected Lead, Support, Context, or Blocked role, expected selected Verdict, and forbidden claims."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "The required LDH-1 categories are DiscoveredAttack vs Pin, DiscoveredAttack vs RemoveGuard, Pin vs RemoveGuard, DiscoveredAttack + Pin + RemoveGuard same-board, Line/Defender row vs Material, Line/Defender row vs Hanging, Line/Defender row vs Defense, and EngineCheck Supports/Caps/Refutes over existing Line/Defender rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-1 does not open Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("LDH-2 role stability pins StoryTable Line Defender interaction checks"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5287,14 +6772,39 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(ldhLine), s"LDH-2 must pin: $ldhLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("LDH-2 opens only StoryTable role stability checks over existing Line/Defender rows."))
-      assert(doc.contains("LDH-2 verifies input-order stable selected Verdicts, no duplicate Lead for the same meaning, incomplete rows not Lead, refuted rows Blocked, capped rows without standalone claims, and separated ownership for same-line Pin/DiscoveredAttack, Pin/RemoveGuard, and DiscoveredAttack/RemoveGuard collisions."))
-      assert(doc.contains("LDH-2 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(!doc.contains("LDH-2 role stability must verify:"), "summary docs must not duplicate detailed LDH-2 checklist")
+      assert(
+        doc.contains("LDH-2 opens only StoryTable role stability checks over existing Line/Defender rows.")
+      )
+      assert(
+        doc.contains(
+          "LDH-2 verifies input-order stable selected Verdicts, no duplicate Lead for the same meaning, incomplete rows not Lead, refuted rows Blocked, capped rows without standalone claims, and separated ownership for same-line Pin/DiscoveredAttack, Pin/RemoveGuard, and DiscoveredAttack/RemoveGuard collisions."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-2 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        !doc.contains("LDH-2 role stability must verify:"),
+        "summary docs must not duplicate detailed LDH-2 checklist"
+      )
 
-    assert(normalizedModelContract.contains("LDH-2 opens only StoryTable role stability checks over existing Line/Defender rows."))
-    assert(normalizedModelContract.contains("It verifies input-order stable selected Verdicts, no duplicate Lead for the same meaning, incomplete rows not Lead, refuted rows Blocked, capped rows without standalone claims, and separated ownership for same-line Pin/DiscoveredAttack, Pin/RemoveGuard, and DiscoveredAttack/RemoveGuard collisions."))
-    assert(normalizedModelContract.contains("LDH-2 does not open Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "LDH-2 opens only StoryTable role stability checks over existing Line/Defender rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "It verifies input-order stable selected Verdicts, no duplicate Lead for the same meaning, incomplete rows not Lead, refuted rows Blocked, capped rows without standalone claims, and separated ownership for same-line Pin/DiscoveredAttack, Pin/RemoveGuard, and DiscoveredAttack/RemoveGuard collisions."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-2 does not open Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("LDH-3 meaning ownership boundary pins each existing row to its own meaning"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5325,16 +6835,51 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(ldhLine), s"LDH-3 must pin: $ldhLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("LDH-3 opens only Meaning Ownership Boundary checks over existing Line/Defender and collision rows."))
-      assert(doc.contains("LDH-3 fixes each row to its own meaning: DiscoveredAttack reveals one slider attack on one material target, Pin pins one non-king piece to its own king on a line, RemoveGuard removes one defender guard relation from one target, Scene.Material owns actual material balance change now, Tactic.Hanging owns capturable target with bounded material gain proof, and Scene.Defense owns complete ThreatProof plus DefenseProof preventing immediate material loss."))
-      assert(doc.contains("LDH-3 forbids RemoveGuard material-gain claims, Pin cannot-move or king-unsafe claims, DiscoveredAttack wins-material claims, Material line-tactic identity, and Defense stopped-threat wording without complete threat proof."))
-      assert(doc.contains("LDH-3 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(!doc.contains("LDH-3 owned meanings:"), "summary docs must not duplicate detailed LDH-3 checklist")
+      assert(
+        doc.contains(
+          "LDH-3 opens only Meaning Ownership Boundary checks over existing Line/Defender and collision rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-3 fixes each row to its own meaning: DiscoveredAttack reveals one slider attack on one material target, Pin pins one non-king piece to its own king on a line, RemoveGuard removes one defender guard relation from one target, Scene.Material owns actual material balance change now, Tactic.Hanging owns capturable target with bounded material gain proof, and Scene.Defense owns complete ThreatProof plus DefenseProof preventing immediate material loss."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-3 forbids RemoveGuard material-gain claims, Pin cannot-move or king-unsafe claims, DiscoveredAttack wins-material claims, Material line-tactic identity, and Defense stopped-threat wording without complete threat proof."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-3 opens no Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        !doc.contains("LDH-3 owned meanings:"),
+        "summary docs must not duplicate detailed LDH-3 checklist"
+      )
 
-    assert(normalizedModelContract.contains("LDH-3 opens only Meaning Ownership Boundary checks over existing Line/Defender and collision rows."))
-    assert(normalizedModelContract.contains("It fixes each row to its own meaning: DiscoveredAttack reveals one slider attack on one material target, Pin pins one non-king piece to its own king on a line, RemoveGuard removes one defender guard relation from one target, Scene.Material owns actual material balance change now, Tactic.Hanging owns capturable target with bounded material gain proof, and Scene.Defense owns complete ThreatProof plus DefenseProof preventing immediate material loss."))
-    assert(normalizedModelContract.contains("LDH-3 forbids RemoveGuard material-gain claims, Pin cannot-move or king-unsafe claims, DiscoveredAttack wins-material claims, Material line-tactic identity, and Defense stopped-threat wording without complete threat proof."))
-    assert(normalizedModelContract.contains("LDH-3 does not open Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "LDH-3 opens only Meaning Ownership Boundary checks over existing Line/Defender and collision rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "It fixes each row to its own meaning: DiscoveredAttack reveals one slider attack on one material target, Pin pins one non-king piece to its own king on a line, RemoveGuard removes one defender guard relation from one target, Scene.Material owns actual material balance change now, Tactic.Hanging owns capturable target with bounded material gain proof, and Scene.Defense owns complete ThreatProof plus DefenseProof preventing immediate material loss."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-3 forbids RemoveGuard material-gain claims, Pin cannot-move or king-unsafe claims, DiscoveredAttack wins-material claims, Material line-tactic identity, and Defense stopped-threat wording without complete threat proof."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-3 does not open Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("LDH-4 EngineCheck interaction reuses existing statuses without engine-owned public claims"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5364,15 +6909,43 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(ldhLine), s"LDH-4 must pin: $ldhLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("LDH-4 opens only existing EngineCheck interaction checks over existing Line/Defender rows."))
-      assert(doc.contains("LDH-4 verifies Supports creates no new claim, Caps suppresses allowed claim or keeps downstream speech bounded, Refutes blocks the checked Story, and Unknown creates no engine-related expression."))
-      assert(doc.contains("LDH-4 forbids engine-says wording, raw PV explanation, eval number public value, best move, only move, forced line, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
+      assert(
+        doc.contains(
+          "LDH-4 opens only existing EngineCheck interaction checks over existing Line/Defender rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-4 verifies Supports creates no new claim, Caps suppresses allowed claim or keeps downstream speech bounded, Refutes blocks the checked Story, and Unknown creates no engine-related expression."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-4 forbids engine-says wording, raw PV explanation, eval number public value, best move, only move, forced line, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
       assert(!doc.contains("LDH-4 must verify:"), "summary docs must not duplicate detailed LDH-4 checklist")
 
-    assert(normalizedModelContract.contains("LDH-4 opens only existing EngineCheck interaction checks over existing Line/Defender rows."))
-    assert(normalizedModelContract.contains("It verifies Supports creates no new claim, Caps suppresses allowed claim or keeps downstream speech bounded, Refutes blocks the checked Story, and Unknown creates no engine-related expression."))
-    assert(normalizedModelContract.contains("LDH-4 forbids engine-says wording, raw PV explanation, eval number public value, best move, only move, forced line, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
-    assert(normalizedModelContract.contains("LDH-4 does not open a new EngineCheck proof home, new Story family, engine-owned wording, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "LDH-4 opens only existing EngineCheck interaction checks over existing Line/Defender rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "It verifies Supports creates no new claim, Caps suppresses allowed claim or keeps downstream speech bounded, Refutes blocks the checked Story, and Unknown creates no engine-related expression."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-4 forbids engine-says wording, raw PV explanation, eval number public value, best move, only move, forced line, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-4 does not open a new EngineCheck proof home, new Story family, engine-owned wording, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("LDH-5 negative corpus keeps close line defender false positives silent"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5402,16 +6975,51 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(ldhLine), s"LDH-5 must pin: $ldhLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("LDH-5 opens only close false-positive negative corpus tests over existing Line/Defender rows and already-open collision rows."))
-      assert(doc.contains("LDH-5 keeps line-open-without-attack, king targets, pin-looking lines without king-behind-target, still-guarding defenders, incomplete Material or Hanging proof after defender removal, incomplete DiscoveredAttack or Pin proof, wrong-board or stale same-board proof, route mismatch, engine-refuted plausible rows, and Skewer-looking relations silent."))
-      assert(doc.contains("LDH-5 rule: Looks like a line tactic is not enough. Existing complete proof or silence."))
-      assert(doc.contains("LDH-5 opens no new Story family, proof home, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(!doc.contains("LDH-5 close false positives must stay silent:"), "summary docs must not duplicate detailed LDH-5 checklist")
+      assert(
+        doc.contains(
+          "LDH-5 opens only close false-positive negative corpus tests over existing Line/Defender rows and already-open collision rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-5 keeps line-open-without-attack, king targets, pin-looking lines without king-behind-target, still-guarding defenders, incomplete Material or Hanging proof after defender removal, incomplete DiscoveredAttack or Pin proof, wrong-board or stale same-board proof, route mismatch, engine-refuted plausible rows, and Skewer-looking relations silent."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-5 rule: Looks like a line tactic is not enough. Existing complete proof or silence."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-5 opens no new Story family, proof home, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        !doc.contains("LDH-5 close false positives must stay silent:"),
+        "summary docs must not duplicate detailed LDH-5 checklist"
+      )
 
-    assert(normalizedModelContract.contains("LDH-5 opens only close false-positive negative corpus tests over existing Line/Defender rows and already-open collision rows."))
-    assert(normalizedModelContract.contains("It keeps line-open-without-attack, king targets, pin-looking lines without king-behind-target, still-guarding defenders, incomplete Material or Hanging proof after defender removal, incomplete DiscoveredAttack or Pin proof, wrong-board or stale same-board proof, route mismatch, engine-refuted plausible rows, and Skewer-looking relations silent."))
-    assert(normalizedModelContract.contains("LDH-5 rule: Looks like a line tactic is not enough. Existing complete proof or silence."))
-    assert(normalizedModelContract.contains("LDH-5 does not open a new Story family, proof home, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "LDH-5 opens only close false-positive negative corpus tests over existing Line/Defender rows and already-open collision rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "It keeps line-open-without-attack, king targets, pin-looking lines without king-behind-target, still-guarding defenders, incomplete Material or Hanging proof after defender removal, incomplete DiscoveredAttack or Pin proof, wrong-board or stale same-board proof, route mismatch, engine-refuted plausible rows, and Skewer-looking relations silent."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-5 rule: Looks like a line tactic is not enough. Existing complete proof or silence."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-5 does not open a new Story family, proof home, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("LDH-6 downstream boundary smoke passes only selected Lead Verdict data"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5438,17 +7046,52 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(ldhLine), s"LDH-6 must pin: $ldhLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("LDH-6 opens only downstream boundary smoke over selected Lead Verdicts from existing Line/Defender rows."))
-      assert(doc.contains("LDH-6 verifies ExplanationPlan receives selected Verdict only, Renderer receives ExplanationPlan only, LLM smoke prompt carries only renderedText, claimKey, strength, forbidden wording, and the rephrase-only instruction, and Support, Context, Blocked, capped, and refuted rows create no standalone text."))
-      assert(doc.contains("LDH-6 forbids new renderer templates, new LLM behavior, and raw Story, Proof, or EngineCheck passing into renderer or LLM smoke."))
-      assert(doc.contains("LDH-6 opens no new Story family, proof home, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
+      assert(
+        doc.contains(
+          "LDH-6 opens only downstream boundary smoke over selected Lead Verdicts from existing Line/Defender rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-6 verifies ExplanationPlan receives selected Verdict only, Renderer receives ExplanationPlan only, LLM smoke prompt carries only renderedText, claimKey, strength, forbidden wording, and the rephrase-only instruction, and Support, Context, Blocked, capped, and refuted rows create no standalone text."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-6 forbids new renderer templates, new LLM behavior, and raw Story, Proof, or EngineCheck passing into renderer or LLM smoke."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-6 opens no new Story family, proof home, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
       assert(!doc.contains("LDH-6 must verify:"), "summary docs must not duplicate detailed LDH-6 checklist")
-      assert(!doc.contains("LDH-6 forbidden downstream inputs or changes:"), "summary docs must not duplicate detailed LDH-6 checklist")
+      assert(
+        !doc.contains("LDH-6 forbidden downstream inputs or changes:"),
+        "summary docs must not duplicate detailed LDH-6 checklist"
+      )
 
-    assert(normalizedModelContract.contains("LDH-6 opens only downstream boundary smoke over selected Lead Verdicts from existing Line/Defender rows."))
-    assert(normalizedModelContract.contains("It verifies ExplanationPlan receives selected Verdict only, Renderer receives ExplanationPlan only, LLM smoke prompt carries only renderedText, claimKey, strength, forbidden wording, and the rephrase-only instruction, and Support, Context, Blocked, capped, and refuted rows create no standalone text."))
-    assert(normalizedModelContract.contains("LDH-6 forbids new renderer templates, new LLM behavior, and raw Story, Proof, or EngineCheck passing into renderer or LLM smoke."))
-    assert(normalizedModelContract.contains("LDH-6 does not open a new Story family, proof home, renderer template, LLM behavior, raw Story, Proof, or EngineCheck downstream path, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "LDH-6 opens only downstream boundary smoke over selected Lead Verdicts from existing Line/Defender rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "It verifies ExplanationPlan receives selected Verdict only, Renderer receives ExplanationPlan only, LLM smoke prompt carries only renderedText, claimKey, strength, forbidden wording, and the rephrase-only instruction, and Support, Context, Blocked, capped, and refuted rows create no standalone text."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-6 forbids new renderer templates, new LLM behavior, and raw Story, Proof, or EngineCheck passing into renderer or LLM smoke."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-6 does not open a new Story family, proof home, renderer template, LLM behavior, raw Story, Proof, or EngineCheck downstream path, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("LDH-7 diagnostics boundary keeps diagnostics out of public meaning"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5472,14 +7115,38 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(ldhLine), s"LDH-7 must pin: $ldhLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("LDH-7 opens only diagnostics boundary smoke over existing Line/Defender rows, StoryTable, selected Verdict, ExplanationPlan, renderer, LLM smoke, and test-helper authority."))
-      assert(doc.contains("LDH-7 verifies proofFailures stay internal diagnostic only, raw proof text stays out of Verdict.values, EngineCheck text does not flow directly into ExplanationPlan, StoryTable debug relations do not become renderer wording, and test helpers do not become runtime authority."))
-      assert(doc.contains("LDH-7 opens no new Story family, proof home, renderer wording, LLM behavior, runtime authority helper, raw Story, raw Proof, raw EngineCheck downstream path, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
+      assert(
+        doc.contains(
+          "LDH-7 opens only diagnostics boundary smoke over existing Line/Defender rows, StoryTable, selected Verdict, ExplanationPlan, renderer, LLM smoke, and test-helper authority."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-7 verifies proofFailures stay internal diagnostic only, raw proof text stays out of Verdict.values, EngineCheck text does not flow directly into ExplanationPlan, StoryTable debug relations do not become renderer wording, and test helpers do not become runtime authority."
+        )
+      )
+      assert(
+        doc.contains(
+          "LDH-7 opens no new Story family, proof home, renderer wording, LLM behavior, runtime authority helper, raw Story, raw Proof, raw EngineCheck downstream path, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
       assert(!doc.contains("LDH-7 must verify:"), "summary docs must not duplicate detailed LDH-7 checklist")
 
-    assert(normalizedModelContract.contains("LDH-7 opens only diagnostics boundary smoke over existing Line/Defender rows, StoryTable, selected Verdict, ExplanationPlan, renderer, LLM smoke, and test-helper authority."))
-    assert(normalizedModelContract.contains("It verifies proofFailures stay internal diagnostic only, raw proof text stays out of Verdict.values, EngineCheck text does not flow directly into ExplanationPlan, StoryTable debug relations do not become renderer wording, and test helpers do not become runtime authority."))
-    assert(normalizedModelContract.contains("LDH-7 does not open a new Story family, proof home, renderer wording, LLM behavior, runtime authority helper, raw Story, raw Proof, raw EngineCheck downstream path, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "LDH-7 opens only diagnostics boundary smoke over existing Line/Defender rows, StoryTable, selected Verdict, ExplanationPlan, renderer, LLM smoke, and test-helper authority."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "It verifies proofFailures stay internal diagnostic only, raw proof text stays out of Verdict.values, EngineCheck text does not flow directly into ExplanationPlan, StoryTable debug relations do not become renderer wording, and test helpers do not become runtime authority."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH-7 does not open a new Story family, proof home, renderer wording, LLM behavior, runtime authority helper, raw Story, raw Proof, raw EngineCheck downstream path, Skewer, XRay, broad LineTactic, broad deflection, overloaded defender, pressure, initiative, mate threat, king safety, material win claim, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("LDH closeout hard cleanup keeps Line Defender authority separated and public surfaces closed"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5517,15 +7184,43 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(closeoutLine), s"LDH closeout must pin: $closeoutLine")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("LDH Closeout opens no chess meaning. It only audits the Line / Defender Interaction Hardening surface."))
-      assert(doc.contains("Completion standard: LDH closes as interaction hardening only, with no new Story family, no new proof home, no mixed LineFact, LineProof, PinProof, or RemoveGuardProof authority, no Line/Defender meaning theft, no Material, Hanging, or Defense claim-home invasion, no broad-term authority, no duplicated live rule authority outside StoryInteractionLaw.md, no public route 200, no production API, and no public/user-facing LLM narration."))
-      assert(!doc.contains("LDH Closeout audit checklist:"), "summary docs must not duplicate detailed LDH Closeout checklist")
-      assert(!doc.contains("LDH Closeout ownership map:"), "summary docs must not duplicate detailed LDH Closeout ownership map")
+      assert(
+        doc.contains(
+          "LDH Closeout opens no chess meaning. It only audits the Line / Defender Interaction Hardening surface."
+        )
+      )
+      assert(
+        doc.contains(
+          "Completion standard: LDH closes as interaction hardening only, with no new Story family, no new proof home, no mixed LineFact, LineProof, PinProof, or RemoveGuardProof authority, no Line/Defender meaning theft, no Material, Hanging, or Defense claim-home invasion, no broad-term authority, no duplicated live rule authority outside StoryInteractionLaw.md, no public route 200, no production API, and no public/user-facing LLM narration."
+        )
+      )
+      assert(
+        !doc.contains("LDH Closeout audit checklist:"),
+        "summary docs must not duplicate detailed LDH Closeout checklist"
+      )
+      assert(
+        !doc.contains("LDH Closeout ownership map:"),
+        "summary docs must not duplicate detailed LDH Closeout ownership map"
+      )
 
-    assert(normalizedModelContract.contains("LDH Closeout opens no chess meaning. It only audits the Line / Defender Interaction Hardening surface."))
-    assert(normalizedModelContract.contains("LDH closes as interaction hardening only, with no new Story family, no new proof home, no mixed LineFact, LineProof, PinProof, or RemoveGuardProof authority, no Line/Defender meaning theft, no Material, Hanging, or Defense claim-home invasion, no broad-term authority, no duplicated live rule authority outside StoryInteractionLaw.md, no public route 200, no production API, and no public/user-facing LLM narration."))
-    assert(!modelContract.contains("LDH Closeout audit checklist:"), "model contract must summarize detailed LDH Closeout checklist")
-    assert(!modelContract.contains("LDH Closeout ownership map:"), "model contract must summarize detailed LDH Closeout ownership map")
+    assert(
+      normalizedModelContract.contains(
+        "LDH Closeout opens no chess meaning. It only audits the Line / Defender Interaction Hardening surface."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LDH closes as interaction hardening only, with no new Story family, no new proof home, no mixed LineFact, LineProof, PinProof, or RemoveGuardProof authority, no Line/Defender meaning theft, no Material, Hanging, or Defense claim-home invasion, no broad-term authority, no duplicated live rule authority outside StoryInteractionLaw.md, no public route 200, no production API, and no public/user-facing LLM narration."
+      )
+    )
+    assert(
+      !modelContract.contains("LDH Closeout audit checklist:"),
+      "model contract must summarize detailed LDH Closeout checklist"
+    )
+    assert(
+      !modelContract.contains("LDH Closeout ownership map:"),
+      "model contract must summarize detailed LDH Closeout ownership map"
+    )
 
   test("Skewer-0 charter opens only one front and one rear non-king target on a slider line"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5581,21 +7276,69 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Skewer Slice is the current scope."))
-      assert(doc.contains("Current implementation scope is Line / Defender Contact Neighborhood late vertical slice."))
-      assert(doc.contains("Skewer-0 opens only the charter for the fourth narrow line/defender contact vertical slice."))
+      assert(
+        doc.contains(
+          "Current implementation scope is Line / Defender Contact Neighborhood late vertical slice."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-0 opens only the charter for the fourth narrow line/defender contact vertical slice."
+        )
+      )
       assert(doc.contains("First Skewer positive scope is not a broad skewer tactic."))
-      assert(doc.contains("Skewer first scope: a legal move creates or reveals a slider attack on one front non-king material target, with a second non-king material target behind it on the same line."))
-      assert(doc.contains("LineFact observes geometry. SkewerProof proves the front-and-back target relation. Tactic.Skewer may speak only after proof."))
-      assert(doc.contains("Skewer-0 opens only narrow Tactic.Skewer, one slider, one front target, one rear target, front/rear target same-line relation, a legal move that creates or reveals the front/rear relation, and bounded skewer wording after selected Verdict only."))
-      assert(doc.contains("Skewer-0 opens no broad LineTactic, XRay public Story, Pin expansion, RemoveGuard expansion, material win claim, front piece must move, wins rear piece, forced line, best move, only move, winning, decisive, king safety, mate threat, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Skewer first scope: a legal move creates or reveals a slider attack on one front non-king material target, with a second non-king material target behind it on the same line."
+        )
+      )
+      assert(
+        doc.contains(
+          "LineFact observes geometry. SkewerProof proves the front-and-back target relation. Tactic.Skewer may speak only after proof."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-0 opens only narrow Tactic.Skewer, one slider, one front target, one rear target, front/rear target same-line relation, a legal move that creates or reveals the front/rear relation, and bounded skewer wording after selected Verdict only."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-0 opens no broad LineTactic, XRay public Story, Pin expansion, RemoveGuard expansion, material win claim, front piece must move, wins rear piece, forced line, best move, only move, winning, decisive, king safety, mate threat, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Skewer-0 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Skewer-0 opens only the charter for the fourth narrow line/defender contact vertical slice."))
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-0 opens only the charter for the fourth narrow line/defender contact vertical slice."
+      )
+    )
     assert(normalizedModelContract.contains("The first Skewer positive scope is not a broad skewer tactic."))
-    assert(normalizedModelContract.contains("The Skewer first scope is a legal move that creates or reveals a slider attack on one front non-king material target, with a second non-king material target behind it on the same line."))
-    assert(normalizedModelContract.contains("LineFact observes geometry, SkewerProof proves the front-and-back target relation, and Tactic.Skewer may speak only after proof."))
-    assert(normalizedModelContract.contains("Skewer-0 opens only narrow Tactic.Skewer, one slider, one front target, one rear target, front/rear target same-line relation, a legal move that creates or reveals the front/rear relation, and bounded skewer wording after selected Verdict only."))
-    assert(normalizedModelContract.contains("Skewer-0 opens no broad LineTactic, XRay public Story, Pin expansion, RemoveGuard expansion, material win claim, front piece must move, wins rear piece, forced line, best move, only move, winning, decisive, king safety, mate threat, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "The Skewer first scope is a legal move that creates or reveals a slider attack on one front non-king material target, with a second non-king material target behind it on the same line."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "LineFact observes geometry, SkewerProof proves the front-and-back target relation, and Tactic.Skewer may speak only after proof."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-0 opens only narrow Tactic.Skewer, one slider, one front target, one rear target, front/rear target same-line relation, a legal move that creates or reveals the front/rear relation, and bounded skewer wording after selected Verdict only."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-0 opens no broad LineTactic, XRay public Story, Pin expansion, RemoveGuard expansion, material win claim, front piece must move, wins rear piece, forced line, best move, only move, winning, decisive, king safety, mate threat, pressure, initiative, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
 
   test("Skewer-1 SkewerProof opens only the front and rear target proof home"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5620,20 +7363,58 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Skewer-1 opens only `SkewerProof` as a narrow proof home."))
-      assert(doc.contains("SkewerProof proves side creating the skewer, rival side, skewer slider, front target, rear target, legal skewer or revealing move, line kind, same-board proof, front target non-king material piece, rear target non-king material piece, front and rear target same rival side, after move slider attacks front target, rear target behind front target on the same ray, no extra blocker breaks the front-to-rear relation, and before move the skewer relation was absent or blocked."))
-      assert(doc.contains("SkewerProof is not a public Story. LineFact and LineProof are not public Stories."))
-      assert(doc.contains("SkewerProof says no material gain, front piece must move, or wins rear piece; proofFailures stay out of renderer/LLM input."))
-      assert(doc.contains("Skewer-1 opens no Tactic.Skewer writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, material gain claim, front piece must move wording, wins rear piece claim, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "SkewerProof proves side creating the skewer, rival side, skewer slider, front target, rear target, legal skewer or revealing move, line kind, same-board proof, front target non-king material piece, rear target non-king material piece, front and rear target same rival side, after move slider attacks front target, rear target behind front target on the same ray, no extra blocker breaks the front-to-rear relation, and before move the skewer relation was absent or blocked."
+        )
+      )
+      assert(
+        doc.contains("SkewerProof is not a public Story. LineFact and LineProof are not public Stories.")
+      )
+      assert(
+        doc.contains(
+          "SkewerProof says no material gain, front piece must move, or wins rear piece; proofFailures stay out of renderer/LLM input."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-1 opens no Tactic.Skewer writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, material gain claim, front piece must move wording, wins rear piece claim, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
 
     assert(normalizedModelContract.contains("Skewer-1 is owned by `StoryInteractionLaw.md`."))
     assert(normalizedModelContract.contains("Skewer-1 opens only `SkewerProof` as a narrow proof home."))
-    assert(normalizedModelContract.contains("SkewerProof proves side creating the skewer, rival side, skewer slider, front target, rear target, legal skewer or revealing move, line kind, same-board proof, front target non-king material piece, rear target non-king material piece, front and rear target same rival side, after move slider attacks front target, rear target behind front target on the same ray, no extra blocker breaks the front-to-rear relation, and before move the skewer relation was absent or blocked."))
-    assert(normalizedModelContract.contains("SkewerProof is not a public Story, and LineFact and LineProof are not public Stories."))
-    assert(normalizedModelContract.contains("SkewerProof says no material gain, front piece must move, or wins rear piece; proofFailures stay out of renderer/LLM input."))
-    assert(normalizedModelContract.contains("Skewer-1 opens no Tactic.Skewer writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, material gain claim, front piece must move wording, wins rear piece claim, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "SkewerProof proves side creating the skewer, rival side, skewer slider, front target, rear target, legal skewer or revealing move, line kind, same-board proof, front target non-king material piece, rear target non-king material piece, front and rear target same rival side, after move slider attacks front target, rear target behind front target on the same ray, no extra blocker breaks the front-to-rear relation, and before move the skewer relation was absent or blocked."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "SkewerProof is not a public Story, and LineFact and LineProof are not public Stories."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "SkewerProof says no material gain, front piece must move, or wins rear piece; proofFailures stay out of renderer/LLM input."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-1 opens no Tactic.Skewer writer, StoryTable integration, ExplanationPlan mapping, renderer wording, LLM smoke, material gain claim, front piece must move wording, wins rear piece claim, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
     assert(legacyManifest.contains("Skewer-1 SkewerProof authority lives in `StoryInteractionLaw.md`."))
-    assert(legacyManifest.contains("Legacy broad skewer, XRay, material win, front-piece-must-move, wins-rear-piece, production API, public route, and public/user-facing LLM paths do not return."))
+    assert(
+      legacyManifest.contains(
+        "Legacy broad skewer, XRay, material win, front-piece-must-move, wins-rear-piece, production API, public route, and public/user-facing LLM paths do not return."
+      )
+    )
 
   test("Skewer-2 TacticSkewer writer opens only the proof-backed Skewer Story"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5657,21 +7438,69 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(skewerWriterScope), s"Skewer-2 scope must pin: $skewerWriterScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Skewer-2 opens only the named `TacticSkewer` writer for one narrow `Tactic.Skewer` Story."))
-      assert(doc.contains("TacticSkewer requires complete StoryProof, complete SkewerProof, same-board legal replay, legal skewer or revealing move, front target, rear target, slider, complete front-and-back line relation, writer identity, and no EngineCheck Refutes status."))
-      assert(doc.contains("Skewer Story identity is tactic Skewer, scene Tactic, skewer-creating side, front/rear target side as rival, front target square, rear target square as secondaryTarget, slider or moved-piece anchor, and skewer/revealing route."))
-      assert(doc.contains("TacticSkewer creates no Scene.Material claim, does not replace Tactic.Pin, and keeps rear-target king positions silent."))
-      assert(doc.contains("Skewer-2 opens no StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, material gain claim, front piece must move wording, wins rear piece claim, Pin replacement, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Skewer-2 opens only the named `TacticSkewer` writer for one narrow `Tactic.Skewer` Story."
+        )
+      )
+      assert(
+        doc.contains(
+          "TacticSkewer requires complete StoryProof, complete SkewerProof, same-board legal replay, legal skewer or revealing move, front target, rear target, slider, complete front-and-back line relation, writer identity, and no EngineCheck Refutes status."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer Story identity is tactic Skewer, scene Tactic, skewer-creating side, front/rear target side as rival, front target square, rear target square as secondaryTarget, slider or moved-piece anchor, and skewer/revealing route."
+        )
+      )
+      assert(
+        doc.contains(
+          "TacticSkewer creates no Scene.Material claim, does not replace Tactic.Pin, and keeps rear-target king positions silent."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-2 opens no StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, material gain claim, front piece must move wording, wins rear piece claim, Pin replacement, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
 
     assert(normalizedModelContract.contains("Skewer-2 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Skewer-2 opens only the named `TacticSkewer` writer for one narrow `Tactic.Skewer` Story."))
-    assert(normalizedModelContract.contains("TacticSkewer requires complete StoryProof, complete SkewerProof, same-board legal replay, legal skewer or revealing move, front target, rear target, slider, complete front-and-back line relation, writer identity, and no EngineCheck Refutes status."))
-    assert(normalizedModelContract.contains("Skewer Story identity is tactic Skewer, scene Tactic, skewer-creating side, front/rear target side as rival, front target square, rear target square as secondaryTarget, slider or moved-piece anchor, and skewer/revealing route."))
-    assert(normalizedModelContract.contains("TacticSkewer creates no Scene.Material claim, does not replace Tactic.Pin, and keeps rear-target king positions silent."))
-    assert(normalizedModelContract.contains("Skewer-2 opens no StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, material gain claim, front piece must move wording, wins rear piece claim, Pin replacement, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-2 opens only the named `TacticSkewer` writer for one narrow `Tactic.Skewer` Story."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "TacticSkewer requires complete StoryProof, complete SkewerProof, same-board legal replay, legal skewer or revealing move, front target, rear target, slider, complete front-and-back line relation, writer identity, and no EngineCheck Refutes status."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer Story identity is tactic Skewer, scene Tactic, skewer-creating side, front/rear target side as rival, front target square, rear target square as secondaryTarget, slider or moved-piece anchor, and skewer/revealing route."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "TacticSkewer creates no Scene.Material claim, does not replace Tactic.Pin, and keeps rear-target king positions silent."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-2 opens no StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, material gain claim, front piece must move wording, wins rear piece claim, Pin replacement, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
     assert(legacyManifest.contains("Skewer-2 TacticSkewer authority lives in `StoryInteractionLaw.md`."))
-    assert(legacyManifest.contains("Legacy broad skewer, Scene.Material-by-skewer, Pin replacement, rear-king skewer, production API, public route, and public/user-facing LLM paths do not return."))
+    assert(
+      legacyManifest.contains(
+        "Legacy broad skewer, Scene.Material-by-skewer, Pin replacement, rear-king skewer, production API, public route, and public/user-facing LLM paths do not return."
+      )
+    )
 
   test("Skewer-3 negative corpus keeps skewer-looking false positives silent"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5693,18 +7522,54 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture).foreach: doc =>
       assert(doc.contains("Skewer-3 opens only the negative corpus for the narrow `Tactic.Skewer` slice."))
-      assert(doc.contains("Skewer-3 keeps illegal moves, missing same-board proof, non-sliders, missing front target, missing rear target, front or rear king targets, front/rear targets not on the same rival side, rear targets not behind the front target on the same line, extra blockers between front and rear target, DiscoveredAttack-only lines, Pin-looking positions, front-piece-must-move assumptions, and material-win, forced, or best-move wording silent."))
-      assert(doc.contains("Skewer-3 rule: Two pieces on a line is not enough. Complete front-and-back skewer proof or silence."))
-      assert(doc.contains("Skewer-3 opens no new proof home, new writer, StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, Scene.Material claim, Pin replacement, front piece must move wording, wins rear piece claim, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Skewer-3 keeps illegal moves, missing same-board proof, non-sliders, missing front target, missing rear target, front or rear king targets, front/rear targets not on the same rival side, rear targets not behind the front target on the same line, extra blockers between front and rear target, DiscoveredAttack-only lines, Pin-looking positions, front-piece-must-move assumptions, and material-win, forced, or best-move wording silent."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-3 rule: Two pieces on a line is not enough. Complete front-and-back skewer proof or silence."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-3 opens no new proof home, new writer, StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, Scene.Material claim, Pin replacement, front piece must move wording, wins rear piece claim, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
 
     assert(normalizedModelContract.contains("Skewer-3 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Skewer-3 opens only the negative corpus for the narrow `Tactic.Skewer` slice."))
-    assert(normalizedModelContract.contains("Skewer-3 keeps illegal moves, missing same-board proof, non-sliders, missing front target, missing rear target, front or rear king targets, front/rear targets not on the same rival side, rear targets not behind the front target on the same line, extra blockers between front and rear target, DiscoveredAttack-only lines, Pin-looking positions, front-piece-must-move assumptions, and material-win, forced, or best-move wording silent."))
-    assert(normalizedModelContract.contains("Two pieces on a line is not enough. Complete front-and-back skewer proof or silence."))
-    assert(normalizedModelContract.contains("Skewer-3 opens no new proof home, new writer, StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, Scene.Material claim, Pin replacement, front piece must move wording, wins rear piece claim, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-3 opens only the negative corpus for the narrow `Tactic.Skewer` slice."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-3 keeps illegal moves, missing same-board proof, non-sliders, missing front target, missing rear target, front or rear king targets, front/rear targets not on the same rival side, rear targets not behind the front target on the same line, extra blockers between front and rear target, DiscoveredAttack-only lines, Pin-looking positions, front-piece-must-move assumptions, and material-win, forced, or best-move wording silent."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Two pieces on a line is not enough. Complete front-and-back skewer proof or silence."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-3 opens no new proof home, new writer, StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, Scene.Material claim, Pin replacement, front piece must move wording, wins rear piece claim, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
     assert(legacyManifest.contains("Skewer-3 negative corpus authority lives in `StoryInteractionLaw.md`."))
-    assert(legacyManifest.contains("Legacy broad skewer, front-piece-must-move, material win, forced, best-move, Pin replacement, Scene.Material-by-skewer, production API, public route, and public/user-facing LLM paths do not return."))
+    assert(
+      legacyManifest.contains(
+        "Legacy broad skewer, front-piece-must-move, material win, forced, best-move, Pin replacement, Scene.Material-by-skewer, production API, public route, and public/user-facing LLM paths do not return."
+      )
+    )
 
   test("Skewer-4 EngineCheck reuse keeps engine evidence internal for Skewer"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5746,16 +7611,46 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(skewerScope), s"Skewer-4 scope must pin: $skewerScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Skewer-4 opens only existing `EngineCheck` reuse for existing `Tactic.Skewer` Stories."))
-      assert(doc.contains("EngineCheck cannot create Skewer; Supports creates no new claim; Caps suppresses standalone claim or keeps downstream speech bounded when opened later; Refutes blocks the Skewer Story; Unknown creates no engine expression."))
-      assert(doc.contains("Skewer-4 opens no engine-says wording, best-move wording, only-move wording, forced-win wording, winning tactic, raw PV explanation, eval number public value, StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains("Skewer-4 opens only existing `EngineCheck` reuse for existing `Tactic.Skewer` Stories.")
+      )
+      assert(
+        doc.contains(
+          "EngineCheck cannot create Skewer; Supports creates no new claim; Caps suppresses standalone claim or keeps downstream speech bounded when opened later; Refutes blocks the Skewer Story; Unknown creates no engine expression."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-4 opens no engine-says wording, best-move wording, only-move wording, forced-win wording, winning tactic, raw PV explanation, eval number public value, StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
     assert(normalizedModelContract.contains("Skewer-4 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Skewer-4 opens only existing `EngineCheck` reuse for existing `Tactic.Skewer` Stories."))
-    assert(normalizedModelContract.contains("EngineCheck cannot create Skewer; Supports creates no new claim; Caps suppresses standalone claim or keeps downstream speech bounded when opened later; Refutes blocks the Skewer Story; Unknown creates no engine expression."))
-    assert(normalizedModelContract.contains("Skewer-4 opens no engine-says wording, best-move wording, only-move wording, forced-win wording, winning tactic, raw PV explanation, eval number public value, StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-4 opens only existing `EngineCheck` reuse for existing `Tactic.Skewer` Stories."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "EngineCheck cannot create Skewer; Supports creates no new claim; Caps suppresses standalone claim or keeps downstream speech bounded when opened later; Refutes blocks the Skewer Story; Unknown creates no engine expression."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-4 opens no engine-says wording, best-move wording, only-move wording, forced-win wording, winning tactic, raw PV explanation, eval number public value, StoryTable Lead admission, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
     assert(legacyManifest.contains("Skewer-4 EngineCheck reuse authority lives in `StoryInteractionLaw.md`."))
-    assert(legacyManifest.contains("Legacy engine-says, raw PV explanation, eval-number public value, best-move, only-move, forced-win, winning-tactic, StoryTable Lead admission, ExplanationPlan, renderer, LLM, production API, public route, and public/user-facing LLM paths do not return."))
+    assert(
+      legacyManifest.contains(
+        "Legacy engine-says, raw PV explanation, eval-number public value, best-move, only-move, forced-win, winning-tactic, StoryTable Lead admission, ExplanationPlan, renderer, LLM, production API, public route, and public/user-facing LLM paths do not return."
+      )
+    )
 
   test("Skewer-5 StoryTable integration keeps Skewer claim ownership bounded"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5797,17 +7692,51 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(skewerScope), s"Skewer-5 scope must pin: $skewerScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Skewer-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, `Tactic.Pin`, `Tactic.RemoveGuard`, and `Tactic.Skewer` rows."))
-      assert(doc.contains("Skewer-5 keeps selected Verdict stable across input order, prevents duplicate Lead for DiscoveredAttack and Skewer, keeps Skewer from owning Material, Pin king-relation, or RemoveGuard defender-relation claims, keeps actual material change now in Scene.Material, and keeps incomplete front/rear relations silent so only complete existing rows remain."))
-      assert(doc.contains("Skewer-5 opens no new proof home, new Story family, broad LineTactic, broad XRay, Material claim from Skewer, DiscoveredAttack duplicate Lead from Skewer, Pin king relation from Skewer, RemoveGuard defender relation from Skewer, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Skewer-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, `Tactic.Pin`, `Tactic.RemoveGuard`, and `Tactic.Skewer` rows."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-5 keeps selected Verdict stable across input order, prevents duplicate Lead for DiscoveredAttack and Skewer, keeps Skewer from owning Material, Pin king-relation, or RemoveGuard defender-relation claims, keeps actual material change now in Scene.Material, and keeps incomplete front/rear relations silent so only complete existing rows remain."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-5 opens no new proof home, new Story family, broad LineTactic, broad XRay, Material claim from Skewer, DiscoveredAttack duplicate Lead from Skewer, Pin king relation from Skewer, RemoveGuard defender relation from Skewer, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
 
     assert(normalizedModelContract.contains("Skewer-5 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Skewer-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, `Tactic.Pin`, `Tactic.RemoveGuard`, and `Tactic.Skewer` rows."))
-    assert(normalizedModelContract.contains("Skewer-5 keeps selected Verdict stable across input order, prevents duplicate Lead for DiscoveredAttack and Skewer, keeps Skewer from owning Material, Pin king-relation, or RemoveGuard defender-relation claims, keeps actual material change now in Scene.Material, and keeps incomplete front/rear relations silent so only complete existing rows remain."))
-    assert(normalizedModelContract.contains("Skewer-5 opens no new proof home, new Story family, broad LineTactic, broad XRay, Material claim from Skewer, DiscoveredAttack duplicate Lead from Skewer, Pin king relation from Skewer, RemoveGuard defender relation from Skewer, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-    assert(legacyManifest.contains("Skewer-5 StoryTable integration authority lives in `StoryInteractionLaw.md`."))
-    assert(legacyManifest.contains("Legacy broad LineTactic, broad XRay, material-by-skewer, pin-by-skewer, remove-guard-by-skewer, duplicate discovered-attack, ExplanationPlan, renderer, LLM, production API, public route, and public/user-facing LLM paths do not return."))
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-5 opens only StoryTable integration for existing `Tactic.Hanging`, `Tactic.Fork`, `Scene.Material`, `Scene.Defense`, `Tactic.DiscoveredAttack`, `Tactic.Pin`, `Tactic.RemoveGuard`, and `Tactic.Skewer` rows."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-5 keeps selected Verdict stable across input order, prevents duplicate Lead for DiscoveredAttack and Skewer, keeps Skewer from owning Material, Pin king-relation, or RemoveGuard defender-relation claims, keeps actual material change now in Scene.Material, and keeps incomplete front/rear relations silent so only complete existing rows remain."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-5 opens no new proof home, new Story family, broad LineTactic, broad XRay, Material claim from Skewer, DiscoveredAttack duplicate Lead from Skewer, Pin king relation from Skewer, RemoveGuard defender relation from Skewer, ExplanationPlan mapping, renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
+    assert(
+      legacyManifest.contains("Skewer-5 StoryTable integration authority lives in `StoryInteractionLaw.md`.")
+    )
+    assert(
+      legacyManifest.contains(
+        "Legacy broad LineTactic, broad XRay, material-by-skewer, pin-by-skewer, remove-guard-by-skewer, duplicate discovered-attack, ExplanationPlan, renderer, LLM, production API, public route, and public/user-facing LLM paths do not return."
+      )
+    )
 
   test("Skewer-6 ExplanationPlan opens only bounded Skewer claim mapping"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5848,19 +7777,57 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(skewerScope), s"Skewer-6 scope must pin: $skewerScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Skewer-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.Skewer` Verdicts."))
-      assert(doc.contains("Skewer-6 allows only the `skewers_piece_to_piece` claim key and forbids wins_material, wins_rear_piece, front_piece_must_move, best_move, only_move, forced, decisive, king_unsafe, mate_threat, creates_pressure, and takes_initiative."))
-      assert(doc.contains("Support, Context, Blocked, capped, and refuted Skewer rows create no standalone claim."))
-      assert(doc.contains("Skewer-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Skewer-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.Skewer` Verdicts."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-6 allows only the `skewers_piece_to_piece` claim key and forbids wins_material, wins_rear_piece, front_piece_must_move, best_move, only_move, forced, decisive, king_unsafe, mate_threat, creates_pressure, and takes_initiative."
+        )
+      )
+      assert(
+        doc.contains("Support, Context, Blocked, capped, and refuted Skewer rows create no standalone claim.")
+      )
+      assert(
+        doc.contains(
+          "Skewer-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
 
     assert(normalizedModelContract.contains("Skewer-6 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Skewer-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.Skewer` Verdicts."))
-    assert(normalizedModelContract.contains("Skewer-6 allows only the `skewers_piece_to_piece` claim key and forbids wins_material, wins_rear_piece, front_piece_must_move, best_move, only_move, forced, decisive, king_unsafe, mate_threat, creates_pressure, and takes_initiative."))
-    assert(normalizedModelContract.contains("Support, Context, Blocked, capped, and refuted Skewer rows create no standalone claim."))
-    assert(normalizedModelContract.contains("Skewer-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-6 opens only ExplanationPlan mapping for selected uncapped Lead `Tactic.Skewer` Verdicts."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-6 allows only the `skewers_piece_to_piece` claim key and forbids wins_material, wins_rear_piece, front_piece_must_move, best_move, only_move, forced, decisive, king_unsafe, mate_threat, creates_pressure, and takes_initiative."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Support, Context, Blocked, capped, and refuted Skewer rows create no standalone claim."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-6 opens no renderer wording, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
     assert(legacyManifest.contains("Skewer-6 ExplanationPlan authority lives in `StoryInteractionLaw.md`."))
-    assert(legacyManifest.contains("Legacy Skewer material-win, wins-rear-piece, front-piece-must-move, best-move, only-move, forced, decisive, king-safety, mate-threat, pressure, initiative, renderer, LLM, production API, public route, and public/user-facing LLM paths do not return."))
+    assert(
+      legacyManifest.contains(
+        "Legacy Skewer material-win, wins-rear-piece, front-piece-must-move, best-move, only-move, forced, decisive, king-safety, mate-threat, pressure, initiative, renderer, LLM, production API, public route, and public/user-facing LLM paths do not return."
+      )
+    )
 
   test("Skewer-7 deterministic renderer opens only bounded Skewer template"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5893,19 +7860,61 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(skewerScope), s"Skewer-7 scope must pin: $skewerScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Skewer-7 opens only deterministic renderer text for selected `Tactic.Skewer` ExplanationPlan."))
-      assert(doc.contains("Skewer-7 renderer input is ExplanationPlan only and may render `{route} skewers the piece on {target} to the piece on {secondaryTarget}.`"))
-      assert(doc.contains("Skewer-7 forbids wins material, wins the piece behind it, the front piece must move, best move, only move, forces, decisive, king is unsafe, threatens mate, and creates pressure."))
-      assert(doc.contains("Skewer-7 opens no raw Verdict, raw Story, SkewerProof, LineFact, LineProof, BoardFacts, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains(
+          "Skewer-7 opens only deterministic renderer text for selected `Tactic.Skewer` ExplanationPlan."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-7 renderer input is ExplanationPlan only and may render `{route} skewers the piece on {target} to the piece on {secondaryTarget}.`"
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-7 forbids wins material, wins the piece behind it, the front piece must move, best move, only move, forces, decisive, king is unsafe, threatens mate, and creates pressure."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-7 opens no raw Verdict, raw Story, SkewerProof, LineFact, LineProof, BoardFacts, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
 
     assert(normalizedModelContract.contains("Skewer-7 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Skewer-7 opens only deterministic renderer text for selected `Tactic.Skewer` ExplanationPlan."))
-    assert(normalizedModelContract.contains("Skewer-7 renderer input is ExplanationPlan only and may render `{route} skewers the piece on {target} to the piece on {secondaryTarget}.`"))
-    assert(normalizedModelContract.contains("Skewer-7 forbids wins material, wins the piece behind it, the front piece must move, best move, only move, forces, decisive, king is unsafe, threatens mate, and creates pressure."))
-    assert(normalizedModelContract.contains("Skewer-7 opens no raw Verdict, raw Story, SkewerProof, LineFact, LineProof, BoardFacts, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."))
-    assert(legacyManifest.contains("Skewer-7 deterministic renderer authority lives in `StoryInteractionLaw.md`."))
-    assert(legacyManifest.contains("Legacy Skewer material-win, wins-piece-behind, front-piece-must-move, best-move, only-move, forced, decisive, king-safety, mate-threat, pressure, LLM, production API, public route, and public/user-facing LLM paths do not return."))
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-7 opens only deterministic renderer text for selected `Tactic.Skewer` ExplanationPlan."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-7 renderer input is ExplanationPlan only and may render `{route} skewers the piece on {target} to the piece on {secondaryTarget}.`"
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-7 forbids wins material, wins the piece behind it, the front piece must move, best move, only move, forces, decisive, king is unsafe, threatens mate, and creates pressure."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-7 opens no raw Verdict, raw Story, SkewerProof, LineFact, LineProof, BoardFacts, EngineCheck, proofFailures, LLM smoke, public route `200`, production API, or public/user-facing LLM narration."
+      )
+    )
+    assert(
+      legacyManifest.contains("Skewer-7 deterministic renderer authority lives in `StoryInteractionLaw.md`.")
+    )
+    assert(
+      legacyManifest.contains(
+        "Legacy Skewer material-win, wins-piece-behind, front-piece-must-move, best-move, only-move, forced, decisive, king-safety, mate-threat, pressure, LLM, production API, public route, and public/user-facing LLM paths do not return."
+      )
+    )
 
   test("Skewer-8 LLM smoke reuses only the existing 8B prompt boundary"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5951,19 +7960,57 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(skewerScope), s"Skewer-8 scope must pin: $skewerScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Skewer-8 opens only LLM smoke for selected Skewer ExplanationPlan and RenderedLine."))
-      assert(doc.contains("Skewer-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"))
-      assert(doc.contains("Skewer-8 forbids raw Story, raw SkewerProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, material-win, forced, pressure, initiative, and mate claims."))
-      assert(doc.contains("Skewer-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."))
-      assert(doc.contains("Public route `200`, production API, and public/user-facing LLM narration remain closed."))
+      assert(
+        doc.contains("Skewer-8 opens only LLM smoke for selected Skewer ExplanationPlan and RenderedLine.")
+      )
+      assert(
+        doc.contains(
+          "Skewer-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-8 forbids raw Story, raw SkewerProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, material-win, forced, pressure, initiative, and mate claims."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."
+        )
+      )
+      assert(
+        doc.contains(
+          "Public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
 
     assert(normalizedModelContract.contains("Skewer-8 is owned by `StoryInteractionLaw.md`."))
-    assert(normalizedModelContract.contains("Skewer-8 opens only LLM smoke for selected Skewer ExplanationPlan and RenderedLine."))
-    assert(normalizedModelContract.contains("Skewer-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"))
-    assert(normalizedModelContract.contains("Skewer-8 forbids raw Story, raw SkewerProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, material-win, forced, pressure, initiative, and mate claims."))
-    assert(normalizedModelContract.contains("Skewer-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."))
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-8 opens only LLM smoke for selected Skewer ExplanationPlan and RenderedLine."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-8 reuses only the existing 8B Codex CLI prompt smoke contract with renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`"
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-8 forbids raw Story, raw SkewerProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, material-win, forced, pressure, initiative, and mate claims."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "Skewer-8 opens no public/user-facing LLM narration, public route `200`, production API, raw proof repair, or engine explanation."
+      )
+    )
     assert(legacyManifest.contains("Skewer-8 LLM smoke authority lives in `StoryInteractionLaw.md`."))
-    assert(legacyManifest.contains("Legacy Skewer raw Story, raw SkewerProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new-move, new-line, material-win, forced, pressure, initiative, mate, public/user-facing LLM, production API, public route, raw-proof-repair, and engine-explanation paths do not return."))
+    assert(
+      legacyManifest.contains(
+        "Legacy Skewer raw Story, raw SkewerProof, raw LineProof, BoardFacts, EngineCheck, raw PV, proofFailures, new-move, new-line, material-win, forced, pressure, initiative, mate, public/user-facing LLM, production API, public route, raw-proof-repair, and engine-explanation paths do not return."
+      )
+    )
 
   test("Skewer Closeout hard cleanup keeps Skewer authority separated and public surfaces closed"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -5996,20 +8043,62 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(skewerScope), s"Skewer Closeout scope must pin: $skewerScope")
 
     Vector(readme, ssot, architecture).foreach: doc =>
-      assert(doc.contains("Skewer Closeout opens no new chess meaning; it audits only LineFact, LineProof, SkewerProof, Tactic.Skewer, speech key, renderer/LLM, docs authority, test-helper boundary, and closed public surfaces."))
-      assert(doc.contains("Skewer Closeout confirms Skewer owns no Material, Hanging, Pin, DiscoveredAttack, RemoveGuard, or Defense meaning; front-piece-must-move, wins-rear-piece, wins-material, and forced-skewer terms are not live authority; renderer/LLM wording stays no stronger than `skewers_piece_to_piece`; public route `200`, production API, and public/user-facing LLM narration remain closed."))
-      assert(doc.contains("Skewer Closeout also audits meaning, authority, terminology, and document duplication without duplicating detailed rules outside StoryInteractionLaw.md."))
-      assert(!doc.contains("Skewer Closeout must confirm:"), "summary docs must not duplicate detailed Skewer Closeout checklist")
-      assert(!doc.contains("Skewer Closeout duplicate checks:"), "summary docs must not duplicate detailed Skewer duplicate checklist")
+      assert(
+        doc.contains(
+          "Skewer Closeout opens no new chess meaning; it audits only LineFact, LineProof, SkewerProof, Tactic.Skewer, speech key, renderer/LLM, docs authority, test-helper boundary, and closed public surfaces."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer Closeout confirms Skewer owns no Material, Hanging, Pin, DiscoveredAttack, RemoveGuard, or Defense meaning; front-piece-must-move, wins-rear-piece, wins-material, and forced-skewer terms are not live authority; renderer/LLM wording stays no stronger than `skewers_piece_to_piece`; public route `200`, production API, and public/user-facing LLM narration remain closed."
+        )
+      )
+      assert(
+        doc.contains(
+          "Skewer Closeout also audits meaning, authority, terminology, and document duplication without duplicating detailed rules outside StoryInteractionLaw.md."
+        )
+      )
+      assert(
+        !doc.contains("Skewer Closeout must confirm:"),
+        "summary docs must not duplicate detailed Skewer Closeout checklist"
+      )
+      assert(
+        !doc.contains("Skewer Closeout duplicate checks:"),
+        "summary docs must not duplicate detailed Skewer duplicate checklist"
+      )
 
     assert(normalizedModelContract.contains("Skewer Closeout opens no new chess meaning."))
-    assert(normalizedModelContract.contains("It audits only LineFact, LineProof, SkewerProof, Tactic.Skewer, speech key, renderer/LLM, docs authority, test-helper boundary, and closed public surfaces."))
-    assert(normalizedModelContract.contains("It confirms Skewer owns no Material, Hanging, Pin, DiscoveredAttack, RemoveGuard, or Defense meaning; front-piece-must-move, wins-rear-piece, wins-material, and forced-skewer terms are not live authority; renderer/LLM wording stays no stronger than `skewers_piece_to_piece`; public route `200`, production API, and public/user-facing LLM narration remain closed."))
-    assert(normalizedModelContract.contains("It also audits meaning, authority, terminology, and document duplication without duplicating detailed rules outside StoryInteractionLaw.md."))
-    assert(!normalizedModelContract.contains("Skewer Closeout must confirm:"), "model contract must summarize, not duplicate detailed Skewer Closeout checklist")
-    assert(!normalizedModelContract.contains("Skewer Closeout duplicate checks:"), "model contract must summarize, not duplicate detailed Skewer duplicate checklist")
-    assert(legacyManifest.contains("Skewer Closeout hard cleanup authority lives in `StoryInteractionLaw.md`."))
-    assert(legacyManifest.contains("Legacy Skewer Material, Hanging, Pin, DiscoveredAttack, RemoveGuard, Defense, front-piece-must-move, wins-rear-piece, wins-material, forced-skewer, broad LineTactic, broad Skewer, XRay, renderer-beyond-Skewer-7, LLM-beyond-Skewer-8, test-helper-authority, production API, public route, and public/user-facing LLM paths do not return."))
+    assert(
+      normalizedModelContract.contains(
+        "It audits only LineFact, LineProof, SkewerProof, Tactic.Skewer, speech key, renderer/LLM, docs authority, test-helper boundary, and closed public surfaces."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "It confirms Skewer owns no Material, Hanging, Pin, DiscoveredAttack, RemoveGuard, or Defense meaning; front-piece-must-move, wins-rear-piece, wins-material, and forced-skewer terms are not live authority; renderer/LLM wording stays no stronger than `skewers_piece_to_piece`; public route `200`, production API, and public/user-facing LLM narration remain closed."
+      )
+    )
+    assert(
+      normalizedModelContract.contains(
+        "It also audits meaning, authority, terminology, and document duplication without duplicating detailed rules outside StoryInteractionLaw.md."
+      )
+    )
+    assert(
+      !normalizedModelContract.contains("Skewer Closeout must confirm:"),
+      "model contract must summarize, not duplicate detailed Skewer Closeout checklist"
+    )
+    assert(
+      !normalizedModelContract.contains("Skewer Closeout duplicate checks:"),
+      "model contract must summarize, not duplicate detailed Skewer duplicate checklist"
+    )
+    assert(
+      legacyManifest.contains("Skewer Closeout hard cleanup authority lives in `StoryInteractionLaw.md`.")
+    )
+    assert(
+      legacyManifest.contains(
+        "Legacy Skewer Material, Hanging, Pin, DiscoveredAttack, RemoveGuard, Defense, front-piece-must-move, wins-rear-piece, wins-material, forced-skewer, broad LineTactic, broad Skewer, XRay, renderer-beyond-Skewer-7, LLM-beyond-Skewer-8, test-helper-authority, production API, public route, and public/user-facing LLM paths do not return."
+      )
+    )
 
   test("Line Defender Neighborhood Closeout closes four narrow slices without broad meaning"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -6078,7 +8167,8 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
     val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
     val legacyManifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
-    val storySource = Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/Story.scala"))
+    val storySource =
+      Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/Story.scala"))
     val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
 
     assert(interactionLaw.contains("### LNC-1 Scope Audit"))
@@ -6130,8 +8220,11 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val modelContract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
     val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
     val legacyManifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
-    val explanationPlanSource = Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/ExplanationPlan.scala"))
-    val storySource = Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/Story.scala"))
+    val explanationPlanSource = Files.readString(
+      Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/ExplanationPlan.scala")
+    )
+    val storySource =
+      Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/Story.scala"))
     val normalizedModelContract = modelContract.replaceAll("\\s+", " ")
 
     assert(interactionLaw.contains("### LNC-2 Duplication Audit"))
@@ -6386,9 +8479,15 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(lncScope), s"LNC-7 scope must pin: $lncScope")
 
     assertLineDefenderCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, legacyManifest)
-    assert(!normalizedModelContract.contains("LNC-7 runtime boundary:"), "model contract must summarize, not duplicate detailed LNC-7 checklist")
+    assert(
+      !normalizedModelContract.contains("LNC-7 runtime boundary:"),
+      "model contract must summarize, not duplicate detailed LNC-7 checklist"
+    )
     Vector(readme, ssot, architecture, legacyManifest).foreach: doc =>
-      assert(!doc.contains("LNC-7 runtime boundary:"), "summary docs must not duplicate detailed LNC-7 checklist")
+      assert(
+        !doc.contains("LNC-7 runtime boundary:"),
+        "summary docs must not duplicate detailed LNC-7 checklist"
+      )
 
   test("LNC final completion standard closes Line Defender neighborhood"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -6422,8 +8521,14 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     assertLineDefenderCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, legacyManifest)
     Vector(readme, ssot, architecture, normalizedModelContract, legacyManifest).foreach: doc =>
-      assert(!doc.contains("LNC Closeout final completion standard:"), "summary docs must not duplicate detailed LNC final standard")
-      assert(!doc.contains("LNC final verification:"), "summary docs must not duplicate detailed LNC final verification")
+      assert(
+        !doc.contains("LNC Closeout final completion standard:"),
+        "summary docs must not duplicate detailed LNC final standard"
+      )
+      assert(
+        !doc.contains("LNC final verification:"),
+        "summary docs must not duplicate detailed LNC final verification"
+      )
 
   test("PawnAdvance-0 charter opens only bounded passed pawn progress"):
     val readme = Files.readString(docsRoot.resolve("README.md"))
@@ -6451,7 +8556,10 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       val normalizedDoc = doc.replaceAll("\\s+", " ")
       assert(normalizedDoc.contains("PawnAdvance-0 is owned by `StoryInteractionLaw.md`."))
       assert(normalizedDoc.contains("The only bounded claim key is `advances_passed_pawn`"))
-      assert(!doc.contains("Allowed deterministic wording:"), "summary docs must not duplicate detailed PawnAdvance renderer wording")
+      assert(
+        !doc.contains("Allowed deterministic wording:"),
+        "summary docs must not duplicate detailed PawnAdvance renderer wording"
+      )
 
     assert(manifest.contains("PawnAdvance-0 authority lives in `StoryInteractionLaw.md`."))
     assert(manifest.contains("legacy broad PawnTactic"))
@@ -6492,11 +8600,19 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture, contract).foreach: doc =>
       val normalizedDoc = doc.replaceAll("\\s+", " ")
-      assert(normalizedDoc.contains("Current implementation scope is Pawn / Promotion Neighborhood third vertical slice."))
+      assert(
+        normalizedDoc.contains("Current implementation scope is Pawn / Promotion Neighborhood closeout.")
+      )
       assert(normalizedDoc.contains("PawnStop-0 is owned by `StoryInteractionLaw.md`."))
       assert(normalizedDoc.contains("The only bounded claim key is `stops_pawn_advance`"))
-      assert(!doc.contains("### PawnStop-0 Charter"), "summary docs must not duplicate detailed PawnStop charter")
-      assert(!doc.contains("Allowed deterministic wording:"), "summary docs must not duplicate detailed PawnStop renderer wording")
+      assert(
+        !doc.contains("### PawnStop-0 Charter"),
+        "summary docs must not duplicate detailed PawnStop charter"
+      )
+      assert(
+        !doc.contains("Allowed deterministic wording:"),
+        "summary docs must not duplicate detailed PawnStop renderer wording"
+      )
 
     assert(manifest.contains("PawnStop-0 authority lives in `StoryInteractionLaw.md`."))
     assert(manifest.contains("legacy broad pawn defense"))
@@ -6541,11 +8657,19 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture, contract).foreach: doc =>
       val normalizedDoc = doc.replaceAll("\\s+", " ")
-      assert(normalizedDoc.contains("Current implementation scope is Pawn / Promotion Neighborhood third vertical slice."))
+      assert(
+        normalizedDoc.contains("Current implementation scope is Pawn / Promotion Neighborhood closeout.")
+      )
       assert(normalizedDoc.contains("PromotionThreat-0 is owned by `StoryInteractionLaw.md`."))
       assert(normalizedDoc.contains("The only bounded claim key is `threatens_promotion_next`"))
-      assert(!doc.contains("### PromotionThreat-0 Charter"), "summary docs must not duplicate detailed PromotionThreat charter")
-      assert(!doc.contains("PromotionThreat-0 duplicate audit:"), "summary docs must not duplicate PromotionThreat duplicate audit")
+      assert(
+        !doc.contains("### PromotionThreat-0 Charter"),
+        "summary docs must not duplicate detailed PromotionThreat charter"
+      )
+      assert(
+        !doc.contains("PromotionThreat-0 duplicate audit:"),
+        "summary docs must not duplicate PromotionThreat duplicate audit"
+      )
 
     assert(manifest.contains("PromotionThreat-0 authority lives in `StoryInteractionLaw.md`."))
     assert(manifest.contains("legacy actual Promotion Story"))
@@ -6580,6 +8704,321 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "proofFailures must not become renderer input or LLM input."
     ).foreach: required =>
       assert(interactionLaw.contains(required), s"PromotionThreat-1 law must pin: $required")
+
+  test("Promotion-0 and Promotion-1 pin actual non-capturing promotion proof without Story output"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### Promotion-0 Charter",
+      "Promotion-0 opens only the fourth narrow Pawn / Promotion Neighborhood vertical slice.",
+      "PromotionProof proves the legal promotion event. Scene.Promotion may speak only the promotion event, not conversion or winning.",
+      "- narrow `Scene.Promotion`",
+      "- legal pawn promotion move",
+      "- non-capturing promotion only",
+      "- exact board replay",
+      "- promotion square",
+      "- promoted piece identity",
+      "- capture promotion",
+      "- promotion material result",
+      "- winning endgame",
+      "- conversion",
+      "- decisive advantage",
+      "- best move / only move",
+      "- forced win",
+      "- tablebase result",
+      "- promotion threat",
+      "- unstoppable pawn",
+      "- public route `200`",
+      "- production API",
+      "- public/user-facing LLM narration",
+      "### Promotion-1 PromotionProof",
+      "`PromotionProof` is the proof home for the narrow actual promotion event.",
+      "- promoting side",
+      "- rival side",
+      "- pawn identity",
+      "- origin square",
+      "- promotion square",
+      "- legal promotion move",
+      "- move is non-capturing",
+      "- promoted piece identity",
+      "- exact board replay",
+      "- pawn reaches final rank",
+      "- same-board proof",
+      "`PromotionProof` is not a public `Story`.",
+      "`PromotionThreatProof` does not own actual Promotion.",
+      "- `wins`",
+      "- `decisive`",
+      "- `conversion`",
+      "- `promotion is enough`",
+      "- `best move`",
+      "- `tablebase`",
+      "- material value claim",
+      "proofFailures must not become renderer input or LLM input."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"Promotion law must pin: $required")
+
+    Vector(readme, ssot, architecture, contract).foreach: doc =>
+      val normalizedDoc = doc.replaceAll("\\s+", " ")
+      assert(
+        normalizedDoc.contains("Current implementation scope is Pawn / Promotion Neighborhood closeout.")
+      )
+      assert(normalizedDoc.contains("Promotion-1 is owned by `StoryInteractionLaw.md`."))
+      assert(normalizedDoc.contains("It adds only `PromotionProof` as a diagnostic proof home"))
+      assert(
+        !doc.contains("### Promotion-0 Charter"),
+        "summary docs must not duplicate detailed Promotion charter"
+      )
+      assert(
+        !doc.contains("### Promotion-1 PromotionProof"),
+        "summary docs must not duplicate detailed PromotionProof law"
+      )
+
+    assert(manifest.contains("Promotion-1 authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy promotion material result"))
+
+  test("Promotion-2 pins ScenePromotion writer identity without downstream wording"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### Promotion-2 ScenePromotion Writer",
+      "`ScenePromotion` is the named writer for narrow `Scene.Promotion`.",
+      "- complete `StoryProof`",
+      "- complete `PromotionProof`",
+      "- same-board legal replay",
+      "- legal non-capturing promotion move",
+      "- promotion square complete",
+      "- promoted piece identity complete",
+      "- writer = `ScenePromotion`",
+      "- `EngineCheck` does not `Refute`",
+      "- `scene = Promotion`",
+      "- `tactic = None`",
+      "- `plan = None`",
+      "- `side = promoting side`",
+      "- `rival = rival side`",
+      "- `target = promotion square`",
+      "- `anchor = pawn origin square`",
+      "- `route = promotion move`",
+      "`ScenePromotion` must not own `Scene.PromotionThreat` meaning.",
+      "`ScenePromotion` must not create a `Scene.Material` claim.",
+      "`ScenePromotion` must not create winning, conversion, or tablebase meaning.",
+      "Promotion-2 does not open ExplanationPlan, renderer, LLM narration, public route `200`, or production API."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"Promotion-2 law must pin: $required")
+
+    assert(manifest.contains("Promotion-2 authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy promotion-threat-by-promotion"))
+
+  test("Promotion-3 pins actual promotion negative corpus as legal event proof or silence"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### Promotion-3 Negative Corpus",
+      "A pawn near promotion is not Promotion. Legal promotion event proof or silence.",
+      "- legal move 아님",
+      "- same-board proof 없음",
+      "- pawn move가 아님",
+      "- final rank에 도달하지 않음",
+      "- promotion piece identity 없음",
+      "- capture promotion",
+      "- promotion threat일 뿐 actual promotion 아님",
+      "- material result를 promotion claim으로 말하려 함",
+      "- winning/conversion/tablebase wording 유입",
+      "`ScenePromotion` must stay silent for every Promotion-3 negative unless complete `PromotionProof` proves the legal non-capturing promotion event."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"Promotion-3 law must pin: $required")
+
+    assert(manifest.contains("Promotion-3 authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy near-promotion-as-promotion"))
+
+  test("Promotion-4 pins EngineCheck reuse without engine-owned Promotion claims"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### Promotion-4 EngineCheck Reuse",
+      "Promotion-4 reuses only the existing `EngineCheck` sidecar.",
+      "- `EngineCheck` cannot create Promotion.",
+      "- `Supports` creates no new claim.",
+      "- `Caps` suppresses standalone Promotion speech or weakens it to bounded relation-only evidence when downstream speech opens.",
+      "- `Refutes` blocks the Promotion Story.",
+      "- `Unknown` creates no engine expression.",
+      "Promotion-4 forbidden engine wording:",
+      "- engine says",
+      "- eval number",
+      "- tablebase result",
+      "- best move",
+      "- only move",
+      "- winning endgame",
+      "- forced win",
+      "Completion standard: Promotion-4 closes when `EngineCheck` can attach only to an existing same-board `ScenePromotion` Story route, cannot create Promotion, cannot add a new claim under Supports, suppresses or bounds capped rows, blocks refuted rows, keeps Unknown engine-silent, and exposes no engine wording, eval numbers, tablebase, best-move, only-move, winning-endgame, or forced-win claims."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"Promotion-4 law must pin: $required")
+
+    assert(manifest.contains("Promotion-4 authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy engine-created-promotion"))
+
+  test("Promotion-5 pins StoryTable integration and collision boundaries"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### Promotion-5 StoryTable Integration",
+      "Promotion-5 integrates `Scene.Promotion` into `StoryTable` collision behavior only.",
+      "- `Scene.PawnAdvance`",
+      "- `Scene.PawnStop`",
+      "- `Scene.PromotionThreat`",
+      "- `Scene.Promotion`",
+      "- existing Material / Defense / Hanging / Line rows",
+      "- input order remains stable",
+      "- Promotion does not own PromotionThreat meaning",
+      "- PromotionThreat does not own actual Promotion meaning",
+      "- Promotion does not own Material claim",
+      "- actual material/capture result remains in the existing material home",
+      "- capped or refuted Promotion creates no standalone text",
+      "Completion standard: Promotion-5 closes when `StoryTable` orders actual Promotion deterministically against PawnAdvance, PawnStop, PromotionThreat, Material, Defense, Hanging, and Line rows; Promotion and PromotionThreat cannot borrow each other's meaning; actual material and capture-result claims stay in existing material homes; and capped or refuted Promotion rows do not reach standalone ExplanationPlan, renderer, or LLM wording."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"Promotion-5 law must pin: $required")
+
+    assert(manifest.contains("Promotion-5 authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy promotion-steals-material"))
+    assert(manifest.contains("legacy threat-steals-actual-promotion"))
+
+  test("Promotion-6 pins ExplanationPlan selected uncapped Lead boundary"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### Promotion-6 ExplanationPlan",
+      "Promotion-6 lowers only a selected uncapped `Lead` Verdict for `Scene.Promotion`.",
+      "`ExplanationPlan` may admit only the `promotes_pawn` claim key.",
+      "- `promotes_pawn`",
+      "- `wins_endgame`",
+      "- `converts_advantage`",
+      "- `decisive`",
+      "- `best_move`",
+      "- `only_move`",
+      "- `forced_win`",
+      "- `tablebase_win`",
+      "- `unstoppable_pawn`",
+      "- `material_gain`",
+      "Support, Context, Blocked, capped, and refuted Promotion rows have no standalone claim.",
+      "Completion standard: Promotion-6 closes when only selected uncapped Lead Promotion Verdicts lower to ExplanationPlan with `promotes_pawn`; forbidden keys remain closed; Support, Context, Blocked, capped, and refuted Promotion rows produce no standalone ExplanationPlan claim; and renderer, LLM, production API, public route, winning, conversion, material-gain, best-move, only-move, forced-win, tablebase, and unstoppable-pawn speech remain closed."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"Promotion-6 law must pin: $required")
+
+    assert(manifest.contains("Promotion-6 authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy promotion-explanation-as-win"))
+
+  test("Promotion-7 pins DeterministicRenderer bounded promotion wording only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### Promotion-7 Deterministic Renderer",
+      "Renderer input is `ExplanationPlan` only.",
+      "- `{route} promotes the pawn.`",
+      "- `wins`",
+      "- `winning endgame`",
+      "- `decisive`",
+      "- `converts`",
+      "- `best move`",
+      "- `only move`",
+      "- `forces`",
+      "- `tablebase win`",
+      "- `wins material`",
+      "- `cannot be stopped`",
+      "Renderer must not read `Story`, `Verdict`, `PromotionProof`, `BoardFacts`, `EngineCheck`, `proofFailures`, or source rows.",
+      "Completion standard: Promotion-7 closes when `DeterministicRenderer` accepts only `ExplanationPlan`, phrases selected uncapped Lead Promotion as `{route} promotes the pawn.`, rejects Support, Context, Blocked, capped, refuted, no-claim, and malformed plans, and emits none of the forbidden winning, conversion, best/only, forced, tablebase, material-gain, or unstoppable wording."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"Promotion-7 law must pin: $required")
+
+    assert(manifest.contains("Promotion-7 authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy promotion-renderer-as-win"))
+
+  test("Promotion-8 pins LLM smoke 8B-only prompt boundary"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### Promotion-8 LLM Smoke",
+      "Promotion-8 reuses only the existing 8B LLM smoke boundary.",
+      "Promotion-8 allowed LLM smoke input:",
+      "- renderedText",
+      "- claimKey",
+      "- strength",
+      "- forbidden wording",
+      "- `Rephrase only. Do not add chess facts.`",
+      "Promotion-8 forbidden LLM smoke inputs:",
+      "- raw `Story`",
+      "- raw `PromotionProof`",
+      "- `BoardFacts`",
+      "- `EngineCheck`",
+      "- raw PV",
+      "- `proofFailures`",
+      "Promotion-8 LLM smoke must reject output that adds:",
+      "- new move",
+      "- new line",
+      "- winning, conversion, tablebase, or material-gain claim",
+      "Completion standard: Promotion-8 closes when LLM smoke receives only rendered text contract fields for Promotion, rejects raw Story, PromotionProof, BoardFacts, EngineCheck, raw PV, proofFailures, new moves, new lines, and winning, conversion, tablebase, or material-gain claims, and reuses `Rephrase only. Do not add chess facts.` without adding new LLM behavior."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"Promotion-8 law must pin: $required")
+
+    assert(manifest.contains("Promotion-8 authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy promotion-llm-as-win"))
+
+  test("Promotion Closeout hard cleanup keeps Promotion authority narrow"):
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+
+    Vector(
+      "### Promotion Closeout Hard Cleanup",
+      "`PromotionProof`, `Scene.Promotion`, and `promotes_pawn` remain separate authority homes.",
+      "`PromotionProof` owns only proof of the legal non-capturing promotion event.",
+      "`Scene.Promotion` owns only the public Story identity for that event.",
+      "`promotes_pawn` owns only bounded downstream speech for the selected uncapped Lead Verdict.",
+      "`Scene.Promotion` owns no `Scene.PromotionThreat`, `Scene.PawnAdvance`, `Scene.PawnStop`, or PawnBreak meaning.",
+      "`Scene.Promotion` owns no Material, Defense, Hanging, or Line / Defender tactic meaning.",
+      "`winning`, `conversion`, `decisive`, `tablebase`, and material-gain wording remain forbidden wording only, not live Promotion authority.",
+      "Capture promotion remains closed in this slice.",
+      "- one chess meaning: legal non-capturing pawn promotion event only",
+      "- one proof home: `PromotionProof`",
+      "- one Story label: `Scene.Promotion`",
+      "- one speech key: `promotes_pawn`",
+      "- one detailed live authority document: `StoryInteractionLaw.md`",
+      "`README.md`, SSOT, Architecture, Contract, and Manifest may summarize Promotion only.",
+      "Renderer and LLM wording must remain no stronger than `promotes_pawn`.",
+      "Public route `200`, production API, and public/user-facing LLM narration remain closed.",
+      "Completion standard: Promotion Closeout closes when `PromotionProof`, `Scene.Promotion`, and `promotes_pawn` remain separate authority homes, Promotion owns no PromotionThreat, PawnAdvance, PawnStop, PawnBreak, Material, Defense, Hanging, or Line / Defender tactic meaning, winning, conversion, decisive, tablebase, and material-gain wording remains forbidden only, capture promotion remains closed, renderer and LLM smoke stay bounded to `promotes_pawn`, detailed authority stays only in `StoryInteractionLaw.md`, and public route `200`, production API, and public/user-facing LLM narration remain closed."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"Promotion Closeout law must pin: $required")
+
+    Vector(readme, ssot, architecture, contract).foreach: doc =>
+      val normalizedDoc = doc.replaceAll("\\s+", " ")
+      assert(
+        normalizedDoc.contains("Current implementation scope is Pawn / Promotion Neighborhood closeout.")
+      )
+      assert(
+        !doc.contains("### Promotion Closeout Hard Cleanup"),
+        "summary docs must not duplicate detailed Promotion Closeout law"
+      )
+      assert(
+        !doc.contains("Promotion Closeout duplicate checks:"),
+        "summary docs must not duplicate detailed Promotion Closeout checklist"
+      )
+
+    assert(manifest.contains("Promotion Closeout authority lives in `StoryInteractionLaw.md`."))
+    assert(manifest.contains("legacy promotion-closeout-as-win"))
 
   test("PromotionThreat-2 pins ScenePromotionThreat writer identity and EngineCheck boundary"):
     val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
@@ -6778,10 +9217,22 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(required), s"PromotionThreat closeout law must pin: $required")
 
     Vector(readme, ssot, architecture, contract, manifest).foreach: summaryDoc =>
-      assert(summaryDoc.contains("StoryInteractionLaw.md"), "summary docs must point PromotionThreat authority to StoryInteractionLaw.md")
-      assert(!summaryDoc.contains("### PromotionThreat Closeout Hard Cleanup"), "summary docs must not duplicate detailed PromotionThreat closeout law")
-      assert(!summaryDoc.contains("PromotionThreat Closeout must confirm:"), "summary docs must not duplicate PromotionThreat closeout checklist")
-      assert(!summaryDoc.contains("PromotionThreat Closeout duplicate checks:"), "summary docs must not duplicate PromotionThreat duplicate audit")
+      assert(
+        summaryDoc.contains("StoryInteractionLaw.md"),
+        "summary docs must point PromotionThreat authority to StoryInteractionLaw.md"
+      )
+      assert(
+        !summaryDoc.contains("### PromotionThreat Closeout Hard Cleanup"),
+        "summary docs must not duplicate detailed PromotionThreat closeout law"
+      )
+      assert(
+        !summaryDoc.contains("PromotionThreat Closeout must confirm:"),
+        "summary docs must not duplicate PromotionThreat closeout checklist"
+      )
+      assert(
+        !summaryDoc.contains("PromotionThreat Closeout duplicate checks:"),
+        "summary docs must not duplicate PromotionThreat duplicate audit"
+      )
 
   test("PawnStop-1 pins PawnStopProof as diagnostic proof home only"):
     val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
@@ -7013,11 +9464,26 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(required), s"PawnStop closeout law must pin: $required")
 
     Vector(readme, ssot, architecture, contract, manifest).foreach: summaryDoc =>
-      assert(summaryDoc.contains("PawnStop Closeout opens no new chess meaning; it audits only"), "summary docs must summarize PawnStop closeout")
-      assert(summaryDoc.contains("StoryInteractionLaw.md"), "summary docs must point PawnStop authority to StoryInteractionLaw.md")
-      assert(!summaryDoc.contains("### PawnStop Closeout Hard Cleanup"), "summary docs must not duplicate detailed PawnStop closeout law")
-      assert(!summaryDoc.contains("PawnStop Closeout must confirm:"), "summary docs must not duplicate detailed PawnStop closeout checklist")
-      assert(!summaryDoc.contains("PawnStop Closeout duplicate checks:"), "summary docs must not duplicate detailed PawnStop duplicate checklist")
+      assert(
+        summaryDoc.contains("PawnStop Closeout opens no new chess meaning; it audits only"),
+        "summary docs must summarize PawnStop closeout"
+      )
+      assert(
+        summaryDoc.contains("StoryInteractionLaw.md"),
+        "summary docs must point PawnStop authority to StoryInteractionLaw.md"
+      )
+      assert(
+        !summaryDoc.contains("### PawnStop Closeout Hard Cleanup"),
+        "summary docs must not duplicate detailed PawnStop closeout law"
+      )
+      assert(
+        !summaryDoc.contains("PawnStop Closeout must confirm:"),
+        "summary docs must not duplicate detailed PawnStop closeout checklist"
+      )
+      assert(
+        !summaryDoc.contains("PawnStop Closeout duplicate checks:"),
+        "summary docs must not duplicate detailed PawnStop duplicate checklist"
+      )
 
   test("PawnAdvance-1 pins PawnAdvanceProof as diagnostic proof home only"):
     val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
@@ -7241,8 +9707,14 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       assert(interactionLaw.contains(required), s"PawnAdvance closeout law must pin: $required")
 
     Vector(readme, ssot, architecture, contract, manifest).foreach: summaryDoc =>
-      assert(summaryDoc.contains("StoryInteractionLaw.md"), "summary docs must point PawnAdvance authority to StoryInteractionLaw.md")
-      assert(!summaryDoc.contains("### PawnAdvance Closeout Hard Cleanup"), "summary docs must not duplicate detailed closeout law")
+      assert(
+        summaryDoc.contains("StoryInteractionLaw.md"),
+        "summary docs must point PawnAdvance authority to StoryInteractionLaw.md"
+      )
+      assert(
+        !summaryDoc.contains("### PawnAdvance Closeout Hard Cleanup"),
+        "summary docs must not duplicate detailed closeout law"
+      )
 
   test("PIH Closeout hard cleanup keeps pawn interaction authority separated and summaries short"):
     val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
@@ -7277,14 +9749,3491 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
 
     Vector(readme, ssot, architecture, contract, manifest).foreach: summaryDoc =>
       assert(summaryDoc.contains("PIH Closeout"), "summary docs must summarize PIH closeout")
-      assert(summaryDoc.contains("StoryInteractionLaw.md"), "summary docs must point PIH closeout authority to StoryInteractionLaw.md")
-      assert(!summaryDoc.contains("### PIH Closeout Hard Cleanup"), "summary docs must not duplicate detailed PIH closeout law")
-      assert(!summaryDoc.contains("PIH Closeout must confirm:"), "summary docs must not duplicate detailed PIH checklist")
-      assert(!summaryDoc.contains("PIH Closeout duplicate audit:"), "summary docs must not duplicate detailed PIH duplicate audit")
+      assert(
+        summaryDoc.contains("StoryInteractionLaw.md"),
+        "summary docs must point PIH closeout authority to StoryInteractionLaw.md"
+      )
+      assert(
+        !summaryDoc.contains("### PIH Closeout Hard Cleanup"),
+        "summary docs must not duplicate detailed PIH closeout law"
+      )
+      assert(
+        !summaryDoc.contains("PIH Closeout must confirm:"),
+        "summary docs must not duplicate detailed PIH checklist"
+      )
+      assert(
+        !summaryDoc.contains("PIH Closeout duplicate audit:"),
+        "summary docs must not duplicate detailed PIH duplicate audit"
+      )
+
+  test("PNC-0 closes Pawn / Promotion neighborhood without opening new meaning"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PNC-0 Pawn / Promotion Neighborhood Closeout",
+      "Pawn / Promotion closes as four narrow proof-backed slices. It opens no pawn",
+      "strategy, conversion, tablebase, pawn race, or public surface.",
+      "PNC-0 opens only closeout work:",
+      "- Pawn / Promotion neighborhood closeout",
+      "- scope audit",
+      "- duplication audit",
+      "- authority audit",
+      "- collision and downstream audit",
+      "- docs simplification",
+      "- next-neighborhood handoff",
+      "PNC-0 closes only already-open narrow slices:",
+      "- `Scene.PawnAdvance`",
+      "- `Scene.PawnStop`",
+      "- `Scene.PromotionThreat`",
+      "- `Scene.Promotion`",
+      "- PIH hardening over already-open pawn rows",
+      "PNC-0 related proof homes:",
+      "- `PawnAdvanceProof`",
+      "- `PawnStopProof`",
+      "- `PromotionThreatProof`",
+      "- `PromotionProof`",
+      "PNC-0 opens no:",
+      "- new Story family",
+      "- new proof home",
+      "- new Story writer",
+      "- new renderer template",
+      "- new LLM behavior",
+      "- PawnBreak",
+      "- broad PawnTactic",
+      "- pawn strategy",
+      "- conversion",
+      "- winning endgame",
+      "- tablebase",
+      "- pawn race",
+      "- king route or opposition",
+      "- public route `200`",
+      "- production API",
+      "- public/user-facing LLM narration",
+      "PNC-0 scope audit:",
+      "- PIH remains hardening only and creates no fifth pawn meaning.",
+      "PNC-0 duplication audit:",
+      "- one chess meaning per closed slice.",
+      "- one proof home per closed slice.",
+      "- one Story label per closed slice.",
+      "- one speech key per closed slice.",
+      "- one detailed live authority document: `StoryInteractionLaw.md`.",
+      "PNC-0 authority audit:",
+      "- Board Facts observes pawn structure only.",
+      "- Proof homes bind only their own exact-board proof.",
+      "- StoryTable orders existing rows and creates no pawn meaning.",
+      "PNC-0 collision and downstream audit:",
+      "- PawnAdvance, PawnStop, PromotionThreat, and Promotion must not borrow from or",
+      "- Material, Defense, Hanging, and Line / Defender homes keep their own claims.",
+      "- `/api/commentary/render` and `/internal/commentary/render-local-probe` remain",
+      "PNC-0 docs simplification:",
+      "Summary docs must not repeat PNC-0 checklists, slice closeout checklists,",
+      "PNC-0 next-neighborhood handoff:",
+      "- any next neighborhood must start from a new explicit charter in",
+      "Completion standard: PNC-0 closes when PawnAdvance, PawnStop,"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PNC-0 law must pin: $required")
+
+    Vector(readme, ssot, architecture, contract).foreach: doc =>
+      val normalizedDoc = doc.replaceAll("\\s+", " ")
+      assert(
+        normalizedDoc.contains("Current implementation scope is Pawn / Promotion Neighborhood closeout.")
+      )
+      assert(
+        !doc.contains("### PNC-0 Pawn / Promotion Neighborhood Closeout"),
+        "summary docs must not duplicate detailed PNC closeout law"
+      )
+
+    assertPawnPromotionCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, manifest)
+
+  test("PNC-1 scope audit pins the four positive pawn promotion Stories only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PNC-1 Scope Audit",
+      "PNC-1 confirms:",
+      "- the only opened positive pawn/promotion Stories are `Scene.PawnAdvance`,",
+      "  `Scene.PawnStop`, `Scene.PromotionThreat`, and `Scene.Promotion`.",
+      "- `Scene.PawnAdvance` speaks only its first scope:",
+      "- `Scene.PawnStop` speaks only its first scope:",
+      "- `Scene.PromotionThreat` speaks only its first scope:",
+      "- `Scene.Promotion` speaks only its first scope:",
+      "PNC-1 runtime path audit:",
+      "- PawnBreak is not open as a positive Story.",
+      "- pawn race is not open as a positive Story.",
+      "- tablebase is not open as a positive Story.",
+      "- king route is not open as a positive Story.",
+      "- opposition is not open as a positive Story.",
+      "- conversion is not open as a positive pawn/promotion Story.",
+      "Closed pawn names are not missing features inside this neighborhood.",
+      "They remain closed until a separate charter opens them.",
+      "Completion standard: PNC-1 closes when the positive pawn/promotion Story",
+      "is exactly four, each Story is bounded to its first scope, and PawnBreak, pawn",
+      "race, tablebase, king route, opposition, and conversion"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PNC-1 law must pin: $required")
+
+    assertPawnPromotionCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, manifest)
+
+  test("PNC-2 duplication audit keeps pawn promotion meaning homes unique"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PNC-2 Duplication Audit",
+      "PNC-2 confirms:",
+      "- no chess meaning is duplicated across two pawn/promotion Story labels.",
+      "- no proof responsibility is duplicated across two pawn/promotion proof homes.",
+      "- no speech claim is split across two pawn/promotion claim keys.",
+      "- no detailed closeout rule is repeated across multiple live documents.",
+      "PNC-2 specific duplication checks:",
+      "- `Scene.PawnAdvance` and `Scene.PromotionThreat` do not co-own pawn progress.",
+      "- `Scene.PawnStop` does not own the opposite meaning of PromotionThreat or Promotion.",
+      "- `Scene.PromotionThreat` owns next-move promotion-route threat only.",
+      "- `Scene.Promotion` owns actual legal non-capturing promotion only.",
+      "- `Scene.Promotion` owns no material gain, conversion, or winning meaning.",
+      "- `PawnAdvanceProof`, `PawnStopProof`, `PromotionThreatProof`, and",
+      "  `PromotionProof` do not invade each other's proof responsibility.",
+      "One chess meaning, one proof home, one Story label, one speech key, one live authority document.",
+      "Completion standard: PNC-2 closes when PawnAdvance, PawnStop,",
+      "PromotionThreat, and Promotion each have exactly one meaning, one proof",
+      "one Story label, and one speech key, and detailed PNC law remains only in"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PNC-2 law must pin: $required")
+
+    assertPawnPromotionCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, manifest)
+
+  test("PNC-3 authority audit fixes each pawn promotion layer to one job"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PNC-3 Authority Audit",
+      "PNC-3 layer authority:",
+      "- `PassedPawnObservation`: structure observation only.",
+      "- `PawnAdvanceProof`: legal passed-pawn advance remains passed.",
+      "- `PawnStopProof`: next advance square is directly stopped.",
+      "- `PromotionThreatProof`: next-move promotion threat is legal on the exact after-board.",
+      "- `PromotionProof`: actual legal promotion event.",
+      "- Story writers: named proof-backed Story permission only.",
+      "- `StoryTable`: ordering only.",
+      "- `Verdict`: selected result only.",
+      "- `ExplanationPlan`: bounded speech claim only.",
+      "- Renderer: phrasing only.",
+      "- LLM smoke: rephrase only.",
+      "PNC-3 forbids:",
+      "- proof homes speaking as Story labels.",
+      "- Story writers owning conversion or result meaning.",
+      "- `StoryTable` creating new pawn meaning.",
+      "- `ExplanationPlan` reading raw proof.",
+      "- Renderer or LLM smoke repairing or upgrading proof.",
+      "PNC-3 confirms the authority chain stays:",
+      "`observation` -> `proof sidecar` -> `Story` -> `Verdict` -> `ExplanationPlan` -> Renderer -> LLM smoke",
+      "Completion standard: PNC-3 closes when each pawn/promotion layer keeps",
+      "exactly one authority job, proof homes do not speak as Story labels,"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PNC-3 law must pin: $required")
+
+    assertPawnPromotionCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, manifest)
+
+  test("PNC-4 collision audit pins pawn promotion rows against existing homes"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PNC-4 Collision Audit",
+      "PNC-4 collision targets:",
+      "- `Scene.PawnAdvance` vs `Scene.PawnStop`.",
+      "- `Scene.PawnAdvance` vs `Scene.PromotionThreat`.",
+      "- `Scene.PawnStop` vs `Scene.PromotionThreat`.",
+      "- `Scene.PromotionThreat` vs `Scene.Promotion`.",
+      "- `Scene.Promotion` vs `Scene.Material`.",
+      "- pawn rows vs `Scene.Defense`.",
+      "- pawn rows vs existing tactic and line rows.",
+      "- EngineCheck Caps and Refutes over each pawn row.",
+      "PNC-4 runtime checks:",
+      "- input order remains stable.",
+      "- duplicate Lead is absent.",
+      "- incomplete rows are not Lead.",
+      "- capped or refuted rows have no standalone text.",
+      "- actual promotion stays in `Scene.Promotion`.",
+      "- next-move promotion threat stays in `Scene.PromotionThreat`.",
+      "- next advance stop stays in `Scene.PawnStop`.",
+      "- passed-pawn advance stays in `Scene.PawnAdvance`.",
+      "- material and tactical claims stay in their existing homes.",
+      "PNC-4 reuses existing runtime tests:",
+      "- `PIH-1 fixture map covers pawn interaction hardening categories`.",
+      "- `PIH-2 Role Stability keeps pawn rows deterministic without duplicate pawn claims`.",
+      "- `PIH-3 Meaning Ownership Boundary keeps pawn collision rows on their own claims`.",
+      "- `PIH-4 EngineCheck Interaction reuses existing pawn statuses without engine-owned claims`.",
+      "- `PIH-6 Downstream Boundary Smoke sends only selected Lead pawn Verdicts to text stages`.",
+      "- `PromotionThreat-5 StoryTable keeps existing rows stable and claim homes separate`.",
+      "- `Promotion-5 StoryTable keeps actual Promotion stable and claim homes separate`.",
+      "Completion standard: PNC-4 closes when these existing runtime tests"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PNC-4 law must pin: $required")
+
+    assertPawnPromotionCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, manifest)
+
+  test("PNC-5 downstream boundary audit keeps pawn promotion speech bounded"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PNC-5 Downstream Boundary Audit",
+      "PNC-5 downstream authority:",
+      "- only selected uncapped Lead Verdicts may lower into `ExplanationPlan`.",
+      "- `ExplanationPlan` input is selected Verdict only.",
+      "- Renderer input is `ExplanationPlan` only.",
+      "- LLM smoke input is only renderedText, claimKey, strength, forbidden wording, and the rephrase-only instruction.",
+      "PNC-5 non-Lead rows:",
+      "- Support rows have no standalone text.",
+      "- Context rows have no standalone text.",
+      "- Blocked rows have no standalone text.",
+      "- capped rows have no standalone text.",
+      "- refuted rows have no standalone text.",
+      "PNC-5 forbidden downstream wording:",
+      "- unstoppable.",
+      "- will promote.",
+      "- cannot be stopped.",
+      "- wins or winning.",
+      "- decisive.",
+      "- conversion.",
+      "- tablebase.",
+      "- draw or holds.",
+      "- best move or only move.",
+      "- forced.",
+      "- no counterplay.",
+      "- pressure or initiative.",
+      "PNC-5 reuses existing runtime tests:",
+      "- `Stage 6-5 ExplanationPlan accepts selected Verdict only`.",
+      "- `Stage 6-5 ExplanationPlan exposes no raw proof material input`.",
+      "- `Stage 7-1 DeterministicRenderer accepts ExplanationPlan only`.",
+      "- `Stage 7-1 DeterministicRenderer cannot create text without an ExplanationPlan`.",
+      "- `Stage 8B Codex CLI prompt smoke uses only rendered text contract`.",
+      "- `Stage 8 narration smoke exposes no raw proof or production API input`.",
+      "- `PIH-6 Downstream Boundary Smoke sends only selected Lead pawn Verdicts to text stages`.",
+      "- `PawnAdvance-8 LLM smoke reuses 8B prompt boundary without new chess facts`.",
+      "- `PawnStop-8 LLM smoke reuses 8B prompt boundary without new chess facts`.",
+      "- `PromotionThreat-8 LLM smoke reuses 8B boundary without new chess facts`.",
+      "- `Promotion-8 LLM smoke reuses 8B boundary without new chess facts`.",
+      "Completion standard: PNC-5 closes when downstream stages accept only selected uncapped Lead pawn/promotion claims"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PNC-5 law must pin: $required")
+
+    assertPawnPromotionCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, manifest)
+
+  test("PNC-6 documentation simplification keeps closeout detail in one authority"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PNC-6 Documentation Simplification",
+      "PNC-6 documentation simplification:",
+      "- detailed Pawn / Promotion closeout authority lives only in `StoryInteractionLaw.md`.",
+      "- `README.md`, SSOT, Architecture, Contract, AGENTS, and LegacyPruneManifest remain summary-only.",
+      "- the same closeout rule must not be repeated across live documents.",
+      "PNC-6 summary-only documents:",
+      "- `README.md`: summary pointer only.",
+      "- `ChessCommentarySSOT.md`: summary pointer only.",
+      "- `ChessModelArchitecture.md`: summary pointer only.",
+      "- `ChessModelContract.md`: summary pointer only.",
+      "- `AGENTS.md`: durable operator guardrails only.",
+      "- `LegacyPruneManifest.md`: pruning summary only.",
+      "PNC-6 closed-summary wording:",
+      "- closed pawn terms are closed-summary terms, not work queue entries.",
+      "- PawnTactic, pawn strategy, promotion race, conversion, tablebase, king route, and opposition remain closed-summary terms only.",
+      "Completion standard: PNC-6 closes when detailed closeout checklists exist only in `StoryInteractionLaw.md`"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PNC-6 law must pin: $required")
+
+    assertPawnPromotionCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, manifest)
+
+    val liveDocTextByName = LiveDocs.map(name => name -> Files.readString(docsRoot.resolve(name))).toMap
+    liveDocTextByName
+      .removed("StoryInteractionLaw.md")
+      .foreach: (docName, contents) =>
+        assert(!contents.contains("### PNC-"), s"$docName must not repeat detailed PNC headings")
+    assert(!agents.contains("### PNC-"), "AGENTS.md must not repeat detailed PNC headings")
+    assert(
+      !agents.contains("PNC-6 documentation simplification:"),
+      "AGENTS.md must not repeat detailed PNC law"
+    )
+    assert(PawnPromotionCloseoutSummary.contains("surfaces remain closed."))
+    assert(PawnPromotionManifestSummary.contains("paths remain closed."))
+    assert(PawnBreakSummary.contains("Scene.PawnBreak"))
+    assert(PawnCaptureSummary.contains("Scene.PawnCapture"))
+
+  test("PNC-7 test helper runtime boundary keeps helpers below pawn promotion authority"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PNC-7 Test Helper / Runtime Boundary Audit",
+      "PNC-7 test helper runtime boundary:",
+      "- test helpers are not runtime authority.",
+      "- fixture names are not Story family names.",
+      "- negative corpus helpers are not production concepts.",
+      "- forbidden wording checks must target public overclaim wording, not arbitrary internal field names.",
+      "- runtime source must not contain closeout-only terminology.",
+      "PNC-7 forbids helper promotion:",
+      "- no test helper may become a proof home, Story label, claim key, renderer input, or LLM input.",
+      "- no fixture category may name a new pawn Story family.",
+      "- no negative corpus helper may be imported by runtime code.",
+      "- no forbidden wording checker may reject safe internal field names by itself.",
+      "PNC-7 runtime source guard:",
+      "- runtime source must not contain `PNC-`.",
+      "- runtime source must not contain `closeout`.",
+      "- runtime source must not contain `fixture map`.",
+      "- runtime source must not contain `negative corpus`.",
+      "- runtime source must not contain `Pawn Interaction Hardening`.",
+      "Completion standard: PNC-7 closes when helper names remain test-local"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PNC-7 law must pin: $required")
+
+    assertPawnPromotionCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, manifest)
+
+    val runtimeText = runtimeChessSourceText
+    Vector(
+      "PNC-",
+      "closeout",
+      "fixture map",
+      "negative corpus",
+      "Pawn Interaction Hardening",
+      "Pawn / Promotion Closeout",
+      "PromotionThreat Closeout",
+      "Promotion Closeout",
+      "PawnAdvance Closeout",
+      "PawnStop Closeout"
+    ).foreach: closeoutOnlyTerm =>
+      assert(
+        !runtimeText.contains(closeoutOnlyTerm),
+        s"runtime source must not contain closeout-only term: $closeoutOnlyTerm"
+      )
+
+  test("PNC final completion standard closes Pawn Promotion neighborhood"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("### PNC Closeout Final Completion Standard"))
+    Vector(
+      "PNC Closeout final completion standard:",
+      "- no new Story family.",
+      "- no new proof home.",
+      "- no new renderer wording.",
+      "- no new LLM behavior.",
+      "- only `Scene.PawnAdvance`, `Scene.PawnStop`, `Scene.PromotionThreat`, and `Scene.Promotion` remain as the positive closeout baseline slices.",
+      "- no duplicate meaning.",
+      "- no duplicate authority.",
+      "- no duplicate terminology.",
+      "- no duplicate detailed docs.",
+      "- public route, production API, and public/user-facing LLM narration remain closed.",
+      "PNC final verification:",
+      "- docs authority tests pass.",
+      "- chess foundation tests pass.",
+      "- `git diff --check` is clean.",
+      "Final PNC closeout opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, fixture-derived runtime authority, negative-corpus production concept, PawnBreak, broad PawnTactic, pawn strategy, conversion, winning endgame, tablebase, pawn race, king route, opposition, public route `200`, production API, or public/user-facing LLM narration."
+    ).foreach: finalLine =>
+      assert(interactionLaw.contains(finalLine), s"PNC final completion must pin: $finalLine")
+
+    assertPawnPromotionCloseoutSummaryDocs(readme, ssot, architecture, normalizedModelContract, manifest)
+    Vector(readme, ssot, architecture, normalizedModelContract, manifest).foreach: doc =>
+      assert(
+        !doc.contains("PNC Closeout final completion standard:"),
+        "summary docs must not duplicate detailed PNC final standard"
+      )
+      assert(
+        !doc.contains("PNC final verification:"),
+        "summary docs must not duplicate detailed PNC final verification"
+      )
+
+  test("PawnBreak-0 charter opens only one direct rival pawn lever"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnBreak-0 Charter",
+      "PawnBreak-0 opens the first Pawn Structure / Break Neighborhood vertical slice.",
+      "Core sentence: Pawn facts observe pawn contact. PawnBreakProof proves one",
+      "direct lever. Scene.PawnBreak may speak only bounded pawn contact, not",
+      "PawnBreak-0 opens only:",
+      "- narrow `Scene.PawnBreak`",
+      "- `PawnBreakProof`",
+      "- `ScenePawnBreak`",
+      "- legal pawn move",
+      "- one rival pawn target",
+      "- exact-board direct pawn lever/contact after the move",
+      "- selected Verdict to bounded pawn-break wording",
+      "- `challenges_pawn`",
+      "PawnBreak-0 positive scope:",
+      "- the moved pawn directly attacks exactly one rival pawn on the exact after-board",
+      "- the direct rival-pawn lever was created by the move",
+      "- complete `PawnBreakProof`",
+      "- named writer = `ScenePawnBreak`",
+      "PawnBreak-0 must stay silent for:",
+      "- non-pawn moves",
+      "- illegal moves",
+      "- pawn captures",
+      "- zero rival pawn targets",
+      "- multiple rival pawn targets",
+      "- already-existing pawn contact without a new direct lever",
+      "- writerless or contaminated rows",
+      "PawnBreak-0 does not open:",
+      "- broad PawnTactic",
+      "- broad pawn strategy",
+      "- opens position",
+      "- breaks through",
+      "- creates passed pawn",
+      "- weakens structure",
+      "- wins space",
+      "- initiative or pressure",
+      "- conversion",
+      "- winning or decisive",
+      "- best move or only move",
+      "- public route `200`",
+      "- production API",
+      "- public/user-facing LLM narration",
+      "- Board Facts owns pawn contact observations.",
+      "- `PawnBreakProof` proves only one legal move creating one direct rival-pawn lever.",
+      "- `ScenePawnBreak` is the only writer that may create `Scene.PawnBreak`.",
+      "- `StoryTable` orders an existing `Scene.PawnBreak`; it does not create it.",
+      "- `ExplanationPlan` may lower only selected uncapped Lead `Scene.PawnBreak`",
+      "- Renderer and LLM smoke may phrase only bounded direct-pawn-challenge wording.",
+      "Completion standard: PawnBreak-0 closes when one legal pawn move creating one",
+      "direct rival-pawn lever can become narrow `Scene.PawnBreak`, all zero-target,"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnBreak-0 charter must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PawnBreakSummary),
+        "summary docs must summarize PawnBreak-0 without detailed charter law"
+      )
+      assert(
+        !doc.contains("### PawnBreak-0 Charter"),
+        "summary docs must not duplicate detailed PawnBreak-0 law"
+      )
+      assert(
+        !doc.contains("PawnBreak-0 positive scope:"),
+        "summary docs must not duplicate PawnBreak-0 scope checklist"
+      )
+      assert(
+        !doc.contains("PawnBreak-0 must stay silent for:"),
+        "summary docs must not duplicate PawnBreak-0 silence checklist"
+      )
+    assert(manifest.contains(PawnBreakSummary), "LegacyPruneManifest must summarize PawnBreak-0")
+    assert(
+      !manifest.contains("### PawnBreak-0 Charter"),
+      "LegacyPruneManifest must not duplicate detailed PawnBreak-0 law"
+    )
+    assert(
+      !manifest.contains("PawnBreak-0 positive scope:"),
+      "LegacyPruneManifest must not duplicate PawnBreak-0 scope checklist"
+    )
+
+  test("PawnBreak-1 pins PawnBreakProof as diagnostic direct lever proof home"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnBreak-1 PawnBreakProof",
+      "PawnBreak-1 opens `PawnBreakProof` as the proof home for narrow",
+      "`Scene.PawnBreak` direct pawn contact.",
+      "PawnBreakProof must prove:",
+      "- breaking side",
+      "- rival side",
+      "- pawn identity",
+      "- origin square",
+      "- destination square",
+      "- legal pawn move",
+      "- move is non-promotion",
+      "- rival pawn target",
+      "- after-board pawn lever/contact exists",
+      "- same-board proof",
+      "- exact after-board replay",
+      "First allowed contact kinds:",
+      "- `PawnChallengesPawn`",
+      "- `PawnLeverCreated`",
+      "Closed contact kinds:",
+      "- long-term structure weakness",
+      "- open-file claim",
+      "- passed-pawn creation",
+      "- pawn majority plan",
+      "- breakthrough sequence",
+      "- sacrifice line",
+      "- opens the position claim",
+      "`PawnBreakProof` is not a public Story.",
+      "`BoardFacts.PawnLever` is not a public Story.",
+      "Completion standard: PawnBreak-1 closes when `PawnBreakProof` proves only"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnBreak-1 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnBreakSummary), "summary docs must keep the PawnBreak summary pointer")
+      assert(
+        !doc.contains("### PawnBreak-1 PawnBreakProof"),
+        "summary docs must not duplicate detailed PawnBreak-1 law"
+      )
+      assert(
+        !doc.contains("PawnBreakProof must prove:"),
+        "summary docs must not duplicate PawnBreak-1 proof checklist"
+      )
+      assert(
+        !doc.contains("Closed contact kinds:"),
+        "summary docs must not duplicate PawnBreak-1 closed contact kinds"
+      )
+    assert(manifest.contains(PawnBreakSummary), "LegacyPruneManifest must keep the PawnBreak summary pointer")
+    assert(
+      !manifest.contains("### PawnBreak-1 PawnBreakProof"),
+      "LegacyPruneManifest must not duplicate detailed PawnBreak-1 law"
+    )
+    assert(
+      !manifest.contains("PawnBreakProof must prove:"),
+      "LegacyPruneManifest must not duplicate PawnBreak-1 proof checklist"
+    )
+
+  test("PawnBreak-2 pins ScenePawnBreak as the only bounded PawnBreak writer"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnBreak-2 Scene.PawnBreak Writer",
+      "PawnBreak-2 opens `ScenePawnBreak` as the named writer for narrow",
+      "`Scene.PawnBreak` only.",
+      "ScenePawnBreak writer conditions:",
+      "- complete StoryProof",
+      "- complete `PawnBreakProof`",
+      "- same-board legal replay",
+      "- legal non-promotion pawn move",
+      "- rival pawn target exists",
+      "- pawn lever/contact relation complete",
+      "- writer = `ScenePawnBreak`",
+      "- EngineCheck does not Refute",
+      "Scene.PawnBreak Story identity:",
+      "- scene = `PawnBreak`",
+      "- tactic = None",
+      "- plan = None",
+      "- side = breaking side",
+      "- rival = rival side",
+      "- target = rival pawn square",
+      "- anchor = pawn origin square",
+      "- route = pawn move",
+      "ScenePawnBreak must not create:",
+      "- `PassedPawnCreated`",
+      "- `Scene.Material` claim",
+      "- strategy meaning",
+      "- conversion meaning",
+      "- initiative meaning",
+      "Completion standard: PawnBreak-2 closes when only `ScenePawnBreak` can"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnBreak-2 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnBreakSummary), "summary docs must keep the PawnBreak summary pointer")
+      assert(
+        !doc.contains("### PawnBreak-2 Scene.PawnBreak Writer"),
+        "summary docs must not duplicate detailed PawnBreak-2 law"
+      )
+      assert(
+        !doc.contains("ScenePawnBreak writer conditions:"),
+        "summary docs must not duplicate PawnBreak-2 writer checklist"
+      )
+      assert(
+        !doc.contains("Scene.PawnBreak Story identity:"),
+        "summary docs must not duplicate PawnBreak-2 identity checklist"
+      )
+    assert(manifest.contains(PawnBreakSummary), "LegacyPruneManifest must keep the PawnBreak summary pointer")
+    assert(
+      !manifest.contains("### PawnBreak-2 Scene.PawnBreak Writer"),
+      "LegacyPruneManifest must not duplicate detailed PawnBreak-2 law"
+    )
+    assert(
+      !manifest.contains("ScenePawnBreak writer conditions:"),
+      "LegacyPruneManifest must not duplicate PawnBreak-2 writer checklist"
+    )
+
+  test("PawnBreak-3 pins negative corpus to direct pawn-contact proof or silence"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnBreak-3 Negative Corpus",
+      "PawnBreak-3 closes false positives around narrow `Scene.PawnBreak`.",
+      "A pawn move is not a pawn break. Complete direct pawn-contact proof or silence.",
+      "PawnBreak-3 must close:",
+      "- not a legal move",
+      "- no same-board proof",
+      "- not a pawn move",
+      "- promotion move",
+      "- no rival pawn target",
+      "- no direct pawn lever/contact on the after-board",
+      "- simple space gain being called a pawn break",
+      "- passed-pawn creation expansion",
+      "- open-file wording",
+      "- weak-pawn or weak-structure wording",
+      "- initiative wording",
+      "- material gain being spoken as a PawnBreak claim",
+      "Completion standard: PawnBreak-3 closes when every listed counterexample"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnBreak-3 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnBreakSummary), "summary docs must keep the PawnBreak summary pointer")
+      assert(
+        !doc.contains("### PawnBreak-3 Negative Corpus"),
+        "summary docs must not duplicate detailed PawnBreak-3 law"
+      )
+      assert(
+        !doc.contains("PawnBreak-3 must close:"),
+        "summary docs must not duplicate PawnBreak-3 negative corpus"
+      )
+    assert(manifest.contains(PawnBreakSummary), "LegacyPruneManifest must keep the PawnBreak summary pointer")
+    assert(
+      !manifest.contains("### PawnBreak-3 Negative Corpus"),
+      "LegacyPruneManifest must not duplicate detailed PawnBreak-3 law"
+    )
+    assert(
+      !manifest.contains("PawnBreak-3 must close:"),
+      "LegacyPruneManifest must not duplicate PawnBreak-3 negative corpus"
+    )
+
+  test("PawnBreak-4 pins EngineCheck reuse without engine-owned PawnBreak claims"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnBreak-4 EngineCheck Reuse",
+      "PawnBreak-4 reuses the existing `EngineCheck` sidecar only.",
+      "`EngineCheck` cannot create `Scene.PawnBreak`.",
+      "PawnBreak EngineCheck status rules:",
+      "- Supports creates no new claim",
+      "- Caps suppresses standalone `Scene.PawnBreak` claim output",
+      "- Refutes keeps the `Scene.PawnBreak` Story but makes it Blocked",
+      "- Unknown creates no engine expression",
+      "PawnBreak-4 forbids:",
+      "- engine says",
+      "- eval numbers",
+      "- best move",
+      "- only move",
+      "- breakthrough works",
+      "- winning structure",
+      "Completion standard: PawnBreak-4 closes when `EngineCheck` can only"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnBreak-4 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnBreakSummary), "summary docs must keep the PawnBreak summary pointer")
+      assert(
+        !doc.contains("### PawnBreak-4 EngineCheck Reuse"),
+        "summary docs must not duplicate detailed PawnBreak-4 law"
+      )
+      assert(
+        !doc.contains("PawnBreak EngineCheck status rules:"),
+        "summary docs must not duplicate PawnBreak-4 status rules"
+      )
+    assert(manifest.contains(PawnBreakSummary), "LegacyPruneManifest must keep the PawnBreak summary pointer")
+    assert(
+      !manifest.contains("### PawnBreak-4 EngineCheck Reuse"),
+      "LegacyPruneManifest must not duplicate detailed PawnBreak-4 law"
+    )
+    assert(
+      !manifest.contains("PawnBreak EngineCheck status rules:"),
+      "LegacyPruneManifest must not duplicate PawnBreak-4 status rules"
+    )
+
+  test("PawnBreak-5 pins StoryTable integration against existing claim homes"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnBreak-5 StoryTable Integration",
+      "PawnBreak-5 collides narrow `Scene.PawnBreak` with existing open rows.",
+      "PawnBreak-5 collision targets:",
+      "- `Scene.PawnAdvance`",
+      "- `Scene.PawnStop`",
+      "- `Scene.PromotionThreat`",
+      "- `Scene.Promotion`",
+      "- `Scene.Material`",
+      "- `Scene.Defense`",
+      "- `Tactic.Hanging`",
+      "- Line / Defender tactics",
+      "- `Scene.PawnBreak`",
+      "PawnBreak-5 must verify:",
+      "- input order stability",
+      "- `Scene.PawnBreak` owns no Material claim",
+      "- `Scene.PawnBreak` creates no PassedPawnCreated claim",
+      "- `Scene.PawnBreak` does not replace PawnAdvance or Promotion meaning",
+      "- actual material change now remains `Scene.Material`",
+      "- promotion/progress claims remain in existing pawn/promotion homes",
+      "- capped/refuted `Scene.PawnBreak` has no standalone text",
+      "Completion standard: PawnBreak-5 closes when StoryTable collision tests"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnBreak-5 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnBreakSummary), "summary docs must keep the PawnBreak summary pointer")
+      assert(
+        !doc.contains("### PawnBreak-5 StoryTable Integration"),
+        "summary docs must not duplicate detailed PawnBreak-5 law"
+      )
+      assert(
+        !doc.contains("PawnBreak-5 collision targets:"),
+        "summary docs must not duplicate PawnBreak-5 target list"
+      )
+      assert(
+        !doc.contains("PawnBreak-5 must verify:"),
+        "summary docs must not duplicate PawnBreak-5 checklist"
+      )
+    assert(manifest.contains(PawnBreakSummary), "LegacyPruneManifest must keep the PawnBreak summary pointer")
+    assert(
+      !manifest.contains("### PawnBreak-5 StoryTable Integration"),
+      "LegacyPruneManifest must not duplicate detailed PawnBreak-5 law"
+    )
+    assert(
+      !manifest.contains("PawnBreak-5 collision targets:"),
+      "LegacyPruneManifest must not duplicate PawnBreak-5 target list"
+    )
+
+  test("PawnBreak-6 pins ExplanationPlan to selected uncapped Lead only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnBreak-6 ExplanationPlan",
+      "PawnBreak-6 opens ExplanationPlan only for selected uncapped Lead `Scene.PawnBreak` Verdicts.",
+      "PawnBreak-6 allowed claim key:",
+      "- `challenges_pawn`",
+      "PawnBreak-6 forbidden claim keys:",
+      "- `opens_position`",
+      "- `breaks_through`",
+      "- `creates_passed_pawn`",
+      "- `weakens_structure`",
+      "- `wins_space`",
+      "- `creates_pressure`",
+      "- `takes_initiative`",
+      "- `converts_advantage`",
+      "- `best_move`",
+      "- `only_move`",
+      "- `forced`",
+      "Support, Context, Blocked, capped, and refuted `Scene.PawnBreak` rows have no standalone claim.",
+      "Completion standard: PawnBreak-6 closes when only selected uncapped Lead"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnBreak-6 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnBreakSummary), "summary docs must keep the PawnBreak summary pointer")
+      assert(
+        !doc.contains("### PawnBreak-6 ExplanationPlan"),
+        "summary docs must not duplicate detailed PawnBreak-6 law"
+      )
+      assert(
+        !doc.contains("PawnBreak-6 forbidden claim keys:"),
+        "summary docs must not duplicate PawnBreak-6 forbidden keys"
+      )
+    assert(manifest.contains(PawnBreakSummary), "LegacyPruneManifest must keep the PawnBreak summary pointer")
+    assert(
+      !manifest.contains("### PawnBreak-6 ExplanationPlan"),
+      "LegacyPruneManifest must not duplicate detailed PawnBreak-6 law"
+    )
+    assert(
+      !manifest.contains("PawnBreak-6 forbidden claim keys:"),
+      "LegacyPruneManifest must not duplicate PawnBreak-6 forbidden keys"
+    )
+
+  test("PawnBreak-7 pins DeterministicRenderer bounded pawn-contact wording only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnBreak-7 Deterministic Renderer",
+      "Renderer input is `ExplanationPlan` only.",
+      "- `{route} challenges the pawn on {target}.`",
+      "- `opens the position`",
+      "- `breaks through`",
+      "- `creates a passer`",
+      "- `weakens the structure`",
+      "- `wins space`",
+      "- `takes the initiative`",
+      "- `creates pressure`",
+      "- `best move`",
+      "- `only move`",
+      "- `forces`",
+      "Renderer must not read `Story`, `Verdict`, `PawnBreakProof`, `BoardFacts`, `EngineCheck`, `proofFailures`, source rows, or LLM smoke.",
+      "Completion standard: PawnBreak-7 closes when `DeterministicRenderer` accepts only `ExplanationPlan`, phrases selected uncapped Lead PawnBreak as `{route} challenges the pawn on {target}.`, rejects Support, Context, Blocked, capped, refuted, no-claim, and malformed plans, and emits none of the forbidden strategy, position-opening, passed-pawn, structure, space, initiative, pressure, best/only, or forcing wording."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnBreak-7 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnBreakSummary), "summary docs must keep the PawnBreak summary pointer")
+      assert(
+        !doc.contains("### PawnBreak-7 Deterministic Renderer"),
+        "summary docs must not duplicate detailed PawnBreak-7 law"
+      )
+      assert(
+        !doc.contains("PawnBreak-7 closes when `DeterministicRenderer`"),
+        "summary docs must not duplicate PawnBreak-7 completion law"
+      )
+    assert(manifest.contains(PawnBreakSummary), "LegacyPruneManifest must keep the PawnBreak summary pointer")
+    assert(
+      !manifest.contains("### PawnBreak-7 Deterministic Renderer"),
+      "LegacyPruneManifest must not duplicate detailed PawnBreak-7 law"
+    )
+    assert(
+      !manifest.contains("PawnBreak-7 closes when `DeterministicRenderer`"),
+      "LegacyPruneManifest must not duplicate PawnBreak-7 completion law"
+    )
+
+  test("PawnBreak-8 pins LLM smoke to existing 8B boundary only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnBreak-8 LLM Smoke",
+      "PawnBreak-8 reuses only the existing 8B LLM smoke boundary.",
+      "PawnBreak-8 LLM input:",
+      "- renderedText",
+      "- claimKey",
+      "- strength",
+      "- forbidden wording",
+      "- `Rephrase only. Do not add chess facts.`",
+      "PawnBreak-8 forbidden LLM input:",
+      "- raw `Story`",
+      "- raw `PawnBreakProof`",
+      "- `BoardFacts`",
+      "- `PawnLever` raw data",
+      "- `EngineCheck`",
+      "- raw PV",
+      "- `proofFailures`",
+      "PawnBreak-8 forbidden LLM output:",
+      "- new move",
+      "- new line",
+      "- strategy claim",
+      "- passed-pawn claim",
+      "- open-file claim",
+      "- initiative claim",
+      "- conversion claim",
+      "Completion standard: PawnBreak-8 closes when LLM smoke receives only rendered text contract fields"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnBreak-8 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnBreakSummary), "summary docs must keep the PawnBreak summary pointer")
+      assert(
+        !doc.contains("### PawnBreak-8 LLM Smoke"),
+        "summary docs must not duplicate detailed PawnBreak-8 law"
+      )
+      assert(
+        !doc.contains("PawnBreak-8 forbidden LLM input:"),
+        "summary docs must not duplicate PawnBreak-8 input list"
+      )
+    assert(manifest.contains(PawnBreakSummary), "LegacyPruneManifest must keep the PawnBreak summary pointer")
+    assert(
+      !manifest.contains("### PawnBreak-8 LLM Smoke"),
+      "LegacyPruneManifest must not duplicate detailed PawnBreak-8 law"
+    )
+    assert(
+      !manifest.contains("PawnBreak-8 forbidden LLM input:"),
+      "LegacyPruneManifest must not duplicate PawnBreak-8 input list"
+    )
+
+  test("PawnBreak Closeout hard cleanup keeps authority separated and public surfaces closed"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnBreak Closeout Hard Cleanup",
+      "`BoardFacts.PawnLever`, `PawnBreakProof`, `Scene.PawnBreak`, and `challenges_pawn` remain separate authority homes.",
+      "`BoardFacts.PawnLever` observes pawn contact only.",
+      "`PawnBreakProof` proves one direct rival-pawn lever only.",
+      "`Scene.PawnBreak` owns only the public Story identity for bounded direct pawn contact.",
+      "`challenges_pawn` owns only bounded downstream speech for selected uncapped Lead Verdicts.",
+      "`Scene.PawnBreak` owns no PawnAdvance, PawnStop, PromotionThreat, Promotion, or PassedPawnCreated meaning.",
+      "`Scene.PawnBreak` owns no Material, Defense, Hanging, DiscoveredAttack, Pin, RemoveGuard, or Skewer meaning.",
+      "`opens position`, `breakthrough`, `weakens structure`, `wins space`, `initiative`, and `pressure` remain forbidden wording only, not live PawnBreak authority.",
+      "PawnBreak duplicate checks:",
+      "- one chess meaning: one legal pawn move creating one direct rival-pawn lever.",
+      "- one proof home: `PawnBreakProof`.",
+      "- one Story label: `Scene.PawnBreak`.",
+      "- one speech key: `challenges_pawn`.",
+      "- one detailed live authority document: `StoryInteractionLaw.md`.",
+      "README, SSOT, Architecture, Contract, and Manifest may summarize PawnBreak only.",
+      "Renderer and LLM smoke wording must remain no stronger than `challenges_pawn`.",
+      "Public route `200`, production API, and public/user-facing LLM narration remain closed.",
+      "Completion standard: PawnBreak Closeout closes when BoardFacts.PawnLever, PawnBreakProof, Scene.PawnBreak, and challenges_pawn remain separate authority homes"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnBreak Closeout law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnBreakSummary), "summary docs must keep the PawnBreak summary pointer")
+      assert(
+        !doc.contains("### PawnBreak Closeout Hard Cleanup"),
+        "summary docs must not duplicate detailed PawnBreak closeout law"
+      )
+      assert(
+        !doc.contains("PawnBreak duplicate checks:"),
+        "summary docs must not duplicate detailed PawnBreak duplicate audit"
+      )
+      assert(
+        !doc.contains(
+          "BoardFacts.PawnLever, PawnBreakProof, Scene.PawnBreak, and challenges_pawn remain separate authority homes"
+        ),
+        "summary docs must not duplicate PawnBreak authority-home detail"
+      )
+    assert(manifest.contains(PawnBreakSummary), "LegacyPruneManifest must keep the PawnBreak summary pointer")
+    assert(
+      !manifest.contains("### PawnBreak Closeout Hard Cleanup"),
+      "LegacyPruneManifest must not duplicate detailed PawnBreak closeout law"
+    )
+    assert(
+      !manifest.contains("PawnBreak duplicate checks:"),
+      "LegacyPruneManifest must not duplicate detailed PawnBreak duplicate audit"
+    )
+    assert(
+      !manifest.contains(
+        "BoardFacts.PawnLever, PawnBreakProof, Scene.PawnBreak, and challenges_pawn remain separate authority homes"
+      ),
+      "LegacyPruneManifest must not duplicate PawnBreak authority-home detail"
+    )
+
+  test("PawnCapture-0 charter opens only a bounded pawn captures pawn event"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnCapture-0 Charter",
+      "PawnCapture-0 opens the second Pawn Structure / Break Neighborhood vertical slice.",
+      "PawnCaptureProof proves the pawn-captures-pawn event. Scene.PawnCapture may speak only that event, not material gain or structure advantage.",
+      "PawnCapture-0 opens only:",
+      "- narrow `Scene.PawnCapture`",
+      "- `PawnCaptureProof`",
+      "- `ScenePawnCapture`",
+      "- legal pawn move",
+      "- captured piece is one rival pawn",
+      "- exact-board replay",
+      "- selected Verdict to bounded pawn-capture wording",
+      "- `captures_rival_pawn`",
+      "PawnCapture-0 positive scope:",
+      "- a legal pawn move",
+      "- the moved pawn captures exactly one rival pawn on the exact board",
+      "- complete StoryProof",
+      "- complete `PawnCaptureProof`",
+      "- named writer = `ScenePawnCapture`",
+      "PawnCapture-0 must stay silent for:",
+      "- non-pawn moves",
+      "- illegal moves",
+      "- quiet pawn moves",
+      "- captured piece is not a pawn",
+      "- missing exact-board proof",
+      "- incomplete StoryProof",
+      "- missing or incomplete `PawnCaptureProof`",
+      "- writerless or contaminated rows",
+      "PawnCapture-0 does not open:",
+      "- material gain claim",
+      "- wins pawn",
+      "- creates passed pawn",
+      "- opens file",
+      "- weakens structure",
+      "- breaks through",
+      "- pawn majority change",
+      "- initiative / pressure",
+      "- conversion",
+      "- best move / only move",
+      "- public route `200`",
+      "- production API",
+      "- public/user-facing LLM narration",
+      "- `PawnCaptureProof` proves only one legal pawn move capturing one rival pawn.",
+      "- `ScenePawnCapture` is the only writer that may create `Scene.PawnCapture`.",
+      "- `ExplanationPlan` may lower only selected uncapped Lead `Scene.PawnCapture` Verdicts to `captures_rival_pawn`.",
+      "Completion standard: PawnCapture-0 closes when one legal pawn move capturing exactly one rival pawn can become narrow `Scene.PawnCapture`"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnCapture-0 charter must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PawnCaptureSummary),
+        "summary docs must summarize PawnCapture-0 without detailed charter law"
+      )
+      assert(
+        !doc.contains("### PawnCapture-0 Charter"),
+        "summary docs must not duplicate detailed PawnCapture-0 law"
+      )
+      assert(
+        !doc.contains("PawnCapture-0 positive scope:"),
+        "summary docs must not duplicate PawnCapture-0 scope checklist"
+      )
+      assert(
+        !doc.contains("PawnCapture-0 must stay silent for:"),
+        "summary docs must not duplicate PawnCapture-0 silence checklist"
+      )
+    assert(manifest.contains(PawnCaptureSummary), "LegacyPruneManifest must summarize PawnCapture-0")
+    assert(
+      !manifest.contains("### PawnCapture-0 Charter"),
+      "LegacyPruneManifest must not duplicate detailed PawnCapture-0 law"
+    )
+    assert(
+      !manifest.contains("PawnCapture-0 positive scope:"),
+      "LegacyPruneManifest must not duplicate PawnCapture-0 scope checklist"
+    )
+
+  test("PassedPawnCreated-0 charter opens only a bounded newly-created passer event"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PassedPawnCreated-0 Charter",
+      "PassedPawnCreated-0 opens the third Pawn Structure / Break Neighborhood vertical slice.",
+      "PassedPawnCreatedProof proves the before/after passed-pawn change. Scene.PassedPawnCreated may speak only the newly-created passer, not promotion or conversion.",
+      "PassedPawnCreated-0 opens only:",
+      "- narrow `Scene.PassedPawnCreated`",
+      "- `PassedPawnCreatedProof`",
+      "- a legal move",
+      "- before-board where the named pawn is not a passed pawn",
+      "- exact after-board where the named pawn is a passed pawn",
+      "- exactly one newly-created passed pawn",
+      "- selected Verdict to bounded created-passer wording",
+      "- `creates_passed_pawn`",
+      "PassedPawnCreated-0 must stay silent for:",
+      "- illegal move",
+      "- non-pawn move",
+      "- missing same-board proof",
+      "- pawn already passed before the move",
+      "- exact after-board where the moved pawn is not passed",
+      "- more than one newly-created passed pawn",
+      "- promotion move",
+      "- missing or incomplete `PassedPawnCreatedProof`",
+      "PassedPawnCreated-0 does not open:",
+      "- unstoppable passer",
+      "- promotion threat",
+      "- actual promotion",
+      "- winning endgame",
+      "- conversion",
+      "- pawn race",
+      "- tablebase",
+      "- breakthrough",
+      "- initiative / pressure",
+      "- best move / only move",
+      "- public route `200`",
+      "- production API",
+      "- public/user-facing LLM narration",
+      "Completion standard: PassedPawnCreated-0 closes when one legal non-promotion pawn move that changes exactly one moved pawn from not-passed before to passed on the exact after-board can become narrow `Scene.PassedPawnCreated`"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PassedPawnCreated-0 charter must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PassedPawnCreatedSummary),
+        "summary docs must summarize PassedPawnCreated-0 without detailed charter law"
+      )
+      assert(
+        !doc.contains("### PassedPawnCreated-0 Charter"),
+        "summary docs must not duplicate detailed PassedPawnCreated-0 law"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated-0 opens only:"),
+        "summary docs must not duplicate PassedPawnCreated-0 scope checklist"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated-0 must stay silent for:"),
+        "summary docs must not duplicate PassedPawnCreated-0 silence checklist"
+      )
+    assert(
+      manifest.contains(PassedPawnCreatedSummary),
+      "LegacyPruneManifest must summarize PassedPawnCreated-0"
+    )
+    assert(
+      !manifest.contains("### PassedPawnCreated-0 Charter"),
+      "LegacyPruneManifest must not duplicate detailed PassedPawnCreated-0 law"
+    )
+    assert(
+      !manifest.contains("PassedPawnCreated-0 opens only:"),
+      "LegacyPruneManifest must not duplicate PassedPawnCreated-0 scope checklist"
+    )
+
+  test("PassedPawnCreated-1 pins PassedPawnCreatedProof as the created-passer proof home"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PassedPawnCreated-1 PassedPawnCreatedProof",
+      "PassedPawnCreated-1 makes `PassedPawnCreatedProof` the proof home for the current",
+      "`PassedPawnCreatedProof` proves:",
+      "- creating side",
+      "- rival side",
+      "- created passed pawn identity",
+      "- origin square if moved",
+      "- after square",
+      "- legal creating move",
+      "- exact before-board",
+      "- exact after-board replay",
+      "- pawn was not passed before",
+      "- pawn is passed after",
+      "- same-board proof",
+      "First allowed creation routes:",
+      "- ordinary pawn move",
+      "- ordinary pawn capture, if the exact after-board creates the passed pawn",
+      "Closed creation routes:",
+      "- en passant",
+      "- promotion",
+      "- multi-move sequence",
+      "- pawn race result",
+      "- tablebase result",
+      "- \"unstoppable\" proof",
+      "`PassedPawnCreatedProof` is not a public `Story`.",
+      "`PassedPawnObservation` is not a public `Story`.",
+      "Completion standard: PassedPawnCreated-1 closes when `PassedPawnCreatedProof`"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PassedPawnCreated-1 proof law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PassedPawnCreatedSummary),
+        "summary docs must keep only summary PassedPawnCreated scope"
+      )
+      assert(
+        !doc.contains("### PassedPawnCreated-1 PassedPawnCreatedProof"),
+        "summary docs must not duplicate detailed PassedPawnCreated-1 law"
+      )
+      assert(
+        !doc.contains("`PassedPawnCreatedProof` proves:"),
+        "summary docs must not duplicate PassedPawnCreated-1 proof checklist"
+      )
+      assert(
+        !doc.contains("Closed creation routes:"),
+        "summary docs must not duplicate PassedPawnCreated-1 route checklist"
+      )
+    assert(
+      manifest.contains(PassedPawnCreatedSummary),
+      "LegacyPruneManifest must keep PassedPawnCreated summary"
+    )
+    assert(
+      !manifest.contains("### PassedPawnCreated-1 PassedPawnCreatedProof"),
+      "LegacyPruneManifest must not duplicate detailed PassedPawnCreated-1 law"
+    )
+    assert(
+      !manifest.contains("`PassedPawnCreatedProof` proves:"),
+      "LegacyPruneManifest must not duplicate PassedPawnCreated-1 proof checklist"
+    )
+
+  test("PassedPawnCreated-2 pins ScenePassedPawnCreated as the only PassedPawnCreated writer"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PassedPawnCreated-2 Scene.PassedPawnCreated Writer",
+      "Named writer: `ScenePassedPawnCreated`.",
+      "PassedPawnCreated-2 writer conditions:",
+      "- complete `StoryProof`",
+      "- complete `PassedPawnCreatedProof`",
+      "- same-board legal replay",
+      "- legal creating move",
+      "- before-not-passed and after-passed proof",
+      "- writer is `ScenePassedPawnCreated`",
+      "- `EngineCheck` does not Refute",
+      "PassedPawnCreated-2 Story identity:",
+      "- `scene = Scene.PassedPawnCreated`",
+      "- `tactic = None`",
+      "- `plan = None`",
+      "- `side = creating side`",
+      "- `rival = rival side`",
+      "- `target = after square of created passed pawn`",
+      "- `anchor = origin square or creating move origin`",
+      "- `route = creating move`",
+      "PassedPawnCreated-2 forbidden writer ownership:",
+      "- `ScenePassedPawnCreated` must not own `Scene.PawnAdvance` meaning.",
+      "- `ScenePassedPawnCreated` must not own `Scene.PawnCapture` meaning.",
+      "- `ScenePassedPawnCreated` must not create `PromotionThreat`, `Promotion`, or `Conversion` meaning.",
+      "Completion standard: PassedPawnCreated-2 closes when `ScenePassedPawnCreated` alone writes narrow `Scene.PassedPawnCreated`"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PassedPawnCreated-2 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PassedPawnCreatedSummary),
+        "summary docs must keep only summary PassedPawnCreated scope"
+      )
+      assert(
+        !doc.contains("### PassedPawnCreated-2 Scene.PassedPawnCreated Writer"),
+        "summary docs must not duplicate detailed PassedPawnCreated-2 law"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated-2 writer conditions:"),
+        "summary docs must not duplicate PassedPawnCreated-2 writer checklist"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated-2 Story identity:"),
+        "summary docs must not duplicate PassedPawnCreated-2 identity checklist"
+      )
+    assert(
+      manifest.contains(PassedPawnCreatedSummary),
+      "LegacyPruneManifest must keep PassedPawnCreated summary"
+    )
+    assert(
+      !manifest.contains("### PassedPawnCreated-2 Scene.PassedPawnCreated Writer"),
+      "LegacyPruneManifest must not duplicate detailed PassedPawnCreated-2 law"
+    )
+    assert(
+      !manifest.contains("PassedPawnCreated-2 writer conditions:"),
+      "LegacyPruneManifest must not duplicate PassedPawnCreated-2 writer checklist"
+    )
+
+  test("PassedPawnCreated-3 pins exact before-after negative corpus"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PassedPawnCreated-3 Negative Corpus",
+      "A pawn move is not passer creation. Exact before/after passed-pawn proof or silence.",
+      "PassedPawnCreated-3 must stay silent for:",
+      "- legal move missing",
+      "- same-board proof missing",
+      "- exact after-board where the moved pawn is not passed",
+      "- before-board where the pawn was already passed",
+      "- promotion move",
+      "- en passant",
+      "- two-move passer creation",
+      "- pawn capture event exaggerated as `Scene.PassedPawnCreated`",
+      "- promotion threat wording",
+      "- unstoppable wording",
+      "- winning wording",
+      "Negative corpus ownership:",
+      "- `ScenePawnCapture` may own the bounded pawn-capture event when a pawn captures a rival pawn.",
+      "- `ScenePassedPawnCreated` may not upgrade that capture into passed-pawn creation without exact before/after passer proof.",
+      "- `ScenePassedPawnCreated` may not infer promotion-threat, unstoppable-passer, winning-endgame, conversion, pawn-race, or tablebase meaning.",
+      "Completion standard: PassedPawnCreated-3 closes when illegal moves, missing same-board proof, after-board non-passers, already-passed-before pawns, promotion moves, en passant, two-move passer creation, capture-only pawn events, and promotion-threat, unstoppable, or winning wording all produce incomplete `PassedPawnCreatedProof`, no `Scene.PassedPawnCreated`, or rejected downstream text"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PassedPawnCreated-3 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PassedPawnCreatedSummary),
+        "summary docs must keep only summary PassedPawnCreated scope"
+      )
+      assert(
+        !doc.contains("### PassedPawnCreated-3 Negative Corpus"),
+        "summary docs must not duplicate detailed PassedPawnCreated-3 law"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated-3 must stay silent for:"),
+        "summary docs must not duplicate PassedPawnCreated-3 negative corpus checklist"
+      )
+      assert(
+        !doc.contains("A pawn move is not passer creation. Exact before/after passed-pawn proof or silence."),
+        "summary docs must not duplicate PassedPawnCreated-3 criterion"
+      )
+    assert(
+      manifest.contains(PassedPawnCreatedSummary),
+      "LegacyPruneManifest must keep PassedPawnCreated summary"
+    )
+    assert(
+      !manifest.contains("### PassedPawnCreated-3 Negative Corpus"),
+      "LegacyPruneManifest must not duplicate detailed PassedPawnCreated-3 law"
+    )
+    assert(
+      !manifest.contains("PassedPawnCreated-3 must stay silent for:"),
+      "LegacyPruneManifest must not duplicate PassedPawnCreated-3 negative corpus checklist"
+    )
+
+  test("PassedPawnCreated-4 pins EngineCheck reuse only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PassedPawnCreated-4 EngineCheck Reuse",
+      "PassedPawnCreated-4 reuses only the existing `EngineCheck` sidecar.",
+      "EngineCheck rules for `Scene.PassedPawnCreated`:",
+      "- `EngineCheck` cannot create `Scene.PassedPawnCreated`.",
+      "- `Supports` creates no new claim.",
+      "- `Caps` suppresses standalone `Scene.PassedPawnCreated` claim output or weakens it to bounded relation only.",
+      "- `Refutes` makes the `Scene.PassedPawnCreated` Story `Blocked`.",
+      "- `Unknown` creates no engine expression.",
+      "PassedPawnCreated-4 forbidden engine wording:",
+      "- `engine says`",
+      "- eval number",
+      "- best move",
+      "- only move",
+      "- winning endgame",
+      "- tablebase result",
+      "- pawn race result",
+      "Completion standard: PassedPawnCreated-4 closes when `EngineCheck` can attach only to an already complete `ScenePassedPawnCreated` Story, `Supports` leaves the bounded created-passer claim unchanged, `Caps` suppresses standalone claim output or weakens to bounded relation only, `Refutes` blocks the Story, `Unknown` produces no engine expression, and engine-says, eval-number, best-move, only-move, winning-endgame, tablebase-result, and pawn-race-result wording remain rejected."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PassedPawnCreated-4 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PassedPawnCreatedSummary),
+        "summary docs must keep only summary PassedPawnCreated scope"
+      )
+      assert(
+        !doc.contains("### PassedPawnCreated-4 EngineCheck Reuse"),
+        "summary docs must not duplicate detailed PassedPawnCreated-4 law"
+      )
+      assert(
+        !doc.contains("EngineCheck rules for `Scene.PassedPawnCreated`:"),
+        "summary docs must not duplicate PassedPawnCreated-4 EngineCheck checklist"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated-4 forbidden engine wording:"),
+        "summary docs must not duplicate PassedPawnCreated-4 forbidden wording checklist"
+      )
+    assert(
+      manifest.contains(PassedPawnCreatedSummary),
+      "LegacyPruneManifest must keep PassedPawnCreated summary"
+    )
+    assert(
+      !manifest.contains("### PassedPawnCreated-4 EngineCheck Reuse"),
+      "LegacyPruneManifest must not duplicate detailed PassedPawnCreated-4 law"
+    )
+    assert(
+      !manifest.contains("EngineCheck rules for `Scene.PassedPawnCreated`:"),
+      "LegacyPruneManifest must not duplicate PassedPawnCreated-4 EngineCheck checklist"
+    )
+
+  test("PassedPawnCreated-5 pins StoryTable integration against existing claim homes"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PassedPawnCreated-5 StoryTable Integration",
+      "PassedPawnCreated-5 collides `Scene.PassedPawnCreated` with existing StoryTable rows without opening promotion, conversion, or capture-event ownership.",
+      "PassedPawnCreated-5 collision targets:",
+      "- `Scene.PawnBreak`",
+      "- `Scene.PawnCapture`",
+      "- `Scene.PawnAdvance`",
+      "- `Scene.PawnStop`",
+      "- `Scene.PromotionThreat`",
+      "- `Scene.Promotion`",
+      "- `Scene.Material`",
+      "- `Scene.Defense`",
+      "- `Tactic.Hanging`",
+      "- Line / Defender tactics",
+      "- `Scene.PassedPawnCreated`",
+      "PassedPawnCreated-5 verification:",
+      "- input order stability",
+      "- `Scene.PassedPawnCreated` does not own the `Scene.PawnCapture` event",
+      "- `Scene.PassedPawnCreated` does not own `Scene.PawnAdvance` meaning",
+      "- `Scene.PassedPawnCreated` does not create `Scene.PromotionThreat` or `Scene.Promotion` meaning",
+      "- actual material change now remains in `Scene.Material`",
+      "- capped or refuted `Scene.PassedPawnCreated` has no standalone text",
+      "Completion standard: PassedPawnCreated-5 closes when StoryTable ordering is input-order stable across PassedPawnCreated collisions, existing claim homes keep lead ownership over PawnBreak, PawnCapture, PawnAdvance, PawnStop, PromotionThreat, Promotion, Material, Defense, Hanging, and line/defender tactics, same-family PassedPawnCreated rows order deterministically, PassedPawnCreated does not own capture-event, advance, promotion-threat, promotion, or material-now meaning, and capped/refuted PassedPawnCreated rows produce no standalone text."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PassedPawnCreated-5 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PassedPawnCreatedSummary),
+        "summary docs must keep only summary PassedPawnCreated scope"
+      )
+      assert(
+        !doc.contains("### PassedPawnCreated-5 StoryTable Integration"),
+        "summary docs must not duplicate detailed PassedPawnCreated-5 law"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated-5 collision targets:"),
+        "summary docs must not duplicate PassedPawnCreated-5 target checklist"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated-5 verification:"),
+        "summary docs must not duplicate PassedPawnCreated-5 verification checklist"
+      )
+    assert(
+      manifest.contains(PassedPawnCreatedSummary),
+      "LegacyPruneManifest must keep PassedPawnCreated summary"
+    )
+    assert(
+      !manifest.contains("### PassedPawnCreated-5 StoryTable Integration"),
+      "LegacyPruneManifest must not duplicate detailed PassedPawnCreated-5 law"
+    )
+    assert(
+      !manifest.contains("PassedPawnCreated-5 collision targets:"),
+      "LegacyPruneManifest must not duplicate PassedPawnCreated-5 target checklist"
+    )
+
+  test("PassedPawnCreated-6 pins ExplanationPlan to created-passer claim only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PassedPawnCreated-6 ExplanationPlan",
+      "PassedPawnCreated-6 lets `ExplanationPlan` accept only selected uncapped Lead `Scene.PassedPawnCreated` Verdicts.",
+      "PassedPawnCreated-6 allowed claim key:",
+      "- `creates_passed_pawn`",
+      "PassedPawnCreated-6 forbidden claim keys:",
+      "- `unstoppable_pawn`",
+      "- `promotion_threat`",
+      "- `will_promote`",
+      "- `wins_endgame`",
+      "- `converts_advantage`",
+      "- `breaks_through`",
+      "- `creates_pressure`",
+      "- `takes_initiative`",
+      "- `best_move`",
+      "- `only_move`",
+      "- `forced`",
+      "Support, Context, Blocked, capped, and refuted `Scene.PassedPawnCreated` rows create no standalone claim.",
+      "Completion standard: PassedPawnCreated-6 closes when only selected uncapped Lead PassedPawnCreated Verdicts lower to `creates_passed_pawn`, every listed forbidden claim key remains unavailable, and Support, Context, Blocked, capped, and refuted PassedPawnCreated rows produce no standalone claim."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PassedPawnCreated-6 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PassedPawnCreatedSummary),
+        "summary docs must keep only summary PassedPawnCreated scope"
+      )
+      assert(
+        !doc.contains("### PassedPawnCreated-6 ExplanationPlan"),
+        "summary docs must not duplicate detailed PassedPawnCreated-6 law"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated-6 forbidden claim keys:"),
+        "summary docs must not duplicate PassedPawnCreated-6 forbidden claim checklist"
+      )
+    assert(
+      manifest.contains(PassedPawnCreatedSummary),
+      "LegacyPruneManifest must keep PassedPawnCreated summary"
+    )
+    assert(
+      !manifest.contains("### PassedPawnCreated-6 ExplanationPlan"),
+      "LegacyPruneManifest must not duplicate detailed PassedPawnCreated-6 law"
+    )
+    assert(
+      !manifest.contains("PassedPawnCreated-6 forbidden claim keys:"),
+      "LegacyPruneManifest must not duplicate PassedPawnCreated-6 forbidden claim checklist"
+    )
+
+  test("PassedPawnCreated-7 pins deterministic renderer created-passer wording only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PassedPawnCreated-7 Deterministic Renderer",
+      "Renderer input is `ExplanationPlan` only.",
+      "PassedPawnCreated-7 allowed deterministic wording:",
+      "- `{route} creates a passed pawn on {target}.`",
+      "PassedPawnCreated-7 forbidden renderer wording:",
+      "- `unstoppable`",
+      "- `will promote`",
+      "- `wins`",
+      "- `winning endgame`",
+      "- `converts`",
+      "- `breaks through`",
+      "- `takes the initiative`",
+      "- `creates pressure`",
+      "- `best move`",
+      "- `only move`",
+      "- `forces`",
+      "Completion standard: PassedPawnCreated-7 closes when `DeterministicRenderer` accepts only `ExplanationPlan`, phrases selected uncapped Lead PassedPawnCreated as `{route} creates a passed pawn on {target}.`, rejects Support, Context, Blocked, capped, refuted, no-claim, and malformed plans, and emits none of the forbidden unstoppable, promotion, winning, conversion, breakthrough, pressure, initiative, best-move, only-move, or forced wording."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PassedPawnCreated-7 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PassedPawnCreatedSummary),
+        "summary docs must keep only summary PassedPawnCreated scope"
+      )
+      assert(
+        !doc.contains("### PassedPawnCreated-7 Deterministic Renderer"),
+        "summary docs must not duplicate detailed PassedPawnCreated-7 law"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated-7 forbidden renderer wording:"),
+        "summary docs must not duplicate PassedPawnCreated-7 forbidden renderer checklist"
+      )
+    assert(
+      manifest.contains(PassedPawnCreatedSummary),
+      "LegacyPruneManifest must keep PassedPawnCreated summary"
+    )
+    assert(
+      !manifest.contains("### PassedPawnCreated-7 Deterministic Renderer"),
+      "LegacyPruneManifest must not duplicate detailed PassedPawnCreated-7 law"
+    )
+    assert(
+      !manifest.contains("PassedPawnCreated-7 forbidden renderer wording:"),
+      "LegacyPruneManifest must not duplicate PassedPawnCreated-7 forbidden renderer checklist"
+    )
+
+  test("PassedPawnCreated-8 pins LLM smoke 8B-only prompt boundary"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PassedPawnCreated-8 LLM Smoke",
+      "PassedPawnCreated-8 reuses only the existing 8B LLM smoke boundary.",
+      "PassedPawnCreated-8 LLM smoke input:",
+      "- `renderedText`",
+      "- `claimKey`",
+      "- `strength`",
+      "- forbidden wording",
+      "- `Rephrase only. Do not add chess facts.`",
+      "PassedPawnCreated-8 forbidden LLM smoke inputs:",
+      "- raw `Story`",
+      "- raw `PassedPawnCreatedProof`",
+      "- `PassedPawnObservation`",
+      "- `BoardFacts`",
+      "- `EngineCheck`",
+      "- raw PV",
+      "- `proofFailures`",
+      "PassedPawnCreated-8 forbidden LLM smoke additions:",
+      "- new move",
+      "- new line",
+      "- promotion claim",
+      "- unstoppable claim",
+      "- winning claim",
+      "- conversion claim",
+      "- pressure claim",
+      "Completion standard: PassedPawnCreated-8 closes when LLM smoke may receive only renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.` for selected PassedPawnCreated RenderedLine; it rejects raw Story, raw PassedPawnCreatedProof, PassedPawnObservation, BoardFacts, EngineCheck, raw PV, proofFailures, new moves, new lines, and promotion, unstoppable, winning, conversion, or pressure claims."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PassedPawnCreated-8 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PassedPawnCreatedSummary),
+        "summary docs must keep only summary PassedPawnCreated scope"
+      )
+      assert(
+        !doc.contains("### PassedPawnCreated-8 LLM Smoke"),
+        "summary docs must not duplicate detailed PassedPawnCreated-8 law"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated-8 forbidden LLM smoke inputs:"),
+        "summary docs must not duplicate PassedPawnCreated-8 forbidden input checklist"
+      )
+    assert(
+      manifest.contains(PassedPawnCreatedSummary),
+      "LegacyPruneManifest must keep PassedPawnCreated summary"
+    )
+    assert(
+      !manifest.contains("### PassedPawnCreated-8 LLM Smoke"),
+      "LegacyPruneManifest must not duplicate detailed PassedPawnCreated-8 law"
+    )
+    assert(
+      !manifest.contains("PassedPawnCreated-8 forbidden LLM smoke inputs:"),
+      "LegacyPruneManifest must not duplicate PassedPawnCreated-8 forbidden input checklist"
+    )
+
+  test("PassedPawnCreated Closeout hard cleanup keeps authority separated and public surfaces closed"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PassedPawnCreated Closeout Hard Cleanup",
+      "`PassedPawnObservation`, `PassedPawnCreatedProof`, `Scene.PassedPawnCreated`, and `creates_passed_pawn` remain separate authority homes.",
+      "`PassedPawnObservation` observes same-board passed-pawn structure only.",
+      "`PassedPawnCreatedProof` proves only the before/after passed-pawn change for one legal move on the exact board.",
+      "`Scene.PassedPawnCreated` owns only the public Story identity for the bounded newly-created passer event.",
+      "`creates_passed_pawn` owns only bounded downstream speech for selected uncapped Lead Verdicts.",
+      "`Scene.PassedPawnCreated` owns no PawnBreak, PawnCapture, PawnAdvance, PawnStop, PromotionThreat, or Promotion meaning.",
+      "`Scene.PassedPawnCreated` owns no Material, Hanging, Defense, DiscoveredAttack, Pin, RemoveGuard, or Skewer meaning.",
+      "`unstoppable`, `promotion threat`, `will promote`, `conversion`, `winning`, `breakthrough`, `initiative`, and `pressure` remain forbidden wording only, not live PassedPawnCreated authority.",
+      "PassedPawnCreated duplicate checks:",
+      "- one chess meaning: one legal move creates one newly passed pawn on the exact after-board.",
+      "- one proof home: `PassedPawnCreatedProof`.",
+      "- one Story label: `Scene.PassedPawnCreated`.",
+      "- one speech key: `creates_passed_pawn`.",
+      "- one detailed live authority document: `StoryInteractionLaw.md`.",
+      "README, SSOT, Architecture, Contract, and Manifest may summarize PassedPawnCreated only.",
+      "Renderer and LLM smoke wording must remain no stronger than `creates_passed_pawn`.",
+      "Public route `200`, production API, and public/user-facing LLM narration remain closed.",
+      "Completion standard: PassedPawnCreated Closeout closes when PassedPawnObservation, PassedPawnCreatedProof, Scene.PassedPawnCreated, and creates_passed_pawn remain separate authority homes"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PassedPawnCreated Closeout law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(
+        doc.contains(PassedPawnCreatedSummary),
+        "summary docs must keep only summary PassedPawnCreated scope"
+      )
+      assert(
+        !doc.contains("### PassedPawnCreated Closeout Hard Cleanup"),
+        "summary docs must not duplicate detailed PassedPawnCreated closeout law"
+      )
+      assert(
+        !doc.contains("PassedPawnCreated duplicate checks:"),
+        "summary docs must not duplicate detailed PassedPawnCreated duplicate audit"
+      )
+      assert(
+        !doc.contains(
+          "PassedPawnObservation, PassedPawnCreatedProof, Scene.PassedPawnCreated, and creates_passed_pawn remain separate authority homes"
+        ),
+        "summary docs must not duplicate PassedPawnCreated authority-home detail"
+      )
+    assert(
+      manifest.contains(PassedPawnCreatedSummary),
+      "LegacyPruneManifest must keep PassedPawnCreated summary"
+    )
+    assert(
+      !manifest.contains("### PassedPawnCreated Closeout Hard Cleanup"),
+      "LegacyPruneManifest must not duplicate detailed PassedPawnCreated closeout law"
+    )
+    assert(
+      !manifest.contains("PassedPawnCreated duplicate checks:"),
+      "LegacyPruneManifest must not duplicate detailed PassedPawnCreated duplicate audit"
+    )
+    assert(
+      !manifest.contains(
+        "PassedPawnObservation, PassedPawnCreatedProof, Scene.PassedPawnCreated, and creates_passed_pawn remain separate authority homes"
+      ),
+      "LegacyPruneManifest must not duplicate PassedPawnCreated authority-home detail"
+    )
+
+  test("PSBNC-0 closes pawn structure break neighborhood without opening new meaning"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PSBNC-0 Pawn Structure / Break Neighborhood Closeout Charter",
+      "Pawn Structure / Break Neighborhood closes as three narrow proof-backed event slices. PSBNC opens no new chess meaning.",
+      "PSBNC-0 closes only already-open narrow meanings:",
+      "- `Scene.PawnBreak`",
+      "- `Scene.PawnCapture`",
+      "- `Scene.PassedPawnCreated`",
+      "`BoardFacts.PawnLever`, `PawnBreakProof`, `Scene.PawnBreak`, and `challenges_pawn` remain separate authority homes.",
+      "`PawnCaptureProof`, `Scene.PawnCapture`, and `captures_rival_pawn` remain separate authority homes.",
+      "`PassedPawnObservation`, `PassedPawnCreatedProof`, `Scene.PassedPawnCreated`, and `creates_passed_pawn` remain separate authority homes.",
+      "The three Story labels must not steal each other's claims.",
+      "A pawn-captures-rival-pawn event does not automatically own passed-pawn creation.",
+      "A newly-created passer event does not own the pawn-capture event.",
+      "Pawn contact/challenge stays in the PawnBreak home.",
+      "Pawn-captures-rival-pawn event stays in the PawnCapture home.",
+      "Newly-created passer event stays in the PassedPawnCreated home.",
+      "Completion standard: PSBNC-0 closes when PawnBreakProof / Scene.PawnBreak / challenges_pawn, PawnCaptureProof / Scene.PawnCapture / captures_rival_pawn, and PassedPawnObservation / PassedPawnCreatedProof / Scene.PassedPawnCreated / creates_passed_pawn remain separate"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PSBNC-0 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnStructureBreakCloseoutSummary), "summary docs must keep PSBNC-0 summary")
+      assert(!doc.contains("### PSBNC-0 Pawn Structure / Break Neighborhood Closeout Charter"))
+      assert(!doc.contains("PSBNC-0 closes only already-open narrow meanings:"))
+      assert(!doc.contains("The three Story labels must not steal each other's claims."))
+    assert(manifest.contains(PawnStructureBreakCloseoutSummary), "Manifest must keep PSBNC-0 summary")
+    assert(!manifest.contains("### PSBNC-0 Pawn Structure / Break Neighborhood Closeout Charter"))
+    assert(!manifest.contains("PSBNC-0 closes only already-open narrow meanings:"))
+    assert(!manifest.contains("The three Story labels must not steal each other's claims."))
+
+  test("PSBNC-1 scope audit keeps only three pawn structure event slices open"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PSBNC-1 Scope Audit",
+      "Three pawn-structure event slices are open. Broad pawn-structure interpretation remains closed.",
+      "PSBNC-1 open positive Stories are exactly:",
+      "- `Scene.PawnBreak`",
+      "- `Scene.PawnCapture`",
+      "- `Scene.PassedPawnCreated`",
+      "PSBNC-1 does not open:",
+      "- broad PawnTactic",
+      "- broad pawn structure advantage",
+      "- passed pawn strategy",
+      "- breakthrough",
+      "- open file",
+      "- weak square / weakness",
+      "- pawn majority change",
+      "- wins space",
+      "- wins pawn",
+      "- wins material",
+      "- promotion threat",
+      "- unstoppable pawn",
+      "- conversion",
+      "- initiative",
+      "- pressure",
+      "- best move / only move / forced",
+      "- public route `200`",
+      "- production API",
+      "- public/user-facing LLM narration",
+      "Completion standard: PSBNC-1 closes when the only open Pawn Structure / Break Neighborhood positive Stories are Scene.PawnBreak, Scene.PawnCapture, and Scene.PassedPawnCreated"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PSBNC-1 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnStructureBreakCloseoutSummary), "summary docs must keep PSBNC summary")
+      assert(!doc.contains("### PSBNC-1 Scope Audit"))
+      assert(!doc.contains("PSBNC-1 open positive Stories are exactly:"))
+      assert(!doc.contains("PSBNC-1 does not open:"))
+    assert(manifest.contains(PawnStructureBreakCloseoutSummary), "Manifest must keep PSBNC summary")
+    assert(!manifest.contains("### PSBNC-1 Scope Audit"))
+    assert(!manifest.contains("PSBNC-1 open positive Stories are exactly:"))
+    assert(!manifest.contains("PSBNC-1 does not open:"))
+
+  test("PSBNC-2 duplication audit keeps one proof home Story label and speech key per meaning"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PSBNC-2 Duplication Audit",
+      "PSBNC-2 duplication audit:",
+      "- one chess meaning, one proof home",
+      "- one Story label per public chess meaning",
+      "- one speech key per allowed public claim",
+      "- one detailed live authority document",
+      "direct rival-pawn lever/contact:",
+      "- proof home = `PawnBreakProof`",
+      "- Story label = `Scene.PawnBreak`",
+      "- speech key = `challenges_pawn`",
+      "pawn captures rival pawn:",
+      "- proof home = `PawnCaptureProof`",
+      "- Story label = `Scene.PawnCapture`",
+      "- speech key = `captures_rival_pawn`",
+      "newly-created passed pawn:",
+      "- observation = `PassedPawnObservation`",
+      "- proof home = `PassedPawnCreatedProof`",
+      "- Story label = `Scene.PassedPawnCreated`",
+      "- speech key = `creates_passed_pawn`",
+      "`PawnBreakProof` must not act as capture proof.",
+      "`PawnCaptureProof` must not act as material or passed-pawn proof.",
+      "`PassedPawnCreatedProof` must not act as capture or pawn-break proof.",
+      "Speech keys must not duplicate.",
+      "Completion standard: PSBNC-2 closes when direct rival-pawn lever/contact, pawn captures rival pawn, and newly-created passed pawn each have exactly one proof home, one Story label, and one speech key"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PSBNC-2 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnStructureBreakCloseoutSummary), "summary docs must keep PSBNC summary")
+      assert(!doc.contains("### PSBNC-2 Duplication Audit"))
+      assert(!doc.contains("PSBNC-2 duplication audit:"))
+      assert(!doc.contains("direct rival-pawn lever/contact:"))
+    assert(manifest.contains(PawnStructureBreakCloseoutSummary), "Manifest must keep PSBNC summary")
+    assert(!manifest.contains("### PSBNC-2 Duplication Audit"))
+    assert(!manifest.contains("PSBNC-2 duplication audit:"))
+    assert(!manifest.contains("direct rival-pawn lever/contact:"))
+
+  test("PSBNC-3 StoryTable interaction audit keeps pawn structure rows in existing claim homes"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PSBNC-3 StoryTable Interaction Audit",
+      "PSBNC-3 collides the three Pawn Structure / Break Neighborhood rows with existing open rows.",
+      "PSBNC-3 target rows:",
+      "- `Scene.PawnBreak`",
+      "- `Scene.PawnCapture`",
+      "- `Scene.PassedPawnCreated`",
+      "- `Scene.PawnAdvance`",
+      "- `Scene.PawnStop`",
+      "- `Scene.PromotionThreat`",
+      "- `Scene.Promotion`",
+      "- `Scene.Material`",
+      "- `Tactic.Hanging`",
+      "- `Scene.Defense`",
+      "- Line / Defender tactics",
+      "StoryTable interaction audit rules:",
+      "- input order must stay stable",
+      "- each claim home must stay in its own home",
+      "- `Scene.PawnCapture` must not own the `Scene.PassedPawnCreated` claim",
+      "- `Scene.PassedPawnCreated` must not own the `Scene.PawnCapture` event",
+      "- `Scene.PawnBreak` must not own capture or passed-pawn creation meaning",
+      "- actual material change now remains `Scene.Material` home",
+      "- promotion-next meaning remains `Scene.PromotionThreat` home",
+      "- actual promotion meaning remains `Scene.Promotion` home",
+      "- only the selected uncapped Lead may carry an allowed claim into `ExplanationPlan`",
+      "- Support, Context, Blocked, capped, and refuted rows must have no standalone text",
+      "Completion standard: PSBNC-3 closes when StoryTable order is stable across input order"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PSBNC-3 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnStructureBreakCloseoutSummary), "summary docs must keep PSBNC summary")
+      assert(!doc.contains("### PSBNC-3 StoryTable Interaction Audit"))
+      assert(!doc.contains("PSBNC-3 target rows:"))
+      assert(!doc.contains("StoryTable interaction audit rules:"))
+    assert(manifest.contains(PawnStructureBreakCloseoutSummary), "Manifest must keep PSBNC summary")
+    assert(!manifest.contains("### PSBNC-3 StoryTable Interaction Audit"))
+    assert(!manifest.contains("PSBNC-3 target rows:"))
+    assert(!manifest.contains("StoryTable interaction audit rules:"))
+
+  test("PSBNC-4 downstream boundary audit keeps pawn structure speech bounded"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PSBNC-4 Downstream Boundary Audit",
+      "PSBNC-4 audits only the downstream boundaries for the three Pawn Structure / Break Neighborhood slices.",
+      "PSBNC-4 downstream targets:",
+      "- `ExplanationPlan`",
+      "- `DeterministicRenderer`",
+      "- LLM smoke",
+      "PSBNC-4 boundary rules:",
+      "- `ExplanationPlan` input is only the selected uncapped Lead `Verdict`",
+      "- `DeterministicRenderer` input is `ExplanationPlan` only",
+      "- LLM smoke input reuses only the existing 8B boundary",
+      "PSBNC-4 allowed claim keys:",
+      "- `challenges_pawn`",
+      "- `captures_rival_pawn`",
+      "- `creates_passed_pawn`",
+      "PSBNC-4 forbidden claim keys:",
+      "- `opens_file`",
+      "- `weakens_structure`",
+      "- `breaks_through`",
+      "- `wins_space`",
+      "- `wins_pawn`",
+      "- `wins_material`",
+      "- `promotion_threat`",
+      "- `unstoppable_pawn`",
+      "- `converts_advantage`",
+      "- `creates_pressure`",
+      "- `takes_initiative`",
+      "- `best_move`",
+      "- `only_move`",
+      "- `forced`",
+      "Renderer and LLM smoke wording must remain no stronger than the selected claim.",
+      "Completion standard: PSBNC-4 closes when ExplanationPlan receives only selected uncapped Lead Verdicts"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PSBNC-4 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnStructureBreakCloseoutSummary), "summary docs must keep PSBNC summary")
+      assert(!doc.contains("### PSBNC-4 Downstream Boundary Audit"))
+      assert(!doc.contains("PSBNC-4 downstream targets:"))
+      assert(!doc.contains("PSBNC-4 boundary rules:"))
+      assert(!doc.contains("PSBNC-4 allowed claim keys:"))
+      assert(!doc.contains("PSBNC-4 forbidden claim keys:"))
+    assert(manifest.contains(PawnStructureBreakCloseoutSummary), "Manifest must keep PSBNC summary")
+    assert(!manifest.contains("### PSBNC-4 Downstream Boundary Audit"))
+    assert(!manifest.contains("PSBNC-4 downstream targets:"))
+    assert(!manifest.contains("PSBNC-4 boundary rules:"))
+    assert(!manifest.contains("PSBNC-4 allowed claim keys:"))
+    assert(!manifest.contains("PSBNC-4 forbidden claim keys:"))
+
+  test("PSBNC-5 forbidden wording audit keeps closed pawn structure wording non-authoritative"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PSBNC-5 Forbidden Wording Audit",
+      "PSBNC-5 audits forbidden wording for the three Pawn Structure / Break Neighborhood slices.",
+      "PSBNC-5 forbidden live-authority wording:",
+      "- opens file",
+      "- opens position",
+      "- weakens structure",
+      "- breakthrough",
+      "- breaks through",
+      "- wins space",
+      "- wins pawn",
+      "- wins material",
+      "- creates passed pawn, unless selected `Scene.PassedPawnCreated`",
+      "- promotion threat, unless selected `Scene.PromotionThreat`",
+      "- unstoppable",
+      "- conversion",
+      "- initiative",
+      "- pressure",
+      "- best move",
+      "- only move",
+      "- forced",
+      "Forbidden wording may exist only as forbidden wording, negative corpus, or docs saying it remains closed.",
+      "It must not become proof home, Story label, claim key, renderer output, LLM-added fact, public value, or public route payload.",
+      "Completion standard: PSBNC-5 closes when forbidden wording remains non-authoritative"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PSBNC-5 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnStructureBreakCloseoutSummary), "summary docs must keep PSBNC summary")
+      assert(!doc.contains("### PSBNC-5 Forbidden Wording Audit"))
+      assert(!doc.contains("PSBNC-5 forbidden live-authority wording:"))
+      assert(!doc.contains("Forbidden wording may exist only as forbidden wording"))
+    assert(manifest.contains(PawnStructureBreakCloseoutSummary), "Manifest must keep PSBNC summary")
+    assert(!manifest.contains("### PSBNC-5 Forbidden Wording Audit"))
+    assert(!manifest.contains("PSBNC-5 forbidden live-authority wording:"))
+    assert(!manifest.contains("Forbidden wording may exist only as forbidden wording"))
+
+  test("PSBNC-6 documentation simplification audit keeps detailed closeout law in StoryInteractionLaw only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PSBNC-6 Documentation Simplification Audit",
+      "PSBNC-6 documentation simplification audit:",
+      "- detailed Pawn Structure / Break Neighborhood closeout authority lives only in `StoryInteractionLaw.md`.",
+      "- `README.md`, `ChessCommentarySSOT.md`, `ChessModelArchitecture.md`, `ChessModelContract.md`, and `LegacyPruneManifest.md` remain summary-only.",
+      "- `AGENTS.md` keeps durable operator guardrails only.",
+      "- retired root docs must not return.",
+      "- legacy reset archive documents are historical reference only and not acceptance sources.",
+      "PSBNC-6 summary-only documents:",
+      "- `README.md`: non-authoritative pointer only.",
+      "- `ChessCommentarySSOT.md`: non-authoritative pointer only.",
+      "- `ChessModelArchitecture.md`: non-authoritative pointer only.",
+      "- `ChessModelContract.md`: non-authoritative pointer only.",
+      "- `LegacyPruneManifest.md`: pruning summary only, not detailed law.",
+      "PSBNC-6 forbidden documentation duplication:",
+      "- no PSBNC detailed checklist in summary docs.",
+      "- no closeout stage law in `AGENTS.md`.",
+      "- no detailed PSBNC law in `LegacyPruneManifest.md`.",
+      "- no retired root docs as live authority.",
+      "- no legacy reset archive acceptance source.",
+      "Completion standard: PSBNC-6 closes when detailed PSBNC closeout authority appears only in `StoryInteractionLaw.md`"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PSBNC-6 law must pin: $required")
+
+    val summaryDocs = Vector(readme, ssot, architecture, normalizedModelContract)
+    summaryDocs.foreach: doc =>
+      assert(doc.contains(PawnStructureBreakCloseoutSummary), "summary docs must keep PSBNC summary")
+      PawnStructureBreakCloseoutDetailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"summary docs must not repeat detailed PSBNC law: $marker")
+
+    assert(manifest.contains(PawnStructureBreakCloseoutSummary), "Manifest must keep PSBNC summary")
+    PawnStructureBreakCloseoutDetailedMarkers.foreach: marker =>
+      assert(!manifest.contains(marker), s"LegacyPruneManifest must not repeat detailed PSBNC law: $marker")
+
+    assert(agents.contains("AGENTS.md is a concise operator guide."))
+    assert(agents.contains("Detailed slice authority lives in `StoryInteractionLaw.md`"))
+    assert(agents.contains("Documents under"))
+    assert(agents.contains("legacy-pre-semantic-reset/"))
+    assert(agents.contains("historical reference only"))
+    PawnStructureBreakCloseoutDetailedMarkers.foreach: marker =>
+      assert(!agents.contains(marker), s"AGENTS.md must not repeat detailed PSBNC law: $marker")
+
+    val liveDocTextByName = LiveDocs.map(name => name -> Files.readString(docsRoot.resolve(name))).toMap
+    PawnStructureBreakCloseoutDetailedMarkers.foreach: marker =>
+      val owners = liveDocTextByName.collect:
+        case (docName, contents) if contents.contains(marker) => docName
+      assertEquals(owners.toSet, Set("StoryInteractionLaw.md"), s"detailed PSBNC marker must have one owner: $marker")
+
+    RetiredRootDocs.foreach: fileName =>
+      assert(!Files.exists(docsRoot.resolve(fileName)), s"retired root doc must not return: $fileName")
+
+  test("PSBNC-7 runtime boundary audit keeps test helpers below runtime authority"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PSBNC-7 Runtime Boundary Audit",
+      "PSBNC-7 runtime boundary audit:",
+      "- test helpers are not runtime authority.",
+      "- runtime helpers must not become new authority.",
+      "- fixture names are not Story family names.",
+      "- negative corpus helpers are not production concepts.",
+      "- forbidden wording checks must target public overclaim wording, not arbitrary internal field names.",
+      "- runtime source must not contain closeout-only terminology.",
+      "PSBNC-7 forbids new runtime authority:",
+      "- no new Story family.",
+      "- no new proof home.",
+      "- no new Story writer.",
+      "- no new claim key.",
+      "- no new renderer template.",
+      "- no new LLM behavior.",
+      "- no public route `200`.",
+      "- no production API.",
+      "- no public/user-facing LLM narration.",
+      "PSBNC-7 allowed closeout changes:",
+      "- tests may audit the boundary.",
+      "- documentation law may record the audit in `StoryInteractionLaw.md`.",
+      "- runtime code changes are allowed only if an audit exposes leakage or duplicated authority.",
+      "PSBNC-7 runtime source guard:",
+      "- runtime source must not contain `PSBNC-`.",
+      "- runtime source must not contain `closeout`.",
+      "- runtime source must not contain `Runtime Boundary Audit`.",
+      "- runtime source must not contain `Pawn Structure / Break Neighborhood Closeout`.",
+      "- runtime source must not contain `fixture map`.",
+      "- runtime source must not contain `negative corpus`.",
+      "Completion standard: PSBNC-7 closes when helper names remain test-local"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PSBNC-7 law must pin: $required")
+
+    val detailedMarkers =
+      Vector(
+        "### PSBNC-7 Runtime Boundary Audit",
+        "PSBNC-7 runtime boundary audit:",
+        "PSBNC-7 forbids new runtime authority:",
+        "PSBNC-7 allowed closeout changes:",
+        "PSBNC-7 runtime source guard:"
+      )
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnStructureBreakCloseoutSummary), "summary docs must keep PSBNC summary")
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"summary docs must not repeat detailed PSBNC-7 law: $marker")
+    assert(manifest.contains(PawnStructureBreakCloseoutSummary), "Manifest must keep PSBNC summary")
+    detailedMarkers.foreach: marker =>
+      assert(!manifest.contains(marker), s"LegacyPruneManifest must not repeat detailed PSBNC-7 law: $marker")
+      assert(!agents.contains(marker), s"AGENTS.md must not repeat detailed PSBNC-7 law: $marker")
+
+    val runtimeText = runtimeChessSourceText
+    Vector(
+      "PSBNC-",
+      "closeout",
+      "Runtime Boundary Audit",
+      "Pawn Structure / Break Neighborhood Closeout",
+      "fixture map",
+      "negative corpus"
+    ).foreach: closeoutOnlyTerm =>
+      assert(
+        !runtimeText.contains(closeoutOnlyTerm),
+        s"runtime source must not contain closeout-only term: $closeoutOnlyTerm"
+      )
+
+  test("PSBNC final completion standard closes Pawn Structure Break Neighborhood"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("### PSBNC Final Completion Standard"))
+    Vector(
+      "PSBNC final completion standard:",
+      "- `Scene.PawnBreak`, `Scene.PawnCapture`, and `Scene.PassedPawnCreated` remain the only open Pawn Structure / Break Neighborhood positive slices.",
+      "- each slice has exactly one proof path, one Story label, and one speech key.",
+      "- no slice owns another slice's chess meaning.",
+      "- Material, PromotionThreat, Promotion, PawnAdvance, PawnStop, Hanging, Defense, and Line / Defender tactic homes keep their meanings.",
+      "- forbidden broad pawn-structure wording remains forbidden only.",
+      "- StoryTable ordering is input-order stable across neighborhood collisions.",
+      "- non-selected, capped, refuted, Support, Context, and Blocked rows produce no standalone downstream text.",
+      "- ExplanationPlan, Renderer, and LLM smoke remain bounded to selected Lead Verdict data.",
+      "- detailed authority lives only in `StoryInteractionLaw.md`.",
+      "- summary docs remain summaries only.",
+      "- public route `200`, production API, and public/user-facing LLM narration remain closed.",
+      "PSBNC final verification:",
+      "- targeted commentary runtime tests pass.",
+      "- docs authority tests pass.",
+      "- `git diff --check` passes.",
+      "Final PSBNC closeout opens no new Story family, proof home, Story writer, claim key, renderer template, LLM behavior, fixture-derived runtime authority, negative-corpus production concept, broad PawnTactic, broad pawn-structure advantage, passed pawn strategy, breakthrough, open file, weak square, wins space, wins pawn, wins material, promotion threat, unstoppable pawn, conversion, initiative, pressure, best move, only move, forced, public route `200`, production API, or public/user-facing LLM narration."
+    ).foreach: finalLine =>
+      assert(interactionLaw.contains(finalLine), s"PSBNC final completion must pin: $finalLine")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnStructureBreakCloseoutSummary), "summary docs must keep PSBNC summary")
+      assert(
+        !doc.contains("PSBNC final completion standard:"),
+        "summary docs must not duplicate detailed PSBNC final standard"
+      )
+      assert(
+        !doc.contains("PSBNC final verification:"),
+        "summary docs must not duplicate detailed PSBNC final verification"
+      )
+    assert(manifest.contains(PawnStructureBreakCloseoutSummary), "Manifest must keep PSBNC summary")
+    assert(
+      !manifest.contains("PSBNC final completion standard:"),
+      "LegacyPruneManifest must not duplicate detailed PSBNC final standard"
+    )
+    assert(
+      !manifest.contains("PSBNC final verification:"),
+      "LegacyPruneManifest must not duplicate detailed PSBNC final verification"
+    )
+
+  test("PawnCapture-1 pins PawnCaptureProof as ordinary diagonal pawn capture proof home"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnCapture-1 PawnCaptureProof",
+      "PawnCapture-1 narrows `PawnCaptureProof` as the proof home for the current `Scene.PawnCapture` slice.",
+      "PawnCaptureProof proves:",
+      "- capturing side",
+      "- rival side",
+      "- capturing pawn identity",
+      "- origin square",
+      "- capture square",
+      "- captured rival pawn identity",
+      "- legal pawn capture",
+      "- exact after-board replay",
+      "- same-board proof",
+      "PawnCapture-1 first scope:",
+      "- ordinary diagonal pawn capture only",
+      "PawnCapture-1 closed scope:",
+      "- en passant",
+      "- promotion capture",
+      "- capture that claims material gain",
+      "- capture that claims passed pawn creation",
+      "- capture that claims file opening",
+      "- capture that claims structural weakness",
+      "`PawnCaptureProof` is not a public Story.",
+      "`CaptureResult` and `Scene.Material` remain the material meaning homes.",
+      "`PawnCaptureProof` does not replace `CaptureResult` or `Scene.Material`.",
+      "Completion standard: PawnCapture-1 closes when `PawnCaptureProof` explicitly proves ordinary diagonal legal pawn captures"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnCapture-1 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnCaptureSummary), "summary docs must keep the PawnCapture summary pointer")
+      assert(
+        !doc.contains("### PawnCapture-1 PawnCaptureProof"),
+        "summary docs must not duplicate detailed PawnCapture-1 law"
+      )
+      assert(
+        !doc.contains("PawnCaptureProof proves:"),
+        "summary docs must not duplicate PawnCapture-1 proof checklist"
+      )
+      assert(
+        !doc.contains("PawnCapture-1 closed scope:"),
+        "summary docs must not duplicate PawnCapture-1 closed scope"
+      )
+    assert(
+      manifest.contains(PawnCaptureSummary),
+      "LegacyPruneManifest must keep the PawnCapture summary pointer"
+    )
+    assert(
+      !manifest.contains("### PawnCapture-1 PawnCaptureProof"),
+      "LegacyPruneManifest must not duplicate detailed PawnCapture-1 law"
+    )
+    assert(
+      !manifest.contains("PawnCaptureProof proves:"),
+      "LegacyPruneManifest must not duplicate PawnCapture-1 proof checklist"
+    )
+
+  test("PawnCapture-2 pins ScenePawnCapture as the only PawnCapture writer"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnCapture-2 Scene.PawnCapture Writer",
+      "`ScenePawnCapture` is the named writer for narrow `Scene.PawnCapture`.",
+      "PawnCapture-2 writer conditions:",
+      "- complete `StoryProof`",
+      "- complete `PawnCaptureProof`",
+      "- same-board legal replay",
+      "- legal ordinary pawn capture",
+      "- captured piece is rival pawn",
+      "- writer = `ScenePawnCapture`",
+      "- `EngineCheck` does not `Refute`",
+      "PawnCapture-2 Story identity:",
+      "- `scene = PawnCapture`",
+      "- `tactic = None`",
+      "- `plan = None`",
+      "- `side = capturing side`",
+      "- `rival = rival side`",
+      "- `target = capture square`",
+      "- `anchor = pawn origin square`",
+      "- `route = pawn capture`",
+      "PawnCapture-2 forbidden writer output:",
+      "- `Scene.Material` claim",
+      "- `PassedPawnCreated` claim",
+      "- open-file meaning",
+      "- weakness meaning",
+      "- strategy meaning",
+      "Completion standard: PawnCapture-2 closes when `ScenePawnCapture` alone writes narrow `Scene.PawnCapture`"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnCapture-2 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnCaptureSummary), "summary docs must keep the PawnCapture summary pointer")
+      assert(
+        !doc.contains("### PawnCapture-2 Scene.PawnCapture Writer"),
+        "summary docs must not duplicate detailed PawnCapture-2 law"
+      )
+      assert(
+        !doc.contains("PawnCapture-2 writer conditions:"),
+        "summary docs must not duplicate PawnCapture-2 writer checklist"
+      )
+      assert(
+        !doc.contains("PawnCapture-2 Story identity:"),
+        "summary docs must not duplicate PawnCapture-2 identity checklist"
+      )
+    assert(
+      manifest.contains(PawnCaptureSummary),
+      "LegacyPruneManifest must keep the PawnCapture summary pointer"
+    )
+    assert(
+      !manifest.contains("### PawnCapture-2 Scene.PawnCapture Writer"),
+      "LegacyPruneManifest must not duplicate detailed PawnCapture-2 law"
+    )
+    assert(
+      !manifest.contains("PawnCapture-2 writer conditions:"),
+      "LegacyPruneManifest must not duplicate PawnCapture-2 writer checklist"
+    )
+
+  test("PawnCapture-3 pins negative corpus to complete proof or silence"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnCapture-3 Negative Corpus",
+      "A pawn capture is not a material or structure claim. Complete PawnCaptureProof or silence.",
+      "PawnCapture-3 must close:",
+      "- legal move 아님",
+      "- same-board proof 없음",
+      "- moving piece가 pawn이 아님",
+      "- capture가 아님",
+      "- captured piece가 pawn이 아님",
+      "- captured piece가 rival side가 아님",
+      "- en passant",
+      "- promotion capture",
+      "- material gain을 PawnCapture claim으로 말하려 함",
+      "- passed pawn created / open file / weakness wording 유입",
+      "Completion standard: PawnCapture-3 closes when every negative corpus row has incomplete `PawnCaptureProof` or blocked `Scene.PawnCapture` output"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnCapture-3 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnCaptureSummary), "summary docs must keep the PawnCapture summary pointer")
+      assert(
+        !doc.contains("### PawnCapture-3 Negative Corpus"),
+        "summary docs must not duplicate detailed PawnCapture-3 law"
+      )
+      assert(
+        !doc.contains("PawnCapture-3 must close:"),
+        "summary docs must not duplicate PawnCapture-3 corpus checklist"
+      )
+      assert(
+        !doc.contains("Complete PawnCaptureProof or silence."),
+        "summary docs must not duplicate PawnCapture-3 standard"
+      )
+    assert(
+      manifest.contains(PawnCaptureSummary),
+      "LegacyPruneManifest must keep the PawnCapture summary pointer"
+    )
+    assert(
+      !manifest.contains("### PawnCapture-3 Negative Corpus"),
+      "LegacyPruneManifest must not duplicate detailed PawnCapture-3 law"
+    )
+    assert(
+      !manifest.contains("PawnCapture-3 must close:"),
+      "LegacyPruneManifest must not duplicate PawnCapture-3 corpus checklist"
+    )
+
+  test("PawnCapture-4 pins EngineCheck reuse without engine-owned PawnCapture claims"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnCapture-4 EngineCheck Reuse",
+      "PawnCapture-4 reuses the existing `EngineCheck` sidecar only.",
+      "PawnCapture-4 rules:",
+      "- `EngineCheck` cannot create `Scene.PawnCapture`.",
+      "- `Supports` creates no new claim.",
+      "- `Caps` suppresses the standalone `captures_rival_pawn` claim or weakens it to bounded relation only.",
+      "- `Refutes` blocks the existing `Scene.PawnCapture` Story.",
+      "- `Unknown` creates no engine expression.",
+      "PawnCapture-4 forbids:",
+      "- engine says",
+      "- eval number",
+      "- best move",
+      "- only move",
+      "- wins pawn",
+      "- structural advantage",
+      "Completion standard: PawnCapture-4 closes when `EngineCheck` can attach only to an existing same-board `ScenePawnCapture` Story route, cannot create PawnCapture, cannot add a claim under Supports, suppresses or bounds capped rows, blocks refuted rows, keeps Unknown engine-silent, and exposes no engine-says, eval-number, best-move, only-move, wins-pawn, or structural-advantage wording."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnCapture-4 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnCaptureSummary), "summary docs must keep the PawnCapture summary pointer")
+      assert(
+        !doc.contains("### PawnCapture-4 EngineCheck Reuse"),
+        "summary docs must not duplicate detailed PawnCapture-4 law"
+      )
+      assert(
+        !doc.contains("PawnCapture-4 rules:"),
+        "summary docs must not duplicate PawnCapture-4 rule checklist"
+      )
+      assert(
+        !doc.contains("PawnCapture-4 forbids:"),
+        "summary docs must not duplicate PawnCapture-4 forbidden checklist"
+      )
+    assert(
+      manifest.contains(PawnCaptureSummary),
+      "LegacyPruneManifest must keep the PawnCapture summary pointer"
+    )
+    assert(
+      !manifest.contains("### PawnCapture-4 EngineCheck Reuse"),
+      "LegacyPruneManifest must not duplicate detailed PawnCapture-4 law"
+    )
+    assert(
+      !manifest.contains("PawnCapture-4 rules:"),
+      "LegacyPruneManifest must not duplicate PawnCapture-4 rule checklist"
+    )
+
+  test("PawnCapture-5 pins StoryTable integration against existing claim homes"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnCapture-5 StoryTable Integration",
+      "PawnCapture-5 integrates `Scene.PawnCapture` with existing StoryTable rows without opening material or structure meaning.",
+      "PawnCapture-5 collision targets:",
+      "- `Scene.PawnBreak`",
+      "- `Scene.PawnAdvance`",
+      "- `Scene.PawnStop`",
+      "- `Scene.PromotionThreat`",
+      "- `Scene.Promotion`",
+      "- `Scene.Material`",
+      "- `Tactic.Hanging`",
+      "- `Scene.Defense`",
+      "- line tactics",
+      "- `Scene.PawnCapture`",
+      "PawnCapture-5 verification:",
+      "- input order must be stable",
+      "- `Scene.PawnCapture` must not own Material claim",
+      "- `Scene.PawnCapture` must not create PassedPawnCreated claim",
+      "- `Scene.PawnCapture` must not create FileOpens or weakness meaning",
+      "- actual material change now stays in `Scene.Material`",
+      "- pawn contact/challenge stays in `Scene.PawnBreak`",
+      "- capped/refuted `Scene.PawnCapture` has no standalone text",
+      "Completion standard: PawnCapture-5 closes when StoryTable ordering is input-order stable across PawnCapture collisions, existing claim homes keep lead ownership over Material, PawnBreak, PawnAdvance, PawnStop, PromotionThreat, Promotion, Hanging, Defense, and line tactics, same-family PawnCapture rows order deterministically, PawnCapture does not own material, passed-pawn, file-opening, or weakness meaning, and capped/refuted PawnCapture rows produce no standalone text."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnCapture-5 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnCaptureSummary), "summary docs must keep the PawnCapture summary pointer")
+      assert(
+        !doc.contains("### PawnCapture-5 StoryTable Integration"),
+        "summary docs must not duplicate detailed PawnCapture-5 law"
+      )
+      assert(
+        !doc.contains("PawnCapture-5 collision targets:"),
+        "summary docs must not duplicate PawnCapture-5 target checklist"
+      )
+      assert(
+        !doc.contains("PawnCapture-5 verification:"),
+        "summary docs must not duplicate PawnCapture-5 verification checklist"
+      )
+    assert(
+      manifest.contains(PawnCaptureSummary),
+      "LegacyPruneManifest must keep the PawnCapture summary pointer"
+    )
+    assert(
+      !manifest.contains("### PawnCapture-5 StoryTable Integration"),
+      "LegacyPruneManifest must not duplicate detailed PawnCapture-5 law"
+    )
+    assert(
+      !manifest.contains("PawnCapture-5 collision targets:"),
+      "LegacyPruneManifest must not duplicate PawnCapture-5 target checklist"
+    )
+
+  test("PawnCapture-6 pins ExplanationPlan to selected uncapped Lead only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnCapture-6 ExplanationPlan",
+      "PawnCapture-6 lowers only selected uncapped `Lead` Verdicts for `Scene.PawnCapture`.",
+      "PawnCapture-6 allowed claim key:",
+      "- `captures_rival_pawn`",
+      "PawnCapture-6 forbidden claim keys:",
+      "- `wins_pawn`",
+      "- `wins_material`",
+      "- `creates_passed_pawn`",
+      "- `opens_file`",
+      "- `weakens_structure`",
+      "- `breaks_through`",
+      "- `creates_pressure`",
+      "- `takes_initiative`",
+      "- `best_move`",
+      "- `only_move`",
+      "- `forced`",
+      "Support, Context, Blocked, capped, and refuted `Scene.PawnCapture` rows have no standalone claim.",
+      "Completion standard: PawnCapture-6 closes when only selected uncapped Lead PawnCapture Verdicts lower to ExplanationPlan with `captures_rival_pawn`; forbidden keys remain closed; Support, Context, Blocked, capped, and refuted PawnCapture rows produce no standalone ExplanationPlan claim; and renderer, LLM, production API, public route, material gain, passed-pawn, file-opening, weakness, breakthrough, pressure, initiative, best-move, only-move, and forced speech remain closed."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnCapture-6 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnCaptureSummary), "summary docs must keep the PawnCapture summary pointer")
+      assert(
+        !doc.contains("### PawnCapture-6 ExplanationPlan"),
+        "summary docs must not duplicate detailed PawnCapture-6 law"
+      )
+      assert(
+        !doc.contains("PawnCapture-6 allowed claim key:"),
+        "summary docs must not duplicate PawnCapture-6 allowed key"
+      )
+      assert(
+        !doc.contains("PawnCapture-6 forbidden claim keys:"),
+        "summary docs must not duplicate PawnCapture-6 forbidden checklist"
+      )
+    assert(
+      manifest.contains(PawnCaptureSummary),
+      "LegacyPruneManifest must keep the PawnCapture summary pointer"
+    )
+    assert(
+      !manifest.contains("### PawnCapture-6 ExplanationPlan"),
+      "LegacyPruneManifest must not duplicate detailed PawnCapture-6 law"
+    )
+    assert(
+      !manifest.contains("PawnCapture-6 forbidden claim keys:"),
+      "LegacyPruneManifest must not duplicate PawnCapture-6 forbidden checklist"
+    )
+
+  test("PawnCapture-7 pins DeterministicRenderer bounded pawn-capture wording only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnCapture-7 Deterministic Renderer",
+      "Renderer input is `ExplanationPlan` only.",
+      "PawnCapture-7 allowed deterministic wording:",
+      "- `{route} captures the pawn on {target}.`",
+      "PawnCapture-7 forbidden renderer wording:",
+      "- `wins a pawn`",
+      "- `wins material`",
+      "- `creates a passed pawn`",
+      "- `opens the file`",
+      "- `weakens the structure`",
+      "- `breaks through`",
+      "- `takes the initiative`",
+      "- `best move`",
+      "- `only move`",
+      "- `forces`",
+      "Completion standard: PawnCapture-7 closes when `DeterministicRenderer` accepts only `ExplanationPlan`, phrases selected uncapped Lead PawnCapture as `{route} captures the pawn on {target}.`, rejects Support, Context, Blocked, capped, refuted, no-claim, wrong-claim, and malformed plans, and emits none of the forbidden wins-pawn, wins-material, passed-pawn, file-opening, weakness, breakthrough, initiative, best-move, only-move, or forcing wording."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnCapture-7 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnCaptureSummary), "summary docs must keep the PawnCapture summary pointer")
+      assert(
+        !doc.contains("### PawnCapture-7 Deterministic Renderer"),
+        "summary docs must not duplicate detailed PawnCapture-7 law"
+      )
+      assert(
+        !doc.contains("PawnCapture-7 allowed deterministic wording:"),
+        "summary docs must not duplicate PawnCapture-7 wording law"
+      )
+      assert(
+        !doc.contains("PawnCapture-7 forbidden renderer wording:"),
+        "summary docs must not duplicate PawnCapture-7 forbidden wording"
+      )
+    assert(
+      manifest.contains(PawnCaptureSummary),
+      "LegacyPruneManifest must keep the PawnCapture summary pointer"
+    )
+    assert(
+      !manifest.contains("### PawnCapture-7 Deterministic Renderer"),
+      "LegacyPruneManifest must not duplicate detailed PawnCapture-7 law"
+    )
+    assert(
+      !manifest.contains("PawnCapture-7 allowed deterministic wording:"),
+      "LegacyPruneManifest must not duplicate PawnCapture-7 wording law"
+    )
+
+  test("PawnCapture-8 pins LLM smoke to existing 8B boundary only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnCapture-8 LLM Smoke",
+      "PawnCapture-8 reuses only the existing 8B LLM smoke boundary.",
+      "PawnCapture-8 LLM input:",
+      "- renderedText",
+      "- claimKey",
+      "- strength",
+      "- forbidden wording",
+      "- `Rephrase only. Do not add chess facts.`",
+      "PawnCapture-8 forbidden LLM input:",
+      "- raw Story",
+      "- raw PawnCaptureProof",
+      "- CaptureResult",
+      "- BoardFacts",
+      "- EngineCheck",
+      "- raw PV",
+      "- proofFailures",
+      "PawnCapture-8 forbidden LLM output:",
+      "- new move",
+      "- new line",
+      "- material claim",
+      "- passed-pawn claim",
+      "- open-file claim",
+      "- weakness claim",
+      "- strategy claim",
+      "Completion standard: PawnCapture-8 closes when LLM smoke receives only rendered text contract fields, reuses renderedText, claimKey, strength, forbidden wording, and the rephrase-only instruction, rejects raw Story, raw PawnCaptureProof, CaptureResult, BoardFacts, EngineCheck, raw PV, proofFailures, new move, new line, and material, passed-pawn, open-file, weakness, or strategy claims, and adds no new LLM behavior, public LLM narration, production API surface, or public route 200."
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnCapture-8 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnCaptureSummary), "summary docs must keep the PawnCapture summary pointer")
+      assert(
+        !doc.contains("### PawnCapture-8 LLM Smoke"),
+        "summary docs must not duplicate detailed PawnCapture-8 law"
+      )
+      assert(
+        !doc.contains("PawnCapture-8 forbidden LLM input:"),
+        "summary docs must not duplicate PawnCapture-8 input law"
+      )
+      assert(
+        !doc.contains("PawnCapture-8 forbidden LLM output:"),
+        "summary docs must not duplicate PawnCapture-8 output law"
+      )
+    assert(
+      manifest.contains(PawnCaptureSummary),
+      "LegacyPruneManifest must keep the PawnCapture summary pointer"
+    )
+    assert(
+      !manifest.contains("### PawnCapture-8 LLM Smoke"),
+      "LegacyPruneManifest must not duplicate detailed PawnCapture-8 law"
+    )
+    assert(
+      !manifest.contains("PawnCapture-8 forbidden LLM input:"),
+      "LegacyPruneManifest must not duplicate PawnCapture-8 input law"
+    )
+    assert(
+      !manifest.contains("PawnCapture-8 forbidden LLM output:"),
+      "LegacyPruneManifest must not duplicate PawnCapture-8 output law"
+    )
+
+  test("PawnCapture Closeout hard cleanup keeps authority separated and public surfaces closed"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### PawnCapture Closeout Hard Cleanup",
+      "`PawnCaptureProof`, `Scene.PawnCapture`, and `captures_rival_pawn` remain separate authority homes.",
+      "`PawnCaptureProof` proves only a legal ordinary pawn move capturing one rival pawn on the exact board.",
+      "`Scene.PawnCapture` owns only the public Story identity for the bounded pawn-captures-rival-pawn event.",
+      "`captures_rival_pawn` owns only bounded downstream speech for selected uncapped Lead Verdicts.",
+      "`Scene.PawnCapture` owns no PawnBreak, PawnAdvance, PawnStop, PromotionThreat, Promotion, or PassedPawnCreated meaning.",
+      "`Scene.PawnCapture` owns no Material, Hanging, Defense, DiscoveredAttack, Pin, RemoveGuard, or Skewer meaning.",
+      "`wins pawn`, `creates passed pawn`, `opens file`, `weakens structure`, `initiative`, and `pressure` remain forbidden wording only, not live PawnCapture authority.",
+      "PawnCapture duplicate checks:",
+      "- one chess meaning: one legal pawn move captures one rival pawn.",
+      "- one proof home: `PawnCaptureProof`.",
+      "- one Story label: `Scene.PawnCapture`.",
+      "- one speech key: `captures_rival_pawn`.",
+      "- one detailed live authority document: `StoryInteractionLaw.md`.",
+      "README, SSOT, Architecture, Contract, and Manifest may summarize PawnCapture only.",
+      "Renderer and LLM smoke wording must remain no stronger than `captures_rival_pawn`.",
+      "Public route `200`, production API, and public/user-facing LLM narration remain closed.",
+      "Completion standard: PawnCapture Closeout closes when PawnCaptureProof, Scene.PawnCapture, and captures_rival_pawn remain separate authority homes"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"PawnCapture Closeout law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(PawnCaptureSummary), "summary docs must keep the PawnCapture summary pointer")
+      assert(
+        !doc.contains("### PawnCapture Closeout Hard Cleanup"),
+        "summary docs must not duplicate detailed PawnCapture closeout law"
+      )
+      assert(
+        !doc.contains("PawnCapture duplicate checks:"),
+        "summary docs must not duplicate detailed PawnCapture duplicate audit"
+      )
+      assert(
+        !doc.contains(
+          "PawnCaptureProof, Scene.PawnCapture, and captures_rival_pawn remain separate authority homes"
+        ),
+        "summary docs must not duplicate PawnCapture authority-home detail"
+      )
+    assert(
+      manifest.contains(PawnCaptureSummary),
+      "LegacyPruneManifest must keep the PawnCapture summary pointer"
+    )
+    assert(
+      !manifest.contains("### PawnCapture Closeout Hard Cleanup"),
+      "LegacyPruneManifest must not duplicate detailed PawnCapture closeout law"
+    )
+    assert(
+      !manifest.contains("PawnCapture duplicate checks:"),
+      "LegacyPruneManifest must not duplicate detailed PawnCapture duplicate audit"
+    )
+    assert(
+      !manifest.contains(
+        "PawnCaptureProof, Scene.PawnCapture, and captures_rival_pawn remain separate authority homes"
+      ),
+      "LegacyPruneManifest must not duplicate PawnCapture authority-home detail"
+    )
+
+  test("FPSNC-0 closes file pawn structure neighborhood without opening new meaning"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### FPSNC-0 File / Pawn Structure Neighborhood Closeout Charter",
+      "File / Pawn Structure Neighborhood closes as four narrow proof-backed event slices. FPSNC opens no new chess meaning.",
+      "FPSNC-0 closes only already-open narrow meanings:",
+      "- `Scene.PawnBreak`",
+      "- `Scene.PawnCapture`",
+      "- `Scene.PassedPawnCreated`",
+      "- `Scene.FileOpened`",
+      "`PawnBreakProof`, `Scene.PawnBreak`, and `challenges_pawn` remain separate authority homes.",
+      "`PawnCaptureProof`, `Scene.PawnCapture`, and `captures_rival_pawn` remain separate authority homes.",
+      "`PassedPawnObservation`, `PassedPawnCreatedProof`, `Scene.PassedPawnCreated`, and `creates_passed_pawn` remain separate authority homes.",
+      "`FileOpenedProof`, `Scene.FileOpened`, and `opens_file` remain separate authority homes.",
+      "The four Story labels must not steal each other's claims.",
+      "`Scene.FileOpened` owns no file control, rook activity, pressure, weakness, breakthrough, strategy, or advantage meaning.",
+      "`Scene.PawnBreak` does not own FileOpened meaning.",
+      "`Scene.PawnCapture` does not automatically own PassedPawnCreated or FileOpened meaning.",
+      "`Scene.PassedPawnCreated` does not automatically own PawnCapture or FileOpened events.",
+      "Four pawn/file event slices are open. Broad pawn-structure and file interpretation remains closed.",
+      "one origin-file-now-open meaning: `FileOpenedProof` -> `Scene.FileOpened` -> `opens_file`.",
+      "Completion standard: FPSNC-0 closes when PawnBreakProof / Scene.PawnBreak / challenges_pawn, PawnCaptureProof / Scene.PawnCapture / captures_rival_pawn, PassedPawnObservation / PassedPawnCreatedProof / Scene.PassedPawnCreated / creates_passed_pawn, and FileOpenedProof / Scene.FileOpened / opens_file remain separate"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"FPSNC-0 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(FileOpenedSummary), "summary docs must keep FileOpened summary")
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC-0 summary")
+      assert(!doc.contains("### FPSNC-0 File / Pawn Structure Neighborhood Closeout Charter"))
+      assert(!doc.contains("FPSNC-0 closes only already-open narrow meanings:"))
+      assert(!doc.contains("The four Story labels must not steal each other's claims."))
+    assert(manifest.contains(FileOpenedSummary), "Manifest must keep FileOpened summary")
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC-0 summary")
+    assert(!manifest.contains("### FPSNC-0 File / Pawn Structure Neighborhood Closeout Charter"))
+    assert(!manifest.contains("FPSNC-0 closes only already-open narrow meanings:"))
+    assert(!manifest.contains("The four Story labels must not steal each other's claims."))
+
+  test("FPSNC-1 scope audit keeps exactly four event slices open"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### FPSNC-1 Scope Audit",
+      "Four exact event slices are open. Broad interpretation remains closed.",
+      "FPSNC-1 open positive Stories are exactly:",
+      "- `Scene.PawnBreak`",
+      "- `Scene.PawnCapture`",
+      "- `Scene.PassedPawnCreated`",
+      "- `Scene.FileOpened`",
+      "FPSNC-1 does not open:",
+      "- broad PawnTactic",
+      "- broad pawn structure advantage",
+      "- file control",
+      "- rook activity",
+      "- rook lift",
+      "- open-file strategy",
+      "- passed pawn strategy",
+      "- breakthrough",
+      "- weak square",
+      "- weak pawn",
+      "- weakens structure",
+      "- pawn majority change",
+      "- wins space",
+      "- wins pawn",
+      "- wins material",
+      "- promotion threat",
+      "- unstoppable pawn",
+      "- conversion",
+      "- initiative",
+      "- pressure",
+      "- attack",
+      "- best move / only move / forced",
+      "- public route `200`",
+      "- production API",
+      "- public/user-facing LLM narration",
+      "Completion standard: FPSNC-1 closes when the only open File / Pawn Structure Neighborhood positive Stories are Scene.PawnBreak, Scene.PawnCapture, Scene.PassedPawnCreated, and Scene.FileOpened"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"FPSNC-1 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC summary")
+      assert(!doc.contains("### FPSNC-1 Scope Audit"))
+      assert(!doc.contains("FPSNC-1 open positive Stories are exactly:"))
+      assert(!doc.contains("FPSNC-1 does not open:"))
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC summary")
+    assert(!manifest.contains("### FPSNC-1 Scope Audit"))
+    assert(!manifest.contains("FPSNC-1 open positive Stories are exactly:"))
+    assert(!manifest.contains("FPSNC-1 does not open:"))
+
+  test("FPSNC-2 authority duplication audit keeps proof Story and speech homes unique"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### FPSNC-2 Authority / Duplication Audit",
+      "FPSNC-2 duplication audit:",
+      "- one chess meaning, one proof home",
+      "- one Story label per public chess meaning",
+      "- one speech key per allowed public claim",
+      "- one detailed live authority document",
+      "direct rival-pawn lever/contact:",
+      "- proof home = `PawnBreakProof`",
+      "- Story label = `Scene.PawnBreak`",
+      "- speech key = `challenges_pawn`",
+      "pawn captures rival pawn:",
+      "- proof home = `PawnCaptureProof`",
+      "- Story label = `Scene.PawnCapture`",
+      "- speech key = `captures_rival_pawn`",
+      "newly-created passed pawn:",
+      "- observation = `PassedPawnObservation`",
+      "- proof home = `PassedPawnCreatedProof`",
+      "- Story label = `Scene.PassedPawnCreated`",
+      "- speech key = `creates_passed_pawn`",
+      "origin file now has no pawns:",
+      "- proof home = `FileOpenedProof`",
+      "- Story label = `Scene.FileOpened`",
+      "- speech key = `opens_file`",
+      "`PawnBreakProof` must not act as capture, passer, or file-open proof.",
+      "`PawnCaptureProof` must not act as material, passer, or file-open proof.",
+      "`PassedPawnCreatedProof` must not act as capture, pawn-break, or file-open proof.",
+      "`FileOpenedProof` must not act as pawn-break, capture, passer, control, rook, or weakness proof.",
+      "Speech keys must not duplicate.",
+      "Completion standard: FPSNC-2 closes when direct rival-pawn lever/contact, pawn captures rival pawn, newly-created passed pawn, and origin-file-now-has-no-pawns each have exactly one proof home, one Story label, and one speech key"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"FPSNC-2 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC summary")
+      assert(!doc.contains("### FPSNC-2 Authority / Duplication Audit"))
+      assert(!doc.contains("FPSNC-2 duplication audit:"))
+      assert(!doc.contains("direct rival-pawn lever/contact:"))
+      assert(!doc.contains("origin file now has no pawns:"))
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC summary")
+    assert(!manifest.contains("### FPSNC-2 Authority / Duplication Audit"))
+    assert(!manifest.contains("FPSNC-2 duplication audit:"))
+    assert(!manifest.contains("direct rival-pawn lever/contact:"))
+    assert(!manifest.contains("origin file now has no pawns:"))
+
+  test("FPSNC-3 cross slice collision fixtures keep each row in its proof home"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### FPSNC-3 Cross-Slice Collision Fixtures",
+      "FPSNC-3 adds complex same-board collision fixtures without opening new meaning.",
+      "FPSNC-3 required fixture candidates:",
+      "- pawn move creates direct pawn contact and opens origin file",
+      "- pawn capture opens origin file",
+      "- pawn capture also creates a passed pawn",
+      "- pawn move creates passed pawn and opens origin file",
+      "- pawn move creates direct contact and newly-created passer",
+      "- material capture that is also PawnCapture and FileOpened",
+      "- FileOpened candidate that is only half-open and must stay silent",
+      "- FileOpened candidate with another pawn still on origin file and must stay silent",
+      "FPSNC-3 verification:",
+      "- each row keeps its own proof home",
+      "- each row keeps its own Story label",
+      "- each row keeps its own speech key",
+      "- no row automatically upgrades into another meaning without its proof",
+      "- actual material change now remains Scene.Material home",
+      "- FileOpened speaks only exact origin-file-open state",
+      "- PassedPawnCreated speaks only newly-created passer state",
+      "- PawnCapture speaks only pawn-captures-rival-pawn event",
+      "- PawnBreak speaks only direct pawn contact/challenge event",
+      "Completion standard: FPSNC-3 closes when the required same-board collision fixtures prove that each open File / Pawn Structure row keeps its own proof home, Story label, and speech key"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"FPSNC-3 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC summary")
+      assert(!doc.contains("### FPSNC-3 Cross-Slice Collision Fixtures"))
+      assert(!doc.contains("FPSNC-3 required fixture candidates:"))
+      assert(!doc.contains("FPSNC-3 verification:"))
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC summary")
+    assert(!manifest.contains("### FPSNC-3 Cross-Slice Collision Fixtures"))
+    assert(!manifest.contains("FPSNC-3 required fixture candidates:"))
+    assert(!manifest.contains("FPSNC-3 verification:"))
+
+  test("FPSNC-4 StoryTable interaction audit keeps File Pawn Structure rows in existing homes"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### FPSNC-4 StoryTable Interaction Audit",
+      "FPSNC-4 collides the four File / Pawn Structure event rows with existing StoryTable rows without opening new meaning.",
+      "FPSNC-4 collision targets:",
+      "- Scene.PawnBreak",
+      "- Scene.PawnCapture",
+      "- Scene.PassedPawnCreated",
+      "- Scene.FileOpened",
+      "- Scene.PawnAdvance",
+      "- Scene.PawnStop",
+      "- Scene.PromotionThreat",
+      "- Scene.Promotion",
+      "- Scene.Material",
+      "- Tactic.Hanging",
+      "- Scene.Defense",
+      "- Line / Defender tactics",
+      "FPSNC-4 verification:",
+      "- input order remains stable",
+      "- each claim keeps its existing home",
+      "- PawnBreak does not own FileOpened, PawnCapture, or PassedPawnCreated meaning",
+      "- PawnCapture does not own FileOpened, PassedPawnCreated, or Material meaning",
+      "- PassedPawnCreated does not own FileOpened, PawnCapture, PromotionThreat, or Promotion meaning",
+      "- FileOpened does not own PawnBreak, PawnCapture, PassedPawnCreated, or Material meaning",
+      "- actual material change now remains Scene.Material home",
+      "- promotion-next meaning remains Scene.PromotionThreat home",
+      "- actual promotion meaning remains Scene.Promotion home",
+      "- capped or refuted rows have no standalone text",
+      "- Support, Context, and Blocked rows have no standalone text",
+      "Completion standard: FPSNC-4 closes when StoryTable collision fixtures prove that the four File / Pawn Structure rows keep input-order-stable roles against existing pawn, material, hanging, defense, and line/defender rows"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"FPSNC-4 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC summary")
+      assert(!doc.contains("### FPSNC-4 StoryTable Interaction Audit"))
+      assert(!doc.contains("FPSNC-4 collision targets:"))
+      assert(!doc.contains("FPSNC-4 verification:"))
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC summary")
+    assert(!manifest.contains("### FPSNC-4 StoryTable Interaction Audit"))
+    assert(!manifest.contains("FPSNC-4 collision targets:"))
+    assert(!manifest.contains("FPSNC-4 verification:"))
+
+  test("FPSNC-5 ExplanationPlan boundary audit keeps only selected Lead claim keys"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### FPSNC-5 ExplanationPlan Boundary Audit",
+      "FPSNC-5 audits ExplanationPlan lowering for the four File / Pawn Structure event rows without opening new meaning.",
+      "ExplanationPlan input is selected uncapped Lead Verdict only.",
+      "FPSNC-5 allowed claim keys:",
+      "- challenges_pawn",
+      "- captures_rival_pawn",
+      "- creates_passed_pawn",
+      "- opens_file",
+      "FPSNC-5 forbidden claim keys:",
+      "- controls_file",
+      "- uses_open_file",
+      "- rook_activity",
+      "- creates_pressure",
+      "- takes_initiative",
+      "- weakens_structure",
+      "- creates_weakness",
+      "- breaks_through",
+      "- wins_space",
+      "- wins_pawn",
+      "- wins_material",
+      "- promotion_threat",
+      "- unstoppable_pawn",
+      "- converts_advantage",
+      "- best_move",
+      "- only_move",
+      "- forced",
+      "FPSNC-5 verification:",
+      "- Support, Context, Blocked, capped, and refuted rows have no standalone claim",
+      "- non-selected rows have no standalone claim",
+      "- selected Lead lowers only to its own claim key",
+      "- selected Lead must not lower to a sibling claim key",
+      "Completion standard: FPSNC-5 closes when ExplanationPlan accepts only selected uncapped Lead Verdict input for Scene.PawnBreak, Scene.PawnCapture, Scene.PassedPawnCreated, and Scene.FileOpened"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"FPSNC-5 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC summary")
+      assert(!doc.contains("### FPSNC-5 ExplanationPlan Boundary Audit"))
+      assert(!doc.contains("FPSNC-5 allowed claim keys:"))
+      assert(!doc.contains("FPSNC-5 forbidden claim keys:"))
+      assert(!doc.contains("FPSNC-5 verification:"))
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC summary")
+    assert(!manifest.contains("### FPSNC-5 ExplanationPlan Boundary Audit"))
+    assert(!manifest.contains("FPSNC-5 allowed claim keys:"))
+    assert(!manifest.contains("FPSNC-5 forbidden claim keys:"))
+    assert(!manifest.contains("FPSNC-5 verification:"))
+
+  test("FPSNC-6 renderer boundary audit keeps only bounded FPSNC templates"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### FPSNC-6 Renderer Boundary Audit",
+      "FPSNC-6 audits deterministic renderer wording for the four File / Pawn Structure event rows without opening new meaning.",
+      "Renderer input is ExplanationPlan only.",
+      "FPSNC-6 allowed bounded templates:",
+      "- {route} challenges the pawn on {target}.",
+      "- {route} captures the pawn on {target}.",
+      "- {route} creates a passed pawn on {target}.",
+      "- {route} opens the {file}-file.",
+      "FPSNC-6 forbidden renderer wording:",
+      "- controls the file",
+      "- uses the open file",
+      "- activates the rook",
+      "- creates pressure",
+      "- takes the initiative",
+      "- weakens the structure",
+      "- creates a weakness",
+      "- breaks through",
+      "- wins space",
+      "- wins a pawn",
+      "- wins material",
+      "- will promote",
+      "- is unstoppable",
+      "- best move",
+      "- only move",
+      "- forces",
+      "FPSNC-6 verification:",
+      "- renderer does not read raw Story",
+      "- renderer does not read raw proof",
+      "- renderer does not read BoardFacts, EngineCheck, or proofFailures",
+      "- malformed plans produce no text",
+      "- capped, refuted, Support, Context, and Blocked plans produce no text",
+      "Completion standard: FPSNC-6 closes when DeterministicRenderer accepts only ExplanationPlan input for Scene.PawnBreak, Scene.PawnCapture, Scene.PassedPawnCreated, and Scene.FileOpened"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"FPSNC-6 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC summary")
+      assert(!doc.contains("### FPSNC-6 Renderer Boundary Audit"))
+      assert(!doc.contains("FPSNC-6 allowed bounded templates:"))
+      assert(!doc.contains("FPSNC-6 forbidden renderer wording:"))
+      assert(!doc.contains("FPSNC-6 verification:"))
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC summary")
+    assert(!manifest.contains("### FPSNC-6 Renderer Boundary Audit"))
+    assert(!manifest.contains("FPSNC-6 allowed bounded templates:"))
+    assert(!manifest.contains("FPSNC-6 forbidden renderer wording:"))
+    assert(!manifest.contains("FPSNC-6 verification:"))
+
+  test("FPSNC-7 LLM smoke boundary audit reuses only existing 8B contract"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### FPSNC-7 LLM Smoke Boundary Audit",
+      "FPSNC-7 reuses only the existing 8B LLM smoke boundary for the four File / Pawn Structure event rows.",
+      "LLM may rephrase only the selected bounded event. It must not explain why the event matters.",
+      "FPSNC-7 LLM input:",
+      "- renderedText",
+      "- claimKey",
+      "- strength",
+      "- forbidden wording",
+      "- Rephrase only. Do not add chess facts.",
+      "FPSNC-7 forbidden LLM input:",
+      "- raw Story",
+      "- raw PawnBreakProof",
+      "- raw PawnCaptureProof",
+      "- raw PassedPawnCreatedProof",
+      "- raw FileOpenedProof",
+      "- PassedPawnObservation",
+      "- BoardFacts",
+      "- EngineCheck",
+      "- raw PV",
+      "- proofFailures",
+      "- source rows",
+      "FPSNC-7 forbidden LLM output:",
+      "- new move",
+      "- new line",
+      "- file control",
+      "- rook activity",
+      "- pressure",
+      "- initiative",
+      "- weakness",
+      "- breakthrough",
+      "- material",
+      "- passed pawn, unless selected claimKey = creates_passed_pawn",
+      "- open file, unless selected claimKey = opens_file",
+      "- promotion",
+      "- unstoppable",
+      "- conversion",
+      "- best move",
+      "- only move",
+      "- forced",
+      "- strategy claim",
+      "Completion standard: FPSNC-7 closes when LLM smoke may rephrase only the selected bounded event and must not explain why the event matters"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"FPSNC-7 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC summary")
+      assert(!doc.contains("### FPSNC-7 LLM Smoke Boundary Audit"))
+      assert(!doc.contains("FPSNC-7 LLM input:"))
+      assert(!doc.contains("FPSNC-7 forbidden LLM input:"))
+      assert(!doc.contains("FPSNC-7 forbidden LLM output:"))
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC summary")
+    assert(!manifest.contains("### FPSNC-7 LLM Smoke Boundary Audit"))
+    assert(!manifest.contains("FPSNC-7 LLM input:"))
+    assert(!manifest.contains("FPSNC-7 forbidden LLM input:"))
+    assert(!manifest.contains("FPSNC-7 forbidden LLM output:"))
+
+  test("FPSNC-8 forbidden wording audit keeps closed wording non-authoritative"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### FPSNC-8 Forbidden Wording Audit",
+      "FPSNC-8 audits forbidden wording for the four File / Pawn Structure event rows without opening new chess meaning.",
+      "Forbidden wording may exist only as forbidden wording, negative corpus, or docs saying it remains closed.",
+      "FPSNC-8 forbidden live-authority wording:",
+      "- controls file",
+      "- file control",
+      "- rook activity",
+      "- rook lift",
+      "- pressure",
+      "- initiative",
+      "- weak square",
+      "- weak pawn",
+      "- weakens structure",
+      "- breakthrough",
+      "- breaks through",
+      "- wins space",
+      "- wins pawn",
+      "- wins material",
+      "- promotion threat, unless selected Scene.PromotionThreat",
+      "- passed pawn, unless selected Scene.PassedPawnCreated or existing PawnAdvance/PawnStop bounded claim",
+      "- open file, unless selected Scene.FileOpened",
+      "- unstoppable",
+      "- conversion",
+      "- best move",
+      "- only move",
+      "- forced",
+      "FPSNC-8 verification:",
+      "- forbidden wording does not become proof home",
+      "- forbidden wording does not become Story label",
+      "- forbidden wording does not become claim key",
+      "- forbidden wording does not become renderer output",
+      "- forbidden wording does not become LLM-added fact",
+      "- forbidden wording does not become public value",
+      "- forbidden wording does not become public route payload",
+      "Completion standard: FPSNC-8 closes when forbidden wording may exist only as forbidden wording, negative corpus, or docs saying it remains closed"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"FPSNC-8 law must pin: $required")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC summary")
+      assert(!doc.contains("### FPSNC-8 Forbidden Wording Audit"))
+      assert(!doc.contains("FPSNC-8 forbidden live-authority wording:"))
+      assert(!doc.contains("FPSNC-8 verification:"))
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC summary")
+    assert(!manifest.contains("### FPSNC-8 Forbidden Wording Audit"))
+    assert(!manifest.contains("FPSNC-8 forbidden live-authority wording:"))
+    assert(!manifest.contains("FPSNC-8 verification:"))
+
+  test("FPSNC-9 documentation simplification audit keeps detailed closeout authority in StoryInteractionLaw only"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### FPSNC-9 Documentation Simplification Audit",
+      "FPSNC-9 documentation simplification audit:",
+      "- detailed File / Pawn Structure Neighborhood closeout authority lives only in `StoryInteractionLaw.md`.",
+      "- `README.md`, `ChessCommentarySSOT.md`, `ChessModelArchitecture.md`, `ChessModelContract.md`, and `LegacyPruneManifest.md` remain summary-only.",
+      "- `AGENTS.md` keeps durable operator guardrails only.",
+      "- retired root docs must not return.",
+      "- legacy reset archive documents are historical reference only and not acceptance sources.",
+      "FPSNC-9 summary-only documents:",
+      "- `README.md`: non-authoritative pointer only.",
+      "- `ChessCommentarySSOT.md`: non-authoritative pointer only.",
+      "- `ChessModelArchitecture.md`: non-authoritative pointer only.",
+      "- `ChessModelContract.md`: non-authoritative pointer only.",
+      "- `LegacyPruneManifest.md`: pruning summary only, not detailed law.",
+      "FPSNC-9 forbidden documentation duplication:",
+      "- no FPSNC detailed checklist in summary docs.",
+      "- no closeout stage law in `AGENTS.md`.",
+      "- no detailed FPSNC law in `LegacyPruneManifest.md`.",
+      "- no retired root docs as live authority.",
+      "- no legacy reset archive acceptance source.",
+      "Completion standard: FPSNC-9 closes when detailed FPSNC closeout authority appears only in `StoryInteractionLaw.md`"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"FPSNC-9 law must pin: $required")
+
+    val summaryDocs = Vector(readme, ssot, architecture, normalizedModelContract)
+    summaryDocs.foreach: doc =>
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC summary")
+      FilePawnStructureCloseoutDetailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"summary docs must not repeat detailed FPSNC law: $marker")
+
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC summary")
+    FilePawnStructureCloseoutDetailedMarkers.foreach: marker =>
+      assert(!manifest.contains(marker), s"LegacyPruneManifest must not repeat detailed FPSNC law: $marker")
+
+    assert(agents.contains("AGENTS.md is a concise operator guide."))
+    assert(agents.contains("Detailed slice authority lives in `StoryInteractionLaw.md`"))
+    assert(agents.contains("Documents under"))
+    assert(agents.contains("legacy-pre-semantic-reset/"))
+    assert(agents.contains("historical reference only"))
+    FilePawnStructureCloseoutDetailedMarkers.foreach: marker =>
+      assert(!agents.contains(marker), s"AGENTS.md must not repeat detailed FPSNC law: $marker")
+
+    val liveDocTextByName = LiveDocs.map(name => name -> Files.readString(docsRoot.resolve(name))).toMap
+    FilePawnStructureCloseoutDetailedMarkers.foreach: marker =>
+      val owners = liveDocTextByName.collect:
+        case (docName, contents) if contents.contains(marker) => docName
+      assertEquals(owners.toSet, Set("StoryInteractionLaw.md"), s"detailed FPSNC marker must have one owner: $marker")
+
+    RetiredRootDocs.foreach: fileName =>
+      assert(!Files.exists(docsRoot.resolve(fileName)), s"retired root doc must not return: $fileName")
+
+  test("FPSNC-10 runtime boundary audit keeps helpers out of runtime authority"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    Vector(
+      "### FPSNC-10 Runtime Boundary Audit",
+      "FPSNC-10 runtime boundary audit:",
+      "- test helpers are not runtime authority.",
+      "- runtime helpers must not become new authority.",
+      "- fixture names are not Story family names.",
+      "- negative corpus helpers are not production concepts.",
+      "- forbidden wording checks must target public overclaim wording, not arbitrary internal field names.",
+      "- runtime source must not contain closeout-only terminology.",
+      "FPSNC-10 forbids new runtime authority:",
+      "- no new Story family.",
+      "- no new proof home.",
+      "- no new Story writer.",
+      "- no new claim key.",
+      "- no new renderer template.",
+      "- no new LLM behavior.",
+      "- no public route `200`.",
+      "- no production API.",
+      "- no public/user-facing LLM narration.",
+      "FPSNC-10 allowed closeout changes:",
+      "- tests may audit the boundary.",
+      "- documentation law may record the audit in `StoryInteractionLaw.md`.",
+      "- runtime code changes are allowed only if an audit exposes leakage or duplicated authority.",
+      "FPSNC-10 runtime source guard:",
+      "- runtime source must not contain `FPSNC-`.",
+      "- runtime source must not contain `closeout`.",
+      "- runtime source must not contain `Runtime Boundary Audit`.",
+      "- runtime source must not contain `File / Pawn Structure Neighborhood Closeout`.",
+      "- runtime source must not contain `fixture map`.",
+      "- runtime source must not contain `negative corpus`.",
+      "Completion standard: FPSNC-10 closes when helper names remain test-local"
+    ).foreach: required =>
+      assert(interactionLaw.contains(required), s"FPSNC-10 law must pin: $required")
+
+    val detailedMarkers =
+      Vector(
+        "### FPSNC-10 Runtime Boundary Audit",
+        "FPSNC-10 runtime boundary audit:",
+        "FPSNC-10 forbids new runtime authority:",
+        "FPSNC-10 allowed closeout changes:",
+        "FPSNC-10 runtime source guard:"
+      )
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC summary")
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"summary docs must not repeat detailed FPSNC-10 law: $marker")
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC summary")
+    detailedMarkers.foreach: marker =>
+      assert(!manifest.contains(marker), s"LegacyPruneManifest must not repeat detailed FPSNC-10 law: $marker")
+      assert(!agents.contains(marker), s"AGENTS.md must not repeat detailed FPSNC-10 law: $marker")
+
+    val runtimeText = runtimeChessSourceText
+    Vector(
+      "FPSNC-",
+      "closeout",
+      "Runtime Boundary Audit",
+      "File / Pawn Structure Neighborhood Closeout",
+      "fixture map",
+      "negative corpus"
+    ).foreach: closeoutOnlyTerm =>
+      assert(
+        !runtimeText.contains(closeoutOnlyTerm),
+        s"runtime source must not contain closeout-only term: $closeoutOnlyTerm"
+      )
+
+  test("FPSNC final completion standard closes File Pawn Structure Neighborhood"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val readme = Files.readString(docsRoot.resolve("README.md"))
+    val ssot = Files.readString(docsRoot.resolve("ChessCommentarySSOT.md"))
+    val architecture = Files.readString(docsRoot.resolve("ChessModelArchitecture.md"))
+    val contract = Files.readString(docsRoot.resolve("ChessModelContract.md"))
+    val manifest = Files.readString(docsRoot.resolve("LegacyPruneManifest.md"))
+    val normalizedModelContract = contract.replaceAll("\\s+", " ")
+
+    assert(interactionLaw.contains("### FPSNC Final Completion Standard"))
+    Vector(
+      "FPSNC final completion standard:",
+      "- `Scene.PawnBreak`, `Scene.PawnCapture`, `Scene.PassedPawnCreated`, and `Scene.FileOpened` remain the only open File / Pawn Structure Neighborhood positive slices.",
+      "- each slice has exactly one proof path, one Story label, and one speech key.",
+      "- no slice owns another slice's chess meaning.",
+      "- Material, PromotionThreat, Promotion, PawnAdvance, PawnStop, Hanging, Defense, and Line / Defender tactic homes keep their meanings.",
+      "- forbidden broad pawn/file wording remains forbidden only.",
+      "- StoryTable ordering is input-order stable across neighborhood collisions.",
+      "- non-selected, capped, refuted, Support, Context, and Blocked rows produce no standalone downstream text.",
+      "- ExplanationPlan, Renderer, and LLM smoke remain bounded to selected Lead Verdict data.",
+      "- detailed authority lives only in `StoryInteractionLaw.md`.",
+      "- summary docs remain summaries only.",
+      "- public route `200`, production API, and public/user-facing LLM narration remain closed.",
+      "FPSNC final verification:",
+      "- targeted commentary runtime tests pass.",
+      "- docs authority tests pass.",
+      "- `git diff --check` passes.",
+      "Final FPSNC closeout opens no new Story family, proof home, Story writer, claim key, renderer template, LLM behavior, fixture-derived runtime authority, negative-corpus production concept, broad PawnTactic, broad pawn-structure advantage, file control, rook activity, rook lift, open-file strategy, passed pawn strategy, breakthrough, weak square, weak pawn, weakens structure, pawn majority change, wins space, wins pawn, wins material, promotion threat, unstoppable pawn, conversion, initiative, pressure, attack, best move, only move, forced, public route `200`, production API, or public/user-facing LLM narration."
+    ).foreach: finalLine =>
+      assert(interactionLaw.contains(finalLine), s"FPSNC final completion must pin: $finalLine")
+
+    Vector(readme, ssot, architecture, normalizedModelContract).foreach: doc =>
+      assert(doc.contains(FilePawnStructureCloseoutSummary), "summary docs must keep FPSNC summary")
+      assert(
+        !doc.contains("FPSNC final completion standard:"),
+        "summary docs must not duplicate detailed FPSNC final standard"
+      )
+      assert(
+        !doc.contains("FPSNC final verification:"),
+        "summary docs must not duplicate detailed FPSNC final verification"
+      )
+    assert(manifest.contains(FilePawnStructureCloseoutSummary), "Manifest must keep FPSNC summary")
+    assert(
+      !manifest.contains("FPSNC final completion standard:"),
+      "LegacyPruneManifest must not duplicate detailed FPSNC final standard"
+    )
+    assert(
+      !manifest.contains("FPSNC final verification:"),
+      "LegacyPruneManifest must not duplicate detailed FPSNC final verification"
+    )
+    assert(!agents.contains("FPSNC final completion standard:"))
+    assert(!agents.contains("FPSNC final verification:"))
 
   test("agents and active frontend tests reject retired downstream authority"):
     assert(Files.exists(agentInstructions), "AGENTS.md must be available from the lila worktree")
-    assert(Files.exists(moveExplanationTest), "moveExplanation.test.ts must remain an active frontend no-op test")
+    assert(
+      Files.exists(moveExplanationTest),
+      "moveExplanation.test.ts must remain an active frontend no-op test"
+    )
 
     assert(!agents.contains("CommentaryOutline"), "AGENTS.md must not grant CommentaryOutline authority")
     assert(!agents.contains("CommentaryPlan"), "AGENTS.md must not grant CommentaryPlan authority")

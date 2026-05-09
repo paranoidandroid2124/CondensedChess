@@ -254,6 +254,15 @@ object BoardFacts:
   private[commentary] def sanFor(facts: BoardFacts, line: Line): Option[String] =
     facts.sideLegal.sanFor(line).orElse(facts.rivalLegal.sanFor(line))
 
+  private[commentary] def sansFor(facts: BoardFacts, line: Line): Vector[String] =
+    Vector(facts.sideLegal, facts.rivalLegal)
+      .flatMap(moves =>
+        moves.lines
+          .zip(moves.san)
+          .collect:
+            case (legalLine, notation) if legalLine == line && notation.nonEmpty => notation
+      )
+
   private[commentary] final case class LegalContinuation(line: Line, san: String, promotion: Boolean)
 
   private[commentary] def sameSideLegalContinuationsAfter(facts: BoardFacts, line: Line): Vector[LegalContinuation] =
@@ -272,6 +281,12 @@ object BoardFacts:
                 san = next.toSanStr.toString,
                 promotion = next.promotion.isDefined
               )
+
+  private[commentary] def piecesAfterLegalMove(facts: BoardFacts, line: Line): Option[Vector[Piece]] =
+    Option(positionFacts.get(facts)).flatMap: position =>
+      position.legalMoves.toVector
+        .find(move => Line(Square.fromIndex(move.orig.value), Square.fromIndex(move.dest.value)) == line)
+        .map(move => pieces(move.after.board))
 
   private[chess] final case class LegalMove(side: Side, piece: Piece, line: Line)
   private[chess] final case class Attack(attacker: Piece, target: Piece)
