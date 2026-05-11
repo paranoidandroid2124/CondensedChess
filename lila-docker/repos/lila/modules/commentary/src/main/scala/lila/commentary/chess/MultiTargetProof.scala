@@ -31,6 +31,7 @@ private[commentary] object MultiTargetProof:
   ): MultiTargetProof =
     val sameBoardProof = BoardFacts.sameBoardReady(facts)
     val legalMove = forkMove.flatMap(line => facts.seen.legalMoves.find(_.line == line))
+    val afterPieces = forkMove.flatMap(line => BoardFacts.piecesAfterLegalMove(facts, line))
     val side = legalMove.map(_.side).getOrElse(facts.sideToMove)
     val piecesBySquare = facts.pieces.map(piece => piece.square -> piece).toMap
     val attacker =
@@ -45,6 +46,16 @@ private[commentary] object MultiTargetProof:
         move <- forkMove
         piece <- attacker
       yield Piece(piece.side, piece.man, move.to)
+    val pawnAttacker = attacker.exists(_.man == Man.Pawn)
+    val pawnAfterRouteDestination =
+      !pawnAttacker || attacker.zip(forkMove).exists: (piece, move) =>
+        afterPieces.exists(_.contains(Piece(piece.side, Man.Pawn, move.to)))
+    val pawnMoveNonPromotion =
+      !pawnAttacker || attacker.zip(forkMove).exists: (piece, move) =>
+        !promotionSquare(piece.side, move.to)
+    val pawnMoveNotEnPassant =
+      !pawnAttacker || attacker.zip(forkMove).exists: (_, move) =>
+        move.from.file == move.to.file || piecesBySquare.get(move.to).nonEmpty
     val duplicateTargets =
       firstTarget.zip(secondTarget).exists((first, second) => first == second)
     val namedTargets = Vector(firstTarget, secondTarget)
@@ -86,7 +97,9 @@ private[commentary] object MultiTargetProof:
       Option.when(forkMove.isEmpty)("fork square"),
       Option.when(legalMove.isEmpty)("legal move"),
       Option.when(attacker.isEmpty)("attacker"),
-      Option.when(attacker.exists(_.man == Man.Pawn))("non-pawn attacker"),
+      Option.when(pawnAttacker && !pawnAfterRouteDestination)("pawn after route destination"),
+      Option.when(pawnAttacker && !pawnMoveNonPromotion)("pawn move is non-promotion"),
+      Option.when(pawnAttacker && !pawnMoveNotEnPassant)("not en passant"),
       Option.when(firstTarget.isEmpty || secondTarget.isEmpty)("two targets"),
       Option.when(duplicateTargets)("distinct targets"),
       Option.when(targetPieces.size != 2)("target pieces"),
@@ -120,3 +133,6 @@ private[commentary] object MultiTargetProof:
       case Man.Rook   => Some(500)
       case Man.Queen  => Some(900)
       case Man.King   => None
+
+  private def promotionSquare(side: Side, square: Square): Boolean =
+    (side == Side.White && square.rank == 7) || (side == Side.Black && square.rank == 0)

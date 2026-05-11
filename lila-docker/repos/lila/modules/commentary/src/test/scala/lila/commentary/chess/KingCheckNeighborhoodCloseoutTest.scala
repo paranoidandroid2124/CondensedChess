@@ -1,0 +1,3 @@
+package lila.commentary.chess
+
+class KingCheckNeighborhoodCloseoutTest extends KingCheckNeighborhoodFinalCloseoutTest

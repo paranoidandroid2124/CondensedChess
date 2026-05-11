@@ -629,7 +629,7 @@ Stage 6-5 goal: Explanation Plan receives selected Verdict only.
 
 Allowed input:
 
-- selected Verdict only
+- selected uncapped Lead Verdict only
 
 Forbidden input:
 
@@ -1297,7 +1297,6 @@ BoardMood can support a tactic, but they cannot prove it.
 | Tactic.QueenHit | queen target and attacker | legal attack or tempo line | queen has stronger reply |
 | Tactic.KingOpen | king line or shelter break | legal capture/push/check line | king remains defended or line closes |
 | Tactic.Promote | promotion step | legal promotion route | stop square or capture refutes |
-| Tactic.InBetween | forcing intermezzo target | legal in-between move | rival can ignore without loss |
 | Tactic.Clear | clearance move and line piece | legal clearance route | cleared line has no target |
 | Tactic.Decoy | target lure square | legal forcing move to lure | target can decline safely |
 | Tactic.Deflect | defender and target | legal deflection move | defender not needed or recaptures |
@@ -1316,11 +1315,14 @@ and same-board legal-line tests admit it.
 
 `Tactic.Hanging`, the narrow `Tactic.Fork` vertical slice, the narrow
 `Tactic.DiscoveredAttack` vertical slice, the narrow `Tactic.Pin` writer
-slice, and the narrow `Tactic.RemoveGuard` writer slice are the only live
-positive tactic writers. `Tactic.Skewer` is admitted at Skewer-2 writer scope
-only; StoryTable Lead admission and downstream public surfaces are closed. All other
-tactic names below are closed until their proof home and writer are explicitly
-admitted.
+slice, and the narrow `Tactic.RemoveGuard` writer slice are live positive
+tactic writers before the Skewer slice. `Tactic.Skewer` is now a closed narrow
+positive slice through Skewer Closeout, with StoryTable, ExplanationPlan,
+renderer, and LLM smoke bounded to `skewers_piece_to_piece`. QueenHit Stage-8
+is now open only through bounded `attacks_queen` LLM smoke over the selected
+QueenHit `RenderedLine`.
+All other tactic names below are closed until their proof home and writer are
+explicitly admitted.
 `CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`,
 `ExplanationPlan`, and Renderer remain in their current ownership boundaries.
 They may be reused only through selected Verdict handoff and family-specific
@@ -1331,11 +1333,11 @@ Proof-home width:
 | proof home | covered tactic names | shared proof shape | reusable current homes | new home needed |
 |---|---|---|---|---|
 | CaptureProof | `Tactic.Hanging`, `Tactic.Loose`, capture-shaped `Tactic.QueenHit` | legal capture, target identity, defender or recapture map, bounded material result | `CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`, Renderer after claim mapping | no for live Hanging; yes before Loose or QueenHit speech broadens capture meaning |
-| TargetProof | `Tactic.Fork`, `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`, `Tactic.InBetween` | one legal move creates target relation or tempo pressure; reply map proves rival cannot answer all relevant targets | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` for material ending | yes |
+| TargetProof | `Tactic.Fork`, `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo` | one legal move creates target relation or tempo pressure; reply map proves rival cannot answer all relevant targets | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` for material ending | yes |
 | LineProof | `Tactic.AbsPin`, `Tactic.RelPin`, `Tactic.Xray`, `Tactic.DiscoveredAttack`, `Tactic.Clear`, line-shaped `Tactic.Skewer` | same-board ray, screen, front or rear target, reveal or restriction, legal exploitation line | BoardFacts `LineFact`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes |
 | PinProof | `Tactic.Pin` | one legal move creates or reveals a pinned-to-king relation over one non-king target | BoardFacts `LineFact`, `LineProof`, `PinProof`, `StoryProof`, `EngineCheck`, `StoryTable`; downstream remains closed | no for narrow Pin-2; yes before broad pin family |
 | RemoveGuardProof | `Tactic.RemoveGuard` | one legal move removes one defender guard relation from one non-king material target | BoardFacts guard relation, `RemoveGuardProof`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; downstream remains bounded | no for narrow RemoveGuard Closeout; yes before broad defender family |
-| SkewerProof | `Tactic.Skewer` | one legal move creates or reveals a slider attack on one front non-king material target with a second non-king material target behind it on the same line | BoardFacts `LineFact`, `SkewerProof`, `StoryProof`, `EngineCheck`, `StoryTable`, `TacticSkewer`; StoryTable Lead admission and downstream remain closed | no for Skewer-1 proof home and Skewer-2 writer; yes before StoryTable Lead admission or public speech |
+| SkewerProof | `Tactic.Skewer` | one legal move creates or reveals a slider attack on one front non-king material target with a second non-king material target behind it on the same line | BoardFacts `LineFact`, `SkewerProof`, `StoryProof`, `EngineCheck`, `StoryTable`, `TacticSkewer`, `ExplanationPlan`, `DeterministicRenderer`, LLM smoke | no for closed narrow Skewer; yes before broad Skewer, material-gain, forced, or XRay speech |
 | DefenderProof | `Tactic.Overload`, `Tactic.Deflect`, `Tactic.Decoy` | defender identity, protected target, dependency relation, legal test that removes or distracts the defender | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes |
 | KingProof | `Tactic.SafeCheck`, `Tactic.BackRank`, `Tactic.MateNet`, `Tactic.KingOpen` | legal check or king-line action, escape map, interposition or capture replies, no unchecked king claim | BoardFacts king and line facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes |
 | PromotionProof | `Tactic.PawnPush`, `Tactic.Promote` | legal pawn route, stop squares, capture stops, tempo count, promotion prize | BoardFacts pawn and legal move facts, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes |
@@ -1347,12 +1349,11 @@ Per-tactic width map:
 |---|---|---|---|---|---|---|---|---|
 | W01 | `Tactic.Hanging` | CaptureProof plus StoryProof plus EngineCheck | `CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`, Renderer | no for current slice | recapture equalizes, target is pawn or king, wrong board, illegal capture, engine refutes | attached now for cap or refute | live positive only | stronger wording, other capture tactics, public route, and LLM stay closed |
 | W02 | `Tactic.Loose` | CaptureProof or pressure line over an underdefended target | `CaptureResult`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, if pressure without capture is admitted | loose observation is not a gain, defender exists, pressure is too slow, capture equalizes | yes for cap or refute | no | CaptureProof broadening plus loose negative corpus |
-| W03 | `Tactic.QueenHit` | TargetProof with optional CaptureProof | `StoryProof`, optional `CaptureResult`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, TargetProof | queen can move with tempo, attacker is unsafe, rival has stronger forcing reply, target hit has no gain | yes | no | TargetProof charter plus queen-target negative corpus |
-| W04 | `Tactic.Fork` | TargetProof over two targets and reply map | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, `MultiTargetProof` | fork square unsafe, one target can move with tempo, rival has equal or stronger forcing move, no gain remains | yes | narrow Fork-4 backend only | renderer, LLM, public route, PawnFork, Skewer, QueenHit, Tempo, InBetween |
+| W03 | `Tactic.QueenHit` | `QueenHitProof` over one legal move whose exact after-board has the moving side attacking the rival queen | `QueenHitProof`, `StoryProof`, `EngineCheck` refute guard, `TacticQueenHit`, `StoryTable`, `ExplanationPlan`, `DeterministicRenderer`, LLM smoke | no for bounded QueenHit Stage-8; yes before wins-queen, trap, tempo, material-gain, or broad target-pressure speech | no rival queen after move, illegal move, missing same-board replay, queen not attacked after move, sibling tactic contamination, wins-queen/trap/tempo/material wording | yes for cap or refute only | bounded `attacks_queen` through LLM smoke only | Hanging, Fork, Skewer, Pin, RemoveGuard, Material, wins queen, queen trap, queen lost, tempo, material gain, best/only/forced, public route, production API |
+| W04 | `Tactic.Fork` | TargetProof over two targets and reply map | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, `MultiTargetProof` | fork square unsafe, one target can move with tempo, rival has equal or stronger forcing move, no gain remains | yes | narrow Fork-4 backend only | renderer, LLM, public route, PawnFork, Skewer, QueenHit, Tempo |
 | W05 | `Tactic.PawnFork` | TargetProof with pawn legal move and two target attacks | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, TargetProof with pawn route rule | pawn move illegal, pawn is pinned, target can reply with stronger threat, promotion context contaminates proof | yes | no | TargetProof after Fork plus pawn-fork negative corpus |
-| W06 | `Tactic.Skewer` | SkewerProof over one front target and one rear target on a slider line | BoardFacts `LineFact`, `SkewerProof`, `StoryProof`, `EngineCheck`, `StoryTable`, `TacticSkewer` | no for Skewer-2 writer; yes before StoryTable Lead admission or public speech | front/rear relation missing, rear target not reachable, line can be blocked, material or forced wording too strong | yes before StoryTable Lead admission | Skewer-2 writer only | StoryTable Lead admission, ExplanationPlan, renderer, LLM, public route, production API |
+| W06 | `Tactic.Skewer` | SkewerProof over one front target and one rear target on a slider line | BoardFacts `LineFact`, `SkewerProof`, `StoryProof`, `EngineCheck`, `StoryTable`, `TacticSkewer`, `ExplanationPlan`, `DeterministicRenderer`, LLM smoke | no for closed narrow Skewer; yes before broad Skewer or material/forced speech | front/rear relation missing, rear target not reachable, line can be blocked, material or forced wording too strong | yes for cap or refute | closed narrow positive slice | broad Skewer family, XRay, Material claim, front-piece-must-move, wins-rear-piece, public route, production API |
 | W07 | `Tactic.Tempo` | TargetProof over gained turn and restricted rival reply | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, TargetProof with reply restriction | rival has equal forcing move, gained turn has no target, move is only a threat label | yes | no | TargetProof reply-map charter |
-| W08 | `Tactic.InBetween` | TargetProof over forcing intermezzo and ignored-loss test | `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`; optional `CaptureResult` | yes, TargetProof with forcing reply map | rival can ignore, in-between move loses material, first threat was not real, move order is illegal | yes | no | TargetProof reply-map charter plus intermezzo corpus |
 | W09 | `Tactic.AbsPin` | LineProof with king behind screen and legal restriction | BoardFacts `LineFact`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, LineProof | pinned piece can legally move, line can be blocked, tactic does not exploit pin, king line is stale | yes | no | LineProof charter plus pin exploitation corpus |
 | W10 | `Tactic.RelPin` | LineProof with valuable rear target and screen | BoardFacts `LineFact`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan` | yes, LineProof | rear target not valuable enough, screen can move with gain, line pressure has no legal use | yes | no | LineProof charter plus relative-pin corpus |
 | W25 | `Tactic.Pin` | PinProof plus StoryProof over one legal pinned-to-king relation | BoardFacts `LineFact`, `LineProof`, `PinProof`, `StoryProof`, `EngineCheck`, `StoryTable`, `ExplanationPlan`, `DeterministicRenderer`, LLM smoke | no for narrow Pin Closeout; yes before broad pin family | target is king, relation incomplete, slider absent, king-behind-target missing, material claim leaks, Defense or RemoveGuard meaning leaks | yes | Pin Closeout hard cleanup only | no Material claim, king-safety claim, mate threat, cannot-move wording, Defense ownership, RemoveGuard ownership, broad AbsPin or RelPin family, public route, production API, or public/user-facing LLM narration |
@@ -1377,9 +1378,10 @@ Safe opening order:
    the width question.
 2. Admit TargetProof/MultiTargetProof for `Tactic.Fork` only, with reply-map proof, same-board
    legal move proof, EngineCheck cap/refute attachment, and fork negative
-   corpus. `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`,
-   `Tactic.Tempo`, and `Tactic.InBetween` stay closed even though they share
-   TargetProof shape.
+   corpus. `Tactic.PawnFork`, `Tactic.QueenHit`, and `Tactic.Tempo` stay
+   closed even though they share TargetProof shape.
+   `Tactic.Skewer` is admitted only through its separate `SkewerProof` home,
+   not through generic TargetProof.
 3. Admit the remaining TargetProof tactics one by one only after the shared
    reply-map shape proves it does not open sibling tactics by name alone.
 4. Admit LineProof for pin and ray tactics only after line exploitation is
@@ -1429,7 +1431,7 @@ best-move, only-move, no-counterplay, blunder, free-piece, or engine-says
 claims.
 
 `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`,
-`Tactic.InBetween`, `Scene.Material`, `Scene.Defense`, Plan, Strategy,
+`Scene.Material`, `Scene.Defense`, Plan, Strategy,
 public/user-facing LLM narration, public route `200`, production API, engine
 PV commentary, and best-move explanation remain closed.
 
@@ -1486,10 +1488,12 @@ exists, two distinct targets exist, targets are enemy pieces or valid tactical
 targets, the attacker attacks both targets after the move, and same-board proof
 exists.
 
-The first Fork proof scope is non-pawn attacker only, preferably knight-shaped,
-with no pawn fork, no skewer, no queen-hit-only tactic, and no king or mate
-claim. It must not create material-win, best-move, forced, decisive, or
-no-counterplay claims.
+The current Fork proof scope admits any legal attacker shape, including a pawn,
+when the same existing `MultiTargetProof` identity is complete: legal move,
+attacker-after-move, two distinct rival non-king targets, both targets attacked
+after the move, reply map, and same-board proof. It still has no skewer,
+queen-hit-only tactic, king target, or mate claim, and it must not create
+material-win, best-move, forced, decisive, or no-counterplay claims.
 
 ## Fork-3 TacticFork Writer
 
@@ -1542,7 +1546,6 @@ The Fork negative corpus must cover:
 - fork square unsafe with no compensation
 - one reply saving both targets
 - stronger rival reply refuting the Story
-- pawn fork trying to enter `Tactic.Fork`
 - skewer trying to enter `Tactic.Fork`
 - queen-hit-only trying to enter `Tactic.Fork`
 - incomplete StoryProof
@@ -1642,10 +1645,10 @@ Forbidden Fork claim keys and wording include:
 - `best_move`
 - `no_counterplay`
 
-Support, Context, and Blocked Fork Verdicts create no standalone claim and no
-public sentence. They may enter ExplanationPlan only as relation structure;
-Blocked remains debug-only. `engineStrengthLimited` suppresses allowed claim
-keys and strengthens forbidden wording.
+Support, Context, Blocked, capped, and refuted Fork Verdicts create no
+standalone claim, no public sentence, and no Fork ExplanationPlan.
+`engineStrengthLimited` suppresses allowed claim keys by keeping the Fork row
+silent.
 
 Fork-7 does not open Fork renderer text, public/user-facing Fork LLM
 narration, public route `200`, pedagogy, Strategy, Plan, `Scene.Material`,
@@ -1785,8 +1788,9 @@ Fork slice closeout goal: audit that the Fork closeout opened only the narrow `T
 
 Scope audit:
 
-- opened by Fork closeout: narrow non-pawn `Tactic.Fork` only
-- closed: `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`, `Tactic.InBetween`
+- opened by original Fork closeout: narrow non-pawn `Tactic.Fork`; Stage-0
+  Fork-PawnAttacker Admission extends the same Story to pawn attackers
+- closed: `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`
 - not opened by Fork closeout: `Scene.Material`, `Scene.Defense`, Plan, Strategy
 - closed: public route `200`, production API, public/user-facing LLM narration, pedagogy, engine PV commentary, best-move explanation, material-win wording, wins-queen wording, and sibling tactic-family speech
 
@@ -1819,7 +1823,6 @@ The closeout negative corpus remains:
 - fork square unsafe with no compensation
 - one reply saving both targets
 - stronger rival reply or EngineCheck Refutes
-- pawn fork trying to enter `Tactic.Fork`
 - skewer trying to enter `Tactic.Fork`
 - queen-hit-only trying to enter `Tactic.Fork`
 - incomplete StoryProof
@@ -1832,11 +1835,12 @@ Cleanup and consolidation:
 No new markdown authority file, public row family, public route, production API, or sibling tactic writer opens in Fork closeout.
 
 `MultiTargetProof` is the first live TargetProof-shaped home. It remains a
-proof shape, not a tactic family. The current constructor is scoped to narrow
-non-pawn Fork, but the shape can support subsequent target-relation tactics only
+proof shape, not a tactic family. Its current constructor is scoped to the
+existing narrow Fork path, including Stage-0 admitted pawn attackers, but the
+shape can support subsequent target-relation tactics only
 after each named family opens its own permission path.
 
-The proof shape remains reusable for subsequent PawnFork, Skewer, QueenHit, Tempo, or InBetween work only after each family gets its own named writer, negative corpus, EngineCheck rule, StoryTable rule, ExplanationPlan mapping, renderer boundary, and LLM smoke boundary.
+The proof shape remains reusable for subsequent PawnFork, Skewer, QueenHit, or Tempo work only after each family gets its own named writer, negative corpus, EngineCheck rule, StoryTable rule, ExplanationPlan mapping, renderer boundary, and LLM smoke boundary.
 
 Next-stage handoff at Fork closeout:
 
@@ -1852,6 +1856,671 @@ separate family authority admits a public claim.
 `One tactic name is not one proof system.`
 `One proof shape may support multiple tactics.`
 `One chess meaning, one home.`
+
+## Stage-0 Fork-PawnAttacker Admission Charter
+
+Stage-0 opens only admission of a pawn attacker into the existing
+`Tactic.Fork` proof path.
+
+Stage-0 opens:
+
+- existing `Tactic.Fork` allowed attacker scope extended to pawn attackers.
+- no new public Story.
+- meaning: after a legal move, one piece attacks two targets at the same time;
+  that attacker may be a pawn.
+
+Stage-0 keeps the existing chain:
+
+- Proof home: `MultiTargetProof`
+- Story label: `Tactic.Fork`
+- Writer: `TacticFork`
+- Speech key: existing Fork claim key only
+
+Stage-0 does not open:
+
+- `Tactic.PawnFork`
+- `PawnForkProof`
+- `TacticPawnFork`
+- `pawn_forks_two_targets`
+- new StoryTable family
+- new ExplanationPlan claim key
+- new renderer template for PawnFork
+- new LLM smoke path for PawnFork
+- promotion threat
+- pawn advance
+- pawn capture
+- material gain
+- tempo
+- best / only / forced
+- decisive / winning
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-0 rules:
+
+- A pawn attacker is admitted only by satisfying the existing Fork identity:
+  complete `StoryProof`, complete `MultiTargetProof`, same-board legal replay,
+  legal move to the fork square, two distinct rival non-king targets, both
+  targets attacked after the move, reply-map safety, named `TacticFork` writer,
+  and no EngineCheck Refutes result.
+- Pawn-specific vocabulary does not create, repair, rank, prove, strengthen, or
+  phrase a Story. If a pawn-attacker row lacks the existing Fork proof identity,
+  it stays silent or blocked.
+- Existing Fork downstream boundaries remain unchanged. StoryTable orders the
+  existing `Tactic.Fork` row; `ExplanationPlan` emits only the existing Fork
+  claim key; renderer and LLM smoke receive only the existing Fork downstream
+  contracts.
+- Promotion threat, pawn advance, pawn capture, material gain, tempo,
+  best/only/forced, decisive/winning, public route `200`, production API, and
+  public/user-facing LLM narration remain closed.
+
+Completion standard: Stage-0 Fork-PawnAttacker Admission closes when a legal
+pawn attacker can enter the existing `Tactic.Fork` path through complete
+`MultiTargetProof` and `TacticFork`, emits no new Story label, writer, proof
+home, StoryTable family, ExplanationPlan claim key, renderer template, or LLM
+smoke path, keeps `Tactic.PawnFork`, `PawnForkProof`, `TacticPawnFork`, and
+`pawn_forks_two_targets` closed, opens no promotion-threat, pawn-advance,
+pawn-capture, material-gain, tempo, best/only/forced, decisive/winning, public
+route `200`, production API, or public/user-facing LLM narration meaning, keeps
+summary docs summary-only, leaves AGENTS.md unchanged, passes targeted
+commentary tests, passes docs authority tests, and passes `git diff --check`.
+
+## Stage-1 MultiTargetProof Pawn Attacker Admission
+
+Stage-1 opens only `MultiTargetProof` completion eligibility for a legal pawn
+attacker. It does not create a public Story, writer, StoryTable family,
+ExplanationPlan key, renderer template, LLM smoke path, public route, or
+production API.
+
+Stage-1 proof conditions:
+
+- same-board proof
+- legal move exists
+- moving piece before move is pawn
+- pawn after move is on route destination
+- route is the legal move
+- after-board pawn attacks target A
+- after-board pawn attacks target B
+- target A and target B are distinct rival non-king pieces
+- reply map remains complete
+- fork square safety / bounded reply rule remains enforced
+
+Stage-1 keeps closed:
+
+- pseudo-legal pawn move
+- pinned pawn pseudo-move
+- promotion move
+- promotion threat
+- en passant
+- pawn capture as material claim
+- pawn advance Story
+- passed pawn Story
+- tempo
+- material win wording
+- `Tactic.PawnFork`
+- `PawnForkProof`
+- `TacticPawnFork`
+- `pawn_forks_two_targets`
+- new StoryTable family
+- new ExplanationPlan claim key
+- new renderer template for PawnFork
+- new LLM smoke path for PawnFork
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-1 rules:
+
+- `MultiTargetProof.publicClaimAllowed` remains false.
+- `MultiTargetProof` still does not create Story.
+- Pawn attacker admission is an existing Fork proof-home expansion only.
+  `TacticFork` remains the named writer for any downstream `Tactic.Fork` row.
+- Pawn-route proof rejects promotion and en passant routes. Legal replay still
+  rejects pseudo-legal and pinned-pawn pseudo routes.
+- Pawn capture, pawn advance, passed pawn, tempo, material gain, best,
+  only, forced, decisive, and winning meanings remain closed.
+
+Completion standard: Stage-1 closes when `MultiTargetProof` can complete for a
+legal pawn move that lands the pawn on the route destination and attacks two
+distinct rival non-king targets on the exact after-board, while en passant,
+promotion, pseudo-legal routes, pinned-pawn pseudo routes, missing targets, and
+unsafe fork squares remain incomplete, `publicClaimAllowed` remains false,
+`MultiTargetProof` creates no Story, no PawnFork public surface appears, summary
+docs remain summary-only, AGENTS.md remains unchanged, targeted commentary tests
+pass, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-2 TacticFork Writer Admission
+
+Stage-2 opens only `TacticFork` writer admission for an existing `Tactic.Fork`
+row whose complete `MultiTargetProof` has a pawn attacker. It does not open a
+new Story label, pawn-specific writer, pawn-specific speech key, material claim,
+promotion-threat claim, pawn-advance claim, or pawn-capture claim.
+
+Stage-2 writer conditions:
+
+- complete StoryProof
+- complete `MultiTargetProof`
+- same-board legal replay
+- legal route matches proof route
+- attacker may be pawn or non-pawn
+- two named target squares are bound
+- targets are distinct rival non-king pieces
+- both targets are attacked after the move
+- writer = `TacticFork`
+- EngineCheck does not Refute
+
+Stage-2 Story identity:
+
+- scene = Tactic
+- tactic = Fork
+- plan = None
+- side = attacking side
+- rival = target owner side
+- target = first target square
+- secondaryTarget = second target square
+- anchor = attacker square after the move
+- route = legal fork move
+
+Stage-2 keeps closed:
+
+- tactic = PawnFork
+- writer = TacticPawnFork
+- pawn-specific speech key
+- Material claim
+- PromotionThreat claim
+- PawnAdvance claim
+- PawnCapture claim
+- `PawnForkProof`
+- `pawn_forks_two_targets`
+- new StoryTable family
+- new ExplanationPlan claim key
+- new renderer template for PawnFork
+- new LLM smoke path for PawnFork
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-2 rules:
+
+- `TacticFork` writes the existing `Tactic.Fork` identity only.
+- The writer must bind Story `anchor` to the attacker square after the move,
+  not the pawn's before-square.
+- The writer consumes complete `MultiTargetProof`; it does not recreate pawn
+  route proof or create a Story from incomplete proof.
+- EngineCheck may support, cap, or refute only the already written
+  `Tactic.Fork` row. Refuted rows must not lead or speak.
+- Pawn capture, pawn advance, passed pawn, promotion threat, material gain,
+  tempo, best, only, forced, decisive, and winning meanings remain closed.
+
+Completion standard: Stage-2 closes when `TacticFork.write` can write the
+existing `Tactic.Fork` Story for a complete pawn-attacker `MultiTargetProof`
+with scene `Tactic`, tactic `Fork`, no plan, attacking side, target-owner rival,
+both target squares, anchor on the attacker's after-square, route on the legal
+fork move, writer `TacticFork`, no StoryProof or MultiTargetProof failures, and
+no new PawnFork writer, proof home, speech key, material claim, promotion-threat
+claim, pawn-advance claim, pawn-capture claim, public route, production API, or
+public/user-facing LLM narration.
+
+## Stage-3 Negative Corpus
+
+Stage-3 adds and confirms the negative corpus for pawn-attacker admission into
+the existing `Tactic.Fork` path. It opens no new chess meaning and no new public
+surface.
+
+Stage-3 negative cases:
+
+- illegal pawn move
+- pseudo-legal pinned pawn move
+- missing same-board proof
+- missing exact after-board replay
+- pawn does not attack target A after move
+- pawn does not attack target B after move
+- duplicated targets
+- own-piece target
+- king target
+- one target only
+- one reply saves both targets
+- stronger rival reply refutes fork
+- promotion move contamination
+- promotion-threat contamination
+- pawn capture / material-gain contamination
+- PawnAdvance-only move
+- PawnCapture-only move
+- QueenHit-only attack
+- Loose-only attack
+- Skewer-looking line
+- EngineCheck-only evidence
+- source row saying pawn fork
+- proofFailures text saying pawn fork
+
+Stage-3 requirements:
+
+- every Stage-3 negative case creates no public Fork claim.
+- `Tactic.PawnFork` remains closed.
+- no `TacticPawnFork` writer is added.
+- no `PawnForkProof` proof home is added.
+- `pawn_forks_two_targets` remains closed.
+- wins material remains closed.
+- wins piece remains closed.
+- tempo remains closed.
+- best / only / forced remains closed.
+
+Stage-3 rules:
+
+- The negative corpus hardens the existing `Tactic.Fork` boundary, not a new
+  public chess meaning.
+- Illegal pawn moves, pinned pawn pseudo-moves, missing same-board proof, and
+  missing exact after-board replay stay silent because the proof route is not
+  legally bound.
+- One unattacked target, one target only, duplicated targets, own-piece targets,
+  and king targets stay silent because they do not satisfy two distinct rival
+  non-king targets both attacked after the move.
+- A single reply that saves both targets, or a stronger rival reply, prevents
+  the row from becoming a speaking Fork claim.
+- Promotion move, promotion-threat, pawn-capture/material-gain,
+  PawnAdvance-only, PawnCapture-only, QueenHit-only, Loose-only, and
+  Skewer-looking overlaps stay in their own closed or existing proof homes; they
+  do not become pawn-attacker Fork evidence by vocabulary.
+- EngineCheck-only evidence, source rows, and proofFailures text cannot create a
+  pawn-attacker Fork claim.
+
+Completion standard: Stage-3 closed when docs and tests pinned
+pawn-attacker negative corpus cases as silent or blocked, kept
+`Tactic.PawnFork`, `TacticPawnFork`, `PawnForkProof`, `pawn_forks_two_targets`,
+wins-material, wins-piece, tempo, best, only, and forced meanings closed,
+created no separate public Story or speaking Fork claim from any negative case,
+and opened no new StoryTable family, pawn-specific ExplanationPlan key,
+renderer, LLM smoke path, public route `200`, production API, or
+public/user-facing LLM narration.
+
+## Stage-4 EngineCheck Reuse
+
+Stage-4 opens only existing `EngineCheck` reuse for already written
+pawn-attacker `Tactic.Fork` rows. It opens no new Story label, no PawnFork
+family, no engine-owned public claim, and no public surface.
+
+Stage-4 opens:
+
+- existing `EngineCheck` attachment for complete pawn-attacker `Tactic.Fork`
+  rows.
+
+Stage-4 rules:
+
+- EngineCheck cannot create Fork.
+- EngineCheck cannot create PawnFork.
+- Supports creates no new claim.
+- Caps suppresses or bounds already selected Fork speech.
+- Refutes blocks the Fork Story.
+- Unknown creates no engine expression.
+- EngineCheck must bind to the same legal route.
+- EngineCheck must be story-bound evidence, not raw engine-only evidence.
+- `TacticFork.withEngineCheck` requires complete StoryProof, complete
+  `MultiTargetProof`, existing `Tactic.Fork`, writer `TacticFork`, same-board
+  proof, and the same legal Fork route.
+
+Stage-4 forbidden wording:
+
+- engine says
+- eval number
+- raw PV
+- best move
+- only move
+- forced
+- wins material
+- wins pawn
+- pawn fork wins
+- decisive
+- winning
+
+Stage-4 keeps closed:
+
+- `Tactic.PawnFork`
+- `PawnForkProof`
+- `TacticPawnFork`
+- `pawn_forks_two_targets`
+- new StoryTable family
+- new ExplanationPlan claim key
+- new renderer template for PawnFork
+- new LLM smoke path for PawnFork
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-4 closes when EngineCheck attaches only to complete
+pawn-attacker `Tactic.Fork` rows, engine-only evidence and wrong-route evidence
+cannot attach, Supports creates no new claim, Caps suppresses or bounds selected
+Fork speech, Refutes blocks the Fork Story, Unknown creates no engine
+expression, Stage-4 forbidden wording is present in the existing Fork
+ExplanationPlan boundary, and no PawnFork Story label, proof home, writer,
+speech key, StoryTable family, renderer, LLM smoke path, public route `200`,
+production API, or public/user-facing LLM narration opens.
+
+## Stage-5 StoryTable Integration
+
+Stage-5 opens only StoryTable ordering for existing `Tactic.Fork` rows whose
+attacker may be a pawn. It does not create a PawnFork family, public surface,
+or new speech key.
+
+Stage-5 collision targets:
+
+- `Tactic.Fork`
+- `Tactic.QueenHit`
+- `Tactic.Loose`
+- `Tactic.Hanging`
+- `Tactic.Skewer`
+- `Scene.Material`
+- `Scene.PawnAdvance`
+- `Scene.PawnCapture`
+- `Scene.PromotionThreat`
+- `Scene.Promotion`
+
+Stage-5 rules:
+
+- pawn-attacker fork is still `Tactic.Fork`.
+- `Tactic.PawnFork` never appears as Lead, Support, Context, or Blocked public
+  Story.
+- actual material change remains `Scene.Material`.
+- actual promotion remains `Scene.Promotion`.
+- next-move promotion threat remains `Scene.PromotionThreat`.
+- pawn advance remains `Scene.PawnAdvance`.
+- pawn capture remains `Scene.PawnCapture`.
+- queen-hit-only remains `Tactic.QueenHit`.
+- loose-only remains `Tactic.Loose`.
+- skewer-shaped line proof remains `Tactic.Skewer`.
+- `StoryTable` may order already written rows, but it does not create Fork,
+  PawnFork, Material, Promotion, PromotionThreat, PawnAdvance, PawnCapture,
+  QueenHit, Loose, Hanging, or Skewer rows from another row's evidence.
+
+Rows that must not speak:
+
+- Support
+- Context
+- Blocked
+- capped
+- refuted
+- non-Lead
+
+Stage-5 keeps closed:
+
+- `Tactic.PawnFork`
+- `PawnForkProof`
+- `TacticPawnFork`
+- `pawn_forks_two_targets`
+- new StoryTable family
+- new ExplanationPlan claim key
+- new renderer template for PawnFork
+- new LLM smoke path for PawnFork
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-5 closes when StoryTable orders pawn-attacker Fork
+rows as existing `Tactic.Fork`, never emits `Tactic.PawnFork` as Lead, Support,
+Context, or Blocked, keeps all collision targets in their own Story identities,
+keeps Support, Context, Blocked, capped, refuted, and non-Lead rows from
+speaking, and opens no PawnFork proof home, writer, speech key, StoryTable
+family, ExplanationPlan claim key, renderer template, LLM smoke path, public
+route `200`, production API, or public/user-facing LLM narration.
+
+## Stage-6 ExplanationPlan
+
+Stage-6 opens only existing Fork `ExplanationPlan` lowering for selected
+uncapped Lead `Tactic.Fork` rows whose attacker may be a pawn.
+
+Allowed claim key:
+
+- existing `forks_two_targets` only
+
+Stage-6 must not add:
+
+- `pawn_forks_two_targets`
+- `pawn_fork`
+- new PawnFork claim key
+- promotion claim key
+- material claim key
+- tempo claim key
+
+Input boundary:
+
+- selected Lead Verdict
+- uncapped
+- not refuted
+- Story tactic = `Tactic.Fork`
+- writer = `TacticFork`
+- complete `StoryProof`
+- complete `MultiTargetProof`
+- target and secondaryTarget present
+- route present
+- evidenceLine = route only
+
+Stage-6 rules:
+
+- `ExplanationPlan` does not prove Fork.
+- `ExplanationPlan` does not repair missing pawn route proof.
+- Support, Context, Blocked, capped, and refuted rows stay silent.
+
+Stage-6 keeps closed:
+
+- `Tactic.PawnFork`
+- `PawnForkProof`
+- `TacticPawnFork`
+- `pawn_forks_two_targets`
+- `pawn_fork`
+- new PawnFork claim key
+- promotion claim key
+- material claim key
+- tempo claim key
+- new renderer template for PawnFork
+- new LLM smoke path for PawnFork
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-6 closes when `ExplanationPlan.fromSelected` lowers
+only selected uncapped non-refuted Lead `Tactic.Fork` Verdicts with
+`TacticFork`, complete `StoryProof`, complete `MultiTargetProof`, bound target,
+secondaryTarget, route, and evidenceLine equal to route; emits only existing
+`forks_two_targets`; does not repair missing pawn route proof; keeps Support,
+Context, Blocked, capped, and refuted rows silent; and opens no PawnFork proof
+home, writer, claim key, renderer template, LLM smoke path, public route `200`,
+production API, or public/user-facing narration.
+
+## Stage-7 DeterministicRenderer
+
+Stage-7 opens only existing Fork renderer path use.
+existing Fork renderer path may render pawn-attacker Fork for selected
+`Tactic.Fork` rows that already lowered through the existing Fork
+`ExplanationPlan`.
+
+Renderer input:
+
+- `ExplanationPlan` only
+
+Allowed:
+
+- existing Fork bounded wording only
+- existing `forks_two_targets` claim key only
+
+Do not add:
+
+- PawnFork renderer template
+- pawn-specific public template
+- wins material wording
+- wins piece wording
+- promotion wording
+- tempo wording
+
+Forbidden renderer input:
+
+- raw `Story`
+- raw `MultiTargetProof`
+- `BoardFacts`
+- `EngineCheck`
+- raw PV
+- `proofFailures`
+- source rows
+
+Stage-7 rules:
+
+- `DeterministicRenderer` may render a pawn-attacker Fork only from a valid
+  Stage-6 Fork `ExplanationPlan`.
+- `DeterministicRenderer` does not prove Fork.
+- `DeterministicRenderer` does not read or repair missing pawn route proof.
+- Renderer emits no text for Support, Context, Blocked, capped, or refuted rows.
+- Renderer emits no PawnFork text.
+
+Stage-7 keeps closed:
+
+- `Tactic.PawnFork`
+- `PawnForkProof`
+- `TacticPawnFork`
+- `pawn_forks_two_targets`
+- `pawn_fork`
+- PawnFork renderer template
+- pawn-specific public template
+- promotion wording
+- material-gain wording
+- tempo wording
+- new LLM smoke path for PawnFork
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-7 closes when `DeterministicRenderer.fromPlan`
+renders pawn-attacker Fork only through an existing Fork `ExplanationPlan`,
+uses only bounded Fork wording and `forks_two_targets`, accepts no raw Story,
+raw `MultiTargetProof`, `BoardFacts`, `EngineCheck`, raw PV, `proofFailures`,
+or source rows, keeps Support, Context, Blocked, capped, and refuted rows
+silent, emits no PawnFork text, and opens no PawnFork renderer template,
+LLM smoke path, public route `200`, production API, or public/user-facing
+narration.
+
+## Stage-8 LLM Smoke
+
+Stage-8 opens only existing Fork LLM smoke for rendered Fork text.
+existing Fork LLM smoke may rephrase rendered Fork text for pawn-attacker Fork rows that
+passed Stage-7.
+
+Allowed input:
+
+- renderedText
+- claimKey
+- strength
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+Allowed claimKey:
+
+- existing `forks_two_targets` only
+
+LLM must not add:
+
+- pawn fork as separate claim
+- wins material
+- wins piece
+- promotion threat
+- pawn advance
+- tempo
+- best move
+- only move
+- forced move
+- decisive
+- winning
+- engine line
+- new move
+- new variation
+
+Stage-8 rules:
+
+- LLM only polishes.
+- Verifier rejects overclaim.
+- public/user-facing LLM narration remains closed.
+- LLM smoke does not prove Fork.
+- LLM smoke does not read or repair missing pawn route proof.
+
+Stage-8 keeps closed:
+
+- `Tactic.PawnFork`
+- `PawnForkProof`
+- `TacticPawnFork`
+- `pawn_forks_two_targets`
+- `pawn_fork`
+- PawnFork LLM smoke path
+- public/user-facing LLM narration
+- public route `200`
+- production API
+
+Completion standard: Stage-8 closes when existing Fork LLM smoke may receive
+only renderedText, claimKey, strength, forbidden wording, and
+`Rephrase only. Do not add chess facts.` for selected pawn-attacker Fork
+RenderedLine rows; accepts only existing `forks_two_targets`; rejects pawn fork
+as a separate claim, wins-material, wins-piece, promotion-threat, pawn-advance,
+tempo, best, only, forced-move, decisive, winning, engine-line, new-move, and
+new-variation additions; keeps public/user-facing LLM narration closed; and
+opens no PawnFork proof home, writer, claim key, renderer template, LLM smoke
+path, public route `200`, or production API.
+
+## Stage-9 Fork-PawnAttacker Admission Closeout
+
+Stage-9 opens no new chess meaning beyond existing `Tactic.Fork`. It closes
+only pawn attacker admission into existing Fork. Stage-9 must close only pawn
+attacker admission into existing Fork.
+
+close only pawn attacker admission into existing Fork.
+
+Authority audit:
+
+- `MultiTargetProof` remains proof home.
+- `Tactic.Fork` remains Story label.
+- `TacticFork` remains writer.
+- existing Fork claim key remains speech key.
+- `Tactic.PawnFork` remains closed.
+- `PawnForkProof` does not exist.
+- `TacticPawnFork` does not exist.
+- `pawn_forks_two_targets` does not exist.
+
+Duplication audit:
+
+- pawn-attacker Fork is not a separate public Story.
+- pawn-attacker Fork is not PawnAdvance.
+- pawn-attacker Fork is not PawnCapture.
+- pawn-attacker Fork is not PromotionThreat.
+- pawn-attacker Fork is not Promotion.
+- pawn-attacker Fork is not Material.
+- pawn-attacker Fork is not QueenHit-only.
+- pawn-attacker Fork is not Loose-only.
+- pawn-attacker Fork is not Tempo.
+
+Still closed:
+
+- public `Tactic.PawnFork`
+- pawn-specific speech key
+- promotion threat
+- material gain
+- wins piece/material
+- tempo
+- best / only / forced
+- decisive / winning
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-9 verification:
+
+- targeted Fork-PawnAttacker Admission tests
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Completion standard: Stage-9 closes when pawn-attacker admission remains only
+existing `Tactic.Fork`; `MultiTargetProof`, `Tactic.Fork`, `TacticFork`, and
+the existing Fork claim key remain the single proof, Story, writer, and speech
+chain; `Tactic.PawnFork`, `PawnForkProof`, `TacticPawnFork`, and
+`pawn_forks_two_targets` remain closed or absent; sibling meanings remain in
+their own homes; public route `200`, production API, and public/user-facing LLM
+narration remain closed; targeted admission tests, foundation tests, docs
+authority tests, and `git diff --check` pass.
 
 ## Material-0 Scene.Material Charter
 
@@ -5104,6 +5773,3520 @@ LNC final verification:
 - `git diff --check` is clean.
 
 Final LNC closeout opens no new Story family, proof home, Story writer, claim key, renderer wording, LLM behavior, fixture-derived runtime authority, negative-corpus production concept, broad LineTactic, XRay, public route `200`, production API, or public/user-facing LLM narration.
+
+## DefenderDuty Proof Readiness
+
+### Stage-0 DefenderDuty Proof Readiness Charter
+
+Stage-0 opens internal proof-readiness only.
+
+Stage-0 opens only the defender-duty proof shape.
+
+Stage-0 meaning: on one exact board, one named rival defender guards one named
+rival non-king material target.
+
+DefenderDuty is an internal readiness name only. It is not a public label,
+Story label, speech key, tactic family, plan family, renderer input, LLM input,
+public payload, or production API contract.
+
+Stage-0 proof shape:
+
+- exact board identity
+- observing side
+- rival side
+- one rival defender
+- one rival non-king material target
+- defender and target are different pieces
+- defender and target are both present on the exact board
+- defender and target belong to the rival side
+- defender attacks or guards the target square on the exact board
+- same-board proof
+- diagnostic missing-evidence shape
+
+Stage-0 rules:
+
+- The proof shape records one defender-target guard relation only.
+- The proof shape does not prove the defender is the only defender.
+- The proof shape does not prove the defender is overloaded.
+- The proof shape does not prove the defender cannot move.
+- The proof shape does not prove that moving, capturing, deflecting, decoying,
+  or removing the defender wins material.
+- BoardFacts, `PieceContact`, guard rows, line facts, source rows, proof
+  failures, renderer text, and LLM text cannot create public defender-duty
+  meaning.
+- Missing evidence and proof failure text stay internal diagnostics only.
+
+Stage-0 must not open:
+
+- public Story
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- `DefenderDuty` public label
+- `DefenderDutyProof` as public claim
+- speech key
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- only defender
+- overloaded defender
+- defender cannot move
+- removes defender
+- wins material
+- pressure / initiative
+- best / only / forced
+- mate threat
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-0 documentation rule:
+
+- detailed DefenderDuty readiness authority lives only in
+  `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Stage-0 DefenderDuty Proof Readiness closes when the
+charter admits only an internal proof-readiness shape for one exact-board
+rival defender guarding one rival non-king material target; no public Story,
+tactic, plan, public `DefenderDuty` label, public `DefenderDutyProof` claim,
+speech key, StoryTable Lead, ExplanationPlan, renderer, LLM smoke,
+only-defender, overloaded-defender, defender-cannot-move, removes-defender,
+wins-material, pressure, initiative, best/only/forced, mate-threat, public
+route `200`, production API, or public/user-facing LLM narration surface is
+opened; detailed authority stays only in `StoryInteractionLaw.md`; AGENTS.md
+remains unchanged; docs authority tests pass when touched; and
+`git diff --check` passes.
+
+### Stage-1 DefenderDuty Proof Shape
+
+Stage-1 opens only the internal defender-duty proof shape.
+
+Stage-1 may use `DefenderDutyProof` as an internal sidecar holder if implementation needs a named holder.
+
+If existing guard observations are enough, Stage-1 documents the same shape without making it public.
+
+Stage-1 required proof fields:
+
+- defending side
+- rival attacking side
+- defender piece identity
+- defender square
+- defended target identity
+- defended target square
+- target is same-side as defender
+- target is non-king
+- target is material piece
+- defender legally guards or attacks the target square on the exact board
+- same-board proof
+- guard relation source
+- missing evidence
+- complete flag
+- `publicClaimAllowed = false`
+
+Stage-1 rules:
+
+- Proof home is not public Story.
+- Proof home cannot write Story.
+- Proof home cannot create Verdict, ExplanationPlan, renderer text, LLM input, public route, or API output.
+- BoardFacts may observe attacks and guards, but cannot create defender-duty public meaning.
+- `DefenderDutyProof`, if implemented, remains an internal sidecar only.
+- Missing evidence remains diagnostic only and cannot become renderer text, LLM input, public route, or API output.
+
+Stage-1 must not open:
+
+- public Story
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public `DefenderDuty` label
+- public `DefenderDutyProof` claim
+- speech key
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- only defender
+- overloaded defender
+- defender cannot move
+- removes defender
+- wins material
+- pressure / initiative
+- best / only / forced
+- mate threat
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-1 DefenderDuty Proof Shape closes when the internal
+shape, or internal `DefenderDutyProof` sidecar if implementation needs a named
+holder, contains defending side, rival attacking side, defender identity and
+square, defended target identity and square, same-side target proof,
+non-king material target proof, exact-board legal guard or attack proof,
+same-board proof, guard relation source, missing evidence, complete flag, and
+`publicClaimAllowed = false`; the proof home remains unable to write Story,
+Verdict, ExplanationPlan, renderer text, LLM input, public route, or API
+output; BoardFacts remains observation only; and public Story, Overload,
+Deflect, Decoy, Plan.Overload, public DefenderDuty labels, speech keys,
+StoryTable Lead, downstream text, public route `200`, production API, and
+public/user-facing LLM narration remain closed.
+
+### Stage-2 DefenderDuty Positive Readiness Fixture
+
+Stage-2 opens one narrow positive proof-readiness fixture only.
+
+Stage-2 fixture meaning:
+
+- one rival defender protects one rival non-king material target
+- defender and target are both identified
+- guard relation is legal on the exact board
+- same-board proof is present
+
+Stage-2 allowed target types:
+
+- queen
+- rook
+- bishop
+- knight
+- pawn
+
+Stage-2 forbidden target:
+
+- king
+
+Stage-2 expected result:
+
+- internal proof complete
+- no public Story
+- no StoryTable Lead
+- no ExplanationPlan
+- no rendered text
+- no LLM smoke
+
+Stage-2 fixture rules:
+
+- The positive fixture may satisfy only the Stage-1 internal proof shape.
+- The positive fixture must keep `publicClaimAllowed = false`.
+- The positive fixture cannot imply only defender, overloaded defender, defender cannot move, removes defender, wins material, pressure, initiative, best, only, forced, or mate threat.
+- A king target is incomplete for DefenderDuty readiness and must remain diagnostic only.
+- BoardFacts guard observation may supply the guard relation source, but BoardFacts still cannot create defender-duty public meaning.
+
+Stage-2 must not open:
+
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- speech key
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-2 DefenderDuty Positive Readiness Fixture closes when exactly one positive internal fixture proves one identified rival defender
+legally guards one identified rival queen, rook, bishop, knight, or pawn on
+the exact same board; king targets remain forbidden; the internal proof is
+complete with `publicClaimAllowed = false`; and the fixture creates no public
+Story, no StoryTable Lead, no ExplanationPlan, no rendered text, no LLM smoke,
+no tactic or plan family, no speech key, no public route `200`, no production
+API, and no public/user-facing LLM narration.
+
+### Stage-3 DefenderDuty Negative Corpus
+
+Stage-3 opens only the DefenderDuty negative corpus.
+
+Stage-3 incomplete or silent cases:
+
+- missing same-board proof
+- missing defender
+- missing target
+- defender and target on opposite sides
+- target is king
+- defender does not legally guard target square
+- guard line blocked
+- stale before-board relation only
+- source row says defender without proof
+- EngineCheck says defender without proof
+- BoardFacts-only observation treated as public claim
+- ambiguous multiple defenders without one selected relation
+- ambiguous multiple targets without one selected relation
+- defender is pinned but pin effect is not part of this proof
+- target is attacked but not guarded by named defender
+- target is loose
+- target is hanging
+- material is won
+- check/mate/mate threat context
+
+Stage-3 forbidden wording:
+
+- only defender
+- overloaded
+- deflects
+- decoys
+- removes guard
+- wins material
+- pressure
+- initiative
+- best / only / forced
+
+Stage-3 expected result:
+
+- incomplete internal proof or silence
+- no public Story
+- no StoryTable Lead
+- no ExplanationPlan
+- no rendered text
+- no LLM smoke
+
+Stage-3 rules:
+
+- Negative fixtures may fail readiness, but they do not create public claims.
+- Missing same-board proof, stale before-board relation, source-row text, and EngineCheck text remain diagnostics only.
+- BoardFacts-only guard observations cannot become public defender-duty meaning.
+- Multiple defenders or multiple targets require one selected defender-target relation; otherwise the proof remains incomplete.
+- Pin, Loose, Hanging, Material, check, mate, and mate-threat contexts remain sibling or closed meanings, not DefenderDuty proof effects.
+- Stage-3 does not open public Story, StoryTable Lead, ExplanationPlan, renderer text, LLM smoke, public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: Stage-3 DefenderDuty Negative Corpus closes when every listed missing, ambiguous, stale, unproven, BoardFacts-only, EngineCheck-only, source-only, sibling-meaning, material, check, mate, and mate-threat case remains incomplete or silent; forbidden only-defender, overloaded, deflects, decoys, removes-guard, wins-material, pressure, initiative, best/only/forced wording remains closed; and no public Story, StoryTable Lead, ExplanationPlan, renderer text, LLM smoke, public route `200`, production API, or public/user-facing LLM narration is opened.
+
+### Stage-4 DefenderDuty Existing Owner Collision Audit
+
+Stage-4 opens only the existing owner collision audit for DefenderDuty readiness.
+
+Stage-4 collision targets:
+
+- `Tactic.RemoveGuard`
+- `Scene.Defense`
+- `Tactic.Loose`
+- `Tactic.Hanging`
+- `Scene.Material`
+- `Tactic.QueenHit`
+- `Tactic.Fork`
+- `Tactic.Skewer`
+- `Tactic.Pin`
+- `Tactic.DiscoveredAttack`
+
+Stage-4 rules:
+
+- DefenderDuty proof does not replace RemoveGuardProof.
+- DefenderDuty proof does not create RemoveGuard.
+- DefenderDuty proof does not create Defense.
+- DefenderDuty proof does not prove a threat is stopped.
+- DefenderDuty proof does not prove a target is loose or hanging.
+- DefenderDuty proof does not prove material gain.
+- DefenderDuty proof does not prove pin, skewer, fork, or discovered attack.
+- Existing opened Stories keep their own proof homes and speech keys.
+
+Stage-4 expected result:
+
+- internal defender-duty relation may be present as diagnostic/proof-readiness only.
+- all public Story labels remain unchanged.
+
+Stage-4 owner boundaries:
+
+- RemoveGuard meaning stays in `RemoveGuardProof`, `Tactic.RemoveGuard`, and `removes_defender`.
+- Defense meaning stays in ThreatProof/DefenseProof, `Scene.Defense`, and its defense speech key.
+- Loose meaning stays in `LoosePieceProof`, `Tactic.Loose`, and `attacks_loose_piece`.
+- Hanging meaning stays in the existing Hanging proof path, `Tactic.Hanging`, and `can_win_piece`.
+- Material meaning stays in the existing material proof path, `Scene.Material`, and `material_balance_changes`.
+- QueenHit, Fork, Skewer, Pin, and DiscoveredAttack keep their own proof homes, Story labels, and speech keys.
+
+Stage-4 must not open:
+
+- new public Story
+- new proof home
+- new StoryTable Lead path
+- new ExplanationPlan mapping
+- new renderer text
+- new LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-4 DefenderDuty Existing Owner Collision Audit closes when DefenderDuty proof remains diagnostic/proof-readiness only; it does not replace RemoveGuardProof, create RemoveGuard or Defense, prove a stopped threat, prove loose or hanging status, prove material gain, or prove pin, skewer, fork, or discovered attack; `Tactic.RemoveGuard`, `Scene.Defense`, `Tactic.Loose`, `Tactic.Hanging`, `Scene.Material`, `Tactic.QueenHit`, `Tactic.Fork`, `Tactic.Skewer`, `Tactic.Pin`, and `Tactic.DiscoveredAttack` keep their existing proof homes, Story labels, and speech keys; all public Story labels remain unchanged; and no StoryTable Lead, ExplanationPlan, renderer, LLM smoke, public route `200`, production API, or public/user-facing LLM narration is opened.
+
+### Stage-5 DefenderDuty EngineCheck Diagnostics Boundary
+
+Stage-5 opens diagnostic boundary tests only.
+
+Stage-5 rules:
+
+- EngineCheck cannot create DefenderDuty proof.
+- EngineCheck cannot create Overload, Deflect, Decoy, RemoveGuard, Defense, Material, or Hanging from DefenderDuty.
+- Supports creates no claim.
+- Caps creates no claim.
+- Refutes creates no public defender-duty text.
+- Unknown creates no expression.
+- proofFailures remain internal diagnostics only.
+- raw PV and eval remain non-public.
+
+Stage-5 forbidden diagnostics wording:
+
+- engine says defender
+- engine says overloaded
+- eval proves defender
+- PV proves defender
+- best move
+- only move
+- forced
+
+Stage-5 diagnostic status boundaries:
+
+- `supports` may annotate an already complete internal proof-readiness relation, but it does not complete missing DefenderDuty evidence.
+- `caps` may limit confidence for an already complete internal relation, but it does not create public claim strength.
+- `refutes` may keep the internal relation incomplete or diagnostic-only, but it does not create public defender-duty wording.
+- `unknown` is silent and cannot be lowered into ExplanationPlan, renderer text, LLM input, public route output, or production API output.
+
+Stage-5 must not open:
+
+- DefenderDuty public Story
+- Overload, Deflect, Decoy, RemoveGuard, Defense, Material, or Hanging Story creation from DefenderDuty
+- StoryTable Lead path
+- ExplanationPlan mapping
+- renderer text
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-5 DefenderDuty EngineCheck Diagnostics Boundary closes when EngineCheck status, raw PV, raw eval, source rows, and proofFailures remain internal diagnostics only; EngineCheck cannot create DefenderDuty proof or create Overload, Deflect, Decoy, RemoveGuard, Defense, Material, or Hanging from DefenderDuty; supports and caps create no claim; refutes creates no public defender-duty text; unknown creates no expression; forbidden engine-says-defender, engine-says-overloaded, eval-proves-defender, PV-proves-defender, best-move, only-move, and forced wording remains closed; and no StoryTable Lead, ExplanationPlan, renderer, LLM smoke, public route `200`, production API, or public/user-facing LLM narration is opened.
+
+### Stage-6 DefenderDuty Docs Public Surface Boundary
+
+Stage-6 opens docs and public-surface boundary tests only.
+
+Stage-6 docs rules:
+
+- detailed DefenderDuty readiness authority lives only in `StoryInteractionLaw.md`.
+- README/SSOT/Architecture/Contract/Manifest stay summary-only if touched.
+- AGENTS.md remains unchanged unless durable operator rules change.
+- docs tests must prevent detailed readiness duplication outside `StoryInteractionLaw.md`.
+
+Stage-6 public surface rules:
+
+- `/api/commentary/render` remains fail-closed.
+- `/internal/commentary/render-local-probe` remains fail-closed.
+- no public route 200
+- no production API
+- no public/user-facing LLM narration
+
+Stage-6 downstream rules:
+
+- no ExplanationPlan
+- no Renderer
+- no LLM smoke
+- no speech key
+
+Stage-6 summary-only allowance:
+
+- Summary docs may say DefenderDuty readiness is internal and non-public only if docs tests require a summary.
+- Summary docs must not carry proof fields, fixture details, negative corpus details, collision targets, EngineCheck diagnostics rules, public-surface detail, forbidden wording, or completion standards.
+- Summary docs must point to `StoryInteractionLaw.md` for detailed authority when a pointer is needed.
+
+Stage-6 must not open:
+
+- public Story
+- `DefenderDuty` public label
+- `DefenderDutyProof` as public claim
+- StoryTable Lead path
+- ExplanationPlan mapping
+- renderer text
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-6 DefenderDuty Docs Public Surface Boundary closes when detailed DefenderDuty readiness authority remains only in `StoryInteractionLaw.md`; README, SSOT, Architecture, Contract, and Manifest remain summary-only if touched; `AGENTS.md` remains unchanged unless durable operator rules change; docs tests prevent detailed readiness duplication outside `StoryInteractionLaw.md`; `/api/commentary/render` and `/internal/commentary/render-local-probe` remain fail-closed; no public route 200, production API, public/user-facing LLM narration, ExplanationPlan, Renderer, LLM smoke, or speech key is opened.
+
+### Stage-7 DefenderDuty Readiness Closeout
+
+Stage-7 closes only internal proof-readiness for one defender guarding one non-king material target.
+
+Stage-7 authority audit:
+
+- DefenderDuty proof shape is internal only.
+- BoardFacts observes only.
+- Story writers do not consume it yet.
+- StoryTable does not order it.
+- ExplanationPlan does not lower it.
+- Renderer does not phrase it.
+- LLM does not see it.
+
+Stage-7 still closed:
+
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public DefenderDuty label
+- only defender
+- overloaded defender
+- defender cannot move
+- removes defender
+- wins material
+- pressure / initiative
+- best / only / forced
+- mate threat
+- public route 200
+- production API
+- public/user-facing LLM narration
+
+Stage-7 required verification:
+
+- targeted DefenderDuty readiness tests
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Stage-7 closeout notes:
+
+- The only closed positive readiness is one exact same-board defender-target guard relation.
+- Existing proof homes remain authoritative for their own public Stories.
+- DefenderDuty readiness does not create a public Story label, speech key, StoryTable row, ExplanationPlan claim key, renderer template, LLM prompt input, public route response, or production API output.
+- Detailed DefenderDuty readiness authority remains in this section and the preceding DefenderDuty stages of `StoryInteractionLaw.md` only.
+
+Completion standard: DefenderDuty readiness closes when one exact same-board defender-target guard relation can be proven internally, every public Story path remains closed, existing proof homes are not replaced, public surfaces remain fail-closed, docs authority is not duplicated, and all verification passes.
+
+## DualDefenderDuty Proof Readiness
+
+### Stage-0 DualDefenderDuty Proof Readiness Charter
+
+Stage-0 opens only internal proof-readiness for one defender with two separate
+guard duties on the exact board.
+
+Stage-0 meaning:
+
+- the same defender guards two distinct targets
+- both targets are non-king material pieces
+- both targets are same-side as the defender
+- both guard relations are legal on the exact board
+
+Stage-0 proof-readiness shape:
+
+- defending side
+- rival side
+- defender piece identity
+- defender square
+- first defended target identity
+- first defended target square
+- second defended target identity
+- second defended target square
+- target squares are distinct
+- both targets are non-king material pieces
+- both targets belong to the defender side
+- defender legally guards or attacks both target squares on the exact board
+- same-board proof
+- guard relation source for each target
+- diagnostic missing-evidence shape
+- public claim allowed is false
+
+Stage-0 rules:
+
+- DualDefenderDuty readiness is internal proof-readiness only.
+- DualDefenderDuty readiness is not public Story.
+- DualDefenderDuty readiness is not `Tactic.Overload`,
+  `Tactic.Deflect`, `Tactic.Decoy`, or `Plan.Overload`.
+- DualDefenderDuty readiness does not prove the defender cannot satisfy both
+  duties.
+- DualDefenderDuty readiness does not prove the defender is overloaded.
+- DualDefenderDuty readiness does not prove either target has only one
+  defender.
+- DualDefenderDuty readiness does not prove the defender cannot move.
+- DualDefenderDuty readiness does not prove material is won.
+- BoardFacts, guard rows, line facts, source rows, proof failures,
+  EngineCheck diagnostics, renderer text, and LLM text cannot create public
+  DualDefenderDuty meaning.
+- Missing evidence and proof failure text stay internal diagnostics only.
+
+Stage-0 must not open:
+
+- public Story
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public DualDefenderDuty label
+- speech key
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- defender cannot satisfy both
+- overloaded defender
+- only defender
+- defender cannot move
+- wins material
+- pressure / initiative
+- best / only / forced
+- mate threat
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-0 documentation rule:
+
+- detailed DualDefenderDuty readiness authority lives only in
+  `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Stage-0 DualDefenderDuty Proof Readiness closes when the
+charter admits only an internal proof-readiness shape for one exact-board
+defender guarding two distinct same-side non-king material targets; no public
+Story, tactic, plan, public DualDefenderDuty label, speech key, StoryTable
+Lead, ExplanationPlan, renderer, LLM smoke, defender-cannot-satisfy-both,
+overloaded-defender, only-defender, defender-cannot-move, wins-material,
+pressure, initiative, best/only/forced, mate-threat, public route `200`,
+production API, or public/user-facing LLM narration surface is opened;
+detailed authority stays only in `StoryInteractionLaw.md`; AGENTS.md remains
+unchanged; docs authority tests pass when touched; and `git diff --check`
+passes.
+
+### Stage-1 DualDefenderDuty Proof Shape
+
+Stage-1 opens only the internal dual-defender-duty proof shape.
+
+Stage-1 may use `DualDefenderDutyProof` as an internal sidecar holder if
+implementation needs a named holder.
+
+If existing guard observations are enough, Stage-1 documents the same exact
+shape without adding runtime public authority.
+
+Stage-1 DualDefenderDuty required proof fields:
+
+- defending side
+- rival side
+- defender piece identity
+- defender square
+- first defended target identity
+- first defended target square
+- second defended target identity
+- second defended target square
+- targets are distinct
+- both targets are same-side as defender
+- both targets are non-king
+- both targets are material pieces
+- defender legally guards first target on exact board
+- defender legally guards second target on exact board
+- same-board proof
+- first guard relation source
+- second guard relation source
+- missing evidence
+- complete flag
+- `publicClaimAllowed = false`
+
+Stage-1 DualDefenderDuty rules:
+
+- Proof shape is not public Story.
+- Proof shape cannot write Story.
+- Proof shape cannot create Verdict, ExplanationPlan, renderer text,
+  LLM input, public route, or API output.
+- BoardFacts may observe attacks and guards, but cannot create dual-duty
+  public meaning.
+- `DualDefenderDutyProof`, if implemented, remains an internal sidecar only.
+- Missing evidence remains diagnostic only and cannot become renderer text,
+  LLM input, public route, or API output.
+
+Stage-1 must not open:
+
+- public Story
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public DualDefenderDuty label
+- public `DualDefenderDutyProof` claim
+- speech key
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- defender cannot satisfy both
+- overloaded defender
+- only defender
+- defender cannot move
+- wins material
+- pressure / initiative
+- best / only / forced
+- mate threat
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-1 DualDefenderDuty Proof Shape closes when the
+internal shape, or internal `DualDefenderDutyProof` sidecar if implementation
+needs a named holder, contains defending side, rival side, defender identity
+and square, first and second defended target identities and squares, distinct
+target proof, same-side target proof, non-king target proof, material-piece
+target proof, exact-board legal guard proof for each target, same-board proof,
+first and second guard relation sources, missing evidence, complete flag, and
+`publicClaimAllowed = false`; the proof shape remains unable to write Story,
+Verdict, ExplanationPlan, renderer text, LLM input, public route, or API
+output; BoardFacts remains observation only; and public Story, Overload,
+Deflect, Decoy, Plan.Overload, public DualDefenderDuty labels, speech keys,
+StoryTable Lead, downstream text, public route `200`, production API, and
+public/user-facing LLM narration remain closed.
+
+### Stage-2 DualDefenderDuty Positive Readiness Fixture
+
+Stage-2 opens one narrow positive readiness fixture only.
+
+Stage-2 fixture meaning:
+
+- one defender protects two distinct same-side non-king material targets
+- defender is identified
+- target A is identified
+- target B is identified
+- both guard relations are legal on the exact board
+- same-board proof is present
+
+Stage-2 allowed target types:
+
+- queen
+- rook
+- bishop
+- knight
+- pawn
+
+Stage-2 forbidden target:
+
+- king
+
+Stage-2 expected result:
+
+- internal proof complete
+- no public Story
+- no StoryTable Lead
+- no ExplanationPlan
+- no renderer
+- no LLM smoke
+- no `Tactic.Overload`
+
+Stage-2 fixture rules:
+
+- The positive fixture may satisfy only the Stage-1 internal proof shape.
+- The positive fixture must keep `publicClaimAllowed = false`.
+- The positive fixture cannot imply defender cannot satisfy both duties,
+  overloaded defender, only defender, defender cannot move, wins material,
+  pressure, initiative, best, only, forced, or mate threat.
+- A king target is incomplete for DualDefenderDuty readiness and must remain
+  diagnostic only.
+- BoardFacts guard observation may supply each guard relation source, but
+  BoardFacts still cannot create dual-duty public meaning.
+
+Stage-2 must not open:
+
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public DualDefenderDuty label
+- speech key
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-2 DualDefenderDuty Positive Readiness Fixture
+closes when exactly one positive internal fixture proves one identified
+defender legally guards two identified distinct same-side queen, rook, bishop,
+knight, or pawn targets on the exact same board; king targets remain
+forbidden; the internal proof is complete with `publicClaimAllowed = false`;
+and the fixture creates no public Story, no StoryTable Lead, no
+ExplanationPlan, no renderer, no LLM smoke, no `Tactic.Overload`, no tactic
+or plan family, no speech key, no public route `200`, no production API, and
+no public/user-facing LLM narration.
+
+### Stage-3 DualDefenderDuty Negative Corpus
+
+Stage-3 opens only the DualDefenderDuty negative corpus.
+
+Stage-3 incomplete or silent cases:
+
+- missing same-board proof
+- missing defender
+- missing first target
+- missing second target
+- duplicated target
+- defender and target A on opposite sides
+- defender and target B on opposite sides
+- target A is king
+- target B is king
+- target A is non-material
+- target B is non-material
+- defender guards only one target
+- defender guards neither target
+- one guard line is blocked
+- both guard relations are stale before-board-only facts
+- source row says dual duty without proof
+- EngineCheck says dual duty without proof
+- BoardFacts-only observation treated as public claim
+- ambiguous multiple defenders without one selected defender
+- ambiguous multiple target pairs without one selected pair
+- one target is loose
+- one target is hanging
+- material is won
+- check/mate/mate threat context
+
+Stage-3 forbidden wording:
+
+- overloaded
+- cannot satisfy both
+- overworked
+- only defender
+- deflects
+- decoys
+- removes guard
+- wins material
+- pressure
+- initiative
+- best / only / forced
+
+Stage-3 expected result:
+
+- incomplete internal proof or silence
+- no public Story
+- no StoryTable Lead
+- no ExplanationPlan
+- no renderer
+- no LLM smoke
+- no `Tactic.Overload`
+
+Stage-3 rules:
+
+- Negative fixtures may fail readiness, but they do not create public claims.
+- Missing same-board proof, stale before-board guard facts, source-row text,
+  and EngineCheck text remain diagnostics only.
+- BoardFacts-only guard observations cannot become public dual-duty meaning.
+- Multiple defenders require one selected defender; otherwise proof remains
+  incomplete.
+- Multiple target pairs require one selected target pair; otherwise proof
+  remains incomplete.
+- Loose, Hanging, Material, check, mate, and mate-threat contexts remain
+  sibling or closed meanings, not DualDefenderDuty proof effects.
+- Stage-3 does not open public Story, StoryTable Lead, ExplanationPlan,
+  renderer text, LLM smoke, public route `200`, production API, or
+  public/user-facing LLM narration.
+
+Completion standard: Stage-3 DualDefenderDuty Negative Corpus closes when
+every listed missing, duplicated, opposite-side, king-target, non-material,
+one-guard-only, no-guard, blocked-line, stale, unproven, BoardFacts-only,
+EngineCheck-only, source-only, ambiguous-defender, ambiguous-target-pair,
+sibling-meaning, material, check, mate, and mate-threat case remains
+incomplete or silent; forbidden overloaded, cannot-satisfy-both, overworked,
+only-defender, deflects, decoys, removes-guard, wins-material, pressure,
+initiative, and best/only/forced wording remains closed; and no public Story,
+StoryTable Lead, ExplanationPlan, renderer text, LLM smoke, `Tactic.Overload`,
+public route `200`, production API, or public/user-facing LLM narration is
+opened.
+
+### Stage-4 DualDefenderDuty Existing Owner Collision Audit
+
+Stage-4 opens only the existing owner collision audit for DualDefenderDuty
+readiness.
+
+Stage-4 collision targets:
+
+- `DefenderDuty` readiness
+- `Tactic.RemoveGuard`
+- `Scene.Defense`
+- `Tactic.Loose`
+- `Tactic.Hanging`
+- `Scene.Material`
+- `Tactic.QueenHit`
+- `Tactic.Fork`
+- `Tactic.Skewer`
+- `Tactic.Pin`
+- `Tactic.DiscoveredAttack`
+
+Stage-4 rules:
+
+- DualDefenderDuty proof does not replace DefenderDuty readiness.
+- DualDefenderDuty proof may compose two DefenderDuty relations internally,
+  but it does not create public meaning.
+- DualDefenderDuty proof does not create RemoveGuard.
+- DualDefenderDuty proof does not create Defense.
+- DualDefenderDuty proof does not prove a threat is stopped.
+- DualDefenderDuty proof does not prove a target is loose or hanging.
+- DualDefenderDuty proof does not prove material gain.
+- DualDefenderDuty proof does not prove pin, skewer, fork, or discovered
+  attack.
+- Existing opened Stories keep their own proof homes and speech keys.
+
+Stage-4 expected result:
+
+- internal dual-duty relation may be present as diagnostic/proof-readiness
+  only.
+- all public Story labels remain unchanged.
+
+Stage-4 owner boundaries:
+
+- Single-target DefenderDuty readiness stays its own internal readiness shape.
+- RemoveGuard meaning stays in `RemoveGuardProof`, `Tactic.RemoveGuard`, and
+  `removes_defender`.
+- Defense meaning stays in ThreatProof/DefenseProof, `Scene.Defense`, and its
+  defense speech key.
+- Loose meaning stays in `LoosePieceProof`, `Tactic.Loose`, and
+  `attacks_loose_piece`.
+- Hanging meaning stays in the existing Hanging proof path, `Tactic.Hanging`,
+  and `can_win_piece`.
+- Material meaning stays in the existing material proof path,
+  `Scene.Material`, and `material_balance_changes`.
+- QueenHit, Fork, Skewer, Pin, and DiscoveredAttack keep their own proof homes,
+  Story labels, and speech keys.
+
+Stage-4 must not open:
+
+- new public Story
+- new proof home
+- new StoryTable Lead path
+- new ExplanationPlan mapping
+- new renderer text
+- new LLM smoke
+- overloaded defender
+- cannot satisfy both
+- overworked defender
+- only defender
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-4 DualDefenderDuty Existing Owner Collision Audit
+closes when DualDefenderDuty proof remains diagnostic/proof-readiness only; it
+does not replace DefenderDuty readiness, create RemoveGuard or Defense, prove
+a stopped threat, prove loose or hanging status, prove material gain, or prove
+pin, skewer, fork, or discovered attack; `DefenderDuty` readiness,
+`Tactic.RemoveGuard`, `Scene.Defense`, `Tactic.Loose`, `Tactic.Hanging`,
+`Scene.Material`, `Tactic.QueenHit`, `Tactic.Fork`, `Tactic.Skewer`,
+`Tactic.Pin`, and `Tactic.DiscoveredAttack` keep their existing proof homes,
+Story labels, and speech keys; all public Story labels remain unchanged; and
+no StoryTable Lead, ExplanationPlan, renderer, LLM smoke, public route `200`,
+production API, or public/user-facing LLM narration is opened.
+
+### Stage-5 DualDefenderDuty EngineCheck Diagnostics Boundary
+
+Stage-5 opens diagnostic boundary tests only.
+
+Stage-5 rules:
+
+- EngineCheck cannot create DualDefenderDuty proof.
+- EngineCheck cannot create Overload, Deflect, Decoy, RemoveGuard, Defense,
+  Material, Hanging, or Loose from DualDefenderDuty.
+- Supports creates no claim.
+- Caps creates no claim.
+- Refutes creates no public dual-duty text.
+- Unknown creates no expression.
+- proofFailures remain internal diagnostics only.
+- raw PV and eval remain non-public.
+
+Stage-5 forbidden diagnostics wording:
+
+- engine says overloaded
+- engine says dual duty
+- eval proves dual duty
+- PV proves dual duty
+- best move
+- only move
+- forced
+
+Stage-5 diagnostic status boundaries:
+
+- `supports` may annotate an already complete internal proof-readiness
+  relation, but it does not complete missing DualDefenderDuty evidence.
+- `caps` may limit confidence for an already complete internal relation, but
+  it does not create public claim strength.
+- `refutes` may keep the internal relation incomplete or diagnostic-only, but
+  it does not create public dual-duty wording.
+- `unknown` is silent and cannot be lowered into ExplanationPlan, renderer
+  text, LLM input, public route output, or production API output.
+
+Stage-5 must not open:
+
+- DualDefenderDuty public Story
+- Overload, Deflect, Decoy, RemoveGuard, Defense, Material, Hanging, or Loose
+  Story creation from DualDefenderDuty
+- StoryTable Lead path
+- ExplanationPlan mapping
+- renderer text
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-5 DualDefenderDuty EngineCheck Diagnostics Boundary
+closes when EngineCheck status, raw PV, raw eval, source rows, and
+proofFailures remain internal diagnostics only; EngineCheck cannot create
+DualDefenderDuty proof or create Overload, Deflect, Decoy, RemoveGuard,
+Defense, Material, Hanging, or Loose from DualDefenderDuty; supports and caps
+create no claim; refutes creates no public dual-duty text; unknown creates no
+expression; forbidden engine-says-overloaded, engine-says-dual-duty,
+eval-proves-dual-duty, PV-proves-dual-duty, best-move, only-move, and forced
+wording remains closed; and no StoryTable Lead, ExplanationPlan, renderer,
+LLM smoke, public route `200`, production API, or public/user-facing LLM
+narration is opened.
+
+### Stage-6 DualDefenderDuty Docs Public Surface Boundary
+
+Stage-6 opens docs and public-surface boundary tests only.
+
+Stage-6 docs rules:
+
+- detailed DualDefenderDuty readiness authority lives only in
+  `StoryInteractionLaw.md`.
+- README/SSOT/Architecture/Contract/Manifest stay summary-only if touched.
+- AGENTS.md remains unchanged unless durable operator rules change.
+- docs tests must prevent detailed readiness duplication outside
+  `StoryInteractionLaw.md`.
+
+Stage-6 public surface rules:
+
+- `/api/commentary/render` remains fail-closed.
+- `/internal/commentary/render-local-probe` remains fail-closed.
+- no public route 200
+- no production API
+- no public/user-facing LLM narration
+
+Stage-6 downstream rules:
+
+- no ExplanationPlan
+- no Renderer
+- no LLM smoke
+- no speech key
+
+Stage-6 summary-only allowance:
+
+- Summary docs may say DualDefenderDuty readiness is internal and non-public
+  only if docs tests require a summary.
+- Summary docs must not carry proof fields, fixture details, negative corpus
+  details, collision targets, EngineCheck diagnostics rules, public-surface
+  detail, forbidden wording, or completion standards.
+- Summary docs must point to `StoryInteractionLaw.md` for detailed authority
+  when a pointer is needed.
+
+Stage-6 must not open:
+
+- public Story
+- public DualDefenderDuty label
+- public `DualDefenderDutyProof` claim
+- StoryTable Lead path
+- ExplanationPlan mapping
+- renderer text
+- LLM smoke
+- speech key
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-6 DualDefenderDuty Docs Public Surface Boundary
+closes when detailed DualDefenderDuty readiness authority remains only in
+`StoryInteractionLaw.md`; README, SSOT, Architecture, Contract, and Manifest
+remain summary-only if touched; `AGENTS.md` remains unchanged unless durable
+operator rules change; docs tests prevent detailed readiness duplication
+outside `StoryInteractionLaw.md`; `/api/commentary/render` and
+`/internal/commentary/render-local-probe` remain fail-closed; no public route
+200, production API, public/user-facing LLM narration, ExplanationPlan,
+Renderer, LLM smoke, or speech key is opened.
+
+### Stage-7 DualDefenderDuty Readiness Closeout
+
+Stage-7 closes only internal proof-readiness for one defender guarding two
+distinct non-king material targets.
+
+Stage-7 authority audit:
+
+- DualDefenderDuty proof shape is internal only.
+- It may depend on two DefenderDuty-style relations, but it does not replace
+  DefenderDuty readiness.
+- BoardFacts observes only.
+- Story writers do not consume it yet.
+- StoryTable does not order it.
+- ExplanationPlan does not lower it.
+- Renderer does not phrase it.
+- LLM does not see it.
+
+Stage-7 still closed:
+
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public DualDefenderDuty label
+- overloaded defender
+- cannot satisfy both
+- only defender
+- defender cannot move
+- removes defender
+- wins material
+- pressure / initiative
+- best / only / forced
+- mate threat
+- public route 200
+- production API
+- public/user-facing LLM narration
+
+Stage-7 required verification:
+
+- targeted DualDefenderDuty readiness tests
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Stage-7 closeout notes:
+
+- The only closed positive readiness is one exact same-board
+  defender-two-target guard relation.
+- Existing proof homes remain authoritative for their own public Stories.
+- DualDefenderDuty readiness does not create a public Story label, speech key,
+  StoryTable row, ExplanationPlan claim key, renderer template, LLM prompt
+  input, public route response, or production API output.
+- Detailed DualDefenderDuty readiness authority remains in this section and the
+  preceding DualDefenderDuty stages of `StoryInteractionLaw.md` only.
+
+Completion standard: DualDefenderDuty readiness closes when one exact
+same-board defender-two-target guard relation can be proven internally, every
+public Story path remains closed, existing proof homes are not replaced,
+public surfaces remain fail-closed, docs authority is not duplicated, and all
+verification passes.
+
+## OverloadTest Proof Readiness
+
+### Stage-0 OverloadTest Proof Readiness Charter
+
+Stage-0 opens internal proof-readiness only.
+
+Stage-0 opens only one legal test move against one target in an existing
+DualDefenderDuty relation.
+
+Stage-0 meaning:
+
+- the same defender guards two target pieces
+- one legal move directly tests one of those duty targets
+
+Stage-0 proof-readiness shape:
+
+- existing complete DualDefenderDuty relation
+- same defender identity as the DualDefenderDuty relation
+- tested target is one of the two DualDefenderDuty duty targets
+- one legal test move
+- legal test move directly tests the selected duty target
+- untested duty target remains relation evidence only
+- same-board legal replay
+- diagnostic missing-evidence shape
+- public claim allowed is false
+
+Stage-0 rules:
+
+- OverloadTest readiness is internal proof-readiness only.
+- OverloadTest readiness is not public Story.
+- OverloadTest readiness is not `Tactic.Overload`, `Tactic.Deflect`,
+  `Tactic.Decoy`, or `Plan.Overload`.
+- OverloadTest readiness does not prove the defender is overloaded.
+- OverloadTest readiness does not prove the defender cannot satisfy both
+  duties.
+- OverloadTest readiness does not prove the defender must choose.
+- OverloadTest readiness does not prove the defender is the only defender.
+- OverloadTest readiness does not prove the defender cannot move.
+- OverloadTest readiness does not prove material is won.
+- OverloadTest readiness does not prove the tested target is won.
+- BoardFacts, DualDefenderDuty readiness, legal move replay, source rows,
+  proof failures, EngineCheck diagnostics, renderer text, and LLM text cannot
+  create public OverloadTest meaning.
+- Missing evidence and proof failure text stay internal diagnostics only.
+
+Stage-0 must not open:
+
+- public Story
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public OverloadTest label
+- speech key
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- overloaded defender
+- defender cannot satisfy both
+- defender must choose
+- only defender
+- defender cannot move
+- wins material
+- wins target
+- pressure / initiative
+- best / only / forced
+- mate threat
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-0 documentation rule:
+
+- detailed OverloadTest readiness authority lives only in
+  `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Stage-0 OverloadTest Proof Readiness closes when the
+charter admits only internal proof-readiness for one legal test move against
+one selected duty target in an existing complete DualDefenderDuty relation; the
+same defender guards two targets and the legal move directly tests one of those
+duty targets; no public Story, `Tactic.Overload`, `Tactic.Deflect`,
+`Tactic.Decoy`, `Plan.Overload`, public OverloadTest label, speech key,
+StoryTable Lead, ExplanationPlan, renderer, LLM smoke, overloaded-defender,
+defender-cannot-satisfy-both, defender-must-choose, only-defender,
+defender-cannot-move, wins-material, wins-target, pressure, initiative,
+best/only/forced, mate-threat, public route `200`, production API, or
+public/user-facing LLM narration surface is opened; detailed authority stays
+only in `StoryInteractionLaw.md`; AGENTS.md remains unchanged; docs authority
+tests pass when touched; and `git diff --check` passes.
+
+### Stage-1 OverloadTest Proof Shape
+
+Stage-1 opens only the internal overload-test proof shape.
+
+Stage-1 may use `OverloadTestProof` as an internal sidecar holder if
+implementation needs a named holder.
+
+If docs-only readiness is enough, Stage-1 documents the same exact shape
+without adding runtime public authority.
+
+Stage-1 OverloadTest required proof fields:
+
+- attacking side
+- defending side
+- defender piece identity
+- defender square
+- first duty target identity
+- first duty target square
+- second duty target identity
+- second duty target square
+- targets are distinct
+- complete DualDefenderDuty relation exists
+- legal test move identity
+- test move origin square
+- test move destination square
+- tested target identity
+- tested target square
+- tested target is one of the two duty targets
+- test move attacks, captures, or directly threatens the tested target on
+  the exact after-board
+- exact after-board replay
+- same-board proof
+- route binds to the test move
+- missing evidence
+- complete flag
+- `publicClaimAllowed = false`
+
+Stage-1 OverloadTest rules:
+
+- Proof shape is not public Story.
+- Proof shape cannot write Story.
+- Proof shape cannot create Verdict, ExplanationPlan, renderer text,
+  LLM input, public route, or API output.
+- BoardFacts may observe attacks, captures, guards, and legal moves, but
+  cannot create overload-test public meaning.
+- `OverloadTestProof`, if implemented, remains an internal sidecar only.
+- Missing evidence remains diagnostic only and cannot become renderer text,
+  LLM input, public route, or API output.
+
+Stage-1 must not open:
+
+- public Story
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public OverloadTest label
+- public `OverloadTestProof` claim
+- speech key
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- overloaded defender
+- defender cannot satisfy both
+- defender must choose
+- only defender
+- defender cannot move
+- wins material
+- wins target
+- pressure / initiative
+- best / only / forced
+- mate threat
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-1 OverloadTest Proof Shape closes when the internal
+shape, or internal `OverloadTestProof` sidecar if implementation needs a named
+holder, contains attacking side, defending side, defender identity and square,
+first and second duty target identities and squares, distinct target proof,
+complete DualDefenderDuty relation proof, legal test move identity, test move
+origin and destination, tested target identity and square, proof that the tested
+target is one of the two duty targets, proof that the test move attacks,
+captures, or directly threatens the tested target on the exact after-board,
+exact after-board replay, same-board proof, route binding to the test move,
+missing evidence, complete flag, and `publicClaimAllowed = false`; the proof
+shape remains unable to write Story, Verdict, ExplanationPlan, renderer text,
+LLM input, public route, or API output; BoardFacts remains observation only;
+and public Story, Overload, Deflect, Decoy, Plan.Overload, public OverloadTest
+labels, speech keys, StoryTable Lead, downstream text, public route `200`,
+production API, and public/user-facing LLM narration remain closed.
+
+### Stage-2 OverloadTest Positive Readiness Fixture
+
+Stage-2 opens one narrow positive readiness fixture only.
+
+Stage-2 fixture meaning:
+
+- one defender has two proven guard duties
+- legal test move attacks or captures one of the two defended targets
+- tested target is identified
+- untested target remains identified as the second duty target
+- exact after-board replay exists
+- same-board proof is present
+
+Stage-2 allowed test effects:
+
+- attack tested target
+- capture tested target
+- reveal an attack on tested target
+
+Stage-2 forbidden test effects:
+
+- checkmate
+- mate threat
+- engine-only threat
+- vague pressure
+- strategy/plan label
+- target not among the two duty targets
+
+Stage-2 expected result:
+
+- internal proof complete
+- no public Story
+- no StoryTable Lead
+- no ExplanationPlan
+- no renderer
+- no LLM smoke
+- no `Tactic.Overload`
+
+Stage-2 fixture rules:
+
+- The positive fixture may satisfy only the Stage-1 internal proof shape.
+- The positive fixture must keep `publicClaimAllowed = false`.
+- Attack, capture, or revealed attack on the tested target is a direct
+  test-effect fact only; it does not prove overloaded defender, cannot satisfy
+  both, defender must choose, wins material, wins target, pressure, initiative,
+  best, only, forced, checkmate, or mate threat.
+- BoardFacts may supply attack, capture, guard, and legal move observations,
+  but BoardFacts still cannot create overload-test public meaning.
+- A target outside the existing two duty targets is incomplete for OverloadTest
+  readiness and must remain diagnostic only.
+
+Stage-2 must not open:
+
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public OverloadTest label
+- speech key
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-2 OverloadTest Positive Readiness Fixture closes
+when exactly one positive internal fixture proves one defender has two proven
+guard duties, one legal test move attacks, captures, or reveals an attack on
+one identified tested target among those two duty targets, the untested target
+remains identified as the second duty target, exact after-board replay exists,
+same-board proof is present, the internal proof is complete with
+`publicClaimAllowed = false`, and forbidden checkmate, mate-threat,
+engine-only-threat, vague-pressure, strategy/plan-label, and target-outside-duty
+effects stay incomplete or diagnostic; the fixture creates no public Story, no
+StoryTable Lead, no ExplanationPlan, no renderer, no LLM smoke, no
+`Tactic.Overload`, no tactic or plan family, no speech key, no public route
+`200`, no production API, and no public/user-facing LLM narration.
+
+### Stage-3 OverloadTest Negative Corpus
+
+Stage-3 opens only the OverloadTest negative corpus.
+
+Stage-3 incomplete or silent cases:
+
+- missing same-board proof
+- missing DualDefenderDuty relation
+- incomplete DualDefenderDuty relation
+- missing defender
+- missing first duty target
+- missing second duty target
+- duplicated duty targets
+- illegal test move
+- missing exact after-board replay
+- test move does not attack/capture/reveal attack on a duty target
+- tested target is not one of the two duty targets
+- target is king
+- defender and targets are not same-side
+- tested target is already gone before the move
+- untested target is missing
+- source row says overload without proof
+- EngineCheck says overload without proof
+- BoardFacts-only attack treated as public claim
+- ambiguous multiple defenders without one selected defender
+- ambiguous multiple target pairs without one selected pair
+- material result is claimed
+- check/mate/mate threat context is claimed
+- one duty relation is stale before-board-only
+
+Stage-3 forbidden wording:
+
+- overloaded
+- cannot satisfy both
+- must choose
+- overworked
+- only defender
+- deflects
+- decoys
+- removes guard
+- wins material
+- wins target
+- pressure
+- initiative
+- best / only / forced
+
+Stage-3 expected result:
+
+- incomplete internal proof or silence
+- no public Story
+- no StoryTable Lead
+- no ExplanationPlan
+- no renderer
+- no LLM smoke
+- no `Tactic.Overload`
+
+Stage-3 rules:
+
+- Negative fixtures may fail readiness, but they do not create public claims.
+- Missing same-board proof, stale before-board duty facts, source-row text,
+  and EngineCheck text remain diagnostics only.
+- BoardFacts-only attack, capture, guard, or legal-move observations cannot
+  become public overload-test meaning.
+- Multiple defenders require one selected defender; otherwise proof remains
+  incomplete.
+- Multiple target pairs require one selected target pair; otherwise proof
+  remains incomplete.
+- Material, check, mate, mate-threat, pressure, initiative, plan, strategy,
+  deflection, decoy, and remove-guard contexts remain sibling or closed
+  meanings, not OverloadTest proof effects.
+- Stage-3 does not open public Story, StoryTable Lead, ExplanationPlan,
+  renderer text, LLM smoke, public route `200`, production API, or
+  public/user-facing LLM narration.
+
+Completion standard: Stage-3 OverloadTest Negative Corpus closes when every
+listed missing, incomplete, duplicated, illegal, no-after-board,
+no-duty-target-effect, non-duty-target, king-target, side-mismatch,
+already-gone-target, missing-untested-target, source-only, EngineCheck-only,
+BoardFacts-only, ambiguous-defender, ambiguous-target-pair, material-result,
+check, mate, mate-threat, and stale-before-board case remains incomplete or
+silent; forbidden overloaded, cannot-satisfy-both, must-choose, overworked,
+only-defender, deflects, decoys, removes-guard, wins-material, wins-target,
+pressure, initiative, and best/only/forced wording remains closed; and no
+public Story, StoryTable Lead, ExplanationPlan, renderer text, LLM smoke,
+`Tactic.Overload`, public route `200`, production API, or public/user-facing
+LLM narration is opened.
+
+### Stage-4 OverloadTest Existing Owner Collision Audit
+
+Stage-4 opens only the existing owner collision audit for OverloadTest
+readiness.
+
+Stage-4 collision targets:
+
+- `DefenderDuty` readiness
+- `DualDefenderDuty` readiness
+- `Tactic.RemoveGuard`
+- `Scene.Defense`
+- `Tactic.Loose`
+- `Tactic.Hanging`
+- `Scene.Material`
+- `Tactic.QueenHit`
+- `Tactic.Fork`
+- `Tactic.Skewer`
+- `Tactic.Pin`
+- `Tactic.DiscoveredAttack`
+
+Stage-4 rules:
+
+- OverloadTest proof does not replace DefenderDuty readiness.
+- OverloadTest proof does not replace DualDefenderDuty readiness.
+- OverloadTest proof may depend on DualDefenderDuty internally, but it
+  does not create public meaning.
+- OverloadTest proof does not create RemoveGuard.
+- OverloadTest proof does not create Defense.
+- OverloadTest proof does not prove a threat is stopped.
+- OverloadTest proof does not prove a target is loose or hanging.
+- OverloadTest proof does not prove material gain.
+- OverloadTest proof does not prove pin, skewer, fork, discovered attack,
+  or queen hit.
+- Existing opened Stories keep their own proof homes and speech keys.
+
+Stage-4 expected result:
+
+- internal overload-test relation may be present as diagnostic/proof-readiness only.
+- all public Story labels remain unchanged.
+
+Stage-4 owner boundaries:
+
+- DefenderDuty readiness stays its own internal readiness shape.
+- DualDefenderDuty readiness stays its own internal dual-duty readiness shape.
+- RemoveGuard meaning stays in `RemoveGuardProof`, `Tactic.RemoveGuard`, and
+  `removes_defender`.
+- Defense meaning stays in ThreatProof/DefenseProof, `Scene.Defense`, and its
+  defense speech key.
+- Loose meaning stays in `LoosePieceProof`, `Tactic.Loose`, and
+  `attacks_loose_piece`.
+- Hanging meaning stays in the existing Hanging proof path, `Tactic.Hanging`,
+  and `can_win_piece`.
+- Material meaning stays in the existing material proof path,
+  `Scene.Material`, and `material_balance_changes`.
+- QueenHit, Fork, Skewer, Pin, and DiscoveredAttack keep their own proof homes,
+  Story labels, and speech keys.
+
+Stage-4 must not open:
+
+- new public Story
+- new proof home
+- new StoryTable Lead path
+- new ExplanationPlan mapping
+- new renderer text
+- new LLM smoke
+- overloaded defender
+- cannot satisfy both
+- must choose
+- overworked defender
+- only defender
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-4 OverloadTest Existing Owner Collision Audit
+closes when OverloadTest proof remains diagnostic/proof-readiness only; it
+does not replace DefenderDuty readiness or DualDefenderDuty readiness, create
+RemoveGuard or Defense, prove a stopped threat, prove loose or hanging status,
+prove material gain, or prove pin, skewer, fork, discovered attack, or queen
+hit; `DefenderDuty` readiness, `DualDefenderDuty` readiness,
+`Tactic.RemoveGuard`, `Scene.Defense`, `Tactic.Loose`, `Tactic.Hanging`,
+`Scene.Material`, `Tactic.QueenHit`, `Tactic.Fork`, `Tactic.Skewer`,
+`Tactic.Pin`, and `Tactic.DiscoveredAttack` keep their existing proof homes,
+Story labels, and speech keys; all public Story labels remain unchanged; and
+no StoryTable Lead, ExplanationPlan, renderer, LLM smoke, public route `200`,
+production API, or public/user-facing LLM narration is opened.
+
+### Stage-5 OverloadTest Reply / Cannot-Satisfy Boundary
+
+Stage-5 opens only boundary documentation/test for reply and
+cannot-satisfy claims.
+
+Stage-5 opens no public overload conclusion.
+
+Stage-5 rules:
+
+- OverloadTest may identify a legal test against one duty target.
+- OverloadTest may identify the second duty target as still relevant.
+- OverloadTest must not conclude the defender cannot satisfy both.
+- OverloadTest must not conclude the defender must move.
+- OverloadTest must not conclude the defender is overloaded.
+- OverloadTest must not enumerate a winning line.
+- Any cannot-satisfy proof requires a separate slice.
+
+Stage-5 forbidden names:
+
+- `OverloadResolutionProof`
+- `CannotSatisfyBothProof`
+- `TacticOverload`
+- `overloads_defender`
+- `wins_material_by_overload`
+
+Stage-5 must not open:
+
+- public Overload Story
+- `Tactic.Overload`
+- public OverloadTest label
+- StoryTable Lead
+- Verdict
+- ExplanationPlan
+- renderer text
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-5 OverloadTest Reply / Cannot-Satisfy Boundary
+closes when OverloadTest readiness may identify one legal test against one duty
+target and keep the second duty target relevant, but cannot conclude the
+defender cannot satisfy both, must move, or is overloaded; cannot enumerate a
+winning line; does not introduce `OverloadResolutionProof`,
+`CannotSatisfyBothProof`, `TacticOverload`, `overloads_defender`, or
+`wins_material_by_overload`; opens no public Overload Story,
+`Tactic.Overload`, public OverloadTest label, StoryTable Lead, Verdict,
+ExplanationPlan, renderer text, LLM smoke, public route `200`, production API,
+or public/user-facing LLM narration; and current readiness stops exactly before
+the overload conclusion.
+
+Completion note: current readiness stops exactly before the overload conclusion.
+
+### Stage-6 OverloadTest EngineCheck / Diagnostics Boundary
+
+Stage-6 opens only diagnostic boundary tests for OverloadTest.
+
+Stage-6 opens no public overload conclusion.
+
+Stage-6 rules:
+
+- EngineCheck cannot create OverloadTest proof.
+- EngineCheck cannot create Overload, Deflect, Decoy, RemoveGuard,
+  Defense, Material, Hanging, Loose, or QueenHit from OverloadTest.
+- Supports creates no claim.
+- Caps creates no claim.
+- Refutes creates no public overload-test text.
+- Unknown creates no expression.
+- proofFailures remain internal diagnostics only.
+- raw PV and eval remain non-public.
+
+Stage-6 forbidden wording:
+
+- engine says overloaded
+- engine says cannot satisfy both
+- eval proves overload
+- PV proves overload
+- best move
+- only move
+- forced
+
+Stage-6 must not open:
+
+- EngineCheck-owned OverloadTest proof
+- public Overload Story
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Tactic.RemoveGuard` from OverloadTest
+- `Scene.Defense` from OverloadTest
+- `Scene.Material` from OverloadTest
+- `Tactic.Hanging` from OverloadTest
+- `Tactic.Loose` from OverloadTest
+- `Tactic.QueenHit` from OverloadTest
+- StoryTable Lead
+- Verdict
+- ExplanationPlan
+- renderer text
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-6 OverloadTest EngineCheck / Diagnostics Boundary
+closes when EngineCheck cannot create OverloadTest proof and cannot create
+Overload, Deflect, Decoy, RemoveGuard, Defense, Material, Hanging, Loose, or
+QueenHit from OverloadTest; Supports and Caps create no claim; Refutes creates
+no public overload-test text; Unknown creates no expression; proofFailures,
+raw PV, and eval remain internal and non-public; engine-says-overloaded,
+engine-says-cannot-satisfy-both, eval-proves-overload, PV-proves-overload,
+best-move, only-move, and forced wording remains closed; and no public
+Overload Story, `Tactic.Overload`, `Tactic.Deflect`, `Tactic.Decoy`,
+OverloadTest-owned `Tactic.RemoveGuard`, `Scene.Defense`, `Scene.Material`,
+`Tactic.Hanging`, `Tactic.Loose`, or `Tactic.QueenHit`, StoryTable Lead,
+Verdict, ExplanationPlan, renderer text, LLM smoke, public route `200`,
+production API, or public/user-facing LLM narration is opened.
+
+### Stage-7 OverloadTest Docs / Public Surface
+
+Stage-7 opens only docs and public-surface boundary tests for
+OverloadTest.
+
+Stage-7 docs rules:
+
+- detailed OverloadTest readiness authority lives only in
+  `StoryInteractionLaw.md`.
+- README/SSOT/Architecture/Contract/Manifest stay summary-only if touched.
+- AGENTS.md stays unchanged unless durable operator rules change.
+- docs tests must prevent detailed readiness duplication outside
+  `StoryInteractionLaw.md`.
+
+Stage-7 public surface:
+
+- `/api/commentary/render` remains fail-closed.
+- `/internal/commentary/render-local-probe` remains fail-closed.
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Stage-7 downstream boundary:
+
+- no ExplanationPlan
+- no Renderer
+- no LLM smoke
+- no speech key
+
+Completion standard: Stage-7 OverloadTest Docs / Public Surface closes when
+detailed OverloadTest readiness authority lives only in `StoryInteractionLaw.md`;
+README, SSOT, Architecture, Contract, and Manifest remain summary-only if
+touched; AGENTS.md stays unchanged unless durable operator rules change; docs
+tests prevent detailed readiness duplication outside `StoryInteractionLaw.md`;
+`/api/commentary/render` and `/internal/commentary/render-local-probe` remain
+fail-closed; no public route `200`, production API, public/user-facing LLM
+narration, ExplanationPlan, Renderer, LLM smoke, or speech key is opened.
+
+### Stage-8 OverloadTest Readiness Closeout
+
+Stage-8 closes only internal proof-readiness for one legal test move
+against one target in a complete DualDefenderDuty relation.
+
+Stage-8 authority audit:
+
+- OverloadTest proof shape is internal only.
+- It may depend on DualDefenderDuty readiness, but it does not replace it.
+- It may depend on DefenderDuty-style guard relations, but it does not
+  replace them.
+- BoardFacts observes only.
+- Story writers do not consume it yet.
+- StoryTable does not order it.
+- ExplanationPlan does not lower it.
+- Renderer does not phrase it.
+- LLM does not see it.
+
+Stage-8 still closed:
+
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public OverloadTest label
+- overloaded defender
+- cannot satisfy both
+- defender must choose
+- only defender
+- defender cannot move
+- removes defender
+- wins material
+- wins target
+- pressure / initiative
+- best / only / forced
+- mate threat
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-8 required verification:
+
+- targeted OverloadTest readiness tests
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Completion standard: Stage-8 OverloadTest Readiness Closeout
+OverloadTest readiness closes when one exact same-board legal test move
+against one duty target can be proven internally from a complete
+DualDefenderDuty relation, every public Story path remains closed,
+existing proof homes are not replaced, public surfaces remain fail-closed,
+docs authority is not duplicated, and all verification passes.
+
+## CannotSatisfyBoth Proof Readiness
+
+### Stage-0 CannotSatisfyBoth Proof Readiness Charter
+
+Stage-0 opens internal proof-readiness only.
+
+Stage-0 opens only the proof-readiness shape that checks defender-side
+legal replies after a complete OverloadTest relation.
+
+Stage-0 meaning:
+
+- in one complete OverloadTest relation, the defender side has no single
+  legal reply that preserves both duty targets.
+
+Stage-0 proof-readiness shape:
+
+- complete OverloadTest relation
+- defending side
+- attacking side
+- defender piece identity
+- defender square before the test
+- first duty target identity
+- first duty target square
+- second duty target identity
+- second duty target square
+- legal test move identity
+- exact after-board from the test move
+- defender-side legal reply set from the exact after-board
+- for each defender-side legal reply, target-one preservation result
+- for each defender-side legal reply, target-two preservation result
+- no defender-side legal reply preserves both duty targets
+- same-board proof
+- diagnostic missing-evidence shape
+- public claim allowed is false
+
+Stage-0 rules:
+
+- CannotSatisfyBoth readiness is internal proof-readiness only.
+- CannotSatisfyBoth readiness is not public Story.
+- CannotSatisfyBoth readiness depends on a complete OverloadTest relation
+  and must not repair incomplete OverloadTest proof.
+- CannotSatisfyBoth readiness checks defender-side legal replies only.
+- CannotSatisfyBoth readiness does not prove an overloaded defender.
+- CannotSatisfyBoth readiness does not prove the defender must choose.
+- CannotSatisfyBoth readiness does not prove the defender is the only defender.
+- CannotSatisfyBoth readiness does not prove a forced move.
+- CannotSatisfyBoth readiness does not prove material is won.
+- CannotSatisfyBoth readiness does not prove either target is won.
+- BoardFacts, OverloadTest readiness, legal reply enumeration, source rows,
+  proof failures, EngineCheck diagnostics, renderer text, and LLM text cannot
+  create public CannotSatisfyBoth meaning.
+- Missing evidence and proof failure text stay internal diagnostics only.
+
+Stage-0 must not open:
+
+- public Story
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public CannotSatisfyBoth label
+- speech key
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- overloaded defender
+- defender must choose
+- only defender
+- only move
+- forced move
+- wins material
+- wins target
+- decisive / winning
+- pressure / initiative
+- mate threat
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-0 documentation rule:
+
+- detailed CannotSatisfyBoth readiness authority lives only in
+  `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Stage-0 CannotSatisfyBoth Proof Readiness closes when
+the charter admits only an internal proof-readiness shape over one complete
+OverloadTest relation, where defender-side legal replies from the exact
+after-board are checked and none preserves both duty targets; incomplete
+OverloadTest proof cannot be repaired; no public Story, `Tactic.Overload`,
+`Tactic.Deflect`, `Tactic.Decoy`, `Plan.Overload`, public CannotSatisfyBoth
+label, speech key, StoryTable Lead, ExplanationPlan, renderer, LLM smoke,
+overloaded-defender, defender-must-choose, only-defender, only-move,
+forced-move, wins-material, wins-target, decisive/winning, pressure,
+initiative, mate-threat, public route `200`, production API, or
+public/user-facing LLM narration surface is opened; detailed authority stays
+only in `StoryInteractionLaw.md`; AGENTS.md remains unchanged; docs authority
+tests pass when touched; and `git diff --check` passes.
+
+### Stage-1 CannotSatisfyBoth Proof Shape
+
+Stage-1 opens only the internal CannotSatisfyBoth proof shape.
+
+Stage-1 may use `CannotSatisfyBothProof` as an internal sidecar holder
+if implementation needs a named holder.
+
+If docs-only readiness is enough, Stage-1 documents the same exact shape
+without adding runtime public authority.
+
+Stage-1 CannotSatisfyBoth required proof fields:
+
+- attacking side
+- defending side
+- defender piece identity
+- defender square before replies
+- first duty target identity
+- first duty target square
+- second duty target identity
+- second duty target square
+- complete DualDefenderDuty relation
+- complete OverloadTest relation
+- legal test move identity
+- exact after-board replay after test move
+- defending side legal replies after test move
+- reply preservation map
+- for each legal reply: preserves first target yes/no
+- for each legal reply: preserves second target yes/no
+- no reply preserves both targets
+- same-board proof
+- missing evidence
+- complete flag
+- `publicClaimAllowed = false`
+
+Stage-1 CannotSatisfyBoth rules:
+
+- Proof shape is not public Story.
+- Proof shape cannot write Story.
+- Proof shape cannot create Verdict, ExplanationPlan, renderer text,
+  LLM input, public route, or API output.
+- BoardFacts may observe legal replies and attack/guard relations, but
+  cannot create cannot-satisfy public meaning.
+- `CannotSatisfyBothProof`, if implemented, remains an internal sidecar only.
+- Missing evidence remains diagnostic only and cannot become renderer text,
+  LLM input, public route, or API output.
+
+Stage-1 must not open:
+
+- public Story
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public CannotSatisfyBoth label
+- public `CannotSatisfyBothProof` claim
+- speech key
+- StoryTable Lead
+- Verdict
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- overloaded defender
+- defender must choose
+- only defender
+- only move
+- forced move
+- wins material
+- wins target
+- decisive / winning
+- pressure / initiative
+- mate threat
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-1 CannotSatisfyBoth Proof Shape closes when the
+internal shape, or internal `CannotSatisfyBothProof` sidecar if implementation
+needs a named holder, contains attacking side, defending side, defender
+identity and square before replies, first and second duty target identities and
+squares, complete DualDefenderDuty relation proof, complete OverloadTest
+relation proof, legal test move identity, exact after-board replay after test
+move, defending-side legal replies after the test move, reply preservation
+map, per-reply first-target preservation result, per-reply second-target
+preservation result, proof that no reply preserves both targets, same-board
+proof, missing evidence, complete flag, and `publicClaimAllowed = false`; the
+proof shape remains unable to write Story, Verdict, ExplanationPlan, renderer
+text, LLM input, public route, or API output; BoardFacts remains observation
+only; and public Story, Overload, Deflect, Decoy, Plan.Overload, public
+CannotSatisfyBoth labels, public `CannotSatisfyBothProof` claims, speech keys,
+StoryTable Lead, downstream text, public route `200`, production API, and
+public/user-facing LLM narration remain closed.
+
+### Stage-2 CannotSatisfyBoth Reply Preservation Map
+
+Stage-2 opens only the internal reply preservation map.
+
+Stage-2 map requirements:
+
+- enumerate legal replies for defending side after the test move
+- each reply is same-board legal
+- each reply has exact replay
+- each reply is checked for target A preservation
+- each reply is checked for target B preservation
+- preservation means target remains present and guarded or otherwise not lost
+  according to the narrow readiness rule
+- no legal reply has both `preservesTargetA = true` and
+  `preservesTargetB = true`
+
+Stage-2 rules:
+
+- Reply preservation map is internal proof only.
+- Reply preservation map is not public pedagogy.
+- Reply preservation map cannot explain publicly why each reply fails.
+- Reply preservation map cannot select a best reply.
+- Reply preservation map cannot create an only-reply, forced-line,
+  winning-line, material-conversion, engine-PV, or eval claim.
+- Missing reply preservation evidence remains internal diagnostics only.
+
+Stage-2 must not open:
+
+- public Story
+- public CannotSatisfyBoth label
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- best reply
+- only reply
+- forced line
+- engine PV
+- eval
+- winning line
+- material conversion
+- public explanation of why each reply fails
+- speech key
+- StoryTable Lead
+- Verdict
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-2 CannotSatisfyBoth Reply Preservation Map closes when
+the internal map enumerates defending-side legal replies after the test move,
+proves each reply same-board legal, carries exact replay for each reply,
+checks each reply for target A and target B preservation, defines preservation
+only as the target remaining present and guarded or otherwise not lost under
+the narrow readiness rule, and proves no legal reply has both
+`preservesTargetA = true` and `preservesTargetB = true`; the map remains
+internal proof, not public pedagogy; it does not select a best reply, only
+reply, forced line, engine PV, eval, winning line, material conversion, or
+public explanation of why each reply fails; and no public Story, public
+CannotSatisfyBoth label, Overload, Deflect, Decoy, Plan.Overload, speech key,
+StoryTable Lead, Verdict, ExplanationPlan, Renderer, LLM smoke, public route
+`200`, production API, or public/user-facing LLM narration is opened.
+
+### Stage-3 CannotSatisfyBoth Positive Readiness Fixture
+
+Stage-3 opens one narrow positive readiness fixture only.
+
+Stage-3 fixture meaning:
+
+- complete DualDefenderDuty relation exists
+- complete OverloadTest relation exists
+- legal replies after the test move are enumerated
+- every legal reply fails to preserve at least one of the two duty targets
+- no public claim is produced
+
+Stage-3 expected result:
+
+- internal proof complete
+- no public Story
+- no StoryTable Lead
+- no ExplanationPlan
+- no renderer
+- no LLM smoke
+- no `Tactic.Overload`
+- no overloaded wording
+
+Stage-3 fixture rules:
+
+- The positive fixture may satisfy only the Stage-1 proof shape and Stage-2 reply map.
+- The positive fixture must keep `publicClaimAllowed = false`.
+- The positive fixture must not produce public CannotSatisfyBoth text.
+- Complete readiness does not open overloaded-defender wording.
+- Complete readiness does not create public explanation of reply failures.
+
+Stage-3 must not open:
+
+- public Story
+- public CannotSatisfyBoth label
+- `Tactic.Overload`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- overloaded wording
+- speech key
+- StoryTable Lead
+- Verdict
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-3 CannotSatisfyBoth Positive Readiness Fixture closes when
+one narrow positive readiness fixture proves an existing complete
+DualDefenderDuty relation, an existing complete OverloadTest relation, legal
+reply enumeration after the test move, exact internal proof that every legal
+reply fails to preserve at least one of the two duty targets, and no public
+claim output; the internal proof may be complete with `publicClaimAllowed =
+false`; no public Story, public CannotSatisfyBoth label, StoryTable Lead,
+Verdict, ExplanationPlan, renderer, LLM smoke, `Tactic.Overload`, overloaded
+wording, speech key, public route `200`, production API, or
+public/user-facing LLM narration is opened.
+
+### Stage-4 CannotSatisfyBoth Negative Corpus
+
+Stage-4 opens the internal negative corpus only.
+
+Stage-4 cases must stay incomplete or silent for:
+
+- missing same-board proof
+- missing DualDefenderDuty relation
+- incomplete DualDefenderDuty relation
+- missing OverloadTest relation
+- incomplete OverloadTest relation
+- legal replies after test move are not enumerated
+- one legal reply preserves both duty targets
+- reply preservation map incomplete
+- target A missing before test
+- target B missing before test
+- defender missing before replies
+- targets are duplicated
+- one target is king
+- legal reply replay missing
+- stale before-board reply map
+- source row says cannot satisfy both without proof
+- EngineCheck says cannot satisfy both without proof
+- BoardFacts-only observation treated as public claim
+- ambiguous multiple defenders without one selected defender
+- ambiguous multiple target pairs without one selected pair
+- checkmate/mate threat context contaminates proof
+- material result is claimed as public meaning
+
+Stage-4 forbidden public wording:
+
+- overloaded
+- cannot satisfy both
+- must choose
+- only defender
+- only move
+- forced
+- wins material
+- wins target
+- decisive
+- winning
+- pressure
+- initiative
+
+Stage-4 negative corpus rules:
+
+- Negative cases may fail proof completeness or remain silent internally.
+- Negative cases must not write public Story, StoryTable Lead, Verdict,
+  ExplanationPlan, renderer text, LLM input, public route output, or production
+  API output.
+- Source rows, EngineCheck, and BoardFacts observations do not repair missing proof.
+- Mate, threat, material, and strategy contexts must not contaminate this proof.
+- Negative cases must not be explained publicly as reply-failure pedagogy.
+
+Completion standard: Stage-4 CannotSatisfyBoth Negative Corpus closes when all
+listed negative cases are pinned to incomplete internal proof or silence; all
+listed forbidden public wording remains unavailable for Story, StoryTable,
+Verdict, ExplanationPlan, renderer, LLM, public route, and production API
+surfaces; source-row text, EngineCheck diagnostics, BoardFacts observations,
+mate or threat context, and material-result context cannot repair missing
+same-board proof, missing or incomplete DualDefenderDuty, missing or incomplete
+OverloadTest, missing reply enumeration, missing reply replay, incomplete reply
+preservation map, duplicated targets, king targets, stale before-board reply
+maps, ambiguous defender or target-pair selection, or any reply that preserves
+both duty targets.
+
+### Stage-5 CannotSatisfyBoth Existing Owner Collision Audit
+
+Stage-5 opens the internal existing-owner collision audit only.
+
+Stage-5 collision targets:
+
+- DefenderDuty readiness
+- DualDefenderDuty readiness
+- OverloadTest readiness
+- `Tactic.RemoveGuard`
+- `Scene.Defense`
+- `Tactic.Loose`
+- `Tactic.Hanging`
+- `Scene.Material`
+- `Tactic.QueenHit`
+- `Tactic.Fork`
+- `Tactic.Skewer`
+- `Tactic.Pin`
+- `Tactic.DiscoveredAttack`
+
+Stage-5 collision rules:
+
+- CannotSatisfyBoth proof does not replace DefenderDuty readiness.
+- CannotSatisfyBoth proof does not replace DualDefenderDuty readiness.
+- CannotSatisfyBoth proof does not replace OverloadTest readiness.
+- CannotSatisfyBoth proof may depend on OverloadTest internally, but it does not create public meaning.
+- CannotSatisfyBoth proof does not create RemoveGuard.
+- CannotSatisfyBoth proof does not create Defense.
+- CannotSatisfyBoth proof does not prove material gain.
+- CannotSatisfyBoth proof does not prove pin, skewer, fork, discovered attack, loose, hanging, or queen hit.
+- Existing opened Stories keep their own proof homes and speech keys.
+
+Stage-5 expected result:
+
+- internal cannot-satisfy relation may be present as diagnostic/proof-readiness only
+- all public Story labels remain unchanged
+
+Stage-5 collision audit rules:
+
+- CannotSatisfyBoth proof-readiness must not become a replacement owner for
+  readiness relations that already have their own Stage sections.
+- CannotSatisfyBoth proof-readiness must not become a tactical or material
+  Story writer.
+- A complete internal cannot-satisfy relation may be observed only as
+  diagnostic/proof-readiness evidence for internal proof review.
+- Any existing opened Story keeps its own proof home, Story label,
+  StoryTable role, speech key, and downstream boundary.
+
+Completion standard: Stage-5 CannotSatisfyBoth Existing Owner Collision Audit closes when
+DefenderDuty readiness, DualDefenderDuty readiness, OverloadTest readiness,
+`Tactic.RemoveGuard`, `Scene.Defense`, `Tactic.Loose`, `Tactic.Hanging`,
+`Scene.Material`, `Tactic.QueenHit`, `Tactic.Fork`, `Tactic.Skewer`,
+`Tactic.Pin`, and `Tactic.DiscoveredAttack` remain owned by their existing
+proof homes and speech keys; CannotSatisfyBoth proof-readiness does not replace
+those readiness relations, does not create RemoveGuard or Defense, does not
+prove material gain, does not prove pin, skewer, fork, discovered attack,
+loose, hanging, or queen hit, and does not create public meaning; all public
+Story labels remain unchanged.
+
+### Stage-6 CannotSatisfyBoth Public-Wording Boundary
+
+Stage-6 opens boundary documentation and test coverage only.
+
+Stage-6 opens no public overload wording.
+
+Stage-6 public-wording rules:
+
+- CannotSatisfyBoth may internally prove no reply preserves both duty targets.
+- CannotSatisfyBoth must not publicly say overloaded.
+- CannotSatisfyBoth must not publicly say cannot satisfy both.
+- CannotSatisfyBoth must not publicly say must choose.
+- CannotSatisfyBoth must not publicly say only move.
+- CannotSatisfyBoth must not publicly say forced.
+- CannotSatisfyBoth must not publicly say wins material.
+- Any public overload wording requires a separate `Tactic.Overload` vertical slice.
+
+Stage-6 forbidden names:
+
+- `TacticOverload`
+- `overloads_defender`
+- `overloaded_defender`
+- `wins_material_by_overload`
+- `only_defender`
+
+Stage-6 must not open:
+
+- public Story
+- public CannotSatisfyBoth label
+- `Tactic.Overload`
+- speech key
+- StoryTable Lead
+- Verdict
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-6 boundary rules:
+
+- Internal proof completeness does not grant player-facing wording.
+- Forbidden names remain unavailable as model names, claim keys, speech keys,
+  renderer templates, LLM prompt keys, public route values, or production API
+  fields for this stage.
+- Public overload wording requires its own proof-backed vertical slice and
+  cannot be borrowed from CannotSatisfyBoth readiness.
+
+Completion standard: Stage-6 CannotSatisfyBoth Public-Wording Boundary closes when
+the internal relation may prove no reply preserves both duty targets, while
+public wording remains closed for overloaded, cannot satisfy both, must choose,
+only move, forced, and wins material; `TacticOverload`, `overloads_defender`,
+`overloaded_defender`, `wins_material_by_overload`, and `only_defender` remain
+forbidden names for this stage; any public overload wording remains gated by a
+separate `Tactic.Overload` vertical slice; no public Story, public
+CannotSatisfyBoth label, `Tactic.Overload`, speech key, StoryTable Lead,
+Verdict, ExplanationPlan, Renderer, LLM smoke, public route `200`, production
+API, or public/user-facing LLM narration is opened.
+
+### Stage-7 CannotSatisfyBoth EngineCheck Diagnostics Boundary
+
+Stage-7 opens diagnostic boundary tests only.
+
+Stage-7 EngineCheck rules:
+
+- EngineCheck cannot create CannotSatisfyBoth proof.
+- EngineCheck cannot create Overload, Deflect, Decoy, RemoveGuard, Defense, Material, Hanging, Loose, or QueenHit from CannotSatisfyBoth.
+- Supports creates no claim.
+- Caps creates no claim.
+- Refutes creates no public cannot-satisfy text.
+- Unknown creates no expression.
+- proofFailures remain internal diagnostics only.
+- raw PV and eval remain non-public.
+
+Stage-7 forbidden diagnostic wording:
+
+- engine says overloaded
+- engine says cannot satisfy both
+- eval proves overload
+- PV proves overload
+- best move
+- only move
+- forced
+
+Stage-7 must not open:
+
+- public Story
+- public CannotSatisfyBoth label
+- `Tactic.Overload`
+- EngineCheck-owned claim
+- proofFailure public output
+- raw PV public output
+- eval public output
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- public route `200`
+- production API
+
+Stage-7 diagnostics rules:
+
+- EngineCheck may support, cap, refute, or remain unknown only for an already
+  existing proof-owned relation.
+- EngineCheck status never repairs missing same-board proof, missing relation
+  completeness, or an incomplete reply preservation map.
+- proofFailures may explain internal failure to tests and debugging tools only.
+- Raw PV, eval, and engine text cannot become public values, renderer input,
+  LLM input, or source text for CannotSatisfyBoth.
+
+Completion standard: Stage-7 CannotSatisfyBoth EngineCheck Diagnostics Boundary closes when
+EngineCheck cannot create CannotSatisfyBoth proof, cannot create Overload,
+Deflect, Decoy, RemoveGuard, Defense, Material, Hanging, Loose, or QueenHit
+from CannotSatisfyBoth, and cannot create a claim through Supports, Caps,
+Refutes, or Unknown; Refutes produces no public cannot-satisfy text; Unknown
+produces no expression; proofFailures remain internal diagnostics only; raw PV
+and eval remain non-public; engine says overloaded, engine says cannot satisfy
+both, eval proves overload, PV proves overload, best move, only move, and forced
+remain forbidden diagnostic wording.
+
+### Stage-8 CannotSatisfyBoth Docs And Public Surface
+
+Stage-8 opens docs and public-surface boundary tests only.
+
+Stage-8 docs rules:
+
+- detailed CannotSatisfyBoth readiness authority lives only in `StoryInteractionLaw.md`.
+- README, SSOT, Architecture, Contract, and Manifest remain summary-only if touched.
+- AGENTS.md remains unchanged unless durable operator rules change.
+- docs tests must prevent detailed readiness duplication outside `StoryInteractionLaw.md`.
+
+Stage-8 public surface rules:
+
+- `/api/commentary/render` remains fail-closed.
+- `/internal/commentary/render-local-probe` remains fail-closed.
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Stage-8 downstream rules:
+
+- no ExplanationPlan
+- no Renderer
+- no LLM smoke
+- no speech key
+
+Stage-8 must not open:
+
+- public Story
+- public CannotSatisfyBoth label
+- `Tactic.Overload`
+- StoryTable Lead
+- Verdict
+- public route `200`
+- production API
+
+Stage-8 documentation boundary rules:
+
+- Summary documents may mention only that CannotSatisfyBoth remains internal
+  proof-readiness, if they are touched for a separate summary need.
+- Detailed proof fields, negative corpus, collision audit, public wording,
+  EngineCheck, diagnostics, public-surface, and closeout authority remain in
+  `StoryInteractionLaw.md` only.
+- Public routes must remain fail-closed tombstones and must not return rendered
+  CannotSatisfyBoth payloads.
+- Downstream expression layers must not be introduced from this readiness slice.
+
+Completion standard: Stage-8 CannotSatisfyBoth Docs And Public Surface closes when
+detailed CannotSatisfyBoth readiness authority lives only in
+`StoryInteractionLaw.md`; README, SSOT, Architecture, Contract, and Manifest
+remain summary-only if touched; AGENTS.md is unchanged unless durable operator
+rules change; docs tests prevent detailed readiness duplication outside
+`StoryInteractionLaw.md`; `/api/commentary/render` and
+`/internal/commentary/render-local-probe` remain fail-closed; no public route
+`200`, production API, public/user-facing LLM narration, ExplanationPlan,
+Renderer, LLM smoke, speech key, public Story, public CannotSatisfyBoth label,
+`Tactic.Overload`, StoryTable Lead, or Verdict is opened.
+
+### Stage-9 CannotSatisfyBoth Readiness Closeout
+
+Stage-9 closes only internal proof-readiness that no legal reply after a complete OverloadTest preserves both duty targets.
+
+Stage-9 authority audit:
+
+- CannotSatisfyBoth proof shape is internal only.
+- `publicClaimAllowed=false` on CannotSatisfyBoth readiness or
+  `OverloadProof` sidecars means the sidecar/proof home does not own public
+  claims; it does not block separate `TacticOverload` Story admission from a
+  complete `OverloadProof`.
+- CannotSatisfyBoth may depend on OverloadTest readiness, but it does not replace it.
+- CannotSatisfyBoth may depend on DualDefenderDuty readiness, but it does not replace it.
+- CannotSatisfyBoth may depend on DefenderDuty-style guard relations, but it does not replace them.
+- BoardFacts observes only.
+- Story writers do not consume CannotSatisfyBoth readiness directly; public
+  Overload admission must go through complete `OverloadProof` and
+  `TacticOverload`.
+- StoryTable does not order it.
+- ExplanationPlan does not lower it.
+- Renderer does not phrase it.
+- LLM does not see it.
+
+Stage-9 still closed:
+
+- `Tactic.Overload` from CannotSatisfyBoth alone
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public CannotSatisfyBoth label
+- overloaded defender
+- cannot satisfy both public wording
+- defender must choose
+- only defender
+- only move
+- forced move
+- wins material
+- wins target
+- pressure / initiative
+- decisive / winning
+- mate threat
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-9 duplication audit:
+
+- one chess meaning, one proof home, one Story label, one speech key principle remains required.
+- CannotSatisfyBoth is not DefenderDuty.
+- CannotSatisfyBoth is not DualDefenderDuty.
+- CannotSatisfyBoth is not OverloadTest.
+- CannotSatisfyBoth is not `Tactic.Overload`.
+- CannotSatisfyBoth is not `Tactic.RemoveGuard`.
+- CannotSatisfyBoth is not `Scene.Defense`.
+- CannotSatisfyBoth is not `Scene.Material`.
+- CannotSatisfyBoth is not `Tactic.Hanging`.
+- CannotSatisfyBoth is not `Tactic.Loose`.
+- CannotSatisfyBoth is not `Tactic.QueenHit`.
+- CannotSatisfyBoth is not `Tactic.Fork`.
+- CannotSatisfyBoth is not `Tactic.Skewer`.
+- CannotSatisfyBoth is not `Tactic.Pin`.
+- CannotSatisfyBoth is not `Tactic.DiscoveredAttack`.
+
+Stage-9 no duplicate authority:
+
+- no second proof home for DefenderDuty relation
+- no second proof home for DualDefenderDuty relation
+- no second proof home for OverloadTest relation
+- no public CannotSatisfyBoth Story label
+- no CannotSatisfyBoth writer
+- no CannotSatisfyBoth speech key
+- no CannotSatisfyBoth ExplanationPlan claim key
+- no CannotSatisfyBoth renderer template
+- no CannotSatisfyBoth LLM prompt path
+
+Stage-9 docs duplication:
+
+- detailed CannotSatisfyBoth authority appears only in `StoryInteractionLaw.md`.
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only if touched.
+- AGENTS.md remains unchanged.
+
+Stage-9 required verification:
+
+- targeted CannotSatisfyBoth readiness tests
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Completion standard: Stage-9 CannotSatisfyBoth Readiness Closeout closes when,
+from a complete OverloadTest relation, every same-board legal defending reply is
+internally mapped and none preserves both duty targets; duplication audit proves
+it does not replace DefenderDuty, DualDefenderDuty, OverloadTest, RemoveGuard,
+Defense, Material, OverloadProof, TacticOverload, or any opened tactic home; no
+public CannotSatisfyBoth Story label, writer, speech key, ExplanationPlan claim
+key, renderer template, or LLM path is created; public surfaces remain
+fail-closed; detailed docs authority is not duplicated; and all verification
+passes.
+
+## Tactic.Overload Neighborhood
+
+### Stage-0 Overload Charter
+
+Stage-0 opens the first public `Tactic.Overload` vertical slice.
+
+Stage-0 Overload opens:
+
+- narrow `Tactic.Overload`
+- proof home: `OverloadProof`
+- Story label: `Tactic.Overload`
+- writer: `TacticOverload`
+- speech key: `overloads_defender`
+- meaning: from complete DefenderDuty, DualDefenderDuty, OverloadTest,
+  and CannotSatisfyBoth proof, one legal move overloads a defender
+  with two duties.
+- player-facing sentence: this move overloads the defender.
+- `OverloadProof.publicClaimAllowed=false` means the proof sidecar does not own
+  the public claim. It does not block `TacticOverload` from admitting a public
+  `Tactic.Overload` Story when the complete proof tuple is present.
+
+Stage-0 first positive scope:
+
+- one defender has two distinct non-king material duty targets
+- one legal test move tests one of those targets
+- legal reply map after the test move shows no single reply preserves
+  both duty targets
+- all proof binds to the same board and same legal route
+
+Stage-0 does not open:
+
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- mate threat
+- only defender unless separately proven
+- defender must move
+- forced move
+- best move
+- only move
+- wins material
+- wins target
+- decisive / winning
+- pressure / initiative
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-0 documentation rule:
+
+- detailed Overload authority lives only in `StoryInteractionLaw.md`.
+- summary docs remain summary-only if touched.
+- AGENTS.md remains unchanged.
+
+Completion standard: Stage-0 Overload Charter closes when one legal move is
+allowed to create a `Tactic.Overload` Story only from complete same-board
+DefenderDuty, DualDefenderDuty, OverloadTest, and CannotSatisfyBoth proof; the
+proof home is `OverloadProof`; the only writer is `TacticOverload`; the only
+speech key is `overloads_defender`; the first positive scope remains one
+defender, two distinct non-king material duty targets, one legal test move
+testing one target, and a legal reply map where no single reply preserves both
+duty targets; Deflect, Decoy, Plan.Overload, mate threat, only-defender,
+defender-must-move, forced, best, only-move, wins-material, wins-target,
+decisive/winning, pressure/initiative, public route `200`, production API, and
+public/user-facing LLM narration remain closed; `AGENTS.md` remains unchanged;
+and detailed authority is not duplicated outside `StoryInteractionLaw.md`.
+
+### Stage-1 OverloadProof
+
+Stage-1 opens `OverloadProof` as the runtime proof home for narrow public
+`Tactic.Overload`.
+
+`OverloadProof` is not public Story. `OverloadProof` is only proof material
+that lets the `TacticOverload` writer create a public `Tactic.Overload` Story.
+
+Stage-1 OverloadProof requires:
+
+- beforeBoard
+- legal move route
+- afterBoard
+- side = mover
+- rival = opponent
+- defender = rival piece that carries dual duty
+- target = tested duty target
+- secondaryTarget = other duty target
+- anchor = overloaded defender
+- complete DefenderDuty relation
+- complete DualDefenderDuty relation
+- complete OverloadTest relation
+- complete CannotSatisfyBoth relation
+- same-board legal replay
+- `proofComplete = true`
+
+Stage-1 OverloadProof conditions:
+
+- move is legal from beforeBoard to afterBoard.
+- defender and both duty targets are on the exact proof board.
+- both duty targets are distinct non-king material targets.
+- tested target is one of the two duty targets.
+- CannotSatisfyBoth proves that no legal rival reply preserves both duty
+  targets.
+- `publicClaimAllowed = false` means only that `OverloadProof` is not the
+  public claim owner; it does not block `TacticOverload` Story admission from a
+  complete proof tuple.
+
+Stage-1 rules:
+
+- `OverloadProof` is not public Story.
+- `OverloadProof` cannot write Story.
+- `OverloadProof` cannot create Verdict, ExplanationPlan, renderer text,
+  LLM input, public route, or API output.
+- BoardFacts may observe but cannot create `OverloadProof`.
+- EngineCheck cannot create `OverloadProof`.
+- raw engine eval/PV/SAN/proofFailures may not create `OverloadProof`.
+
+Stage-1 must not open:
+
+- Story writer
+- StoryTable Lead
+- Verdict
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-1 OverloadProof closes when `OverloadProof` is the
+only proof home for narrow `Tactic.Overload`, requires beforeBoard, legal move
+route, afterBoard, side = mover, rival = opponent, defender, target,
+secondaryTarget, anchor, complete DefenderDuty, DualDefenderDuty, OverloadTest,
+and CannotSatisfyBoth relations, same-board legal replay, and
+`proofComplete = true`; rejects incomplete DefenderDuty, incomplete
+DualDefenderDuty, incomplete OverloadTest, incomplete CannotSatisfyBoth,
+illegal replay, and board mismatch; keeps `publicClaimAllowed = false`; cannot
+write Story or create Verdict, ExplanationPlan, renderer text, LLM input,
+public route, or API output; BoardFacts may observe but cannot create
+`OverloadProof`; EngineCheck and raw engine eval/PV/SAN/proofFailures cannot
+create `OverloadProof`.
+
+### Stage-2 TacticOverload Writer
+
+Stage-2 opens named writer `TacticOverload`, Story label
+`Tactic.Overload`, and speech key `overloads_defender`.
+
+Stage-2 writer may create Story only when:
+
+- complete OverloadProof
+- complete slice proof
+- complete DefenderDuty relation
+- complete DualDefenderDuty relation
+- complete OverloadTest relation
+- complete CannotSatisfyBoth relation
+- same-board legal replay
+- legal route matches proof route
+- proof identity is stable and complete
+- defender is identified
+- two duty targets are identified and distinct
+- tested target is one of the two duty targets
+- no legal reply preserves both duty targets
+- writer = `TacticOverload`
+- EngineCheck does not Refute
+
+Stage-2 Story identity:
+
+- scene = none, encoded as `Scene.Tactic` plus `Tactic.Overload`
+- tactic = `Tactic.Overload`
+- plan = None
+- side = mover
+- rival = opponent
+- target = tested duty target square
+- secondaryTarget = untested duty target square
+- anchor = overloaded defender square
+- route = legal move route
+
+Stage-2 does not open:
+
+- Material Story
+- Hanging Story
+- RemoveGuard Story
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- Defense Story
+- best / only / forced
+- wins material
+- mate threat
+- raw proof detail in public text
+- proofFailures in public text
+- Renderer
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-2 TacticOverload Writer closes when
+`TacticOverload` is the only writer admitted for narrow `Tactic.Overload`;
+it writes a Story only with complete OverloadProof, complete slice proof,
+complete DefenderDuty, DualDefenderDuty, OverloadTest, and CannotSatisfyBoth
+relations, same-board legal replay, a legal route matching the proof route,
+stable complete proof identity, one identified defender, two distinct duty
+targets, tested target among those duty targets, no legal reply preserving both
+duty targets, and no EngineCheck Refutes; Story identity is fixed to scene
+none encoded as `Scene.Tactic` plus `Tactic.Overload`, tactic
+`Tactic.Overload`, plan None, side as mover, rival as opponent, target as
+tested duty target square, secondaryTarget as untested duty target square,
+anchor as overloaded defender square, and route as legal move route; speech key
+is exactly `overloads_defender`; Material Story, Hanging Story, RemoveGuard
+Story, Deflect, Decoy, Plan.Overload, Defense Story, best/only/forced,
+wins-material, mate-threat, raw proof detail in public text, proofFailures in
+public text, Renderer, LLM smoke, public route `200`, production API, and
+public/user-facing LLM narration remain closed.
+
+### Stage-3 Overload Negative Corpus
+
+Stage-3 opens only the negative corpus for narrow `Tactic.Overload`.
+
+Stage-3 must stay silent for:
+
+- defender protects only one target
+- two different defenders protect two different targets
+- defender has two duties but current move does not test either duty target
+- OverloadTest exists but CannotSatisfyBoth is absent
+- at least one legal rival reply preserves both duty targets
+- target is king
+- route is illegal
+- proof board and Story board differ
+- attack-only row tries to become Overload
+- Loose tries to become Overload
+- QueenHit tries to become Overload
+- Hanging tries to become Overload
+- Material tries to become Overload
+- RemoveGuard tries to become Overload
+- Defense tries to become Overload
+- engine eval/PV says advantage but proof is absent
+- SAN/check/checkmate annotation tries to create Overload
+
+Stage-3 forbidden wording:
+
+- wins material
+- wins a piece
+- wins the queen
+- forced
+- only move
+- best move
+- decisive
+- winning
+- no counterplay
+- cannot defend everything
+- must choose
+- loses one target
+- defender is removed
+- deflects
+- decoys
+
+Stage-3 rules:
+
+- every negative fixture produces no public `Tactic.Overload` text.
+- no negative fixture lowers to `overloads_defender`.
+- proofFailures remain internal diagnostics only.
+
+Completion standard: Stage-3 Overload Negative Corpus closes when every listed
+single-defender-only, split-defender, untested-move, OverloadTest-without-
+CannotSatisfyBoth, rival-reply-preserves-both, king-target, illegal-route,
+proof-board/Story-board mismatch, attack-only, Loose, QueenHit, Hanging,
+Material, RemoveGuard, Defense, engine eval/PV without proof, and
+SAN/check/checkmate annotation case produces no public `Tactic.Overload` text
+and never lowers to `overloads_defender`; forbidden wins material, wins a
+piece, wins the queen, forced, only move, best move, decisive, winning, no
+counterplay, cannot defend everything, must choose, loses one target, defender
+is removed, deflects, and decoys wording remains closed; and proofFailures stay
+internal diagnostics only.
+
+### Stage-4 Overload EngineCheck Reuse
+
+Stage-4 opens only:
+
+- existing `EngineCheck` may support, cap, or refute an already proof-backed
+  `Tactic.Overload` row.
+
+Stage-4 EngineCheck rules:
+
+- `TacticOverload` writer requires EngineCheck not Refute.
+- capped and refuted Overload rows must not produce standalone public text.
+- Support, Context, Blocked, capped, and refuted rows must not render as
+  independent Overload narration.
+- EngineCheck support may affect confidence or strength only within the
+  existing bounded model.
+- Engine evidence must bind to the same Story route and legal line.
+
+Stage-4 remains closed:
+
+- EngineCheck cannot create `OverloadProof`.
+- EngineCheck cannot create `Tactic.Overload`.
+- EngineCheck cannot repair incomplete proof.
+- raw eval/PV cannot become public wording.
+
+Stage-4 forbidden EngineCheck wording:
+
+- best move
+- only move
+- forced
+- winning
+- engine says overload
+- eval proves overload
+- raw PV proves overload
+
+Stage-4 does not open:
+
+- raw PV public output
+- eval public output
+- engine-owned public wording
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-4 Overload EngineCheck Reuse closes when EngineCheck
+may support, cap, or refute only an already proof-backed `Tactic.Overload`
+row; `TacticOverload` requires EngineCheck not Refute; EngineCheck cannot
+create `OverloadProof`, cannot create `Tactic.Overload`, and cannot repair
+incomplete proof; capped and refuted Overload rows produce no standalone public
+text; Support, Context, Blocked, capped, and refuted rows do not render as
+independent Overload narration; support affects confidence or strength only
+within the existing bounded model; engine evidence binds to the same Story
+route and legal line; raw eval/PV never becomes public wording or downstream
+input; forbidden best move, only move, forced, winning, engine says overload,
+eval proves overload, and raw PV proves overload wording remains closed; and no
+engine-owned public wording, public route `200`, production API, or
+public/user-facing LLM narration is opened.
+
+### Stage-5 Overload StoryTable Integration
+
+Stage-5 opens only:
+
+- StoryTable may order `Tactic.Overload` rows.
+
+Stage-5 collision targets:
+
+- `Tactic.RemoveGuard`
+- `Scene.Defense`
+- `Scene.Material`
+- `Tactic.Hanging`
+- `Tactic.Loose`
+- `Tactic.QueenHit`
+- `Tactic.Fork`
+- `Tactic.Skewer`
+- `Tactic.Pin`
+- `Tactic.DiscoveredAttack`
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+
+Stage-5 StoryTable cannot:
+
+- create Overload.
+- convert Overload into `Scene.Material`.
+- convert Overload into `Tactic.Hanging`.
+- convert Overload into `Tactic.RemoveGuard`.
+- convert Overload into `Tactic.Deflect`.
+- convert Overload into `Tactic.Decoy`.
+- promote Support, Context, Blocked, capped, or refuted Overload rows into standalone text.
+
+Stage-5 ordering boundary:
+
+- `Tactic.Overload` can be Lead only when selected, uncapped, unrefuted, and proof-backed.
+- Material, Hanging, Loose, QueenHit, and RemoveGuard remain separate proof homes.
+- If result Stories are present, they must keep their own labels and proof homes.
+- Overload does not say the result by itself.
+- Overload owns only the proof-backed overload relation from two
+  duties + legal test + no reply preserves both.
+
+Stage-5 rows that must not speak:
+
+- Support
+- Context
+- Blocked
+- capped
+- refuted
+- non-Lead
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-5 Overload StoryTable Integration closes when
+StoryTable may order existing proof-backed `Tactic.Overload` rows, cannot
+create Overload, cannot convert Overload into Material, Hanging, RemoveGuard,
+Deflect, or Decoy, cannot promote Support, Context, Blocked, capped, refuted,
+or non-Lead Overload rows into standalone text, `Tactic.Overload` can be Lead
+only when selected, uncapped, unrefuted, and proof-backed, Material, Hanging,
+Loose, QueenHit, and RemoveGuard remain separate proof homes, result Stories
+keep their own labels and proof homes, Overload does not say the result by
+itself, Overload owns only the proof-backed overload relation from two duties
+plus legal test plus no legal reply preserving both, and public route `200`,
+production API, and public/user-facing LLM narration remain closed.
+
+### Stage-6 Overload ExplanationPlan
+
+Stage-6 opens only:
+
+- ExplanationPlan lowering for selected uncapped Lead `Tactic.Overload` only.
+- claimKey: `overloads_defender`.
+
+Stage-6 input conditions:
+
+- selected Lead Verdict
+- Story label = `Tactic.Overload`
+- row is uncapped
+- row is not refuted
+- complete Story identity exists
+
+Stage-6 closes:
+
+- ExplanationPlan cannot accept raw OverloadProof directly.
+- ExplanationPlan cannot accept BoardFacts directly.
+- ExplanationPlan cannot accept EngineCheck directly.
+- ExplanationPlan cannot lower Support, Context, Blocked, capped, or refuted rows.
+- ExplanationPlan cannot add result claims.
+
+Stage-6 allowed plan fields:
+
+- claimKey = `overloads_defender`
+- strength = bounded existing strength model
+- side
+- rival
+- target
+- anchor
+- route
+- forbidden wording list
+- wins-material result claims and public wording do not enter the Overload ExplanationPlan.
+- `wins_material` may appear only inside the forbidden wording list.
+
+Stage-6 does not open:
+
+- Renderer
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-6 Overload ExplanationPlan closes when only a
+selected uncapped Lead `Tactic.Overload` row with complete Story identity may
+lower to claim key `overloads_defender`; the allowed plan fields are bounded
+strength, side, rival, target, anchor, route, and forbidden wording list;
+ExplanationPlan cannot accept raw OverloadProof, BoardFacts, or EngineCheck
+directly; Support, Context, Blocked, capped, and refuted rows produce no
+standalone plan; result claims are not added; wins-material result claims and
+public wording do not enter the Overload ExplanationPlan except as a forbidden
+wording-list item; and Renderer, LLM smoke, public route `200`, production API,
+and public/user-facing LLM narration remain closed.
+
+### Stage-7 Overload DeterministicRenderer
+
+Stage-7 opens only:
+
+- Renderer phrase for `overloads_defender`.
+
+Stage-7 renderer input:
+
+- ExplanationPlan only
+
+Stage-7 allowed sentence:
+
+- `This move overloads the defender.`
+
+Stage-7 renderer cannot:
+
+- inspect proof directly.
+- inspect BoardFacts.
+- inspect EngineCheck raw data.
+- mention eval or PV.
+- say wins material.
+- say forced, best, or only.
+- say decisive, winning, or no counterplay.
+- say deflects, decoys, or removes the defender.
+
+Stage-7 forbidden wording:
+
+- wins material
+- forced
+- best move
+- only move
+- decisive
+- winning
+- no counterplay
+- deflects
+- decoys
+- removes the defender
+- eval
+- PV
+
+Stage-7 renderer rules:
+
+- Renderer emits no text for Support/Context/Blocked/capped/refuted rows.
+
+Stage-7 does not open:
+
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Completion standard: Stage-7 Overload DeterministicRenderer closes when
+renderer text for `overloads_defender` is created only from bounded Overload
+ExplanationPlan input, the only admitted sentence is `This move overloads the
+defender.`, Renderer does not inspect proof directly, BoardFacts, or EngineCheck
+raw data, eval and PV are never mentioned, forbidden wins-material,
+forced/best/only, decisive/winning/no-counterplay, and deflects/decoys/removes
+the defender wording remains closed, Renderer emits no standalone Overload text
+for Support, Context, Blocked, capped, or refuted rows, and LLM smoke, public
+route `200`, production API, and public/user-facing LLM narration remain closed.
+
+### Stage-8 Overload LLM Smoke
+
+Stage-8 opens only:
+
+- LLM smoke for an already rendered `overloads_defender` line.
+
+Stage-8 LLM input:
+
+- renderedText
+- claimKey = `overloads_defender`
+- strength
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+Stage-8 LLM input cannot include:
+
+- board
+- FEN
+- PV
+- eval
+- proof details
+- source rows
+
+Stage-8 LLM smoke must preserve:
+
+- `overloads_defender` meaning only
+
+Stage-8 LLM smoke rejects:
+
+- wins material
+- wins target
+- forced
+- best move
+- only move
+- decisive
+- winning
+- no counterplay
+- mate threat
+- engine line
+- raw engine data
+- new move
+- new variation
+- deflection
+- decoy
+- remove guard
+- defense claim
+
+Stage-8 LLM rules:
+
+- LLM only polishes.
+- Verifier rejects overclaim.
+- no public/user-facing production narration.
+- public/user-facing LLM narration remains closed.
+- no new chess facts.
+
+Stage-8 does not open:
+
+- public route `200`
+- production API
+
+Completion standard: Stage-8 Overload LLM Smoke closes when LLM smoke may use
+only an already rendered `overloads_defender` line; LLM input contains only
+renderedText, claimKey = `overloads_defender`, strength, forbidden wording, and
+`Rephrase only. Do not add chess facts.`; LLM input contains no board, FEN, PV,
+eval, proof details, or source rows; LLM smoke preserves `overloads_defender`
+meaning; verifier rejects wins-material, wins-target, forced, best, only,
+decisive, winning, no-counterplay, mate-threat, engine-line, raw engine data,
+new-move, new-variation, deflection, decoy, remove-guard, and defense wording;
+LLM only polishes; public/user-facing production narration and new chess facts
+remain closed; and public route `200` and production API remain closed.
+
+### Stage-9 Overload Closeout / Hard Cleanup
+
+Stage-9 opens no new chess meaning beyond narrow `Tactic.Overload`.
+
+Stage-9 closes only the proof-backed overload relation:
+
+- complete two-duty defender
+- legal test move
+- no legal reply preserves both duty targets
+
+Stage-9 authority audit:
+
+- `OverloadProof` owns proof home.
+- `Tactic.Overload` owns Story label.
+- `TacticOverload` owns writer.
+- `overloads_defender` owns speech key.
+- These are not interchangeable.
+- DefenderDuty, DualDefenderDuty, OverloadTest, and CannotSatisfyBoth
+  remain internal proof-readiness components.
+
+Stage-9 duplication audit:
+
+- Overload is not DefenderDuty.
+- Overload is not DualDefenderDuty.
+- Overload is not OverloadTest.
+- Overload is not CannotSatisfyBoth alone.
+- Overload is not RemoveGuard.
+- Overload is not Defense.
+- Overload is not Material.
+- Overload is not Hanging.
+- Overload is not Loose.
+- Overload is not QueenHit.
+- Overload is not Fork.
+- Overload is not Skewer.
+- Overload is not Pin.
+- Overload is not DiscoveredAttack.
+- Overload is not Deflect.
+- Overload is not Decoy.
+- Overload is not Plan.Overload.
+- one chess meaning, one proof home, one Story label, one speech key.
+
+Stage-9 still closed:
+
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- wins material
+- wins target
+- defender must choose
+- only defender
+- best / only / forced
+- decisive / winning
+- no counterplay
+- mate threat
+- pressure / initiative
+- public route 200
+- production API
+- public/user-facing LLM narration
+
+Stage-9 docs duplication:
+
+- detailed Overload authority appears only in `StoryInteractionLaw.md`.
+- README/SSOT/Architecture/Contract/Manifest may contain summary only if touched.
+- AGENTS.md remains unchanged.
+
+Stage-9 public surface audit:
+
+- `/api/commentary/render` remains fail-closed.
+- `/internal/commentary/render-local-probe` remains fail-closed.
+- public route 200 remains closed.
+- production API remains closed.
+- public/user-facing LLM narration remains closed.
+
+Stage-9 required verification:
+
+- `sbt "commentary/testOnly lila.commentary.chess.OverloadRuntimeAdmissionTest"`
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Completion standard: Stage-9 Overload Closeout / Hard Cleanup closes when only
+a complete proof-backed two-duty defender plus legal test plus
+no-reply-preserves-both relation can become `Tactic.Overload`; `OverloadProof`,
+`Tactic.Overload`, `TacticOverload`, and `overloads_defender` remain separated;
+DefenderDuty, DualDefenderDuty, OverloadTest, and CannotSatisfyBoth remain
+internal proof components; sibling proof homes are not replaced;
+Support/Context/Blocked/capped/refuted rows stay silent; public surfaces remain
+fail-closed for `/api/commentary/render` and
+`/internal/commentary/render-local-probe`; public route 200, production API,
+and public/user-facing LLM narration remain closed; detailed docs authority is
+not duplicated; AGENTS.md remains unchanged; and all verification passes.
+
+### OIH-0 Charter / No New Meaning
+
+OIH-0 locks the interaction boundary after `Tactic.Overload` runtime admission.
+
+OIH-0 opens no new proof home, Story label, writer, or speech key.
+
+OIH-0 fixed chain:
+
+- `OverloadProof` -> `Tactic.Overload` -> `TacticOverload` -> `overloads_defender`
+
+OIH-0 must not open:
+
+- `Tactic.Deflect`
+- `Tactic.Decoy`
+- `Plan.Overload`
+- public CannotSatisfyBoth label
+- public DualDefenderDuty label
+- wins material
+- wins piece
+- forced move
+- best move
+- only move
+- decisive / winning / no-counterplay
+- public route 200
+- production API
+- public/user-facing LLM narration
+
+OIH-0 boundary rules:
+
+- Overload interaction hardening may audit existing runtime admission only.
+- It must not add a new proof sidecar, Story enum case, writer implementation,
+  writer enum case, ExplanationClaim, speech key, renderer template, LLM prompt
+  key, public route response, production API field, or docs-authority name.
+- DefenderDuty, DualDefenderDuty, OverloadTest, and CannotSatisfyBoth remain
+  internal proof components under `OverloadProof`; none becomes a public label.
+- `overloads_defender` remains the only admitted speech key for the narrow
+  overload relation.
+- Existing sibling meanings keep their own homes; OIH-0 cannot reopen Deflect,
+  Decoy, Plan.Overload, material gain, forced/best/only move, decisive/winning,
+  no-counterplay, public route, production API, or public/user-facing LLM
+  narration.
+
+Completion standard: OIH-0 closes when the fixed chain remains the only Overload runtime admission path; no new proof home, Story label, writer, or speech key is opened; `Tactic.Deflect`, `Tactic.Decoy`, `Plan.Overload`, public CannotSatisfyBoth label, public DualDefenderDuty label, wins-material, wins-piece, forced-move, best-move, only-move, decisive/winning/no-counterplay, public route 200, production API, and public/user-facing LLM narration remain closed; detailed OIH-0 authority lives only in `StoryInteractionLaw.md`; AGENTS.md remains unchanged; targeted docs authority tests pass; and `git diff --check` passes.
+
+### OIH-1 Proof Ingredient Boundary
+
+OIH-1 locks `OverloadProof` so it cannot replace its internal readiness ingredients.
+
+OIH-1 ingredient boundaries:
+
+- DefenderDuty is internal guard relation only.
+- DualDefenderDuty is internal dual-duty relation only.
+- OverloadTest is internal test-move relation only.
+- CannotSatisfyBoth is internal reply-exhaustion relation only.
+- These four ingredients are not public Story.
+- `OverloadProof` requires all four ingredients.
+- `OverloadProof` does not own or replace those ingredients.
+
+OIH-1 runtime tests:
+
+- missing ingredient blocks `Tactic.Overload` creation.
+- ingredient-only proof creates no public Story.
+- BoardFacts cannot create an ingredient by itself.
+- EngineCheck cannot create or repair an ingredient.
+- raw PV and eval cannot create or repair an ingredient.
+- proofFailures cannot create or repair an ingredient.
+
+OIH-1 boundary rules:
+
+- `OverloadProof.complete` is false unless DefenderDuty, DualDefenderDuty,
+  OverloadTest, and CannotSatisfyBoth are all present and complete.
+- A complete ingredient remains internal readiness only. It does not become a
+  Story, StoryTable row, Verdict, ExplanationPlan, renderer input, LLM input,
+  public route value, production API value, or user-facing narration.
+- BoardFacts may observe board relations used by named proof builders, but
+  BoardFacts alone must not create a public overload ingredient or repair a
+  missing ingredient inside `OverloadProof`.
+- EngineCheck, raw PV, eval, and proofFailures may diagnose, support, cap, or
+  refute already admitted rows only through existing boundaries; they cannot
+  create or repair DefenderDuty, DualDefenderDuty, OverloadTest,
+  CannotSatisfyBoth, or `OverloadProof`.
+- `TacticOverload` remains the only writer for `Tactic.Overload`, and it may
+  write only from complete `OverloadProof` whose four named ingredients are
+  present and complete.
+
+Completion standard: OIH-1 closes when `OverloadProof` remains incomplete without every named ingredient; DefenderDuty remains internal guard relation only; DualDefenderDuty remains internal dual-duty relation only; OverloadTest remains internal test-move relation only; CannotSatisfyBoth remains internal reply-exhaustion relation only; those four ingredients are not public Story; `OverloadProof` requires all four but does not own or replace them; missing ingredients block `Tactic.Overload`; ingredient-only proof creates no public Story; BoardFacts, EngineCheck, raw PV, eval, and proofFailures cannot create or repair ingredients; detailed OIH-1 authority lives only in `StoryInteractionLaw.md`; targeted runtime tests pass; docs authority tests pass; and `git diff --check` passes.
+
+### OIH-2 Neighbor Story Collision Audit
+
+OIH-2 prevents `Tactic.Overload` from stealing neighboring tactical or scene meanings.
+
+OIH-2 collision targets:
+
+- RemoveGuard
+- Defense
+- Material
+- Hanging
+- Loose
+- QueenHit
+- Fork
+- Skewer
+- Pin
+- DiscoveredAttack
+- Deflect
+- Decoy
+
+OIH-2 speech boundary:
+
+- Overload may say only that a defender cannot maintain two duties at once.
+- Without Material or Hanging proof, Overload must not say `wins material`.
+- Without RemoveGuard proof, Overload must not say `defender is removed`.
+- Without Deflect or Decoy proof, Overload must not say `deflects` or `decoys`.
+
+OIH-2 runtime tests:
+
+- each sibling fixture keeps its own Story label.
+- an Overload fixture emits no sibling Story unless separate complete proof exists.
+- a sibling fixture cannot lower to `overloads_defender`.
+
+OIH-2 boundary rules:
+
+- `OverloadProof` proves only the dual-duty overload relation. It does not prove
+  material gain, hanging material, guard removal, fork, skewer, pin,
+  discovered attack, queen attack, loose piece attack, defense, deflection, or
+  decoy.
+- A sibling Story may speak only through its own existing proof home, Story
+  label, writer, and speech key. Overlap with an Overload board position does
+  not let `TacticOverload` create or rename that sibling meaning.
+- If an Overload fixture also admits a sibling Story, that sibling must carry a
+  separate complete proof sidecar owned by the sibling writer.
+- Deflect and Decoy remain closed labels. OIH-2 does not open a proof home,
+  writer, speech key, renderer text, LLM narration, route 200, or production API
+  for either label.
+- Sibling fixtures contaminated with `OverloadProof` must not lower to
+  `overloads_defender`. They may remain blocked or speak only their own already
+  admitted sibling claim when their own proof home is complete.
+- `overloads_defender` remains bounded to the claim that the defender cannot
+  maintain both duties at once. It must not imply winning material, winning a
+  piece, removing a defender, deflecting, decoying, forcing, best move, only
+  move, decisive, winning, or no-counterplay.
+
+Completion standard: OIH-2 closes when neighbor Story labels keep their own proof homes; RemoveGuard, Defense, Material, Hanging, Loose, QueenHit, Fork, Skewer, Pin, DiscoveredAttack, Deflect, and Decoy cannot be stolen by Overload; Overload says only that a defender cannot maintain two duties at once; wins-material wording requires Material or Hanging proof; removed-defender wording requires RemoveGuard proof; deflects or decoys wording requires Deflect or Decoy proof; each sibling fixture keeps its own Story label; an Overload fixture emits no sibling Story unless separate complete proof exists; sibling fixtures cannot lower to `overloads_defender`; detailed OIH-2 authority lives only in `StoryInteractionLaw.md`; targeted runtime tests pass; docs authority tests pass; and `git diff --check` passes.
+
+### OIH-3 EngineCheck / Row-State Boundary
+
+OIH-3 locks EngineCheck and row state below Overload claim creation or strengthening.
+
+OIH-3 EngineCheck boundary:
+
+- EngineCheck may only support, cap, or refute an already proof-backed Overload row.
+- EngineCheck cannot create `OverloadProof`.
+- EngineCheck cannot repair incomplete `OverloadProof`.
+- raw eval and PV cannot become public text.
+- raw eval and PV cannot become renderer input.
+- raw eval and PV cannot become LLM smoke input.
+
+OIH-3 row-state boundary:
+
+- Support Overload rows produce no standalone text.
+- Context Overload rows produce no standalone text.
+- Blocked Overload rows produce no standalone text.
+- capped Overload rows produce no standalone text.
+- refuted Overload rows produce no standalone text.
+
+OIH-3 runtime tests:
+
+- proof absent plus Engine support creates no Overload.
+- proof complete plus cap creates no standalone Overload text.
+- proof complete plus refute creates no standalone Overload text.
+- support, context, and blocked rows do not render independently.
+
+OIH-3 boundary rules:
+
+- `TacticOverload.withEngineCheck` may attach EngineCheck only to a Story that
+  already satisfies the complete Overload writer, proof, identity, and route
+  binding.
+- A Supports EngineCheck keeps an already admitted Lead row eligible, but
+  it does not create a Story, create `OverloadProof`, repair missing proof
+  ingredients, change the speech key, or strengthen wording.
+- A Caps EngineCheck suppresses standalone Overload text.
+- A Refutes EngineCheck blocks standalone Overload text.
+- Support, Context, Blocked, capped, and refuted Overload rows must not produce
+  `ExplanationPlan`, `RenderedLine`, LLM smoke input, public route value,
+  production API value, or user-facing narration.
+- Engine eval, raw PV, checked move, reply line, depth, freshness, and engine
+  status are internal diagnostics only. They do not enter renderer text, LLM
+  smoke prompt fields, `Verdict.values`, or public payloads.
+
+Completion standard: OIH-3 closes when EngineCheck and row state remain unable to create or inflate Overload; EngineCheck can only support, cap, or refute an already proof-backed Overload row; EngineCheck cannot create `OverloadProof`; EngineCheck cannot repair incomplete `OverloadProof`; Support, Context, Blocked, capped, and refuted Overload rows produce no standalone text; raw eval and PV do not enter public text, renderer input, or LLM smoke input; proof absent plus Engine support creates no Overload; proof complete plus cap creates no standalone Overload text; proof complete plus refute creates no standalone Overload text; support, context, and blocked rows do not render independently; detailed OIH-3 authority lives only in `StoryInteractionLaw.md`; targeted runtime tests pass; docs authority tests pass; and `git diff --check` passes.
+
+### OIH-4 StoryTable Ordering / Duplication
+
+OIH-4 locks StoryTable below Overload creation and wording conversion.
+
+OIH-4 StoryTable boundary:
+
+- StoryTable may order existing proof-backed Overload rows but cannot create Overload.
+- `Tactic.Overload` may lower standalone only from a selected uncapped Lead row.
+- StoryTable cannot convert Overload rows into Material, Hanging, RemoveGuard, Deflect, or Decoy rows.
+- StoryTable cannot convert result rows into Overload rows.
+- duplicate Overload source rows must not create duplicate public narration.
+- Overload and result Stories may coexist only when each keeps its own proof home and Story label.
+
+OIH-4 runtime tests:
+
+- one proof-backed Overload creates one selected uncapped Lead row.
+- duplicate Overload source rows create no duplicate public narration.
+- StoryTable does not turn Overload into result wording.
+- result Stories keep their proof homes and do not become Overload wording.
+
+OIH-4 boundary rules:
+
+- `StoryTable.choose` consumes Story rows already created by named proof-backed
+  writers. It may assign Lead, Support, Context, or Blocked roles, but it must
+  not open a proof home, Story label, writer, or speech key.
+- Only a selected uncapped Lead `Tactic.Overload` row with complete
+  `OverloadProof`, `StoryWriter.TacticOverload`, and the `overloads_defender`
+  claim may lower to standalone Overload text.
+- Support, Context, Blocked, capped, refuted, and non-Lead Overload rows must
+  not create `ExplanationPlan`, `RenderedLine`, LLM smoke input, public route
+  value, production API value, or user-facing narration.
+- Duplicate Overload source rows may exist as StoryTable input, but only the
+  selected Lead row may produce the bounded `overloads_defender` line.
+- StoryTable must not treat Overload as material result, hanging piece,
+  removed defender, deflection, or decoying. Those meanings require their own
+  admitted proof homes and Story labels.
+- When Overload coexists with Material, Hanging, RemoveGuard, Defense, Loose,
+  QueenHit, Fork, Skewer, Pin, DiscoveredAttack, or another opened result Story,
+  each row keeps its original writer, proof home, Story label, and speech key.
+
+Completion standard: OIH-4 closes when StoryTable can only order Overload rows; StoryTable cannot create Overload; `Tactic.Overload` lowers standalone only from a selected uncapped Lead row; StoryTable cannot convert Overload rows into Material, Hanging, RemoveGuard, Deflect, or Decoy rows; StoryTable cannot convert result rows into Overload rows; duplicate Overload source rows create no duplicate public narration; Overload and result Stories can coexist only with their own proof homes and Story labels intact; one proof-backed Overload creates one selected uncapped Lead row; StoryTable does not turn Overload into result wording; result Stories keep their proof homes and do not become Overload wording; detailed OIH-4 authority lives only in `StoryInteractionLaw.md`; targeted runtime tests pass; docs authority tests pass; and `git diff --check` passes.
+
+### OIH-5 ExplanationPlan / Renderer / LLM Leak Guard
+
+OIH-5 locks downstream expression below Overload meaning creation or expansion.
+
+OIH-5 ExplanationPlan boundary:
+
+- ExplanationPlan accepts only selected uncapped Lead `Tactic.Overload`.
+- Overload ExplanationPlan claim key is `overloads_defender` only.
+- ExplanationPlan must not take raw `OverloadProof`, BoardFacts, or EngineCheck as direct input.
+
+OIH-5 renderer boundary:
+
+- Renderer input is ExplanationPlan only.
+- Overload renderer text is exactly `This move overloads the defender.`
+
+OIH-5 LLM smoke boundary:
+
+- LLM smoke input is renderedText, claimKey, strength, and forbidden wording only.
+- LLM smoke instruction is `Rephrase only. Do not add chess facts.`
+
+OIH-5 forbidden wording:
+
+- wins material
+- wins a piece
+- wins the queen
+- forced
+- only move
+- best move
+- decisive
+- winning
+- no counterplay
+- deflects
+- decoys
+- removes the defender
+- cannot defend everything
+- must choose
+
+OIH-5 runtime tests:
+
+- ExplanationPlan lowers only selected uncapped Lead Overload to `overloads_defender`.
+- renderer emits only the bounded Overload sentence from ExplanationPlan.
+- LLM smoke input is bounded and rejects forbidden Overload expansions.
+
+OIH-5 boundary rules:
+
+- ExplanationPlan receives the selected Verdict handoff only. It may not inspect
+  raw `OverloadProof`, BoardFacts, EngineCheck, raw PV, raw eval, source rows,
+  or proof failures to create or strengthen Overload.
+- ExplanationPlan must return no Overload plan for Support, Context, Blocked,
+  capped, refuted, non-Lead, wrong-tactic, wrong-writer, incomplete-proof, or
+  sibling-result rows.
+- DeterministicRenderer receives only an already bounded ExplanationPlan and
+  may emit only the exact Overload sentence above.
+- LLM smoke receives only the bounded rendered line fields and forbidden
+  wording. It must reject any output that adds material gain, piece gain, queen
+  gain, forced/best/only/decisive/winning/no-counterplay language, Deflect,
+  Decoy, RemoveGuard, or broader dual-duty wording such as "cannot defend
+  everything" or "must choose".
+- Public route `200`, production API behavior, and public/user-facing LLM
+  narration remain closed.
+
+Completion standard: OIH-5 closes when downstream expression cannot create or expand Overload; ExplanationPlan accepts only selected uncapped Lead `Tactic.Overload`; Overload ExplanationPlan claim key is `overloads_defender` only; ExplanationPlan does not take raw `OverloadProof`, BoardFacts, or EngineCheck as direct input; Renderer input is ExplanationPlan only; Overload renderer text is exactly `This move overloads the defender.`; LLM smoke input is renderedText, claimKey, strength, and forbidden wording only; LLM smoke instruction is `Rephrase only. Do not add chess facts.`; wins material, wins a piece, wins the queen, forced, only move, best move, decisive, winning, no counterplay, deflects, decoys, removes the defender, cannot defend everything, and must choose are forbidden; targeted runtime tests pass; docs authority tests pass; and `git diff --check` passes.
+
+### OIH-6 Docs / Public Surface Authority
+
+OIH-6 locks detailed Overload interaction hardening authority to `StoryInteractionLaw.md` only.
+
+OIH-6 docs authority boundary:
+
+- OIH detailed authority lives only in `StoryInteractionLaw.md`.
+- README.md is summary-only for OIH.
+- ChessCommentarySSOT.md is summary-only for OIH.
+- ChessModelArchitecture.md is summary-only for OIH.
+- ChessModelContract.md is summary-only for OIH.
+- LegacyPruneManifest.md is summary-only for OIH.
+- AGENTS.md must not change for OIH-6.
+
+OIH-6 public surface boundary:
+
+- `/api/commentary/render` remains fail-closed.
+- `/internal/commentary/render-local-probe` remains fail-closed.
+- public route `200` remains closed.
+- production API remains closed.
+- public/user-facing LLM narration remains closed.
+
+OIH-6 runtime and docs tests:
+
+- ChessDocsAuthorityTest guards OIH authority against duplication.
+- public route and API tests confirm both commentary routes stay fail-closed.
+
+OIH-6 boundary rules:
+
+- OIH-0 through OIH-6 detailed headings, rule lists, runtime corpus, completion
+  standards, and no-go wording belong to `StoryInteractionLaw.md` only.
+- README, SSOT, Architecture, Contract, and Manifest may summarize OIH status
+  only. They must not duplicate detailed OIH headings, boundary lists, runtime
+  tests, or completion standards.
+- `AGENTS.md` remains an operator guide and must not gain OIH-6 detailed law.
+- The commentary controller remains a tombstone surface that returns service
+  unavailable with `noCommentary` and `render` null.
+- Routes may remain declared as fail-closed tombstones, but must not return
+  `Ok`, rendered payloads, production switches, Overload writer/proof data, or
+  public/user-facing LLM narration.
+
+Completion standard: OIH-6 closes when detailed OIH authority has exactly one live owner; OIH detailed authority lives only in `StoryInteractionLaw.md`; README.md, ChessCommentarySSOT.md, ChessModelArchitecture.md, ChessModelContract.md, and LegacyPruneManifest.md remain summary-only for OIH; AGENTS.md remains unchanged; `/api/commentary/render` remains fail-closed; `/internal/commentary/render-local-probe` remains fail-closed; public route `200`, production API, and public/user-facing LLM narration remain closed; ChessDocsAuthorityTest guards OIH authority against duplication; public route and API tests confirm both commentary routes stay fail-closed; docs authority tests pass; and `git diff --check` passes.
+
+### OIH-7 Closeout / Hard Cleanup
+
+OIH-7 closes Overload interaction hardening without opening new chess meaning.
+
+OIH-7 fixed authority chain:
+
+- `OverloadProof` is the proof home.
+- `Tactic.Overload` is the Story label.
+- `TacticOverload` is the named writer.
+- `overloads_defender` is the speech key.
+
+OIH-7 final checks:
+
+- DefenderDuty, DualDefenderDuty, OverloadTest, and CannotSatisfyBoth are internal proof ingredients only.
+- Support, Context, Blocked, capped, and refuted Overload rows have no standalone text.
+- sibling tactic, material, and defense Stories keep their own meanings.
+- forbidden wording does not leak.
+- raw engine eval, PV, and proofFailures do not leak publicly.
+- public route, production API, and public/user-facing LLM remain closed.
+- AGENTS.md remains unchanged.
+
+OIH-7 required verification:
+
+- `sbt "commentary/testOnly lila.commentary.chess.OverloadInteractionHardeningTest"`
+- `sbt "commentary/testOnly lila.commentary.chess.OverloadRuntimeAdmissionTest"`
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `sbt "testOnly controllers.CommentaryTest"`
+- `git diff --check`
+
+OIH-7 cleanup rules:
+
+- No new proof home, Story label, writer, speech key, public label, route,
+  production API field, renderer template, or public/user-facing LLM narration
+  opens during closeout.
+- The four opened Overload names remain separate and non-interchangeable:
+  proof home, Story label, named writer, and speech key.
+- The four internal ingredients remain below public Story authority and cannot
+  independently lower to Story, Verdict, ExplanationPlan, renderer text, LLM
+  smoke input, public route payload, or production API output.
+- Existing sibling homes remain authoritative for their meanings. Overload
+  cannot borrow material gain, hanging piece, removed defender, defense,
+  deflection, decoying, best/only/forced move, decisive/winning/no-counterplay,
+  or raw engine support wording.
+- OIH closeout must leave public surfaces fail-closed and detailed authority in
+  `StoryInteractionLaw.md` only.
+
+Completion standard: OIH-7 closes when the Overload interaction hardening chain remains fixed as `OverloadProof` proof home, `Tactic.Overload` Story label, `TacticOverload` named writer, and `overloads_defender` speech key; DefenderDuty, DualDefenderDuty, OverloadTest, and CannotSatisfyBoth remain internal proof ingredients only; Support, Context, Blocked, capped, and refuted rows have no standalone text; sibling tactic, material, and defense Stories keep their own meanings; forbidden wording does not leak; raw engine eval, PV, and proofFailures do not leak publicly; public route, production API, and public/user-facing LLM remain closed; AGENTS.md remains unchanged; `OverloadInteractionHardeningTest`, `OverloadRuntimeAdmissionTest`, `ChessFoundationTest`, `ChessDocsAuthorityTest`, and `CommentaryTest` pass; and `git diff --check` passes.
 
 ## Pawn / Promotion Neighborhood
 
@@ -9953,6 +14136,5378 @@ FPSNC final verification:
 - `git diff --check` passes.
 
 Final FPSNC closeout opens no new Story family, proof home, Story writer, claim key, renderer template, LLM behavior, fixture-derived runtime authority, negative-corpus production concept, broad PawnTactic, broad pawn-structure advantage, file control, rook activity, rook lift, open-file strategy, passed pawn strategy, breakthrough, weak square, weak pawn, weakens structure, pawn majority change, wins space, wins pawn, wins material, promotion threat, unstoppable pawn, conversion, initiative, pressure, attack, best move, only move, forced, public route `200`, production API, or public/user-facing LLM narration.
+
+## Pawn Blocking / Fixed Pawn Neighborhood
+
+### PBFN-0 Charter
+
+Current scope is the first Pawn Blocking / Fixed Pawn Neighborhood vertical slice.
+
+First positive scope is not broad pawn-structure weakness.
+
+First positive scope:
+
+a legal move blocks one rival pawn from advancing one square on the exact board
+
+Player-facing bounded wording:
+
+This move blocks the opponent's pawn advance square.
+
+Core sentence:
+
+PawnBlockProof proves the exact pawn-block event. Scene.PawnBlock may speak only that event, not weakness, fixation, restriction advantage, or strategic clamp.
+
+PBFN-0 opens only:
+
+- narrow `Scene.PawnBlock`
+- `PawnBlockProof`
+- legal move
+- one rival pawn identified
+- rival pawn next advance square identified
+- that square is occupied by the moving side after the move
+- the block is exact-board replayed
+- same-board proof
+- selected Verdict after bounded pawn-block wording
+
+PBFN-0 does not open:
+
+- weak pawn claim
+- fixed pawn as strategic weakness
+- permanent immobility
+- backward pawn
+- isolated pawn
+- passed pawn stop
+- creates blockade
+- binds the structure
+- wins tempo
+- creates pressure
+- restricts opponent
+- breakthrough prevention
+- best move / only move
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Authority split:
+
+- `PawnBlockProof` proves only the exact rival-pawn next-square block event on
+  the exact board.
+- `Scene.PawnBlock` owns only the bounded public Story identity for that block
+  event.
+- The speech key for this slice may say only that the move blocks the rival
+  pawn's next advance square.
+- BoardFacts may observe pieces, squares, legal movement, pawn fronts, or
+  blockers, but it does not own this public event proof.
+- StoryTable may order an existing `Scene.PawnBlock`; it must not create one.
+- ExplanationPlan may lower only a selected uncapped Lead `Scene.PawnBlock`
+  Verdict to bounded pawn-block wording.
+- Renderer and LLM smoke may phrase only the bounded pawn-block event after the
+  downstream stages explicitly open.
+
+PBFN-0 must stay silent for:
+
+- illegal move
+- missing same-board proof
+- missing exact-board replay
+- no rival pawn identified
+- no rival pawn next advance square identified
+- rival pawn next advance square is not occupied by the moving side after the
+  move
+- the occupied square is not the identified rival pawn's one-square advance
+  square
+- multiple rival pawns without one identified block event
+- writerless or contaminated rows
+- weakness, fixation, restriction, pressure, blockade, tempo, best-move,
+  only-move, or breakthrough-prevention wording
+
+PBFN-0 does not create a fixed-pawn strategic diagnosis. "Fixed" may describe
+only the exact immediate occupancy of the rival pawn's next square after the
+move, not permanent immobility, weakness, blockade, or advantage.
+
+Completion standard: PBFN-0 closes when only a legal same-board move that leaves the moving side occupying one identified rival pawn's next advance square can become narrow `Scene.PawnBlock` through `PawnBlockProof`; illegal moves, missing same-board proof, missing replay, missing rival pawn identity, missing next-square identity, wrong occupied square, ambiguous multi-pawn blocks, writerless rows, and contaminated rows stay silent; weakness, fixed-pawn strategic weakness, permanent immobility, backward-pawn, isolated-pawn, passed-pawn stop, blockade, structure bind, tempo, pressure, restriction advantage, breakthrough prevention, best/only, public route `200`, production API, and public/user-facing LLM narration remain closed; and detailed PBFN authority lives only in `StoryInteractionLaw.md`.
+
+### PBFN-1 PawnBlockProof
+
+PBFN-1 opens only `PawnBlockProof` as the proof home for the first
+Pawn Blocking / Fixed Pawn Neighborhood slice.
+
+`PawnBlockProof` proves:
+
+- blocking side
+- rival side
+- legal move identity
+- moving piece identity
+- origin square
+- destination square
+- blocked rival pawn identity
+- blocked pawn square
+- blocked pawn next advance square
+- next advance square occupied after move
+- occupying piece belongs to blocking side
+- exact after-board replay
+- same-board proof
+- block was created by this move
+
+PBFN-1 first scope:
+
+- ordinary direct one-square pawn block only
+- the moving piece lands on the rival pawn's next advance square
+
+PBFN-1 closed scope:
+
+- pre-existing block not created by the move
+- diagonal pawn contact
+- pawn capture
+- passed pawn stop claim
+- permanent fixed pawn claim
+- backward pawn claim
+- isolated pawn claim
+- weakness claim
+- blockade strategy
+- restriction / pressure / initiative
+- best move / only move
+- material claim
+
+Proof-home boundary:
+
+- `PawnBlockProof` is not a public `Story`.
+- `PawnBlockProof` must not create `Scene.PawnBlock`.
+- `PawnBlockProof` must not create a Verdict, ExplanationPlan, renderer text,
+  LLM input, public route payload, or production API response.
+- `PawnStopProof` remains the passed-pawn next-square stop home.
+- `PawnBlockProof` does not replace `PawnStopProof`.
+- `PawnBreakProof` remains the pawn contact/challenge home.
+- `PawnBlockProof` does not replace `PawnBreakProof`.
+- `PawnBlockProof` must not own passed-pawn stop, pawn contact, pawn capture,
+  permanent fixation, backward pawn, isolated pawn, weakness, blockade,
+  restriction, pressure, initiative, best-move, only-move, or material meaning.
+
+Completion standard: PBFN-1 closes when `PawnBlockProof` proves only the blocking side, rival side, legal move identity, moving piece identity, origin square, destination square, blocked rival pawn identity, blocked pawn square, blocked pawn next advance square, after-board occupancy by the blocking side, exact after-board replay, same-board proof, and block-created-by-this-move for an ordinary direct move landing on the rival pawn's next advance square; pre-existing blocks, diagonal pawn contact, pawn capture, passed-pawn stop, permanent fixed-pawn, backward-pawn, isolated-pawn, weakness, blockade strategy, restriction, pressure, initiative, best/only, and material meanings remain closed; `PawnBlockProof` is not a public Story; `PawnStopProof` and `PawnBreakProof` keep their separate homes; and no Story writer, Verdict, ExplanationPlan, renderer, LLM, public route `200`, production API, or public/user-facing LLM narration opens.
+
+### PBFN-2 Scene.PawnBlock Writer
+
+PBFN-2 opens only `ScenePawnBlock` as the named writer for `Scene.PawnBlock`.
+
+PBFN-2 writer conditions:
+
+- complete StoryProof
+- complete `PawnBlockProof`
+- same-board legal replay
+- legal move creates the block
+- blocked piece is rival pawn
+- blocked square is that rival pawn's next advance square
+- writer = `ScenePawnBlock`
+- EngineCheck does not Refute
+
+PBFN-2 Story identity:
+
+- scene = `PawnBlock`
+- tactic = None
+- plan = None
+- side = blocking side
+- rival = rival side
+- target = blocked pawn next advance square
+- anchor = moving piece origin square
+- route = blocking move
+
+PBFN-2 forbidden:
+
+- `ScenePawnBlock` must not create a PawnStop claim.
+- `ScenePawnBlock` must not create a PawnBreak claim.
+- `ScenePawnBlock` must not create a PassedPawnCreated claim.
+- `ScenePawnBlock` must not create a FileOpened claim.
+- `ScenePawnBlock` must not create weakness, fixed-pawn, blockade, or strategy meaning.
+
+PBFN-2 downstream boundary:
+
+- PBFN-2 does not open ExplanationPlan.
+- PBFN-2 does not open renderer text.
+- PBFN-2 does not open LLM input.
+- PBFN-2 does not open public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: PBFN-2 closes when `ScenePawnBlock` writes only exact complete `PawnBlockProof` rows into `Scene.PawnBlock` with no tactic, no plan, blocking side, rival side, target as the blocked pawn next advance square, anchor as the moving piece origin square, route as the blocking move, no EngineCheck Refutes lead, and no sibling PawnStop, PawnBreak, PassedPawnCreated, FileOpened, weakness, fixed-pawn, blockade, or strategy meaning; downstream ExplanationPlan, renderer, LLM, public route `200`, production API, and public/user-facing LLM narration remain closed.
+
+### PBFN-3 Negative Corpus
+
+PBFN-3 must stay silent for:
+
+- legal move missing
+- same-board proof missing
+- blocked pawn missing
+- blocked piece is not a pawn
+- blocked pawn is not the rival side
+- blocked pawn next advance square cannot be calculated
+- next advance square is empty on the after-board
+- occupying piece is not proven to belong to the blocking side
+- block is not newly created by the move
+- pre-existing blocked pawn
+- diagonal pawn contact only
+- capture event
+- passed pawn stop home
+- promotion
+- promotion threat
+- file opened
+- material gain
+- weak pawn wording
+- fixed pawn wording
+- blockade wording
+- restriction wording
+
+PBFN-3 standard:
+
+- A pawn block is not a weakness claim.
+- A pawn block is not a strategy claim.
+- A pawn block is not a passed-pawn stop claim.
+- Complete `PawnBlockProof` or silence.
+- `ScenePawnBlock` must not open ExplanationPlan, renderer text, LLM input,
+  public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: PBFN-3 closes when the negative corpus proves that illegal moves, missing same-board proof, missing blocked pawn identity, non-pawn blockers, same-side pawns, missing next-square calculation, empty after-board next squares, unproven occupying side, pre-existing blocks, diagonal contact, captures, passed-pawn stops, promotion, promotion threats, file-opened events, material-gain events, and weakness, fixed-pawn, blockade, or restriction wording all stay silent under `PawnBlockProof`, `ScenePawnBlock`, `StoryTable`, and downstream ExplanationPlan boundaries; a pawn block remains only the exact legal same-board event that one rival pawn's next advance square is occupied by the moving side after the move.
+
+### PBFN-4 EngineCheck Reuse
+
+PBFN-4 reuses only the existing `EngineCheck` boundary.
+
+PBFN-4 rules:
+
+- `EngineCheck` cannot create `Scene.PawnBlock`.
+- Supports does not create a new claim.
+- Caps suppresses standalone claim speech or weakens it to the bounded selected claim when a downstream claim is open.
+- Refutes makes the `Scene.PawnBlock` Story Blocked.
+- Unknown creates no engine expression.
+
+PBFN-4 forbidden:
+
+- engine says
+- eval numbers
+- best move
+- only move
+- wins pawn
+- restricts opponent
+- creates pressure
+- strategic blockade
+
+PBFN-4 downstream boundary:
+
+- PBFN-4 does not open ExplanationPlan for `Scene.PawnBlock`.
+- PBFN-4 does not open renderer text for `Scene.PawnBlock`.
+- PBFN-4 does not open LLM input for `Scene.PawnBlock`.
+- PBFN-4 does not open public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: PBFN-4 closes when `EngineCheck` attaches only to an already complete same-board `ScenePawnBlock` Story, cannot produce `Scene.PawnBlock` from engine evidence alone, Supports adds no chess claim, Caps suppresses or bounds downstream speech without opening PawnBlock wording, Refutes blocks the PawnBlock row, Unknown creates no engine expression, and engine-says, eval-number, best/only, wins-pawn, restriction, pressure, or strategic-blockade wording remains closed.
+
+### PBFN-5 StoryTable Integration
+
+PBFN-5 collides `Scene.PawnBlock` with existing rows.
+
+PBFN-5 collision targets:
+
+- `Scene.PawnStop`
+- `Scene.PawnBreak`
+- `Scene.PawnCapture`
+- `Scene.PassedPawnCreated`
+- `Scene.FileOpened`
+- `Scene.PawnAdvance`
+- `Scene.PromotionThreat`
+- `Scene.Promotion`
+- `Scene.Material`
+- Hanging
+- Defense
+- Line tactics
+- `Scene.PawnBlock`
+
+PBFN-5 verifies:
+
+- input order stability
+- `Scene.PawnBlock` does not own a PawnStop claim.
+- `Scene.PawnBlock` does not own PawnBreak contact or challenge.
+- `Scene.PawnBlock` does not own a Material claim.
+- `Scene.PawnBlock` does not create a PassedPawnCreated claim.
+- `Scene.PawnBlock` does not create a FileOpened claim.
+- actual passed-pawn next-square stop stays in `Scene.PawnStop`.
+- pawn contact or challenge stays in `Scene.PawnBreak`.
+- capped or refuted `Scene.PawnBlock` has no standalone text.
+
+PBFN-5 StoryTable boundary:
+
+- `Scene.PawnBlock` yields to every already-open claim home.
+- `Scene.PawnBlock` may remain selected only as the exact pawn-block event.
+- `Scene.PawnBlock` selection still does not open ExplanationPlan, renderer text,
+  LLM input, public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: PBFN-5 closes when StoryTable ordering is stable across input order, `Scene.PawnBlock` yields to every already-open claim home, PawnStop, PawnBreak, PawnCapture, PassedPawnCreated, FileOpened, PawnAdvance, PromotionThreat, Promotion, Material, Hanging, Defense, and Line tactics keep their own proof and speech homes, and capped or refuted PawnBlock rows produce no standalone text.
+
+### PBFN-6 ExplanationPlan
+
+PBFN-6 opens only `ExplanationPlan` for selected uncapped `Scene.PawnBlock` Lead Verdicts.
+
+PBFN-6 allowed claim key:
+
+- `blocks_pawn`
+
+PBFN-6 forbidden claim keys:
+
+- `stops_passed_pawn`
+- `challenges_pawn`
+- `captures_rival_pawn`
+- `creates_passed_pawn`
+- `opens_file`
+- `wins_pawn`
+- `wins_material`
+- `weakens_structure`
+- `fixes_pawn`
+- `creates_blockade`
+- `restricts_opponent`
+- `creates_pressure`
+- `takes_initiative`
+- `best_move`
+- `only_move`
+- `forced`
+
+PBFN-6 input boundary:
+
+- `ExplanationPlan.fromSelected` accepts only selected uncapped Lead `Scene.PawnBlock` Verdicts.
+- The Story must still be `Scene.PawnBlock`, `tactic = None`, `plan = None`, `writer = ScenePawnBlock`, and same-board proof-backed.
+- `target` remains the blocked rival pawn next advance square.
+- `anchor` remains the moving piece origin square.
+- `route` remains the legal blocking move.
+- `evidenceLine` is only that route.
+
+PBFN-6 no-standalone boundary:
+
+- Support, Context, Blocked, capped, and refuted `Scene.PawnBlock` rows have no standalone claim.
+- EngineCheck Supports does not create a new claim; it may accompany the already selected uncapped Lead claim only.
+- EngineCheck Caps suppresses standalone claim output.
+- EngineCheck Refutes keeps the row Blocked.
+
+PBFN-6 downstream boundary:
+
+- PBFN-6 does not open deterministic renderer text, LLM narration, public route `200`, production API, weakness wording, fixed-pawn wording, blockade wording, restriction wording, pressure wording, best-move wording, only-move wording, or forced wording.
+- `blocks_pawn` may mean only: this move blocks the rival pawn's next advance square on the exact after-board.
+- `blocks_pawn` may not mean PawnStop, PawnBreak, PawnCapture, PassedPawnCreated, FileOpened, material gain, weakness, fixed pawn, blockade strategy, restriction, pressure, initiative, best move, only move, or forced move.
+
+Completion standard: PBFN-6 closes when `ExplanationPlan.fromSelected` admits only selected uncapped Lead `Scene.PawnBlock` Verdicts, emits only `blocks_pawn`, rejects sibling pawn, material, weakness, blockade, restriction, pressure, best, only, and forced claim keys, and keeps Support, Context, Blocked, capped, and refuted PawnBlock rows without standalone claims.
+
+### PBFN-7 Deterministic Renderer
+
+PBFN-7 opens deterministic renderer text only from bounded PawnBlock ExplanationPlan.
+
+PBFN-7 renderer input boundary:
+
+- Renderer input is `ExplanationPlan` only.
+- Renderer does not accept Story, Verdict, PawnBlockProof, BoardFacts, EngineCheck, engine eval, or source rows.
+- Renderer may phrase only selected uncapped Lead `Scene.PawnBlock` plans with `claimKey = blocks_pawn`.
+- Support, Context, Blocked, capped, refuted, malformed, or sibling-claim plans have no standalone renderer text.
+
+PBFN-7 allowed renderer templates:
+
+- `{route} blocks the pawn on {blockedPawnSquare}.`
+- `{route} blocks the pawn from advancing.`
+
+PBFN-7 forbidden renderer wording:
+
+- `fixes the pawn`
+- `weakens the pawn`
+- `creates a weakness`
+- `creates a blockade`
+- `stops the passed pawn`
+- `restricts Black`
+- `takes space`
+- `creates pressure`
+- `wins a tempo`
+- `best move`
+- `only move`
+- `forces`
+
+PBFN-7 downstream boundary:
+
+- PBFN-7 does not open LLM narration, public route `200`, production API, weakness claim, fixed-pawn claim, blockade strategy, restriction, pressure, initiative, best move, only move, or forced move.
+- Renderer text may mean only: this move blocks the rival pawn's next advance square on the exact after-board.
+- Renderer text may not mean PawnStop, PawnBreak, PawnCapture, PassedPawnCreated, FileOpened, material gain, weakness, fixed pawn, blockade strategy, restriction, pressure, initiative, best move, only move, or forced move.
+
+Completion standard: PBFN-7 closes when DeterministicRenderer accepts only a bounded `blocks_pawn` ExplanationPlan, emits only bounded pawn-block text, rejects Support, Context, Blocked, capped, refuted, malformed, or sibling-claim plans, keeps forbidden pawn weakness, fixed-pawn, blockade, restriction, pressure, tempo, best, only, and force wording absent, and leaves LLM narration closed.
+
+### PBFN-8 LLM Smoke
+
+PBFN-8 reuses only the existing 8B LLM smoke boundary for selected bounded PawnBlock RenderedLine rephrases.
+
+PBFN-8 allowed LLM smoke input:
+
+- `renderedText`
+- `claimKey`
+- `strength`
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+PBFN-8 forbidden LLM smoke input:
+
+- raw Story
+- raw PawnBlockProof
+- PawnStopProof
+- BoardFacts
+- EngineCheck
+- raw PV
+- proofFailures
+
+PBFN-8 forbidden LLM smoke additions:
+
+- new move
+- new line
+- weakness claim
+- blockade claim
+- restriction claim
+- pressure claim
+- initiative claim
+- material claim
+- passed-pawn claim
+
+PBFN-8 downstream boundary:
+
+- PBFN-8 does not open public/user-facing LLM narration, public route `200`, production API, raw proof input, raw engine input, or any new chess meaning.
+- LLM smoke may echo or rephrase only the already rendered bounded pawn-block event.
+- LLM smoke may not add PawnStop, PawnBreak, PawnCapture, PassedPawnCreated, FileOpened, material, weakness, fixed pawn, blockade strategy, restriction, pressure, initiative, best move, only move, forced move, new move, or new line.
+
+Completion standard: PBFN-8 closes when LlmNarrationSmoke accepts only the renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.` prompt contract for bounded `blocks_pawn`, rejects raw Story, PawnBlockProof, PawnStopProof, BoardFacts, EngineCheck, raw PV, proofFailures, new moves, new lines, weakness, blockade, restriction, pressure, initiative, material, and passed-pawn additions, and keeps public narration and production API closed.
+
+### PBFNC-0 Pawn Blocking / Fixed Pawn Neighborhood Closeout
+
+PBFNC-0 opens no new chess meaning.
+
+Pawn Blocking / Fixed Pawn Neighborhood is closed with one narrow public event: a move blocks one rival pawn from advancing. It does not open fixed-pawn, weak-pawn, blockade, restriction, or pressure meaning.
+
+PBFNC-0 closeout authority separation:
+
+- proof home = `PawnBlockProof`
+- Story label = `Scene.PawnBlock`
+- writer = `ScenePawnBlock`
+- speech key = `blocks_pawn`
+- detailed authority document = `StoryInteractionLaw.md`
+
+PBFNC-0 duplication audit:
+
+- one chess meaning, one proof home
+- one Story label per public chess meaning
+- one speech key per allowed public claim
+- one detailed live authority document
+
+PBFNC-0 ownership audit:
+
+- `Scene.PawnBlock` does not own `Scene.PawnStop` meaning.
+- `Scene.PawnBlock` does not own `Scene.PawnBreak` meaning.
+- `Scene.PawnBlock` does not own `Scene.PawnCapture` meaning.
+- `Scene.PawnBlock` does not own `Scene.PassedPawnCreated` meaning.
+- `Scene.PawnBlock` does not own `Scene.FileOpened` meaning.
+- `Scene.PawnBlock` does not own Material, Hanging, Defense, Line tactic, or Defender tactic meaning.
+
+PBFNC-0 closed wording audit:
+
+- fixed pawn
+- weak pawn
+- blockade
+- restriction
+- pressure
+- initiative
+- best move
+- only move
+
+Closed wording may appear only as forbidden wording, negative corpus, or docs saying it remains closed.
+
+Renderer and LLM smoke wording must be no stronger than `blocks_pawn`.
+
+Public route `200`, production API, and public/user-facing LLM narration remain closed.
+
+Completion standard: PBFNC-0 closes when PawnBlockProof, Scene.PawnBlock, ScenePawnBlock, and blocks_pawn remain separated by layer; exactly one already-open public event remains open; PawnBlock owns no PawnStop, PawnBreak, PawnCapture, PassedPawnCreated, FileOpened, Material, Hanging, Defense, Line, or Defender tactic meaning; fixed-pawn, weak-pawn, blockade, restriction, pressure, initiative, best-move, and only-move wording remains forbidden or closed only; renderer and LLM smoke output stays no stronger than blocks_pawn; detailed authority stays in StoryInteractionLaw.md; summary docs remain summaries; and public route `200`, production API, and public/user-facing LLM narration stay closed.
+
+### PBFNC-1 Scope Audit
+
+PBFNC-1 verifies that no broader fixed-pawn or strategic structure claim is open.
+
+PBFNC-1 open positive Story labels:
+
+- `Scene.PawnBlock` only
+
+PBFNC-1 open proof homes:
+
+- `PawnBlockProof` only
+
+PBFNC-1 open speech keys:
+
+- `blocks_pawn` only
+
+PBFNC-1 closed Story labels:
+
+- `Scene.FixedPawn`
+- `Scene.WeakPawn`
+- `Scene.Blockade`
+- `Scene.Restriction`
+
+PBFNC-1 closed speech keys:
+
+- `fixed_pawn`
+- `weak_pawn`
+- `creates_blockade`
+- `restricts_opponent`
+- `creates_pressure`
+- `takes_initiative`
+
+PawnBlock is a move-created block event only.
+
+No broader fixed-pawn or strategic structure claim is open.
+
+Completion standard: PBFNC-1 closes when `Scene.PawnBlock`, `PawnBlockProof`, and `blocks_pawn` are the only open Pawn Blocking / Fixed Pawn Neighborhood Story label, proof home, and speech key; `Scene.FixedPawn`, `Scene.WeakPawn`, `Scene.Blockade`, `Scene.Restriction`, `fixed_pawn`, `weak_pawn`, `creates_blockade`, `restricts_opponent`, `creates_pressure`, and `takes_initiative` remain closed; and PawnBlock remains only a move-created block event, not a broader fixed-pawn or strategic structure claim.
+
+### PBFNC-2 Authority Duplication Audit
+
+PBFNC-2 verifies one chess meaning, one home.
+
+PBFNC-2 authority separation:
+
+- `PawnBlockProof` = exact diagnostic proof home
+- `Scene.PawnBlock` = public Story label
+- `blocks_pawn` = bounded speech key
+- `StoryInteractionLaw.md` = detailed authority document
+
+PBFNC-2 forbidden authority duplication:
+
+- `PawnBlockProof` must not be used as a public Story.
+- `Scene.PawnBlock` must not be used as a proof home.
+- `blocks_pawn` must not be used as proof or Story identity.
+- README, SSOT, Architecture, Contract, and Manifest must not duplicate detailed stage law.
+- `BoardFacts`, `PieceContact`, `PawnStopProof`, and `PawnBreakProof` must not replace PawnBlock authority.
+
+PBFNC-2 docs authority rule:
+
+- detailed authority is only in `StoryInteractionLaw.md`
+- other live docs keep summary only
+- docs authority tests must catch detailed-law duplication
+
+Completion standard: PBFNC-2 closes when `PawnBlockProof`, `Scene.PawnBlock`, `blocks_pawn`, and `StoryInteractionLaw.md` each keep one job; `PawnBlockProof` is not public Story, `Scene.PawnBlock` is not proof home, `blocks_pawn` is not proof or Story identity; README, SSOT, Architecture, Contract, and Manifest contain summary only; `BoardFacts`, `PieceContact`, `PawnStopProof`, and `PawnBreakProof` do not replace PawnBlock authority; and docs authority tests fail on duplicated detailed stage law outside `StoryInteractionLaw.md`.
+
+### PBFNC-3 Cross-Meaning Collision Audit
+
+PBFNC-3 collides PawnBlock with existing rows.
+
+PBFNC-3 collision targets:
+
+- `Scene.PawnStop`
+- `Scene.PawnBreak`
+- `Scene.PawnCapture`
+- `Scene.PassedPawnCreated`
+- `Scene.FileOpened`
+- `Scene.PawnAdvance`
+- `Scene.PromotionThreat`
+- `Scene.Promotion`
+- `Scene.Material`
+- `Tactic.Hanging`
+- `Scene.Defense`
+- Line / Defender tactics
+- `Scene.PawnBlock`
+
+PBFNC-3 ownership verification:
+
+- PawnBlock does not own PawnStop claim.
+- PawnBlock does not own PawnBreak contact/challenge.
+- PawnBlock does not own PawnCapture event.
+- PawnBlock does not own PassedPawnCreated event.
+- PawnBlock does not own FileOpened event.
+- PawnBlock does not own Material claim.
+- PawnBlock does not own Hanging, Defense, Line, or Defender tactic meaning.
+
+PBFNC-3 home criteria:
+
+- actual passed-pawn next-square stop = `Scene.PawnStop` home
+- pawn contact/challenge = `Scene.PawnBreak` home
+- pawn capture = `Scene.PawnCapture` home
+- new passer = `Scene.PassedPawnCreated` home
+- open file = `Scene.FileOpened` home
+- material change now = `Scene.Material` home
+
+Completion standard: PBFNC-3 closes when collision fixtures prove `Scene.PawnBlock` stays only the narrow move-created block event; `Scene.PawnStop`, `Scene.PawnBreak`, `Scene.PawnCapture`, `Scene.PassedPawnCreated`, `Scene.FileOpened`, `Scene.PawnAdvance`, `Scene.PromotionThreat`, `Scene.Promotion`, `Scene.Material`, `Tactic.Hanging`, `Scene.Defense`, and Line / Defender tactic rows keep their own proof homes, Story labels, and speech keys; and PawnBlock never owns those claims or emits standalone text for them.
+
+### PBFNC-4 StoryTable Stability Audit
+
+PBFNC-4 verifies PawnBlock inside StoryTable.
+
+PBFNC-4 StoryTable verification:
+
+- input order is stable
+- `Scene.PawnBlock` receives deterministic role under the same conditions
+- existing stronger homes keep their own meaning
+- invalid PawnBlock rows are Blocked
+- EngineCheck Refutes blocks PawnBlock Story
+- EngineCheck Supports creates no new claim
+- EngineCheck Caps suppresses standalone PawnBlock text or weakens it within the bounded claim
+- EngineCheck Unknown creates no engine expression
+- Support, Context, Blocked, capped, and refuted rows produce no standalone downstream text
+
+PBFNC-4 forbidden StoryTable wording:
+
+- engine says
+- eval number
+- best move
+- only move
+- restriction
+- pressure
+- initiative
+
+Completion standard: PBFNC-4 closes when StoryTable ordering is input-order stable; PawnBlock receives deterministic role under the same row set; stronger existing homes keep their own meaning; invalid, refuted, capped, Support, Context, and Blocked PawnBlock rows do not produce standalone downstream text; Supports adds no claim beyond `blocks_pawn`; Unknown adds no engine expression; and engine-says, eval-number, best-move, only-move, restriction, pressure, and initiative wording remain forbidden.
+
+### PBFNC-5 Downstream Boundary Audit
+
+PBFNC-5 verifies ExplanationPlan, Renderer, and LLM smoke for PawnBlock.
+
+PBFNC-5 downstream input:
+
+- selected uncapped Lead Verdict only
+
+PBFNC-5 allowed claim key:
+
+- `blocks_pawn`
+
+PBFNC-5 forbidden claim keys:
+
+- `fixed_pawn`
+- `weak_pawn`
+- `creates_blockade`
+- `restricts_opponent`
+- `creates_pressure`
+- `takes_initiative`
+- `stops_passed_pawn`
+- `challenges_pawn`
+- `captures_rival_pawn`
+- `creates_passed_pawn`
+- `opens_file`
+- `wins_material`
+- `best_move`
+- `only_move`
+- `forced`
+
+PBFNC-5 renderer allowed levels:
+
+- `{route} blocks the pawn on {target}.`
+- `{route} blocks the pawn from advancing.`
+
+PBFNC-5 renderer and LLM forbidden wording:
+
+- fixed pawn
+- weak pawn
+- blockade
+- restriction
+- pressure
+- initiative
+- strategy
+- best move
+- only move
+- forces
+- wins tempo
+
+Completion standard: PBFNC-5 closes when only selected uncapped Lead PawnBlock Verdicts lower to ExplanationPlan; the only allowed claim key is `blocks_pawn`; fixed_pawn, weak_pawn, creates_blockade, restricts_opponent, creates_pressure, takes_initiative, stops_passed_pawn, challenges_pawn, captures_rival_pawn, creates_passed_pawn, opens_file, wins_material, best_move, only_move, and forced remain forbidden; renderer output is no stronger than `{route} blocks the pawn on {target}.` or `{route} blocks the pawn from advancing.`; and Renderer plus LLM smoke reject fixed-pawn, weak-pawn, blockade, restriction, pressure, initiative, strategy, best-move, only-move, forces, and wins-tempo wording.
+
+### PBFNC-6 Forbidden Wording Authority Audit
+
+PBFNC-6 verifies that forbidden wording does not become live PawnBlock authority.
+
+PBFNC-6 forbidden wording:
+
+- fixed pawn
+- weak pawn
+- blockade
+- restriction
+- restricts
+- pressure
+- initiative
+- space advantage
+- strategic clamp
+- permanent weakness
+- best move
+- only move
+- forced
+
+PBFNC-6 allowed locations:
+
+- negative corpus
+- forbidden wording list
+- LLM smoke rejection list
+- closeout cleanup checklist
+
+PBFNC-6 forbidden authority locations:
+
+- public claim key
+- Story label
+- proof home
+- writer name
+- renderer template
+- positive summary sentence
+- README, SSOT, Architecture, Contract, or Manifest detailed authority
+
+Completion standard: PBFNC-6 closes when fixed pawn, weak pawn, blockade, restriction, restricts, pressure, initiative, space advantage, strategic clamp, permanent weakness, best move, only move, and forced appear only in negative corpus, forbidden wording lists, LLM smoke rejection lists, or closeout cleanup checklists; none become public claim keys, Story labels, proof homes, writer names, renderer templates, positive summary sentences, or detailed authority in README, SSOT, Architecture, Contract, or Manifest.
+
+### PBFNC-7 Documentation Simplification Audit
+
+PBFNC-7 verifies that PBFNC closeout detail has one live documentation home.
+
+PBFNC-7 detailed authority:
+
+- `StoryInteractionLaw.md` only
+
+PBFNC-7 summary-only documents:
+
+- `README.md`
+- `ChessCommentarySSOT.md`
+- `ChessModelArchitecture.md`
+- `ChessModelContract.md`
+- `LegacyPruneManifest.md`
+
+PBFNC-7 forbidden documentation duplication:
+
+- summary docs must not copy detailed PBFNC stage law
+- AGENTS.md must not change unless durable operator rules change
+- docs tests must reject detailed PBFNC law outside `StoryInteractionLaw.md`
+
+PBFNC-7 legacy and retired authority guard:
+
+- legacy reset archive docs are historical reference only
+- retired root authority docs must not return
+
+Completion standard: PBFNC-7 closes when the PBFNC closeout anchor and detailed PBFNC stage law live only in `StoryInteractionLaw.md`; README, SSOT, Architecture, Contract, and Manifest contain only the existing summary; AGENTS.md contains no PBFNC detailed law; summary docs reject copied PBFNC stage detail; legacy reset archive docs are not live authority; and retired root authority docs do not return.
+
+### PBFNC-8 Runtime Boundary Audit
+
+PBFNC-8 verifies that PawnBlock closeout does not open public or raw runtime surfaces.
+
+PBFNC-8 still closed:
+
+- public route `200`
+- production API
+- public/user-facing LLM narration
+- raw BoardFacts output
+- raw Story output
+- raw PawnBlockProof output
+- raw EngineCheck output
+- raw PV
+- proofFailures public payload
+
+PBFNC-8 route boundary:
+
+- `/api/commentary/render` remains fail-closed
+- `/internal/commentary/render-local-probe` remains fail-closed
+
+PBFNC-8 runtime handoff boundary:
+
+- Renderer input is `ExplanationPlan` only
+- LLM smoke input fields are renderedText, claimKey, strength, and forbidden wording only
+- `Verdict.values` keeps its fixed public-safe shape
+
+Completion standard: PBFNC-8 closes when `/api/commentary/render` and `/internal/commentary/render-local-probe` stay registered only as fail-closed tombstones with no `200`; production API and public/user-facing LLM narration remain closed; raw BoardFacts, raw Story, raw PawnBlockProof, raw EngineCheck, raw PV, and proofFailures never become public payload; Renderer accepts only ExplanationPlan; LLM smoke receives only renderedText, claimKey, strength, and forbidden wording contract fields; and `Verdict.values` keeps its fixed public-safe numeric shape without raw diagnostics.
+
+### PBFNC Final Completion Standard
+
+PBFNC final completion standard:
+
+- `Scene.PawnBlock` is the only open Pawn Blocking / Fixed Pawn Neighborhood positive Story
+- `PawnBlockProof`, `Scene.PawnBlock`, and `blocks_pawn` keep separate proof-home, Story-label, and speech-key authority
+- PawnBlock owns no PawnStop, PawnBreak, PawnCapture, PassedPawnCreated, or FileOpened meaning
+- PawnBlock owns no Material, Hanging, Defense, or Line / Defender tactic meaning
+- fixed pawn, weak pawn, blockade, restriction, pressure, and initiative remain outside live positive authority
+- StoryTable input order is stable
+- non-selected, capped, and refuted rows produce no standalone text
+- renderer and LLM wording is no stronger than `blocks_pawn`
+- detailed authority lives only in `StoryInteractionLaw.md`
+- summary docs remain summaries only
+- public route, production API, and public/user-facing LLM narration remain closed
+
+PBFNC final verification:
+
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+## King Check Neighborhood
+
+### CheckGiven-0 Charter
+
+CheckGiven-0 opens only the first King Check Neighborhood vertical slice.
+
+First positive scope:
+
+- a legal move gives check to the rival king on the exact after-board
+
+Player-facing bounded wording:
+
+- This move gives check.
+
+Core sentence:
+
+CheckGivenProof proves only the exact legal checking-move event. Scene.CheckGiven may speak only that event, not checkmate, mate threat, king safety, attack, initiative, pressure, force, best move, winning, or no-counterplay meaning.
+
+CheckGiven-0 opens only:
+
+- narrow `Scene.CheckGiven`
+- `CheckGivenProof`
+- legal move
+- checking side
+- rival side
+- rival king square after the move
+- after-board rival king is in check
+- exact-board legal replay
+- same-board proof
+- selected Verdict after bounded gives-check wording only
+
+CheckGiven-0 does not open:
+
+- mate threat
+- checkmate
+- king safety
+- unsafe king
+- attack
+- initiative
+- pressure
+- forced move
+- best move
+- only move
+- winning
+- decisive
+- no counterplay
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+CheckGiven-0 authority split:
+
+- `CheckGivenProof` proves only that one legal same-board move leaves the rival king in check.
+- `Scene.CheckGiven` owns only the bounded public Story identity for that event.
+- `gives_check` owns only the speech key for the bounded checking-move event.
+- BoardFacts may observe legal checking moves and check counts, but it does not create a public Story.
+- StoryTable may order an existing `Scene.CheckGiven`; it must not create one.
+- ExplanationPlan may lower only a selected uncapped Lead `Scene.CheckGiven` Verdict to `gives_check` after its stage opens.
+- Renderer and LLM smoke may phrase only the bounded checking event after their downstream stages explicitly open.
+
+CheckGiven-0 stays silent for:
+
+- illegal move
+- missing same-board proof
+- missing exact-board replay
+- after-board rival king not in check
+- missing rival king square
+- incomplete StoryProof
+- incomplete CheckGivenProof
+- writerless or contaminated rows
+- mate-threat, checkmate, king-safety, attack, pressure, initiative, forced, best-move, only-move, winning, decisive, or no-counterplay wording
+
+Completion standard: CheckGiven-0 closes when only a legal same-board move that leaves the rival king in check can become narrow `Scene.CheckGiven` through `CheckGivenProof`; illegal moves, missing same-board proof, missing replay, missing rival king identity, after-board no-check states, incomplete proof, writerless rows, and contaminated rows stay silent; mate threat, checkmate, king safety, unsafe king, attack, initiative, pressure, forced, best, only, winning, decisive, no-counterplay, public route `200`, production API, and public/user-facing LLM narration remain closed; and detailed CheckGiven authority lives only in `StoryInteractionLaw.md`.
+
+### CheckGiven-1 CheckGivenProof
+
+CheckGiven-1 opens only `CheckGivenProof` as the proof home for the first King Check Neighborhood slice.
+
+CheckGiven-1 proves:
+
+- checking side
+- rival side
+- legal move identity
+- moving piece identity when available
+- origin square
+- destination square
+- rival king square after the move
+- after-board rival king is in check
+- exact after-board replay
+- same-board proof
+- check was produced by this legal move
+
+CheckGiven-1 first scope:
+
+- any legal move whose exact after-board has the rival king in check
+- ordinary check, discovered check, double check, and promotion check are allowed only as gives-check events
+- no public distinction between check types
+
+CheckGiven-1 closed scope:
+
+- checkmate claim
+- mate threat claim
+- king-safety diagnosis
+- unsafe-king claim
+- attack claim
+- initiative / pressure
+- forced reply
+- best move / only move
+- winning / decisive
+- no counterplay
+
+CheckGiven-1 proof-home boundary:
+
+- CheckGivenProof is not a public Story.
+- CheckGivenProof must not create `Scene.CheckGiven`.
+- CheckGivenProof must not create a Verdict, ExplanationPlan, renderer text, LLM input, public route payload, or production API response.
+- BoardFacts legal check counts remain observations only.
+- CheckGivenProof does not replace `LineProof`, `PinProof`, `SkewerProof`, `RemoveGuardProof`, Material proof, `DefenseProof`, or pawn proof homes.
+- CheckGivenProof must not own mate, checkmate, king safety, attack, pressure, initiative, forced, best, only, winning, decisive, or no-counterplay meaning.
+
+Completion standard: CheckGiven-1 closes when `CheckGivenProof` proves only the checking side, rival side, legal move identity, origin, destination, rival king square, after-board rival-king-in-check state, exact after-board replay, same-board proof, and check-produced-by-this-move for one legal move; checkmate, mate threat, king safety, unsafe king, attack, pressure, initiative, forced, best, only, winning, decisive, and no-counterplay meanings remain closed; CheckGivenProof is not a public Story; and no new Story writer, Verdict, ExplanationPlan, renderer, LLM, public route `200`, production API, or public/user-facing LLM narration opens.
+
+### CheckGiven-2 Scene.CheckGiven Writer
+
+CheckGiven-2 opens only `SceneCheckGiven` as the named writer for `Scene.CheckGiven`.
+
+CheckGiven-2 writer conditions:
+
+- complete StoryProof
+- complete CheckGivenProof
+- same-board legal replay
+- legal move gives check on the exact after-board
+- rival king square is identified
+- after-board rival king is in check
+- writer = `SceneCheckGiven`
+- EngineCheck does not Refute
+
+CheckGiven-2 Story identity:
+
+- scene = `CheckGiven`
+- tactic = None
+- plan = None
+- side = checking side
+- rival = checked king side
+- target = rival king square after the move
+- anchor = moving piece origin square
+- route = legal checking move
+
+CheckGiven-2 forbidden writer ownership:
+
+- SceneCheckGiven must not create mate threat.
+- SceneCheckGiven must not create checkmate.
+- SceneCheckGiven must not create king safety or unsafe-king meaning.
+- SceneCheckGiven must not create attack, pressure, initiative, force, best-move, only-move, winning, decisive, or no-counterplay meaning.
+- SceneCheckGiven must not steal Line, Pin, Skewer, RemoveGuard, Material, Defense, Hanging, Fork, or pawn meanings.
+
+CheckGiven-2 downstream boundary:
+
+- CheckGiven-2 does not open ExplanationPlan.
+- CheckGiven-2 does not open renderer text.
+- CheckGiven-2 does not open LLM input.
+- CheckGiven-2 does not open public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: CheckGiven-2 closes when `SceneCheckGiven` writes only exact complete `CheckGivenProof` rows into `Scene.CheckGiven` with no tactic, no plan, checking side, rival side, target as the rival king square, anchor as the moving piece origin square, route as the legal checking move, no EngineCheck Refutes lead, and no mate, checkmate, king-safety, attack, pressure, initiative, forced, best, only, winning, decisive, no-counterplay, sibling tactic, material, defense, or pawn meaning; downstream ExplanationPlan, renderer, LLM, public route `200`, production API, and public/user-facing LLM narration remain closed.
+
+### CheckGiven-3 Negative Corpus
+
+CheckGiven-3 builds the negative corpus for `CheckGiven`.
+
+CheckGiven-3 must stay silent for:
+
+- legal move missing
+- illegal move
+- same-board proof missing
+- exact-board replay missing
+- after-board rival king not in check
+- rival king square missing
+- route mismatch
+- stale before/after board
+- incomplete StoryProof
+- incomplete CheckGivenProof
+- writerless row
+- contaminated sidecar row
+- BoardFacts check count without bound move proof
+- engine line showing check without an existing Story
+- raw PV checking move without an existing Story
+- checkmate wording
+- mate-threat wording
+- king-safety wording
+- attack wording
+- initiative wording
+- pressure wording
+- forced wording
+- best-move wording
+- only-move wording
+- winning / decisive / no-counterplay wording
+
+CheckGiven-3 standard:
+
+- A legal checking move is not a mate threat claim.
+- A legal checking move is not a checkmate claim.
+- A legal checking move is not a king-safety diagnosis.
+- A legal checking move is not an attack, pressure, initiative, best-move, only-move, forced, winning, decisive, or no-counterplay claim.
+- Complete CheckGivenProof or silence.
+- SceneCheckGiven must not open ExplanationPlan, renderer text, LLM input, public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: CheckGiven-3 closes when the negative corpus proves that illegal moves, missing same-board proof, missing replay, missing rival king identity, no after-board check, route mismatch, stale board proof, incomplete StoryProof, incomplete CheckGivenProof, writerless rows, contaminated rows, BoardFacts-only check counts, engine-only checking lines, raw PV checks, and mate-threat, checkmate, king-safety, attack, pressure, initiative, forced, best, only, winning, decisive, or no-counterplay wording all stay silent under CheckGivenProof, SceneCheckGiven, StoryTable, and downstream ExplanationPlan boundaries; CheckGiven remains only the exact legal same-board event that the move gives check.
+
+### CheckGiven-4 EngineCheck Reuse
+
+CheckGiven-4 reuses only the existing `EngineCheck` boundary for `Scene.CheckGiven`.
+
+CheckGiven-4 rules:
+
+- EngineCheck cannot create `Scene.CheckGiven`.
+- Supports does not create a new claim.
+- Caps suppresses standalone claim speech or keeps downstream speech bounded to `gives_check`.
+- Refutes makes the `Scene.CheckGiven` Story Blocked.
+- Unknown creates no engine expression.
+- Engine evidence must bind to the same Story route and same legal line.
+
+CheckGiven-4 forbidden engine wording:
+
+- engine says this is check
+- eval number
+- best move
+- only move
+- forced check
+- winning check
+- decisive check
+- mate threat
+- checkmate
+- raw PV explanation
+- no counterplay
+
+CheckGiven-4 downstream boundary:
+
+- CheckGiven-4 does not open ExplanationPlan for `Scene.CheckGiven`.
+- CheckGiven-4 does not open renderer text for `Scene.CheckGiven`.
+- CheckGiven-4 does not open LLM input for `Scene.CheckGiven`.
+- CheckGiven-4 does not open public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: CheckGiven-4 closes when EngineCheck attaches only to an already complete same-board `SceneCheckGiven` Story, cannot produce `Scene.CheckGiven` from engine evidence alone, Supports adds no chess claim, Caps suppresses or bounds downstream speech without opening CheckGiven wording early, Refutes blocks the CheckGiven row, Unknown creates no engine expression, and engine-says, eval-number, best, only, forced, winning, decisive, mate-threat, checkmate, raw-PV, and no-counterplay wording remain closed.
+
+### CheckGiven-5 StoryTable Integration
+
+CheckGiven-5 integrates `Scene.CheckGiven` into StoryTable only as an already existing proof-backed Story.
+
+CheckGiven-5 collision targets:
+
+- `Scene.CheckGiven`
+- `Scene.Material`
+- `Tactic.Hanging`
+- `Tactic.Fork`
+- `Scene.Defense`
+- `Tactic.DiscoveredAttack`
+- `Tactic.Pin`
+- `Tactic.RemoveGuard`
+- `Tactic.Skewer`
+- open pawn/file scenes:
+- `Scene.PawnAdvance`
+- `Scene.PawnStop`
+- `Scene.PromotionThreat`
+- `Scene.Promotion`
+- `Scene.PawnBreak`
+- `Scene.PawnCapture`
+- `Scene.PassedPawnCreated`
+- `Scene.FileOpened`
+- `Scene.PawnBlock`
+
+CheckGiven-5 verifies:
+
+- input order stability
+- Scene.CheckGiven does not own mate threat.
+- Scene.CheckGiven does not own checkmate.
+- Scene.CheckGiven does not own king safety.
+- Scene.CheckGiven does not own attack, pressure, initiative, force, best, only, winning, decisive, or no-counterplay meaning.
+- Existing material, defense, line/defender, hanging, fork, and pawn/file claim homes keep their own proof and speech homes.
+- Capped or refuted Scene.CheckGiven has no standalone text.
+- Support, Context, and Blocked CheckGiven rows do not lower to standalone text.
+
+CheckGiven-5 StoryTable boundary:
+
+- StoryTable may select an existing complete `Scene.CheckGiven` row.
+- StoryTable must not create `Scene.CheckGiven`.
+- Scene.CheckGiven may lead only as the exact checking-move event.
+- Selection still does not open renderer text, LLM input, public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: CheckGiven-5 closes when StoryTable ordering is stable across input order, Scene.CheckGiven keeps only the bounded legal-checking-move event, every already-open claim home keeps its own proof and speech ownership, Scene.CheckGiven never steals mate, checkmate, king-safety, attack, pressure, initiative, force, best, only, winning, decisive, no-counterplay, material, defense, line/defender, hanging, fork, or pawn/file meaning, and capped, refuted, Support, Context, or Blocked CheckGiven rows produce no standalone text.
+
+### CheckGiven-6 ExplanationPlan
+
+CheckGiven-6 opens only `ExplanationPlan` for selected uncapped Lead `Scene.CheckGiven` Verdicts.
+
+CheckGiven-6 allowed claim key:
+
+- `gives_check`
+
+CheckGiven-6 forbidden claim keys:
+
+- `mate_threat`
+- `checkmate`
+- `king_unsafe`
+- `attacks_king`
+- `creates_attack`
+- `creates_pressure`
+- `takes_initiative`
+- `forces_reply`
+- `best_move`
+- `only_move`
+- `winning`
+- `decisive`
+- `no_counterplay`
+
+CheckGiven-6 input boundary:
+
+- ExplanationPlan.fromSelected accepts only selected uncapped Lead `Scene.CheckGiven` Verdicts.
+- The Story must still be `Scene.CheckGiven`, tactic = None, plan = None, writer = `SceneCheckGiven`, and same-board proof-backed.
+- target remains the rival king square after the move.
+- anchor remains the moving piece origin square.
+- route remains the legal checking move.
+- evidenceLine is only that route.
+
+CheckGiven-6 no-standalone boundary:
+
+- Support, Context, Blocked, capped, and refuted `Scene.CheckGiven` rows have no standalone claim.
+- EngineCheck Supports does not create a new claim; it may accompany the already selected uncapped Lead claim only.
+
+CheckGiven-6 downstream boundary:
+
+- CheckGiven-6 does not open renderer text.
+- CheckGiven-6 does not open LLM input.
+- CheckGiven-6 does not open public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: CheckGiven-6 closes when `ExplanationPlan.fromSelected` lowers only selected uncapped Lead `Scene.CheckGiven` Verdicts to `gives_check` with target as the rival king square, anchor as the moving piece origin square, route and evidenceLine as the legal checking move, complete same-board CheckGivenProof still bound to the Story, Support, Context, Blocked, capped, and refuted rows silent, EngineCheck Supports adding no new claim, forbidden mate-threat, checkmate, king-unsafe, king-attack, attack-creation, pressure, initiative, forced-reply, best, only, winning, decisive, and no-counterplay claim keys closed, and renderer, LLM, public route `200`, production API, and public/user-facing LLM narration still closed.
+
+### CheckGiven-7 DeterministicRenderer
+
+CheckGiven-7 opens deterministic renderer text only from bounded `CheckGiven` `ExplanationPlan`.
+
+CheckGiven-7 renderer input boundary:
+
+- Renderer input is `ExplanationPlan` only.
+- Renderer does not accept Story, Verdict, CheckGivenProof, BoardFacts, EngineCheck, engine eval, raw PV, proofFailures, or source rows.
+- Renderer may phrase only selected uncapped Lead `Scene.CheckGiven` plans with claimKey = `gives_check`.
+- Support, Context, Blocked, capped, refuted, malformed, or sibling-claim plans have no standalone renderer text.
+
+CheckGiven-7 allowed renderer templates:
+
+- `{route} gives check.`
+- `{route} checks the king.`
+
+CheckGiven-7 forbidden renderer wording:
+
+- threatens mate
+- checkmate
+- mates
+- the king is unsafe
+- starts an attack
+- creates pressure
+- takes the initiative
+- forces
+- best move
+- only move
+- winning
+- decisive
+- no counterplay
+- engine says
+
+CheckGiven-7 downstream boundary:
+
+- CheckGiven-7 does not open LLM narration, public route `200`, production API, mate threat, checkmate, king safety, attack, pressure, initiative, forced, best move, only move, winning, decisive, or no-counterplay meaning.
+- Renderer text may mean only: this legal move gives check to the rival king on the exact after-board.
+
+Completion standard: CheckGiven-7 closes when `DeterministicRenderer` accepts only a bounded `gives_check` `ExplanationPlan`, emits only bounded check-given text, rejects Support, Context, Blocked, capped, refuted, malformed, or sibling-claim plans, keeps forbidden mate, checkmate, king-safety, attack, pressure, initiative, force, best, only, winning, decisive, no-counterplay, and engine wording absent, and leaves public/user-facing LLM narration closed.
+
+### CheckGiven-8 LLM Smoke
+
+CheckGiven-8 reuses only the existing 8B LLM smoke boundary for selected bounded CheckGiven `RenderedLine` rephrases.
+
+CheckGiven-8 allowed LLM smoke input:
+
+- renderedText
+- claimKey
+- strength
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+CheckGiven-8 forbidden LLM smoke input:
+
+- raw Story
+- raw CheckGivenProof
+- BoardFacts
+- EngineCheck
+- engine eval
+- raw PV
+- proofFailures
+- source rows
+
+CheckGiven-8 forbidden LLM smoke additions:
+
+- new move
+- new line
+- mate threat
+- checkmate
+- king safety
+- unsafe king
+- attack
+- initiative
+- pressure
+- forced reply
+- best move
+- only move
+- winning
+- decisive
+- no counterplay
+- engine mention
+
+CheckGiven-8 downstream boundary:
+
+- CheckGiven-8 does not open public/user-facing LLM narration, public route `200`, production API, raw proof input, raw engine input, or any new chess meaning.
+- LLM smoke may echo or rephrase only the already rendered bounded `gives_check` event.
+- LLM smoke may not add mate, checkmate, king-safety, attack, pressure, initiative, force, best, only, winning, decisive, no-counterplay, new move, new line, or engine explanation.
+
+Completion standard: CheckGiven-8 closes when `LlmNarrationSmoke` accepts only renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.` for bounded `gives_check`; rejects raw Story, CheckGivenProof, BoardFacts, EngineCheck, raw PV, proofFailures, new moves, new lines, mate, checkmate, king-safety, attack, pressure, initiative, forced, best, only, winning, decisive, no-counterplay, and engine additions; and keeps public narration and production API closed.
+
+### CheckGiven-9 Closeout / Hard Cleanup
+
+CheckGiven-9 opens no new chess meaning.
+
+CheckGiven-9 closes only the already-open narrow event:
+
+a legal move gives check to the rival king on the exact after-board
+
+CheckGiven-9 authority audit:
+
+- CheckGivenProof owns the proof home.
+- `Scene.CheckGiven` owns the Story label.
+- SceneCheckGiven owns the named writer.
+- `gives_check` owns the speech key.
+- These authorities are not interchangeable.
+- BoardFacts legal check counts and check observations remain observations only.
+- EngineCheck may support, cap, refute, or remain unknown only for an existing `Scene.CheckGiven` Story, and cannot create one.
+
+CheckGiven-9 duplication audit:
+
+- one chess meaning: legal move gives check
+- one proof home: CheckGivenProof
+- one Story label: `Scene.CheckGiven`
+- one named writer: SceneCheckGiven
+- one speech key: `gives_check`
+- one detailed live authority document: `StoryInteractionLaw.md`
+
+CheckGiven-9 collision audit:
+
+- `Scene.CheckGiven` owns no mate threat.
+- `Scene.CheckGiven` owns no checkmate.
+- `Scene.CheckGiven` owns no king safety or unsafe-king meaning.
+- `Scene.CheckGiven` owns no attack, pressure, initiative, force, best, only, winning, decisive, or no-counterplay meaning.
+- `Scene.CheckGiven` owns no Material, Hanging, Fork, Defense, Line, Defender, or pawn/file meaning.
+- Existing opened Story labels keep their proof homes, Story labels, and speech keys.
+
+CheckGiven-9 downstream audit:
+
+- `gives_check` says only that the legal move gives check on the exact after-board.
+- Renderer and LLM smoke wording must stay no stronger than bounded `gives_check`.
+- Support, Context, Blocked, capped, and refuted rows have no standalone CheckGiven text.
+- Raw proof failures, raw engine eval, raw PV, source rows, and BoardFacts check counts never become public wording.
+
+CheckGiven-9 documentation audit:
+
+- Detailed CheckGiven stage law, negative corpus, closeout checklist, forbidden wording, and duplication audit live only in `StoryInteractionLaw.md`.
+- README, SSOT, Architecture, Contract, and Manifest may summarize only if docs tests require it.
+- AGENTS.md remains unchanged unless durable operator rules change.
+
+CheckGiven-9 public-surface audit:
+
+- public route `200` remains closed.
+- production API remains closed.
+- public/user-facing LLM narration remains closed.
+- Existing LLM smoke remains bounded internal smoke only.
+
+Completion standard: CheckGiven-9 closes when CheckGivenProof, `Scene.CheckGiven`, SceneCheckGiven, and `gives_check` remain separated by layer; exactly one narrow public event is open; CheckGiven owns no mate, checkmate, king-safety, attack, pressure, initiative, force, best, only, winning, decisive, no-counterplay, Material, Hanging, Fork, Defense, Line, Defender, or pawn/file meaning; renderer and LLM smoke output stays no stronger than `gives_check`; detailed authority stays only in `StoryInteractionLaw.md`; summary docs remain summaries; public route `200`, production API, and public/user-facing LLM narration stay closed; targeted runtime tests pass; docs authority tests pass when touched; and git diff --check passes.
+
+### CheckEscaped-0 Charter
+
+CheckEscaped-0 opens only the second King Check Neighborhood vertical slice.
+
+First positive scope:
+
+before-board side king is in check, the side plays a legal move, and the exact after-board side king is not in check
+
+Player-facing bounded wording:
+
+This move gets out of check.
+
+Core sentence:
+
+CheckEscapedProof proves only the exact legal check-escape event. Scene.CheckEscaped may speak only that event, not how the check was escaped, not checkmate avoidance, not king safety, not defense quality, not forced move, not best move, and not winning or decisive meaning.
+
+CheckEscaped-0 opens only:
+
+- narrow `Scene.CheckEscaped`
+- `CheckEscapedProof`
+- legal move
+- escaping side
+- rival side
+- side king square before the move
+- before-board side king is in check
+- side king square after the move
+- after-board side king is not in check
+- exact-board legal replay
+- same-board proof
+- selected Verdict after bounded check-escape wording only
+
+CheckEscaped-0 does not open:
+
+- `Scene.KingMovedOutOfCheck`
+- `Scene.CheckBlocked`
+- `Scene.CheckingPieceCaptured`
+- `king_escapes_check`
+- `blocks_check`
+- `captures_checker`
+- mate threat
+- checkmate
+- avoids mate
+- king safety
+- safe king
+- unsafe king
+- defense success beyond escaping check
+- refutes attack
+- forced move
+- only move
+- best move
+- winning
+- decisive
+- no counterplay
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+CheckEscaped-0 authority split:
+
+- `CheckEscapedProof` proves only that one legal same-board move changes the moving side from in check before the move to not in check after the move.
+- `Scene.CheckEscaped` owns only the bounded public Story identity for that check-escape event.
+- `escapes_check` owns only the speech key for the bounded check-escape event.
+- BoardFacts may observe check state, legal moves, king squares, check counts, and legal replay, but it does not own this public event proof.
+- Escape method details such as king move, interposition, or checking-piece capture may be internal proof detail only. They are not public Story labels and not speech keys.
+- StoryTable may order an existing `Scene.CheckEscaped`; it must not create one.
+- ExplanationPlan may lower only a selected uncapped Lead `Scene.CheckEscaped` Verdict to `escapes_check`.
+- Renderer and LLM smoke may phrase only the bounded check-escape event; public/user-facing LLM narration remains closed.
+
+CheckEscaped-0 stays silent for:
+
+- illegal move
+- missing same-board proof
+- missing exact-board replay
+- before-board side king not in check
+- after-board side king still in check
+- missing before king square
+- missing after king square
+- missing legal move identity
+- incomplete StoryProof
+- incomplete CheckEscapedProof
+- writerless or contaminated rows
+- claims that the move was forced, best, only, winning, decisive, or no-counterplay
+- claims that the king is now safe beyond the exact not-in-check state
+- claims that the move blocks check, captures the checker, or moves the king as standalone public meaning
+- mate-threat, checkmate, avoids-mate, king-safety, defense-success, refutes-attack, pressure, initiative, forced, best-move, only-move, winning, decisive, or no-counterplay wording
+
+CheckEscaped-0 duplication audit:
+
+- one chess meaning: legal move gets out of check
+- one proof home: CheckEscapedProof
+- one Story label: `Scene.CheckEscaped`
+- one named writer: SceneCheckEscaped
+- one speech key: `escapes_check`
+- one detailed live authority document: `StoryInteractionLaw.md`
+
+Completion standard: CheckEscaped-0 closes when only a legal same-board move from a before-board check state to an exact after-board non-check state can become narrow `Scene.CheckEscaped` through `CheckEscapedProof`; illegal moves, missing same-board proof, missing replay, before-board non-check states, after-board still-check states, missing king identity, incomplete proof, writerless rows, and contaminated rows stay silent; `Scene.KingMovedOutOfCheck`, `Scene.CheckBlocked`, `Scene.CheckingPieceCaptured`, `king_escapes_check`, `blocks_check`, `captures_checker`, mate threat, checkmate, avoids mate, king safety, safe king, defense success, refutes attack, forced, best, only, winning, decisive, no-counterplay, public route `200`, production API, and public/user-facing LLM narration remain closed; and detailed CheckEscaped authority lives only in `StoryInteractionLaw.md`.
+
+### CheckEscaped-1 CheckEscapedProof
+
+CheckEscaped-1 opens only `CheckEscapedProof` as the proof home for the second King Check Neighborhood slice.
+
+CheckEscaped-1 proves:
+
+- escaping side
+- rival side
+- legal move identity
+- moving piece identity when available
+- origin square
+- destination square
+- side king square before the move
+- before-board side king is in check
+- side king square after the move
+- after-board side king is not in check
+- exact before-board state
+- exact after-board replay
+- same-board proof
+- check escape was produced by this legal move
+
+CheckEscaped-1 first scope:
+
+- any legal move that starts with the moving side in check and ends with that same side not in check on the exact after-board
+- king move, interposition, checking-piece capture, discovered counter-check, and promotion escape are allowed only as internal proof shapes for the single escape event
+- no public distinction between escape methods
+
+CheckEscaped-1 closed scope:
+
+- public `Scene.KingMovedOutOfCheck`
+- public `Scene.CheckBlocked`
+- public `Scene.CheckingPieceCaptured`
+- `king_escapes_check`
+- `blocks_check`
+- `captures_checker`
+- checkmate avoidance
+- mate threat
+- king-safety diagnosis
+- safe-king claim
+- defense-success claim
+- forced reply
+- best move / only move
+- winning / decisive
+- no counterplay
+
+Proof-home boundary:
+
+- `CheckEscapedProof` is not a public Story.
+- `CheckEscapedProof` must not create `Scene.CheckEscaped`.
+- `CheckEscapedProof` must not create a Verdict, ExplanationPlan, renderer text, LLM input, public route payload, or production API response.
+- BoardFacts check state and legal replay remain observations only.
+- `CheckEscapedProof` does not replace `CheckGivenProof`, `DefenseProof`, `LineProof`, `PinProof`, `SkewerProof`, `RemoveGuardProof`, Material proof, or pawn proof homes.
+- Escape-method detail may be diagnostic only. It must not become public Story identity, speech key, renderer wording, or LLM input.
+- `CheckEscapedProof` must not own mate, checkmate, king safety, attack, pressure, initiative, forced, best, only, winning, decisive, or no-counterplay meaning.
+
+Completion standard: CheckEscaped-1 closes when `CheckEscapedProof` proves only the escaping side, rival side, legal move identity, origin, destination, before king square, before-board in-check state, after king square, after-board not-in-check state, exact after-board replay, same-board proof, and check-escape-produced-by-this-move for one legal move; `Scene.KingMovedOutOfCheck`, `Scene.CheckBlocked`, `Scene.CheckingPieceCaptured`, `king_escapes_check`, `blocks_check`, `captures_checker`, checkmate avoidance, mate threat, king safety, safe-king, defense-success, forced, best, only, winning, decisive, and no-counterplay meanings remain closed; `CheckEscapedProof` is not a public Story; and no new Story writer, Verdict, ExplanationPlan, renderer, LLM, public route `200`, production API, or public/user-facing LLM narration opens.
+
+### CheckEscaped-2 Scene.CheckEscaped Writer
+
+CheckEscaped-2 opens only `SceneCheckEscaped` as the named writer for `Scene.CheckEscaped`.
+
+CheckEscaped-2 writer conditions:
+
+- complete StoryProof
+- complete `CheckEscapedProof`
+- same-board legal replay
+- legal move starts from a before-board check state for the moving side
+- legal move leaves that same side not in check on the exact after-board
+- before king square is identified
+- after king square is identified
+- writer = `SceneCheckEscaped`
+- EngineCheck does not Refute
+
+CheckEscaped-2 Story identity:
+
+- scene = `CheckEscaped`
+- tactic = None
+- plan = None
+- side = escaping side
+- rival = checking side / rival side
+- target = side king square after the move
+- anchor = moving piece origin square
+- route = legal escape move
+
+CheckEscaped-2 forbidden writer ownership:
+
+- `SceneCheckEscaped` must not create `Scene.KingMovedOutOfCheck`.
+- `SceneCheckEscaped` must not create `Scene.CheckBlocked`.
+- `SceneCheckEscaped` must not create `Scene.CheckingPieceCaptured`.
+- `SceneCheckEscaped` must not create `king_escapes_check`, `blocks_check`, or `captures_checker`.
+- `SceneCheckEscaped` must not create mate threat, checkmate, avoids-mate, king-safety, safe-king, unsafe-king, defense-success, refutes-attack, force, best-move, only-move, winning, decisive, or no-counterplay meaning.
+- `SceneCheckEscaped` must not steal `Scene.CheckGiven`, Line, Pin, Skewer, RemoveGuard, Material, Defense, Hanging, Fork, or pawn meanings.
+
+CheckEscaped-2 downstream boundary:
+
+- CheckEscaped-2 does not open ExplanationPlan.
+- CheckEscaped-2 does not open renderer text.
+- CheckEscaped-2 does not open LLM input.
+- CheckEscaped-2 does not open public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: CheckEscaped-2 closes when `SceneCheckEscaped` writes only exact complete `CheckEscapedProof` rows into `Scene.CheckEscaped` with no tactic, no plan, escaping side, rival side, target as the escaping side king square after the move, anchor as the moving piece origin square, route as the legal escape move, no EngineCheck Refutes lead, and no public king-moved, check-blocked, checker-captured, mate, checkmate, king-safety, defense-success, pressure, initiative, forced, best, only, winning, decisive, no-counterplay, sibling CheckGiven, tactic, material, defense, or pawn meaning; downstream ExplanationPlan, renderer, LLM, public route `200`, production API, and public/user-facing LLM narration remain closed.
+
+### CheckEscaped-3 Negative Corpus
+
+CheckEscaped-3 builds the negative corpus for `CheckEscaped`.
+
+CheckEscaped-3 must stay silent for:
+
+- legal move missing
+- illegal move
+- same-board proof missing
+- exact-board replay missing
+- before-board side king not in check
+- after-board side king still in check
+- side king missing before the move
+- side king missing after the move
+- route mismatch
+- stale before/after board
+- incomplete StoryProof
+- incomplete CheckEscapedProof
+- writerless row
+- contaminated sidecar row
+- BoardFacts in-check bit without bound move proof
+- legal move count without bound move proof
+- engine line showing an escape without an existing Story
+- raw PV escape without an existing Story
+- public king-moved-out-of-check wording
+- public blocks-check wording
+- public captures-checker wording
+- checkmate-avoidance wording
+- mate-threat wording
+- king-safety wording
+- safe-king wording
+- defense-success wording
+- refutes-attack wording
+- initiative wording
+- pressure wording
+- forced wording
+- best-move wording
+- only-move wording
+- winning / decisive / no-counterplay wording
+
+CheckEscaped-3 standard:
+
+- Escaping check is not checkmate avoidance.
+- Escaping check is not a king-safety diagnosis.
+- Escaping check is not proof that the move was forced, best, or only.
+- Escaping check is not a defense-success claim beyond the exact not-in-check after-board state.
+- Escape method detail is not a public Story.
+- Complete `CheckEscapedProof` or silence.
+- `SceneCheckEscaped` must not open ExplanationPlan, renderer text, LLM input, public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: CheckEscaped-3 closes when the negative corpus proves that illegal moves, missing same-board proof, missing replay, before-board non-check states, after-board still-check states, missing king identity, route mismatch, stale board proof, incomplete StoryProof, incomplete CheckEscapedProof, writerless rows, contaminated rows, BoardFacts-only check state, legal-count-only input, engine-only escape lines, raw PV escapes, and public king-moved, blocks-check, captures-checker, mate-avoidance, checkmate, king-safety, safe-king, defense-success, refutes-attack, pressure, initiative, forced, best, only, winning, decisive, or no-counterplay wording all stay silent under `CheckEscapedProof`, `SceneCheckEscaped`, StoryTable, and downstream ExplanationPlan boundaries; CheckEscaped remains only the exact legal same-board event that the moving side gets out of check.
+
+### CheckEscaped-4 EngineCheck Reuse
+
+CheckEscaped-4 reuses only the existing `EngineCheck` boundary for `Scene.CheckEscaped`.
+
+CheckEscaped-4 rules:
+
+- EngineCheck cannot create `Scene.CheckEscaped`.
+- Supports does not create a new claim.
+- Caps suppresses standalone claim speech or keeps downstream speech bounded to `escapes_check`.
+- Refutes makes the `Scene.CheckEscaped` Story Blocked.
+- Unknown creates no engine expression.
+- Engine evidence must bind to the same Story route and same legal line.
+
+CheckEscaped-4 forbidden engine wording:
+
+- engine says this escapes check
+- eval number
+- best move
+- only move
+- forced move
+- forced escape
+- winning escape
+- decisive escape
+- avoids mate
+- checkmate defense
+- raw PV explanation
+- no counterplay
+
+CheckEscaped-4 downstream boundary:
+
+- CheckEscaped-4 does not open ExplanationPlan for `Scene.CheckEscaped`.
+- CheckEscaped-4 does not open renderer text for `Scene.CheckEscaped`.
+- CheckEscaped-4 does not open LLM input for `Scene.CheckEscaped`.
+- CheckEscaped-4 does not open public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: CheckEscaped-4 closes when EngineCheck attaches only to an already complete same-board `SceneCheckEscaped` Story, cannot produce `Scene.CheckEscaped` from engine evidence alone, Supports adds no chess claim, Caps suppresses or bounds downstream speech without opening CheckEscaped wording early, Refutes blocks the CheckEscaped row, Unknown creates no engine expression, and engine-says, eval-number, best, only, forced, winning, decisive, avoids-mate, checkmate-defense, raw-PV, and no-counterplay wording remain closed.
+
+### CheckEscaped-5 StoryTable Integration
+
+CheckEscaped-5 integrates `Scene.CheckEscaped` into StoryTable only as an
+already existing proof-backed Story.
+
+CheckEscaped-5 collision targets:
+
+- `Scene.CheckEscaped`
+- `Scene.CheckGiven`
+- `Scene.Material`
+- Tactic.Hanging
+- Tactic.Fork
+- `Scene.Defense`
+- Tactic.DiscoveredAttack
+- Tactic.Pin
+- Tactic.RemoveGuard
+- Tactic.Skewer
+- open pawn/file scenes:
+  - `Scene.PawnAdvance`
+  - `Scene.PawnStop`
+  - `Scene.PromotionThreat`
+  - `Scene.Promotion`
+  - `Scene.PawnBreak`
+  - `Scene.PawnCapture`
+  - `Scene.PassedPawnCreated`
+  - `Scene.FileOpened`
+  - `Scene.PawnBlock`
+
+CheckEscaped-5 verifies:
+
+- input order stability.
+- `Scene.CheckEscaped` does not own `Scene.CheckGiven` meaning.
+- `Scene.CheckGiven` does not own `Scene.CheckEscaped` meaning.
+- cross-check positions may have both proof-backed rows, but each row keeps its own proof home, Story label, and speech key.
+- `Scene.CheckEscaped` does not own `Scene.KingMovedOutOfCheck`, `Scene.CheckBlocked`, or `Scene.CheckingPieceCaptured`.
+- `Scene.CheckEscaped` does not own mate threat, checkmate, avoids-mate, king safety, safe king, attack, pressure, initiative, force, best, only, winning, decisive, or no-counterplay meaning.
+- existing material, defense, line/defender, hanging, fork, CheckGiven, and pawn/file claim homes keep their own proof and speech homes.
+- capped or refuted `Scene.CheckEscaped` has no standalone text.
+- Support, Context, and Blocked CheckEscaped rows do not lower to standalone text.
+
+CheckEscaped-5 StoryTable boundary:
+
+- StoryTable may select an existing complete `Scene.CheckEscaped` row.
+- StoryTable must not create `Scene.CheckEscaped`.
+- `Scene.CheckEscaped` may lead only as the exact check-escape event.
+- if CheckEscaped and CheckGiven both exist for a cross-check move, selection order must be deterministic and neither row may borrow the other's claim key.
+- selection still does not open renderer text, LLM input, public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: CheckEscaped-5 closes when StoryTable ordering is stable across input order, `Scene.CheckEscaped` keeps only the bounded legal check-escape event, `Scene.CheckGiven` keeps only the bounded legal gives-check event, cross-check rows remain separated by proof home, Story label, writer, and speech key, every already-open claim home keeps its own proof and speech ownership, `Scene.CheckEscaped` never steals public king-moved, check-blocked, checker-captured, mate, checkmate, king-safety, attack, pressure, initiative, force, best, only, winning, decisive, no-counterplay, material, defense, line/defender, hanging, fork, or pawn/file meaning, and capped, refuted, Support, Context, or Blocked CheckEscaped rows produce no standalone text.
+
+### CheckEscaped-6 ExplanationPlan
+
+CheckEscaped-6 opens only `ExplanationPlan` for selected uncapped Lead
+`Scene.CheckEscaped` Verdicts.
+
+CheckEscaped-6 allowed claim key:
+
+- `escapes_check`
+
+CheckEscaped-6 forbidden claim keys:
+
+- `king_escapes_check`
+- `blocks_check`
+- `captures_checker`
+- `gives_check`
+- `avoids_mate`
+- `mate_threat`
+- `checkmate`
+- `king_safe`
+- `king_unsafe`
+- `refutes_attack`
+- `defends_position`
+- `creates_attack`
+- `creates_pressure`
+- `takes_initiative`
+- `forces_reply`
+- `best_move`
+- `only_move`
+- `winning`
+- `decisive`
+- `no_counterplay`
+
+CheckEscaped-6 input boundary:
+
+- `ExplanationPlan.fromSelected` accepts only selected uncapped Lead `Scene.CheckEscaped` Verdicts.
+- the Story must still be `Scene.CheckEscaped`, tactic = None, plan = None, writer = `SceneCheckEscaped`, and same-board proof-backed.
+- `target` remains the escaping side king square after the move.
+- `anchor` remains the moving piece origin square.
+- `route` remains the legal escape move.
+- `evidenceLine` is only that route.
+- `CheckEscapedProof` must still bind before-board in-check state and exact after-board not-in-check state to the same Story route.
+- escape method details must not lower to claim keys.
+
+CheckEscaped-6 no-standalone boundary:
+
+- Support, Context, Blocked, capped, and refuted `Scene.CheckEscaped` rows have no standalone claim.
+- EngineCheck Supports does not create a new claim; it may accompany the already selected uncapped Lead claim only.
+- EngineCheck Caps suppresses standalone claim output.
+- EngineCheck Refutes keeps the row Blocked.
+- CheckGiven rows may lower only to `gives_check`, never to `escapes_check`.
+
+CheckEscaped-6 downstream boundary:
+
+- CheckEscaped-6 does not open renderer text.
+- CheckEscaped-6 does not open LLM input.
+- CheckEscaped-6 does not open public route `200`, production API, or public/user-facing LLM narration.
+- `escapes_check` may mean only: this legal move gets the moving side out of check on the exact after-board.
+- `escapes_check` may not mean king safety, checkmate avoidance, defense success, forced move, only move, best move, winning, decisive, or no counterplay.
+
+Completion standard: CheckEscaped-6 closes when `ExplanationPlan.fromSelected` lowers only selected uncapped Lead `Scene.CheckEscaped` Verdicts to `escapes_check` with target as the escaping side king square after the move, anchor as the moving piece origin square, route and evidenceLine as the legal escape move, complete same-board `CheckEscapedProof` still bound to the Story, Support, Context, Blocked, capped, and refuted rows silent, EngineCheck Supports adding no new claim, CheckGiven retaining only `gives_check`, forbidden king-moved, check-blocked, checker-captured, avoids-mate, checkmate, king-safe, king-unsafe, attack, pressure, initiative, forced-reply, best, only, winning, decisive, and no-counterplay claim keys closed, and renderer, LLM, public route `200`, production API, and public/user-facing LLM narration still closed.
+
+### CheckEscaped-7 DeterministicRenderer
+
+CheckEscaped-7 opens deterministic renderer text only from bounded
+`CheckEscaped` `ExplanationPlan`.
+
+CheckEscaped-7 renderer input boundary:
+
+- Renderer input is `ExplanationPlan` only.
+- Renderer does not accept Story, Verdict, CheckEscapedProof, CheckGivenProof, BoardFacts, EngineCheck, engine eval, raw PV, proofFailures, or source rows.
+- Renderer may phrase only selected uncapped Lead `Scene.CheckEscaped` plans with claimKey = `escapes_check`.
+- Support, Context, Blocked, capped, refuted, malformed, or sibling-claim plans have no standalone renderer text.
+- Renderer must not inspect or phrase escape method details.
+
+CheckEscaped-7 allowed renderer templates:
+
+- `{route} gets out of check.`
+- `{route} escapes the check.`
+
+CheckEscaped-7 forbidden renderer wording:
+
+- moves the king out of check
+- blocks the check
+- captures the checking piece
+- gives check
+- avoids mate
+- prevents checkmate
+- the king is safe
+- refutes the attack
+- defends everything
+- creates pressure
+- takes the initiative
+- forces
+- best move
+- only move
+- winning
+- decisive
+- no counterplay
+- engine says
+
+CheckEscaped-7 downstream boundary:
+
+- CheckEscaped-7 does not open LLM narration, public route `200`, production API, public king-moved, check-blocked, checker-captured, gives-check, mate threat, checkmate, king safety, defense-success, attack, pressure, initiative, forced, best move, only move, winning, decisive, or no-counterplay meaning.
+- Renderer text may mean only: this legal move gets the moving side out of check on the exact after-board.
+
+Completion standard: CheckEscaped-7 closes when `DeterministicRenderer` accepts only a bounded `escapes_check` `ExplanationPlan`, emits only bounded check-escape text, rejects Support, Context, Blocked, capped, refuted, malformed, or sibling-claim plans, keeps forbidden escape-method, gives-check, mate, checkmate, king-safety, defense-success, attack, pressure, initiative, force, best, only, winning, decisive, no-counterplay, and engine wording absent, and leaves public/user-facing LLM narration closed.
+
+### CheckEscaped-8 LLM Smoke
+
+CheckEscaped-8 reuses only the existing 8B LLM smoke boundary for selected
+bounded CheckEscaped `RenderedLine` rephrases.
+
+CheckEscaped-8 allowed LLM smoke input:
+
+- `renderedText`
+- `claimKey`
+- `strength`
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+CheckEscaped-8 forbidden LLM smoke input:
+
+- raw Story
+- raw CheckEscapedProof
+- raw CheckGivenProof
+- BoardFacts
+- EngineCheck
+- EngineLine
+- EngineEval
+- raw PV
+- proofFailures
+- source rows
+- escape method diagnostics
+
+CheckEscaped-8 forbidden LLM smoke additions:
+
+- new move
+- new line
+- king moved out of check
+- blocked the check
+- captured the checker
+- gives check
+- mate threat
+- checkmate
+- avoids mate
+- king safety
+- safe king
+- unsafe king
+- refutes attack
+- defense success
+- initiative
+- pressure
+- forced reply
+- best move
+- only move
+- winning
+- decisive
+- no counterplay
+- engine mention
+
+CheckEscaped-8 downstream boundary:
+
+- CheckEscaped-8 does not open public/user-facing LLM narration, public route `200`, production API, raw proof input, raw engine input, or any new chess meaning.
+- LLM smoke may echo or rephrase only the already rendered bounded check-escape event.
+- LLM smoke may not add how the check was escaped, whether the move also gives check, mate, checkmate, king-safety, attack, pressure, initiative, force, best, only, winning, decisive, no-counterplay, new move, new line, or engine explanation.
+
+Completion standard: CheckEscaped-8 closes when LlmNarrationSmoke accepts only renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.` for bounded `escapes_check`; rejects raw Story, CheckEscapedProof, CheckGivenProof, BoardFacts, EngineCheck, EngineLine, EngineEval, raw PV, proofFailures, source rows, escape method diagnostics, new moves, new lines, public escape-method claims, gives-check additions, mate, checkmate, king-safety, attack, pressure, initiative, forced, best, only, winning, decisive, no-counterplay, and engine additions; and keeps public narration and production API closed.
+
+### CheckEscaped-9 Closeout / Hard Cleanup
+
+CheckEscaped-9 opens no new chess meaning.
+
+CheckEscaped-9 closes only the already-open narrow event:
+
+a legal move gets the moving side out of check on the exact after-board
+
+CheckEscaped-9 authority audit:
+
+- `CheckEscapedProof` owns the proof home.
+- `Scene.CheckEscaped` owns the Story label.
+- `SceneCheckEscaped` owns the named writer.
+- `escapes_check` owns the speech key.
+- These authorities are not interchangeable.
+- BoardFacts check state, legal move facts, king squares, and legal replay remain observations only.
+- Escape method details remain proof diagnostics only, not public Story labels or speech keys.
+- EngineCheck may support, cap, refute, or remain unknown only for an existing `Scene.CheckEscaped` Story, and cannot create one.
+
+CheckEscaped-9 duplication audit:
+
+- one check-given meaning: `CheckGivenProof` -> `Scene.CheckGiven` -> `SceneCheckGiven` -> `gives_check`
+- one check-escaped meaning: `CheckEscapedProof` -> `Scene.CheckEscaped` -> `SceneCheckEscaped` -> `escapes_check`
+- no public `Scene.KingMovedOutOfCheck`
+- no public `Scene.CheckBlocked`
+- no public `Scene.CheckingPieceCaptured`
+- no public `king_escapes_check`
+- no public `blocks_check`
+- no public `captures_checker`
+- one detailed live authority document: `StoryInteractionLaw.md`
+
+CheckEscaped-9 collision audit:
+
+- `Scene.CheckEscaped` owns no `Scene.CheckGiven` meaning.
+- `Scene.CheckGiven` owns no `Scene.CheckEscaped` meaning.
+- Cross-check rows keep separate proof homes, Story labels, writers, and speech keys.
+- `Scene.CheckEscaped` owns no mate threat.
+- `Scene.CheckEscaped` owns no checkmate.
+- `Scene.CheckEscaped` owns no king safety, safe-king, or unsafe-king meaning.
+- `Scene.CheckEscaped` owns no public check-blocked, checker-captured, or king-moved meaning.
+- `Scene.CheckEscaped` owns no attack, pressure, initiative, force, best, only, winning, decisive, or no-counterplay meaning.
+- `Scene.CheckEscaped` owns no Material, Hanging, Fork, Defense, Line, Defender, or pawn/file meaning.
+- Existing opened Story labels keep their proof homes, Story labels, writers, and speech keys.
+
+CheckEscaped-9 downstream audit:
+
+- `escapes_check` says only that the legal move gets the moving side out of check on the exact after-board.
+- Renderer and LLM smoke wording must stay no stronger than bounded `escapes_check`.
+- Support, Context, Blocked, capped, and refuted rows have no standalone CheckEscaped text.
+- Raw proof failures, raw engine eval, raw PV, source rows, BoardFacts check state, and escape method diagnostics never become public wording.
+
+CheckEscaped-9 documentation audit:
+
+- Detailed CheckEscaped stage law, negative corpus, closeout checklist, forbidden wording, and duplication audit live only in `StoryInteractionLaw.md`.
+- README, SSOT, Architecture, Contract, and Manifest may summarize only if docs tests require it.
+- AGENTS.md remains unchanged unless durable operator rules change.
+- Docs authority tests must continue to agree on the live documentation authority list.
+
+CheckEscaped-9 public-surface audit:
+
+- public route `200` remains closed.
+- production API remains closed.
+- public/user-facing LLM narration remains closed.
+- Existing LLM smoke remains bounded internal smoke only.
+
+Completion standard: CheckEscaped-9 closes when `CheckEscapedProof`, `Scene.CheckEscaped`, `SceneCheckEscaped`, and `escapes_check` remain separated by layer; exactly one narrow check-escape public event is open; CheckEscaped owns no CheckGiven, public escape-method, mate, checkmate, king-safety, defense-success, attack, pressure, initiative, force, best, only, winning, decisive, no-counterplay, Material, Hanging, Fork, Defense, Line, Defender, or pawn/file meaning; cross-check collisions remain stable and separated; renderer and LLM smoke output stays no stronger than `escapes_check`; detailed authority stays only in `StoryInteractionLaw.md`; summary docs remain summaries; public route `200`, production API, and public/user-facing LLM narration stay closed; targeted runtime tests pass; docs authority tests pass when touched; and `git diff --check` passes.
+
+### KCIH-0 King Check Interaction Hardening Charter
+
+KCIH-0 opens no new chess meaning.
+
+KCIH-0 closes only interaction hardening for the already-open King Check Neighborhood rows:
+
+- `Scene.CheckGiven`
+- `Scene.CheckEscaped`
+
+KCIH-0 opens no new:
+
+- Story label
+- proof home
+- Story writer
+- speech key
+- renderer wording
+- LLM behavior
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Core sentence:
+
+King Check Interaction Hardening proves that CheckGiven and CheckEscaped stay separate when they collide, especially on cross-check moves.
+
+KCIH-0 authority map:
+
+- `CheckGivenProof` -> `Scene.CheckGiven` -> `SceneCheckGiven` -> `gives_check`
+- `CheckEscapedProof` -> `Scene.CheckEscaped` -> `SceneCheckEscaped` -> `escapes_check`
+
+KCIH-0 does not open:
+
+- mate threat
+- checkmate
+- avoids mate
+- king safety
+- safe king
+- unsafe king
+- attack
+- pressure
+- initiative
+- forced move
+- best move
+- only move
+- winning
+- decisive
+- no counterplay
+- `Scene.KingMovedOutOfCheck`
+- `Scene.CheckBlocked`
+- `Scene.CheckingPieceCaptured`
+- `king_escapes_check`
+- `blocks_check`
+- `captures_checker`
+
+KCIH-0 runtime boundary:
+
+- cross-check moves may produce both already-open rows only when each row has its own complete same-board proof.
+- `Scene.CheckGiven` must not borrow `CheckEscapedProof`, `SceneCheckEscaped`, or `escapes_check`.
+- `Scene.CheckEscaped` must not borrow `CheckGivenProof`, `SceneCheckGiven`, or `gives_check`.
+- StoryTable may order existing rows only; it must not create either row.
+- ExplanationPlan, renderer, and LLM smoke remain bounded to the selected row's existing speech key.
+- non-lead, Support, Context, Blocked, capped, and refuted rows have no standalone King Check interaction text.
+
+KCIH-0 documentation boundary:
+
+- detailed KCIH authority lives only in `StoryInteractionLaw.md`.
+- README, SSOT, Architecture, Contract, Manifest, and AGENTS.md must not duplicate the KCIH charter.
+- docs authority tests must pin this section as the single detailed owner.
+
+Completion standard: KCIH-0 closes when the hardening scope is limited to existing CheckGiven and CheckEscaped rows, no new meaning or downstream surface opens, CheckGiven and CheckEscaped stay separated by proof home, Story label, writer, and speech key in cross-check collisions, StoryTable ordering remains deterministic without creating rows, non-lead or capped/refuted rows produce no standalone interaction wording, forbidden mate, checkmate, avoids-mate, king-safety, safe-king, unsafe-king, attack, pressure, initiative, forced, best, only, winning, decisive, no-counterplay, king-moved, check-blocked, checker-captured, `king_escapes_check`, `blocks_check`, and `captures_checker` meanings remain closed, and detailed KCIH authority lives only in `StoryInteractionLaw.md`.
+
+### KCIH-1 Authority / Duplication Audit
+
+KCIH-1 audits proof, Story, writer, and speech ownership.
+
+KCIH-1 opens no new chess meaning, Story label, proof home, writer, speech key, renderer wording, LLM behavior, public route `200`, production API, or public/user-facing LLM narration.
+
+KCIH-1 must confirm:
+
+- `CheckGivenProof` owns only the legal move gives check proof home.
+- `Scene.CheckGiven` owns only the gives-check Story label.
+- `SceneCheckGiven` is the only named writer for `Scene.CheckGiven`.
+- `gives_check` is the only speech key for CheckGiven.
+- `CheckEscapedProof` owns only the legal move escapes check proof home.
+- `Scene.CheckEscaped` owns only the escapes-check Story label.
+- `SceneCheckEscaped` is the only named writer for `Scene.CheckEscaped`.
+- `escapes_check` is the only speech key for CheckEscaped.
+
+KCIH-1 must reject:
+
+- CheckGiven proof attached to CheckEscaped rows
+- CheckEscaped proof attached to CheckGiven rows
+- CheckGiven writer creating CheckEscaped
+- CheckEscaped writer creating CheckGiven
+- `gives_check` emitted from CheckEscaped
+- `escapes_check` emitted from CheckGiven
+- duplicate public escape-method labels
+- duplicate public escape-method speech keys
+
+KCIH-1 no-go names remain closed:
+
+- `Scene.KingMovedOutOfCheck`
+- `Scene.CheckBlocked`
+- `Scene.CheckingPieceCaptured`
+- `king_escapes_check`
+- `blocks_check`
+- `captures_checker`
+
+KCIH-1 duplication audit:
+
+- one check-given meaning: legal move gives check on the exact after-board
+- one check-escaped meaning: legal move escapes check on the exact after-board
+- two separate proof homes: `CheckGivenProof` and `CheckEscapedProof`
+- two separate Story labels: `Scene.CheckGiven` and `Scene.CheckEscaped`
+- two separate named writers: `SceneCheckGiven` and `SceneCheckEscaped`
+- two separate speech keys: `gives_check` and `escapes_check`
+- zero public escape-method Story labels
+- zero public escape-method speech keys
+
+KCIH-1 downstream audit:
+
+- ExplanationPlan must lower CheckGiven only to `gives_check`.
+- ExplanationPlan must lower CheckEscaped only to `escapes_check`.
+- Renderer and LLM smoke must remain no stronger than the selected row's existing speech key.
+- Support, Context, Blocked, capped, and refuted rows have no standalone KCIH text.
+- proofFailures, raw engine evidence, BoardFacts check state, and escape-method diagnostics remain internal.
+
+KCIH-1 documentation boundary:
+
+- detailed KCIH-1 authority lives only in `StoryInteractionLaw.md`.
+- summary documents and AGENTS.md must not duplicate this audit.
+- docs authority tests must pin the KCIH-1 markers as single-owner detail.
+
+Completion standard: KCIH-1 closes when there is one check-given meaning, one check-escaped meaning, two separate proof homes, two separate Story labels, two separate writers, two separate speech keys, no cross-attached proof sidecars, no mixed writer identity, and no public escape-method duplicate.
+
+### KCIH-2 Cross-Check Collision Fixtures
+
+KCIH-2 adds only same-board interaction fixtures for existing rows.
+
+KCIH-2 opens no new chess meaning, Story label, proof home, writer, speech key, renderer wording, LLM behavior, public route `200`, production API, or public/user-facing LLM narration.
+
+KCIH-2 required fixture categories:
+
+- CheckGiven only
+- CheckEscaped only
+- cross-check move where the side escapes check and gives check
+- CheckGiven row with contaminated CheckEscaped sidecar
+- CheckEscaped row with contaminated CheckGiven sidecar
+- capped CheckGiven next to uncapped CheckEscaped
+- capped CheckEscaped next to uncapped CheckGiven
+- refuted CheckGiven next to valid CheckEscaped
+- refuted CheckEscaped next to valid CheckGiven
+
+KCIH-2 verifies:
+
+- cross-check may produce both existing rows only when each row has its own complete proof
+- CheckGiven row keeps `gives_check`
+- CheckEscaped row keeps `escapes_check`
+- neither row borrows the other's proof, writer, target, anchor, route, or speech key
+- contaminated rows are blocked or produce no standalone claim
+- fixture order does not change the selected Verdict set
+
+KCIH-2 does not open:
+
+- double-check as public Story
+- counter-check as public Story
+- discovered check expansion
+- escape method Story
+- mate threat
+- checkmate
+- king safety
+- forced / best / only / winning wording
+
+KCIH-2 runtime boundary:
+
+- fixtures may instantiate only existing `Scene.CheckGiven` and `Scene.CheckEscaped` rows.
+- CheckGiven-only fixtures must not create CheckEscaped rows.
+- CheckEscaped-only fixtures must not create CheckGiven rows.
+- cross-check fixtures may produce both rows only from the same legal same-board move and only as separate proof-backed rows.
+- mixed sidecars and mixed writer identities must be Blocked or silent.
+- capped and refuted rows must not emit standalone claim text when a valid sibling row remains.
+- selected Verdict output must be deterministic across fixture input order.
+
+KCIH-2 documentation boundary:
+
+- detailed KCIH-2 fixture law lives only in `StoryInteractionLaw.md`.
+- summary documents and AGENTS.md must not duplicate fixture categories or closeout law.
+- docs authority tests must pin KCIH-2 as single-owner detail.
+
+Completion standard: KCIH-2 closes when cross-check and contamination fixtures prove CheckGiven and CheckEscaped can coexist only as separate proof-backed rows, every mixed sidecar or mixed writer row is rejected or silent, input order is stable, and no new public check subtype opens.
+
+### KCIH-3 StoryTable Role Stability
+
+KCIH-3 audits StoryTable behavior for existing King Check rows only.
+
+KCIH-3 opens no new chess meaning, Story label, proof home, writer, speech key, renderer wording, LLM behavior, public route `200`, production API, or public/user-facing LLM narration.
+
+KCIH-3 verifies:
+
+- StoryTable may order existing `Scene.CheckGiven` rows.
+- StoryTable may order existing `Scene.CheckEscaped` rows.
+- StoryTable must not create either row.
+- input order does not change Lead / Support / Context / Blocked stability
+- same-meaning duplicate CheckGiven rows collapse or order deterministically
+- same-meaning duplicate CheckEscaped rows collapse or order deterministically
+- cross-check rows remain separate meanings
+- refuted rows are Blocked
+- capped rows do not produce standalone text
+- Support and Context rows do not produce standalone text
+
+KCIH-3 collision targets:
+
+- `Scene.CheckGiven`
+- `Scene.CheckEscaped`
+- `Scene.Material`
+- Tactic.Hanging
+- Tactic.Fork
+- `Scene.Defense`
+- Tactic.DiscoveredAttack
+- Tactic.Pin
+- Tactic.RemoveGuard
+- Tactic.Skewer
+- open pawn/file scenes
+
+KCIH-3 must confirm:
+
+- CheckGiven owns no CheckEscaped meaning.
+- CheckEscaped owns no CheckGiven meaning.
+- Material, Defense, Line/Defender, Hanging, Fork, and pawn/file rows keep their own proof and speech homes.
+- King Check rows do not outrank other rows by inventing stronger chess meaning.
+
+KCIH-3 StoryTable boundary:
+
+- StoryTable may select, support, contextualize, or block existing King Check rows only after their writers and proof sidecars already exist.
+- StoryTable must not create `CheckGivenProof`, `CheckEscapedProof`, `Scene.CheckGiven`, `Scene.CheckEscaped`, `SceneCheckGiven`, `SceneCheckEscaped`, `gives_check`, or `escapes_check`.
+- same-meaning duplicate King Check rows may both appear only as deterministic Lead/Support ordering or may collapse by existing equality behavior; either outcome must be input-order stable.
+- cross-check rows are sibling meanings, not duplicates.
+- capped, refuted, Support, Context, and Blocked King Check rows have no standalone renderer or LLM smoke text.
+
+KCIH-3 documentation boundary:
+
+- detailed KCIH-3 StoryTable role law lives only in `StoryInteractionLaw.md`.
+- summary documents and AGENTS.md must not duplicate KCIH-3 collision targets or closeout law.
+- docs authority tests must pin KCIH-3 as single-owner detail.
+
+Completion standard: KCIH-3 closes when StoryTable ordering is deterministic, existing King Check rows stay separated, sibling rows keep their own claim homes, and Support, Context, Blocked, capped, and refuted King Check rows have no standalone text.
+
+### KCIH-4 EngineCheck / Cap / Refute Boundary
+
+KCIH-4 audits EngineCheck reuse over existing King Check rows.
+
+KCIH-4 opens no new chess meaning, Story label, proof home, writer, speech key, renderer wording, LLM behavior, public route `200`, production API, or public/user-facing LLM narration.
+
+KCIH-4 verifies:
+
+- EngineCheck cannot create CheckGiven.
+- EngineCheck cannot create CheckEscaped.
+- EngineCheck attaches only to an already complete same-board Story.
+- EngineCheck evidence binds to the same Story route and legal line.
+- Supports adds no new claim.
+- Caps suppresses standalone text or keeps speech bounded to the selected claim key.
+- Refutes blocks the checked Story.
+- Unknown creates no engine expression.
+
+KCIH-4 forbidden engine wording:
+
+- engine says
+- eval number
+- raw PV
+- best move
+- only move
+- forced move
+- winning
+- decisive
+- no counterplay
+- mate threat
+- checkmate
+- safe king
+- refutes attack
+
+KCIH-4 must confirm:
+
+- capped CheckGiven does not emit `gives_check` standalone text
+- capped CheckEscaped does not emit `escapes_check` standalone text
+- refuted CheckGiven is Blocked
+- refuted CheckEscaped is Blocked
+- engine-supported CheckGiven remains only `gives_check`
+- engine-supported CheckEscaped remains only `escapes_check`
+
+KCIH-4 EngineCheck boundary:
+
+- EngineCheck is a support/cap/refute/unknown sidecar only after `SceneCheckGiven` or `SceneCheckEscaped` has already created a complete same-board Story with its own proof sidecar.
+- EngineCheck must not create `CheckGivenProof`, `CheckEscapedProof`, `Scene.CheckGiven`, `Scene.CheckEscaped`, `SceneCheckGiven`, `SceneCheckEscaped`, `gives_check`, or `escapes_check`.
+- EngineCheck must bind to the same Story route and legal line as the checked King Check Story.
+- Engine-supported King Check rows remain bounded to their original selected claim key.
+- capped, refuted, and Unknown EngineCheck rows produce no independent engine expression, eval expression, PV expression, or stronger chess claim.
+
+KCIH-4 documentation boundary:
+
+- detailed KCIH-4 EngineCheck boundary law lives only in `StoryInteractionLaw.md`.
+- summary documents and AGENTS.md must not duplicate KCIH-4 forbidden wording or closeout law.
+- docs authority tests must pin KCIH-4 as single-owner detail.
+
+Completion standard: KCIH-4 closes when EngineCheck remains support/cap/refute only for already existing King Check Stories, never creates or strengthens a claim, and all engine wording, raw PV, eval, best/only/forced, winning, mate, and king-safety wording stays closed.
+
+### KCIH-5 Downstream No-Overclaim Boundary
+
+KCIH-5 audits ExplanationPlan, DeterministicRenderer, and LLM smoke boundaries for existing King Check rows.
+
+KCIH-5 opens no new chess meaning, Story label, proof home, writer, speech key, renderer wording, LLM behavior, public route `200`, production API, or public/user-facing LLM narration.
+
+KCIH-5 verifies ExplanationPlan:
+
+- selected uncapped Lead `Scene.CheckGiven` may lower only to `gives_check`
+- selected uncapped Lead `Scene.CheckEscaped` may lower only to `escapes_check`
+- CheckGiven never lowers to `escapes_check`
+- CheckEscaped never lowers to `gives_check`
+- Support, Context, Blocked, capped, and refuted rows produce no standalone claim
+
+KCIH-5 verifies Renderer:
+
+- Renderer input remains `ExplanationPlan` only
+- CheckGiven renderer text stays no stronger than `{route} gives check.`
+- CheckEscaped renderer text stays no stronger than `{route} gets out of check.`
+- Renderer does not read Story, proof homes, BoardFacts, EngineCheck, proofFailures, raw PV, or source rows
+
+KCIH-5 verifies LLM smoke:
+
+- LLM smoke receives only renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`
+- LLM smoke does not receive raw Story, raw proof, BoardFacts, EngineCheck, raw PV, proofFailures, or source rows
+- LLM smoke may not add new move, new line, mate, checkmate, king safety, attack, pressure, initiative, force, best, only, winning, decisive, no-counterplay, engine explanation, or escape method detail
+
+KCIH-5 downstream boundary:
+
+- ExplanationPlan is the only lowering boundary for selected King Check `Verdict` data.
+- DeterministicRenderer accepts `ExplanationPlan` only and must not inspect raw Story, proof homes, BoardFacts, EngineCheck, proofFailures, raw PV, or source rows.
+- DeterministicRenderer may render selected uncapped Lead `Scene.CheckGiven` only as `{route} gives check.`
+- DeterministicRenderer may render selected uncapped Lead `Scene.CheckEscaped` only as `{route} gets out of check.`
+- LLM smoke input is the bounded rendered line contract only: renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`
+- LLM smoke remains a rephrase-only smoke check and must not become public/user-facing narration.
+- downstream expression must not create, repair, rank, prove, strengthen, or cross-map CheckGiven and CheckEscaped meanings.
+
+KCIH-5 documentation boundary:
+
+- detailed KCIH-5 downstream no-overclaim law lives only in `StoryInteractionLaw.md`.
+- summary documents and AGENTS.md must not duplicate KCIH-5 ExplanationPlan, Renderer, LLM smoke, or closeout law.
+- docs authority tests must pin KCIH-5 as single-owner detail.
+
+Completion standard: KCIH-5 closes when downstream expression is exactly bounded by `gives_check` or `escapes_check`, cross-claim lowering is impossible, non-Lead/capped/refuted rows stay silent, renderer input remains ExplanationPlan only, LLM smoke remains bounded rephrase-only smoke, and public narration remains closed.
+
+### KCIH-6 Documentation / Public Surface Audit
+
+KCIH-6 audits documentation and public surface only.
+
+KCIH-6 opens no new chess meaning, Story label, proof home, writer, speech key, renderer wording, LLM behavior, public route `200`, production API, or public/user-facing LLM narration.
+
+KCIH-6 documentation rules:
+
+- detailed KCIH authority lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may summarize only if docs tests require it
+- AGENTS.md remains unchanged unless durable operator rules change
+- docs tests must agree with the live authority document list
+- no retired root authority document returns
+
+KCIH-6 public surface rules:
+
+- `/api/commentary/render` remains fail-closed
+- `/internal/commentary/render-local-probe` remains fail-closed
+- no public route returns `200`
+- no production API opens
+- no public/user-facing LLM narration opens
+- proofFailures remain internal diagnostics only
+- raw engine eval, raw PV, source rows, and proof text remain out of public values and downstream wording
+
+KCIH-6 forbidden docs drift:
+
+- detailed stage law duplicated outside `StoryInteractionLaw.md`
+- KCIH described as opening mate, checkmate, king safety, attack, pressure, initiative, forced, best, only, winning, decisive, or no-counterplay meaning
+- CheckGiven or CheckEscaped described as public route ready
+- LLM smoke described as public narration
+
+KCIH-6 audit boundary:
+
+- KCIH documentation detail remains single-owned by `StoryInteractionLaw.md`; summary docs must not copy KCIH checklists, target lists, forbidden-wording lists, or completion law.
+- route registration for `/api/commentary/render` and `/internal/commentary/render-local-probe` may exist only as fail-closed tombstone wiring.
+- controller behavior must remain unavailable/no-commentary, not `200`, not rendered payload, and not an environment-switchable production API.
+- frontend code must not call the commentary render routes or treat LLM smoke as user-facing narration.
+- `proofFailures`, raw engine eval, raw PV, source rows, raw proof text, and proof failure text remain internal diagnostics and must not enter `Verdict.values`, renderer input, LLM input, public JSON, or downstream wording.
+
+KCIH-6 documentation boundary:
+
+- detailed KCIH-6 documentation/public-surface audit law lives only in `StoryInteractionLaw.md`.
+- summary documents and AGENTS.md must not duplicate KCIH-6 public surface law or closeout law.
+- docs authority tests must pin KCIH-6 as single-owner detail and must keep the live authority document list synchronized.
+
+Completion standard: KCIH-6 closes when docs remain summary-only outside `StoryInteractionLaw.md`, public routes remain tombstones, production API remains closed, public/user-facing LLM narration remains closed, and no diagnostic or raw engine/proof/source text becomes public wording.
+
+### KCIH-7 Closeout / Verification
+
+KCIH-7 opens no new chess meaning.
+
+KCIH-7 closes only King Check Interaction Hardening for the already-open `Scene.CheckGiven` and `Scene.CheckEscaped` rows.
+
+KCIH-7 opens no new Story label, proof home, Story writer, speech key, renderer wording, LLM behavior, public route `200`, production API, or public/user-facing LLM narration.
+
+KCIH-7 final audit:
+
+- `CheckGivenProof`, `Scene.CheckGiven`, `SceneCheckGiven`, and `gives_check` remain separated.
+- `CheckEscapedProof`, `Scene.CheckEscaped`, `SceneCheckEscaped`, and `escapes_check` remain separated.
+- CheckGiven owns no CheckEscaped meaning.
+- CheckEscaped owns no CheckGiven meaning.
+- cross-check rows may coexist only through separate complete proofs.
+- escape method details remain diagnostic only.
+- mate threat, checkmate, king safety, attack, pressure, initiative, forced, best, only, winning, decisive, and no-counterplay remain closed.
+- Support, Context, Blocked, capped, and refuted rows produce no standalone text.
+- Renderer and LLM smoke stay no stronger than the selected claim key.
+- public route `200`, production API, and public/user-facing LLM narration remain closed.
+
+KCIH-7 verification:
+
+- `sbt "commentary/testOnly lila.commentary.chess.KingCheckInteractionHardeningTest"`
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+KCIH-7 documentation boundary:
+
+- detailed KCIH-7 closeout law lives only in `StoryInteractionLaw.md`.
+- summary documents and AGENTS.md must not duplicate KCIH-7 final audit or verification law.
+- docs authority tests must pin KCIH-7 as single-owner detail.
+
+Completion standard: KCIH-7 closes when King Check Interaction Hardening has no new Story, proof home, writer, speech key, renderer wording, LLM behavior, public route, production API, or public/user-facing narration; CheckGiven and CheckEscaped remain separate under cross-check, cap/refute, StoryTable, renderer, and LLM smoke collisions; targeted tests pass; docs authority tests pass when touched; and `git diff --check` passes.
+
+### Checkmate-1 CheckmateProof
+
+Checkmate-1 opens only `CheckmateProof` as the proof home for the third King
+Check Neighborhood slice.
+
+Checkmate-1 proves:
+
+- mating side
+- rival side
+- legal move identity
+- moving piece identity when available
+- origin square
+- destination square
+- rival king square after the move
+- after-board rival king is in check
+- after-board rival side has no legal escape
+- exact after-board replay
+- same-board proof
+- checkmate was produced by this legal move
+
+Checkmate-1 first scope:
+
+- any legal move whose exact after-board is checkmate against the rival side
+- ordinary checkmate, discovered checkmate, double-check mate, promotion mate,
+  and capture mate are allowed only as checkmate events
+- no public distinction between mate delivery types
+
+Checkmate-1 closed scope:
+
+- mate threat
+- mate in one before the move
+- mate in N
+- forced mate
+- unavoidable mate
+- winning evaluation
+- decisive advantage
+- best move / only move
+- no counterplay
+- king-safety diagnosis
+- attack / pressure / initiative
+- SAN `#` as proof
+
+Proof-home boundary:
+
+- `CheckmateProof` is not a public Story.
+- `CheckmateProof` must not create `Scene.Checkmate`.
+- `CheckmateProof` must not create a Verdict, ExplanationPlan, renderer text,
+  LLM input, public route payload, or production API response.
+- `CheckmateProof` does not replace `CheckGivenProof`.
+- `CheckGivenProof` remains only the gives-check proof home.
+- `CheckEscapedProof` remains only the escapes-check proof home.
+- `CheckmateProof` does not replace Line, Pin, Skewer, RemoveGuard, Material,
+  Defense, Hanging, Fork, or pawn proof homes.
+- `CheckmateProof` must not own mate threat, forced mate, best, only, winning,
+  decisive, no-counterplay, king safety, attack, pressure, or initiative
+  meaning.
+
+Completion standard: Checkmate-1 closes when `CheckmateProof` proves only the
+mating side, rival side, legal move identity, origin, destination, rival king
+square, after-board rival-king-in-check state, rival-side no-legal-escape
+state, exact after-board replay, same-board proof, and
+checkmate-produced-by-this-move for one legal move; mate threat, mate in N,
+forced mate, unavoidable mate, winning, decisive, best, only, no-counterplay,
+king-safety, attack, pressure, initiative, and SAN-only proof remain closed;
+`CheckmateProof` is not a public Story; and no new Story writer, Verdict,
+ExplanationPlan, renderer, LLM, public route `200`, production API, or
+public/user-facing LLM narration opens.
+
+### Checkmate-2 Scene.Checkmate Writer
+
+Checkmate-2 opens only `SceneCheckmate` as the named writer for
+`Scene.Checkmate`.
+
+Checkmate-2 writer conditions:
+
+- complete StoryProof
+- complete `CheckmateProof`
+- same-board legal replay
+- legal move leaves rival king in check on the exact after-board
+- legal move leaves rival side with no legal escape on the exact after-board
+- rival king square is identified
+- writer = `SceneCheckmate`
+- EngineCheck does not Refute
+
+Checkmate-2 Story identity:
+
+- scene = `Checkmate`
+- tactic = None
+- plan = None
+- side = mating side
+- rival = mated side
+- target = rival king square after the move
+- anchor = moving piece origin square
+- route = legal checkmating move
+
+Checkmate-2 forbidden writer ownership:
+
+- `SceneCheckmate` must not create mate threat.
+- `SceneCheckmate` must not create mate in N.
+- `SceneCheckmate` must not create forced mate.
+- `SceneCheckmate` must not create best-move, only-move, winning, decisive, or
+  no-counterplay meaning.
+- `SceneCheckmate` must not create king-safety, attack, pressure, or initiative
+  meaning.
+- `SceneCheckmate` must not steal `Scene.CheckGiven` or `Scene.CheckEscaped`
+  meaning.
+- `SceneCheckmate` must not steal Line, Pin, Skewer, RemoveGuard, Material,
+  Defense, Hanging, Fork, or pawn meanings.
+
+Checkmate-2 downstream boundary:
+
+- Checkmate-2 does not open ExplanationPlan.
+- Checkmate-2 does not open renderer text.
+- Checkmate-2 does not open LLM input.
+- Checkmate-2 does not open public route `200`, production API, or
+  public/user-facing LLM narration.
+
+Completion standard: Checkmate-2 closes when `SceneCheckmate` writes only exact
+complete `CheckmateProof` rows into `Scene.Checkmate` with no tactic, no plan,
+mating side, rival side, target as the rival king square, anchor as the moving
+piece origin square, route as the legal checkmating move, no EngineCheck
+Refutes lead, and no mate-threat, mate-in-N, forced-mate, best, only, winning,
+decisive, no-counterplay, king-safety, attack, pressure, initiative,
+CheckGiven, CheckEscaped, sibling tactic, material, defense, or pawn meaning;
+downstream ExplanationPlan, renderer, LLM, public route `200`, production API,
+and public/user-facing LLM narration remain closed.
+
+### Checkmate-3 Negative Corpus
+
+Checkmate-3 builds the negative corpus for `Checkmate`.
+
+Checkmate-3 must stay silent for:
+
+- legal move missing
+- illegal move
+- same-board proof missing
+- exact-board replay missing
+- after-board rival king not in check
+- after-board rival side has a legal escape
+- stalemate
+- side-to-move confusion
+- rival king square missing
+- route mismatch
+- stale before/after board
+- incomplete StoryProof
+- incomplete CheckmateProof
+- writerless row
+- contaminated sidecar row
+- `CheckGivenProof` without `CheckmateProof`
+- BoardFacts check count without bound mate proof
+- BoardFacts no-legal-move state without after-board check
+- SAN `#` without proof
+- engine line claiming mate without an existing Story
+- raw PV mate without an existing Story
+- mate-threat wording
+- mate-in-N wording
+- forced-mate wording
+- best-move wording
+- only-move wording
+- winning / decisive / no-counterplay wording
+- king-safety / attack / pressure / initiative wording
+
+Checkmate-3 standard:
+
+- Check is not checkmate.
+- No legal moves is not checkmate unless the rival king is also in check.
+- SAN `#` is not proof.
+- Engine mate text is not proof.
+- Checkmate is not a mate-threat claim.
+- Checkmate is not best-move, only-move, winning-evaluation, or no-counterplay
+  commentary.
+- Complete `CheckmateProof` or silence.
+- `SceneCheckmate` must not open ExplanationPlan, renderer text, LLM input,
+  public route `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: Checkmate-3 closes when the negative corpus proves that
+illegal moves, missing same-board proof, missing replay, no after-board check,
+rival legal escapes, stalemate, side-to-move errors, missing king identity,
+route mismatch, stale board proof, incomplete StoryProof, incomplete
+CheckmateProof, writerless rows, contaminated rows, CheckGiven-only proof,
+BoardFacts-only check/no-move states, SAN-only mate marks, engine-only mate
+lines, raw PV mate, and mate-threat, mate-in-N, forced-mate, best, only,
+winning, decisive, no-counterplay, king-safety, attack, pressure, or initiative
+wording all stay silent under CheckmateProof, SceneCheckmate, StoryTable, and
+downstream ExplanationPlan boundaries; Checkmate remains only the exact legal
+same-board event that the move checkmates the rival side.
+
+### Checkmate-4 EngineCheck Reuse
+
+Checkmate-4 reuses only the existing `EngineCheck` boundary for
+`Scene.Checkmate`.
+
+Checkmate-4 rules:
+
+- EngineCheck cannot create `Scene.Checkmate`.
+- Supports does not create a new claim.
+- Caps suppresses standalone claim speech or keeps downstream speech bounded to
+  `checkmates`.
+- Refutes makes the `Scene.Checkmate` Story Blocked.
+- Unknown creates no engine expression.
+- Engine evidence must bind to the same Story route and same legal line.
+
+Checkmate-4 forbidden engine wording:
+
+- engine says mate
+- mate score
+- eval number
+- raw PV
+- best move
+- only move
+- forced mate
+- mate in N
+- winning
+- decisive
+- no counterplay
+
+Checkmate-4 downstream boundary:
+
+- Checkmate-4 does not open ExplanationPlan for `Scene.Checkmate`.
+- Checkmate-4 does not open renderer text for `Scene.Checkmate`.
+- Checkmate-4 does not open LLM input for `Scene.Checkmate`.
+- Checkmate-4 does not open public route `200`, production API, or
+  public/user-facing LLM narration.
+
+Completion standard: Checkmate-4 closes when EngineCheck attaches only to an
+already complete same-board `SceneCheckmate` Story, cannot produce
+`Scene.Checkmate` from engine evidence alone, Supports adds no chess claim, Caps
+suppresses or bounds downstream speech without opening Checkmate wording early,
+Refutes blocks the Checkmate row, Unknown creates no engine expression, and
+engine-says, mate-score, eval-number, raw-PV, best, only, forced-mate,
+mate-in-N, winning, decisive, and no-counterplay wording remain closed.
+
+### Checkmate-5 StoryTable Integration
+
+Checkmate-5 integrates `Scene.Checkmate` into StoryTable only as an already existing
+proof-backed Story.
+
+Checkmate-5 collision targets:
+
+- `Scene.Checkmate`
+- `Scene.CheckGiven`
+- `Scene.CheckEscaped`
+- `Scene.Material`
+- Tactic.Hanging
+- Tactic.Fork
+- `Scene.Defense`
+- Tactic.DiscoveredAttack
+- Tactic.Pin
+- Tactic.RemoveGuard
+- Tactic.Skewer
+- open pawn/file scenes
+
+Checkmate-5 verifies:
+
+- input order stability
+- `Scene.Checkmate` does not own `Scene.CheckGiven` meaning.
+- `Scene.CheckGiven` does not own `Scene.Checkmate` meaning.
+- `Scene.Checkmate` does not own `Scene.CheckEscaped` meaning.
+- `Scene.CheckEscaped` does not own `Scene.Checkmate` meaning.
+- A checkmating move may also be a checking move, but each row keeps its own
+  proof home, Story label, writer, and speech key.
+- `Scene.Checkmate` does not own mate threat, mate in N, forced mate, best,
+  only, winning, decisive, no-counterplay, king safety, attack, pressure, or
+  initiative meaning.
+- Existing material, defense, line/defender, hanging, fork, CheckGiven,
+  CheckEscaped, and pawn/file claim homes keep their own proof and speech
+  homes.
+- Capped or refuted `Scene.Checkmate` has no standalone text.
+- Support, Context, and Blocked Checkmate rows do not lower to standalone text.
+
+Checkmate-5 StoryTable boundary:
+
+- StoryTable may select an existing complete `Scene.Checkmate` row.
+- StoryTable must not create `Scene.Checkmate`.
+- `Scene.Checkmate` may lead only as the exact checkmate event.
+- Selection still does not open renderer text, LLM input, public route `200`,
+  production API, or public/user-facing LLM narration.
+
+Completion standard: Checkmate-5 closes when StoryTable ordering is stable
+across input order, `Scene.Checkmate` keeps only the bounded legal checkmate
+event, CheckGiven keeps only gives-check, CheckEscaped keeps only
+escapes-check, every already-open claim home keeps its own proof and speech
+ownership, `Scene.Checkmate` never steals mate-threat, mate-in-N, forced-mate,
+best, only, winning, decisive, no-counterplay, king-safety, attack, pressure,
+initiative, material, defense, line/defender, hanging, fork, or pawn/file
+meaning, and capped, refuted, Support, Context, or Blocked Checkmate rows
+produce no standalone text.
+
+### Checkmate-6 ExplanationPlan
+
+Checkmate-6 opens only `ExplanationPlan` for selected uncapped Lead
+`Scene.Checkmate` Verdicts.
+
+Checkmate-6 allowed claim key:
+
+- `checkmates`
+
+Checkmate-6 forbidden claim keys:
+
+- `gives_check`
+- `escapes_check`
+- `mate_threat`
+- `mate_in_one`
+- `mate_in_n`
+- `forced_mate`
+- `best_move`
+- `only_move`
+- `winning`
+- `decisive`
+- `no_counterplay`
+- `king_unsafe`
+- `attacks_king`
+- `creates_attack`
+- `creates_pressure`
+- `takes_initiative`
+- `engine_says_mate`
+
+Checkmate-6 input boundary:
+
+- `ExplanationPlan.fromSelected` accepts only selected uncapped Lead
+  `Scene.Checkmate` Verdicts.
+- The Story must still be `Scene.Checkmate`, tactic = None, plan = None,
+  writer = `SceneCheckmate`, and same-board proof-backed.
+- `target` remains the rival king square after the move.
+- `anchor` remains the moving piece origin square.
+- `route` remains the legal checkmating move.
+- `evidenceLine` is only that route.
+- `CheckmateProof` must still bind after-board check and no-legal-escape state
+  to the same Story route.
+- CheckGiven and CheckEscaped rows must not lower to `checkmates`.
+
+Checkmate-6 no-standalone boundary:
+
+- Support, Context, Blocked, capped, and refuted `Scene.Checkmate` rows have no
+  standalone claim.
+- EngineCheck Supports does not create a new claim; it may accompany the
+  already selected uncapped Lead claim only.
+- EngineCheck Caps suppresses standalone claim output.
+- EngineCheck Refutes keeps the row Blocked.
+
+Checkmate-6 downstream boundary:
+
+- Checkmate-6 does not open renderer text.
+- Checkmate-6 does not open LLM input.
+- Checkmate-6 does not open public route `200`, production API, or
+  public/user-facing LLM narration.
+- `checkmates` may mean only: this legal move checkmates the rival side on the
+  exact after-board.
+- `checkmates` may not mean mate threat, mate in N, forced mate, best move,
+  only move, winning evaluation, decisive advantage, no counterplay, king
+  safety, attack, pressure, initiative, or engine mate line.
+
+Completion standard: Checkmate-6 closes when `ExplanationPlan.fromSelected`
+lowers only selected uncapped Lead `Scene.Checkmate` Verdicts to `checkmates`
+with target as the rival king square, anchor as the moving piece origin square,
+route and evidenceLine as the legal checkmating move, complete same-board
+`CheckmateProof` still bound to the Story, Support, Context, Blocked, capped,
+and refuted rows silent, EngineCheck Supports adding no new claim, CheckGiven
+retaining only `gives_check`, CheckEscaped retaining only `escapes_check`,
+forbidden mate-threat, mate-in-N, forced-mate, best, only, winning, decisive,
+no-counterplay, king-safety, attack, pressure, initiative, and engine-says-mate
+claim keys closed, and renderer, LLM, public route `200`, production API, and
+public/user-facing LLM narration still closed.
+
+### Checkmate-7 DeterministicRenderer
+
+Checkmate-7 opens deterministic renderer text only from bounded `Checkmate`
+`ExplanationPlan`.
+
+Checkmate-7 renderer input boundary:
+
+- Renderer input is `ExplanationPlan` only.
+- Renderer does not accept Story, Verdict, CheckmateProof, CheckGivenProof,
+  CheckEscapedProof, BoardFacts, EngineCheck, engine eval, raw PV,
+  proofFailures, SAN marks, or source rows.
+- Renderer may phrase only selected uncapped Lead `Scene.Checkmate` plans with
+  claimKey = `checkmates`.
+- Support, Context, Blocked, capped, refuted, malformed, or sibling-claim plans
+  have no standalone renderer text.
+
+Checkmate-7 allowed renderer templates:
+
+- `{route} is checkmate.`
+- `{route} checkmates the king.`
+
+Checkmate-7 forbidden renderer wording:
+
+- threatens mate
+- mate in one
+- mate in N
+- forced mate
+- best move
+- only move
+- winning
+- decisive
+- no counterplay
+- the king is unsafe
+- starts an attack
+- creates pressure
+- takes the initiative
+- engine says
+- mate score
+
+Checkmate-7 downstream boundary:
+
+- Checkmate-7 does not open LLM narration, public route `200`, production API,
+  mate threat, mate in N, forced mate, best move, only move, winning, decisive,
+  no-counterplay, king safety, attack, pressure, initiative, or engine mate
+  meaning.
+- Renderer text may mean only: this legal move checkmates the rival side on the
+  exact after-board.
+
+Completion standard: Checkmate-7 closes when `DeterministicRenderer` accepts
+only a bounded `checkmates` `ExplanationPlan`, emits only bounded checkmate
+text, rejects Support, Context, Blocked, capped, refuted, malformed, or
+sibling-claim plans, keeps forbidden mate-threat, mate-in-N, forced, best,
+only, winning, decisive, no-counterplay, king-safety, attack, pressure,
+initiative, engine, and mate-score wording absent, and leaves public/user-facing
+LLM narration closed.
+
+### Checkmate-8 LLM Smoke
+
+Checkmate-8 reuses only the existing 8B LLM smoke boundary for selected bounded
+Checkmate `RenderedLine` rephrases.
+
+Checkmate-8 allowed LLM smoke input:
+
+- `renderedText`
+- `claimKey`
+- `strength`
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+Checkmate-8 forbidden LLM smoke input:
+
+- raw Story
+- raw CheckmateProof
+- raw CheckGivenProof
+- raw CheckEscapedProof
+- BoardFacts
+- EngineCheck
+- EngineLine
+- EngineEval
+- raw PV
+- proofFailures
+- source rows
+- SAN `#` diagnostics
+
+Checkmate-8 forbidden LLM smoke additions:
+
+- new move
+- new line
+- mate threat
+- mate in one
+- mate in N
+- forced mate
+- best move
+- only move
+- winning
+- decisive
+- no counterplay
+- king safety
+- unsafe king
+- attack
+- initiative
+- pressure
+- engine mention
+- mate score
+- why it is mate unless already in rendered text
+
+Checkmate-8 downstream boundary:
+
+- Checkmate-8 does not open public/user-facing LLM narration, public route
+  `200`, production API, raw proof input, raw engine input, or any new chess
+  meaning.
+- LLM smoke may echo or rephrase only the already rendered bounded checkmate
+  event.
+- LLM smoke may not add mate-threat, mate-in-N, forced, best, only, winning,
+  decisive, no-counterplay, king-safety, attack, pressure, initiative, new
+  move, new line, or engine explanation.
+
+Completion standard: Checkmate-8 closes when LlmNarrationSmoke accepts only
+renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not
+add chess facts.` for bounded `checkmates`; rejects raw Story, CheckmateProof,
+CheckGivenProof, CheckEscapedProof, BoardFacts, EngineCheck, EngineLine,
+EngineEval, raw PV, proofFailures, source rows, SAN-only diagnostics, new moves,
+new lines, mate-threat, mate-in-N, forced, best, only, winning, decisive,
+no-counterplay, king-safety, attack, pressure, initiative, and engine additions;
+and keeps public narration and production API closed.
+
+### Checkmate-9 Closeout / Hard Cleanup
+
+Checkmate-9 opens no new chess meaning.
+
+Close only the already-open narrow event:
+
+a legal move checkmates the rival side on the exact after-board
+
+Checkmate-9 authority audit:
+
+- `CheckmateProof` owns the proof home.
+- `Scene.Checkmate` owns the Story label.
+- `SceneCheckmate` owns the named writer.
+- `checkmates` owns the speech key.
+- These authorities are not interchangeable.
+- `CheckGivenProof`, `Scene.CheckGiven`, `SceneCheckGiven`, and `gives_check`
+  remain the gives-check chain only.
+- `CheckEscapedProof`, `Scene.CheckEscaped`, `SceneCheckEscaped`, and
+  `escapes_check` remain the escapes-check chain only.
+- BoardFacts check state, mate state, legal move facts, king squares, and legal
+  replay remain observations only.
+- SAN `#` remains notation for already-approved legal moves only.
+- EngineCheck may support, cap, refute, or remain unknown only for an existing
+  `Scene.Checkmate` Story, and cannot create one.
+
+Checkmate-9 duplication audit:
+
+- one check-given meaning: `CheckGivenProof` -> `Scene.CheckGiven` ->
+  `SceneCheckGiven` -> `gives_check`
+- one check-escaped meaning: `CheckEscapedProof` -> `Scene.CheckEscaped` ->
+  `SceneCheckEscaped` -> `escapes_check`
+- one checkmate meaning: `CheckmateProof` -> `Scene.Checkmate` ->
+  `SceneCheckmate` -> `checkmates`
+- no mate-threat meaning opened
+- no mate-in-N meaning opened
+- no forced-mate meaning opened
+- one detailed live authority document: `StoryInteractionLaw.md`
+
+Checkmate-9 collision audit:
+
+- `Scene.Checkmate` owns no `Scene.CheckGiven` meaning.
+- `Scene.CheckGiven` owns no `Scene.Checkmate` meaning.
+- `Scene.Checkmate` owns no `Scene.CheckEscaped` meaning.
+- `Scene.CheckEscaped` owns no `Scene.Checkmate` meaning.
+- `Scene.Checkmate` owns no mate threat.
+- `Scene.Checkmate` owns no mate in N.
+- `Scene.Checkmate` owns no forced mate.
+- `Scene.Checkmate` owns no best, only, winning, decisive, or no-counterplay
+  meaning.
+- `Scene.Checkmate` owns no king safety, unsafe-king, attack, pressure, or
+  initiative meaning.
+- `Scene.Checkmate` owns no Material, Hanging, Fork, Defense, Line, Defender,
+  or pawn/file meaning.
+- Existing opened Story labels keep their proof homes, Story labels, writers,
+  and speech keys.
+
+Checkmate-9 downstream audit:
+
+- `checkmates` says only that the legal move checkmates the rival side on the
+  exact after-board.
+- Renderer and LLM smoke wording must stay no stronger than bounded
+  `checkmates`.
+- Support, Context, Blocked, capped, and refuted rows have no standalone
+  Checkmate text.
+- Raw proof failures, raw engine eval, raw PV, mate scores, source rows,
+  BoardFacts mate state, and SAN marks never become public wording.
+
+Checkmate-9 documentation audit:
+
+- Detailed Checkmate stage law, negative corpus, closeout checklist, forbidden
+  wording, and duplication audit live only in `StoryInteractionLaw.md`.
+- README, SSOT, Architecture, Contract, and Manifest may summarize only if docs
+  tests require it.
+- AGENTS.md remains unchanged unless durable operator rules change.
+- Docs authority tests must continue to agree on the live documentation
+  authority list.
+
+Checkmate-9 public-surface audit:
+
+- public route `200` remains closed.
+- production API remains closed.
+- public/user-facing LLM narration remains closed.
+- Existing LLM smoke remains bounded internal smoke only.
+
+Checkmate-9 verification:
+
+- Run targeted runtime tests:
+  `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- Run Checkmate stage and closeout tests:
+  `sbt "commentary/testOnly lila.commentary.chess.CheckmateStage1Test lila.commentary.chess.CheckmateStage2Test lila.commentary.chess.CheckmateStage3Test lila.commentary.chess.CheckmateStage4Test lila.commentary.chess.CheckmateStage5Test lila.commentary.chess.CheckmateStage6Test lila.commentary.chess.CheckmateStage7Test lila.commentary.chess.CheckmateStage8Test lila.commentary.chess.CheckmateCloseoutTest"`
+- Run docs authority tests if docs authority summaries changed:
+  `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- Always run cleanup:
+  `git diff --check`
+
+Completion standard: Checkmate-9 closes when `CheckmateProof`,
+`Scene.Checkmate`, `SceneCheckmate`, and `checkmates` remain separated by layer;
+exactly one narrow checkmate public event is open; Checkmate owns no CheckGiven,
+CheckEscaped, mate-threat, mate-in-N, forced-mate, best, only, winning,
+decisive, no-counterplay, king-safety, attack, pressure, initiative, Material,
+Hanging, Fork, Defense, Line, Defender, or pawn/file meaning; renderer and LLM
+smoke output stays no stronger than `checkmates`; detailed authority stays only
+in `StoryInteractionLaw.md`; summary docs remain summaries; public route `200`,
+production API, and public/user-facing LLM narration stay closed; targeted
+runtime tests pass; docs authority tests pass when touched; and `git diff
+--check` passes.
+
+### KCNFC-0 King Check Neighborhood Final Closeout
+
+KCNFC-0 opens no new chess meaning.
+
+KCNFC-0 is final closeout and hardening for the already-open King Check
+Neighborhood only. It audits exactly these chains:
+
+- `CheckGivenProof` -> `Scene.CheckGiven` -> `SceneCheckGiven` -> `gives_check`
+- `CheckEscapedProof` -> `Scene.CheckEscaped` -> `SceneCheckEscaped` ->
+  `escapes_check`
+- `CheckmateProof` -> `Scene.Checkmate` -> `SceneCheckmate` -> `checkmates`
+
+KCNFC-0 adds no:
+
+- proof home
+- Story label
+- Story writer
+- speech key
+- renderer wording
+- LLM behavior
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+KCNFC-0 does not open:
+
+- MateThreat
+- mate in N
+- forced mate
+- king safety
+- attack
+- pressure
+- initiative
+- best move
+- only move
+- winning
+- decisive
+- no-counterplay
+
+KCNFC-0 audit rules:
+
+- CheckGiven owns only the legal gives-check event.
+- CheckEscaped owns only the legal escapes-check event.
+- Checkmate owns only the legal checkmates event on the exact after-board.
+- A checkmating move may also satisfy CheckGiven proof, but `Scene.Checkmate`
+  keeps `checkmates` and `Scene.CheckGiven` keeps `gives_check`.
+- BoardFacts check state, mate state, SAN `+`, SAN `#`, legal move counts,
+  engine evidence, proofFailures, renderer text, and LLM text never create or
+  strengthen a King Check Story.
+- Support, Context, Blocked, capped, and refuted King Check rows have no
+  standalone text outside their already-open bounded downstream contracts.
+
+KCNFC-0 documentation boundary:
+
+- Detailed final closeout authority lives only in `StoryInteractionLaw.md`.
+- README, SSOT, Architecture, Contract, Manifest, and AGENTS.md must not copy
+  KCNFC-0 detailed law.
+- Docs authority tests must continue to agree on live documentation authority.
+
+Completion standard: KCNFC-0 closes when the final hardening scope is
+audit-only, adds no proof home, Story label, writer, speech key, renderer
+wording, LLM behavior, or public surface, the three King Check chains remain
+separate and exhaustive for opened King Check meaning, MateThreat, mate in N,
+forced mate, king safety, attack, pressure, initiative, best, only, winning,
+decisive, no-counterplay, public route `200`, production API, and
+public/user-facing LLM narration stay closed, and detailed authority lives only
+in `StoryInteractionLaw.md`.
+
+### KCNFC-1 Authority Separation
+
+KCNFC-1 opens no new chess meaning.
+
+KCNFC-1 audits only the three King Check chains:
+
+- `CheckGivenProof` -> `Scene.CheckGiven` -> `SceneCheckGiven` -> `gives_check`
+- `CheckEscapedProof` -> `Scene.CheckEscaped` -> `SceneCheckEscaped` ->
+  `escapes_check`
+- `CheckmateProof` -> `Scene.Checkmate` -> `SceneCheckmate` -> `checkmates`
+
+KCNFC-1 must verify:
+
+- CheckGiven owns only gives-check.
+- CheckEscaped owns only escapes-check.
+- Checkmate owns only actual checkmate.
+- Checkmate is not stronger CheckGiven wording.
+- CheckGiven is not Checkmate.
+- CheckEscaped is not mate avoidance.
+- No proof sidecar can be attached to the wrong Story.
+- No writer can create the wrong Scene.
+- No speech key can lower from the wrong Scene.
+
+KCNFC-1 must reject:
+
+- CheckGiven row with CheckmateProof
+- Checkmate row with CheckGivenProof only
+- CheckEscaped row with CheckmateProof
+- Checkmate row created from SAN `#`
+- Checkmate row created from BoardFacts-only or engine-only evidence
+
+Completion standard: KCNFC-1 closes when all three chains remain one meaning,
+one proof home, one Story label, one writer, one speech key, with no
+cross-ownership.
+
+### KCNFC-2 Collision Fixtures
+
+KCNFC-2 opens no new chess meaning.
+
+KCNFC-2 adds lightweight same-board fixtures for King Check collisions.
+
+KCNFC-2 fixture categories:
+
+- CheckGiven only
+- CheckEscaped only
+- Checkmate only
+- cross-check: escapes check and gives check
+- checkmate that also gives check
+- stalemate: no legal move but not in check
+- no-legal-move without check
+- SAN `#` without proof
+- engine mate line without Story
+- contaminated sidecar rows
+
+KCNFC-2 must verify:
+
+- cross-check may produce CheckGiven and CheckEscaped only through separate
+  complete proofs
+- checkmate may coexist with CheckGiven only as separate proof-backed rows
+- stalemate never becomes Checkmate
+- no-legal-move without check never becomes Checkmate
+- SAN `#`, raw PV, and engine mate text never create Story
+- contaminated rows are blocked or silent
+
+Completion standard: KCNFC-2 closes when collision fixtures prove King Check
+rows do not borrow each other's proof, identity, claim key, renderer text, or
+LLM wording.
+
+### KCNFC-3 StoryTable Stability
+
+KCNFC-3 opens no new chess meaning.
+
+KCNFC-3 audits StoryTable behavior for King Check rows.
+
+KCNFC-3 must verify:
+
+- `StoryTable` may order existing CheckGiven, CheckEscaped, and Checkmate rows.
+- `StoryTable` must not create any King Check Story.
+- input order is stable
+- duplicate same-meaning rows order deterministically or collapse according
+  to existing rules
+- Checkmate does not erase CheckGiven ownership
+- CheckGiven does not upgrade to Checkmate
+- CheckEscaped does not become mate avoidance
+- Support / Context / Blocked rows produce no standalone text
+- capped / refuted rows produce no standalone text
+
+KCNFC-3 collision targets:
+
+- CheckGiven
+- CheckEscaped
+- Checkmate
+- Material
+- Hanging / Fork
+- Defense
+- Line / Defender tactics
+- open pawn/file scenes
+
+Completion standard: KCNFC-3 closes when StoryTable ordering is
+deterministic, King Check meanings remain separate, sibling Story families keep
+ownership, and non-Lead/capped/refuted rows stay silent.
+
+### KCNFC-4 Engine / Notation / Diagnostics Boundary
+
+KCNFC-4 opens no new chess meaning.
+
+KCNFC-4 audits non-Story inputs for the three King Check chains.
+
+KCNFC-4 must verify:
+
+- `EngineCheck` cannot create CheckGiven, CheckEscaped, or Checkmate.
+- `EngineCheck` only supports, caps, or refutes existing Stories.
+- raw engine eval, mate score, raw PV, and engine text never become public
+  wording.
+- SAN `+` and SAN `#` are notation only.
+- `BoardFacts` check/mate/legal-move observations do not create Stories.
+- proofFailures remain internal diagnostics only.
+- source rows do not become public claim owners.
+
+KCNFC-4 forbidden public wording:
+
+- engine says
+- mate score
+- best move
+- only move
+- forced mate
+- winning / decisive
+- no counterplay
+- safe king / unsafe king
+- attack / pressure / initiative
+
+Completion standard: KCNFC-4 closes when engine, notation, BoardFacts,
+proofFailures, and source rows remain non-authoritative diagnostics or
+observations and cannot create or strengthen King Check public claims.
+
+### KCNFC-5 Downstream Boundary
+
+KCNFC-5 opens no new chess meaning.
+
+KCNFC-5 audits ExplanationPlan, Renderer, and LLM smoke only.
+
+KCNFC-5 must verify:
+
+- CheckGiven lowers only to `gives_check`.
+- CheckEscaped lowers only to `escapes_check`.
+- Checkmate lowers only to `checkmates`.
+- no cross-claim lowering is possible.
+- Renderer input remains `ExplanationPlan` only.
+- Renderer text stays no stronger than the selected claim key.
+- LLM smoke receives only:
+  - renderedText
+  - claimKey
+  - strength
+  - forbidden wording
+  - `Rephrase only. Do not add chess facts.`
+- LLM smoke cannot add new moves, lines, mate threat, mate in N, forced mate,
+  engine explanation, king safety, attack, pressure, initiative, best, only,
+  winning, decisive, or no-counterplay.
+
+Completion standard: KCNFC-5 closes when downstream output is bounded to
+`gives_check`, `escapes_check`, or `checkmates` only, and all non-selected,
+capped, refuted, Support, Context, and Blocked rows remain silent.
+
+### KCNFC-6 Docs / Public Surface
+
+KCNFC-6 opens no new chess meaning.
+
+KCNFC-6 audits documentation and public surface only.
+
+KCNFC-6 docs rules:
+
+- detailed KCNFC authority lives only in `StoryInteractionLaw.md`.
+- README, SSOT, Architecture, Contract, and Manifest stay summary-only if touched.
+- AGENTS.md remains unchanged unless durable operator rules change.
+- docs authority tests must agree with the live authority list.
+
+KCNFC-6 public surface rules:
+
+- `/api/commentary/render` remains fail-closed.
+- `/internal/commentary/render-local-probe` remains fail-closed.
+- no public route `200`.
+- no production API.
+- no public/user-facing LLM narration.
+
+Completion standard: KCNFC-6 closes when no detailed authority is duplicated
+outside `StoryInteractionLaw.md` and all public surfaces remain closed.
+
+### KCNFC-7 Final Verification
+
+KCNFC-7 opens no new chess meaning.
+
+KCNFC-7 final audit:
+
+- CheckGiven chain remains separate.
+- CheckEscaped chain remains separate.
+- Checkmate chain remains separate.
+- Checkmate is not CheckGiven plus stronger wording.
+- CheckEscaped is not mate avoidance.
+- MateThreat, mate in N, forced mate, king safety, attack, pressure,
+  initiative, best, only, winning, decisive, and no-counterplay remain closed.
+- SAN, BoardFacts, engine evidence, raw PV, proofFailures, and source rows do
+  not create public claims.
+- Renderer and LLM smoke remain bounded.
+- public route `200`, production API, and public/user-facing LLM narration
+  remain closed.
+
+KCNFC-7 required verification:
+
+- `sbt "commentary/testOnly lila.commentary.chess.KingCheckNeighborhoodCloseoutTest"`
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Completion standard: KCNFC-7 closes when King Check Neighborhood is
+final-closed with exactly three public meanings, no new meaning opened by
+hardening, all tests pass, and `git diff --check` passes.
+
+### Stalemate-1 StalemateProof
+
+Stalemate-1 opens only `StalemateProof` as a proof home.
+
+Open only this proof meaning:
+
+a legal move leaves the rival side not in check and with no legal moves on the
+exact after-board
+
+`StalemateProof` proves:
+
+- stalemating side
+- rival side
+- legal move identity
+- moving piece identity when available
+- origin square
+- destination square
+- rival king square after the move
+- after-board rival side is not in check
+- after-board rival side has no legal moves
+- exact after-board replay
+- same-board proof
+- stalemate was produced by this legal move
+
+Stalemate-1 does not open:
+
+- `Scene.Stalemate`
+- `SceneStalemate`
+- `stalemates`
+- Story writer
+- Verdict path
+- ExplanationPlan
+- renderer
+- LLM narration
+- public route `200`
+- production API
+- draw evaluation
+- tablebase result
+- blunder
+- saved game
+- thrown win
+- winning / losing / decisive
+- best / only / forced
+- no counterplay
+
+Boundary:
+
+- `StalemateProof` is not a public Story.
+- `StalemateProof` must not create `Scene.Stalemate`.
+- BoardFacts may observe no-legal-move and check state, but does not own the
+  public claim.
+- `StalemateProof` does not replace `CheckmateProof`.
+- `StalemateProof` does not prove draw evaluation, tablebase result, blunder,
+  saved game, or thrown win.
+- `StalemateProof.publicClaimAllowed` remains false.
+
+Completion standard: Stalemate-1 closes when `StalemateProof` proves only
+not-in-check plus no-legal-moves on the exact after-board, no Story writer,
+Verdict, ExplanationPlan, renderer, LLM, public route, or production API opens,
+and targeted tests plus `git diff --check` pass.
+
+### Stalemate-2 Scene.Stalemate Writer
+
+Stalemate-2 opens only `SceneStalemate` as the named writer for
+`Scene.Stalemate`.
+
+Stalemate-2 writer conditions:
+
+- complete StoryProof
+- complete `StalemateProof`
+- same-board legal replay
+- legal move leaves rival side not in check
+- legal move leaves rival side with no legal moves
+- rival king square is identified
+- writer = `SceneStalemate`
+- EngineCheck does not Refute
+
+Stalemate-2 Story identity:
+
+- scene = `Stalemate`
+- tactic = None
+- plan = None
+- side = stalemating side
+- rival = stalemated side
+- target = rival king square after the move
+- anchor = moving piece origin square
+- route = legal stalemating move
+
+Forbidden writer ownership:
+
+- `SceneStalemate` must not create Checkmate.
+- `SceneStalemate` must not create CheckGiven.
+- `SceneStalemate` must not create CheckEscaped.
+- `SceneStalemate` must not create draw-result, saved-game, thrown-win,
+  blunder, best, only, forced, winning, losing, decisive, no-counterplay,
+  engine, or tablebase meaning.
+
+Stalemate-2 does not open:
+
+- `stalemates` speech key
+- ExplanationPlan
+- renderer
+- LLM narration
+- public route `200`
+- production API
+- public/user-facing narration
+
+Completion standard: Stalemate-2 closes when `SceneStalemate` writes only
+complete `StalemateProof` rows into `Scene.Stalemate`, with no tactic, no plan,
+stalemating side, rival side, target as the rival king square after the move,
+anchor as the moving piece origin square, route as the legal stalemating move,
+no EngineCheck Refutes lead, no Checkmate, CheckGiven, CheckEscaped,
+draw-result, saved-game, thrown-win, blunder, best, only, forced, winning,
+losing, decisive, no-counterplay, engine, or tablebase ownership, and no
+downstream ExplanationPlan, renderer, LLM, public route, production API, or
+public narration opens.
+
+### Stalemate-3 Negative Corpus
+
+Stalemate-3 opens only the negative corpus for the already opened
+`StalemateProof` -> `Scene.Stalemate` path.
+
+Stalemate-3 must stay silent for:
+
+- illegal move
+- missing same-board proof
+- missing exact-board replay
+- after-board rival side is in check
+- after-board rival side has at least one legal move
+- checkmate
+- ordinary quiet move with legal replies
+- side-to-move confusion
+- missing rival king square
+- incomplete StoryProof
+- incomplete StalemateProof
+- writerless row
+- contaminated sidecar row
+- BoardFacts no-legal-move without not-in-check proof
+- SAN or result notation without proof
+- engine/tablebase-only draw claim
+- repetition / fifty-move / insufficient material / resignation / timeout
+- draw, saves, blunder, thrown win, best, only, forced, winning, losing,
+  decisive, no-counterplay wording
+
+Stalemate-3 rules:
+
+- No legal moves is not stalemate unless the rival side is not in check.
+- Stalemate is not Checkmate.
+- Stalemate is not a draw-evaluation explanation.
+- Complete StalemateProof or silence.
+- Stalemate-related blocked rows are not selected public Verdicts.
+- EngineCheck, tablebase-looking evidence, SAN, result notation, and
+  BoardFacts no-legal-move state cannot create or repair `Scene.Stalemate`.
+- Stalemate-3 does not open the `stalemates` speech key, ExplanationPlan,
+  renderer, LLM narration, public route `200`, production API, or
+  public/user-facing narration.
+
+Completion standard: Stalemate-3 closes when illegal moves, missing same-board
+proof, missing exact-board replay, after-board check, rival legal replies,
+checkmate, ordinary quiet moves, side-to-move confusion, missing rival king
+square, incomplete StoryProof, incomplete StalemateProof, writerless rows,
+contaminated sidecar rows, BoardFacts no-legal-move without not-in-check proof,
+SAN/result notation without proof, engine/tablebase-only draw claims,
+repetition, fifty-move, insufficient-material, resignation, timeout, and draw,
+saves, blunder, thrown-win, best, only, forced, winning, losing, decisive, and
+no-counterplay wording all stay silent, and the only positive path remains an
+exact legal after-board where the rival side is not in check and has no legal
+moves.
+
+### Stalemate-4 EngineCheck Reuse
+
+Stalemate-4 reuses only the existing `EngineCheck` boundary for already
+existing complete `SceneStalemate` Stories.
+
+Stalemate-4 rules:
+
+- EngineCheck cannot create `Scene.Stalemate`.
+- Supports creates no new claim.
+- Caps suppresses standalone claim speech or keeps downstream speech bounded
+  to stalemates where downstream speech is separately open.
+- Refutes makes `Scene.Stalemate` Blocked.
+- Unknown creates no engine expression.
+- Engine evidence must bind to the same Story route and legal line.
+- EngineCheck attaches only when the Story is `Scene.Stalemate`, writer is
+  `SceneStalemate`, StoryProof is complete, `StalemateProof` is complete,
+  the route is the legal stalemating move, and the proof is exact-board
+  not-in-check plus no-legal-moves.
+- EngineCheck cannot repair incomplete StoryProof, incomplete
+  StalemateProof, writerless rows, route mismatch, illegal line mismatch, or
+  engine/tablebase-only rows.
+
+Forbidden engine wording:
+
+- engine says draw
+- tablebase draw
+- eval number
+- best move
+- only move
+- forced draw
+- winning thrown away
+- blunder
+- decisive mistake
+
+Stalemate-4 does not open:
+
+- `stalemates` speech key
+- draw claim
+- tablebase claim
+- blunder claim
+- best / only / forced claim
+- evaluation wording
+- ExplanationPlan
+- renderer
+- LLM narration
+- public route `200`
+- production API
+- public/user-facing narration
+
+Completion standard: Stalemate-4 closes when EngineCheck attaches only to an
+existing complete `SceneStalemate` Story and never creates or strengthens
+stalemate, draw, tablebase, blunder, best/only/forced, or evaluation wording.
+
+### Stalemate-5 StoryTable Integration
+
+Integrate `Scene.Stalemate` only as an already existing proof-backed Story.
+
+Stalemate-5 collision targets:
+
+- `Scene.Stalemate`
+- `Scene.Checkmate`
+- `Scene.CheckGiven`
+- `Scene.CheckEscaped`
+- `Scene.Material`
+- Hanging / Fork
+- Defense
+- Line / Defender tactics
+- open pawn/file scenes
+
+Stalemate-5 verifies:
+
+- input order stability
+- Stalemate does not own Checkmate.
+- Checkmate does not own Stalemate.
+- no-legal-move without check belongs only to Stalemate when not-in-check
+  proof is complete
+- no-legal-move with check belongs only to Checkmate when CheckmateProof is
+  complete
+- Stalemate owns no draw-evaluation, saved-game, blunder, thrown-win,
+  tablebase, best, only, forced, winning, losing, decisive, or no-counterplay
+  meaning
+- capped/refuted/Support/Context/Blocked Stalemate rows have no standalone
+  text
+
+Stalemate-5 StoryTable rules:
+
+- StoryTable may order only an already written `Scene.Stalemate` row.
+- StoryTable must not create `Scene.Stalemate` from BoardFacts, EngineCheck,
+  SAN, result notation, source rows, or sibling terminal rows.
+- `Scene.Stalemate` remains separate from `Scene.Checkmate`, `Scene.CheckGiven`,
+  and `Scene.CheckEscaped`.
+- Checkmate proof sidecars cannot contaminate Stalemate rows.
+- Stalemate proof sidecars cannot contaminate Checkmate, CheckGiven,
+  CheckEscaped, Material, Tactic, Defense, pawn, or file rows.
+- Non-Lead, capped, refuted, Support, Context, and Blocked Stalemate rows do
+  not lower to ExplanationPlan, renderer, LLM, public route `200`, production
+  API, or public/user-facing narration.
+
+Stalemate-5 does not open:
+
+- `stalemates` speech key
+- draw evaluation
+- saved-game claim
+- blunder claim
+- thrown-win claim
+- tablebase claim
+- best / only / forced claim
+- winning / losing / decisive claim
+- no-counterplay claim
+- ExplanationPlan
+- renderer
+- LLM narration
+- public route `200`
+- production API
+- public/user-facing narration
+
+Completion standard: Stalemate-5 closes when StoryTable order is stable,
+Checkmate and Stalemate remain separate, sibling claim homes keep ownership,
+and non-Lead/capped/refuted rows stay silent.
+
+### Stalemate-6 ExplanationPlan
+
+Open only ExplanationPlan for selected uncapped Lead `Scene.Stalemate` Verdicts.
+
+Allowed claim key: `stalemates` only.
+
+Stalemate-6 forbidden claim keys:
+
+- `checkmates`
+- `gives_check`
+- `escapes_check`
+- `draws_game`
+- `saves_game`
+- `throws_win`
+- `blunder`
+- `tablebase_draw`
+- `engine_says_draw`
+- `best_move`
+- `only_move`
+- `forced`
+- `winning`
+- `losing`
+- `decisive`
+- `no_counterplay`
+
+Stalemate-6 ExplanationPlan input boundary:
+
+- `ExplanationPlan.fromSelected` accepts only selected uncapped Lead
+  `Scene.Stalemate` Verdicts.
+- Story must be `Scene.Stalemate`, `tactic = None`, `plan = None`, and
+  `writer = SceneStalemate`.
+- `target` is the rival king square after the move.
+- `anchor` is the moving piece origin square.
+- `route` is the legal stalemating move.
+- `evidenceLine` is the route only.
+- `StalemateProof` must still bind not-in-check plus no-legal-move
+  after-board state.
+- `StalemateProof` must still bind exact after-board replay, same-board proof,
+  legal move identity, and stalemate produced by this legal move.
+
+Stalemate-6 does not open:
+
+- renderer
+- LLM narration
+- public route `200`
+- production API
+- public/user-facing narration
+- draw evaluation
+- saved-game claim
+- blunder claim
+- thrown-win claim
+- tablebase claim
+- engine-says-draw claim
+- best / only / forced claim
+- winning / losing / decisive claim
+- no-counterplay claim
+
+Renderer, LLM, public route, production API, and public narration remain closed.
+
+Completion standard: Stalemate-6 closes when only selected uncapped Lead
+Stalemate lowers to `stalemates`, all sibling/evaluation/draw/tablebase claim
+keys remain closed, and Support/Context/Blocked/capped/refuted rows stay
+silent.
+
+### Stalemate-7 DeterministicRenderer
+
+Open deterministic renderer text only from bounded Stalemate ExplanationPlan.
+
+`DeterministicRenderer` input is `ExplanationPlan` only.
+
+Stalemate-7 renderer must not accept or inspect:
+
+- raw Story
+- Verdict
+- StalemateProof
+- BoardFacts
+- EngineCheck
+- raw PV
+- proofFailures
+- source rows
+- result notation
+- tablebase input
+
+Allowed Stalemate-7 templates:
+
+- `{route} is stalemate.`
+- `{route} stalemates the king.`
+
+Stalemate-7 forbidden renderer wording:
+
+- draws the game
+- saves the game
+- throws away the win
+- blunder
+- tablebase draw
+- engine says
+- best move
+- only move
+- forced
+- winning / losing / decisive
+- no counterplay
+
+Stalemate-7 renderer rejects:
+
+- Support rows
+- Context rows
+- Blocked rows
+- capped rows
+- refuted rows
+- missing-claim plans
+- sibling claim plans
+- wrong-scene plans
+- tactic-contaminated plans
+- secondary-target-contaminated plans
+- missing target, anchor, route, route SAN, or matching evidence line
+- plans with empty forbidden wording
+
+Stalemate-7 does not open:
+
+- draw evaluation
+- saved-game claim
+- thrown-win claim
+- blunder claim
+- tablebase claim
+- engine-says-draw claim
+- best / only / forced claim
+- winning / losing / decisive claim
+- no-counterplay claim
+- LLM narration
+- public route `200`
+- production API
+- public/user-facing narration
+
+Completion standard: Stalemate-7 closes when renderer emits only bounded
+stalemate text from ExplanationPlan and all draw/eval/tablebase/best/only/
+forced wording remains absent.
+
+### Stalemate-8 LLM Smoke
+
+Reuse only existing LLM smoke boundary for bounded Stalemate `RenderedLine`.
+
+Allowed Stalemate-8 smoke input:
+
+- renderedText
+- claimKey
+- strength
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+Stalemate-8 smoke must not accept or inspect:
+
+- raw Story
+- raw StalemateProof
+- BoardFacts
+- EngineCheck
+- EngineLine / EngineEval
+- raw PV
+- proofFailures
+- source rows
+- result notation
+- tablebase diagnostics
+
+Stalemate-8 smoke must reject additions of:
+
+- new move
+- new line
+- draw result explanation
+- saves game
+- throws win
+- blunder
+- tablebase
+- engine mention
+- best / only / forced
+- winning / losing / decisive
+- no counterplay
+- checkmate
+- check claim
+- escape-check claim
+
+Stalemate-8 does not open:
+
+- raw Story input
+- raw StalemateProof input
+- BoardFacts input
+- EngineCheck input
+- EngineLine / EngineEval input
+- raw PV input
+- proofFailures input
+- source-row input
+- result-notation input
+- tablebase-diagnostics input
+- draw-result narration
+- saved-game narration
+- thrown-win narration
+- blunder narration
+- tablebase narration
+- engine narration
+- best / only / forced narration
+- winning / losing / decisive narration
+- no-counterplay narration
+- sibling King Check narration
+- public route `200`
+- production API
+- public/user-facing narration
+
+Completion standard: Stalemate-8 closes when LLM smoke may only rephrase bounded
+stalemates text and cannot add draw/eval/tablebase/engine/sibling King Check
+facts.
+
+### Stalemate-9 Closeout / Hard Cleanup
+
+Stalemate-9 opens no new chess meaning.
+
+Close only:
+
+- a legal move leaves the rival side not in check and with no legal moves on
+  the exact after-board
+
+Authority audit:
+
+- StalemateProof owns proof home.
+- Scene.Stalemate owns Story label.
+- SceneStalemate owns writer.
+- `stalemates` owns speech key.
+- These are not interchangeable.
+
+Duplication audit:
+
+- Checkmate = in check plus no legal escape.
+- Stalemate = not in check plus no legal moves.
+- CheckGiven = gives check.
+- CheckEscaped = escapes check.
+- No chain owns another chain.
+
+Still closed:
+
+- draw claim beyond stalemate
+- saved game
+- thrown win
+- blunder
+- tablebase
+- engine says draw
+- best / only / forced
+- winning / losing / decisive
+- no counterplay
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Closeout verification:
+
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+- optional targeted Stalemate stage and closeout suites when present
+
+Completion standard: Stalemate-9 closes when StalemateProof,
+Scene.Stalemate, SceneStalemate, and `stalemates` remain separated; Checkmate
+and Stalemate cannot steal each other; downstream text stays bounded; public
+surfaces remain closed; tests pass; and `git diff --check` passes.
+
+## ATIH Stage-0 Charter
+
+Work name: Attack-Target Interaction Hardening.
+
+ATIH-0 opens no new chess meaning.
+
+ATIH-0 opens no new proof home, Story label, writer, speech key, renderer
+wording, LLM narration behavior, public route `200`, or production API. It
+hardens only interactions among already-open attack-target and material-contact
+rows.
+
+Locked existing chains:
+
+- `QueenHitProof` -> `Tactic.QueenHit` -> `TacticQueenHit` -> `attacks_queen`
+- `LoosePieceProof` -> `Tactic.Loose` -> `TacticLoose` -> `attacks_loose_piece`
+- existing Hanging proof path -> `Tactic.Hanging` -> `TacticHanging` -> `can_win_piece`
+- existing material proof path -> `Scene.Material` -> `SceneMaterial` -> `material_balance_changes`
+
+ATIH-0 ownership rules:
+
+- QueenHit owns only a queen-specific attack claim.
+- Loose owns only an undefended non-king piece attack claim.
+- Hanging owns only a capturable non-pawn, non-king target with bounded
+  positive material proof.
+- Material owns only actual material balance change from the existing material
+  proof path.
+- Attack-only QueenHit or Loose rows cannot create Hanging, Material, free
+  piece, en prise, wins-piece, wins-material, or material-gain speech.
+- Mixed QueenHit/Loose sidecars are contamination, not a combined public claim.
+
+ATIH-0 still closed:
+
+- wins queen
+- traps queen
+- queen is lost
+- hanging from Loose
+- material gain from attack-only rows
+- free piece
+- en prise
+- underdefended
+- overloaded defender
+- pressure
+- initiative
+- tempo
+- best move
+- only move
+- forced move
+- decisive
+- winning
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Documentation rule: detailed ATIH authority lives only in
+`StoryInteractionLaw.md`. README, SSOT, Architecture, Contract, and Manifest
+may summarize only if docs tests require it. `AGENTS.md` remains unchanged.
+
+Completion standard: ATIH-0 closes when QueenHit, Loose, Hanging, and Material
+keep exactly their existing proof, Story, writer, and speech-key chains;
+QueenHit and Loose attack-only rows cannot become Hanging or Material claims;
+QueenHit/Loose mixed sidecars stay blocked; forbidden attack-target,
+material-gain, tempo, pressure, initiative, best/only/forced,
+decisive/winning, public route `200`, production API, and public/user-facing
+LLM narration surfaces remain closed; targeted ATIH tests pass; docs authority
+tests pass when touched; and `git diff --check` passes.
+
+## ATIH Stage-1 Authority Inventory
+
+ATIH-1 opens authority inventory tests only.
+
+ATIH-1 opens no runtime meaning expansion, no proof home, no Story label, no
+writer, no speech key, no renderer wording, no LLM narration behavior, no
+public route `200`, and no production API.
+
+Authority separation inventory:
+
+- QueenHitProof is not Tactic.QueenHit.
+- Tactic.QueenHit is not TacticQueenHit.
+- TacticQueenHit is not attacks_queen.
+- LoosePieceProof is not Tactic.Loose.
+- Tactic.Loose is not TacticLoose.
+- TacticLoose is not attacks_loose_piece.
+- Tactic.Hanging is not Scene.Material.
+- Scene.Material is not Tactic.Hanging.
+
+Role inventory:
+
+- QueenHit owns only queen-attacked meaning.
+- Loose owns only undefended non-king piece attacked meaning.
+- Hanging owns only its already-open bounded hanging/can-win-piece meaning.
+- Material owns only actual material balance change now.
+
+Creation boundary inventory:
+
+- BoardFacts cannot create any of these Stories.
+- EngineCheck cannot create any of these Stories.
+- StoryTable cannot create any of these Stories.
+- ExplanationPlan, Renderer, and LLM smoke cannot create, repair, rank, or strengthen these meanings.
+
+ATIH-1 documentation rule: detailed authority inventory lives only in
+`StoryInteractionLaw.md`. README, SSOT, Architecture, Contract, and Manifest
+may summarize only if docs tests require it. `AGENTS.md` remains unchanged.
+
+Completion standard: ATIH-1 closes when tests prove the QueenHit, Loose,
+Hanging, and Material proof, Story-label, writer, and speech-key layers stay
+separate; BoardFacts, EngineCheck, StoryTable, ExplanationPlan, Renderer, and
+LLM smoke cannot create, repair, rank, or strengthen those meanings; no runtime
+meaning expansion is introduced; detailed authority remains only in
+`StoryInteractionLaw.md`; targeted ATIH tests pass; docs authority tests pass
+when touched; and `git diff --check` passes.
+
+## ATIH Stage-2 Collision Fixtures
+
+ATIH-2 opens collision fixture corpus only.
+
+ATIH-2 opens no public wording expansion, no new chess meaning, no proof home,
+no Story label, no writer, no speech key, no renderer wording, no LLM narration
+behavior, no public route `200`, and no production API.
+
+Required collision fixture categories:
+
+- QueenHit-only: legal move attacks rival queen, no material change.
+- Loose-only: legal move attacks one undefended rival non-king non-queen piece, no material change.
+- QueenHit plus Loose-looking overlap: rival queen is undefended and attacked.
+- Hanging-only: existing hanging proof complete, no QueenHit/Loose speech steal.
+- Material-only: actual material balance changes now, no attack-only claim required.
+- Attack-only not Material: queen or loose piece attacked but no capture/material result.
+- Material not Loose: capture/material change where loose-piece proof is incomplete.
+- Loose not Hanging: target is attacked and undefended, but no bounded hanging capture proof.
+- QueenHit not wins-queen: queen attacked but not proven lost/trapped.
+- Capped/refuted rows for each chain.
+
+Expected ownership:
+
+- Queen target belongs to QueenHit-specific speech, not generic Loose speech,
+  unless the implementation explicitly supports both as non-Lead and
+  non-speaking. Preferred: QueenHit Lead, Loose silent or Support with no standalone text.
+- Loose cannot lower to Hanging, Material, pressure, tempo, or wins-piece wording.
+- Attack-only rows cannot produce Scene.Material.
+- Actual material result remains Scene.Material home.
+- Hanging remains bounded to the existing `can_win_piece` path and cannot be
+  created from QueenHit or Loose attack-only proof.
+- Capped rows produce no standalone rendered line.
+- Refuted rows are blocked and produce no standalone rendered line.
+
+ATIH-2 documentation rule: detailed collision fixture authority lives only in
+`StoryInteractionLaw.md`. README, SSOT, Architecture, Contract, and Manifest
+may summarize only if docs tests require it. `AGENTS.md` remains unchanged.
+
+Completion standard: ATIH-2 closes when the collision fixture corpus proves
+QueenHit-only, Loose-only, QueenHit plus Loose-looking overlap, Hanging-only,
+Material-only, attack-only-not-Material, Material-not-Loose, Loose-not-Hanging,
+QueenHit-not-wins-queen, and capped/refuted rows for each chain; QueenHit owns
+queen attack speech, Loose owns only undefended non-king non-queen piece attack
+speech, Hanging owns only already-open bounded hanging/can-win-piece meaning,
+Material owns actual material balance change now, attack-only rows cannot
+produce Scene.Material, actual material result remains Scene.Material home, no
+public wording expansion is introduced, detailed authority remains only in
+`StoryInteractionLaw.md`, targeted ATIH tests pass, docs authority tests pass
+when touched, and `git diff --check` passes.
+
+## ATIH Stage-3 StoryTable Stability
+
+ATIH-3 opens StoryTable ordering hardening only.
+
+ATIH-3 opens no new chess meaning, no proof home, no Story label, no writer, no
+speech key, no renderer wording, no LLM narration behavior, no public route
+`200`, and no production API.
+
+Required StoryTable stability checks:
+
+- input order stability across QueenHit, Loose, Hanging, and Material rows
+- at most one Lead for the same route when meanings collide
+- selected Lead is deterministic
+- Support, Context, and Blocked rows have no standalone text.
+- capped and refuted rows have no standalone text.
+- sibling rows do not lend proof sidecars to each other.
+
+Recommended collision priority for the same route:
+
+- actual material balance change now may lead as `Scene.Material`
+- complete Hanging may lead over weaker attack-only wording
+- QueenHit owns queen-specific attack wording
+- Loose owns non-queen undefended piece attack wording
+- if QueenHit and Loose both match a queen target, QueenHit owns public wording
+
+Forbidden StoryTable upgrades:
+
+- StoryTable must not upgrade QueenHit to wins queen.
+- StoryTable must not upgrade Loose to Hanging.
+- StoryTable must not upgrade attack-only rows to Material.
+- StoryTable must not use raw source rows, proofFailures, or EngineCheck to create a Lead.
+
+ATIH-3 documentation rule: detailed StoryTable stability authority lives only
+in `StoryInteractionLaw.md`. README, SSOT, Architecture, Contract, and
+Manifest may summarize only if docs tests require it. `AGENTS.md` remains
+unchanged.
+
+Completion standard: ATIH-3 closes when StoryTable ordering is stable across
+input order for QueenHit, Loose, Hanging, and Material rows; same-route
+collisions produce at most one deterministic Lead; non-Lead, Support, Context,
+Blocked, capped, and refuted rows produce no standalone text; sibling rows do
+not lend proof sidecars or upgrade one another; QueenHit cannot become
+wins-queen speech, Loose cannot become Hanging, attack-only rows cannot become
+Material, raw source rows, proofFailures, and EngineCheck cannot create a Lead,
+detailed authority remains only in `StoryInteractionLaw.md`, targeted ATIH
+tests pass, docs authority tests pass when touched, and `git diff --check`
+passes.
+
+## ATIH Stage-4 EngineCheck Boundary
+
+ATIH-4 opens EngineCheck interaction tests only.
+
+ATIH-4 opens no new chess meaning, no proof home, no Story label, no writer, no
+speech key, no renderer wording, no LLM narration behavior, no public route
+`200`, and no production API.
+
+EngineCheck interaction rules:
+
+- EngineCheck supports, caps, and refutes only already existing proof-backed Stories.
+- EngineCheck cannot create QueenHit.
+- EngineCheck cannot create Loose.
+- EngineCheck cannot create Hanging.
+- EngineCheck cannot create Material.
+- Supports creates no new claim.
+- Caps suppresses or bounds already selected speech.
+- Refutes blocks the affected Story.
+- Unknown creates no engine expression.
+
+Forbidden EngineCheck public wording:
+
+- engine says
+- eval number
+- raw PV
+- best move
+- only move
+- forced
+- wins queen
+- wins piece
+- wins material
+- pressure
+- initiative
+- decisive
+- winning
+
+Rule: EngineCheck may cap or refute a claim; it never broadens attack-only meaning into material or tactical certainty.
+
+ATIH-4 documentation rule: detailed EngineCheck boundary authority lives only
+in `StoryInteractionLaw.md`. README, SSOT, Architecture, Contract, and
+Manifest may summarize only if docs tests require it. `AGENTS.md` remains
+unchanged.
+
+Completion standard: ATIH-4 closes when tests prove EngineCheck can support,
+cap, or refute only already existing proof-backed QueenHit, Loose, Hanging, and
+Material Stories; EngineCheck cannot create QueenHit, Loose, Hanging, or
+Material; Supports creates no new claim; Caps suppresses or bounds already
+selected speech; Refutes blocks the affected Story; Unknown creates no engine
+expression; EngineCheck public wording cannot say engine says, eval number,
+raw PV, best move, only move, forced, wins queen, wins piece, wins material,
+pressure, initiative, decisive, or winning; EngineCheck never broadens
+attack-only meaning into material or tactical certainty; detailed authority
+remains only in `StoryInteractionLaw.md`; targeted ATIH tests pass; docs
+authority tests pass when touched; and `git diff --check` passes.
+
+## ATIH Stage-5 Downstream Boundary
+
+ATIH-5 opens ExplanationPlan, Renderer, and LLM smoke hardening only.
+
+ATIH-5 opens no new chess meaning, no proof home, no Story label, no writer, no
+speech key, no new public wording family, no public route `200`, and no
+production API.
+
+Allowed ATIH claim keys:
+
+- `attacks_queen`
+- `attacks_loose_piece`
+- `can_win_piece`
+- `material_balance_changes`
+
+ExplanationPlan boundary:
+
+- ExplanationPlan accepts only selected uncapped Lead Verdicts for public claim lowering.
+- ExplanationPlan rejects Support, Context, Blocked, capped, and refuted rows for public claim lowering.
+- ExplanationPlan rejects sibling claim-key substitution.
+- ExplanationPlan rejects incomplete proof sidecars and contaminated rows.
+- Existing internal relation-only plans do not create public claim ownership or
+  standalone rendered text.
+
+Renderer boundary:
+
+- Renderer input is ExplanationPlan only.
+- Renderer emits only the selected claim key's bounded template.
+- Renderer cannot inspect raw Story, proofs, BoardFacts, EngineCheck, raw PV, proofFailures, or source rows.
+
+LLM smoke boundary:
+
+- LLM smoke input is only renderedText, claimKey, strength, and forbidden wording.
+- The LLM smoke instruction remains: `Rephrase only. Do not add chess facts.`
+- LLM smoke must reject added material, queen-trap, hanging, pressure, tempo, best/only/forced, winning, or engine facts.
+
+Forbidden downstream leaks:
+
+- proofFailures must not become public text.
+- raw engine eval/PV must not become public wording.
+- source rows must not become public claim owners.
+
+ATIH-5 documentation rule: detailed downstream boundary authority lives only in
+`StoryInteractionLaw.md`. README, SSOT, Architecture, Contract, and Manifest
+may summarize only if docs tests require it. `AGENTS.md` remains unchanged.
+
+Completion standard: ATIH-5 closes when tests prove only `attacks_queen`,
+`attacks_loose_piece`, `can_win_piece`, and `material_balance_changes` lower
+from selected uncapped Lead Verdicts into public claim-bearing plans; Support,
+Context, Blocked, capped, refuted, incomplete, contaminated, and sibling
+claim-key-substituted rows produce no public claim and no standalone rendered
+text; Renderer accepts only ExplanationPlan and emits only the bounded template
+for the selected claim key; Renderer cannot inspect raw Story, proofs,
+BoardFacts, EngineCheck, raw PV, proofFailures, or source rows; LLM smoke
+receives only renderedText, claimKey, strength, forbidden wording, and the
+`Rephrase only. Do not add chess facts.` instruction; LLM smoke rejects added
+material, queen-trap, hanging, pressure, tempo, best/only/forced, winning, and
+engine facts; proofFailures, raw engine eval/PV, and source rows never become
+public text or public claim owners; detailed authority remains only in
+`StoryInteractionLaw.md`; targeted ATIH tests pass; docs authority tests pass
+when touched; and `git diff --check` passes.
+
+## ATIH Stage-6 Docs / Public Surface
+
+ATIH-6 opens documentation and public-surface audit only.
+
+ATIH-6 opens no new chess meaning, no proof home, no Story label, no writer, no
+speech key, no runtime meaning expansion, no public route `200`, and no
+production API.
+
+ATIH-6 docs rules:
+
+- detailed ATIH authority lives only in `StoryInteractionLaw.md`.
+- README, SSOT, Architecture, Contract, and Manifest remain summary-only if touched.
+- `AGENTS.md` remains unchanged unless durable operator rules change.
+- docs tests must prevent duplicated detailed ATIH law outside `StoryInteractionLaw.md`.
+
+ATIH-6 public surface rules:
+
+- `/api/commentary/render` remains fail-closed.
+- `/internal/commentary/render-local-probe` remains fail-closed.
+- no public route `200`.
+- no production API.
+- no public/user-facing LLM narration.
+
+ATIH-6 verification rules:
+
+- no route opens because attack-target hardening exists.
+- no env switch or local probe returns production-style rendered payload.
+
+Completion standard: ATIH-6 closes when detailed ATIH authority still lives
+only in `StoryInteractionLaw.md`; README, SSOT, Architecture, Contract, and
+Manifest remain summary-only if touched; `AGENTS.md` remains unchanged unless
+durable operator rules change; docs tests prevent duplicated detailed ATIH law
+outside `StoryInteractionLaw.md`; `/api/commentary/render` and
+`/internal/commentary/render-local-probe` stay registered only as fail-closed
+tombstones with no `200`; attack-target hardening opens no route, production
+API, public/user-facing LLM narration, env switch, local-probe rendered payload,
+or production-style rendered payload; targeted ATIH tests pass; docs authority
+tests pass; and `git diff --check` passes.
+
+## ATIH Stage-7 Closeout / Final Verification
+
+ATIH-7 opens no new chess meaning.
+
+ATIH-7 closes only Attack-Target Interaction Hardening.
+
+ATIH-7 closeout audit:
+
+- QueenHit remains queen-attacked only.
+- Loose remains undefended non-king piece attacked only.
+- Hanging remains its existing bounded hanging/can-win-piece meaning only.
+- Material remains actual material balance change now only.
+- No proof home, Story label, writer, or speech key is reused as another layer.
+- No attack-only row creates material.
+- No Loose row creates Hanging.
+- No QueenHit row creates wins-queen or trap.
+- No Material row is created from BoardFacts, EngineCheck, raw source, or renderer text.
+
+ATIH-7 still closed:
+
+- wins queen
+- traps queen
+- queen is lost
+- hanging from Loose
+- wins piece/material from attack-only rows
+- free piece
+- en prise
+- underdefended
+- overloaded defender
+- pressure
+- initiative
+- tempo
+- best / only / forced
+- decisive / winning
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+ATIH-7 required verification:
+
+- targeted ATIH test suite
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Completion standard: ATIH closes when QueenHit, Loose, Hanging, and Material
+keep separate proof homes, Story labels, writers, speech keys, StoryTable roles,
+ExplanationPlan claim keys, renderer templates, and LLM smoke boundaries; no new
+meaning opens; public surfaces remain closed; targeted ATIH tests pass;
+`ChessFoundationTest` passes; `ChessDocsAuthorityTest` passes; and
+`git diff --check` passes.
+
+## QueenHit Stage-1 Proof Home
+
+QueenHit-1 opens exactly one proof home:
+
+- proof home: `QueenHitProof`
+
+QueenHit-1 does not open a public Story, `Tactic.QueenHit` writer,
+`TacticQueenHit`, speech key, StoryTable Lead, ExplanationPlan, renderer, or
+LLM smoke path.
+
+QueenHitProof proves:
+
+- attacking side
+- rival side
+- legal move identity
+- origin square
+- destination square
+- rival queen square after the move
+- attacking piece square after the move
+- exact after-board replay
+- same-board proof
+- moving side attacks rival queen on the after-board
+- queen-hit was produced or revealed by this legal move
+
+QueenHit-1 must not open:
+
+- public Story
+- `Tactic.QueenHit`
+- `TacticQueenHit`
+- `attacks_queen`
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- material gain
+- wins queen
+- queen trap
+- tempo
+
+QueenHit-1 proof boundary:
+
+- `QueenHitProof` is not public Story.
+- BoardFacts may observe pieces, attacks, and queen location, but does not
+  create QueenHit.
+- Complete `QueenHitProof` or silence.
+- `QueenHitProof.publicClaimAllowed` remains false.
+- `QueenHitProof` must not attach to `Story`.
+- `QueenHitProof` must not create or require `StoryProof`.
+- `EngineCheck` does not consume QueenHitProof in Stage-1.
+- Downstream layers must not mention QueenHitProof or produce QueenHit text.
+
+QueenHit-1 negative corpus must keep silent:
+
+- illegal move
+- missing same-board proof
+- missing exact after-board replay
+- no rival queen after the move
+- rival queen present but not attacked after the move
+- BoardFacts attack observation without complete `QueenHitProof`
+- any runtime `TacticQueenHit`, `attacks_queen`, QueenHit ExplanationPlan,
+  renderer, LLM smoke, material-gain, wins-queen, queen-trap, or tempo surface
+
+QueenHit-1 documentation rule:
+
+- detailed QueenHit stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: QueenHit-1 closes when `QueenHitProof` proves only the
+complete legal same-board after-board queen-hit evidence listed above; BoardFacts
+remains observation only; no public Story, `TacticQueenHit`, `attacks_queen`,
+StoryTable Lead, ExplanationPlan, Renderer, LLM smoke, material-gain,
+wins-queen, queen-trap, or tempo path opens; targeted runtime tests pass; docs
+authority tests pass when touched; and `git diff --check` passes.
+
+## QueenHit Stage-2 Writer
+
+QueenHit-2 opens only:
+
+- named writer: `TacticQueenHit`
+- Story label: `Tactic.QueenHit`
+
+QueenHit-2 writer may create a Story only when:
+
+- complete `StoryProof`
+- complete `QueenHitProof`
+- same-board legal replay
+- legal route matches proof route
+- rival queen target is present after the move
+- moving side attacks that queen after the move
+- writer = `TacticQueenHit`
+- EngineCheck does not Refute
+
+QueenHit-2 Story identity:
+
+- scene = None, encoded as `Scene.Tactic` plus `Tactic.QueenHit`
+- tactic = `QueenHit`
+- plan = None
+- side = attacking side
+- rival = queen owner
+- target = rival queen square after the move
+- anchor = attacking piece square after the move
+- route = legal queen-hitting move
+
+QueenHit-2 does not open:
+
+- Hanging
+- Fork
+- Skewer
+- Pin
+- RemoveGuard
+- Material
+- wins queen
+- tempo
+- queen trap
+- best / only / forced
+- downstream text
+- `attacks_queen`
+- ExplanationPlan claim mapping
+- Renderer
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+QueenHit-2 boundary:
+
+- `TacticQueenHit` may attach only `QueenHitProof`; sibling proof homes must
+  stay empty.
+- `QueenHitProof` remains the proof home; `TacticQueenHit` owns only Story
+  construction.
+- BoardFacts observations cannot create QueenHit without `QueenHitProof`.
+- EngineCheck may only block a QueenHit Story by Refutes; it must not create
+  QueenHit, explain QueenHit, or strengthen QueenHit.
+- StoryTable may keep the Stage-2 row as non-speaking context, but Stage-2
+  opens no Lead speech path.
+- ExplanationPlan, renderer, and LLM smoke must produce no QueenHit wording.
+
+QueenHit-2 negative corpus must stay silent or blocked for:
+
+- incomplete `StoryProof`
+- incomplete `QueenHitProof`
+- illegal move
+- route mismatch between Story and proof
+- missing same-board legal replay
+- no rival queen after the move
+- rival queen not attacked by moving side after the move
+- EngineCheck Refutes
+- writerless `Tactic.QueenHit`
+- QueenHit proof attached to non-QueenHit row
+- QueenHit writer copied onto Hanging, Fork, Skewer, Pin, RemoveGuard, or
+  Material identity
+- wins-queen, tempo, queen-trap, best, only, forced, material, or downstream
+  wording
+
+QueenHit-2 documentation rule:
+
+- detailed QueenHit stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: QueenHit-2 closes when `TacticQueenHit` creates only
+`Scene.Tactic` plus `Tactic.QueenHit` rows from complete `StoryProof` and
+complete `QueenHitProof`, with side/rival/target/anchor/route bound to the
+exact after-board queen attack; EngineCheck Refutes blocks the row; sibling
+tactics and Material stay closed; wins-queen, tempo, queen-trap, best, only,
+forced, ExplanationPlan claim mapping, renderer, LLM smoke, public route `200`,
+production API, and public/user-facing LLM narration remain closed; targeted
+runtime tests pass; docs authority tests pass when touched; and `git diff
+--check` passes.
+
+## QueenHit Stage-3 Negative Corpus
+
+QueenHit-3 opens only:
+
+- negative corpus for QueenHit false positives
+
+QueenHit-3 must stay silent for:
+
+- illegal move
+- missing same-board proof
+- missing exact after-board replay
+- rival queen absent after move
+- attacked piece is not queen
+- queen belongs to moving side
+- queen was attacked only on before-board
+- queen hit already existed before the move and was not produced or revealed
+  by the legal move
+- attack line blocked on after-board
+- pinned attacker cannot legally attack queen when the local proof requires
+  legal attack
+- attack exists only in raw notation or SAN
+- BoardFacts-only attack without `QueenHitProof`
+- EngineCheck-only queen pressure
+- source row text saying queen hit
+- incomplete StoryProof
+- incomplete `QueenHitProof`
+- writerless row
+- contaminated sidecar row
+
+QueenHit-3 forbidden wording:
+
+- wins queen
+- queen is lost
+- queen trap
+- tempo
+- initiative
+- pressure
+- decisive
+- winning
+- best move
+- only move
+- forced move
+
+QueenHit-3 rules:
+
+- Attacking the queen is not material gain.
+- Attacking the queen is not tempo unless a separate proof-backed slice opens
+  it.
+- `QueenHitProof` must prove a legal after-board attack on the rival queen, not
+  just geometric contact.
+- `QueenHitProof` must prove that the queen-hit was produced or revealed by
+  this legal move, not merely still present after an unrelated move.
+- SAN, raw notation, source text, BoardFacts attack observations, and
+  EngineCheck evidence cannot create or repair QueenHit.
+- A QueenHit sidecar on another row is contamination and must block, not
+  reclassify that row.
+- Stage-3 opens no new Story label, writer, StoryTable Lead admission,
+  ExplanationPlan key, renderer template, LLM smoke behavior, public route
+  `200`, production API, or public/user-facing LLM narration.
+
+Completion standard: QueenHit-3 closes when illegal moves, missing same-board
+proof, missing exact replay, absent rival queen, non-queen target, own queen,
+before-board-only attack, pre-existing queen attack, blocked after-board line,
+pinned illegal attack, raw notation/SAN-only evidence, BoardFacts-only attack,
+EngineCheck-only pressure, source-row text, incomplete StoryProof, incomplete
+`QueenHitProof`, writerless rows, and contaminated sidecars all stay silent or
+blocked; wins-queen, queen-lost, queen-trap, tempo, initiative, pressure,
+decisive, winning, best, only, and forced wording remain closed; attacking the
+queen remains neither material gain nor tempo; targeted runtime tests pass;
+docs authority tests pass when touched; and `git diff --check` passes.
+
+## QueenHit Stage-4 EngineCheck Reuse
+
+QueenHit-4 opens only:
+
+- reuse existing `EngineCheck` boundary only
+
+QueenHit-4 rules:
+
+- EngineCheck cannot create `Tactic.QueenHit`.
+- Supports creates no new claim.
+- Caps suppresses standalone speech or keeps selected speech bounded to `attacks_queen`.
+- Refutes makes QueenHit Blocked.
+- Unknown creates no engine expression.
+- Engine evidence must bind to the same Story route and legal line.
+
+QueenHit-4 does not open:
+
+- engine says
+- eval number
+- raw PV
+- best move
+- only move
+- forced
+- wins queen
+- queen is trapped
+- material gain
+- public wording from proofFailures
+
+QueenHit-4 boundary:
+
+- `EngineCheck` may attach only to an already proof-backed
+  `Tactic.QueenHit` row from `TacticQueenHit`.
+- The receiving row must still carry complete `StoryProof`, complete
+  `QueenHitProof`, clean QueenHit identity, and matching side/rival/target/
+  anchor/route bindings.
+- Engine-only evidence, stale evidence, wrong-route evidence, wrong-legal-line
+  evidence, proofless copied rows, writerless rows, and contaminated sidecar
+  rows cannot receive QueenHit EngineCheck authority.
+- `Supports`, `Caps`, `Refutes`, and `Unknown` remain internal status
+  diagnostics. They do not create renderer text, LLM input, public JSON, public
+  route `200`, production API behavior, or public/user-facing narration.
+- QueenHit still has no StoryTable Lead admission, ExplanationPlan claim key,
+  deterministic renderer template, or LLM smoke path in Stage-4.
+
+Completion standard: QueenHit-4 closes when EngineCheck may support, cap, or refute only an already proof-backed `Tactic.QueenHit`.
+
+## QueenHit Stage-5 StoryTable Integration
+
+QueenHit-5 opens only:
+
+- StoryTable ordering for existing proof-backed `Tactic.QueenHit`
+
+QueenHit-5 collision targets:
+
+- `Scene.Material`
+- `Tactic.Hanging`
+- `Tactic.Fork`
+- `Tactic.Skewer`
+- `Tactic.Pin`
+- `Tactic.RemoveGuard`
+- `Tactic.DiscoveredAttack`
+- `Scene.Defense`
+
+QueenHit-5 rules:
+
+- StoryTable may order QueenHit, not create it.
+- Material capture result stays in `Scene.Material` or existing material home.
+- Fork stays Fork when two targets are proven.
+- Skewer stays Skewer when front/rear line proof is proven.
+- Pin stays Pin when pinned-to-king proof is proven.
+- RemoveGuard stays RemoveGuard when defender removal proof is proven.
+- QueenHit owns only "the queen is attacked after this legal move."
+
+QueenHit-5 rows that must not speak:
+
+- Support
+- Context
+- Blocked
+- capped
+- refuted
+- non-Lead
+
+QueenHit-5 boundary:
+
+- `StoryTable` may admit a clean standalone `Tactic.QueenHit` Lead only when it
+  was already created by `TacticQueenHit` with complete `StoryProof`, complete
+  `QueenHitProof`, same-board legal replay, exact after-board replay, clean
+  side/rival/target/anchor/route bindings, and no refuting `EngineCheck`.
+- `StoryTable` cannot repair missing proof, missing writer identity, copied
+  sidecars, BoardFacts-only attacks, EngineCheck-only pressure, source-row
+  wording, or proof failures.
+- When QueenHit coexists with the collision targets above, the opened collision
+  home remains the Lead if its own proof is complete. QueenHit stays bounded to
+  the narrower fact that the queen is attacked after this legal move.
+- Stage-5 does not open `ExplanationPlan`, renderer text, LLM smoke,
+  `attacks_queen` speech, public route `200`, production API behavior, or
+  public/user-facing LLM narration.
+
+Completion standard: QueenHit-5 closes when StoryTable can order only existing proof-backed `Tactic.QueenHit`, yields to the listed proof homes, keeps Support/Context/Blocked/capped/refuted/non-Lead QueenHit rows without speech, targeted runtime tests pass, docs authority tests pass, and `git diff --check` passes.
+
+## QueenHit Stage-6 ExplanationPlan
+
+QueenHit-6 opens only:
+
+- ExplanationPlan for selected uncapped Lead `Tactic.QueenHit` only
+
+QueenHit-6 allowed claim key:
+
+- `attacks_queen`
+
+QueenHit-6 input boundary:
+
+- selected Lead Verdict
+- uncapped
+- not refuted
+- Story tactic = QueenHit
+- writer = `TacticQueenHit`
+- complete StoryProof
+- complete `QueenHitProof`
+- target = rival queen square
+- anchor = attacking piece square
+- route = legal queen-hitting move
+- evidenceLine = route only
+
+QueenHit-6 forbidden claim keys:
+
+- wins_queen
+- traps_queen
+- gains_tempo
+- wins_material
+- best_move
+- only_move
+- forced_move
+- decisive
+- winning
+
+QueenHit-6 rules:
+
+- ExplanationPlan does not prove QueenHit.
+- ExplanationPlan does not repair missing proof.
+- Support/Context/Blocked/capped/refuted rows stay silent.
+
+QueenHit-6 boundary:
+
+- `ExplanationPlan` may lower only a selected uncapped Lead Verdict whose Story
+  was already admitted by `TacticQueenHit`, already ordered by `StoryTable`,
+  and still carries complete, clean `StoryProof` and `QueenHitProof`.
+- The plan evidence line is exactly the Story route. It must not include raw PV,
+  reply lines, source text, proof failures, BoardFacts diagnostics, or engine
+  wording.
+- Stage-6 does not open deterministic renderer text, LLM smoke, public route
+  `200`, production API behavior, public/user-facing LLM narration, wins-queen,
+  queen-trap, tempo, material gain, best/only/forced, decisive, or winning
+  wording.
+
+Completion standard: QueenHit-6 closes when only selected uncapped Lead `Tactic.QueenHit` Verdicts from `TacticQueenHit` lower to `attacks_queen` with target/anchor/route/evidenceLine bound to complete `QueenHitProof`, forbidden claim keys remain closed, Support/Context/Blocked/capped/refuted rows stay silent, targeted runtime tests pass, docs authority tests pass, and `git diff --check` passes.
+
+## QueenHit Stage-7 DeterministicRenderer
+
+QueenHit-7 opens only:
+
+- renderer text from bounded QueenHit ExplanationPlan only
+
+QueenHit-7 renderer input:
+
+- ExplanationPlan only
+
+QueenHit-7 allowed template:
+
+- `"{route} attacks the queen on {target}."`
+
+QueenHit-7 forbidden renderer input:
+
+- raw Story
+- raw `QueenHitProof`
+- BoardFacts
+- EngineCheck
+- raw PV
+- proofFailures
+- source rows
+
+QueenHit-7 forbidden wording:
+
+- wins the queen
+- traps the queen
+- the queen is lost
+- gains tempo
+- wins material
+- best move
+- only move
+- forced
+- decisive
+- winning
+- engine says
+
+QueenHit-7 rules:
+
+- Renderer emits no text for Support/Context/Blocked/capped/refuted rows.
+- Renderer emits no text for sibling claim keys.
+
+QueenHit-7 boundary:
+
+- The deterministic renderer reads `ExplanationPlan` only. It must not read raw
+  Story, raw `QueenHitProof`, BoardFacts, EngineCheck, raw PV, proofFailures,
+  source rows, or proof diagnostics.
+- The renderer does not prove QueenHit, repair missing proof, select a Story,
+  order a row, strengthen speech, or add engine expression.
+- Stage-7 does not open LLM smoke, public route `200`, production API behavior,
+  public/user-facing LLM narration, wins-queen, queen-trap, queen-lost, tempo,
+  material gain, best/only/forced, decisive, or winning wording.
+
+Completion standard: QueenHit-7 closes when the deterministic renderer emits only `"{route} attacks the queen on {target}."` from selected uncapped Lead QueenHit `ExplanationPlan` rows with `attacks_queen`, remains silent for Support/Context/Blocked/capped/refuted and sibling-claim rows, accepts no raw proof/story/engine/source input path, targeted runtime tests pass, docs authority tests pass, and `git diff --check` passes.
+
+## QueenHit Stage-8 LLM Smoke
+
+QueenHit-8 opens only:
+
+- LLM smoke for bounded QueenHit `RenderedLine` only
+
+QueenHit-8 allowed LLM smoke input:
+
+- renderedText
+- claimKey
+- strength
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+QueenHit-8 allowed claimKey:
+
+- `attacks_queen`
+
+QueenHit-8 LLM must not add:
+
+- wins queen
+- queen trap
+- queen is lost
+- tempo
+- material gain
+- engine line
+- best move
+- only move
+- forced move
+- decisive
+- winning
+- new move
+- new variation
+
+QueenHit-8 rules:
+
+- LLM only polishes.
+- Verifier rejects overclaim.
+- public/user-facing LLM narration remains closed.
+
+QueenHit-8 boundary:
+
+- LLM smoke receives only the bounded rendered-line contract. It must not
+  receive raw Story, raw `QueenHitProof`, BoardFacts, EngineCheck, raw PV,
+  proofFailures, source rows, queen-square diagnostics, attacking-piece
+  diagnostics, exact after-board replay diagnostics, or same-board proof text.
+- LLM smoke may echo or lightly rephrase only the already rendered bounded
+  `attacks_queen` event.
+- LLM smoke must not create QueenHit proof, repair missing proof, select a
+  Story, order a row, add an engine expression, or become public narration.
+- Stage-8 does not open public route `200`, production API behavior,
+  public/user-facing LLM narration, wins-queen, queen-trap, queen-lost, tempo,
+  material gain, engine-line, best/only/forced, decisive, winning, new-move, or
+  new-variation speech.
+
+Completion standard: QueenHit-8 closes when LLM smoke accepts only bounded QueenHit `RenderedLine` input with `attacks_queen`, uses only renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.`, rejects wins-queen, queen-trap, queen-lost, tempo, material-gain, engine-line, best/only/forced, decisive, winning, new-move, and new-variation additions, keeps public/user-facing LLM narration closed, targeted runtime tests pass, docs authority tests pass, and `git diff --check` passes.
+
+## QueenHit Stage-9 Closeout / Hard Cleanup
+
+QueenHit-9 opens no new chess meaning.
+
+QueenHit-9 closes only narrow `Tactic.QueenHit`.
+
+QueenHit-9 authority audit:
+
+- `QueenHitProof` owns proof home.
+- `Tactic.QueenHit` owns Story label.
+- `TacticQueenHit` owns writer.
+- `attacks_queen` owns speech key.
+- These are not interchangeable.
+
+QueenHit-9 duplication audit:
+
+- QueenHit is not Hanging.
+- QueenHit is not Fork.
+- QueenHit is not Skewer.
+- QueenHit is not Pin.
+- QueenHit is not RemoveGuard.
+- QueenHit is not Material.
+- QueenHit is not Tempo.
+
+QueenHit-9 still closed:
+
+- wins queen
+- traps queen
+- queen is lost
+- tempo
+- initiative
+- pressure
+- material gain
+- best / only / forced
+- decisive / winning
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+QueenHit-9 hard cleanup rules:
+
+- `QueenHitProof` remains diagnostic proof evidence until consumed by
+  `TacticQueenHit`; it is not a Story label, writer, speech key, renderer input,
+  LLM input, public payload, or production API payload.
+- `Tactic.QueenHit` owns only the Story identity for a legal move that leaves
+  the moving side attacking the rival queen on the exact after-board.
+- `TacticQueenHit` owns only construction of clean proof-backed
+  `Tactic.QueenHit` rows and must not write Hanging, Fork, Skewer, Pin,
+  RemoveGuard, Material, Tempo, or any public queen-win claim.
+- `attacks_queen` owns only bounded speech that the queen is attacked after the
+  legal move. It does not imply winning, trapping, losing the queen, tempo,
+  initiative, pressure, material gain, best move, only move, forced move,
+  decisive, or winning.
+- `StoryTable`, `ExplanationPlan`, `DeterministicRenderer`, and LLM smoke may
+  pass only the selected bounded `attacks_queen` line. They must not create,
+  repair, broaden, or merge QueenHit with sibling meanings.
+- Public route `200`, production API behavior, and public/user-facing LLM
+  narration remain closed.
+
+QueenHit-9 required verification:
+
+- targeted QueenHit stage and closeout tests
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Completion standard: QueenHit-9 closes when QueenHit has exactly one proof home (`QueenHitProof`), one Story label (`Tactic.QueenHit`), one writer (`TacticQueenHit`), and one speech key (`attacks_queen`); those owners remain separated; QueenHit is not Hanging, Fork, Skewer, Pin, RemoveGuard, Material, or Tempo; wins-queen, queen-trap, queen-lost, tempo, initiative, pressure, material-gain, best/only/forced, decisive/winning, public route `200`, production API, and public/user-facing LLM narration remain closed; targeted QueenHit stage and closeout tests pass; `ChessFoundationTest` passes; `ChessDocsAuthorityTest` passes; and `git diff --check` passes.
+
+## Loose Piece Slice
+
+### Loose-0 Charter
+
+Loose-0 opens only the charter for the narrow `Tactic.Loose` slice.
+
+Loose-0 meaning: after a legal move and exact after-board replay, the moving side attacks one undefended rival non-king piece.
+
+Loose-0 proof home: `LoosePieceProof`.
+
+Loose-0 writer: `TacticLoose`.
+
+Loose-0 Story label: `Tactic.Loose`.
+
+Loose-0 speech key: `attacks_loose_piece`.
+
+Loose-0 player wording: "This move attacks an undefended piece."
+
+Loose-0 first positive scope:
+
+- legal move
+- same-board legal replay
+- exact after-board
+- one rival non-king piece is identified
+- moving side attacks that piece on the after-board
+- rival side has no legal defender of that target on the after-board
+- attack is bound to the legal route and after-board
+
+Loose-0 must not open:
+
+- Hanging
+- Material
+- wins piece
+- wins material
+- free piece
+- en prise
+- underdefended
+- overloaded defender
+- pressure
+- initiative
+- tempo
+- best move
+- only move
+- forced move
+- decisive
+- winning
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Loose-0 boundaries:
+
+- `LoosePieceProof` owns only proof for the exact after-board loose-piece
+  attack.
+- `TacticLoose` owns only construction of clean proof-backed `Tactic.Loose`
+  rows after the writer slice opens.
+- `attacks_loose_piece` owns only bounded speech that the legal move attacks an
+  undefended rival non-king piece.
+- `PieceContact`, attack rows, guard rows, legal moves, SAN, EngineCheck,
+  source rows, proofFailures, renderer text, and LLM text cannot create,
+  repair, rank, or strengthen Loose.
+- Loose is not Hanging, Material, underdefended, pressure, initiative, tempo,
+  or a material-win claim.
+- public route `200`, production API, and public/user-facing LLM narration
+  remain closed.
+
+Loose-0 documentation rule:
+
+- detailed Loose stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+- `AGENTS.md` remains unchanged
+
+Completion standard: Loose-0 keeps loose-piece work at charter scope with exactly one planned proof home (`LoosePieceProof`), one planned Story label (`Tactic.Loose`), one planned writer (`TacticLoose`), and one planned speech key (`attacks_loose_piece`); the first positive scope stays limited to a legal same-board move that leaves the moving side attacking one undefended rival non-king piece on the exact after-board; Hanging, Material, wins-piece, wins-material, free-piece, en-prise, underdefended, overloaded-defender, pressure, initiative, tempo, best/only/forced, decisive/winning, public route `200`, production API, and public/user-facing LLM narration remain closed; detailed authority stays only in `StoryInteractionLaw.md`; AGENTS.md remains unchanged; docs authority tests pass when touched; and `git diff --check` passes.
+
+### Loose-1 Proof Home
+
+Loose-1 opens only:
+
+- proof home: `LoosePieceProof`
+
+LoosePieceProof proves:
+
+- attacking side
+- rival side
+- legal move identity
+- origin square
+- destination square
+- target piece identity
+- target piece square after the move
+- target piece is rival-owned
+- target piece is not king
+- attacking piece square after the move
+- moving side attacks target on exact after-board
+- rival side has zero legal defenders of the target square on exact after-board
+- exact after-board replay
+- same-board proof
+- loose attack was produced or revealed by this legal move
+
+Loose-1 must not open:
+
+- public Story
+- `Tactic.Loose`
+- `TacticLoose`
+- `attacks_loose_piece`
+- capture proof
+- material proof
+- Hanging proof
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+
+Loose-1 rules:
+
+- `LoosePieceProof` is not public Story.
+- BoardFacts may observe pieces, attacks, and defenders, but does not create Loose.
+- Complete `LoosePieceProof` or silence.
+- `LoosePieceProof.publicClaimAllowed` remains false.
+- `LoosePieceProof` must not attach to `Story`.
+- `LoosePieceProof` must not create or require `StoryProof`.
+- `EngineCheck` does not consume `LoosePieceProof` in Stage-1.
+- Downstream layers must not mention `LoosePieceProof` or produce Loose text.
+
+Loose-1 negative corpus must keep silent:
+
+- illegal move
+- missing same-board proof
+- missing exact after-board replay
+- missing target piece identity
+- target piece belongs to moving side
+- target piece is king
+- target piece is not attacked on the exact after-board
+- rival side has a legal defender of the target square on the exact after-board
+- loose attack already existed before the move and was not produced or revealed
+  by the legal move
+- BoardFacts attack or guard observation without complete `LoosePieceProof`
+- any runtime `TacticLoose`, `attacks_loose_piece`, Loose ExplanationPlan,
+  renderer, LLM smoke, capture-proof, material-proof, or Hanging-proof surface
+
+Loose-1 documentation rule:
+
+- detailed Loose stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Loose-1 closes when `LoosePieceProof` proves only the complete legal same-board after-board loose-piece attack evidence listed above; BoardFacts remains observation only; no public Story, `Tactic.Loose`, `TacticLoose`, `attacks_loose_piece`, capture proof, material proof, Hanging proof, StoryTable Lead, ExplanationPlan, Renderer, or LLM smoke path opens; targeted runtime tests pass; docs authority tests pass when touched; and `git diff --check` passes.
+
+### Loose-2 Writer
+
+Loose-2 opens only:
+
+- named writer: `TacticLoose`
+- Story label: `Tactic.Loose`
+
+Loose-2 writer may create a Story only when:
+
+- complete `StoryProof`
+- complete `LoosePieceProof`
+- same-board legal replay
+- legal route matches proof route
+- target is one rival non-king piece
+- target is attacked by moving side after the move
+- target has no legal rival defender after the move
+- writer = `TacticLoose`
+- EngineCheck does not Refute
+
+Loose-2 Story identity:
+
+- scene = None, encoded as `Scene.Tactic` plus `Tactic.Loose`
+- tactic = `Loose`
+- plan = None
+- side = attacking side
+- rival = target owner
+- target = loose piece square after the move
+- anchor = attacking piece square after the move
+- route = legal loose-piece-attacking move
+
+Loose-2 must not open:
+
+- `Tactic.Hanging`
+- `Scene.Material`
+- `Tactic.QueenHit`
+- `Tactic.Fork`
+- `Tactic.Skewer`
+- `Tactic.RemoveGuard`
+- captures piece
+- wins piece
+- wins material
+- pressure
+- tempo
+- `attacks_loose_piece`
+- StoryTable Lead
+- ExplanationPlan
+- Renderer
+- LLM smoke
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Loose-2 boundary:
+
+- `TacticLoose` may attach only `LoosePieceProof`; sibling proof homes must stay
+  empty.
+- `LoosePieceProof` remains the proof home; `TacticLoose` owns only Story
+  construction.
+- BoardFacts observations cannot create Loose without `LoosePieceProof`.
+- EngineCheck may only block a Loose Story by Refutes; it must not create
+  Loose, explain Loose, or strengthen Loose.
+- StoryTable may keep the Stage-2 row as non-speaking Context, but Stage-2
+  opens no Lead speech path.
+- ExplanationPlan, renderer, and LLM smoke must produce no Loose wording.
+
+Loose-2 negative corpus must stay silent or blocked for:
+
+- incomplete `StoryProof`
+- incomplete `LoosePieceProof`
+- illegal move
+- route mismatch between Story and proof
+- missing same-board legal replay
+- target not rival-owned
+- target is king
+- target not attacked by moving side after the move
+- target has a legal rival defender after the move
+- EngineCheck Refutes
+- writerless `Tactic.Loose`
+- Loose proof attached to non-Loose row
+- Loose writer copied onto Hanging, Material, QueenHit, Fork, Skewer, or
+  RemoveGuard identity
+- captures-piece, wins-piece, wins-material, pressure, tempo, or downstream
+  wording
+
+Loose-2 documentation rule:
+
+- detailed Loose stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Loose-2 closes when `TacticLoose` creates only `Scene.Tactic` plus `Tactic.Loose` rows from complete `StoryProof` and complete `LoosePieceProof`, with side/rival/target/anchor/route bound to the exact after-board loose-piece attack; EngineCheck Refutes blocks the row; Hanging, Material, QueenHit, Fork, Skewer, and RemoveGuard stay closed; captures-piece, wins-piece, wins-material, pressure, tempo, `attacks_loose_piece`, StoryTable Lead, ExplanationPlan, renderer, LLM smoke, public route `200`, production API, and public/user-facing LLM narration remain closed; targeted runtime tests pass; docs authority tests pass when touched; and `git diff --check` passes.
+
+### Loose-3 Negative Corpus
+
+Loose-3 opens only:
+
+- negative corpus for Loose false positives
+
+Loose-3 must stay silent for:
+
+- illegal move
+- missing same-board proof
+- missing exact after-board replay
+- missing target piece
+- target is king
+- target belongs to moving side
+- target is not attacked after the move
+- target was attacked only on before-board
+- attack line is blocked on after-board
+- target has at least one legal rival defender
+- defender map is missing or incomplete
+- only raw notation says the piece is loose
+- BoardFacts-only loose-looking row without `LoosePieceProof`
+- EngineCheck-only pressure
+- source row text saying loose piece
+- incomplete StoryProof
+- incomplete `LoosePieceProof`
+- writerless row
+- contaminated sidecar row
+
+Loose-3 forbidden wording:
+
+- hanging
+- wins piece
+- wins material
+- free piece
+- en prise
+- underdefended
+- overloaded
+- pressure
+- initiative
+- tempo
+- best / only / forced
+- decisive / winning
+
+Loose-3 rules:
+
+- A loose piece is not a material win.
+- A loose piece is not Hanging.
+- A loose piece is not underdefended; first scope is zero legal defenders only.
+- `TacticLoose` and StoryTable must treat defender evidence as complete only
+  when the proof both says zero rival legal defenders and carries an empty
+  rival-defender vector.
+- Raw SAN, source text, EngineCheck evidence, and BoardFacts observations cannot
+  create or repair `Tactic.Loose`.
+- Blocked or contaminated Loose rows must not produce an allowed
+  `ExplanationClaim`, rendered line, LLM prompt, public route `200`, production
+  API result, or user-facing narration.
+
+Loose-3 documentation rule:
+
+- detailed Loose stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Loose-3 closes when targeted runtime tests prove all listed false positives stay silent or blocked, forged or incomplete defender evidence cannot pass the Loose writer shape, raw notation/source/EngineCheck/BoardFacts-only rows cannot create Loose, incomplete StoryProof and incomplete `LoosePieceProof` cannot speak, writerless and contaminated sidecar rows cannot speak, forbidden wording remains unopened, Loose remains not Material, not Hanging, and not underdefended, detailed authority stays only in `StoryInteractionLaw.md`, targeted docs authority tests pass, and `git diff --check` passes.
+
+### Loose-4 EngineCheck Reuse
+
+Loose-4 opens only:
+
+- reuse existing EngineCheck boundary only
+
+Loose-4 rules:
+
+- EngineCheck cannot create `Tactic.Loose`.
+- Supports creates no new claim.
+- Caps suppresses standalone speech or keeps selected speech bounded to `attacks_loose_piece`.
+- Refutes makes Loose Blocked.
+- Unknown creates no engine expression.
+- Engine evidence must bind to the same Story route and legal line.
+- EngineCheck may attach only to an already proof-backed `Tactic.Loose` row
+  whose `StoryProof` and `LoosePieceProof` are complete and whose defender
+  evidence proves zero rival legal defenders.
+- EngineCheck cannot repair incomplete `LoosePieceProof`, incomplete
+  `StoryProof`, writerless rows, sibling tactic rows, contaminated sidecars, or
+  BoardFacts-only loose-looking rows.
+
+Loose-4 must not open:
+
+- engine says
+- eval number
+- raw PV
+- best move
+- only move
+- forced
+- wins piece
+- wins material
+- pressure
+- initiative
+- public wording from proofFailures
+
+Loose-4 downstream boundary:
+
+- EngineCheck status is internal supporting, capping, unknown, or refuting
+  evidence for an existing Loose Story only.
+- Supports, Caps, and Unknown must not create an allowed claim key, rendered
+  line, LLM prompt, public route payload, production API response, or
+  user-facing narration.
+- Refutes blocks the Loose row and must not expose proofFailures, eval numbers,
+  raw PV, or engine text publicly.
+- If a separately admitted stage opens selected Loose speech, capped speech must stay no
+  stronger than `attacks_loose_piece`.
+
+Loose-4 documentation rule:
+
+- detailed Loose stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Loose-4 closes when EngineCheck may support, cap, or refute only an already proof-backed `Tactic.Loose`; EngineCheck cannot create Loose, cannot bind incomplete or contaminated Loose rows, cannot bind inconsistent defender evidence, and cannot attach wrong-route or non-legal-line evidence; Supports creates no new claim; Caps creates no standalone speech or remains bounded to `attacks_loose_piece` if selected speech is admitted by a separate stage; Refutes makes Loose Blocked; Unknown creates no engine expression; engine says, eval numbers, raw PV, best/only/forced, wins-piece, wins-material, pressure, initiative, and public proofFailures wording remain closed; targeted runtime tests pass; docs authority tests pass; and `git diff --check` passes.
+
+### Loose-5 StoryTable Integration
+
+Loose-5 opens only:
+
+- StoryTable ordering for existing proof-backed `Tactic.Loose`
+
+Loose-5 collision targets:
+
+- `Scene.Material`
+- `Tactic.Hanging`
+- `Tactic.QueenHit`
+- `Tactic.Fork`
+- `Tactic.Skewer`
+- `Tactic.Pin`
+- `Tactic.RemoveGuard`
+- `Tactic.DiscoveredAttack`
+- `Scene.Defense`
+
+Loose-5 rules:
+
+- StoryTable may order Loose, not create it.
+- Material capture result stays in `Scene.Material`.
+- Hanging owns capture/material-loss wording when complete.
+- QueenHit owns queen-specific attack wording.
+- Fork owns two-target proof.
+- Skewer owns front/rear slider proof.
+- Pin owns pinned-to-king proof.
+- RemoveGuard owns defender-removal proof.
+- Loose owns only `attacks_loose_piece`: this move attacks an undefended non-king piece.
+- Loose must not outrank a complete collision-target row by using loose-piece
+  identity as a material, hanging, queen-specific, multi-target, line,
+  pinned-to-king, defender-removal, discovered-attack, or defense claim.
+- StoryTable must continue to block incomplete, writerless, refuted, and
+  contaminated Loose rows.
+
+Rows that must not speak:
+
+- Support
+- Context
+- Blocked
+- capped
+- refuted
+- non-Lead
+
+Loose-5 documentation rule:
+
+- detailed Loose stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Loose-5 closes when StoryTable can select standalone complete proof-backed `Tactic.Loose` as Lead, keeps complete collision-target rows in their existing proof homes, never creates Loose, never lets Loose borrow material, hanging, queen-specific, two-target, skewer, pin, remove-guard, discovered-attack, or defense wording, and Support, Context, Blocked, capped, refuted, and non-Lead Loose rows produce no allowed claim, rendered line, LLM prompt, public route payload, production API response, or user-facing narration; targeted runtime tests pass; docs authority tests pass; and `git diff --check` passes.
+
+### Loose-6 ExplanationPlan
+
+Loose-6 opens only:
+
+- ExplanationPlan for selected uncapped Lead `Tactic.Loose` only
+
+Loose-6 allowed claim key:
+
+- `attacks_loose_piece`
+
+Loose-6 input boundary:
+
+- selected Lead Verdict
+- uncapped
+- not refuted
+- Story tactic = Loose
+- writer = `TacticLoose`
+- complete StoryProof
+- complete `LoosePieceProof`
+- target = loose piece square
+- anchor = attacking piece square
+- route = legal loose-piece-attacking move
+- evidenceLine = route only
+
+Loose-6 forbidden claim keys:
+
+- hanging_piece
+- wins_piece
+- wins_material
+- attacks_queen
+- removes_defender
+- gains_tempo
+- creates_pressure
+- best_move
+- only_move
+- forced_move
+- decisive
+- winning
+
+Loose-6 rules:
+
+- ExplanationPlan does not prove Loose.
+- ExplanationPlan does not repair missing proof.
+- Support/Context/Blocked/capped/refuted rows stay silent.
+- A Loose-shaped row with a contaminated scene, tactic, writer, sidecar, target,
+  anchor, route, StoryProof, or `LoosePieceProof` must not fall through into a
+  sibling ExplanationPlan.
+- `evidenceLine` is exactly the legal loose-piece-attacking route and no
+  alternate engine, source, or notation line.
+
+Loose-6 documentation rule:
+
+- detailed Loose stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Loose-6 closes when only selected uncapped Lead `Tactic.Loose` rows from `TacticLoose` with complete StoryProof and complete `LoosePieceProof` lower to one bounded `attacks_loose_piece` claim; target, anchor, route, and evidenceLine bind exactly to the loose proof; ExplanationPlan cannot prove Loose or repair missing proof; Support, Context, Blocked, capped, refuted, non-Lead, writerless, incomplete, and contaminated Loose-shaped rows stay silent; forbidden Loose claim keys remain closed; targeted runtime tests pass; docs authority tests pass; and `git diff --check` passes.
+
+### Loose-7 DeterministicRenderer
+
+Loose-7 opens only:
+
+- renderer text from bounded Loose ExplanationPlan only
+
+Loose-7 renderer input:
+
+- ExplanationPlan only
+
+Loose-7 allowed template:
+
+- `{route} attacks the undefended piece on {target}.`
+
+Loose-7 forbidden renderer input:
+
+- raw Story
+- raw `LoosePieceProof`
+- BoardFacts
+- EngineCheck
+- raw PV
+- proofFailures
+- source rows
+
+Loose-7 forbidden wording:
+
+- wins the piece
+- wins material
+- hanging piece
+- free piece
+- en prise
+- underdefended
+- overload
+- pressure
+- initiative
+- tempo
+- best move
+- only move
+- forced
+- decisive
+- winning
+- engine says
+
+Loose-7 rules:
+
+- Renderer emits no text for Support/Context/Blocked/capped/refuted rows.
+- Renderer emits no text for sibling claim keys.
+- DeterministicRenderer does not prove Loose, inspect raw proof sidecars, read
+  BoardFacts, consume EngineCheck, or repair a missing ExplanationPlan.
+- The rendered Loose line is bounded to the selected route SAN and target square
+  already carried by `attacks_loose_piece`.
+
+Loose-7 documentation rule:
+
+- detailed Loose stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Loose-7 closes when DeterministicRenderer accepts only a bounded selected Lead Loose ExplanationPlan with `attacks_loose_piece`, emits exactly `{route} attacks the undefended piece on {target}.`, accepts no raw Story, `LoosePieceProof`, BoardFacts, EngineCheck, raw PV, proofFailures, or source-row input, emits no text for Support, Context, Blocked, capped, refuted, non-Lead, malformed, or sibling-claim plans, avoids all forbidden Loose wording, targeted runtime tests pass, docs authority tests pass, and `git diff --check` passes.
+
+### Loose-8 LLM Smoke
+
+Loose-8 opens only:
+
+- LLM smoke only for bounded Loose RenderedLine
+
+Loose-8 allowed LLM smoke input:
+
+- renderedText
+- claimKey
+- strength
+- forbidden wording
+- `Rephrase only. Do not add chess facts.`
+
+Loose-8 allowed claimKey:
+
+- `attacks_loose_piece`
+
+Loose-8 LLM must not add:
+
+- wins piece
+- wins material
+- hanging
+- free piece
+- en prise
+- underdefended
+- overloaded
+- pressure
+- initiative
+- tempo
+- best move
+- only move
+- forced move
+- decisive
+- winning
+- engine line
+- new move
+- new variation
+
+Loose-8 rules:
+
+- LLM only polishes.
+- Verifier rejects overclaim.
+- public/user-facing LLM narration remains closed.
+- LLM smoke must not read raw Story, raw `LoosePieceProof`, BoardFacts,
+  EngineCheck, raw PV, proofFailures, or source rows.
+- LLM smoke may echo or rephrase only the already rendered bounded
+  `attacks_loose_piece` line.
+
+Loose-8 documentation rule:
+
+- detailed Loose stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Loose-8 closes when LLM smoke accepts only renderedText, claimKey, strength, forbidden wording, and `Rephrase only. Do not add chess facts.` for a bounded Loose `RenderedLine` with `attacks_loose_piece`; rejects raw Story, raw `LoosePieceProof`, BoardFacts, EngineCheck, raw PV, proofFailures, source rows, Support, Context, Blocked, mismatched, capped, and refuted inputs; rejects wins-piece, wins-material, hanging, free-piece, en-prise, underdefended, overloaded, pressure, initiative, tempo, best/only/forced, decisive, winning, engine-line, new-move, and new-variation additions; keeps public/user-facing LLM narration closed; targeted runtime tests pass; docs authority tests pass; and `git diff --check` passes.
+
+### Loose-9 Closeout / Hard Cleanup
+
+Loose-9 opens no new chess meaning.
+
+Loose-9 closes only narrow `Tactic.Loose`.
+
+Loose-9 authority audit:
+
+- `LoosePieceProof` owns proof home.
+- `Tactic.Loose` owns Story label.
+- `TacticLoose` owns writer.
+- `attacks_loose_piece` owns speech key.
+- These are not interchangeable.
+
+Loose-9 duplication audit:
+
+- Loose is not Hanging.
+- Loose is not Material.
+- Loose is not QueenHit.
+- Loose is not Fork.
+- Loose is not Skewer.
+- Loose is not Pin.
+- Loose is not RemoveGuard.
+- Loose is not Tempo.
+- Loose is not Pressure.
+
+Loose-9 still closed:
+
+- hanging
+- wins piece
+- wins material
+- free piece
+- en prise
+- underdefended
+- overloaded defender
+- pressure
+- initiative
+- tempo
+- best / only / forced
+- decisive / winning
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Loose-9 hard cleanup rules:
+
+- BoardFacts remains observation only and does not create Loose.
+- `LoosePieceProof` remains a proof sidecar, not a public Story.
+- `TacticLoose` remains the only writer for `Tactic.Loose`.
+- StoryTable may order existing proof-backed Loose rows but must not create
+  them or borrow sibling proof homes.
+- ExplanationPlan, DeterministicRenderer, and LLM smoke remain downstream and
+  bounded to `attacks_loose_piece`.
+- Public route `200`, production API, and public/user-facing LLM narration stay
+  closed.
+
+Loose-9 required verification:
+
+- targeted Loose stage and closeout tests
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Loose-9 documentation rule:
+
+- detailed Loose stage law lives only in `StoryInteractionLaw.md`
+- README, SSOT, Architecture, Contract, and Manifest may contain summary only
+  if docs tests require it
+- `AGENTS.md` remains unchanged
+
+Completion standard: Loose-9 closes when Loose has exactly one proof home (`LoosePieceProof`), one Story label (`Tactic.Loose`), one writer (`TacticLoose`), and one speech key (`attacks_loose_piece`); those owners remain separated; Loose is not Hanging, Material, QueenHit, Fork, Skewer, Pin, RemoveGuard, Tempo, or Pressure; hanging, wins-piece, wins-material, free-piece, en-prise, underdefended, overloaded-defender, pressure, initiative, tempo, best/only/forced, decisive/winning, public route `200`, production API, and public/user-facing LLM narration remain closed; targeted Loose stage and closeout tests pass; `ChessFoundationTest` passes; `ChessDocsAuthorityTest` passes; and `git diff --check` passes.
 
 ## Proof And Interaction Law
 

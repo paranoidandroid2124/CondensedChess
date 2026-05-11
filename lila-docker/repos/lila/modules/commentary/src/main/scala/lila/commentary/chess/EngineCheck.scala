@@ -228,6 +228,30 @@ private[commentary] object EngineCheck:
             ) &&
             proof.guardedTarget.exists(pieces.contains) &&
             proof.removedDefender.exists(pieces.contains)
+      case Some(StoryWriter.TacticOverload) =>
+        story.scene == Scene.Tactic &&
+        story.tactic.contains(Tactic.Overload) &&
+        story.proofFailures.isEmpty &&
+        story.overloadProof.exists: proof =>
+          proof.complete &&
+            proof.proofComplete &&
+            proof.sameBoardProof &&
+            proof.legalMove &&
+            proof.sameBoardLegalReplay &&
+            proof.dualDutyDefender &&
+            proof.dutyTargetsNonKingMaterial &&
+            proof.testMoveAttacksDutyTargetAfter &&
+            proof.noReplyPreservesBothDutyTargets &&
+            proof.route.exists(move =>
+              story.route.contains(move) &&
+                (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+            ) &&
+            proof.defender.exists(pieces.contains) &&
+            proof.dutyTargets.size == 2 &&
+            proof.dutyTargets.forall(pieces.contains) &&
+            proof.target.exists(piece => story.target.contains(piece.square)) &&
+            proof.secondaryTarget.exists(piece => story.secondaryTarget.contains(piece.square)) &&
+            proof.anchor.exists(piece => story.anchor.contains(piece.square))
       case Some(StoryWriter.TacticSkewer) =>
         story.scene == Scene.Tactic &&
         story.tactic.contains(Tactic.Skewer) &&
@@ -251,6 +275,47 @@ private[commentary] object EngineCheck:
                     )
                 )
             )
+      case Some(StoryWriter.TacticQueenHit) =>
+        story.scene == Scene.Tactic &&
+        story.tactic.contains(Tactic.QueenHit) &&
+        story.proofFailures.isEmpty &&
+        story.queenHitProof.exists: proof =>
+          proof.complete &&
+            proof.sameBoardProof &&
+            proof.legalMove &&
+            proof.exactAfterBoardReplay &&
+            proof.rivalQueenExistsAfter &&
+            proof.afterBoardQueenAttackedByMovingSide &&
+            proof.queenHitProducedOrRevealedByLegalMove &&
+            proof.attackMove.exists(move =>
+              story.route.contains(move) &&
+                (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+            ) &&
+            proof.movingPieceBefore.exists(pieces.contains) &&
+            proof.rivalQueenSquareAfter == story.target &&
+            proof.attackingPieceSquareAfter == story.anchor
+      case Some(StoryWriter.TacticLoose) =>
+        story.scene == Scene.Tactic &&
+        story.tactic.contains(Tactic.Loose) &&
+        story.proofFailures.isEmpty &&
+        story.loosePieceProof.exists: proof =>
+          proof.complete &&
+            proof.sameBoardProof &&
+            proof.legalMove &&
+            proof.exactAfterBoardReplay &&
+            proof.targetRivalOwned &&
+            proof.targetNonKing &&
+            proof.afterBoardTargetAttackedByMovingSide &&
+            proof.rivalLegalDefendersAfter.isEmpty &&
+            proof.rivalSideHasNoLegalDefenderOfTarget &&
+            proof.looseAttackProducedOrRevealedByLegalMove &&
+            proof.attackMove.exists(move =>
+              story.route.contains(move) &&
+                (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+            ) &&
+            proof.movingPieceBefore.exists(pieces.contains) &&
+            proof.targetPieceSquareAfter == story.target &&
+            proof.attackingPieceSquareAfter == story.anchor
       case Some(StoryWriter.ScenePawnAdvance) =>
         story.scene == Scene.PawnAdvance &&
         story.tactic.isEmpty &&
@@ -340,6 +405,204 @@ private[commentary] object EngineCheck:
             proof.pawnBefore.exists(pieces.contains) &&
             proof.pawnBefore.map(_.square) == story.anchor &&
             proof.targetPawn.exists(piece => story.target.contains(piece.square))
+      case Some(StoryWriter.ScenePawnBlock) =>
+        story.scene == Scene.PawnBlock &&
+        story.tactic.isEmpty &&
+        story.plan.isEmpty &&
+        story.proofFailures.isEmpty &&
+        story.captureResult.isEmpty &&
+        story.threatProof.isEmpty &&
+        story.defenseProof.isEmpty &&
+        story.multiTargetProof.isEmpty &&
+        story.lineProof.isEmpty &&
+        story.pinProof.isEmpty &&
+        story.removeGuardProof.isEmpty &&
+        story.skewerProof.isEmpty &&
+        story.pawnAdvanceProof.isEmpty &&
+        story.pawnStopProof.isEmpty &&
+        story.pawnBreakProof.isEmpty &&
+        story.pawnCaptureProof.isEmpty &&
+        story.passedPawnCreatedProof.isEmpty &&
+        story.fileOpenedProof.isEmpty &&
+        story.promotionThreatProof.isEmpty &&
+        story.promotionProof.isEmpty &&
+        story.pawnBlockProof.exists: proof =>
+          proof.complete &&
+            proof.sameBoardProof &&
+            proof.legalMove &&
+            proof.exactAfterBoardReplay &&
+            proof.blockCreatedByMove &&
+            proof.nextAdvanceSquareOccupiedAfter &&
+            proof.occupyingPieceBelongsToBlockingSide &&
+            proof.ordinaryDirectOneSquarePawnBlock &&
+            proof.blockMove.exists(move =>
+              story.route.contains(move) &&
+                (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+            ) &&
+            proof.movingPieceBefore.exists(pieces.contains) &&
+            proof.blockedPawn.exists(pieces.contains) &&
+            proof.originSquare == story.anchor &&
+            proof.blockedPawnNextAdvanceSquare == story.target
+      case Some(StoryWriter.SceneCheckGiven) =>
+        story.scene == Scene.CheckGiven &&
+        story.tactic.isEmpty &&
+        story.plan.isEmpty &&
+        story.proofFailures.isEmpty &&
+        story.captureResult.isEmpty &&
+        story.threatProof.isEmpty &&
+        story.defenseProof.isEmpty &&
+        story.multiTargetProof.isEmpty &&
+        story.lineProof.isEmpty &&
+        story.pinProof.isEmpty &&
+        story.removeGuardProof.isEmpty &&
+        story.skewerProof.isEmpty &&
+        story.pawnAdvanceProof.isEmpty &&
+        story.pawnStopProof.isEmpty &&
+        story.pawnBreakProof.isEmpty &&
+        story.pawnBlockProof.isEmpty &&
+        story.pawnCaptureProof.isEmpty &&
+        story.passedPawnCreatedProof.isEmpty &&
+        story.fileOpenedProof.isEmpty &&
+        story.promotionThreatProof.isEmpty &&
+        story.promotionProof.isEmpty &&
+        story.checkEscapedProof.isEmpty &&
+        story.checkGivenProof.exists: proof =>
+          proof.complete &&
+            proof.sameBoardProof &&
+            proof.legalMove &&
+            proof.exactAfterBoardReplay &&
+            proof.afterBoardRivalKingInCheck &&
+            proof.checkProducedByLegalMove &&
+            proof.checkMove.exists(move =>
+              story.route.contains(move) &&
+                (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+            ) &&
+            proof.movingPieceBefore.exists(pieces.contains) &&
+            proof.originSquare == story.anchor &&
+            proof.rivalKingSquareAfter == story.target
+      case Some(StoryWriter.SceneCheckEscaped) =>
+        story.scene == Scene.CheckEscaped &&
+        story.tactic.isEmpty &&
+        story.plan.isEmpty &&
+        story.proofFailures.isEmpty &&
+        story.captureResult.isEmpty &&
+        story.threatProof.isEmpty &&
+        story.defenseProof.isEmpty &&
+        story.multiTargetProof.isEmpty &&
+        story.lineProof.isEmpty &&
+        story.pinProof.isEmpty &&
+        story.removeGuardProof.isEmpty &&
+        story.skewerProof.isEmpty &&
+        story.pawnAdvanceProof.isEmpty &&
+        story.pawnStopProof.isEmpty &&
+        story.pawnBreakProof.isEmpty &&
+        story.pawnBlockProof.isEmpty &&
+        story.pawnCaptureProof.isEmpty &&
+        story.passedPawnCreatedProof.isEmpty &&
+        story.fileOpenedProof.isEmpty &&
+        story.promotionThreatProof.isEmpty &&
+        story.promotionProof.isEmpty &&
+        story.checkGivenProof.isEmpty &&
+        story.checkEscapedProof.exists: proof =>
+          proof.complete &&
+            proof.sameBoardProof &&
+            proof.legalMove &&
+            proof.exactBeforeBoardState &&
+            proof.exactAfterBoardReplay &&
+            proof.beforeBoardSideKingInCheck &&
+            proof.afterBoardSideKingNotInCheck &&
+            proof.checkEscapedByLegalMove &&
+            proof.escapeMove.exists(move =>
+              story.route.contains(move) &&
+                facts.sideLegal.lines.contains(move)
+            ) &&
+            proof.movingPieceBefore.exists(pieces.contains) &&
+            proof.beforeKingSquare.nonEmpty &&
+            proof.originSquare == story.anchor &&
+            proof.afterKingSquare == story.target
+      case Some(StoryWriter.SceneCheckmate) =>
+        story.scene == Scene.Checkmate &&
+        story.tactic.isEmpty &&
+        story.plan.isEmpty &&
+        story.proofFailures.isEmpty &&
+        story.captureResult.isEmpty &&
+        story.threatProof.isEmpty &&
+        story.defenseProof.isEmpty &&
+        story.multiTargetProof.isEmpty &&
+        story.lineProof.isEmpty &&
+        story.pinProof.isEmpty &&
+        story.removeGuardProof.isEmpty &&
+        story.skewerProof.isEmpty &&
+        story.pawnAdvanceProof.isEmpty &&
+        story.pawnStopProof.isEmpty &&
+        story.pawnBreakProof.isEmpty &&
+        story.pawnBlockProof.isEmpty &&
+        story.pawnCaptureProof.isEmpty &&
+        story.passedPawnCreatedProof.isEmpty &&
+        story.fileOpenedProof.isEmpty &&
+        story.promotionThreatProof.isEmpty &&
+        story.promotionProof.isEmpty &&
+        story.checkGivenProof.isEmpty &&
+        story.checkEscapedProof.isEmpty &&
+        story.checkmateProof.exists: proof =>
+          proof.complete &&
+            proof.sameBoardProof &&
+            proof.legalMove &&
+            proof.exactAfterBoardReplay &&
+            proof.afterBoardRivalKingInCheck &&
+            proof.afterBoardRivalSideHasNoLegalEscape &&
+            proof.checkmateProducedByLegalMove &&
+            proof.matingSide == story.side &&
+            proof.rivalSide == story.rival &&
+            proof.mateMove.exists(move =>
+              story.route.contains(move) &&
+                (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+            ) &&
+            proof.movingPieceBefore.exists(pieces.contains) &&
+            proof.originSquare == story.anchor &&
+            proof.rivalKingSquareAfter == story.target
+      case Some(StoryWriter.SceneStalemate) =>
+        story.scene == Scene.Stalemate &&
+        story.tactic.isEmpty &&
+        story.plan.isEmpty &&
+        story.proofFailures.isEmpty &&
+        story.captureResult.isEmpty &&
+        story.threatProof.isEmpty &&
+        story.defenseProof.isEmpty &&
+        story.multiTargetProof.isEmpty &&
+        story.lineProof.isEmpty &&
+        story.pinProof.isEmpty &&
+        story.removeGuardProof.isEmpty &&
+        story.skewerProof.isEmpty &&
+        story.pawnAdvanceProof.isEmpty &&
+        story.pawnStopProof.isEmpty &&
+        story.pawnBreakProof.isEmpty &&
+        story.pawnBlockProof.isEmpty &&
+        story.pawnCaptureProof.isEmpty &&
+        story.passedPawnCreatedProof.isEmpty &&
+        story.fileOpenedProof.isEmpty &&
+        story.promotionThreatProof.isEmpty &&
+        story.promotionProof.isEmpty &&
+        story.checkGivenProof.isEmpty &&
+        story.checkEscapedProof.isEmpty &&
+        story.checkmateProof.isEmpty &&
+        story.stalemateProof.exists: proof =>
+          proof.complete &&
+            proof.sameBoardProof &&
+            proof.legalMove &&
+            proof.exactAfterBoardReplay &&
+            proof.afterBoardRivalSideNotInCheck &&
+            proof.afterBoardRivalSideHasNoLegalMoves &&
+            proof.stalemateProducedByLegalMove &&
+            proof.stalematingSide == story.side &&
+            proof.rivalSide == story.rival &&
+            proof.stalemateMove.exists(move =>
+              story.route.contains(move) &&
+                (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+            ) &&
+            proof.movingPieceBefore.exists(pieces.contains) &&
+            proof.originSquare == story.anchor &&
+            proof.rivalKingSquareAfter == story.target
       case Some(StoryWriter.ScenePromotionThreat) =>
         story.scene == Scene.PromotionThreat &&
         story.tactic.isEmpty &&

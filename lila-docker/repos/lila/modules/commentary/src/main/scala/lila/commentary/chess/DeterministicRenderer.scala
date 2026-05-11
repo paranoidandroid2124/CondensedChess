@@ -34,10 +34,15 @@ private[commentary] object DeterministicRenderer:
       Some(s"${plan.routeSan.get} pins the piece on ${squareText(plan.target.get)}.")
     else if canPhraseRemoveGuard(plan) then
       Some(s"${plan.routeSan.get} removes the defender of the piece on ${squareText(plan.target.get)}.")
+    else if canPhraseOverload(plan) then Some("This move overloads the defender.")
     else if canPhraseSkewer(plan) then
       Some(
         s"${plan.routeSan.get} skewers the piece on ${squareText(plan.target.get)} to the piece on ${squareText(plan.secondaryTarget.get)}."
       )
+    else if canPhraseQueenHit(plan) then
+      Some(s"${plan.routeSan.get} attacks the queen on ${squareText(plan.target.get)}.")
+    else if canPhraseLoose(plan) then
+      Some(s"${plan.routeSan.get} attacks the undefended piece on ${squareText(plan.target.get)}.")
     else if canPhrasePawnAdvance(plan) then Some(s"${plan.routeSan.get} advances the passed pawn.")
     else if canPhrasePawnStop(plan) then
       Some(s"${plan.routeSan.get} stops the passed pawn from advancing next.")
@@ -49,8 +54,13 @@ private[commentary] object DeterministicRenderer:
       Some(s"${plan.routeSan.get} creates a passed pawn on ${squareText(plan.target.get)}.")
     else if canPhraseFileOpened(plan) then
       Some(s"${plan.routeSan.get} opens the ${fileText(plan.anchor.get.file)}-file.")
+    else if canPhrasePawnBlock(plan) then Some(s"${plan.routeSan.get} blocks the pawn from advancing.")
     else if canPhrasePromotionThreat(plan) then Some(s"${plan.routeSan.get} threatens to promote next.")
     else if canPhrasePromotion(plan) then Some(s"${plan.routeSan.get} promotes the pawn.")
+    else if canPhraseCheckGiven(plan) then Some(s"${plan.routeSan.get} gives check.")
+    else if canPhraseCheckEscaped(plan) then Some(s"${plan.routeSan.get} gets out of check.")
+    else if canPhraseCheckmate(plan) then Some(s"${plan.routeSan.get} is checkmate.")
+    else if canPhraseStalemate(plan) then Some(s"${plan.routeSan.get} is stalemate.")
     else if canPhraseMaterial(plan) then
       Some(s"After ${plan.routeSan.get}, ${sideText(plan.side)} comes out ahead in material.")
     else if canPhraseDefense(plan) then
@@ -133,6 +143,19 @@ private[commentary] object DeterministicRenderer:
       plan.evidenceLine.contains(plan.route.get) &&
       plan.forbiddenWording.nonEmpty
 
+  private def canPhraseOverload(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Overload) &&
+      plan.allowedClaim.contains(ExplanationClaim.OverloadsDefender) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      plan.target.nonEmpty &&
+      plan.anchor.nonEmpty &&
+      plan.route.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
   private def canPhraseSkewer(plan: ExplanationPlan): Boolean =
     plan.role == Role.Lead &&
       !plan.debugOnly &&
@@ -142,6 +165,34 @@ private[commentary] object DeterministicRenderer:
       plan.strength == ExplanationStrength.Bounded &&
       plan.target.nonEmpty &&
       plan.secondaryTarget.nonEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseQueenHit(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.QueenHit) &&
+      plan.allowedClaim.contains(ExplanationClaim.AttacksQueen) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      plan.target.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseLoose(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Loose) &&
+      plan.allowedClaim.contains(ExplanationClaim.AttacksLoosePiece) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      plan.target.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
       plan.route.nonEmpty &&
       plan.routeSan.nonEmpty &&
       plan.evidenceLine.contains(plan.route.get) &&
@@ -237,6 +288,21 @@ private[commentary] object DeterministicRenderer:
       plan.evidenceLine.contains(plan.route.get) &&
       plan.forbiddenWording.nonEmpty
 
+  private def canPhrasePawnBlock(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.PawnBlock &&
+      plan.tactic.isEmpty &&
+      plan.allowedClaim.contains(ExplanationClaim.BlocksPawn) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      plan.target.nonEmpty &&
+      plan.anchor.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
   private def canPhrasePromotionThreat(plan: ExplanationPlan): Boolean =
     plan.role == Role.Lead &&
       !plan.debugOnly &&
@@ -259,6 +325,70 @@ private[commentary] object DeterministicRenderer:
       plan.tactic.isEmpty &&
       plan.allowedClaim.contains(ExplanationClaim.PromotesPawn) &&
       plan.strength == ExplanationStrength.Bounded &&
+      plan.target.nonEmpty &&
+      plan.anchor.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseCheckGiven(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.CheckGiven &&
+      plan.tactic.isEmpty &&
+      plan.allowedClaim.contains(ExplanationClaim.GivesCheck) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      (plan.side == Side.White || plan.side == Side.Black) &&
+      plan.target.nonEmpty &&
+      plan.anchor.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseCheckEscaped(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.CheckEscaped &&
+      plan.tactic.isEmpty &&
+      plan.allowedClaim.contains(ExplanationClaim.EscapesCheck) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      (plan.side == Side.White || plan.side == Side.Black) &&
+      plan.target.nonEmpty &&
+      plan.anchor.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseCheckmate(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Checkmate &&
+      plan.tactic.isEmpty &&
+      plan.allowedClaim.contains(ExplanationClaim.Checkmates) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      (plan.side == Side.White || plan.side == Side.Black) &&
+      plan.target.nonEmpty &&
+      plan.anchor.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseStalemate(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Stalemate &&
+      plan.tactic.isEmpty &&
+      plan.allowedClaim.contains(ExplanationClaim.Stalemates) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      (plan.side == Side.White || plan.side == Side.Black) &&
       plan.target.nonEmpty &&
       plan.anchor.nonEmpty &&
       plan.secondaryTarget.isEmpty &&
@@ -319,6 +449,8 @@ private[commentary] object DeterministicRenderer:
         Vector("decisive")
       case ForbiddenWording.Forced =>
         Vector("forced", "forces")
+      case ForbiddenWording.ForcedMove =>
+        Vector("forced move")
       case ForbiddenWording.BestMove =>
         Vector("best move")
       case ForbiddenWording.OnlyMove =>
@@ -337,10 +469,64 @@ private[commentary] object DeterministicRenderer:
           "centipawn",
           "centipawns"
         )
+      case ForbiddenWording.EvalNumber =>
+        Vector("eval number", "evaluation number", "eval", "evaluation", "centipawn", "centipawns")
+      case ForbiddenWording.RawPv =>
+        Vector("raw pv", "pv", "principal variation", "engine line")
+      case ForbiddenWording.PawnForkWins =>
+        Vector("pawn fork wins", "pawn fork wins material", "pawn fork wins a pawn")
       case ForbiddenWording.NoCounterplay =>
         Vector("no counterplay")
       case ForbiddenWording.KingUnsafe =>
         Vector("king unsafe", "king is unsafe", "the king is unsafe", "unsafe king", "king safety")
+      case ForbiddenWording.Checkmate =>
+        Vector("checkmate")
+      case ForbiddenWording.KingSafety =>
+        Vector("king safety")
+      case ForbiddenWording.Attack =>
+        Vector("attack", "attacks")
+      case ForbiddenWording.AttacksKing =>
+        Vector("attacks king", "attacks the king", "king attack")
+      case ForbiddenWording.CreatesAttack =>
+        Vector("creates attack", "creates an attack")
+      case ForbiddenWording.AttacksQueen =>
+        Vector("attacks queen", "attacks the queen", "queen attack")
+      case ForbiddenWording.GivesCheck =>
+        Vector("gives check", "checks the king")
+      case ForbiddenWording.EscapesCheck =>
+        Vector("escapes check", "escapes the check")
+      case ForbiddenWording.ForcesReply =>
+        Vector("forces reply", "forces a reply", "forced reply")
+      case ForbiddenWording.MateInOne =>
+        Vector("mate in one", "mate-in-one")
+      case ForbiddenWording.MateInN =>
+        Vector("mate in", "mate-in")
+      case ForbiddenWording.ForcedMate =>
+        Vector("forced mate", "forces mate")
+      case ForbiddenWording.EngineSaysMate =>
+        Vector("engine says mate", "engine mate", "mate score")
+      case ForbiddenWording.DrawsGame =>
+        Vector("draws the game", "draws game", "draws", "draw")
+      case ForbiddenWording.SavesGame =>
+        Vector("saves the game", "saves game", "saves")
+      case ForbiddenWording.ThrowsWin =>
+        Vector("throws away the win", "throws win", "throws away a win", "thrown win")
+      case ForbiddenWording.EngineSaysDraw =>
+        Vector("engine says draw", "engine draw", "engine says")
+      case ForbiddenWording.Losing =>
+        Vector("losing", "losing position")
+      case ForbiddenWording.KingMovedOutOfCheck =>
+        Vector("moves king out of check", "moves the king out of check", "king escapes check", "king gets out of check")
+      case ForbiddenWording.CheckBlocked =>
+        Vector("blocks check", "blocks the check", "interposes", "interposition")
+      case ForbiddenWording.CheckingPieceCaptured =>
+        Vector("captures checker", "captures the checker", "captures the checking piece", "takes the checking piece")
+      case ForbiddenWording.AvoidsMate =>
+        Vector("avoids mate", "avoids checkmate", "stops mate", "prevents mate", "prevents checkmate")
+      case ForbiddenWording.SafeKing =>
+        Vector("safe king", "king is safe", "makes the king safe")
+      case ForbiddenWording.DefenseSuccess =>
+        Vector("successful defense", "defense succeeds", "defends successfully", "defends everything", "best defense")
       case ForbiddenWording.FileControl =>
         Vector(
           "file control",
@@ -398,6 +584,12 @@ private[commentary] object DeterministicRenderer:
         Vector("wins material by fork", "win material by fork", "material by fork")
       case ForbiddenWording.WinsQueen =>
         Vector("wins queen", "wins the queen", "win the queen")
+      case ForbiddenWording.TrapsQueen =>
+        Vector("traps queen", "traps the queen", "queen trap", "queen is trapped")
+      case ForbiddenWording.QueenIsLost =>
+        Vector("queen is lost", "the queen is lost", "lost queen")
+      case ForbiddenWording.GainsTempo =>
+        Vector("gains tempo", "gain tempo", "wins tempo", "tempo")
       case ForbiddenWording.DecisiveFork =>
         Vector("decisive fork")
       case ForbiddenWording.ForcedWin =>
@@ -460,6 +652,10 @@ private[commentary] object DeterministicRenderer:
         Vector("cannot move", "can't move", "can not move")
       case ForbiddenWording.TargetIsHanging =>
         Vector("target is hanging", "target hangs", "hanging target")
+      case ForbiddenWording.HangingPiece =>
+        Vector("hanging piece", "piece is hanging")
+      case ForbiddenWording.WinsPiece =>
+        Vector("wins piece", "wins a piece", "win piece", "win a piece")
       case ForbiddenWording.NoDefense =>
         Vector("no defense", "no defence")
       case ForbiddenWording.RefutesDefense =>
@@ -613,6 +809,18 @@ private[commentary] object DeterministicRenderer:
         Vector("creates passed pawn", "creates a passed pawn", "makes a passed pawn")
       case ForbiddenWording.PawnCaptureEvent =>
         Vector("captures pawn", "captures the pawn", "pawn captures pawn", "takes pawn", "takes the pawn")
+      case ForbiddenWording.StopsPassedPawn =>
+        Vector("stops passed pawn", "stops the passed pawn", "passed pawn stop")
+      case ForbiddenWording.StopsPawnAdvance =>
+        Vector("stops pawn advance", "stops the pawn advance", "stops the pawn from advancing")
+      case ForbiddenWording.ChallengesPawn =>
+        Vector("challenges pawn", "challenges the pawn", "pawn challenge")
+      case ForbiddenWording.FixesPawn =>
+        Vector("fixes pawn", "fixes the pawn", "fixed pawn")
+      case ForbiddenWording.CreatesBlockade =>
+        Vector("creates blockade", "creates a blockade", "blockade")
+      case ForbiddenWording.RestrictsOpponent =>
+        Vector("restricts opponent", "restricts the opponent", "restriction")
       case ForbiddenWording.WeakensStructure =>
         Vector(
           "weakens structure",

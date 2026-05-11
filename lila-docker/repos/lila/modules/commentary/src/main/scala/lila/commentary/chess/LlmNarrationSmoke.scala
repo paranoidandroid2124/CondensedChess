@@ -19,12 +19,12 @@ private[commentary] object LlmNarrationSmoke:
       s"""You are a chess narration smoke-test model.
          |instruction: Rephrase only. Do not add chess facts.
          |Use only the supplied fields. Keep the output no stronger than renderedText.
-         |Do not add a move, line, tactic, plan, cause, evaluation, engine mention, or stronger claim.
+         |Do not add a move, line, tactic, plan, cause, or stronger claim.
          |
          |renderedText: ${rendered.text}
          |claimKey: ${rendered.claimKey}
          |strength: ${rendered.strength}
-         |forbiddenWording: ${plan.forbiddenWording.map(forbiddenLabel).mkString(", ")}
+         |forbiddenWording: ${promptForbiddenLabels(plan).mkString(", ")}
          |
          |Return JSON only: {"text":"..."}""".stripMargin
 
@@ -76,12 +76,36 @@ private[commentary] object LlmNarrationSmoke:
         plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.CreatesPassedPawn)
       case Scene.FileOpened =>
         plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.OpensFile)
+      case Scene.PawnBlock =>
+        plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.BlocksPawn)
+      case Scene.CheckGiven =>
+        plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.GivesCheck)
+      case Scene.CheckEscaped =>
+        plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.EscapesCheck)
+      case Scene.Checkmate =>
+        plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.Checkmates)
+      case Scene.Stalemate =>
+        plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.Stalemates)
       case Scene.PromotionThreat =>
         plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.CreatesPromotionThreat)
       case Scene.Promotion =>
         plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.PromotesPawn)
       case _ =>
         false
+
+  private def promptForbiddenLabels(plan: ExplanationPlan): Vector[String] =
+    val forbidden =
+      if plan.scene == Scene.Tactic &&
+        plan.tactic.contains(Tactic.Overload) &&
+        plan.allowedClaim.contains(ExplanationClaim.OverloadsDefender)
+      then
+        plan.forbiddenWording.filterNot: forbidden =>
+          forbidden == ForbiddenWording.EngineSays ||
+          forbidden == ForbiddenWording.EvalNumber ||
+            forbidden == ForbiddenWording.RawPv
+      else plan.forbiddenWording
+    val labels = forbidden.map(forbiddenLabel)
+    if isOverloadPlan(plan) then (labels ++ OverloadExtraForbiddenPhrases).distinct else labels
 
   private def claimMatchesTactic(plan: ExplanationPlan, tactic: Tactic): Boolean =
     tactic match
@@ -90,7 +114,10 @@ private[commentary] object LlmNarrationSmoke:
       case Tactic.DiscoveredAttack => plan.allowedClaim.contains(ExplanationClaim.RevealsAttackOnPiece)
       case Tactic.Pin => plan.allowedClaim.contains(ExplanationClaim.PinsPiece)
       case Tactic.RemoveGuard => plan.allowedClaim.contains(ExplanationClaim.RemovesDefender)
+      case Tactic.Overload => plan.allowedClaim.contains(ExplanationClaim.OverloadsDefender)
       case Tactic.Skewer => plan.allowedClaim.contains(ExplanationClaim.SkewersPieceToPiece)
+      case Tactic.QueenHit => plan.allowedClaim.contains(ExplanationClaim.AttacksQueen)
+      case Tactic.Loose => plan.allowedClaim.contains(ExplanationClaim.AttacksLoosePiece)
       case _ => false
 
   private def violatesForbiddenWording(text: String, plan: ExplanationPlan): Boolean =
@@ -98,6 +125,8 @@ private[commentary] object LlmNarrationSmoke:
     val forbiddenPhrases = plan.forbiddenWording.flatMap(forbiddenMeaning)
     forbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
     publicForbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
+    overloadForbiddenPhrases(normalized, plan) ||
+    looseForbiddenPhrases(normalized, plan) ||
     !materialWinAllowed(normalized, plan)
 
   private def strongerThanRendered(text: String, plan: ExplanationPlan, rendered: RenderedLine): Boolean =
@@ -110,10 +139,14 @@ private[commentary] object LlmNarrationSmoke:
         "winning",
         "winning position",
         "decisive",
+        "decisively",
         "forced",
         "best move",
         "only move",
         "engine says",
+        "hanging",
+        "hanging piece",
+        "target is hanging",
         "engine approved",
         "no counterplay",
         "best defense",
@@ -124,16 +157,26 @@ private[commentary] object LlmNarrationSmoke:
         "king is safe",
         "king safety",
         "mate defense",
-        "mate is stopped"
+        "mate is stopped",
+        "gains tempo",
+        "gain tempo",
+        "wins tempo",
+        "tempo"
       )
     strongPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
     (!plan.allowedClaim.contains(ExplanationClaim.CanWinPiece) && materialWinPhrases.exists(
       containsPhrase(normalized, _)
     )) ||
+    (!plan.allowedClaim.contains(ExplanationClaim.CanWinPiece) && pieceWinPhrases.exists(
+      containsPhrase(normalized, _)
+    )) ||
     (containsPhrase(normalized, "wins material") && !containsPhrase(renderedNormalized, "wins material")) ||
-    addsPieceIdentityAbsentFromRendered(normalized, renderedNormalized)
+    addsPieceIdentityAbsentFromRendered(normalized, renderedNormalized, plan)
 
   private def addsNewMoveOrLine(text: String, plan: ExplanationPlan, rendered: RenderedLine): Boolean =
+    val normalized = normalize(text)
+    val mentionsNewVariation =
+      Vector("new variation", "variation").exists(phrase => containsPhrase(normalized, phrase))
     val allowedMoves =
       moveTokens(rendered.text).toSet ++
         plan.routeSan.map(_.toLowerCase(Locale.ROOT)).toSet
@@ -143,6 +186,7 @@ private[commentary] object LlmNarrationSmoke:
         plan.anchor.map(squareText).toSet ++
         plan.route.toVector.flatMap(line => Vector(squareText(line.from), squareText(line.to))) ++
         plan.evidenceLine.toVector.flatMap(line => Vector(squareText(line.from), squareText(line.to)))
+    mentionsNewVariation ||
     moveTokens(text).exists(token => !allowedMoves.contains(token)) ||
     squareTokens(text).exists(token => !allowedSquares.contains(token))
 
@@ -153,13 +197,19 @@ private[commentary] object LlmNarrationSmoke:
         case Some(Tactic.Fork) =>
           Set("fork", "forks")
         case Some(Tactic.DiscoveredAttack) =>
-          Set("reveals attack", "reveals an attack", "discovered attack")
+          Set("attack", "reveals attack", "reveals an attack", "discovered attack")
         case Some(Tactic.Pin) =>
           Set("pin", "pins")
         case Some(Tactic.RemoveGuard) =>
           Set("removes defender", "removes the defender", "remove guard", "removes guard", "guard removal")
+        case Some(Tactic.Overload) =>
+          Set("overload", "overloads", "overloaded", "overloading")
         case Some(Tactic.Skewer) =>
           Set("skewer", "skewers", "skewered")
+        case Some(Tactic.QueenHit) =>
+          Set("attack", "attacks", "attacks queen", "attacks the queen")
+        case Some(Tactic.Loose) =>
+          Set("attack", "attacks", "attacks undefended piece", "attacks the undefended piece")
         case _ =>
           if plan.scene == Scene.PawnAdvance then
             Set("passed pawn", "advances passed pawn", "advances the passed pawn")
@@ -234,6 +284,10 @@ private[commentary] object LlmNarrationSmoke:
             )
           else if plan.scene == Scene.Defense then
             Set("defend", "defends", "defended", "defends piece", "defends the piece")
+          else if plan.scene == Scene.Checkmate then
+            Set("checkmate", "checkmates")
+          else if plan.scene == Scene.Stalemate then
+            Set("stalemate", "stalemates")
           else Set.empty[String]
     val tacticOrPlanPhrases = Vector(
       "fork",
@@ -258,6 +312,9 @@ private[commentary] object LlmNarrationSmoke:
       "deflect",
       "deflects",
       "deflected",
+      "decoy",
+      "decoys",
+      "decoyed",
       "overload",
       "overloads",
       "overloaded",
@@ -267,7 +324,13 @@ private[commentary] object LlmNarrationSmoke:
       "skewered",
       "x ray",
       "xray",
+      "attack",
+      "attacks",
+      "starts attack",
+      "starts an attack",
       "mate",
+      "checkmate",
+      "checkmates",
       "mate net",
       "plan",
       "strategy",
@@ -400,14 +463,60 @@ private[commentary] object LlmNarrationSmoke:
       "material gains"
     )
 
+  private val pieceWinPhrases =
+    Vector(
+      "wins piece",
+      "wins a piece",
+      "wins the piece",
+      "win piece",
+      "win a piece",
+      "win the piece"
+    )
+
   private val publicForbiddenPhrases =
     Vector("best move", "only move", "forced", "forces", "forced line")
+
+  private val OverloadExtraForbiddenPhrases =
+    Vector(
+      "wins material",
+      "wins a piece",
+      "wins the queen",
+      "forced",
+      "only move",
+      "best move",
+      "decisive",
+      "winning",
+      "no counterplay",
+      "deflects",
+      "decoys",
+      "removes the defender",
+      "cannot defend everything",
+      "must choose"
+    )
+
+  private def overloadForbiddenPhrases(normalized: String, plan: ExplanationPlan): Boolean =
+    isOverloadPlan(plan) &&
+      OverloadExtraForbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase))
+
+  private def isOverloadPlan(plan: ExplanationPlan): Boolean =
+    plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Overload) &&
+      plan.allowedClaim.contains(ExplanationClaim.OverloadsDefender)
 
   private val pieceIdentityPhrases =
     Vector("queen", "rook", "bishop", "knight", "pawn", "king")
 
-  private def addsPieceIdentityAbsentFromRendered(normalized: String, renderedNormalized: String): Boolean =
-    pieceIdentityPhrases.exists: phrase =>
+  private def addsPieceIdentityAbsentFromRendered(
+      normalized: String,
+      renderedNormalized: String,
+      plan: ExplanationPlan
+  ): Boolean =
+    val allowedByClaim =
+      if plan.scene == Scene.CheckGiven && plan.allowedClaim.contains(ExplanationClaim.GivesCheck) then Set("king")
+      else if plan.scene == Scene.Checkmate && plan.allowedClaim.contains(ExplanationClaim.Checkmates) then Set("king")
+      else if plan.scene == Scene.Stalemate && plan.allowedClaim.contains(ExplanationClaim.Stalemates) then Set("king")
+      else Set.empty[String]
+    pieceIdentityPhrases.filterNot(allowedByClaim.contains).exists: phrase =>
       containsPhrase(normalized, phrase) && !containsPhrase(renderedNormalized, phrase)
 
   private def materialWinAllowed(normalized: String, plan: ExplanationPlan): Boolean =
@@ -419,6 +528,10 @@ private[commentary] object LlmNarrationSmoke:
     Vector(
       "raw story",
       "story row",
+      "raw multitargetproof",
+      "multitargetproof",
+      "raw multi target proof",
+      "multi target proof",
       "pawnadvanceproof",
       "pawn advance proof",
       "pawnstopproof",
@@ -431,6 +544,20 @@ private[commentary] object LlmNarrationSmoke:
       "passed pawn created proof",
       "fileopenedproof",
       "file opened proof",
+      "pawnblockproof",
+      "pawn block proof",
+      "queenhitproof",
+      "queen hit proof",
+      "loosepieceproof",
+      "loose piece proof",
+      "checkmateproof",
+      "checkmate proof",
+      "stalemateproof",
+      "stalemate proof",
+      "checkgivenproof",
+      "check given proof",
+      "checkescapedproof",
+      "check escaped proof",
       "passedpawnobservation",
       "passed pawn observation",
       "captureresult",
@@ -447,6 +574,8 @@ private[commentary] object LlmNarrationSmoke:
       "pawn lever raw data",
       "enginecheck",
       "engine check",
+      "engineeval",
+      "engine eval",
       "engineline",
       "engine line",
       "raw pv",
@@ -454,6 +583,17 @@ private[commentary] object LlmNarrationSmoke:
       "proof failures",
       "source row",
       "source rows",
+      "result notation",
+      "tablebase diagnostics",
+      "san diagnostics",
+      "san # diagnostics",
+      "san mark",
+      "san marks",
+      "escape method",
+      "escape method diagnostics",
+      "escape diagnostics",
+      "king move",
+      "checking piece capture",
       "missing evidence",
       "same-board proof",
       "same board proof",
@@ -470,6 +610,26 @@ private[commentary] object LlmNarrationSmoke:
       "same family lower rank"
     ).exists(phrase => containsPhrase(normalized, phrase))
 
+  private def looseForbiddenPhrases(normalized: String, plan: ExplanationPlan): Boolean =
+    plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Loose) &&
+      plan.allowedClaim.contains(ExplanationClaim.AttacksLoosePiece) &&
+      Vector(
+        "wins piece",
+        "wins the piece",
+        "win piece",
+        "win the piece",
+        "hanging",
+        "free piece",
+        "en prise",
+        "underdefended",
+        "overloaded",
+        "overloaded defender",
+        "pressure",
+        "initiative",
+        "tempo"
+      ).exists(phrase => containsPhrase(normalized, phrase))
+
   private def forbiddenMeaning(forbidden: ForbiddenWording): Vector[String] =
     forbidden match
       case ForbiddenWording.FreePiece =>
@@ -479,9 +639,11 @@ private[commentary] object LlmNarrationSmoke:
       case ForbiddenWording.Winning =>
         Vector("winning", "winning position")
       case ForbiddenWording.Decisive =>
-        Vector("decisive")
+        Vector("decisive", "decisively")
       case ForbiddenWording.Forced =>
         Vector("forced", "forces")
+      case ForbiddenWording.ForcedMove =>
+        Vector("forced move")
       case ForbiddenWording.BestMove =>
         Vector("best move")
       case ForbiddenWording.OnlyMove =>
@@ -500,10 +662,79 @@ private[commentary] object LlmNarrationSmoke:
           "centipawn",
           "centipawns"
         )
+      case ForbiddenWording.EvalNumber =>
+        Vector("eval number", "evaluation number", "eval", "evaluation", "centipawn", "centipawns")
+      case ForbiddenWording.RawPv =>
+        Vector("raw pv", "pv", "principal variation", "engine line")
+      case ForbiddenWording.PawnForkWins =>
+        Vector("pawn fork wins", "pawn fork wins material", "pawn fork wins a pawn")
       case ForbiddenWording.NoCounterplay =>
         Vector("no counterplay")
       case ForbiddenWording.KingUnsafe =>
         Vector("king unsafe", "king is unsafe", "the king is unsafe", "unsafe king", "king safety")
+      case ForbiddenWording.Checkmate =>
+        Vector("checkmate", "mates")
+      case ForbiddenWording.KingSafety =>
+        Vector("king safety")
+      case ForbiddenWording.Attack =>
+        Vector("attack", "attacks")
+      case ForbiddenWording.AttacksKing =>
+        Vector("attacks king", "attacks the king", "king attack")
+      case ForbiddenWording.CreatesAttack =>
+        Vector("creates attack", "creates an attack")
+      case ForbiddenWording.AttacksQueen =>
+        Vector("attacks queen", "attacks the queen", "queen attack")
+      case ForbiddenWording.GivesCheck =>
+        Vector("gives check", "checks the king")
+      case ForbiddenWording.EscapesCheck =>
+        Vector("escapes check", "escapes the check")
+      case ForbiddenWording.ForcesReply =>
+        Vector("forces reply", "forces a reply", "forced reply")
+      case ForbiddenWording.MateInOne =>
+        Vector("mate in one", "mate-in-one")
+      case ForbiddenWording.MateInN =>
+        Vector("mate in", "mate-in")
+      case ForbiddenWording.ForcedMate =>
+        Vector("forced mate", "forces mate")
+      case ForbiddenWording.EngineSaysMate =>
+        Vector("engine says mate", "engine mate", "mate score")
+      case ForbiddenWording.DrawsGame =>
+        Vector("draws the game", "draws game", "draws", "draw")
+      case ForbiddenWording.SavesGame =>
+        Vector("saves the game", "saves game", "saves")
+      case ForbiddenWording.ThrowsWin =>
+        Vector("throws away the win", "throws win", "throws away a win", "thrown win")
+      case ForbiddenWording.EngineSaysDraw =>
+        Vector("engine says draw", "engine draw", "engine says")
+      case ForbiddenWording.Losing =>
+        Vector("losing", "losing position")
+      case ForbiddenWording.KingMovedOutOfCheck =>
+        Vector(
+          "moves king out of check",
+          "moves the king out of check",
+          "moved the king out of check",
+          "king moved out of check",
+          "king escapes check",
+          "king gets out of check"
+        )
+      case ForbiddenWording.CheckBlocked =>
+        Vector("blocks check", "blocks the check", "blocked check", "blocked the check", "interposes", "interposition")
+      case ForbiddenWording.CheckingPieceCaptured =>
+        Vector(
+          "captures checker",
+          "captures the checker",
+          "captured checker",
+          "captured the checker",
+          "captures the checking piece",
+          "captured the checking piece",
+          "takes the checking piece"
+        )
+      case ForbiddenWording.AvoidsMate =>
+        Vector("avoids mate", "avoids checkmate", "stops mate", "prevents mate", "prevents checkmate")
+      case ForbiddenWording.SafeKing =>
+        Vector("safe king", "king is safe", "makes the king safe")
+      case ForbiddenWording.DefenseSuccess =>
+        Vector("successful defense", "defense succeeds", "defense success", "defends successfully", "defends everything", "best defense")
       case ForbiddenWording.FileControl =>
         Vector(
           "file control",
@@ -561,6 +792,12 @@ private[commentary] object LlmNarrationSmoke:
         Vector("wins material by fork", "win material by fork", "material by fork")
       case ForbiddenWording.WinsQueen =>
         Vector("wins queen", "wins the queen", "win the queen")
+      case ForbiddenWording.TrapsQueen =>
+        Vector("traps queen", "traps the queen", "queen trap", "queen is trapped")
+      case ForbiddenWording.QueenIsLost =>
+        Vector("queen is lost", "the queen is lost", "lost queen")
+      case ForbiddenWording.GainsTempo =>
+        Vector("gains tempo", "gain tempo", "wins tempo", "tempo")
       case ForbiddenWording.DecisiveFork =>
         Vector("decisive fork")
       case ForbiddenWording.ForcedWin =>
@@ -623,6 +860,10 @@ private[commentary] object LlmNarrationSmoke:
         Vector("cannot move", "can't move", "can not move")
       case ForbiddenWording.TargetIsHanging =>
         Vector("target is hanging", "target hangs", "hanging target")
+      case ForbiddenWording.HangingPiece =>
+        Vector("hanging piece", "piece is hanging")
+      case ForbiddenWording.WinsPiece =>
+        Vector("wins piece", "wins a piece", "win piece", "win a piece")
       case ForbiddenWording.NoDefense =>
         Vector("no defense", "no defence")
       case ForbiddenWording.RefutesDefense =>
@@ -776,6 +1017,18 @@ private[commentary] object LlmNarrationSmoke:
         Vector("creates passed pawn", "creates a passed pawn", "makes a passed pawn")
       case ForbiddenWording.PawnCaptureEvent =>
         Vector("captures pawn", "captures the pawn", "pawn captures pawn", "takes pawn", "takes the pawn")
+      case ForbiddenWording.StopsPassedPawn =>
+        Vector("stops passed pawn", "stops the passed pawn", "passed pawn stop")
+      case ForbiddenWording.StopsPawnAdvance =>
+        Vector("stops pawn advance", "stops the pawn advance", "stops the pawn from advancing")
+      case ForbiddenWording.ChallengesPawn =>
+        Vector("challenges pawn", "challenges the pawn", "pawn challenge")
+      case ForbiddenWording.FixesPawn =>
+        Vector("fixes pawn", "fixes the pawn", "fixed pawn")
+      case ForbiddenWording.CreatesBlockade =>
+        Vector("creates blockade", "creates a blockade", "blockade")
+      case ForbiddenWording.RestrictsOpponent =>
+        Vector("restricts opponent", "restricts the opponent", "restricts black", "restricts white", "restriction")
       case ForbiddenWording.WeakensStructure =>
         Vector(
           "weakens structure",

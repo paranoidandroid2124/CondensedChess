@@ -807,7 +807,7 @@ Lead fail-closed rules:
   rival, and `StoryTable` must reject any positive writer whose
   `CaptureResult` does not bind back to that Story identity.
 - `MultiTargetProof` is internal family proof for the narrow `Tactic.Fork`
-  vertical slice. It records the non-pawn attacker, attacker-after-move, fork
+  vertical slice. It records the attacker, attacker-after-move, fork
   move, post-move attacked target squares, two named targets, target values or
   importance, bounded reply map, material-or-tempo result, same-board proof
   presence, and missing evidence.
@@ -932,8 +932,8 @@ Lead fail-closed rules:
 - Fork slice closeout opens no new runtime authority. `MultiTargetProof`
   remains TargetProof-shaped proof evidence and does not replace
   CaptureResult, StoryProof, EngineCheck, or StoryTable. `Tactic.PawnFork`,
-  `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`, `Tactic.InBetween`,
-  `Scene.Defense`, Plan, Strategy, public route `200`, production API, and
+  `Tactic.Skewer`, `Tactic.QueenHit`, `Tactic.Tempo`, `Scene.Defense`,
+  Plan, Strategy, public route `200`, production API, and
   public/user-facing LLM narration remain closed. Fork does not open
   `Scene.Material` by implication; Material-3 separately opens only the narrow
   named `Scene.Material` writer.
@@ -1842,6 +1842,21 @@ Lead fail-closed rules:
   `Scene.PassedPawnCreated`, and `Scene.FileOpened` as four narrow
   proof-backed event slices with separate proof homes and speech keys; broad
   pawn-structure and file interpretation remains closed.
+- PBFNC-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the
+  Pawn Blocking / Fixed Pawn Neighborhood closeout; it opens no new chess
+  meaning and closes exactly one already-open narrow public event,
+  `Scene.PawnBlock`, where a move blocks one rival pawn from advancing, with
+  fixed-pawn, weak-pawn, blockade, restriction, pressure, initiative,
+  best/only move, public route `200`, production API, and public/user-facing
+  LLM narration closed.
+- Loose-0 summary is non-authoritative: `StoryInteractionLaw.md` owns the
+  Loose Piece charter; the charter admits only narrow `Tactic.Loose` through
+  `LoosePieceProof` and `TacticLoose` for a legal move that leaves the moving
+  side attacking one undefended rival non-king piece on the exact after-board,
+  with Hanging, Material, wins-piece, wins-material, free-piece, en-prise,
+  underdefended, overloaded-defender, pressure, initiative, tempo,
+  best/only/forced move, public route `200`, production API, and
+  public/user-facing LLM narration closed.
 - Stage 6 closeout confirms Explanation Plan only. Blocked, Support, Context,
   engine-capped, and engine-refuted Verdicts create no allowed claim or public
   claim. Stage 7 deterministic renderer may receive Explanation Plan only and
@@ -1996,7 +2011,7 @@ The model has exactly `32` long-term plan families:
 
 ## Tactics
 
-The model has exactly `25` tactic families:
+The model has exactly `24` tactic families:
 
 - `Loose`
 - `Hanging`
@@ -2018,7 +2033,6 @@ The model has exactly `25` tactic families:
 - `QueenHit`
 - `KingOpen`
 - `Promote`
-- `InBetween`
 - `Clear`
 - `Decoy`
 - `Deflect`

@@ -4,7 +4,13 @@ private[commentary] object TacticFork:
   val WriterOpen = true
 
   def withEngineCheck(story: Story, check: EngineCheck): Option[Story] =
-    Option.when(forkStory(story) && check.evidenceReady && checkBindsStoryRoute(story, check)):
+    Option.when(
+      forkStory(story) &&
+        forkProofComplete(story) &&
+        check.storyBound &&
+        check.evidenceReady &&
+        checkBindsStoryRoute(story, check)
+    ):
       story.copy(engineCheck = Some(check))
 
   def write(
@@ -17,7 +23,8 @@ private[commentary] object TacticFork:
     for
       route <- forkMove
       routeSan <- BoardFacts.sanFor(facts, route)
-      attacker <- multiTargetProof.attacker
+      attackerAfterMove <- multiTargetProof.attackerAfterMove
+      primaryTargetPiece <- multiTargetProof.targetA
       primaryTarget <- firstTarget
       secondaryTarget <- secondTarget
       if WriterOpen
@@ -26,10 +33,10 @@ private[commentary] object TacticFork:
         scene = Scene.Tactic,
         tactic = Some(Tactic.Fork),
         side = multiTargetProof.side,
-        rival = rivalOf(multiTargetProof.side),
+        rival = primaryTargetPiece.side,
         target = Some(primaryTarget),
         secondaryTarget = Some(secondaryTarget),
-        anchor = Some(attacker.square),
+        anchor = Some(attackerAfterMove.square),
         route = Some(route),
         routeSan = Some(routeSan),
         proof = forkProof(multiTargetProof),
@@ -48,6 +55,17 @@ private[commentary] object TacticFork:
 
   private def checkBindsStoryRoute(story: Story, check: EngineCheck): Boolean =
     check.checkedMove.exists(move => story.route.contains(move))
+
+  private def forkProofComplete(story: Story): Boolean =
+    story.proofFailures.isEmpty &&
+      story.multiTargetProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.forkMove.exists(move => story.route.contains(move)) &&
+          proof.attackerAfterMove.exists(piece => story.anchor.contains(piece.square)) &&
+          proof.targetA.exists(piece => story.target.contains(piece.square)) &&
+          proof.targetB.exists(piece => story.secondaryTarget.contains(piece.square)) &&
+          proof.targets.forall(piece => piece.side == story.rival && piece.man != Man.King)
 
   private def forkProof(proof: MultiTargetProof): Proof =
     val result = proof.materialOrTempoResult.getOrElse(0)
@@ -70,9 +88,3 @@ private[commentary] object TacticFork:
       novelty = 0,
       clarity = 75
     )
-
-  private def rivalOf(side: Side): Side =
-    side match
-      case Side.White => Side.Black
-      case Side.Black => Side.White
-      case _          => Side.None

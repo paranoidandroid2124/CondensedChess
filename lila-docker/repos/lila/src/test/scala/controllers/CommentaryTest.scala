@@ -25,3 +25,13 @@ class CommentaryTest extends munit.FunSuite:
     assert(controller.contains("def renderCommentary = OpenBodyOf(parse.json):"))
     assert(controller.contains("def renderLocalProbeCommentary =\n    OpenBodyOf(parse.json):"))
     assert(!controller.contains("env.mode.isProd"))
+
+  test("KCNFC-6 commentary routes expose no public 200 or production API"):
+    val controller = Files.readString(Paths.get("app/controllers/Commentary.scala"))
+
+    assert(controller.contains("ServiceUnavailable(unavailable).toFuccess"))
+    assert(!controller.contains("Ok("), "commentary route tombstones must not return 200")
+    assert(!controller.contains("LlmNarrationSmoke"), "commentary routes must not expose public LLM narration")
+    Vector("BoardFacts", "Story(", "CheckGivenProof", "CheckEscapedProof", "CheckmateProof", "EngineCheck").foreach:
+      raw =>
+        assert(!controller.contains(raw), s"commentary routes must not expose raw $raw")

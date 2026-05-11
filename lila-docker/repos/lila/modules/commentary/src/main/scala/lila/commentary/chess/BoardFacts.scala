@@ -254,6 +254,30 @@ object BoardFacts:
   private[commentary] def sanFor(facts: BoardFacts, line: Line): Option[String] =
     facts.sideLegal.sanFor(line).orElse(facts.rivalLegal.sanFor(line))
 
+  private[commentary] def sideInCheck(facts: BoardFacts, side: Side): Boolean =
+    side match
+      case Side.White => (facts.header.inCheckMask & 1) != 0
+      case Side.Black => (facts.header.inCheckMask & 2) != 0
+      case _ => false
+
+  private[commentary] def sideInCheckAfterLegalMove(facts: BoardFacts, line: Line, side: Side): Option[Boolean] =
+    for
+      color <- colorFromSide(side)
+      position <- Option(positionFacts.get(facts))
+      move <- position.legalMoves.toVector.find(move =>
+        Line(Square.fromIndex(move.orig.value), Square.fromIndex(move.dest.value)) == line
+      )
+    yield move.after.isCheck(color).yes
+
+  private[commentary] def sideLegalMoveCountAfterLegalMove(facts: BoardFacts, line: Line, side: Side): Option[Int] =
+    for
+      color <- colorFromSide(side)
+      position <- Option(positionFacts.get(facts))
+      move <- position.legalMoves.toVector.find(move =>
+        Line(Square.fromIndex(move.orig.value), Square.fromIndex(move.dest.value)) == line
+      )
+    yield move.after.withColor(color).legalMoves.size
+
   private[commentary] def sansFor(facts: BoardFacts, line: Line): Vector[String] =
     Vector(facts.sideLegal, facts.rivalLegal)
       .flatMap(moves =>
@@ -264,6 +288,7 @@ object BoardFacts:
       )
 
   private[commentary] final case class LegalContinuation(line: Line, san: String, promotion: Boolean)
+  private[commentary] final case class LegalReply(line: Line, san: String, pieces: Vector[Piece])
 
   private[commentary] def sameSideLegalContinuationsAfter(facts: BoardFacts, line: Line): Vector[LegalContinuation] =
     Option(positionFacts.get(facts)).toVector.flatMap: position =>
@@ -282,6 +307,23 @@ object BoardFacts:
                 promotion = next.promotion.isDefined
               )
 
+  private[commentary] def rivalLegalRepliesAfter(facts: BoardFacts, line: Line): Vector[LegalReply] =
+    Option(positionFacts.get(facts)).toVector.flatMap: position =>
+      position.legalMoves.toVector
+        .find(move => Line(Square.fromIndex(move.orig.value), Square.fromIndex(move.dest.value)) == line)
+        .toVector
+        .flatMap: move =>
+          move.after
+            .withColor(!position.color)
+            .legalMoves
+            .toVector
+            .map: reply =>
+              LegalReply(
+                line = Line(Square.fromIndex(reply.orig.value), Square.fromIndex(reply.dest.value)),
+                san = reply.toSanStr.toString,
+                pieces = pieces(reply.after.board)
+              )
+
   private[commentary] def piecesAfterLegalMove(facts: BoardFacts, line: Line): Option[Vector[Piece]] =
     Option(positionFacts.get(facts)).flatMap: position =>
       position.legalMoves.toVector
@@ -289,6 +331,13 @@ object BoardFacts:
         .map(move => pieces(move.after.board))
 
   private[chess] final case class LegalMove(side: Side, piece: Piece, line: Line)
+  private[chess] final case class LegalCheckMove(
+      side: Side,
+      piece: Piece,
+      line: Line,
+      rivalSide: Side,
+      rivalKingSquareAfter: Square
+  )
   private[chess] final case class Attack(attacker: Piece, target: Piece)
   private[chess] final case class Guard(guard: Piece, target: Piece)
   private[chess] final case class PieceContact(piece: Piece, attackers: Vector[Piece], guards: Vector[Piece]):
@@ -363,6 +412,7 @@ object BoardFacts:
 
   private[chess] final case class Seen(
       legalMoves: Vector[LegalMove],
+      legalCheckMoves: Vector[LegalCheckMove],
       attacks: Vector[Attack],
       guards: Vector[Guard],
       pieceContacts: Vector[PieceContact],
@@ -392,6 +442,7 @@ object BoardFacts:
     def empty(failures: Vector[MissingEvidence] = Vector.empty): Seen =
       Seen(
         legalMoves = Vector.empty,
+        legalCheckMoves = Vector.empty,
         attacks = Vector.empty,
         guards = Vector.empty,
         pieceContacts = Vector.empty,
@@ -426,6 +477,7 @@ object BoardFacts:
       val occupied = pieces.foldLeft(0L): (mask, piece) =>
         mask | piece.square.bit
       val legal = legalMoves(facts, bySquare)
+      val legalChecks = legalCheckMoves(facts)
       val attacksSeen = attacks(pieces, occupied)
       val guardsSeen = guards(pieces, occupied)
       val contactRows = pieceContactRows(pieces, attacksSeen, guardsSeen)
@@ -435,6 +487,7 @@ object BoardFacts:
       val kingRows = kingFacts(pieces, legal, bySquare, occupied)
       Seen(
         legalMoves = legal,
+        legalCheckMoves = legalChecks,
         attacks = attacksSeen,
         guards = guardsSeen,
         pieceContacts = contactRows,
@@ -482,6 +535,29 @@ object BoardFacts:
             .map: piece =>
               LegalMove(side, piece, line)
       .sortBy(move => (move.side.ordinal, move.line.from.index, move.line.to.index))
+
+  private def legalCheckMoves(facts: BoardFacts): Vector[LegalCheckMove] =
+    Option(positionFacts.get(facts))
+      .toVector
+      .flatMap: position =>
+        Vector(position, position.withColor(!position.color)).flatMap: replayPosition =>
+          val side = sideFromColor(replayPosition.color)
+          val rivalSide = opposite(side)
+          val beforePieces = pieces(replayPosition.board)
+          replayPosition.legalMoves.toVector.flatMap: move =>
+            val line = Line(Square.fromIndex(move.orig.value), Square.fromIndex(move.dest.value))
+            for
+              movingPiece <- beforePieces.find(piece => piece.side == side && piece.square == line.from)
+              if move.after.check.yes
+              rivalKing <- pieces(move.after.board).find(piece => piece.side == rivalSide && piece.man == Man.King)
+            yield LegalCheckMove(
+              side = side,
+              piece = movingPiece,
+              line = line,
+              rivalSide = rivalSide,
+              rivalKingSquareAfter = rivalKing.square
+            )
+      .sortBy(row => (row.side.ordinal, row.line.from.index, row.line.to.index, row.rivalKingSquareAfter.index))
 
   private def attacks(pieces: Vector[Piece], occupied: Long): Vector[Attack] =
     (for
@@ -1302,6 +1378,12 @@ object BoardFacts:
 
   private def sideFromColor(color: Color): Side =
     if color.white then Side.White else Side.Black
+
+  private def colorFromSide(side: Side): Option[Color] =
+    side match
+      case Side.White => Some(Color.White)
+      case Side.Black => Some(Color.Black)
+      case _ => None
 
   private def manFromRole(role: Role): Man =
     role match
