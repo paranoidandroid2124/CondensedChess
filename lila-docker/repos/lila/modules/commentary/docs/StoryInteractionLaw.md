@@ -9496,6 +9496,387 @@ Stage-6 verification:
 
 Completion standard: Stage-6 OCBA closes when final audit closeout proves no public Overload consequence meaning opened, the Stage-2 ownership matrix remains present, no OverloadResultProof or equivalent result proof home exists, existing Material, Loose, Hanging, QueenHit, RemoveGuard, Defense, CannotSatisfyBoth, and EngineCheck homes keep their meanings, `overloads_defender` remains the only Overload speech key, detailed authority lives only in `StoryInteractionLaw.md`, required verification passes, and `git diff --check` passes.
 
+## Stage-0: Overload Narrow Expansion Audit Charter
+
+Stage-0 opens audit-only scope for possible next `Tactic.Overload` narrow expansion.
+
+Stage-0 opens:
+
+- detailed audit law in `StoryInteractionLaw.md`
+- internal audit tests that prove whether any next Overload meaning is unique or duplicate
+
+Stage-0 keeps closed:
+
+- no new Overload Story label
+- no OverloadResultProof
+- no material/result/consequence claim
+- no writer
+- no speech key
+- no ExplanationPlan claim
+- no renderer text
+- no LLM smoke expansion except forbidden-boundary checks if needed
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Stage-0 proof authority:
+
+- Existing opened chain remains exactly:
+  `OverloadProof -> Tactic.Overload -> TacticOverload -> overloads_defender`
+- Internal ingredients remain internal:
+  `DefenderDuty`, `DualDefenderDuty`, `OverloadTest`, `CannotSatisfyBoth`
+- EngineCheck supports, caps, or refutes only an existing Story and cannot create expansion authority.
+
+Stage-0 forbidden wording:
+
+- Do not say Overload wins material.
+- Do not say Overload forces a result.
+- Do not say the defender cannot satisfy both as public Overload text.
+- Do not say the queen/piece becomes loose, hanging, removed, won, trapped, or undefended from Overload.
+- Do not say best move, only move, winning, decisive, forced, no counterplay, or engine-approved.
+
+Completion standard: Stage-0 Overload Narrow Expansion Audit closes when docs authority proves this slice is audit-only for possible next `Tactic.Overload` narrow expansion; any internal audit tests prove whether the next possible Overload meaning is unique or duplicate before runtime expansion; the opened chain remains exactly `OverloadProof -> Tactic.Overload -> TacticOverload -> overloads_defender`; DefenderDuty, DualDefenderDuty, OverloadTest, and CannotSatisfyBoth remain internal ingredients only; EngineCheck supports, caps, or refutes only an existing Story and cannot create expansion authority; no new Overload Story label, OverloadResultProof, material/result/consequence claim, writer, speech key, ExplanationPlan claim, renderer text, LLM smoke expansion except forbidden-boundary checks if needed, public route `200`, production API, or public/user-facing LLM narration opens; forbidden wording remains closed; docs authority tests pass; and `git diff --check` passes.
+
+## Stage-1: Overload Read-Only Expansion Inventory
+
+Stage-1 opens read-only expansion inventory only.
+
+Stage-1 audit lanes:
+
+- Overload runtime/proof path audit
+- neighbor meaning ownership audit
+- downstream wording/negative corpus audit
+
+Stage-1 subagent boundary:
+
+- subagents were read-only.
+- subagents did not edit files.
+- subagents did not write tests.
+
+Stage-1 inventoried Overload path:
+
+- `OverloadProof`
+- `TacticOverload`
+- StoryTable behavior
+- ExplanationPlan mapping
+- renderer mapping
+- LLM forbidden wording
+- tests
+- `StoryInteractionLaw.md`
+
+Stage-1 path findings:
+
+- `OverloadProof` is the proof sidecar and remains non-public by itself.
+- `TacticOverload` writes only the existing `Tactic.Overload` row from complete proof.
+- StoryTable orders and blocks rows; it does not create Overload.
+- ExplanationPlan lowers only selected uncapped Lead Overload to `overloads_defender`.
+- renderer text remains exactly `This move overloads the defender.`
+- LLM smoke input remains rendered text, claim key, strength, forbidden wording, and rephrase-only instruction.
+- tests already cover the proof, writer, negatives, EngineCheck, StoryTable, ExplanationPlan, renderer, LLM smoke, runtime admission, interaction hardening, and consequence negative corpus paths.
+
+Stage-1 neighbor owner inventory:
+
+- Material: owned elsewhere.
+- Loose: owned elsewhere.
+- Hanging: owned elsewhere.
+- QueenHit: owned elsewhere.
+- RemoveGuard: owned elsewhere.
+- Defense: owned elsewhere.
+- CannotSatisfyBoth: owned elsewhere as internal readiness.
+- EngineCheck: owned elsewhere as support/cap/refute diagnostics.
+
+Stage-1 candidate inventory:
+
+| candidate | current status | owner | audit note |
+| --- | --- | --- | --- |
+| overloads defender | duplicate | `OverloadProof -> Tactic.Overload -> TacticOverload -> overloads_defender` | existing narrow path already owns this wording. |
+| `Plan.Overload` | duplicate | existing plan enum only | no main runtime public path found. |
+| overloaded piece observation | owned elsewhere | root observation / BoardFacts observation layer | observation does not create Story or speech. |
+| material gain now | owned elsewhere | `Scene.Material` / `CaptureResult` | Overload cannot borrow material-now wording. |
+| wins material or wins piece | owned elsewhere | Material or Hanging proof paths | broader consequence wording has no Overload owner. |
+| loose or undefended target | owned elsewhere | `Tactic.Loose` / `LoosePieceProof` | Overload cannot borrow loose-piece wording. |
+| hanging target | owned elsewhere | `Tactic.Hanging` / `CaptureResult` | Overload cannot borrow hanging-piece wording. |
+| queen attacked | owned elsewhere | `Tactic.QueenHit` / `QueenHitProof` | Overload cannot borrow queen-attack wording. |
+| defender removed | owned elsewhere | `Tactic.RemoveGuard` / `RemoveGuardProof` | Overload cannot borrow removed-defender wording. |
+| defense unavailable or refuted | owned elsewhere | `Scene.Defense` and `EngineCheck.Refutes` | EngineCheck may only affect existing rows. |
+| cannot satisfy both public wording | owned elsewhere | internal CannotSatisfyBoth readiness only | no speech key, renderer text, or public label. |
+| EngineCheck-backed stronger wording | owned elsewhere | `EngineCheck` diagnostics | no speech key and no expansion authority. |
+| forced-choice / defender must choose | possibly unique | none current | current law forbids this wording. |
+| Overload result/composition proof home | possibly unique | none current | no `OverloadResultProof` equivalent found. |
+
+Stage-1 keeps closed:
+
+- no implementation
+- no new proof home
+- no new public Story
+- no renderer or LLM changes
+- no new ExplanationPlan claim
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Completion standard: Stage-1 Overload Read-Only Expansion Inventory closes when the read-only audit inventory records the current Overload path, neighbor owners, downstream wording and negative-corpus coverage, and candidate status; all duplicate, owned elsewhere, and possibly unique notes stay audit-only; summary docs remain unchanged unless docs tests require a summary assertion; no implementation, new proof home, public Story, renderer change, LLM change, public route `200`, production API, or public/user-facing LLM narration opens; docs authority tests pass; and `git diff --check` passes.
+
+## Stage-2: Overload Candidate Meaning Classification
+
+Stage-2 opens only a candidate classification table.
+
+Stage-2 classification statuses:
+
+- duplicate-owned
+- internal-ingredient-only
+- possibly-unique
+- rejected-overclaim
+
+Stage-2 proof authority:
+
+- one chess meaning, one proof home, one Story label, one speech key
+- duplicate-owned means the meaning is already Material, Loose, Hanging, QueenHit, RemoveGuard, Defense, CannotSatisfyBoth, or EngineCheck status.
+- internal-ingredient-only means the wording describes DefenderDuty, DualDefenderDuty, OverloadTest, or CannotSatisfyBoth mechanics without a new public chess meaning.
+- possibly-unique means no existing proof home can own it and same-board legal replay can bind it.
+- rejected-overclaim means the wording would strengthen Overload beyond its proof boundary.
+
+Stage-2 candidate classification table:
+
+| candidate | classification | owner or boundary | classification note |
+| --- | --- | --- | --- |
+| overloads defender | duplicate-owned | `OverloadProof -> Tactic.Overload -> TacticOverload -> overloads_defender` | existing narrow Overload path already owns this wording. |
+| `Plan.Overload` | duplicate-owned | existing plan enum only | no runtime public path found. |
+| overloaded piece observation | duplicate-owned | root observation / BoardFacts observation layer | observation does not create Story or speech. |
+| material gain now | duplicate-owned | `Scene.Material` / `CaptureResult` | existing Material owner remains outside Overload. |
+| loose or undefended target | duplicate-owned | `Tactic.Loose` / `LoosePieceProof` | existing Loose owner remains outside Overload. |
+| hanging target | duplicate-owned | `Tactic.Hanging` / `CaptureResult` | existing Hanging owner remains outside Overload. |
+| queen attacked | duplicate-owned | `Tactic.QueenHit` / `QueenHitProof` | existing QueenHit owner remains outside Overload. |
+| defender removed | duplicate-owned | `Tactic.RemoveGuard` / `RemoveGuardProof` | existing RemoveGuard owner remains outside Overload. |
+| defense unavailable or refuted | duplicate-owned | `Scene.Defense` / `EngineCheck.Refutes` | existing Defense and EngineCheck owners remain outside Overload. |
+| EngineCheck supports caps or refutes | duplicate-owned | `EngineCheck` status | status can only bind to existing Story rows. |
+| DefenderDuty guard relation | internal-ingredient-only | `DefenderDuty` | ingredient mechanics do not create a public chess meaning. |
+| DualDefenderDuty two-duty relation | internal-ingredient-only | `DualDefenderDuty` | ingredient mechanics do not create a public chess meaning. |
+| OverloadTest legal test move | internal-ingredient-only | `OverloadTest` | ingredient mechanics do not create a public chess meaning. |
+| CannotSatisfyBoth reply exhaustion | internal-ingredient-only | `CannotSatisfyBoth` | ingredient mechanics do not create a public chess meaning. |
+| cannot defend both public Overload output | rejected-overclaim | forbidden public wording | wording is stronger than the existing speech key. |
+| therefore wins | rejected-overclaim | forbidden public wording | wording adds a result claim. |
+| result of overload | rejected-overclaim | forbidden public wording | wording adds a consequence claim. |
+| broad pressure or initiative | rejected-overclaim | forbidden public wording | broad positional wording has no Overload proof path. |
+| same-board legal overload pattern not owned elsewhere | possibly-unique | no current owner | only auditable if legal replay can bind it and no existing proof home can own it. |
+| Overload result/composition proof home | rejected-overclaim | no current owner | no proof home, Story label, writer, or speech key is created. |
+
+Stage-2 keeps closed:
+
+- no positive runtime admission
+- no Story label
+- no writer
+- no speech key
+- no new proof home
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Stage-2 forbidden wording:
+
+- no result of overload
+- no therefore wins
+- no cannot defend both as public Overload output
+- no broad pressure or initiative
+
+Completion standard: Stage-2 Overload Candidate Meaning Classification closes when every possible Overload expansion candidate is classified exactly once as duplicate-owned, internal-ingredient-only, possibly-unique, or rejected-overclaim; duplicate-owned consequence meanings remain outside Overload and inside existing Material, Loose, Hanging, QueenHit, RemoveGuard, Defense, CannotSatisfyBoth, or EngineCheck homes; internal ingredients remain internal only; possibly-unique candidates stay audit-only unless no existing proof home can own them and same-board legal replay can bind them; no positive runtime admission, Story label, writer, speech key, proof home, public route `200`, production API, or public/user-facing LLM narration opens; docs authority tests pass; and `git diff --check` passes.
+
+## Stage-3: Overload Duplicate Collision Negative Corpus
+
+Stage-3 opens runtime negative-corpus tests only.
+
+Stage-3 opens:
+
+- collision fixtures where proof-backed Overload sits beside existing neighbor owners
+- assertions that each neighbor meaning remains in its existing proof home
+- assertions that Overload speaks only through `overloads_defender`
+- assertions that Support, Context, Blocked, capped, and refuted Overload rows produce no standalone text
+
+Stage-3 keeps closed:
+
+- no new Overload proof home
+- no new Overload Story label
+- no new Overload writer
+- no new Overload speech key
+- no new ExplanationPlan claim
+- no renderer text
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Stage-3 collision fixture duties:
+
+- Material stays owned by `Scene.Material` / `CaptureResult`.
+- Loose stays owned by `Tactic.Loose` / `LoosePieceProof`.
+- Hanging stays owned by `Tactic.Hanging` / `CaptureResult`.
+- QueenHit stays owned by `Tactic.QueenHit` / `QueenHitProof`.
+- RemoveGuard stays owned by `Tactic.RemoveGuard` / `RemoveGuardProof`.
+- Defense stays owned by `Scene.Defense` / `DefenseProof`.
+- CannotSatisfyBoth remains an internal readiness ingredient only.
+- EngineCheck statuses cannot create stronger Overload public text.
+
+Stage-3 forbidden wording:
+
+- material gain
+- wins
+- loose
+- hanging
+- queen attacked
+- removes defender
+- cannot satisfy both
+- engine says
+- best
+- forced
+- decisive
+- no counterplay
+
+Stage-3 verification:
+
+- `sbt "commentary/testOnly lila.commentary.chess.OverloadExpansionCollisionNegativeCorpusTest"`
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+
+Completion standard: Stage-3 Overload Duplicate Collision Negative Corpus closes when collision fixtures prove Material, Loose, Hanging, QueenHit, RemoveGuard, Defense, CannotSatisfyBoth, and EngineCheck meanings remain outside Overload; selected uncapped Lead Overload produces only `overloads_defender`; Support, Context, Blocked, capped, and refuted Overload rows produce no standalone text; no new proof home, Story label, writer, speech key, ExplanationPlan claim, renderer text, public route `200`, production API, or public/user-facing LLM narration opens; required runtime verification passes; and `git diff --check` passes.
+
+## Stage-4: Overload Possibly-Unique Candidate Proof Test
+
+Stage-4 opens docs evidence for at most one possibly-unique Overload candidate.
+
+Stage-4 admits no positive runtime path.
+
+Stage-4 candidate proof checklist:
+
+- scene/tactic/plan
+- side
+- rival
+- target
+- anchor
+- route
+- same-board legal replay
+- complete StoryProof
+- EngineCheck not Refute
+
+Stage-4 ownership rejection rules:
+
+- candidate meaning must not be expressible as Material, Loose, Hanging, QueenHit, RemoveGuard, Defense, CannotSatisfyBoth, or EngineCheck.
+- candidate wording that requires CannotSatisfyBoth wording is internal-ingredient-only.
+- candidate wording that requires result wording is rejected-overclaim.
+- a same-defender two-duty relation remains internal-ingredient-only unless a distinct public meaning is proven separate from DualDefenderDuty.
+- no public-facing candidate name is allowed before uniqueness is proven.
+
+Stage-4 candidate evidence table:
+
+| audit input | status | reason |
+| --- | --- | --- |
+| Stage-2 possibly-unique row | rejected-overclaim | it has no distinct proof meaning without result or consequence wording. |
+| CannotSatisfyBoth wording | internal-ingredient-only | it stays internal and cannot become public Overload output. |
+| same defender has two duties | internal-ingredient-only | DualDefenderDuty already owns the internal relation unless a distinct public meaning is proven. |
+
+Stage-4 result:
+
+- no next Overload public meaning admitted
+
+Stage-4 keeps closed:
+
+- no public Story
+- no writer
+- no speech key
+- no renderer text
+- no ExplanationPlan claim
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Completion standard: Stage-4 Overload Possibly-Unique Candidate Proof Test closes when docs evidence covers at most one possibly-unique candidate, the proof checklist requires scene/tactic/plan, side, rival, target, anchor, route, same-board legal replay, complete StoryProof, and EngineCheck not Refute, all audited inputs are rejected-overclaim or internal-ingredient-only, no next Overload public meaning admitted is recorded, no public Story, writer, speech key, renderer text, ExplanationPlan claim, public route `200`, production API, or public/user-facing LLM narration opens, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-5: Overload Downstream Boundary Audit
+
+Stage-5 opens downstream boundary tests only.
+
+Stage-5 keeps closed:
+
+- ExplanationPlan accepts only selected uncapped Lead Verdict.
+- Renderer input remains `ExplanationPlan` only.
+- LLM smoke input remains rendered text, claim key, strength, forbidden wording, and rephrase-only instruction only.
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-5 proof authority:
+
+- StoryTable orders only.
+- Verdict decides.
+- ExplanationPlan bounds speech.
+- Renderer phrases.
+- LLM only polishes.
+- Verifier rejects overclaim.
+
+Stage-5 required downstream contract:
+
+- selected uncapped Lead Overload may lower only to `overloads_defender`.
+- Support, Context, Blocked, capped, and refuted Overload rows produce no downstream text.
+- renderer has no `fromVerdict` or `fromStory` public path.
+- LLM prompt contains only `renderedText`, `claimKey`, `strength`, `forbiddenWording`, and `instruction: Rephrase only. Do not add chess facts.`
+- LLM prompt does not expose raw BoardFacts, OverloadProof, EngineCheck, raw PV, evals, DefenderDuty, DualDefenderDuty, OverloadTest, or CannotSatisfyBoth.
+- duplicate-owned neighbor wording remains rejected by the smoke verifier.
+
+Stage-5 verification:
+
+- `sbt "commentary/testOnly lila.commentary.chess.OverloadExpansionDownstreamBoundaryTest"`
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+
+Completion standard: Stage-5 Overload Downstream Boundary Audit closes when selected uncapped Lead Overload lowers only to `overloads_defender`; all non-speaking Overload row states produce no downstream text; renderer and LLM contracts expose no raw proof, board, engine, source-row, or internal ingredient data; duplicate-owned neighbor wording is rejected by the smoke verifier; no public route `200`, production API, public/user-facing LLM narration, renderer text, writer, speech key, Story label, or proof home opens; required runtime verification passes; and `git diff --check` passes.
+
+## Stage-6: Overload Audit Decision Closeout
+
+Stage-6 records exactly one final audit decision:
+
+- C. Boundary leakage found and fixed without opening new meaning.
+
+Stage-6 leak fixed:
+
+- Stage-3 found that Overload LLM smoke accepted loose-target wording stronger than `overloads_defender`.
+- The fix added Overload-only rejection for loose-target wording in the internal LLM smoke verifier.
+- No renderer text, public route, production API, public/user-facing LLM narration, Story label, writer, speech key, result Story, broad Overload family, or duplicate consequence owner was added.
+
+Stage-6 proof authority remains:
+
+- StoryTable orders only.
+- Verdict decides.
+- ExplanationPlan bounds speech.
+- Renderer phrases.
+- LLM only polishes.
+- Verifier rejects overclaim.
+
+Stage-6 current Overload authority remains exactly:
+
+`OverloadProof -> Tactic.Overload -> TacticOverload -> overloads_defender`
+
+Stage-6 keeps closed:
+
+- public route `200`
+- production API
+- public/user-facing LLM narration
+- new Overload result Story
+- broad Overload family
+- Material consequence ownership
+- Loose consequence ownership
+- Hanging consequence ownership
+- QueenHit consequence ownership
+- RemoveGuard consequence ownership
+- Defense consequence ownership
+- CannotSatisfyBoth public wording
+- EngineCheck public claim ownership
+
+Stage-6 verification:
+
+- `sbt "commentary/testOnly lila.commentary.chess.OverloadExpansionCollisionNegativeCorpusTest"`
+- `sbt "commentary/testOnly lila.commentary.chess.OverloadExpansionDownstreamBoundaryTest"`
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Completion standard: Stage-6 Overload Audit Decision Closeout closes when exactly decision C is recorded, the fixed LLM smoke leak is documented, the current Overload authority remains exactly `OverloadProof -> Tactic.Overload -> TacticOverload -> overloads_defender`, no new public meaning opens, all duplicate consequence owners remain outside Overload, public route `200`, production API, public/user-facing LLM narration, new Overload result Story, broad Overload family, renderer text, writer, and speech key remain closed, required verification passes, and `git diff --check` passes.
+
 ## Pawn / Promotion Neighborhood
 
 ### PawnAdvance-0 Charter

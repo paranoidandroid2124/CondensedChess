@@ -521,10 +521,19 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val allowedFpsncFixtureCandidateText = contents
       .replace("- FileOpened candidate that is only half-open and must stay silent", "")
       .replace("- FileOpened candidate with another pawn still on origin file and must stay silent", "")
+    val allowedOverloadStage1CandidateText =
+      """(?s)## Stage-1: Overload Read-Only Expansion Inventory.*?(?=\n## |\z)""".r
+        .replaceAllIn(allowedFpsncFixtureCandidateText, "")
+    val allowedOverloadExpansionCandidateText =
+      """(?s)## Stage-2: Overload Candidate Meaning Classification.*?(?=\n## |\z)""".r
+        .replaceAllIn(allowedOverloadStage1CandidateText, "")
+    val allowedOverloadUniqueCandidateText =
+      """(?s)## Stage-4: Overload Possibly-Unique Candidate Proof Test.*?(?=\n## |\z)""".r
+        .replaceAllIn(allowedOverloadExpansionCandidateText, "")
     val nonPawnCandidate = """(?i)\bcandidate\b(?!_passer)""".r
     assert(
-      nonPawnCandidate.findFirstIn(allowedFpsncFixtureCandidateText).isEmpty,
-      "candidate is allowed only as candidate_passer or exact FPSNC-3 FileOpened fixture wording"
+      nonPawnCandidate.findFirstIn(allowedOverloadUniqueCandidateText).isEmpty,
+      "candidate is allowed only as candidate_passer, exact FPSNC-3 FileOpened fixture wording, or Stage-1/Stage-2/Stage-4 Overload audit wording"
     )
 
   test("chess model branch exposes only live reset docs as root authority"):
