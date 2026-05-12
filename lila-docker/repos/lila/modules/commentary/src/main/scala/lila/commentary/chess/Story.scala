@@ -438,7 +438,7 @@ object StoryTable:
   val PublicStoryLeadsRequireNamedProofWriters = true
 
   def choose(stories: Vector[Story]): Vector[Verdict] =
-    val admittedStories = stories.filterNot(closedPawnForkRow)
+    val admittedStories = stories.filterNot(closedTacticRow)
     val rows =
       admittedStories.map: story =>
         val leadCandidate = leadByStoryRules(story, admittedStories)
@@ -480,8 +480,11 @@ object StoryTable:
           selected = selectedRole != Role.Blocked || !stalemateRelated(row.story)
         )
 
-  private def closedPawnForkRow(story: Story) =
-    story.tactic.contains(Tactic.PawnFork)
+  private val ClosedTactics =
+    Set(Tactic.PawnFork, Tactic.Tempo)
+
+  private def closedTacticRow(story: Story) =
+    story.tactic.exists(ClosedTactics.contains)
 
   private case class Row(
       story: Story,

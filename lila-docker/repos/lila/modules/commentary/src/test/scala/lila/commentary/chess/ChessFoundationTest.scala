@@ -1765,6 +1765,60 @@ class ChessFoundationTest extends munit.FunSuite:
       closedPawnWriterFragments.foreach: fragment =>
         assert(!writer.toString.contains(fragment), s"$fragment must not be a positive Story writer")
 
+  test("Stage-2 Tempo QueenHit collision keeps queen-target text inside attacks_queen"):
+    val facts = BoardFacts.fromFen("4k3/8/8/7q/8/8/3R4/4K3 w - - 0 1").toOption.get
+    val move = Line(Square('d', 2), Square('h', 2))
+    val queenHit =
+      TacticQueenHit
+        .write(facts, Some(move))
+        .get
+        .copy(
+          proof = proof(
+            boardProof = 99,
+            lineProof = 99,
+            ownerProof = 99,
+            anchorProof = 99,
+            routeProof = 99,
+            persistence = 99,
+            immediacy = 99,
+            forcing = 99,
+            conversionPrize = 0,
+            counterplayRisk = 0,
+            kingHeat = 0,
+            pieceSupport = 99,
+            pawnSupport = 0,
+            sourceFit = 0,
+            novelty = 0,
+            clarity = 99
+          )
+        )
+    val verdict = StoryTable.choose(Vector(queenHit)).head
+    val plan = ExplanationPlan.fromSelected(verdict).get
+    val rendered = DeterministicRenderer.fromPlan(plan).get
+    val forbiddenQueenTargetText = Vector(
+      "gains tempo",
+      "wins tempo",
+      "with tempo",
+      "queen must move",
+      "forces the queen",
+      "drives the queen",
+      "gains time by attacking the queen",
+      "seizes initiative"
+    )
+
+    assertEquals(queenHit.tactic, Some(Tactic.QueenHit))
+    assertEquals(queenHit.writer, Some(StoryWriter.TacticQueenHit))
+    assertEquals(queenHit.queenHitProof.exists(_.complete), true)
+    assertEquals(plan.allowedClaim, Some(ExplanationClaim.AttacksQueen))
+    assertEquals(rendered.claimKey, "attacks_queen")
+    assertEquals(rendered.text, "Rh2 attacks the queen on h5.")
+    assertEquals(Tactic.values.toVector.contains(Tactic.Tempo), true)
+    assertEquals(StoryWriter.values.toVector.exists(_.toString.contains("Tempo")), false)
+    assertEquals(ExplanationClaim.values.toVector.exists(_.key.contains("tempo")), false)
+    assert(plan.forbiddenWording.exists(_.key == "gains_tempo"))
+    forbiddenQueenTargetText.foreach: phrase =>
+      assert(!rendered.text.toLowerCase.contains(phrase), s"QueenHit text escaped as forbidden queen-target wording: $phrase")
+
   test("PNC-2 runtime duplication audit keeps pawn promotion speech keys unique"):
     val pawnPromotionClaims =
       Vector(

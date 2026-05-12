@@ -530,10 +530,19 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     val allowedOverloadUniqueCandidateText =
       """(?s)## Stage-4: Overload Possibly-Unique Candidate Proof Test.*?(?=\n## |\z)""".r
         .replaceAllIn(allowedOverloadExpansionCandidateText, "")
+    val allowedTempoStage1CandidateText =
+      """(?s)## Stage-1 Tempo Trace Inventory.*?(?=\n## |\z)""".r
+        .replaceAllIn(allowedOverloadUniqueCandidateText, "")
+    val allowedTempoStage3CandidateText =
+      """(?s)## Stage-3 Tempo Neighbor Ownership Classification.*?(?=\n## |\z)""".r
+        .replaceAllIn(allowedTempoStage1CandidateText, "")
+    val allowedTempoStage5CandidateText =
+      """(?s)## Stage-5 Tempo Possibly-Unique Candidate Preflight.*?(?=\n## |\z)""".r
+        .replaceAllIn(allowedTempoStage3CandidateText, "")
     val nonPawnCandidate = """(?i)\bcandidate\b(?!_passer)""".r
     assert(
-      nonPawnCandidate.findFirstIn(allowedOverloadUniqueCandidateText).isEmpty,
-      "candidate is allowed only as candidate_passer, exact FPSNC-3 FileOpened fixture wording, or Stage-1/Stage-2/Stage-4 Overload audit wording"
+      nonPawnCandidate.findFirstIn(allowedTempoStage5CandidateText).isEmpty,
+      "candidate is allowed only as candidate_passer, exact FPSNC-3 FileOpened fixture wording, Stage-1/Stage-2/Stage-4 Overload audit wording, Stage-1 Tempo trace inventory wording, Stage-3 Tempo ownership matrix wording, or Stage-5 Tempo preflight wording"
     )
 
   test("chess model branch exposes only live reset docs as root authority"):
@@ -3323,7 +3332,10 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "Stage-5 Support Context Blocked capped refuted and non-Lead Fork rows do not speak"
     ).foreach: stage5Marker =>
       assert(pawnAttackerStage5Source.contains(stage5Marker), s"Stage-5 runtime corpus must pin: $stage5Marker")
-    assert(storySource.contains("closedPawnForkRow"), "Stage-5 StoryTable must filter closed PawnFork rows")
+    assert(
+      storySource.contains("ClosedTactics") && storySource.contains("Tactic.PawnFork"),
+      "Stage-5 StoryTable must filter closed PawnFork rows"
+    )
     Vector(
       "Tactic.Fork",
       "Tactic.QueenHit",
@@ -3557,7 +3569,10 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
       "Stage-9 closeout authority lives in StoryInteractionLaw"
     ).foreach: stage9Marker =>
       assert(pawnAttackerStage9Source.contains(stage9Marker), s"Stage-9 runtime closeout must pin: $stage9Marker")
-    assert(storySource.contains("closedPawnForkRow"), "Stage-5 must keep Tactic.PawnFork filtered from StoryTable output")
+    assert(
+      storySource.contains("ClosedTactics") && storySource.contains("Tactic.PawnFork"),
+      "Stage-5 must keep Tactic.PawnFork filtered from StoryTable output"
+    )
     assert(!storySource.contains("TacticPawnFork"), "Stage-7 must keep TacticPawnFork absent")
     assert(!foundationSource.contains("TacticPawnFork"), "Stage-7 must keep TacticPawnFork absent from runtime tests")
     assert(!foundationSource.contains("pawn_forks_two_targets"), "Stage-7 must keep PawnFork speech key absent")
@@ -23743,10 +23758,26 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     Stage6SliceAdmissionPreflightAssertions.assertPreflight(docsRoot, LiveDocs, agents)
 
   test("Stage-8 docs surface boundary keeps detailed ownership law in StoryInteractionLaw"):
+    Stage7TempoDocsSurfaceBoundaryAssertions.assertBoundary(docsRoot, LiveDocs, agents)
     Stage8DocsSurfaceBoundaryAssertions.assertBoundary(docsRoot, LiveDocs, agents)
 
   test("Stage-9 closeout records a closed next-slice readiness decision"):
     Stage9CloseoutReadinessAssertions.assertCloseout(docsRoot, LiveDocs, agents)
+
+  test("Stage-0 Tempo QueenHit collision preflight keeps Tempo closed"):
+    Stage0TempoQueenHitPreflightAssertions.assertPreflight(docsRoot, LiveDocs, agents)
+
+  test("Stage-1 Tempo trace inventory lives only in StoryInteractionLaw"):
+    Stage1TempoTraceInventoryAssertions.assertInventory(docsRoot, LiveDocs, agents)
+
+  test("Stage-2 Tempo QueenHit collision rule lives only in StoryInteractionLaw"):
+    Stage2TempoQueenHitCollisionAssertions.assertCollisionRule(docsRoot, LiveDocs, agents)
+
+  test("Stage-3 Tempo neighbor ownership matrix lives only in StoryInteractionLaw"):
+    Stage3TempoNeighborOwnershipAssertions.assertMatrix(docsRoot, LiveDocs, agents)
+
+  test("Stage-5 Tempo possibly-unique preflight remains closed evidence only"):
+    Stage5TempoPossiblyUniqueCandidateAssertions.assertPreflight(docsRoot, LiveDocs, agents)
 
   test("agents and active frontend tests reject retired downstream authority"):
     assert(Files.exists(agentInstructions), "AGENTS.md must be available from the lila worktree")

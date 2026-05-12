@@ -125,6 +125,7 @@ private[commentary] object LlmNarrationSmoke:
     val forbiddenPhrases = plan.forbiddenWording.flatMap(forbiddenMeaning)
     forbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
     publicForbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
+    stage4TempoForbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
     overloadForbiddenPhrases(normalized, plan) ||
     looseForbiddenPhrases(normalized, plan) ||
     !materialWinAllowed(normalized, plan)
@@ -475,6 +476,23 @@ private[commentary] object LlmNarrationSmoke:
 
   private val publicForbiddenPhrases =
     Vector("best move", "only move", "forced", "forces", "forced line")
+
+  private val stage4TempoForbiddenPhrases =
+    Vector(
+      "tempo",
+      "gains tempo",
+      "wins tempo",
+      "with tempo",
+      "gains time",
+      "free move",
+      "queen must move",
+      "forces the queen",
+      "forced response",
+      "initiative",
+      "pressure",
+      "keeps the move",
+      "keeps control"
+    )
 
   private val OverloadExtraForbiddenPhrases =
     Vector(

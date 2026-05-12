@@ -21231,6 +21231,644 @@ registry, or auto-admission mechanism is added; `ChessFoundationTest` passes;
 docs authority tests pass; focused ownership tests pass; and `git diff --check`
 passes.
 
+## Stage-0 Tempo / QueenHit Collision Preflight Charter
+
+Stage-0 Tempo / QueenHit opens audit-only preflight for Tempo viability against QueenHit and neighbor owners.
+
+This preflight does not admit Tempo. It records the collision boundary that must
+be resolved before any positive Tempo slice can open. Positive Tempo slice work
+may continue only if a unique proof-owned Tempo meaning survives the audit
+without borrowing QueenHit, material-contact, line/defender, EngineCheck,
+StoryTable, ExplanationPlan, renderer, or LLM authority.
+
+Stage-0 Tempo / QueenHit proof authority:
+
+- existing QueenHit chain remains exactly:
+  `QueenHitProof` -> `Tactic.QueenHit` -> `TacticQueenHit` -> `attacks_queen`
+- QueenHit currently owns only bounded queen-attack wording.
+- Tempo preflight cannot create claims, rank Stories, repair proof, or widen QueenHit.
+- EngineCheck supports, caps, or refutes only existing Stories.
+- StoryTable orders only.
+- Verdict decides.
+- ExplanationPlan bounds speech.
+- Renderer phrases.
+- LLM only polishes.
+- Verifier rejects overclaim.
+
+Stage-0 Tempo / QueenHit read-only inventory:
+
+- `Tactic.Tempo` exists only as a closed enum tombstone.
+- `TempoProof` has no runtime proof home.
+- `TacticTempo` has no runtime writer.
+- Tempo has no `ExplanationClaim` case and no allowed claim key.
+- `ForbiddenWording.GainsTempo` is a rejection guard only.
+- QueenHit runtime tests already reject tempo additions around `attacks_queen`.
+- generic slice admission preflight already says no Tempo positive scope.
+- ownership-index closeout recommended only a closed preflight audit for the
+  next proposed positive slice.
+
+Stage-0 Tempo / QueenHit forbidden wording:
+
+- tempo
+- gains tempo
+- wins tempo
+- with tempo
+- forces the queen
+- queen must move
+- free move
+- gains time
+- seizes initiative
+- keeps initiative
+- pressure
+- best
+- only
+- forced
+- winning
+- decisive
+- no counterplay
+
+Stage-0 Tempo / QueenHit keeps closed:
+
+- no `Tactic.Tempo` public Story
+- no `TempoProof`
+- no `TacticTempo` writer
+- no tempo speech key
+- no ExplanationPlan claim for Tempo
+- no renderer text for Tempo
+- no LLM smoke expansion except forbidden-boundary checks if a leak is found
+- no QueenHit consequence expansion
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+- no QueenHit consequence wording
+- no QueenHit tempo wording
+- no material gain from QueenHit
+- no wins-queen claim
+- no best/only/forced claim
+- no public initiative or pressure claim
+
+Stage-0 Tempo / QueenHit collision audit rules:
+
+- a queen attack is not Tempo by itself.
+- a move that attacks a queen does not prove the queen must move.
+- a move that attacks a queen does not prove gained time, a free move,
+  initiative, pressure, best move, only move, forced move, winning, decisive, or
+  no-counterplay meaning.
+- QueenHit cannot lend `QueenHitProof`, `Tactic.QueenHit`, `TacticQueenHit`, or
+  `attacks_queen` to Tempo.
+- Tempo cannot reuse QueenHit proof home, Story label, writer, or speech key.
+- EngineCheck cannot infer Tempo from QueenHit support, cap, refute, eval, PV,
+  or checked move.
+- StoryTable cannot infer Tempo from QueenHit ordering, Lead role, Support,
+  Context, Blocked, capped, or refuted state.
+- ExplanationPlan cannot lower Tempo from a QueenHit Verdict.
+- Renderer and LLM smoke cannot add Tempo language to bounded QueenHit text.
+
+Stage-0 Tempo / QueenHit documentation rule:
+
+- detailed Stage-0 Tempo / QueenHit law lives only in `StoryInteractionLaw.md`.
+- README, SSOT, Architecture, Contract, and Manifest stay summary-only and do
+  not copy this charter unless a docs test requires a non-authoritative
+  pointer.
+- `AGENTS.md` remains unchanged.
+
+Stage-0 Tempo / QueenHit verification:
+
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Completion standard: Stage-0 Tempo / QueenHit Collision Preflight closes when
+docs authority proves this slice is audit-only for Tempo viability against
+QueenHit and neighbor owners; the read-only inventory records existing
+Tempo-related code and doc traces; the QueenHit chain remains exactly
+`QueenHitProof` -> `Tactic.QueenHit` -> `TacticQueenHit` -> `attacks_queen`;
+QueenHit owns only bounded queen-attack wording; Tempo has no public Story,
+proof home, writer, speech key, ExplanationPlan claim, renderer text, LLM smoke
+expansion except forbidden-boundary checks if a leak is found, public route
+`200`, production API, public/user-facing LLM narration, or QueenHit
+consequence expansion; forbidden wording remains closed; docs authority tests
+pass; and `git diff --check` passes.
+
+## Stage-1 Tempo Trace Inventory
+
+Stage-1 Tempo Trace Inventory opens read-only inventory only.
+
+Stage-1 opens no implementation, proof home, writer, public Story, downstream
+wording, public route `200`, production API, or public/user-facing LLM
+narration.
+code presence is not public authority.
+forbidden wording labels are not opened claims.
+Stage-1 inventory lives only in `StoryInteractionLaw.md`.
+
+Stage-1 Tempo trace classification set:
+
+- closed enum tombstone
+- forbidden wording
+- internal proof field
+- duplicate-owned neighbor meaning
+- rejected broad strategy wording
+- possibly unique candidate
+
+Stage-1 Tempo runtime trace inventory:
+
+| trace | home | classification | inventory note |
+|---|---|---|---|
+| `Tactic.Tempo` | `Story.scala` tactic enum; enum inventory tests | closed enum tombstone | closed name only; no writer, proof home, or claim path |
+| `gains_tempo` forbidden key | `ExplanationPlan.scala` forbidden-key lists | forbidden wording | rejection key only; no allowed `ExplanationClaim` |
+| `ForbiddenWording.GainsTempo` | `ExplanationPlan.scala` and downstream checks | forbidden wording | forbidden label only; not a public claim |
+| tempo phrase rejection | `DeterministicRenderer.scala` and `LlmNarrationSmoke.scala` | forbidden wording | rejects public text such as gains or wins tempo |
+| `materialOrTempoResult` | `MultiTargetProof.scala`; consumed by `TacticFork.scala` | internal proof field | Fork proof score/result field; not Tempo ownership |
+| QueenHit tempo rejection tests | QueenHit stage and closeout tests | duplicate-owned neighbor meaning | QueenHit owns queen attack only and rejects Tempo upgrade |
+| Loose tempo rejection tests | Loose stage and closeout tests | duplicate-owned neighbor meaning | Loose owns undefended-piece attack only and rejects Tempo upgrade |
+| Fork / PawnFork tempo rejection tests | Fork pawn-attacker stage and closeout tests | duplicate-owned neighbor meaning | Fork owns two-target proof; PawnFork remains closed |
+| attack-target and PawnBlock text rejection tests | ATIH, PawnBlock, and foundation tests | rejected broad strategy wording | tempo appears beside pressure and initiative rejection |
+
+Runtime inventory result:
+
+- no `TempoProof`
+- no `TacticTempo` writer
+- no Tempo allowed `ExplanationClaim`
+- no tempo speech key
+- no renderer template for Tempo
+- no LLM smoke input for Tempo
+- no public Story path for Tempo
+
+Stage-1 Tempo docs trace inventory:
+
+| trace | home | classification | inventory note |
+|---|---|---|---|
+| `Tactic.Tempo` listed in broad tactic families | `ChessModelContract.md` and `StoryInteractionLaw.md` | closed enum tombstone | name exists for closed-width mapping only |
+| `material-or-tempo result` and tempo-count language | `ChessModelContract.md`, `StoryResurrectionLaw.md`, `StoryInteractionLaw.md` | internal proof field | proof/readiness vocabulary only |
+| QueenHit and Loose sections forbidding tempo | `StoryInteractionLaw.md` | forbidden wording | closed speech boundary |
+| summary docs that mention tempo as closed | README, SSOT, Architecture, Manifest | rejected broad strategy wording | summary-only closure, not detailed authority |
+| `AGENTS.md` | root operator guide | rejected broad strategy wording | no Tempo-specific authority; broad pressure/initiative paths stay closed |
+| `Tactic.Tempo` as forcing move with gained turn plus restricted reply | `StoryInteractionLaw.md` width map and W07 row | possibly unique candidate | docs-only candidate shape; no admission |
+
+Stage-1 Tempo neighbor collision inventory:
+
+| neighbor | existing owner | classification | Tempo collision result |
+|---|---|---|---|
+| QueenHit | `QueenHitProof` -> `Tactic.QueenHit` -> `TacticQueenHit` -> `attacks_queen` | duplicate-owned neighbor meaning | queen attack belongs to QueenHit; queen movement or time wording stays forbidden |
+| Loose | `LoosePieceProof` -> `Tactic.Loose` -> `TacticLoose` -> `attacks_loose_piece` | duplicate-owned neighbor meaning | undefended-piece attack belongs to Loose |
+| Hanging | existing capture/material proof path -> `Tactic.Hanging` -> `TacticHanging` -> `can_win_piece` | duplicate-owned neighbor meaning | capturable material gain belongs to Hanging |
+| Material | existing material proof path -> `Scene.Material` -> `SceneMaterial` -> `material_balance_changes` | duplicate-owned neighbor meaning | actual balance change belongs to Material |
+| Fork | `MultiTargetProof` -> `Tactic.Fork` -> `TacticFork` -> fork claim keys | duplicate-owned neighbor meaning | two-target attack belongs to Fork; internal material-or-tempo field does not open Tempo |
+| Skewer | `SkewerProof` -> `Tactic.Skewer` -> `TacticSkewer` -> `skewers_piece_to_piece` | duplicate-owned neighbor meaning | line target relation belongs to Skewer |
+| Pin | `PinProof` -> `Tactic.Pin` -> `TacticPin` -> `pins_piece` | duplicate-owned neighbor meaning | pinned relation belongs to Pin |
+| RemoveGuard | `RemoveGuardProof` -> `Tactic.RemoveGuard` -> `TacticRemoveGuard` -> `removes_defender` | duplicate-owned neighbor meaning | removed-defender relation belongs to RemoveGuard |
+| Defense | `DefenseProof` -> `Scene.Defense` -> `SceneDefense` -> defense claim keys | duplicate-owned neighbor meaning | bounded defense belongs to Defense |
+| EngineCheck | `EngineCheck` status evidence only | duplicate-owned neighbor meaning | support, cap, refute, eval, and PV cannot create Tempo |
+
+Stage-1 Tempo possible unique candidate:
+
+- Only this candidate shape remains possibly unique: a legal move with a gained
+  turn plus a restricted rival reply map.
+- That candidate is docs-only in this inventory.
+- It has no proof home, writer, Story label admission, speech key,
+  ExplanationPlan claim, renderer text, or LLM smoke path.
+- It must survive a separate proof-ownership audit before any positive slice can
+  proceed.
+
+Stage-1 Tempo Trace Inventory keeps closed:
+
+- no implementation
+- no new proof home
+- no new writer
+- no new public Story
+- no new downstream wording
+- no tempo speech key
+- no ExplanationPlan claim for Tempo
+- no renderer text for Tempo
+- no LLM smoke expansion
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Completion standard: Stage-1 Tempo Trace Inventory closes when every known
+Tempo trace in runtime, tests, live docs, and neighbor collision law is
+classified as closed enum tombstone, forbidden wording, internal proof field,
+duplicate-owned neighbor meaning, rejected broad strategy wording, or possibly
+unique candidate; code presence remains non-authority; forbidden wording labels
+remain unopened; the only possibly unique candidate remains a docs-only gained
+turn plus restricted-reply shape; no implementation, proof home, writer, public
+Story, downstream wording, public route `200`, production API, or
+public/user-facing LLM narration opens; detailed inventory authority remains
+only in `StoryInteractionLaw.md`; docs authority tests pass; and `git diff
+--check` passes.
+
+## Stage-2 Tempo QueenHit Collision Rule
+
+Stage-2 opens a Tempo vs QueenHit collision rule in `StoryInteractionLaw.md`.
+
+Stage-2 opens no implementation, proof home, writer, public Story, downstream
+wording, public route `200`, production API, or public/user-facing LLM
+narration.
+
+Stage-2 Tempo QueenHit ownership rule:
+
+If a Tempo trace's target or anchor is the rival queen and the proof reason is `queen is attacked`, ownership stays with QueenHit.
+
+QueenHit may say only `attacks_queen` through its existing selected uncapped Lead path.
+
+Tempo must not duplicate QueenHit by renaming queen attack as tempo.
+
+QueenHit wording remains bounded to queen attack. QueenHit cannot borrow a
+Tempo trace, forbidden wording key, internal proof field, EngineCheck status,
+or source note to widen beyond `attacks_queen`.
+
+Stage-2 Tempo QueenHit forbidden wording:
+
+- gains tempo
+- wins tempo
+- with tempo
+- queen must move
+- forces the queen
+- drives the queen
+- gains time by attacking the queen
+- seizes initiative
+
+Stage-2 Tempo QueenHit keeps closed:
+
+- no QueenHit wording expansion
+- no Tempo Story
+- no tempo speech key
+- no renderer or LLM public text for Tempo
+- no `TempoProof`
+- no `TacticTempo` writer
+- no ExplanationPlan claim for Tempo
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Runtime boundary:
+
+- selected uncapped Lead QueenHit lowers only to `attacks_queen`
+- QueenHit renderer text remains the bounded existing queen-attack template
+- QueenHit LLM smoke remains rephrase-only over bounded `attacks_queen`
+- Tempo remains a closed enum tombstone and forbidden-wording trace
+- `gains_tempo` remains forbidden wording only
+
+Completion standard: Stage-2 Tempo QueenHit Collision Rule closes when the
+collision rule states that any queen-target or queen-anchor Tempo trace whose
+proof reason is `queen is attacked` stays owned by QueenHit; QueenHit still
+says only `attacks_queen` through its selected uncapped Lead path; forbidden
+queen-target Tempo wording cannot escape the QueenHit boundary; Tempo cannot
+rename queen attack as tempo; no QueenHit wording expansion, Tempo Story, tempo
+speech key, Tempo renderer text, Tempo LLM public text, public route `200`,
+production API, or public/user-facing LLM narration opens; detailed Stage-2
+authority remains only in `StoryInteractionLaw.md`; focused runtime and docs
+authority tests pass; and `git diff --check` passes.
+
+## Stage-3 Tempo Neighbor Ownership Classification
+
+Stage-3 opens a Tempo candidate ownership classification matrix in `StoryInteractionLaw.md`.
+
+Stage-3 opens no implementation, proof home, writer, public Story, downstream
+wording, public route `200`, production API, or public/user-facing LLM
+narration.
+
+Stage-3 Tempo ownership classifications:
+
+- duplicate-owned
+- rejected-overclaim
+- closed-broad
+- internal-only
+- possibly-unique
+
+Stage-3 Tempo candidate ownership matrix:
+
+| candidate | classification | owner or boundary | classification note |
+| --- | --- | --- | --- |
+| queen attack tempo | duplicate-owned | QueenHit / `QueenHitProof -> Tactic.QueenHit -> TacticQueenHit -> attacks_queen` | queen attack stays QueenHit; the duplicate-owned row is not a Tempo public meaning |
+| loose target tempo | duplicate-owned | Loose / `LoosePieceProof -> Tactic.Loose -> TacticLoose -> attacks_loose_piece` | loose target attack stays Loose |
+| hanging or wins-piece tempo | duplicate-owned | Hanging / Material | capturable piece and material result stay in Hanging or Material |
+| material gain tempo | duplicate-owned | Material / `Scene.Material` | actual material balance change stays Material |
+| two-target tempo | duplicate-owned | Fork / Skewer | two-target and line-target relations stay in Fork or Skewer |
+| pin or cannot-move tempo | duplicate-owned | Pin | proof-backed pin relation stays Pin; cannot-move wording beyond Pin remains forbidden wording |
+| defender removed tempo | duplicate-owned | RemoveGuard / `RemoveGuardProof` | removed defender relation stays RemoveGuard |
+| defensive tempo | duplicate-owned | Defense / `DefenseProof` | bounded defense meaning stays Defense |
+| engine-approved tempo | internal-only | EngineCheck diagnostics only | support, cap, refute, eval, and PV cannot create a Tempo public meaning |
+| initiative or pressure tempo | closed-broad | closed broad strategy wording | initiative and pressure wording remain closed |
+| result-wording tempo | rejected-overclaim | result wording | result wording cannot justify uniqueness |
+| same-board replay trace not owned elsewhere | possibly-unique | no current owner; must bind same-board legal replay plus complete StoryProof | auditable only if every existing proof home rejects ownership |
+
+Stage-3 Tempo uniqueness survival rule:
+
+A candidate survives only if it is not owned by any existing proof home and can bind same-board legal replay plus complete StoryProof.
+
+Result wording, initiative wording, pressure wording, engine approval, source
+text, forbidden wording labels, and internal proof fields cannot justify
+uniqueness.
+
+Stage-3 Tempo forbidden alias rule:
+
+Do not call duplicate-owned candidates `Tempo`.
+
+Do not create aliases such as QueenTempo, MaterialTempo, DefenseTempo, or EngineTempo.
+
+Do not use result or initiative wording to justify uniqueness.
+
+Stage-3 Tempo keeps closed:
+
+- no positive Tempo scope
+- no new proof home
+- no new speech key
+- no Tempo Story
+- no `TempoProof`
+- no `TacticTempo` writer
+- no ExplanationPlan claim for Tempo
+- no renderer text for Tempo
+- no LLM public text for Tempo
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Completion standard: Stage-3 Tempo Neighbor Ownership Classification closes when the
+matrix lists every Tempo candidate class exactly once; each row has exactly one
+classification among duplicate-owned, rejected-overclaim, closed-broad,
+internal-only, and possibly-unique; queen attack stays QueenHit; loose target
+stays Loose; hanging, wins-piece, and material-gain wording stay Hanging or
+Material; two-target wording stays Fork or Skewer; pin relation stays Pin while
+cannot-move overclaim stays forbidden wording; removed defender stays
+RemoveGuard; defensive wording stays Defense; engine-approved wording stays
+EngineCheck diagnostics only; initiative and pressure wording stay closed broad
+strategy wording; no duplicate-owned row is renamed Tempo; no QueenTempo,
+MaterialTempo, DefenseTempo, EngineTempo, positive Tempo scope, proof home,
+speech key, public route `200`, production API, or public/user-facing LLM
+narration opens; detailed Stage-3 authority remains only in
+`StoryInteractionLaw.md`; docs authority tests pass; and `git diff --check`
+passes.
+
+## Stage-4 Tempo Forbidden Wording Guard
+
+Stage-4 opens forbidden wording tests for Tempo leakage across existing
+proof-owned neighboring meanings.
+
+Stage-4 may harden only LLM smoke forbidden-boundary rejection when the current
+verifier accepts Tempo overclaims. LLM smoke may reject overclaim but cannot
+create a claim, proof, Story, renderer text, production API, public route `200`,
+or public/user-facing narration.
+
+Stage-4 keeps closed:
+
+- no Tempo claim
+- no Tempo renderer
+- no public/user-facing narration
+- no QueenHit consequence wording
+- no QueenHit wording expansion
+- no Tempo proof home
+- no Tempo writer
+- no Tempo speech key
+- no public route `200`
+- no production API
+
+Stage-4 forbidden wording must be rejected where relevant for QueenHit, Loose,
+Hanging, Material, Fork, Skewer, Pin, RemoveGuard, Defense, and Overload:
+
+- tempo
+- gains tempo
+- wins tempo
+- with tempo
+- gains time
+- free move
+- queen must move
+- forces the queen
+- forced response
+- initiative
+- pressure
+- keeps the move
+- keeps control
+
+Existing legal bounded claims must continue to pass through the already-open
+proof-owner chain only. Stage-4 does not add a Tempo Story, Tempo proof,
+renderer phrase, ExplanationPlan claim, or LLM narration surface. QueenHit stays
+bounded to `attacks_queen`; Loose stays bounded to `attacks_loose_piece`;
+Hanging, Material, Fork, Skewer, Pin, RemoveGuard, Defense, and Overload keep
+their existing claim keys and proof homes.
+
+Completion standard: Stage-4 Tempo Forbidden Wording Guard closes when focused
+smoke tests prove every listed forbidden phrase is rejected across the named
+neighbors while each existing bounded rendered claim still passes; no Tempo
+claim, Tempo renderer, public/user-facing narration, QueenHit consequence
+wording, public route `200`, or production API opens; the focused smoke test
+passes; `ChessFoundationTest` passes; and `git diff --check` passes.
+
+## Stage-5 Tempo Possibly-Unique Candidate Preflight
+
+Stage-5 opens audit evidence for at most one possibly-unique Tempo candidate.
+The evidence may live only as closed preflight evidence in this law document.
+
+Stage-5 opens no implementation, proof home, writer, public Story, downstream
+wording, public route `200`, production API, or public/user-facing narration.
+
+Stage-5 keeps closed:
+
+- no `Tactic.Tempo` Story
+- no TempoProof
+- no TacticTempo writer
+- no tempo speech key
+- no ExplanationPlan claim
+- no renderer text
+- no LLM smoke acceptance path
+- no public route `200`
+- no production API
+- no public/user-facing narration
+
+Stage-5 Tempo possible uniqueness bind requirements:
+
+- scene/tactic/plan identity
+- side
+- rival
+- target
+- anchor
+- route
+- same-board legal replay
+- complete StoryProof
+- explicit rival reply restriction
+- explicit non-duplication against QueenHit, Loose, Hanging, Material, Fork, Skewer, Pin, RemoveGuard, Defense, EngineCheck
+- EngineCheck not Refute
+
+Stage-5 Tempo duplicate rejection rules:
+
+- If the candidate needs queen-attack proof, reject it as QueenHit.
+- If the candidate needs material result proof, reject it as Material, Hanging, or Loose.
+- If the candidate needs initiative or pressure wording, reject it as closed broad strategy.
+- If the candidate needs best, only, or forced wording, reject it as EngineCheck diagnostics or overclaim.
+
+Stage-5 audit result:
+
+| candidate evidence | status | reason |
+| --- | --- | --- |
+| rival reply restriction after a legal same-board route | rejected | reply restriction cannot become public meaning without an existing proof home plus complete StoryProof, and every observed chess reason collides with QueenHit, Loose, Hanging, Material, Fork, Skewer, Pin, RemoveGuard, Defense, EngineCheck, or closed broad strategy wording |
+
+Stage-5 Tempo closed outcome:
+
+no unique Tempo public meaning admitted
+
+Completion standard: Stage-5 Tempo Possibly-Unique Candidate Preflight closes when
+the audit evidence records at most one possibly-unique candidate; any surviving
+row is closed preflight evidence only; the bound-field checklist includes
+scene/tactic/plan identity, side, rival, target, anchor, route, same-board legal
+replay, complete StoryProof, explicit rival reply restriction, explicit
+non-duplication against QueenHit, Loose, Hanging, Material, Fork, Skewer, Pin,
+RemoveGuard, Defense, and EngineCheck, and EngineCheck not Refute; queen-attack
+dependencies stay QueenHit; material-result dependencies stay Material,
+Hanging, or Loose; initiative and pressure dependencies stay closed broad
+strategy; best, only, and forced dependencies stay EngineCheck diagnostics or
+overclaim; the closed outcome is recorded; no `Tactic.Tempo` Story; no
+TempoProof; no TacticTempo writer; no tempo speech key; no ExplanationPlan
+claim; no renderer text; no LLM smoke acceptance path; no public route `200`;
+no production API; no public/user-facing narration; docs authority tests pass;
+and `git diff --check` passes.
+
+## Stage-6 Tempo Runtime Collision Fixtures
+
+Stage-6 opens runtime collision fixtures only for real gaps found in Stages 2-5.
+The runtime fixture result is closed preflight evidence only.
+
+Stage-6 found and fixed one closed-row gap: a forged `Tactic.Tempo` tombstone
+row could survive as a ranked blocked row. `StoryTable` must filter closed
+tactic tombstones before ranking, the same way closed `PawnFork` rows are kept
+out of public rows.
+
+Stage-6 Tempo runtime collision fixture duties:
+
+- QueenHit rows do not become `Tactic.Tempo`.
+- Loose rows do not become `Tactic.Tempo`.
+- Hanging and Material rows do not become `Tactic.Tempo`.
+- Fork and Skewer rows do not become `Tactic.Tempo`.
+- Defense rows do not become `Tactic.Tempo`.
+- EngineCheck statuses do not create `Tactic.Tempo`.
+- Closed `Tactic.Tempo` rows cannot become Lead, Support, Context, or Blocked
+  public rows.
+- Support, Context, Blocked, capped, and refuted rows produce no standalone
+  Tempo text.
+
+Stage-6 Tempo runtime collision keeps closed:
+
+- no new Story family
+- no new writer
+- no new downstream text
+- no StoryTable Tempo path
+- no TempoProof
+- no TacticTempo writer
+- no tempo speech key
+- no ExplanationPlan claim
+- no renderer text
+- no LLM smoke acceptance path
+- no public route `200`
+- no production API
+- no public/user-facing narration
+
+Stage-6 forbidden runtime wording:
+
+- any Tempo wording in rendered or LLM-accepted text
+- any `with tempo` wording from QueenHit
+- any `wins time` wording from material or tactic rows
+
+Completion standard: Stage-6 Tempo Runtime Collision Fixtures closes when
+focused runtime fixtures prove neighboring owners and EngineCheck statuses do
+not create `Tactic.Tempo`; closed `Tactic.Tempo` tombstone rows are filtered
+before StoryTable ranking and cannot appear as Lead, Support, Context, or
+Blocked public rows; Support, Context, Blocked, capped, and refuted rows produce
+no standalone Tempo text; no new Story family, writer, downstream text,
+StoryTable Tempo path, TempoProof, TacticTempo writer, tempo speech key,
+ExplanationPlan claim, renderer text, LLM smoke acceptance path, public route
+`200`, production API, or public/user-facing narration opens; the focused
+runtime test passes; `ChessFoundationTest` passes; and `git diff --check`
+passes.
+
+## Stage-7 Tempo Docs Surface Boundary
+
+Stage-7 opens summary-only documentation mentions only when docs tests require
+them. The detailed Tempo and QueenHit collision law remains only in
+`StoryInteractionLaw.md`.
+
+Stage-7 Tempo detailed authority owners:
+
+- Tempo trace inventory: `StoryInteractionLaw.md`
+- Tempo QueenHit collision rule: `StoryInteractionLaw.md`
+- Tempo neighbor ownership matrix: `StoryInteractionLaw.md`
+- Tempo forbidden wording guard: `StoryInteractionLaw.md`
+- Tempo possibly-unique preflight result: `StoryInteractionLaw.md`
+- Tempo runtime collision fixture duties: `StoryInteractionLaw.md`
+- Tempo closeout decision: `StoryInteractionLaw.md`
+
+Stage-7 Tempo docs surface keeps closed:
+
+- AGENTS.md unchanged unless durable operator rules change
+- README/SSOT/Architecture/Contract/Manifest stay summary-only if touched
+- no detailed Tempo matrix outside `StoryInteractionLaw.md`
+- no Tempo forbidden corpus outside `StoryInteractionLaw.md`
+- no Tempo closeout checklist outside `StoryInteractionLaw.md`
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Stage-7 summary wording guard:
+
+- summary docs must not describe Tempo as the next public slice
+- summary docs must not widen QueenHit beyond `attacks_queen`
+- summary docs must not describe closed Tempo traces as public claims
+
+Completion standard: Stage-7 Tempo Docs Surface Boundary closes when detailed
+Tempo trace inventory, QueenHit collision rule, neighbor ownership matrix,
+forbidden wording guard, possibly-unique preflight result, runtime collision
+fixture duties, and closeout decision remain only in `StoryInteractionLaw.md`;
+README, SSOT, Architecture, Contract, and Manifest do not copy the detailed
+Tempo matrix, forbidden corpus, or closeout checklist; AGENTS.md remains
+unchanged unless durable operator rules change; no public route `200`,
+production API, or public/user-facing narration opens; docs authority tests
+pass; and `git diff --check` passes.
+
+## Stage-8 Tempo Closeout Next Decision
+
+Stage-8 records the final closeout decision in `StoryInteractionLaw.md` only.
+No positive Tempo slice may proceed unless a new session explicitly opens it by
+contract.
+
+Stage-8 Tempo closeout decision:
+
+C. Boundary leakage found and fixed without admitting Tempo public meaning.
+
+Stage-8 Tempo leak record:
+
+- A forged `Tactic.Tempo` tombstone row could survive as a ranked blocked row.
+- `StoryTable` filters closed tactic tombstones before ranking.
+- Closed `Tactic.Tempo` rows cannot become Lead, Support, Context, or Blocked
+  public rows.
+
+Stage-8 Tempo proof no new meaning opened:
+
+- no `Tactic.Tempo` Story
+- no TempoProof
+- no TacticTempo writer
+- no tempo speech key
+- no ExplanationPlan claim
+- no renderer text
+- no LLM smoke acceptance path
+- no QueenHit consequence expansion
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Stage-8 keeps follow-up work blocked:
+
+- no positive Tempo slice unless a new session explicitly opens it by contract
+- no QueenHit consequence expansion
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Completion standard: Stage-8 Tempo Closeout Next Decision closes when exactly
+decision C is recorded; the closed-row leak is documented; `StoryTable` filters
+closed tactic tombstones before ranking; focused Tempo/QueenHit preflight tests
+prove neighboring owners and EngineCheck statuses do not create standalone
+Tempo text; `ChessFoundationTest` passes; `ChessDocsAuthorityTest` passes; no
+positive Tempo slice, QueenHit consequence expansion, public route `200`,
+production API, or public/user-facing LLM narration opens; and `git diff
+--check` passes.
+
 ## Proof-Deficit Logs
 
 Every blocked Story must report proof deficit, not only family pass/fail.
