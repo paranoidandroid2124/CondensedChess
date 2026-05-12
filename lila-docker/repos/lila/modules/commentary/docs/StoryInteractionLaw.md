@@ -9288,6 +9288,214 @@ OIH-7 cleanup rules:
 
 Completion standard: OIH-7 closes when the Overload interaction hardening chain remains fixed as `OverloadProof` proof home, `Tactic.Overload` Story label, `TacticOverload` named writer, and `overloads_defender` speech key; DefenderDuty, DualDefenderDuty, OverloadTest, and CannotSatisfyBoth remain internal proof ingredients only; Support, Context, Blocked, capped, and refuted rows have no standalone text; sibling tactic, material, and defense Stories keep their own meanings; forbidden wording does not leak; raw engine eval, PV, and proofFailures do not leak publicly; public route, production API, and public/user-facing LLM remain closed; AGENTS.md remains unchanged; `OverloadInteractionHardeningTest`, `OverloadRuntimeAdmissionTest`, `ChessFoundationTest`, `ChessDocsAuthorityTest`, and `CommentaryTest` pass; and `git diff --check` passes.
 
+## Stage-0: OCBA Charter
+
+Name: Overload Consequence Boundary Audit.
+
+OCBA opens audit-only authority for possible Overload consequence meanings.
+
+OCBA opens collision inventory for Overload vs Material, Hanging, Loose, QueenHit, Fork, RemoveGuard, Defense, CannotSatisfyBoth, and EngineCheck.
+
+OCBA opens no runtime result composition.
+
+OCBA keeps closed:
+
+- no Overload result Story
+- no OverloadResultProof
+- no wins-material-by-overload claim
+- no forced-choice claim
+- no only-move/best-move/forced wording
+- no public CannotSatisfyBoth
+- no new ExplanationPlan claim
+- no renderer text
+- no LLM smoke expansion
+- no public route `200`
+- no production API
+
+OCBA proof authority:
+
+- `OverloadProof` owns only narrow `Tactic.Overload`.
+- CannotSatisfyBoth remains internal readiness only.
+- `Scene.Material` owns material-now meaning.
+- EngineCheck may support, cap, or refute only an existing Story.
+
+OCBA forbidden wording:
+
+- overload wins material
+- defender must choose
+- defender cannot save both
+- forced
+- only move
+- best move
+- decisive
+- winning
+- no counterplay
+
+Completion standard: Stage-0 OCBA closes when docs authority proves this slice is audit-only, collision inventory exists for Overload versus Material, Hanging, Loose, QueenHit, Fork, RemoveGuard, Defense, CannotSatisfyBoth, and EngineCheck, `OverloadProof` owns only narrow `Tactic.Overload`, CannotSatisfyBoth remains internal readiness only, `Scene.Material` owns material-now meaning, EngineCheck may support, cap, or refute only an existing Story, no runtime result composition opens, no Overload result Story, OverloadResultProof, wins-material-by-overload claim, forced-choice claim, public CannotSatisfyBoth, new ExplanationPlan claim, renderer text, LLM smoke expansion, public route `200`, or production API opens, forbidden wording remains closed, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-1: OCBA Parallel Audit Inventory
+
+Stage-1 opens read-only inventory reports only.
+
+Stage-1 report inventory:
+
+- Subagent A returned Overload authority inventory for Overload, DefenderDuty, DualDefenderDuty, OverloadTest, and CannotSatisfyBoth.
+- Subagent B returned runtime ownership inventory for OverloadProof, TacticOverload, StoryTable, Verdict, ExplanationPlan, DeterministicRenderer, and LLM smoke reach.
+- Subagent C returned collision test inventory for Overload consequence leakage around Material, Hanging, Loose, QueenHit, Fork, RemoveGuard, Defense, CannotSatisfyBoth, and EngineCheck.
+
+Stage-1 integrated findings:
+
+- Overload already reaches StoryTable, Verdict, ExplanationPlan, renderer, and LLM smoke through the narrow `overloads_defender` path.
+- current renderer wording is only `This move overloads the defender.`
+- result and forced-choice wording currently appears only as internal diagnostics or forbidden wording guards.
+- missing negative fixture inventory covers Material, Hanging, Loose, QueenHit, Fork, RemoveGuard, Defense, CannotSatisfyBoth wording variants, and EngineCheck-backed consequence phrasing.
+
+Stage-1 keeps closed:
+
+- no implementation
+- no runtime result composition
+- no Overload result Story
+- no OverloadResultProof
+- no wins-material-by-overload claim
+- no forced-choice claim
+- no public CannotSatisfyBoth
+- no new ExplanationPlan claim
+- no renderer text
+- no LLM smoke expansion
+- no public route `200`
+- no production API
+
+Stage-1 subagent boundary:
+
+- subagents were read-only.
+- subagents did not edit docs.
+- subagents did not write tests.
+- integrator summarized all three reports before editing.
+
+Completion standard: Stage-1 OCBA closes when all three read-only audit reports are summarized, Overload authority inventory identifies opened and closed meanings, runtime ownership inventory identifies Overload reach through StoryTable, Verdict, ExplanationPlan, renderer, and LLM smoke, collision test inventory identifies missing negative fixtures for consequence leakage, subagents remain read-only, no implementation or runtime result composition opens, no docs or tests are written by subagents, no Overload result Story, OverloadResultProof, wins-material-by-overload claim, forced-choice claim, public CannotSatisfyBoth, new ExplanationPlan claim, renderer text, LLM smoke expansion, public route `200`, or production API opens, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-2: OCBA Consequence Ownership Matrix
+
+Stage-2 opens only an audit matrix mapping possible consequence meanings to existing owners.
+
+| Possible consequence meaning | Existing Story owner | Existing proof home | Existing speech key |
+| --- | --- | --- | --- |
+| overloads defender | `Tactic.Overload` | `OverloadProof` | `overloads_defender` |
+| material gain now | `Scene.Material` | `CaptureResult` | existing Material speech key |
+| loose or undefended target | `Tactic.Loose` | `LoosePieceProof` | existing Loose speech key |
+| hanging target | `Tactic.Hanging` | `CaptureResult` | existing Hanging speech key |
+| queen attacked | `Tactic.QueenHit` | `QueenHitProof` | existing QueenHit speech key |
+| defender removed | `Tactic.RemoveGuard` | `RemoveGuardProof` | existing RemoveGuard speech key |
+| cannot satisfy both | internal only | CannotSatisfyBoth readiness | none |
+| engine refutes/caps/supports | EngineCheck only | EngineCheck diagnostics | none |
+
+Stage-2 keeps closed:
+
+- no new owner for consequence meaning
+- no second speech key for existing meanings
+- no Overload borrowing Material or Loose wording
+
+Stage-2 proof authority:
+
+- one chess meaning, one proof home, one Story label, one speech key.
+
+Stage-2 forbidden wording:
+
+- Overload proves material
+- Overload proves hanging
+- Overload proves loose
+- Overload proves forced win
+- Overload proves no defense
+
+Completion standard: Stage-2 OCBA closes when the consequence ownership matrix maps every required possible consequence meaning to its existing owner, no new owner for consequence meaning opens, no second speech key for existing meanings opens, Overload cannot borrow Material or Loose wording, one chess meaning has one proof home, one Story label, and one speech key, forbidden Overload-proves-material, Overload-proves-hanging, Overload-proves-loose, Overload-proves-forced-win, and Overload-proves-no-defense wording remains closed, docs authority tests confirm the matrix lives only in `StoryInteractionLaw.md`, and `git diff --check` passes.
+
+## Stage-3: OCBA Negative Corpus Lock
+
+Stage-3 opens targeted audit tests proving Overload consequence wording stays closed.
+
+Stage-3 required negative fixtures:
+
+- complete `Tactic.Overload` next to Material: Material owns material wording.
+- complete `Tactic.Overload` next to Loose: Loose owns loose-piece wording.
+- complete `Tactic.Overload` next to RemoveGuard: RemoveGuard owns removed-guard wording.
+- Overload with CannotSatisfyBoth readiness only: no public cannot-save-both text.
+- EngineCheck Supports Overload: no stronger consequence claim.
+- EngineCheck Caps Overload: no standalone consequence text.
+- EngineCheck Refutes Overload: no Overload text.
+
+Stage-3 keeps closed:
+
+- no result-composition implementation
+- no new renderer template
+- no new LLM prompt field
+
+Stage-3 proof authority:
+
+- StoryTable orders existing proof-backed rows only.
+- Support, Context, Blocked, capped, and refuted rows produce no standalone consequence text.
+
+Completion standard: Stage-3 OCBA closes when targeted audit tests prove Overload cannot borrow Material, Loose, RemoveGuard, CannotSatisfyBoth, or EngineCheck consequence wording, no result-composition implementation, renderer template, or LLM prompt field opens, existing Overload runtime and hardening tests still pass, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-4: OCBA Downstream Boundary Audit
+
+Stage-4 opens audit checks for ExplanationPlan, renderer, and LLM boundaries.
+
+Stage-4 keeps closed:
+
+- ExplanationPlan still accepts selected uncapped Lead Verdict only.
+- renderer input remains ExplanationPlan only.
+- LLM smoke input remains renderedText, claimKey, strength, forbidden wording only.
+- LLM instruction remains: `Rephrase only. Do not add chess facts.`
+
+Stage-4 proof authority:
+
+- `overloads_defender` is the only bounded Overload speech key.
+- no downstream layer may add material, force, best/only, defender-choice, or win wording.
+
+Completion standard: Stage-4 OCBA closes when tests assert forbidden consequence phrases do not appear in rendered text or LLM smoke accepted output, ExplanationPlan remains limited to selected uncapped Lead Verdict input, renderer input remains ExplanationPlan only, LLM smoke input remains renderedText, claimKey, strength, and forbidden wording only, the LLM instruction remains `Rephrase only. Do not add chess facts.`, `overloads_defender` remains the only bounded Overload speech key, no downstream layer adds material, force, best/only, defender-choice, or win wording, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-5: OCBA Public Surface / Docs Boundary
+
+Stage-5 opens docs authority coverage for audit-only OCBA law.
+
+Stage-5 keeps closed:
+
+- README, SSOT, Architecture, Contract, and Manifest remain summary-only unless tests require a one-line summary.
+- AGENTS.md unchanged.
+- public route `200` closed.
+- production API closed.
+- public/user-facing LLM narration closed.
+
+Stage-5 verification:
+
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- public route tombstone assertions remain intact.
+
+Completion standard: Stage-5 OCBA closes when docs authority coverage proves OCBA remains audit-only, README, SSOT, Architecture, Contract, and Manifest remain summary-only unless tests require a one-line summary, AGENTS.md remains unchanged, public route `200`, production API, and public/user-facing LLM narration remain closed, public route tombstone assertions remain intact, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-6: OCBA Closeout
+
+Stage-6 opens final audit closeout only.
+
+Stage-6 closeout conditions:
+
+- Overload consequence ownership matrix exists.
+- no new public Overload consequence meaning opened.
+- no OverloadResultProof or equivalent result proof home added.
+- existing Material, Loose, Hanging, QueenHit, RemoveGuard, Defense, CannotSatisfyBoth, and EngineCheck homes keep their meanings.
+- `overloads_defender` remains the only Overload speech key.
+- detailed authority lives only in `StoryInteractionLaw.md`.
+
+Stage-6 verification:
+
+- `sbt "commentary/testOnly lila.commentary.chess.OverloadRuntimeAdmissionTest"`
+- `sbt "commentary/testOnly lila.commentary.chess.OverloadInteractionHardeningTest"`
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`
+- `git diff --check`
+
+Completion standard: Stage-6 OCBA closes when final audit closeout proves no public Overload consequence meaning opened, the Stage-2 ownership matrix remains present, no OverloadResultProof or equivalent result proof home exists, existing Material, Loose, Hanging, QueenHit, RemoveGuard, Defense, CannotSatisfyBoth, and EngineCheck homes keep their meanings, `overloads_defender` remains the only Overload speech key, detailed authority lives only in `StoryInteractionLaw.md`, required verification passes, and `git diff --check` passes.
+
 ## Pawn / Promotion Neighborhood
 
 ### PawnAdvance-0 Charter
@@ -19544,6 +19752,330 @@ Completion standard: Loose-9 closes when Loose has exactly one proof home (`Loos
 | Counterplay cap | Counterplay risk above 70 blocks conversion and plan lead unless the Story proves the rival resource is answered. |
 | Quiet fallback | Quiet can lead only when every non-Quiet Story is below public floor. |
 | Render cap | Render may only verbalize selected Verdicts and cannot repair missing identity or proof. |
+
+## Stage-0 Proof-Deficit Diagnostics Charter
+
+Stage-0 opens internal-only proof-deficit diagnostics for blocked or non-lead
+Story rows.
+
+Stage-0 opens:
+
+- internal diagnostic production for tests, debugging, and developer inspection
+- one generic diagnostic shape for missing proof coordinates
+- diagnostics over existing Story identity, StoryProof failures, existing proof
+  sidecars, same-board legal replay status, EngineCheck status, and StoryTable
+  row role
+
+Stage-0 keeps closed:
+
+- no new Story label
+- no new proof home for chess meaning
+- no new writer
+- no new speech key
+- no ExplanationPlan claim
+- no renderer text
+- no LLM input
+- no public route `200`
+- no production API
+- no public/user-facing narration
+
+Stage-0 diagnostic rules:
+
+- diagnostics may explain absent proof coordinates only
+- diagnostics must not repair missing proof
+- diagnostics must not decide chess meaning
+- diagnostics must not upgrade Support, Context, Blocked, capped, or refuted rows
+- diagnostics must not enter `Verdict.values`
+- diagnostics must not enter `ExplanationPlan`, renderer, LLM smoke, or
+  commentary routes
+- detailed diagnostics authority lives only in `StoryInteractionLaw.md`
+
+Stage-0 forbidden diagnostic wording:
+
+- engine says
+- should speak
+- safe to claim
+- proves the tactic
+- best move
+- only move
+- forced
+- winning
+- decisive
+- public explanation
+- narration-ready
+
+Completion standard: Stage-0 Proof-Deficit Diagnostics closes when blocked or
+non-lead Story rows can produce internal generic diagnostics for missing proof
+coordinates, diagnostics do not create or upgrade chess meaning, diagnostics
+stay absent from `Verdict.values`, `ExplanationPlan`, deterministic renderer,
+LLM smoke, `/api/commentary/render`, and
+`/internal/commentary/render-local-probe`, detailed diagnostics authority
+appears only in `StoryInteractionLaw.md`, targeted runtime tests pass, docs
+authority tests pass, and `git diff --check` passes.
+
+## Stage-1 Generic Proof-Deficit Diagnostic Shape
+
+Stage-1 opens one generic internal diagnostic data shape for proof deficits.
+
+Stage-1 required generic fields:
+
+- `storyIdentityLabel`
+- `leadAllowed`
+- `roleReason`
+- `blockedBy`
+- `boardFactsPresent`
+- `proofCoordinates.root`
+- `proofCoordinates.side`
+- `proofCoordinates.rival`
+- `proofCoordinates.target`
+- `proofCoordinates.anchor`
+- `proofCoordinates.route`
+- `proofCoordinates.requiredLegalLine`
+- `proofCoordinates.sameRootProofSidecar`
+- `missingSidecar`
+- `reason`
+
+Blocked and non-lead diagnostics report `leadAllowed=false`. Capped Lead rows
+may report `leadAllowed=true` only as the existing Verdict row state; their
+diagnostic reason must be the strength limit, not a permission to speak.
+
+Stage-1 keeps closed:
+
+- no family-specific diagnostic type
+- no Overload-specific, Pawn-specific, Line-specific, King-specific, or
+  Material-specific shortcut
+- no public JSON schema
+- no renderer or LLM contract field
+- no change to `Verdict.values` public-safe shape
+
+Stage-1 proof authority:
+
+- the shape reports only what existing upstream proof already knows
+- missing coordinates remain missing
+- existing proof homes remain the only authority for their chess meaning
+
+Stage-1 forbidden diagnostic wording:
+
+- diagnostic proves
+- diagnostic creates
+- diagnostic allows claim
+- diagnostic selects Lead
+- diagnostic explains to the user
+
+Completion standard: Stage-1 Generic Proof-Deficit Diagnostic Shape closes when unrelated blocked Story families receive the same generic internal diagnostic shape, diagnostics fields remain absent from `Verdict.values`, no public route payload contains diagnostics, no family-specific diagnostic type or shortcut is introduced, detailed diagnostics authority appears only in `StoryInteractionLaw.md`, targeted runtime tests pass, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-2 Proof-Deficit Coordinate Extraction Rules
+
+Stage-2 opens generic extraction of known and missing Story coordinates.
+
+Stage-2 coordinate extraction may read existing Story identity only:
+
+- scene / tactic / plan
+- side
+- rival
+- target
+- anchor
+- route
+
+Stage-2 may report existing proof sidecar presence only.
+
+Stage-2 keeps closed:
+
+- no inference of missing side, rival, target, anchor, or route from raw BoardFacts alone
+- no inference from raw engine PV
+- no inference from source rows
+- no legal replay invented by diagnostics
+- no family-specific repair path
+
+Stage-2 proof authority:
+
+- Story identity remains authoritative for public claim coordinates
+- StoryProof remains authoritative for complete identity binding
+- proof sidecars remain authoritative for family-specific proof completion
+- diagnostics only mirrors present/missing state
+
+Stage-2 forbidden diagnostic wording:
+
+- likely target
+- implied route
+- probably same board
+- engine confirms identity
+- BoardFacts proves claim
+- source proves claim
+
+Completion standard: Stage-2 Proof-Deficit Coordinate Extraction Rules closes when side, rival, target, anchor, route, legal-line, and sidecar deficits each appear only as diagnostics, diagnostics do not fill missing coordinates from BoardFacts, engine PV, source rows, legal replay invention, or family repair paths, `Verdict.values` stays unchanged, public route payloads contain no diagnostics, detailed diagnostics authority appears only in `StoryInteractionLaw.md`, targeted runtime tests pass, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-3 StoryTable Diagnostic Attachment
+
+Stage-3 opens internal attachment of proof-deficit diagnostics to
+StoryTable-produced non-speaking rows.
+
+Stage-3 diagnostic attachment may be available for:
+
+- `Role.Blocked` rows
+- `leadAllowed=false` rows
+- `EngineCheck.Refutes` rows
+- capped rows when speech is blocked or strength-limited
+- Support and Context rows when they do not produce standalone text
+
+Stage-3 keeps closed:
+
+- StoryTable still orders only
+- StoryTable does not create Stories
+- StoryTable does not create proof
+- StoryTable does not produce public explanation text
+- Support, Context, Blocked, capped, and refuted rows still produce no
+  standalone public text
+
+Stage-3 proof authority:
+
+- Verdict decides selected row status
+- diagnostics explains why a row cannot speak, but cannot change the Verdict
+- EngineCheck may support, cap, or refute only an existing Story and cannot
+  become diagnostic proof authority
+
+Stage-3 forbidden diagnostic wording:
+
+- row should have led
+- row nearly proves
+- refuted but useful claim
+- capped public wording
+- support text
+- context text
+
+Completion standard: Stage-3 StoryTable Diagnostic Attachment closes when selected uncapped Lead behavior is unchanged, Support, Context, Blocked, capped, and refuted StoryTable rows can expose internal diagnostics while still producing no standalone public text unless an existing internal ExplanationPlan rule already permits a no-claim plan, StoryTable ordering is unchanged by diagnostics, diagnostics do not change `Verdict.values`, StoryTable still creates no Story, proof, or public explanation text, detailed diagnostics authority appears only in `StoryInteractionLaw.md`, targeted runtime tests pass, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-4 Proof-Deficit Downstream Boundary Guard
+
+Stage-4 opens explicit guards proving diagnostics stop before expression
+layers.
+
+Stage-4 keeps closed:
+
+- ExplanationPlan cannot consume diagnostics
+- DeterministicRenderer cannot consume diagnostics
+- LLM smoke cannot consume diagnostics
+- public routes cannot expose diagnostics
+- production API remains closed
+- public/user-facing LLM narration remains closed
+
+Stage-4 proof authority:
+
+- ExplanationPlan public expression still accepts selected uncapped Lead Verdict
+  data only
+- renderer input remains ExplanationPlan only
+- LLM smoke input remains renderedText, claimKey, strength, forbidden wording
+  only
+- LLM instruction remains: `Rephrase only. Do not add chess facts.`
+
+Stage-4 forbidden diagnostic wording:
+
+- use diagnostic reason in text
+- explain why blocked
+- tell user missing proof
+- engine/proof failure wording
+- raw PV wording
+- source-row wording
+
+Completion standard: Stage-4 Proof-Deficit Downstream Boundary Guard closes when diagnostic strings do not appear in rendered text, LLM smoke rejects diagnostic fields and diagnostic wording, public route tombstones still return unavailable/no-commentary rather than `200`, `Verdict.values` shape is unchanged, ExplanationPlan, DeterministicRenderer, and LLM smoke expose no diagnostic input path, detailed diagnostics authority appears only in `StoryInteractionLaw.md`, targeted runtime tests pass, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-5 Proof-Deficit Cross-Family Fixture Coverage
+
+Stage-5 opens generic proof-deficit fixtures across already-open families.
+
+The Stage-5 fixture set must include unrelated families so diagnostics are not
+accidentally family-specific.
+
+Stage-5 required fixture families:
+
+- one tactic row with missing proof sidecar
+- one pawn/file row with missing same-board or route proof
+- one king/check row with missing legal replay or king coordinate
+- one source/opening or quiet row blocked by board-backed proof rules
+- one EngineCheck Refutes row
+- one Support or Context row that must not speak
+
+Stage-5 keeps closed:
+
+- no new positive Story
+- no new family admission
+- no broad tactic, plan, strategy, conversion, pressure, initiative, best,
+  only, forced, winning, or decisive claim
+- no public/user-facing diagnostics
+
+Stage-5 proof authority:
+
+- every fixture uses existing proof homes and existing Story labels only
+- diagnostics must report deficits from existing proof boundaries, not define
+  new chess meaning
+
+Stage-5 forbidden diagnostic wording:
+
+- family-specific shortcut names as public claim owners
+- almost Overload
+- almost Material
+- probably Checkmate
+- any blocked-row text that could be user-facing
+
+Completion standard: Stage-5 Proof-Deficit Cross-Family Fixture Coverage closes when targeted runtime diagnostics tests cover the required unrelated fixture families, each fixture uses existing proof homes and Story labels only, no fixture opens a positive Story or new family admission, blocked/refuted/non-speaking rows still do not produce standalone public text, diagnostics remain generic and internal, detailed diagnostics authority appears only in `StoryInteractionLaw.md`, `ChessFoundationTest` passes, docs authority tests pass when docs are touched, and `git diff --check` passes.
+
+## Stage-6 Proof-Deficit Documentation Authority Boundary
+
+Stage-6 opens detailed diagnostics stage law only in `StoryInteractionLaw.md`.
+
+Summary-only mentions may be added to README, SSOT, Architecture, Contract, or Manifest only if docs tests require them.
+
+Stage-6 keeps closed:
+
+- `AGENTS.md` remains unchanged unless durable operator rules change
+- no new live authority document
+- no legacy doc authority
+- no duplicated detailed checklist outside `StoryInteractionLaw.md`
+
+Stage-6 proof authority:
+
+- `StoryInteractionLaw.md` owns diagnostics charter, negative corpus, downstream boundary, and closeout
+- summary docs may only say diagnostics are internal blocked-proof reporting
+
+Stage-6 forbidden documentation wording:
+
+- diagnostics as product feature
+- diagnostics as public API
+- diagnostics as renderer input
+- diagnostics as LLM input
+- diagnostics as acceptance for incomplete proof
+
+Completion standard: Stage-6 Proof-Deficit Documentation Authority Boundary closes when detailed diagnostics law remains only in `StoryInteractionLaw.md`, summary docs do not duplicate diagnostics checklists, `AGENTS.md` remains unchanged unless durable operator rules change, no new live authority document or legacy authority appears, diagnostics are described only as internal blocked-proof reporting when summaries are required, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-7 Proof-Deficit Diagnostics Closeout Hard Cleanup
+
+Stage-7 opens final closeout for internal proof-deficit diagnostics only.
+
+Stage-7 keeps closed:
+
+- no Story label
+- no proof home for chess meaning
+- no writer
+- no speech key
+- no ExplanationPlan claim
+- no renderer text
+- no LLM smoke expansion
+- no public route `200`
+- no production API
+- no public/user-facing narration
+
+Stage-7 closeout audit:
+
+- one diagnostic shape only
+- diagnostics are generic across opened Story families
+- diagnostics never repair proof
+- diagnostics never create Story
+- diagnostics never change StoryTable order
+- diagnostics never enter `Verdict.values`
+- diagnostics never enter ExplanationPlan, renderer, LLM, or route payload
+- detailed authority lives only in `StoryInteractionLaw.md`
+
+Completion standard: Stage-7 Proof-Deficit Diagnostics Closeout Hard Cleanup closes when targeted diagnostics tests pass, `ChessFoundationTest` passes, docs authority tests pass, `git diff --check` passes, no new Story label, proof home, writer, speech key, ExplanationPlan claim, renderer text, LLM smoke expansion, public route `200`, production API, or public/user-facing narration is introduced, one generic diagnostic shape remains the only diagnostics shape, diagnostics stay generic across opened Story families, diagnostics do not repair proof, create Story, change StoryTable order, enter `Verdict.values`, or enter ExplanationPlan, renderer, LLM, or route payload, and detailed authority remains only in `StoryInteractionLaw.md`.
 
 ## Proof-Deficit Logs
 

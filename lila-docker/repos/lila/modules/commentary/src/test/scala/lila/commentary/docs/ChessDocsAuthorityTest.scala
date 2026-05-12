@@ -22581,6 +22581,1002 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     ).foreach: marker =>
       assert(overloadCloseoutSource.contains(marker), s"OIH-7 runtime corpus must pin: $marker")
 
+  test("Stage-0 OCBA audit-only charter authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-0: OCBA Charter",
+        "Name: Overload Consequence Boundary Audit.",
+        "OCBA opens audit-only authority for possible Overload consequence meanings.",
+        "OCBA opens collision inventory for Overload vs Material, Hanging, Loose, QueenHit, Fork, RemoveGuard, Defense, CannotSatisfyBoth, and EngineCheck.",
+        "OCBA opens no runtime result composition.",
+        "OCBA keeps closed:",
+        "- no Overload result Story",
+        "- no OverloadResultProof",
+        "- no wins-material-by-overload claim",
+        "- no forced-choice claim",
+        "- no only-move/best-move/forced wording",
+        "- no public CannotSatisfyBoth",
+        "- no new ExplanationPlan claim",
+        "- no renderer text",
+        "- no LLM smoke expansion",
+        "- no public route `200`",
+        "- no production API",
+        "OCBA proof authority:",
+        "- `OverloadProof` owns only narrow `Tactic.Overload`.",
+        "- CannotSatisfyBoth remains internal readiness only.",
+        "- `Scene.Material` owns material-now meaning.",
+        "- EngineCheck may support, cap, or refute only an existing Story.",
+        "OCBA forbidden wording:",
+        "- overload wins material",
+        "- defender must choose",
+        "- defender cannot save both",
+        "- forced",
+        "- only move",
+        "- best move",
+        "- decisive",
+        "- winning",
+        "- no counterplay",
+        "Completion standard: Stage-0 OCBA closes when docs authority proves this slice is audit-only"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"OCBA law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-0: OCBA Charter",
+        "Name: Overload Consequence Boundary Audit.",
+        "OCBA keeps closed:",
+        "OCBA proof authority:",
+        "OCBA forbidden wording:",
+        "Completion standard: Stage-0 OCBA closes when docs authority proves this slice is audit-only"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"OCBA marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed OCBA law: $marker")
+
+    assert(!agents.contains("## Stage-0: OCBA Charter"))
+    assert(!agents.contains("Overload Consequence Boundary Audit"))
+
+  test("Stage-1 OCBA parallel audit inventory authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-1: OCBA Parallel Audit Inventory",
+        "Stage-1 opens read-only inventory reports only.",
+        "Stage-1 report inventory:",
+        "- Subagent A returned Overload authority inventory for Overload, DefenderDuty, DualDefenderDuty, OverloadTest, and CannotSatisfyBoth.",
+        "- Subagent B returned runtime ownership inventory for OverloadProof, TacticOverload, StoryTable, Verdict, ExplanationPlan, DeterministicRenderer, and LLM smoke reach.",
+        "- Subagent C returned collision test inventory for Overload consequence leakage around Material, Hanging, Loose, QueenHit, Fork, RemoveGuard, Defense, CannotSatisfyBoth, and EngineCheck.",
+        "Stage-1 integrated findings:",
+        "- Overload already reaches StoryTable, Verdict, ExplanationPlan, renderer, and LLM smoke through the narrow `overloads_defender` path.",
+        "- current renderer wording is only `This move overloads the defender.`",
+        "- result and forced-choice wording currently appears only as internal diagnostics or forbidden wording guards.",
+        "- missing negative fixture inventory covers Material, Hanging, Loose, QueenHit, Fork, RemoveGuard, Defense, CannotSatisfyBoth wording variants, and EngineCheck-backed consequence phrasing.",
+        "Stage-1 keeps closed:",
+        "- no implementation",
+        "- no runtime result composition",
+        "- no Overload result Story",
+        "- no OverloadResultProof",
+        "- no wins-material-by-overload claim",
+        "- no forced-choice claim",
+        "- no public CannotSatisfyBoth",
+        "- no new ExplanationPlan claim",
+        "- no renderer text",
+        "- no LLM smoke expansion",
+        "- no public route `200`",
+        "- no production API",
+        "Stage-1 subagent boundary:",
+        "- subagents were read-only.",
+        "- subagents did not edit docs.",
+        "- subagents did not write tests.",
+        "- integrator summarized all three reports before editing.",
+        "Completion standard: Stage-1 OCBA closes when all three read-only audit reports are summarized"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"OCBA Stage-1 law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-1: OCBA Parallel Audit Inventory",
+        "Stage-1 report inventory:",
+        "Stage-1 integrated findings:",
+        "Stage-1 keeps closed:",
+        "Stage-1 subagent boundary:",
+        "Completion standard: Stage-1 OCBA closes when all three read-only audit reports are summarized"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"OCBA Stage-1 marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed OCBA Stage-1 law: $marker")
+
+    assert(!agents.contains("## Stage-1: OCBA Parallel Audit Inventory"))
+    assert(!agents.contains("Stage-1 report inventory:"))
+
+  test("Stage-2 OCBA consequence ownership matrix authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-2: OCBA Consequence Ownership Matrix",
+        "Stage-2 opens only an audit matrix mapping possible consequence meanings to existing owners.",
+        "| overloads defender | `Tactic.Overload` | `OverloadProof` | `overloads_defender` |",
+        "| material gain now | `Scene.Material` | `CaptureResult` | existing Material speech key |",
+        "| loose or undefended target | `Tactic.Loose` | `LoosePieceProof` | existing Loose speech key |",
+        "| hanging target | `Tactic.Hanging` | `CaptureResult` | existing Hanging speech key |",
+        "| queen attacked | `Tactic.QueenHit` | `QueenHitProof` | existing QueenHit speech key |",
+        "| defender removed | `Tactic.RemoveGuard` | `RemoveGuardProof` | existing RemoveGuard speech key |",
+        "| cannot satisfy both | internal only | CannotSatisfyBoth readiness | none |",
+        "| engine refutes/caps/supports | EngineCheck only | EngineCheck diagnostics | none |",
+        "Stage-2 keeps closed:",
+        "- no new owner for consequence meaning",
+        "- no second speech key for existing meanings",
+        "- no Overload borrowing Material or Loose wording",
+        "Stage-2 proof authority:",
+        "- one chess meaning, one proof home, one Story label, one speech key.",
+        "Stage-2 forbidden wording:",
+        "- Overload proves material",
+        "- Overload proves hanging",
+        "- Overload proves loose",
+        "- Overload proves forced win",
+        "- Overload proves no defense",
+        "Completion standard: Stage-2 OCBA closes when the consequence ownership matrix maps every required possible consequence meaning to its existing owner"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"OCBA Stage-2 law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-2: OCBA Consequence Ownership Matrix",
+        "Stage-2 opens only an audit matrix mapping possible consequence meanings to existing owners.",
+        "Stage-2 keeps closed:",
+        "Stage-2 proof authority:",
+        "Stage-2 forbidden wording:",
+        "Completion standard: Stage-2 OCBA closes when the consequence ownership matrix maps every required possible consequence meaning to its existing owner"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"OCBA Stage-2 marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed OCBA Stage-2 law: $marker")
+
+    assert(!agents.contains("## Stage-2: OCBA Consequence Ownership Matrix"))
+    assert(!agents.contains("Stage-2 forbidden wording:"))
+
+  test("Stage-3 OCBA negative corpus lock authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-3: OCBA Negative Corpus Lock",
+        "Stage-3 opens targeted audit tests proving Overload consequence wording stays closed.",
+        "Stage-3 required negative fixtures:",
+        "- complete `Tactic.Overload` next to Material: Material owns material wording.",
+        "- complete `Tactic.Overload` next to Loose: Loose owns loose-piece wording.",
+        "- complete `Tactic.Overload` next to RemoveGuard: RemoveGuard owns removed-guard wording.",
+        "- Overload with CannotSatisfyBoth readiness only: no public cannot-save-both text.",
+        "- EngineCheck Supports Overload: no stronger consequence claim.",
+        "- EngineCheck Caps Overload: no standalone consequence text.",
+        "- EngineCheck Refutes Overload: no Overload text.",
+        "Stage-3 keeps closed:",
+        "- no result-composition implementation",
+        "- no new renderer template",
+        "- no new LLM prompt field",
+        "Stage-3 proof authority:",
+        "- StoryTable orders existing proof-backed rows only.",
+        "- Support, Context, Blocked, capped, and refuted rows produce no standalone consequence text.",
+        "Completion standard: Stage-3 OCBA closes when targeted audit tests prove Overload cannot borrow Material, Loose, RemoveGuard, CannotSatisfyBoth, or EngineCheck consequence wording"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"OCBA Stage-3 law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-3: OCBA Negative Corpus Lock",
+        "Stage-3 required negative fixtures:",
+        "Stage-3 keeps closed:",
+        "Stage-3 proof authority:",
+        "Completion standard: Stage-3 OCBA closes when targeted audit tests prove Overload cannot borrow Material, Loose, RemoveGuard, CannotSatisfyBoth, or EngineCheck consequence wording"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"OCBA Stage-3 marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed OCBA Stage-3 law: $marker")
+
+    assert(!agents.contains("## Stage-3: OCBA Negative Corpus Lock"))
+    assert(!agents.contains("Stage-3 required negative fixtures:"))
+
+  test("Stage-4 OCBA downstream boundary audit authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-4: OCBA Downstream Boundary Audit",
+        "Stage-4 opens audit checks for ExplanationPlan, renderer, and LLM boundaries.",
+        "Stage-4 keeps closed:",
+        "- ExplanationPlan still accepts selected uncapped Lead Verdict only.",
+        "- renderer input remains ExplanationPlan only.",
+        "- LLM smoke input remains renderedText, claimKey, strength, forbidden wording only.",
+        "- LLM instruction remains: `Rephrase only. Do not add chess facts.`",
+        "Stage-4 proof authority:",
+        "- `overloads_defender` is the only bounded Overload speech key.",
+        "- no downstream layer may add material, force, best/only, defender-choice, or win wording.",
+        "Completion standard: Stage-4 OCBA closes when tests assert forbidden consequence phrases do not appear in rendered text or LLM smoke accepted output"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"OCBA Stage-4 law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-4: OCBA Downstream Boundary Audit",
+        "Stage-4 opens audit checks for ExplanationPlan, renderer, and LLM boundaries.",
+        "Stage-4 keeps closed:",
+        "Stage-4 proof authority:",
+        "Completion standard: Stage-4 OCBA closes when tests assert forbidden consequence phrases do not appear in rendered text or LLM smoke accepted output"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"OCBA Stage-4 marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed OCBA Stage-4 law: $marker")
+
+    assert(!agents.contains("## Stage-4: OCBA Downstream Boundary Audit"))
+    assert(!agents.contains("Stage-4 opens audit checks for ExplanationPlan, renderer, and LLM boundaries."))
+
+  test("Stage-5 OCBA public surface docs boundary authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-5: OCBA Public Surface / Docs Boundary",
+        "Stage-5 opens docs authority coverage for audit-only OCBA law.",
+        "Stage-5 keeps closed:",
+        "- README, SSOT, Architecture, Contract, and Manifest remain summary-only unless tests require a one-line summary.",
+        "- AGENTS.md unchanged.",
+        "- public route `200` closed.",
+        "- production API closed.",
+        "- public/user-facing LLM narration closed.",
+        "Stage-5 verification:",
+        """- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`""",
+        "- public route tombstone assertions remain intact.",
+        "Completion standard: Stage-5 OCBA closes when docs authority coverage proves OCBA remains audit-only"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"OCBA Stage-5 law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-5: OCBA Public Surface / Docs Boundary",
+        "Stage-5 opens docs authority coverage for audit-only OCBA law.",
+        "Stage-5 keeps closed:",
+        "Stage-5 verification:",
+        "Completion standard: Stage-5 OCBA closes when docs authority coverage proves OCBA remains audit-only"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"OCBA Stage-5 marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed OCBA Stage-5 law: $marker")
+
+    assert(!agents.contains("## Stage-5: OCBA Public Surface / Docs Boundary"))
+    assert(!agents.contains("Stage-5 opens docs authority coverage for audit-only OCBA law."))
+
+    val overloadRuntimeAdmission =
+      Files.readString(Paths.get("modules/commentary/src/test/scala/lila/commentary/chess/OverloadRuntimeAdmissionTest.scala"))
+    Vector(
+      "Stage-9 Overload does not open public routes production API or public LLM narration",
+      """assert(routes.contains("POST  /api/commentary/render"))""",
+      """assert(routes.contains("POST  /internal/commentary/render-local-probe"))""",
+      """assert(controller.contains("ServiceUnavailable(unavailable).toFuccess"))""",
+      """assert(!controller.contains("Ok("), "commentary route tombstones must not return 200")""",
+      """assert(!controller.contains("LlmNarrationSmoke"), "public route must not expose public LLM narration")"""
+    ).foreach: marker =>
+      assert(overloadRuntimeAdmission.contains(marker), s"OCBA Stage-5 must keep public route tombstone assertion: $marker")
+
+  test("Stage-6 OCBA closeout authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-6: OCBA Closeout",
+        "Stage-6 opens final audit closeout only.",
+        "Stage-6 closeout conditions:",
+        "- Overload consequence ownership matrix exists.",
+        "- no new public Overload consequence meaning opened.",
+        "- no OverloadResultProof or equivalent result proof home added.",
+        "- existing Material, Loose, Hanging, QueenHit, RemoveGuard, Defense, CannotSatisfyBoth, and EngineCheck homes keep their meanings.",
+        "- `overloads_defender` remains the only Overload speech key.",
+        "- detailed authority lives only in `StoryInteractionLaw.md`.",
+        "Stage-6 verification:",
+        """- `sbt "commentary/testOnly lila.commentary.chess.OverloadRuntimeAdmissionTest"`""",
+        """- `sbt "commentary/testOnly lila.commentary.chess.OverloadInteractionHardeningTest"`""",
+        """- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`""",
+        """- `sbt "commentary/testOnly lila.commentary.docs.ChessDocsAuthorityTest"`""",
+        "- `git diff --check`",
+        "Completion standard: Stage-6 OCBA closes when final audit closeout proves no public Overload consequence meaning opened"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"OCBA Stage-6 law must pin: $marker")
+
+    Vector(
+      "| overloads defender | `Tactic.Overload` | `OverloadProof` | `overloads_defender` |",
+      "| material gain now | `Scene.Material` | `CaptureResult` | existing Material speech key |",
+      "| loose or undefended target | `Tactic.Loose` | `LoosePieceProof` | existing Loose speech key |",
+      "| hanging target | `Tactic.Hanging` | `CaptureResult` | existing Hanging speech key |",
+      "| queen attacked | `Tactic.QueenHit` | `QueenHitProof` | existing QueenHit speech key |",
+      "| defender removed | `Tactic.RemoveGuard` | `RemoveGuardProof` | existing RemoveGuard speech key |",
+      "| cannot satisfy both | internal only | CannotSatisfyBoth readiness | none |",
+      "| engine refutes/caps/supports | EngineCheck only | EngineCheck diagnostics | none |"
+    ).foreach: marker =>
+      assert(interactionLaw.contains(marker), s"OCBA closeout requires Stage-2 matrix row: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-6: OCBA Closeout",
+        "Stage-6 opens final audit closeout only.",
+        "Stage-6 closeout conditions:",
+        "Stage-6 verification:",
+        "Completion standard: Stage-6 OCBA closes when final audit closeout proves no public Overload consequence meaning opened"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"OCBA Stage-6 marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed OCBA Stage-6 law: $marker")
+
+    assert(!agents.contains("## Stage-6: OCBA Closeout"))
+    assert(!agents.contains("Stage-6 closeout conditions:"))
+
+    val sourceRoot = Paths.get("modules/commentary/src/main/scala/lila/commentary/chess")
+    val sourceStream = Files.walk(sourceRoot)
+    val sourceText =
+      try
+        sourceStream.iterator.asScala
+          .filter(path => Files.isRegularFile(path) && path.toString.endsWith(".scala"))
+          .map(Files.readString)
+          .mkString("\n")
+      finally sourceStream.close()
+    Vector(
+      "OverloadResultProof",
+      "OverloadResult",
+      "wins_material_by_overload",
+      "overload_wins_material",
+      "cannot_save_both"
+    ).foreach: forbidden =>
+      assert(!sourceText.contains(forbidden), s"OCBA closeout forbids result/consequence source name: $forbidden")
+
+    val explanationPlan = Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/ExplanationPlan.scala"))
+    assert(explanationPlan.contains("""case OverloadsDefender => "overloads_defender""""))
+    assert(!explanationPlan.contains("OverloadMaterial"))
+    assert(!explanationPlan.contains("OverloadWin"))
+
+  test("Stage-0 proof-deficit diagnostics authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-0 Proof-Deficit Diagnostics Charter",
+        "Stage-0 opens internal-only proof-deficit diagnostics for blocked or non-lead",
+        "Stage-0 opens:",
+        "- internal diagnostic production for tests, debugging, and developer inspection",
+        "- one generic diagnostic shape for missing proof coordinates",
+        "Stage-0 keeps closed:",
+        "- no new Story label",
+        "- no new proof home for chess meaning",
+        "- no new writer",
+        "- no new speech key",
+        "- no ExplanationPlan claim",
+        "- no renderer text",
+        "- no LLM input",
+        "- no public route `200`",
+        "- no production API",
+        "- no public/user-facing narration",
+        "Stage-0 diagnostic rules:",
+        "- diagnostics may explain absent proof coordinates only",
+        "- diagnostics must not repair missing proof",
+        "- diagnostics must not decide chess meaning",
+        "- diagnostics must not upgrade Support, Context, Blocked, capped, or refuted rows",
+        "- diagnostics must not enter `Verdict.values`",
+        "- diagnostics must not enter `ExplanationPlan`, renderer, LLM smoke, or",
+        "  commentary routes",
+        "- detailed diagnostics authority lives only in `StoryInteractionLaw.md`",
+        "Stage-0 forbidden diagnostic wording:",
+        "- engine says",
+        "- should speak",
+        "- safe to claim",
+        "- proves the tactic",
+        "- best move",
+        "- only move",
+        "- forced",
+        "- winning",
+        "- decisive",
+        "- public explanation",
+        "- narration-ready",
+        "Completion standard: Stage-0 Proof-Deficit Diagnostics closes when blocked or"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"Stage-0 diagnostics law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-0 Proof-Deficit Diagnostics Charter",
+        "Stage-0 diagnostic rules:",
+        "Stage-0 forbidden diagnostic wording:",
+        "Completion standard: Stage-0 Proof-Deficit Diagnostics closes when blocked or",
+        "- detailed diagnostics authority lives only in `StoryInteractionLaw.md`"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"Stage-0 diagnostics marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed Stage-0 diagnostics law: $marker")
+
+    assert(!agents.contains("## Stage-0 Proof-Deficit Diagnostics Charter"))
+    assert(!agents.contains("Stage-0 diagnostic rules:"))
+    assert(!agents.contains("Stage-0 forbidden diagnostic wording:"))
+
+  test("Stage-1 generic proof-deficit diagnostic shape authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-1 Generic Proof-Deficit Diagnostic Shape",
+        "Stage-1 opens one generic internal diagnostic data shape for proof deficits.",
+        "Stage-1 required generic fields:",
+        "- `storyIdentityLabel`",
+        "- `leadAllowed`",
+        "- `roleReason`",
+        "- `blockedBy`",
+        "- `boardFactsPresent`",
+        "- `proofCoordinates.root`",
+        "- `proofCoordinates.side`",
+        "- `proofCoordinates.rival`",
+        "- `proofCoordinates.target`",
+        "- `proofCoordinates.anchor`",
+        "- `proofCoordinates.route`",
+        "- `proofCoordinates.requiredLegalLine`",
+        "- `proofCoordinates.sameRootProofSidecar`",
+        "- `missingSidecar`",
+        "- `reason`",
+        "Blocked and non-lead diagnostics report `leadAllowed=false`.",
+        "Capped Lead rows",
+        "diagnostic reason must be the strength limit, not a permission to speak.",
+        "Stage-1 keeps closed:",
+        "- no family-specific diagnostic type",
+        "- no Overload-specific, Pawn-specific, Line-specific, King-specific, or",
+        "  Material-specific shortcut",
+        "- no public JSON schema",
+        "- no renderer or LLM contract field",
+        "- no change to `Verdict.values` public-safe shape",
+        "Stage-1 proof authority:",
+        "- the shape reports only what existing upstream proof already knows",
+        "- missing coordinates remain missing",
+        "- existing proof homes remain the only authority for their chess meaning",
+        "Stage-1 forbidden diagnostic wording:",
+        "- diagnostic proves",
+        "- diagnostic creates",
+        "- diagnostic allows claim",
+        "- diagnostic selects Lead",
+        "- diagnostic explains to the user",
+        "Completion standard: Stage-1 Generic Proof-Deficit Diagnostic Shape closes when unrelated blocked Story families receive the same generic internal diagnostic shape"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"Stage-1 diagnostics law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-1 Generic Proof-Deficit Diagnostic Shape",
+        "Stage-1 required generic fields:",
+        "Stage-1 keeps closed:",
+        "Stage-1 proof authority:",
+        "Stage-1 forbidden diagnostic wording:",
+        "Completion standard: Stage-1 Generic Proof-Deficit Diagnostic Shape closes when unrelated blocked Story families receive the same generic internal diagnostic shape"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"Stage-1 diagnostics marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed Stage-1 diagnostics law: $marker")
+
+    assert(!agents.contains("## Stage-1 Generic Proof-Deficit Diagnostic Shape"))
+    assert(!agents.contains("Stage-1 required generic fields:"))
+    assert(!agents.contains("Stage-1 forbidden diagnostic wording:"))
+
+  test("Stage-2 proof-deficit coordinate extraction authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-2 Proof-Deficit Coordinate Extraction Rules",
+        "Stage-2 opens generic extraction of known and missing Story coordinates.",
+        "Stage-2 coordinate extraction may read existing Story identity only:",
+        "- scene / tactic / plan",
+        "- side",
+        "- rival",
+        "- target",
+        "- anchor",
+        "- route",
+        "Stage-2 may report existing proof sidecar presence only.",
+        "Stage-2 keeps closed:",
+        "- no inference of missing side, rival, target, anchor, or route from raw BoardFacts alone",
+        "- no inference from raw engine PV",
+        "- no inference from source rows",
+        "- no legal replay invented by diagnostics",
+        "- no family-specific repair path",
+        "Stage-2 proof authority:",
+        "- Story identity remains authoritative for public claim coordinates",
+        "- StoryProof remains authoritative for complete identity binding",
+        "- proof sidecars remain authoritative for family-specific proof completion",
+        "- diagnostics only mirrors present/missing state",
+        "Stage-2 forbidden diagnostic wording:",
+        "- likely target",
+        "- implied route",
+        "- probably same board",
+        "- engine confirms identity",
+        "- BoardFacts proves claim",
+        "- source proves claim",
+        "Completion standard: Stage-2 Proof-Deficit Coordinate Extraction Rules closes when side, rival, target, anchor, route, legal-line, and sidecar deficits each appear only as diagnostics"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"Stage-2 diagnostics law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-2 Proof-Deficit Coordinate Extraction Rules",
+        "Stage-2 coordinate extraction may read existing Story identity only:",
+        "Stage-2 may report existing proof sidecar presence only.",
+        "Stage-2 proof authority:",
+        "Stage-2 forbidden diagnostic wording:",
+        "Completion standard: Stage-2 Proof-Deficit Coordinate Extraction Rules closes when side, rival, target, anchor, route, legal-line, and sidecar deficits each appear only as diagnostics"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"Stage-2 diagnostics marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed Stage-2 diagnostics law: $marker")
+
+    assert(!agents.contains("## Stage-2 Proof-Deficit Coordinate Extraction Rules"))
+    assert(!agents.contains("Stage-2 coordinate extraction may read existing Story identity only:"))
+    assert(!agents.contains("Stage-2 forbidden diagnostic wording:"))
+
+  test("Stage-3 StoryTable diagnostic attachment authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-3 StoryTable Diagnostic Attachment",
+        "Stage-3 opens internal attachment of proof-deficit diagnostics to",
+        "StoryTable-produced non-speaking rows.",
+        "Stage-3 diagnostic attachment may be available for:",
+        "- `Role.Blocked` rows",
+        "- `leadAllowed=false` rows",
+        "- `EngineCheck.Refutes` rows",
+        "- capped rows when speech is blocked or strength-limited",
+        "- Support and Context rows when they do not produce standalone text",
+        "Stage-3 keeps closed:",
+        "- StoryTable still orders only",
+        "- StoryTable does not create Stories",
+        "- StoryTable does not create proof",
+        "- StoryTable does not produce public explanation text",
+        "- Support, Context, Blocked, capped, and refuted rows still produce no",
+        "  standalone public text",
+        "Stage-3 proof authority:",
+        "- Verdict decides selected row status",
+        "- diagnostics explains why a row cannot speak, but cannot change the Verdict",
+        "- EngineCheck may support, cap, or refute only an existing Story and cannot",
+        "  become diagnostic proof authority",
+        "Stage-3 forbidden diagnostic wording:",
+        "- row should have led",
+        "- row nearly proves",
+        "- refuted but useful claim",
+        "- capped public wording",
+        "- support text",
+        "- context text",
+        "Completion standard: Stage-3 StoryTable Diagnostic Attachment closes when selected uncapped Lead behavior is unchanged"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"Stage-3 diagnostics law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-3 StoryTable Diagnostic Attachment",
+        "Stage-3 diagnostic attachment may be available for:",
+        "Stage-3 keeps closed:",
+        "Stage-3 proof authority:",
+        "Stage-3 forbidden diagnostic wording:",
+        "Completion standard: Stage-3 StoryTable Diagnostic Attachment closes when selected uncapped Lead behavior is unchanged"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"Stage-3 diagnostics marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed Stage-3 diagnostics law: $marker")
+
+    assert(!agents.contains("## Stage-3 StoryTable Diagnostic Attachment"))
+    assert(!agents.contains("Stage-3 diagnostic attachment may be available for:"))
+    assert(!agents.contains("Stage-3 forbidden diagnostic wording:"))
+
+  test("Stage-4 proof-deficit downstream boundary guard authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-4 Proof-Deficit Downstream Boundary Guard",
+        "Stage-4 opens explicit guards proving diagnostics stop before expression",
+        "layers.",
+        "Stage-4 keeps closed:",
+        "- ExplanationPlan cannot consume diagnostics",
+        "- DeterministicRenderer cannot consume diagnostics",
+        "- LLM smoke cannot consume diagnostics",
+        "- public routes cannot expose diagnostics",
+        "- production API remains closed",
+        "- public/user-facing LLM narration remains closed",
+        "Stage-4 proof authority:",
+        "- ExplanationPlan public expression still accepts selected uncapped Lead Verdict",
+        "  data only",
+        "- renderer input remains ExplanationPlan only",
+        "- LLM smoke input remains renderedText, claimKey, strength, forbidden wording",
+        "  only",
+        "- LLM instruction remains: `Rephrase only. Do not add chess facts.`",
+        "Stage-4 forbidden diagnostic wording:",
+        "- use diagnostic reason in text",
+        "- explain why blocked",
+        "- tell user missing proof",
+        "- engine/proof failure wording",
+        "- raw PV wording",
+        "- source-row wording",
+        "Completion standard: Stage-4 Proof-Deficit Downstream Boundary Guard closes when diagnostic strings do not appear in rendered text"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"Stage-4 diagnostics law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-4 Proof-Deficit Downstream Boundary Guard",
+        "Stage-4 keeps closed:",
+        "Stage-4 proof authority:",
+        "Stage-4 forbidden diagnostic wording:",
+        "Completion standard: Stage-4 Proof-Deficit Downstream Boundary Guard closes when diagnostic strings do not appear in rendered text"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"Stage-4 diagnostics marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed Stage-4 diagnostics law: $marker")
+
+    assert(!agents.contains("## Stage-4 Proof-Deficit Downstream Boundary Guard"))
+    assert(!agents.contains("Stage-4 keeps closed:"))
+    assert(!agents.contains("Stage-4 forbidden diagnostic wording:"))
+
+  test("Stage-5 proof-deficit cross-family fixture coverage authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-5 Proof-Deficit Cross-Family Fixture Coverage",
+        "Stage-5 opens generic proof-deficit fixtures across already-open families.",
+        "Stage-5 required fixture families:",
+        "- one tactic row with missing proof sidecar",
+        "- one pawn/file row with missing same-board or route proof",
+        "- one king/check row with missing legal replay or king coordinate",
+        "- one source/opening or quiet row blocked by board-backed proof rules",
+        "- one EngineCheck Refutes row",
+        "- one Support or Context row that must not speak",
+        "Stage-5 keeps closed:",
+        "- no new positive Story",
+        "- no new family admission",
+        "- no broad tactic, plan, strategy, conversion, pressure, initiative, best,",
+        "  only, forced, winning, or decisive claim",
+        "- no public/user-facing diagnostics",
+        "Stage-5 proof authority:",
+        "- every fixture uses existing proof homes and existing Story labels only",
+        "- diagnostics must report deficits from existing proof boundaries, not define",
+        "  new chess meaning",
+        "Stage-5 forbidden diagnostic wording:",
+        "- family-specific shortcut names as public claim owners",
+        "- almost Overload",
+        "- almost Material",
+        "- probably Checkmate",
+        "- any blocked-row text that could be user-facing",
+        "Completion standard: Stage-5 Proof-Deficit Cross-Family Fixture Coverage closes when targeted runtime diagnostics tests cover the required unrelated fixture families"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"Stage-5 diagnostics law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-5 Proof-Deficit Cross-Family Fixture Coverage",
+        "Stage-5 required fixture families:",
+        "Stage-5 keeps closed:",
+        "Stage-5 proof authority:",
+        "Stage-5 forbidden diagnostic wording:",
+        "Completion standard: Stage-5 Proof-Deficit Cross-Family Fixture Coverage closes when targeted runtime diagnostics tests cover the required unrelated fixture families"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"Stage-5 diagnostics marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed Stage-5 diagnostics law: $marker")
+
+  assert(!agents.contains("## Stage-5 Proof-Deficit Cross-Family Fixture Coverage"))
+  assert(!agents.contains("Stage-5 required fixture families:"))
+  assert(!agents.contains("Stage-5 forbidden diagnostic wording:"))
+
+  test("Stage-6 proof-deficit documentation authority boundary lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-6 Proof-Deficit Documentation Authority Boundary",
+        "Stage-6 opens detailed diagnostics stage law only in `StoryInteractionLaw.md`.",
+        "Summary-only mentions may be added to README, SSOT, Architecture, Contract, or Manifest only if docs tests require them.",
+        "Stage-6 keeps closed:",
+        "- `AGENTS.md` remains unchanged unless durable operator rules change",
+        "- no new live authority document",
+        "- no legacy doc authority",
+        "- no duplicated detailed checklist outside `StoryInteractionLaw.md`",
+        "Stage-6 proof authority:",
+        "- `StoryInteractionLaw.md` owns diagnostics charter, negative corpus, downstream boundary, and closeout",
+        "- summary docs may only say diagnostics are internal blocked-proof reporting",
+        "Stage-6 forbidden documentation wording:",
+        "- diagnostics as product feature",
+        "- diagnostics as public API",
+        "- diagnostics as renderer input",
+        "- diagnostics as LLM input",
+        "- diagnostics as acceptance for incomplete proof",
+        "Completion standard: Stage-6 Proof-Deficit Documentation Authority Boundary closes when detailed diagnostics law remains only in `StoryInteractionLaw.md`"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"Stage-6 diagnostics docs law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-6 Proof-Deficit Documentation Authority Boundary",
+        "Stage-6 opens detailed diagnostics stage law only in `StoryInteractionLaw.md`.",
+        "Stage-6 keeps closed:",
+        "Stage-6 proof authority:",
+        "Stage-6 forbidden documentation wording:",
+        "Completion standard: Stage-6 Proof-Deficit Documentation Authority Boundary closes when detailed diagnostics law remains only in `StoryInteractionLaw.md`"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"Stage-6 diagnostics docs marker must have one owner: $marker")
+
+    val forbiddenSummaryPhrases =
+      Vector(
+        "diagnostics as product feature",
+        "diagnostics as public API",
+        "diagnostics as renderer input",
+        "diagnostics as LLM input",
+        "diagnostics as acceptance for incomplete proof"
+      )
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed Stage-6 diagnostics docs law: $marker")
+      forbiddenSummaryPhrases.foreach: phrase =>
+        assert(!doc.contains(phrase), s"$name must not describe proof-deficit diagnostics as opened product surface: $phrase")
+
+  assert(!agents.contains("## Stage-6 Proof-Deficit Documentation Authority Boundary"))
+  assert(!agents.contains("Stage-6 proof authority:"))
+  assert(!agents.contains("Stage-6 forbidden documentation wording:"))
+
+  test("Stage-7 proof-deficit closeout hard cleanup authority lives only in StoryInteractionLaw"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-7 Proof-Deficit Diagnostics Closeout Hard Cleanup",
+        "Stage-7 opens final closeout for internal proof-deficit diagnostics only.",
+        "Stage-7 keeps closed:",
+        "- no Story label",
+        "- no proof home for chess meaning",
+        "- no writer",
+        "- no speech key",
+        "- no ExplanationPlan claim",
+        "- no renderer text",
+        "- no LLM smoke expansion",
+        "- no public route `200`",
+        "- no production API",
+        "- no public/user-facing narration",
+        "Stage-7 closeout audit:",
+        "- one diagnostic shape only",
+        "- diagnostics are generic across opened Story families",
+        "- diagnostics never repair proof",
+        "- diagnostics never create Story",
+        "- diagnostics never change StoryTable order",
+        "- diagnostics never enter `Verdict.values`",
+        "- diagnostics never enter ExplanationPlan, renderer, LLM, or route payload",
+        "- detailed authority lives only in `StoryInteractionLaw.md`",
+        "Completion standard: Stage-7 Proof-Deficit Diagnostics Closeout Hard Cleanup closes when targeted diagnostics tests pass"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"Stage-7 diagnostics closeout law must pin: $marker")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-7 Proof-Deficit Diagnostics Closeout Hard Cleanup",
+        "Stage-7 keeps closed:",
+        "Stage-7 closeout audit:",
+        "Completion standard: Stage-7 Proof-Deficit Diagnostics Closeout Hard Cleanup closes when targeted diagnostics tests pass"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"Stage-7 diagnostics closeout marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed Stage-7 diagnostics closeout law: $marker")
+
+    assert(!agents.contains("## Stage-7 Proof-Deficit Diagnostics Closeout Hard Cleanup"))
+    assert(!agents.contains("Stage-7 closeout audit:"))
+
   test("agents and active frontend tests reject retired downstream authority"):
     assert(Files.exists(agentInstructions), "AGENTS.md must be available from the lila worktree")
     assert(

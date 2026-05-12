@@ -405,6 +405,9 @@ final case class Verdict(
 
     data.toVector
 
+  private[commentary] def proofDeficitDiagnostic: Option[ProofDeficitDiagnostic] =
+    ProofDeficitDiagnostics.fromVerdict(this)
+
 object Verdict:
   val Size = 110
   val FinalSlots = 8
