@@ -9531,7 +9531,7 @@ Stage-0 forbidden wording:
 
 - Do not say Overload wins material.
 - Do not say Overload forces a result.
-- Do not say the defender cannot satisfy both as public Overload text.
+- Do not use reply-impossibility wording as public Overload text.
 - Do not say the queen/piece becomes loose, hanging, removed, won, trapped, or undefended from Overload.
 - Do not say best move, only move, winning, decisive, forced, no counterplay, or engine-approved.
 
@@ -20508,6 +20508,728 @@ Stage-7 closeout audit:
 - detailed authority lives only in `StoryInteractionLaw.md`
 
 Completion standard: Stage-7 Proof-Deficit Diagnostics Closeout Hard Cleanup closes when targeted diagnostics tests pass, `ChessFoundationTest` passes, docs authority tests pass, `git diff --check` passes, no new Story label, proof home, writer, speech key, ExplanationPlan claim, renderer text, LLM smoke expansion, public route `200`, production API, or public/user-facing narration is introduced, one generic diagnostic shape remains the only diagnostics shape, diagnostics stay generic across opened Story families, diagnostics do not repair proof, create Story, change StoryTable order, enter `Verdict.values`, or enter ExplanationPlan, renderer, LLM, or route payload, and detailed authority remains only in `StoryInteractionLaw.md`.
+
+## Stage-0 Public Meaning Ownership Index Charter
+
+Stage-0 opens audit-only ownership index scope.
+
+The ownership index audits only existing public meaning ownership.
+It is not a proof home, Story writer, StoryTable input, Verdict input,
+ExplanationPlan input, renderer input, LLM input, route payload, or runtime
+surface.
+
+Detailed ownership law lives in `StoryInteractionLaw.md` only. README, SSOT,
+Architecture, Contract, Manifest, and AGENTS.md remain summary-only or
+unchanged unless a docs authority test explicitly requires a summary.
+
+Stage-0 ownership index rules:
+
+The ownership index must not create, rank, prove, select, or repair Stories.
+
+- named writers remain the only positive Story admission path
+- EngineCheck supports, caps, or refutes only existing Stories
+- StoryTable orders only
+- Verdict decides
+- ExplanationPlan bounds speech
+- renderer phrases
+- LLM only polishes
+- verifier rejects overclaim
+- appearing in this inventory grants no public status by itself
+- existing proof homes remain the only owners of their proof meaning
+- existing Story labels remain the only owners of their Story identity
+- existing writers remain the only positive construction owners
+- existing speech keys remain the only allowed public-claim wording keys
+
+Read-only inventory of current opened proof-backed Story meanings:
+
+| index | Story label | proof path owner(s) | writer | speech key(s) | audit note |
+|---|---|---|---|---|---|
+| `PMO-01` | `Tactic.Hanging` | `CaptureResult + StoryProof` | `TacticHanging` | `can_win_piece`, `piece_can_be_taken_with_gain`, `capture_leaves_material_gain` | capture-shaped hanging claim only |
+| `PMO-02` | `Tactic.Fork` | `MultiTargetProof` | `TacticFork` | `forks_two_targets`, `attacks_two_targets` | two-target tactic only |
+| `PMO-03` | `Scene.Material` | `CaptureResult` | `SceneMaterial` | `material_balance_changes`, `line_leaves_material_gain`, `exchange_leaves_side_ahead` | bounded material-balance claim only |
+| `PMO-04` | `Scene.Defense` | `ThreatProof + DefenseProof` | `SceneDefense` | `defends_piece`, `prevents_material_loss`, `protects_target` | bounded material-defense claim only |
+| `PMO-05` | `Tactic.DiscoveredAttack` | `LineProof` | `TacticDiscoveredAttack` | `reveals_attack_on_piece` | revealed line attack only |
+| `PMO-06` | `Tactic.Pin` | `PinProof` | `TacticPin` | `pins_piece` | pinned-to-king relation only |
+| `PMO-07` | `Tactic.RemoveGuard` | `RemoveGuardProof` | `TacticRemoveGuard` | `removes_defender` | one removed defender from one target only |
+| `PMO-08` | `Tactic.Overload` | `OverloadProof` | `TacticOverload` | `overloads_defender` | bounded overload Story only |
+| `PMO-09` | `Tactic.Skewer` | `SkewerProof` | `TacticSkewer` | `skewers_piece_to_piece` | one front and one rear target only |
+| `PMO-10` | `Tactic.QueenHit` | `QueenHitProof` | `TacticQueenHit` | `attacks_queen` | queen attack claim only |
+| `PMO-11` | `Tactic.Loose` | `LoosePieceProof` | `TacticLoose` | `attacks_loose_piece` | undefended-piece attack claim only |
+| `PMO-12` | `Scene.PawnAdvance` | `PawnAdvanceProof` | `ScenePawnAdvance` | `advances_passed_pawn` | bounded passed-pawn advance only |
+| `PMO-13` | `Scene.PawnStop` | `PawnStopProof` | `ScenePawnStop` | `stops_pawn_advance` | immediate passed-pawn next-square stop only |
+| `PMO-14` | `Scene.PawnBreak` | `PawnBreakProof` | `ScenePawnBreak` | `challenges_pawn` | direct rival-pawn lever only |
+| `PMO-15` | `Scene.PawnBlock` | `PawnBlockProof` | `ScenePawnBlock` | `blocks_pawn` | exact rival pawn next-square block only |
+| `PMO-16` | `Scene.PromotionThreat` | `PromotionThreatProof` | `ScenePromotionThreat` | `threatens_promotion_next` | immediate next-move promotion threat only |
+| `PMO-17` | `Scene.Promotion` | `PromotionProof` | `ScenePromotion` | `promotes_pawn` | actual non-capturing promotion only |
+| `PMO-18` | `Scene.PawnCapture` | `PawnCaptureProof` | `ScenePawnCapture` | `captures_rival_pawn` | ordinary diagonal pawn capture only |
+| `PMO-19` | `Scene.PassedPawnCreated` | `PassedPawnCreatedProof` | `ScenePassedPawnCreated` | `creates_passed_pawn` | newly-created passer event only |
+| `PMO-20` | `Scene.FileOpened` | `FileOpenedProof` | `SceneFileOpened` | `opens_file` | origin file becomes pawn-free only |
+| `PMO-21` | `Scene.CheckGiven` | `CheckGivenProof` | `SceneCheckGiven` | `gives_check` | legal checking move only |
+| `PMO-22` | `Scene.CheckEscaped` | `CheckEscapedProof` | `SceneCheckEscaped` | `escapes_check` | legal escape from check only |
+| `PMO-23` | `Scene.Checkmate` | `CheckmateProof` | `SceneCheckmate` | `checkmates` | exact checkmate event only |
+| `PMO-24` | `Scene.Stalemate` | `StalemateProof` | `SceneStalemate` | `stalemates` | exact stalemate event only |
+
+Stage-0 ownership index keeps closed:
+
+- no new chess meaning
+- no new proof home
+- no new Story label
+- no new writer
+- no new speech key
+- no new ExplanationPlan claim
+- no renderer text
+- no LLM smoke expansion except forbidden-boundary checks if a leak is found
+- no runtime public registry
+- no auto-admission mechanism
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Completion standard: Stage-0 Public Meaning Ownership Index closes when the
+read-only inventory of existing proof-backed public Story meanings has one
+Story label owner per public meaning, one writer owner per positive
+construction path, unique speech keys for allowed public claims, no runtime
+public registry or auto-admission path, no new chess meaning, proof home, Story
+label, writer, speech key, ExplanationPlan claim, renderer text, LLM smoke
+expansion, public route `200`, production API, or public/user-facing narration,
+detailed ownership law remains only in `StoryInteractionLaw.md`, docs/runtime
+ownership tests pass, docs authority tests pass, and `git diff --check` passes.
+
+## Stage-1 Current Public Meaning Inventory
+
+Stage-1 opens read-only inventory of every currently opened public Story meaning.
+
+The Stage-1 inventory extracts only already-opened meanings. It does not add a
+runtime table, writer, proof home, claim key, renderer template, LLM path,
+public route, production API, or public meaning.
+
+Stage-1 inventory extraction rules:
+
+- inventory output is consolidated only into `StoryInteractionLaw.md`
+- closed enum tombstones are not opened meanings
+- internal proof ingredients are not public meanings
+- Board Facts, raw EngineCheck, diagnostics, renderer text, and LLM text are
+  not claim owners
+- if public meaning, proof home, Story label, named writer, speech key, first
+  wording boundary, duplicate neighbors, or closed stronger wording is missing,
+  the row is marked `incomplete-audit`, not opened
+- `complete-audit` means only that the inventory row found the existing opened
+  components; it does not grant public status
+
+Stage-1 current public meaning inventory:
+
+| index | public meaning | proof home | Story label | named writer | speech key | current first public wording boundary | known duplicate neighbors | closed stronger wording | audit state |
+|---|---|---|---|---|---|---|---|---|---|
+| `PMI-01` | `Tactic.Hanging` | `CaptureResult + StoryProof` | `Tactic.Hanging` | `TacticHanging` | `can_win_piece`, `piece_can_be_taken_with_gain`, `capture_leaves_material_gain` | `{SAN} wins material against the piece on {target}.` | `Scene.Material`, `CaptureResult`, `Tactic.Loose`, queen/material target rows | free piece, blunder, winning, decisive, forced, best move, no counterplay | complete-audit |
+| `PMI-02` | `Tactic.Fork` | `MultiTargetProof` | `Tactic.Fork` | `TacticFork` | `forks_two_targets`, `attacks_two_targets` | `{SAN} forks the pieces on {target} and {secondaryTarget}.` | `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, target tactics, material rows | wins material by fork, wins queen, decisive fork, forced win, best move, no counterplay | complete-audit |
+| `PMI-03` | `Scene.Material` | `CaptureResult` | `Scene.Material` | `SceneMaterial` | `material_balance_changes`, `line_leaves_material_gain`, `exchange_leaves_side_ahead` | `After {SAN}, {side} comes out ahead in material.` | `Tactic.Hanging`, `CaptureResult`, `Scene.Defense`, line tactics | winning position, decisive advantage, conversion, blunder, forced win, no counterplay | complete-audit |
+| `PMI-04` | `Scene.Defense` | `ThreatProof + DefenseProof` | `Scene.Defense` | `SceneDefense` | `defends_piece`, `prevents_material_loss`, `protects_target` | `{SAN} defends the piece on {target}.` | `Scene.Material`, `Tactic.Hanging`, `Tactic.RemoveGuard`, `Tactic.Pin`, threat rows | only move, best defense, refutes attack, king safe, mate defense, no counterplay | complete-audit |
+| `PMI-05` | `Tactic.DiscoveredAttack` | `LineProof + StoryProof` | `Tactic.DiscoveredAttack` | `TacticDiscoveredAttack` | `reveals_attack_on_piece` | `{SAN} reveals an attack on the piece on {target}.` | `Tactic.Pin`, `Tactic.Skewer`, XRay/Ray/LineTactic terms, `Tactic.RemoveGuard`, `Scene.Material`, `Tactic.Hanging` | wins material, pins, skewers, pressure, initiative, mate threat, best move, forced, decisive, winning | complete-audit |
+| `PMI-06` | `Tactic.Pin` | `PinProof + StoryProof` | `Tactic.Pin` | `TacticPin` | `pins_piece` | `{SAN} pins the piece on {target}.` | `Tactic.DiscoveredAttack`, `Tactic.Skewer`, `Tactic.RemoveGuard`, `Scene.Defense`, `Scene.Material`, broad AbsPin/RelPin | cannot move, king unsafe, mate threat, wins material, pressure, initiative, best move, only move, forced | complete-audit |
+| `PMI-07` | `Tactic.RemoveGuard` | `RemoveGuardProof + StoryProof` | `Tactic.RemoveGuard` | `TacticRemoveGuard` | `removes_defender` | `{SAN} removes the defender of the piece on {target}.` | `Scene.Defense`, `Tactic.Pin`, `Tactic.DiscoveredAttack`, `Tactic.Skewer`, `Scene.Material`, `Tactic.Hanging`, `Tactic.Overload` | wins material, target is hanging, no defense, refutes defense, pressure, initiative, best move, only move, forced | complete-audit |
+| `PMI-08` | `Tactic.Overload` | `OverloadProof` | `Tactic.Overload` | `TacticOverload` | `overloads_defender` | `This move overloads the defender.` | DefenderDuty/DualDefenderDuty/OverloadTest/CannotSatisfyBoth internal ingredients, `Tactic.RemoveGuard`, `Scene.Defense`, `Scene.Material`, `Tactic.Hanging`, `Tactic.Loose` | wins material, wins target, defender must choose, cannot save both, only defender, deflects, decoys, removes defender, best move, forced | complete-audit |
+| `PMI-09` | `Tactic.Skewer` | `SkewerProof + StoryProof` | `Tactic.Skewer` | `TacticSkewer` | `skewers_piece_to_piece` | `{SAN} skewers the piece on {target} to the piece on {secondaryTarget}.` | `Tactic.DiscoveredAttack`, `Tactic.Pin`, `Tactic.RemoveGuard`, broad XRay/Ray/LineTactic terms, `Scene.Material`, `Tactic.Hanging` | wins rear piece, front piece must move, wins material, forced line, king safety, mate threat, best move, decisive | complete-audit |
+| `PMI-10` | `Tactic.QueenHit` | `QueenHitProof` | `Tactic.QueenHit` | `TacticQueenHit` | `attacks_queen` | `{SAN} attacks the queen on {target}.` | `Tactic.Loose`, `Tactic.Hanging`, `Scene.Material`, `Tactic.Fork`, `Tactic.Skewer`, `Tactic.Pin`, `Tactic.RemoveGuard` | wins queen, traps queen, queen lost, tempo, material gain, pressure, initiative, best move, forced, decisive | complete-audit |
+| `PMI-11` | `Tactic.Loose` | `LoosePieceProof` | `Tactic.Loose` | `TacticLoose` | `attacks_loose_piece` | `{SAN} attacks the undefended piece on {target}.` | `Tactic.QueenHit`, `Tactic.Hanging`, `Scene.Material`, `Tactic.Fork`, `Tactic.Skewer`, `Tactic.Pin`, `Tactic.RemoveGuard` | hanging piece, free piece, en prise, underdefended, wins piece, wins material, pressure, initiative, tempo, forced | complete-audit |
+| `PMI-12` | `Scene.PawnAdvance` | `PawnAdvanceProof` | `Scene.PawnAdvance` | `ScenePawnAdvance` | `advances_passed_pawn` | `{SAN} advances the passed pawn.` | `Scene.PromotionThreat`, `Scene.Promotion`, `Scene.PawnStop`, `Scene.PawnBreak`, `Scene.PawnCapture`, `Scene.PassedPawnCreated`, `Scene.FileOpened` | promotion threat, unstoppable pawn, clear path, pawn race, conversion, winning endgame | complete-audit |
+| `PMI-13` | `Scene.PawnStop` | `PawnStopProof` | `Scene.PawnStop` | `ScenePawnStop` | `stops_pawn_advance` | `{SAN} stops the passed pawn from advancing next.` | `Scene.PawnAdvance`, `Scene.PawnBlock`, `Scene.PawnBreak`, `Scene.PawnCapture`, `Scene.PromotionThreat` | stops promotion, permanently stops pawn, draws endgame, best defense, tablebase draw | complete-audit |
+| `PMI-14` | `Scene.PawnBreak` | `PawnBreakProof` | `Scene.PawnBreak` | `ScenePawnBreak` | `challenges_pawn` | `{SAN} challenges the pawn on {target}.` | `Scene.PawnCapture`, `Scene.PassedPawnCreated`, `Scene.FileOpened`, `Scene.PawnBlock`, `Scene.Material` | opens position, breakthrough, creates passer, weakens structure, wins material, pressure, initiative | complete-audit |
+| `PMI-15` | `Scene.PawnBlock` | `PawnBlockProof` | `Scene.PawnBlock` | `ScenePawnBlock` | `blocks_pawn` | `{SAN} blocks the pawn from advancing.` | `Scene.PawnStop`, `Scene.PawnBreak`, `Scene.PawnCapture`, `Scene.PassedPawnCreated`, `Scene.FileOpened` | fixes pawn, blockade, restricts opponent, wins material, best move, only move, forced | complete-audit |
+| `PMI-16` | `Scene.PromotionThreat` | `PromotionThreatProof` | `Scene.PromotionThreat` | `ScenePromotionThreat` | `threatens_promotion_next` | `{SAN} threatens to promote next.` | `Scene.Promotion`, `Scene.PawnAdvance`, `Scene.PawnStop`, `Scene.PassedPawnCreated` | unstoppable pawn, will promote, tablebase win, no counterplay, forced win | complete-audit |
+| `PMI-17` | `Scene.Promotion` | `PromotionProof` | `Scene.Promotion` | `ScenePromotion` | `promotes_pawn` | `{SAN} promotes the pawn.` | `Scene.PromotionThreat`, `Scene.PawnAdvance`, `Scene.PawnCapture`, `Scene.FileOpened`, `Scene.Material` | wins endgame, converts advantage, forced win, material gain, decisive | complete-audit |
+| `PMI-18` | `Scene.PawnCapture` | `PawnCaptureProof` | `Scene.PawnCapture` | `ScenePawnCapture` | `captures_rival_pawn` | `{SAN} captures the pawn on {target}.` | `Scene.PawnBreak`, `Scene.PassedPawnCreated`, `Scene.FileOpened`, `Scene.Material` | wins pawn, wins material, creates passer, opens file, weakens structure, breakthrough | complete-audit |
+| `PMI-19` | `Scene.PassedPawnCreated` | `PassedPawnCreatedProof` | `Scene.PassedPawnCreated` | `ScenePassedPawnCreated` | `creates_passed_pawn` | `{SAN} creates a passed pawn on {target}.` | `Scene.PawnAdvance`, `Scene.PawnCapture`, `Scene.PawnBreak`, `Scene.FileOpened`, `Scene.PromotionThreat` | unstoppable pawn, promotion threat, actual promotion, breakthrough, conversion | complete-audit |
+| `PMI-20` | `Scene.FileOpened` | `FileOpenedProof` | `Scene.FileOpened` | `SceneFileOpened` | `opens_file` | `{SAN} opens the {file}-file.` | `Scene.PawnBreak`, `Scene.PawnCapture`, `Scene.PassedPawnCreated`, `Scene.Material` | file control, rook activity, pressure, weakness, wins pawn, wins material | complete-audit |
+| `PMI-21` | `Scene.CheckGiven` | `CheckGivenProof` | `Scene.CheckGiven` | `SceneCheckGiven` | `gives_check` | `{SAN} gives check.` | `Scene.Checkmate`, `Scene.CheckEscaped`, `Scene.Stalemate` | mate threat, checkmate, king safety, king unsafe, attack, pressure, best move, only move, forced, winning | complete-audit |
+| `PMI-22` | `Scene.CheckEscaped` | `CheckEscapedProof` | `Scene.CheckEscaped` | `SceneCheckEscaped` | `escapes_check` | `{SAN} gets out of check.` | `Scene.CheckGiven`, `Scene.Checkmate`, `Scene.Stalemate`, defense/safety wording | escape method claims, avoids mate, safe king, refutes attack, engine says, best move, only move, forced | complete-audit |
+| `PMI-23` | `Scene.Checkmate` | `CheckmateProof` | `Scene.Checkmate` | `SceneCheckmate` | `checkmates` | `{SAN} is checkmate.` | `Scene.CheckGiven`, `Scene.CheckEscaped`, `Scene.Stalemate` | mate-in-N, forced mate, best move, only move, winning, decisive, no counterplay, engine says mate | complete-audit |
+| `PMI-24` | `Scene.Stalemate` | `StalemateProof` | `Scene.Stalemate` | `SceneStalemate` | `stalemates` | `{SAN} is stalemate.` | `Scene.Checkmate`, `Scene.CheckGiven`, `Scene.CheckEscaped` | draw claim beyond stalemate, saves game, throws win, blunder, tablebase, best move, forced, winning, losing | complete-audit |
+
+Stage-1 inventory keeps closed:
+
+- no implementation changes
+- no table-driven runtime path
+- no new public meaning
+- no new proof home
+- no new Story label
+- no new writer
+- no new speech key
+- no new ExplanationPlan claim
+- no renderer text
+- no LLM smoke expansion
+- no docs duplication outside `StoryInteractionLaw.md`
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Completion standard: Stage-1 Current Public Meaning Inventory closes when the
+inventory lists every currently opened public Story meaning with public meaning,
+proof home, Story label, named writer, speech key, current first public wording
+boundary, known duplicate neighbors, closed stronger wording, and audit state;
+closed enum tombstones, internal proof ingredients, Board Facts, raw
+EngineCheck, diagnostics, renderer text, and LLM text are not treated as claim
+owners; missing components are marked `incomplete-audit`; detailed inventory
+authority appears only in `StoryInteractionLaw.md`; docs authority tests pass;
+and `git diff --check` passes.
+
+## Stage-2 Ownership Index Shape
+
+Stage-2 opens one generic ownership index table in `StoryInteractionLaw.md`.
+
+The ownership index table is an audit artifact, not runtime authority. It does
+not create, rank, prove, select, repair, admit, render, narrate, expose, or
+publish Stories. It is not parsed by runtime, generated into code, exposed by
+API, or used as a production surface.
+
+Stage-2 ownership index rules:
+
+- every public row has exactly these columns: public meaning, proof home, Story
+  label, writer, speech key, allowed claim boundary, duplicate-neighbor no-go
+- a public row is valid only when proof home, Story label, writer, and speech
+  key are named and unique
+- internal-only ingredients are listed separately under non-public ingredients
+- BoardFacts, EngineCheck, diagnostics, renderer, and LLM are not proof homes,
+  writers, or speech owners
+- named writers remain the only positive Story admission path
+- StoryTable orders only; Verdict decides; ExplanationPlan bounds speech;
+  renderer phrases; LLM only polishes; Verifier rejects overclaim
+
+Stage-2 generic ownership index table:
+
+| public meaning | proof home | Story label | writer | speech key | allowed claim boundary | duplicate-neighbor no-go |
+|---|---|---|---|---|---|---|
+| `Tactic.Hanging` | `CaptureResult/Tactic.Hanging` | `Tactic.Hanging` | `TacticHanging` | `can_win_piece` | capture-shaped material gain only | `Scene.Material`, `CaptureResult`, `Tactic.Loose`, queen/material target rows |
+| `Tactic.Fork` | `MultiTargetProof/Tactic.Fork` | `Tactic.Fork` | `TacticFork` | `forks_two_targets` | two attacked targets only | `Tactic.PawnFork`, `Tactic.Skewer`, `Tactic.QueenHit`, target tactics, material rows |
+| `Scene.Material` | `CaptureResult/Scene.Material` | `Scene.Material` | `SceneMaterial` | `material_balance_changes` | material balance change only | `Tactic.Hanging`, `CaptureResult`, `Scene.Defense`, line tactics |
+| `Scene.Defense` | `DefenseProof/Scene.Defense` | `Scene.Defense` | `SceneDefense` | `defends_piece` | bounded material-loss defense only | `Scene.Material`, `Tactic.Hanging`, `Tactic.RemoveGuard`, `Tactic.Pin`, threat rows |
+| `Tactic.DiscoveredAttack` | `LineProof/Tactic.DiscoveredAttack` | `Tactic.DiscoveredAttack` | `TacticDiscoveredAttack` | `reveals_attack_on_piece` | revealed line attack only | `Tactic.Pin`, `Tactic.Skewer`, XRay/Ray/LineTactic terms, `Tactic.RemoveGuard`, material rows |
+| `Tactic.Pin` | `PinProof/Tactic.Pin` | `Tactic.Pin` | `TacticPin` | `pins_piece` | pinned-to-king relation only | `Tactic.DiscoveredAttack`, `Tactic.Skewer`, `Tactic.RemoveGuard`, `Scene.Defense`, broad AbsPin/RelPin |
+| `Tactic.RemoveGuard` | `RemoveGuardProof/Tactic.RemoveGuard` | `Tactic.RemoveGuard` | `TacticRemoveGuard` | `removes_defender` | one removed defender from one target only | `Scene.Defense`, `Tactic.Pin`, `Tactic.DiscoveredAttack`, `Tactic.Skewer`, `Tactic.Overload` |
+| `Tactic.Overload` | `OverloadProof/Tactic.Overload` | `Tactic.Overload` | `TacticOverload` | `overloads_defender` | bounded overload Story only | defender-duty ingredients, `Tactic.RemoveGuard`, `Scene.Defense`, material and loose-piece rows |
+| `Tactic.Skewer` | `SkewerProof/Tactic.Skewer` | `Tactic.Skewer` | `TacticSkewer` | `skewers_piece_to_piece` | one front and one rear target only | `Tactic.DiscoveredAttack`, `Tactic.Pin`, `Tactic.RemoveGuard`, XRay/Ray/LineTactic terms |
+| `Tactic.QueenHit` | `QueenHitProof/Tactic.QueenHit` | `Tactic.QueenHit` | `TacticQueenHit` | `attacks_queen` | queen attack claim only | `Tactic.Loose`, `Tactic.Hanging`, `Scene.Material`, `Tactic.Fork`, line tactics |
+| `Tactic.Loose` | `LoosePieceProof/Tactic.Loose` | `Tactic.Loose` | `TacticLoose` | `attacks_loose_piece` | undefended-piece attack claim only | `Tactic.QueenHit`, `Tactic.Hanging`, `Scene.Material`, `Tactic.Fork`, line tactics |
+| `Scene.PawnAdvance` | `PawnAdvanceProof/Scene.PawnAdvance` | `Scene.PawnAdvance` | `ScenePawnAdvance` | `advances_passed_pawn` | bounded passed-pawn advance only | `Scene.PromotionThreat`, `Scene.Promotion`, `Scene.PawnStop`, pawn-contact rows |
+| `Scene.PawnStop` | `PawnStopProof/Scene.PawnStop` | `Scene.PawnStop` | `ScenePawnStop` | `stops_pawn_advance` | immediate passed-pawn next-square stop only | `Scene.PawnAdvance`, `Scene.PawnBlock`, `Scene.PawnBreak`, `Scene.PawnCapture` |
+| `Scene.PawnBreak` | `PawnBreakProof/Scene.PawnBreak` | `Scene.PawnBreak` | `ScenePawnBreak` | `challenges_pawn` | direct rival-pawn lever only | `Scene.PawnCapture`, `Scene.PassedPawnCreated`, `Scene.FileOpened`, `Scene.PawnBlock`, material rows |
+| `Scene.PawnBlock` | `PawnBlockProof/Scene.PawnBlock` | `Scene.PawnBlock` | `ScenePawnBlock` | `blocks_pawn` | exact rival pawn next-square block only | `Scene.PawnStop`, `Scene.PawnBreak`, `Scene.PawnCapture`, `Scene.PassedPawnCreated`, `Scene.FileOpened` |
+| `Scene.PromotionThreat` | `PromotionThreatProof/Scene.PromotionThreat` | `Scene.PromotionThreat` | `ScenePromotionThreat` | `threatens_promotion_next` | immediate next-move promotion threat only | `Scene.Promotion`, `Scene.PawnAdvance`, `Scene.PawnStop`, `Scene.PassedPawnCreated` |
+| `Scene.Promotion` | `PromotionProof/Scene.Promotion` | `Scene.Promotion` | `ScenePromotion` | `promotes_pawn` | actual non-capturing promotion only | `Scene.PromotionThreat`, `Scene.PawnAdvance`, `Scene.PawnCapture`, `Scene.FileOpened`, material rows |
+| `Scene.PawnCapture` | `PawnCaptureProof/Scene.PawnCapture` | `Scene.PawnCapture` | `ScenePawnCapture` | `captures_rival_pawn` | ordinary diagonal pawn capture only | `Scene.PawnBreak`, `Scene.PassedPawnCreated`, `Scene.FileOpened`, material rows |
+| `Scene.PassedPawnCreated` | `PassedPawnCreatedProof/Scene.PassedPawnCreated` | `Scene.PassedPawnCreated` | `ScenePassedPawnCreated` | `creates_passed_pawn` | newly-created passer event only | `Scene.PawnAdvance`, `Scene.PawnCapture`, `Scene.PawnBreak`, `Scene.FileOpened`, `Scene.PromotionThreat` |
+| `Scene.FileOpened` | `FileOpenedProof/Scene.FileOpened` | `Scene.FileOpened` | `SceneFileOpened` | `opens_file` | origin file becomes pawn-free only | `Scene.PawnBreak`, `Scene.PawnCapture`, `Scene.PassedPawnCreated`, material rows |
+| `Scene.CheckGiven` | `CheckGivenProof/Scene.CheckGiven` | `Scene.CheckGiven` | `SceneCheckGiven` | `gives_check` | legal checking move only | `Scene.Checkmate`, `Scene.CheckEscaped`, `Scene.Stalemate` |
+| `Scene.CheckEscaped` | `CheckEscapedProof/Scene.CheckEscaped` | `Scene.CheckEscaped` | `SceneCheckEscaped` | `escapes_check` | legal escape from check only | `Scene.CheckGiven`, `Scene.Checkmate`, `Scene.Stalemate`, defense/safety wording |
+| `Scene.Checkmate` | `CheckmateProof/Scene.Checkmate` | `Scene.Checkmate` | `SceneCheckmate` | `checkmates` | exact checkmate event only | `Scene.CheckGiven`, `Scene.CheckEscaped`, `Scene.Stalemate` |
+| `Scene.Stalemate` | `StalemateProof/Scene.Stalemate` | `Scene.Stalemate` | `SceneStalemate` | `stalemates` | exact stalemate event only | `Scene.Checkmate`, `Scene.CheckGiven`, `Scene.CheckEscaped` |
+
+Stage-2 non-public ingredients:
+
+| ingredient | reason it is non-public |
+|---|---|
+| `BoardFacts` | observes board facts only; it does not own public meaning |
+| `EngineCheck` | supports, caps, or refutes existing Stories only |
+| proof-deficit diagnostics | internal validation, test, and debugging output only |
+| `DeterministicRenderer` | phrases selected `ExplanationPlan` output only |
+| LLM smoke | rephrases bounded rendered text only |
+| `DefenderDuty`, `DualDefenderDuty`, `OverloadTest`, `CannotSatisfyBoth` | internal proof-readiness ingredients only |
+
+Stage-2 ownership index keeps closed:
+
+- no runtime parser for the table
+- no generated code
+- no public API exposure
+- no production surface
+- no runtime public registry
+- no auto-admission mechanism
+- no public route `200`
+- no renderer text
+- no LLM smoke expansion
+- no public/user-facing LLM narration
+- no new public meaning
+- no new proof home
+- no new Story label
+- no new writer
+- no new speech key
+- no new ExplanationPlan claim
+
+Completion standard: Stage-2 Ownership Index Shape closes when the generic
+ownership index table appears only in `StoryInteractionLaw.md`, every public
+row has exactly the required columns, proof home, Story label, writer, and
+speech key are named and unique for every valid public row, internal-only
+ingredients are listed only under non-public ingredients, BoardFacts,
+EngineCheck, diagnostics, renderer, and LLM are not used as proof homes,
+writers, or speech owners, no runtime parser, generated code, API exposure,
+production surface, public route `200`, runtime public registry,
+auto-admission mechanism, renderer text, LLM smoke expansion,
+public/user-facing LLM narration, new public meaning, new proof home, new Story
+label, new writer, new speech key, or new ExplanationPlan claim is added, docs
+authority tests pass, and `git diff --check` passes.
+
+## Stage-3 One Meaning / One Owner Guard
+
+Stage-3 opens docs and runtime tests that enforce uniqueness across the current opened surface.
+
+The Stage-3 guard audits the current opened public Story meanings only. It does
+not add a runtime ownership registry, auto-discovery admission path,
+StoryTable creation path, generated code, public API exposure, public route
+`200`, renderer text, or public/user-facing LLM narration.
+
+Stage-3 guard rules:
+
+- each current opened public meaning has one proof home
+- each current opened public meaning has one Story label
+- each current opened public meaning has one named writer
+- each current opened public meaning has one speech key
+- no speech key is shared by two different public meanings
+- no writer produces two unrelated public meanings
+- no proof home is used as a public Story label
+- no internal proof ingredient appears as a public speech key
+- guard tests enforce the current opened surface without creating a runtime
+  ownership registry or Story creation path
+
+Stage-3 alias and consequence no-go:
+
+- second public names for an existing meaning stay closed
+- near-duplicate public names stay closed
+- cause Stories do not own consequence speech
+- consequence speech requires its own admitted Story meaning, proof home,
+  Story label, writer, and speech key
+- broad family, tombstone enum, source-row, diagnostic, renderer, and LLM names
+  cannot stand in for an opened public meaning
+
+Stage-3 ownership guard keeps closed:
+
+- no new runtime ownership registry
+- no auto-discovery admission path
+- no StoryTable creation path
+- no runtime parser for the table
+- no generated code
+- no public API exposure
+- no production surface
+- no public route `200`
+- no renderer text
+- no LLM smoke expansion
+- no public/user-facing LLM narration
+- no new public meaning
+- no new proof home
+- no new Story label
+- no new writer
+- no new speech key
+- no new ExplanationPlan claim
+
+Completion standard: Stage-3 One Meaning / One Owner Guard closes when docs
+authority tests parse the current ownership table and assert one proof home,
+one Story label, one named writer, and one speech key per public meaning; no
+speech key is shared across public meanings; no writer produces two unrelated
+public meanings; no proof home is used as a public Story label; no internal
+proof ingredient appears as a public speech key; runtime tests enforce the same
+current opened-surface uniqueness without adding a runtime ownership registry,
+auto-discovery admission path, StoryTable creation path, runtime table parser,
+generated code, public API exposure, production surface, public route `200`,
+renderer text, LLM smoke expansion, public/user-facing LLM narration, new
+public meaning, new proof home, new Story label, new writer, new speech key, or
+new ExplanationPlan claim; focused runtime guard tests pass; `ChessFoundation`
+focused tests pass; docs authority tests pass; and `git diff --check` passes.
+
+## Stage-4 Duplicate Neighbor Matrix
+
+Stage-4 opens a duplicate-neighbor matrix in `StoryInteractionLaw.md`.
+
+The Stage-4 matrix orders ownership only. It does not create a positive slice,
+broaden a family, change downstream wording, create runtime ownership data,
+open admission, repair Stories, route public text, or add a public API.
+
+Stage-4 matrix rules:
+
+- when two meanings collide on one board, each remains in its existing proof home
+- cause Stories cannot borrow result or consequence speech from another owner
+- EngineCheck remains status evidence only
+- Support, Context, Blocked, capped, and refuted rows do not produce
+  standalone public text
+- new runtime collision tests are added only for gaps not already covered by
+  current focused runtime tests
+
+Stage-4 duplicate-neighbor matrix:
+
+| neighborhood | collision surface | owner order | duplicate-neighbor no-go | closed stronger wording |
+|---|---|---|---|---|
+| Material / Hanging / Loose | `Scene.Material`, `Tactic.Hanging`, and `Tactic.Loose` can all look like piece-gain or target-attack claims on one board | each row stays in its existing proof home: `CaptureResult/Scene.Material`, `CaptureResult/Tactic.Hanging`, `LoosePieceProof/Tactic.Loose` | a target attack cannot inherit capture-result speech, and a material result cannot inherit loose-piece speech | free piece, blunder, winning, decisive, forced, best move, no counterplay |
+| QueenHit / Loose / Hanging / Material | `Tactic.QueenHit`, `Tactic.Loose`, `Tactic.Hanging`, and `Scene.Material` may share a queen or material target | each row stays in its existing proof home: `QueenHitProof`, `LoosePieceProof`, `CaptureResult/Tactic.Hanging`, `CaptureResult/Scene.Material` | QueenHit cannot own loose-piece, hanging-piece, or material-result speech; those claims stay with their named owners | wins queen, queen lost, trapped queen, tempo, material gain, pressure, initiative |
+| RemoveGuard / Defense / Pin / DiscoveredAttack | `Tactic.RemoveGuard`, `Scene.Defense`, `Tactic.Pin`, and `Tactic.DiscoveredAttack` can overlap around one target | each row stays in its existing proof home: `RemoveGuardProof`, `DefenseProof`, `PinProof`, `LineProof` | RemoveGuard owns only removed-defender speech; Defense, Pin, and DiscoveredAttack keep their own proof-backed wording | no defense, refutes defense, cannot move, pressure, initiative, mate threat |
+| Overload / RemoveGuard / CannotSatisfyBoth / Material / Loose / EngineCheck | `Tactic.Overload`, `Tactic.RemoveGuard`, `Scene.Material`, `Tactic.Loose`, non-public `CannotSatisfyBoth`, and `EngineCheck` can co-occur | each public row stays in its existing proof home; `CannotSatisfyBoth` stays non-public; `EngineCheck` is status evidence only | Overload cannot own material-result, loose-piece, removed-defender, or reply-impossibility speech | wins material, wins target, defender must choose, cannot save both, deflects, decoys, best move, forced |
+| PawnAdvance / PawnStop / PromotionThreat / Promotion / PawnBlock / FileOpened | `Scene.PawnAdvance`, `Scene.PawnStop`, `Scene.PromotionThreat`, `Scene.Promotion`, `Scene.PawnBlock`, and `Scene.FileOpened` can share one pawn move | each row stays in its existing proof home: `PawnAdvanceProof`, `PawnStopProof`, `PromotionThreatProof`, `PromotionProof`, `PawnBlockProof`, `FileOpenedProof` | actual Promotion does not own next-move threat speech; FileOpened does not own pressure, invasion, or strategy speech | unstoppable pawn, clear path, pawn race, conversion, file control, rook activity, weakness |
+| CheckGiven / Checkmate / CheckEscaped | `Scene.CheckGiven`, `Scene.Checkmate`, and `Scene.CheckEscaped` share king-check vocabulary | each row stays in its existing proof home: `CheckGivenProof`, `CheckmateProof`, `CheckEscapedProof` | CheckGiven owns only legal checking-move speech; mate and escape/no-escape speech stay with their named owners | mate threat, checkmate from non-mate check, no escape, king unsafe, attack, best move, forced |
+| EngineCheck / all public Stories | EngineCheck supports, caps, or refutes every existing public Story | EngineCheck is status evidence only; public meaning remains in the existing proof home and writer | EngineCheck cannot create a Story, select a Story, own public meaning, or produce standalone public text | best move, only move, forced line, winning, decisive, no counterplay, raw eval, raw PV |
+
+Stage-4 duplicate-neighbor matrix keeps closed:
+
+- no new positive slice
+- no family broadening
+- no downstream wording changes unless a verifier leak is found
+- no new runtime ownership registry
+- no auto-discovery admission path
+- no StoryTable creation path
+- no runtime parser for the matrix
+- no generated code
+- no public API exposure
+- no production surface
+- no public route `200`
+- no renderer text
+- no LLM smoke expansion
+- no public/user-facing LLM narration
+- no new public meaning
+- no new proof home
+- no new Story label
+- no new writer
+- no new speech key
+- no new ExplanationPlan claim
+
+Completion standard: Stage-4 Duplicate Neighbor Matrix closes when the matrix
+exists only in `StoryInteractionLaw.md`, covers Material/Hanging/Loose,
+QueenHit/Loose/Hanging/Material, RemoveGuard/Defense/Pin/DiscoveredAttack,
+Overload/RemoveGuard/CannotSatisfyBoth/Material/Loose/EngineCheck,
+PawnAdvance/PawnStop/PromotionThreat/Promotion/PawnBlock/FileOpened,
+CheckGiven/Checkmate/CheckEscaped, and EngineCheck against all public Stories;
+the matrix orders ownership only; every collision keeps each meaning in its
+existing proof home; cause Stories cannot borrow result or consequence speech;
+EngineCheck remains status evidence only; Support, Context, Blocked, capped,
+and refuted rows cannot produce standalone public text; no new positive slice,
+family broadening, downstream wording change, runtime ownership registry,
+auto-discovery admission path, StoryTable creation path, runtime matrix parser,
+generated code, public API exposure, production surface, public route `200`,
+renderer text, LLM smoke expansion, public/user-facing LLM narration, public
+meaning, proof home, Story label, writer, speech key, or ExplanationPlan claim
+is added; docs authority tests pass; runtime collision tests are added only for
+uncovered gaps; and `git diff --check` passes.
+
+## Stage-5 Closed Names / Internal Ingredients Guard
+
+Stage-5 opens a closed-name and internal-ingredient guard section in `StoryInteractionLaw.md`.
+
+The Stage-5 guard audits names that may exist in code, diagnostics, fixtures,
+or proof readiness law without becoming public ownership names. It does not
+create a Story, writer, speech key, renderer path, ExplanationPlan claim, LLM
+input, runtime registry, public route, production API, or new public meaning.
+
+Stage-5 closed/internal guard rules:
+
+- closed enum tombstones may exist in code but are not opened public meanings
+- internal proof ingredients may support a proof home only through the named
+  proof home
+- internal proof ingredients do not own public Story labels, writers, speech
+  keys, renderer text, ExplanationPlan claims, or LLM input
+- diagnostics do not own public Story labels, writers, speech keys, renderer
+  text, ExplanationPlan claims, or LLM input
+- closed public paths remain closed until their own proof home, Story label,
+  named writer, speech key, and downstream boundary are explicitly opened
+- broad family names remain closed when only a narrow proof-backed slice is
+  opened
+
+Stage-5 high-risk closed and internal names:
+
+| name | classification | allowed use | public-owner no-go |
+|---|---|---|---|
+| `DefenderDuty` | internal proof ingredient | proof-readiness support for defender-duty facts | no public Story label, writer, speech key, renderer text, ExplanationPlan claim, or LLM input |
+| `DualDefenderDuty` | internal proof ingredient | proof-readiness support for dual-duty facts | no public Story label, writer, speech key, renderer text, ExplanationPlan claim, or LLM input |
+| `OverloadTest` | internal proof ingredient | proof-readiness support for overload tests | no public Story label, writer, speech key, renderer text, ExplanationPlan claim, or LLM input |
+| `CannotSatisfyBoth` | internal proof ingredient | reply-preservation readiness only | no public Story label, writer, speech key, renderer text, ExplanationPlan claim, or LLM input |
+| `proofFailures` | internal diagnostics | tests and debugging only | no public Story label, writer, speech key, renderer text, ExplanationPlan claim, or LLM input |
+| `ProofDeficitDiagnostics` | internal diagnostics | generic blocked-proof explanation for tests and debugging | no public Story label, writer, speech key, renderer text, ExplanationPlan claim, or LLM input |
+| raw EngineCheck diagnostics | internal status diagnostics | support, cap, or refute an existing Story only | no public Story label, writer, speech key, renderer text, ExplanationPlan claim, or LLM input |
+| closed PawnFork public path | closed enum/public path | closed-name guard only | no public Story label, writer, speech key, renderer text, ExplanationPlan claim, or LLM input |
+| broad Tempo public path | closed broad path | closed-name guard only | no public Story label, writer, speech key, renderer text, ExplanationPlan claim, or LLM input |
+| broad Plan/Source/Opening/Quiet public speech | closed broad speech path | closed-name guard only | no public Story label, writer, speech key, renderer text, ExplanationPlan claim, or LLM input |
+
+Stage-5 closed/internal guard keeps closed:
+
+- closed enum tombstones remain closed
+- internal proof ingredients remain internal
+- no public speech for internal ingredients
+- no internal ingredient as public Story label
+- no internal ingredient as writer
+- no internal ingredient as speech key
+- no internal ingredient as renderer text
+- no internal ingredient as ExplanationPlan claim
+- no internal ingredient as LLM input
+- no diagnostics as public owner
+- no closed broad family as public owner
+- no new public meaning
+- no new proof home
+- no new Story label
+- no new writer
+- no new speech key
+- no new ExplanationPlan claim
+- no renderer text
+- no LLM smoke expansion
+- no runtime public registry
+- no auto-admission mechanism
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+
+Completion standard: Stage-5 Closed Names / Internal Ingredients Guard closes when
+closed enum tombstones and internal proof ingredients are listed only as
+closed/internal names, no closed/internal name appears as a public meaning,
+proof home, Story label, writer, or speech key in current ownership rows,
+internal proof ingredients may support only a named proof home, diagnostics do
+not become public owners, closed PawnFork, broad Tempo, and broad
+Plan/Source/Opening/Quiet public speech paths remain closed, no public speech
+for internal ingredients opens, no new public meaning, proof home, Story label,
+writer, speech key, ExplanationPlan claim, renderer text, LLM smoke expansion,
+runtime public registry, auto-admission mechanism, public route `200`,
+production API, or public/user-facing LLM narration is added, docs authority
+tests pass, and `git diff --check` passes.
+
+## Stage-6 Slice Admission Preflight Contract
+
+Stage-6 opens a generic preflight checklist for every subsequent positive slice.
+
+The preflight checklist lives only in `StoryInteractionLaw.md`. It is a
+blocking audit check for subsequent work, not an admission path. A subsequent positive
+slice still needs its own proof sidecar, named writer, Story identity, speech
+boundary, negative corpus, StoryTable behavior, Verdict path, ExplanationPlan
+boundary, renderer contract if opened, and LLM boundary if opened.
+
+Stage-6 preflight authority:
+
+- the preflight checklist can block work
+- the preflight checklist cannot open work
+- the preflight checklist does not create a Story
+- the preflight checklist does not create a proof home
+- the preflight checklist does not create a writer
+- the preflight checklist does not create a speech key
+- the preflight checklist does not create downstream speech
+
+Stage-6 slice admission preflight checklist:
+
+- the meaning is not already owned
+- proof home is unique
+- Story label is unique
+- writer is unique
+- speech key is unique
+- duplicate-neighbor no-go list is explicit
+- same-board legal replay exists
+- complete StoryProof exists
+- EngineCheck is not Refute
+- Support/Context/Blocked/capped/refuted rows stay silent
+- downstream speech is bounded by selected uncapped Lead Verdict only
+
+Stage-6 slice admission preflight keeps closed:
+
+- no specific new slice
+- no Tempo positive scope
+- no PawnFork positive scope
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+- no runtime public registry
+- no auto-admission mechanism
+- no new public meaning
+- no new proof home
+- no new Story label
+- no new writer
+- no new speech key
+- no new ExplanationPlan claim
+- no renderer text
+- no LLM smoke expansion
+
+Completion standard: Stage-6 Slice Admission Preflight Contract closes when
+the generic preflight checklist exists only in `StoryInteractionLaw.md`; every
+subsequent positive slice is required to prove the meaning is not already owned,
+proof home uniqueness, Story label uniqueness, writer uniqueness, speech key
+uniqueness, explicit duplicate-neighbor no-go list, same-board legal replay,
+complete StoryProof, EngineCheck is not Refute,
+Support/Context/Blocked/capped/refuted row silence, and downstream speech
+bounded by selected uncapped Lead Verdict only; preflight remains a blocker
+only and cannot open work; no Tempo positive scope, PawnFork positive scope,
+specific new slice, public route `200`, production API, public/user-facing LLM
+narration, runtime public registry, auto-admission mechanism, new public
+meaning, proof home, Story label, writer, speech key, ExplanationPlan claim,
+renderer text, or LLM smoke expansion is added; docs authority tests pass; and
+`git diff --check` passes.
+
+## Stage-7 Runtime Guard Coverage Audit
+
+Stage-7 opens an audit of existing runtime tests against the public meaning
+ownership index. Runtime tests verify behavior only. This law remains the
+detailed authority for ownership boundaries.
+
+Stage-7 audit coverage:
+
+- duplicate speech keys are covered by ownership-index tests over
+  `ExplanationClaim.values`
+- forged writer, label, and proof combinations are covered by neighborhood
+  hardening tests and by the ownership-index runtime guard
+- closed/internal rows are covered by closed-name tests, proof-deficit tests,
+  and the ownership-index closed `Tactic.PawnFork` guard
+- non-Lead rows are covered by neighborhood `ExplanationPlan` tests and by the
+  ownership-index non-Lead rendering guard
+- LLM smoke rejection of neighbor-owned stronger wording is covered by
+  neighborhood smoke tests and by the ownership-index QueenHit neighbor-wording
+  guard
+
+Stage-7 added runtime coverage only for the generic ownership-index gap:
+
+- forged `Tactic.QueenHit`, `Tactic.Loose`, and `Scene.Material` owner tuples
+  remain `Blocked`, cannot create an `ExplanationPlan`, and cannot render
+- closed `Tactic.PawnFork` rows cannot become `Lead` and cannot render
+- Support, Context, Blocked, and unselected rows cannot render through the
+  ownership-index guard
+- bounded QueenHit LLM smoke rejects material, queen-win, and hanging wording
+
+Stage-7 keeps closed:
+
+- no broad refactor
+- no generated registry
+- no public route `200`
+- no public API
+- no production surface
+- no public/user-facing LLM narration
+- no new Story meaning
+- no runtime parser for the ownership index
+- no central Story admission mechanism
+- no weakened named writer check
+
+Completion standard: Stage-7 Runtime Guard Coverage Audit closes when existing
+runtime tests are audited against the ownership index, focused runtime tests are
+added only for real uncovered duplicate-risk behavior, forged writer/label/proof
+combinations stay blocked and silent, closed/internal rows cannot become Lead,
+non-Lead rows do not render, LLM smoke rejects neighbor-owned stronger wording,
+no broad refactor, generated registry, public route `200`, public API,
+production surface, public/user-facing LLM narration, new Story meaning,
+runtime parser for the ownership index, central Story admission mechanism, or
+weakened named writer check is added, focused runtime tests pass, and
+`ChessFoundationTest` passes.
+
+## Stage-8 Docs Surface Boundary
+
+Stage-8 opens summary-only docs surface mentions only when docs tests require them.
+
+Detailed public meaning ownership authority remains only in
+`StoryInteractionLaw.md`. Summary documents may state only that detailed
+ownership and duplication guard authority lives in `StoryInteractionLaw.md`.
+They must not copy detailed ownership index rows, duplicate-neighbor matrix
+rows, closed/internal guard rows, slice admission preflight items, or closeout
+checklists.
+
+Stage-8 detailed authority owners:
+
+- ownership index: `StoryInteractionLaw.md`
+- duplicate-neighbor matrix: `StoryInteractionLaw.md`
+- closed-name/internal-ingredient guard: `StoryInteractionLaw.md`
+- slice admission preflight: `StoryInteractionLaw.md`
+- closeout checklist: `StoryInteractionLaw.md`
+
+Stage-8 summary docs boundary:
+
+- README, SSOT, Architecture, Contract, and Manifest stay summary-only
+- AGENTS.md remains a durable operator guide only
+- detailed index tables stay out of summary docs
+- detailed duplicate-neighbor matrices stay out of summary docs
+- detailed closeout checklists stay out of summary docs and AGENTS.md
+- summary mentions, if required by docs tests, point back to
+  `StoryInteractionLaw.md`
+
+Stage-8 docs surface keeps closed:
+
+- AGENTS.md unchanged unless durable operator rules change
+- no detailed matrix copied into summary docs
+- no repeated checklist in AGENTS.md
+- no separate detailed authority document
+- no public route `200`
+- no production API
+- no public/user-facing LLM narration
+- no runtime public registry
+- no auto-admission mechanism
+- no new public meaning
+- no new proof home
+- no new Story label
+- no new writer
+- no new speech key
+- no new ExplanationPlan claim
+- no renderer text
+- no LLM smoke expansion
+
+Completion standard: Stage-8 Docs Surface Boundary closes when summary docs
+contain no copied detailed ownership index tables, duplicate-neighbor matrices,
+closed/internal guard tables, slice admission preflight lists, or closeout
+checklists; AGENTS.md remains unchanged unless durable operator rules change;
+`StoryInteractionLaw.md` remains the only detailed authority for the ownership
+index, duplicate-neighbor matrix, closed-name/internal-ingredient guard, slice
+admission preflight, and closeout checklist; public route `200`, production
+API, and public/user-facing LLM narration remain closed; no runtime public
+registry, auto-admission mechanism, public meaning, proof home, Story label,
+writer, speech key, ExplanationPlan claim, renderer text, or LLM smoke
+expansion is added; docs authority tests pass; and `git diff --check` passes.
+
+## Stage-9 Closeout / Next-Slice Readiness Decision
+
+Stage-9 opens the final ownership-index closeout section in `StoryInteractionLaw.md`.
+
+The closeout records the ownership-index readiness decision only. It does not
+open a new public meaning, positive Tempo scope, positive PawnFork scope,
+renderer path, LLM path, public API, runtime registry, or implementation work.
+
+Stage-9 closeout decision options:
+
+- A. ownership index completed with no runtime leaks
+- B. duplicate leak found and fixed without opening meaning
+- C. ownership ambiguity remains and blocks the next positive slice
+
+Stage-9 selected closeout decision: A.
+
+The ownership index completed with no runtime leaks found in the tested current
+opened surface. The audit added docs authority checks and focused runtime
+guards for forged ownership tuples, closed PawnFork rows, non-Lead silence, and
+neighbor-owned stronger wording. No duplicate leak was found that required a
+runtime repair, and no ambiguous owner pair is recorded for this closeout. This
+statement is bounded to the current opened surface and the tested rows.
+
+Stage-9 closed preflight recommendation:
+
+- next work item: closed preflight audit for the next proposed positive slice only
+- the closed preflight audit compares proposed public meaning, proof home,
+  Story label, named writer, speech key, duplicate-neighbor no-go list,
+  same-board legal replay, complete StoryProof, EngineCheck status, row-state
+  silence, and downstream speech boundary against this law
+- no implementation work is opened by this recommendation
+- no Story admission is granted by this recommendation
+- Tempo, PawnFork, Plan, Source, Strategy, and public narration remain closed
+- if a subsequent audit records decision C, the ambiguous owner pair must be named
+  before any positive slice work resumes
+
+Stage-9 closeout keeps closed:
+
+- no new public meaning
+- no positive Tempo slice
+- no positive PawnFork slice
+- no renderer/LLM/public API expansion
+- no runtime registry
+- no production API
+- no public route `200`
+- no public/user-facing LLM narration
+- no new proof home
+- no new Story label
+- no new writer
+- no new speech key
+- no new ExplanationPlan claim
+- no renderer text
+- no LLM smoke expansion
+- no runtime public registry
+- no auto-admission mechanism
+
+Completion standard: Stage-9 Closeout / Next-Slice Readiness Decision closes when
+the closeout decision is recorded as A, B, or C; A or B records only a closed
+preflight recommendation for the next work item; C records the ambiguous owner
+pair and blocks the next positive slice until resolved; no new public meaning,
+positive Tempo slice, positive PawnFork slice, renderer/LLM/public API
+expansion, runtime registry, production API, public route `200`,
+public/user-facing LLM narration, proof home, Story label, writer, speech key,
+ExplanationPlan claim, renderer text, LLM smoke expansion, runtime public
+registry, or auto-admission mechanism is added; `ChessFoundationTest` passes;
+docs authority tests pass; focused ownership tests pass; and `git diff --check`
+passes.
 
 ## Proof-Deficit Logs
 

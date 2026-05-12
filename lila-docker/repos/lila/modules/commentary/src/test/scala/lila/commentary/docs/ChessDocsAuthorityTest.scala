@@ -23596,6 +23596,158 @@ class ChessDocsAuthorityTest extends munit.FunSuite:
     assert(!agents.contains("## Stage-7 Proof-Deficit Diagnostics Closeout Hard Cleanup"))
     assert(!agents.contains("Stage-7 closeout audit:"))
 
+  test("Stage-0 public meaning ownership index is audit-only and unique"):
+    val interactionLaw = Files.readString(docsRoot.resolve("StoryInteractionLaw.md"))
+    val summaryDocs =
+      Vector(
+        "README.md",
+        "ChessCommentarySSOT.md",
+        "ChessModelArchitecture.md",
+        "ChessModelContract.md",
+        "LegacyPruneManifest.md"
+      )
+
+    val required =
+      Vector(
+        "## Stage-0 Public Meaning Ownership Index Charter",
+        "Stage-0 opens audit-only ownership index scope.",
+        "The ownership index audits only existing public meaning ownership.",
+        "The ownership index must not create, rank, prove, select, or repair Stories.",
+        "Read-only inventory of current opened proof-backed Story meanings:",
+        "Stage-0 ownership index keeps closed:",
+        "- no new chess meaning",
+        "- no new proof home",
+        "- no new Story label",
+        "- no new writer",
+        "- no new speech key",
+        "- no new ExplanationPlan claim",
+        "- no renderer text",
+        "- no runtime public registry",
+        "- no auto-admission mechanism",
+        "- no public route `200`",
+        "Completion standard: Stage-0 Public Meaning Ownership Index closes when"
+      )
+    required.foreach: marker =>
+      assert(interactionLaw.contains(marker), s"Stage-0 ownership index law must pin: $marker")
+
+    val expected = Vector(
+      ("Tactic.Hanging", "CaptureResult + StoryProof", "TacticHanging", Vector("can_win_piece", "piece_can_be_taken_with_gain", "capture_leaves_material_gain")),
+      ("Tactic.Fork", "MultiTargetProof", "TacticFork", Vector("forks_two_targets", "attacks_two_targets")),
+      ("Scene.Material", "CaptureResult", "SceneMaterial", Vector("material_balance_changes", "line_leaves_material_gain", "exchange_leaves_side_ahead")),
+      ("Scene.Defense", "ThreatProof + DefenseProof", "SceneDefense", Vector("defends_piece", "prevents_material_loss", "protects_target")),
+      ("Tactic.DiscoveredAttack", "LineProof", "TacticDiscoveredAttack", Vector("reveals_attack_on_piece")),
+      ("Tactic.Pin", "PinProof", "TacticPin", Vector("pins_piece")),
+      ("Tactic.RemoveGuard", "RemoveGuardProof", "TacticRemoveGuard", Vector("removes_defender")),
+      ("Tactic.Overload", "OverloadProof", "TacticOverload", Vector("overloads_defender")),
+      ("Tactic.Skewer", "SkewerProof", "TacticSkewer", Vector("skewers_piece_to_piece")),
+      ("Tactic.QueenHit", "QueenHitProof", "TacticQueenHit", Vector("attacks_queen")),
+      ("Tactic.Loose", "LoosePieceProof", "TacticLoose", Vector("attacks_loose_piece")),
+      ("Scene.PawnAdvance", "PawnAdvanceProof", "ScenePawnAdvance", Vector("advances_passed_pawn")),
+      ("Scene.PawnStop", "PawnStopProof", "ScenePawnStop", Vector("stops_pawn_advance")),
+      ("Scene.PawnBreak", "PawnBreakProof", "ScenePawnBreak", Vector("challenges_pawn")),
+      ("Scene.PawnBlock", "PawnBlockProof", "ScenePawnBlock", Vector("blocks_pawn")),
+      ("Scene.PromotionThreat", "PromotionThreatProof", "ScenePromotionThreat", Vector("threatens_promotion_next")),
+      ("Scene.Promotion", "PromotionProof", "ScenePromotion", Vector("promotes_pawn")),
+      ("Scene.PawnCapture", "PawnCaptureProof", "ScenePawnCapture", Vector("captures_rival_pawn")),
+      ("Scene.PassedPawnCreated", "PassedPawnCreatedProof", "ScenePassedPawnCreated", Vector("creates_passed_pawn")),
+      ("Scene.FileOpened", "FileOpenedProof", "SceneFileOpened", Vector("opens_file")),
+      ("Scene.CheckGiven", "CheckGivenProof", "SceneCheckGiven", Vector("gives_check")),
+      ("Scene.CheckEscaped", "CheckEscapedProof", "SceneCheckEscaped", Vector("escapes_check")),
+      ("Scene.Checkmate", "CheckmateProof", "SceneCheckmate", Vector("checkmates")),
+      ("Scene.Stalemate", "StalemateProof", "SceneStalemate", Vector("stalemates"))
+    )
+
+    def unquote(value: String): String =
+      value.replace("`", "")
+
+    val rows =
+      interactionLaw.linesIterator
+        .filter(_.startsWith("| `PMO-"))
+        .map: line =>
+          val cells = line.stripPrefix("|").stripSuffix("|").split("\\|").toVector.map(_.trim)
+          val keys =
+            unquote(cells(4))
+              .split(",")
+              .toVector
+              .map(_.trim)
+              .filter(_.nonEmpty)
+          (unquote(cells(1)), unquote(cells(2)), unquote(cells(3)), keys)
+        .toVector
+
+    assertEquals(rows, expected)
+    assertEquals(rows.map(_._1).distinct.size, rows.size, "each public meaning must have one Story label row")
+    assertEquals(rows.map(_._3).distinct.size, rows.size, "each public meaning must have one writer owner")
+    val speechKeys = rows.flatMap(_._4)
+    assertEquals(speechKeys.distinct.size, speechKeys.size, "each allowed public claim must have one speech key")
+
+    val storySource = Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/Story.scala"))
+    rows.foreach: (storyLabel, _, writer, _) =>
+      val labelCase = storyLabel.split("\\.").last
+      assert(storySource.contains(s"case $labelCase"), s"runtime Story enum must contain $storyLabel")
+      assert(storySource.contains(s"case $writer"), s"runtime StoryWriter must contain $writer")
+
+    val explanationPlan = Files.readString(Paths.get("modules/commentary/src/main/scala/lila/commentary/chess/ExplanationPlan.scala"))
+    speechKeys.foreach: key =>
+      assert(explanationPlan.contains(s""""$key""""), s"runtime ExplanationClaim key must contain $key")
+
+    val detailedMarkers =
+      Vector(
+        "## Stage-0 Public Meaning Ownership Index Charter",
+        "Stage-0 ownership index rules:",
+        "Stage-0 ownership index keeps closed:",
+        "Read-only inventory of current opened proof-backed Story meanings:",
+        "Completion standard: Stage-0 Public Meaning Ownership Index closes when"
+      )
+    detailedMarkers.foreach: marker =>
+      val owners = LiveDocs.filter(name => Files.readString(docsRoot.resolve(name)).contains(marker)).toSet
+      assertEquals(owners, Set("StoryInteractionLaw.md"), s"Stage-0 ownership index marker must have one owner: $marker")
+
+    summaryDocs.foreach: name =>
+      val doc = Files.readString(docsRoot.resolve(name))
+      detailedMarkers.foreach: marker =>
+        assert(!doc.contains(marker), s"$name must not duplicate detailed Stage-0 ownership index law: $marker")
+
+    val forbiddenIndexWording =
+      Vector(
+        "index is a source of chess " + "truth",
+        "index opens " + "meaning",
+        "row is public because it appears in the " + "index",
+        "registered " + "claim",
+        "global registry " + "authority",
+        "automatic " + "admission"
+      )
+    (LiveDocs.map(name => name -> Files.readString(docsRoot.resolve(name))) :+ ("AGENTS.md" -> agents)).foreach:
+      (name, doc) =>
+        forbiddenIndexWording.foreach: phrase =>
+          assert(!doc.contains(phrase), s"$name must not use forbidden ownership-index wording: $phrase")
+
+    assert(!agents.contains("## Stage-0 Public Meaning Ownership Index Charter"))
+    assert(!agents.contains("Stage-0 ownership index rules:"))
+
+  test("Stage-1 current public meaning inventory is read-only and complete in StoryInteractionLaw"):
+    Stage1PublicMeaningInventoryAssertions.assertInventory(docsRoot, LiveDocs, agents)
+
+  test("Stage-2 ownership index shape is a generic audit-only table"):
+    Stage2OwnershipIndexShapeAssertions.assertShape(docsRoot, LiveDocs, agents)
+
+  test("Stage-3 one meaning one owner guard enforces current opened surface"):
+    Stage3OwnershipGuardAssertions.assertGuard(docsRoot, LiveDocs, agents)
+
+  test("Stage-4 duplicate-neighbor matrix is StoryInteractionLaw-only"):
+    Stage4DuplicateNeighborMatrixAssertions.assertMatrix(docsRoot, LiveDocs, agents)
+
+  test("Stage-5 closed names and internal ingredients never become public owners"):
+    Stage5ClosedInternalNameGuardAssertions.assertGuard(docsRoot, LiveDocs, agents)
+
+  test("Stage-6 slice admission preflight checklist is StoryInteractionLaw-only"):
+    Stage6SliceAdmissionPreflightAssertions.assertPreflight(docsRoot, LiveDocs, agents)
+
+  test("Stage-8 docs surface boundary keeps detailed ownership law in StoryInteractionLaw"):
+    Stage8DocsSurfaceBoundaryAssertions.assertBoundary(docsRoot, LiveDocs, agents)
+
+  test("Stage-9 closeout records a closed next-slice readiness decision"):
+    Stage9CloseoutReadinessAssertions.assertCloseout(docsRoot, LiveDocs, agents)
+
   test("agents and active frontend tests reject retired downstream authority"):
     assert(Files.exists(agentInstructions), "AGENTS.md must be available from the lila worktree")
     assert(
