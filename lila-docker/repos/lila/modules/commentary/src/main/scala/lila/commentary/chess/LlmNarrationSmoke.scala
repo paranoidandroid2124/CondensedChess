@@ -891,7 +891,16 @@ private[commentary] object LlmNarrationSmoke:
       case ForbiddenWording.TakesInitiative =>
         Vector("takes initiative", "initiative")
       case ForbiddenWording.MateThreat =>
-        Vector("mate threat", "mating threat", "creates a mating threat", "threatens mate", "mate")
+        Vector(
+          "mate threat",
+          "mating threat",
+          "creates a mating threat",
+          "threatens mate",
+          "mate",
+          "no legal escape",
+          "has no legal escape",
+          "no escape"
+        )
       case ForbiddenWording.CannotMove =>
         Vector("cannot move", "can't move", "can not move")
       case ForbiddenWording.TargetIsHanging =>

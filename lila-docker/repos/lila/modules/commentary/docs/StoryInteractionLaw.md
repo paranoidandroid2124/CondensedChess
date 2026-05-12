@@ -19721,37 +19721,88 @@ Completion standard: Loose-9 closes when Loose has exactly one proof home (`Loos
 
 | proof field | live class | raises | caps or blocks |
 |---|---|---|---|
-| boardProof | board truth | every non-source Story | zero blocks board-backed speech. |
-| lineProof | line truth | tactics, conversion, initiative, trade, race | zero blocks tactic and line-backed stories. |
-| ownerProof | side truth | lead eligibility | high ownerProof with no side blocks lead. |
-| anchorProof | anchor truth | structural and plan Stories | high anchorProof with no anchor blocks lead. |
-| routeProof | route truth | plans, tactics, conversion | high routeProof with no route blocks lead. |
-| persistence | long pressure | planHeat | immediate tactic override can cap it. |
-| immediacy | near-term force | tacticHeat | no legal line caps it to context. |
-| forcing | move pressure | tacticHeat | missing reply map blocks forcing wording. |
-| conversionPrize | gain size | tacticHeat and planHeat | no gain identity blocks conversion wording. |
-| counterplayRisk | rival resource | caps plan and conversion | above 70 blocks plan lead. |
-| kingHeat | king attack support | tacticHeat | no legal line blocks mate or attack claim. |
-| pieceSupport | piece support | planHeat | no named piece caps piece wording. |
-| pawnSupport | pawn support | planHeat | no named pawn caps pawn wording. |
-| sourceFit | source context | source/opening context | source cannot replace board proof. |
-| novelty | source context | novelty wording | no source row blocks novelty wording. |
-| clarity | explanation clarity | planHeat | missing identity caps clarity to context. |
+| boardProof | board truth | already-opened named Story rows only | zero blocks board-backed speech. |
+| lineProof | line truth | already-opened line-backed rows only | zero blocks tactic and line-backed stories. |
+| ownerProof | side truth | lead eligibility for opened writers only | high ownerProof with no side blocks lead. |
+| anchorProof | anchor truth | opened structural rows only | high anchorProof with no anchor blocks lead. |
+| routeProof | route truth | opened route-bearing rows only | high routeProof with no route blocks lead. |
+| persistence | long pressure | internal planHeat only | immediate proof-backed tactic override can cap it. |
+| immediacy | near-term force | internal tacticHeat only | no legal line caps it to non-speaking context. |
+| forcing | move pressure | internal tacticHeat only | missing reply map blocks forcing wording. |
+| conversionPrize | gain size | internal heat only | no gain identity blocks conversion wording. |
+| counterplayRisk | rival resource | caps opened rows through public floor | above 70 currently blocks all Story lead eligibility. |
+| kingHeat | king attack support | internal tacticHeat only | no legal line blocks mate or attack claim. |
+| pieceSupport | piece support | internal heat only | no named piece blocks piece wording. |
+| pawnSupport | pawn support | internal heat only | no named pawn blocks pawn wording. |
+| sourceFit | source context | internal source/opening context only | source cannot replace board proof. |
+| novelty | source context | internal novelty only | no source row blocks novelty wording. |
+| clarity | explanation clarity | internal heat only | missing identity caps clarity to non-speaking context. |
+
+Proof scores and heat fields never create a public Story. They may only rank,
+cap, or diagnose an already-opened named writer row with proof-bearing identity.
 
 ## Nonlinear Rules
 
 | rule | effect |
 |---|---|
 | Hard proof blocker | Missing side, target, anchor, route, rival, required legal line, or same-root proof sidecar is a hard public-output block. |
-| Tactical override | An opposing Tactic or Blunder at public floor blocks Plan lead. |
-| Same-side tactic priority | A same-side Tactic with tacticHeat at least 70 and lineProof at least 65 outranks Plan. |
-| Source cap | Source and Opening context cannot lead over a board-backed Story at public floor. |
+| Tactical override | An opposing proof-backed Tactic or Blunder at public floor blocks Plan lead only for an explicitly opened Plan writer. |
+| Same-side tactic priority | A same-side proof-backed Tactic with tacticHeat at least 70 and lineProof at least 65 outranks only an explicitly opened Plan writer. |
+| Source cap | Source and Opening context cannot become public Lead unless an explicit opened proof path permits that exact context row; they never outrank board-backed proof. |
 | Engine cap | Engine context can cap or confirm wording only after Story identity and legal line are bound. |
-| Board-only cap | BoardMood facts without Story proof allow observed/possible wording only, not advice or verdict. |
+| Board-only cap | BoardMood and BoardFacts without Story proof remain observation or diagnostics only and allow no public wording, advice, Verdict, or claim. |
 | Blunder override | A proven blunder or losing tactic suppresses strategic praise about the same side. |
-| Counterplay cap | Counterplay risk above 70 blocks conversion and plan lead unless the Story proves the rival resource is answered. |
-| Quiet fallback | Quiet can lead only when every non-Quiet Story is below public floor. |
-| Render cap | Render may only verbalize selected Verdicts and cannot repair missing identity or proof. |
+| Counterplay cap | Counterplay risk above 70 currently blocks public lead eligibility; conversion or plan escape requires an explicit proof-backed answered-resource slice. |
+| Quiet fallback | Quiet remains non-speaking unless an explicit Quiet writer and proof path opens; absence of stronger Stories alone does not create public speech. |
+| Render cap | Renderer may phrase only an ExplanationPlan lowered from a selected Verdict and cannot read raw Verdict, Story, proof, diagnostics, or route data directly. |
+
+## Proof Interaction Law Reconciliation
+
+PILFR reconciles this shared interaction law with the current proof-first
+runtime. It opens no Story family and no runtime behavior.
+
+PILFR keeps closed:
+
+- `Scene.Plan` public speech
+- `Scene.Source` public speech
+- `Scene.Opening` public speech
+- `Scene.Quiet` public speech
+- broad mate-net speech
+- conversion, compensation, pressure, initiative, best, only, forced, winning,
+  decisive, and no-counterplay claims
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+PILFR proof authority:
+
+- named writers remain the only positive Story admission path.
+- proof fields may support, cap, order, or diagnose only already-opened named
+  writer rows.
+- source, opening, quiet, and plan-shaped rows remain non-speaking unless a live
+  authority document opens a narrow proof-backed writer for the exact meaning.
+- tactical override, source cap, quiet fallback, and counterplay cap are
+  fail-closed shared gates for explicitly opened writers, not public claim owners.
+- renderer input remains `ExplanationPlan` only.
+- diagnostics remain internal only.
+
+PILFR verification duties:
+
+- a quiet row with complete identity but no opened writer stays non-speaking.
+- a strategic plan row with no route stays blocked and produces no plan text.
+- source/opening-shaped context cannot lead over board-backed proof and produces
+  no source/opening text.
+- high counterplay risk blocks standalone material or conversion speech.
+- legal-escape king pressure may produce only already-opened bounded check
+  wording, not mate-net, no-escape, or no-counterplay wording.
+
+Completion standard: PILFR closes when `Proof And Interaction Law`,
+`Nonlinear Rules`, `Proof-Deficit Logs`, and `Fixture Duties` no longer imply
+that proof scores, source/opening context, BoardFacts, Quiet fallback, raw
+Plan rows, or renderer direct Verdict access can create public speech; targeted
+runtime reconciliation tests pass; docs authority tests pass; public route
+`200`, production API, and public/user-facing LLM narration remain closed; and
+`git diff --check` passes.
 
 ## Stage-0 Proof-Deficit Diagnostics Charter
 
@@ -20091,7 +20142,7 @@ Required blocked-story diagnostic shape:
 
 ```json
 {
-  "story": "...",
+  "storyIdentityLabel": "...",
   "leadAllowed": false,
   "blockedBy": ["..."],
   "boardFactsPresent": ["..."],
@@ -20114,7 +20165,7 @@ Example:
 
 ```json
 {
-  "story": "Plan.OpenFile",
+  "storyIdentityLabel": "closed Plan.OpenFile fixture row",
   "leadAllowed": false,
   "blockedBy": ["routeProof", "sameRootLine"],
   "boardFactsPresent": ["rook_open_file_entry"],
@@ -20129,7 +20180,7 @@ Example:
     "sameRootProofSidecar": null
   },
   "missingSidecar": ["legal file-entry line", "same-root route proof"],
-  "reason": "The rook has an entry-square observation, but no same-root line proves usable file entry."
+  "reason": "The row has an entry-square observation, but no same-root line proves usable file entry. Closed Plan rows remain diagnostic fixtures only."
 }
 ```
 
@@ -20142,13 +20193,15 @@ shortcut.
 The interaction law must be tested with positions or synthetic Stories that
 cover these failure modes:
 
-- Opening context with a tactical refutation: tactic or blunder overrides
-  source/opening speech.
+- Opening context with a tactical refutation: tactic or blunder blocks
+  source/opening context and no source/opening public speech is produced.
 - Strategic plan with no route: plan support exists but public plan speech is
   blocked.
-- Mate-net shape with legal escape: king pressure is capped below mate wording.
+- Mate-net shape with legal escape: king pressure stays below mate wording and
+  may only use already-opened bounded check wording.
 - Material gain with compensation line: material Story is capped by
   counterplay/conversion proof.
 - Source row matching the opening but board proof contradicting it: source stays
   context.
-- Quiet position with no public floor Story: Quiet may lead.
+- Quiet position with no public floor Story: Quiet remains non-speaking unless
+  an explicit Quiet writer and proof path opens.
