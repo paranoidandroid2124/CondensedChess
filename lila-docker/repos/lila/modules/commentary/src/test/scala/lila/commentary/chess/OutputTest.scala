@@ -290,7 +290,7 @@ class OutputTest extends ChessTestSupport:
     val verdict = Verdict(story, rank = 2, leadAllowed = false, strength = 87.5, role = Role.Blocked)
     val values = verdict.values
 
-    assertEquals(Verdict.Size, 110)
+    assertEquals(Verdict.Size, 111)
     assertEquals(values.size, Verdict.Size)
     assertEquals(Verdict.Slots.Role, 0)
     assertEquals(Verdict.Slots.Rank, 1)
@@ -303,7 +303,7 @@ class OutputTest extends ChessTestSupport:
     assertEquals(Verdict.Slots.Scene, 8)
     assertEquals(Verdict.Slots.Plan, 37)
     assertEquals(Verdict.Slots.Tactic, 69)
-    assertEquals(Verdict.Slots.Proof, 94)
+    assertEquals(Verdict.Slots.Proof, 95)
     assertEquals(Verdict.Slots.End, Verdict.Size)
     assertEqualsDouble(values(Verdict.Slots.Role), Role.Blocked.ordinal.toDouble, 0.0)
     assertEqualsDouble(values(Verdict.Slots.Rank), 2.0, 0.0)

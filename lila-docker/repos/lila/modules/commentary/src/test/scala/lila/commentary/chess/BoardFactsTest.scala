@@ -1574,6 +1574,7 @@ class BoardFactsTest extends ChessTestSupport:
         Tactic.Clear,
         Tactic.Decoy,
         Tactic.Deflect,
+        Tactic.Interference,
         Tactic.Tempo
       )
     )

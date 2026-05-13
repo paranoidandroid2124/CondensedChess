@@ -23428,6 +23428,569 @@ no-counterplay claims, public route `200`, production API, and public/user-
 facing narration remain closed; focused runtime tests and `ChessFoundationTest`
 pass; AGENTS.md remains unchanged; and `git diff --check` passes.
 
+## Stage-0: Interference Definition
+
+Stage-0 opens only the definition for narrow `Tactic.Interference`. It opens no
+runtime implementation.
+
+Narrow Interference meaning:
+
+- A legal side move places the moved piece on an exact line square between a
+  named line defender and a named defended target.
+- The line defender is a bishop, rook, or queen.
+- The defended target is a non-king rival piece or a named square defended by
+  that slider before the move.
+- The side move is a non-capture.
+- The moved piece lands on the blocking square.
+- The blocking square lies strictly between the defender and target.
+- Before the move, the named defender had line defense to that same target.
+- After the move, the same defender no longer has line defense to the same
+  target because the moved piece occupies the blocking square.
+- Public meaning may say only that the defender line was blocked.
+
+Stage-0 proof authority:
+
+- Engine is truth oracle for legality only when needed.
+- BoardFacts observes before and after board state.
+- `InterferenceProof` owns only line-blocking evidence.
+- Existing proof homes keep their meanings.
+- EngineCheck may later support, cap, or refute only an existing Interference
+  Story.
+- StoryTable orders only.
+
+Stage-0 keeps closed:
+
+- broad Interference family
+- Interference causing material win
+- Interference as forced move, only move, best move, or winning move
+- Decoy
+- Deflect
+- RemoveGuard
+- Overload
+- Trap
+- Pin
+- Skewer
+- Fork
+- DiscoveredAttack
+- checkmate threat
+- no defense
+- no counterplay
+- public route `200`
+- production API
+- public/user-facing LLM narration
+
+Stage-0 forbidden wording:
+
+- wins material
+- wins a piece
+- forced
+- only move
+- best move
+- no defense
+- no counterplay
+- traps
+- decoys
+- deflects
+- removes the defender
+- overloads
+- pins
+- skewers
+- forks
+
+Stage-0 requires no runtime verification unless code is touched. Documentation
+changes require `git diff --check`. Do not add docs, prose, or marker tests for
+this definition.
+
+Completion standard: Stage-0 Interference Definition closes when
+`StoryInteractionLaw.md` defines only the narrow line-blocking meaning; the
+first scope is limited to a non-capturing legal side move by which the moved
+piece lands on a blocking square strictly between a bishop, rook, or queen line
+defender and the same non-king rival piece or defended square that the slider
+defended before the move; after the move, the same defender no longer has line
+defense to the same target because the moved piece occupies that blocking
+square; `InterferenceProof` is reserved only for line-blocking evidence;
+existing proof homes keep their meanings; EngineCheck remains support, cap, or
+refute evidence only after an Interference Story exists; broad Interference,
+material-win/result claims, forced/only/best/winning claims, Decoy, Deflect,
+RemoveGuard, Overload, Trap, Pin, Skewer, Fork, DiscoveredAttack, checkmate
+threat, no-defense/no-counterplay claims, public route `200`, production API,
+and public/user-facing LLM narration remain closed; no runtime implementation
+or tests are added; AGENTS.md remains unchanged; and `git diff --check` passes.
+
+## Stage-1: InterferenceProof
+
+Stage-1 opens only `InterferenceProof` as the proof home for
+blocks-defender-line evidence.
+
+`InterferenceProof` is complete only when all of these hold:
+
+- legal same-board side move.
+- complete StoryProof for the side move.
+- moved piece lands on the candidate blocking square.
+- side move is non-capture.
+- named line defender is a bishop, rook, or queen.
+- named target is bound.
+- defender, blocking square, and target are collinear on a legal slider ray.
+- blocking square lies strictly between defender and target.
+- before the move, the defender has line defense/contact to the target.
+- after the move, the moved piece occupies the blocking square.
+- after the move, the same defender no longer has line defense/contact to the
+  same target because the blocking square is occupied.
+
+Stage-1 proof authority:
+
+- `InterferenceProof` owns only blocks-defender-line evidence.
+- BoardFacts observes before and after board state.
+- Engine truth may be used only for legal same-board move replay.
+- Engine PV, eval, tactical tags, diagnostics, renderer wording, and
+  StoryTable role do not create or repair `InterferenceProof`.
+- Existing proof homes keep their meanings.
+
+Stage-1 keeps closed:
+
+- Story creation.
+- writer.
+- speech key.
+- ExplanationPlan.
+- renderer.
+- LLM.
+- public route `200`.
+- production API.
+- public text.
+- broad Interference.
+- material result or material-win consequence.
+- forced, only, best, or winning move claims.
+- Decoy, Deflect, RemoveGuard, Overload, Trap, Pin, Skewer, Fork, and
+  DiscoveredAttack widening.
+
+Stage-1 runtime verification:
+
+- positive `InterferenceProof` fixture.
+- positive explicitly defended square target fixture.
+- negative illegal move.
+- negative capture move.
+- negative non-slider defender.
+- negative blocker not between defender and target.
+- negative defender and target not collinear.
+- negative line already blocked before the move.
+- negative target not defended before the move.
+- negative defender still defends target after the move.
+- negative wrong defender.
+- negative wrong target.
+- negative wrong blocking square.
+- negative incomplete StoryProof.
+- negative engine-only evidence.
+- `git diff --check`.
+
+Completion standard: Stage-1 InterferenceProof closes when
+`InterferenceProof` is the only proof home for blocks-defender-line evidence;
+completion requires legal same-board side move, complete StoryProof for the
+side move, moved piece landing on the candidate blocking square, a non-capture
+move, bishop/rook/queen line defender, bound target, defender/blocking
+square/target collinearity on a legal slider ray, the blocking square strictly
+between defender and target, before-move defender line defense/contact to the
+target, after-move occupancy of the blocking square by the moved piece, and
+after-move loss of the same defender's line defense/contact to the same target
+because that blocking square is occupied; tactical tags, renderer wording,
+engine PV/eval, diagnostics, and StoryTable role cannot create or repair the
+proof; no Story, writer, speech key, public text, public route `200`,
+production API, or public/user-facing LLM narration opens; focused
+InterferenceProof tests pass; AGENTS.md remains unchanged; and `git diff
+--check` passes.
+
+## Stage-2: TacticInterference Writer
+
+Stage-2 opens only the `TacticInterference` writer and `Tactic.Interference`
+Story through complete `InterferenceProof`.
+
+Stage-2 writer requirements:
+
+- complete `InterferenceProof`.
+- complete StoryProof for the side move route.
+- same-board legal replay.
+- scene is `Tactic`.
+- tactic is `Interference`.
+- side binds to the side move.
+- rival binds to the named defender side.
+- target is the defended target square or piece square.
+- anchor is the moved piece on the blocking square.
+- route is the side move.
+- proof sidecar is `InterferenceProof`.
+- EngineCheck is absent or not `Refutes`.
+- no contaminating sibling proof sidecars.
+
+Stage-2 keeps closed:
+
+- borrowed proof homes from Decoy, Deflect, RemoveGuard, Overload, Trap, Pin,
+  Skewer, Fork, DiscoveredAttack, QueenHit, Loose, Hanging, Material, and
+  Defense.
+- incomplete or contaminated Interference rows.
+- speech key.
+- ExplanationPlan.
+- renderer.
+- LLM.
+- public route `200`.
+- production API.
+- public/user-facing narration.
+- material result or material-win consequence.
+- forced, only, best, winning, no-defense, or no-counterplay claims.
+
+Stage-2 runtime verification:
+
+- writer admits exactly one narrow Interference Story.
+- writer binds an explicitly defended square target.
+- writer rejects forged side.
+- writer rejects forged rival.
+- writer rejects forged target.
+- writer rejects forged anchor.
+- writer rejects forged route.
+- writer rejects incomplete `InterferenceProof`.
+- writer rejects missing `InterferenceProof`.
+- writer rejects refuted EngineCheck.
+- writer rejects rows contaminated with Decoy, Deflect, RemoveGuard, Overload,
+  Trap, Pin, Skewer, Fork, DiscoveredAttack, QueenHit, Loose, Hanging,
+  Material, or Defense proof homes.
+- focused `InterferenceProof` tests.
+- `git diff --check`.
+
+Completion standard: Stage-2 TacticInterference Writer closes when
+`TacticInterference` is the only writer that can create `Tactic.Interference`;
+the writer accepts only complete `InterferenceProof` plus complete StoryProof
+for the side move route and same-board legal replay; Story identity binds
+exactly to scene `Tactic`, tactic `Interference`, side, rival, target defended
+square or piece square, anchor moved piece on the blocking square, route side
+move, and `InterferenceProof` sidecar; refuted EngineCheck blocks; borrowed
+Decoy, Deflect, RemoveGuard, Overload, Trap, Pin, Skewer, Fork,
+DiscoveredAttack, QueenHit, Loose, Hanging, Material, and Defense proof homes
+are rejected; incomplete or contaminated Interference rows are rejected;
+speech key, ExplanationPlan, renderer, LLM, public route `200`, production
+API, public/user-facing narration, material-result/material-win consequence,
+forced/only/best/winning/no-defense/no-counterplay claims remain closed;
+focused writer and proof tests pass; AGENTS.md remains unchanged; and `git
+diff --check` passes.
+
+## Stage-3: Interference Negative Corpus
+
+Stage-3 opens only runtime negative coverage for `Tactic.Interference` against
+nearby chess meanings.
+
+Stage-3 negative coverage includes:
+
+- Deflect.
+- Decoy.
+- RemoveGuard.
+- Overload.
+- Trap.
+- Pin.
+- Skewer.
+- Fork.
+- DiscoveredAttack.
+- Defense.
+- QueenHit.
+- Loose.
+- Hanging.
+- Material.
+- EngineCheck.
+
+Stage-3 required runtime boundaries:
+
+- A blocked line alone does not create Pin, Skewer, Fork, DiscoveredAttack, or
+  Material.
+- Decoy, Deflect, RemoveGuard, and Overload proof homes cannot create
+  Interference.
+- `InterferenceProof` cannot speak Decoy, Deflect, RemoveGuard, Overload, or
+  Trap.
+- Support, Context, Blocked, capped, refuted, and engine-only rows stay silent.
+- StoryTable must not let an `InterferenceProof` sidecar make a neighboring
+  writer row a lead Story.
+
+Stage-3 keeps closed:
+
+- broad line-tactic owner.
+- duplicate owner for Pin, Skewer, Fork, or DiscoveredAttack.
+- material/result consequence.
+- forced, only, best, winning, no-defense, or no-counterplay claims.
+- speech key.
+- ExplanationPlan.
+- renderer.
+- LLM.
+- public route `200`.
+- production API.
+- public/user-facing narration.
+
+Stage-3 runtime verification:
+
+- Interference neighbor fixtures stay in their own Story owner or stay silent.
+- Interference line-block fixtures do not create nearby line tactics or
+  material Stories.
+- borrowed Decoy, Deflect, RemoveGuard, Overload, Trap, Pin, Skewer, Fork,
+  DiscoveredAttack, Defense, QueenHit, Loose, Hanging, and Material proof
+  sidecars block Interference rows.
+- `InterferenceProof` contamination blocks nearby Decoy, Deflect, RemoveGuard,
+  Overload, and Trap rows.
+- Support, Context, Blocked, capped, refuted, and engine-only Interference
+  rows produce no public text.
+- `git diff --check`.
+
+Completion standard: Stage-3 Interference Negative Corpus closes when runtime
+tests prove neighboring tactic, defense, material, and EngineCheck evidence do
+not create or speak Interference; `InterferenceProof` remains only
+line-blocking evidence and cannot carry nearby Decoy, Deflect, RemoveGuard,
+Overload, or Trap speech; blocked-line evidence alone does not open Pin,
+Skewer, Fork, DiscoveredAttack, or Material; broad line-tactic ownership,
+material/result consequence, forced/only/best/winning/no-defense/no-counterplay
+claims, speech key, ExplanationPlan, renderer, LLM, public route `200`,
+production API, and public/user-facing narration remain closed; focused
+Interference negative runtime tests pass; AGENTS.md remains unchanged; and
+`git diff --check` passes.
+
+## Stage-4: Interference EngineCheck And StoryTable
+
+Stage-4 opens only EngineCheck attachment and StoryTable ordering for existing
+proof-backed `Tactic.Interference` Stories.
+
+Stage-4 EngineCheck authority:
+
+- EngineCheck may attach only to an existing `Tactic.Interference` Story.
+- The Story must already be proof-backed by complete `InterferenceProof`.
+- The Story route must bind to the checked engine move.
+- EngineCheck status may be only Supports, Caps, or Refutes.
+- EngineCheck may support, cap, or refute only.
+
+Stage-4 StoryTable authority:
+
+- StoryTable may order Interference rows.
+- Lead, Support, Context, Blocked, capped, and refuted Interference rows are
+  row states only.
+- StoryTable row state does not create proof, Story, public claim, or speech.
+
+Stage-4 keeps closed:
+
+- EngineCheck creating `InterferenceProof`.
+- EngineCheck repairing incomplete `InterferenceProof`.
+- EngineCheck creating an Interference Story.
+- StoryTable creating claims.
+- raw engine PV, eval, or depth entering ExplanationPlan, renderer, or LLM
+  input.
+- speech key.
+- renderer.
+- LLM.
+- public route `200`.
+- production API.
+- public/user-facing narration.
+- material/result consequence.
+- forced, only, best, winning, no-defense, or no-counterplay claims.
+
+Stage-4 runtime verification:
+
+- EngineCheck from Story binds to a proof-backed Interference Story.
+- Supports, Caps, and Refutes may attach.
+- Unknown, unbound, and wrong-route EngineCheck evidence cannot attach.
+- EngineCheck cannot create or repair Interference proof.
+- engine-only Interference rows remain blocked and silent.
+- StoryTable orders Interference Lead, Support, Context, Blocked, capped, and
+  refuted rows.
+- ordered rows produce no ExplanationPlan, renderer text, LLM input, public
+  route payload, or public claim.
+- `git diff --check`.
+
+Completion standard: Stage-4 Interference EngineCheck And StoryTable closes
+when EngineCheck attaches only to an existing proof-backed
+`Tactic.Interference` Story with complete `InterferenceProof`, complete Story
+identity, same route, and a Supports, Caps, or Refutes status; EngineCheck does
+not create `InterferenceProof`, repair incomplete proof, or create an
+Interference Story; StoryTable may order Lead, Support, Context, Blocked,
+capped, and refuted Interference rows but creates no proof, Story, public
+claim, or speech; raw engine PV/eval/depth remain outside ExplanationPlan,
+renderer, LLM, public route, and public/user-facing narration; material/result
+consequence and forced/only/best/winning/no-defense/no-counterplay claims
+remain closed; focused EngineCheck and StoryTable runtime tests pass;
+AGENTS.md remains unchanged; and `git diff --check` passes.
+
+## Stage-5: Interference ExplanationPlan And Renderer
+
+Stage-5 opens only one deterministic speech path for selected uncapped Lead
+`Tactic.Interference` Verdicts.
+
+Stage-5 opens exactly one claim key:
+
+- `blocks_defender_line`
+
+Stage-5 ExplanationPlan authority:
+
+- ExplanationPlan may accept only selected uncapped Lead Interference Verdicts.
+- The Verdict must still bind to a complete `TacticInterference` Story with
+  complete `InterferenceProof`.
+- Support, Context, Blocked, capped, refuted, and malformed Interference rows
+  produce no plan.
+- ExplanationPlan does not read raw engine PV, eval, depth, or proof failure
+  text.
+
+Stage-5 renderer authority:
+
+- Renderer input remains `ExplanationPlan` only.
+- Renderer may emit exactly:
+  `{SAN} blocks the defender's line to {targetSquare}.`
+- `{SAN}` is the approved SAN from the legal side move.
+- `{targetSquare}` is the defended target square bound by the Story.
+
+Stage-5 keeps closed:
+
+- why-it-matters sentence.
+- material, result, or force sentence.
+- sibling tactic wording.
+- raw line geometry in public text.
+- public route `200`.
+- production API.
+- public/user-facing narration.
+- LLM input or smoke expansion for Interference during Stage-5.
+
+Stage-5 forbidden renderer wording:
+
+- wins
+- wins material
+- wins a piece
+- forced
+- only
+- best
+- no defense
+- no counterplay
+- traps
+- decoys
+- deflects
+- removes
+- overloads
+- pins
+- skewers
+- forks
+
+Stage-5 runtime verification:
+
+- selected uncapped Lead Interference lowers to `blocks_defender_line`.
+- renderer emits exactly the bounded phrase.
+- renderer forbidden-word check passes.
+- Interference LLM prompt remains closed until the Stage-6 boundary opens it.
+- Support, Context, Blocked, capped, and refuted rows render nothing.
+- malformed Interference plans render nothing.
+- `git diff --check`.
+
+Completion standard: Stage-5 Interference ExplanationPlan And Renderer closes
+when exactly one Interference `ExplanationClaim` and speech key,
+`blocks_defender_line`, are open; ExplanationPlan accepts only selected
+uncapped Lead proof-backed Interference Verdicts; Support, Context, Blocked,
+capped, refuted, and malformed rows produce no plan or rendered text; renderer
+input remains `ExplanationPlan` only and emits only `{SAN} blocks the
+defender's line to {targetSquare}.`; no why-it-matters, material/result/force,
+sibling tactic, raw line geometry, raw engine PV/eval/depth, proof failure,
+public route `200`, production API, public/user-facing narration, or
+Interference LLM input opens during Stage-5; focused ExplanationPlan and
+renderer runtime tests pass; AGENTS.md remains unchanged; and
+`git diff --check` passes.
+
+## Stage-6: Interference LLM Smoke Boundary
+
+Stage-6 opens only LLM smoke for already-rendered Interference text.
+
+Stage-6 LLM smoke input is exactly:
+
+- `renderedText`
+- `claimKey`
+- `strength`
+- forbidden wording
+- instruction: `Rephrase only. Do not add chess facts.`
+
+Stage-6 LLM smoke authority:
+
+- LLM smoke may accept only an already-rendered Interference line from
+  `ExplanationPlan`.
+- The rendered line must carry the `blocks_defender_line` claim key.
+- LLM smoke may check only whether the rephrased text stays within the
+  rendered claim and forbidden wording.
+- LLM smoke does not judge chess, create proof, create Story, select rows,
+  order rows, cap rows, refute rows, repair proof, or strengthen claims.
+
+Stage-6 keeps closed:
+
+- public/user-facing LLM narration.
+- LLM chess judgment.
+- LLM access to `BoardFacts`.
+- LLM access to `InterferenceProof` or any proof sidecar.
+- LLM access to `StoryTable` rows.
+- LLM access to `EngineCheck`.
+- LLM access to raw PV, eval, depth, engine text, or engine line.
+- LLM access to route, line geometry, defender square, blocking square, or
+  proof-failure text.
+- public route `200`.
+- production API.
+
+Stage-6 smoke must reject:
+
+- material or result claims.
+- forced, only, or best claims.
+- no-defense or no-counterplay claims.
+- pin, skewer, fork, or discovered-attack claims.
+- Decoy, Deflect, RemoveGuard, Overload, or Trap wording.
+- raw engine details.
+- raw line or geometry details.
+- new moves or variations.
+
+Stage-6 runtime verification:
+
+- focused Interference LLM smoke tests.
+- regression smoke for Decoy, Deflect, Trap, and Overload if shared forbidden
+  wording changes.
+- `git diff --check`.
+
+Completion standard: Stage-6 Interference LLM Smoke Boundary closes when LLM
+smoke opens only for already-rendered `blocks_defender_line` Interference text;
+LLM input is limited to rendered text, claim key, strength, forbidden wording,
+and the instruction to rephrase only without adding chess facts; public/user
+facing narration, LLM chess judgment, BoardFacts, proof, StoryTable,
+EngineCheck, PV, eval, route, line geometry, proof-failure, public route `200`,
+and production API remain closed; material/result, forced/only/best,
+no-defense/no-counterplay, sibling tactic, raw engine, raw line, and new
+move/variation wording is rejected; focused Interference LLM smoke tests and
+required neighbor smoke regressions pass; AGENTS.md remains unchanged; and
+`git diff --check` passes.
+
+## Stage-7: Interference Closeout
+
+Stage-7 opens closeout only.
+
+Interference closeout confirmations:
+
+- One meaning: `blocks_defender_line`.
+- One proof home: `InterferenceProof`.
+- One Story label: `Tactic.Interference`.
+- One writer: `TacticInterference`.
+- One speech key: `blocks_defender_line`.
+- No broad LineTactic or broad Interference owner is open.
+- Neighbor meanings remain owned by their existing proof homes.
+- No process, stage, audit, workflow, gate, checklist, or report naming is
+  added as a runtime concept.
+- Public route `200`, production API, and public/user-facing narration remain
+  closed.
+- No docs, prose, or marker tests are added.
+
+Stage-7 verification:
+
+- focused Interference suite.
+- neighbor regression suite if touched.
+- `sbt "commentary/test"`.
+- `git diff --check`.
+
+Completion standard: Stage-7 Interference Closeout closes when the slice has
+exactly one public chess meaning, `blocks_defender_line`; exactly one proof
+home, `InterferenceProof`; exactly one Story label, `Tactic.Interference`;
+exactly one writer, `TacticInterference`; and exactly one speech key,
+`blocks_defender_line`; no broad LineTactic or broad Interference is open;
+neighbor meanings remain owned by their existing proof homes; no process,
+stage, audit, workflow, gate, checklist, or report naming is added as runtime
+concepts; public route `200`, production API, and public/user-facing narration
+remain closed; no docs, prose, or marker tests are added; focused Interference
+suite, required neighbor regression suite, full commentary test suite, and
+`git diff --check` pass; and AGENTS.md remains unchanged.
+
 ## Proof-Deficit Logs
 
 Every blocked Story must report proof deficit, not only family pass/fail.

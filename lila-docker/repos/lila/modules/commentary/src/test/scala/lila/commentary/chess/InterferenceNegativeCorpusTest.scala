@@ -1,0 +1,465 @@
+package lila.commentary.chess
+
+class InterferenceNegativeCorpusTest extends munit.FunSuite:
+
+  test("Interference neighbors stay in their own chess meaning"):
+    neighborRows.foreach: row =>
+      val verdict = StoryTable.choose(Vector(row.story)).head
+
+      assertEquals(verdict.story.writer, row.writer, row.label)
+      assertEquals(verdict.story.scene, row.scene, row.label)
+      assertEquals(verdict.story.tactic, row.tactic, row.label)
+      assert(verdict.story.tactic.forall(_ != Tactic.Interference), row.label)
+      assertEquals(
+        TacticInterference.write(row.facts, Some(row.route), None, None, None),
+        None,
+        s"${row.label} must not create Interference"
+      )
+      assertNoNeighborInterferenceText(verdict, row.label)
+
+  test("Interference line block does not become nearby tactics or material"):
+    val facts = interferenceFacts
+
+    assertEquals(
+      TacticPin.write(facts, Some(interferenceMove), Some(interferenceDefender), Some(interferenceTarget), Some(Square('h', 1))),
+      None
+    )
+    assertEquals(
+      TacticSkewer.write(
+        facts,
+        Some(interferenceMove),
+        Some(interferenceDefender),
+        Some(interferenceBlockingSquare),
+        Some(interferenceTarget)
+      ),
+      None
+    )
+    assertEquals(
+      TacticFork.write(facts, Some(interferenceMove), Some(interferenceDefender), Some(interferenceTarget)),
+      None
+    )
+    assertEquals(
+      TacticDiscoveredAttack.write(facts, Some(interferenceMove), Some(interferenceDefender), Some(interferenceTarget)),
+      None
+    )
+    assertEquals(TacticHanging.write(facts, interferenceMove), None)
+    assertEquals(SceneMaterial.write(facts, interferenceMove), None)
+    assertEquals(Tactic.values.exists(_.toString == "LineTactic"), false)
+
+  test("Interference rejects borrowed neighbor proof homes"):
+    contaminationRows.foreach: (label, contaminated) =>
+      val verdict = StoryTable.choose(Vector(contaminated)).head
+
+      assertEquals(verdict.story.writer, Some(StoryWriter.TacticInterference), label)
+      assertEquals(verdict.role, Role.Blocked, label)
+      assertEquals(verdict.story.interferenceProof, interferenceStory.interferenceProof, label)
+      assertNoInterferenceText(verdict, label)
+
+  test("InterferenceProof does not speak nearby tactic meanings"):
+    val proof = interferenceStory.interferenceProof
+
+    interferenceProofContaminationRows(proof).foreach: (label, contaminated) =>
+      val verdict = StoryTable.choose(Vector(contaminated)).head
+
+      assertNotEquals(verdict.story.writer, Some(StoryWriter.TacticInterference), label)
+      assertEquals(verdict.role, Role.Blocked, label)
+      assertEquals(verdict.story.interferenceProof, proof, label)
+      assertNoInterferenceText(verdict, label)
+      assertNoBorrowedTacticText(verdict, label)
+
+  test("Interference non-speaking rows and EngineCheck stay silent"):
+    val lead = StoryTable.choose(Vector(interferenceStory)).head
+    val support =
+      StoryTable
+        .choose(Vector(interferenceStory, interferenceStory.copy(proof = supportProof)))
+        .find(_.role == Role.Support)
+        .getOrElse(fail("expected a non-lead Interference support row"))
+    val context = StoryTable.choose(Vector(interferenceStory.copy(proof = lowProof))).head
+    val blocked = StoryTable.choose(Vector(interferenceStory.copy(target = Some(emptyInterferenceTarget)))).head
+    val capped =
+      StoryTable.choose(Vector(TacticInterference.withEngineCheck(interferenceStory, check(EngineCheckStatus.Caps)).get)).head
+    val refuted =
+      StoryTable.choose(Vector(TacticInterference.withEngineCheck(interferenceStory, check(EngineCheckStatus.Refutes)).get)).head
+    val engineOnly =
+      StoryTable.choose(
+        Vector(
+          interferenceStory.copy(
+            writer = None,
+            interferenceProof = None,
+            engineCheck = Some(check(EngineCheckStatus.Supports))
+          )
+        )
+      )
+
+    assertEquals(lead.role, Role.Lead)
+    assertEquals(support.role, Role.Support)
+    assertEquals(context.role, Role.Context)
+    assertEquals(blocked.role, Role.Blocked)
+    assertEquals(capped.engineStrengthLimited, true)
+    assertEquals(refuted.role, Role.Blocked)
+    assert(engineOnly.isEmpty || engineOnly.forall(_.role == Role.Blocked))
+
+    Vector(support, context, blocked, capped, refuted).foreach: verdict =>
+      assertNoInterferenceText(verdict, verdict.toString)
+      assertNoForbiddenInterferenceText(verdict, verdict.toString)
+    engineOnly.foreach: verdict =>
+      assertNoInterferenceText(verdict, verdict.toString)
+      assertNoForbiddenInterferenceText(verdict, verdict.toString)
+
+  private final case class NeighborRow(
+      label: String,
+      facts: BoardFacts,
+      route: Line,
+      story: Story,
+      scene: Scene,
+      tactic: Option[Tactic],
+      writer: Option[StoryWriter]
+  )
+
+  private def neighborRows: Vector[NeighborRow] =
+    Vector(
+      NeighborRow(
+        "Decoy owns named piece arrival square",
+        decoyFacts,
+        decoyMove,
+        TacticDecoy.write(decoyFacts, Some(decoyMove), Some(decoyReply), Some(Square('b', 6)), Some(Square('a', 8)), Some(decoyTrapProof)).get,
+        Scene.Tactic,
+        Some(Tactic.Decoy),
+        Some(StoryWriter.TacticDecoy)
+      ),
+      NeighborRow(
+        "Deflect owns defender-left-duty evidence",
+        deflectFacts,
+        deflectMove,
+        TacticDeflect.write(deflectFacts, Some(deflectMove), Some(deflectReply), Some(Square('e', 6)), Some(Square('d', 5))).get,
+        Scene.Tactic,
+        Some(Tactic.Deflect),
+        Some(StoryWriter.TacticDeflect)
+      ),
+      NeighborRow(
+        "RemoveGuard owns removed defender",
+        removeGuardFacts,
+        removeGuardMove,
+        TacticRemoveGuard.write(removeGuardFacts, Some(removeGuardMove), Some(Square('e', 5)), Some(Square('c', 4))).get,
+        Scene.Tactic,
+        Some(Tactic.RemoveGuard),
+        Some(StoryWriter.TacticRemoveGuard)
+      ),
+      NeighborRow(
+        "Overload owns dual duty failure",
+        overloadFacts,
+        overloadMove,
+        overloadStory,
+        Scene.Tactic,
+        Some(Tactic.Overload),
+        Some(StoryWriter.TacticOverload)
+      ),
+      NeighborRow(
+        "Trap owns no safe escape target",
+        trapFacts,
+        trapMove,
+        TacticTrap.write(trapFacts, Some(trapMove)).get,
+        Scene.Tactic,
+        Some(Tactic.Trap),
+        Some(StoryWriter.TacticTrap)
+      ),
+      NeighborRow(
+        "Pin owns pinned line geometry",
+        pinFacts,
+        pinMove,
+        TacticPin.write(pinFacts, Some(pinMove), Some(Square('e', 8)), Some(Square('e', 2)), Some(Square('e', 1))).get,
+        Scene.Tactic,
+        Some(Tactic.Pin),
+        Some(StoryWriter.TacticPin)
+      ),
+      NeighborRow(
+        "Skewer owns front and rear targets",
+        skewerFacts,
+        skewerMove,
+        TacticSkewer.write(skewerFacts, Some(skewerMove), Some(Square('e', 1)), Some(Square('e', 5)), Some(Square('e', 8))).get,
+        Scene.Tactic,
+        Some(Tactic.Skewer),
+        Some(StoryWriter.TacticSkewer)
+      ),
+      NeighborRow(
+        "Fork owns two attacked targets",
+        forkFacts,
+        forkMove,
+        TacticFork.write(forkFacts, Some(forkMove), Some(Square('d', 6)), Some(Square('f', 6))).get,
+        Scene.Tactic,
+        Some(Tactic.Fork),
+        Some(StoryWriter.TacticFork)
+      ),
+      NeighborRow(
+        "DiscoveredAttack owns revealed line attack",
+        discoveredFacts,
+        discoveredMove,
+        TacticDiscoveredAttack.write(discoveredFacts, Some(discoveredMove), Some(Square('b', 1)), Some(Square('g', 6))).get,
+        Scene.Tactic,
+        Some(Tactic.DiscoveredAttack),
+        Some(StoryWriter.TacticDiscoveredAttack)
+      ),
+      NeighborRow(
+        "Defense owns defended own target",
+        defenseFacts,
+        defenseMove,
+        SceneDefense.write(defenseFacts, defenseThreat, defenseMove).get,
+        Scene.Defense,
+        None,
+        Some(StoryWriter.SceneDefense)
+      ),
+      NeighborRow(
+        "QueenHit owns queen attack",
+        queenHitFacts,
+        queenHitMove,
+        TacticQueenHit.write(queenHitFacts, Some(queenHitMove)).get,
+        Scene.Tactic,
+        Some(Tactic.QueenHit),
+        Some(StoryWriter.TacticQueenHit)
+      ),
+      NeighborRow(
+        "Loose owns undefended attacked piece",
+        looseFacts,
+        looseMove,
+        TacticLoose.write(looseFacts, Some(looseMove)).get,
+        Scene.Tactic,
+        Some(Tactic.Loose),
+        Some(StoryWriter.TacticLoose)
+      ),
+      NeighborRow(
+        "Hanging owns material result tactic",
+        materialFacts,
+        materialMove,
+        TacticHanging.write(materialFacts, materialMove).get,
+        Scene.Tactic,
+        Some(Tactic.Hanging),
+        Some(StoryWriter.TacticHanging)
+      ),
+      NeighborRow(
+        "Material owns material result scene",
+        materialFacts,
+        materialMove,
+        SceneMaterial.write(materialFacts, materialMove).get,
+        Scene.Material,
+        None,
+        Some(StoryWriter.SceneMaterial)
+      )
+    )
+
+  private def contaminationRows: Vector[(String, Story)] =
+    val story = interferenceStory
+    val decoy =
+      TacticDecoy.write(decoyFacts, Some(decoyMove), Some(decoyReply), Some(Square('b', 6)), Some(Square('a', 8)), Some(decoyTrapProof)).get
+    val deflect = TacticDeflect.write(deflectFacts, Some(deflectMove), Some(deflectReply), Some(Square('e', 6)), Some(Square('d', 5))).get
+    val removeGuard =
+      TacticRemoveGuard.write(removeGuardFacts, Some(removeGuardMove), Some(Square('e', 5)), Some(Square('c', 4))).get
+    val overload = overloadStory
+    val trap = TacticTrap.write(trapFacts, Some(trapMove)).get
+    val pin = TacticPin.write(pinFacts, Some(pinMove), Some(Square('e', 8)), Some(Square('e', 2)), Some(Square('e', 1))).get
+    val skewer = TacticSkewer.write(skewerFacts, Some(skewerMove), Some(Square('e', 1)), Some(Square('e', 5)), Some(Square('e', 8))).get
+    val fork = TacticFork.write(forkFacts, Some(forkMove), Some(Square('d', 6)), Some(Square('f', 6))).get
+    val discovered =
+      TacticDiscoveredAttack.write(discoveredFacts, Some(discoveredMove), Some(Square('b', 1)), Some(Square('g', 6))).get
+    val defense = SceneDefense.write(defenseFacts, defenseThreat, defenseMove).get
+    val queenHit = TacticQueenHit.write(queenHitFacts, Some(queenHitMove)).get
+    val loose = TacticLoose.write(looseFacts, Some(looseMove)).get
+    val hanging = TacticHanging.write(materialFacts, materialMove).get
+    val material = SceneMaterial.write(materialFacts, materialMove).get
+
+    Vector(
+      "Decoy proof" -> story.copy(decoyProof = decoy.decoyProof),
+      "Deflect proof" -> story.copy(deflectProof = deflect.deflectProof),
+      "RemoveGuard proof" -> story.copy(removeGuardProof = removeGuard.removeGuardProof),
+      "Overload proof" -> story.copy(overloadProof = overload.overloadProof),
+      "Trap proof" -> story.copy(trapProof = trap.trapProof),
+      "Pin proof" -> story.copy(pinProof = pin.pinProof),
+      "Skewer proof" -> story.copy(skewerProof = skewer.skewerProof),
+      "Fork proof" -> story.copy(multiTargetProof = fork.multiTargetProof),
+      "DiscoveredAttack proof" -> story.copy(lineProof = discovered.lineProof),
+      "Defense proof" -> story.copy(threatProof = defense.threatProof, defenseProof = defense.defenseProof),
+      "QueenHit proof" -> story.copy(queenHitProof = queenHit.queenHitProof),
+      "Loose proof" -> story.copy(loosePieceProof = loose.loosePieceProof),
+      "Hanging proof" -> story.copy(captureResult = hanging.captureResult),
+      "Material proof" -> story.copy(captureResult = material.captureResult)
+    )
+
+  private def interferenceProofContaminationRows(proof: Option[InterferenceProof]): Vector[(String, Story)] =
+    Vector(
+      "Decoy row" -> TacticDecoy
+        .write(decoyFacts, Some(decoyMove), Some(decoyReply), Some(Square('b', 6)), Some(Square('a', 8)), Some(decoyTrapProof))
+        .get
+        .copy(interferenceProof = proof),
+      "Deflect row" -> TacticDeflect
+        .write(deflectFacts, Some(deflectMove), Some(deflectReply), Some(Square('e', 6)), Some(Square('d', 5)))
+        .get
+        .copy(interferenceProof = proof),
+      "RemoveGuard row" -> TacticRemoveGuard
+        .write(removeGuardFacts, Some(removeGuardMove), Some(Square('e', 5)), Some(Square('c', 4)))
+        .get
+        .copy(interferenceProof = proof),
+      "Overload row" -> overloadStory.copy(interferenceProof = proof),
+      "Trap row" -> TacticTrap.write(trapFacts, Some(trapMove)).get.copy(interferenceProof = proof)
+    )
+
+  private def assertNoInterferenceText(verdict: Verdict, label: String): Unit =
+    val plan = ExplanationPlan.fromSelected(verdict)
+    assertEquals(plan, None, label)
+    assertEquals(plan.flatMap(DeterministicRenderer.fromPlan), None, label)
+
+  private def assertNoNeighborInterferenceText(verdict: Verdict, label: String): Unit =
+    val plan = ExplanationPlan.fromSelected(verdict)
+    assertEquals(plan.exists(_.tactic.contains(Tactic.Interference)), false, label)
+    assertEquals(plan.flatMap(_.allowedClaim).exists(_.key.contains("interference")), false, label)
+    val rendered = plan.flatMap(DeterministicRenderer.fromPlan)
+    assertEquals(rendered.exists(_.claimKey.contains("interference")), false, label)
+    assertEquals(rendered.exists(_.text.toLowerCase.contains("interference")), false, label)
+
+  private def assertNoBorrowedTacticText(verdict: Verdict, label: String): Unit =
+    val rendered = ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan)
+    val text = rendered.map(_.text.toLowerCase).getOrElse("")
+
+    Vector("decoy", "deflect", "removes the defender", "overload", "trap").foreach: word =>
+      assertEquals(text.contains(word), false, s"$label contains $word")
+
+  private def assertNoForbiddenInterferenceText(verdict: Verdict, label: String): Unit =
+    val rendered = ExplanationPlan.fromSelected(verdict).flatMap(DeterministicRenderer.fromPlan)
+    val text = rendered.map(_.text.toLowerCase).getOrElse("")
+
+    Vector(
+      "wins material",
+      "wins a piece",
+      "forced",
+      "only move",
+      "best move",
+      "no defense",
+      "no counterplay",
+      "traps",
+      "decoys",
+      "deflects",
+      "removes the defender",
+      "overloads",
+      "pins",
+      "skewers",
+      "forks"
+    ).foreach: word =>
+      assertEquals(text.contains(word), false, s"$label contains $word")
+
+  private def interferenceStory: Story =
+    TacticInterference
+      .write(
+        interferenceFacts,
+        Some(interferenceMove),
+        Some(interferenceDefender),
+        Some(interferenceBlockingSquare),
+        Some(interferenceTarget)
+      )
+      .get
+
+  private def overloadStory: Story =
+    TacticOverload
+      .write(
+        overloadFacts,
+        Some(overloadMove),
+        Some(Square('e', 6)),
+        Some(Square('e', 7)),
+        Some(Square('a', 6)),
+        Some(Square('e', 7))
+      )
+      .get
+
+  private def check(status: EngineCheckStatus): EngineCheck =
+    EngineCheck
+      .fromEvidence(
+        sameBoardProof = true,
+        checkedMove = Some(interferenceMove),
+        engineLine = Some(EngineLine(Vector(interferenceMove))),
+        replyLine = Some(EngineLine(Vector(Line(Square('h', 8), Square('h', 7))))),
+        evalBefore = Some(EngineEval(20)),
+        evalAfter = Some(if status == EngineCheckStatus.Refutes then EngineEval(-200) else EngineEval(20)),
+        depth = Some(18),
+        freshnessPly = Some(0),
+        requestedStatus = status
+      )
+      .copy(storyBound = true)
+
+  private def facts(fen: String): BoardFacts =
+    BoardFacts.fromFen(fen).fold(error => fail(s"invalid Interference negative FEN: $fen -> $error"), identity)
+
+  private val interferenceFacts = facts("r6k/8/8/8/8/1B6/8/n6K w - - 0 1")
+  private val interferenceMove = Line(Square('b', 3), Square('a', 4))
+  private val interferenceDefender = Square('a', 8)
+  private val interferenceBlockingSquare = Square('a', 4)
+  private val interferenceTarget = Square('a', 1)
+  private val emptyInterferenceTarget = Square('a', 2)
+
+  private val decoyFacts = facts("4k3/8/1nb5/8/8/8/8/R3B1K1 w - - 0 1")
+  private val decoyMove = Line(Square('e', 1), Square('f', 2))
+  private val decoyReply = Line(Square('b', 6), Square('a', 8))
+  private val trapFacts = facts("n3k3/8/2b5/8/8/8/5B2/R5K1 w - - 0 1")
+  private val trapMove = Line(Square('a', 1), Square('a', 7))
+  private def decoyTrapProof: TrapProof = TrapProof.fromBoardFacts(trapFacts, trapMove)
+
+  private val deflectFacts = facts("7k/8/4b3/3n4/8/8/7P/7K w - - 0 1")
+  private val deflectMove = Line(Square('h', 2), Square('h', 3))
+  private val deflectReply = Line(Square('e', 6), Square('g', 4))
+  private val removeGuardFacts = facts("6Bk/8/8/4r3/2n5/8/8/7K w - - 0 1")
+  private val removeGuardMove = Line(Square('g', 8), Square('c', 4))
+  private val overloadFacts = facts("7k/4q3/b3r3/8/8/6B1/8/7K w - - 0 1")
+  private val overloadMove = Line(Square('g', 3), Square('d', 6))
+  private val pinFacts = facts("r5k1/8/8/8/8/8/4N3/4K3 b - - 0 1")
+  private val pinMove = Line(Square('a', 8), Square('e', 8))
+  private val skewerFacts = facts("4r2k/8/8/4q3/8/8/8/R6K w - - 0 1")
+  private val skewerMove = Line(Square('a', 1), Square('e', 1))
+  private val forkFacts = facts("7k/8/3n1n2/8/4P3/8/8/7K w - - 0 1")
+  private val forkMove = Line(Square('e', 4), Square('e', 5))
+  private val discoveredFacts = facts("7k/8/6r1/8/8/3N4/8/1B5K w - - 0 1")
+  private val discoveredMove = Line(Square('d', 3), Square('f', 4))
+  private val defenseFacts = facts("4k3/8/8/5n2/3Q4/8/8/4K3 w - - 0 1")
+  private val defenseThreat = Line(Square('f', 5), Square('d', 4))
+  private val defenseMove = Line(Square('d', 4), Square('e', 4))
+  private val queenHitFacts = facts("4k3/8/8/7q/8/8/3R4/4K3 w - - 0 1")
+  private val queenHitMove = Line(Square('d', 2), Square('h', 2))
+  private val looseFacts = facts("4k3/8/8/7b/8/8/3R4/4K3 w - - 0 1")
+  private val looseMove = Line(Square('d', 2), Square('h', 2))
+  private val materialFacts = facts("4k3/8/8/4n3/3P4/8/8/4K3 w - - 0 1")
+  private val materialMove = Line(Square('d', 4), Square('e', 5))
+
+  private val lowProof =
+    Proof(
+      boardProof = 70,
+      lineProof = 70,
+      ownerProof = 70,
+      anchorProof = 70,
+      routeProof = 70,
+      persistence = 0,
+      immediacy = 0,
+      forcing = 0,
+      conversionPrize = 0,
+      counterplayRisk = 70,
+      kingHeat = 0,
+      pieceSupport = 0,
+      pawnSupport = 0,
+      sourceFit = 0,
+      novelty = 0,
+      clarity = 0
+    )
+
+  private val supportProof =
+    Proof(
+      boardProof = 90,
+      lineProof = 90,
+      ownerProof = 90,
+      anchorProof = 90,
+      routeProof = 90,
+      persistence = 95,
+      immediacy = 85,
+      forcing = 0,
+      conversionPrize = 0,
+      counterplayRisk = 0,
+      kingHeat = 0,
+      pieceSupport = 95,
+      pawnSupport = 0,
+      sourceFit = 0,
+      novelty = 0,
+      clarity = 95
+    )

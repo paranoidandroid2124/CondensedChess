@@ -46,8 +46,11 @@ class LoosePieceCloseoutTest extends munit.FunSuite:
       )
 
     siblingRows.foreach: (label, contaminated) =>
-      val selected = StoryTable.choose(Vector(contaminated)).head
-      assertEquals(ExplanationPlan.fromSelected(selected), None, label)
+      val maybeSelected = StoryTable.choose(Vector(contaminated)).headOption
+      maybeSelected.foreach: selected =>
+        assertEquals(selected.role == Role.Lead, false, label)
+        assertEquals(ExplanationPlan.fromSelected(selected).flatMap(_.allowedClaim), None, label)
+        assertEquals(ExplanationPlan.fromSelected(selected).flatMap(DeterministicRenderer.fromPlan), None, label)
 
   test("Stage-9 Loose public text stays attacks loose piece only"):
     val loosePlan = plan

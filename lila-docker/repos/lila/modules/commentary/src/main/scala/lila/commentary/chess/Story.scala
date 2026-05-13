@@ -90,6 +90,7 @@ enum Tactic:
   case Clear
   case Decoy
   case Deflect
+  case Interference
   case Tempo
 
 final case class Proof(
@@ -252,6 +253,7 @@ private[commentary] enum StoryWriter:
   case TacticOverload
   case TacticDeflect
   case TacticDecoy
+  case TacticInterference
   case TacticSkewer
   case TacticQueenHit
   case TacticLoose
@@ -295,6 +297,7 @@ final case class Story(
     private[commentary] val overloadProof: Option[OverloadProof] = None,
     private[commentary] val deflectProof: Option[DeflectProof] = None,
     private[commentary] val decoyProof: Option[DecoyProof] = None,
+    private[commentary] val interferenceProof: Option[InterferenceProof] = None,
     private[commentary] val skewerProof: Option[SkewerProof] = None,
     private[commentary] val queenHitProof: Option[QueenHitProof] = None,
     private[commentary] val loosePieceProof: Option[LoosePieceProof] = None,
@@ -340,10 +343,10 @@ final case class Story(
   private def squareValue(square: Option[Square]) = square.fold(0)(_.index + 1)
 
 object Story:
-  val Size = 174
+  val Size = 175
   val SceneSlots = 29
   val PlanSlots = 32
-  val TacticSlots = 25
+  val TacticSlots = 26
   val PawnSlots = 16
   val PieceSlots = 16
   val KingSlots = 16
@@ -415,11 +418,11 @@ final case class Verdict(
     ProofDeficitDiagnostics.fromVerdict(this)
 
 object Verdict:
-  val Size = 110
+  val Size = 111
   val FinalSlots = 8
   val SceneSlots = 29
   val PlanSlots = 32
-  val TacticSlots = 25
+  val TacticSlots = 26
   val ProofSlots = 16
 
   object Slots:
@@ -789,6 +792,7 @@ object StoryTable:
       positivePinWriter(story) ||
       positiveRemoveGuardWriter(story) ||
       positiveDeflectWriter(story) ||
+      positiveInterferenceWriter(story) ||
       positiveSkewerWriter(story)
 
   private def sameCaptureMaterialResult(story: Story, other: Story) =
@@ -818,6 +822,7 @@ object StoryTable:
 
   private def leadByStoryRules(story: Story, stories: Vector[Story]) =
     story.proofFailures.isEmpty &&
+      !interferenceProofContaminatesOtherRow(story) &&
       positiveWriter(story) &&
       base(story) &&
       identity(story) &&
@@ -836,6 +841,7 @@ object StoryTable:
       removeGuardWithoutWriter(story) ||
       overloadWithoutWriter(story) ||
       deflectWithoutWriter(story) ||
+      interferenceWithoutWriter(story) ||
       skewerWithoutWriter(story) ||
       queenHitWithoutWriter(story) ||
       looseWithoutWriter(story) ||
@@ -850,6 +856,7 @@ object StoryTable:
       invalidOverloadWriter(story) ||
       invalidDeflectWriter(story) ||
       invalidDecoyWriter(story) ||
+      invalidInterferenceWriter(story) ||
       invalidSkewerWriter(story) ||
       invalidQueenHitWriter(story) ||
       invalidLooseWriter(story) ||
@@ -878,6 +885,7 @@ object StoryTable:
       overloadProofContaminatesOtherRow(story) ||
       deflectProofContaminatesOtherRow(story) ||
       decoyProofContaminatesOtherRow(story) ||
+      interferenceProofContaminatesOtherRow(story) ||
       pawnAdvanceWithoutWriter(story) ||
       pawnStopWithoutWriter(story) ||
       pawnBreakWithoutWriter(story) ||
@@ -933,6 +941,11 @@ object StoryTable:
     story.writer.isEmpty &&
       story.scene == Scene.Tactic &&
       story.tactic.contains(Tactic.Deflect)
+
+  private def interferenceWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Interference)
 
   private def skewerWithoutWriter(story: Story) =
     story.writer.isEmpty &&
@@ -1041,6 +1054,10 @@ object StoryTable:
   private def invalidDecoyWriter(story: Story) =
     story.writer.contains(StoryWriter.TacticDecoy) &&
       !positiveDecoyWriter(story)
+
+  private def invalidInterferenceWriter(story: Story) =
+    story.writer.contains(StoryWriter.TacticInterference) &&
+      !positiveInterferenceWriter(story)
 
   private def invalidSkewerWriter(story: Story) =
     story.writer.contains(StoryWriter.TacticSkewer) &&
@@ -1154,6 +1171,10 @@ object StoryTable:
     story.decoyProof.nonEmpty &&
       !story.writer.contains(StoryWriter.TacticDecoy)
 
+  private def interferenceProofContaminatesOtherRow(story: Story) =
+    story.interferenceProof.nonEmpty &&
+      !story.writer.contains(StoryWriter.TacticInterference)
+
   private def base(story: Story) =
     story.proof.publicStrength >= 65 &&
       story.proof.truth >= 70 &&
@@ -1182,6 +1203,7 @@ object StoryTable:
       case Some(StoryWriter.TacticOverload) => positiveOverloadWriter(story)
       case Some(StoryWriter.TacticDeflect) => positiveDeflectWriter(story)
       case Some(StoryWriter.TacticDecoy) => positiveDecoyWriter(story)
+      case Some(StoryWriter.TacticInterference) => positiveInterferenceWriter(story)
       case Some(StoryWriter.TacticSkewer) => positiveSkewerWriter(story)
       case Some(StoryWriter.TacticQueenHit) => positiveQueenHitWriter(story)
       case Some(StoryWriter.TacticLoose) => positiveLooseWriter(story)
@@ -1419,6 +1441,44 @@ object StoryTable:
           proof.completeStoryProof &&
           proof.noEngineEvidenceUsed &&
           decoyProofBindsStory(story, proof)
+
+  private def positiveInterferenceWriter(story: Story) =
+    story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Interference) &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.overloadProof.isEmpty &&
+      story.deflectProof.isEmpty &&
+      story.decoyProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.queenHitProof.isEmpty &&
+      story.loosePieceProof.isEmpty &&
+      story.trapProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.secondaryTarget.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.interferenceProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.legalSideMove &&
+          proof.completeStoryProof &&
+          proof.moveIsNonCapture &&
+          proof.movedPieceLandsOnBlockingSquare &&
+          proof.lineDefenderIsSlider &&
+          proof.targetBound &&
+          proof.defenderBlockingTargetCollinearOnSliderRay &&
+          proof.blockingSquareStrictlyBetweenDefenderAndTarget &&
+          proof.defenderLineContactBeforeMove &&
+          proof.afterMoveBlockingSquareOccupiedByMovedPiece &&
+          proof.defenderLineContactRemovedByBlocker &&
+          proof.noEngineEvidenceUsed &&
+          interferenceProofBindsStory(story, proof)
 
   private def skewerWriterShape(story: Story) =
     story.scene == Scene.Tactic &&
@@ -2081,6 +2141,16 @@ object StoryTable:
       proof.namedPieceAfterReply.exists(piece => story.rival == piece.side && story.target.contains(piece.square)) &&
       proof.sideMove.exists: move =>
         proof.afterSideMoveBoard.exists(piece => story.side == piece.side && story.anchor.contains(piece.square) && piece.square == move.to)
+
+  private def interferenceProofBindsStory(story: Story, proof: InterferenceProof) =
+    proof.side == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.sideMove.exists(move => story.route.contains(move)) &&
+      proof.targetSquare.exists(square => story.target.contains(square)) &&
+      proof.blockingSquare.exists(square => story.anchor.contains(square)) &&
+      proof.movedPieceAfter.exists(piece => story.side == piece.side && story.anchor.contains(piece.square)) &&
+      proof.lineDefenderBefore.exists(piece => story.rival == piece.side) &&
+      proof.lineDefenderAfter.exists(piece => story.rival == piece.side)
 
   private def skewerProofBindsStory(story: Story, proof: SkewerProof) =
     proof.side == story.side &&

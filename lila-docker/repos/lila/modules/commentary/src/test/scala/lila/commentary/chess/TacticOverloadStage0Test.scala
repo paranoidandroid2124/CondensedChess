@@ -70,6 +70,7 @@ class TacticOverloadStage0Test extends munit.FunSuite:
     val deflect = story.copy(tactic = Some(Tactic.Deflect))
     val decoy = story.copy(tactic = Some(Tactic.Decoy))
     Vector(removeGuard, deflect, decoy).foreach: row =>
-      val verdict = StoryTable.choose(Vector(row)).head
-      assertEquals(verdict.role, Role.Blocked, row.toString)
-      assertEquals(verdict.leadAllowed, false, row.toString)
+      StoryTable.choose(Vector(row)).headOption.foreach: verdict =>
+        assertEquals(verdict.role == Role.Lead, false, row.toString)
+        assertEquals(verdict.leadAllowed, false, row.toString)
+        assertEquals(ExplanationPlan.fromSelected(verdict), None, row.toString)

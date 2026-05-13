@@ -60,10 +60,10 @@ class StoryTest extends ChessTestSupport:
     assertEquals(exact.values(Proof.Slots.SourceFit), 82)
 
   test("Story constants preserve the fixed story shape"):
-    assertEquals(Story.Size, 174)
+    assertEquals(Story.Size, 175)
     assertEquals(Story.SceneSlots, 29)
     assertEquals(Story.PlanSlots, 32)
-    assertEquals(Story.TacticSlots, 25)
+    assertEquals(Story.TacticSlots, 26)
     assertEquals(Story.PawnSlots, 16)
     assertEquals(Story.PieceSlots, 16)
     assertEquals(Story.KingSlots, 16)
@@ -72,11 +72,11 @@ class StoryTest extends ChessTestSupport:
     assertEquals(Story.Slots.Scene, 0)
     assertEquals(Story.Slots.Plan, 29)
     assertEquals(Story.Slots.Tactic, 61)
-    assertEquals(Story.Slots.Pawn, 86)
-    assertEquals(Story.Slots.Piece, 102)
-    assertEquals(Story.Slots.King, 118)
-    assertEquals(Story.Slots.Opening, 134)
-    assertEquals(Story.Slots.Proof, 142)
+    assertEquals(Story.Slots.Pawn, 87)
+    assertEquals(Story.Slots.Piece, 103)
+    assertEquals(Story.Slots.King, 119)
+    assertEquals(Story.Slots.Opening, 135)
+    assertEquals(Story.Slots.Proof, 143)
     assertEquals(Story.Slots.End, Story.Size)
 
   test("Story values encode exact shape, public family, identity, and proof"):
@@ -2786,6 +2786,8 @@ class StoryTest extends ChessTestSupport:
         StoryWriter.TacticRemoveGuard,
         StoryWriter.TacticOverload,
         StoryWriter.TacticDeflect,
+        StoryWriter.TacticDecoy,
+        StoryWriter.TacticInterference,
         StoryWriter.TacticSkewer,
         StoryWriter.TacticQueenHit,
         StoryWriter.TacticLoose,

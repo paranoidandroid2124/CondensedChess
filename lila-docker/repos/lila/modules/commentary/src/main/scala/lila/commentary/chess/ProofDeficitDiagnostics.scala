@@ -83,6 +83,7 @@ private[commentary] object ProofDeficitDiagnostics:
       Option.when(story.removeGuardProof.nonEmpty)("remove_guard_proof"),
       Option.when(story.overloadProof.nonEmpty)("overload_proof"),
       Option.when(story.skewerProof.nonEmpty)("skewer_proof"),
+      Option.when(story.interferenceProof.nonEmpty)("interference_proof"),
       Option.when(story.queenHitProof.nonEmpty)("queen_hit_proof"),
       Option.when(story.loosePieceProof.nonEmpty)("loose_piece_proof"),
       Option.when(story.pawnAdvanceProof.nonEmpty)("pawn_advance_proof"),
@@ -133,6 +134,7 @@ private[commentary] object ProofDeficitDiagnostics:
       case StoryWriter.TacticOverload => Option.when(story.overloadProof.isEmpty)("OverloadProof")
       case StoryWriter.TacticDeflect => Option.when(story.deflectProof.isEmpty)("DeflectProof")
       case StoryWriter.TacticDecoy => Option.when(story.decoyProof.isEmpty)("DecoyProof")
+      case StoryWriter.TacticInterference => Option.when(story.interferenceProof.isEmpty)("InterferenceProof")
       case StoryWriter.TacticSkewer => Option.when(story.skewerProof.isEmpty)("SkewerProof")
       case StoryWriter.TacticQueenHit => Option.when(story.queenHitProof.isEmpty)("QueenHitProof")
       case StoryWriter.TacticLoose => Option.when(story.loosePieceProof.isEmpty)("LoosePieceProof")

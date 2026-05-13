@@ -6573,7 +6573,8 @@ class PawnsTest extends ChessTestSupport:
       ExplanationClaim.DiscoveredAttackAllowed,
       ExplanationClaim.PinAllowed,
       ExplanationClaim.RemoveGuardAllowed,
-      ExplanationClaim.SkewerAllowed
+      ExplanationClaim.SkewerAllowed,
+      ExplanationClaim.DecoyAllowed
     ).foreach: openedHomeClaims =>
       assertEquals(openedHomeClaims.contains(ExplanationClaim.PromotesPawn), false)
 
@@ -7357,7 +7358,8 @@ class PawnsTest extends ChessTestSupport:
       ExplanationClaim.DiscoveredAttackAllowed,
       ExplanationClaim.PinAllowed,
       ExplanationClaim.RemoveGuardAllowed,
-      ExplanationClaim.SkewerAllowed
+      ExplanationClaim.SkewerAllowed,
+      ExplanationClaim.DecoyAllowed
     ).foreach: openedHomeClaims =>
       assertEquals(openedHomeClaims.contains(ExplanationClaim.CreatesPromotionThreat), false)
 
@@ -9180,7 +9182,8 @@ class PawnsTest extends ChessTestSupport:
       ExplanationClaim.DiscoveredAttackAllowed,
       ExplanationClaim.PinAllowed,
       ExplanationClaim.RemoveGuardAllowed,
-      ExplanationClaim.SkewerAllowed
+      ExplanationClaim.SkewerAllowed,
+      ExplanationClaim.DecoyAllowed
     ).foreach: openedHomeClaims =>
       assertEquals(openedHomeClaims.contains(ExplanationClaim.AdvancesPassedPawn), false)
       assertEquals(openedHomeClaims.contains(ExplanationClaim.StopsPassedPawnNextAdvance), false)
@@ -9197,6 +9200,8 @@ class PawnsTest extends ChessTestSupport:
         StoryWriter.TacticRemoveGuard,
         StoryWriter.TacticOverload,
         StoryWriter.TacticDeflect,
+        StoryWriter.TacticDecoy,
+        StoryWriter.TacticInterference,
         StoryWriter.TacticSkewer,
         StoryWriter.TacticQueenHit,
         StoryWriter.TacticLoose,

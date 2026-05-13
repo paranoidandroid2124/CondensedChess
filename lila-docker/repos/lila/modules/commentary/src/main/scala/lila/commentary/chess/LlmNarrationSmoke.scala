@@ -16,17 +16,24 @@ private[commentary] object LlmNarrationSmoke:
 
   def codexCliPrompt(plan: ExplanationPlan, rendered: RenderedLine): Option[String] =
     Option.when(inputMatches(plan, rendered)):
-      s"""You are a chess narration smoke-test model.
-         |instruction: Rephrase only. Do not add chess facts.
-         |Use only the supplied fields. Keep the output no stronger than renderedText.
-         |Do not add a move, line, tactic, plan, cause, or stronger claim.
-         |
-         |renderedText: ${rendered.text}
-         |claimKey: ${rendered.claimKey}
-         |strength: ${rendered.strength}
-         |forbiddenWording: ${promptForbiddenLabels(plan).mkString(", ")}
-         |
-         |Return JSON only: {"text":"..."}""".stripMargin
+      if isInterferencePlan(plan) then
+        s"""instruction: Rephrase only. Do not add chess facts.
+           |renderedText: ${rendered.text}
+           |claimKey: ${rendered.claimKey}
+           |strength: ${rendered.strength}
+           |forbiddenWording: ${promptForbiddenLabels(plan).mkString(", ")}""".stripMargin
+      else
+        s"""You are a chess narration smoke-test model.
+           |instruction: Rephrase only. Do not add chess facts.
+           |Use only the supplied fields. Keep the output no stronger than renderedText.
+           |Do not add a move, line, tactic, plan, cause, or stronger claim.
+           |
+           |renderedText: ${rendered.text}
+           |claimKey: ${rendered.claimKey}
+           |strength: ${rendered.strength}
+           |forbiddenWording: ${promptForbiddenLabels(plan).mkString(", ")}
+           |
+           |Return JSON only: {"text":"..."}""".stripMargin
 
   def check(plan: ExplanationPlan, rendered: RenderedLine, output: String): NarrationSmokeCheck =
     val violations =
@@ -107,6 +114,11 @@ private[commentary] object LlmNarrationSmoke:
     val labels = forbidden.map(forbiddenLabel)
     if isOverloadPlan(plan) then (labels ++ OverloadExtraForbiddenPhrases).distinct else labels
 
+  private def isInterferencePlan(plan: ExplanationPlan): Boolean =
+    plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Interference) &&
+      plan.allowedClaim.contains(ExplanationClaim.BlocksDefenderLine)
+
   private def claimMatchesTactic(plan: ExplanationPlan, tactic: Tactic): Boolean =
     tactic match
       case Tactic.Hanging => plan.allowedClaim.contains(ExplanationClaim.CanWinPiece)
@@ -121,6 +133,7 @@ private[commentary] object LlmNarrationSmoke:
       case Tactic.Trap => plan.allowedClaim.contains(ExplanationClaim.TrapsPiece)
       case Tactic.Decoy => plan.allowedClaim.contains(ExplanationClaim.DecoysPiece)
       case Tactic.Deflect => plan.allowedClaim.contains(ExplanationClaim.DeflectsDefender)
+      case Tactic.Interference => plan.allowedClaim.contains(ExplanationClaim.BlocksDefenderLine)
       case _ => false
 
   private def violatesForbiddenWording(text: String, plan: ExplanationPlan): Boolean =
@@ -222,6 +235,15 @@ private[commentary] object LlmNarrationSmoke:
           Set("decoy", "decoys", "decoyed", "decoys piece", "decoys the piece")
         case Some(Tactic.Deflect) =>
           Set("deflect", "deflects", "deflected", "deflects defender", "deflects the defender")
+        case Some(Tactic.Interference) =>
+          Set(
+            "blocks",
+            "blocks line",
+            "blocks the line",
+            "blocks defender line",
+            "blocks the defender line",
+            "blocks the defender s line"
+          )
         case _ =>
           if plan.scene == Scene.PawnAdvance then
             Set("passed pawn", "advances passed pawn", "advances the passed pawn")
@@ -862,6 +884,8 @@ private[commentary] object LlmNarrationSmoke:
         Vector("blunder")
       case ForbiddenWording.Winning =>
         Vector("winning", "winning position")
+      case ForbiddenWording.Wins =>
+        Vector("wins")
       case ForbiddenWording.Decisive =>
         Vector("decisive", "decisively")
       case ForbiddenWording.Forced =>
@@ -1105,6 +1129,8 @@ private[commentary] object LlmNarrationSmoke:
         Vector("hanging piece", "piece is hanging")
       case ForbiddenWording.WinsPiece =>
         Vector("wins piece", "wins a piece", "win piece", "win a piece")
+      case ForbiddenWording.ForksPiece =>
+        Vector("forks", "fork")
       case ForbiddenWording.NoDefense =>
         Vector("no defense", "no defence")
       case ForbiddenWording.RefutesDefense =>

@@ -35,6 +35,7 @@ private[commentary] enum ExplanationClaim:
   case AttacksLoosePiece
   case TrapsPiece
   case DecoysPiece
+  case BlocksDefenderLine
 
   def key: String =
     this match
@@ -72,6 +73,7 @@ private[commentary] enum ExplanationClaim:
       case AttacksLoosePiece => "attacks_loose_piece"
       case TrapsPiece => "traps_piece"
       case DecoysPiece => "decoys_piece"
+      case BlocksDefenderLine => "blocks_defender_line"
 
 private[commentary] object ExplanationClaim:
   val HangingAllowed: Vector[ExplanationClaim] =
@@ -238,6 +240,11 @@ private[commentary] object ExplanationClaim:
       ExplanationClaim.DecoysPiece
     )
 
+  val InterferenceAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.BlocksDefenderLine
+    )
+
   val QueenHitForbiddenKeys: Vector[String] =
     Vector(
       "wins_queen",
@@ -314,6 +321,26 @@ private[commentary] object ExplanationClaim:
       "removes_defender",
       "overloads_defender",
       "traps_piece"
+    )
+
+  val InterferenceForbiddenKeys: Vector[String] =
+    Vector(
+      "wins",
+      "wins_material",
+      "wins_piece",
+      "forced",
+      "only_move",
+      "best_move",
+      "no_defense",
+      "no_counterplay",
+      "traps_piece",
+      "decoys_piece",
+      "deflects_defender",
+      "removes_defender",
+      "overloads_defender",
+      "pins_piece",
+      "skewers_piece",
+      "forks_two_targets"
     )
 
   val SkewerForbiddenKeys: Vector[String] =
@@ -676,6 +703,7 @@ private[commentary] enum ForbiddenWording:
   case FreePiece
   case Blunder
   case Winning
+  case Wins
   case Decisive
   case Forced
   case ForcedMove
@@ -718,6 +746,7 @@ private[commentary] enum ForbiddenWording:
   case TargetIsHanging
   case HangingPiece
   case WinsPiece
+  case ForksPiece
   case NoDefense
   case RefutesDefense
   case LeavesUndefended
@@ -796,6 +825,7 @@ private[commentary] enum ForbiddenWording:
 
   def key: String =
     this match
+      case Wins => "wins"
       case FreePiece => "free_piece"
       case Blunder => "blunder"
       case Winning => "winning"
@@ -841,6 +871,7 @@ private[commentary] enum ForbiddenWording:
       case TargetIsHanging => "target_is_hanging"
       case HangingPiece => "hanging_piece"
       case WinsPiece => "wins_piece"
+      case ForksPiece => "forks_piece"
       case NoDefense => "no_defense"
       case RefutesDefense => "refutes_defense"
       case LeavesUndefended => "leaves_undefended"
@@ -1060,6 +1091,24 @@ private[commentary] object ExplanationPlan:
           ForbiddenWording.RemovesDefender,
           ForbiddenWording.OverloadsDefender,
           ForbiddenWording.TrapsPiece
+        )
+    ).distinct
+  private val InterferenceForbiddenWording =
+    (
+      LineDefenderForbiddenWording ++
+        Vector(
+          ForbiddenWording.Wins,
+          ForbiddenWording.WinsPiece,
+          ForbiddenWording.NoCounterplay,
+          ForbiddenWording.Decoy,
+          ForbiddenWording.DeflectsDefender,
+          ForbiddenWording.RemovesDefender,
+          ForbiddenWording.OverloadsDefender,
+          ForbiddenWording.TrapsPiece,
+          ForbiddenWording.PinsPiece,
+          ForbiddenWording.SkewersPiece,
+          ForbiddenWording.ForksPiece,
+          ForbiddenWording.WhyItMatters
         )
     ).distinct
   private val SkewerForbiddenWording =
@@ -1514,6 +1563,13 @@ private[commentary] object ExplanationPlan:
       !verdict.engineStrengthLimited &&
       verdict.engineCheckStatus.forall(_ == EngineCheckStatus.Supports)
 
+  private def interferenceCanPlan(verdict: Verdict) =
+    verdict.selected &&
+      verdict.role == Role.Lead &&
+      verdict.leadAllowed &&
+      !verdict.engineStrengthLimited &&
+      !verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes)
+
   private def skewerCanPlan(verdict: Verdict) =
     verdict.selected &&
       verdict.role == Role.Lead &&
@@ -1764,6 +1820,59 @@ private[commentary] object ExplanationPlan:
           story.anchor.contains(piece.square)
       )
 
+  private def isInterferenceShaped(story: Story) =
+    story.writer.contains(StoryWriter.TacticInterference) ||
+      story.tactic.contains(Tactic.Interference) ||
+      story.interferenceProof.nonEmpty
+
+  private def interferencePlanStory(story: Story) =
+    story.writer.contains(StoryWriter.TacticInterference) &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Interference) &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.overloadProof.isEmpty &&
+      story.deflectProof.isEmpty &&
+      story.decoyProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.queenHitProof.isEmpty &&
+      story.loosePieceProof.isEmpty &&
+      story.trapProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.secondaryTarget.isEmpty &&
+      story.proofFailures.isEmpty &&
+      story.interferenceProof.exists(interferenceProofBindsPlan(story, _))
+
+  private def interferenceProofBindsPlan(story: Story, proof: InterferenceProof) =
+    proof.complete &&
+      proof.sameBoardProof &&
+      proof.legalSideMove &&
+      proof.completeStoryProof &&
+      proof.moveIsNonCapture &&
+      proof.movedPieceLandsOnBlockingSquare &&
+      proof.lineDefenderIsSlider &&
+      proof.targetBound &&
+      proof.defenderBlockingTargetCollinearOnSliderRay &&
+      proof.blockingSquareStrictlyBetweenDefenderAndTarget &&
+      proof.defenderLineContactBeforeMove &&
+      proof.afterMoveBlockingSquareOccupiedByMovedPiece &&
+      proof.defenderLineContactRemovedByBlocker &&
+      proof.noEngineEvidenceUsed &&
+      proof.side == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.sideMove.exists(move => story.route.contains(move)) &&
+      proof.targetSquare.exists(square => story.target.contains(square)) &&
+      proof.blockingSquare.exists(square => story.anchor.contains(square)) &&
+      proof.movedPieceAfter.exists(piece => story.side == piece.side && story.anchor.contains(piece.square)) &&
+      proof.lineDefenderBefore.exists(piece => story.rival == piece.side) &&
+      proof.lineDefenderAfter.exists(piece => story.rival == piece.side)
+
   private def isLooseShaped(story: Story) =
     story.writer.contains(StoryWriter.TacticLoose) ||
       story.tactic.contains(Tactic.Loose) ||
@@ -1983,6 +2092,7 @@ private[commentary] object ExplanationPlan:
     else if isDecoyShaped(story) then fromSelectedDecoy(verdict, story)
     else if isTrapShaped(story) then fromSelectedTrap(verdict, story)
     else if isDeflectShaped(story) then fromSelectedDeflect(verdict, story)
+    else if isInterferenceShaped(story) then fromSelectedInterference(verdict, story)
     else if story.scene == Scene.Material then fromSelectedMaterial(verdict, story)
     else if story.scene == Scene.Defense then fromSelectedDefense(verdict, story)
     else if story.tactic.contains(Tactic.DiscoveredAttack) then fromSelectedDiscoveredAttack(verdict, story)
@@ -2194,6 +2304,35 @@ private[commentary] object ExplanationPlan:
       evidenceLine = Some(route),
       strength = ExplanationStrength.Bounded,
       forbiddenWording = DeflectForbiddenWording,
+      relations = Vector.empty,
+      debugOnly = false,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedInterference(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      if interferenceCanPlan(verdict)
+      if interferencePlanStory(story)
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = Some(Tactic.Interference),
+      side = story.side,
+      rival = story.rival,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = None,
+      allowedClaim = Some(ExplanationClaim.BlocksDefenderLine),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = InterferenceForbiddenWording,
       relations = Vector.empty,
       debugOnly = false,
       supportContextLinks = Vector.empty

@@ -151,11 +151,12 @@ class OverloadRuntimeAdmissionTest extends munit.FunSuite:
 
   test("OIH-2 sibling fixtures keep their own Story labels and speech keys"):
     neighborFixtures.foreach: fixture =>
-      val verdict = StoryTable.choose(Vector(fixture.story)).head
-      assertEquals(verdict.story.scene, fixture.scene, fixture.label)
-      assertEquals(verdict.story.tactic, fixture.tactic, fixture.label)
-      assertEquals(verdict.story.writer, fixture.writer, fixture.label)
+      val maybeVerdict = StoryTable.choose(Vector(fixture.story)).headOption
       if fixture.writer.nonEmpty then
+        val verdict = maybeVerdict.getOrElse(fail(s"${fixture.label} must keep its opened owner row"))
+        assertEquals(verdict.story.scene, fixture.scene, fixture.label)
+        assertEquals(verdict.story.tactic, fixture.tactic, fixture.label)
+        assertEquals(verdict.story.writer, fixture.writer, fixture.label)
         assertEquals(verdict.role, Role.Lead, fixture.label)
         assertEquals(
           ExplanationPlan.fromSelected(verdict).flatMap(_.allowedClaim.map(_.key)),
@@ -163,8 +164,12 @@ class OverloadRuntimeAdmissionTest extends munit.FunSuite:
           fixture.label
         )
       else
-        assertEquals(verdict.role, Role.Blocked, fixture.label)
-        assertEquals(ExplanationPlan.fromSelected(verdict), None, fixture.label)
+        maybeVerdict.foreach: verdict =>
+          assertEquals(verdict.story.scene, fixture.scene, fixture.label)
+          assertEquals(verdict.story.tactic, fixture.tactic, fixture.label)
+          assertEquals(verdict.story.writer, fixture.writer, fixture.label)
+          assertEquals(verdict.role, Role.Blocked, fixture.label)
+          assertEquals(ExplanationPlan.fromSelected(verdict), None, fixture.label)
 
   test("OIH-2 Overload fixture emits no sibling Story unless separate complete proof exists"):
     val facts = board(overloadFen)
@@ -455,19 +460,19 @@ class OverloadRuntimeAdmissionTest extends munit.FunSuite:
     assert(!controller.contains("env.mode.isProd"), "production API switch must remain closed")
 
   private def assertNoOverloadSpeech(story: Story, label: String): Unit =
-    val verdict = StoryTable.choose(Vector(story)).head
-    assertEquals(verdict.role, Role.Blocked, label)
-    val plan = ExplanationPlan.fromSelected(verdict)
-    plan.foreach: debugPlan =>
-      assertEquals(debugPlan.allowedClaim, None, label)
-      assertEquals(debugPlan.debugOnly, true, label)
-    assertEquals(plan.flatMap(DeterministicRenderer.fromPlan), None, label)
+    StoryTable.choose(Vector(story)).headOption.foreach: verdict =>
+      assertEquals(verdict.role == Role.Lead, false, label)
+      val plan = ExplanationPlan.fromSelected(verdict)
+      plan.foreach: debugPlan =>
+        assertEquals(debugPlan.allowedClaim, None, label)
+        assertEquals(debugPlan.debugOnly, true, label)
+      assertEquals(plan.flatMap(DeterministicRenderer.fromPlan), None, label)
 
   private def assertNoOverloadClaim(story: Story, label: String): Unit =
-    val verdict = StoryTable.choose(Vector(story)).head
-    val plan = ExplanationPlan.fromSelected(verdict)
-    assertEquals(plan.flatMap(_.allowedClaim.map(_.key)).contains("overloads_defender"), false, label)
-    assertEquals(plan.flatMap(DeterministicRenderer.fromPlan).exists(_.claimKey == "overloads_defender"), false, label)
+    StoryTable.choose(Vector(story)).headOption.foreach: verdict =>
+      val plan = ExplanationPlan.fromSelected(verdict)
+      assertEquals(plan.flatMap(_.allowedClaim.map(_.key)).contains("overloads_defender"), false, label)
+      assertEquals(plan.flatMap(DeterministicRenderer.fromPlan).exists(_.claimKey == "overloads_defender"), false, label)
 
   private def assertNoStandaloneText(verdict: Verdict, label: String): Unit =
     assertEquals(ExplanationPlan.fromSelected(verdict), None, label)

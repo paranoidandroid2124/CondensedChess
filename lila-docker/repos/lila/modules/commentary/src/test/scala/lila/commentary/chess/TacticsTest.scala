@@ -6399,6 +6399,8 @@ class TacticsTest extends ChessTestSupport:
         StoryWriter.TacticRemoveGuard,
         StoryWriter.TacticOverload,
         StoryWriter.TacticDeflect,
+        StoryWriter.TacticDecoy,
+        StoryWriter.TacticInterference,
         StoryWriter.TacticSkewer,
         StoryWriter.TacticQueenHit,
         StoryWriter.TacticLoose,
@@ -6514,7 +6516,8 @@ class TacticsTest extends ChessTestSupport:
       Map(
         "Hanging" -> ExplanationClaim.HangingAllowed.map(_.key).toSet,
         "Material" -> ExplanationClaim.MaterialAllowed.map(_.key).toSet,
-        "Defense" -> ExplanationClaim.DefenseAllowed.map(_.key).toSet
+        "Defense" -> ExplanationClaim.DefenseAllowed.map(_.key).toSet,
+        "Decoy" -> ExplanationClaim.DecoyAllowed.map(_.key).toSet
       )
     assertEquals(lineDefenderClaims("DiscoveredAttack"), Set("reveals_attack_on_piece"))
     assertEquals(lineDefenderClaims("Pin"), Set("pins_piece"))

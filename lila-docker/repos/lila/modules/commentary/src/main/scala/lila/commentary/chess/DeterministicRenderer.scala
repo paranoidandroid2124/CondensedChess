@@ -49,6 +49,8 @@ private[commentary] object DeterministicRenderer:
       Some(s"${plan.routeSan.get} traps the piece on ${squareText(plan.target.get)}.")
     else if canPhraseDeflect(plan) then
       Some(s"${plan.routeSan.get} deflects the defender from ${squareText(plan.target.get)}.")
+    else if canPhraseInterference(plan) then
+      Some(s"${plan.routeSan.get} blocks the defender's line to ${squareText(plan.target.get)}.")
     else if canPhrasePawnAdvance(plan) then Some(s"${plan.routeSan.get} advances the passed pawn.")
     else if canPhrasePawnStop(plan) then
       Some(s"${plan.routeSan.get} stops the passed pawn from advancing next.")
@@ -239,6 +241,21 @@ private[commentary] object DeterministicRenderer:
       plan.scene == Scene.Tactic &&
       plan.tactic.contains(Tactic.Deflect) &&
       plan.allowedClaim.contains(ExplanationClaim.DeflectsDefender) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      plan.target.nonEmpty &&
+      plan.anchor.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseInterference(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Interference) &&
+      plan.allowedClaim.contains(ExplanationClaim.BlocksDefenderLine) &&
       plan.strength == ExplanationStrength.Bounded &&
       plan.target.nonEmpty &&
       plan.anchor.nonEmpty &&
@@ -495,6 +512,8 @@ private[commentary] object DeterministicRenderer:
         Vector("blunder")
       case ForbiddenWording.Winning =>
         Vector("winning", "winning position")
+      case ForbiddenWording.Wins =>
+        Vector("wins")
       case ForbiddenWording.Decisive =>
         Vector("decisive")
       case ForbiddenWording.Forced =>
@@ -714,6 +733,8 @@ private[commentary] object DeterministicRenderer:
         Vector("hanging piece", "piece is hanging")
       case ForbiddenWording.WinsPiece =>
         Vector("wins piece", "wins a piece", "win piece", "win a piece")
+      case ForbiddenWording.ForksPiece =>
+        Vector("forks", "fork")
       case ForbiddenWording.NoDefense =>
         Vector("no defense", "no defence")
       case ForbiddenWording.RefutesDefense =>

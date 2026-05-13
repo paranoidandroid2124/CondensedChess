@@ -417,6 +417,53 @@ private[commentary] object EngineCheck:
                 story.anchor.contains(piece.square) &&
                 proof.sideMove.exists(_.to == piece.square)
             )
+      case Some(StoryWriter.TacticInterference) =>
+        story.scene == Scene.Tactic &&
+          story.tactic.contains(Tactic.Interference) &&
+          story.proofFailures.isEmpty &&
+          story.interferenceProof.exists: proof =>
+            proof.complete &&
+              proof.sameBoardProof &&
+              proof.legalSideMove &&
+              proof.completeStoryProof &&
+              proof.moveIsNonCapture &&
+              proof.movedPieceLandsOnBlockingSquare &&
+              proof.lineDefenderIsSlider &&
+              proof.targetBound &&
+              proof.defenderBlockingTargetCollinearOnSliderRay &&
+              proof.blockingSquareStrictlyBetweenDefenderAndTarget &&
+              proof.defenderLineContactBeforeMove &&
+              proof.afterMoveBlockingSquareOccupiedByMovedPiece &&
+              proof.defenderLineContactRemovedByBlocker &&
+              proof.noEngineEvidenceUsed &&
+              proof.side == story.side &&
+              proof.rivalSide == story.rival &&
+              proof.sideMove.exists(move =>
+                story.route.contains(move) &&
+                  (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+              ) &&
+              proof.targetSquare == story.target &&
+              proof.blockingSquare == story.anchor &&
+              proof.lineDefenderBefore.exists(piece =>
+                pieces.contains(piece) &&
+                  piece.side == story.rival
+              ) &&
+              proof.movedPieceBefore.exists(piece =>
+                pieces.contains(piece) &&
+                  piece.side == story.side &&
+                  proof.sideMove.exists(_.from == piece.square)
+              ) &&
+              proof.movedPieceAfter.exists(piece =>
+                story.anchor.contains(piece.square) &&
+                  piece.side == story.side
+              ) &&
+              proof.targetPieceBefore.forall(piece =>
+                pieces.contains(piece) &&
+                  story.target.contains(piece.square) &&
+                  piece.side == story.rival &&
+                  piece.man != Man.King
+              ) &&
+              proof.lineDefenderAfter.exists(piece => piece.side == story.rival)
       case Some(StoryWriter.ScenePawnAdvance) =>
         story.scene == Scene.PawnAdvance &&
         story.tactic.isEmpty &&
