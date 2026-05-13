@@ -1,7 +1,5 @@
 package lila.commentary.chess
 
-import java.nio.file.{ Files, Paths }
-
 class StalemateCloseoutTest extends munit.FunSuite:
 
   private val stalemateFen = "7k/5K2/8/6Q1/8/8/8/8 w - - 0 1"
@@ -231,7 +229,7 @@ class StalemateCloseoutTest extends munit.FunSuite:
     ).foreach: output =>
       assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, output)
 
-  test("Stalemate closeout exposes no raw downstream production or public route surface"):
+  test("Stalemate closeout exposes no raw downstream LLM surface"):
     val rendererMethods =
       DeterministicRenderer.getClass.getDeclaredMethods.toVector.filter(_.getName == "fromPlan")
     val rendererParameterShapes =
@@ -241,7 +239,6 @@ class StalemateCloseoutTest extends munit.FunSuite:
       LlmNarrationSmoke.getClass.getDeclaredMethods.toVector
         .flatMap(_.getParameterTypes.toVector)
         .map(_.getSimpleName)
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
 
     assertEquals(rendererParameterShapes, Vector(Vector("ExplanationPlan")))
     Vector(
@@ -259,12 +256,3 @@ class StalemateCloseoutTest extends munit.FunSuite:
       assert(!llmMethodNames.contains(method), s"Stalemate closeout LLM smoke must not expose $method")
     Vector("Story", "StalemateProof", "BoardFacts", "EngineCheck", "EngineLine", "EngineEval").foreach: parameter =>
       assert(!llmParameterNames.contains(parameter), s"Stalemate closeout LLM smoke must not accept $parameter")
-
-    assert(law.contains("### Stalemate-9 Closeout / Hard Cleanup"))
-    assert(law.contains("StalemateProof owns proof home."))
-    assert(law.contains("Scene.Stalemate owns Story label."))
-    assert(law.contains("SceneStalemate owns writer."))
-    assert(law.contains("`stalemates` owns speech key."))
-    assert(law.contains("public route `200`"))
-    assert(law.contains("production API"))
-    assert(law.contains("public/user-facing LLM narration"))

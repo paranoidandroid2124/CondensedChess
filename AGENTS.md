@@ -24,9 +24,9 @@ Live commentary documentation authority is exactly and exhaustively:
 - `lila-docker/repos/lila/modules/commentary/docs/LegacyPruneManifest.md`
 - `lila-docker/repos/lila/modules/commentary/docs/README.md`
 
-`AGENTS.md`, `modules/commentary/docs/README.md`, `LegacyPruneManifest.md`,
-and docs tests must agree on this list. Any mismatch is a no-go state, not a
-second source of authority.
+`AGENTS.md`, `modules/commentary/docs/README.md`, and
+`LegacyPruneManifest.md` must agree on this list. Any mismatch is a no-go
+state, not a second source of authority.
 
 Documents under
 `lila-docker/repos/lila/modules/commentary/docs/legacy-pre-semantic-reset/`
@@ -110,8 +110,8 @@ When continuing work:
 - read the current slice section in `StoryInteractionLaw.md`
 - keep AGENTS.md unchanged unless the durable operator rules change
 - add detailed stage rules and closeout criteria only to `StoryInteractionLaw.md`
-- summarize scope in README/SSOT/Architecture/Contract only when docs tests
-  require the summary
+- summarize scope in README/SSOT/Architecture/Contract only when the live
+  documentation needs a concise manual summary
 
 Recent narrow baselines include the material-contact neighborhood and the
 line/defender neighborhood. Their exact status, proof requirements, negative
@@ -127,6 +127,12 @@ clear. Every new name must classify as exactly one of:
 - proof home
 - Story label
 - speech key / wording
+
+Do not introduce workflow, stage, audit, fixture, gate, checklist, or report
+names as production concepts. Runtime modules and tests should be named for the
+actual proof home, writer, Story behavior, or invariant they verify. Stage
+numbers and process labels belong in operator instructions or closeout notes,
+not in runtime class names, helper APIs, public keys, or durable test concepts.
 
 Authority consolidation is mandatory. Duplication audits are mandatory in every
 closeout:
@@ -230,11 +236,17 @@ Do not duplicate detailed stage law across live documents.
 If a rule appears in more than one live document, one copy must be the detailed
 authority and the other copies must explicitly be summaries.
 
+Do not add documentation, prose, or marker tests for `StoryInteractionLaw.md`,
+README, SSOT, Architecture, Contract, Manifest, or AGENTS.md. Documentation is
+reviewed manually at closeout when needed. Runtime invariants must be tested in
+runtime tests, not by parsing documentation prose.
+
 ## Verification Discipline
 
-For runtime behavior changes, run targeted commentary tests. For docs authority
-changes, run the docs authority tests. Always run `git diff --check` before
-claiming cleanup is complete.
+For runtime behavior changes, run targeted commentary tests. For documentation
+changes, perform manual closeout review when needed; do not add or run
+documentation/prose/marker tests. Always run `git diff --check` before claiming
+cleanup is complete.
 
-Do not treat legacy documentation tests as current acceptance unless they have
-been migrated to the live chess-model docs.
+Older branch notes or closeout records that mention docs authority tests are
+historical only. They are not current verification instructions.

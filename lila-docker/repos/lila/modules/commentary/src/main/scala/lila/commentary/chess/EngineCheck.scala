@@ -252,6 +252,46 @@ private[commentary] object EngineCheck:
             proof.target.exists(piece => story.target.contains(piece.square)) &&
             proof.secondaryTarget.exists(piece => story.secondaryTarget.contains(piece.square)) &&
             proof.anchor.exists(piece => story.anchor.contains(piece.square))
+      case Some(StoryWriter.TacticDeflect) =>
+        story.scene == Scene.Tactic &&
+        story.tactic.contains(Tactic.Deflect) &&
+        story.proofFailures.isEmpty &&
+        story.deflectProof.exists: proof =>
+          proof.complete &&
+            proof.sameBoardProof &&
+            proof.legalSideMove &&
+            proof.legalRivalReply &&
+            proof.replyByNamedDefender &&
+            proof.defenderGuardedTargetBeforeReply &&
+            proof.defenderNoLongerGuardsTargetAfterReply &&
+            proof.targetRemainsAfterReply &&
+            proof.defenderRemainsAfterReply &&
+            proof.sideMoveDoesNotCaptureDefender &&
+            proof.completeStoryProof &&
+            proof.noEngineEvidenceUsed &&
+            proof.side == story.side &&
+            proof.rivalSide == story.rival &&
+            proof.sideMove.exists(move =>
+              story.route.contains(move) &&
+                (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+            ) &&
+            proof.rivalReply.nonEmpty &&
+            proof.defenderBeforeReply.exists(pieces.contains) &&
+            proof.targetBeforeReply.exists(piece =>
+              pieces.contains(piece) &&
+                story.target.contains(piece.square) &&
+                piece.side == story.rival &&
+                piece.man != Man.King
+            ) &&
+            proof.targetAfterReply.exists(piece =>
+              story.target.contains(piece.square) &&
+                piece.side == story.rival &&
+                piece.man != Man.King
+            ) &&
+            proof.defenderAfterReply.exists(piece =>
+              story.anchor.contains(piece.square) &&
+                piece.side == story.rival
+            )
       case Some(StoryWriter.TacticSkewer) =>
         story.scene == Scene.Tactic &&
         story.tactic.contains(Tactic.Skewer) &&
@@ -316,6 +356,67 @@ private[commentary] object EngineCheck:
             proof.movingPieceBefore.exists(pieces.contains) &&
             proof.targetPieceSquareAfter == story.target &&
             proof.attackingPieceSquareAfter == story.anchor
+      case Some(StoryWriter.TacticTrap) =>
+        story.scene == Scene.Tactic &&
+        story.tactic.contains(Tactic.Trap) &&
+        story.proofFailures.isEmpty &&
+        story.trapProof.exists: proof =>
+          proof.complete &&
+            proof.sameBoardProof &&
+            proof.legalMove &&
+            proof.nonCapturingMove &&
+            proof.exactAfterBoardReplay &&
+            proof.completeStoryProof &&
+            proof.targetRivalMinor &&
+            proof.targetDefendedByRivalSide &&
+            proof.afterBoardTargetAttackedByMovingSide &&
+            proof.targetHasLegalMoves &&
+            proof.everyTargetMoveUnsafe &&
+            proof.routeDoesNotGiveCheck &&
+            proof.routeDoesNotGiveMate &&
+            proof.routeDoesNotPromote &&
+            proof.trapMove.exists(move =>
+              story.route.contains(move) &&
+                (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+            ) &&
+            proof.movingPieceBefore.exists(pieces.contains) &&
+            proof.targetPieceSquareAfter == story.target &&
+            proof.anchorSquareAfter == story.anchor
+      case Some(StoryWriter.TacticDecoy) =>
+        story.scene == Scene.Tactic &&
+        story.tactic.contains(Tactic.Decoy) &&
+        story.proofFailures.isEmpty &&
+        story.decoyProof.exists: proof =>
+          proof.complete &&
+            proof.sameBoardProof &&
+            proof.legalSideMove &&
+            proof.legalRivalReply &&
+            proof.replyByNamedPiece &&
+            proof.rivalPieceRemainsAfterReply &&
+            proof.replyLandsOnDecoySquare &&
+            proof.decoySquareEqualsLandingSquare &&
+            proof.completeTrapFollowUpProof &&
+            proof.trapFollowUpBindsSamePieceAndSquare &&
+            proof.completeStoryProof &&
+            proof.noEngineEvidenceUsed &&
+            proof.side == story.side &&
+            proof.rivalSide == story.rival &&
+            proof.sideMove.exists(move =>
+              story.route.contains(move) &&
+                (facts.sideLegal.lines.contains(move) || facts.rivalLegal.lines.contains(move))
+            ) &&
+            proof.rivalReply.nonEmpty &&
+            proof.decoySquare == story.target &&
+            proof.landingSquare == story.target &&
+            proof.namedPieceAfterReply.exists(piece =>
+              story.rival == piece.side &&
+                story.target.contains(piece.square)
+            ) &&
+            proof.afterSideMoveBoard.exists(piece =>
+              piece.side == story.side &&
+                story.anchor.contains(piece.square) &&
+                proof.sideMove.exists(_.to == piece.square)
+            )
       case Some(StoryWriter.ScenePawnAdvance) =>
         story.scene == Scene.PawnAdvance &&
         story.tactic.isEmpty &&

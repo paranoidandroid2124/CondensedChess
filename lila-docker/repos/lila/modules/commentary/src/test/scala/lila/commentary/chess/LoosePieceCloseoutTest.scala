@@ -115,33 +115,6 @@ class LoosePieceCloseoutTest extends munit.FunSuite:
     Vector("LoosePieceProof", "TacticLoose", "LlmNarrationSmoke", "RenderedLine").foreach: raw =>
       assert(!controller.contains(raw), s"Commentary controller must not expose $raw")
 
-  test("Stage-9 Loose closeout authority lives in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    Vector(
-      "### Loose-9 Closeout / Hard Cleanup",
-      "Loose-9 opens no new chess meaning.",
-      "Loose-9 closes only narrow `Tactic.Loose`.",
-      "`LoosePieceProof` owns proof home.",
-      "`Tactic.Loose` owns Story label.",
-      "`TacticLoose` owns writer.",
-      "`attacks_loose_piece` owns speech key.",
-      "Loose is not Hanging.",
-      "Loose is not Material.",
-      "Loose is not QueenHit.",
-      "Loose is not Fork.",
-      "Loose is not Skewer.",
-      "Loose is not Pin.",
-      "Loose is not RemoveGuard.",
-      "Loose is not Tempo.",
-      "Loose is not Pressure.",
-      "Loose-9 still closed:",
-      "- public route `200`",
-      "- production API",
-      "- public/user-facing LLM narration",
-      "Completion standard: Loose-9 closes when"
-    ).foreach: marker =>
-      assert(law.contains(marker), s"Loose closeout law must pin: $marker")
-
   private def facts: BoardFacts =
     BoardFacts.fromFen(looseFen).fold(error => fail(s"invalid Loose closeout FEN: $looseFen -> $error"), identity)
 

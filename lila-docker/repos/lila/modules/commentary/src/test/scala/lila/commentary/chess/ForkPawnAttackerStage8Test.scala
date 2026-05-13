@@ -105,30 +105,6 @@ class ForkPawnAttackerStage8Test extends munit.FunSuite:
     ).foreach: raw =>
       assertEquals(LlmNarrationSmoke.check(forkPlan, forkRendered, s"e5 forks the pieces on d6 and f6 using $raw.").accepted, false, raw)
 
-  test("Stage-8 Fork LLM smoke authority lives in StoryInteractionLaw"):
-    val law = scala.io.Source
-      .fromFile("modules/commentary/docs/StoryInteractionLaw.md")
-      .getLines()
-      .mkString("\n")
-
-    assert(law.contains("## Stage-8 LLM Smoke"))
-    assert(law.contains("existing Fork LLM smoke may rephrase rendered Fork text"))
-    assert(law.contains("Allowed input:"))
-    assert(law.contains("- renderedText"))
-    assert(law.contains("- claimKey"))
-    assert(law.contains("- strength"))
-    assert(law.contains("- forbidden wording"))
-    assert(law.contains("- `Rephrase only. Do not add chess facts.`"))
-    assert(law.contains("Allowed claimKey:"))
-    assert(law.contains("- existing `forks_two_targets` only"))
-    assert(law.contains("LLM must not add:"))
-    assert(law.contains("- pawn fork as separate claim"))
-    assert(law.contains("- wins material"))
-    assert(law.contains("- new variation"))
-    assert(law.contains("LLM only polishes."))
-    assert(law.contains("Verifier rejects overclaim."))
-    assert(law.contains("public/user-facing LLM narration remains closed."))
-
   private def forkPlan: ExplanationPlan =
     ExplanationPlan.fromSelected(StoryTable.choose(Vector(forkStory)).head).get
 

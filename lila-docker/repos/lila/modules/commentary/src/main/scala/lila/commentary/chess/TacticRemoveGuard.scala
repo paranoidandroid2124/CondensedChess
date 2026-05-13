@@ -42,7 +42,10 @@ private[commentary] object TacticRemoveGuard:
     story.writer.contains(StoryWriter.TacticRemoveGuard) &&
       story.scene == Scene.Tactic &&
       story.tactic.contains(Tactic.RemoveGuard) &&
-      story.plan.isEmpty
+      story.plan.isEmpty &&
+      story.overloadProof.isEmpty &&
+      story.deflectProof.isEmpty &&
+      story.trapProof.isEmpty
 
   private def checkBindsStoryRoute(story: Story, check: EngineCheck): Boolean =
     check.checkedMove.exists(move => story.route.contains(move))

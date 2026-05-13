@@ -1,7 +1,5 @@
 package lila.commentary.chess
 
-import java.nio.file.{ Files, Paths }
-
 class StalemateStage4Test extends munit.FunSuite:
 
   private val stalemateFen = "7k/5K2/8/6Q1/8/8/8/8 w - - 0 1"
@@ -125,11 +123,3 @@ class StalemateStage4Test extends munit.FunSuite:
       "decisive_mistake"
     ).foreach: closedKey =>
       assertEquals(claimKeys.contains(closedKey), false, closedKey)
-
-  test("Stalemate-4 EngineCheck reuse authority lives in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    assert(law.contains("### Stalemate-4 EngineCheck Reuse"))
-    assert(law.contains("EngineCheck cannot create `Scene.Stalemate`."))
-    assert(law.contains("Engine evidence must bind to the same Story route and legal line."))
-    assert(law.contains("engine says draw"))
-    assert(law.contains("Completion standard: Stalemate-4 closes when EngineCheck attaches only"))

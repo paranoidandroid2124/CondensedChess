@@ -51,25 +51,6 @@ class AttackTargetInteractionHardeningTest extends munit.FunSuite:
       assertEquals(verdict.role, Role.Lead)
       assertEquals(verdict.leadAllowed, true)
 
-  test("ATIH Stage-0 detailed authority lives only in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    Vector(
-      "## ATIH Stage-0 Charter",
-      "Attack-Target Interaction Hardening",
-      "ATIH-0 opens no new chess meaning.",
-      "`QueenHitProof` -> `Tactic.QueenHit` -> `TacticQueenHit` -> `attacks_queen`",
-      "`LoosePieceProof` -> `Tactic.Loose` -> `TacticLoose` -> `attacks_loose_piece`",
-      "existing Hanging proof path -> `Tactic.Hanging` -> `TacticHanging` -> `can_win_piece`",
-      "existing material proof path -> `Scene.Material` -> `SceneMaterial` -> `material_balance_changes`",
-      "material gain from attack-only rows",
-      "public route `200`",
-      "public/user-facing LLM narration"
-    ).foreach: marker =>
-      assert(law.contains(marker), s"ATIH law must pin: $marker")
-
-    val agents = Files.readString(Paths.get("../../../AGENTS.md"))
-    assert(!agents.contains("Attack-Target Interaction Hardening"))
-
   test("ATIH Stage-1 authority inventory keeps proof label writer and speech key separated"):
     val queenHitProof = QueenHitProof.fromBoardFacts(board(queenHitFen), queenHitMove)
     val queenHit = queenHitStory
@@ -158,26 +139,6 @@ class AttackTargetInteractionHardeningTest extends munit.FunSuite:
     assertEquals(DeterministicRenderer.fromPlan(malformedPlan), None)
     assertEquals(LlmNarrationSmoke.check(plan, rendered, "Rh2 wins the queen.").accepted, false)
     assertEquals(LlmNarrationSmoke.check(plan, rendered, "Rh2 wins material.").accepted, false)
-
-  test("ATIH Stage-1 authority inventory lives only in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    Vector(
-      "## ATIH Stage-1 Authority Inventory",
-      "ATIH-1 opens authority inventory tests only.",
-      "QueenHitProof is not Tactic.QueenHit.",
-      "Tactic.QueenHit is not TacticQueenHit.",
-      "TacticQueenHit is not attacks_queen.",
-      "LoosePieceProof is not Tactic.Loose.",
-      "Tactic.Loose is not TacticLoose.",
-      "TacticLoose is not attacks_loose_piece.",
-      "Tactic.Hanging is not Scene.Material.",
-      "Scene.Material is not Tactic.Hanging.",
-      "BoardFacts cannot create any of these Stories.",
-      "EngineCheck cannot create any of these Stories.",
-      "StoryTable cannot create any of these Stories.",
-      "ExplanationPlan, Renderer, and LLM smoke cannot create, repair, rank, or strengthen these meanings."
-    ).foreach: marker =>
-      assert(law.contains(marker), s"ATIH-1 law must pin: $marker")
 
   test("ATIH Stage-2 collision corpus covers QueenHit Loose Hanging and Material fixtures"):
     val queenHitOnlyFacts = board(queenHitOnlyFen)
@@ -274,27 +235,6 @@ class AttackTargetInteractionHardeningTest extends munit.FunSuite:
       assertEquals(refutedVerdict.role, Role.Blocked, label)
       assertEquals(ExplanationPlan.fromSelected(refutedVerdict).flatMap(DeterministicRenderer.fromPlan), None, label)
 
-  test("ATIH Stage-2 collision fixture authority lives only in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    Vector(
-      "## ATIH Stage-2 Collision Fixtures",
-      "ATIH-2 opens collision fixture corpus only.",
-      "QueenHit-only: legal move attacks rival queen, no material change.",
-      "Loose-only: legal move attacks one undefended rival non-king non-queen piece, no material change.",
-      "QueenHit plus Loose-looking overlap: rival queen is undefended and attacked.",
-      "Hanging-only: existing hanging proof complete, no QueenHit/Loose speech steal.",
-      "Material-only: actual material balance changes now, no attack-only claim required.",
-      "Attack-only not Material: queen or loose piece attacked but no capture/material result.",
-      "Material not Loose: capture/material change where loose-piece proof is incomplete.",
-      "Loose not Hanging: target is attacked and undefended, but no bounded hanging capture proof.",
-      "QueenHit not wins-queen: queen attacked but not proven lost/trapped.",
-      "Capped/refuted rows for each chain.",
-      "Preferred: QueenHit Lead, Loose silent or Support with no standalone text.",
-      "Attack-only rows cannot produce Scene.Material.",
-      "Actual material result remains Scene.Material home."
-    ).foreach: marker =>
-      assert(law.contains(marker), s"ATIH-2 law must pin: $marker")
-
   test("ATIH Stage-3 StoryTable ordering is stable across attack-target input order"):
     val queenFacts = board(queenHitFen)
     val materialFacts = board(materialFen)
@@ -381,24 +321,6 @@ class AttackTargetInteractionHardeningTest extends munit.FunSuite:
       val verdict = StoryTable.choose(Vector(row)).head
       assertEquals(verdict.role == Role.Lead, false, label)
       assertNoStandaloneText(verdict, label)
-
-  test("ATIH Stage-3 StoryTable stability authority lives only in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    Vector(
-      "## ATIH Stage-3 StoryTable Stability",
-      "ATIH-3 opens StoryTable ordering hardening only.",
-      "input order stability across QueenHit, Loose, Hanging, and Material rows",
-      "at most one Lead for the same route when meanings collide",
-      "selected Lead is deterministic",
-      "Support, Context, and Blocked rows have no standalone text.",
-      "capped and refuted rows have no standalone text.",
-      "sibling rows do not lend proof sidecars to each other.",
-      "StoryTable must not upgrade QueenHit to wins queen.",
-      "StoryTable must not upgrade Loose to Hanging.",
-      "StoryTable must not upgrade attack-only rows to Material.",
-      "StoryTable must not use raw source rows, proofFailures, or EngineCheck to create a Lead."
-    ).foreach: marker =>
-      assert(law.contains(marker), s"ATIH-3 law must pin: $marker")
 
   test("ATIH Stage-4 EngineCheck statuses attach only to existing proof-backed Stories"):
     engineRows.foreach: row =>
@@ -490,24 +412,6 @@ class AttackTargetInteractionHardeningTest extends munit.FunSuite:
     assertEquals(standaloneClaimKey(unknownVerdict), Some("attacks_queen"))
     assertTextExcludes(publicText(unknownVerdict), engineForbiddenPublicText, "Unknown")
 
-  test("ATIH Stage-4 EngineCheck boundary authority lives only in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    Vector(
-      "## ATIH Stage-4 EngineCheck Boundary",
-      "ATIH-4 opens EngineCheck interaction tests only.",
-      "EngineCheck supports, caps, and refutes only already existing proof-backed Stories.",
-      "EngineCheck cannot create QueenHit.",
-      "EngineCheck cannot create Loose.",
-      "EngineCheck cannot create Hanging.",
-      "EngineCheck cannot create Material.",
-      "Supports creates no new claim.",
-      "Caps suppresses or bounds already selected speech.",
-      "Refutes blocks the affected Story.",
-      "Unknown creates no engine expression.",
-      "EngineCheck may cap or refute a claim; it never broadens attack-only meaning into material or tactical certainty."
-    ).foreach: marker =>
-      assert(law.contains(marker), s"ATIH-4 law must pin: $marker")
-
   test("ATIH Stage-5 ExplanationPlan lowers only selected uncapped Lead public claims"):
     engineRows.foreach: row =>
       val (label, facts, story, attach, claimKey) = row
@@ -589,52 +493,9 @@ class AttackTargetInteractionHardeningTest extends munit.FunSuite:
       llmAttackTargetOverclaims.foreach: output =>
         assertEquals(LlmNarrationSmoke.check(plan, rendered, output).accepted, false, output)
 
-  test("ATIH Stage-5 downstream boundary authority lives only in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    Vector(
-      "## ATIH Stage-5 Downstream Boundary",
-      "ATIH-5 opens ExplanationPlan, Renderer, and LLM smoke hardening only.",
-      "`attacks_queen`",
-      "`attacks_loose_piece`",
-      "`can_win_piece`",
-      "`material_balance_changes`",
-      "ExplanationPlan accepts only selected uncapped Lead Verdicts for public claim lowering.",
-      "ExplanationPlan rejects Support, Context, Blocked, capped, and refuted rows for public claim lowering.",
-      "ExplanationPlan rejects sibling claim-key substitution.",
-      "ExplanationPlan rejects incomplete proof sidecars and contaminated rows.",
-      "Renderer input is ExplanationPlan only.",
-      "Renderer emits only the selected claim key's bounded template.",
-      "Renderer cannot inspect raw Story, proofs, BoardFacts, EngineCheck, raw PV, proofFailures, or source rows.",
-      "LLM smoke input is only renderedText, claimKey, strength, and forbidden wording.",
-      "Rephrase only. Do not add chess facts.",
-      "LLM smoke must reject added material, queen-trap, hanging, pressure, tempo, best/only/forced, winning, or engine facts.",
-      "proofFailures must not become public text.",
-      "raw engine eval/PV must not become public wording.",
-      "source rows must not become public claim owners."
-    ).foreach: marker =>
-      assert(law.contains(marker), s"ATIH-5 law must pin: $marker")
-
   test("ATIH Stage-6 public routes stay fail closed"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
     val routes = Files.readString(Paths.get("conf/routes"))
     val controller = Files.readString(Paths.get("app/controllers/Commentary.scala"))
-
-    Vector(
-      "## ATIH Stage-6 Docs / Public Surface",
-      "ATIH-6 opens documentation and public-surface audit only.",
-      "detailed ATIH authority lives only in `StoryInteractionLaw.md`.",
-      "README, SSOT, Architecture, Contract, and Manifest remain summary-only if touched.",
-      "`AGENTS.md` remains unchanged unless durable operator rules change.",
-      "docs tests must prevent duplicated detailed ATIH law outside `StoryInteractionLaw.md`.",
-      "`/api/commentary/render` remains fail-closed.",
-      "`/internal/commentary/render-local-probe` remains fail-closed.",
-      "no public route `200`.",
-      "no production API.",
-      "no public/user-facing LLM narration.",
-      "no route opens because attack-target hardening exists.",
-      "no env switch or local probe returns production-style rendered payload."
-    ).foreach: marker =>
-      assert(law.contains(marker), s"ATIH-6 law must pin: $marker")
 
     assert(routes.contains("POST  /api/commentary/render           controllers.Commentary.renderCommentary"))
     assert(
@@ -727,42 +588,6 @@ class AttackTargetInteractionHardeningTest extends munit.FunSuite:
         freshnessPly = None
       )
     assertEquals(unboundEngineCheck.publicClaimAllowed, false)
-
-  test("ATIH Stage-7 closeout authority lives only in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    Vector(
-      "## ATIH Stage-7 Closeout / Final Verification",
-      "ATIH-7 opens no new chess meaning.",
-      "ATIH-7 closes only Attack-Target Interaction Hardening.",
-      "QueenHit remains queen-attacked only.",
-      "Loose remains undefended non-king piece attacked only.",
-      "Hanging remains its existing bounded hanging/can-win-piece meaning only.",
-      "Material remains actual material balance change now only.",
-      "No proof home, Story label, writer, or speech key is reused as another layer.",
-      "No attack-only row creates material.",
-      "No Loose row creates Hanging.",
-      "No QueenHit row creates wins-queen or trap.",
-      "No Material row is created from BoardFacts, EngineCheck, raw source, or renderer text.",
-      "wins queen",
-      "traps queen",
-      "queen is lost",
-      "hanging from Loose",
-      "wins piece/material from attack-only rows",
-      "free piece",
-      "en prise",
-      "underdefended",
-      "overloaded defender",
-      "pressure",
-      "initiative",
-      "tempo",
-      "best / only / forced",
-      "decisive / winning",
-      "public route `200`",
-      "production API",
-      "public/user-facing LLM narration",
-      "Completion standard: ATIH closes when"
-    ).foreach: marker =>
-      assert(law.contains(marker), s"ATIH-7 law must pin: $marker")
 
   private def board(fen: String): BoardFacts =
     BoardFacts.fromFen(fen).fold(error => fail(s"invalid ATIH FEN: $fen -> $error"), identity)

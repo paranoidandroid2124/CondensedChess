@@ -62,9 +62,11 @@ private[commentary] object TacticOverload:
       story.lineProof.isEmpty &&
       story.pinProof.isEmpty &&
       story.removeGuardProof.isEmpty &&
+      story.deflectProof.isEmpty &&
       story.skewerProof.isEmpty &&
       story.queenHitProof.isEmpty &&
       story.loosePieceProof.isEmpty &&
+      story.trapProof.isEmpty &&
       story.proofFailures.isEmpty &&
       story.overloadProof.exists(proofBindsStory(story, _))
 

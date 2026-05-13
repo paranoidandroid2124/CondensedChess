@@ -1,7 +1,5 @@
 package lila.commentary.chess
 
-import java.nio.file.{ Files, Paths }
-
 class StalemateStage8Test extends munit.FunSuite:
 
   private val stalemateFen = "7k/5K2/8/6Q1/8/8/8/8 w - - 0 1"
@@ -166,10 +164,3 @@ class StalemateStage8Test extends munit.FunSuite:
       assert(!methodNames.contains(method), s"Stage-8 LLM smoke must not expose $method")
     Vector("Story", "StalemateProof", "BoardFacts", "EngineCheck", "EngineLine", "EngineEval").foreach: parameter =>
       assert(!parameterNames.contains(parameter), s"Stage-8 LLM smoke must not accept $parameter")
-
-  test("Stage-8 Stalemate LLM smoke authority lives in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    assert(law.contains("### Stalemate-8 LLM Smoke"))
-    assert(law.contains("Reuse only existing LLM smoke boundary for bounded Stalemate `RenderedLine`."))
-    assert(law.contains("`Rephrase only. Do not add chess facts.`"))
-    assert(law.contains("Completion standard: Stalemate-8 closes when LLM smoke may only rephrase bounded"))

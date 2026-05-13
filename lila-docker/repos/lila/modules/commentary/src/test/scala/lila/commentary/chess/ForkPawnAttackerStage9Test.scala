@@ -80,28 +80,6 @@ class ForkPawnAttackerStage9Test extends munit.FunSuite:
     assert(!mainText.contains("TacticPawnFork"))
     assert(!mainText.contains("PawnForkProof"))
 
-  test("Stage-9 closeout authority lives in StoryInteractionLaw"):
-    val law = read("modules/commentary/docs/StoryInteractionLaw.md")
-
-    assert(law.contains("## Stage-9 Fork-PawnAttacker Admission Closeout"))
-    assert(law.contains("no new chess meaning beyond existing `Tactic.Fork`"))
-    assert(law.contains("close only pawn attacker admission into existing Fork"))
-    assert(law.contains("Authority audit:"))
-    assert(law.contains("- `MultiTargetProof` remains proof home."))
-    assert(law.contains("- `Tactic.Fork` remains Story label."))
-    assert(law.contains("- `TacticFork` remains writer."))
-    assert(law.contains("- existing Fork claim key remains speech key."))
-    assert(law.contains("- `Tactic.PawnFork` remains closed."))
-    assert(law.contains("- `pawn_forks_two_targets` does not exist."))
-    assert(law.contains("Duplication audit:"))
-    assert(law.contains("- pawn-attacker Fork is not PawnAdvance."))
-    assert(law.contains("- pawn-attacker Fork is not Tempo."))
-    assert(law.contains("Still closed:"))
-    assert(law.contains("- public `Tactic.PawnFork`"))
-    assert(law.contains("- public route `200`"))
-    assert(law.contains("- public/user-facing LLM narration"))
-    assert(law.contains("Stage-9 verification:"))
-
   private def forkStory: Story =
     TacticFork.write(forkFacts, Some(forkRoute), Some(targetA), Some(targetB)).get
 

@@ -1,7 +1,5 @@
 package lila.commentary.chess
 
-import java.nio.file.{ Files, Paths }
-
 class StalemateStage7Test extends munit.FunSuite:
 
   private val stalemateFen = "7k/5K2/8/6Q1/8/8/8/8 w - - 0 1"
@@ -126,10 +124,3 @@ class StalemateStage7Test extends munit.FunSuite:
       "fromTablebase"
     ).foreach: forbiddenMethod =>
       assert(!rendererMethodNames.contains(forbiddenMethod), s"DeterministicRenderer must not expose $forbiddenMethod")
-
-  test("Stage-7 Stalemate renderer authority lives in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    assert(law.contains("### Stalemate-7 DeterministicRenderer"))
-    assert(law.contains("`DeterministicRenderer` input is `ExplanationPlan` only."))
-    assert(law.contains("`{route} is stalemate.`"))
-    assert(law.contains("`{route} stalemates the king.`"))

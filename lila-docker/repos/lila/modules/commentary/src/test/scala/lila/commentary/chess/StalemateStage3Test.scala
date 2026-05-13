@@ -1,7 +1,5 @@
 package lila.commentary.chess
 
-import java.nio.file.{ Files, Paths }
-
 class StalemateStage3Test extends munit.FunSuite:
 
   private val stalemateFen = "7k/5K2/8/6Q1/8/8/8/8 w - - 0 1"
@@ -158,11 +156,3 @@ class StalemateStage3Test extends munit.FunSuite:
       "timeout"
     ).foreach: closedKey =>
       assertEquals(claimKeys.contains(closedKey), false, closedKey)
-
-  test("Stalemate-3 negative corpus authority lives in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    assert(law.contains("### Stalemate-3 Negative Corpus"))
-    assert(law.contains("No legal moves is not stalemate unless the rival side is not in check."))
-    assert(law.contains("Stalemate is not Checkmate."))
-    assert(law.contains("Stalemate is not a draw-evaluation explanation."))
-    assert(law.contains("Complete StalemateProof or silence."))

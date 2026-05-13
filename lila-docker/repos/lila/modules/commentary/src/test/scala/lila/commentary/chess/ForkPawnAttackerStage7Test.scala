@@ -98,25 +98,6 @@ class ForkPawnAttackerStage7Test extends munit.FunSuite:
       .foreach: forbiddenMethod =>
         assert(!rendererMethodNames.contains(forbiddenMethod), s"renderer must not expose $forbiddenMethod")
 
-  test("Stage-7 Fork renderer authority lives in StoryInteractionLaw"):
-    val law = scala.io.Source
-      .fromFile("modules/commentary/docs/StoryInteractionLaw.md")
-      .getLines()
-      .mkString("\n")
-
-    assert(law.contains("## Stage-7 DeterministicRenderer"))
-    assert(law.contains("existing Fork renderer path may render pawn-attacker Fork"))
-    assert(law.contains("Renderer input:"))
-    assert(law.contains("- `ExplanationPlan` only"))
-    assert(law.contains("Do not add:"))
-    assert(law.contains("- PawnFork renderer template"))
-    assert(law.contains("Forbidden renderer input:"))
-    assert(law.contains("- raw `Story`"))
-    assert(law.contains("- raw `MultiTargetProof`"))
-    assert(law.contains("- `proofFailures`"))
-    assert(law.contains("Renderer emits no text for Support, Context, Blocked, capped, or refuted rows."))
-    assert(law.contains("Renderer emits no PawnFork text."))
-
   private def forkPlan: ExplanationPlan =
     ExplanationPlan.fromSelected(StoryTable.choose(Vector(forkStory)).head).get
 

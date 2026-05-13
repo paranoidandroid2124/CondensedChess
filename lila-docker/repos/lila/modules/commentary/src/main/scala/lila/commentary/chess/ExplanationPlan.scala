@@ -16,6 +16,7 @@ private[commentary] enum ExplanationClaim:
   case PinsPiece
   case RemovesDefender
   case OverloadsDefender
+  case DeflectsDefender
   case SkewersPieceToPiece
   case AdvancesPassedPawn
   case StopsPassedPawnNextAdvance
@@ -32,6 +33,8 @@ private[commentary] enum ExplanationClaim:
   case Stalemates
   case AttacksQueen
   case AttacksLoosePiece
+  case TrapsPiece
+  case DecoysPiece
 
   def key: String =
     this match
@@ -50,6 +53,7 @@ private[commentary] enum ExplanationClaim:
       case PinsPiece => "pins_piece"
       case RemovesDefender => "removes_defender"
       case OverloadsDefender => "overloads_defender"
+      case DeflectsDefender => "deflects_defender"
       case SkewersPieceToPiece => "skewers_piece_to_piece"
       case AdvancesPassedPawn => "advances_passed_pawn"
       case StopsPassedPawnNextAdvance => "stops_pawn_advance"
@@ -66,6 +70,8 @@ private[commentary] enum ExplanationClaim:
       case Stalemates => "stalemates"
       case AttacksQueen => "attacks_queen"
       case AttacksLoosePiece => "attacks_loose_piece"
+      case TrapsPiece => "traps_piece"
+      case DecoysPiece => "decoys_piece"
 
 private[commentary] object ExplanationClaim:
   val HangingAllowed: Vector[ExplanationClaim] =
@@ -188,6 +194,11 @@ private[commentary] object ExplanationClaim:
       ExplanationClaim.OverloadsDefender
     )
 
+  val DeflectAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.DeflectsDefender
+    )
+
   val RemoveGuardForbiddenKeys: Vector[String] =
     Vector(
       "wins_material",
@@ -217,6 +228,16 @@ private[commentary] object ExplanationClaim:
       ExplanationClaim.AttacksLoosePiece
     )
 
+  val TrapAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.TrapsPiece
+    )
+
+  val DecoyAllowed: Vector[ExplanationClaim] =
+    Vector(
+      ExplanationClaim.DecoysPiece
+    )
+
   val QueenHitForbiddenKeys: Vector[String] =
     Vector(
       "wins_queen",
@@ -244,6 +265,55 @@ private[commentary] object ExplanationClaim:
       "forced_move",
       "decisive",
       "winning"
+    )
+
+  val TrapForbiddenKeys: Vector[String] =
+    Vector(
+      "wins_piece",
+      "wins_material",
+      "forced",
+      "only_move",
+      "best_move",
+      "no_escape",
+      "cannot_be_saved",
+      "no_counterplay",
+      "queen_trap",
+      "free_piece"
+    )
+
+  val DecoyForbiddenKeys: Vector[String] =
+    Vector(
+      "why_it_matters",
+      "traps_piece",
+      "wins_piece",
+      "wins_material",
+      "forced_reply",
+      "forced",
+      "only_move",
+      "best_move",
+      "cannot_refuse",
+      "no_escape",
+      "no_counterplay",
+      "deflects_defender",
+      "removes_defender",
+      "overloads_defender",
+      "raw_reply_line"
+    )
+
+  val DeflectForbiddenKeys: Vector[String] =
+    Vector(
+      "wins_material",
+      "wins_piece",
+      "forced",
+      "forced_reply",
+      "only_move",
+      "best_move",
+      "no_defense",
+      "no_counterplay",
+      "decoy",
+      "removes_defender",
+      "overloads_defender",
+      "traps_piece"
     )
 
   val SkewerForbiddenKeys: Vector[String] =
@@ -713,6 +783,16 @@ private[commentary] enum ForbiddenWording:
   case AvoidsMate
   case SafeKing
   case DefenseSuccess
+  case NoEscape
+  case CannotBeSaved
+  case CannotRefuse
+  case QueenTrap
+  case Decoy
+  case DeflectsDefender
+  case OverloadsDefender
+  case TrapsPiece
+  case RawReplyLine
+  case WhyItMatters
 
   def key: String =
     this match
@@ -826,6 +906,16 @@ private[commentary] enum ForbiddenWording:
       case AvoidsMate => "avoids_mate"
       case SafeKing => "safe_king"
       case DefenseSuccess => "defense_success"
+      case NoEscape => "no_escape"
+      case CannotBeSaved => "cannot_be_saved"
+      case CannotRefuse => "cannot_refuse"
+      case QueenTrap => "queen_trap"
+      case Decoy => "decoy"
+      case DeflectsDefender => "deflects_defender"
+      case OverloadsDefender => "overloads_defender"
+      case TrapsPiece => "traps_piece"
+      case RawReplyLine => "raw_reply_line"
+      case WhyItMatters => "why_it_matters"
 
 private[commentary] object ForbiddenWording:
   val Basic: Vector[ForbiddenWording] =
@@ -959,6 +1049,19 @@ private[commentary] object ExplanationPlan:
           ForbiddenWording.ForcedMove
         )
     ).distinct
+  private val DeflectForbiddenWording =
+    (
+      LineDefenderForbiddenWording ++
+        Vector(
+          ForbiddenWording.WinsPiece,
+          ForbiddenWording.WinsMaterial,
+          ForbiddenWording.ForcesReply,
+          ForbiddenWording.Decoy,
+          ForbiddenWording.RemovesDefender,
+          ForbiddenWording.OverloadsDefender,
+          ForbiddenWording.TrapsPiece
+        )
+    ).distinct
   private val SkewerForbiddenWording =
     LineDefenderForbiddenWording
   private val QueenHitForbiddenWording =
@@ -986,6 +1089,34 @@ private[commentary] object ExplanationPlan:
           ForbiddenWording.GainsTempo,
           ForbiddenWording.CreatesPressure,
           ForbiddenWording.ForcedMove
+        )
+    ).distinct
+  private val TrapForbiddenWording =
+    (
+      ForbiddenWording.Basic ++
+        Vector(
+          ForbiddenWording.WinsPiece,
+          ForbiddenWording.WinsMaterial,
+          ForbiddenWording.NoEscape,
+          ForbiddenWording.CannotBeSaved,
+          ForbiddenWording.QueenTrap
+        )
+    ).distinct
+  private val DecoyForbiddenWording =
+    (
+      ForbiddenWording.Basic ++
+        Vector(
+          ForbiddenWording.WhyItMatters,
+          ForbiddenWording.TrapsPiece,
+          ForbiddenWording.WinsPiece,
+          ForbiddenWording.WinsMaterial,
+          ForbiddenWording.ForcesReply,
+          ForbiddenWording.CannotRefuse,
+          ForbiddenWording.NoEscape,
+          ForbiddenWording.DeflectsDefender,
+          ForbiddenWording.RemovesDefender,
+          ForbiddenWording.OverloadsDefender,
+          ForbiddenWording.RawReplyLine
         )
     ).distinct
   private val PawnInteractionForbiddenWording =
@@ -1376,6 +1507,13 @@ private[commentary] object ExplanationPlan:
       !verdict.engineStrengthLimited &&
       !verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes)
 
+  private def deflectCanPlan(verdict: Verdict) =
+    verdict.selected &&
+      verdict.role == Role.Lead &&
+      verdict.leadAllowed &&
+      !verdict.engineStrengthLimited &&
+      verdict.engineCheckStatus.forall(_ == EngineCheckStatus.Supports)
+
   private def skewerCanPlan(verdict: Verdict) =
     verdict.selected &&
       verdict.role == Role.Lead &&
@@ -1396,6 +1534,135 @@ private[commentary] object ExplanationPlan:
       verdict.leadAllowed &&
       !verdict.engineStrengthLimited &&
       !verdict.engineCheckStatus.contains(EngineCheckStatus.Refutes)
+
+  private def trapCanPlan(verdict: Verdict) =
+    verdict.selected &&
+      verdict.role == Role.Lead &&
+      verdict.leadAllowed &&
+      !verdict.engineStrengthLimited &&
+      verdict.engineCheckStatus.forall(_ == EngineCheckStatus.Supports)
+
+  private def decoyCanPlan(verdict: Verdict) =
+    verdict.selected &&
+      verdict.role == Role.Lead &&
+      verdict.leadAllowed &&
+      !verdict.engineStrengthLimited &&
+      verdict.engineCheckStatus.forall(_ == EngineCheckStatus.Supports)
+
+  private def isDecoyShaped(story: Story) =
+    story.writer.contains(StoryWriter.TacticDecoy) ||
+      story.tactic.contains(Tactic.Decoy) ||
+      story.decoyProof.nonEmpty
+
+  private def decoyPlanStory(story: Story) =
+    story.writer.contains(StoryWriter.TacticDecoy) &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Decoy) &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.overloadProof.isEmpty &&
+      story.deflectProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.queenHitProof.isEmpty &&
+      story.loosePieceProof.isEmpty &&
+      story.trapProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.secondaryTarget.isEmpty &&
+      story.proofFailures.isEmpty &&
+      story.decoyProof.exists(decoyProofBindsPlan(story, _))
+
+  private def decoyProofBindsPlan(story: Story, proof: DecoyProof) =
+    proof.complete &&
+      proof.sameBoardProof &&
+      proof.legalSideMove &&
+      proof.legalRivalReply &&
+      proof.replyByNamedPiece &&
+      proof.rivalPieceRemainsAfterReply &&
+      proof.replyLandsOnDecoySquare &&
+      proof.decoySquareEqualsLandingSquare &&
+      proof.completeTrapFollowUpProof &&
+      proof.trapFollowUpBindsSamePieceAndSquare &&
+      proof.completeStoryProof &&
+      proof.noEngineEvidenceUsed &&
+      proof.side == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.sideMove.exists(move => story.route.contains(move)) &&
+      proof.rivalReply.nonEmpty &&
+      proof.decoySquare == story.target &&
+      proof.landingSquare == story.target &&
+      proof.namedPieceAfterReply.exists(piece =>
+        story.rival == piece.side &&
+          story.target.contains(piece.square)
+      ) &&
+      proof.afterSideMoveBoard.exists(piece =>
+        story.side == piece.side &&
+          story.anchor.contains(piece.square) &&
+          proof.sideMove.exists(_.to == piece.square)
+      )
+
+  private def isTrapShaped(story: Story) =
+    story.writer.contains(StoryWriter.TacticTrap) ||
+      story.tactic.contains(Tactic.Trap) ||
+      story.trapProof.nonEmpty
+
+  private def trapPlanStory(story: Story) =
+    story.writer.contains(StoryWriter.TacticTrap) &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Trap) &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.overloadProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.queenHitProof.isEmpty &&
+      story.loosePieceProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.secondaryTarget.isEmpty &&
+      story.proofFailures.isEmpty &&
+      story.trapProof.exists(trapProofBindsPlan(story, _))
+
+  private def trapProofBindsPlan(story: Story, proof: TrapProof) =
+    proof.complete &&
+      proof.sameBoardProof &&
+      proof.legalMove &&
+      proof.nonCapturingMove &&
+      proof.exactAfterBoardReplay &&
+      proof.completeStoryProof &&
+      proof.targetRivalMinor &&
+      proof.targetDefendedByRivalSide &&
+      proof.afterBoardTargetAttackedByMovingSide &&
+      proof.targetHasLegalMoves &&
+      proof.everyTargetMoveUnsafe &&
+      proof.routeDoesNotGiveCheck &&
+      proof.routeDoesNotGiveMate &&
+      proof.routeDoesNotPromote &&
+      proof.noEngineEvidenceUsed &&
+      proof.attackingSide == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.trapMove.exists(move => story.route.contains(move)) &&
+      proof.targetPieceSquareAfter == story.target &&
+      proof.anchorSquareAfter == story.anchor &&
+      proof.targetPieceAfter.exists(piece =>
+        story.rival == piece.side &&
+          (piece.man == Man.Knight || piece.man == Man.Bishop) &&
+          proof.targetPieceSquareAfter.contains(piece.square)
+      ) &&
+      proof.movingPieceAfter.exists(piece =>
+        story.side == piece.side &&
+          proof.anchorSquareAfter.contains(piece.square) &&
+          story.anchor.contains(piece.square)
+      )
 
   private def isOverloadShaped(story: Story) =
     story.writer.contains(StoryWriter.TacticOverload) ||
@@ -1438,6 +1705,64 @@ private[commentary] object ExplanationPlan:
       proof.target.exists(piece => story.target.contains(piece.square) && piece.side == story.rival) &&
       proof.secondaryTarget.exists(piece => story.secondaryTarget.contains(piece.square) && piece.side == story.rival) &&
       proof.anchor.exists(piece => story.anchor.contains(piece.square) && piece.side == story.rival)
+
+  private def isDeflectShaped(story: Story) =
+    story.writer.contains(StoryWriter.TacticDeflect) ||
+      story.tactic.contains(Tactic.Deflect) ||
+      story.deflectProof.nonEmpty
+
+  private def deflectPlanStory(story: Story) =
+    story.writer.contains(StoryWriter.TacticDeflect) &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.Deflect) &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.overloadProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.queenHitProof.isEmpty &&
+      story.loosePieceProof.isEmpty &&
+      story.trapProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.secondaryTarget.isEmpty &&
+      story.proofFailures.isEmpty &&
+      story.deflectProof.exists(deflectProofBindsPlan(story, _))
+
+  private def deflectProofBindsPlan(story: Story, proof: DeflectProof) =
+    proof.complete &&
+      proof.sameBoardProof &&
+      proof.legalSideMove &&
+      proof.legalRivalReply &&
+      proof.replyByNamedDefender &&
+      proof.defenderGuardedTargetBeforeReply &&
+      proof.defenderNoLongerGuardsTargetAfterReply &&
+      proof.targetRemainsAfterReply &&
+      proof.defenderRemainsAfterReply &&
+      proof.sideMoveDoesNotCaptureDefender &&
+      proof.completeStoryProof &&
+      proof.noEngineEvidenceUsed &&
+      proof.side == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.sideMove.exists(move => story.route.contains(move)) &&
+      proof.targetBeforeReply.exists(piece =>
+        story.rival == piece.side &&
+          story.target.contains(piece.square) &&
+          piece.man != Man.King
+      ) &&
+      proof.targetAfterReply.exists(piece =>
+        story.rival == piece.side &&
+          story.target.contains(piece.square) &&
+          piece.man != Man.King
+      ) &&
+      proof.defenderAfterReply.exists(piece =>
+        story.rival == piece.side &&
+          story.anchor.contains(piece.square)
+      )
 
   private def isLooseShaped(story: Story) =
     story.writer.contains(StoryWriter.TacticLoose) ||
@@ -1655,6 +1980,9 @@ private[commentary] object ExplanationPlan:
     val story = verdict.story
     if isLooseShaped(story) then fromSelectedLoose(verdict, story)
     else if isQueenHitShaped(story) then fromSelectedQueenHit(verdict, story)
+    else if isDecoyShaped(story) then fromSelectedDecoy(verdict, story)
+    else if isTrapShaped(story) then fromSelectedTrap(verdict, story)
+    else if isDeflectShaped(story) then fromSelectedDeflect(verdict, story)
     else if story.scene == Scene.Material then fromSelectedMaterial(verdict, story)
     else if story.scene == Scene.Defense then fromSelectedDefense(verdict, story)
     else if story.tactic.contains(Tactic.DiscoveredAttack) then fromSelectedDiscoveredAttack(verdict, story)
@@ -1779,6 +2107,93 @@ private[commentary] object ExplanationPlan:
       evidenceLine = Some(route),
       strength = ExplanationStrength.Bounded,
       forbiddenWording = QueenHitForbiddenWording,
+      relations = Vector.empty,
+      debugOnly = false,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedTrap(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      if trapCanPlan(verdict)
+      if trapPlanStory(story)
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = Some(Tactic.Trap),
+      side = story.side,
+      rival = story.rival,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = None,
+      allowedClaim = Some(ExplanationClaim.TrapsPiece),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = TrapForbiddenWording,
+      relations = Vector.empty,
+      debugOnly = false,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedDecoy(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      if decoyCanPlan(verdict)
+      if decoyPlanStory(story)
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = Some(Tactic.Decoy),
+      side = story.side,
+      rival = story.rival,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = None,
+      allowedClaim = Some(ExplanationClaim.DecoysPiece),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = DecoyForbiddenWording,
+      relations = Vector.empty,
+      debugOnly = false,
+      supportContextLinks = Vector.empty
+    )
+
+  private def fromSelectedDeflect(verdict: Verdict, story: Story): Option[ExplanationPlan] =
+    for
+      target <- story.target
+      anchor <- story.anchor
+      route <- story.route
+      routeSan <- story.routeSan
+      if deflectCanPlan(verdict)
+      if deflectPlanStory(story)
+      if story.side == Side.White || story.side == Side.Black
+    yield ExplanationPlan(
+      role = verdict.role,
+      scene = story.scene,
+      tactic = Some(Tactic.Deflect),
+      side = story.side,
+      rival = story.rival,
+      target = Some(target),
+      anchor = Some(anchor),
+      route = Some(route),
+      routeSan = Some(routeSan),
+      secondaryTarget = None,
+      allowedClaim = Some(ExplanationClaim.DeflectsDefender),
+      evidenceLine = Some(route),
+      strength = ExplanationStrength.Bounded,
+      forbiddenWording = DeflectForbiddenWording,
       relations = Vector.empty,
       debugOnly = false,
       supportContextLinks = Vector.empty

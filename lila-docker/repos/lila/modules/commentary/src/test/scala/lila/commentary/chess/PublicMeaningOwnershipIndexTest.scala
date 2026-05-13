@@ -24,6 +24,8 @@ class PublicMeaningOwnershipIndexTest extends munit.FunSuite:
       OpenedMeaningOwner("Tactic.Skewer", "SkewerProof", "Tactic.Skewer", StoryWriter.TacticSkewer, ExplanationClaim.SkewersPieceToPiece),
       OpenedMeaningOwner("Tactic.QueenHit", "QueenHitProof", "Tactic.QueenHit", StoryWriter.TacticQueenHit, ExplanationClaim.AttacksQueen),
       OpenedMeaningOwner("Tactic.Loose", "LoosePieceProof", "Tactic.Loose", StoryWriter.TacticLoose, ExplanationClaim.AttacksLoosePiece),
+      OpenedMeaningOwner("Tactic.Trap", "TrapProof", "Tactic.Trap", StoryWriter.TacticTrap, ExplanationClaim.TrapsPiece),
+      OpenedMeaningOwner("Tactic.Decoy", "DecoyProof", "Tactic.Decoy", StoryWriter.TacticDecoy, ExplanationClaim.DecoysPiece),
       OpenedMeaningOwner("Scene.PawnAdvance", "PawnAdvanceProof", "Scene.PawnAdvance", StoryWriter.ScenePawnAdvance, ExplanationClaim.AdvancesPassedPawn),
       OpenedMeaningOwner("Scene.PawnStop", "PawnStopProof", "Scene.PawnStop", StoryWriter.ScenePawnStop, ExplanationClaim.StopsPassedPawnNextAdvance),
       OpenedMeaningOwner("Scene.PawnBreak", "PawnBreakProof", "Scene.PawnBreak", StoryWriter.ScenePawnBreak, ExplanationClaim.ChallengesPawnDirectly),
@@ -40,7 +42,7 @@ class PublicMeaningOwnershipIndexTest extends munit.FunSuite:
     )
 
   test("Stage-3 opened public meanings have one owner tuple each"):
-    assertEquals(openedMeanings.size, 24)
+    assertEquals(openedMeanings.size, 26)
     openedMeanings.groupBy(_.publicMeaning).foreach: (meaning, rows) =>
       assertEquals(rows.map(_.proofHome).distinct.size, 1, s"$meaning must have one proof home")
       assertEquals(rows.map(_.storyLabel).distinct.size, 1, s"$meaning must have one Story label")

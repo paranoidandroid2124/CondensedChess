@@ -1,7 +1,5 @@
 package lila.commentary.chess
 
-import java.nio.file.{ Files, Paths }
-
 class StalemateStage5Test extends munit.FunSuite:
 
   private case class CollisionRow(label: String, story: Story)
@@ -368,11 +366,3 @@ class StalemateStage5Test extends munit.FunSuite:
       "no_counterplay"
     ).foreach: closedKey =>
       assertEquals(claimKeys.contains(closedKey), false, closedKey)
-
-  test("Stalemate-5 StoryTable integration authority lives in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    assert(law.contains("### Stalemate-5 StoryTable Integration"))
-    assert(law.contains("Integrate `Scene.Stalemate` only as an already existing proof-backed Story."))
-    assert(law.contains("Stalemate does not own Checkmate."))
-    assert(law.contains("Checkmate does not own Stalemate."))
-    assert(law.contains("Completion standard: Stalemate-5 closes when StoryTable order is stable"))

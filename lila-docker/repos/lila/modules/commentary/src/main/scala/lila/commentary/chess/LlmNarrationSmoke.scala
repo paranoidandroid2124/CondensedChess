@@ -118,6 +118,9 @@ private[commentary] object LlmNarrationSmoke:
       case Tactic.Skewer => plan.allowedClaim.contains(ExplanationClaim.SkewersPieceToPiece)
       case Tactic.QueenHit => plan.allowedClaim.contains(ExplanationClaim.AttacksQueen)
       case Tactic.Loose => plan.allowedClaim.contains(ExplanationClaim.AttacksLoosePiece)
+      case Tactic.Trap => plan.allowedClaim.contains(ExplanationClaim.TrapsPiece)
+      case Tactic.Decoy => plan.allowedClaim.contains(ExplanationClaim.DecoysPiece)
+      case Tactic.Deflect => plan.allowedClaim.contains(ExplanationClaim.DeflectsDefender)
       case _ => false
 
   private def violatesForbiddenWording(text: String, plan: ExplanationPlan): Boolean =
@@ -126,6 +129,8 @@ private[commentary] object LlmNarrationSmoke:
     forbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
     publicForbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
     stage4TempoForbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
+    defenderManipulationForbiddenPhrases(normalized, plan) ||
+    deflectForbiddenPhrases(normalized, plan) ||
     overloadForbiddenPhrases(normalized, plan) ||
     looseForbiddenPhrases(normalized, plan) ||
     !materialWinAllowed(normalized, plan)
@@ -211,6 +216,12 @@ private[commentary] object LlmNarrationSmoke:
           Set("attack", "attacks", "attacks queen", "attacks the queen")
         case Some(Tactic.Loose) =>
           Set("attack", "attacks", "attacks undefended piece", "attacks the undefended piece")
+        case Some(Tactic.Trap) =>
+          Set("trap", "traps", "traps piece", "traps the piece")
+        case Some(Tactic.Decoy) =>
+          Set("decoy", "decoys", "decoyed", "decoys piece", "decoys the piece")
+        case Some(Tactic.Deflect) =>
+          Set("deflect", "deflects", "deflected", "deflects defender", "deflects the defender")
         case _ =>
           if plan.scene == Scene.PawnAdvance then
             Set("passed pawn", "advances passed pawn", "advances the passed pawn")
@@ -325,6 +336,9 @@ private[commentary] object LlmNarrationSmoke:
       "skewered",
       "x ray",
       "xray",
+      "trap",
+      "traps",
+      "trapped",
       "attack",
       "attacks",
       "starts attack",
@@ -475,7 +489,7 @@ private[commentary] object LlmNarrationSmoke:
     )
 
   private val publicForbiddenPhrases =
-    Vector("best move", "only move", "forced", "forces", "forced line")
+    Vector("best move", "only move", "forced", "forces", "forced line", "by force")
 
   private val stage4TempoForbiddenPhrases =
     Vector(
@@ -492,6 +506,99 @@ private[commentary] object LlmNarrationSmoke:
       "pressure",
       "keeps the move",
       "keeps control"
+    )
+
+  private def defenderManipulationForbiddenPhrases(normalized: String, plan: ExplanationPlan): Boolean =
+    isOpenedDefenderSpeechPlan(plan) &&
+      (
+        defenderClosedPhrases.exists(phrase => containsPhrase(normalized, phrase)) ||
+          (!isRemoveGuardPlan(plan) && removeGuardPhrases.exists(phrase => containsPhrase(normalized, phrase))) ||
+          (!isOverloadPlan(plan) && overloadPhrases.exists(phrase => containsPhrase(normalized, phrase))) ||
+          (!isDeflectPlan(plan) && deflectPhrases.exists(phrase => containsPhrase(normalized, phrase))) ||
+          (!isTrapPlan(plan) && trapPhrases.exists(phrase => containsPhrase(normalized, phrase)))
+      )
+
+  private def isOpenedDefenderSpeechPlan(plan: ExplanationPlan): Boolean =
+    isRemoveGuardPlan(plan) || isOverloadPlan(plan) || isDeflectPlan(plan) || isTrapPlan(plan)
+
+  private def isRemoveGuardPlan(plan: ExplanationPlan): Boolean =
+    plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.RemoveGuard) &&
+      plan.allowedClaim.contains(ExplanationClaim.RemovesDefender)
+
+  private def isTrapPlan(plan: ExplanationPlan): Boolean =
+    plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Trap) &&
+      plan.allowedClaim.contains(ExplanationClaim.TrapsPiece)
+
+  private val defenderClosedPhrases =
+    Vector(
+      "decoy",
+      "decoys",
+      "decoyed",
+      "lure",
+      "lures",
+      "lured",
+      "attract",
+      "attracts",
+      "attracted",
+      "interference",
+      "interferes",
+      "interfered",
+      "blocks line",
+      "blocks the line",
+      "blocked line",
+      "blocked the line"
+    )
+
+  private val removeGuardPhrases =
+    Vector(
+      "remove defender",
+      "remove the defender",
+      "removes defender",
+      "removes the defender",
+      "removed defender",
+      "removed the defender",
+      "defender is removed",
+      "defender was removed",
+      "the defender is removed",
+      "the defender was removed"
+    )
+
+  private val overloadPhrases =
+    Vector(
+      "overload",
+      "overloads",
+      "overloaded",
+      "overloading",
+      "overloads defender",
+      "overloads the defender",
+      "overloaded defender",
+      "overloaded the defender"
+    )
+
+  private val deflectPhrases =
+    Vector(
+      "deflect",
+      "deflects",
+      "deflected",
+      "deflecting",
+      "deflects defender",
+      "deflects the defender",
+      "deflected defender",
+      "deflected the defender"
+    )
+
+  private val trapPhrases =
+    Vector(
+      "trap",
+      "traps",
+      "trapped",
+      "trapping",
+      "traps piece",
+      "traps the piece",
+      "trapped piece",
+      "trapped the piece"
     )
 
   private val OverloadExtraForbiddenPhrases =
@@ -543,6 +650,57 @@ private[commentary] object LlmNarrationSmoke:
     plan.scene == Scene.Tactic &&
       plan.tactic.contains(Tactic.Overload) &&
       plan.allowedClaim.contains(ExplanationClaim.OverloadsDefender)
+
+  private def deflectForbiddenPhrases(normalized: String, plan: ExplanationPlan): Boolean =
+    isDeflectPlan(plan) &&
+      DeflectExtraForbiddenPhrases.exists(phrase => containsPhrase(normalized, phrase))
+
+  private def isDeflectPlan(plan: ExplanationPlan): Boolean =
+    plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Deflect) &&
+      plan.allowedClaim.contains(ExplanationClaim.DeflectsDefender)
+
+  private val DeflectExtraForbiddenPhrases =
+    Vector(
+      "wins material",
+      "wins piece",
+      "wins a piece",
+      "wins the piece",
+      "forced",
+      "forcing",
+      "forced reply",
+      "forces reply",
+      "only",
+      "only move",
+      "best",
+      "best move",
+      "no defense",
+      "no defence",
+      "no counterplay",
+      "removes defender",
+      "removes the defender",
+      "overloads defender",
+      "overloads the defender",
+      "traps defender",
+      "traps the defender",
+      "decoys",
+      "decoys the defender",
+      "engine line",
+      "reply line",
+      "rival reply",
+      "raw reply",
+      "reply moves",
+      "reply moved",
+      "reply move",
+      "moves the bishop",
+      "bishop moves",
+      "moves away from",
+      "moves off",
+      "after e6g4",
+      "e6g4",
+      "e6 g4",
+      "e6-g4"
+    )
 
   private val pieceIdentityPhrases =
     Vector("queen", "rook", "bishop", "knight", "pawn", "king")
@@ -603,6 +761,8 @@ private[commentary] object LlmNarrationSmoke:
       "file opened proof",
       "pawnblockproof",
       "pawn block proof",
+      "trapproof",
+      "trap proof",
       "queenhitproof",
       "queen hit proof",
       "loosepieceproof",
@@ -651,6 +811,11 @@ private[commentary] object LlmNarrationSmoke:
       "escape method",
       "escape method diagnostics",
       "escape diagnostics",
+      "escape square",
+      "escape-square",
+      "escape square map",
+      "escape-square map",
+      "target move map",
       "king move",
       "checking piece capture",
       "missing evidence",
@@ -707,6 +872,14 @@ private[commentary] object LlmNarrationSmoke:
         Vector("best move")
       case ForbiddenWording.OnlyMove =>
         Vector("only move")
+      case ForbiddenWording.NoEscape =>
+        Vector("no escape")
+      case ForbiddenWording.CannotBeSaved =>
+        Vector("cannot be saved")
+      case ForbiddenWording.CannotRefuse =>
+        Vector("cannot refuse", "can not refuse", "can't refuse")
+      case ForbiddenWording.QueenTrap =>
+        Vector("queen trap", "queen is trapped", "queen gets trapped", "trapped queen")
       case ForbiddenWording.EngineSays =>
         Vector(
           "engine says",
@@ -1125,6 +1298,18 @@ private[commentary] object LlmNarrationSmoke:
         )
       case ForbiddenWording.WinsSpace =>
         Vector("wins space", "gains space", "space advantage")
+      case ForbiddenWording.Decoy =>
+        Vector("decoy", "decoys")
+      case ForbiddenWording.DeflectsDefender =>
+        Vector("deflects defender", "deflects the defender", "deflect", "deflected")
+      case ForbiddenWording.OverloadsDefender =>
+        Vector("overloads defender", "overloads the defender", "overload", "overloaded")
+      case ForbiddenWording.TrapsPiece =>
+        Vector("traps piece", "traps the piece", "trap", "trapped")
+      case ForbiddenWording.RawReplyLine =>
+        Vector("reply line", "raw reply", "reply is", "reply move")
+      case ForbiddenWording.WhyItMatters =>
+        Vector("why it matters", "this matters because")
 
   private def forbiddenLabel(forbidden: ForbiddenWording): String =
     forbiddenMeaning(forbidden).head

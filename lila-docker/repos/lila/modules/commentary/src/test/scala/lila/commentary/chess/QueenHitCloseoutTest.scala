@@ -106,30 +106,6 @@ class QueenHitCloseoutTest extends munit.FunSuite:
     Vector("QueenHitProof", "TacticQueenHit", "LlmNarrationSmoke", "RenderedLine").foreach: raw =>
       assert(!controller.contains(raw), s"Commentary controller must not expose $raw")
 
-  test("Stage-9 QueenHit closeout authority lives in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    Vector(
-      "## QueenHit Stage-9 Closeout / Hard Cleanup",
-      "QueenHit-9 opens no new chess meaning.",
-      "`QueenHitProof` owns proof home.",
-      "`Tactic.QueenHit` owns Story label.",
-      "`TacticQueenHit` owns writer.",
-      "`attacks_queen` owns speech key.",
-      "QueenHit is not Hanging.",
-      "QueenHit is not Fork.",
-      "QueenHit is not Skewer.",
-      "QueenHit is not Pin.",
-      "QueenHit is not RemoveGuard.",
-      "QueenHit is not Material.",
-      "QueenHit is not Tempo.",
-      "QueenHit-9 still closed:",
-      "- public route `200`",
-      "- production API",
-      "- public/user-facing LLM narration",
-      "Completion standard: QueenHit-9 closes when"
-    ).foreach: marker =>
-      assert(law.contains(marker), s"QueenHit closeout law must pin: $marker")
-
   private def facts: BoardFacts =
     BoardFacts.fromFen(queenHitFen).fold(error => fail(s"invalid QueenHit closeout FEN: $queenHitFen -> $error"), identity)
 

@@ -33,6 +33,14 @@ and locating the next missing proof coordinate. They are not public payload,
 renderer input, or LLM input, and missing evidence text must not become user
 commentary.
 
+Current documentation-test policy: documentation, prose, and marker tests are
+retired. Do not add or run tests that parse `StoryInteractionLaw.md`, README,
+SSOT, Architecture, Contract, Manifest, or `AGENTS.md` wording. Runtime
+invariants belong in runtime tests. Documentation is reviewed manually at
+closeout when needed. Older closeout text that mentions `ChessDocsAuthorityTest`
+or docs authority tests is historical only and is not a current verification
+instruction.
+
 ## Law
 
 `Story` is the first public chess unit, but a Story family name is not enough.
@@ -19432,6 +19440,554 @@ QueenHit-9 required verification:
 
 Completion standard: QueenHit-9 closes when QueenHit has exactly one proof home (`QueenHitProof`), one Story label (`Tactic.QueenHit`), one writer (`TacticQueenHit`), and one speech key (`attacks_queen`); those owners remain separated; QueenHit is not Hanging, Fork, Skewer, Pin, RemoveGuard, Material, or Tempo; wins-queen, queen-trap, queen-lost, tempo, initiative, pressure, material-gain, best/only/forced, decisive/winning, public route `200`, production API, and public/user-facing LLM narration remain closed; targeted QueenHit stage and closeout tests pass; `ChessFoundationTest` passes; `ChessDocsAuthorityTest` passes; and `git diff --check` passes.
 
+## Trap Stage-0 Admission Guard
+
+Trap-0 opens only the upstream admission precondition for the Trap slice.
+This is the Trap slice entry guard, not a standalone audit project.
+
+Trap-0 StoryTable admission guard:
+
+- StoryTable filters closed `Tactic.Trap` rows before ranking.
+- StoryTable may order only rows admitted by opened proof-backed writers.
+- Forged closed `Tactic.Trap` rows must not survive as Lead, Support, Context, or Blocked public Verdict rows.
+- Existing opened writer rows keep their current StoryTable behavior.
+
+Trap-0 remains closed:
+
+- no TrapProof
+- no TacticTrap writer
+- no Tactic.Trap public Story
+- no traps_piece speech key
+- no ExplanationPlan claim
+- no renderer text
+- no LLM narration
+- no public route `200` / production API
+
+Trap-0 forbidden wording:
+
+- trap
+- trapped
+- wins piece
+- wins material
+- forced
+- only move
+- best move
+- no escape
+- no counterplay
+
+Trap-0 required verification:
+
+- focused Trap admission runtime test
+- `sbt "commentary/testOnly lila.commentary.chess.ChessFoundationTest"`
+- `git diff --check`
+
+Completion standard: Trap-0 closes when forged closed `Tactic.Trap` rows are filtered before StoryTable ranking, existing opened writer rows still behave unchanged, no Trap proof/writer/public Story/speech/ExplanationPlan/renderer/LLM/public-route surface opens, targeted runtime tests pass, `ChessFoundationTest` passes, and `git diff --check` passes.
+
+## Trap Stage-1 Narrow Charter
+
+Trap-1 opens only the first positive Trap scope in `StoryInteractionLaw.md`.
+It opens no runtime proof, writer, StoryTable integration, ExplanationPlan,
+renderer, LLM, public route, API, or user-facing narration.
+
+Trap-1 first positive scope:
+
+- one legal non-capturing move by side
+- the move attacks exactly one defended rival minor piece
+- target is a rival knight or bishop only
+- target is not king, queen, rook, or pawn
+- target has at least one legal target move
+- no legal target move reaches a safe escape square
+- route does not give check
+- route does not give mate
+- route does not capture material
+- route does not promote
+- route creates no public engine claim
+
+Trap-1 proof authority:
+
+- BoardFacts observes.
+- TrapProof will own trap proof.
+- StoryProof binds exact board and legal replay.
+- EngineCheck supports, caps, or refutes only after a Story exists.
+
+Trap-1 remains closed:
+
+- queen trap
+- rook trap
+- pawn trap
+- king safety / mate trap
+- material win
+- loose piece
+- hanging piece
+- forced move
+- best / only move
+- no-counterplay
+- public route / API / user-facing narration
+
+Trap-1 documentation boundary:
+
+- detailed Trap-1 charter authority lives only in `StoryInteractionLaw.md`
+- summary docs remain summary-only
+- `AGENTS.md` remains unchanged
+
+Completion standard: Trap-1 closes when `StoryInteractionLaw.md` alone records the narrow Trap charter, summary docs and `AGENTS.md` remain unchanged, no Trap proof/writer/public Story/speech/ExplanationPlan/renderer/LLM/public-route surface opens, and `git diff --check` passes.
+
+## Trap Stage-2 Proof Home
+
+Trap-2 opens only the internal `TrapProof` proof sidecar.
+It opens no Story creation, writer, speech key, ExplanationPlan, renderer,
+LLM, public route, API, or user-facing narration.
+
+Trap-2 proof requirements:
+
+- complete same-board legal replay for the route
+- complete `StoryProof`
+- route is legal
+- route is non-capturing
+- target exists on the after-board
+- target is a rival knight or bishop
+- anchor is the moved side piece after the route
+- anchor or side attack map attacks the target after the route
+- target is defended by the rival side, so Loose does not own it
+- target has legal target-piece moves
+- every legal target-piece move leaves the target still attacked or otherwise not safely escaped on the resulting board
+- route does not give check
+- route does not give mate
+- route does not promote
+- no engine eval or PV participates in proof creation
+
+Trap-2 remains closed:
+
+- Story creation
+- writer
+- speech key
+- ExplanationPlan
+- renderer
+- LLM
+- public route / API / user-facing narration
+
+Trap-2 forbidden wording:
+
+- wins the piece
+- cannot be saved
+- forced
+- only move
+- queen is trapped
+- no escape
+- no counterplay
+
+Trap-2 required runtime verification:
+
+- positive `TrapProof` fixture
+- negative fixture for safe escape square
+- negative fixture for undefended target
+- negative fixture for queen target
+- negative fixture for rook target
+- negative fixture for pawn target
+- negative fixture for king target
+- negative fixture for capture route
+- negative fixture for checking route
+- negative fixture for incomplete `StoryProof`
+- negative fixture for illegal replay
+- `git diff --check`
+
+Completion standard: Trap-2 closes when `TrapProof` exists only as an internal proof sidecar, all proof requirements above are enforced without engine eval/PV proof creation, all downstream Story/writer/speech/ExplanationPlan/renderer/LLM/public surfaces remain closed, focused runtime fixtures pass, and `git diff --check` passes.
+
+## Trap Stage-3 TacticTrap Writer
+
+Trap-3 opens only the named `TacticTrap` writer and `Tactic.Trap` public Story
+identity through complete `TrapProof`.
+
+Trap-3 writer requirements:
+
+- complete `TrapProof`
+- complete `StoryProof`
+- same-board legal replay
+- exact scene and tactic binding to `Scene.Tactic` / `Tactic.Trap`
+- exact side and rival binding from `TrapProof`
+- exact target binding from `TrapProof`
+- exact anchor binding from `TrapProof`
+- exact route binding from `TrapProof`
+- `EngineCheck.Refutes` cannot make the Trap row eligible for public claim
+- target role and square are preserved from `TrapProof`
+
+Trap-3 proof authority:
+
+- feature is not a claim
+- `TrapProof` is not public Story
+- public `Tactic.Trap` Story requires `TacticTrap` writer and proof-bearing identity
+
+Trap-3 remains closed:
+
+- downstream speech
+- ExplanationPlan claim
+- renderer text
+- LLM narration
+- material wording
+- forced wording
+- no-escape wording
+
+Trap-3 required runtime verification:
+
+- writer admits exactly one narrow `Tactic.Trap` Story
+- writer rejects forged target
+- writer rejects forged anchor
+- writer rejects forged route
+- writer rejects forged side
+- writer rejects forged rival
+- writer rejects incomplete `TrapProof`
+- refuted `EngineCheck` blocks public Trap claim
+- `git diff --check`
+
+Completion standard: Trap-3 closes when `TacticTrap` is the only writer that opens `Tactic.Trap` public Story identity, complete `TrapProof` and complete `StoryProof` bind the exact same-board route and identity, forged identity rows and refuted engine rows cannot become public claims, downstream speech/ExplanationPlan/renderer/LLM/material/forced/no-escape wording remain closed, focused runtime tests pass, and `git diff --check` passes.
+
+## Trap Stage-4 Negative Corpus And Collision Boundary
+
+Trap-4 opens only the runtime negative corpus for Trap false positives and
+neighbor collision boundaries.
+
+Trap-4 collision owners:
+
+- queen target stays QueenHit or closed
+- undefended attacked target stays Loose
+- actual capture / material result stays Material or Hanging
+- two-target attack stays Fork or Skewer
+- pinned relation stays Pin
+- removed defender stays RemoveGuard
+- defensive move stays Defense
+- overloaded defender stays Overload
+- engine status stays EngineCheck diagnostic only
+
+Trap-4 remains closed:
+
+- Support / Context / Blocked Trap public text
+- capped / refuted Trap public text
+- standalone Trap text from neighbor rows
+- downstream speech
+- ExplanationPlan claim
+- renderer text
+- LLM narration
+
+Trap-4 forbidden wording:
+
+- queen trap
+- wins queen
+- wins material
+- free piece
+- hanging
+- loose
+- forced
+- only
+- best
+- no escape
+- no counterplay
+- initiative
+- pressure
+
+Trap-4 required runtime verification:
+
+- each neighbor fixture remains in its owner or stays silent
+- no neighbor fixture creates `Tactic.Trap`
+- no Trap fixture borrows a neighbor proof home
+- no Trap fixture borrows a neighbor speech key
+- Support / Context / Blocked Trap rows produce no public text
+- capped / refuted Trap rows produce no public text
+- `git diff --check`
+
+Completion standard: Trap-4 closes when the runtime negative corpus proves neighboring QueenHit, Loose, Material, Hanging, Fork, Skewer, Pin, RemoveGuard, Defense, Overload, and EngineCheck diagnostic boundaries do not create or strengthen `Tactic.Trap`; Trap rows do not borrow neighbor proof homes or speech keys; all Trap downstream text surfaces remain closed; focused runtime tests pass; and `git diff --check` passes.
+
+## Trap Stage-5 EngineCheck Boundary
+
+Trap-5 opens only `EngineCheck` attachment to an already existing
+`Tactic.Trap` Story.
+
+Trap-5 rules:
+
+- `Supports` may support an existing Trap Story only.
+- `Caps` may strength-limit an existing Trap Story only.
+- `Refutes` blocks public Trap speech.
+- `Unknown` creates no expression.
+
+Trap-5 remains closed:
+
+- `EngineCheck` cannot create `TrapProof`.
+- `EngineCheck` cannot repair incomplete `TrapProof`.
+- `EngineCheck` cannot create `Tactic.Trap`.
+- `EngineCheck` cannot choose Lead.
+- `EngineCheck` cannot produce wording.
+- raw eval / PV / depth / status text stays internal.
+- downstream speech remains closed for Trap.
+- ExplanationPlan claim remains closed for Trap.
+- renderer text remains closed for Trap.
+- LLM narration remains closed for Trap.
+
+Trap-5 required runtime verification:
+
+- `Supports` fixture over an existing Trap Story
+- `Caps` fixture over an existing Trap Story
+- `Refutes` fixture over an existing Trap Story
+- `Unknown` fixture over an existing Trap Story
+- refuted Trap produces no `ExplanationPlan`
+- refuted Trap produces no rendered text
+- `EngineCheck` without Story cannot create Trap
+- `EngineCheck` cannot create or repair `TrapProof`
+- `git diff --check`
+
+Completion standard: Trap-5 closes when `EngineCheck` attaches only to an already existing complete `Tactic.Trap` Story, cannot create or repair `TrapProof`, cannot create `Tactic.Trap`, cannot choose Lead, cannot produce wording, Supports and Caps remain bounded to the existing Story, Refutes blocks public Trap speech, Unknown creates no expression, raw eval/PV/depth/status text remains internal, focused runtime tests pass, and `git diff --check` passes.
+
+## Trap Stage-6 StoryTable Integration
+
+Trap-6 opens only `StoryTable` ordering for proof-backed `Tactic.Trap` rows.
+
+Trap-6 rules:
+
+- selected uncapped Lead Trap may proceed downstream in a later stage only.
+- non-Lead Trap rows remain relation / order only.
+- existing owners keep their meanings.
+- deterministic ordering must not depend on raw engine eval, proof failure text, or source rows.
+
+Trap-6 remains closed:
+
+- `StoryTable` does not create Trap claims.
+- `StoryTable` does not repair Trap proof.
+- closed `Tactic.Trap` tombstones remain filtered before ranking.
+- Support / Context / Blocked Trap rows do not speak.
+- Trap `ExplanationPlan` claim remains closed.
+- Trap renderer text remains closed.
+- Trap LLM narration remains closed.
+
+Trap-6 required runtime verification:
+
+- Trap alone can become Lead.
+- Trap with stronger existing owner behaves deterministically.
+- incomplete Trap cannot Lead.
+- forged Trap cannot Lead.
+- refuted Trap cannot Lead.
+- closed `Tactic.Trap` tombstone without writer cannot survive ranking.
+- Support / Context / Blocked Trap rows produce no public text.
+- raw eval, proof failure text, and source rows do not choose Trap Lead.
+- `git diff --check`
+
+Completion standard: Trap-6 closes when `StoryTable` can order complete proof-backed `Tactic.Trap` rows, a valid Trap alone may become Lead, non-Lead Trap rows remain order-only, stronger existing owners keep deterministic meanings, incomplete/forged/refuted Trap rows cannot Lead, closed tombstones are filtered before ranking, raw engine eval/proof-failure/source-row data does not choose the Lead, downstream Trap speech remains closed, focused runtime tests pass, and `git diff --check` passes.
+
+## Trap Stage-7 ExplanationPlan
+
+Trap-7 opens only `ExplanationPlan` lowering for selected uncapped Lead
+`Tactic.Trap` Verdict rows.
+
+Trap-7 opens:
+
+- `ExplanationClaim.TrapsPiece`
+- claim key `traps_piece`
+- bounded Trap `ExplanationPlan` only from selected Verdict input
+
+Trap-7 plan input:
+
+- selected Verdict only
+
+Trap-7 plan rules:
+
+- selected uncapped Lead Trap lowers to `traps_piece`.
+- supported selected uncapped Lead Trap may lower to the same bounded claim.
+- non-selected Trap rows produce no public claim.
+- non-Lead Trap rows produce no public claim.
+- capped Trap rows produce no public claim.
+- refuted Trap rows produce no public claim.
+- unknown EngineCheck Trap rows produce no public claim.
+
+Trap-7 remains closed:
+
+- non-Lead Trap plans
+- capped / refuted Trap plans
+- raw `TrapProof` fields
+- escape-square maps
+- engine diagnostics
+- renderer creation outside plan
+- LLM creation outside plan
+- public route `200` / production API / user-facing narration
+
+Trap-7 forbidden wording:
+
+- wins piece
+- wins material
+- forced
+- only move
+- best move
+- no escape
+- cannot be saved
+- no counterplay
+- queen trap
+- free piece
+
+Trap-7 required runtime verification:
+
+- selected uncapped Lead Trap lowers to `traps_piece`
+- non-selected Trap row lowers to no public claim
+- non-Lead Trap row lowers to no public claim
+- capped Trap row lowers to no public claim
+- refuted Trap row lowers to no public claim
+- unknown EngineCheck Trap row lowers to no public claim
+- plan exposes no raw `TrapProof`, escape-square map, or engine diagnostic fields
+- `git diff --check`
+
+Completion standard: Trap-7 closes when only a selected uncapped Lead `Tactic.Trap` Verdict can lower to `ExplanationClaim.TrapsPiece` / `traps_piece`; non-selected, non-Lead, capped, refuted, unknown, incomplete, and forged Trap rows lower to no public claim; raw `TrapProof`, escape-square maps, and engine diagnostics stay out of the plan; renderer, LLM, public route `200`, production API, and user-facing narration remain closed; focused runtime tests pass; and `git diff --check` passes.
+
+## Trap Stage-8 Renderer
+
+Trap-8 opens only the deterministic renderer template for `traps_piece`.
+
+Trap-8 renderer input:
+
+- `ExplanationPlan` only
+
+Trap-8 allowed wording:
+
+- `{SAN} traps the {targetPiece} on {targetSquare}.`
+
+Trap-8 current template:
+
+- `{SAN} traps the piece on {targetSquare}.`
+
+Trap-8 rules:
+
+- renderer accepts only a Trap `ExplanationPlan` with claim key `traps_piece`.
+- renderer requires Lead role.
+- renderer requires bounded strength.
+- renderer requires target square.
+- renderer requires SAN.
+- renderer requires route evidence binding.
+- renderer refuses wrong claim keys.
+- renderer refuses non-Trap plans carrying `traps_piece`.
+- renderer refuses non-Lead plans.
+- capped / refuted Trap rows must stop before rendering.
+
+Trap-8 remains closed:
+
+- material result wording
+- forced / only / best wording
+- no-escape wording
+- queen / rook / pawn / king trap wording
+- engine wording
+- proof / debug wording
+- LLM narration
+- public route `200` / production API / user-facing narration
+
+Trap-8 required runtime verification:
+
+- renderer accepts selected Lead Trap `ExplanationPlan`
+- rendered line uses `traps_piece`
+- renderer refuses missing target
+- renderer refuses missing SAN
+- renderer refuses wrong claim key
+- renderer refuses non-Trap `traps_piece` plan
+- renderer refuses non-Lead Trap plan
+- capped Trap row produces no rendered text
+- refuted Trap row produces no rendered text
+- rendered text excludes material, forced, only, best, no-escape, queen-trap, free-piece, engine, proof, and debug wording
+- `git diff --check`
+
+Completion standard: Trap-8 closes when the deterministic renderer accepts only a selected Lead bounded Trap `ExplanationPlan` carrying `traps_piece`, emits only the admitted template, refuses missing target, missing SAN, wrong claim key, non-Trap, non-Lead, capped, and refuted cases, exposes no material/result/forced/only/best/no-escape/queen-rook-pawn-king-trap/engine/proof/debug wording, keeps LLM and public route/API/user-facing narration closed, focused runtime tests pass, and `git diff --check` passes.
+
+## Trap Stage-9 LLM Smoke
+
+Trap-9 opens only the LLM smoke boundary for rendered Trap text.
+
+Trap-9 LLM smoke input:
+
+- rendered text
+- claim key
+- strength
+- forbidden wording
+- instruction: `Rephrase only. Do not add chess facts.`
+
+Trap-9 rules:
+
+- LLM smoke accepts exact rendered Trap text only through the bounded rendered-line contract.
+- LLM smoke receives `traps_piece` only after deterministic rendering.
+- LLM smoke may echo or lightly rephrase only the already rendered bounded Trap text.
+- Smoke checking rejects added material, forced, no-escape, best/only, queen-trap, engine, and no-counterplay claims.
+
+Trap-9 remains closed:
+
+- public / user-facing LLM narration
+- production API
+- public route `200`
+- raw proof
+- raw board facts
+- raw engine data
+- escape-square maps
+- Trap proof creation, repair, Story creation, row ordering, or claim strengthening
+
+Trap-9 required runtime verification:
+
+- mock narrator accepts exact rendered Trap text
+- prompt includes only rendered text, claim key, strength, forbidden wording, and the rephrase-only instruction
+- prompt excludes raw Story, `TrapProof`, BoardFacts, EngineCheck, raw PV, proof failures, source rows, and escape-square maps
+- smoke checker rejects added material claims
+- smoke checker rejects forced claims
+- smoke checker rejects no-escape claims
+- smoke checker rejects best / only claims
+- smoke checker rejects queen-trap claims
+- smoke checker rejects engine claims
+- smoke checker rejects no-counterplay claims
+- `git diff --check`
+
+Completion standard: Trap-9 closes when LLM smoke accepts only bounded rendered Trap text carrying `traps_piece`, uses only rendered text, claim key, strength, forbidden wording, and the rephrase-only instruction, rejects added material / forced / no-escape / best-only / queen-trap / engine / no-counterplay claims, keeps raw proof, board facts, engine data, escape-square maps, public route `200`, production API, and user-facing LLM narration closed, focused runtime tests pass, and `git diff --check` passes.
+
+## Trap Stage-10 Docs Surface And Closeout
+
+Trap-10 opens only the Trap slice closeout record.
+
+Trap-10 docs surface:
+
+- detailed Trap law remains in `StoryInteractionLaw.md` only
+- summary docs stay summary-only unless a runtime-independent docs authority need is restored later
+- `AGENTS.md` remains unchanged because no durable operator rule changed
+
+Trap-10 ownership closeout:
+
+- one chess meaning: narrow `Tactic.Trap`
+- one proof home: `TrapProof`
+- one Story label: `Tactic.Trap`
+- one writer: `TacticTrap`
+- one speech key: `traps_piece`
+
+Trap-10 duplication audit:
+
+- Trap is not QueenHit.
+- Trap is not Loose.
+- Trap is not Hanging.
+- Trap is not Material.
+- Trap is not Fork.
+- Trap is not Skewer.
+- Trap is not Pin.
+- Trap is not RemoveGuard.
+- Trap is not Defense.
+- Trap is not Overload.
+- Trap is not EngineCheck.
+- EngineCheck may support, cap, or refute an already-existing Trap Story only.
+- Closed `Tactic.Trap` tombstone admission still filters forged rows before ranking.
+
+Trap-10 remains closed:
+
+- detailed Trap law outside `StoryInteractionLaw.md`
+- `AGENTS.md` changes unless durable operator rules change
+- public route `200`
+- production API
+- public / user-facing LLM narration
+- broad Trap family expansion
+- queen / rook / pawn / king trap expansion
+- material result wording
+- forced / only / best / no-escape / no-counterplay wording
+
+Trap-10 required runtime verification:
+
+- focused Trap runtime tests
+- `ChessFoundationTest`
+- `git diff --check`
+
+Completion standard: Trap-10 closes when Trap has exactly one proof home (`TrapProof`), one Story label (`Tactic.Trap`), one writer (`TacticTrap`), and one speech key (`traps_piece`); those owners remain separate; neighbor owners QueenHit, Loose, Hanging, Material, Fork, Skewer, Pin, RemoveGuard, Defense, Overload, and EngineCheck do not duplicate Trap ownership; closed Trap tombstones remain filtered before ranking; public route `200`, production API, public/user-facing LLM narration, broad Trap expansion, and detailed law outside `StoryInteractionLaw.md` remain closed; focused runtime tests pass; `ChessFoundationTest` passes; and `git diff --check` passes.
+
 ## Loose Piece Slice
 
 ### Loose-0 Charter
@@ -21868,6 +22424,1009 @@ Tempo text; `ChessFoundationTest` passes; `ChessDocsAuthorityTest` passes; no
 positive Tempo slice, QueenHit consequence expansion, public route `200`,
 production API, or public/user-facing LLM narration opens; and `git diff
 --check` passes.
+
+## Stage-0: Deflect Definition
+
+Stage-0 opens only the definition for narrow `Tactic.Deflect`. It opens no
+runtime implementation.
+
+Narrow Deflect meaning:
+
+- A legal side move is followed by a legal rival reply by a named rival
+  defender.
+- Before the reply, that defender defended one named non-king rival target.
+- After the reply, the same defender no longer defends that same target.
+- The public meaning is only that the defender was deflected from that duty.
+
+Stage-0 proof authority:
+
+- BoardFacts observes.
+- `DeflectProof` will own only defender-left-duty evidence.
+- EngineCheck supports, caps, or refutes only after a Story exists.
+- StoryTable orders only.
+- Renderer and LLM cannot add why the deflection matters.
+
+Stage-0 keeps closed:
+
+- Decoy
+- RemoveGuard
+- Overload
+- Trap
+- material win
+- wins piece
+- forced reply
+- only move
+- best move
+- no defense
+- no counterplay
+- public route `200`
+- production API
+- user-facing narration
+
+Stage-0 forbidden wording:
+
+- forced
+- only
+- best
+- wins material
+- wins piece
+- removes defender
+- overloads defender
+- traps defender
+- decoys
+- no defense
+- no counterplay
+
+Stage-0 requires no runtime verification unless code is touched. Documentation
+changes require `git diff --check`. Do not add docs, prose, or marker tests for
+this definition.
+
+Completion standard: Stage-0 Deflect Definition closes when
+`StoryInteractionLaw.md` defines only the narrow defender-left-duty meaning;
+`DeflectProof` is reserved as the future proof home for that evidence only;
+Decoy, RemoveGuard, Overload, Trap, material win, wins-piece, forced-reply,
+only-move, best-move, no-defense, no-counterplay, public route `200`,
+production API, and user-facing narration remain closed; renderer and LLM
+cannot add why the deflection matters; no runtime implementation or tests are
+added; AGENTS.md remains unchanged; and `git diff --check` passes.
+
+## Stage-1: DeflectProof
+
+Stage-1 opens only the `DeflectProof` proof home.
+
+Stage-1 proof requirements:
+
+- complete same-board proof for the initial board.
+- legal side move.
+- legal rival reply immediately after the side move.
+- rival reply is made by the named defender.
+- before the rival reply, the named defender defends one named non-king rival
+  target.
+- after the rival reply, the same defender no longer defends that same target.
+- target remains on board after reply.
+- defender remains on board after reply.
+- side move is not a capture of the defender.
+- rival reply is not invented from engine PV; it must come from legal replay
+  input.
+- no engine eval or PV participates in proof creation.
+- complete StoryProof for the side move route.
+
+Stage-1 keeps closed:
+
+- Story creation
+- writer
+- speech key
+- ExplanationPlan
+- renderer
+- LLM
+- material/result claims
+
+Stage-1 collision exclusions:
+
+- if defender is captured or removed, this is not Deflect.
+- if defender is overloaded by two duties, this is not Deflect unless the
+  actual reply leaves one duty.
+- if target is queen and the claim is merely queen attacked, keep QueenHit
+  separate.
+- if result is material change, keep Material/Hanging separate.
+
+Stage-1 runtime verification:
+
+- positive two-ply `DeflectProof` fixture.
+- negative illegal side move.
+- negative illegal rival reply.
+- negative wrong replying piece.
+- negative defender still defends target.
+- negative target gone.
+- negative defender gone.
+- negative defender captured by side move.
+- negative king target.
+- negative engine-only reply.
+- negative incomplete StoryProof.
+- `git diff --check`.
+
+Completion standard: Stage-1 DeflectProof closes when `DeflectProof` is the
+only opened proof home for narrow defender-left-duty evidence; complete proof
+requires same-board initial proof, legal side move, legal immediate rival
+reply by the named defender, before-reply defense of one named non-king rival
+target, after-reply loss of that same defense, target and defender still on
+board after reply, no side-move defender capture, no engine-created reply,
+no engine eval/PV proof creation, and complete StoryProof for the side route;
+defender captured/removed, pure Overload, QueenHit-only, Material, and Hanging
+collisions remain outside Deflect; Story creation, writer, speech key,
+ExplanationPlan, renderer, LLM, material/result claims, public route `200`,
+production API, and user-facing narration remain closed; focused runtime tests
+pass; AGENTS.md remains unchanged; and `git diff --check` passes.
+
+## Stage-2: TacticDeflect Writer
+
+Stage-2 opens only the `TacticDeflect` writer and `Tactic.Deflect` Story
+through complete `DeflectProof`.
+
+Stage-2 writer requirements:
+
+- complete `DeflectProof`.
+- complete StoryProof for the side move route.
+- scene is `Tactic`.
+- tactic is `Deflect`.
+- side binds to the side move.
+- rival binds to the named defender and target side.
+- target is the target whose defense was lost.
+- anchor is the defender that moved off duty.
+- route is the side move.
+- reply route stays proof evidence only and is not public Story identity.
+- EngineCheck is absent or not `Refutes`.
+- no contaminating sibling proof sidecars.
+
+Stage-2 keeps closed:
+
+- Decoy writer
+- RemoveGuard widening
+- Overload widening
+- result composition
+- speech key
+- ExplanationPlan
+- renderer
+- LLM
+
+Stage-2 runtime verification:
+
+- writer admits exactly one narrow Deflect Story.
+- writer rejects forged side.
+- writer rejects forged rival.
+- writer rejects forged target.
+- writer rejects forged anchor.
+- writer rejects forged route.
+- writer rejects incomplete `DeflectProof`.
+- writer rejects refuted EngineCheck.
+- writer rejects rows contaminated with RemoveGuard, Overload, Trap, QueenHit,
+  Material, Hanging, Fork, Skewer, or Pin proof homes.
+- `git diff --check`.
+
+Completion standard: Stage-2 TacticDeflect Writer closes when `TacticDeflect`
+is the only writer that can create `Tactic.Deflect`; the writer accepts only
+complete `DeflectProof` plus complete StoryProof for the side move route; Story
+identity binds exactly to scene `Tactic`, tactic `Deflect`, side, rival, target
+whose defense was lost, anchor defender moved off duty, and side-move route;
+the rival reply route remains proof evidence only; refuted EngineCheck blocks;
+rows contaminated with RemoveGuard, Overload, Trap, QueenHit, Material,
+Hanging, Fork, Skewer, or Pin proof homes are blocked; Decoy, RemoveGuard
+widening, Overload widening, result composition, speech key, ExplanationPlan,
+renderer, LLM, public route `200`, production API, and user-facing narration
+remain closed; focused runtime tests pass; AGENTS.md remains unchanged; and
+`git diff --check` passes.
+
+## Stage-3: Deflect Negative Corpus
+
+Stage-3 opens only runtime false-positive and neighbor collision tests for
+narrow `Tactic.Deflect`.
+
+Stage-3 neighbor ownership:
+
+- RemoveGuard owns removed or captured defender.
+- Overload owns dual-duty failure.
+- Trap owns no-safe-escape target.
+- QueenHit owns queen attack.
+- Loose owns undefended attacked piece.
+- Hanging/Material own material result.
+- Pin/Skewer/DiscoveredAttack own line geometry.
+- Defense owns defended own target.
+- EngineCheck owns no public meaning.
+
+Stage-3 keeps closed:
+
+- standalone text from Support, Context, or Blocked Deflect rows.
+- capped or refuted Deflect text.
+- forced, only, or best wording.
+- no-defense or no-counterplay wording.
+
+Stage-3 runtime verification:
+
+- each neighbor fixture stays in its owner or stays silent.
+- no neighbor fixture creates `Tactic.Deflect`.
+- Deflect fixture does not borrow neighbor proof home or speech key.
+- no workflow, stage, audit, gate, or checklist names become runtime concepts.
+- `git diff --check`.
+
+Completion standard: Stage-3 Deflect Negative Corpus closes when runtime
+fixtures prove RemoveGuard, Overload, Trap, QueenHit, Loose, Hanging, Material,
+Pin, Skewer, DiscoveredAttack, Defense, and EngineCheck keep their own
+ownership boundaries; no neighbor fixture creates `Tactic.Deflect`; Deflect
+rows cannot borrow neighbor proof homes or speech keys; Support, Context,
+Blocked, capped, and refuted Deflect rows produce no standalone text; forced,
+only, best, no-defense, and no-counterplay wording remains closed; no workflow,
+stage, audit, gate, or checklist names become runtime concepts; focused
+runtime tests pass; AGENTS.md remains unchanged; and `git diff --check` passes.
+
+## Stage-4: Deflect EngineCheck And StoryTable
+
+Stage-4 opens only `EngineCheck` attachment to an existing proof-backed
+`Tactic.Deflect` row and `StoryTable` ordering for proof-backed Deflect rows.
+
+Stage-4 rules:
+
+- `EngineCheck` cannot create `DeflectProof`.
+- `EngineCheck` cannot repair incomplete `DeflectProof`.
+- `Supports` may support only an existing Deflect row.
+- `Caps` may limit only an existing Deflect row.
+- `Refutes` blocks public Deflect speech.
+- `StoryTable` orders only; it cannot create Deflect from reply lines or diagnostics.
+- Support, Context, Blocked, capped, and refuted rows stay silent.
+
+Stage-4 keeps closed:
+
+- Deflect speech key.
+- ExplanationPlan claim.
+- renderer text.
+- LLM narration.
+- raw eval, PV, depth, or engine status public wording.
+- forced, only, best, no-defense, no-counterplay, material, and result claims.
+
+Stage-4 runtime verification:
+
+- Deflect alone can Lead.
+- weaker duplicate Deflect is non-speaking.
+- incomplete or forged Deflect is Blocked and silent.
+- capped or refuted Deflect is silent.
+- raw eval, PV, depth, and status text never reaches plan, renderer, or LLM.
+
+Completion standard: Stage-4 Deflect EngineCheck And StoryTable closes when
+`EngineCheck` attaches only to existing complete proof-backed Deflect rows,
+cannot create or repair `DeflectProof`, Supports and Caps remain bounded to an
+existing Deflect Story, Refutes blocks public Deflect speech, StoryTable orders
+only proof-backed Deflect rows without creating Deflect from reply lines or
+diagnostics, Support/Context/Blocked/capped/refuted Deflect rows remain silent,
+raw engine evidence stays out of plan, renderer, and LLM surfaces, focused
+runtime tests pass, AGENTS.md remains unchanged, and `git diff --check` passes.
+
+## Stage-5: Deflect ExplanationPlan And Renderer
+
+Stage-5 opens only `ExplanationClaim.DeflectsDefender`, the
+`deflects_defender` speech key, and deterministic renderer text for selected
+uncapped Lead Deflect.
+
+Stage-5 renderer input:
+
+- `ExplanationPlan` only.
+
+Stage-5 allowed wording:
+
+- `{SAN} deflects the defender from {targetSquare}.`
+
+Stage-5 keeps closed:
+
+- why it matters.
+- material result.
+- forced reply.
+- only or best move.
+- no defense.
+- no counterplay.
+- decoy wording.
+- remove-guard wording.
+- overload wording.
+- trap wording.
+- raw reply line details.
+- LLM narration.
+- public route `200` and production API.
+
+Stage-5 runtime verification:
+
+- selected uncapped Lead Deflect lowers to `deflects_defender`.
+- non-Lead, capped, refuted, and blocked rows produce no rendered text.
+- renderer refuses wrong claim key, missing target, missing SAN, and missing plan fields.
+- rendered text contains no forbidden wording.
+
+Completion standard: Stage-5 Deflect ExplanationPlan And Renderer closes when
+only selected uncapped Lead Deflect rows from complete `DeflectProof` lower to
+`deflects_defender`, deterministic renderer accepts only `ExplanationPlan` and
+emits exactly `{SAN} deflects the defender from {targetSquare}.`, non-Lead,
+capped, refuted, blocked, malformed, or wrong-claim plans remain silent, why it
+matters, material/result, forced/only/best, no-defense/no-counterplay, decoy,
+remove-guard, overload, trap, raw reply-line, LLM, public route, and production
+API wording stay closed, focused runtime tests pass, AGENTS.md remains
+unchanged, and `git diff --check` passes.
+
+## Stage-6: Deflect LLM Smoke
+
+Stage-6 opens only the LLM smoke boundary for already rendered Deflect text.
+It does not open public or user-facing LLM narration.
+
+Stage-6 LLM smoke input:
+
+- renderedText.
+- claimKey.
+- strength.
+- forbidden wording.
+- instruction: `Rephrase only. Do not add chess facts.`
+
+Stage-6 keeps closed:
+
+- public/user-facing LLM narration.
+- production API.
+- public route `200`.
+- raw proof.
+- reply map.
+- engine data.
+- board facts.
+- source rows.
+
+Stage-6 runtime verification:
+
+- mock narrator accepts exact rendered Deflect text.
+- smoke checker rejects additions for wins material, wins piece, forced, only,
+  best, no defense, no counterplay, removes defender, overloads defender,
+  traps defender, decoys, engine line, and raw reply explanation.
+- LLM smoke prompt exposes only rendered text, claim key, strength, forbidden
+  wording, and the rephrase-only instruction.
+- LLM smoke exposes no raw Story, `DeflectProof`, `BoardFacts`, `EngineCheck`,
+  `EngineLine`, `EngineEval`, reply map, source row, or proof failure input.
+
+Completion standard: Stage-6 Deflect LLM Smoke closes when `LlmNarrationSmoke`
+accepts only bounded rendered Deflect text with `deflects_defender`, rejects
+material/result, forced/only/best, no-defense/no-counterplay, remove-guard,
+overload, trap, decoy, engine-line, and raw-reply additions, exposes only the
+allowed smoke input fields plus `Rephrase only. Do not add chess facts.`, keeps
+public/user-facing LLM narration, public route `200`, production API, raw
+proof, reply map, engine data, board facts, and source rows closed, focused
+runtime tests pass, AGENTS.md remains unchanged, and `git diff --check` passes.
+
+## Stage-7: Deflect Closeout
+
+Stage-7 opens closeout only.
+
+Deflect closeout ownership:
+
+- one meaning: `deflects_defender`.
+- one proof home: `DeflectProof`.
+- one Story label: `Tactic.Deflect`.
+- one writer: `TacticDeflect`.
+- one speech key: `deflects_defender`.
+
+Deflect closeout boundaries:
+
+- RemoveGuard, Overload, Trap, QueenHit, Loose, Hanging, Material, Pin,
+  Skewer, DiscoveredAttack, Defense, and EngineCheck keep separate ownership.
+- no workflow, stage, audit, gate, or checklist names become runtime concepts.
+- Decoy, broad Deflect, material/result composition, forced/only/best,
+  no-defense/no-counterplay claims, public route `200`, production API, and
+  public/user-facing narration remain closed.
+
+Stage-7 runtime verification:
+
+- focused Deflect runtime suite.
+- `ChessFoundationTest`.
+- `git diff --check`.
+
+Completion standard: Stage-7 Deflect Closeout closes when Deflect has exactly
+one public meaning (`deflects_defender`), one proof home (`DeflectProof`), one
+Story label (`Tactic.Deflect`), one writer (`TacticDeflect`), and one speech
+key (`deflects_defender`); all listed neighbor families keep their separate
+proof and speech ownership; no workflow/stage/audit/gate/checklist names enter
+runtime concepts; Decoy, broad Deflect, material/result composition,
+forced/only/best/no-defense/no-counterplay claims, public route `200`,
+production API, and public/user-facing narration remain closed; focused
+runtime tests and `ChessFoundationTest` pass; AGENTS.md remains unchanged; and
+`git diff --check` passes.
+
+## Stage-0: Defender Manipulation Runtime Boundary
+
+Stage-0 opens only runtime closeout verification for already-open defender
+manipulation meanings.
+
+Stage-0 covered meanings:
+
+- `Tactic.RemoveGuard` / `removes_defender`
+- `Tactic.Overload` / `overloads_defender`
+- `Tactic.Deflect` / `deflects_defender`
+- `Tactic.Trap` / `traps_piece`
+
+Stage-0 keeps closed:
+
+- new Story label
+- new proof home
+- new writer
+- new speech key
+- Decoy
+- Interference
+- broad defender-manipulation family
+- public route `200`
+- production API
+- user-facing narration
+
+Stage-0 ownership rules:
+
+- RemoveGuard owns removed or captured defender evidence.
+- Overload owns one defender unable to maintain two duties.
+- Deflect owns reply-aware defender-left-duty evidence.
+- Trap owns minor piece with no safe target-piece escape.
+- EngineCheck supports, caps, or refutes only existing Stories.
+- StoryTable orders only.
+
+Stage-0 runtime verification:
+
+- focused boundary fixtures cover the four meanings.
+- no fixture creates another defender-manipulation Story unless that proof home
+  is independently complete.
+- no non-Lead, capped, or refuted row produces standalone text.
+- `git diff --check`.
+
+Completion standard: Stage-0 Defender Manipulation Runtime Boundary closes when
+focused runtime fixtures prove RemoveGuard, Overload, Deflect, and Trap keep
+their proof homes, Story labels, writers, and speech keys separate; sibling
+proof sidecars cannot contaminate another defender tactic into Lead speech;
+EngineCheck remains support/cap/refute evidence only for existing Stories;
+StoryTable orders only; non-Lead, capped, refuted, blocked, or filtered rows
+produce no standalone text; Decoy, Interference, broad defender-manipulation
+family, new Story labels, new proof homes, new writers, new speech keys, public
+route `200`, production API, and user-facing narration remain closed; focused
+runtime tests pass; and `git diff --check` passes.
+
+## Stage-1: Speech Key And Wording Boundary
+
+Stage-1 opens only runtime checks for defender-manipulation speech separation.
+
+Stage-1 claim-key rules:
+
+- RemoveGuard can lower only to `removes_defender`.
+- Overload can lower only to `overloads_defender`.
+- Deflect can lower only to `deflects_defender`.
+- Trap can lower only to `traps_piece`.
+- selected Lead rows render only their own claim key.
+- LLM smoke may rephrase only rendered text and cannot add sibling meanings.
+
+Stage-1 keeps closed:
+
+- result composition
+- material win
+- forced / only / best
+- no defense
+- no counterplay
+- Decoy wording
+- Interference wording
+- public narration
+
+Stage-1 LLM smoke rejects:
+
+- remove / removed defender wording in non-RemoveGuard plans
+- overload / overloaded wording in non-Overload plans
+- deflect / deflected wording in non-Deflect plans
+- trap / trapped wording in non-Trap plans
+- decoy / lure / attract wording
+- interference / interferes / blocks-line wording
+- wins-material / wins-piece wording
+- forced / only / best wording
+- no-defense / no-counterplay wording
+
+Stage-1 runtime verification:
+
+- selected Lead rows render only their own claim key.
+- LLM smoke rejects sibling defender wording and closed Decoy,
+  Interference, result, force, no-defense, and no-counterplay wording.
+- `git diff --check`.
+
+Completion standard: Stage-1 Speech Key And Wording Boundary closes when
+focused runtime fixtures prove selected Lead RemoveGuard, Overload, Deflect,
+and Trap rows lower and render only `removes_defender`, `overloads_defender`,
+`deflects_defender`, and `traps_piece` respectively; LLM smoke rejects sibling
+defender-manipulation wording, Decoy/lure/attract wording,
+Interference/blocks-line wording, material/result wording, forced/only/best
+wording, no-defense/no-counterplay wording, and public narration remains
+closed; focused runtime tests pass; and `git diff --check` passes.
+
+## Stage-2: Defender Manipulation Closeout
+
+Stage-2 opens closeout note only.
+
+Defender manipulation closeout ownership:
+
+- RemoveGuard has one meaning (`removes_defender`), one proof home
+  (`RemoveGuardProof`), one Story label (`Tactic.RemoveGuard`), one writer
+  (`TacticRemoveGuard`), and one speech key (`removes_defender`).
+- Overload has one meaning (`overloads_defender`), one proof home
+  (`OverloadProof`), one Story label (`Tactic.Overload`), one writer
+  (`TacticOverload`), and one speech key (`overloads_defender`).
+- Deflect has one meaning (`deflects_defender`), one proof home
+  (`DeflectProof`), one Story label (`Tactic.Deflect`), one writer
+  (`TacticDeflect`), and one speech key (`deflects_defender`).
+- Trap has one meaning (`traps_piece`), one proof home (`TrapProof`), one Story
+  label (`Tactic.Trap`), one writer (`TacticTrap`), and one speech key
+  (`traps_piece`).
+
+Stage-2 closeout boundaries:
+
+- no shared generic DefenderManipulation runtime type.
+- no workflow, stage, audit, gate, or checklist names become runtime concepts.
+- no docs, prose, or marker tests.
+- no `ChessDocsAuthorityTest`.
+
+Completion standard: Stage-2 Defender Manipulation Closeout closes when focused
+runtime closeout tests prove the four owner tuples above, no generic
+DefenderManipulation runtime owner exists, no docs/prose/marker tests are
+added, public narration remains closed, focused runtime tests pass,
+`ChessFoundationTest` passes if shared runtime code changed, and `git diff
+--check` passes.
+
+## Stage-0: Decoy Definition
+
+Stage-0 opens only the definition for narrow `Tactic.Decoy`. The first scope
+is Decoy-to-Trap. It opens no runtime implementation.
+
+Narrow Decoy-to-Trap meaning:
+
+- A legal side move is followed by a legal rival reply by a named rival piece.
+- The rival reply lands that same piece on a named decoy square.
+- That landing square is bound to a complete Trap follow-up condition.
+- Public meaning may say only that the piece was decoyed to that square.
+
+Stage-0 proof authority:
+
+- BoardFacts observes.
+- `DecoyProof` owns only piece-drawn-to-square evidence.
+- `TrapProof` owns trap evidence.
+- `DecoyProof` may require complete Trap follow-up proof, but must not replace
+  it.
+- EngineCheck supports, caps, or refutes only after a Story exists.
+- StoryTable orders only.
+
+Stage-0 keeps closed:
+
+- broad Decoy
+- Deflect
+- RemoveGuard
+- Overload
+- Trap result wording
+- material win
+- forced / only / best
+- cannot refuse
+- no escape / no counterplay
+- public route `200`
+- production API
+- user-facing narration
+
+Stage-0 forbidden wording:
+
+- forced
+- only
+- best
+- cannot refuse
+- wins material
+- wins piece
+- wins queen
+- traps piece
+- no escape
+- no counterplay
+- engine line
+
+Stage-0 requires no runtime verification unless code is touched. Documentation
+changes require `git diff --check`. Do not add docs, prose, or marker tests for
+this definition.
+
+Completion standard: Stage-0 Decoy Definition closes when
+`StoryInteractionLaw.md` defines only the narrow Decoy-to-Trap meaning;
+`DecoyProof` is reserved only for piece-drawn-to-square evidence; complete
+Trap follow-up proof remains owned by `TrapProof`; broad Decoy, Deflect,
+RemoveGuard, Overload, Trap result wording, material-win, forced/only/best,
+cannot-refuse, no-escape/no-counterplay, public route `200`, production API,
+and user-facing narration remain closed; no runtime implementation or tests are
+added; AGENTS.md remains unchanged; and `git diff --check` passes.
+
+## Stage-1: DecoyProof
+
+Stage-1 opens only the `DecoyProof` proof home.
+
+Stage-1 proof requirements:
+
+- complete same-board proof for the initial board.
+- legal side move.
+- legal rival reply immediately after the side move.
+- rival reply is made by the named rival piece.
+- rival piece remains on board after reply.
+- rival reply lands on the named decoy square.
+- decoy square equals the proof target / landing square.
+- complete Trap follow-up proof exists for that same piece and square after
+  the reply.
+- `DecoyProof` stores the Trap follow-up proof only as required evidence, not
+  as Decoy-owned meaning.
+- reply is supplied by legal replay input, not engine PV.
+- no engine eval or PV participates in proof creation.
+- complete StoryProof for the side move route.
+
+Stage-1 keeps closed:
+
+- Story creation
+- writer
+- speech key
+- ExplanationPlan
+- renderer
+- LLM
+- material / result claims
+- Trap public text from Decoy
+
+Stage-1 collision exclusions:
+
+- if the claim needs defender-left-duty, it belongs to Deflect.
+- if the claim needs removed or captured defender, it belongs to RemoveGuard.
+- if the claim needs dual-duty failure, it belongs to Overload.
+- if the claim says target has no safe escape, it belongs to Trap.
+- if the claim says material is won, it belongs to Material or Hanging.
+
+Stage-1 runtime verification:
+
+- positive `DecoyProof` fixture with legal side move, legal rival reply, and
+  complete Trap follow-up.
+- negative illegal side move.
+- negative illegal reply.
+- negative wrong replying piece.
+- negative piece does not land on decoy square.
+- negative no Trap follow-up proof.
+- negative Trap follow-up for different piece or square.
+- negative engine-only reply.
+- negative incomplete StoryProof.
+- `git diff --check`.
+
+Completion standard: Stage-1 DecoyProof closes when `DecoyProof` is the only
+opened proof home for narrow piece-drawn-to-square evidence; complete proof
+requires same-board initial proof, legal side move, legal immediate rival
+reply by the named rival piece, the rival piece remaining on board after the
+reply, the reply landing that same piece on the named decoy square, the decoy
+square matching the proof landing square, complete same-piece same-square Trap
+follow-up proof stored only as required evidence, legal replay input rather
+than engine PV, no engine eval/PV proof creation, and complete StoryProof for
+the side move route; Deflect, RemoveGuard, Overload, Trap, Material, and
+Hanging collision meanings remain in their own homes; Story creation, writer,
+speech key, ExplanationPlan, renderer, LLM, material/result claims, Trap public
+text from Decoy, public route `200`, production API, and user-facing narration
+remain closed; focused runtime tests pass; AGENTS.md remains unchanged; and
+`git diff --check` passes.
+
+## Stage-2: TacticDecoy Writer
+
+Stage-2 opens only the `TacticDecoy` writer and `Tactic.Decoy` Story through
+complete `DecoyProof`.
+
+Stage-2 writer requirements:
+
+- complete `DecoyProof`.
+- complete StoryProof for the side move route.
+- scene is `Tactic`.
+- tactic is `Decoy`.
+- side binds to the side move.
+- rival binds to the named rival piece.
+- target is the decoy square / decoyed piece square after reply.
+- anchor is the side moved piece after the side move.
+- route is the side move.
+- reply route remains proof evidence only, not public Story route.
+- EngineCheck is absent or not `Refutes`.
+- no contaminating sibling proof sidecars.
+
+Stage-2 keeps closed:
+
+- Trap writer widening
+- Deflect widening
+- RemoveGuard widening
+- Overload widening
+- result composition
+- speech key
+- ExplanationPlan
+- renderer
+- LLM
+
+Stage-2 runtime verification:
+
+- writer admits exactly one narrow Decoy Story.
+- writer rejects forged side.
+- writer rejects forged rival.
+- writer rejects forged target.
+- writer rejects forged anchor.
+- writer rejects forged route.
+- writer rejects incomplete `DecoyProof`.
+- writer rejects refuted EngineCheck.
+- writer rejects rows contaminated with Trap, Deflect, RemoveGuard, Overload,
+  QueenHit, Loose, Hanging, Material, Fork, Skewer, or Pin proof homes.
+- `git diff --check`.
+
+Completion standard: Stage-2 TacticDecoy Writer closes when `TacticDecoy` is
+the only writer that can create `Tactic.Decoy`; the writer accepts only
+complete `DecoyProof` plus complete StoryProof for the side move route; Story
+identity binds exactly to scene `Tactic`, tactic `Decoy`, side, rival, target
+decoy square / decoyed piece square after reply, anchor side moved piece after
+the side move, and side-move route; the rival reply route remains proof
+evidence only; refuted EngineCheck blocks; rows contaminated with Trap,
+Deflect, RemoveGuard, Overload, QueenHit, Loose, Hanging, Material, Fork,
+Skewer, or Pin proof homes are blocked; Trap writer widening, Deflect widening,
+RemoveGuard widening, Overload widening, result composition, speech key,
+ExplanationPlan, renderer, LLM, public route `200`, production API, and
+user-facing narration remain closed; focused runtime tests pass; AGENTS.md
+remains unchanged; and `git diff --check` passes.
+
+## Stage-3: Decoy Negative Corpus
+
+Stage-3 opens only runtime false-positive and neighbor collision tests for
+narrow `Tactic.Decoy`.
+
+Stage-3 neighbor ownership:
+
+- Trap owns no-safe-escape target condition.
+- Deflect owns defender-left-duty evidence.
+- RemoveGuard owns removed or captured defender.
+- Overload owns dual-duty failure.
+- QueenHit owns queen attack.
+- Loose owns undefended attacked piece.
+- Hanging / Material own material result.
+- Pin / Skewer / DiscoveredAttack own line geometry.
+- EngineCheck owns no public meaning.
+
+Stage-3 keeps closed:
+
+- standalone text from Support, Context, or Blocked Decoy rows.
+- capped or refuted Decoy text.
+- forced, only, or best wording.
+- cannot-refuse wording.
+- trap-result wording.
+- material / result wording.
+
+Stage-3 runtime verification:
+
+- each neighbor fixture stays in its owner or stays silent.
+- no neighbor fixture creates `Tactic.Decoy`.
+- Decoy fixture does not borrow neighbor proof home or speech key.
+- Decoy does not render Trap wording.
+- no workflow, stage, audit, gate, or checklist names become runtime concepts.
+- `git diff --check`.
+
+Completion standard: Stage-3 Decoy Negative Corpus closes when runtime
+fixtures prove Trap, Deflect, RemoveGuard, Overload, QueenHit, Loose, Hanging,
+Material, Pin, Skewer, DiscoveredAttack, and EngineCheck keep their own
+ownership boundaries; no neighbor fixture creates `Tactic.Decoy`; Decoy rows
+cannot borrow neighbor proof homes or speech keys; Support, Context, Blocked,
+capped, and refuted Decoy rows produce no standalone text; Decoy produces no
+Trap wording; forced/only/best, cannot-refuse, trap-result, and material/result
+wording remain closed; no workflow, stage, audit, gate, or checklist names
+become runtime concepts; focused runtime tests pass; AGENTS.md remains
+unchanged; and `git diff --check` passes.
+
+## Stage-4: Decoy EngineCheck And StoryTable
+
+Stage-4 opens only EngineCheck attachment to existing proof-backed Decoy rows
+and StoryTable ordering for proof-backed Decoy rows.
+
+Stage-4 opens:
+
+- EngineCheck attachment to an existing `Tactic.Decoy` Story with complete
+  `DecoyProof`.
+- StoryTable ordering for proof-backed `Tactic.Decoy` rows.
+
+Stage-4 rules:
+
+- EngineCheck cannot create `DecoyProof`.
+- EngineCheck cannot repair incomplete `DecoyProof`.
+- support status may support only an existing Decoy Story.
+- cap status may limit only an existing Decoy Story.
+- refute status blocks public Decoy speech.
+- StoryTable orders only.
+- StoryTable must not create Decoy from reply lines, `TrapProof`, diagnostics,
+  or engine evidence.
+- Support, Context, Blocked, capped, and refuted Decoy rows stay silent.
+- raw eval, PV, depth, and status text must not reach `ExplanationPlan`,
+  renderer, or LLM smoke.
+
+Stage-4 keeps closed:
+
+- `DecoyProof` creation from engine evidence.
+- repair of incomplete or forged Decoy proof by EngineCheck or StoryTable.
+- Trap writer widening.
+- Deflect, RemoveGuard, and Overload widening.
+- result composition.
+- speech key.
+- ExplanationPlan.
+- renderer.
+- LLM.
+- public route `200`.
+- production API.
+- public/user-facing narration.
+
+Stage-4 runtime verification:
+
+- Decoy alone can Lead.
+- weaker duplicate Decoy is non-speaking.
+- incomplete or forged Decoy is Blocked and silent.
+- capped or refuted Decoy is silent.
+- raw eval, PV, depth, and status text never reaches plan, renderer, or LLM.
+- EngineCheck cannot create or repair Decoy proof.
+- StoryTable cannot create Decoy from reply lines, `TrapProof`, or diagnostics.
+- `git diff --check`.
+
+Completion standard: Stage-4 Decoy EngineCheck And StoryTable closes when
+EngineCheck binds only to an existing complete `Tactic.Decoy` Story, cannot
+create or repair `DecoyProof`, support and cap statuses affect only existing
+Decoy rows, refuted Decoy rows are blocked and silent, StoryTable only orders
+proof-backed Decoy rows, reply lines / `TrapProof` / diagnostics / engine
+evidence cannot create Decoy, raw eval/PV/depth/status text stays out of
+`ExplanationPlan`, renderer, and LLM smoke, focused runtime tests pass,
+AGENTS.md remains unchanged, and `git diff --check` passes.
+
+## Stage-5: Decoy ExplanationPlan And Renderer
+
+Stage-5 opens only bounded `ExplanationPlan` lowering and deterministic
+renderer text for selected uncapped Lead Decoy rows.
+
+Stage-5 opens:
+
+- `ExplanationClaim.DecoysPiece`.
+- speech key `decoys_piece`.
+- deterministic renderer template for selected uncapped Lead Decoy only.
+
+Stage-5 renderer input:
+
+- `ExplanationPlan` only.
+
+Stage-5 allowed wording:
+
+- `{SAN} decoys the {piece} to {targetSquare}.`
+
+Current template:
+
+- `{SAN} decoys the piece to {targetSquare}.`
+
+Stage-5 keeps closed:
+
+- why-it-matters explanation.
+- Trap wording.
+- material result.
+- forced reply.
+- only / best move.
+- cannot-refuse wording.
+- no escape.
+- no counterplay.
+- Deflect wording.
+- RemoveGuard wording.
+- Overload wording.
+- raw reply line details.
+- LLM.
+- public route `200`.
+- production API.
+- public/user-facing narration.
+
+Stage-5 runtime verification:
+
+- selected uncapped Lead Decoy lowers to `decoys_piece`.
+- selected uncapped Lead Decoy renders only the allowed template.
+- non-Lead, capped, refuted, and blocked Decoy rows produce no rendered text.
+- renderer refuses wrong claim key.
+- renderer refuses missing target.
+- renderer refuses missing SAN.
+- renderer refuses missing required plan fields.
+- rendered text contains no forbidden wording.
+- `git diff --check`.
+
+Completion standard: Stage-5 Decoy ExplanationPlan And Renderer closes when
+only selected uncapped Lead `Tactic.Decoy` rows lower to
+`ExplanationClaim.DecoysPiece` / `decoys_piece`, deterministic rendering uses
+only the admitted template from `ExplanationPlan` input, non-Lead / capped /
+refuted / blocked Decoy rows produce no rendered text, malformed Decoy plans
+are refused, why-it-matters, Trap, material/result, forced reply, only/best,
+cannot-refuse, no-escape/no-counterplay, Deflect, RemoveGuard, Overload, and
+raw reply-line wording remain absent, LLM / public route `200` / production API
+/ public-user-facing narration remain closed, focused runtime tests pass,
+AGENTS.md remains unchanged, and `git diff --check` passes.
+
+## Stage-6: Decoy LLM Smoke
+
+Stage-6 opens only the LLM smoke boundary for already rendered Decoy text.
+
+Stage-6 opens:
+
+- LLM smoke boundary for rendered Decoy text only.
+
+Stage-6 LLM smoke input:
+
+- `renderedText`.
+- `claimKey`.
+- `strength`.
+- forbidden wording.
+- instruction: `Rephrase only. Do not add chess facts.`
+
+Stage-6 keeps closed:
+
+- public/user-facing LLM narration.
+- production API.
+- public route `200`.
+- raw proof.
+- reply map.
+- `TrapProof`.
+- engine data.
+- board facts.
+
+Stage-6 runtime verification:
+
+- mock narrator accepts exact rendered Decoy text.
+- smoke checker rejects wins-material additions.
+- smoke checker rejects wins-piece additions.
+- smoke checker rejects forced additions.
+- smoke checker rejects only / best additions.
+- smoke checker rejects cannot-refuse additions.
+- smoke checker rejects no-escape additions.
+- smoke checker rejects no-counterplay additions.
+- smoke checker rejects traps-piece additions.
+- smoke checker rejects removes-defender additions.
+- smoke checker rejects overloads-defender additions.
+- smoke checker rejects deflects-defender additions.
+- smoke checker rejects engine-line additions.
+- smoke checker rejects raw-reply explanation additions.
+- LLM smoke prompt exposes no raw Story, `DecoyProof`, `TrapProof`,
+  `BoardFacts`, `EngineCheck`, engine line/eval, reply map, or proof failures.
+- `git diff --check`.
+
+Completion standard: Stage-6 Decoy LLM Smoke closes when the smoke boundary
+accepts only already rendered Decoy text through `renderedText`, `claimKey`,
+`strength`, forbidden wording, and the rephrase-only instruction; exact
+rendered Decoy text is accepted by the mock narrator; material/result,
+forced/only/best, cannot-refuse, no-escape/no-counterplay, Trap,
+RemoveGuard, Overload, Deflect, engine-line, and raw-reply explanation
+additions are rejected; raw proof, reply map, `TrapProof`, engine data, board
+facts, public/user-facing LLM narration, production API, and public route `200`
+remain closed; focused runtime tests pass; AGENTS.md remains unchanged; and
+`git diff --check` passes.
+
+## Stage-7: Decoy Closeout
+
+Stage-7 opens closeout only.
+
+Decoy closeout ownership:
+
+- one meaning: `decoys_piece`.
+- one proof home: `DecoyProof`.
+- one Story label: `Tactic.Decoy`.
+- one writer: `TacticDecoy`.
+- one speech key: `decoys_piece`.
+- `TrapProof` remains Trap-owned follow-up evidence only.
+
+Decoy closeout boundaries:
+
+- Trap, Deflect, RemoveGuard, Overload, QueenHit, Loose, Hanging, Material,
+  Pin, Skewer, DiscoveredAttack, Defense, and EngineCheck keep separate
+  ownership.
+- no workflow, stage, audit, gate, or checklist names become runtime concepts.
+- broad Decoy, material/result composition, forced/only/best,
+  cannot-refuse/no-escape/no-counterplay claims, public route `200`,
+  production API, and public/user-facing narration remain closed.
+
+Stage-7 runtime verification:
+
+- focused Decoy runtime suite.
+- `ChessFoundationTest`.
+- `git diff --check`.
+
+Completion standard: Stage-7 Decoy Closeout closes when Decoy has exactly one
+meaning (`decoys_piece`), one proof home (`DecoyProof`), one Story label
+(`Tactic.Decoy`), one writer (`TacticDecoy`), and one speech key
+(`decoys_piece`); `TrapProof` remains Trap-owned follow-up evidence only; the
+listed neighbor meanings and EngineCheck keep separate ownership; no workflow,
+stage, audit, gate, or checklist names enter runtime concepts; broad Decoy,
+material/result composition, forced/only/best, cannot-refuse/no-escape/
+no-counterplay claims, public route `200`, production API, and public/user-
+facing narration remain closed; focused runtime tests and `ChessFoundationTest`
+pass; AGENTS.md remains unchanged; and `git diff --check` passes.
 
 ## Proof-Deficit Logs
 

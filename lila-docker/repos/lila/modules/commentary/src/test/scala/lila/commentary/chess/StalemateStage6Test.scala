@@ -1,7 +1,5 @@
 package lila.commentary.chess
 
-import java.nio.file.{ Files, Paths }
-
 class StalemateStage6Test extends munit.FunSuite:
 
   private val stalemateFen = "7k/5K2/8/6Q1/8/8/8/8 w - - 0 1"
@@ -155,10 +153,3 @@ class StalemateStage6Test extends munit.FunSuite:
     assertEquals(checkEscapedPlan.scene, Scene.CheckEscaped)
     assertEquals(checkEscapedPlan.allowedClaim.map(_.key), Some("escapes_check"))
     assertEquals(checkEscapedPlan.allowedClaim.exists(_.key == "stalemates"), false)
-
-  test("Stage-6 Stalemate ExplanationPlan authority lives in StoryInteractionLaw"):
-    val law = Files.readString(Paths.get("modules/commentary/docs/StoryInteractionLaw.md"))
-    assert(law.contains("### Stalemate-6 ExplanationPlan"))
-    assert(law.contains("Open only ExplanationPlan for selected uncapped Lead `Scene.Stalemate` Verdicts."))
-    assert(law.contains("Allowed claim key: `stalemates` only."))
-    assert(law.contains("Renderer, LLM, public route, production API, and public narration remain closed."))

@@ -43,6 +43,12 @@ private[commentary] object DeterministicRenderer:
       Some(s"${plan.routeSan.get} attacks the queen on ${squareText(plan.target.get)}.")
     else if canPhraseLoose(plan) then
       Some(s"${plan.routeSan.get} attacks the undefended piece on ${squareText(plan.target.get)}.")
+    else if canPhraseDecoy(plan) then
+      Some(s"${plan.routeSan.get} decoys the piece to ${squareText(plan.target.get)}.")
+    else if canPhraseTrap(plan) then
+      Some(s"${plan.routeSan.get} traps the piece on ${squareText(plan.target.get)}.")
+    else if canPhraseDeflect(plan) then
+      Some(s"${plan.routeSan.get} deflects the defender from ${squareText(plan.target.get)}.")
     else if canPhrasePawnAdvance(plan) then Some(s"${plan.routeSan.get} advances the passed pawn.")
     else if canPhrasePawnStop(plan) then
       Some(s"${plan.routeSan.get} stops the passed pawn from advancing next.")
@@ -192,6 +198,50 @@ private[commentary] object DeterministicRenderer:
       plan.allowedClaim.contains(ExplanationClaim.AttacksLoosePiece) &&
       plan.strength == ExplanationStrength.Bounded &&
       plan.target.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseTrap(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Trap) &&
+      plan.allowedClaim.contains(ExplanationClaim.TrapsPiece) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      plan.target.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseDecoy(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Decoy) &&
+      plan.allowedClaim.contains(ExplanationClaim.DecoysPiece) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      plan.target.nonEmpty &&
+      plan.anchor.nonEmpty &&
+      plan.secondaryTarget.isEmpty &&
+      plan.route.nonEmpty &&
+      plan.routeSan.nonEmpty &&
+      plan.evidenceLine.contains(plan.route.get) &&
+      plan.forbiddenWording.nonEmpty
+
+  private def canPhraseDeflect(plan: ExplanationPlan): Boolean =
+    plan.role == Role.Lead &&
+      !plan.debugOnly &&
+      plan.scene == Scene.Tactic &&
+      plan.tactic.contains(Tactic.Deflect) &&
+      plan.allowedClaim.contains(ExplanationClaim.DeflectsDefender) &&
+      plan.strength == ExplanationStrength.Bounded &&
+      plan.target.nonEmpty &&
+      plan.anchor.nonEmpty &&
       plan.secondaryTarget.isEmpty &&
       plan.route.nonEmpty &&
       plan.routeSan.nonEmpty &&
@@ -455,6 +505,14 @@ private[commentary] object DeterministicRenderer:
         Vector("best move")
       case ForbiddenWording.OnlyMove =>
         Vector("only move")
+      case ForbiddenWording.NoEscape =>
+        Vector("no escape")
+      case ForbiddenWording.CannotBeSaved =>
+        Vector("cannot be saved")
+      case ForbiddenWording.CannotRefuse =>
+        Vector("cannot refuse", "can not refuse", "can't refuse")
+      case ForbiddenWording.QueenTrap =>
+        Vector("queen trap")
       case ForbiddenWording.EngineSays =>
         Vector(
           "engine says",
@@ -849,6 +907,18 @@ private[commentary] object DeterministicRenderer:
         )
       case ForbiddenWording.WinsSpace =>
         Vector("wins space", "gains space", "space advantage")
+      case ForbiddenWording.Decoy =>
+        Vector("decoy", "decoys")
+      case ForbiddenWording.DeflectsDefender =>
+        Vector("deflects defender", "deflects the defender", "deflect", "deflected")
+      case ForbiddenWording.OverloadsDefender =>
+        Vector("overloads defender", "overloads the defender", "overload", "overloaded")
+      case ForbiddenWording.TrapsPiece =>
+        Vector("traps piece", "traps the piece", "trap", "trapped")
+      case ForbiddenWording.RawReplyLine =>
+        Vector("reply line", "raw reply", "reply is", "reply move")
+      case ForbiddenWording.WhyItMatters =>
+        Vector("why it matters", "this matters because")
 
   private def materialWinAllowed(normalized: String, plan: ExplanationPlan): Boolean =
     val materialWinPhrases =
