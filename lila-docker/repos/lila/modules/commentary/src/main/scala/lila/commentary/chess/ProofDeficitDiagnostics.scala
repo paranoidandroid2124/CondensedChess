@@ -98,7 +98,8 @@ private[commentary] object ProofDeficitDiagnostics:
       Option.when(story.checkGivenProof.nonEmpty)("check_given_proof"),
       Option.when(story.checkEscapedProof.nonEmpty)("check_escaped_proof"),
       Option.when(story.checkmateProof.nonEmpty)("checkmate_proof"),
-      Option.when(story.stalemateProof.nonEmpty)("stalemate_proof")
+      Option.when(story.stalemateProof.nonEmpty)("stalemate_proof"),
+      Option.when(story.mateThreatProof.nonEmpty)("mate_threat_proof")
     ).flatten
 
   private def proofCoordinates(story: Story, missing: Vector[String]): ProofCoordinates =
@@ -137,6 +138,7 @@ private[commentary] object ProofDeficitDiagnostics:
       case StoryWriter.TacticInterference => Option.when(story.interferenceProof.isEmpty)("InterferenceProof")
       case StoryWriter.TacticSkewer => Option.when(story.skewerProof.isEmpty)("SkewerProof")
       case StoryWriter.TacticQueenHit => Option.when(story.queenHitProof.isEmpty)("QueenHitProof")
+      case StoryWriter.TacticRookHit => Option.when(story.rookHitProof.isEmpty)("RookHitProof")
       case StoryWriter.TacticLoose => Option.when(story.loosePieceProof.isEmpty)("LoosePieceProof")
       case StoryWriter.TacticTrap => Option.when(story.trapProof.isEmpty)("TrapProof")
       case StoryWriter.ScenePawnAdvance => Option.when(story.pawnAdvanceProof.isEmpty)("PawnAdvanceProof")
@@ -153,6 +155,7 @@ private[commentary] object ProofDeficitDiagnostics:
       case StoryWriter.SceneCheckEscaped => Option.when(story.checkEscapedProof.isEmpty)("CheckEscapedProof")
       case StoryWriter.SceneCheckmate => Option.when(story.checkmateProof.isEmpty)("CheckmateProof")
       case StoryWriter.SceneStalemate => Option.when(story.stalemateProof.isEmpty)("StalemateProof")
+      case StoryWriter.SceneMateThreat => Option.when(story.mateThreatProof.isEmpty)("MateThreatProof")
     .toVector
 
   private def identityPresent(story: Story): Boolean =

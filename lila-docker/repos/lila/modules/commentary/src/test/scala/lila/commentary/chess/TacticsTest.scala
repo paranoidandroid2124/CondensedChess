@@ -6403,6 +6403,7 @@ class TacticsTest extends ChessTestSupport:
         StoryWriter.TacticInterference,
         StoryWriter.TacticSkewer,
         StoryWriter.TacticQueenHit,
+        StoryWriter.TacticRookHit,
         StoryWriter.TacticLoose,
         StoryWriter.TacticTrap,
         StoryWriter.ScenePawnAdvance,
@@ -6417,7 +6418,8 @@ class TacticsTest extends ChessTestSupport:
         StoryWriter.SceneCheckGiven,
         StoryWriter.SceneCheckEscaped,
         StoryWriter.SceneCheckmate,
-        StoryWriter.SceneStalemate
+        StoryWriter.SceneStalemate,
+        StoryWriter.SceneMateThreat
       )
     )
     Vector(
@@ -6428,8 +6430,7 @@ class TacticsTest extends ChessTestSupport:
       "initiativeProof",
       "lineTacticProof",
       "rayProof",
-      "kingSafetyProof",
-      "mateThreatProof"
+      "kingSafetyProof"
     ).foreach: forbiddenProofHome =>
       assert(
         !storyFieldNames.exists(_.equalsIgnoreCase(forbiddenProofHome)),

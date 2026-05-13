@@ -1507,7 +1507,8 @@ class BoardFactsTest extends ChessTestSupport:
         Scene.CheckGiven,
         Scene.CheckEscaped,
         Scene.Checkmate,
-        Scene.Stalemate
+        Scene.Stalemate,
+        Scene.MateThreat
       )
     )
     assertEquals(
@@ -1568,6 +1569,7 @@ class BoardFactsTest extends ChessTestSupport:
         Tactic.PawnPush,
         Tactic.Trap,
         Tactic.QueenHit,
+        Tactic.RookHit,
         Tactic.KingOpen,
         Tactic.Promote,
         Tactic.InBetween,

@@ -60,23 +60,23 @@ class StoryTest extends ChessTestSupport:
     assertEquals(exact.values(Proof.Slots.SourceFit), 82)
 
   test("Story constants preserve the fixed story shape"):
-    assertEquals(Story.Size, 175)
-    assertEquals(Story.SceneSlots, 29)
+    assertEquals(Story.Size, 177)
+    assertEquals(Story.SceneSlots, 30)
     assertEquals(Story.PlanSlots, 32)
-    assertEquals(Story.TacticSlots, 26)
+    assertEquals(Story.TacticSlots, 27)
     assertEquals(Story.PawnSlots, 16)
     assertEquals(Story.PieceSlots, 16)
     assertEquals(Story.KingSlots, 16)
     assertEquals(Story.OpeningSlots, 8)
     assertEquals(Story.ProofSlots, 32)
     assertEquals(Story.Slots.Scene, 0)
-    assertEquals(Story.Slots.Plan, 29)
-    assertEquals(Story.Slots.Tactic, 61)
-    assertEquals(Story.Slots.Pawn, 87)
-    assertEquals(Story.Slots.Piece, 103)
-    assertEquals(Story.Slots.King, 119)
-    assertEquals(Story.Slots.Opening, 135)
-    assertEquals(Story.Slots.Proof, 143)
+    assertEquals(Story.Slots.Plan, 30)
+    assertEquals(Story.Slots.Tactic, 62)
+    assertEquals(Story.Slots.Pawn, 89)
+    assertEquals(Story.Slots.Piece, 105)
+    assertEquals(Story.Slots.King, 121)
+    assertEquals(Story.Slots.Opening, 137)
+    assertEquals(Story.Slots.Proof, 145)
     assertEquals(Story.Slots.End, Story.Size)
 
   test("Story values encode exact shape, public family, identity, and proof"):
@@ -2790,6 +2790,7 @@ class StoryTest extends ChessTestSupport:
         StoryWriter.TacticInterference,
         StoryWriter.TacticSkewer,
         StoryWriter.TacticQueenHit,
+        StoryWriter.TacticRookHit,
         StoryWriter.TacticLoose,
         StoryWriter.TacticTrap,
         StoryWriter.ScenePawnAdvance,
@@ -2804,7 +2805,8 @@ class StoryTest extends ChessTestSupport:
         StoryWriter.SceneCheckGiven,
         StoryWriter.SceneCheckEscaped,
         StoryWriter.SceneCheckmate,
-        StoryWriter.SceneStalemate
+        StoryWriter.SceneStalemate,
+        StoryWriter.SceneMateThreat
       )
     )
     assertEquals(ExplanationStrength.values.toVector, Vector(ExplanationStrength.Bounded))

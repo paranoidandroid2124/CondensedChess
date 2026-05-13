@@ -56,6 +56,7 @@ class InterferenceLlmSmokeTest extends munit.FunSuite:
       "wins material" -> "Ba4 blocks the defender's line to a1 and wins material.",
       "wins piece" -> "Ba4 blocks the defender's line to a1 and wins a piece.",
       "material result" -> "Ba4 blocks the defender's line to a1, so White gets a material gain.",
+      "why it matters" -> "Ba4 blocks the defender's line to a1. Why it matters: the defender is cut off.",
       "forced" -> "Ba4 blocks the defender's line to a1 by force.",
       "only" -> "Ba4 is the only move that blocks the defender's line to a1.",
       "best" -> "Ba4 is the best move because it blocks the defender's line to a1.",
@@ -71,6 +72,9 @@ class InterferenceLlmSmokeTest extends munit.FunSuite:
       "overload" -> "Ba4 overloads the defender.",
       "trap" -> "Ba4 traps the piece on a1.",
       "engine" -> "The engine says Ba4 blocks the defender's line to a1.",
+      "engine pv" -> "Ba4 blocks the defender's line to a1 according to the PV.",
+      "engine eval" -> "Ba4 blocks the defender's line to a1 and the eval is +1.2.",
+      "engine depth" -> "Ba4 blocks the defender's line to a1 at depth 18.",
       "raw line" -> "Ba4 blocks the a8-a1 line.",
       "raw route" -> "After b3-a4, the defender line is blocked.",
       "new variation" -> "Ba4 blocks the defender's line to a1; then Rc8 follows."

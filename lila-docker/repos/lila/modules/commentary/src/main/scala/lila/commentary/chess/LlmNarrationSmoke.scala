@@ -16,7 +16,7 @@ private[commentary] object LlmNarrationSmoke:
 
   def codexCliPrompt(plan: ExplanationPlan, rendered: RenderedLine): Option[String] =
     Option.when(inputMatches(plan, rendered)):
-      if isInterferencePlan(plan) then
+      if isInterferencePlan(plan) || isMateThreatPlan(plan) then
         s"""instruction: Rephrase only. Do not add chess facts.
            |renderedText: ${rendered.text}
            |claimKey: ${rendered.claimKey}
@@ -93,6 +93,8 @@ private[commentary] object LlmNarrationSmoke:
         plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.Checkmates)
       case Scene.Stalemate =>
         plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.Stalemates)
+      case Scene.MateThreat =>
+        plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.ThreatensMateNext)
       case Scene.PromotionThreat =>
         plan.tactic.isEmpty && plan.allowedClaim.contains(ExplanationClaim.CreatesPromotionThreat)
       case Scene.Promotion =>
@@ -119,6 +121,11 @@ private[commentary] object LlmNarrationSmoke:
       plan.tactic.contains(Tactic.Interference) &&
       plan.allowedClaim.contains(ExplanationClaim.BlocksDefenderLine)
 
+  private def isMateThreatPlan(plan: ExplanationPlan): Boolean =
+    plan.scene == Scene.MateThreat &&
+      plan.tactic.isEmpty &&
+      plan.allowedClaim.contains(ExplanationClaim.ThreatensMateNext)
+
   private def claimMatchesTactic(plan: ExplanationPlan, tactic: Tactic): Boolean =
     tactic match
       case Tactic.Hanging => plan.allowedClaim.contains(ExplanationClaim.CanWinPiece)
@@ -129,6 +136,7 @@ private[commentary] object LlmNarrationSmoke:
       case Tactic.Overload => plan.allowedClaim.contains(ExplanationClaim.OverloadsDefender)
       case Tactic.Skewer => plan.allowedClaim.contains(ExplanationClaim.SkewersPieceToPiece)
       case Tactic.QueenHit => plan.allowedClaim.contains(ExplanationClaim.AttacksQueen)
+      case Tactic.RookHit => plan.allowedClaim.contains(ExplanationClaim.AttacksRook)
       case Tactic.Loose => plan.allowedClaim.contains(ExplanationClaim.AttacksLoosePiece)
       case Tactic.Trap => plan.allowedClaim.contains(ExplanationClaim.TrapsPiece)
       case Tactic.Decoy => plan.allowedClaim.contains(ExplanationClaim.DecoysPiece)
@@ -227,6 +235,8 @@ private[commentary] object LlmNarrationSmoke:
           Set("skewer", "skewers", "skewered")
         case Some(Tactic.QueenHit) =>
           Set("attack", "attacks", "attacks queen", "attacks the queen")
+        case Some(Tactic.RookHit) =>
+          Set("attack", "attacks", "attacks rook", "attacks the rook")
         case Some(Tactic.Loose) =>
           Set("attack", "attacks", "attacks undefended piece", "attacks the undefended piece")
         case Some(Tactic.Trap) =>
@@ -320,6 +330,17 @@ private[commentary] object LlmNarrationSmoke:
             Set("defend", "defends", "defended", "defends piece", "defends the piece")
           else if plan.scene == Scene.Checkmate then
             Set("checkmate", "checkmates")
+          else if plan.scene == Scene.MateThreat then
+            Set(
+              "mate",
+              "threatens mate",
+              "threatens mate next move",
+              "threatens mate on next move",
+              "threatens mate on the next move",
+              "mate next move",
+              "mate on next move",
+              "mate on the next move"
+            )
           else if plan.scene == Scene.Stalemate then
             Set("stalemate", "stalemates")
           else Set.empty[String]
@@ -473,6 +494,7 @@ private[commentary] object LlmNarrationSmoke:
       "pv",
       "principal variation",
       "raw pv",
+      "depth",
       "centipawn",
       "centipawns"
     ).exists(phrase => containsPhrase(normalized, phrase))
@@ -787,8 +809,12 @@ private[commentary] object LlmNarrationSmoke:
       "trap proof",
       "queenhitproof",
       "queen hit proof",
+      "rookhitproof",
+      "rook hit proof",
       "loosepieceproof",
-      "loose piece proof",
+        "loose piece proof",
+      "matethreatproof",
+      "mate threat proof",
       "checkmateproof",
       "checkmate proof",
       "stalemateproof",
@@ -892,10 +918,14 @@ private[commentary] object LlmNarrationSmoke:
         Vector("forced", "forces")
       case ForbiddenWording.ForcedMove =>
         Vector("forced move")
+      case ForbiddenWording.Unavoidable =>
+        Vector("unavoidable")
       case ForbiddenWording.BestMove =>
         Vector("best move")
       case ForbiddenWording.OnlyMove =>
         Vector("only move")
+      case ForbiddenWording.OnlyDefense =>
+        Vector("only defense", "only defence")
       case ForbiddenWording.NoEscape =>
         Vector("no escape")
       case ForbiddenWording.CannotBeSaved =>
@@ -954,6 +984,8 @@ private[commentary] object LlmNarrationSmoke:
         Vector("forced mate", "forces mate")
       case ForbiddenWording.EngineSaysMate =>
         Vector("engine says mate", "engine mate", "mate score")
+      case ForbiddenWording.CannotStop =>
+        Vector("cannot stop", "can not stop", "can't stop")
       case ForbiddenWording.DrawsGame =>
         Vector("draws the game", "draws game", "draws", "draw")
       case ForbiddenWording.SavesGame =>
@@ -1048,10 +1080,24 @@ private[commentary] object LlmNarrationSmoke:
         Vector("wins material by fork", "win material by fork", "material by fork")
       case ForbiddenWording.WinsQueen =>
         Vector("wins queen", "wins the queen", "win the queen")
+      case ForbiddenWording.WinsRook =>
+        Vector("wins rook", "wins the rook", "win the rook")
+      case ForbiddenWording.WinsExchange =>
+        Vector("wins exchange", "wins the exchange", "win the exchange")
       case ForbiddenWording.TrapsQueen =>
         Vector("traps queen", "traps the queen", "queen trap", "queen is trapped")
       case ForbiddenWording.QueenIsLost =>
         Vector("queen is lost", "the queen is lost", "lost queen")
+      case ForbiddenWording.HangingRook =>
+        Vector("hanging rook", "rook is hanging", "loose rook")
+      case ForbiddenWording.LooseRook =>
+        Vector("loose rook", "undefended rook")
+      case ForbiddenWording.TrappedRook =>
+        Vector("trapped rook", "rook is trapped")
+      case ForbiddenWording.HighValuePiece =>
+        Vector("high value piece", "high-value piece", "high value target", "high-value target")
+      case ForbiddenWording.MajorPiece =>
+        Vector("major piece", "major target")
       case ForbiddenWording.GainsTempo =>
         Vector("gains tempo", "gain tempo", "wins tempo", "tempo")
       case ForbiddenWording.DecisiveFork =>

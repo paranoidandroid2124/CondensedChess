@@ -67,6 +67,29 @@ class InterferenceNegativeCorpusTest extends munit.FunSuite:
       assertNoInterferenceText(verdict, label)
       assertNoBorrowedTacticText(verdict, label)
 
+  test("InterferenceProof contamination covers every opened neighbor"):
+    val labels = interferenceProofContaminationRows(interferenceStory.interferenceProof).map(_._1).toSet
+
+    assertEquals(
+      labels,
+      Set(
+        "Pin row",
+        "Skewer row",
+        "DiscoveredAttack row",
+        "Defense row",
+        "RemoveGuard row",
+        "Deflect row",
+        "Decoy row",
+        "Overload row",
+        "Trap row",
+        "Fork row",
+        "QueenHit row",
+        "Loose row",
+        "Hanging row",
+        "Material row"
+      )
+    )
+
   test("Interference non-speaking rows and EngineCheck stay silent"):
     val lead = StoryTable.choose(Vector(interferenceStory)).head
     val support =
@@ -285,20 +308,44 @@ class InterferenceNegativeCorpusTest extends munit.FunSuite:
 
   private def interferenceProofContaminationRows(proof: Option[InterferenceProof]): Vector[(String, Story)] =
     Vector(
-      "Decoy row" -> TacticDecoy
-        .write(decoyFacts, Some(decoyMove), Some(decoyReply), Some(Square('b', 6)), Some(Square('a', 8)), Some(decoyTrapProof))
+      "Pin row" -> TacticPin
+        .write(pinFacts, Some(pinMove), Some(Square('e', 8)), Some(Square('e', 2)), Some(Square('e', 1)))
         .get
         .copy(interferenceProof = proof),
-      "Deflect row" -> TacticDeflect
-        .write(deflectFacts, Some(deflectMove), Some(deflectReply), Some(Square('e', 6)), Some(Square('d', 5)))
+      "Skewer row" -> TacticSkewer
+        .write(skewerFacts, Some(skewerMove), Some(Square('e', 1)), Some(Square('e', 5)), Some(Square('e', 8)))
+        .get
+        .copy(interferenceProof = proof),
+      "DiscoveredAttack row" -> TacticDiscoveredAttack
+        .write(discoveredFacts, Some(discoveredMove), Some(Square('b', 1)), Some(Square('g', 6)))
+        .get
+        .copy(interferenceProof = proof),
+      "Defense row" -> SceneDefense
+        .write(defenseFacts, defenseThreat, defenseMove)
         .get
         .copy(interferenceProof = proof),
       "RemoveGuard row" -> TacticRemoveGuard
         .write(removeGuardFacts, Some(removeGuardMove), Some(Square('e', 5)), Some(Square('c', 4)))
         .get
         .copy(interferenceProof = proof),
+      "Deflect row" -> TacticDeflect
+        .write(deflectFacts, Some(deflectMove), Some(deflectReply), Some(Square('e', 6)), Some(Square('d', 5)))
+        .get
+        .copy(interferenceProof = proof),
+      "Decoy row" -> TacticDecoy
+        .write(decoyFacts, Some(decoyMove), Some(decoyReply), Some(Square('b', 6)), Some(Square('a', 8)), Some(decoyTrapProof))
+        .get
+        .copy(interferenceProof = proof),
       "Overload row" -> overloadStory.copy(interferenceProof = proof),
-      "Trap row" -> TacticTrap.write(trapFacts, Some(trapMove)).get.copy(interferenceProof = proof)
+      "Trap row" -> TacticTrap.write(trapFacts, Some(trapMove)).get.copy(interferenceProof = proof),
+      "Fork row" -> TacticFork
+        .write(forkFacts, Some(forkMove), Some(Square('d', 6)), Some(Square('f', 6)))
+        .get
+        .copy(interferenceProof = proof),
+      "QueenHit row" -> TacticQueenHit.write(queenHitFacts, Some(queenHitMove)).get.copy(interferenceProof = proof),
+      "Loose row" -> TacticLoose.write(looseFacts, Some(looseMove)).get.copy(interferenceProof = proof),
+      "Hanging row" -> TacticHanging.write(materialFacts, materialMove).get.copy(interferenceProof = proof),
+      "Material row" -> SceneMaterial.write(materialFacts, materialMove).get.copy(interferenceProof = proof)
     )
 
   private def assertNoInterferenceText(verdict: Verdict, label: String): Unit =

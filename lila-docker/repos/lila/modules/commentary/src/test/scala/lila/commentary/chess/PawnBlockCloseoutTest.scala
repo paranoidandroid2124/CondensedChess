@@ -296,7 +296,7 @@ class PawnBlockCloseoutTest extends munit.FunSuite:
     val rendered = DeterministicRenderer.fromPlan(plan).get
 
     assertEquals(verdict.values.size, Verdict.Size)
-    assertEquals(Verdict.Size, 111)
+    assertEquals(Verdict.Size, 113)
     assertEquals(Verdict.Slots.End, Verdict.Size)
     assertEquals(verdict.values.contains(31337.0), false)
     assertEquals(verdict.values.contains(31338.0), false)

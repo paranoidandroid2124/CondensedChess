@@ -144,7 +144,8 @@ class CheckGivenCloseoutTest extends munit.FunSuite:
     ).foreach: name =>
       assert(!checkGivenRow.scene.toString.contains(name), s"CheckGiven row used closed label $name")
       assert(!checkGivenRow.writer.exists(_.toString.contains(name)), s"CheckGiven writer used closed name $name")
-      if name != "Checkmate" then assert(!writerNames.contains(s"Scene$name"), s"closed writer Scene$name exists")
+      if !Set("Checkmate", "MateThreat").contains(name) then
+        assert(!writerNames.contains(s"Scene$name"), s"closed writer Scene$name exists")
 
     val publicText = Vector(line.text, LlmNarrationSmoke.mockNarrate(checkPlan, line).get).mkString("\n").toLowerCase
     Vector(

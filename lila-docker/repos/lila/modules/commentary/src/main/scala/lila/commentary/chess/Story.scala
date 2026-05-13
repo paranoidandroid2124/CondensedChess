@@ -30,6 +30,7 @@ enum Scene:
   case CheckEscaped
   case Checkmate
   case Stalemate
+  case MateThreat
 
 enum Plan:
   case Minority
@@ -84,6 +85,7 @@ enum Tactic:
   case PawnPush
   case Trap
   case QueenHit
+  case RookHit
   case KingOpen
   case Promote
   case InBetween
@@ -206,16 +208,41 @@ enum Side:
   case None
 
 final class StoryProof private (legalLine: Option[Line], sameBoardProof: Boolean):
+  private[commentary] def complete: Boolean =
+    legalLine.nonEmpty && sameBoardProof
+
+  private[commentary] def completeForLine(line: Line): Boolean =
+    legalLine.contains(line) && sameBoardProof
+
+  private[commentary] def completeFor(
+      side: Side,
+      rival: Side,
+      target: Option[Square],
+      anchor: Option[Square],
+      route: Option[Line]
+  ): Boolean =
+    StoryProof
+      .missing(
+        side = side,
+        rival = rival,
+        target = target,
+        anchor = anchor,
+        route = route,
+        legalLine = legalLine,
+        sameBoardProof = sameBoardProof
+      )
+      .isEmpty
+
   def failures(story: Story): Vector[BoardFacts.MissingEvidence] =
-    val missing = Vector(
-      Option.when(!StoryProof.playingSide(story.side))("side"),
-      Option.when(story.target.isEmpty)("target"),
-      Option.when(story.anchor.isEmpty)("anchor"),
-      Option.when(story.route.isEmpty)("route"),
-      Option.when(!StoryProof.rivalSide(story.side, story.rival))("rival"),
-      Option.when(!StoryProof.legalLineBindsRoute(story.route, legalLine))("legal line"),
-      Option.when(!sameBoardProof)("same-board proof")
-    ).flatten
+    val missing = StoryProof.missing(
+      side = story.side,
+      rival = story.rival,
+      target = story.target,
+      anchor = story.anchor,
+      route = story.route,
+      legalLine = legalLine,
+      sameBoardProof = sameBoardProof
+    )
     if missing.isEmpty then Vector.empty
     else Vector(BoardFacts.MissingEvidence("Story Proof", missing))
 
@@ -242,6 +269,25 @@ object StoryProof:
   private def legalLineBindsRoute(route: Option[Line], legalLine: Option[Line]): Boolean =
     route.zip(legalLine).exists((routeLine, legal) => routeLine == legal)
 
+  private def missing(
+      side: Side,
+      rival: Side,
+      target: Option[Square],
+      anchor: Option[Square],
+      route: Option[Line],
+      legalLine: Option[Line],
+      sameBoardProof: Boolean
+  ): Vector[String] =
+    Vector(
+      Option.when(!playingSide(side))("side"),
+      Option.when(target.isEmpty)("target"),
+      Option.when(anchor.isEmpty)("anchor"),
+      Option.when(route.isEmpty)("route"),
+      Option.when(!rivalSide(side, rival))("rival"),
+      Option.when(!legalLineBindsRoute(route, legalLine))("legal line"),
+      Option.when(!sameBoardProof)("same-board proof")
+    ).flatten
+
 private[commentary] enum StoryWriter:
   case TacticHanging
   case TacticFork
@@ -256,6 +302,7 @@ private[commentary] enum StoryWriter:
   case TacticInterference
   case TacticSkewer
   case TacticQueenHit
+  case TacticRookHit
   case TacticLoose
   case TacticTrap
   case ScenePawnAdvance
@@ -271,6 +318,7 @@ private[commentary] enum StoryWriter:
   case SceneCheckEscaped
   case SceneCheckmate
   case SceneStalemate
+  case SceneMateThreat
 
 final case class Story(
     scene: Scene,
@@ -300,6 +348,7 @@ final case class Story(
     private[commentary] val interferenceProof: Option[InterferenceProof] = None,
     private[commentary] val skewerProof: Option[SkewerProof] = None,
     private[commentary] val queenHitProof: Option[QueenHitProof] = None,
+    private[commentary] val rookHitProof: Option[RookHitProof] = None,
     private[commentary] val loosePieceProof: Option[LoosePieceProof] = None,
     private[commentary] val trapProof: Option[TrapProof] = None,
     private[commentary] val pawnAdvanceProof: Option[PawnAdvanceProof] = None,
@@ -315,7 +364,8 @@ final case class Story(
     private[commentary] val checkGivenProof: Option[CheckGivenProof] = None,
     private[commentary] val checkEscapedProof: Option[CheckEscapedProof] = None,
     private[commentary] val checkmateProof: Option[CheckmateProof] = None,
-    private[commentary] val stalemateProof: Option[StalemateProof] = None
+    private[commentary] val stalemateProof: Option[StalemateProof] = None,
+    private[commentary] val mateThreatProof: Option[MateThreatProof] = None
 ):
   def proofFailures: Vector[BoardFacts.MissingEvidence] =
     storyProof.failures(this)
@@ -343,10 +393,10 @@ final case class Story(
   private def squareValue(square: Option[Square]) = square.fold(0)(_.index + 1)
 
 object Story:
-  val Size = 175
-  val SceneSlots = 29
+  val Size = 177
+  val SceneSlots = 30
   val PlanSlots = 32
-  val TacticSlots = 26
+  val TacticSlots = 27
   val PawnSlots = 16
   val PieceSlots = 16
   val KingSlots = 16
@@ -418,11 +468,11 @@ final case class Verdict(
     ProofDeficitDiagnostics.fromVerdict(this)
 
 object Verdict:
-  val Size = 111
+  val Size = 113
   val FinalSlots = 8
-  val SceneSlots = 29
+  val SceneSlots = 30
   val PlanSlots = 32
-  val TacticSlots = 26
+  val TacticSlots = 27
   val ProofSlots = 16
 
   object Slots:
@@ -822,7 +872,9 @@ object StoryTable:
 
   private def leadByStoryRules(story: Story, stories: Vector[Story]) =
     story.proofFailures.isEmpty &&
+      !mateThreatProofContaminatesOtherRow(story) &&
       !interferenceProofContaminatesOtherRow(story) &&
+      !rookHitProofContaminatesOtherRow(story) &&
       positiveWriter(story) &&
       base(story) &&
       identity(story) &&
@@ -844,6 +896,7 @@ object StoryTable:
       interferenceWithoutWriter(story) ||
       skewerWithoutWriter(story) ||
       queenHitWithoutWriter(story) ||
+      rookHitWithoutWriter(story) ||
       looseWithoutWriter(story) ||
       trapWithoutWriter(story) ||
       discoveredAttackWithoutWriter(story) ||
@@ -859,6 +912,7 @@ object StoryTable:
       invalidInterferenceWriter(story) ||
       invalidSkewerWriter(story) ||
       invalidQueenHitWriter(story) ||
+      invalidRookHitWriter(story) ||
       invalidLooseWriter(story) ||
       invalidTrapWriter(story) ||
       invalidPawnAdvanceWriter(story) ||
@@ -874,11 +928,14 @@ object StoryTable:
       invalidCheckEscapedWriter(story) ||
       invalidCheckmateWriter(story) ||
       invalidStalemateWriter(story) ||
+      invalidMateThreatWriter(story) ||
       checkGivenProofContaminatesOtherRow(story) ||
       checkEscapedProofContaminatesOtherRow(story) ||
       checkmateProofContaminatesOtherRow(story) ||
       stalemateProofContaminatesOtherRow(story) ||
+      mateThreatProofContaminatesOtherRow(story) ||
       queenHitProofContaminatesOtherRow(story) ||
+      rookHitProofContaminatesOtherRow(story) ||
       loosePieceProofContaminatesOtherRow(story) ||
       removeGuardProofContaminatesOtherRow(story) ||
       trapProofContaminatesOtherRow(story) ||
@@ -899,6 +956,7 @@ object StoryTable:
       checkEscapedWithoutWriter(story) ||
       checkmateWithoutWriter(story) ||
       stalemateWithoutWriter(story) ||
+      mateThreatWithoutWriter(story) ||
       (!leadByStoryRules(story, Vector(story)) && base(story))
 
   private def hangingWithoutWriter(story: Story) =
@@ -956,6 +1014,11 @@ object StoryTable:
     story.writer.isEmpty &&
       story.scene == Scene.Tactic &&
       story.tactic.contains(Tactic.QueenHit)
+
+  private def rookHitWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.RookHit)
 
   private def looseWithoutWriter(story: Story) =
     story.writer.isEmpty &&
@@ -1019,6 +1082,10 @@ object StoryTable:
     story.writer.isEmpty &&
       story.scene == Scene.Stalemate
 
+  private def mateThreatWithoutWriter(story: Story) =
+    story.writer.isEmpty &&
+      story.scene == Scene.MateThreat
+
   private def invalidForkWriter(story: Story) =
     story.writer.contains(StoryWriter.TacticFork) &&
       !positiveForkWriter(story)
@@ -1066,6 +1133,10 @@ object StoryTable:
   private def invalidQueenHitWriter(story: Story) =
     story.writer.contains(StoryWriter.TacticQueenHit) &&
       !queenHitWriterShape(story)
+
+  private def invalidRookHitWriter(story: Story) =
+    story.writer.contains(StoryWriter.TacticRookHit) &&
+      !rookHitWriterShape(story)
 
   private def invalidLooseWriter(story: Story) =
     story.writer.contains(StoryWriter.TacticLoose) &&
@@ -1127,6 +1198,10 @@ object StoryTable:
     story.writer.contains(StoryWriter.SceneStalemate) &&
       !positiveStalemateWriter(story)
 
+  private def invalidMateThreatWriter(story: Story) =
+    story.writer.contains(StoryWriter.SceneMateThreat) &&
+      !positiveMateThreatWriter(story)
+
   private def checkGivenProofContaminatesOtherRow(story: Story) =
     story.checkGivenProof.nonEmpty &&
       !story.writer.contains(StoryWriter.SceneCheckGiven)
@@ -1143,9 +1218,17 @@ object StoryTable:
     story.stalemateProof.nonEmpty &&
       !story.writer.contains(StoryWriter.SceneStalemate)
 
+  private def mateThreatProofContaminatesOtherRow(story: Story) =
+    story.mateThreatProof.nonEmpty &&
+      !story.writer.contains(StoryWriter.SceneMateThreat)
+
   private def queenHitProofContaminatesOtherRow(story: Story) =
     story.queenHitProof.nonEmpty &&
       !story.writer.contains(StoryWriter.TacticQueenHit)
+
+  private def rookHitProofContaminatesOtherRow(story: Story) =
+    story.rookHitProof.nonEmpty &&
+      !story.writer.contains(StoryWriter.TacticRookHit)
 
   private def loosePieceProofContaminatesOtherRow(story: Story) =
     story.loosePieceProof.nonEmpty &&
@@ -1206,6 +1289,7 @@ object StoryTable:
       case Some(StoryWriter.TacticInterference) => positiveInterferenceWriter(story)
       case Some(StoryWriter.TacticSkewer) => positiveSkewerWriter(story)
       case Some(StoryWriter.TacticQueenHit) => positiveQueenHitWriter(story)
+      case Some(StoryWriter.TacticRookHit) => positiveRookHitWriter(story)
       case Some(StoryWriter.TacticLoose) => positiveLooseWriter(story)
       case Some(StoryWriter.TacticTrap) => positiveTrapWriter(story)
       case Some(StoryWriter.ScenePawnAdvance) => positivePawnAdvanceWriter(story)
@@ -1221,6 +1305,7 @@ object StoryTable:
       case Some(StoryWriter.SceneCheckEscaped) => positiveCheckEscapedWriter(story)
       case Some(StoryWriter.SceneCheckmate) => positiveCheckmateWriter(story)
       case Some(StoryWriter.SceneStalemate) => positiveStalemateWriter(story)
+      case Some(StoryWriter.SceneMateThreat) => positiveMateThreatWriter(story)
       case _ => false
 
   private def positiveHangingWriter(story: Story) =
@@ -1515,6 +1600,9 @@ object StoryTable:
   private def positiveQueenHitWriter(story: Story) =
     queenHitWriterShape(story)
 
+  private def positiveRookHitWriter(story: Story) =
+    rookHitWriterShape(story)
+
   private def positiveLooseWriter(story: Story) =
     looseWriterShape(story)
 
@@ -1533,6 +1621,7 @@ object StoryTable:
       story.deflectProof.isEmpty &&
       story.skewerProof.isEmpty &&
       story.queenHitProof.isEmpty &&
+      story.rookHitProof.isEmpty &&
       story.loosePieceProof.isEmpty &&
       story.fileOpenedProof.isEmpty &&
       story.secondaryTarget.isEmpty &&
@@ -1568,6 +1657,7 @@ object StoryTable:
       story.removeGuardProof.isEmpty &&
       story.skewerProof.isEmpty &&
       story.queenHitProof.isEmpty &&
+      story.rookHitProof.isEmpty &&
       story.fileOpenedProof.isEmpty &&
       story.secondaryTarget.isEmpty &&
       !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
@@ -1609,6 +1699,39 @@ object StoryTable:
           proof.afterBoardQueenAttackedByMovingSide &&
           proof.queenHitProducedOrRevealedByLegalMove &&
           queenHitProofBindsStory(story, proof)
+
+  private def rookHitWriterShape(story: Story) =
+    story.scene == Scene.Tactic &&
+      story.tactic.contains(Tactic.RookHit) &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.overloadProof.isEmpty &&
+      story.deflectProof.isEmpty &&
+      story.decoyProof.isEmpty &&
+      story.interferenceProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.queenHitProof.isEmpty &&
+      story.loosePieceProof.isEmpty &&
+      story.trapProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.secondaryTarget.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.rookHitProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.legalMove &&
+          proof.completeStoryProof &&
+          proof.exactAfterBoardReplay &&
+          proof.targetPieceIsRivalRook &&
+          proof.afterBoardRookAttackedByMovingSide &&
+          proof.routeAndTargetBindSameBoard &&
+          rookHitProofBindsStory(story, proof)
 
   private def positivePawnAdvanceWriter(story: Story) =
     story.scene == Scene.PawnAdvance &&
@@ -2070,6 +2193,52 @@ object StoryTable:
           proof.rivalKingSquareAfter == story.target &&
           stalemateProofBindsStory(story, proof)
 
+  private def positiveMateThreatWriter(story: Story) =
+    story.scene == Scene.MateThreat &&
+      story.tactic.isEmpty &&
+      story.plan.isEmpty &&
+      story.captureResult.isEmpty &&
+      story.secondaryTarget.isEmpty &&
+      story.multiTargetProof.isEmpty &&
+      story.threatProof.isEmpty &&
+      story.defenseProof.isEmpty &&
+      story.lineProof.isEmpty &&
+      story.pinProof.isEmpty &&
+      story.removeGuardProof.isEmpty &&
+      story.overloadProof.isEmpty &&
+      story.deflectProof.isEmpty &&
+      story.decoyProof.isEmpty &&
+      story.interferenceProof.isEmpty &&
+      story.skewerProof.isEmpty &&
+      story.queenHitProof.isEmpty &&
+      story.rookHitProof.isEmpty &&
+      story.loosePieceProof.isEmpty &&
+      story.trapProof.isEmpty &&
+      story.pawnAdvanceProof.isEmpty &&
+      story.pawnStopProof.isEmpty &&
+      story.pawnBreakProof.isEmpty &&
+      story.pawnBlockProof.isEmpty &&
+      story.promotionThreatProof.isEmpty &&
+      story.promotionProof.isEmpty &&
+      story.pawnCaptureProof.isEmpty &&
+      story.passedPawnCreatedProof.isEmpty &&
+      story.fileOpenedProof.isEmpty &&
+      story.openedFile.isEmpty &&
+      story.checkGivenProof.isEmpty &&
+      story.checkEscapedProof.isEmpty &&
+      story.checkmateProof.isEmpty &&
+      story.stalemateProof.isEmpty &&
+      !story.engineCheck.exists(_.status == EngineCheckStatus.Refutes) &&
+      story.mateThreatProof.exists: proof =>
+        proof.complete &&
+          proof.sameBoardProof &&
+          proof.legalMove &&
+          proof.exactAfterBoardReplay &&
+          proof.threatMoveIsNotImmediateCheckmate &&
+          proof.nextSidePlyLegalCheckmateAvailable &&
+          proof.rivalKingSquareAfterThreatMove == story.target &&
+          mateThreatProofBindsStory(story, proof)
+
   private def captureResultBindsStory(story: Story, result: CaptureResult) =
     result.side == story.side &&
       story.route.contains(result.captureLine) &&
@@ -2173,6 +2342,14 @@ object StoryTable:
       proof.attackMove.exists(move => story.route.contains(move)) &&
       proof.rivalQueenSquareAfter.exists(square => story.target.contains(square)) &&
       proof.attackingPieceSquareAfter.exists(square => story.anchor.contains(square))
+
+  private def rookHitProofBindsStory(story: Story, proof: RookHitProof) =
+    proof.attackingSide == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.attackMove.exists(move => story.route.contains(move)) &&
+      proof.targetSquare.exists(square => story.target.contains(square)) &&
+      proof.attackingPieceSquareAfter.exists(square => story.anchor.contains(square)) &&
+      proof.targetPieceAfter.exists(piece => story.rival == piece.side && piece.man == Man.Rook)
 
   private def loosePieceProofBindsStory(story: Story, proof: LoosePieceProof) =
     proof.attackingSide == story.side &&
@@ -2295,6 +2472,15 @@ object StoryTable:
       proof.stalemateMove.exists(move => story.route.contains(move)) &&
       proof.originSquare.exists(square => story.anchor.contains(square)) &&
       proof.rivalKingSquareAfter.exists(square => story.target.contains(square))
+
+  private def mateThreatProofBindsStory(story: Story, proof: MateThreatProof) =
+    proof.threateningSide == story.side &&
+      proof.rivalSide == story.rival &&
+      proof.threatMove.exists(move => story.route.contains(move)) &&
+      proof.destinationSquare.exists(square => story.anchor.contains(square)) &&
+      proof.rivalKingSquareAfterThreatMove.exists(square => story.target.contains(square)) &&
+      proof.nextMateMove.nonEmpty &&
+      proof.nextMateSan.nonEmpty
 
   private def multiTargetRelationProven(proof: MultiTargetProof) =
     proof.targetSquares.size == 2 &&

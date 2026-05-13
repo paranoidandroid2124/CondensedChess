@@ -307,6 +307,13 @@ object BoardFacts:
                 promotion = next.promotion.isDefined
               )
 
+  private[commentary] def sameSideFactsAfterLegalMove(facts: BoardFacts, line: Line): Option[BoardFacts] =
+    Option(positionFacts.get(facts)).flatMap: position =>
+      position.legalMoves.toVector
+        .find(move => Line(Square.fromIndex(move.orig.value), Square.fromIndex(move.dest.value)) == line)
+        .flatMap: move =>
+          BoardFacts.fromPosition(move.after.withColor(position.color), facts.header.fullmoveNumber).toOption
+
   private[commentary] def rivalLegalRepliesAfter(facts: BoardFacts, line: Line): Vector[LegalReply] =
     Option(positionFacts.get(facts)).toVector.flatMap: position =>
       position.legalMoves.toVector

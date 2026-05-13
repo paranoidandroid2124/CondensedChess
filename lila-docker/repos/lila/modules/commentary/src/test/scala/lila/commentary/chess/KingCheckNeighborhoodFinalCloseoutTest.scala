@@ -311,7 +311,6 @@ class KingCheckNeighborhoodFinalCloseoutTest extends munit.FunSuite:
       assert(!claimKeys.contains(key), s"KCNFC-0 opened forbidden claim key: $key")
 
     Vector(
-      "MateThreat",
       "MateInN",
       "ForcedMate",
       "KingSafety",

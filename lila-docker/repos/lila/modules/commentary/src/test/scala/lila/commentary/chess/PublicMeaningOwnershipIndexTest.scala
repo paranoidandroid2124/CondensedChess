@@ -23,9 +23,17 @@ class PublicMeaningOwnershipIndexTest extends munit.FunSuite:
       OpenedMeaningOwner("Tactic.Overload", "OverloadProof", "Tactic.Overload", StoryWriter.TacticOverload, ExplanationClaim.OverloadsDefender),
       OpenedMeaningOwner("Tactic.Skewer", "SkewerProof", "Tactic.Skewer", StoryWriter.TacticSkewer, ExplanationClaim.SkewersPieceToPiece),
       OpenedMeaningOwner("Tactic.QueenHit", "QueenHitProof", "Tactic.QueenHit", StoryWriter.TacticQueenHit, ExplanationClaim.AttacksQueen),
+      OpenedMeaningOwner("Tactic.RookHit", "RookHitProof", "Tactic.RookHit", StoryWriter.TacticRookHit, ExplanationClaim.AttacksRook),
       OpenedMeaningOwner("Tactic.Loose", "LoosePieceProof", "Tactic.Loose", StoryWriter.TacticLoose, ExplanationClaim.AttacksLoosePiece),
       OpenedMeaningOwner("Tactic.Trap", "TrapProof", "Tactic.Trap", StoryWriter.TacticTrap, ExplanationClaim.TrapsPiece),
       OpenedMeaningOwner("Tactic.Decoy", "DecoyProof", "Tactic.Decoy", StoryWriter.TacticDecoy, ExplanationClaim.DecoysPiece),
+      OpenedMeaningOwner(
+        "Tactic.Interference",
+        "InterferenceProof",
+        "Tactic.Interference",
+        StoryWriter.TacticInterference,
+        ExplanationClaim.BlocksDefenderLine
+      ),
       OpenedMeaningOwner("Scene.PawnAdvance", "PawnAdvanceProof", "Scene.PawnAdvance", StoryWriter.ScenePawnAdvance, ExplanationClaim.AdvancesPassedPawn),
       OpenedMeaningOwner("Scene.PawnStop", "PawnStopProof", "Scene.PawnStop", StoryWriter.ScenePawnStop, ExplanationClaim.StopsPassedPawnNextAdvance),
       OpenedMeaningOwner("Scene.PawnBreak", "PawnBreakProof", "Scene.PawnBreak", StoryWriter.ScenePawnBreak, ExplanationClaim.ChallengesPawnDirectly),
@@ -38,17 +46,27 @@ class PublicMeaningOwnershipIndexTest extends munit.FunSuite:
       OpenedMeaningOwner("Scene.CheckGiven", "CheckGivenProof", "Scene.CheckGiven", StoryWriter.SceneCheckGiven, ExplanationClaim.GivesCheck),
       OpenedMeaningOwner("Scene.CheckEscaped", "CheckEscapedProof", "Scene.CheckEscaped", StoryWriter.SceneCheckEscaped, ExplanationClaim.EscapesCheck),
       OpenedMeaningOwner("Scene.Checkmate", "CheckmateProof", "Scene.Checkmate", StoryWriter.SceneCheckmate, ExplanationClaim.Checkmates),
-      OpenedMeaningOwner("Scene.Stalemate", "StalemateProof", "Scene.Stalemate", StoryWriter.SceneStalemate, ExplanationClaim.Stalemates)
+      OpenedMeaningOwner("Scene.Stalemate", "StalemateProof", "Scene.Stalemate", StoryWriter.SceneStalemate, ExplanationClaim.Stalemates),
+      OpenedMeaningOwner("Scene.MateThreat", "MateThreatProof", "Scene.MateThreat", StoryWriter.SceneMateThreat, ExplanationClaim.ThreatensMateNext)
     )
 
   test("Stage-3 opened public meanings have one owner tuple each"):
-    assertEquals(openedMeanings.size, 26)
+    assertEquals(openedMeanings.size, 29)
     openedMeanings.groupBy(_.publicMeaning).foreach: (meaning, rows) =>
       assertEquals(rows.map(_.proofHome).distinct.size, 1, s"$meaning must have one proof home")
       assertEquals(rows.map(_.storyLabel).distinct.size, 1, s"$meaning must have one Story label")
       assertEquals(rows.map(_.writer).distinct.size, 1, s"$meaning must have one writer")
       assertEquals(rows.map(_.speechKey).distinct.size, 1, s"$meaning must have one speech key")
       assertEquals(rows.head.publicMeaning, rows.head.storyLabel, s"$meaning must not have a second public name")
+
+  test("Interference owns exactly blocks_defender_line"):
+    val owner = openedMeanings.find(_.speechKey == "blocks_defender_line")
+
+    assertEquals(owner.map(_.publicMeaning), Some("Tactic.Interference"))
+    assertEquals(owner.map(_.proofHome), Some("InterferenceProof"))
+    assertEquals(owner.map(_.storyLabel), Some("Tactic.Interference"))
+    assertEquals(owner.map(_.writer), Some(StoryWriter.TacticInterference))
+    assertEquals(owner.map(_.speechClaim), Some(ExplanationClaim.BlocksDefenderLine))
 
   test("Stage-3 speech keys writers and authority layer names remain unique"):
     assertEquals(openedMeanings.map(_.speechKey).distinct.size, openedMeanings.size)

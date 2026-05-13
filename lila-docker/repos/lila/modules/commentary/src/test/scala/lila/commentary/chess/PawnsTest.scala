@@ -9204,6 +9204,7 @@ class PawnsTest extends ChessTestSupport:
         StoryWriter.TacticInterference,
         StoryWriter.TacticSkewer,
         StoryWriter.TacticQueenHit,
+        StoryWriter.TacticRookHit,
         StoryWriter.TacticLoose,
         StoryWriter.TacticTrap,
         StoryWriter.ScenePawnAdvance,
@@ -9218,7 +9219,8 @@ class PawnsTest extends ChessTestSupport:
         StoryWriter.SceneCheckGiven,
         StoryWriter.SceneCheckEscaped,
         StoryWriter.SceneCheckmate,
-        StoryWriter.SceneStalemate
+        StoryWriter.SceneStalemate,
+        StoryWriter.SceneMateThreat
       )
     )
     val livePositiveClaimKeys = ExplanationClaim.values.map(_.key).toVector
