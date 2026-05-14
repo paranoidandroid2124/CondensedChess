@@ -1,10 +1,17 @@
 # Agent Instructions
 
-For tasks touching the Chesstory commentary-analysis pipeline, first use
-`lila-docker/repos/lila/modules/llm/docs/CommentaryProgramMap.md`
-as the onboarding map, then use
-`lila-docker/repos/lila/modules/llm/docs/CommentaryPipelineSSOT.md`
-as the canonical runtime audit.
+For tasks touching Chesstory commentary-analysis work on this branch, use the
+current worktree documents by role, not by old path memory or branch-external
+snapshots.
+
+The current-branch migration authority lives under
+`lila-docker/repos/lila/modules/commentary/docs`:
+- `Witnesses61.md`
+- `CommentaryCoreSSOT.md`
+- `RootAtoms.md`
+- `LegacyFailureTaxonomy.md`
+- `ValidationMethodology.md`
+- `RootIndexFreeze.md`
 
 Scope includes helper modules and consumption paths across:
 - `strategic`
@@ -22,39 +29,48 @@ Scope includes helper modules and consumption paths across:
 - outline / renderer / API / frontend
 
 Do not redo the full `producer -> carrier/model -> builder -> outline -> renderer -> API -> frontend`
-trace if the request is already answered by that SSoT.
+trace if the request is already answered by the current-branch migration docs or
+by the current-branch authority files.
 
 Use the document roles strictly:
-- `CommentaryProgramMap.md`
-  - onboarding / current status / active CQF map
-- `CommentaryPipelineSSOT.md`
-  - canonical runtime audit
-- `CommentaryTruthGate.md`
-  - canonical signoff / truth gate
-- `CommentaryTrustHardening.md`
-  - canonical trust-risk map, CTH audit baseline, Track 5 defer rationale,
-    trust-hardening priorities
-- There is no separate CQF appendix. CQF status and active quality-work handoff
-  live in `CommentaryProgramMap.md`.
+- `modules/commentary/docs/Witnesses61.md`
+  - current 61-row ownership map and row-by-row migration verdict ledger
+- `modules/commentary/docs/CommentaryCoreSSOT.md`
+  - current branch contract / ownership SSoT
+- `modules/commentary/docs/RootAtoms.md`
+  - current lower-root authority
+- `modules/commentary/docs/LegacyFailureTaxonomy.md`
+  - reusable reject / defer / failure-pattern authority
+- `modules/commentary/docs/ValidationMethodology.md`
+  - exact-board validation methodology authority
+- `modules/commentary/docs/RootIndexFreeze.md`
+  - frozen root-index reference when root inventory/index stability matters
 
-Re-audit only if:
+Do not cite branch-external or branch-removed documentation as if it were live
+authority for this worktree.
+
+Re-audit the current-branch commentary docs only if:
 - the user explicitly asks for a fresh audit,
-- code changed after the SSoT snapshot in
-  `lila-docker/repos/lila/modules/llm/src/main`,
-  `lila-docker/repos/lila/app/controllers/LlmController.scala`, or
+- code changed after the relevant snapshot in
+  `lila-docker/repos/lila/modules/commentary/src/main`,
+  `lila-docker/repos/lila/app/controllers`, or
   `lila-docker/repos/lila/ui/analyse/src`,
-- or the task introduces a runtime path not covered by the SSoT.
+- or the task introduces a runtime path not covered by the current branch SSoT.
 
-When changing the audited pipeline, update the SSoT in the same change.
+When changing current-branch descriptor ownership, exact-slice landing, or
+row-level migration status, update `Witnesses61.md` and `CommentaryCoreSSOT.md`
+in the same change.
 
-When changing trust-relevant behavior, update
-`lila-docker/repos/lila/modules/llm/docs/CommentaryTrustHardening.md`
-in the same change. This includes:
-- fallback truth projection or rewrite behavior
-- cross-surface contract consumption
-- support-only carrier exposure that can alter user-facing implication
-- lexicon/template authority boundaries
-- Track 5 lesson-readiness guards or defer rationale
+When changing lower-root vocabulary or exact lower admission rules, update
+`RootAtoms.md` in the same change, and update `RootIndexFreeze.md` too if the
+change affects root inventory/index stability.
+
+When changing reusable reject/defer rationale, update
+`LegacyFailureTaxonomy.md` in the same change if the pattern is branch-wide
+rather than row-local.
+
+When changing validation methodology or what counts as exact board-certified
+evidence, update `ValidationMethodology.md` in the same change.
 
 ## Chess Validation Discipline
 
@@ -144,9 +160,10 @@ follow these rules strictly:
   similar output directories, but **must not** become source module names.
 
 ### Runtime and test/tooling must not blur together
-- Keep runtime helpers under `modules/llm/src/main/...` in role-based packages.
+- Keep runtime helpers under active `src/main/...` trees in role-based
+  packages.
 - Keep CQF runners, corpus tools, eval scaffolds, and report builders under
-  `modules/llm/src/test/...` in test/tooling packages.
+  active `src/test/...` trees in test/tooling packages.
 - Do **not** create runtime modules whose main purpose is experiment staging,
   report generation, or corpus evaluation.
 - Do **not** mix runtime owner-path logic with test-only evaluation scaffolds.
@@ -199,8 +216,8 @@ follow these rules strictly:
 - New CQF or commentary-analysis helpers must reuse the existing planner/build/
   replay architecture rather than introducing parallel runtime paths.
 - If a cleanup changes audited runtime package paths, update
-  `lila-docker/repos/lila/modules/llm/docs/CommentaryPipelineSSOT.md`
+  `lila-docker/repos/lila/modules/commentary/docs/CommentaryCoreSSOT.md`
   in the same change.
 - If a cleanup changes canonical helper names or directory ownership, update the relevant
-  CQF or truth-gate docs in the same change so a new session does not reintroduce stale
-  rollout-era names.
+  current-branch migration docs in the same change so a new session does not
+  reintroduce stale branch-external names.
