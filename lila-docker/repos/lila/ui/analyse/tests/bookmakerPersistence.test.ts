@@ -152,7 +152,7 @@ describe('bookmaker session persistence', () => {
       {
         refs: null,
         polishMeta: null,
-        sourceMode: 'llm_polished',
+        sourceMode: 'ai_polished',
         model: 'gpt-5-mini',
         cacheHit: false,
         mainStrategicPlans: [{
@@ -182,7 +182,7 @@ describe('bookmaker session persistence', () => {
     );
 
     assert.equal(entry.mainPlansCount, 1);
-    assert.equal(entry.sourceMode, 'llm_polished');
+    assert.equal(entry.sourceMode, 'ai_polished');
     assert.equal(entry.model, 'gpt-5-mini');
     assert.deepEqual(entry.tokenContext, {
       stateKey: 'state-key',

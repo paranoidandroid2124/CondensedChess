@@ -1,10 +1,10 @@
 package lila.analyse
 package ui
 
-import lila.llm.model.strategic.VariationLine
-import lila.llm.BookmakerRefsV1
+import lila.commentary.model.strategic.VariationLine
+import lila.commentary.BookmakerRefsV1
 import lila.ui.ScalatagsTemplate.*
-import lila.llm.analysis.NarrativeUtils
+import lila.commentary.analysis.NarrativeUtils
 import scalalib.StringUtils.escapeHtmlRaw
 import scala.collection.mutable
 

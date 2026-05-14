@@ -2,8 +2,8 @@ package lila.accountintel
 
 import lila.accountintel.AccountIntel.*
 import lila.accountintel.primitive.SnapshotFeatureExtractor
-import lila.llm.MoveEval
-import lila.llm.model.strategic.VariationLine
+import lila.commentary.MoveEval
+import lila.commentary.model.strategic.VariationLine
 
 class SnapshotFeatureExtractorTest extends munit.FunSuite:
 
@@ -31,7 +31,7 @@ class SnapshotFeatureExtractorTest extends munit.FunSuite:
     MoveEval(8, -97, None, variations = List(VariationLine(List("d8h4"), -97)))
   )
 
-  test("extractor attaches llm primitives and keeps eval-backed snapshot rows when evals exist"):
+  test("extractor attaches commentary primitives and keeps eval-backed snapshot rows when evals exist"):
     val result =
       SnapshotFeatureExtractor.extract(
         "ych24",

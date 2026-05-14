@@ -47,7 +47,7 @@ object CondensedJsonView:
     )
 
   /** Injects AI narration into the JSON structure.
-    * This can be used to add the results from the llm module.
+    * This can be used to add the results from the commentary module.
     */
   def withNarration(
       json: JsObject,

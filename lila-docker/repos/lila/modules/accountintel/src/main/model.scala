@@ -2,9 +2,9 @@ package lila.accountintel
 
 import chess.Color
 import chess.format.pgn.PgnStr
-import lila.llm.MoveEval
-import lila.llm.model.CollapseAnalysis
-import lila.llm.model.ExtendedAnalysisData
+import lila.commentary.MoveEval
+import lila.commentary.model.CollapseAnalysis
+import lila.commentary.model.ExtendedAnalysisData
 import play.api.libs.json.*
 
 import java.time.Instant

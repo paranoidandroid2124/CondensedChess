@@ -322,7 +322,7 @@ object strategicPuzzleDemo:
                 ),
                 st.article(cls := "sp-analysis-card")(
                   p(cls := "sp-analysis-card__label")("Terminal lens"),
-                  h3("Where LLM commentary belongs"),
+                  h3("Where AI commentary belongs"),
                   ul(
                     li("One terminal card per reached line."),
                     li("Optional overall summary only when multiple accepted routes matter."),

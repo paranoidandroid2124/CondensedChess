@@ -53,9 +53,9 @@ export function bookmakerLedgerRootAttrs(
 ): Record<string, string> {
   if (!ledger) return {};
   return {
-    'data-llm-motif': ledger.motifKey,
-    'data-llm-stage': ledger.stageKey,
-    'data-llm-carry-over': String(ledger.carryOver),
+    'data-commentary-motif': ledger.motifKey,
+    'data-commentary-stage': ledger.stageKey,
+    'data-commentary-carry-over': String(ledger.carryOver),
   };
 }
 

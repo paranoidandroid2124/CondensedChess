@@ -8,15 +8,15 @@ import lila.tree.ParseImport
 import lila.accountintel.*
 import lila.accountintel.AccountIntel.*
 import lila.accountintel.opening.CanonicalOpeningBook
-import lila.llm.{ MoveEval, PgnAnalysisHelper }
-import lila.llm.analysis.{
+import lila.commentary.{ MoveEval, PgnAnalysisHelper }
+import lila.commentary.analysis.{
   CausalCollapseAnalyzer,
   CommentaryEngine,
   GameNarrativeOrchestrator,
   PlanStateTracker
 }
-import lila.llm.model.CollapseAnalysis
-import lila.llm.model.strategic.{ EndgamePatternState, StrategicSalience, VariationLine }
+import lila.commentary.model.CollapseAnalysis
+import lila.commentary.model.strategic.{ EndgamePatternState, StrategicSalience, VariationLine }
 
 object SnapshotFeatureExtractor:
 
@@ -268,7 +268,7 @@ object SnapshotFeatureExtractor:
 
   private def toFeatureRow(
       event: DecisionEvent,
-      analysis: lila.llm.model.ExtendedAnalysisData,
+      analysis: lila.commentary.model.ExtendedAnalysisData,
       collapse: Option[CollapseAnalysis]
   ): SnapshotFeatureRow =
     val structureFamily = structureFamilyFor(analysis, event.game)
@@ -458,7 +458,7 @@ object SnapshotFeatureExtractor:
     if uci.length >= 4 then Square.fromKey(uci.slice(2, 4)) else None
 
   private def structureFamilyFor(
-      analysis: lila.llm.model.ExtendedAnalysisData,
+      analysis: lila.commentary.model.ExtendedAnalysisData,
       game: ParsedGame
   ): String =
     analysis.structureProfile

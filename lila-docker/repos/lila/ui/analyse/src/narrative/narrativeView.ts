@@ -347,7 +347,7 @@ type GameChronicleResponse = {
     sourceMode?: string;
     model?: string | null;
     planTier?: string;
-    llmLevel?: string;
+    commentaryMode?: string;
     strategicThreads?: ActiveStrategicThread[];
 };
 
@@ -810,12 +810,12 @@ function narrativeDocView(ctrl: NarrativeCtrl, doc: GameChronicleResponse): VNod
         ]),
         narrativeReviewView(doc, ctrl),
         narrativeOutlineView(ctrl, doc),
-        doc.sourceMode || doc.model || doc.planTier || doc.llmLevel
+        doc.sourceMode || doc.model || doc.planTier || doc.commentaryMode
             ? hl('div.narrative-review-metrics', [
                 doc.sourceMode ? hl('span.narrative-review-metric', `Source: ${doc.sourceMode}`) : null,
                 doc.model ? hl('span.narrative-review-metric', `Model: ${doc.model}`) : null,
                 doc.planTier ? hl('span.narrative-review-metric', `Plan: ${doc.planTier}`) : null,
-                doc.llmLevel ? hl('span.narrative-review-metric', `Level: ${doc.llmLevel}`) : null,
+                doc.commentaryMode ? hl('span.narrative-review-metric', `Level: ${doc.commentaryMode}`) : null,
             ])
             : null,
         hl('section.narrative-intro', {

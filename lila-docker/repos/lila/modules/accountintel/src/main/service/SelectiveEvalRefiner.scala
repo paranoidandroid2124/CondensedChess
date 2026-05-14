@@ -2,7 +2,7 @@ package lila.accountintel.service
 
 import lila.accountintel.*
 import lila.accountintel.AccountIntel.*
-import lila.llm.PgnAnalysisHelper
+import lila.commentary.PgnAnalysisHelper
 
 private[accountintel] case class SelectiveEvalRefinement(
     clusters: List[SnapshotCluster],

@@ -777,7 +777,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
     const planStateByPath = new Map<string, PlanStateToken | null>();
     const endgameStateByPath = new Map<string, EndgameStateToken | null>();
     const probes = createProbeOrchestrator(ctrl, session => session === activeProbeSession);
-    const bookmakerEndpoint = '/api/llm/bookmaker-position';
+    const bookmakerEndpoint = '/api/commentary/bookmaker-position';
     let loadingTicker: number | null = null;
     let activeOpeningFetchController: AbortController | null = null;
     let activeInitialFetchController: AbortController | null = null;
@@ -844,60 +844,60 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
     ) => {
         const root = document.querySelector('.analyse__bookmaker-text');
         if (!root) return;
-        if (sourceMode) root.setAttribute('data-llm-source-mode', sourceMode);
-        else root.removeAttribute('data-llm-source-mode');
-        if (model) root.setAttribute('data-llm-model', model);
-        else root.removeAttribute('data-llm-model');
-        if (cacheHit !== null) root.setAttribute('data-llm-cache-hit', String(cacheHit));
-        else root.removeAttribute('data-llm-cache-hit');
+        if (sourceMode) root.setAttribute('data-commentary-source-mode', sourceMode);
+        else root.removeAttribute('data-commentary-source-mode');
+        if (model) root.setAttribute('data-commentary-model', model);
+        else root.removeAttribute('data-commentary-model');
+        if (cacheHit !== null) root.setAttribute('data-commentary-cache-hit', String(cacheHit));
+        else root.removeAttribute('data-commentary-cache-hit');
         if (polishMeta) {
-            root.setAttribute('data-llm-polish-provider', polishMeta.provider);
-            root.setAttribute('data-llm-polish-phase', polishMeta.validationPhase);
-            if (polishMeta.model) root.setAttribute('data-llm-polish-model', polishMeta.model);
-            else root.removeAttribute('data-llm-polish-model');
-            root.setAttribute('data-llm-polish-source', polishMeta.sourceMode);
-            root.setAttribute('data-llm-polish-cache-hit', String(polishMeta.cacheHit));
+            root.setAttribute('data-commentary-polish-provider', polishMeta.provider);
+            root.setAttribute('data-commentary-polish-phase', polishMeta.validationPhase);
+            if (polishMeta.model) root.setAttribute('data-commentary-polish-model', polishMeta.model);
+            else root.removeAttribute('data-commentary-polish-model');
+            root.setAttribute('data-commentary-polish-source', polishMeta.sourceMode);
+            root.setAttribute('data-commentary-polish-cache-hit', String(polishMeta.cacheHit));
             if (polishMeta.validationReasons.length)
-                root.setAttribute('data-llm-polish-reasons', polishMeta.validationReasons.join(','));
-            else root.removeAttribute('data-llm-polish-reasons');
+                root.setAttribute('data-commentary-polish-reasons', polishMeta.validationReasons.join(','));
+            else root.removeAttribute('data-commentary-polish-reasons');
             if (polishMeta.strategyCoverage) {
                 const s = polishMeta.strategyCoverage;
-                root.setAttribute('data-llm-strategy-mode', s.mode);
-                root.setAttribute('data-llm-strategy-score', s.coverageScore.toFixed(2));
-                root.setAttribute('data-llm-strategy-covered', String(s.coveredCategories));
-                root.setAttribute('data-llm-strategy-required', String(s.requiredCategories));
-                root.setAttribute('data-llm-strategy-pass', String(s.passesThreshold));
-                root.setAttribute('data-llm-strategy-plan', `${s.planHits}/${s.planSignals}`);
-                root.setAttribute('data-llm-strategy-route', `${s.routeHits}/${s.routeSignals}`);
-                root.setAttribute('data-llm-strategy-focus', `${s.focusHits}/${s.focusSignals}`);
+                root.setAttribute('data-commentary-strategy-mode', s.mode);
+                root.setAttribute('data-commentary-strategy-score', s.coverageScore.toFixed(2));
+                root.setAttribute('data-commentary-strategy-covered', String(s.coveredCategories));
+                root.setAttribute('data-commentary-strategy-required', String(s.requiredCategories));
+                root.setAttribute('data-commentary-strategy-pass', String(s.passesThreshold));
+                root.setAttribute('data-commentary-strategy-plan', `${s.planHits}/${s.planSignals}`);
+                root.setAttribute('data-commentary-strategy-route', `${s.routeHits}/${s.routeSignals}`);
+                root.setAttribute('data-commentary-strategy-focus', `${s.focusHits}/${s.focusSignals}`);
             } else {
-                root.removeAttribute('data-llm-strategy-mode');
-                root.removeAttribute('data-llm-strategy-score');
-                root.removeAttribute('data-llm-strategy-covered');
-                root.removeAttribute('data-llm-strategy-required');
-                root.removeAttribute('data-llm-strategy-pass');
-                root.removeAttribute('data-llm-strategy-plan');
-                root.removeAttribute('data-llm-strategy-route');
-                root.removeAttribute('data-llm-strategy-focus');
+                root.removeAttribute('data-commentary-strategy-mode');
+                root.removeAttribute('data-commentary-strategy-score');
+                root.removeAttribute('data-commentary-strategy-covered');
+                root.removeAttribute('data-commentary-strategy-required');
+                root.removeAttribute('data-commentary-strategy-pass');
+                root.removeAttribute('data-commentary-strategy-plan');
+                root.removeAttribute('data-commentary-strategy-route');
+                root.removeAttribute('data-commentary-strategy-focus');
             }
         } else {
-            root.removeAttribute('data-llm-polish-provider');
-            root.removeAttribute('data-llm-polish-phase');
-            root.removeAttribute('data-llm-polish-model');
-            root.removeAttribute('data-llm-polish-source');
-            root.removeAttribute('data-llm-polish-cache-hit');
-            root.removeAttribute('data-llm-polish-reasons');
-            root.removeAttribute('data-llm-strategy-mode');
-            root.removeAttribute('data-llm-strategy-score');
-            root.removeAttribute('data-llm-strategy-covered');
-            root.removeAttribute('data-llm-strategy-required');
-            root.removeAttribute('data-llm-strategy-pass');
-            root.removeAttribute('data-llm-strategy-plan');
-            root.removeAttribute('data-llm-strategy-route');
-            root.removeAttribute('data-llm-strategy-focus');
+            root.removeAttribute('data-commentary-polish-provider');
+            root.removeAttribute('data-commentary-polish-phase');
+            root.removeAttribute('data-commentary-polish-model');
+            root.removeAttribute('data-commentary-polish-source');
+            root.removeAttribute('data-commentary-polish-cache-hit');
+            root.removeAttribute('data-commentary-polish-reasons');
+            root.removeAttribute('data-commentary-strategy-mode');
+            root.removeAttribute('data-commentary-strategy-score');
+            root.removeAttribute('data-commentary-strategy-covered');
+            root.removeAttribute('data-commentary-strategy-required');
+            root.removeAttribute('data-commentary-strategy-pass');
+            root.removeAttribute('data-commentary-strategy-plan');
+            root.removeAttribute('data-commentary-strategy-route');
+            root.removeAttribute('data-commentary-strategy-focus');
         }
         const ledgerAttrs = bookmakerLedgerRootAttrs(bookmakerLedger);
-        ['data-llm-motif', 'data-llm-stage', 'data-llm-carry-over'].forEach(attr => {
+        ['data-commentary-motif', 'data-commentary-stage', 'data-commentary-carry-over'].forEach(attr => {
             const value = ledgerAttrs[attr];
             if (typeof value === 'string') root.setAttribute(attr, value);
             else root.removeAttribute(attr);
@@ -907,9 +907,9 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
     const applyStrategicMetaToRoot = (mainPlansCount: number) => {
         const root = document.querySelector('.analyse__bookmaker-text');
         if (!root) return;
-        root.setAttribute('data-llm-main-plans-count', String(mainPlansCount));
-        root.removeAttribute('data-llm-latent-plans-count');
-        root.removeAttribute('data-llm-hold-reasons-count');
+        root.setAttribute('data-commentary-main-plans-count', String(mainPlansCount));
+        root.removeAttribute('data-commentary-latent-plans-count');
+        root.removeAttribute('data-commentary-hold-reasons-count');
     };
 
     const resetMetaOnRoot = () => {
@@ -1270,7 +1270,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
                 return showRetry('Commentary timed out before polish completed. Retry for a clean explanation.');
             }
             const decoratedHtml = decorateDecodedBookmakerHtml(decoded);
-            const shouldStream = decoded.sourceMode === 'llm_polished' && commentary.length > 0;
+            const shouldStream = decoded.sourceMode === 'ai_polished' && commentary.length > 0;
 
             if (shouldStream) {
                 await streamReveal(commentary, isCurrentSession);

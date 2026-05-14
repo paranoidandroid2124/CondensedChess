@@ -4,8 +4,8 @@ import chess.Color
 
 import lila.accountintel.AccountIntel.*
 import lila.accountintel.snapshot.DecisionSnapshotDetector
-import lila.llm.analysis.CommentaryEngine
-import lila.llm.model.strategic.VariationLine
+import lila.commentary.analysis.CommentaryEngine
+import lila.commentary.model.strategic.VariationLine
 
 class DecisionSnapshotDetectorTest extends munit.FunSuite:
 

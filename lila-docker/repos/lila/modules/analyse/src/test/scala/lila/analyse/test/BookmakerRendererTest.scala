@@ -1,9 +1,9 @@
 package lila.analyse.test
 
-import lila.llm.model.strategic.VariationLine
+import lila.commentary.model.strategic.VariationLine
 import lila.analyse.ui.BookmakerRenderer
-import lila.llm.analysis.NarrativeUtils
-import lila.llm.{ BookmakerRefsV1, MoveRefV1, VariationRefV1 }
+import lila.commentary.analysis.NarrativeUtils
+import lila.commentary.{ BookmakerRefsV1, MoveRefV1, VariationRefV1 }
 
 class BookmakerRendererTest extends munit.FunSuite:
 

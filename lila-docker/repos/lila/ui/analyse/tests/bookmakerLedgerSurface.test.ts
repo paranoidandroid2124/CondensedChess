@@ -60,9 +60,9 @@ describe('bookmaker ledger surface', () => {
 
   test('exports root observability attrs from the ledger', () => {
     assert.deepEqual(bookmakerLedgerRootAttrs(sampleLedger), {
-      'data-llm-motif': 'rook_pawn_march',
-      'data-llm-stage': 'build',
-      'data-llm-carry-over': 'true',
+      'data-commentary-motif': 'rook_pawn_march',
+      'data-commentary-stage': 'build',
+      'data-commentary-carry-over': 'true',
     });
   });
 });

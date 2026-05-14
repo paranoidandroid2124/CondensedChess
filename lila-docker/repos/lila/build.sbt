@@ -79,7 +79,10 @@ lazy val modules = Seq(
   
   // Analysis Pipeline (Level 7)
   security,
-  llm,
+  commentaryCore,
+  commentaryAi,
+  commentary,
+  commentaryTools,
   evalCache,
   
   // Web
@@ -161,7 +164,7 @@ lazy val security = module("security",
 // ============================================================
 
 lazy val analyse = module("analyse",
-  Seq(tree, memo, ui, llm),
+  Seq(tree, memo, ui, commentary),
   tests.bundle
 )
 
@@ -171,7 +174,7 @@ lazy val study = module("study",
 ).dependsOn(common % "test->test")
 
 lazy val accountintel = module("accountintel",
-  Seq(study, llm, memo, db, evalCache),
+  Seq(study, commentary, memo, db, evalCache),
   playWs.bundle ++ tests.bundle ++ Seq(chess.testKit)
 ).dependsOn(common % "test->test")
 
@@ -186,12 +189,27 @@ lazy val beta = module("beta",
 )
 
 // ============================================================
-// Analysis Pipeline Modules
+// Commentary Pipeline Modules
 // ============================================================
 
-lazy val llm = module("llm",
-  Seq(db, memo, strategicPuzzle),
+lazy val commentaryCore = module("commentaryCore",
+  Seq(strategicPuzzle),
   playWs.bundle ++ tests.bundle
+)
+
+lazy val commentaryAi = module("commentaryAi",
+  Seq(commentaryCore),
+  playWs.bundle ++ tests.bundle
+)
+
+lazy val commentary = module("commentary",
+  Seq(db, memo, strategicPuzzle, commentaryCore, commentaryAi),
+  playWs.bundle ++ tests.bundle
+)
+
+lazy val commentaryTools = module("commentaryTools",
+  Seq(commentary, commentaryCore, commentaryAi, db, memo, strategicPuzzle),
+  playWs.bundle ++ tests.bundle ++ Seq(chess.testKit)
 )
 
 lazy val evalCache = module("evalCache",

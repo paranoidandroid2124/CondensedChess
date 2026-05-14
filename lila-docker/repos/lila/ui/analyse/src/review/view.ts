@@ -269,7 +269,7 @@ function renderCoachPane(
     sourceMode?: string;
     model?: string | null;
     planTier?: string;
-    llmLevel?: string;
+    commentaryMode?: string;
     review?: { totalPlies?: number; evalCoveredPlies?: number };
   },
   stats: ReviewOverviewStats,
@@ -539,7 +539,7 @@ function renderAnalysisDetails(
     sourceMode?: string;
     model?: string | null;
     planTier?: string;
-    llmLevel?: string;
+    commentaryMode?: string;
     review?: { totalPlies?: number; evalCoveredPlies?: number };
   },
   stats: ReviewOverviewStats,
@@ -548,7 +548,7 @@ function renderAnalysisDetails(
     ['Source', data.sourceMode],
     ['Model', data.model],
     ['Plan', data.planTier],
-    ['Level', data.llmLevel],
+    ['Level', data.commentaryMode],
     ['Total moments', stats.totalMoments ? String(stats.totalMoments) : null],
     ['Repair windows', stats.collapseMoments ? String(stats.collapseMoments) : null],
     ['Selected moments', stats.selectedMoments ? String(stats.selectedMoments) : null],

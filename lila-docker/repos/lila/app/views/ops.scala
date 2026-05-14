@@ -12,7 +12,7 @@ import lila.app.UiEnv.{ *, given }
 import lila.app.OpenBetaBindingStatus
 import lila.core.perm.Permission
 import lila.core.user.{ RoleDbKey, UserTier }
-import lila.llm.analysis.CommentaryOpsBoard
+import lila.commentary.analysis.CommentaryOpsBoard
 import lila.ops.*
 
 object ops:

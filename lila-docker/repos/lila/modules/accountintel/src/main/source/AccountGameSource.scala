@@ -10,8 +10,8 @@ import java.time.format.DateTimeFormatter
 import scala.concurrent.duration.*
 import scala.util.control.NonFatal
 
-import lila.llm.MoveEval
-import lila.llm.model.strategic.VariationLine
+import lila.commentary.MoveEval
+import lila.commentary.model.strategic.VariationLine
 import lila.accountintel.*
 import lila.accountintel.AccountIntel.{ ExternalGame, normalizeProvider }
 

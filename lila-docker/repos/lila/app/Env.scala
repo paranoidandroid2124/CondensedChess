@@ -83,7 +83,7 @@ final class Env(
     userApi = user.api
   )
 
-  val llm: lila.llm.Env = new lila.llm.Env(
+  val commentary: lila.commentary.Env = new lila.commentary.Env(
     db = mongo.mainDb,
     appConfig = config,
     ws = summon[StandaloneWSClient]

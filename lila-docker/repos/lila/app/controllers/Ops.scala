@@ -173,7 +173,7 @@ final class Ops(env: lila.app.Env) extends LilaController(env):
   def commentary(limit: Int) = Secure(_.OpsViewer) { ctx ?=> _ ?=>
     val capabilities = currentCapabilities
     val normalizedLimit = limit.max(1).min(50)
-    val snapshot = env.llm.api.commentaryOpsSnapshot(normalizedLimit)
+    val snapshot = env.commentary.api.commentaryOpsSnapshot(normalizedLimit)
     Ok.page(views.ops.commentary(snapshot, normalizedLimit, capabilities))
   }
 

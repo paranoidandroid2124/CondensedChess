@@ -17,7 +17,7 @@ export async function fetchOpeningReferenceViaProxy(
   if (openingPhase(ply) !== 'opening') return null;
 
   try {
-    const explorerRes = await fetch(`/api/llm/opening/masters?fen=${encodeURIComponent(analysisFen)}`, { signal });
+    const explorerRes = await fetch(`/api/commentary/opening/masters?fen=${encodeURIComponent(analysisFen)}`, { signal });
     if (!explorerRes.ok) return null;
 
     const raw = (await explorerRes.json()) as any;
@@ -36,7 +36,7 @@ export async function fetchOpeningReferenceViaProxy(
         let pgn = g.pgn || null;
         if (!pgn && g.id) {
           try {
-            const pgnRes = await fetch(`/api/llm/opening/master-pgn/${encodeURIComponent(g.id)}`, { signal });
+            const pgnRes = await fetch(`/api/commentary/opening/master-pgn/${encodeURIComponent(g.id)}`, { signal });
             if (pgnRes.ok) pgn = await pgnRes.text();
           } catch {}
         }

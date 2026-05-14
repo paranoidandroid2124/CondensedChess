@@ -46,7 +46,7 @@ describe('bookmaker response payload', () => {
   test('decodeBookmakerResponse reuses fallback prose and supporting arrays when refined payload omits them', () => {
     const decoded = decodeBookmakerResponse(
       {
-        sourceMode: 'llm_polished',
+        sourceMode: 'ai_polished',
         model: 'gpt-5-mini',
         cacheHit: false,
         signalDigest: {

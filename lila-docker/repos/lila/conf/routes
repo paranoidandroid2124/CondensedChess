@@ -106,14 +106,14 @@ GET   /embed/analysis                  controllers.UserAnalysis.embed
 # Explorer Proxy (authenticated upstream relay)
 GET   /api/explorer/:db                controllers.ExplorerProxy.opening(db: String)
 
-# LLM Analysis
-POST  /api/llm/game-analysis-local     controllers.LlmController.analyzeGameLocal
-POST  /api/llm/game-analysis-async     controllers.LlmController.analyzeGameAsync
-GET   /api/llm/game-analysis-async/:jobId controllers.LlmController.analyzeGameAsyncStatus(jobId)
-POST  /api/llm/bookmaker-position      controllers.LlmController.bookmakerPosition
-GET   /api/llm/opening/masters          controllers.LlmController.openingMasters(fen: String)
-GET   /api/llm/opening/master-pgn/:id   controllers.LlmController.openingMasterPgn(id)
-GET   /api/llm/defeat-dna              controllers.LlmController.defeatDna
+# AI Analysis
+POST  /api/commentary/game-analysis-local     controllers.CommentaryController.analyzeGameLocal
+POST  /api/commentary/game-analysis-async     controllers.CommentaryController.analyzeGameAsync
+GET   /api/commentary/game-analysis-async/:jobId controllers.CommentaryController.analyzeGameAsyncStatus(jobId)
+POST  /api/commentary/bookmaker-position      controllers.CommentaryController.bookmakerPosition
+GET   /api/commentary/opening/masters          controllers.CommentaryController.openingMasters(fen: String)
+GET   /api/commentary/opening/master-pgn/:id   controllers.CommentaryController.openingMasterPgn(id)
+GET   /api/commentary/defeat-dna              controllers.CommentaryController.defeatDna
 GET   /support                         controllers.Main.support
 GET   /plan                            controllers.Main.plan
 GET   /beta-feedback                   controllers.BetaFeedback.formPage(surface: String ?= "general", feature: String ?= "", entrypoint: String ?= "", returnTo: String ?= "", notify: Boolean ?= false)

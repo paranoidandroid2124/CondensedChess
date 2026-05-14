@@ -359,7 +359,7 @@ export interface GameChronicleResponse {
     sourceMode?: string;
     model?: string | null;
     planTier?: string;
-    llmLevel?: string;
+    commentaryMode?: string;
     strategicThreads?: ActiveStrategicThread[];
     ccaEnabled?: boolean;
 }
@@ -540,7 +540,7 @@ export class NarrativeCtrl {
         this.dnaError(null);
         this.root.redraw();
         try {
-            const res = await fetch('/api/llm/defeat-dna');
+            const res = await fetch('/api/commentary/defeat-dna');
             if (res.ok) {
                 this.dnaData(await res.json() as DefeatDnaReport);
             } else if (res.status === 404) {
@@ -708,7 +708,7 @@ export class NarrativeCtrl {
             this.loadingDetail('Probe refinement: rebuilding Game Chronicle...');
             this.root.redraw();
             this.activeRefineController = new AbortController();
-            const res = await fetch('/api/llm/game-analysis-local', {
+            const res = await fetch('/api/commentary/game-analysis-local', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -854,7 +854,7 @@ export class NarrativeCtrl {
                 variant: this.root.data.game.variant.key || 'standard',
             });
 
-            const submitRes = await fetch('/api/llm/game-analysis-async', {
+            const submitRes = await fetch('/api/commentary/game-analysis-async', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
@@ -904,7 +904,7 @@ export class NarrativeCtrl {
         this.loadingDetail('Async endpoint unavailable. Falling back to local full analysis...');
         this.root.redraw();
 
-        const res = await fetch('/api/llm/game-analysis-local', {
+        const res = await fetch('/api/commentary/game-analysis-local', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -961,7 +961,7 @@ export class NarrativeCtrl {
             this.loadingDetail('Deep analysis in progress...');
             this.root.redraw();
 
-            const res = await fetch(`/api/llm/game-analysis-async/${encodeURIComponent(jobId)}`, {
+            const res = await fetch(`/api/commentary/game-analysis-async/${encodeURIComponent(jobId)}`, {
                 headers: {
                     [ASYNC_STATUS_TOKEN_HEADER]: statusToken,
                 },

@@ -12,7 +12,7 @@ import lila.app.{ *, given }
 import lila.analyse.CondensedJsonView
 import lila.core.game.Pov
 import lila.study.StudyForm
-import lila.llm.model.strategic.VariationLine
+import lila.commentary.model.strategic.VariationLine
 import lila.tree.Branch
 
 object Study:

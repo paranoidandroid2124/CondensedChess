@@ -4,7 +4,7 @@ import play.api.libs.json.*
 import play.api.mvc.*
 
 import lila.app.*
-import lila.llm.UserFacingPayloadSanitizer
+import lila.commentary.UserFacingPayloadSanitizer
 import lila.strategicPuzzle.StrategicPuzzle.*
 
 final class StrategicPuzzle(

@@ -67,7 +67,7 @@ class SelectiveEvalRefinerTest extends munit.FunSuite:
       earliestPreventablePly = none,
       collapseMomentPly = none,
       collapseAnalysis = none,
-      analysis = null.asInstanceOf[lila.llm.model.ExtendedAnalysisData],
+      analysis = null.asInstanceOf[lila.commentary.model.ExtendedAnalysisData],
       game = parsed(id, color, SubjectResult.Loss),
       lastSan = Some("move")
     )
