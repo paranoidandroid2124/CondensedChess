@@ -79,8 +79,8 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
       questionId: String,
       kind: AuthorQuestionKind,
       claim: String,
-      ownerFamily: OwnerFamily,
-      ownerSource: String,
+      proofFamily: PlannerOwnerKind,
+      proofSource: String,
       contrast: Option[String]
   ) =
     QuestionPlan(
@@ -93,17 +93,17 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
       consequence = None,
       fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
       strengthTier = QuestionPlanStrengthTier.Moderate,
-      sourceKinds = List(ownerSource),
+      sourceKinds = List(proofSource),
       admissibilityReasons = List("test"),
-      ownerFamily = ownerFamily,
-      ownerSource = ownerSource
+      plannerOwnerKind = proofFamily,
+      plannerSource = proofSource
     )
 
   private val quietSupportGateTrace =
     QuietStrategicSupportComposer.QuietStrategicSupportGateTrace(
       sceneType = "quiet_improvement",
-      selectedOwnerFamily = Some("MoveDelta"),
-      selectedOwnerSource = Some("pv_delta"),
+      selectedOwnerKind = Some("MoveDelta"),
+      selectedSource = Some("pv_delta"),
       pvDeltaAvailable = true,
       signalDigestAvailable = true,
       openingRelationClaimPresent = false,
@@ -270,8 +270,8 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
               questionId = "q_open_why",
               kind = AuthorQuestionKind.WhyThis,
               claim = "The move bends away from the usual opening script.",
-              ownerFamily = OwnerFamily.OpeningRelation,
-              ownerSource = "opening_relation_translator",
+              proofFamily = PlannerOwnerKind.OpeningRelation,
+              proofSource = "opening_relation_translator",
               contrast = Some("The move matters because it changes which opening script the position follows.")
             )
           ),
@@ -281,8 +281,8 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
               questionId = "q_open_change",
               kind = AuthorQuestionKind.WhatChanged,
               claim = "The opening relationship changes immediately.",
-              ownerFamily = OwnerFamily.OpeningRelation,
-              ownerSource = "opening_relation_translator",
+              proofFamily = PlannerOwnerKind.OpeningRelation,
+              proofSource = "opening_relation_translator",
               contrast = Some("Before the move, the opening was still following the more familiar setup.")
             )
           ),
@@ -307,8 +307,8 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
               questionId = "q_stop",
               kind = AuthorQuestionKind.WhatMustBeStopped,
               claim = "This has to stop the threat before it lands.",
-              ownerFamily = OwnerFamily.ForcingDefense,
-              ownerSource = "threat",
+              proofFamily = PlannerOwnerKind.ForcingDefense,
+              proofSource = "threat",
               contrast = Some("If White drifts, the reply is forced.")
             )
           ),
@@ -318,8 +318,8 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
               questionId = "q_why_now",
               kind = AuthorQuestionKind.WhyNow,
               claim = "The move has to happen now.",
-              ownerFamily = OwnerFamily.ForcingDefense,
-              ownerSource = "threat",
+              proofFamily = PlannerOwnerKind.ForcingDefense,
+              proofSource = "threat",
               contrast = Some("If delayed, the threat becomes concrete.")
             )
           ),
@@ -347,8 +347,8 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
             questionId = "q_quiet",
             kind = AuthorQuestionKind.WhatChanged,
             claim = "The move tightens the queenside bind.",
-            ownerFamily = OwnerFamily.MoveDelta,
-            ownerSource = "pv_delta",
+            proofFamily = PlannerOwnerKind.MoveDelta,
+            proofSource = "pv_delta",
             contrast = None
           )
       ).getOrElse(fail("expected chronicle render artifact"))
@@ -405,8 +405,8 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
             questionId = "q_supported",
             kind = AuthorQuestionKind.WhatChanged,
             claim = "The move tightens the queenside bind.",
-            ownerFamily = OwnerFamily.MoveDelta,
-            ownerSource = "pv_delta",
+            proofFamily = PlannerOwnerKind.MoveDelta,
+            proofSource = "pv_delta",
             contrast = Some("The move keeps the c-file pressure coordinated.")
           )
       ).getOrElse(fail("expected chronicle render artifact"))
@@ -431,8 +431,8 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
             questionId = "q_forcing",
             kind = AuthorQuestionKind.WhyNow,
             claim = "The move has to happen now.",
-            ownerFamily = OwnerFamily.ForcingDefense,
-            ownerSource = "threat",
+            proofFamily = PlannerOwnerKind.ForcingDefense,
+            proofSource = "threat",
             contrast = None
           )
       ).getOrElse(fail("expected chronicle render artifact"))

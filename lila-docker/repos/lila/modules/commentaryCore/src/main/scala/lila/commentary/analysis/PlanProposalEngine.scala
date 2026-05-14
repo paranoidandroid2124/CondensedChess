@@ -4,7 +4,7 @@ import chess.*
 import chess.Bitboard
 import chess.format.Fen
 import lila.commentary.model.authoring.*
-import lila.commentary.analysis.ThemeTaxonomy.{ ThemeL1, ThemeResolver, SubplanCatalog, SubplanId }
+import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, ThemeResolver, SubplanCatalog, PlanKind }
 
 /**
  * Plan-first proposal layer:
@@ -120,12 +120,12 @@ object PlanProposalEngine:
         viability = toViability(score, "outpost can collapse under pawn lever timing"),
         refutation = Some("if center opens immediately, outpost plan may be too slow"),
         evidenceSources = List(
-          s"theme:${ThemeL1.PieceRedeployment.id}",
-          s"subplan:${SubplanId.OutpostEntrenchment.id}",
+          s"theme:${PlanTheme.PieceRedeployment.id}",
+          s"subplan:${PlanKind.OutpostEntrenchment.id}",
           "structural_state:entrenched_piece"
         ),
-        themeL1 = ThemeL1.PieceRedeployment.id,
-        subplanId = Some(SubplanId.OutpostEntrenchment.id)
+        themeL1 = PlanTheme.PieceRedeployment.id,
+        subplanId = Some(PlanKind.OutpostEntrenchment.id)
       )
 
     if rookPawnReady then
@@ -150,12 +150,12 @@ object PlanProposalEngine:
         viability = toViability(base, "flank expansion can backfire if center is unstable"),
         refutation = Some("if tactical threats appear in center, postpone pawn march"),
         evidenceSources = List(
-          s"theme:${ThemeL1.FlankInfrastructure.id}",
-          s"subplan:${SubplanId.RookPawnMarch.id}",
+          s"theme:${PlanTheme.FlankInfrastructure.id}",
+          s"subplan:${PlanKind.RookPawnMarch.id}",
           "structural_state:rook_pawn_march"
         ),
-        themeL1 = ThemeL1.FlankInfrastructure.id,
-        subplanId = Some(SubplanId.RookPawnMarch.id)
+        themeL1 = PlanTheme.FlankInfrastructure.id,
+        subplanId = Some(PlanKind.RookPawnMarch.id)
       )
 
     if hookChance then
@@ -180,12 +180,12 @@ object PlanProposalEngine:
         viability = toViability(score, "requires coordinated piece arrival to convert"),
         refutation = Some("if opponent neutralizes hook contact, switch to central plan"),
         evidenceSources = List(
-          s"theme:${ThemeL1.FlankInfrastructure.id}",
-          s"subplan:${SubplanId.HookCreation.id}",
+          s"theme:${PlanTheme.FlankInfrastructure.id}",
+          s"subplan:${PlanKind.HookCreation.id}",
           "structural_state:hook_creation"
         ),
-        themeL1 = ThemeL1.FlankInfrastructure.id,
-        subplanId = Some(SubplanId.HookCreation.id)
+        themeL1 = PlanTheme.FlankInfrastructure.id,
+        subplanId = Some(PlanKind.HookCreation.id)
       )
 
     if clamp then
@@ -210,12 +210,12 @@ object PlanProposalEngine:
         viability = toViability(clampScore, "clamp may dissipate after major-piece trades"),
         refutation = Some("if clamp squares are no longer contested, transition plan"),
         evidenceSources = List(
-          s"theme:${ThemeL1.RestrictionProphylaxis.id}",
-          s"subplan:${SubplanId.ProphylaxisRestraint.id}",
+          s"theme:${PlanTheme.RestrictionProphylaxis.id}",
+          s"subplan:${PlanKind.ProphylaxisRestraint.id}",
           "structural_state:color_complex_clamp"
         ),
-        themeL1 = ThemeL1.RestrictionProphylaxis.id,
-        subplanId = Some(SubplanId.ProphylaxisRestraint.id)
+        themeL1 = PlanTheme.RestrictionProphylaxis.id,
+        subplanId = Some(PlanKind.ProphylaxisRestraint.id)
       )
 
     if out.isEmpty then
@@ -239,12 +239,12 @@ object PlanProposalEngine:
         viability = toViability(genericScore, "generic plan can lose race to forcing lines"),
         refutation = None,
         evidenceSources = List(
-          s"theme:${ThemeL1.PawnBreakPreparation.id}",
-          s"subplan:${SubplanId.CentralBreakTiming.id}",
+          s"theme:${PlanTheme.PawnBreakPreparation.id}",
+          s"subplan:${PlanKind.CentralBreakTiming.id}",
           "structural_state:generic_center_plan"
         ),
-        themeL1 = ThemeL1.PawnBreakPreparation.id,
-        subplanId = Some(SubplanId.CentralBreakTiming.id)
+        themeL1 = PlanTheme.PawnBreakPreparation.id,
+        subplanId = Some(PlanKind.CentralBreakTiming.id)
       )
 
     out.toList
@@ -391,7 +391,7 @@ object PlanProposalEngine:
     items
       .flatMap { h =>
         val theme = ThemeResolver.fromHypothesis(h)
-        val baseSubplan = h.subplanId.flatMap(SubplanId.fromId)
+        val baseSubplan = h.subplanId.flatMap(PlanKind.fromId)
         val alternatives =
           SubplanCatalog
             .byTheme(theme)
@@ -428,7 +428,7 @@ object PlanProposalEngine:
       .map { h =>
         val specOpt =
           h.subplanId
-            .flatMap(SubplanId.fromId)
+            .flatMap(PlanKind.fromId)
             .flatMap(SubplanCatalog.specs.get)
         val signalComplexityBoost = specOpt.map(s => math.min(0.05, s.requiredSignals.size * 0.012)).getOrElse(0.0)
         val horizonBoost = specOpt.map(_.horizon).map {

@@ -17,7 +17,7 @@ object BreakPreventionWitness:
     val PersistenceUnstable = "persistence_unstable"
     val RivalRelease = "rival_release"
     val TacticalFirst = "tactical_first"
-    val FamilyMismatch = "family_mismatch"
+    val ContractMismatch = "contract_mismatch"
     val RouteIdentityMissing = "route_identity_missing"
     val RouteStillLegal = "route_still_legal"
     val SameRouteRestored = "same_route_restored"
@@ -59,7 +59,7 @@ object BreakPreventionWitness:
             .map(token => plan -> token)
         )
       if breakPlans.isEmpty then Diagnosis(None, List(Failure.NoNamedBreak))
-      else if !familyAligned(ctx, surface) then Diagnosis(None, List(Failure.FamilyMismatch))
+      else if !familyAligned(ctx, surface) then Diagnosis(None, List(Failure.ContractMismatch))
       else
         val (plan, token) = breakPlans.maxBy { case (plan, _) =>
           math.max(plan.counterplayScoreDrop, -plan.mobilityDelta)
@@ -109,12 +109,12 @@ object BreakPreventionWitness:
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot
   ): Boolean =
-    ctx.mainStrategicPlans.exists(plan => plan.subplanId.exists(normalize(_) == ThemeTaxonomy.SubplanId.BreakPrevention.id)) ||
+    ctx.mainStrategicPlans.exists(plan => plan.subplanId.exists(normalize(_) == PlanTaxonomy.PlanKind.BreakPrevention.id)) ||
       ctx.strategicPlanExperiments.exists(alignedExperiment) ||
       List(surface.dominantIdea, surface.secondaryIdea).flatten.exists(_.kind == StrategicIdeaKind.CounterplaySuppression)
 
   private def alignedExperiment(experiment: StrategicPlanExperiment): Boolean =
-    experiment.subplanId.exists(normalize(_) == ThemeTaxonomy.SubplanId.BreakPrevention.id) ||
+    experiment.subplanId.exists(normalize(_) == PlanTaxonomy.PlanKind.BreakPrevention.id) ||
       experiment.counterBreakNeutralized
 
   private def stableFamilyEvidence(ctx: NarrativeContext): Boolean =

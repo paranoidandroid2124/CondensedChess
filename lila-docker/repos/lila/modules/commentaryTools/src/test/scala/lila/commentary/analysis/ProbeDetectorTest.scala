@@ -202,7 +202,7 @@ class ProbeDetectorTest extends FunSuite:
         name = "Key-square denial around e5",
         score = 0.81,
         sources = List("theme:restriction_prophylaxis"),
-        subplanId = Some(ThemeTaxonomy.SubplanId.KeySquareDenial.id)
+        subplanId = Some(PlanTaxonomy.PlanKind.KeySquareDenial.id)
       )
 
     val requests = ProbeDetector.detect(
@@ -228,12 +228,12 @@ class ProbeDetectorTest extends FunSuite:
     )
     val problematicSubplans =
       List(
-        ThemeTaxonomy.SubplanId.BishopReanchor,
-        ThemeTaxonomy.SubplanId.OpenFilePressure,
-        ThemeTaxonomy.SubplanId.IQPInducement,
-        ThemeTaxonomy.SubplanId.BadPieceLiquidation,
-        ThemeTaxonomy.SubplanId.PassedPawnManufacture,
-        ThemeTaxonomy.SubplanId.BatteryPressure
+        PlanTaxonomy.PlanKind.BishopReanchor,
+        PlanTaxonomy.PlanKind.OpenFilePressure,
+        PlanTaxonomy.PlanKind.IQPInducement,
+        PlanTaxonomy.PlanKind.BadPieceLiquidation,
+        PlanTaxonomy.PlanKind.PassedPawnManufacture,
+        PlanTaxonomy.PlanKind.BatteryPressure
       )
     problematicSubplans.foreach { subplan =>
       val requests =

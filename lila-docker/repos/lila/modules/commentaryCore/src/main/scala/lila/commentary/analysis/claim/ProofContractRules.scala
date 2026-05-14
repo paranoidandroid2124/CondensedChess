@@ -1,12 +1,12 @@
 package lila.commentary.analysis.claim
 
 import lila.commentary.analysis.*
-private[commentary] enum OwnerProofStatus:
+private[commentary] enum ProofContractStatus:
   case Releasable
   case BackendOnly
   case Deferred
 
-private[commentary] enum OwnerProofWitness:
+private[commentary] enum ProofWitness:
   case OwnerSeed
   case Continuation
   case BranchProof
@@ -17,15 +17,15 @@ private[commentary] enum OwnerProofWitness:
   case ExactSlice
   case ClaimOnlySurface
 
-private[commentary] final case class OwnerProofContract(
+private[commentary] final case class ProofContract(
     id: String,
-    ownerFamily: String,
-    theme: Option[ThemeTaxonomy.ThemeL1],
-    subplan: Option[ThemeTaxonomy.SubplanId],
+    proofFamily: String,
+    theme: Option[PlanTaxonomy.PlanTheme],
+    subplan: Option[PlanTaxonomy.PlanKind],
     acceptedSources: Set[String],
     allowedScopes: Set[PlayerFacingPacketScope],
-    requiredWitnesses: Set[OwnerProofWitness],
-    status: OwnerProofStatus,
+    requiredWitnesses: Set[ProofWitness],
+    status: ProofContractStatus,
     certifiedEligible: Boolean,
     supportedLocalEligible: Boolean,
     defaultFailureTaxonomy: String
@@ -33,16 +33,16 @@ private[commentary] final case class OwnerProofContract(
   def authorityEligible: Boolean =
     certifiedEligible || supportedLocalEligible
 
-  def exactOwnerPath: Boolean =
-    requiredWitnesses.contains(OwnerProofWitness.BranchProof) ||
-      requiredWitnesses.contains(OwnerProofWitness.StablePersistence)
+  def exactProofPath: Boolean =
+    requiredWitnesses.contains(ProofWitness.BranchProof) ||
+      requiredWitnesses.contains(ProofWitness.StablePersistence)
 
   def accepts(packet: PlayerFacingClaimPacket): Boolean =
-    ownerFamily == packet.ownerFamily &&
-      acceptedSources.contains(packet.ownerSource) &&
+    proofFamily == packet.proofFamily &&
+      acceptedSources.contains(packet.proofSource) &&
       allowedScopes.contains(packet.scope)
 
-private[commentary] final case class OwnerProofTrace(
+private[commentary] final case class ProofTrace(
     contractId: Option[String] = None,
     contractStatus: Option[String] = None,
     failureCodes: List[String] = Nil,
@@ -68,50 +68,50 @@ private[commentary] final case class OwnerProofTrace(
       s"risks=${if releaseRisks.isEmpty then "none" else releaseRisks.distinct.mkString("+")}"
     ).mkString(";")
 
-private[commentary] object OwnerProofTrace:
-  val empty: OwnerProofTrace = OwnerProofTrace()
+private[commentary] object ProofTrace:
+  val empty: ProofTrace = ProofTrace()
 
-private[commentary] object OwnerProofRules:
+private[commentary] object ProofContractRules:
 
   private val ExactOwnerWitnesses =
     Set(
-      OwnerProofWitness.OwnerSeed,
-      OwnerProofWitness.Continuation,
-      OwnerProofWitness.BranchProof,
-      OwnerProofWitness.StablePersistence,
-      OwnerProofWitness.NoRivalRelease,
-      OwnerProofWitness.NoTacticalVeto
+      ProofWitness.OwnerSeed,
+      ProofWitness.Continuation,
+      ProofWitness.BranchProof,
+      ProofWitness.StablePersistence,
+      ProofWitness.NoRivalRelease,
+      ProofWitness.NoTacticalVeto
     )
 
   private val WeakOwnerWitnesses =
     Set(
-      OwnerProofWitness.OwnerSeed,
-      OwnerProofWitness.Continuation,
-      OwnerProofWitness.NoRivalRelease,
-      OwnerProofWitness.NoTacticalVeto,
-      OwnerProofWitness.ClaimOnlySurface
+      ProofWitness.OwnerSeed,
+      ProofWitness.Continuation,
+      ProofWitness.NoRivalRelease,
+      ProofWitness.NoTacticalVeto,
+      ProofWitness.ClaimOnlySurface
     )
 
   private val DeferredWitnesses =
-    Set(OwnerProofWitness.OwnerSeed, OwnerProofWitness.NoTacticalVeto)
+    Set(ProofWitness.OwnerSeed, ProofWitness.NoTacticalVeto)
 
   private val TacticalWitnesses =
-    Set(OwnerProofWitness.OwnerSeed)
+    Set(ProofWitness.OwnerSeed)
 
   private def themeContract(
-      theme: ThemeTaxonomy.ThemeL1,
-      status: OwnerProofStatus,
+      theme: PlanTaxonomy.PlanTheme,
+      status: ProofContractStatus,
       defaultFailureTaxonomy: String
-  ): OwnerProofContract =
-    OwnerProofContract(
+  ): ProofContract =
+    ProofContract(
       id = s"theme:${theme.id}",
-      ownerFamily = theme.id,
+      proofFamily = theme.id,
       theme = Some(theme),
       subplan = None,
       acceptedSources = Set(theme.id),
       allowedScopes = Set(PlayerFacingPacketScope.BackendOnly),
       requiredWitnesses =
-        if theme == ThemeTaxonomy.ThemeL1.ImmediateTacticalGain then TacticalWitnesses else DeferredWitnesses,
+        if theme == PlanTaxonomy.PlanTheme.ImmediateTacticalGain then TacticalWitnesses else DeferredWitnesses,
       status = status,
       certifiedEligible = false,
       supportedLocalEligible = false,
@@ -119,18 +119,18 @@ private[commentary] object OwnerProofRules:
     )
 
   private def subplanContract(
-      subplan: ThemeTaxonomy.SubplanId,
-      status: OwnerProofStatus,
+      subplan: PlanTaxonomy.PlanKind,
+      status: ProofContractStatus,
       acceptedSources: Set[String],
       allowedScopes: Set[PlayerFacingPacketScope],
-      requiredWitnesses: Set[OwnerProofWitness],
+      requiredWitnesses: Set[ProofWitness],
       certifiedEligible: Boolean,
       supportedLocalEligible: Boolean,
       defaultFailureTaxonomy: String
-  ): OwnerProofContract =
-    OwnerProofContract(
+  ): ProofContract =
+    ProofContract(
       id = s"subplan:${subplan.id}",
-      ownerFamily = subplan.id,
+      proofFamily = subplan.id,
       theme = Some(subplan.theme),
       subplan = Some(subplan),
       acceptedSources = acceptedSources + subplan.id,
@@ -144,139 +144,139 @@ private[commentary] object OwnerProofRules:
 
   private def customContract(
       id: String,
-      ownerFamily: String,
+      proofFamily: String,
       acceptedSources: Set[String],
       allowedScopes: Set[PlayerFacingPacketScope],
-      requiredWitnesses: Set[OwnerProofWitness],
+      requiredWitnesses: Set[ProofWitness],
       certifiedEligible: Boolean,
       supportedLocalEligible: Boolean,
       defaultFailureTaxonomy: String
-  ): OwnerProofContract =
-    OwnerProofContract(
+  ): ProofContract =
+    ProofContract(
       id = s"runtime:$id",
-      ownerFamily = ownerFamily,
+      proofFamily = proofFamily,
       theme = None,
       subplan = None,
-      acceptedSources = acceptedSources + ownerFamily,
+      acceptedSources = acceptedSources + proofFamily,
       allowedScopes = allowedScopes,
       requiredWitnesses = requiredWitnesses,
-      status = OwnerProofStatus.Releasable,
+      status = ProofContractStatus.Releasable,
       certifiedEligible = certifiedEligible,
       supportedLocalEligible = supportedLocalEligible,
       defaultFailureTaxonomy = defaultFailureTaxonomy
     )
 
   private val ThemeContracts =
-    ThemeTaxonomy.ThemeL1.ranked.map { theme =>
-      if theme == ThemeTaxonomy.ThemeL1.WeaknessFixation then
-        OwnerProofContract(
+    PlanTaxonomy.PlanTheme.ranked.map { theme =>
+      if theme == PlanTaxonomy.PlanTheme.WeaknessFixation then
+        ProofContract(
           id = s"theme:${theme.id}",
-          ownerFamily = theme.id,
+          proofFamily = theme.id,
           theme = Some(theme),
           subplan = None,
           acceptedSources = Set(theme.id),
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
           requiredWitnesses = ExactOwnerWitnesses,
-          status = OwnerProofStatus.Releasable,
+          status = ProofContractStatus.Releasable,
           certifiedEligible = true,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "certified_owner_path"
         )
       else
         val status =
-          if theme == ThemeTaxonomy.ThemeL1.ImmediateTacticalGain then OwnerProofStatus.BackendOnly
-          else OwnerProofStatus.Deferred
+          if theme == PlanTaxonomy.PlanTheme.ImmediateTacticalGain then ProofContractStatus.BackendOnly
+          else ProofContractStatus.Deferred
         val taxonomy =
-          if theme == ThemeTaxonomy.ThemeL1.ImmediateTacticalGain then "tactical_truth_first"
+          if theme == PlanTaxonomy.PlanTheme.ImmediateTacticalGain then "tactical_truth_first"
           else "deferred_no_exact_owner"
         themeContract(theme, status, taxonomy)
     }
 
   private val SubplanContracts =
-    ThemeTaxonomy.SubplanId.values.toList.map {
-      case subplan @ ThemeTaxonomy.SubplanId.StaticWeaknessFixation =>
+    PlanTaxonomy.PlanKind.values.toList.map {
+      case subplan @ PlanTaxonomy.PlanKind.StaticWeaknessFixation =>
         subplanContract(
           subplan = subplan,
-          status = OwnerProofStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.ExactTargetFixationOwnerSource),
+          status = ProofContractStatus.Releasable,
+          acceptedSources = Set(PlayerFacingTruthModePolicy.ExactTargetFixationProofSource),
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
-          requiredWitnesses = ExactOwnerWitnesses + OwnerProofWitness.ExactSlice,
+          requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
           certifiedEligible = true,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "position_probe_not_certified"
         )
-      case subplan @ ThemeTaxonomy.SubplanId.BackwardPawnTargeting =>
+      case subplan @ PlanTaxonomy.PlanKind.BackwardPawnTargeting =>
         subplanContract(
           subplan = subplan,
-          status = OwnerProofStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource),
+          status = ProofContractStatus.Releasable,
+          acceptedSources = Set(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource),
           allowedScopes = Set(PlayerFacingPacketScope.PositionLocal),
-          requiredWitnesses = ExactOwnerWitnesses + OwnerProofWitness.ExactSlice,
+          requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
           certifiedEligible = true,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "position_probe_not_certified"
         )
-      case subplan @ ThemeTaxonomy.SubplanId.MinorityAttackFixation =>
+      case subplan @ PlanTaxonomy.PlanKind.MinorityAttackFixation =>
         subplanContract(
           subplan = subplan,
-          status = OwnerProofStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource, "minority_attack_fixation"),
+          status = ProofContractStatus.Releasable,
+          acceptedSources = Set(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource, "minority_attack_fixation"),
           allowedScopes = Set(PlayerFacingPacketScope.PositionLocal),
-          requiredWitnesses = ExactOwnerWitnesses + OwnerProofWitness.ExactSlice,
+          requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
           certifiedEligible = true,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "position_probe_not_certified"
         )
-      case subplan @ ThemeTaxonomy.SubplanId.IQPInducement =>
+      case subplan @ PlanTaxonomy.PlanKind.IQPInducement =>
         subplanContract(
           subplan = subplan,
-          status = OwnerProofStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.IQPInducementProbeOwnerSource),
+          status = ProofContractStatus.Releasable,
+          acceptedSources = Set(PlayerFacingTruthModePolicy.IQPInducementProbeProofSource),
           allowedScopes = Set(PlayerFacingPacketScope.PositionLocal, PlayerFacingPacketScope.MoveLocal),
           requiredWitnesses =
             WeakOwnerWitnesses +
-              OwnerProofWitness.StructureTransition,
+              ProofWitness.StructureTransition,
           certifiedEligible = false,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "iqp_inducement_probe_missing"
         )
-      case subplan @ ThemeTaxonomy.SubplanId.SimplificationWindow =>
+      case subplan @ PlanTaxonomy.PlanKind.SimplificationWindow =>
         subplanContract(
           subplan = subplan,
-          status = OwnerProofStatus.Releasable,
+          status = ProofContractStatus.Releasable,
           acceptedSources = Set("classification_transformation_window", "exchange_availability_bridge", "capture_exchange_transformation", "iqp_simplification_profile", "plan_match_transformation"),
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
-          requiredWitnesses = ExactOwnerWitnesses + OwnerProofWitness.StructureTransition,
+          requiredWitnesses = ExactOwnerWitnesses + ProofWitness.StructureTransition,
           certifiedEligible = true,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "same_job_or_conversion_relabel_blocked"
         )
-      case subplan @ ThemeTaxonomy.SubplanId.DefenderTrade =>
+      case subplan @ PlanTaxonomy.PlanKind.DefenderTrade =>
         subplanContract(
           subplan = subplan,
-          status = OwnerProofStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.DefenderTradeOwnerSource, "exchange_forcing_delta"),
+          status = ProofContractStatus.Releasable,
+          acceptedSources = Set(PlayerFacingTruthModePolicy.DefenderTradeProofSource, "exchange_forcing_delta"),
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
-          requiredWitnesses = WeakOwnerWitnesses + OwnerProofWitness.StructureTransition,
+          requiredWitnesses = WeakOwnerWitnesses + ProofWitness.StructureTransition,
           certifiedEligible = false,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "attacking_piece_trade_unowned"
         )
-      case subplan @ ThemeTaxonomy.SubplanId.QueenTradeShield =>
+      case subplan @ PlanTaxonomy.PlanKind.QueenTradeShield =>
         subplanContract(
           subplan = subplan,
-          status = OwnerProofStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.QueenTradeShieldOwnerSource),
+          status = ProofContractStatus.Releasable,
+          acceptedSources = Set(PlayerFacingTruthModePolicy.QueenTradeShieldProofSource),
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
-          requiredWitnesses = WeakOwnerWitnesses + OwnerProofWitness.ExactSlice,
+          requiredWitnesses = WeakOwnerWitnesses + ProofWitness.ExactSlice,
           certifiedEligible = false,
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "source_queen_trade_boundary"
         )
-      case subplan @ ThemeTaxonomy.SubplanId.BadPieceLiquidation =>
+      case subplan @ PlanTaxonomy.PlanKind.BadPieceLiquidation =>
         subplanContract(
           subplan = subplan,
-          status = OwnerProofStatus.Releasable,
+          status = ProofContractStatus.Releasable,
           acceptedSources = Set("bad_piece_liquidation"),
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
           requiredWitnesses = WeakOwnerWitnesses,
@@ -284,10 +284,10 @@ private[commentary] object OwnerProofRules:
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "attacking_piece_trade_unowned"
         )
-      case subplan if subplan.theme == ThemeTaxonomy.ThemeL1.ImmediateTacticalGain =>
+      case subplan if subplan.theme == PlanTaxonomy.PlanTheme.ImmediateTacticalGain =>
         subplanContract(
           subplan = subplan,
-          status = OwnerProofStatus.BackendOnly,
+          status = ProofContractStatus.BackendOnly,
           acceptedSources = Set(subplan.id),
           allowedScopes = Set(PlayerFacingPacketScope.BackendOnly),
           requiredWitnesses = TacticalWitnesses,
@@ -298,7 +298,7 @@ private[commentary] object OwnerProofRules:
       case subplan =>
         subplanContract(
           subplan = subplan,
-          status = OwnerProofStatus.Deferred,
+          status = ProofContractStatus.Deferred,
           acceptedSources = Set(subplan.id),
           allowedScopes = Set(PlayerFacingPacketScope.BackendOnly, PlayerFacingPacketScope.LineScoped),
           requiredWitnesses = DeferredWitnesses,
@@ -312,99 +312,99 @@ private[commentary] object OwnerProofRules:
     List(
       customContract(
         id = "half_open_file_pressure",
-        ownerFamily = "half_open_file_pressure",
-        acceptedSources = Set("local_file_entry_bind", ThemeTaxonomy.SubplanId.OpenFilePressure.id, ThemeTaxonomy.SubplanId.RookFileTransfer.id),
+        proofFamily = "half_open_file_pressure",
+        acceptedSources = Set("local_file_entry_bind", PlanTaxonomy.PlanKind.OpenFilePressure.id, PlanTaxonomy.PlanKind.RookFileTransfer.id),
         allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
-        requiredWitnesses = ExactOwnerWitnesses + OwnerProofWitness.ExactSlice,
+        requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
         certifiedEligible = true,
         supportedLocalEligible = true,
         defaultFailureTaxonomy = "certified_owner_path"
       ),
       customContract(
         id = "neutralize_key_break",
-        ownerFamily = "neutralize_key_break",
-        acceptedSources = Set("counterplay_axis_suppression", ThemeTaxonomy.SubplanId.BreakPrevention.id),
+        proofFamily = "neutralize_key_break",
+        acceptedSources = Set("counterplay_axis_suppression", PlanTaxonomy.PlanKind.BreakPrevention.id),
         allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
-        requiredWitnesses = ExactOwnerWitnesses + OwnerProofWitness.ExactSlice,
+        requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
         certifiedEligible = true,
         supportedLocalEligible = true,
         defaultFailureTaxonomy = "certified_owner_path"
       ),
       customContract(
         id = "counterplay_restraint",
-        ownerFamily = "counterplay_restraint",
-        acceptedSources = Set("prophylactic_move", ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id),
+        proofFamily = "counterplay_restraint",
+        acceptedSources = Set("prophylactic_move", PlanTaxonomy.PlanKind.ProphylaxisRestraint.id),
         allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
-        requiredWitnesses = ExactOwnerWitnesses + OwnerProofWitness.ExactSlice,
+        requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
         certifiedEligible = true,
         supportedLocalEligible = true,
         defaultFailureTaxonomy = "certified_owner_path"
       ),
       customContract(
         id = "trade_key_defender",
-        ownerFamily = "trade_key_defender",
-        acceptedSources = Set("exchange_forcing_delta", ThemeTaxonomy.SubplanId.DefenderTrade.id),
+        proofFamily = "trade_key_defender",
+        acceptedSources = Set("exchange_forcing_delta", PlanTaxonomy.PlanKind.DefenderTrade.id),
         allowedScopes = Set(PlayerFacingPacketScope.MoveLocal),
-        requiredWitnesses = ExactOwnerWitnesses + OwnerProofWitness.StructureTransition,
+        requiredWitnesses = ExactOwnerWitnesses + ProofWitness.StructureTransition,
         certifiedEligible = true,
         supportedLocalEligible = false,
         defaultFailureTaxonomy = "attacking_piece_trade_unowned"
       ),
       customContract(
-        id = PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerFamily,
-        ownerFamily = PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerFamily,
-        acceptedSources = Set(PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource),
+        id = PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofFamily,
+        proofFamily = PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofFamily,
+        acceptedSources = Set(PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource),
         allowedScopes = Set(PlayerFacingPacketScope.PositionLocal),
-        requiredWitnesses = ExactOwnerWitnesses + OwnerProofWitness.ExactSlice,
+        requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
         certifiedEligible = true,
         supportedLocalEligible = true,
         defaultFailureTaxonomy = "certified_owner_path"
       )
     )
 
-  val contracts: List[OwnerProofContract] =
+  val contracts: List[ProofContract] =
     (RuntimeContracts ++ SubplanContracts ++ ThemeContracts)
 
-  private val byOwnerFamily: Map[String, OwnerProofContract] =
+  private val byProofFamily: Map[String, ProofContract] =
     contracts
-      .groupBy(contract => normalize(contract.ownerFamily))
+      .groupBy(contract => normalize(contract.proofFamily))
       .view
       .mapValues(_.head)
       .toMap
 
-  def contractForFamily(ownerFamily: String): Option[OwnerProofContract] =
-    byOwnerFamily.get(normalize(ownerFamily))
+  def contractForProofFamily(proofFamily: String): Option[ProofContract] =
+    byProofFamily.get(normalize(proofFamily))
 
-  def contractForPacket(packet: PlayerFacingClaimPacket): Option[OwnerProofContract] =
-    contractForFamily(packet.ownerFamily)
+  def contractForPacket(packet: PlayerFacingClaimPacket): Option[ProofContract] =
+    contractForProofFamily(packet.proofFamily)
 
-  def supportsPositionProbeFamily(ownerFamily: String): Boolean =
-    contractForFamily(ownerFamily).exists(contract =>
+  def supportsPositionProbeProofFamily(proofFamily: String): Boolean =
+    contractForProofFamily(proofFamily).exists(contract =>
       contract.authorityEligible && contract.allowedScopes.contains(PlayerFacingPacketScope.PositionLocal)
     )
 
-  def supportsMoveDeltaFamily(ownerFamily: String): Boolean =
-    contractForFamily(ownerFamily).exists(contract =>
+  def supportsMoveDeltaProofFamily(proofFamily: String): Boolean =
+    contractForProofFamily(proofFamily).exists(contract =>
       contract.authorityEligible && contract.allowedScopes.contains(PlayerFacingPacketScope.MoveLocal)
     )
 
-  def exactOwnerPathFamily(ownerFamily: String): Boolean =
-    contractForFamily(ownerFamily).exists(contract => contract.certifiedEligible && contract.exactOwnerPath)
+  def exactProofFamily(proofFamily: String): Boolean =
+    contractForProofFamily(proofFamily).exists(contract => contract.certifiedEligible && contract.exactProofPath)
 
-  def certifiedEligible(ownerFamily: String): Boolean =
-    contractForFamily(ownerFamily).exists(_.certifiedEligible)
+  def certifiedEligible(proofFamily: String): Boolean =
+    contractForProofFamily(proofFamily).exists(_.certifiedEligible)
 
-  def supportedLocalEligible(ownerFamily: String): Boolean =
-    contractForFamily(ownerFamily).exists(_.supportedLocalEligible)
+  def supportedLocalEligible(proofFamily: String): Boolean =
+    contractForProofFamily(proofFamily).exists(_.supportedLocalEligible)
 
-  def traceFor(packet: PlayerFacingClaimPacket): OwnerProofTrace =
+  def traceFor(packet: PlayerFacingClaimPacket): ProofTrace =
     val contract = contractForPacket(packet)
-    OwnerProofTrace(
+    ProofTrace(
       contractId = contract.map(_.id),
       contractStatus = contract.map(_.status.toString),
       failureCodes = failureCodes(packet, contract),
-      seedWitness = packet.ownerPathWitness.hasOwnerSeed,
-      continuationWitness = packet.ownerPathWitness.hasContinuation,
+      seedWitness = packet.proofPathWitness.hasOwnerSeed,
+      continuationWitness = packet.proofPathWitness.hasContinuation,
       branchState = Some(packet.sameBranchState.toString),
       persistence = Some(packet.persistence.toString),
       rivalStory = packet.rivalKind,
@@ -413,11 +413,11 @@ private[commentary] object OwnerProofRules:
     )
 
   def attachTrace(packet: PlayerFacingClaimPacket): PlayerFacingClaimPacket =
-    packet.copy(ownerProofTrace = traceFor(packet))
+    packet.copy(proofTrace = traceFor(packet))
 
   def failureCodes(
       packet: PlayerFacingClaimPacket,
-      contract: Option[OwnerProofContract] = None
+      contract: Option[ProofContract] = None
   ): List[String] =
     val resolved = contract.orElse(contractForPacket(packet))
     val contractFailures =
@@ -426,27 +426,27 @@ private[commentary] object OwnerProofRules:
           List("contract:missing")
         case Some(c) =>
           List(
-            Option.when(c.status == OwnerProofStatus.Deferred)("contract:deferred_no_exact_owner"),
-            Option.when(c.status == OwnerProofStatus.BackendOnly)("contract:backend_only"),
+            Option.when(c.status == ProofContractStatus.Deferred)("contract:deferred_no_exact_owner"),
+            Option.when(c.status == ProofContractStatus.BackendOnly)("contract:backend_only"),
             Option.when(!c.allowedScopes.contains(packet.scope))("contract:scope_not_allowed"),
-            Option.when(!c.acceptedSources.contains(packet.ownerSource))("contract:source_not_accepted"),
-            Option.when(c.requiredWitnesses.contains(OwnerProofWitness.OwnerSeed) && !packet.ownerPathWitness.hasOwnerSeed)(
+            Option.when(!c.acceptedSources.contains(packet.proofSource))("contract:source_not_accepted"),
+            Option.when(c.requiredWitnesses.contains(ProofWitness.OwnerSeed) && !packet.proofPathWitness.hasOwnerSeed)(
               "witness:owner_seed_missing"
             ),
-            Option.when(c.requiredWitnesses.contains(OwnerProofWitness.Continuation) && !packet.ownerPathWitness.hasContinuation)(
+            Option.when(c.requiredWitnesses.contains(ProofWitness.Continuation) && !packet.proofPathWitness.hasContinuation)(
               "witness:continuation_missing"
             ),
-            Option.when(c.requiredWitnesses.contains(OwnerProofWitness.BranchProof) && packet.sameBranchState != PlayerFacingSameBranchState.Proven)(
+            Option.when(c.requiredWitnesses.contains(ProofWitness.BranchProof) && packet.sameBranchState != PlayerFacingSameBranchState.Proven)(
               "witness:branch_not_proven"
             ),
-            Option.when(c.requiredWitnesses.contains(OwnerProofWitness.StablePersistence) && packet.persistence != PlayerFacingClaimPersistence.Stable)(
+            Option.when(c.requiredWitnesses.contains(ProofWitness.StablePersistence) && packet.persistence != PlayerFacingClaimPersistence.Stable)(
               "witness:persistence_not_stable"
             ),
-            Option.when(c.requiredWitnesses.contains(OwnerProofWitness.StructureTransition) && !packet.ownerPathWitness.hasStructureTransition)(
+            Option.when(c.requiredWitnesses.contains(ProofWitness.StructureTransition) && !packet.proofPathWitness.hasStructureTransition)(
               "witness:structure_transition_missing"
             ),
             Option.when(
-              c.requiredWitnesses.contains(OwnerProofWitness.NoRivalRelease) &&
+              c.requiredWitnesses.contains(ProofWitness.NoRivalRelease) &&
                 (
                   packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.RivalStoryAlive) ||
                     packet.releaseRisks.contains(PlayerFacingClaimReleaseRisk.RivalRelease)

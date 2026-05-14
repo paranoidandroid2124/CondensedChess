@@ -24,8 +24,8 @@ class RestrictedDefenseConversionProofTest extends FunSuite:
       viability = PlanViability(score = score, label = "high", risk = "conversion test"),
       refutation = None,
       evidenceSources = List("theme:advantage_transformation"),
-      themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
-      subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id)
+      themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id)
     )
 
   private def evaluatedConversionPlan(
@@ -38,7 +38,7 @@ class RestrictedDefenseConversionProofTest extends FunSuite:
           attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
           stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
           provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyFamily.PlanAdvance
+          ontologyFamily = PlayerFacingClaimOntologyKind.PlanAdvance
         ),
       status: PlanEvidenceEvaluator.PlanEvidenceStatus =
         PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
@@ -56,8 +56,8 @@ class RestrictedDefenseConversionProofTest extends FunSuite:
       refuteProbeIds = Nil,
       missingSignals = missingSignals,
       pvCoupled = pvCoupled,
-      themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
-      subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+      themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id),
       claimCertification = claimCertification
     )
 

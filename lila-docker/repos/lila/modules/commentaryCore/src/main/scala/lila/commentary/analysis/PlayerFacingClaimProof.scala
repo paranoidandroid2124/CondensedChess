@@ -37,7 +37,7 @@ private[commentary] enum PlayerFacingClaimProvenanceClass:
   case PvCoupled
   case Deferred
 
-private[commentary] enum PlayerFacingClaimOntologyFamily:
+private[commentary] enum PlayerFacingClaimOntologyKind:
   case Access
   case Pressure
   case Exchange
@@ -77,26 +77,26 @@ private[commentary] object PlayerFacingClaimProof:
       packet.fallbackMode == PlayerFacingClaimFallbackMode.Suppress
 
   def hasConcreteOwnerSeed(packet: PlayerFacingClaimPacket): Boolean =
-    packet.ownerPathWitness.hasOwnerSeed &&
-      (packet.anchorTerms.nonEmpty || packet.ownerPathWitness.hasStructureTransition)
+    packet.proofPathWitness.hasOwnerSeed &&
+      (packet.anchorTerms.nonEmpty || packet.proofPathWitness.hasStructureTransition)
 
   def hasContinuationWitness(packet: PlayerFacingClaimPacket): Boolean =
     packet.sameBranchState == PlayerFacingSameBranchState.Proven ||
-      packet.ownerPathWitness.hasContinuation
+      packet.proofPathWitness.hasContinuation
 
   def hasStructureTransitionWitness(packet: PlayerFacingClaimPacket): Boolean =
-    packet.ownerPathWitness.hasStructureTransition
+    packet.proofPathWitness.hasStructureTransition
 
-  def exactOwnerPathFamily(packet: PlayerFacingClaimPacket): Boolean =
-    OwnerProofRules.exactOwnerPathFamily(packet.ownerFamily)
+  def exactProofFamily(packet: PlayerFacingClaimPacket): Boolean =
+    ProofContractRules.exactProofFamily(packet.proofFamily)
 
-  def exactOwnerPathFamily(ownerFamily: String): Boolean =
-    OwnerProofRules.exactOwnerPathFamily(ownerFamily)
+  def exactProofFamily(proofFamily: String): Boolean =
+    ProofContractRules.exactProofFamily(proofFamily)
 
   private def packetWitnessSatisfiesClaim(packet: PlayerFacingClaimPacket): Boolean =
     hasConcreteOwnerSeed(packet) &&
       (
-        !exactOwnerPathFamily(packet) ||
+        !exactProofFamily(packet) ||
           hasContinuationWitness(packet)
       )
 

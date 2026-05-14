@@ -96,8 +96,8 @@ object CommentaryQualitySupport:
       targetPly: Int,
       playedSan: String,
       selectedQuestion: Option[String],
-      selectedOwnerFamily: Option[String],
-      selectedOwnerSource: Option[String],
+      selectedOwnerKind: Option[String],
+      selectedSource: Option[String],
       replayOutcome: Option[String],
       digests: SurfaceDigestHashes
   )
@@ -243,11 +243,11 @@ object CommentaryQualitySupport:
       candidateText: String,
       surfaceOutcome: String,
       plannerQuestion: Option[String],
-      plannerOwnerFamily: Option[String],
-      plannerOwnerSource: Option[String],
+      plannerProofFamily: Option[String],
+      plannerProofSource: Option[String],
       surfaceQuestion: Option[String],
-      surfaceOwnerFamily: Option[String],
-      surfaceOwnerSource: Option[String],
+      surfaceProofFamily: Option[String],
+      surfaceProofSource: Option[String],
       upstreamTaxonomy: Option[String],
       upstreamAllowedByDesign: Boolean,
       upstreamAllowanceTag: Option[String],
@@ -422,8 +422,8 @@ object CommentaryQualitySupport:
       targetPly = entry.targetPly,
       playedSan = entry.playedSan,
       selectedQuestion = entry.plannerSelectedQuestion,
-      selectedOwnerFamily = entry.plannerSelectedOwnerFamily,
-      selectedOwnerSource = entry.plannerSelectedOwnerSource,
+      selectedOwnerKind = entry.plannerSelectedOwnerKind,
+      selectedSource = entry.plannerSelectedSource,
       replayOutcome = entry.surfaceReplayOutcome,
       digests =
         SurfaceDigestHashes(
@@ -448,12 +448,12 @@ object CommentaryQualitySupport:
         entry.chronicleReplayPrimaryKind
           .orElse(entry.plannerSelectedQuestion)
           .orElse(entry.chroniclePrimaryKind),
-      selectedOwnerFamily =
-        entry.chronicleReplaySelectedOwnerFamily
-          .orElse(entry.chronicleSelectedOwnerFamily),
-      selectedOwnerSource =
-        entry.chronicleReplaySelectedOwnerSource
-          .orElse(entry.chronicleSelectedOwnerSource),
+      selectedOwnerKind =
+        entry.chronicleReplaySelectedOwnerKind
+          .orElse(entry.chronicleSelectedOwnerKind),
+      selectedSource =
+        entry.chronicleReplaySelectedSource
+          .orElse(entry.chronicleSelectedSource),
       replayOutcome =
         entry.chronicleSurfaceReplayOutcome
           .orElse(Some(entry.chronicleReplayMode))
@@ -481,12 +481,12 @@ object CommentaryQualitySupport:
         entry.activeReplayPrimaryKind
           .orElse(entry.plannerSelectedQuestion)
           .orElse(entry.activePrimaryKind),
-      selectedOwnerFamily =
-        entry.activeReplaySelectedOwnerFamily
-          .orElse(entry.activeSelectedOwnerFamily),
-      selectedOwnerSource =
-        entry.activeReplaySelectedOwnerSource
-          .orElse(entry.activeSelectedOwnerSource),
+      selectedOwnerKind =
+        entry.activeReplaySelectedOwnerKind
+          .orElse(entry.activeSelectedOwnerKind),
+      selectedSource =
+        entry.activeReplaySelectedSource
+          .orElse(entry.activeSelectedSource),
       replayOutcome =
         entry.activeSurfaceReplayOutcome
           .orElse(Some(entry.activeReplayMode))
@@ -952,18 +952,18 @@ object CommentaryQualitySupport:
     val upstreamAllowanceTag = rowSurfaceOnlyAllowanceTag(parityRow)
     val questionAligned = alignedOption(entry.plannerSelectedQuestion, entry.plannerSelectedQuestion)
     val ownerAligned =
-      alignedOption(entry.plannerSelectedOwnerFamily, entry.plannerSelectedOwnerFamily) &&
-        alignedOption(entry.plannerSelectedOwnerSource, entry.plannerSelectedOwnerSource)
+      alignedOption(entry.plannerSelectedOwnerKind, entry.plannerSelectedOwnerKind) &&
+        alignedOption(entry.plannerSelectedSource, entry.plannerSelectedSource)
     val rubric =
       thresholdRubric(
         candidateText = candidateText,
         blankLike = blankLikeText(candidateText),
         plannerQuestion = entry.plannerSelectedQuestion,
-        plannerOwnerFamily = entry.plannerSelectedOwnerFamily,
-        plannerOwnerSource = entry.plannerSelectedOwnerSource,
+        plannerProofFamily = entry.plannerSelectedOwnerKind,
+        plannerProofSource = entry.plannerSelectedSource,
         surfaceQuestion = entry.plannerSelectedQuestion,
-        surfaceOwnerFamily = entry.plannerSelectedOwnerFamily,
-        surfaceOwnerSource = entry.plannerSelectedOwnerSource,
+        surfaceProofFamily = entry.plannerSelectedOwnerKind,
+        surfaceProofSource = entry.plannerSelectedSource,
         surfaceOutcome = entry.surfaceReplayOutcome.getOrElse(entry.bookmakerFallbackMode),
         exactFactual = entry.bookmakerFallbackMode == "exact_factual"
       )
@@ -977,11 +977,11 @@ object CommentaryQualitySupport:
       candidateText = candidateText,
       surfaceOutcome = entry.surfaceReplayOutcome.getOrElse(entry.bookmakerFallbackMode),
       plannerQuestion = entry.plannerSelectedQuestion,
-      plannerOwnerFamily = entry.plannerSelectedOwnerFamily,
-      plannerOwnerSource = entry.plannerSelectedOwnerSource,
+      plannerProofFamily = entry.plannerSelectedOwnerKind,
+      plannerProofSource = entry.plannerSelectedSource,
       surfaceQuestion = entry.plannerSelectedQuestion,
-      surfaceOwnerFamily = entry.plannerSelectedOwnerFamily,
-      surfaceOwnerSource = entry.plannerSelectedOwnerSource,
+      surfaceProofFamily = entry.plannerSelectedOwnerKind,
+      surfaceProofSource = entry.plannerSelectedSource,
       upstreamTaxonomy = parityRow.map(_.primaryTaxonomy),
       upstreamAllowedByDesign = rowAllowedByDesign(parityRow),
       upstreamAllowanceTag = upstreamAllowanceTag,
@@ -1010,10 +1010,10 @@ object CommentaryQualitySupport:
   ): SurfaceThresholdRow =
     val candidateText = normalizeText(entry.chronicleReplayNarrative.orElse(entry.chronicleNarrative).getOrElse(""))
     val surfaceQuestion = entry.chronicleReplayPrimaryKind.orElse(entry.chroniclePrimaryKind)
-    val surfaceOwnerFamily =
-      entry.chronicleReplaySelectedOwnerFamily.orElse(entry.chronicleSelectedOwnerFamily)
-    val surfaceOwnerSource =
-      entry.chronicleReplaySelectedOwnerSource.orElse(entry.chronicleSelectedOwnerSource)
+    val surfaceProofFamily =
+      entry.chronicleReplaySelectedOwnerKind.orElse(entry.chronicleSelectedOwnerKind)
+    val surfaceProofSource =
+      entry.chronicleReplaySelectedSource.orElse(entry.chronicleSelectedSource)
     val outcome =
       entry.chronicleSurfaceReplayOutcome
         .orElse(Some(entry.chronicleReplayMode))
@@ -1024,11 +1024,11 @@ object CommentaryQualitySupport:
         candidateText = candidateText,
         blankLike = entry.chronicleReplayBlankLike || blankLikeText(candidateText),
         plannerQuestion = entry.plannerSelectedQuestion,
-        plannerOwnerFamily = entry.plannerSelectedOwnerFamily,
-        plannerOwnerSource = entry.plannerSelectedOwnerSource,
+        plannerProofFamily = entry.plannerSelectedOwnerKind,
+        plannerProofSource = entry.plannerSelectedSource,
         surfaceQuestion = surfaceQuestion,
-        surfaceOwnerFamily = surfaceOwnerFamily,
-        surfaceOwnerSource = surfaceOwnerSource,
+        surfaceProofFamily = surfaceProofFamily,
+        surfaceProofSource = surfaceProofSource,
         surfaceOutcome = outcome,
         exactFactual = outcome == "factual_fallback"
       )
@@ -1042,18 +1042,18 @@ object CommentaryQualitySupport:
       candidateText = candidateText,
       surfaceOutcome = outcome,
       plannerQuestion = entry.plannerSelectedQuestion,
-      plannerOwnerFamily = entry.plannerSelectedOwnerFamily,
-      plannerOwnerSource = entry.plannerSelectedOwnerSource,
+      plannerProofFamily = entry.plannerSelectedOwnerKind,
+      plannerProofSource = entry.plannerSelectedSource,
       surfaceQuestion = surfaceQuestion,
-      surfaceOwnerFamily = surfaceOwnerFamily,
-      surfaceOwnerSource = surfaceOwnerSource,
+      surfaceProofFamily = surfaceProofFamily,
+      surfaceProofSource = surfaceProofSource,
       upstreamTaxonomy = parityRow.map(_.primaryTaxonomy),
       upstreamAllowedByDesign = rowAllowedByDesign(parityRow),
       upstreamAllowanceTag = rowSurfaceOnlyAllowanceTag(parityRow),
       plannerQuestionAligned = alignedOption(entry.plannerSelectedQuestion, surfaceQuestion),
       plannerOwnerAligned =
-        alignedOption(entry.plannerSelectedOwnerFamily, surfaceOwnerFamily) &&
-          alignedOption(entry.plannerSelectedOwnerSource, surfaceOwnerSource),
+        alignedOption(entry.plannerSelectedOwnerKind, surfaceProofFamily) &&
+          alignedOption(entry.plannerSelectedSource, surfaceProofSource),
       crossSurfaceQuestionDisagreement = crossSurfaceQuestionDisagreement(entry),
       crossSurfaceOwnerDisagreement = crossSurfaceOwnerDisagreement(entry),
       blankLike = entry.chronicleReplayBlankLike || blankLikeText(candidateText),
@@ -1078,8 +1078,8 @@ object CommentaryQualitySupport:
     val candidateText =
       normalizeText(entry.activeReplayNote.orElse(entry.activeNote).getOrElse(""))
     val surfaceQuestion = entry.activeReplayPrimaryKind.orElse(entry.activePrimaryKind)
-    val surfaceOwnerFamily = entry.activeReplaySelectedOwnerFamily.orElse(entry.activeSelectedOwnerFamily)
-    val surfaceOwnerSource = entry.activeReplaySelectedOwnerSource.orElse(entry.activeSelectedOwnerSource)
+    val surfaceProofFamily = entry.activeReplaySelectedOwnerKind.orElse(entry.activeSelectedOwnerKind)
+    val surfaceProofSource = entry.activeReplaySelectedSource.orElse(entry.activeSelectedSource)
     val outcome =
       entry.activeSurfaceReplayOutcome
         .orElse(Some(entry.activeReplayMode))
@@ -1090,11 +1090,11 @@ object CommentaryQualitySupport:
         candidateText = candidateText,
         blankLike = entry.activeReplayBlankLike || blankLikeText(candidateText),
         plannerQuestion = entry.plannerSelectedQuestion,
-        plannerOwnerFamily = entry.plannerSelectedOwnerFamily,
-        plannerOwnerSource = entry.plannerSelectedOwnerSource,
+        plannerProofFamily = entry.plannerSelectedOwnerKind,
+        plannerProofSource = entry.plannerSelectedSource,
         surfaceQuestion = surfaceQuestion,
-        surfaceOwnerFamily = surfaceOwnerFamily,
-        surfaceOwnerSource = surfaceOwnerSource,
+        surfaceProofFamily = surfaceProofFamily,
+        surfaceProofSource = surfaceProofSource,
         surfaceOutcome = outcome,
         exactFactual = false
       )
@@ -1108,18 +1108,18 @@ object CommentaryQualitySupport:
       candidateText = candidateText,
       surfaceOutcome = outcome,
       plannerQuestion = entry.plannerSelectedQuestion,
-      plannerOwnerFamily = entry.plannerSelectedOwnerFamily,
-      plannerOwnerSource = entry.plannerSelectedOwnerSource,
+      plannerProofFamily = entry.plannerSelectedOwnerKind,
+      plannerProofSource = entry.plannerSelectedSource,
       surfaceQuestion = surfaceQuestion,
-      surfaceOwnerFamily = surfaceOwnerFamily,
-      surfaceOwnerSource = surfaceOwnerSource,
+      surfaceProofFamily = surfaceProofFamily,
+      surfaceProofSource = surfaceProofSource,
       upstreamTaxonomy = parityRow.map(_.primaryTaxonomy),
       upstreamAllowedByDesign = rowAllowedByDesign(parityRow),
       upstreamAllowanceTag = rowSurfaceOnlyAllowanceTag(parityRow),
       plannerQuestionAligned = alignedOption(entry.plannerSelectedQuestion, surfaceQuestion),
       plannerOwnerAligned =
-        alignedOption(entry.plannerSelectedOwnerFamily, surfaceOwnerFamily) &&
-          alignedOption(entry.plannerSelectedOwnerSource, surfaceOwnerSource),
+        alignedOption(entry.plannerSelectedOwnerKind, surfaceProofFamily) &&
+          alignedOption(entry.plannerSelectedSource, surfaceProofSource),
       crossSurfaceQuestionDisagreement = crossSurfaceQuestionDisagreement(entry),
       crossSurfaceOwnerDisagreement = crossSurfaceOwnerDisagreement(entry),
       blankLike = entry.activeReplayBlankLike || blankLikeText(candidateText),
@@ -1142,11 +1142,11 @@ object CommentaryQualitySupport:
       candidateText: String,
       blankLike: Boolean,
       plannerQuestion: Option[String],
-      plannerOwnerFamily: Option[String],
-      plannerOwnerSource: Option[String],
+      plannerProofFamily: Option[String],
+      plannerProofSource: Option[String],
       surfaceQuestion: Option[String],
-      surfaceOwnerFamily: Option[String],
-      surfaceOwnerSource: Option[String],
+      surfaceProofFamily: Option[String],
+      surfaceProofSource: Option[String],
       surfaceOutcome: String,
       exactFactual: Boolean
   ): EvaluationRubricScores =
@@ -1157,11 +1157,11 @@ object CommentaryQualitySupport:
     val genericTimingShell =
       normalizeText(candidateText).toLowerCase.contains("other moves allow the position to slip away")
     val plannerHasSelection =
-      plannerQuestion.nonEmpty || plannerOwnerFamily.nonEmpty || plannerOwnerSource.nonEmpty
+      plannerQuestion.nonEmpty || plannerProofFamily.nonEmpty || plannerProofSource.nonEmpty
     val questionAligned = alignedOption(plannerQuestion, surfaceQuestion)
     val ownerAligned =
-      alignedOption(plannerOwnerFamily, surfaceOwnerFamily) &&
-        alignedOption(plannerOwnerSource, surfaceOwnerSource)
+      alignedOption(plannerProofFamily, surfaceProofFamily) &&
+        alignedOption(plannerProofSource, surfaceProofSource)
     val clarity =
       if !actualOutputPresent then 1
       else if blankLike then 2
@@ -1170,7 +1170,7 @@ object CommentaryQualitySupport:
       else 3
     val moveAttributionCorrectness =
       if !plannerHasSelection then
-        if surfaceQuestion.isEmpty && surfaceOwnerFamily.isEmpty && surfaceOwnerSource.isEmpty then 4 else 3
+        if surfaceQuestion.isEmpty && surfaceProofFamily.isEmpty && surfaceProofSource.isEmpty then 4 else 3
       else if questionAligned && ownerAligned && actualOutputPresent then 5
       else if questionAligned && ownerAligned then 3
       else if !actualOutputPresent then 2
@@ -1233,10 +1233,10 @@ object CommentaryQualitySupport:
   private def crossSurfaceOwnerDisagreement(
       entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
   ): Boolean =
-    entry.chronicleReplaySelectedOwnerFamily.orElse(entry.chronicleSelectedOwnerFamily) !=
-      entry.activeReplaySelectedOwnerFamily.orElse(entry.activeSelectedOwnerFamily) ||
-      entry.chronicleReplaySelectedOwnerSource.orElse(entry.chronicleSelectedOwnerSource) !=
-        entry.activeReplaySelectedOwnerSource.orElse(entry.activeSelectedOwnerSource)
+    entry.chronicleReplaySelectedOwnerKind.orElse(entry.chronicleSelectedOwnerKind) !=
+      entry.activeReplaySelectedOwnerKind.orElse(entry.activeSelectedOwnerKind) ||
+      entry.chronicleReplaySelectedSource.orElse(entry.chronicleSelectedSource) !=
+        entry.activeReplaySelectedSource.orElse(entry.activeSelectedSource)
 
   private def alignedOption(left: Option[String], right: Option[String]): Boolean =
     (left, right) match
@@ -1290,8 +1290,8 @@ object CommentaryQualitySupport:
       left.digests.bundleDigestHash.forall(_.trim.isEmpty) || right.digests.bundleDigestHash.forall(_.trim.isEmpty)
     val replayTupleEqual =
       left.selectedQuestion == right.selectedQuestion &&
-        left.selectedOwnerFamily == right.selectedOwnerFamily &&
-        left.selectedOwnerSource == right.selectedOwnerSource &&
+        left.selectedOwnerKind == right.selectedOwnerKind &&
+        left.selectedSource == right.selectedSource &&
         normalizedReplayOutcome(left.replayOutcome) == normalizedReplayOutcome(right.replayOutcome)
 
     if bundleMissing then
@@ -1474,22 +1474,22 @@ object CommentaryQualitySupport:
       else if active.replayOutcome.contains("omitted_after_primary") &&
           isPlannerOwnedLike(other.replayOutcome.getOrElse("")) &&
           active.selectedQuestion == other.selectedQuestion &&
-          active.selectedOwnerFamily == other.selectedOwnerFamily &&
-          active.selectedOwnerSource == other.selectedOwnerSource
+          active.selectedOwnerKind == other.selectedOwnerKind &&
+          active.selectedSource == other.selectedSource
       then Some(SurfaceOnlyAugmentationAllowance.ActiveOmittedAfterPrimaryAgainstPlannerOwned)
       else if active.replayOutcome.contains("attached") &&
           other.surface == SurfaceName.Chronicle &&
           other.replayOutcome.contains("planner_owned") &&
           active.selectedQuestion == other.selectedQuestion &&
-          active.selectedOwnerFamily == other.selectedOwnerFamily &&
-          active.selectedOwnerSource == other.selectedOwnerSource
+          active.selectedOwnerKind == other.selectedOwnerKind &&
+          active.selectedSource == other.selectedSource
       then Some(SurfaceOnlyAugmentationAllowance.ActiveAttachedAgainstChroniclePlannerOwned)
       else if active.replayOutcome.contains("attached") &&
           other.surface == SurfaceName.Bookmaker &&
           other.replayOutcome.contains("bookmaker_planner_owned") &&
           active.selectedQuestion == other.selectedQuestion &&
-          active.selectedOwnerFamily == other.selectedOwnerFamily &&
-          active.selectedOwnerSource == other.selectedOwnerSource
+          active.selectedOwnerKind == other.selectedOwnerKind &&
+          active.selectedSource == other.selectedSource
       then Some(SurfaceOnlyAugmentationAllowance.ActiveAttachedAgainstBookmakerPlannerOwned)
       else None
     }
@@ -1660,8 +1660,8 @@ object CommentaryQualitySupport:
       snapshot: SurfaceParitySnapshot
   ): Boolean =
     snapshot.selectedQuestion.isEmpty &&
-      snapshot.selectedOwnerFamily.isEmpty &&
-      snapshot.selectedOwnerSource.isEmpty
+      snapshot.selectedOwnerKind.isEmpty &&
+      snapshot.selectedSource.isEmpty
 
   private def jsonOrNull[A: Writes](
       value: Option[A]

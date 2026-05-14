@@ -100,7 +100,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
           failureModes = List("If the move order slips, the defense reappears."),
           viability = PlanViability(score = 0.8, label = "high", risk = "b1b validation"),
           evidenceSources = List("theme:advantage_transformation"),
-          themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
+          themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
           subplanId = scenario.subplanId
         ),
       status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
@@ -110,7 +110,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
       refuteProbeIds = Nil,
       missingSignals = Nil,
       pvCoupled = false,
-      themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
+      themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
       subplanId = scenario.subplanId,
       claimCertification =
         PlanEvidenceEvaluator.ClaimCertification(
@@ -120,7 +120,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
           attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
           stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
           provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyFamily.PlanAdvance
+          ontologyFamily = PlayerFacingClaimOntologyKind.PlanAdvance
         )
     )
 
@@ -188,7 +188,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         id = "endgame_technical_true_conversion",
         planId = "opposite_bishops_conversion",
         planName = "Convert on the dark squares",
-        subplanId = Some(ThemeTaxonomy.SubplanId.OppositeBishopsConversion.id),
+        subplanId = Some(PlanTaxonomy.PlanKind.OppositeBishopsConversion.id),
         phase = PhaseCell.TransitionEndgameAdjacent,
         evalPosture = EvalPostureCell.ClearlyWinning,
         texture = TextureCell.TechnicalSimplification,
@@ -210,7 +210,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         id = "late_middlegame_counterplay_suppression",
         planId = "counterplay_suppression_conversion",
         planName = "Shut down queenside counterplay and convert",
-        subplanId = Some(ThemeTaxonomy.SubplanId.InvasionTransition.id),
+        subplanId = Some(PlanTaxonomy.PlanKind.InvasionTransition.id),
         phase = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyWinning,
         texture = TextureCell.CounterplaySuppression,
@@ -233,7 +233,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         id = "quiet_preparation_non_conversion_ready",
         planId = "quiet_improvement_conversion_shell",
         planName = "Improve first before a conversion exists",
-        subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+        subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id),
         phase = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.SlightlyBetterNonConversionReady,
         texture = TextureCell.QuietImprovementBeforeConversion,
@@ -256,7 +256,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         id = "equal_tactical_looking_pv_restatement",
         planId = "tactical_shell_conversion",
         planName = "A tactical-looking conversion shell",
-        subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+        subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id),
         phase = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.EqualOrUnclear,
         texture = TextureCell.TacticalLookingShouldFailOrDefer,
@@ -280,7 +280,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         id = "cooperative_plan_fake",
         planId = "cooperative_conversion",
         planName = "A route that works only if the defender cooperates",
-        subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+        subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id),
         phase = PhaseCell.TransitionEndgameAdjacent,
         evalPosture = EvalPostureCell.ClearlyWinning,
         texture = TextureCell.TechnicalSimplification,
@@ -303,7 +303,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         id = "hidden_defense_resource",
         planId = "hidden_resource_conversion",
         planName = "A route with too many hidden holds",
-        subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+        subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id),
         phase = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyWinning,
         texture = TextureCell.CounterplaySuppression,
@@ -332,7 +332,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         id = "move_order_fragile_conversion",
         planId = "move_order_fragile_conversion",
         planName = "A conversion that collapses if the order slips",
-        subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+        subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id),
         phase = PhaseCell.TransitionEndgameAdjacent,
         evalPosture = EvalPostureCell.ClearlyWinning,
         texture = TextureCell.MoveOrderSensitive,
@@ -355,7 +355,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         id = "stitched_defended_branch_conversion",
         planId = "stitched_defended_branch_conversion",
         planName = "A conversion shell with stitched persistence",
-        subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+        subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id),
         phase = PhaseCell.TransitionEndgameAdjacent,
         evalPosture = EvalPostureCell.ClearlyWinning,
         texture = TextureCell.TechnicalSimplification,

@@ -149,7 +149,7 @@ object BookmakerProseGoldenFixtures:
       visibilityRole: TruthVisibilityRole,
       surfaceMode: TruthSurfaceMode,
       truthClass: DecisiveTruthClass = DecisiveTruthClass.Best,
-      reasonFamily: DecisiveReasonFamily = DecisiveReasonFamily.QuietTechnicalMove
+      reasonFamily: DecisiveReasonKind = DecisiveReasonKind.QuietTechnicalMove
   ): DecisiveTruthContract =
     DecisiveTruthContract(
       playedMove = Some("c3g3"),
@@ -824,7 +824,7 @@ object BookmakerProseGoldenFixtures:
               visibilityRole = TruthVisibilityRole.PrimaryVisible,
               surfaceMode = TruthSurfaceMode.FailureExplain,
               truthClass = DecisiveTruthClass.Blunder,
-              reasonFamily = DecisiveReasonFamily.TacticalRefutation
+              reasonFamily = DecisiveReasonKind.TacticalRefutation
             )
           ),
         expectedPrimaryKind = Some(AuthorQuestionKind.WhyThis),
@@ -885,7 +885,7 @@ object BookmakerProseGoldenFixtures:
               visibilityRole = TruthVisibilityRole.PrimaryVisible,
               surfaceMode = TruthSurfaceMode.FailureExplain,
               truthClass = DecisiveTruthClass.Blunder,
-              reasonFamily = DecisiveReasonFamily.TacticalRefutation
+              reasonFamily = DecisiveReasonKind.TacticalRefutation
             )
           ),
         expectedPrimaryKind = None,
@@ -949,8 +949,8 @@ object BookmakerProseGoldenFixtures:
               List(
                 StrategicPlanExperiment(
                   planId = "opposite_bishops_conversion",
-                  themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
-                  subplanId = Some(ThemeTaxonomy.SubplanId.OppositeBishopsConversion.id),
+                  themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
+                  subplanId = Some(PlanTaxonomy.PlanKind.OppositeBishopsConversion.id),
                   evidenceTier = "evidence_backed",
                   supportProbeCount = 1,
                   bestReplyStable = true,
@@ -1001,8 +1001,8 @@ object BookmakerProseGoldenFixtures:
               List(
                 StrategicPlanExperiment(
                   planId = "opposite_bishops_conversion",
-                  themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
-                  subplanId = Some(ThemeTaxonomy.SubplanId.OppositeBishopsConversion.id),
+                  themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
+                  subplanId = Some(PlanTaxonomy.PlanKind.OppositeBishopsConversion.id),
                   evidenceTier = "deferred",
                   supportProbeCount = 1,
                   bestReplyStable = false,

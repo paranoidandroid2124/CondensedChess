@@ -275,8 +275,8 @@ object TaskShiftSourceReview:
   private def renderPlan(plan: QuestionPlan): String =
     List(
       plan.questionKind.toString,
-      plan.ownerFamily.wireName,
-      plan.ownerSource,
+      plan.plannerOwnerKind.wireName,
+      plan.plannerSource,
       plan.claim,
       s"sourceKinds=${plan.sourceKinds.mkString(",")}"
     ).mkString("[", " | ", "]")
@@ -285,8 +285,8 @@ object TaskShiftSourceReview:
     val packet = delta.packet
     List(
       s"deltaClass=${delta.deltaClass}",
-      s"ownerSource=${packet.ownerSource}",
-      s"ownerFamily=${packet.ownerFamily}",
+      s"proofSource=${packet.proofSource}",
+      s"proofFamily=${packet.proofFamily}",
       s"trigger=${packet.triggerKind}",
       s"bestDefenseBranchKey=${packet.bestDefenseBranchKey.getOrElse("-")}",
       s"sameBranchState=${packet.sameBranchState}",
@@ -294,6 +294,6 @@ object TaskShiftSourceReview:
       s"suppression=${if packet.suppressionReasons.isEmpty then "-" else packet.suppressionReasons.mkString(",")}",
       s"releaseRisks=${if packet.releaseRisks.isEmpty then "-" else packet.releaseRisks.mkString(",")}",
       s"fallback=${packet.fallbackMode}",
-      s"ownerSeed=${if packet.ownerPathWitness.ownerSeedTerms.isEmpty then "-" else packet.ownerPathWitness.ownerSeedTerms.mkString(",")}",
-      s"continuation=${if packet.ownerPathWitness.continuationTerms.isEmpty then "-" else packet.ownerPathWitness.continuationTerms.mkString(",")}"
+      s"ownerSeed=${if packet.proofPathWitness.ownerSeedTerms.isEmpty then "-" else packet.proofPathWitness.ownerSeedTerms.mkString(",")}",
+      s"continuation=${if packet.proofPathWitness.continuationTerms.isEmpty then "-" else packet.proofPathWitness.continuationTerms.mkString(",")}"
     ).mkString("[", " | ", "]")

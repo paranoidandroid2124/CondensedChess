@@ -87,7 +87,7 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
       truthPhase: Option[InvestmentTruthPhase] = None,
       payoffAnchor: Option[String] = None,
       benchmarkProseAllowed: Boolean = false,
-      reasonFamily: DecisiveReasonFamily = DecisiveReasonFamily.InvestmentSacrifice,
+      reasonFamily: DecisiveReasonKind = DecisiveReasonKind.InvestmentSacrifice,
       failureMode: FailureInterpretationMode = FailureInterpretationMode.NoClearPlan,
       cpLoss: Int = 0,
       swingSeverity: Int = 0,
@@ -104,10 +104,10 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
       cpLoss = cpLoss,
       swingSeverity = swingSeverity,
       reasonFamily =
-        if reasonFamily != DecisiveReasonFamily.InvestmentSacrifice then reasonFamily
-        else if ownershipRole == TruthOwnershipRole.ConversionOwner then DecisiveReasonFamily.Conversion
-        else if ownershipRole == TruthOwnershipRole.BlunderOwner then DecisiveReasonFamily.TacticalRefutation
-        else DecisiveReasonFamily.InvestmentSacrifice,
+        if reasonFamily != DecisiveReasonKind.InvestmentSacrifice then reasonFamily
+        else if ownershipRole == TruthOwnershipRole.ConversionOwner then DecisiveReasonKind.Conversion
+        else if ownershipRole == TruthOwnershipRole.BlunderOwner then DecisiveReasonKind.TacticalRefutation
+        else DecisiveReasonKind.InvestmentSacrifice,
       allowConcreteBenchmark = false,
       chosenMatchesBest = true,
       compensationAllowed = surfaceMode == TruthSurfaceMode.InvestmentExplain,
@@ -424,7 +424,7 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
           visibilityRole = TruthVisibilityRole.PrimaryVisible,
           surfaceMode = TruthSurfaceMode.FailureExplain,
           truthClass = DecisiveTruthClass.Blunder,
-          reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+          reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
           failureMode = FailureInterpretationMode.OnlyMoveFailure,
           cpLoss = 560,
           swingSeverity = 21,
@@ -436,7 +436,7 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
           visibilityRole = TruthVisibilityRole.Hidden,
           surfaceMode = TruthSurfaceMode.Neutral,
           truthClass = DecisiveTruthClass.Mistake,
-          reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+          reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
           failureMode = FailureInterpretationMode.OnlyMoveFailure,
           cpLoss = 218,
           swingSeverity = 48,
@@ -942,7 +942,7 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.Hidden,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.QuietTechnicalMove,
+            reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
             benchmarkCriticalMove = true
           ),
           31 -> truthContract(

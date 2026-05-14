@@ -118,8 +118,8 @@ class StrategicIdeaSelectorTest extends FunSuite:
         strategicPlanExperiments = List(
           StrategicPlanExperiment(
             planId = "flank_attack",
-            themeL1 = ThemeTaxonomy.ThemeL1.FlankInfrastructure.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.HookCreation.id),
+            themeL1 = PlanTaxonomy.PlanTheme.FlankInfrastructure.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.HookCreation.id),
             evidenceTier = "refuted",
             refuteProbeCount = 1,
             moveOrderSensitive = true,
@@ -141,8 +141,8 @@ class StrategicIdeaSelectorTest extends FunSuite:
         strategicPlanExperiments = List(
           StrategicPlanExperiment(
             planId = "space_clamp",
-            themeL1 = ThemeTaxonomy.ThemeL1.SpaceClamp.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.CentralSpaceBind.id),
+            themeL1 = PlanTaxonomy.PlanTheme.SpaceClamp.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.CentralSpaceBind.id),
             evidenceTier = "pv_coupled",
             moveOrderSensitive = true,
             experimentConfidence = 0.52
@@ -164,8 +164,8 @@ class StrategicIdeaSelectorTest extends FunSuite:
         strategicPlanExperiments = List(
           StrategicPlanExperiment(
             planId = "outpost_plan",
-            themeL1 = ThemeTaxonomy.ThemeL1.PieceRedeployment.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.OutpostEntrenchment.id),
+            themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.OutpostEntrenchment.id),
             evidenceTier = "evidence_backed",
             supportProbeCount = 1,
             bestReplyStable = true,

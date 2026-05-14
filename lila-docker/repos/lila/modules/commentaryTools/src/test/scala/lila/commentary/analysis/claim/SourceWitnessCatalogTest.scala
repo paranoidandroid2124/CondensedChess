@@ -43,7 +43,7 @@ class SourceWitnessCatalogTest extends FunSuite:
     assertEquals(rows.map(_.id).distinct.size, rows.size)
     assert(rows.forall(_.sourceUrl.startsWith("https://")), clues(rows.map(_.sourceUrl)))
     assert(rows.forall(_.gameName.nonEmpty), clues(rows))
-    assert(rows.forall(_.family.nonEmpty), clues(rows))
+    assert(rows.forall(_.reviewGroup.nonEmpty), clues(rows))
     assert(rows.forall(_.intendedVerdict.nonEmpty), clues(rows))
     assert(rows.forall(_.validationNote.nonEmpty), clues(rows))
   }

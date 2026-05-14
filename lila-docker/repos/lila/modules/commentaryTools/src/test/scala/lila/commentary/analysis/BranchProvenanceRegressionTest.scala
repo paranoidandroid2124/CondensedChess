@@ -13,7 +13,7 @@ class BranchProvenanceRegressionTest extends FunSuite:
       truthClass = DecisiveTruthClass.Blunder,
       cpLoss = 280,
       swingSeverity = 280,
-      reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+      reasonFamily = DecisiveReasonKind.TacticalRefutation,
       allowConcreteBenchmark = false,
       chosenMatchesBest = false,
       compensationAllowed = false,

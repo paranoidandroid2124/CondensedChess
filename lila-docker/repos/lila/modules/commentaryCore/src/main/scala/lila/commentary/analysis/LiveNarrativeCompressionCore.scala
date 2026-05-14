@@ -67,6 +67,7 @@ private[commentary] object LiveNarrativeCompressionCore:
     """\b[a-h]-file\b""".r,
     """\b(?:queenside|kingside|central|open)\s+files?\b""".r,
     """\b(?:queenside|kingside|central|fixed)\s+targets?\b""".r,
+    """\b(?:queenside|kingside|central)\s+counterplay\b""".r,
     """\b(?:light|dark)-squared\b""".r,
     """\b(?:exchange|trade|recapture|pawn break|break|castling|castle|back-rank)\b""".r,
     """(?:^|\s)(?:\d+\.(?:\.\.)?\s*)?(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?)""".r,

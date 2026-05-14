@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import lila.commentary.analysis.ThemeTaxonomy.SubplanId
+import lila.commentary.analysis.PlanTaxonomy.PlanKind
 import lila.commentary.model.{ FactScope, FutureSnapshot, ProbeResult }
 import lila.commentary.model.strategic.PreventedPlan
 
@@ -60,7 +60,7 @@ private[commentary] object CounterplayRestraintProof:
   )
 
   private val ApplicableSubplans =
-    Set(SubplanId.ProphylaxisRestraint.id, SubplanId.BreakPrevention.id, SubplanId.KeySquareDenial.id)
+    Set(PlanKind.ProphylaxisRestraint.id, PlanKind.BreakPrevention.id, PlanKind.KeySquareDenial.id)
   private val DirectReplyPurposes =
     Set("defense_reply_multipv", "reply_multipv")
   private val ValidationPurposes =
@@ -182,8 +182,8 @@ private[commentary] object CounterplayRestraintProof:
           !plan.claimCertification.alternativeDominance
       val ontologyAllowed =
         Set(
-          PlayerFacingClaimOntologyFamily.RouteDenial,
-          PlayerFacingClaimOntologyFamily.LongTermRestraint
+          PlayerFacingClaimOntologyKind.RouteDenial,
+          PlayerFacingClaimOntologyKind.LongTermRestraint
         ).contains(plan.claimCertification.ontologyFamily)
       val restrictionDeltaMeasured =
         primaryAxis.exists(axis =>
@@ -235,9 +235,9 @@ private[commentary] object CounterplayRestraintProof:
       val claimScope =
         primaryAxis.map(_.claimScope).getOrElse("break_axis")
       val requiresNamedResource =
-        plan.subplanId.contains(SubplanId.ProphylaxisRestraint.id)
+        plan.subplanId.contains(PlanKind.ProphylaxisRestraint.id)
       val squeezeArchetype =
-        if plan.subplanId.contains(SubplanId.KeySquareDenial.id) || claimScope == "entry_axis" then
+        if plan.subplanId.contains(PlanKind.KeySquareDenial.id) || claimScope == "entry_axis" then
           "route_denial"
         else "prophylactic_clamp"
       val restrictionEvidence =
@@ -340,7 +340,7 @@ private[commentary] object CounterplayRestraintProof:
   private def isApplicablePlan(
       plan: PlanEvidenceEvaluator.EvaluatedPlan
   ): Boolean =
-    normalize(plan.themeL1) == ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id &&
+    normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id &&
       plan.subplanId.exists(id => ApplicableSubplans.contains(normalize(id)))
 
   private def axisSignal(

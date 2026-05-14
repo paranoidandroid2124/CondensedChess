@@ -203,7 +203,7 @@ object StrategicPuzzlePrePolishRunner:
             val rootVars = reorderRootVariations(row.rootAnalysis.variations, move.uci)
             val resultOpt =
               Await.result(
-                commentaryApi.bookmakerCommentPosition(
+                commentaryApi.moveReviewPosition(
                   fen = row.position.fen,
                   lastMove = Some(move.uci),
                   eval = bestEvalData(rootVars),

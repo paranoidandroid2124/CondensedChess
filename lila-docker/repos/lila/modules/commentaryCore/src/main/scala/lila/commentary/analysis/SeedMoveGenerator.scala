@@ -12,13 +12,13 @@ import lila.commentary.model.authoring.*
 object SeedMoveGenerator:
 
   def generate(seed: LatentSeed, pos: Position, us: Color): List[MovePattern] =
-    seed.family match
-      case SeedFamily.Pawn         => genPawnMoves(seed, pos, us)
-      case SeedFamily.Piece        => genPieceManeuvers(seed, pos, us)
-      case SeedFamily.Structure    => genStructureMoves(seed, pos, us)
-      case SeedFamily.Exchange     => genExchanges(seed, pos, us)
-      case SeedFamily.Prophylaxis  => genProphylaxis(seed, pos, us)
-      case SeedFamily.TacticalPrep => genTacticalPrep(seed, pos, us)
+    seed.seedKind match
+      case SeedKind.Pawn         => genPawnMoves(seed, pos, us)
+      case SeedKind.Piece        => genPieceManeuvers(seed, pos, us)
+      case SeedKind.Structure    => genStructureMoves(seed, pos, us)
+      case SeedKind.Exchange     => genExchanges(seed, pos, us)
+      case SeedKind.Prophylaxis  => genProphylaxis(seed, pos, us)
+      case SeedKind.TacticalPrep => genTacticalPrep(seed, pos, us)
   // 1. Pawn Logic (Levers, Storms, Hook Attacks)
   private def genPawnMoves(seed: LatentSeed, pos: Position, us: Color): List[MovePattern] =
     seed.id match

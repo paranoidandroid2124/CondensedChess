@@ -651,7 +651,7 @@ plus the local quality-audit rerun artifacts referenced there.
     Chronicle may replace only `primary.contrast`, and Active may replace only
     the selected support sentence in the deterministic note body, when
     `ContrastiveSupportAdmissibility` certifies the replacement from
-    preexisting shared-planner/truth inputs; primary selection, owner family,
+    preexisting shared-planner/truth inputs; primary selection, planner owner kind,
     and ranking stay unchanged
   - Chronicle moment prose now consumes that same planner output directly:
     Chronicle may only reorder planner top-2 locally, `primary` still owns the
@@ -665,8 +665,8 @@ plus the local quality-audit rerun artifacts referenced there.
     Chronicle / Bookmaker / Active may consume the same planner trace
     (`scene_type`, `owner_candidates`, `admitted_families`,
     `dropped_families`, `demotion_reasons`, `selected_question`,
-    `selected_owner_family`, `selected_owner_source`) but they may not mint a
-    new owner family locally from that trace
+    `selected_proof_family`, `selected_proof_source`) but they may not mint a
+    new planner owner kind locally from that trace
   - shared-planner admission is now live in v1:
     every normalized candidate carries `admission_decision`,
     `admission_reason`, and optional `demoted_to`, and ranking only sees
@@ -727,7 +727,7 @@ plus the local quality-audit rerun artifacts referenced there.
   - Chronicle / Active replay may reuse carried
     `openingRelationClaim` / `endgameTransitionClaim` digest fields only to
     reconstruct the same already-legal planner result; replay may not mint a
-    new owner family or re-promote support-only domain text
+    new planner owner kind or re-promote support-only domain text
   - `WhatChanged` move ownership remains separate from state summary:
     move-attributed `preventedPlans`, counterplay-window removal, or concrete
     decision-comparison balance shift may own `WhatChanged`, but a bare

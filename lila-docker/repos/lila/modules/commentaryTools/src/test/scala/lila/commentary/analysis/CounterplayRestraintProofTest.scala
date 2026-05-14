@@ -18,7 +18,7 @@ class CounterplayRestraintProofTest extends FunSuite:
   private def restrictionHypothesis(
       id: String = "named_break_suppression",
       name: String = "Clamp the ...c5 break",
-      subplanId: String = ThemeTaxonomy.SubplanId.BreakPrevention.id,
+      subplanId: String = PlanTaxonomy.PlanKind.BreakPrevention.id,
       executionSteps: List[String] = List("Keep the ...c5 break closed before expanding.")
   ): PlanHypothesis =
     PlanHypothesis(
@@ -32,13 +32,13 @@ class CounterplayRestraintProofTest extends FunSuite:
       viability = PlanViability(score = 0.79, label = "high", risk = "B2b unit"),
       refutation = None,
       evidenceSources = List("theme:restriction_prophylaxis"),
-      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
       subplanId = Some(subplanId)
     )
 
   private def evaluatedRestrictionPlan(
       supportProbeIds: List[String],
-      subplanId: String = ThemeTaxonomy.SubplanId.BreakPrevention.id,
+      subplanId: String = PlanTaxonomy.PlanKind.BreakPrevention.id,
       hypothesis: PlanHypothesis = restrictionHypothesis(),
       claimCertification: PlanEvidenceEvaluator.ClaimCertification =
         PlanEvidenceEvaluator.ClaimCertification(
@@ -48,7 +48,7 @@ class CounterplayRestraintProofTest extends FunSuite:
           attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
           stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
           provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint
+          ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint
         ),
       status: PlanEvidenceEvaluator.PlanEvidenceStatus =
         PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
@@ -64,7 +64,7 @@ class CounterplayRestraintProofTest extends FunSuite:
       refuteProbeIds = Nil,
       missingSignals = missingSignals,
       pvCoupled = pvCoupled,
-      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
       subplanId = Some(subplanId),
       claimCertification = claimCertification
     )

@@ -28,7 +28,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
   private def truthContract(
       truthClass: DecisiveTruthClass,
-      reasonFamily: DecisiveReasonFamily
+      reasonFamily: DecisiveReasonKind
   ): DecisiveTruthContract =
     DecisiveTruthContract(
       playedMove = Some("d1d5"),
@@ -66,7 +66,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       planName: String,
       subplanId: String,
       executionSteps: List[String],
-      themeL1: String = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id
+      themeL1: String = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id
   ): PlanHypothesis =
     PlanHypothesis(
       planId = planId,
@@ -85,7 +85,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
   private def evidenceBackedExperiment(
       planId: String,
       subplanId: String,
-      themeL1: String = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id
+      themeL1: String = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id
   ): StrategicPlanExperiment =
     StrategicPlanExperiment(
       planId = planId,
@@ -168,7 +168,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "entry_route_denial",
               planName = "Take away the b4 entry square",
-              subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id,
+              subplanId = PlanTaxonomy.PlanKind.KeySquareDenial.id,
               executionSteps = List("Keep Black out of b4 on the defended branch.")
             )
           ),
@@ -176,7 +176,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           List(
             evidenceBackedExperiment(
               planId = "entry_route_denial",
-              subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id
+              subplanId = PlanTaxonomy.PlanKind.KeySquareDenial.id
             )
           ),
         semantic = Some(
@@ -281,7 +281,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       PlayerFacingTruthModePolicy.classify(
         ctx,
         None,
-        Some(truthContract(DecisiveTruthClass.Blunder, DecisiveReasonFamily.TacticalRefutation))
+        Some(truthContract(DecisiveTruthClass.Blunder, DecisiveReasonKind.TacticalRefutation))
       ),
       PlayerFacingTruthMode.Tactical
     )
@@ -555,7 +555,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         )
       )
     val contract =
-      truthContract(DecisiveTruthClass.CompensatedInvestment, DecisiveReasonFamily.InvestmentSacrifice).copy(
+      truthContract(DecisiveTruthClass.CompensatedInvestment, DecisiveReasonKind.InvestmentSacrifice).copy(
         surfaceMode = TruthSurfaceMode.InvestmentExplain,
         compensationProseAllowed = true
       )
@@ -608,7 +608,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         )
       )
     val contract =
-      truthContract(DecisiveTruthClass.CompensatedInvestment, DecisiveReasonFamily.InvestmentSacrifice).copy(
+      truthContract(DecisiveTruthClass.CompensatedInvestment, DecisiveReasonKind.InvestmentSacrifice).copy(
         surfaceMode = TruthSurfaceMode.InvestmentExplain,
         verifiedPayoffAnchor = Some("pressure on g7"),
         compensationProseAllowed = true
@@ -916,7 +916,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "true_local_file_entry_bind",
               planName = "Take the c-file away and keep b4 closed",
-              subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id,
+              subplanId = PlanTaxonomy.PlanKind.KeySquareDenial.id,
               executionSteps = List("Take the c-file away first and keep b4 closed.")
             )
           ),
@@ -924,7 +924,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           List(
             evidenceBackedExperiment(
               planId = "true_local_file_entry_bind",
-              subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id
+              subplanId = PlanTaxonomy.PlanKind.KeySquareDenial.id
             )
           ),
         semantic = Some(
@@ -1005,8 +1005,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         None
       ).get
 
-    assertEquals(delta.packet.ownerSource, "local_file_entry_bind")
-    assertEquals(delta.packet.ownerFamily, "half_open_file_pressure")
+    assertEquals(delta.packet.proofSource, "local_file_entry_bind")
+    assertEquals(delta.packet.proofFamily, "half_open_file_pressure")
     assertEquals(delta.packet.bestDefenseBranchKey, Some("c1c8|f8e8"))
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
     assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
@@ -1024,7 +1024,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "local_file_entry_bind_missing_branch",
               planName = "Take the c-file away and keep b4 closed",
-              subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id,
+              subplanId = PlanTaxonomy.PlanKind.KeySquareDenial.id,
               executionSteps = List("Take the c-file away first and keep b4 closed.")
             )
           ),
@@ -1032,7 +1032,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           List(
             evidenceBackedExperiment(
               planId = "local_file_entry_bind_missing_branch",
-              subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id
+              subplanId = PlanTaxonomy.PlanKind.KeySquareDenial.id
             )
           ),
         semantic = Some(
@@ -1114,7 +1114,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(delta.packet.bestDefenseBranchKey, None)
     assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assert(!PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet))
-    Option.when(delta.packet.ownerFamily == "half_open_file_pressure")(delta.packet.sameBranchState).foreach { state =>
+    Option.when(delta.packet.proofFamily == "half_open_file_pressure")(delta.packet.sameBranchState).foreach { state =>
       assertEquals(state, PlayerFacingSameBranchState.Missing)
     }
   }
@@ -1128,7 +1128,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "named_break_suppression",
               planName = "Clamp the ...c5 break",
-              subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
               executionSteps = List("Keep the opponent's main counterplay route closed first.")
             )
           ),
@@ -1136,7 +1136,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           List(
             evidenceBackedExperiment(
               planId = "named_break_suppression",
-              subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id
             )
           ),
         semantic = Some(
@@ -1202,8 +1202,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         None
       ).get
 
-    assertEquals(delta.packet.ownerSource, "counterplay_axis_suppression")
-    assertEquals(delta.packet.ownerFamily, "neutralize_key_break")
+    assertEquals(delta.packet.proofSource, "counterplay_axis_suppression")
+    assertEquals(delta.packet.proofFamily, "neutralize_key_break")
     assertEquals(delta.packet.bestDefenseBranchKey, Some("c1c8|f8e8"))
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
     assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
@@ -1221,7 +1221,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "named_break_suppression_missing_branch",
               planName = "Clamp the ...c5 break",
-              subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
               executionSteps = List("Keep the opponent's main counterplay route closed first.")
             )
           ),
@@ -1229,7 +1229,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           List(
             evidenceBackedExperiment(
               planId = "named_break_suppression_missing_branch",
-              subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id
             )
           ),
         semantic = Some(
@@ -1295,7 +1295,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         None
       ).get
 
-    assertEquals(delta.packet.ownerFamily, "neutralize_key_break")
+    assertEquals(delta.packet.proofFamily, "neutralize_key_break")
     assertEquals(delta.packet.bestDefenseBranchKey, None)
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Missing)
     assert(delta.packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.SameBranchMissing))
@@ -1312,7 +1312,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "iqp_rival_shell",
               planName = "Induce the isolated pawn",
-              subplanId = ThemeTaxonomy.SubplanId.IQPInducement.id,
+              subplanId = PlanTaxonomy.PlanKind.IQPInducement.id,
               executionSteps = List("Use the central capture sequence.")
             )
           ),
@@ -1320,8 +1320,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           List(
             StrategicPlanExperiment(
               planId = "iqp_rival_shell",
-              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id,
-              subplanId = Some(ThemeTaxonomy.SubplanId.IQPInducement.id),
+              themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.IQPInducement.id),
               evidenceTier = "evidence_backed",
               supportProbeCount = 1,
               refuteProbeCount = 0,
@@ -1395,7 +1395,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         None
       ).get
 
-    assertNotEquals(delta.packet.ownerSource, "counterplay_axis_suppression")
+    assertNotEquals(delta.packet.proofSource, "counterplay_axis_suppression")
     assert(!PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet), clues(delta.packet))
   }
 
@@ -1408,7 +1408,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "prophylactic_move_named_resource",
               planName = "Slow queenside counterplay before expanding",
-              subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id,
+              subplanId = PlanTaxonomy.PlanKind.ProphylaxisRestraint.id,
               executionSteps = List("Slow queenside counterplay before expanding.")
             )
           ),
@@ -1416,7 +1416,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           List(
             evidenceBackedExperiment(
               planId = "prophylactic_move_named_resource",
-              subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id
+              subplanId = PlanTaxonomy.PlanKind.ProphylaxisRestraint.id
             )
           ),
         semantic = Some(
@@ -1482,8 +1482,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         None
       ).get
 
-    assertEquals(delta.packet.ownerSource, "prophylactic_move")
-    assertEquals(delta.packet.ownerFamily, "counterplay_restraint")
+    assertEquals(delta.packet.proofSource, "prophylactic_move")
+    assertEquals(delta.packet.proofFamily, "counterplay_restraint")
     assertEquals(delta.packet.bestDefenseBranchKey, Some("a2a3|b7b5"))
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
     assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
@@ -1501,7 +1501,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "prophylactic_move_named_resource_missing_branch",
               planName = "Slow queenside counterplay before expanding",
-              subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id,
+              subplanId = PlanTaxonomy.PlanKind.ProphylaxisRestraint.id,
               executionSteps = List("Slow queenside counterplay before expanding.")
             )
           ),
@@ -1509,7 +1509,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           List(
             evidenceBackedExperiment(
               planId = "prophylactic_move_named_resource_missing_branch",
-              subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id
+              subplanId = PlanTaxonomy.PlanKind.ProphylaxisRestraint.id
             )
           ),
         semantic = Some(
@@ -1575,8 +1575,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         None
       ).get
 
-    assertEquals(delta.packet.ownerSource, "prophylactic_move")
-    assertEquals(delta.packet.ownerFamily, "counterplay_restraint")
+    assertEquals(delta.packet.proofSource, "prophylactic_move")
+    assertEquals(delta.packet.proofFamily, "counterplay_restraint")
     assertEquals(delta.packet.bestDefenseBranchKey, None)
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Missing)
     assert(delta.packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.SameBranchMissing))
@@ -1637,17 +1637,17 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "defensive_regrouping_shell",
               planName = "Re-anchor the bishop to blunt queenside counterplay",
-              subplanId = ThemeTaxonomy.SubplanId.WorstPieceImprovement.id,
+              subplanId = PlanTaxonomy.PlanKind.WorstPieceImprovement.id,
               executionSteps = List("Re-anchor the bishop and cover the queenside route."),
-              themeL1 = ThemeTaxonomy.ThemeL1.PieceRedeployment.id
+              themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id
             )
           ),
         strategicPlanExperiments =
           List(
             evidenceBackedExperiment(
               planId = "defensive_regrouping_shell",
-              subplanId = ThemeTaxonomy.SubplanId.WorstPieceImprovement.id,
-              themeL1 = ThemeTaxonomy.ThemeL1.PieceRedeployment.id
+              subplanId = PlanTaxonomy.PlanKind.WorstPieceImprovement.id,
+              themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id
             )
           ),
         semantic = Some(
@@ -1714,8 +1714,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       )
 
     delta.foreach { evidence =>
-      assertNotEquals(evidence.packet.ownerSource, "prophylactic_move")
-      assertNotEquals(evidence.packet.ownerFamily, "counterplay_restraint")
+      assertNotEquals(evidence.packet.proofSource, "prophylactic_move")
+      assertNotEquals(evidence.packet.proofFamily, "counterplay_restraint")
     }
   }
 
@@ -1728,17 +1728,17 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "open_file_control_shell",
               planName = "Occupy the c-file with heavy pieces",
-              subplanId = ThemeTaxonomy.SubplanId.OpenFilePressure.id,
+              subplanId = PlanTaxonomy.PlanKind.OpenFilePressure.id,
               executionSteps = List("Occupy the c-file and pressure it."),
-              themeL1 = ThemeTaxonomy.ThemeL1.PieceRedeployment.id
+              themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id
             )
           ),
         strategicPlanExperiments =
           List(
             evidenceBackedExperiment(
               planId = "open_file_control_shell",
-              subplanId = ThemeTaxonomy.SubplanId.OpenFilePressure.id,
-              themeL1 = ThemeTaxonomy.ThemeL1.PieceRedeployment.id
+              subplanId = PlanTaxonomy.PlanKind.OpenFilePressure.id,
+              themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id
             )
           ),
         semantic = Some(
@@ -1805,7 +1805,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       )
 
     delta.foreach { evidence =>
-      assertNotEquals(evidence.packet.ownerFamily, "half_open_file_pressure")
+      assertNotEquals(evidence.packet.proofFamily, "half_open_file_pressure")
     }
   }
 
@@ -1820,17 +1820,17 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "weakness_fixation_shell",
               planName = "Keep the d6 weakness fixed",
-              subplanId = ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
+              subplanId = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
               executionSteps = List("Fix the d6 target and keep building pressure."),
-              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+              themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
             )
           ),
         strategicPlanExperiments =
           List(
             evidenceBackedExperiment(
               planId = "weakness_fixation_shell",
-              subplanId = ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
-              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+              subplanId = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+              themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
             )
           ),
         decision = Some(
@@ -1906,12 +1906,12 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         None
       ).get
 
-    assertEquals(delta.packet.ownerFamily, ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id)
+    assertEquals(delta.packet.proofFamily, PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
     assertEquals(delta.packet.bestDefenseBranchKey, Some("f3d2|b8a6"))
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
     assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)
-    assertEquals(delta.packet.ownerPathWitness.ownerSeedTerms.contains("d6"), true)
-    assert(delta.packet.ownerPathWitness.continuationTerms.nonEmpty)
+    assertEquals(delta.packet.proofPathWitness.ownerSeedTerms.contains("d6"), true)
+    assert(delta.packet.proofPathWitness.continuationTerms.nonEmpty)
     assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assert(!PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet))
 
@@ -1931,13 +1931,13 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the owner packet"))
 
       assertEquals(mainClaim.claimText, "This keeps the pressure fixed on d6.")
-      assertEquals(packet.ownerSource, PlayerFacingTruthModePolicy.ExactTargetFixationOwnerSource)
-      assertEquals(packet.ownerFamily, ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id)
+      assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.ExactTargetFixationProofSource)
+      assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
       assertEquals(packet.bestDefenseBranchKey, Some("f3d2|b8a6"))
       assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
       assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
       assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
-      assert(packet.ownerPathWitness.ownerSeedTerms.contains("d6"))
+      assert(packet.proofPathWitness.ownerSeedTerms.contains("d6"))
       assertEquals(
         ranked.primary.map(_.questionKind),
         Some(AuthorQuestionKind.WhatChanged)
@@ -1954,7 +1954,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         ranked.primary.flatMap(_.consequence.map(_.text)),
         Some("That same defended branch keeps the pressure fixed on d6.")
       )
-      assertEquals(ranked.primary.map(_.ownerFamily), Some(OwnerFamily.MoveDelta))
+      assertEquals(ranked.primary.map(_.plannerOwnerKind), Some(PlannerOwnerKind.MoveDelta))
       assert(ranked.primary.exists(_.admissibilityReasons.contains("exact_target_state_delta")))
       assertEquals(ranked.secondary, None)
     }
@@ -1978,16 +1978,16 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
       assertEquals(mainClaim.scope, PlayerFacingClaimScope.PositionLocal)
       assertEquals(mainClaim.claimText, "The key strategic fact here is that c6 is the fixed target.")
-      assertEquals(packet.ownerSource, PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource)
-      assertEquals(packet.ownerFamily, ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id)
+      assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource)
+      assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.BackwardPawnTargeting.id)
       assertEquals(packet.scope, PlayerFacingPacketScope.PositionLocal)
       assertEquals(packet.bestDefenseBranchKey, expectedBranchKeys.get(id))
       assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
       assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
       assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
-      assert(packet.ownerPathWitness.ownerSeedTerms.contains("c6"))
-      assert(packet.ownerPathWitness.ownerSeedTerms.contains("fixed_target:c6"))
-      assert(packet.ownerPathWitness.ownerSeedTerms.contains(ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id))
+      assert(packet.proofPathWitness.ownerSeedTerms.contains("c6"))
+      assert(packet.proofPathWitness.ownerSeedTerms.contains("fixed_target:c6"))
+      assert(packet.proofPathWitness.ownerSeedTerms.contains(PlanTaxonomy.PlanKind.BackwardPawnTargeting.id))
       assertEquals(
         ranked.primary.map(_.questionKind),
         Some(AuthorQuestionKind.WhatMattersHere)
@@ -2000,7 +2000,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         ranked.primary.flatMap(_.consequence.map(_.text)),
         Some("So the task is to keep the queenside pressure trained on c6 instead of rushing a conversion.")
       )
-      assertEquals(ranked.primary.map(_.ownerFamily), Some(OwnerFamily.PositionProbe))
+      assertEquals(ranked.primary.map(_.plannerOwnerKind), Some(PlannerOwnerKind.PositionProbe))
       assert(ranked.primary.exists(_.admissibilityReasons.contains("position_probe_owner")))
       assertEquals(ranked.secondary, None)
     }
@@ -2024,20 +2024,20 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
       assertEquals(mainClaim.scope, PlayerFacingClaimScope.PositionLocal)
       assertEquals(mainClaim.claimText, "The key strategic fact here is that the pressure is coordinated on c6.")
-      assertEquals(packet.ownerSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource)
-      assertEquals(packet.ownerFamily, PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerFamily)
+      assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource)
+      assertEquals(packet.proofFamily, PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofFamily)
       assertEquals(packet.scope, PlayerFacingPacketScope.PositionLocal)
       assertEquals(packet.bestDefenseBranchKey, expectedBranchKeys.get(id))
       assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
       assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
       assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
       assert(packet.bestDefenseMove.nonEmpty)
-      assert(packet.ownerPathWitness.ownerSeedTerms.contains("c6"))
-      assert(packet.ownerPathWitness.ownerSeedTerms.contains("coordinated_target:c6"))
-      assert(packet.ownerPathWitness.ownerSeedTerms.contains("rook_on_c1"))
-      assert(packet.ownerPathWitness.continuationTerms.contains(PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource))
-      assert(packet.ownerPathWitness.continuationTerms.contains("coordinated_target:c6"))
-      assert(packet.ownerPathWitness.structureTransitionTerms.contains("coordinated_piece_pressure"))
+      assert(packet.proofPathWitness.ownerSeedTerms.contains("c6"))
+      assert(packet.proofPathWitness.ownerSeedTerms.contains("coordinated_target:c6"))
+      assert(packet.proofPathWitness.ownerSeedTerms.contains("rook_on_c1"))
+      assert(packet.proofPathWitness.continuationTerms.contains(PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource))
+      assert(packet.proofPathWitness.continuationTerms.contains("coordinated_target:c6"))
+      assert(packet.proofPathWitness.structureTransitionTerms.contains("coordinated_piece_pressure"))
       assertEquals(ranked.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMattersHere))
       assertEquals(
         ranked.primary.map(_.claim),
@@ -2047,8 +2047,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         ranked.primary.flatMap(_.consequence.map(_.text)),
         Some("So the task is to keep the pressure coordinated on c6 until the target has to give way.")
       )
-      assertEquals(ranked.primary.map(_.ownerFamily), Some(OwnerFamily.PositionProbe))
-      assertEquals(ranked.primary.map(_.ownerSource), Some(PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource))
+      assertEquals(ranked.primary.map(_.plannerOwnerKind), Some(PlannerOwnerKind.PositionProbe))
+      assertEquals(ranked.primary.map(_.plannerSource), Some(PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource))
       assert(ranked.primary.exists(_.admissibilityReasons.contains("certified_position_probe")))
       assertEquals(ranked.secondary, None)
     }
@@ -2097,7 +2097,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         )
 
       assertEquals(bookmakerSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-      assertEquals(bookmakerSelection.primary.ownerFamily, OwnerFamily.PositionProbe)
+      assertEquals(bookmakerSelection.primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
       assertEquals(
         BookmakerProseContract.stripMoveHeader(bookmakerSlots.claim),
         "The key strategic fact here is that the pressure is coordinated on c6."
@@ -2122,7 +2122,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           .getOrElse(fail(s"$id should render a chronicle artifact"))
 
       assertEquals(chronicleSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-      assertEquals(chronicleSelection.primary.ownerFamily, OwnerFamily.PositionProbe)
+      assertEquals(chronicleSelection.primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
       assert(
         chronicleArtifact.narrative.startsWith("The key strategic fact here is that the pressure is coordinated on c6."),
         clue(chronicleArtifact.narrative)
@@ -2154,7 +2154,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         )
 
       assertEquals(bookmakerSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-      assertEquals(bookmakerSelection.primary.ownerFamily, OwnerFamily.PositionProbe)
+      assertEquals(bookmakerSelection.primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
       assertEquals(
         BookmakerProseContract.stripMoveHeader(bookmakerSlots.claim),
         "The key strategic fact here is that c6 is the fixed target."
@@ -2179,7 +2179,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           .getOrElse(fail(s"$id should render a chronicle artifact"))
 
       assertEquals(chronicleSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-      assertEquals(chronicleSelection.primary.ownerFamily, OwnerFamily.PositionProbe)
+      assertEquals(chronicleSelection.primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
       assert(
         chronicleArtifact.narrative.startsWith("The key strategic fact here is that c6 is the fixed target."),
         clue(chronicleArtifact.narrative)
@@ -2211,7 +2211,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         )
 
       assertEquals(bookmakerSelection.primary.questionKind, AuthorQuestionKind.WhatChanged)
-      assertEquals(bookmakerSelection.primary.ownerFamily, OwnerFamily.MoveDelta)
+      assertEquals(bookmakerSelection.primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
       assertEquals(
         BookmakerProseContract.stripMoveHeader(bookmakerSlots.claim),
         "This changes the position by fixing d6 as the target."
@@ -2232,7 +2232,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           .getOrElse(fail(s"$id should render a chronicle artifact"))
 
       assertEquals(chronicleSelection.primary.questionKind, AuthorQuestionKind.WhatChanged)
-      assertEquals(chronicleSelection.primary.ownerFamily, OwnerFamily.MoveDelta)
+      assertEquals(chronicleSelection.primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
       assert(chronicleArtifact.narrative.startsWith("This changes the position by fixing d6 as the target."))
       assertEquals(chronicleArtifact.quietSupportTrace.applied, false)
     }
@@ -2249,7 +2249,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the owner packet"))
 
       assert(mainClaim.claimText.toLowerCase.contains("same local edge"))
-      assertEquals(packet.ownerFamily, ThemeTaxonomy.SubplanId.SimplificationWindow.id)
+      assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.SimplificationWindow.id)
       assertEquals(packet.bestDefenseBranchKey, Some("d4e6|f7e6"))
       assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
       assertEquals(packet.persistence, PlayerFacingClaimPersistence.Stable)
@@ -2287,8 +2287,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         inputs.mainBundle.flatMap(_.mainClaim).getOrElse(fail(s"$id should stay owned by simplification instead"))
       val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the owner packet"))
 
-      assertEquals(packet.ownerFamily, ThemeTaxonomy.SubplanId.SimplificationWindow.id)
-      assertNotEquals(packet.ownerFamily, "trade_key_defender")
+      assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.SimplificationWindow.id)
+      assertNotEquals(packet.proofFamily, "trade_key_defender")
       assert(mainClaim.claimText.toLowerCase.contains("same local edge"))
       assert(!mainClaim.claimText.toLowerCase.contains("defender"))
       assertEquals(ranked.primary.map(_.claim), Some(mainClaim.claimText))
@@ -2300,9 +2300,9 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         inputs.mainBundle.flatMap(_.mainClaim).getOrElse(fail(s"$id should stay on the coordination probe lane"))
       val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the probe packet"))
 
-      assertEquals(packet.ownerSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource)
-      assertEquals(packet.ownerFamily, PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerFamily)
-      assertNotEquals(packet.ownerFamily, "trade_key_defender")
+      assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource)
+      assertEquals(packet.proofFamily, PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofFamily)
+      assertNotEquals(packet.proofFamily, "trade_key_defender")
       assertEquals(ranked.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMattersHere))
     }
 
@@ -2328,17 +2328,17 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "minority_attack_fixation_shell",
               planName = "Fix b7 as the minority-attack target",
-              subplanId = ThemeTaxonomy.SubplanId.MinorityAttackFixation.id,
+              subplanId = PlanTaxonomy.PlanKind.MinorityAttackFixation.id,
               executionSteps = List("Advance on the queenside and keep b7 under pressure."),
-              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+              themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
             )
           ),
         strategicPlanExperiments =
           List(
             evidenceBackedExperiment(
               planId = "minority_attack_fixation_shell",
-              subplanId = ThemeTaxonomy.SubplanId.MinorityAttackFixation.id,
-              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+              subplanId = PlanTaxonomy.PlanKind.MinorityAttackFixation.id,
+              themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
             )
           ),
         decision = Some(
@@ -2414,9 +2414,9 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         None
       ).get
 
-    assertEquals(delta.packet.ownerFamily, ThemeTaxonomy.SubplanId.MinorityAttackFixation.id)
+    assertEquals(delta.packet.proofFamily, PlanTaxonomy.PlanKind.MinorityAttackFixation.id)
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
-    assertEquals(delta.packet.ownerPathWitness.ownerSeedTerms.contains("b7"), true)
+    assertEquals(delta.packet.proofPathWitness.ownerSeedTerms.contains("b7"), true)
     assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assert(!PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet))
 
@@ -2435,17 +2435,17 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "iqp_inducement_shell",
               planName = "Force the structure toward an isolated d-pawn target",
-              subplanId = ThemeTaxonomy.SubplanId.IQPInducement.id,
+              subplanId = PlanTaxonomy.PlanKind.IQPInducement.id,
               executionSteps = List("Clarify the center and leave Black with a fixed d-pawn target."),
-              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+              themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
             )
           ),
         strategicPlanExperiments =
           List(
             evidenceBackedExperiment(
               planId = "iqp_inducement_shell",
-              subplanId = ThemeTaxonomy.SubplanId.IQPInducement.id,
-              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id
+              subplanId = PlanTaxonomy.PlanKind.IQPInducement.id,
+              themeL1 = PlanTaxonomy.PlanTheme.WeaknessFixation.id
             )
           ),
         decision = Some(
@@ -2536,17 +2536,17 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "trade_key_defender_shell",
               planName = "Trade the key defender",
-              subplanId = ThemeTaxonomy.SubplanId.DefenderTrade.id,
+              subplanId = PlanTaxonomy.PlanKind.DefenderTrade.id,
               executionSteps = List("Trade the defender on e6 when it is favorable."),
-              themeL1 = ThemeTaxonomy.ThemeL1.FavorableExchange.id
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
             )
           ),
         strategicPlanExperiments =
           List(
             evidenceBackedExperiment(
               planId = "trade_key_defender_shell",
-              subplanId = ThemeTaxonomy.SubplanId.DefenderTrade.id,
-              themeL1 = ThemeTaxonomy.ThemeL1.FavorableExchange.id
+              subplanId = PlanTaxonomy.PlanKind.DefenderTrade.id,
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
             )
           ),
         decision = Some(
@@ -2617,10 +2617,10 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         None
       ).get
 
-    assertEquals(delta.packet.ownerFamily, "trade_key_defender")
+    assertEquals(delta.packet.proofFamily, "trade_key_defender")
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
-    assert(delta.packet.ownerPathWitness.ownerSeedTerms.contains("e6"))
-    assert(delta.packet.ownerPathWitness.structureTransitionTerms.nonEmpty)
+    assert(delta.packet.proofPathWitness.ownerSeedTerms.contains("e6"))
+    assert(delta.packet.proofPathWitness.structureTransitionTerms.nonEmpty)
     assert(delta.packet.suppressionReasons.contains(PlayerFacingClaimSuppressionReason.SupportOnlyReinflation))
     assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
   }
@@ -2638,17 +2638,17 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evidenceBackedPlan(
               planId = "defender_trade_exact_branch",
               planName = "Exchange the defender of a7",
-              subplanId = ThemeTaxonomy.SubplanId.DefenderTrade.id,
+              subplanId = PlanTaxonomy.PlanKind.DefenderTrade.id,
               executionSteps = List("Put the bishop on a3 so Black's bishop must be exchanged."),
-              themeL1 = ThemeTaxonomy.ThemeL1.FavorableExchange.id
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
             )
           ),
         strategicPlanExperiments =
           List(
             evidenceBackedExperiment(
               planId = "defender_trade_exact_branch",
-              subplanId = ThemeTaxonomy.SubplanId.DefenderTrade.id,
-              themeL1 = ThemeTaxonomy.ThemeL1.FavorableExchange.id
+              subplanId = PlanTaxonomy.PlanKind.DefenderTrade.id,
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
             )
           ),
         decision = Some(
@@ -2722,8 +2722,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     val packet = delta.packet
 
     assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
-    assertEquals(packet.ownerSource, PlayerFacingTruthModePolicy.DefenderTradeOwnerSource)
-    assertEquals(packet.ownerFamily, ThemeTaxonomy.SubplanId.DefenderTrade.id)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.DefenderTradeProofSource)
+    assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.DefenderTrade.id)
     assertEquals(packet.scope, PlayerFacingPacketScope.MoveLocal)
     assertEquals(packet.bestDefenseBranchKey, Some("c1a3|f8a3"))
     assertEquals(packet.sameBranchState, PlayerFacingSameBranchState.Proven)
@@ -2731,8 +2731,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assertEquals(packet.suppressionReasons, Nil)
     assertEquals(packet.releaseRisks, Nil)
-    assert(packet.ownerPathWitness.ownerSeedTerms.contains("defender:f8"), clues(packet))
-    assert(packet.ownerPathWitness.structureTransitionTerms.contains("defender_removed:f8-a3"), clues(packet))
+    assert(packet.proofPathWitness.ownerSeedTerms.contains("defender:f8"), clues(packet))
+    assert(packet.proofPathWitness.structureTransitionTerms.contains("defender_removed:f8-a3"), clues(packet))
 
     val inputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
     val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
@@ -2742,8 +2742,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       Set(AuthorQuestionKind.WhyThis, AuthorQuestionKind.WhatChanged).contains(primary.questionKind),
       clues(primary)
     )
-    assertEquals(primary.ownerFamily, OwnerFamily.MoveDelta)
-    assertEquals(primary.ownerSource, PlayerFacingTruthModePolicy.DefenderTradeOwnerSource)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
+    assertEquals(primary.plannerSource, PlayerFacingTruthModePolicy.DefenderTradeProofSource)
     assertEquals(primary.claim, "A local reading is that this exchange removes a defender on the local branch.")
     assertEquals(primary.contrast, None)
     assertEquals(primary.consequence, None)
@@ -2761,8 +2761,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ResourceRemoval)
     assertEquals(delta.packet.triggerKind, "entry_square_denial")
-    assertEquals(delta.packet.ownerSource, "resource_removal_delta")
-    assertEquals(delta.packet.ownerFamily, "resource_removal")
+    assertEquals(delta.packet.proofSource, "resource_removal_delta")
+    assertEquals(delta.packet.proofFamily, "resource_removal")
     assertEquals(delta.packet.bestDefenseBranchKey, Some("a2a3|b7b5"))
     assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
     assertEquals(delta.packet.persistence, PlayerFacingClaimPersistence.Stable)

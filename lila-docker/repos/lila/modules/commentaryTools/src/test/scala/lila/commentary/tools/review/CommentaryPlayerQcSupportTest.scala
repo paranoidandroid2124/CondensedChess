@@ -403,16 +403,16 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
           plannerSecondarySurfaced = true,
           bookmakerFallbackMode = "planner_owned",
           plannerSceneType = Some("plan_clash"),
-          plannerSceneReasons = List("owner_family=PlanRace"),
+          plannerSceneReasons = List("proof_family=PlanRace"),
           plannerOwnerCandidates = List("PlanRace:evidence_backed_plan:move_linked"),
-          plannerAdmittedFamilies = List("PlanRace:evidence_backed_plan:move_linked"),
-          plannerDroppedFamilies = List("DecisionTiming:decision_comparison:timing_loss"),
+          plannerAdmittedOwners = List("PlanRace:evidence_backed_plan:move_linked"),
+          plannerDroppedOwners = List("DecisionTiming:decision_comparison:timing_loss"),
           plannerSupportMaterialSeparation = List("close_candidate:support_material"),
-          plannerProposedFamilyMappings = List("close_candidate->DecisionTiming:DecisionTiming/support_only"),
+          plannerProposedOwnerMappings = List("close_candidate->DecisionTiming:DecisionTiming/support_only"),
         plannerDemotionReasons = List("generic_urgency_only"),
           plannerSelectedQuestion = Some("WhosePlanIsFaster"),
-          plannerSelectedOwnerFamily = Some("PlanRace"),
-          plannerSelectedOwnerSource = Some("evidence_backed_plan"),
+          plannerSelectedOwnerKind = Some("PlanRace"),
+          plannerSelectedSource = Some("evidence_backed_plan"),
           rawDecisionIngressReason = Some("decision_present"),
           rawPvDeltaIngressReason = Some("pv_delta_present_with_content"),
           sanitizedDecisionIngressReason = Some("decision_present"),
@@ -437,8 +437,8 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(parsed.plannerPrimaryKind, Some("WhosePlanIsFaster"))
     assertEquals(parsed.bookmakerFallbackMode, "planner_owned")
     assertEquals(parsed.plannerSceneType, Some("plan_clash"))
-    assertEquals(parsed.plannerSceneReasons, List("owner_family=PlanRace"))
-    assertEquals(parsed.plannerSelectedOwnerFamily, Some("PlanRace"))
+    assertEquals(parsed.plannerSceneReasons, List("proof_family=PlanRace"))
+    assertEquals(parsed.plannerSelectedOwnerKind, Some("PlanRace"))
     assertEquals(parsed.rawDecisionIngressReason, Some("decision_present"))
     assertEquals(parsed.sanitizedPvDeltaIngressReason, Some("pv_delta_present_with_content"))
     assertEquals(parsed.plannerSupportMaterialSeparation, List("close_candidate:support_material"))
@@ -475,8 +475,8 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         "track3RuntimeGatePassed" -> false,
         "track3RuntimeGateRejectReasons" -> Json.arr("move_linked_pv_delta_anchor_missing"),
         "track3RuntimeSceneType" -> "quiet_improvement",
-        "track3RuntimeSelectedOwnerFamily" -> "MoveDelta",
-        "track3RuntimeSelectedOwnerSource" -> "pv_delta",
+        "track3RuntimeSelectedProofFamily" -> "MoveDelta",
+        "track3RuntimeSelectedProofSource" -> "pv_delta",
         "track3RuntimePvDeltaAvailable" -> true,
         "track3RuntimeSignalDigestAvailable" -> true,
         "track3RuntimeMoveLinkedPvDeltaAnchorAvailable" -> false,
@@ -494,8 +494,8 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(parsed.quietSupportRuntimeGatePassed, Some(false))
     assertEquals(parsed.quietSupportRuntimeGateRejectReasons, List("move_linked_pv_delta_anchor_missing"))
     assertEquals(parsed.quietSupportRuntimeSceneType, Some("quiet_improvement"))
-    assertEquals(parsed.quietSupportRuntimeSelectedOwnerFamily, Some("MoveDelta"))
-    assertEquals(parsed.quietSupportRuntimeSelectedOwnerSource, Some("pv_delta"))
+    assertEquals(parsed.quietSupportRuntimeSelectedProofFamily, Some("MoveDelta"))
+    assertEquals(parsed.quietSupportRuntimeSelectedProofSource, Some("pv_delta"))
     assertEquals(parsed.quietSupportRuntimePvDeltaAvailable, Some(true))
     assertEquals(parsed.quietSupportRuntimeSignalDigestAvailable, Some(true))
     assertEquals(parsed.quietSupportRuntimeMoveLinkedPvDeltaAnchorAvailable, Some(false))

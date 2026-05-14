@@ -1,24 +1,24 @@
 package lila.commentary.analysis
 
-import lila.commentary.model.authoring.{ LatentSeed, PlanHypothesis, SeedFamily }
+import lila.commentary.model.authoring.{ LatentSeed, PlanHypothesis, SeedKind }
 
-object ThemeTaxonomy:
+object PlanTaxonomy:
 
-  enum ThemeL1(val id: String):
-    case OpeningPrinciples extends ThemeL1("opening_principles")
-    case RestrictionProphylaxis extends ThemeL1("restriction_prophylaxis")
-    case PieceRedeployment extends ThemeL1("piece_redeployment")
-    case SpaceClamp extends ThemeL1("space_clamp")
-    case WeaknessFixation extends ThemeL1("weakness_fixation")
-    case PawnBreakPreparation extends ThemeL1("pawn_break_preparation")
-    case FavorableExchange extends ThemeL1("favorable_exchange")
-    case FlankInfrastructure extends ThemeL1("flank_infrastructure")
-    case AdvantageTransformation extends ThemeL1("advantage_transformation")
-    case ImmediateTacticalGain extends ThemeL1("immediate_tactical_gain")
-    case Unknown extends ThemeL1("unknown")
+  enum PlanTheme(val id: String):
+    case OpeningPrinciples extends PlanTheme("opening_principles")
+    case RestrictionProphylaxis extends PlanTheme("restriction_prophylaxis")
+    case PieceRedeployment extends PlanTheme("piece_redeployment")
+    case SpaceClamp extends PlanTheme("space_clamp")
+    case WeaknessFixation extends PlanTheme("weakness_fixation")
+    case PawnBreakPreparation extends PlanTheme("pawn_break_preparation")
+    case FavorableExchange extends PlanTheme("favorable_exchange")
+    case FlankInfrastructure extends PlanTheme("flank_infrastructure")
+    case AdvantageTransformation extends PlanTheme("advantage_transformation")
+    case ImmediateTacticalGain extends PlanTheme("immediate_tactical_gain")
+    case Unknown extends PlanTheme("unknown")
 
-  object ThemeL1:
-    val ranked: List[ThemeL1] = List(
+  object PlanTheme:
+    val ranked: List[PlanTheme] = List(
       OpeningPrinciples,
       RestrictionProphylaxis,
       PieceRedeployment,
@@ -30,61 +30,61 @@ object ThemeTaxonomy:
       AdvantageTransformation,
       ImmediateTacticalGain
     )
-    private val byId: Map[String, ThemeL1] =
-      ThemeL1.values.toList.map(t => t.id -> t).toMap
-    def fromId(raw: String): Option[ThemeL1] =
+    private val byId: Map[String, PlanTheme] =
+      PlanTheme.values.toList.map(t => t.id -> t).toMap
+    def fromId(raw: String): Option[PlanTheme] =
       byId.get(normalize(raw))
 
-  enum SubplanId(val id: String, val theme: ThemeL1):
-    case OpeningDevelopment extends SubplanId("opening_development", ThemeL1.OpeningPrinciples)
-    case ProphylaxisRestraint extends SubplanId("prophylaxis_restraint", ThemeL1.RestrictionProphylaxis)
-    case BreakPrevention extends SubplanId("break_prevention", ThemeL1.RestrictionProphylaxis)
-    case KeySquareDenial extends SubplanId("key_square_denial", ThemeL1.RestrictionProphylaxis)
+  enum PlanKind(val id: String, val theme: PlanTheme):
+    case OpeningDevelopment extends PlanKind("opening_development", PlanTheme.OpeningPrinciples)
+    case ProphylaxisRestraint extends PlanKind("prophylaxis_restraint", PlanTheme.RestrictionProphylaxis)
+    case BreakPrevention extends PlanKind("break_prevention", PlanTheme.RestrictionProphylaxis)
+    case KeySquareDenial extends PlanKind("key_square_denial", PlanTheme.RestrictionProphylaxis)
 
-    case OutpostEntrenchment extends SubplanId("outpost_entrenchment", ThemeL1.PieceRedeployment)
-    case WorstPieceImprovement extends SubplanId("worst_piece_improvement", ThemeL1.PieceRedeployment)
-    case RookFileTransfer extends SubplanId("rook_file_transfer", ThemeL1.PieceRedeployment)
-    case BishopReanchor extends SubplanId("bishop_reanchor", ThemeL1.PieceRedeployment)
-    case OpenFilePressure extends SubplanId("open_file_pressure", ThemeL1.PieceRedeployment)
+    case OutpostEntrenchment extends PlanKind("outpost_entrenchment", PlanTheme.PieceRedeployment)
+    case WorstPieceImprovement extends PlanKind("worst_piece_improvement", PlanTheme.PieceRedeployment)
+    case RookFileTransfer extends PlanKind("rook_file_transfer", PlanTheme.PieceRedeployment)
+    case BishopReanchor extends PlanKind("bishop_reanchor", PlanTheme.PieceRedeployment)
+    case OpenFilePressure extends PlanKind("open_file_pressure", PlanTheme.PieceRedeployment)
 
-    case FlankClamp extends SubplanId("flank_clamp", ThemeL1.SpaceClamp)
-    case CentralSpaceBind extends SubplanId("central_space_bind", ThemeL1.SpaceClamp)
-    case MobilitySuppression extends SubplanId("mobility_suppression", ThemeL1.SpaceClamp)
+    case FlankClamp extends PlanKind("flank_clamp", PlanTheme.SpaceClamp)
+    case CentralSpaceBind extends PlanKind("central_space_bind", PlanTheme.SpaceClamp)
+    case MobilitySuppression extends PlanKind("mobility_suppression", PlanTheme.SpaceClamp)
 
-    case StaticWeaknessFixation extends SubplanId("static_weakness_fixation", ThemeL1.WeaknessFixation)
-    case MinorityAttackFixation extends SubplanId("minority_attack_fixation", ThemeL1.WeaknessFixation)
-    case BackwardPawnTargeting extends SubplanId("backward_pawn_targeting", ThemeL1.WeaknessFixation)
-    case IQPInducement extends SubplanId("iqp_inducement", ThemeL1.WeaknessFixation)
+    case StaticWeaknessFixation extends PlanKind("static_weakness_fixation", PlanTheme.WeaknessFixation)
+    case MinorityAttackFixation extends PlanKind("minority_attack_fixation", PlanTheme.WeaknessFixation)
+    case BackwardPawnTargeting extends PlanKind("backward_pawn_targeting", PlanTheme.WeaknessFixation)
+    case IQPInducement extends PlanKind("iqp_inducement", PlanTheme.WeaknessFixation)
 
-    case CentralBreakTiming extends SubplanId("central_break_timing", ThemeL1.PawnBreakPreparation)
-    case WingBreakTiming extends SubplanId("wing_break_timing", ThemeL1.PawnBreakPreparation)
-    case TensionMaintenance extends SubplanId("tension_maintenance", ThemeL1.PawnBreakPreparation)
+    case CentralBreakTiming extends PlanKind("central_break_timing", PlanTheme.PawnBreakPreparation)
+    case WingBreakTiming extends PlanKind("wing_break_timing", PlanTheme.PawnBreakPreparation)
+    case TensionMaintenance extends PlanKind("tension_maintenance", PlanTheme.PawnBreakPreparation)
 
-    case SimplificationWindow extends SubplanId("simplification_window", ThemeL1.FavorableExchange)
-    case DefenderTrade extends SubplanId("defender_trade", ThemeL1.FavorableExchange)
-    case QueenTradeShield extends SubplanId("queen_trade_shield", ThemeL1.FavorableExchange)
-    case BadPieceLiquidation extends SubplanId("bad_piece_liquidation", ThemeL1.FavorableExchange)
+    case SimplificationWindow extends PlanKind("simplification_window", PlanTheme.FavorableExchange)
+    case DefenderTrade extends PlanKind("defender_trade", PlanTheme.FavorableExchange)
+    case QueenTradeShield extends PlanKind("queen_trade_shield", PlanTheme.FavorableExchange)
+    case BadPieceLiquidation extends PlanKind("bad_piece_liquidation", PlanTheme.FavorableExchange)
 
-    case RookPawnMarch extends SubplanId("rook_pawn_march", ThemeL1.FlankInfrastructure)
-    case HookCreation extends SubplanId("hook_creation", ThemeL1.FlankInfrastructure)
-    case RookLiftScaffold extends SubplanId("rook_lift_scaffold", ThemeL1.FlankInfrastructure)
+    case RookPawnMarch extends PlanKind("rook_pawn_march", PlanTheme.FlankInfrastructure)
+    case HookCreation extends PlanKind("hook_creation", PlanTheme.FlankInfrastructure)
+    case RookLiftScaffold extends PlanKind("rook_lift_scaffold", PlanTheme.FlankInfrastructure)
 
-    case SimplificationConversion extends SubplanId("simplification_conversion", ThemeL1.AdvantageTransformation)
-    case PasserConversion extends SubplanId("passer_conversion", ThemeL1.AdvantageTransformation)
-    case PassedPawnManufacture extends SubplanId("passed_pawn_manufacture", ThemeL1.AdvantageTransformation)
-    case InvasionTransition extends SubplanId("invasion_transition", ThemeL1.AdvantageTransformation)
-    case OppositeBishopsConversion extends SubplanId("opposite_bishops_conversion", ThemeL1.AdvantageTransformation)
+    case SimplificationConversion extends PlanKind("simplification_conversion", PlanTheme.AdvantageTransformation)
+    case PasserConversion extends PlanKind("passer_conversion", PlanTheme.AdvantageTransformation)
+    case PassedPawnManufacture extends PlanKind("passed_pawn_manufacture", PlanTheme.AdvantageTransformation)
+    case InvasionTransition extends PlanKind("invasion_transition", PlanTheme.AdvantageTransformation)
+    case OppositeBishopsConversion extends PlanKind("opposite_bishops_conversion", PlanTheme.AdvantageTransformation)
 
-    case ForcingTacticalShot extends SubplanId("forcing_tactical_shot", ThemeL1.ImmediateTacticalGain)
-    case DefenderOverload extends SubplanId("defender_overload", ThemeL1.ImmediateTacticalGain)
-    case ClearanceBreak extends SubplanId("clearance_break", ThemeL1.ImmediateTacticalGain)
-    case BatteryPressure extends SubplanId("battery_pressure", ThemeL1.ImmediateTacticalGain)
+    case ForcingTacticalShot extends PlanKind("forcing_tactical_shot", PlanTheme.ImmediateTacticalGain)
+    case DefenderOverload extends PlanKind("defender_overload", PlanTheme.ImmediateTacticalGain)
+    case ClearanceBreak extends PlanKind("clearance_break", PlanTheme.ImmediateTacticalGain)
+    case BatteryPressure extends PlanKind("battery_pressure", PlanTheme.ImmediateTacticalGain)
 
-  object SubplanId:
-    private val byId: Map[String, SubplanId] =
-      SubplanId.values.toList.map(s => s.id -> s).toMap
+  object PlanKind:
+    private val byId: Map[String, PlanKind] =
+      PlanKind.values.toList.map(s => s.id -> s).toMap
 
-    def fromId(raw: String): Option[SubplanId] =
+    def fromId(raw: String): Option[PlanKind] =
       byId.get(normalize(raw))
 
   final case class SubplanSpec(
@@ -95,212 +95,212 @@ object ThemeTaxonomy:
   )
 
   object SubplanCatalog:
-    val specs: Map[SubplanId, SubplanSpec] = Map(
-      SubplanId.OpeningDevelopment -> SubplanSpec(
+    val specs: Map[PlanKind, SubplanSpec] = Map(
+      PlanKind.OpeningDevelopment -> SubplanSpec(
         requiredSignals = List("keyMotifs", "futureSnapshot"),
         objective = "complete development while securing king and center",
         horizon = "short",
         aliases = List("opening development", "opening principles")
       ),
-      SubplanId.ProphylaxisRestraint -> SubplanSpec(
+      PlanKind.ProphylaxisRestraint -> SubplanSpec(
         requiredSignals = List("replyPvs", "keyMotifs"),
         objective = "restrict opponent counterplay before expansion",
         horizon = "long",
         aliases = List("prophylaxis", "restriction")
       ),
-      SubplanId.BreakPrevention -> SubplanSpec(
+      PlanKind.BreakPrevention -> SubplanSpec(
         requiredSignals = List("replyPvs", "l1Delta"),
         objective = "deny opponent central break timing",
         horizon = "medium",
         aliases = List("break prevention", "prevent break")
       ),
-      SubplanId.KeySquareDenial -> SubplanSpec(
+      PlanKind.KeySquareDenial -> SubplanSpec(
         requiredSignals = List("keyMotifs"),
         objective = "deny key entry squares and outposts",
         horizon = "medium",
         aliases = List("key-square denial")
       ),
-      SubplanId.OutpostEntrenchment -> SubplanSpec(
+      PlanKind.OutpostEntrenchment -> SubplanSpec(
         requiredSignals = List("replyPvs", "keyMotifs"),
         objective = "stabilize a piece on an outpost",
         horizon = "long",
         aliases = List("outpost", "entrenched piece")
       ),
-      SubplanId.WorstPieceImprovement -> SubplanSpec(
+      PlanKind.WorstPieceImprovement -> SubplanSpec(
         requiredSignals = List("replyPvs"),
         objective = "improve the worst piece without tactical collapse",
         horizon = "medium",
         aliases = List("piece improvement", "redeployment")
       ),
-      SubplanId.RookFileTransfer -> SubplanSpec(
+      PlanKind.RookFileTransfer -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot"),
         objective = "reroute rook to active file or rank",
         horizon = "medium",
         aliases = List("rook activation", "file transfer")
       ),
-      SubplanId.BishopReanchor -> SubplanSpec(
+      PlanKind.BishopReanchor -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot"),
         objective = "reroute a passive bishop onto an active diagonal",
         horizon = "medium",
         aliases = List("bishop reanchor", "bad bishop reroute")
       ),
-      SubplanId.OpenFilePressure -> SubplanSpec(
+      PlanKind.OpenFilePressure -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot"),
         objective = "occupy and reinforce an open or semi-open file with heavy pieces",
         horizon = "medium",
         aliases = List("open file pressure", "open file doubling", "file pressure")
       ),
-      SubplanId.FlankClamp -> SubplanSpec(
+      PlanKind.FlankClamp -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot"),
         objective = "gain flank space while suppressing mobility",
         horizon = "long",
         aliases = List("clamp", "bind")
       ),
-      SubplanId.CentralSpaceBind -> SubplanSpec(
+      PlanKind.CentralSpaceBind -> SubplanSpec(
         requiredSignals = List("replyPvs"),
         objective = "hold central squares and limit breaks",
         horizon = "medium",
         aliases = List("space bind", "center bind")
       ),
-      SubplanId.MobilitySuppression -> SubplanSpec(
+      PlanKind.MobilitySuppression -> SubplanSpec(
         requiredSignals = List("keyMotifs"),
         objective = "reduce piece mobility and escape squares",
         horizon = "medium",
         aliases = List("restriction net")
       ),
-      SubplanId.StaticWeaknessFixation -> SubplanSpec(
+      PlanKind.StaticWeaknessFixation -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot"),
         objective = "create a persistent static weakness",
         horizon = "long",
         aliases = List("fixation", "static target")
       ),
-      SubplanId.MinorityAttackFixation -> SubplanSpec(
+      PlanKind.MinorityAttackFixation -> SubplanSpec(
         requiredSignals = List("replyPvs", "keyMotifs"),
         objective = "induce and attack a fixed weakness via minority attack",
         horizon = "long",
         aliases = List("minority attack")
       ),
-      SubplanId.BackwardPawnTargeting -> SubplanSpec(
+      PlanKind.BackwardPawnTargeting -> SubplanSpec(
         requiredSignals = List("replyPvs"),
         objective = "fix and pressure a backward pawn",
         horizon = "long",
         aliases = List("backward pawn", "weak pawn")
       ),
-      SubplanId.IQPInducement -> SubplanSpec(
+      PlanKind.IQPInducement -> SubplanSpec(
         requiredSignals = List("replyPvs", "l1Delta"),
         objective = "induce an isolated pawn and turn it into a fixed target",
         horizon = "medium",
         aliases = List("iqp inducement", "create iqp", "isolated pawn inducement")
       ),
-      SubplanId.CentralBreakTiming -> SubplanSpec(
+      PlanKind.CentralBreakTiming -> SubplanSpec(
         requiredSignals = List("replyPvs", "l1Delta"),
         objective = "prepare a central break at the right timing",
         horizon = "medium",
         aliases = List("central break", "d-break", "e-break")
       ),
-      SubplanId.WingBreakTiming -> SubplanSpec(
+      PlanKind.WingBreakTiming -> SubplanSpec(
         requiredSignals = List("replyPvs", "l1Delta"),
         objective = "prepare a wing break after coordination",
         horizon = "medium",
         aliases = List("wing break")
       ),
-      SubplanId.TensionMaintenance -> SubplanSpec(
+      PlanKind.TensionMaintenance -> SubplanSpec(
         requiredSignals = List("replyPvs"),
         objective = "keep tension until conversion is favorable",
         horizon = "medium",
         aliases = List("maintain tension")
       ),
-      SubplanId.SimplificationWindow -> SubplanSpec(
+      PlanKind.SimplificationWindow -> SubplanSpec(
         requiredSignals = List("replyPvs", "l1Delta"),
         objective = "trade pieces only in favorable windows",
         horizon = "medium",
         aliases = List("favorable simplification")
       ),
-      SubplanId.DefenderTrade -> SubplanSpec(
+      PlanKind.DefenderTrade -> SubplanSpec(
         requiredSignals = List("keyMotifs"),
         objective = "remove key defender to expose weaknesses",
         horizon = "short",
         aliases = List("remove defender")
       ),
-      SubplanId.QueenTradeShield -> SubplanSpec(
+      PlanKind.QueenTradeShield -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot"),
         objective = "neutralize attack via queen trade",
         horizon = "short",
         aliases = List("queen trade")
       ),
-      SubplanId.BadPieceLiquidation -> SubplanSpec(
+      PlanKind.BadPieceLiquidation -> SubplanSpec(
         requiredSignals = List("replyPvs", "keyMotifs"),
         objective = "liquidate a bad piece while preserving the better structure",
         horizon = "short",
         aliases = List("bad piece liquidation", "trade bad bishop")
       ),
-      SubplanId.RookPawnMarch -> SubplanSpec(
+      PlanKind.RookPawnMarch -> SubplanSpec(
         requiredSignals = List("replyPvs", "keyMotifs"),
         objective = "gain flank space with rook-pawn advance",
         horizon = "medium",
         aliases = List("rook-pawn march", "pawn storm")
       ),
-      SubplanId.HookCreation -> SubplanSpec(
+      PlanKind.HookCreation -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot"),
         objective = "create a hook and open attacking files",
         horizon = "medium",
         aliases = List("hook")
       ),
-      SubplanId.RookLiftScaffold -> SubplanSpec(
+      PlanKind.RookLiftScaffold -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot"),
         objective = "build rook-lift attack infrastructure",
         horizon = "medium",
         aliases = List("rook lift")
       ),
-      SubplanId.SimplificationConversion -> SubplanSpec(
+      PlanKind.SimplificationConversion -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot"),
         objective = "convert dynamic edge through simplification",
         horizon = "medium",
         aliases = List("conversion")
       ),
-      SubplanId.PasserConversion -> SubplanSpec(
+      PlanKind.PasserConversion -> SubplanSpec(
         requiredSignals = List("replyPvs", "keyMotifs"),
         objective = "convert edge into passer dynamics",
         horizon = "long",
         aliases = List("passed pawn", "passer")
       ),
-      SubplanId.PassedPawnManufacture -> SubplanSpec(
+      PlanKind.PassedPawnManufacture -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot", "l1Delta"),
         objective = "manufacture a passed pawn by fixing structure and timing exchanges",
         horizon = "long",
         aliases = List("passed pawn manufacture", "create passed pawn")
       ),
-      SubplanId.InvasionTransition -> SubplanSpec(
+      PlanKind.InvasionTransition -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot"),
         objective = "transform initiative into invasion/endgame edge",
         horizon = "medium",
         aliases = List("invasion", "transition")
       ),
-      SubplanId.OppositeBishopsConversion -> SubplanSpec(
+      PlanKind.OppositeBishopsConversion -> SubplanSpec(
         requiredSignals = List("replyPvs", "futureSnapshot", "keyMotifs"),
         objective = "convert an opposite-colored bishops ending through color-complex penetration or passer transition",
         horizon = "long",
         aliases = List("opposite bishops conversion", "opposite-colored bishops conversion")
       ),
-      SubplanId.ForcingTacticalShot -> SubplanSpec(
+      PlanKind.ForcingTacticalShot -> SubplanSpec(
         requiredSignals = List("replyPvs", "l1Delta", "keyMotifs"),
         objective = "execute forcing tactical line with concrete gain",
         horizon = "short",
         aliases = List("forcing", "tactical shot")
       ),
-      SubplanId.DefenderOverload -> SubplanSpec(
+      PlanKind.DefenderOverload -> SubplanSpec(
         requiredSignals = List("replyPvs", "keyMotifs"),
         objective = "overload defender before breakthrough",
         horizon = "short",
         aliases = List("overload")
       ),
-      SubplanId.ClearanceBreak -> SubplanSpec(
+      PlanKind.ClearanceBreak -> SubplanSpec(
         requiredSignals = List("replyPvs", "keyMotifs"),
         objective = "clear lines/squares for tactical execution",
         horizon = "short",
         aliases = List("clearance")
       ),
-      SubplanId.BatteryPressure -> SubplanSpec(
+      PlanKind.BatteryPressure -> SubplanSpec(
         requiredSignals = List("replyPvs", "keyMotifs", "futureSnapshot"),
         objective = "align major pieces on a critical line before the breakthrough",
         horizon = "short",
@@ -308,13 +308,13 @@ object ThemeTaxonomy:
       )
     )
 
-    def byTheme(theme: ThemeL1): List[(SubplanId, SubplanSpec)] =
+    def byTheme(theme: PlanTheme): List[(PlanKind, SubplanSpec)] =
       specs.toList.filter((sid, _) => sid.theme == theme).sortBy(_._1.id)
 
   object ThemeResolver:
-    import ThemeL1.*
+    import PlanTheme.*
 
-    private val planAliases: List[(String, ThemeL1)] = List(
+    private val planAliases: List[(String, PlanTheme)] = List(
       "openingprinciples" -> OpeningPrinciples,
       "openingdevelopment" -> OpeningPrinciples,
       "opening development" -> OpeningPrinciples,
@@ -381,7 +381,7 @@ object ThemeTaxonomy:
       "attack" -> ImmediateTacticalGain
     )
 
-    private val structuralAliases: List[(String, ThemeL1)] = List(
+    private val structuralAliases: List[(String, PlanTheme)] = List(
       "entrenched" -> PieceRedeployment,
       "rook_pawn_march" -> FlankInfrastructure,
       "hook_creation" -> FlankInfrastructure,
@@ -389,15 +389,15 @@ object ThemeTaxonomy:
       "generic_center_plan" -> PawnBreakPreparation
     )
 
-    private val structuralSubplanAliases: List[(String, SubplanId)] = List(
-      "entrenched" -> SubplanId.OutpostEntrenchment,
-      "rook_pawn_march" -> SubplanId.RookPawnMarch,
-      "hook_creation" -> SubplanId.HookCreation,
-      "color_complex_clamp" -> SubplanId.FlankClamp,
-      "generic_center_plan" -> SubplanId.CentralBreakTiming
+    private val structuralSubplanAliases: List[(String, PlanKind)] = List(
+      "entrenched" -> PlanKind.OutpostEntrenchment,
+      "rook_pawn_march" -> PlanKind.RookPawnMarch,
+      "hook_creation" -> PlanKind.HookCreation,
+      "color_complex_clamp" -> PlanKind.FlankClamp,
+      "generic_center_plan" -> PlanKind.CentralBreakTiming
     )
 
-    private val seedAliases: List[(String, ThemeL1)] = List(
+    private val seedAliases: List[(String, PlanTheme)] = List(
       "pawnstorm_kingside" -> FlankInfrastructure,
       "attack_the_hook" -> ImmediateTacticalGain,
       "minorityattack_queenside" -> WeaknessFixation,
@@ -425,99 +425,99 @@ object ThemeTaxonomy:
       "squeeze" -> SpaceClamp
     )
 
-    private val subplanAliases: List[(String, SubplanId)] =
+    private val subplanAliases: List[(String, PlanKind)] =
       List(
-        "opening_development" -> SubplanId.OpeningDevelopment,
-        "openingdevelopment" -> SubplanId.OpeningDevelopment,
-        "opening development" -> SubplanId.OpeningDevelopment,
-        "prophylaxis_restraint" -> SubplanId.ProphylaxisRestraint,
-        "break_prevention" -> SubplanId.BreakPrevention,
-        "key_square_denial" -> SubplanId.KeySquareDenial,
-        "outpost_entrenchment" -> SubplanId.OutpostEntrenchment,
-        "worst_piece_improvement" -> SubplanId.WorstPieceImprovement,
-        "rook_file_transfer" -> SubplanId.RookFileTransfer,
-        "bishop_reanchor" -> SubplanId.BishopReanchor,
-        "open_file_pressure" -> SubplanId.OpenFilePressure,
-        "flank_clamp" -> SubplanId.FlankClamp,
-        "central_space_bind" -> SubplanId.CentralSpaceBind,
-        "mobility_suppression" -> SubplanId.MobilitySuppression,
-        "static_weakness_fixation" -> SubplanId.StaticWeaknessFixation,
-        "minority_attack_fixation" -> SubplanId.MinorityAttackFixation,
-        "backward_pawn_targeting" -> SubplanId.BackwardPawnTargeting,
-        "iqp_inducement" -> SubplanId.IQPInducement,
-        "central_break_timing" -> SubplanId.CentralBreakTiming,
-        "wing_break_timing" -> SubplanId.WingBreakTiming,
-        "tension_maintenance" -> SubplanId.TensionMaintenance,
-        "simplification_window" -> SubplanId.SimplificationWindow,
-        "defender_trade" -> SubplanId.DefenderTrade,
-        "queen_trade_shield" -> SubplanId.QueenTradeShield,
-        "bad_piece_liquidation" -> SubplanId.BadPieceLiquidation,
-        "rook_pawn_march" -> SubplanId.RookPawnMarch,
-        "hook_creation" -> SubplanId.HookCreation,
-        "rook_lift_scaffold" -> SubplanId.RookLiftScaffold,
-        "simplification_conversion" -> SubplanId.SimplificationConversion,
-        "passer_conversion" -> SubplanId.PasserConversion,
-        "passed_pawn_manufacture" -> SubplanId.PassedPawnManufacture,
-        "invasion_transition" -> SubplanId.InvasionTransition,
-        "opposite_bishops_conversion" -> SubplanId.OppositeBishopsConversion,
-        "forcing_tactical_shot" -> SubplanId.ForcingTacticalShot,
-        "defender_overload" -> SubplanId.DefenderOverload,
-        "clearance_break" -> SubplanId.ClearanceBreak,
-        "battery_pressure" -> SubplanId.BatteryPressure,
-        "badbishop_reroute" -> SubplanId.BishopReanchor,
-        "openfile_doubling" -> SubplanId.OpenFilePressure,
-        "battery_formation" -> SubplanId.BatteryPressure,
-        "createpassedpawn" -> SubplanId.PassedPawnManufacture,
-        "createiqp" -> SubplanId.IQPInducement,
-        "trade_badbishop" -> SubplanId.BadPieceLiquidation,
-        "trade_queens_defensive" -> SubplanId.QueenTradeShield,
-        "outpost" -> SubplanId.OutpostEntrenchment,
-        "entrenched" -> SubplanId.OutpostEntrenchment,
-        "rookpawnmarch" -> SubplanId.RookPawnMarch,
-        "rook_pawn" -> SubplanId.RookPawnMarch,
-        "hook" -> SubplanId.HookCreation,
-        "rooklift" -> SubplanId.RookLiftScaffold,
-        "minorityattack" -> SubplanId.MinorityAttackFixation,
-        "breakprep" -> SubplanId.CentralBreakTiming,
-        "centralbreak" -> SubplanId.CentralBreakTiming,
-        "wingbreak" -> SubplanId.WingBreakTiming,
-        "simplify" -> SubplanId.SimplificationWindow,
-        "conversion" -> SubplanId.SimplificationConversion,
-        "passer" -> SubplanId.PasserConversion,
-        "invasion" -> SubplanId.InvasionTransition,
-        "opposite bishops" -> SubplanId.OppositeBishopsConversion,
-        "opposite colored bishops" -> SubplanId.OppositeBishopsConversion,
-        "forcing" -> SubplanId.ForcingTacticalShot,
-        "overload" -> SubplanId.DefenderOverload,
-        "clearance" -> SubplanId.ClearanceBreak
+        "opening_development" -> PlanKind.OpeningDevelopment,
+        "openingdevelopment" -> PlanKind.OpeningDevelopment,
+        "opening development" -> PlanKind.OpeningDevelopment,
+        "prophylaxis_restraint" -> PlanKind.ProphylaxisRestraint,
+        "break_prevention" -> PlanKind.BreakPrevention,
+        "key_square_denial" -> PlanKind.KeySquareDenial,
+        "outpost_entrenchment" -> PlanKind.OutpostEntrenchment,
+        "worst_piece_improvement" -> PlanKind.WorstPieceImprovement,
+        "rook_file_transfer" -> PlanKind.RookFileTransfer,
+        "bishop_reanchor" -> PlanKind.BishopReanchor,
+        "open_file_pressure" -> PlanKind.OpenFilePressure,
+        "flank_clamp" -> PlanKind.FlankClamp,
+        "central_space_bind" -> PlanKind.CentralSpaceBind,
+        "mobility_suppression" -> PlanKind.MobilitySuppression,
+        "static_weakness_fixation" -> PlanKind.StaticWeaknessFixation,
+        "minority_attack_fixation" -> PlanKind.MinorityAttackFixation,
+        "backward_pawn_targeting" -> PlanKind.BackwardPawnTargeting,
+        "iqp_inducement" -> PlanKind.IQPInducement,
+        "central_break_timing" -> PlanKind.CentralBreakTiming,
+        "wing_break_timing" -> PlanKind.WingBreakTiming,
+        "tension_maintenance" -> PlanKind.TensionMaintenance,
+        "simplification_window" -> PlanKind.SimplificationWindow,
+        "defender_trade" -> PlanKind.DefenderTrade,
+        "queen_trade_shield" -> PlanKind.QueenTradeShield,
+        "bad_piece_liquidation" -> PlanKind.BadPieceLiquidation,
+        "rook_pawn_march" -> PlanKind.RookPawnMarch,
+        "hook_creation" -> PlanKind.HookCreation,
+        "rook_lift_scaffold" -> PlanKind.RookLiftScaffold,
+        "simplification_conversion" -> PlanKind.SimplificationConversion,
+        "passer_conversion" -> PlanKind.PasserConversion,
+        "passed_pawn_manufacture" -> PlanKind.PassedPawnManufacture,
+        "invasion_transition" -> PlanKind.InvasionTransition,
+        "opposite_bishops_conversion" -> PlanKind.OppositeBishopsConversion,
+        "forcing_tactical_shot" -> PlanKind.ForcingTacticalShot,
+        "defender_overload" -> PlanKind.DefenderOverload,
+        "clearance_break" -> PlanKind.ClearanceBreak,
+        "battery_pressure" -> PlanKind.BatteryPressure,
+        "badbishop_reroute" -> PlanKind.BishopReanchor,
+        "openfile_doubling" -> PlanKind.OpenFilePressure,
+        "battery_formation" -> PlanKind.BatteryPressure,
+        "createpassedpawn" -> PlanKind.PassedPawnManufacture,
+        "createiqp" -> PlanKind.IQPInducement,
+        "trade_badbishop" -> PlanKind.BadPieceLiquidation,
+        "trade_queens_defensive" -> PlanKind.QueenTradeShield,
+        "outpost" -> PlanKind.OutpostEntrenchment,
+        "entrenched" -> PlanKind.OutpostEntrenchment,
+        "rookpawnmarch" -> PlanKind.RookPawnMarch,
+        "rook_pawn" -> PlanKind.RookPawnMarch,
+        "hook" -> PlanKind.HookCreation,
+        "rooklift" -> PlanKind.RookLiftScaffold,
+        "minorityattack" -> PlanKind.MinorityAttackFixation,
+        "breakprep" -> PlanKind.CentralBreakTiming,
+        "centralbreak" -> PlanKind.CentralBreakTiming,
+        "wingbreak" -> PlanKind.WingBreakTiming,
+        "simplify" -> PlanKind.SimplificationWindow,
+        "conversion" -> PlanKind.SimplificationConversion,
+        "passer" -> PlanKind.PasserConversion,
+        "invasion" -> PlanKind.InvasionTransition,
+        "opposite bishops" -> PlanKind.OppositeBishopsConversion,
+        "opposite colored bishops" -> PlanKind.OppositeBishopsConversion,
+        "forcing" -> PlanKind.ForcingTacticalShot,
+        "overload" -> PlanKind.DefenderOverload,
+        "clearance" -> PlanKind.ClearanceBreak
       ) ++ SubplanCatalog.specs.toList.flatMap { (sid, spec) =>
         spec.aliases.map(alias => normalize(alias) -> sid)
       }
 
     def sanitizeTheme(raw: String): Option[String] =
-      ThemeL1.fromId(raw).filter(_ != Unknown).map(_.id)
+      PlanTheme.fromId(raw).filter(_ != Unknown).map(_.id)
 
-    def fromPlanId(raw: String): ThemeL1 =
+    def fromPlanId(raw: String): PlanTheme =
       byAlias(raw, planAliases).getOrElse(Unknown)
 
-    def fromPlanName(raw: String): ThemeL1 =
+    def fromPlanName(raw: String): PlanTheme =
       fromPlanId(raw)
 
-    def fromStructuralState(raw: String): ThemeL1 =
+    def fromStructuralState(raw: String): PlanTheme =
       byAlias(raw, structuralAliases).getOrElse(Unknown)
 
-    def subplanFromStructuralState(raw: String): Option[SubplanId] =
+    def subplanFromStructuralState(raw: String): Option[PlanKind] =
       byAlias(raw, structuralSubplanAliases)
 
-    def fromSeedId(raw: String): ThemeL1 =
+    def fromSeedId(raw: String): PlanTheme =
       byAlias(raw, seedAliases)
         .orElse(byAlias(raw, planAliases))
         .getOrElse(Unknown)
 
-    def fromEvidenceSource(raw: String): ThemeL1 =
+    def fromEvidenceSource(raw: String): PlanTheme =
       val low = normalize(raw)
       if low.startsWith("theme:") then
-        ThemeL1.fromId(low.stripPrefix("theme:")).getOrElse(Unknown)
+        PlanTheme.fromId(low.stripPrefix("theme:")).getOrElse(Unknown)
       else if low.startsWith("subplan:") then
         subplanFromId(low.stripPrefix("subplan:")).map(_.theme).getOrElse(Unknown)
       else if low.startsWith("structural_state:") then
@@ -529,36 +529,36 @@ object ThemeTaxonomy:
       else
         fromPlanId(low)
 
-    def fromSeed(seed: LatentSeed): ThemeL1 =
+    def fromSeed(seed: LatentSeed): PlanTheme =
       val planTheme =
         seed.mapsToPlan
           .map(pid => fromPlanId(pid.toString))
           .filter(_ != Unknown)
-      val familyTheme = seed.family match
-        case SeedFamily.Pawn         => FlankInfrastructure
-        case SeedFamily.Piece        => PieceRedeployment
-        case SeedFamily.Structure    => WeaknessFixation
-        case SeedFamily.Prophylaxis  => RestrictionProphylaxis
-        case SeedFamily.Exchange     => FavorableExchange
-        case SeedFamily.TacticalPrep => ImmediateTacticalGain
-      val seedTheme = fromSeedId(seed.id)
-      if seedTheme != Unknown then seedTheme
-      else planTheme.getOrElse(familyTheme)
+      val seedKindTheme = seed.seedKind match
+        case SeedKind.Pawn         => FlankInfrastructure
+        case SeedKind.Piece        => PieceRedeployment
+        case SeedKind.Structure    => WeaknessFixation
+        case SeedKind.Prophylaxis  => RestrictionProphylaxis
+        case SeedKind.Exchange     => FavorableExchange
+        case SeedKind.TacticalPrep => ImmediateTacticalGain
+      val seedIdTheme = fromSeedId(seed.id)
+      if seedIdTheme != Unknown then seedIdTheme
+      else planTheme.getOrElse(seedKindTheme)
 
-    def fromHypotheses(hypotheses: List[PlanHypothesis]): ThemeL1 =
+    def fromHypotheses(hypotheses: List[PlanHypothesis]): PlanTheme =
       hypotheses.filter(_.viability.label != "refuted") match
         case Nil =>
           // Fallback: If everything is refuted (e.g. tactical blunder), use the top refuted theme to avoid excessive 'Unknown's
-          hypotheses.headOption.map(fromHypothesis).filter(_ != ThemeL1.Unknown).getOrElse(ThemeL1.Unknown)
+          hypotheses.headOption.map(fromHypothesis).filter(_ != PlanTheme.Unknown).getOrElse(PlanTheme.Unknown)
         case single :: Nil =>
           fromHypothesis(single)
         case multiple =>
           // Favor more structural/long-term themes over immediate tactical ones if viable
           val viableThemes = multiple.map(fromHypothesis).distinct
-          ThemeL1.ranked.find(viableThemes.contains).getOrElse(ThemeL1.Unknown)
+          PlanTheme.ranked.find(viableThemes.contains).getOrElse(PlanTheme.Unknown)
 
-    def fromHypothesis(h: PlanHypothesis): ThemeL1 =
-      ThemeL1
+    def fromHypothesis(h: PlanHypothesis): PlanTheme =
+      PlanTheme
         .fromId(h.themeL1)
         .filter(_ != Unknown)
         .orElse {
@@ -591,26 +591,26 @@ object ThemeTaxonomy:
         }
         .getOrElse(Unknown)
 
-    def subplanFromId(raw: String): Option[SubplanId] =
-      SubplanId.fromId(raw).orElse(byAlias(raw, subplanAliases))
+    def subplanFromId(raw: String): Option[PlanKind] =
+      PlanKind.fromId(raw).orElse(byAlias(raw, subplanAliases))
 
-    def subplanFromPlanId(raw: String): Option[SubplanId] =
+    def subplanFromPlanId(raw: String): Option[PlanKind] =
       byAlias(raw, subplanAliases)
         .orElse(defaultSubplanForTheme(fromPlanId(raw)))
 
-    def subplanFromPlanName(raw: String): Option[SubplanId] =
+    def subplanFromPlanName(raw: String): Option[PlanKind] =
       subplanFromPlanId(raw)
 
-    def subplanFromSeedId(raw: String): Option[SubplanId] =
+    def subplanFromSeedId(raw: String): Option[PlanKind] =
       byAlias(raw, subplanAliases)
         .orElse(defaultSubplanForTheme(fromSeedId(raw)))
 
-    def subplanFromSeed(seed: LatentSeed): Option[SubplanId] =
+    def subplanFromSeed(seed: LatentSeed): Option[PlanKind] =
       subplanFromSeedId(seed.id)
         .orElse(seed.mapsToPlan.flatMap(pid => subplanFromPlanId(pid.toString)))
         .orElse(defaultSubplanForTheme(fromSeed(seed)))
 
-    def subplanFromEvidenceSource(raw: String): Option[SubplanId] =
+    def subplanFromEvidenceSource(raw: String): Option[PlanKind] =
       val low = normalize(raw)
       if low.startsWith("subplan:") then
         subplanFromId(low.stripPrefix("subplan:"))
@@ -622,7 +622,7 @@ object ThemeTaxonomy:
         subplanFromSeedId(low.stripPrefix("seed:"))
       else subplanFromPlanId(low)
 
-    def subplanFromHypothesis(h: PlanHypothesis): Option[SubplanId] =
+    def subplanFromHypothesis(h: PlanHypothesis): Option[PlanKind] =
       h.subplanId
         .flatMap(subplanFromId)
         .orElse(h.evidenceSources.iterator.flatMap(subplanFromEvidenceSource).toList.headOption)
@@ -630,19 +630,19 @@ object ThemeTaxonomy:
         .orElse(subplanFromPlanName(h.planName))
         .orElse(defaultSubplanForTheme(fromHypothesis(h)))
 
-    def defaultSubplanForTheme(theme: ThemeL1): Option[SubplanId] =
+    def defaultSubplanForTheme(theme: PlanTheme): Option[PlanKind] =
       theme match
-        case OpeningPrinciples => Some(SubplanId.OpeningDevelopment)
-        case RestrictionProphylaxis => Some(SubplanId.ProphylaxisRestraint)
-        case PieceRedeployment => Some(SubplanId.WorstPieceImprovement)
-        case SpaceClamp => Some(SubplanId.FlankClamp)
-        case WeaknessFixation => Some(SubplanId.StaticWeaknessFixation)
-        case PawnBreakPreparation => Some(SubplanId.CentralBreakTiming)
-        case FavorableExchange => Some(SubplanId.SimplificationWindow)
-        case FlankInfrastructure => Some(SubplanId.RookPawnMarch)
-        case AdvantageTransformation => Some(SubplanId.SimplificationConversion)
-        case ImmediateTacticalGain => Some(SubplanId.ForcingTacticalShot)
-        case ThemeL1.Unknown => None
+        case OpeningPrinciples => Some(PlanKind.OpeningDevelopment)
+        case RestrictionProphylaxis => Some(PlanKind.ProphylaxisRestraint)
+        case PieceRedeployment => Some(PlanKind.WorstPieceImprovement)
+        case SpaceClamp => Some(PlanKind.FlankClamp)
+        case WeaknessFixation => Some(PlanKind.StaticWeaknessFixation)
+        case PawnBreakPreparation => Some(PlanKind.CentralBreakTiming)
+        case FavorableExchange => Some(PlanKind.SimplificationWindow)
+        case FlankInfrastructure => Some(PlanKind.RookPawnMarch)
+        case AdvantageTransformation => Some(PlanKind.SimplificationConversion)
+        case ImmediateTacticalGain => Some(PlanKind.ForcingTacticalShot)
+        case PlanTheme.Unknown => None
 
   private def themeFromPrecondition(raw: String): Option[String] =
     val low = normalize(raw)

@@ -551,7 +551,7 @@ object RealPgnNarrativeEvalRunner:
       val afterFen = NarrativeUtils.uciListToFen(pd.fen, List(pd.playedUci))
       val bookmakerResultOpt =
         Await.result(
-          api.bookmakerCommentPosition(
+          api.moveReviewPosition(
             fen = pd.fen,
             lastMove = Some(pd.playedUci),
             eval = beforeVars.headOption.map(v => EvalData(cp = v.scoreCp, mate = v.mate, pv = Some(v.moves))),

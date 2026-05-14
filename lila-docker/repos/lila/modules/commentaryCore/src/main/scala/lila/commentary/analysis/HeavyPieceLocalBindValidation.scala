@@ -3,7 +3,7 @@ package lila.commentary.analysis
 import chess.*
 import chess.format.{ Fen, Uci }
 
-import lila.commentary.analysis.ThemeTaxonomy.SubplanId
+import lila.commentary.analysis.PlanTaxonomy.PlanKind
 import lila.commentary.model.{ FactScope, FutureSnapshot, NarrativeContext, PreventedPlanInfo, ProbeResult }
 import lila.commentary.model.authoring.PlanHypothesis
 import lila.commentary.model.strategic.PreventedPlan
@@ -84,7 +84,7 @@ private[commentary] object HeavyPieceLocalBindValidation:
   )
 
   private val ApplicableSubplans =
-    Set(SubplanId.BreakPrevention.id, SubplanId.KeySquareDenial.id)
+    Set(PlanKind.BreakPrevention.id, PlanKind.KeySquareDenial.id)
   private val DirectReplyPurposes =
     Set("defense_reply_multipv", "reply_multipv")
   private val ValidationPurposes =
@@ -288,8 +288,8 @@ private[commentary] object HeavyPieceLocalBindValidation:
           !plan.claimCertification.alternativeDominance
       val ontologyAllowed =
         Set(
-          PlayerFacingClaimOntologyFamily.RouteDenial,
-          PlayerFacingClaimOntologyFamily.LongTermRestraint
+          PlayerFacingClaimOntologyKind.RouteDenial,
+          PlayerFacingClaimOntologyKind.LongTermRestraint
         ).contains(plan.claimCertification.ontologyFamily)
       val coreFails =
         List(
@@ -426,19 +426,19 @@ private[commentary] object HeavyPieceLocalBindValidation:
   private def isApplicablePlan(
       plan: PlanEvidenceEvaluator.EvaluatedPlan
   ): Boolean =
-    normalize(plan.themeL1) == ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id &&
+    normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id &&
       plan.subplanId.exists(id => ApplicableSubplans.contains(normalize(id)))
 
   private def isApplicablePlan(
       plan: PlanHypothesis
   ): Boolean =
-    normalize(plan.themeL1) == ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id &&
+    normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id &&
       plan.subplanId.exists(id => ApplicableSubplans.contains(normalize(id)))
 
   private def isApplicableExperiment(
       experiment: lila.commentary.model.StrategicPlanExperiment
   ): Boolean =
-    normalize(experiment.themeL1) == ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id &&
+    normalize(experiment.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id &&
       experiment.subplanId.exists(id => ApplicableSubplans.contains(normalize(id)))
 
   private def strongestFileAxis(

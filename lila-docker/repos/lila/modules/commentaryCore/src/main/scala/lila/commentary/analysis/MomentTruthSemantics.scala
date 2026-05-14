@@ -166,7 +166,7 @@ private[analysis] object MomentTruthSemantics:
       projection: MomentTruthProjection
   ): Boolean =
     projection.classificationKey == "best" &&
-      contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense &&
+      contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense &&
       contract.benchmarkCriticalMove
 
   private def truthFailureSignificantThreadLocal(
@@ -176,9 +176,9 @@ private[analysis] object MomentTruthSemantics:
     projection.classificationKey != "best" &&
       contract.failureMode != FailureInterpretationMode.NoClearPlan &&
       (
-        contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
-          contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
-          contract.reasonFamily == DecisiveReasonFamily.QuietTechnicalMove
+        contract.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
+          contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
+          contract.reasonFamily == DecisiveReasonKind.QuietTechnicalMove
       )
 
   private def truthCriticalBestTacticalOrTechnical(
@@ -187,9 +187,9 @@ private[analysis] object MomentTruthSemantics:
   ): Boolean =
     projection.classificationKey == "best" &&
       (
-        contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
+        contract.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
           (
-            contract.reasonFamily == DecisiveReasonFamily.QuietTechnicalMove &&
+            contract.reasonFamily == DecisiveReasonKind.QuietTechnicalMove &&
               contract.benchmarkCriticalMove
           )
       )
@@ -202,9 +202,9 @@ private[analysis] object MomentTruthSemantics:
     else if truthCompensationSelectionEligible(projection) then Some("compensation")
     else if projection.ownershipRole == TruthOwnershipRole.ConversionOwner ||
         projection.surfaceMode == TruthSurfaceMode.ConversionExplain ||
-        contract.reasonFamily == DecisiveReasonFamily.Conversion then
+        contract.reasonFamily == DecisiveReasonKind.Conversion then
       Some("decision")
-    else if contract.reasonFamily == DecisiveReasonFamily.QuietTechnicalMove then Some("decision")
+    else if contract.reasonFamily == DecisiveReasonKind.QuietTechnicalMove then Some("decision")
     else None
 
   private def isTacticalTruth(
@@ -215,9 +215,9 @@ private[analysis] object MomentTruthSemantics:
       projection.classificationKey == "missedwin" ||
       projection.ownershipRole == TruthOwnershipRole.BlunderOwner ||
       projection.surfaceMode == TruthSurfaceMode.FailureExplain ||
-      contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
-      contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
-      contract.reasonFamily == DecisiveReasonFamily.MissedWin ||
+      contract.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
+      contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
+      contract.reasonFamily == DecisiveReasonKind.MissedWin ||
       contract.failureMode == FailureInterpretationMode.TacticalRefutation ||
       contract.failureMode == FailureInterpretationMode.OnlyMoveFailure
 

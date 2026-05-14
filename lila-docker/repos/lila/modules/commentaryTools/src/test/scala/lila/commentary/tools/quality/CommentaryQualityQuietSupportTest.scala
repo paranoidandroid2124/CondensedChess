@@ -78,11 +78,11 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       bookmakerFallbackMode: String = "planner_owned",
       plannerSelectedQuestion: Option[String] = Some("WhyThis"),
       plannerSceneType: Option[String] = Some("quiet_improvement"),
-      plannerSelectedOwnerFamily: Option[String] = None,
-      plannerSelectedOwnerSource: Option[String] = Some("truth_contract"),
+      plannerSelectedOwnerKind: Option[String] = None,
+      plannerSelectedSource: Option[String] = Some("truth_contract"),
       plannerOwnerCandidates: List[String] = Nil,
-      plannerAdmittedFamilies: List[String] = Nil,
-      plannerProposedFamilyMappings: List[String] = Nil,
+      plannerAdmittedOwners: List[String] = Nil,
+      plannerProposedOwnerMappings: List[String] = Nil,
       rawChoiceType: Option[String] = None,
       rawDecisionPresent: Option[Boolean] = None,
       rawDecisionIngressReason: Option[String] = None,
@@ -110,8 +110,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       runtimeGatePassed: Option[Boolean] = None,
       runtimeGateRejectReasons: List[String] = Nil,
       runtimeSceneType: Option[String] = Some("quiet_improvement"),
-      runtimeSelectedOwnerFamily: Option[String] = Some("MoveDelta"),
-      runtimeSelectedOwnerSource: Option[String] = Some("pv_delta"),
+      runtimeSelectedOwnerKind: Option[String] = Some("MoveDelta"),
+      runtimeSelectedSource: Option[String] = Some("pv_delta"),
       runtimePvDeltaAvailable: Option[Boolean] = Some(true),
       runtimeSignalDigestAvailable: Option[Boolean] = Some(true),
       runtimeMoveLinkedPvDeltaAnchorAvailable: Option[Boolean] = Some(true),
@@ -144,14 +144,14 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       bookmakerFallbackMode = bookmakerFallbackMode,
       plannerSceneType = plannerSceneType,
       plannerOwnerCandidates = plannerOwnerCandidates,
-      plannerAdmittedFamilies = plannerAdmittedFamilies,
-      plannerDroppedFamilies = Nil,
+      plannerAdmittedOwners = plannerAdmittedOwners,
+      plannerDroppedOwners = Nil,
       plannerSupportMaterialSeparation = Nil,
-      plannerProposedFamilyMappings = plannerProposedFamilyMappings,
+      plannerProposedOwnerMappings = plannerProposedOwnerMappings,
       plannerDemotionReasons = Nil,
       plannerSelectedQuestion = plannerSelectedQuestion,
-      plannerSelectedOwnerFamily = plannerSelectedOwnerFamily,
-      plannerSelectedOwnerSource = plannerSelectedOwnerSource,
+      plannerSelectedOwnerKind = plannerSelectedOwnerKind,
+      plannerSelectedSource = plannerSelectedSource,
       rawChoiceType = rawChoiceType,
       rawDecisionPresent = rawDecisionPresent,
       rawDecisionIngressReason = rawDecisionIngressReason,
@@ -181,8 +181,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       quietSupportRuntimeGatePassed = runtimeGatePassed,
       quietSupportRuntimeGateRejectReasons = runtimeGateRejectReasons,
       quietSupportRuntimeSceneType = runtimeSceneType,
-      quietSupportRuntimeSelectedOwnerFamily = runtimeSelectedOwnerFamily,
-      quietSupportRuntimeSelectedOwnerSource = runtimeSelectedOwnerSource,
+      quietSupportRuntimeSelectedProofFamily = runtimeSelectedOwnerKind,
+      quietSupportRuntimeSelectedProofSource = runtimeSelectedSource,
       quietSupportRuntimePvDeltaAvailable = runtimePvDeltaAvailable,
       quietSupportRuntimeSignalDigestAvailable = runtimeSignalDigestAvailable,
       quietSupportRuntimeMoveLinkedPvDeltaAnchorAvailable = runtimeMoveLinkedPvDeltaAnchorAvailable,
@@ -198,11 +198,11 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       playedSan: String,
       chronicleNarrative: Option[String] = None,
       plannerSelectedQuestion: Option[String] = Some("WhatChanged"),
-      plannerSelectedOwnerFamily: Option[String] = Some("MoveDelta"),
-      plannerSelectedOwnerSource: Option[String] = Some("pv_delta"),
+      plannerSelectedOwnerKind: Option[String] = Some("MoveDelta"),
+      plannerSelectedSource: Option[String] = Some("pv_delta"),
       chronicleReplayPrimaryKind: Option[String] = Some("WhatChanged"),
-      chronicleReplaySelectedOwnerFamily: Option[String] = Some("MoveDelta"),
-      chronicleReplaySelectedOwnerSource: Option[String] = Some("pv_delta"),
+      chronicleReplaySelectedOwnerKind: Option[String] = Some("MoveDelta"),
+      chronicleReplaySelectedSource: Option[String] = Some("pv_delta"),
       chronicleReplayNarrative: Option[String] = None,
       chronicleReplayQuietSupport: ChronicleQuietSupportTrace = ChronicleQuietSupportTrace()
   ): ChronicleActivePlannerSliceRunner.SliceSurfaceEntry =
@@ -219,15 +219,15 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       chronicleMode = "planner_owned",
       chroniclePrimaryKind = chronicleReplayPrimaryKind,
       chronicleSecondaryKind = None,
-      chronicleSelectedOwnerFamily = plannerSelectedOwnerFamily,
-      chronicleSelectedOwnerSource = plannerSelectedOwnerSource,
+      chronicleSelectedOwnerKind = plannerSelectedOwnerKind,
+      chronicleSelectedSource = plannerSelectedSource,
       chronicleNarrative = chronicleNarrative,
       chronicleBlankLike = false,
       activeMode = "omitted_no_moment",
       activePrimaryKind = None,
       activeSecondaryKind = None,
-      activeSelectedOwnerFamily = None,
-      activeSelectedOwnerSource = None,
+      activeSelectedOwnerKind = None,
+      activeSelectedSource = None,
       activePlannerApproved = false,
       activeNoteBuilt = false,
       activeValidatorPassed = false,
@@ -240,12 +240,12 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       activeNoteCandidate = None,
       activeBlankLike = false,
       plannerSelectedQuestion = plannerSelectedQuestion,
-      plannerSelectedOwnerFamily = plannerSelectedOwnerFamily,
-      plannerSelectedOwnerSource = plannerSelectedOwnerSource,
+      plannerSelectedOwnerKind = plannerSelectedOwnerKind,
+      plannerSelectedSource = plannerSelectedSource,
       chronicleReplayMode = "planner_owned",
       chronicleReplayPrimaryKind = chronicleReplayPrimaryKind,
-      chronicleReplaySelectedOwnerFamily = chronicleReplaySelectedOwnerFamily,
-      chronicleReplaySelectedOwnerSource = chronicleReplaySelectedOwnerSource,
+      chronicleReplaySelectedOwnerKind = chronicleReplaySelectedOwnerKind,
+      chronicleReplaySelectedSource = chronicleReplaySelectedSource,
       chronicleReplayNarrative = chronicleReplayNarrative,
       chronicleReplayBlankLike = false,
       chronicleReplayQuietSupport = chronicleReplayQuietSupport
@@ -348,7 +348,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
                 sliceKind = SliceKind.LongStructuralSqueeze,
                 playedSan = "Rc8",
                 rawResponsePath = rawPath,
-                plannerSelectedOwnerFamily = Some("ForcingDefense"),
+                plannerSelectedOwnerKind = Some("ForcingDefense"),
                 plannerOwnerCandidates = List("source_kind=pv_delta")
               )
             ),
@@ -360,7 +360,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
           .getOrElse(fail("missing blocked long structural squeeze row"))
 
       assertEquals(row.status, Status.UpstreamBlocked, clues(row))
-      assert(row.statusReasons.contains("closed_owner_family_already_selected"), clues(row))
+      assert(row.statusReasons.contains("closed_proof_family_already_selected"), clues(row))
     }
   }
 
@@ -477,7 +477,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
                 commentary = "This puts the rook on c8.",
                 bookmakerFallbackMode = "exact_factual",
                 plannerSelectedQuestion = None,
-                plannerSelectedOwnerSource = None,
+                plannerSelectedSource = None,
                 plannerOwnerCandidates = List("source_kind=pv_delta")
               ),
               bookmakerEntry(
@@ -488,7 +488,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
                 commentary = "This puts the rook on c8.",
                 bookmakerFallbackMode = "exact_factual",
                 plannerSelectedQuestion = None,
-                plannerSelectedOwnerSource = None,
+                plannerSelectedSource = None,
                 plannerOwnerCandidates = List("source_kind=pv_delta")
               ),
               bookmakerEntry(
@@ -500,7 +500,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
                 bookmakerFallbackMode = "exact_factual",
                 plannerSceneType = Some("tactical_failure"),
                 plannerSelectedQuestion = None,
-                plannerSelectedOwnerSource = None,
+                plannerSelectedSource = None,
                 plannerOwnerCandidates = List("source_kind=pv_delta")
               )
             ),
@@ -563,7 +563,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This puts the rook on c8.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta")
           ),
           bookmakerEntry(
@@ -574,7 +574,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This puts the rook on c8.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None
+            plannerSelectedSource = None
           )
         )
       val afterEntries =
@@ -587,7 +587,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This puts the rook on c8.\n\nThis keeps the route toward c4 available.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta"),
             quietSupportLiftApplied = Some(true),
             runtimeGatePassed = Some(true),
@@ -604,7 +604,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This puts the rook on c8.\n\nThis secures the squeeze.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             runtimeGatePassed = Some(false),
             runtimeGateRejectReasons = List("move_linked_pv_delta_anchor_missing"),
             runtimeMoveLinkedPvDeltaAnchorAvailable = Some(false)
@@ -679,7 +679,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This is a pawn move to a5.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta")
           ),
           bookmakerEntry(
@@ -690,8 +690,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This is a king move to e7.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerFamily = Some("ForcingDefense"),
-            plannerSelectedOwnerSource = Some("threat")
+            plannerSelectedOwnerKind = Some("ForcingDefense"),
+            plannerSelectedSource = Some("threat")
           )
         )
       val afterEntries =
@@ -704,12 +704,12 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This is a pawn move to a5.\n\nThis reinforces the fluid center.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta"),
             quietSupportLiftApplied = Some(true),
             runtimeGatePassed = Some(true),
-            runtimeSelectedOwnerFamily = Some("MoveDelta"),
-            runtimeSelectedOwnerSource = Some("pv_delta"),
+            runtimeSelectedOwnerKind = Some("MoveDelta"),
+            runtimeSelectedSource = Some("pv_delta"),
             quietSupportCandidateBucket = Some(Bucket.LongStructuralSqueeze),
             quietSupportCandidateSourceKinds = List("MoveDelta.pv_delta", "Digest.structure"),
             quietSupportCandidateVerbFamily = Some("reinforces"),
@@ -723,8 +723,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This is a king move to e7.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerFamily = Some("ForcingDefense"),
-            plannerSelectedOwnerSource = Some("threat"),
+            plannerSelectedOwnerKind = Some("ForcingDefense"),
+            plannerSelectedSource = Some("threat"),
             runtimeGatePassed = Some(false),
             runtimeGateRejectReasons = List("scene_type_not_allowed:forcing_defense")
           )
@@ -737,8 +737,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             playedSan = "a5",
             chronicleNarrative = Some("This is a pawn move to a5."),
             plannerSelectedQuestion = Some("WhatChanged"),
-            plannerSelectedOwnerFamily = Some("MoveDelta"),
-            plannerSelectedOwnerSource = Some("pv_delta")
+            plannerSelectedOwnerKind = Some("MoveDelta"),
+            plannerSelectedSource = Some("pv_delta")
           ),
           chronicleEntry(
             sampleId = "g-phaseb-blocked:long_structural_squeeze:69:chronicle",
@@ -746,11 +746,11 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             playedSan = "Ke7",
             chronicleNarrative = Some("The move has to happen now."),
             plannerSelectedQuestion = Some("WhyNow"),
-            plannerSelectedOwnerFamily = Some("ForcingDefense"),
-            plannerSelectedOwnerSource = Some("threat"),
+            plannerSelectedOwnerKind = Some("ForcingDefense"),
+            plannerSelectedSource = Some("threat"),
             chronicleReplayPrimaryKind = Some("WhyNow"),
-            chronicleReplaySelectedOwnerFamily = Some("ForcingDefense"),
-            chronicleReplaySelectedOwnerSource = Some("threat")
+            chronicleReplaySelectedOwnerKind = Some("ForcingDefense"),
+            chronicleReplaySelectedSource = Some("threat")
           )
         )
       val afterChronicleEntries =
@@ -761,16 +761,16 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             playedSan = "a5",
             chronicleNarrative = Some("This is a pawn move to a5."),
             plannerSelectedQuestion = Some("WhatChanged"),
-            plannerSelectedOwnerFamily = Some("MoveDelta"),
-            plannerSelectedOwnerSource = Some("pv_delta"),
+            plannerSelectedOwnerKind = Some("MoveDelta"),
+            plannerSelectedSource = Some("pv_delta"),
             chronicleReplayNarrative = Some("This is a pawn move to a5. This reinforces the fluid center."),
             chronicleReplayQuietSupport =
               ChronicleQuietSupportTrace(
                 applied = true,
                 runtimeGatePassed = Some(true),
                 runtimeSceneType = Some("quiet_improvement"),
-                runtimeSelectedOwnerFamily = Some("MoveDelta"),
-                runtimeSelectedOwnerSource = Some("pv_delta"),
+                runtimeSelectedOwnerKind = Some("MoveDelta"),
+                runtimeSelectedSource = Some("pv_delta"),
                 runtimePvDeltaAvailable = Some(true),
                 runtimeSignalDigestAvailable = Some(true),
                 runtimeMoveLinkedPvDeltaAnchorAvailable = Some(true),
@@ -786,11 +786,11 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             playedSan = "Ke7",
             chronicleNarrative = Some("The move has to happen now."),
             plannerSelectedQuestion = Some("WhyNow"),
-            plannerSelectedOwnerFamily = Some("ForcingDefense"),
-            plannerSelectedOwnerSource = Some("threat"),
+            plannerSelectedOwnerKind = Some("ForcingDefense"),
+            plannerSelectedSource = Some("threat"),
             chronicleReplayPrimaryKind = Some("WhyNow"),
-            chronicleReplaySelectedOwnerFamily = Some("ForcingDefense"),
-            chronicleReplaySelectedOwnerSource = Some("threat"),
+            chronicleReplaySelectedOwnerKind = Some("ForcingDefense"),
+            chronicleReplaySelectedSource = Some("threat"),
             chronicleReplayNarrative = Some("The move has to happen now."),
             chronicleReplayQuietSupport =
               ChronicleQuietSupportTrace(
@@ -798,8 +798,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
                 rejectReasons = List("surface_primary_not_movedelta_pv_delta"),
                 runtimeGatePassed = Some(false),
                 runtimeSceneType = Some("forcing_defense"),
-                runtimeSelectedOwnerFamily = Some("ForcingDefense"),
-                runtimeSelectedOwnerSource = Some("threat")
+                runtimeSelectedOwnerKind = Some("ForcingDefense"),
+                runtimeSelectedSource = Some("threat")
               )
           )
         )
@@ -869,7 +869,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This puts the rook on c8.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta")
           ),
           bookmakerEntry(
@@ -880,7 +880,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This is a pawn move to a5.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta")
           )
         )
@@ -894,7 +894,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This puts the rook on c8.\n\nThis keeps the route toward c4 available.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta"),
             quietSupportLiftApplied = Some(true),
             runtimeGatePassed = Some(true),
@@ -911,16 +911,16 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This forces the opponent to stay passive.",
             bookmakerFallbackMode = "planner_owned",
             plannerSelectedQuestion = Some("WhatMustBeStopped"),
-            plannerSelectedOwnerFamily = Some("ForcingDefense"),
-            plannerSelectedOwnerSource = Some("threat"),
+            plannerSelectedOwnerKind = Some("ForcingDefense"),
+            plannerSelectedSource = Some("threat"),
             plannerOwnerCandidates = List("source_kind=pv_delta"),
             quietSupportLiftApplied = Some(false),
             quietSupportRejectReasons = List("planner_owned_row"),
             runtimeGatePassed = Some(false),
             runtimeGateRejectReasons = List("scene_type_not_allowed:forcing_defense"),
             runtimeSceneType = Some("forcing_defense"),
-            runtimeSelectedOwnerFamily = Some("ForcingDefense"),
-            runtimeSelectedOwnerSource = Some("threat"),
+            runtimeSelectedOwnerKind = Some("ForcingDefense"),
+            runtimeSelectedSource = Some("threat"),
             runtimeMoveLinkedPvDeltaAnchorAvailable = Some(false)
           )
         )
@@ -1008,7 +1008,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             bookmakerFallbackMode = "exact_factual",
             plannerSceneType = Some("tactical_failure"),
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             plannerMoveDeltaSources = Nil
           ),
           bookmakerEntry(
@@ -1019,7 +1019,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             commentary = "This puts the rook on c8.",
             bookmakerFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             plannerOwnerCandidates = List("MoveDelta:source_kind=pv_delta"),
             rawChoiceType = Some("NarrowChoice"),
             rawDecisionPresent = Some(true),
@@ -1044,8 +1044,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             bookmakerFallbackMode = "planner_owned",
             plannerSceneType = Some("forcing_defense"),
             plannerSelectedQuestion = Some("WhyNow"),
-            plannerSelectedOwnerFamily = Some("ForcingDefense"),
-            plannerSelectedOwnerSource = Some("truth_contract"),
+            plannerSelectedOwnerKind = Some("ForcingDefense"),
+            plannerSelectedSource = Some("truth_contract"),
             plannerForcingDefenseSources = List("truth_contract")
           )
         )
@@ -1060,7 +1060,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             bookmakerFallbackMode = "exact_factual",
             plannerSceneType = Some("tactical_failure"),
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             runtimeGatePassed = Some(false),
             runtimeGateRejectReasons = List("scene_type_not_allowed:tactical_failure")
           ),
@@ -1073,7 +1073,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             bookmakerFallbackMode = "exact_factual",
             plannerSceneType = Some("tactical_failure"),
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedSource = None,
             plannerOwnerCandidates = List(
               "DecisionTiming:source_kind=truth_contract",
               "TacticalFailure:source_kind=truth_contract"
@@ -1112,8 +1112,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             bookmakerFallbackMode = "exact_factual",
             plannerSceneType = Some("tactical_failure"),
             plannerSelectedQuestion = None,
-            plannerSelectedOwnerFamily = None,
-            plannerSelectedOwnerSource = None,
+            plannerSelectedOwnerKind = None,
+            plannerSelectedSource = None,
             rawChoiceType = Some("NarrowChoice"),
             rawDecisionPresent = Some(true),
             rawDecisionIngressReason = Some("decision_present"),
@@ -1200,4 +1200,3 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       assert(summary.blockedFallbackSpikeCount >= 1, clues(summary))
     }
   }
-

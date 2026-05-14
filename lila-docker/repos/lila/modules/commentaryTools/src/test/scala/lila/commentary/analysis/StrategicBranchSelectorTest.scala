@@ -96,7 +96,7 @@ class StrategicBranchSelectorTest extends FunSuite:
       surfaceMode: TruthSurfaceMode,
       exemplarRole: Option[TruthExemplarRole] = None,
       truthClass: DecisiveTruthClass = DecisiveTruthClass.Best,
-      reasonFamily: DecisiveReasonFamily = DecisiveReasonFamily.InvestmentSacrifice,
+      reasonFamily: DecisiveReasonKind = DecisiveReasonKind.InvestmentSacrifice,
       truthPhase: Option[InvestmentTruthPhase] = None,
       chainKey: Option[String] = None,
       payoffAnchor: Option[String] = Some("open-file pressure"),
@@ -213,7 +213,7 @@ class StrategicBranchSelectorTest extends FunSuite:
               ownershipRole = TruthOwnershipRole.NoneRole,
               visibilityRole = TruthVisibilityRole.PrimaryVisible,
               surfaceMode = TruthSurfaceMode.Neutral,
-              reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+              reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
               benchmarkCriticalMove = true
             )
           )
@@ -584,7 +584,7 @@ class StrategicBranchSelectorTest extends FunSuite:
             visibilityRole = TruthVisibilityRole.Hidden,
             surfaceMode = TruthSurfaceMode.Neutral,
             truthClass = DecisiveTruthClass.Inaccuracy,
-            reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+            reasonFamily = DecisiveReasonKind.TacticalRefutation,
             failureMode = FailureInterpretationMode.TacticalRefutation
           ),
           29 -> truthContract(
@@ -628,14 +628,14 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             benchmarkCriticalMove = true
           ),
           29 -> truthContract(
             ownershipRole = TruthOwnershipRole.ConversionOwner,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.ConversionExplain,
-            reasonFamily = DecisiveReasonFamily.Conversion,
+            reasonFamily = DecisiveReasonKind.Conversion,
             truthPhase = Some(InvestmentTruthPhase.ConversionFollowthrough),
             chainKey = Some("white:queenside pressure")
           )
@@ -939,7 +939,7 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             benchmarkCriticalMove = true
           )
         )
@@ -987,7 +987,7 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             benchmarkCriticalMove = true
           )
         )
@@ -1038,14 +1038,14 @@ class StrategicBranchSelectorTest extends FunSuite:
               ownershipRole = TruthOwnershipRole.NoneRole,
               visibilityRole = TruthVisibilityRole.PrimaryVisible,
               surfaceMode = TruthSurfaceMode.Neutral,
-              reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+              reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
               benchmarkCriticalMove = true
             ),
             121 -> truthContract(
               ownershipRole = TruthOwnershipRole.NoneRole,
               visibilityRole = TruthVisibilityRole.PrimaryVisible,
               surfaceMode = TruthSurfaceMode.Neutral,
-              reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+              reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
               benchmarkCriticalMove = true
             )
           )
@@ -1094,14 +1094,14 @@ class StrategicBranchSelectorTest extends FunSuite:
               ownershipRole = TruthOwnershipRole.NoneRole,
               visibilityRole = TruthVisibilityRole.PrimaryVisible,
               surfaceMode = TruthSurfaceMode.Neutral,
-              reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+              reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
               benchmarkCriticalMove = true
             ),
             121 -> truthContract(
               ownershipRole = TruthOwnershipRole.NoneRole,
               visibilityRole = TruthVisibilityRole.PrimaryVisible,
               surfaceMode = TruthSurfaceMode.Neutral,
-              reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+              reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
               benchmarkCriticalMove = true
             )
           )
@@ -1200,14 +1200,14 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             benchmarkCriticalMove = true
           ),
           27 -> truthContract(
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             benchmarkCriticalMove = true
           ),
           51 -> truthContract(
@@ -1219,14 +1219,14 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             benchmarkCriticalMove = true
           ),
           67 -> truthContract(
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             benchmarkCriticalMove = true
           ),
           101 -> truthContract(
@@ -1239,7 +1239,7 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             chainKey = Some("thread_c"),
             benchmarkCriticalMove = true
           )
@@ -1289,7 +1289,7 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             benchmarkCriticalMove = true
           ),
           27 -> truthContract(
@@ -1301,7 +1301,7 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             benchmarkCriticalMove = true
           )
         )
@@ -1333,14 +1333,14 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.Hidden,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.QuietTechnicalMove,
+            reasonFamily = DecisiveReasonKind.QuietTechnicalMove,
             benchmarkCriticalMove = true
           ),
           29 -> truthContract(
             ownershipRole = TruthOwnershipRole.ConversionOwner,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.ConversionExplain,
-            reasonFamily = DecisiveReasonFamily.Conversion,
+            reasonFamily = DecisiveReasonKind.Conversion,
             truthPhase = Some(InvestmentTruthPhase.ConversionFollowthrough),
             chainKey = Some("white:queenside pressure")
           )
@@ -1384,7 +1384,7 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             chainKey = Some("white:thread_hold"),
             benchmarkCriticalMove = true
           ),
@@ -1392,7 +1392,7 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             chainKey = Some("white:thread_hold"),
             benchmarkCriticalMove = true
           )
@@ -1443,7 +1443,7 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             chainKey = Some("white:thread_hold"),
             benchmarkCriticalMove = true
           ),
@@ -1451,7 +1451,7 @@ class StrategicBranchSelectorTest extends FunSuite:
             ownershipRole = TruthOwnershipRole.NoneRole,
             visibilityRole = TruthVisibilityRole.PrimaryVisible,
             surfaceMode = TruthSurfaceMode.Neutral,
-            reasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+            reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
             benchmarkCriticalMove = true
           )
         )

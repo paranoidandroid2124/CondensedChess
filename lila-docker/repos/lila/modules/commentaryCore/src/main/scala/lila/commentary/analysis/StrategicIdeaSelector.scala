@@ -2243,7 +2243,7 @@ private[commentary] object StrategicIdeaSelector:
           )
         then 0.14
         else if semantic.strategicPlanExperiments.exists(experiment =>
-            experiment.themeL1 == ThemeTaxonomy.ThemeL1.ImmediateTacticalGain.id &&
+            experiment.themeL1 == PlanTaxonomy.PlanTheme.ImmediateTacticalGain.id &&
               experiment.evidenceTier != "refuted"
           )
         then 0.04
@@ -2407,64 +2407,64 @@ private[commentary] object StrategicIdeaSelector:
   ): Boolean =
     val matchedKinds =
       experiment.subplanId
-        .flatMap(ThemeTaxonomy.SubplanId.fromId)
+        .flatMap(PlanTaxonomy.PlanKind.fromId)
         .map {
-          case ThemeTaxonomy.SubplanId.BreakPrevention | ThemeTaxonomy.SubplanId.KeySquareDenial =>
+          case PlanTaxonomy.PlanKind.BreakPrevention | PlanTaxonomy.PlanKind.KeySquareDenial =>
             if experiment.counterBreakNeutralized then Set(StrategicIdeaKind.CounterplaySuppression, StrategicIdeaKind.Prophylaxis)
             else Set(StrategicIdeaKind.Prophylaxis)
-          case ThemeTaxonomy.SubplanId.ProphylaxisRestraint =>
+          case PlanTaxonomy.PlanKind.ProphylaxisRestraint =>
             Set(StrategicIdeaKind.Prophylaxis)
-          case ThemeTaxonomy.SubplanId.OutpostEntrenchment =>
+          case PlanTaxonomy.PlanKind.OutpostEntrenchment =>
             Set(StrategicIdeaKind.OutpostCreationOrOccupation)
-          case ThemeTaxonomy.SubplanId.WorstPieceImprovement | ThemeTaxonomy.SubplanId.BishopReanchor =>
+          case PlanTaxonomy.PlanKind.WorstPieceImprovement | PlanTaxonomy.PlanKind.BishopReanchor =>
             Set(StrategicIdeaKind.MinorPieceImbalanceExploitation, StrategicIdeaKind.LineOccupation)
-          case ThemeTaxonomy.SubplanId.RookFileTransfer | ThemeTaxonomy.SubplanId.OpenFilePressure =>
+          case PlanTaxonomy.PlanKind.RookFileTransfer | PlanTaxonomy.PlanKind.OpenFilePressure =>
             Set(StrategicIdeaKind.LineOccupation)
-          case ThemeTaxonomy.SubplanId.FlankClamp | ThemeTaxonomy.SubplanId.CentralSpaceBind |
-              ThemeTaxonomy.SubplanId.MobilitySuppression =>
+          case PlanTaxonomy.PlanKind.FlankClamp | PlanTaxonomy.PlanKind.CentralSpaceBind |
+              PlanTaxonomy.PlanKind.MobilitySuppression =>
             Set(StrategicIdeaKind.SpaceGainOrRestriction)
-          case ThemeTaxonomy.SubplanId.StaticWeaknessFixation | ThemeTaxonomy.SubplanId.MinorityAttackFixation |
-              ThemeTaxonomy.SubplanId.BackwardPawnTargeting | ThemeTaxonomy.SubplanId.IQPInducement =>
+          case PlanTaxonomy.PlanKind.StaticWeaknessFixation | PlanTaxonomy.PlanKind.MinorityAttackFixation |
+              PlanTaxonomy.PlanKind.BackwardPawnTargeting | PlanTaxonomy.PlanKind.IQPInducement =>
             Set(StrategicIdeaKind.TargetFixing)
-          case ThemeTaxonomy.SubplanId.CentralBreakTiming | ThemeTaxonomy.SubplanId.WingBreakTiming |
-              ThemeTaxonomy.SubplanId.TensionMaintenance =>
+          case PlanTaxonomy.PlanKind.CentralBreakTiming | PlanTaxonomy.PlanKind.WingBreakTiming |
+              PlanTaxonomy.PlanKind.TensionMaintenance =>
             Set(StrategicIdeaKind.PawnBreak)
-          case ThemeTaxonomy.SubplanId.SimplificationWindow | ThemeTaxonomy.SubplanId.DefenderTrade |
-              ThemeTaxonomy.SubplanId.QueenTradeShield | ThemeTaxonomy.SubplanId.SimplificationConversion |
-              ThemeTaxonomy.SubplanId.PasserConversion | ThemeTaxonomy.SubplanId.PassedPawnManufacture |
-              ThemeTaxonomy.SubplanId.BadPieceLiquidation | ThemeTaxonomy.SubplanId.InvasionTransition |
-              ThemeTaxonomy.SubplanId.OppositeBishopsConversion =>
+          case PlanTaxonomy.PlanKind.SimplificationWindow | PlanTaxonomy.PlanKind.DefenderTrade |
+              PlanTaxonomy.PlanKind.QueenTradeShield | PlanTaxonomy.PlanKind.SimplificationConversion |
+              PlanTaxonomy.PlanKind.PasserConversion | PlanTaxonomy.PlanKind.PassedPawnManufacture |
+              PlanTaxonomy.PlanKind.BadPieceLiquidation | PlanTaxonomy.PlanKind.InvasionTransition |
+              PlanTaxonomy.PlanKind.OppositeBishopsConversion =>
             Set(StrategicIdeaKind.FavorableTradeOrTransformation)
-          case ThemeTaxonomy.SubplanId.RookPawnMarch | ThemeTaxonomy.SubplanId.HookCreation |
-              ThemeTaxonomy.SubplanId.RookLiftScaffold =>
+          case PlanTaxonomy.PlanKind.RookPawnMarch | PlanTaxonomy.PlanKind.HookCreation |
+              PlanTaxonomy.PlanKind.RookLiftScaffold =>
             Set(StrategicIdeaKind.KingAttackBuildUp)
-          case ThemeTaxonomy.SubplanId.OpeningDevelopment |
-              ThemeTaxonomy.SubplanId.ForcingTacticalShot | ThemeTaxonomy.SubplanId.DefenderOverload |
-              ThemeTaxonomy.SubplanId.ClearanceBreak | ThemeTaxonomy.SubplanId.BatteryPressure =>
+          case PlanTaxonomy.PlanKind.OpeningDevelopment |
+              PlanTaxonomy.PlanKind.ForcingTacticalShot | PlanTaxonomy.PlanKind.DefenderOverload |
+              PlanTaxonomy.PlanKind.ClearanceBreak | PlanTaxonomy.PlanKind.BatteryPressure =>
             Set.empty[String]
         }
         .getOrElse(experimentThemeKinds(experiment.themeL1))
     matchedKinds.contains(kind)
 
   private def experimentThemeKinds(themeL1: String): Set[String] =
-    ThemeTaxonomy.ThemeL1
+    PlanTaxonomy.PlanTheme
       .fromId(themeL1)
       .map {
-        case ThemeTaxonomy.ThemeL1.RestrictionProphylaxis =>
+        case PlanTaxonomy.PlanTheme.RestrictionProphylaxis =>
           Set(StrategicIdeaKind.Prophylaxis)
-        case ThemeTaxonomy.ThemeL1.PieceRedeployment =>
+        case PlanTaxonomy.PlanTheme.PieceRedeployment =>
           Set(StrategicIdeaKind.LineOccupation)
-        case ThemeTaxonomy.ThemeL1.SpaceClamp =>
+        case PlanTaxonomy.PlanTheme.SpaceClamp =>
           Set(StrategicIdeaKind.SpaceGainOrRestriction)
-        case ThemeTaxonomy.ThemeL1.WeaknessFixation =>
+        case PlanTaxonomy.PlanTheme.WeaknessFixation =>
           Set(StrategicIdeaKind.TargetFixing)
-        case ThemeTaxonomy.ThemeL1.PawnBreakPreparation =>
+        case PlanTaxonomy.PlanTheme.PawnBreakPreparation =>
           Set(StrategicIdeaKind.PawnBreak)
-        case ThemeTaxonomy.ThemeL1.FavorableExchange | ThemeTaxonomy.ThemeL1.AdvantageTransformation =>
+        case PlanTaxonomy.PlanTheme.FavorableExchange | PlanTaxonomy.PlanTheme.AdvantageTransformation =>
           Set(StrategicIdeaKind.FavorableTradeOrTransformation)
-        case ThemeTaxonomy.ThemeL1.FlankInfrastructure =>
+        case PlanTaxonomy.PlanTheme.FlankInfrastructure =>
           Set(StrategicIdeaKind.KingAttackBuildUp)
-        case ThemeTaxonomy.ThemeL1.ImmediateTacticalGain =>
+        case PlanTaxonomy.PlanTheme.ImmediateTacticalGain =>
           Set.empty[String]
         case _ =>
           Set.empty[String]
@@ -2522,7 +2522,7 @@ private[commentary] object StrategicIdeaSelector:
     if !isSlowStrategicKind(kind) then 0.0
     else
       experiments
-        .filter(_.themeL1 == ThemeTaxonomy.ThemeL1.ImmediateTacticalGain.id)
+        .filter(_.themeL1 == PlanTaxonomy.PlanTheme.ImmediateTacticalGain.id)
         .map { experiment =>
           experiment.evidenceTier match
             case "evidence_backed" => -0.16

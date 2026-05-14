@@ -41,6 +41,24 @@ Current canonical scope includes:
 - prompt-bearing surfaces that affect commentary behavior
 - signoff / audit entry points used by the real-PGN signoff runner
 
+## Runtime Naming Vocabulary
+
+The current runtime separates the chess idea layer, proof layer, planner layer,
+and source-review layer:
+
+- `PlanTaxonomy.PlanTheme` and `PlanTaxonomy.PlanKind` name the chess-plan
+  vocabulary.
+- `proofSource` and `proofFamily` name the packet proof lane and the
+  `ProofContract` that can release authority.
+- `PlannerOwnerKind`, `plannerOwnerKind`, and `plannerSource` name the
+  question-planner owner lane.
+- `reviewGroup` names source-review intake buckets, not runtime authority.
+- `AdmissionUnitCatalog` / `AdmissionUnitReview` are test/tooling admission
+  harnesses for one `PlanKind + proofSource + proofFamily` unit.
+
+These layers must not be collapsed back into a generic `family` label, and
+runtime conditions must not depend on source ids.
+
 Out of scope:
 
 - removed legacy QC / BookCommentary / debug / shadow / structure-endgame side
@@ -330,10 +348,10 @@ Current canonical flow:
       ranking:
       planner output now records `scene_type`, raw `owner_candidates`,
       `admitted_families`, `dropped_families`, `demotion_reasons`,
-      `selected_question`, `selected_owner_family`, and
-      `selected_owner_source`
+      `selected_question`, `selected_proof_family`, and
+      `selected_proof_source`
     - shadow normalization remains visible, per candidate:
-      `owner_family`, `source_kind`, `move_linked`, `support_material`,
+      `proof_family`, `source_kind`, `move_linked`, `support_material`,
       `materiality`, `timing_source`, raw support-material separation, and
       proposed family mapping
     - every normalized candidate now also carries `admission_decision`,
@@ -512,7 +530,7 @@ Current canonical flow:
      signoff:
      `scene_type`, `owner_candidates`, `admitted_families`,
      `dropped_families`, `demotion_reasons`, `selected_question`,
-     `selected_owner_family`, `selected_owner_source`
+     `selected_proof_family`, `selected_proof_source`
    - shadow normalization distinguishes owner candidates from support material:
      raw close alternatives, opening precedent summaries, and endgame
      theoretical hints are traced but stay support-only in this pass
@@ -792,12 +810,12 @@ Current rules:
       the move-linked `MoveDelta.pv_delta` subset backed by `signalDigest`
       route / structure / pressure material
     - that fallback-lift is support-only:
-      it does not reopen owner-family authority, question ranking, legality, or
+      it does not reopen proof-contract authority, question ranking, legality, or
       raw domain-hint revival, and planner trace still records the row as an
       exact-factual fallback rather than a planner-owned promotion
     - QC reruns now also record a quiet-support diagnostic trace for the
       exact-factual path, including runtime gate status
-      (`sceneType`, selected owner family/source, `pvDelta` availability,
+      (`sceneType`, selected planner owner kind/source, `pvDelta` availability,
       move-linked `pv_delta` anchor availability, and gate reject reasons),
       so quiet-support acceptance can separate baseline-selected rows into
       runtime-gate-pass, runtime-gate-fail, and planner drift outside
@@ -871,7 +889,7 @@ Current rules:
       cleaned primary claim and no surviving contrast, evidence, consequence,
       or secondary-support sentence
     - this Chronicle mirror is replay-safe:
-      it does not reopen owner-family authority, question ranking, legality,
+      it does not reopen proof-contract authority, question ranking, legality,
       top-2 swap policy, or blocked-lane interpretation, and blocked forcing
       rows remain closed unless the planner already selected them as legal
       non-quiet owners
@@ -942,9 +960,9 @@ Current rules:
     `PlayerFacingClaimPacket` sidecar:
     `PlayerFacingTruthModePolicy`, `MainPathMoveDeltaClaimBuilder`, and
     `QuietMoveIntentBuilder` thread a shared packet containing
-    `claimGate`, `ownerSource`, `ownerFamily`, `scope`, `triggerKind`,
+    `claimGate`, `proofSource`, `proofFamily`, `scope`, `triggerKind`,
     `bestDefenseMove`, `bestDefenseBranchKey`, `sameBranchState`,
-    `persistence`, `rivalKind`, backend-only `ownerPathWitness`
+    `persistence`, `rivalKind`, backend-only `proofPathWitness`
     (`ownerSeedTerms`, `continuationTerms`, `rivalTerms`,
     `structureTransitionTerms`), `suppressionReasons`, `releaseRisks`, and
     `fallbackMode`; this packet is internal-only and does not add a new public
@@ -962,7 +980,7 @@ Current rules:
     owner-path families also need continuation proof through the same packet
     lane. `MainPathMoveDeltaClaimBuilder` and `QuietMoveIntentBuilder` may
     reuse those private witness terms for local anchor wording, but no new
-    public schema or prose family is opened by that reuse
+    public schema or surface phrase class is opened by that reuse
   - current packetized pilot mapping is narrower than the existing planner
     lanes:
     exact B2 `neutralize_key_break` is now promoted on one bounded move-delta
@@ -972,7 +990,7 @@ Current rules:
     `persistence=Stable`, and no suppression/release-risk reason survives; the
     generated claim must stay one-board / one-break / one-branch local
     ("takes the ...X break away"), and `QuestionFirstCommentaryPlanner`
-    now preserves the admitted move-owner source instead of relabeling that
+    now preserves the admitted move-planner source instead of relabeling that
     exact move-local claim as support-only `prevented_plan`.
     `QuestionFirstCommentaryPlanner` also filters `breakNeutralized`
     `preventedPlans` through the same packet gate before named-break prose can
@@ -1044,8 +1062,16 @@ Current rules:
     (`slows X before it gets started` / `keeps X from getting going on this
     branch`). `MainPathMoveDeltaClaimBuilder` keeps the named resource ahead of
     raw break-square wording on this family so the exact resource, not just the
-    blocked square, owns the surface. Active plus whole-game replay remain
-    closed. Generic
+    blocked square, owns the surface. `ClaimAuthorityPolicy` recognizes this
+    exact path only as the `(proofSource=prophylactic_move,
+    proofFamily=counterplay_restraint)` MoveDelta packet, parallel to the
+    already bounded `(counterplay_axis_suppression, neutralize_key_break)`
+    named-break packet; generic MoveDelta scope is not enough. Bookmaker and
+    Chronicle consume the planner's `strategic_claim_supported_local` decision
+    as claim-only, and the shared sentence sanitizer treats side-specific
+    `queenside` / `kingside` / `central counterplay` as a concrete anchor only
+    for sanitized player-facing wording, not as owner proof. Active plus
+    whole-game replay remain closed. Generic
     prophylaxis praise, whole-position no-counterplay, move-order-fragile
     shells, support-only reinflation, and heavy-piece relabel stay fail-closed
   - bounded `favorable_simplification` is now promoted on one exact same-task
@@ -1062,7 +1088,7 @@ Current rules:
     e6.`). `same_job_conversion`, `trade_key_defender_relabel`,
     `route_bind_relabel`, `better_endgame_inflation`,
     `support_only_reinflation`, and `B7_drift` remain hard fail-closed, and no
-    new planner question, public schema, or owner family opens with this slice
+    new planner question, public schema, or planner owner kind opens with this slice
   - `defensive_regrouping` is now triaged as absorbed into
     `prophylactic_move`, not as an independent promotion candidate:
     regrouping-style piece-improvement plans do not gain a distinct exact
@@ -1085,8 +1111,8 @@ Current rules:
     `minority_attack_fixation`, must not carry the Carlsbad profile, and the
     exact focus squares must contain one opponent pawn target on the live
     board. On that admitted slice the runtime now materializes
-    `ownerSource=exact_target_fixation`,
-    `ownerFamily=static_weakness_fixation`,
+    `proofSource=exact_target_fixation`,
+    `proofFamily=static_weakness_fixation`,
     `bestDefenseBranchKey=f3d2|b8a6`, `sameBranchState=Proven`,
     `persistence=Stable`, `main_bundle=This keeps the pressure fixed on d6.`,
     and planner-owned `WhatChanged`
@@ -1117,8 +1143,8 @@ Current rules:
     on `b2` and `d4`), the defended branch key is present, there is no live
     `exact_target_fixation` move owner already, and the reviewed weakness
     support survives on the live row. On that admitted slice the runtime now
-    materializes `ownerSource=carlsbad_fixed_target_probe`,
-    `ownerFamily=backward_pawn_targeting`, `scope=PositionLocal`,
+    materializes `proofSource=carlsbad_fixed_target_probe`,
+    `proofFamily=backward_pawn_targeting`, `scope=PositionLocal`,
     `bestDefenseBranchKey=h4f2|b7b5` on `B15A` / `f1e1|c8d7` on `B16B`,
     `sameBranchState=Proven`, `persistence=Stable`, and
     `main_bundle=The key strategic fact here is that c6 is the fixed target.`
@@ -1137,8 +1163,8 @@ Current rules:
     key and may not already certify either the move-local
     `exact_target_fixation` lane or the Carlsbad fixed-target probe. On that
     admitted slice the runtime now materializes
-    `ownerSource=target_focused_coordination_probe`,
-    `ownerFamily=target_focused_coordination`, `scope=PositionLocal`,
+    `proofSource=target_focused_coordination_probe`,
+    `proofFamily=target_focused_coordination`, `scope=PositionLocal`,
     `bestDefenseBranchKey=d1b3|d8d7` on `K09A` / `h2h3|g4f3` on `K09D`,
     `sameBranchState=Proven`, `persistence=Stable`, and
     `main_bundle=The key strategic fact here is that the pressure is coordinated on c6.`
@@ -1326,7 +1352,7 @@ Current rules:
   - Active may reorder planner top-2 only when the replacement is not weaker on
     truth ownership, evidence quality, or fallback strength
   - replay may reuse carried opening/endgame translator claims from the shared
-    digest, but it may not mint a new owner family or promote raw domain
+    digest, but it may not mint a new planner owner kind or promote raw domain
     summaries into the note body
   - `WhosePlanIsFaster` may never own the Active note body; it may survive only
     as certified side-support when another primary already exists
@@ -1505,7 +1531,7 @@ Current rules:
     `recapture_branches`, and `keep_tension_branches`
   - restricted-defense conversion certification is also runtime-scoped:
     `NarrativeContextBuilder` evaluates a backend-only certificate for
-    `ThemeL1.AdvantageTransformation` experiments using existing
+    `PlanTheme.AdvantageTransformation` experiments using existing
     `PlanEvidenceEvaluator` output, `preventedPlans`, side-to-move eval posture,
     and direct `convert_reply_multipv` / `defense_reply_multipv` evidence
   - certification is intentionally narrow:
@@ -1519,8 +1545,8 @@ Current rules:
     Active reuse
   - counterplay-axis suppression certification is also runtime-scoped:
     `NarrativeContextBuilder` evaluates a backend-only certificate for
-    `ThemeL1.RestrictionProphylaxis` experiments with
-    `SubplanId.BreakPrevention` / `SubplanId.KeySquareDenial` using existing
+    `PlanTheme.RestrictionProphylaxis` experiments with
+    `PlanKind.BreakPrevention` / `PlanKind.KeySquareDenial` using existing
     `PlanEvidenceEvaluator` output, `preventedPlans`, validated probe results,
     side-to-move eval posture, and current phase / ply / FEN context
   - this B2b slice is intentionally narrower than B1:
@@ -1539,8 +1565,8 @@ Current rules:
     restriction-prophylaxis lane:
     `NarrativeContextBuilder` evaluates a backend-only
     `TwoAxisBindProof` contract for
-    `ThemeL1.RestrictionProphylaxis` experiments with
-    `SubplanId.BreakPrevention` / `SubplanId.KeySquareDenial` when current
+    `PlanTheme.RestrictionProphylaxis` experiments with
+    `PlanKind.BreakPrevention` / `PlanKind.KeySquareDenial` when current
     `PreventedPlan` evidence shows one named break axis plus one independent
     entry axis
   - this B3b slice is intentionally narrower than B2b:
@@ -1569,8 +1595,8 @@ Current rules:
     restriction-prophylaxis lane:
     `NarrativeContextBuilder` evaluates a backend-only
     `LocalFileEntryProof` contract for
-    `ThemeL1.RestrictionProphylaxis` experiments with
-    `SubplanId.BreakPrevention` / `SubplanId.KeySquareDenial` when current
+    `PlanTheme.RestrictionProphylaxis` experiments with
+    `PlanKind.BreakPrevention` / `PlanKind.KeySquareDenial` when current
     `PreventedPlan` evidence shows one denied file corridor
     (`deniedEntryScope = file`) plus one independent corroborating entry square
   - this B4b slice is intentionally narrower than B3b:
@@ -1604,7 +1630,7 @@ Current rules:
   - no new public payload/schema field exists for this slice; the certification
     contract is backend-only
   - standalone `entry_square_denial` remains fail-closed:
-    when `SubplanId.KeySquareDenial` does not certify the B4 file-plus-entry
+    when `PlanKind.KeySquareDenial` does not certify the B4 file-plus-entry
     pair and does not relabel into the promoted named-resource prophylaxis
     lane, `PlayerFacingTruthModePolicy` may still build a private
     square-specific packet but now records `scope_inflation` and suppresses the
@@ -1944,7 +1970,7 @@ Primary files:
   one already-certifiable B6 triplet plus one exact intermediate node on the
   same defended branch
 - runtime reuse:
-  no new ingress, planner lane, replay lane, payload field, or prose family was
+  no new ingress, planner lane, replay lane, payload field, or surface phrase class was
   added in the closeout campaign. The session used
   `NamedRouteSurfaceLedger.scala` plus the existing engine/replay
   helpers to re-screen the current B6 control, adjacent K09/B21 pool, local
@@ -2056,7 +2082,7 @@ Primary files:
   this B5b helper is `current bounded scope complete` only as a negative-first
   containment slice; that means maintenance-only watch for that fail-closed
   charter, not heavy-piece positive-family completion
-- no new public payload/schema field or prose family was added
+- no new public payload/schema field or surface phrase class was added
 
 ### Compensation normalization
 
@@ -2183,7 +2209,7 @@ Current deterministic rerun status for Step 7 final signoff:
   planner-owned moments and `41` Active attaches
 - current visible cross-surface owner carry stays aligned on the shared
   planner-owned overlap:
-  `41` Chronicle/Active shared planner-visible rows, `0` owner-family/source
+  `41` Chronicle/Active shared planner-visible rows, `0` proof-family/source
   divergence
 - no Step-5 regression was reintroduced on the rerun:
   admitted-but-unbuildable remains `0`, demote hard-drop remains `0`, and the

@@ -28,7 +28,7 @@ class RequestValidationTest extends FunSuite:
       |1.e4 e5 2.Nf3 Nc6 3.Bb5 a6 4.Ba4 Nf6 5.O-O *
       |""".stripMargin
 
-  test("bookmaker rejects positions before ply five") {
+  test("move review rejects positions before ply five") {
     val req =
       CommentRequest(
         fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
@@ -37,15 +37,16 @@ class RequestValidationTest extends FunSuite:
         context = PositionContext(None, "opening", 4)
       )
 
-    val result = CommentRequest.validateBookmaker(req)
+    val result = CommentRequest.validateMoveReview(req)
 
-    assertEquals(result.left.toOption.map(_.code), Some("bookmaker_too_early"))
-    val error = result.left.toOption.getOrElse(fail("expected bookmaker_too_early"))
+    assertEquals(result.left.toOption.map(_.code), Some("move_review_too_early"))
+    val error = result.left.toOption.getOrElse(fail("expected move_review_too_early"))
     assert(error.message.contains("move 3"), clues(error.message))
+    assert(error.message.contains("Move Review"), clues(error.message))
     assert(!error.message.toLowerCase.contains("ply"), clues(error.message))
   }
 
-  test("bookmaker accepts positions from ply five onward") {
+  test("move review accepts positions from ply five onward") {
     val req =
       CommentRequest(
         fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3",
@@ -54,12 +55,12 @@ class RequestValidationTest extends FunSuite:
         context = PositionContext(None, "opening", 5)
       )
 
-    val result = CommentRequest.validateBookmaker(req)
+    val result = CommentRequest.validateMoveReview(req)
 
     assert(result.isRight, clues(result))
   }
 
-  test("game chronicle rejects games shorter than nine plies") {
+  test("game review rejects games shorter than nine plies") {
     val req =
       FullAnalysisRequest(
         pgn = ShortGamePgn,
@@ -67,15 +68,16 @@ class RequestValidationTest extends FunSuite:
         options = AnalysisOptions(style = "book", focusOn = List("mistakes", "turning_points"))
       )
 
-    val result = FullAnalysisRequest.validateGameChronicle(req)
+    val result = FullAnalysisRequest.validateGameReview(req)
 
-    assertEquals(result.left.toOption.map(_.code), Some("game_chronicle_too_short"))
-    val error = result.left.toOption.getOrElse(fail("expected game_chronicle_too_short"))
+    assertEquals(result.left.toOption.map(_.code), Some("game_review_too_short"))
+    val error = result.left.toOption.getOrElse(fail("expected game_review_too_short"))
     assert(error.message.contains("move 5"), clues(error.message))
+    assert(error.message.contains("Game Review"), clues(error.message))
     assert(!error.message.toLowerCase.contains("ply"), clues(error.message))
   }
 
-  test("game chronicle accepts games from ply nine onward") {
+  test("game review accepts games from ply nine onward") {
     val req =
       FullAnalysisRequest(
         pgn = LongEnoughGamePgn,
@@ -83,7 +85,7 @@ class RequestValidationTest extends FunSuite:
         options = AnalysisOptions(style = "book", focusOn = List("mistakes", "turning_points"))
       )
 
-    val result = FullAnalysisRequest.validateGameChronicle(req)
+    val result = FullAnalysisRequest.validateGameReview(req)
 
     assert(result.isRight, clues(result))
   }

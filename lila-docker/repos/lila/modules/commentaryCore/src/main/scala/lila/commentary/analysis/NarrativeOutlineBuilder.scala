@@ -6,7 +6,7 @@ import chess.variant.Standard
 import lila.commentary.model._
 import lila.commentary.model.authoring._
 import lila.commentary.model.strategic.VariationLine
-import lila.commentary.analysis.ThemeTaxonomy.{ ThemeL1, ThemeResolver, SubplanCatalog, SubplanId }
+import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, ThemeResolver, SubplanCatalog, PlanKind }
 
 /**
  * NarrativeOutlineBuilder: SSOT for "what to say"
@@ -223,14 +223,14 @@ object NarrativeOutlineBuilder:
           ),
         plannerSceneType = Some(rankedPlans.ownerTrace.sceneType.wireName),
         plannerOwnerCandidates = rankedPlans.ownerTrace.ownerCandidateLabels,
-        plannerAdmittedFamilies = rankedPlans.ownerTrace.admittedFamilyLabels,
-        plannerDroppedFamilies = rankedPlans.ownerTrace.droppedFamilyLabels,
+        plannerAdmittedOwners = rankedPlans.ownerTrace.admittedPlannerOwnerLabels,
+        plannerDroppedOwners = rankedPlans.ownerTrace.droppedPlannerOwnerLabels,
         plannerSupportMaterialSeparation = rankedPlans.ownerTrace.supportMaterialSeparationLabels,
-        plannerProposedFamilyMappings = rankedPlans.ownerTrace.proposedFamilyMappingLabels,
+        plannerProposedOwnerMappings = rankedPlans.ownerTrace.proposedOwnerMappingLabels,
         plannerDemotionReasons = rankedPlans.ownerTrace.demotionReasons,
         plannerSelectedQuestion = rankedPlans.ownerTrace.selectedQuestion.map(_.toString),
-        plannerSelectedOwnerFamily = rankedPlans.ownerTrace.selectedOwnerFamily.map(_.wireName),
-        plannerSelectedOwnerSource = rankedPlans.ownerTrace.selectedOwnerSource,
+        plannerSelectedOwnerKind = rankedPlans.ownerTrace.selectedPlannerOwnerKind.map(_.wireName),
+        plannerSelectedSource = rankedPlans.ownerTrace.selectedPlannerSource,
         surfaceReplayOutcome =
           Some(if rankedPlans.primary.nonEmpty then "outline_planner_owned" else "outline_no_primary")
       )
@@ -375,7 +375,7 @@ object NarrativeOutlineBuilder:
       .getOrElse(ThemeNarrativeSlots.forTheme(themeIdOfHypothesis(plan)))
 
   private def generatedSubplanSlots(subplanId: String): Option[ThemeSlots] =
-    SubplanId
+    PlanKind
       .fromId(subplanId)
       .flatMap(sp => SubplanCatalog.specs.get(sp).map(spec => sp -> spec))
       .map { case (sp, spec) =>
@@ -400,19 +400,19 @@ object NarrativeOutlineBuilder:
       }
 
   private def themeIdOfHypothesis(plan: PlanHypothesis): String =
-    ThemeL1.fromId(plan.themeL1)
-      .filter(_ != ThemeL1.Unknown)
+    PlanTheme.fromId(plan.themeL1)
+      .filter(_ != PlanTheme.Unknown)
       .map(_.id)
       .getOrElse(ThemeResolver.fromHypothesis(plan).id)
 
   private def subplanIdOfHypothesis(plan: PlanHypothesis): Option[String] =
     plan.subplanId
-      .flatMap(SubplanId.fromId)
+      .flatMap(PlanKind.fromId)
       .map(_.id)
       .orElse(ThemeResolver.subplanFromHypothesis(plan).map(_.id))
 
   private def routeNameRestatesPrimarySubplan(plan: PlanHypothesis): Boolean =
-    val primarySubplan = subplanIdOfHypothesis(plan).flatMap(SubplanId.fromId)
+    val primarySubplan = subplanIdOfHypothesis(plan).flatMap(PlanKind.fromId)
     primarySubplan.exists { subplan =>
       ThemeResolver.subplanFromPlanName(plan.planName).contains(subplan) ||
       ThemeResolver.subplanFromPlanId(plan.planId).contains(subplan)
@@ -431,7 +431,7 @@ object NarrativeOutlineBuilder:
             evidenceSemanticKeys(plan.planName) ++
             evidenceSemanticKeys(plan.planId)
         directKeys ++
-          Option.when(theme != ThemeL1.Unknown)(s"theme:${theme.id}") ++
+          Option.when(theme != PlanTheme.Unknown)(s"theme:${theme.id}") ++
           subplan.map(sp => s"subplan:${sp.id}")
       }
     planKeys.toSet
@@ -443,7 +443,7 @@ object NarrativeOutlineBuilder:
         ThemeResolver.fromPlanName(raw),
         ThemeResolver.fromPlanId(raw),
         ThemeResolver.fromSeedId(raw)
-      ).filter(_ != ThemeL1.Unknown).map(theme => s"theme:${theme.id}")
+      ).filter(_ != PlanTheme.Unknown).map(theme => s"theme:${theme.id}")
     val subplanKeys =
       List(
         ThemeResolver.subplanFromEvidenceSource(raw),

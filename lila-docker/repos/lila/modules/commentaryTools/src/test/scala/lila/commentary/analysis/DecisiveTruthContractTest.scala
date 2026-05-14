@@ -1380,7 +1380,7 @@ class DecisiveTruthContractTest extends FunSuite:
     )
 
     assertEquals(contract.truthClass, DecisiveTruthClass.Best)
-    assertEquals(contract.reasonFamily, DecisiveReasonFamily.OnlyMoveDefense)
+    assertEquals(contract.reasonFamily, DecisiveReasonKind.OnlyMoveDefense)
     assertEquals(contract.ownershipRole, TruthOwnershipRole.NoneRole)
     assertEquals(contract.visibilityRole, TruthVisibilityRole.PrimaryVisible)
     assertEquals(contract.surfaceMode, TruthSurfaceMode.Neutral)
@@ -1409,7 +1409,7 @@ class DecisiveTruthContractTest extends FunSuite:
     )
 
     assertEquals(contract.truthClass, DecisiveTruthClass.Best)
-    assertEquals(contract.reasonFamily, DecisiveReasonFamily.QuietTechnicalMove)
+    assertEquals(contract.reasonFamily, DecisiveReasonKind.QuietTechnicalMove)
     assertEquals(contract.ownershipRole, TruthOwnershipRole.NoneRole)
     assertEquals(contract.visibilityRole, TruthVisibilityRole.Hidden)
     assertEquals(contract.surfaceMode, TruthSurfaceMode.Neutral)
@@ -1425,7 +1425,7 @@ class DecisiveTruthContractTest extends FunSuite:
         truthClass = DecisiveTruthClass.Best,
         cpLoss = 0,
         swingSeverity = 0,
-        reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+        reasonFamily = DecisiveReasonKind.TacticalRefutation,
         allowConcreteBenchmark = true,
         chosenMatchesBest = true,
         compensationAllowed = false,

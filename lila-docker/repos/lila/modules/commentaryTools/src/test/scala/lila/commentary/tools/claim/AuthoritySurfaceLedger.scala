@@ -9,7 +9,7 @@ import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.{ DirectionalTargetReadiness, NarrativeSignalDigest, StrategyDirectionalTarget, StrategyPack }
 import lila.commentary.model.*
-import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, NarrativeOutline, PlanHypothesis, PlanViability }
+import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, NarrativeOutline, PlanHypothesis, PlanViability, QuestionEvidence }
 import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 
 object AuthoritySurfaceLedger:
@@ -17,7 +17,7 @@ object AuthoritySurfaceLedger:
   private[commentary] final case class Sample(
       id: String,
       fixtureId: String,
-      family: String,
+      reviewGroup: String,
       note: String,
       tacticalContract: Boolean = false,
       softenOwnerPath: Boolean = false,
@@ -28,7 +28,7 @@ object AuthoritySurfaceLedger:
       sample: Sample,
       release: String,
       taxonomy: String,
-      owner: String,
+      plannerOwner: String,
       primary: String,
       bookmaker: String,
       chronicle: String,
@@ -41,10 +41,10 @@ object AuthoritySurfaceLedger:
     def tsv: String =
       List(
         sample.id,
-        sample.family,
+        sample.reviewGroup,
         release,
         taxonomy,
-        owner,
+        plannerOwner,
         clean(primary),
         clean(bookmaker),
         clean(chronicle),
@@ -82,7 +82,7 @@ object AuthoritySurfaceLedger:
       Sample(
         id = s"natural-${fixture.id}",
         fixtureId = fixture.id,
-        family = naturalFamily(fixture),
+        reviewGroup = naturalReviewGroup(fixture),
         note = fixture.note,
         taxonomy = taxonomyForTags(fixture.expectedTags)
       )
@@ -306,6 +306,35 @@ object AuthoritySurfaceLedger:
         "Named-break shell blocked by release-risk rather than promoted as generic counterplay prose.",
         taxonomy = "owner:break_prevention_rival_or_relabel"
       ),
+      Sample(
+        "prophylaxis-restraint-supported-local-control",
+        "prophylaxis-restraint-supported-local-control",
+        "A:prophylaxis_restraint_control",
+        "Controlled exact board/PV where a named counterplay resource is locally restrained.",
+        taxonomy = "prophylaxis_restraint_supported_local"
+      ),
+      Sample(
+        "prophylaxis-restraint-tactical-veto",
+        "prophylaxis-restraint-supported-local-control",
+        "negative:prophylaxis_restraint_tactical_veto",
+        "Same prophylaxis-restraint control under explicit tactical failure.",
+        tacticalContract = true,
+        taxonomy = "tactical_truth_first"
+      ),
+      Sample(
+        "prophylaxis-restraint-missing-witness-control",
+        "prophylaxis-restraint-missing-witness-control",
+        "negative:prophylaxis_restraint_missing_witness",
+        "Named counterplay-restraint shell missing the best-defense branch witness.",
+        taxonomy = "owner:prophylaxis_restraint_witness_missing"
+      ),
+      Sample(
+        "prophylaxis-restraint-rival-relabel-control",
+        "prophylaxis-restraint-rival-relabel-control",
+        "negative:prophylaxis_restraint_rival_or_relabel",
+        "Named counterplay-restraint shell blocked by move-order release risk.",
+        taxonomy = "owner:prophylaxis_restraint_rival_or_relabel"
+      ),
       Sample("priority-MR1-tactical-veto", "priority-MR1", "negative:tactical_veto", "PlanPriority MR1 under explicit tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
       Sample("priority-MR2-tactical-veto", "priority-MR2", "negative:tactical_veto", "PlanPriority MR2 under explicit tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
       Sample("priority-TO1-tactical-veto", "priority-TO1", "negative:tactical_veto", "PlanPriority TO1 under explicit tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
@@ -326,10 +355,10 @@ object AuthoritySurfaceLedger:
   private val header =
     List(
       "id",
-      "family",
+      "reviewGroup",
       "release",
       "taxonomy",
-      "owner",
+      "plannerOwner",
       "primary",
       "bookmaker",
       "chronicle",
@@ -390,12 +419,12 @@ object AuthoritySurfaceLedger:
     lines.mkString("\n") + "\n"
 
   private def reviewLine(obs: Observation): String =
-    s"- ${obs.sample.id} (${obs.sample.family}) owner=${clean(obs.owner)} taxonomy=${obs.taxonomy} contract=${obs.contractId}:${obs.contractStatus}:${obs.contractFailures} primary=${clean(obs.primary)} bookmaker=${clean(obs.bookmaker)} chronicle=${clean(obs.chronicle)}"
+    s"- ${obs.sample.id} (${obs.sample.reviewGroup}) plannerOwner=${clean(obs.plannerOwner)} taxonomy=${obs.taxonomy} contract=${obs.contractId}:${obs.contractStatus}:${obs.contractFailures} primary=${clean(obs.primary)} bookmaker=${clean(obs.bookmaker)} chronicle=${clean(obs.chronicle)}"
 
   private[commentary] def sourceAdmittedAuthorityRowIds: List[String] =
     sourceAuthorityRowIds
 
-  private def naturalFamily(fixture: TaskShiftProvingFixtures.ReviewFixture): String =
+  private def naturalReviewGroup(fixture: TaskShiftProvingFixtures.ReviewFixture): String =
     val tags = fixture.expectedTags.toSet
     if tags.contains("target_fixation_without_handoff") then "natural:B"
     else if tags.contains("positive_control") || tags.contains("holdable_simplification") then "natural:C"
@@ -446,31 +475,34 @@ object AuthoritySurfaceLedger:
       Option.when(sample.tacticalContract)(strategicBaselineRelease(sample, ctx, pack)).flatten
     val mainClaimPacket =
       effectiveInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet)
-    val ownerProofTrace =
-      mainClaimPacket.map(_.ownerProofTrace)
+    val proofTrace =
+      mainClaimPacket.map(_.proofTrace)
     val ownerDisplaySource =
       ranked.primary.map { plan =>
-        if ownerProofTrace.flatMap(_.contractId).contains("runtime:neutralize_key_break") then
-          mainClaimPacket.map(_.ownerSource).getOrElse(plan.ownerSource)
-        else plan.ownerSource
+        if proofTrace.flatMap(_.contractId).exists(id =>
+            id == "runtime:neutralize_key_break" || id == "runtime:counterplay_restraint"
+          )
+        then
+          mainClaimPacket.map(_.proofSource).getOrElse(plan.plannerSource)
+        else plan.plannerSource
       }
     Observation(
       sample = sample,
       release = releaseLabel(sample, ranked, primary, bookmaker, chronicle, baselineRelease),
       taxonomy = sample.taxonomy,
-      owner = ranked.primary
+      plannerOwner = ranked.primary
         .zip(ownerDisplaySource)
-        .map { case (plan, source) => s"${plan.questionKind}:${plan.ownerFamily}:$source" }
+        .map { case (plan, source) => s"${plan.questionKind}:${plan.plannerOwnerKind}:$source" }
         .getOrElse("-"),
       primary = primary,
       bookmaker = bookmaker,
       chronicle = chronicle,
       leak = sample.tacticalContract && strategicLeak(primary, bookmaker, chronicle),
       rejected = ranked.rejected.map(r => s"${r.questionKind}:${r.reasons.mkString("+")}").mkString(" | "),
-      contractId = ownerProofTrace.flatMap(_.contractId).getOrElse("-"),
-      contractStatus = ownerProofTrace.flatMap(_.contractStatus).getOrElse("-"),
+      contractId = proofTrace.flatMap(_.contractId).getOrElse("-"),
+      contractStatus = proofTrace.flatMap(_.contractStatus).getOrElse("-"),
       contractFailures =
-        ownerProofTrace
+        proofTrace
           .map(trace => if trace.failureCodes.isEmpty then "none" else trace.failureCodes.distinct.mkString("+"))
           .getOrElse("-")
     )
@@ -507,8 +539,11 @@ object AuthoritySurfaceLedger:
       extraVariations: List[VariationLine] = Nil,
       mainStrategicPlans: List[PlanHypothesis] = Nil,
       strategicPlanExperiments: List[StrategicPlanExperiment] = Nil,
+      authorQuestions: List[AuthorQuestion] = Nil,
+      authorEvidence: List[QuestionEvidence] = Nil,
       semantic: Option[SemanticSection] = None,
       engineEvidence: Option[EngineEvidence] = None,
+      ctxOverride: Option[NarrativeContext] = None,
       strategyPackOverride: Option[StrategyPack] = None
   )
 
@@ -554,40 +589,54 @@ object AuthoritySurfaceLedger:
           )
         )
         .getOrElse(sys.error(s"missing review or FEN fixture: $id"))
-    val data =
-      CommentaryEngine
-        .assessExtended(
-          fen = fixture.fen,
-          variations =
-            VariationLine(fixture.pvMoves, fixture.scoreCp, depth = if fixture.pvMoves.isEmpty then 0 else 16) ::
-              fixture.extraVariations,
-          playedMove = fixture.playedUci,
-          phase = Some(fixture.phase),
-          ply = fixture.ply,
-          prevMove = fixture.playedUci
-        )
-        .getOrElse(sys.error(s"analysis missing for ${fixture.id}"))
-    val baseCtx =
-      NarrativeContextBuilder
-        .build(data, data.toContext, None)
-    val ctx =
-      baseCtx.copy(
-        authorQuestions = defaultQuestions,
-        mainStrategicPlans =
-          if fixture.mainStrategicPlans.nonEmpty then fixture.mainStrategicPlans
-          else baseCtx.mainStrategicPlans,
-        strategicPlanExperiments =
-          if fixture.strategicPlanExperiments.nonEmpty then fixture.strategicPlanExperiments
-          else baseCtx.strategicPlanExperiments,
-        semantic = fixture.semantic.orElse(baseCtx.semantic),
-        engineEvidence = fixture.engineEvidence.orElse(baseCtx.engineEvidence)
-      )
-    val pack =
-      fixture.strategyPackOverride.getOrElse(
-        StrategyPackBuilder
-          .build(data, ctx)
-          .getOrElse(sys.error(s"strategy pack missing for ${fixture.id}"))
-      )
+    val (ctx, pack) =
+      fixture.ctxOverride match
+        case Some(ctx) =>
+          val pack =
+            fixture.strategyPackOverride
+              .getOrElse(sys.error(s"strategy pack override missing for ${fixture.id}"))
+          (ctx, pack)
+        case None =>
+          val data =
+            CommentaryEngine
+              .assessExtended(
+                fen = fixture.fen,
+                variations =
+                  VariationLine(fixture.pvMoves, fixture.scoreCp, depth = if fixture.pvMoves.isEmpty then 0 else 16) ::
+                    fixture.extraVariations,
+                playedMove = fixture.playedUci,
+                phase = Some(fixture.phase),
+                ply = fixture.ply,
+                prevMove = fixture.playedUci
+              )
+              .getOrElse(sys.error(s"analysis missing for ${fixture.id}"))
+          val baseCtx =
+            NarrativeContextBuilder
+              .build(data, data.toContext, None)
+          val ctx =
+            baseCtx.copy(
+              authorQuestions =
+                if fixture.authorQuestions.nonEmpty then fixture.authorQuestions
+                else defaultQuestions,
+              authorEvidence =
+                if fixture.authorEvidence.nonEmpty then fixture.authorEvidence
+                else baseCtx.authorEvidence,
+              mainStrategicPlans =
+                if fixture.mainStrategicPlans.nonEmpty then fixture.mainStrategicPlans
+                else baseCtx.mainStrategicPlans,
+              strategicPlanExperiments =
+                if fixture.strategicPlanExperiments.nonEmpty then fixture.strategicPlanExperiments
+                else baseCtx.strategicPlanExperiments,
+              semantic = fixture.semantic.orElse(baseCtx.semantic),
+              engineEvidence = fixture.engineEvidence.orElse(baseCtx.engineEvidence)
+            )
+          val pack =
+            fixture.strategyPackOverride.getOrElse(
+              StrategyPackBuilder
+                .build(data, ctx)
+                .getOrElse(sys.error(s"strategy pack missing for ${fixture.id}"))
+            )
+          (ctx, pack)
     (fixture, ctx, pack)
 
   private def priorityScene(id: String): Option[SceneFixture] =
@@ -620,9 +669,9 @@ object AuthoritySurfaceLedger:
         else List("Keep the opponent's main counterplay route closed first."),
       failureModes = Nil,
       viability = PlanViability(score = 0.8, label = "high", risk = "test"),
-      evidenceSources = List(s"theme:${ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id}"),
-      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-      subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+      evidenceSources = List(s"theme:${PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id}"),
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
     )
 
   private def evidenceBackedExperiment(
@@ -631,8 +680,8 @@ object AuthoritySurfaceLedger:
   ): StrategicPlanExperiment =
     StrategicPlanExperiment(
       planId = planId,
-      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-      subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
       evidenceTier = "evidence_backed",
       supportProbeCount = 1,
       refuteProbeCount = 0,
@@ -715,6 +764,157 @@ object AuthoritySurfaceLedger:
       strategyPackOverride = Some(breakPreventionPack)
     )
 
+  private val prophylaxisRestraintPv =
+    List("a2a3", "b7b5", "a3a4")
+
+  private def prophylaxisRestraintPlan(
+      planId: String,
+      moveOrderSensitive: Boolean
+  ): PlanHypothesis =
+    PlanHypothesis(
+      planId = planId,
+      planName = "Slow queenside counterplay before expanding",
+      rank = 1,
+      score = 0.82,
+      preconditions = Nil,
+      executionSteps =
+        if moveOrderSensitive then List("This candidate is intentionally marked move-order sensitive.")
+        else List("Slow queenside counterplay before expanding."),
+      failureModes = List("If the branch opens up, queenside counterplay comes back."),
+      viability = PlanViability(score = 0.8, label = "high", risk = "test"),
+      evidenceSources = List(s"theme:${PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id}"),
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id)
+    )
+
+  private def prophylaxisRestraintExperiment(
+      planId: String,
+      moveOrderSensitive: Boolean
+  ): StrategicPlanExperiment =
+    StrategicPlanExperiment(
+      planId = planId,
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id),
+      evidenceTier = "evidence_backed",
+      supportProbeCount = 1,
+      refuteProbeCount = 0,
+      bestReplyStable = true,
+      futureSnapshotAligned = true,
+      counterBreakNeutralized = true,
+      moveOrderSensitive = moveOrderSensitive,
+      experimentConfidence = if moveOrderSensitive then 0.62 else 0.87
+    )
+
+  private def prophylaxisRestraintSemantic: SemanticSection =
+    SemanticSection(
+      structuralWeaknesses = Nil,
+      pieceActivity = Nil,
+      positionalFeatures = Nil,
+      compensation = None,
+      endgameFeatures = None,
+      practicalAssessment = None,
+      preventedPlans = List(
+        PreventedPlanInfo(
+          planId = "queenside counterplay",
+          deniedSquares = Nil,
+          breakNeutralized = None,
+          mobilityDelta = -2,
+          counterplayScoreDrop = 138,
+          preventedThreatType = None,
+          deniedResourceClass = Some("counterplay_route"),
+          citationLine = Some("Queenside counterplay never gets going on the defended branch.")
+        )
+      ),
+      conceptSummary = Nil
+    )
+
+  private def prophylaxisRestraintPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_b4",
+          ownerSide = "white",
+          piece = "P",
+          from = "a2",
+          targetSquare = "b4",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("queenside counterplay"),
+          evidence = List("probe")
+        )
+      ),
+      signalDigest = Some(NarrativeSignalDigest(decision = Some("queenside counterplay")))
+    )
+
+  private def prophylaxisBaseCtx: NarrativeContext =
+    NarrativeContext(
+      fen = "r2q1rk1/pp2bppp/2np1n2/2p1p3/2P1P3/2NP1NP1/PP2QPBP/R1B2RK1 w - - 0 10",
+      header = ContextHeader("Middlegame", "Normal", "StyleChoice", "Medium", "ExplainPlan"),
+      ply = 20,
+      playedMove = Some("e2e3"),
+      playedSan = Some("Qe2"),
+      summary = NarrativeSummary("Central restraint", None, "StyleChoice", "Maintain", "0.20"),
+      threats = ThreatTable(Nil, Nil),
+      pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Quiet", "Background", None, false, "quiet"),
+      plans = PlanTable(Nil, Nil),
+      delta = None,
+      phase = PhaseContext("Middlegame", "Normal middlegame"),
+      candidates = Nil,
+      renderMode = NarrativeRenderMode.Bookmaker
+    )
+
+  private def prophylaxisRestraintControlFixture(
+      id: String,
+      pv: List[String],
+      note: String,
+      moveOrderSensitive: Boolean = false
+  ): SceneFixture =
+    val planId = s"${id}_plan"
+    val questions =
+      List(
+        AuthorQuestion(
+          id = "q_b2b_prophylactic_why_this",
+          kind = AuthorQuestionKind.WhyThis,
+          priority = 100,
+          question = "Why is a3 the right prophylactic move here?",
+          evidencePurposes = List("reply_multipv")
+        )
+      )
+    val plans = List(prophylaxisRestraintPlan(planId, moveOrderSensitive))
+    val experiments = List(prophylaxisRestraintExperiment(planId, moveOrderSensitive))
+    val engineEvidence = EngineEvidence(depth = 18, variations = List(VariationLine(pv, scoreCp = 82, depth = 18)))
+    SceneFixture(
+      id = id,
+      label = note,
+      fen = breakPreventionFen,
+      phase = "middlegame",
+      ply = 46,
+      scoreCp = 82,
+      pvMoves = pv,
+      expectedTags = List("prophylaxis_restraint", "prophylactic_move"),
+      note = note,
+      playedUci = Some("a2a3"),
+      mainStrategicPlans = plans,
+      strategicPlanExperiments = experiments,
+      authorQuestions = questions,
+      semantic = Some(prophylaxisRestraintSemantic),
+      engineEvidence = Some(engineEvidence),
+      ctxOverride = Some(
+        prophylaxisBaseCtx.copy(
+          fen = breakPreventionFen,
+          ply = 23,
+          playedMove = Some("a2a3"),
+          playedSan = Some("a3"),
+          authorQuestions = questions,
+          mainStrategicPlans = plans,
+          strategicPlanExperiments = experiments,
+          semantic = Some(prophylaxisRestraintSemantic),
+          engineEvidence = Some(engineEvidence)
+        )
+      ),
+      strategyPackOverride = Some(prophylaxisRestraintPack)
+    )
+
   private val controlledScenes: Map[String, SceneFixture] =
     List(
       breakPreventionControlFixture(
@@ -731,6 +931,22 @@ object AuthoritySurfaceLedger:
         id = "break-prevention-rival-relabel-control",
         pv = breakPreventionPv,
         note = "Named ...c5-break prevention shell with move-order release risk.",
+        moveOrderSensitive = true
+      ),
+      prophylaxisRestraintControlFixture(
+        id = "prophylaxis-restraint-supported-local-control",
+        pv = prophylaxisRestraintPv,
+        note = "Controlled exact board/PV for named queenside-counterplay restraint."
+      ),
+      prophylaxisRestraintControlFixture(
+        id = "prophylaxis-restraint-missing-witness-control",
+        pv = List("a2a3"),
+        note = "Named queenside-counterplay restraint shell missing the best-defense branch witness."
+      ),
+      prophylaxisRestraintControlFixture(
+        id = "prophylaxis-restraint-rival-relabel-control",
+        pv = prophylaxisRestraintPv,
+        note = "Named queenside-counterplay restraint shell with move-order release risk.",
         moveOrderSensitive = true
       )
     ).map(scene => scene.id -> scene).toMap
@@ -1312,7 +1528,7 @@ object AuthoritySurfaceLedger:
                 claim.copy(
                   packet =
                     claim.packet.map(packet =>
-                      OwnerProofRules.attachTrace(packet.copy(
+                      ProofContractRules.attachTrace(packet.copy(
                         sameBranchState = PlayerFacingSameBranchState.Ambiguous,
                         persistence = PlayerFacingClaimPersistence.BestDefenseOnly
                       ))
@@ -1385,7 +1601,7 @@ object AuthoritySurfaceLedger:
       truthClass = DecisiveTruthClass.Blunder,
       cpLoss = 280,
       swingSeverity = 280,
-      reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+      reasonFamily = DecisiveReasonKind.TacticalRefutation,
       allowConcreteBenchmark = false,
       chosenMatchesBest = false,
       compensationAllowed = false,
@@ -1418,7 +1634,7 @@ object AuthoritySurfaceLedger:
       case Some(plan) if positiveRelease(plan).nonEmpty =>
         positiveRelease(plan).get
       case Some(plan) =>
-        s"Other:${plan.ownerFamily.wireName}"
+        s"Other:${plan.plannerOwnerKind.wireName}"
       case None if sample.tacticalContract &&
           !strategicLeak(primary, bookmaker, chronicle) &&
           (baselineRelease.nonEmpty || ranked.rejected.exists(_.reasons.contains("strategic_claim_tactical_veto"))) =>
@@ -1430,7 +1646,7 @@ object AuthoritySurfaceLedger:
     if plan.admissibilityReasons.contains("strategic_claim_supported_local") then Some("SupportedLocal")
     else if plan.admissibilityReasons.contains("certified_position_probe") ||
         plan.admissibilityReasons.contains("exact_target_state_delta") ||
-        plan.sourceKinds.exists(_ == ThemeTaxonomy.SubplanId.SimplificationWindow.id) ||
+        plan.sourceKinds.exists(_ == PlanTaxonomy.PlanKind.SimplificationWindow.id) ||
         plan.claim.toLowerCase.contains("same local edge")
     then Some("CertifiedOwner")
     else None

@@ -15,7 +15,7 @@ private[commentary] enum DecisiveTruthClass:
   case WinningInvestment
   case CompensatedInvestment
 
-private[commentary] enum DecisiveReasonFamily:
+private[commentary] enum DecisiveReasonKind:
   case TacticalRefutation
   case Conversion
   case InvestmentSacrifice
@@ -151,7 +151,7 @@ private[commentary] final case class FreshCommitmentEvidence(
 
 private[commentary] final case class StrategicOwnershipFact(
     truthPhase: Option[InvestmentTruthPhase],
-    reasonFamily: DecisiveReasonFamily,
+    reasonFamily: DecisiveReasonKind,
     benchmarkCriticalMove: Boolean,
     verifiedPayoffAnchor: Option[String],
     chainKey: Option[String],
@@ -236,7 +236,7 @@ private[commentary] final case class DecisiveTruthContract(
     truthClass: DecisiveTruthClass,
     cpLoss: Int,
     swingSeverity: Int,
-    reasonFamily: DecisiveReasonFamily,
+    reasonFamily: DecisiveReasonKind,
     allowConcreteBenchmark: Boolean,
     chosenMatchesBest: Boolean,
     compensationAllowed: Boolean,
@@ -298,17 +298,17 @@ private[commentary] final case class DecisiveTruthContract(
   def isPromotedBestHold: Boolean =
     benchmarkCriticalMove &&
       truthClass == DecisiveTruthClass.Best &&
-      reasonFamily == DecisiveReasonFamily.OnlyMoveDefense
+      reasonFamily == DecisiveReasonKind.OnlyMoveDefense
 
   def isBenchmarkCriticalQuietHold: Boolean =
     benchmarkCriticalMove &&
       truthClass == DecisiveTruthClass.Best &&
-      reasonFamily == DecisiveReasonFamily.QuietTechnicalMove
+      reasonFamily == DecisiveReasonKind.QuietTechnicalMove
 
   def isCriticalBestMove: Boolean =
     truthClass == DecisiveTruthClass.Best &&
       (
-        reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
+        reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
           isBenchmarkCriticalQuietHold
       )
 
@@ -1117,7 +1117,7 @@ private[commentary] object DecisiveTruth:
       verifiedInvestmentPayoff: Boolean,
       freshCommitmentEvidence: FreshCommitmentEvidence,
       tactical: TacticalFact
-  ): DecisiveReasonFamily =
+  ): DecisiveReasonKind =
     val nonTrivialProofLine = tactical.proofLine.lengthCompare(2) >= 0
     val proofBackedBestHold =
       tactical.immediateRefutation ||
@@ -1125,18 +1125,18 @@ private[commentary] object DecisiveTruth:
         tactical.forcedMate ||
         tactical.forcedDrawResource ||
         nonTrivialProofLine
-    if momentType.exists(_.equalsIgnoreCase("MissedWin")) then DecisiveReasonFamily.MissedWin
+    if momentType.exists(_.equalsIgnoreCase("MissedWin")) then DecisiveReasonKind.MissedWin
     else if (benchmark.onlyMove || benchmark.uniqueGoodMove) && proofBackedBestHold
     then
-      DecisiveReasonFamily.OnlyMoveDefense
+      DecisiveReasonKind.OnlyMoveDefense
     else if transition.exists(text =>
         text.contains("promotion") || text.contains("exchange") || text.contains("convert") || text.contains("simplif")
       )
-    then DecisiveReasonFamily.Conversion
+    then DecisiveReasonKind.Conversion
     else if investmentCp.nonEmpty || verifiedInvestmentPayoff || freshCommitmentEvidence.seedEligible then
-      DecisiveReasonFamily.InvestmentSacrifice
-    else if proofBackedBestHold then DecisiveReasonFamily.TacticalRefutation
-    else DecisiveReasonFamily.QuietTechnicalMove
+      DecisiveReasonKind.InvestmentSacrifice
+    else if proofBackedBestHold then DecisiveReasonKind.TacticalRefutation
+    else DecisiveReasonKind.QuietTechnicalMove
 
   private def deriveStrategicOwnershipFact(
       ctx: NarrativeContext,
@@ -1144,7 +1144,7 @@ private[commentary] object DecisiveTruth:
       freshCommitmentEvidence: FreshCommitmentEvidence,
       currentInvestmentCp: Option[Int],
       investmentCp: Option[Int],
-      reasonFamily: DecisiveReasonFamily,
+      reasonFamily: DecisiveReasonKind,
       verifiedInvestmentPayoff: Boolean,
       transitionSignalsConversion: Boolean,
       afterSemanticSupport: Boolean,
@@ -1175,9 +1175,9 @@ private[commentary] object DecisiveTruth:
     val chainReasonFamily =
       truthPhase match
         case Some(InvestmentTruthPhase.FirstInvestmentCommitment) | Some(InvestmentTruthPhase.CompensationMaintenance) =>
-          DecisiveReasonFamily.InvestmentSacrifice
+          DecisiveReasonKind.InvestmentSacrifice
         case Some(InvestmentTruthPhase.ConversionFollowthrough) =>
-          DecisiveReasonFamily.Conversion
+          DecisiveReasonKind.Conversion
         case None => reasonFamily
     val chainKey =
       Option.when(truthPhase.nonEmpty && verifiedPayoffAnchor.nonEmpty) {
@@ -1272,7 +1272,7 @@ private[commentary] object DecisiveTruth:
         intentAnchor.nonEmpty &&
         !strategicOwnership.legacyVisibleOnly
       then FailureInterpretationMode.SpeculativeInvestmentFailed
-      else if strategicOwnership.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
+      else if strategicOwnership.reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
         (benchmark.onlyMove && intentAnchor.nonEmpty) ||
         (strategicOwnership.benchmarkCriticalMove && proofBackedCriticalHold)
       then
@@ -1280,7 +1280,7 @@ private[commentary] object DecisiveTruth:
       else if tactical.immediateRefutation ||
         tactical.forcingLine ||
         tactical.proofLine.lengthCompare(2) >= 0 ||
-        strategicOwnership.reasonFamily == DecisiveReasonFamily.TacticalRefutation
+        strategicOwnership.reasonFamily == DecisiveReasonKind.TacticalRefutation
       then FailureInterpretationMode.TacticalRefutation
       else if strategicOwnership.verifiedPayoffAnchor.nonEmpty then FailureInterpretationMode.QuietPositionalCollapse
       else FailureInterpretationMode.NoClearPlan
@@ -1481,7 +1481,7 @@ private[commentary] object DecisiveTruth:
       case TruthOwnershipRole.NoneRole =>
         if truthClass == DecisiveTruthClass.Best &&
           strategicOwnership.benchmarkCriticalMove &&
-          strategicOwnership.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense
+          strategicOwnership.reasonFamily == DecisiveReasonKind.OnlyMoveDefense
         then TruthVisibilityRole.PrimaryVisible
         else exemplarRole match
           case TruthExemplarRole.ProvisionalExemplar => TruthVisibilityRole.SupportingVisible
@@ -1737,7 +1737,7 @@ private[commentary] object DecisiveTruth:
 
   private def buildInvestmentTruthChainKey(
       verifiedPayoffAnchor: Option[String],
-      reasonFamily: DecisiveReasonFamily,
+      reasonFamily: DecisiveReasonKind,
       ctx: NarrativeContext
   ): String =
     val anchorKey =

@@ -185,8 +185,8 @@ private[commentary] object GameChronicleCompressionPolicy:
   private def replayClosedNamedRouteNetwork(
       plan: QuestionPlan
   ): Boolean =
-    plan.ownerSource == RouteNetworkBindProof.OwnerSource ||
-      plan.sourceKinds.contains(RouteNetworkBindProof.OwnerSource)
+    plan.plannerSource == RouteNetworkBindProof.ProofSource ||
+      plan.sourceKinds.contains(RouteNetworkBindProof.ProofSource)
 
   private def preserveThreatStopPrimary(
       primary: QuestionPlan,
@@ -194,10 +194,10 @@ private[commentary] object GameChronicleCompressionPolicy:
   ): Boolean =
     primary.questionKind == AuthorQuestionKind.WhatMustBeStopped &&
       candidate.questionKind == AuthorQuestionKind.WhyNow &&
-      primary.ownerFamily == OwnerFamily.ForcingDefense &&
-      candidate.ownerFamily == OwnerFamily.ForcingDefense &&
-      primary.ownerSource == "threat" &&
-      candidate.ownerSource == "threat"
+      primary.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
+      candidate.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
+      primary.plannerSource == "threat" &&
+      candidate.plannerSource == "threat"
 
   private[commentary] def renderPlanSurface(
       ctx: NarrativeContext,
@@ -279,8 +279,8 @@ private[commentary] object GameChronicleCompressionPolicy:
   ): ChronicleQuietSupportDecision =
     val composerTrace = surface.quietSupportTrace
     val surfacePrimaryEligible =
-      surface.primary.ownerFamily == OwnerFamily.MoveDelta &&
-        surface.primary.ownerSource == "pv_delta"
+      surface.primary.plannerOwnerKind == PlannerOwnerKind.MoveDelta &&
+        surface.primary.plannerSource == "pv_delta"
     val supportAlreadyPresent =
       List(contrast, evidence, primaryConsequence, secondarySupport).flatten.nonEmpty
     val cleanedCandidate =
@@ -363,15 +363,15 @@ private[commentary] object GameChronicleCompressionPolicy:
       plan: QuestionPlan,
       inputs: QuestionPlannerInputs
   ): Int =
-    if plan.ownerFamily == OwnerFamily.OpeningRelation &&
-      plan.ownerSource == "opening_relation_translator"
+    if plan.plannerOwnerKind == PlannerOwnerKind.OpeningRelation &&
+      plan.plannerSource == "opening_relation_translator"
     then
       if plan.questionKind == AuthorQuestionKind.WhyThis then 5 else 4
-    else if plan.ownerFamily == OwnerFamily.EndgameTransition &&
-      plan.ownerSource == "endgame_transition_translator"
+    else if plan.plannerOwnerKind == PlannerOwnerKind.EndgameTransition &&
+      plan.plannerSource == "endgame_transition_translator"
     then
       if plan.questionKind == AuthorQuestionKind.WhatChanged then 5 else 4
-    else if plan.ownerFamily == OwnerFamily.PositionProbe &&
+    else if plan.plannerOwnerKind == PlannerOwnerKind.PositionProbe &&
       plan.questionKind == AuthorQuestionKind.WhatMattersHere
     then 5
     else if inputs.mainBundle.flatMap(_.mainClaim).exists(claim => sameSentence(claim.claimText, plan.claim)) then 4

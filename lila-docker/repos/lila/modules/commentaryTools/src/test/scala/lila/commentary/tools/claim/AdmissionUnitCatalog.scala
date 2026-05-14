@@ -5,7 +5,7 @@ import lila.commentary.analysis.claim.*
 import java.nio.charset.StandardCharsets
 import java.nio.file.{ Files, Paths }
 
-private[commentary] object OwnerFamilyProofCatalog:
+private[commentary] object AdmissionUnitCatalog:
 
   enum NegativeControlKind:
     case TacticalFirst
@@ -35,27 +35,27 @@ private[commentary] object OwnerFamilyProofCatalog:
       surfaceReview: String
   )
 
-  final case class OwnerFamilyProofContract(
-      familyId: String,
-      ownerFamily: String,
-      ownerSource: String,
+  final case class AdmissionUnitSpec(
+      planKindId: String,
+      proofFamily: String,
+      proofSource: String,
       acceptedScope: PlayerFacingPacketScope,
       defaultAuthorityTier: String,
-      requiredWitnesses: Set[OwnerProofWitness],
+      requiredWitnesses: Set[ProofWitness],
       controlledPositive: ControlledPositiveRequirement,
       negativeControls: List[NegativeControlRequirement],
       sourceCandidateTarget: SourceCandidateTarget,
       maxAuthorityRows: Int,
       documentationTargets: DocumentationTargets
   ):
-    def contract: Option[OwnerProofContract] =
-      OwnerProofRules.contractForFamily(ownerFamily)
+    def contract: Option[ProofContract] =
+      ProofContractRules.contractForProofFamily(proofFamily)
 
     def tsv: String =
       List(
-        familyId,
-        ownerFamily,
-        ownerSource,
+        planKindId,
+        proofFamily,
+        proofSource,
         acceptedScope.toString,
         defaultAuthorityTier,
         requiredWitnesses.map(_.toString).toList.sorted.mkString("+"),
@@ -85,37 +85,37 @@ private[commentary] object OwnerFamilyProofCatalog:
       surfaceReview = "tmp/strategic_claim_authority_surface_review.md"
     )
 
-  private def supportedLocalPositive(ownerSource: String): ControlledPositiveRequirement =
+  private def supportedLocalPositive(proofSource: String): ControlledPositiveRequirement =
     ControlledPositiveRequirement(
       count = 1,
-      expectedPacket = s"ownerSource=$ownerSource;scope=MoveLocal;authority=SupportedLocal",
+      expectedPacket = s"proofSource=$proofSource;scope=MoveLocal;authority=SupportedLocal",
       expectedSurface = "A local reading is that ..."
     )
 
-  private def defaultNegatives(family: String): List[NegativeControlRequirement] =
+  private def defaultNegatives(planKindId: String): List[NegativeControlRequirement] =
     List(
       NegativeControlRequirement(NegativeControlKind.TacticalFirst, "tactical:first"),
-      NegativeControlRequirement(NegativeControlKind.RivalOrGenericRelabel, s"owner:${family}_rival_or_relabel"),
-      NegativeControlRequirement(NegativeControlKind.MissingWitness, s"owner:${family}_witness_missing")
+      NegativeControlRequirement(NegativeControlKind.RivalOrGenericRelabel, s"owner:${planKindId}_rival_or_relabel"),
+      NegativeControlRequirement(NegativeControlKind.MissingWitness, s"owner:${planKindId}_witness_missing")
     )
 
   private def unit(
-      familyId: String,
-      ownerFamily: String,
-      ownerSource: String,
+      planKindId: String,
+      proofFamily: String,
+      proofSource: String,
       acceptedScope: PlayerFacingPacketScope,
-      requiredWitnesses: Set[OwnerProofWitness],
+      requiredWitnesses: Set[ProofWitness],
       defaultAuthorityTier: String = "SupportedLocal"
-  ): OwnerFamilyProofContract =
-    OwnerFamilyProofContract(
-      familyId = familyId,
-      ownerFamily = ownerFamily,
-      ownerSource = ownerSource,
+  ): AdmissionUnitSpec =
+    AdmissionUnitSpec(
+      planKindId = planKindId,
+      proofFamily = proofFamily,
+      proofSource = proofSource,
       acceptedScope = acceptedScope,
       defaultAuthorityTier = defaultAuthorityTier,
       requiredWitnesses = requiredWitnesses,
-      controlledPositive = supportedLocalPositive(ownerSource),
-      negativeControls = defaultNegatives(familyId),
+      controlledPositive = supportedLocalPositive(proofSource),
+      negativeControls = defaultNegatives(planKindId),
       sourceCandidateTarget = sourceCandidateTarget,
       maxAuthorityRows = maxAuthorityRowsPerPass,
       documentationTargets = docs
@@ -123,62 +123,62 @@ private[commentary] object OwnerFamilyProofCatalog:
 
   private val defaultWitnesses =
     Set(
-      OwnerProofWitness.OwnerSeed,
-      OwnerProofWitness.Continuation,
-      OwnerProofWitness.NoRivalRelease,
-      OwnerProofWitness.NoTacticalVeto,
-      OwnerProofWitness.ClaimOnlySurface
+      ProofWitness.OwnerSeed,
+      ProofWitness.Continuation,
+      ProofWitness.NoRivalRelease,
+      ProofWitness.NoTacticalVeto,
+      ProofWitness.ClaimOnlySurface
     )
 
-  val ownerFamilyProofCatalog: List[OwnerFamilyProofContract] =
+  val admissionUnits: List[AdmissionUnitSpec] =
     List(
       unit(
-        familyId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
-        ownerFamily = "neutralize_key_break",
-        ownerSource = "counterplay_axis_suppression",
+        planKindId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+        proofFamily = "neutralize_key_break",
+        proofSource = "counterplay_axis_suppression",
         acceptedScope = PlayerFacingPacketScope.MoveLocal,
-        requiredWitnesses = defaultWitnesses + OwnerProofWitness.ExactSlice
+        requiredWitnesses = defaultWitnesses + ProofWitness.ExactSlice
       ),
       unit(
-        familyId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id,
-        ownerFamily = "counterplay_restraint",
-        ownerSource = "prophylactic_move",
+        planKindId = PlanTaxonomy.PlanKind.ProphylaxisRestraint.id,
+        proofFamily = "counterplay_restraint",
+        proofSource = "prophylactic_move",
         acceptedScope = PlayerFacingPacketScope.MoveLocal,
-        requiredWitnesses = defaultWitnesses + OwnerProofWitness.ExactSlice
+        requiredWitnesses = defaultWitnesses + ProofWitness.ExactSlice
       ),
       unit(
-        familyId = ThemeTaxonomy.SubplanId.OpenFilePressure.id,
-        ownerFamily = "half_open_file_pressure",
-        ownerSource = "local_file_entry_bind",
+        planKindId = PlanTaxonomy.PlanKind.OpenFilePressure.id,
+        proofFamily = "half_open_file_pressure",
+        proofSource = "local_file_entry_bind",
         acceptedScope = PlayerFacingPacketScope.MoveLocal,
-        requiredWitnesses = defaultWitnesses + OwnerProofWitness.ExactSlice
+        requiredWitnesses = defaultWitnesses + ProofWitness.ExactSlice
       ),
       unit(
-        familyId = ThemeTaxonomy.SubplanId.BadPieceLiquidation.id,
-        ownerFamily = ThemeTaxonomy.SubplanId.BadPieceLiquidation.id,
-        ownerSource = "bad_piece_liquidation",
+        planKindId = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+        proofFamily = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+        proofSource = "bad_piece_liquidation",
         acceptedScope = PlayerFacingPacketScope.MoveLocal,
         requiredWitnesses = defaultWitnesses
       ),
       unit(
-        familyId = ThemeTaxonomy.SubplanId.CentralBreakTiming.id,
-        ownerFamily = ThemeTaxonomy.SubplanId.CentralBreakTiming.id,
-        ownerSource = ThemeTaxonomy.SubplanId.CentralBreakTiming.id,
+        planKindId = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
+        proofFamily = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
+        proofSource = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
         acceptedScope = PlayerFacingPacketScope.LineScoped,
         defaultAuthorityTier = "Deferred",
         requiredWitnesses =
           Set(
-            OwnerProofWitness.OwnerSeed,
-            OwnerProofWitness.NoTacticalVeto
+            ProofWitness.OwnerSeed,
+            ProofWitness.NoTacticalVeto
           )
       )
     )
 
   private val header =
     List(
-      "familyId",
-      "ownerFamily",
-      "ownerSource",
+      "planKindId",
+      "proofFamily",
+      "proofSource",
       "acceptedScope",
       "defaultAuthorityTier",
       "requiredWitnesses",
@@ -190,32 +190,32 @@ private[commentary] object OwnerFamilyProofCatalog:
     ).mkString("\t")
 
   def tsv: String =
-    (header :: ownerFamilyProofCatalog.map(_.tsv)).mkString("\n") + "\n"
+    (header :: admissionUnits.map(_.tsv)).mkString("\n") + "\n"
 
   def markdown: String =
     val rows =
-      ownerFamilyProofCatalog
+      admissionUnits
         .map { unit =>
-          s"| `${unit.familyId}` | `${unit.ownerSource}` | `${unit.ownerFamily}` | `${unit.defaultAuthorityTier}` | `${unit.sourceCandidateTarget}` | `${unit.maxAuthorityRows}` | `${unit.contract.map(_.status.toString).getOrElse("-")}` |"
+          s"| `${unit.planKindId}` | `${unit.proofSource}` | `${unit.proofFamily}` | `${unit.defaultAuthorityTier}` | `${unit.sourceCandidateTarget}` | `${unit.maxAuthorityRows}` | `${unit.contract.map(_.status.toString).getOrElse("-")}` |"
         }
         .mkString("\n")
 
     List(
-      "# Strategic Owner Family Proof Catalog",
+      "# Strategic Admission Unit Catalog",
       "",
-      "This is the repeatable proof shape for future strategic family work.",
-      "Each pass is 1 family, 1 owner source, 1 controlled positive, 3 negative",
+      "This is the repeatable proof shape for future strategic admission-unit work.",
+      "Each pass is 1 plan kind, 1 proof source, 1 controlled positive, 3 negative",
       "controls, 2-5 natural source candidates, and 0-2 authority rows.",
       "",
       "Authority defaults:",
       "",
       "- CertifiedOwner requires PV1 source-move agreement.",
-      "- SupportedLocal may use near-top MultiPV only when exact owner packet,",
+      "- SupportedLocal may use near-top MultiPV only when exact proof packet,",
       "  planner authority, tactical veto, and claim-only surfaces all pass.",
       "- Tactical-first remains absolute over strategic prose.",
       "- Runtime contracts must not contain source witness ids.",
       "",
-      "| family | owner source | owner family | default authority | source candidates | max authority rows | contract status |",
+      "| plan kind | proof source | proof family | default authority | source candidates | max authority rows | contract status |",
       "| --- | --- | --- | --- | --- | --- | --- |",
       rows,
       "",
@@ -227,13 +227,13 @@ private[commentary] object OwnerFamilyProofCatalog:
       ""
     ).mkString("\n")
 
-object runOwnerFamilyProofCatalog:
+object runAdmissionUnitCatalog:
   def main(args: Array[String]): Unit =
     val root = Paths.get("tmp")
     Files.createDirectories(root)
-    val tsvPath = root.resolve("strategic_owner_family_proof_catalog.tsv")
-    val mdPath = root.resolve("strategic_owner_family_proof_catalog.md")
-    Files.write(tsvPath, OwnerFamilyProofCatalog.tsv.getBytes(StandardCharsets.UTF_8))
-    Files.write(mdPath, OwnerFamilyProofCatalog.markdown.getBytes(StandardCharsets.UTF_8))
+    val tsvPath = root.resolve("strategic_admission_unit_catalog.tsv")
+    val mdPath = root.resolve("strategic_admission_unit_catalog.md")
+    Files.write(tsvPath, AdmissionUnitCatalog.tsv.getBytes(StandardCharsets.UTF_8))
+    Files.write(mdPath, AdmissionUnitCatalog.markdown.getBytes(StandardCharsets.UTF_8))
     println(s"wrote=$tsvPath")
     println(s"review=$mdPath")

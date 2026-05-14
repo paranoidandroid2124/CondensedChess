@@ -63,8 +63,8 @@ object CommentaryQualityQuietSupport:
       lane: String,
       statusReasons: List[String],
       plannerSceneType: Option[String],
-      plannerSelectedOwnerFamily: Option[String],
-      plannerSelectedOwnerSource: Option[String],
+      plannerSelectedOwnerKind: Option[String],
+      plannerSelectedSource: Option[String],
       bookmakerFallbackMode: String,
       quietnessVerified: Boolean,
       quietnessSpreadCp: Option[Int],
@@ -419,13 +419,13 @@ object CommentaryQualityQuietSupport:
       val quietness = quietnessCheck(payload)
       val profile = sourceProfile(bucket, entry, payload)
       val blockedByClosedFamily =
-        entry.plannerSelectedOwnerFamily.exists(family =>
+        entry.plannerSelectedOwnerKind.exists(family =>
           family == "ForcingDefense" || family == "TacticalFailure"
         )
       val statusReasons =
         if !quietness.passed then quietness.reasons
         else if profile.missingPrerequisites.nonEmpty then profile.missingPrerequisites
-        else if blockedByClosedFamily then List("closed_owner_family_already_selected")
+        else if blockedByClosedFamily then List("closed_proof_family_already_selected")
         else if profile.directSources.isEmpty && profile.supportSources.isEmpty then
           List("no_reusable_move_linked_support")
         else Nil
@@ -447,8 +447,8 @@ object CommentaryQualityQuietSupport:
         lane = if status == Status.Eligible then Lane.Eligible else Lane.Blocked,
         statusReasons = statusReasons,
         plannerSceneType = entry.plannerSceneType,
-        plannerSelectedOwnerFamily = entry.plannerSelectedOwnerFamily,
-        plannerSelectedOwnerSource = entry.plannerSelectedOwnerSource,
+        plannerSelectedOwnerKind = entry.plannerSelectedOwnerKind,
+        plannerSelectedSource = entry.plannerSelectedSource,
         bookmakerFallbackMode = entry.bookmakerFallbackMode,
         quietnessVerified = quietness.passed,
         quietnessSpreadCp = payload.spreadCp,
@@ -692,7 +692,7 @@ object CommentaryQualityQuietSupport:
       entry: BookmakerOutputEntry,
       needle: String
   ): Boolean =
-    (entry.plannerOwnerCandidates ++ entry.plannerAdmittedFamilies ++ entry.plannerProposedFamilyMappings)
+    (entry.plannerOwnerCandidates ++ entry.plannerAdmittedOwners ++ entry.plannerProposedOwnerMappings)
       .exists(_.contains(needle))
 
   private def representativeOrdering(
@@ -778,7 +778,7 @@ object CommentaryQualityQuietSupport:
         ownerSupportRole = SourceRole.SupportOnly,
         reusePossible = true,
         notes =
-      "The quiet-support lane does not mint a new owner family. It reuses already-admitted quiet/domain owners and only adds bounded support beneath them."
+      "The quiet-support lane does not mint a new planner owner kind. It reuses already-admitted quiet/domain owners and only adds bounded support beneath them."
       ),
       StrategicSupportSourceInventoryRow(
         source = "QuietMoveIntentBuilder",
@@ -978,8 +978,8 @@ object CommentaryQualityQuietSupport:
       directSources: List[String],
       supportSources: List[String],
       plannerSceneType: Option[String],
-      plannerSelectedOwnerFamily: Option[String],
-      plannerSelectedOwnerSource: Option[String],
+      plannerSelectedOwnerKind: Option[String],
+      plannerSelectedSource: Option[String],
       commentary: String
   )
   object QuietSupportSelectorRow:
@@ -1006,10 +1006,10 @@ object CommentaryQualityQuietSupport:
       afterSceneReasons: List[String],
       beforeQuestion: Option[String],
       afterQuestion: Option[String],
-      beforeOwnerFamily: Option[String],
-      afterOwnerFamily: Option[String],
-      beforeOwnerSource: Option[String],
-      afterOwnerSource: Option[String],
+      beforeProofFamily: Option[String],
+      afterProofFamily: Option[String],
+      beforeProofSource: Option[String],
+      afterProofSource: Option[String],
       ownerDivergence: Boolean,
       questionDivergence: Boolean,
       ownerQuestionUnchanged: Boolean,
@@ -1198,8 +1198,8 @@ object CommentaryQualityQuietSupport:
       runtimeGatePassed: Option[Boolean],
       runtimeGateRejectReasons: List[String],
       runtimeSceneType: Option[String],
-      runtimeSelectedOwnerFamily: Option[String],
-      runtimeSelectedOwnerSource: Option[String],
+      runtimeSelectedOwnerKind: Option[String],
+      runtimeSelectedSource: Option[String],
       runtimePvDeltaAvailable: Option[Boolean],
       runtimeSignalDigestAvailable: Option[Boolean],
       runtimeMoveLinkedPvDeltaAnchorAvailable: Option[Boolean],
@@ -1218,8 +1218,8 @@ object CommentaryQualityQuietSupport:
       runtimeGatePassed = entry.quietSupportRuntimeGatePassed,
       runtimeGateRejectReasons = entry.quietSupportRuntimeGateRejectReasons,
       runtimeSceneType = entry.quietSupportRuntimeSceneType,
-      runtimeSelectedOwnerFamily = entry.quietSupportRuntimeSelectedOwnerFamily,
-      runtimeSelectedOwnerSource = entry.quietSupportRuntimeSelectedOwnerSource,
+      runtimeSelectedOwnerKind = entry.quietSupportRuntimeSelectedProofFamily,
+      runtimeSelectedSource = entry.quietSupportRuntimeSelectedProofSource,
       runtimePvDeltaAvailable = entry.quietSupportRuntimePvDeltaAvailable,
       runtimeSignalDigestAvailable = entry.quietSupportRuntimeSignalDigestAvailable,
       runtimeMoveLinkedPvDeltaAnchorAvailable = entry.quietSupportRuntimeMoveLinkedPvDeltaAnchorAvailable,
@@ -1270,8 +1270,8 @@ object CommentaryQualityQuietSupport:
           directSources = row.directSources,
           supportSources = row.supportSources,
           plannerSceneType = row.plannerSceneType,
-          plannerSelectedOwnerFamily = row.plannerSelectedOwnerFamily,
-          plannerSelectedOwnerSource = row.plannerSelectedOwnerSource,
+          plannerSelectedOwnerKind = row.plannerSelectedOwnerKind,
+          plannerSelectedSource = row.plannerSelectedSource,
           commentary = row.commentary
         )
       }
@@ -1317,11 +1317,11 @@ object CommentaryQualityQuietSupport:
                 candidateText = beforeEntry.commentary,
                 fallbackMode = beforeEntry.bookmakerFallbackMode,
                 baselineQuestion = beforeEntry.plannerSelectedQuestion,
-                baselineOwnerFamily = beforeEntry.plannerSelectedOwnerFamily,
-                baselineOwnerSource = beforeEntry.plannerSelectedOwnerSource,
+                baselineProofFamily = beforeEntry.plannerSelectedOwnerKind,
+                baselineProofSource = beforeEntry.plannerSelectedSource,
                 currentQuestion = beforeEntry.plannerSelectedQuestion,
-                currentOwnerFamily = beforeEntry.plannerSelectedOwnerFamily,
-                currentOwnerSource = beforeEntry.plannerSelectedOwnerSource,
+                currentProofFamily = beforeEntry.plannerSelectedOwnerKind,
+                currentProofSource = beforeEntry.plannerSelectedSource,
                 strongerVerbLeakageTerms = Nil
               )
             val leakageTerms =
@@ -1331,18 +1331,18 @@ object CommentaryQualityQuietSupport:
                 candidateText = afterEntry.map(_.commentary).getOrElse(""),
                 fallbackMode = afterEntry.map(_.bookmakerFallbackMode).getOrElse("missing_after"),
                 baselineQuestion = beforeEntry.plannerSelectedQuestion,
-                baselineOwnerFamily = beforeEntry.plannerSelectedOwnerFamily,
-                baselineOwnerSource = beforeEntry.plannerSelectedOwnerSource,
+                baselineProofFamily = beforeEntry.plannerSelectedOwnerKind,
+                baselineProofSource = beforeEntry.plannerSelectedSource,
                 currentQuestion = afterEntry.flatMap(_.plannerSelectedQuestion),
-                currentOwnerFamily = afterEntry.flatMap(_.plannerSelectedOwnerFamily),
-                currentOwnerSource = afterEntry.flatMap(_.plannerSelectedOwnerSource),
+                currentProofFamily = afterEntry.flatMap(_.plannerSelectedOwnerKind),
+                currentProofSource = afterEntry.flatMap(_.plannerSelectedSource),
                 strongerVerbLeakageTerms = leakageTerms
               )
             val beforeSelection = evaluateSelection(beforeRubric)
             val afterSelection = evaluateSelection(afterRubric)
             val ownerDivergence =
-              !sameOpt(beforeEntry.plannerSelectedOwnerFamily, afterEntry.flatMap(_.plannerSelectedOwnerFamily)) ||
-                !sameOpt(beforeEntry.plannerSelectedOwnerSource, afterEntry.flatMap(_.plannerSelectedOwnerSource))
+              !sameOpt(beforeEntry.plannerSelectedOwnerKind, afterEntry.flatMap(_.plannerSelectedOwnerKind)) ||
+                !sameOpt(beforeEntry.plannerSelectedSource, afterEntry.flatMap(_.plannerSelectedSource))
             val questionDivergence =
               !sameOpt(beforeEntry.plannerSelectedQuestion, afterEntry.flatMap(_.plannerSelectedQuestion))
             val ownerQuestionUnchanged = !ownerDivergence && !questionDivergence
@@ -1403,10 +1403,10 @@ object CommentaryQualityQuietSupport:
               afterSceneReasons = afterEntry.map(_.plannerSceneReasons).getOrElse(Nil),
               beforeQuestion = beforeEntry.plannerSelectedQuestion,
               afterQuestion = afterEntry.flatMap(_.plannerSelectedQuestion),
-              beforeOwnerFamily = beforeEntry.plannerSelectedOwnerFamily,
-              afterOwnerFamily = afterEntry.flatMap(_.plannerSelectedOwnerFamily),
-              beforeOwnerSource = beforeEntry.plannerSelectedOwnerSource,
-              afterOwnerSource = afterEntry.flatMap(_.plannerSelectedOwnerSource),
+              beforeProofFamily = beforeEntry.plannerSelectedOwnerKind,
+              afterProofFamily = afterEntry.flatMap(_.plannerSelectedOwnerKind),
+              beforeProofSource = beforeEntry.plannerSelectedSource,
+              afterProofSource = afterEntry.flatMap(_.plannerSelectedSource),
               ownerDivergence = ownerDivergence,
               questionDivergence = questionDivergence,
               ownerQuestionUnchanged = ownerQuestionUnchanged,
@@ -1686,17 +1686,17 @@ object CommentaryQualityQuietSupport:
         val afterChronicle = afterChronicleBySample.get(chronicleSampleId)
         val bookmakerQuietSupport = afterBookmakerBySample.get(selector.sampleId).map(quietSupportTraceView)
         val replayQuestion = afterChronicle.flatMap(chronicleReplayQuestion)
-        val replayOwnerFamily = afterChronicle.flatMap(chronicleReplayOwnerFamily)
-        val replayOwnerSource = afterChronicle.flatMap(chronicleReplayOwnerSource)
+        val replayProofFamily = afterChronicle.flatMap(chronicleReplayProofFamily)
+        val replayProofSource = afterChronicle.flatMap(chronicleReplayProofSource)
         val plannerQuestion = afterChronicle.flatMap(chroniclePlannerQuestion)
-        val plannerOwnerFamily = afterChronicle.flatMap(chroniclePlannerOwnerFamily)
-        val plannerOwnerSource = afterChronicle.flatMap(chroniclePlannerOwnerSource)
+        val plannerProofFamily = afterChronicle.flatMap(chroniclePlannerProofFamily)
+        val plannerProofSource = afterChronicle.flatMap(chroniclePlannerProofSource)
         val quietSupportApplied = afterChronicle.exists(_.chronicleReplayQuietSupport.applied)
         val ownerDivergence =
           selector.selected && (
             afterChronicle.isEmpty ||
-              !sameOpt(plannerOwnerFamily, replayOwnerFamily) ||
-              !sameOpt(plannerOwnerSource, replayOwnerSource)
+              !sameOpt(plannerProofFamily, replayProofFamily) ||
+              !sameOpt(plannerProofSource, replayProofSource)
           )
         val questionDivergence =
           selector.selected && (
@@ -1709,24 +1709,24 @@ object CommentaryQualityQuietSupport:
           if selector.selected then strongerVerbLeakageTerms(beforeNarrative.getOrElse(""), afterNarrative.getOrElse(""))
           else Nil
         val replayAsQuietMoveDelta =
-          replayOwnerFamily.contains("MoveDelta") &&
-            replayOwnerSource.contains("pv_delta")
+          replayProofFamily.contains("MoveDelta") &&
+            replayProofSource.contains("pv_delta")
         val blockedLaneContamination =
           selector.lane == Lane.Blocked && (
             quietSupportApplied ||
               (
                 replayAsQuietMoveDelta &&
                   (
-                    !sameOpt(plannerOwnerFamily, replayOwnerFamily) ||
-                      !sameOpt(plannerOwnerSource, replayOwnerSource)
+                    !sameOpt(plannerProofFamily, replayProofFamily) ||
+                      !sameOpt(plannerProofSource, replayProofSource)
                   )
               )
           )
         val crossSurfaceOwnerDivergence =
           selector.selected && (
             afterChronicle.isEmpty ||
-              !sameOpt(bookmakerQuietSupport.flatMap(_.runtimeSelectedOwnerFamily), replayOwnerFamily) ||
-              !sameOpt(bookmakerQuietSupport.flatMap(_.runtimeSelectedOwnerSource), replayOwnerSource)
+              !sameOpt(bookmakerQuietSupport.flatMap(_.runtimeSelectedOwnerKind), replayProofFamily) ||
+              !sameOpt(bookmakerQuietSupport.flatMap(_.runtimeSelectedSource), replayProofSource)
           )
 
         ChronicleMirrorRow(
@@ -1970,11 +1970,11 @@ object CommentaryQualityQuietSupport:
       candidateText: String,
       fallbackMode: String,
       baselineQuestion: Option[String],
-      baselineOwnerFamily: Option[String],
-      baselineOwnerSource: Option[String],
+      baselineProofFamily: Option[String],
+      baselineProofSource: Option[String],
       currentQuestion: Option[String],
-      currentOwnerFamily: Option[String],
-      currentOwnerSource: Option[String],
+      currentProofFamily: Option[String],
+      currentProofSource: Option[String],
       strongerVerbLeakageTerms: List[String]
   ): EvaluationRubricScores =
     val text = normalize(candidateText)
@@ -1983,8 +1983,8 @@ object CommentaryQualityQuietSupport:
     val concrete = hasConcreteAnchor(text)
     val selectionAligned =
       sameOpt(baselineQuestion, currentQuestion) &&
-        sameOpt(baselineOwnerFamily, currentOwnerFamily) &&
-        sameOpt(baselineOwnerSource, currentOwnerSource)
+        sameOpt(baselineProofFamily, currentProofFamily) &&
+        sameOpt(baselineProofSource, currentProofSource)
     val clarity =
       if !outputPresent then 1
       else if supportLift && concrete then 4
@@ -2317,30 +2317,30 @@ object CommentaryQualityQuietSupport:
   ): Option[String] =
     entry.chronicleReplayPrimaryKind.orElse(entry.chroniclePrimaryKind)
 
-  private def chronicleReplayOwnerFamily(
+  private def chronicleReplayProofFamily(
       entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
   ): Option[String] =
-    entry.chronicleReplaySelectedOwnerFamily.orElse(entry.chronicleSelectedOwnerFamily)
+    entry.chronicleReplaySelectedOwnerKind.orElse(entry.chronicleSelectedOwnerKind)
 
-  private def chronicleReplayOwnerSource(
+  private def chronicleReplayProofSource(
       entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
   ): Option[String] =
-    entry.chronicleReplaySelectedOwnerSource.orElse(entry.chronicleSelectedOwnerSource)
+    entry.chronicleReplaySelectedSource.orElse(entry.chronicleSelectedSource)
 
   private def chroniclePlannerQuestion(
       entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
   ): Option[String] =
     entry.plannerSelectedQuestion.orElse(entry.chroniclePrimaryKind)
 
-  private def chroniclePlannerOwnerFamily(
+  private def chroniclePlannerProofFamily(
       entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
   ): Option[String] =
-    entry.plannerSelectedOwnerFamily.orElse(entry.chronicleSelectedOwnerFamily)
+    entry.plannerSelectedOwnerKind.orElse(entry.chronicleSelectedOwnerKind)
 
-  private def chroniclePlannerOwnerSource(
+  private def chroniclePlannerProofSource(
       entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
   ): Option[String] =
-    entry.plannerSelectedOwnerSource.orElse(entry.chronicleSelectedOwnerSource)
+    entry.plannerSelectedSource.orElse(entry.chronicleSelectedSource)
 
   private def tokenize(
       raw: String
@@ -2412,4 +2412,3 @@ object CommentaryQualityQuietSupport:
   ): Double =
     if rows.isEmpty then 0.0
     else rows.map(value).sum.toDouble / rows.size.toDouble
-

@@ -46,6 +46,25 @@ This file is an index and status map. It is not the canonical runtime audit.
   trust-risk inventory, CTH audit baseline, boundary priorities, and deferred
   authority rationale
 
+## Canonical Vocabulary
+
+Use these layer names when discussing current commentary-analysis work:
+
+| layer | canonical name | meaning |
+| --- | --- | --- |
+| strategic taxonomy namespace | `PlanTaxonomy` | the chess-plan vocabulary registry |
+| top-level strategic topic | `PlanTheme` | broad strategy bucket such as restriction or exchange |
+| concrete plan vocabulary item | `PlanKind` | one of the 35 tracked plan kinds |
+| latent seed category | `SeedKind` | low-level seed type before it becomes a plan hypothesis |
+| proof lane source | `proofSource` | the runtime/source-review lane that produced a claim packet |
+| proof contract | `proofFamily` / `ProofContract` | the authority contract a packet must satisfy |
+| planner owner lane | `PlannerOwnerKind` | the question-planner owner kind, separate from proof contracts |
+| source-review bucket | `reviewGroup` | an intake group such as `A:break_prevention` |
+| repeatable admission unit | `AdmissionUnitSpec` | one `PlanKind + proofSource + proofFamily` review unit |
+
+Do not use `family` as a shorthand for all of these layers. Historical prose
+may still say family when it is not naming a current pipeline layer.
+
 ## Current Canonical State
 
 - Step 1-7:
@@ -113,7 +132,7 @@ This file is an index and status map. It is not the canonical runtime audit.
   Prior B8a corpus/acquisition artifacts were intentionally cleared after
   failing to produce either a stable taxonomy or any exact-board survivor worth
   carrying forward as an active queue.
-  No runtime slice, owner lane, schema, or prose family is open, and any
+  No runtime slice, owner lane, schema, or surface phrase class is open, and any
   future B8 work must restart from fresh ontology/corpus rather than reuse the
   cleared artifacts.
 - Current operating mode:
@@ -142,7 +161,7 @@ canonical docs.
 | Cluster | Family bucket | Included families / subfamilies | Current result | Next action |
 | --- | --- | --- | --- | --- |
 | A | Restriction / Counterplay Suppression | `15.neutralize_key_break`, `15.prophylactic_move`, `15.defensive_regrouping`, `8.half_open_file_pressure`, `8.open_file_control` | `neutralize_key_break`, `prophylactic_move`, and `half_open_file_pressure` promoted; `defensive_regrouping` absorbed into `prophylactic_move`; `open_file_control` absorbed into `half_open_file_pressure` | closed unless new exact-board corpus changes one of the absorbed cells |
-| B | Target Fixation / Weakness Pressure | reviewed `static_weakness_fixation`, `backward_pawn_targeting`, `target_focused_coordination`, `minority_attack_fixation`, `iqp_inducement` | cluster B now has three live exact slices on the canonical path: `B21` / `B21A` keep the existing move-local `exact_target_fixation` lane (`bestDefenseBranchKey=f3d2|b8a6`, `sameBranchState=Proven`, `persistence=Stable`, `main_bundle=This keeps the pressure fixed on d6.`, planner-primary `WhatChanged=This changes the position by fixing d6 as the target.` plus same-branch contrast/consequence), `B15A` / `B16B` keep the Carlsbad fixed-target current-position probe (`ownerSource=carlsbad_fixed_target_probe`, `ownerFamily=backward_pawn_targeting`, `scope=PositionLocal`, `main_bundle=The key strategic fact here is that c6 is the fixed target.`, planner-primary `WhatMattersHere`, deterministic Bookmaker / Chronicle primary, and coda `So the task is to keep the queenside pressure trained on c6 instead of rushing a conversion.`), and `K09A` / `K09D` now open the second planner-owned current-position probe lane on exact coordination (`ownerSource=target_focused_coordination_probe`, `ownerFamily=target_focused_coordination`, `scope=PositionLocal`, `bestDefenseBranchKey=d1b3|d8d7` on `K09A` / `h2h3|g4f3` on `K09D`, `sameBranchState=Proven`, `persistence=Stable`, `main_bundle=The key strategic fact here is that the pressure is coordinated on c6.`, planner-primary `WhatMattersHere`, and deterministic Bookmaker / Chronicle coda `So the task is to keep the pressure coordinated on c6 until the target has to give way.`); the same exact `B21A` packet still backs the only support-only `decisionComparison` comparative digest (`Nd2` versus `Qc2`: `Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.`); `minority_attack_fixation` stays absorbed support-only; `iqp_inducement` stays structure/conversion support-only; `K03A` remains fail-closed and `K09E` remains file-pressure / release-rival blocked | keep all three exact lanes narrow: `B21` / `B21A` stay move-owned delta only, `B15A` / `B16B` stay Carlsbad current-position probe only, `K09A` / `K09D` stay exact coordination current-position probe only, and fail-close siblings unless a new reviewed row survives exact board + same-branch proof without relabel drift |
+| B | Target Fixation / Weakness Pressure | reviewed `static_weakness_fixation`, `backward_pawn_targeting`, `target_focused_coordination`, `minority_attack_fixation`, `iqp_inducement` | cluster B now has three live exact slices on the canonical path: `B21` / `B21A` keep the existing move-local `exact_target_fixation` lane (`bestDefenseBranchKey=f3d2|b8a6`, `sameBranchState=Proven`, `persistence=Stable`, `main_bundle=This keeps the pressure fixed on d6.`, planner-primary `WhatChanged=This changes the position by fixing d6 as the target.` plus same-branch contrast/consequence), `B15A` / `B16B` keep the Carlsbad fixed-target current-position probe (`proofSource=carlsbad_fixed_target_probe`, `proofFamily=backward_pawn_targeting`, `scope=PositionLocal`, `main_bundle=The key strategic fact here is that c6 is the fixed target.`, planner-primary `WhatMattersHere`, deterministic Bookmaker / Chronicle primary, and coda `So the task is to keep the queenside pressure trained on c6 instead of rushing a conversion.`), and `K09A` / `K09D` now open the second planner-owned current-position probe lane on exact coordination (`proofSource=target_focused_coordination_probe`, `proofFamily=target_focused_coordination`, `scope=PositionLocal`, `bestDefenseBranchKey=d1b3|d8d7` on `K09A` / `h2h3|g4f3` on `K09D`, `sameBranchState=Proven`, `persistence=Stable`, `main_bundle=The key strategic fact here is that the pressure is coordinated on c6.`, planner-primary `WhatMattersHere`, and deterministic Bookmaker / Chronicle coda `So the task is to keep the pressure coordinated on c6 until the target has to give way.`); the same exact `B21A` packet still backs the only support-only `decisionComparison` comparative digest (`Nd2` versus `Qc2`: `Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.`); `minority_attack_fixation` stays absorbed support-only; `iqp_inducement` stays structure/conversion support-only; `K03A` remains fail-closed and `K09E` remains file-pressure / release-rival blocked | keep all three exact lanes narrow: `B21` / `B21A` stay move-owned delta only, `B15A` / `B16B` stay Carlsbad current-position probe only, `K09A` / `K09D` stay exact coordination current-position probe only, and fail-close siblings unless a new reviewed row survives exact board + same-branch proof without relabel drift |
 | C | Exchange / Removal Without Task-Shift | `17.trade_key_defender`, bounded `favorable_simplification`, bounded `trade_attacking_piece`, bounded `remove_key_defender` trigger-only form | bounded `favorable_simplification` is now promoted on one exact same-task simplification slice; `trade_key_defender` stays blocked; `trade_attacking_piece` is now reviewed fail-closed because `K08A` is not a real live-attacker removal row, `K08D` is not root-best, and exploratory `MI5` collapses into tactic-first `Qxd6` relief; `remove_key_defender` is now reviewed fail-closed because `K09B`/`K09F` only survive as same-task simplification on `d4e6|f7e6`, `K09A` / `K09D` now belong to the separate `target_focused_coordination` current-position probe lane, `K09E` stays file-pressure / release-rival dominated, and `MI5` is still tactic-first relief rather than a one-defender local trigger | keep the promoted simplification slice narrow and keep `trade_key_defender`, `trade_attacking_piece`, and `remove_key_defender` blocked; reopen `trade_attacking_piece` or `remove_key_defender` only with a new exact row whose planner-owned move-local owner survives without relabeling into simplification, blocked defender-trade ownership, attack-piece removal, tactical cleanup, or the exact coordination probe lane |
 | D | Coordination / Access Conversion | bounded `support_file_occupation`, bounded `entry_square_enable_deny`, bounded `target_focused_piece_coordination` | `entry_square_enable_deny` reviewed and blocked; `support_file_occupation` and `target_focused_piece_coordination` remain queued | keep `entry_square_enable_deny` blocked unless a new exact root-best row materializes a one-square move-local owner without relabeling into prophylaxis or file-entry reuse; keep the other two cells queue-only |
 
@@ -204,7 +223,7 @@ It means the system now has a stable answer to:
 Unless a task explicitly reopens core architecture, do not casually reopen:
 
 - owner legality
-- ranking/owner-family redesign
+- ranking/planner-owner-kind redesign
 - raw opening precedent as direct owner
 - raw endgame hint as direct owner
 - raw close alternative as direct owner
@@ -345,7 +364,7 @@ Current status:
 - Current active work:
   monitor the residual style-choice `pv_delta` ingress gap outside the
   quiet-support owner-preservation gate; do not reopen composer wording,
-  legality, ranking, or owner-family design
+  legality, ranking, or planner-owner-kind design
 
 #### Track 4 — Scene Coverage Lane
 

@@ -22,7 +22,7 @@ private[commentary] final case class QuietMoveIntentClaim(
     provenanceClass: PlayerFacingClaimProvenanceClass = PlayerFacingClaimProvenanceClass.Deferred,
     certificateStatus: PlayerFacingCertificateStatus = PlayerFacingCertificateStatus.Invalid,
     taintFlags: Set[PlayerFacingClaimTaintFlag] = Set.empty,
-    ontologyFamily: PlayerFacingClaimOntologyFamily = PlayerFacingClaimOntologyFamily.Unknown,
+    ontologyFamily: PlayerFacingClaimOntologyKind = PlayerFacingClaimOntologyKind.Unknown,
     packet: PlayerFacingClaimPacket = PlayerFacingClaimPacket.empty
 ):
   def lens: StrategicLens =
@@ -284,17 +284,17 @@ private[commentary] object QuietMoveIntentBuilder:
         claim.intentClass == QuietMoveIntentClass.CounterplayRestraint &&
           HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)
       )(PlayerFacingClaimReleaseRisk.HeavyPieceLeakage).toList
-    val ownerFamily = quietOwnerFamily(claim.intentClass)
-    val ownerPathWitness = quietOwnerPathWitness(ctx, claim.intentClass, anchorSquare)
+    val proofFamily = quietProofFamily(claim.intentClass)
+    val proofPathWitness = quietOwnerPathWitness(ctx, claim.intentClass, anchorSquare)
     val sameBranchState =
-      quietSameBranchState(ctx, provenanceClass, ownerFamily, ownerPathWitness)
+      quietSameBranchState(ctx, provenanceClass, proofFamily, proofPathWitness)
     val persistence =
-      quietPersistence(ctx, provenanceClass, ownerFamily)
+      quietPersistence(ctx, provenanceClass, proofFamily)
     val lineOnlyPilot =
-      PlayerFacingClaimPacket.isLineOnlyPilot(claim.sourceKind, ownerFamily)
+      PlayerFacingClaimPacket.isLineOnlyPilot(claim.sourceKind, proofFamily)
     val quietCounterplayPilot =
       claim.intentClass == QuietMoveIntentClass.CounterplayRestraint &&
-        ownerFamily == "neutralize_key_break"
+        proofFamily == "neutralize_key_break"
     val fallbackMode =
       if lineOnlyPilot || quietCounterplayPilot then PlayerFacingClaimFallbackMode.LineOnly
       else if PlayerFacingClaimProof.allowsWeakMainClaim(
@@ -317,10 +317,10 @@ private[commentary] object QuietMoveIntentBuilder:
       taintFlags = taintFlags,
       ontologyFamily = claimGate.ontologyFamily,
       packet =
-        OwnerProofRules.attachTrace(PlayerFacingClaimPacket(
+        ProofContractRules.attachTrace(PlayerFacingClaimPacket(
           claimGate = claimGate,
-          ownerSource = claim.sourceKind,
-          ownerFamily = ownerFamily,
+          proofSource = claim.sourceKind,
+          proofFamily = proofFamily,
           scope = PlayerFacingPacketScope.MoveLocal,
           triggerKind = claim.sourceKind,
           anchorTerms = anchorSquare.toList.flatMap(clean),
@@ -328,7 +328,7 @@ private[commentary] object QuietMoveIntentBuilder:
           bestDefenseBranchKey = quietBestDefenseBranchKey(ctx),
           sameBranchState = sameBranchState,
           persistence = persistence,
-          ownerPathWitness = ownerPathWitness,
+          proofPathWitness = proofPathWitness,
           suppressionReasons =
             Option.when(releaseRisks.nonEmpty)(
               PlayerFacingClaimSuppressionReason.SupportOnlyReinflation
@@ -450,14 +450,14 @@ private[commentary] object QuietMoveIntentBuilder:
 
   private def quietOntologyFamily(
       intentClass: QuietMoveIntentClass
-  ): PlayerFacingClaimOntologyFamily =
+  ): PlayerFacingClaimOntologyKind =
     intentClass match
-      case QuietMoveIntentClass.CounterplayRestraint => PlayerFacingClaimOntologyFamily.LongTermRestraint
-      case QuietMoveIntentClass.KingSafety           => PlayerFacingClaimOntologyFamily.KingSafety
-      case QuietMoveIntentClass.TechnicalConversionStep => PlayerFacingClaimOntologyFamily.TechnicalConversion
-      case QuietMoveIntentClass.PieceImprovement     => PlayerFacingClaimOntologyFamily.PieceImprovement
+      case QuietMoveIntentClass.CounterplayRestraint => PlayerFacingClaimOntologyKind.LongTermRestraint
+      case QuietMoveIntentClass.KingSafety           => PlayerFacingClaimOntologyKind.KingSafety
+      case QuietMoveIntentClass.TechnicalConversionStep => PlayerFacingClaimOntologyKind.TechnicalConversion
+      case QuietMoveIntentClass.PieceImprovement     => PlayerFacingClaimOntologyKind.PieceImprovement
 
-  private def quietOwnerFamily(
+  private def quietProofFamily(
       intentClass: QuietMoveIntentClass
   ): String =
     intentClass match
@@ -487,7 +487,7 @@ private[commentary] object QuietMoveIntentBuilder:
       ctx: NarrativeContext,
       intentClass: QuietMoveIntentClass,
       anchorSquare: Option[String]
-  ): PlayerFacingOwnerPathWitness =
+  ): PlayerFacingProofPathWitness =
     val ownerSeedTerms =
       anchorSquare.toList.flatMap(clean) ++
         Option.when(intentClass == QuietMoveIntentClass.CounterplayRestraint) {
@@ -500,14 +500,14 @@ private[commentary] object QuietMoveIntentBuilder:
     val continuationTerms =
       quietBestDefenseBranchKey(ctx).toList ++
         quietBestDefenseMove(ctx).toList ++
-        quietEvidenceBackedExperiments(ctx, quietOwnerFamily(intentClass)).flatMap { experiment =>
+        quietEvidenceBackedExperiments(ctx, quietProofFamily(intentClass)).flatMap { experiment =>
           List(
             Option.when(experiment.bestReplyStable)("best_reply_stable"),
             Option.when(experiment.futureSnapshotAligned)("future_snapshot_aligned"),
             Option.when(experiment.counterBreakNeutralized)("counter_break_neutralized")
           ).flatten
         }
-    PlayerFacingOwnerPathWitness(
+    PlayerFacingProofPathWitness(
       ownerSeedTerms = ownerSeedTerms.distinct,
       continuationTerms = continuationTerms.distinct,
       structureTransitionTerms =
@@ -517,30 +517,30 @@ private[commentary] object QuietMoveIntentBuilder:
   private def quietSameBranchState(
       ctx: NarrativeContext,
       provenanceClass: PlayerFacingClaimProvenanceClass,
-      ownerFamily: String,
-      ownerPathWitness: PlayerFacingOwnerPathWitness
+      proofFamily: String,
+      proofPathWitness: PlayerFacingProofPathWitness
   ): PlayerFacingSameBranchState =
     if provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
       PlayerFacingSameBranchState.Missing
     else if quietBestDefenseBranchKey(ctx).isEmpty then
       PlayerFacingSameBranchState.Missing
     else
-      val experiments = quietEvidenceBackedExperiments(ctx, ownerFamily)
-      if ownerPathWitness.hasOwnerSeed &&
+      val experiments = quietEvidenceBackedExperiments(ctx, proofFamily)
+      if proofPathWitness.hasOwnerSeed &&
           experiments.exists(exp => exp.bestReplyStable && exp.futureSnapshotAligned && !exp.moveOrderSensitive)
       then PlayerFacingSameBranchState.Proven
-      else if ownerPathWitness.hasContinuation || experiments.nonEmpty then PlayerFacingSameBranchState.Ambiguous
+      else if proofPathWitness.hasContinuation || experiments.nonEmpty then PlayerFacingSameBranchState.Ambiguous
       else PlayerFacingSameBranchState.Missing
 
   private def quietPersistence(
       ctx: NarrativeContext,
       provenanceClass: PlayerFacingClaimProvenanceClass,
-      ownerFamily: String
+      proofFamily: String
   ): PlayerFacingClaimPersistence =
     if provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
       PlayerFacingClaimPersistence.Broken
     else
-      val experiments = quietEvidenceBackedExperiments(ctx, ownerFamily)
+      val experiments = quietEvidenceBackedExperiments(ctx, proofFamily)
       if experiments.exists(exp => exp.bestReplyStable && exp.futureSnapshotAligned && !exp.moveOrderSensitive) then
         PlayerFacingClaimPersistence.Stable
       else if experiments.exists(_.bestReplyStable) then
@@ -551,20 +551,20 @@ private[commentary] object QuietMoveIntentBuilder:
 
   private def quietEvidenceBackedExperiments(
       ctx: NarrativeContext,
-      ownerFamily: String
+      proofFamily: String
   ): List[StrategicPlanExperiment] =
     val evidenceBacked = ctx.strategicPlanExperiments.filter(exp => normalize(exp.evidenceTier) == "evidence backed")
     val matched =
-      ownerFamily match
+      proofFamily match
         case "neutralize_key_break" =>
           evidenceBacked.filter(exp =>
             exp.counterBreakNeutralized ||
-              exp.subplanId.contains(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+              exp.subplanId.contains(PlanTaxonomy.PlanKind.BreakPrevention.id)
           )
         case "counterplay_restraint" =>
           evidenceBacked.filter(exp =>
-            exp.subplanId.contains(ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id) ||
-              exp.themeL1 == ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id
+            exp.subplanId.contains(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id) ||
+              exp.themeL1 == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id
           )
         case _ => evidenceBacked
     if matched.nonEmpty then matched else evidenceBacked

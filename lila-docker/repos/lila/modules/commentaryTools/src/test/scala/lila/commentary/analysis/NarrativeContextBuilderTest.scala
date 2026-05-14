@@ -124,8 +124,8 @@ class NarrativeContextBuilderTest extends FunSuite {
         userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked,
         reason = "validated by purpose-aligned probe evidence",
         supportProbeIds = List("probe_1"),
-        themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-        subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+        themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+        subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
       )
     )
 
@@ -181,15 +181,15 @@ class NarrativeContextBuilderTest extends FunSuite {
             failureModes = List("If the order slips, counterplay returns."),
             viability = PlanViability(0.78, "high", "conversion test"),
             evidenceSources = List("theme:advantage_transformation"),
-            themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id)
+            themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id)
           ),
         status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
         userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked,
         reason = "probe-backed conversion",
         supportProbeIds = List("probe_theme_only"),
-        themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
-        subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+        themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
+        subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id),
         claimCertification =
           PlanEvidenceEvaluator.ClaimCertification(
             certificateStatus = PlayerFacingCertificateStatus.Valid,
@@ -198,7 +198,7 @@ class NarrativeContextBuilderTest extends FunSuite {
             attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
             stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
             provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-            ontologyFamily = PlayerFacingClaimOntologyFamily.PlanAdvance
+            ontologyFamily = PlayerFacingClaimOntologyKind.PlanAdvance
           )
       )
     val themeValidationOnlyProbe =

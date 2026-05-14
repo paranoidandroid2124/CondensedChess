@@ -40,10 +40,10 @@ private[analysis] object TacticalTensionPolicy:
     truthContract match
       case Some(contract) =>
         val truthForced =
-          contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
+          contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
             contract.failureMode == FailureInterpretationMode.OnlyMoveFailure
         val truthPressure =
-          contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
+          contract.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
             contract.failureMode == FailureInterpretationMode.TacticalRefutation ||
             (
               contract.failureInterpretationAllowed &&

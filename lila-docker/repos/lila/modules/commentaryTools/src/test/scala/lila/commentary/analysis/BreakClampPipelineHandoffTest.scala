@@ -38,7 +38,7 @@ class BreakClampPipelineHandoffTest extends FunSuite:
       deltaSuppression: List[String],
       deltaRisks: List[String],
       deltaGate: Option[String],
-      mainClaimSource: Option[String]
+      mainProofSource: Option[String]
   ):
     override def toString: String =
       List(
@@ -62,7 +62,7 @@ class BreakClampPipelineHandoffTest extends FunSuite:
         s"deltaSuppression=${deltaSuppression.mkString("|")}",
         s"deltaRisks=${deltaRisks.mkString("|")}",
         s"deltaGate=${deltaGate.getOrElse("-")}",
-        s"mainClaimSource=${mainClaimSource.getOrElse("-")}"
+        s"mainProofSource=${mainProofSource.getOrElse("-")}"
       ).mkString(" ")
 
   private val candidateLines =
@@ -95,7 +95,7 @@ class BreakClampPipelineHandoffTest extends FunSuite:
     assert(snapshots.forall(snapshot => snapshot.plannerPlans == snapshot.semanticPlans), clues(snapshots.mkString("\n")))
     assert(snapshots.forall(_.truthMode == "Strategic"), clues(snapshots.mkString("\n")))
     assert(snapshots.forall(_.deltaOwner.contains("counterplay_axis_suppression")), clues(snapshots.mkString("\n")))
-    assert(snapshots.forall(_.mainClaimSource.contains("counterplay_axis_suppression")), clues(snapshots.mkString("\n")))
+    assert(snapshots.forall(_.mainProofSource.contains("counterplay_axis_suppression")), clues(snapshots.mkString("\n")))
   }
 
   private def snapshot(candidate: CandidateLine): HandoffSnapshot =
@@ -176,8 +176,8 @@ class BreakClampPipelineHandoffTest extends FunSuite:
       plannerPlans = inputs.preventedPlansNow.flatMap(_.breakNeutralized),
       truthMode = PlayerFacingTruthModePolicy.classify(ctx, pack, truthContract = None).toString,
       deltaClass = delta.map(_.deltaClass.toString),
-      deltaOwner = delta.map(_.packet.ownerSource),
-      deltaFamily = delta.map(_.packet.ownerFamily),
+      deltaOwner = delta.map(_.packet.proofSource),
+      deltaFamily = delta.map(_.packet.proofFamily),
       deltaScope = delta.map(_.packet.scope.toString),
       deltaFallback = delta.map(_.packet.fallbackMode.toString),
       deltaSameBranch = delta.map(_.packet.sameBranchState.toString),
@@ -194,5 +194,5 @@ class BreakClampPipelineHandoffTest extends FunSuite:
           s"taint=${d.packet.claimGate.taintFlags.mkString("|")}"
         ).mkString(",")
       ),
-      mainClaimSource = mainClaim.flatMap(_.packet).map(_.ownerSource).orElse(mainClaim.map(_.sourceKind))
+      mainProofSource = mainClaim.flatMap(_.packet).map(_.proofSource).orElse(mainClaim.map(_.sourceKind))
     )

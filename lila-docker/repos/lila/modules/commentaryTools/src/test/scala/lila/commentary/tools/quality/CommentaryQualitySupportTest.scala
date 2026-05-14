@@ -17,8 +17,8 @@ class CommentaryQualitySupportTest extends FunSuite:
       augmentation: Option[String] = Some("augmentation"),
       bundle: Option[String] = Some("bundle"),
       question: Option[String] = Some("WhyNow"),
-      ownerFamily: Option[String] = Some("ForcingDefense"),
-      ownerSource: Option[String] = Some("threat"),
+      proofFamily: Option[String] = Some("ForcingDefense"),
+      proofSource: Option[String] = Some("threat"),
       replayOutcome: Option[String] = Some("planner_owned")
   ): SurfaceParitySnapshot =
     SurfaceParitySnapshot(
@@ -29,8 +29,8 @@ class CommentaryQualitySupportTest extends FunSuite:
       targetPly = targetPly,
       playedSan = "Re1",
       selectedQuestion = question,
-      selectedOwnerFamily = ownerFamily,
-      selectedOwnerSource = ownerSource,
+      selectedOwnerKind = proofFamily,
+      selectedSource = proofSource,
       replayOutcome = replayOutcome,
       digests =
         SurfaceDigestHashes(
@@ -87,8 +87,8 @@ class CommentaryQualitySupportTest extends FunSuite:
             augmentation = Some("a2"),
             bundle = Some("b2"),
             question = None,
-            ownerFamily = None,
-            ownerSource = None,
+            proofFamily = None,
+            proofSource = None,
             replayOutcome = Some("omitted_no_primary")
           ),
           paritySurface(
@@ -100,8 +100,8 @@ class CommentaryQualitySupportTest extends FunSuite:
             augmentation = None,
             bundle = Some("b1"),
             question = None,
-            ownerFamily = None,
-            ownerSource = None,
+            proofFamily = None,
+            proofSource = None,
             replayOutcome = Some("factual_fallback")
           )
         )
@@ -130,8 +130,8 @@ class CommentaryQualitySupportTest extends FunSuite:
             augmentation = Some("a2"),
             bundle = Some("b2"),
             question = None,
-            ownerFamily = None,
-            ownerSource = None,
+            proofFamily = None,
+            proofSource = None,
             replayOutcome = Some("omitted_no_primary")
           ),
           paritySurface(
@@ -143,8 +143,8 @@ class CommentaryQualitySupportTest extends FunSuite:
             augmentation = None,
             bundle = Some("b1"),
             question = None,
-            ownerFamily = None,
-            ownerSource = None,
+            proofFamily = None,
+            proofSource = None,
             replayOutcome = Some("bookmaker_exact_factual")
           )
         )
@@ -176,8 +176,8 @@ class CommentaryQualitySupportTest extends FunSuite:
             augmentation = Some("a2"),
             bundle = Some("b2"),
             question = None,
-            ownerFamily = None,
-            ownerSource = None,
+            proofFamily = None,
+            proofSource = None,
             replayOutcome = Some("omitted_no_primary")
           ),
           paritySurface(
@@ -189,8 +189,8 @@ class CommentaryQualitySupportTest extends FunSuite:
             augmentation = None,
             bundle = Some("b1"),
             question = None,
-            ownerFamily = None,
-            ownerSource = None,
+            proofFamily = None,
+            proofSource = None,
             replayOutcome = Some("factual_fallback")
           ),
           paritySurface(
@@ -202,8 +202,8 @@ class CommentaryQualitySupportTest extends FunSuite:
             augmentation = Some("a1"),
             bundle = Some("b3"),
             question = Some("WhyThis"),
-            ownerFamily = Some("TacticalFailure"),
-            ownerSource = Some("forcing_contract"),
+            proofFamily = Some("TacticalFailure"),
+            proofSource = Some("forcing_contract"),
             replayOutcome = Some("bookmaker_planner_owned")
           )
         )
@@ -300,8 +300,8 @@ class CommentaryQualitySupportTest extends FunSuite:
             101,
             SurfaceName.Bookmaker,
             question = None,
-            ownerFamily = None,
-            ownerSource = None,
+            proofFamily = None,
+            proofSource = None,
             replayOutcome = Some("bookmaker_exact_factual")
           ),
           paritySurface(
@@ -309,8 +309,8 @@ class CommentaryQualitySupportTest extends FunSuite:
             101,
             SurfaceName.Chronicle,
             question = None,
-            ownerFamily = None,
-            ownerSource = None,
+            proofFamily = None,
+            proofSource = None,
             replayOutcome = Some("factual_fallback")
           )
         )

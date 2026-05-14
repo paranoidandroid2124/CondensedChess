@@ -22,7 +22,7 @@ object LatentSeedLibrary:
       // 1) Pawn Levers & Storms
       LatentSeed(
         id = "PawnStorm_Kingside",
-        family = SeedFamily.Pawn,
+        seedKind = SeedKind.Pawn,
         mapsToPlan = Some(PlanId.PawnStorm),
         candidateMoves = List(
           MovePattern.PawnAdvance(File.G),
@@ -52,7 +52,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "Attack_The_Hook",
-        family = SeedFamily.Pawn,
+        seedKind = SeedKind.Pawn,
         mapsToPlan = Some(PlanId.KingsideAttack),
         candidateMoves = Nil, // dynamic via SeedMoveGenerator
         preconditions = List(
@@ -71,7 +71,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "MinorityAttack_Queenside",
-        family = SeedFamily.Pawn,
+        seedKind = SeedKind.Pawn,
         mapsToPlan = Some(PlanId.MinorityAttack),
         candidateMoves = List(MovePattern.PawnAdvance(File.B)),
         preconditions = List(
@@ -86,7 +86,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "CanOpener_h_Pawn",
-        family = SeedFamily.Pawn,
+        seedKind = SeedKind.Pawn,
         mapsToPlan = Some(PlanId.KingsideAttack),
         candidateMoves = List(MovePattern.PawnAdvance(File.H)),
         preconditions = List(
@@ -102,7 +102,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "CentralBreak_D",
-        family = SeedFamily.Pawn,
+        seedKind = SeedKind.Pawn,
         mapsToPlan = Some(PlanId.PawnBreakPreparation),
         candidateMoves = List(MovePattern.PawnAdvance(File.D)),
         preconditions = List(
@@ -117,7 +117,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "CentralBreak_E",
-        family = SeedFamily.Pawn,
+        seedKind = SeedKind.Pawn,
         mapsToPlan = Some(PlanId.PawnBreakPreparation),
         candidateMoves = List(MovePattern.PawnAdvance(File.E)),
         preconditions = List(
@@ -133,7 +133,7 @@ object LatentSeedLibrary:
       // 2) Piece Maneuvers & Optimization
       LatentSeed(
         id = "KnightOutpost_Route",
-        family = SeedFamily.Piece,
+        seedKind = SeedKind.Piece,
         mapsToPlan = Some(PlanId.MinorPieceManeuver),
         candidateMoves = Nil, // position-specific (computed by seeder)
         preconditions = List(
@@ -146,7 +146,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "RookLift_Kingside",
-        family = SeedFamily.Piece,
+        seedKind = SeedKind.Piece,
         mapsToPlan = Some(PlanId.RookActivation),
         candidateMoves = Nil, // position-specific (computed by seeder)
         preconditions = List(
@@ -160,7 +160,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "BadBishop_Reroute",
-        family = SeedFamily.Piece,
+        seedKind = SeedKind.Piece,
         mapsToPlan = Some(PlanId.PieceActivation),
         candidateMoves = Nil, // position-specific (computed by seeder)
         preconditions = List(
@@ -174,7 +174,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "Battery_Formation",
-        family = SeedFamily.Piece,
+        seedKind = SeedKind.Piece,
         mapsToPlan = None,
         candidateMoves = Nil, // position-specific (computed by seeder)
         preconditions = List(
@@ -187,7 +187,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "OpenFile_Doubling",
-        family = SeedFamily.Piece,
+        seedKind = SeedKind.Piece,
         mapsToPlan = Some(PlanId.FileControl),
         candidateMoves = Nil,
         preconditions = List(
@@ -201,7 +201,7 @@ object LatentSeedLibrary:
       // 3) Structural Transformation
       LatentSeed(
         id = "CreatePassedPawn",
-        family = SeedFamily.Structure,
+        seedKind = SeedKind.Structure,
         mapsToPlan = Some(PlanId.PassedPawnCreation),
         candidateMoves = Nil,
         preconditions = List(
@@ -214,7 +214,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "CreateIQP",
-        family = SeedFamily.Structure,
+        seedKind = SeedKind.Structure,
         mapsToPlan = Some(PlanId.WeakPawnAttack),
         candidateMoves = Nil,
         preconditions = List(
@@ -227,7 +227,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "FixBackwardPawn",
-        family = SeedFamily.Structure,
+        seedKind = SeedKind.Structure,
         mapsToPlan = Some(PlanId.WeakPawnAttack),
         candidateMoves = Nil,
         narrative = NarrativeTemplate(
@@ -238,7 +238,7 @@ object LatentSeedLibrary:
       // 4) Prophylaxis & Safety
       LatentSeed(
         id = "Prophylaxis_Luft",
-        family = SeedFamily.Prophylaxis,
+        seedKind = SeedKind.Prophylaxis,
         mapsToPlan = Some(PlanId.Prophylaxis),
         candidateMoves = List(MovePattern.PawnAdvance(File.H), MovePattern.PawnAdvance(File.G)),
         preconditions = List(
@@ -251,7 +251,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "Restrict_OpponentPiece",
-        family = SeedFamily.Prophylaxis,
+        seedKind = SeedKind.Prophylaxis,
         mapsToPlan = Some(PlanId.Prophylaxis),
         candidateMoves = Nil,
         narrative = NarrativeTemplate(
@@ -261,7 +261,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "KingSafety_Run",
-        family = SeedFamily.Prophylaxis,
+        seedKind = SeedKind.Prophylaxis,
         mapsToPlan = Some(PlanId.DefensiveConsolidation),
         candidateMoves = Nil,
         narrative = NarrativeTemplate(
@@ -272,7 +272,7 @@ object LatentSeedLibrary:
       // 5) Exchange Decisions
       LatentSeed(
         id = "Trade_BadBishop",
-        family = SeedFamily.Exchange,
+        seedKind = SeedKind.Exchange,
         mapsToPlan = Some(PlanId.Exchange),
         candidateMoves = Nil,
         preconditions = List(
@@ -285,7 +285,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "Trade_Queens_Defensive",
-        family = SeedFamily.Exchange,
+        seedKind = SeedKind.Exchange,
         mapsToPlan = Some(PlanId.Simplification),
         candidateMoves = Nil, // dynamic
         preconditions = List(
@@ -304,7 +304,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "Simplify_To_Endgame",
-        family = SeedFamily.Exchange,
+        seedKind = SeedKind.Exchange,
         mapsToPlan = Some(PlanId.Simplification),
         candidateMoves = Nil,
         narrative = NarrativeTemplate(
@@ -315,7 +315,7 @@ object LatentSeedLibrary:
       // 6) Dynamic & Tactical Preparation
       LatentSeed(
         id = "Prepare_Overload",
-        family = SeedFamily.TacticalPrep,
+        seedKind = SeedKind.TacticalPrep,
         mapsToPlan = None,
         candidateMoves = Nil,
         narrative = NarrativeTemplate(
@@ -325,7 +325,7 @@ object LatentSeedLibrary:
       ),
       LatentSeed(
         id = "Prepare_Clearance",
-        family = SeedFamily.TacticalPrep,
+        seedKind = SeedKind.TacticalPrep,
         mapsToPlan = None,
         candidateMoves = Nil,
         narrative = NarrativeTemplate(

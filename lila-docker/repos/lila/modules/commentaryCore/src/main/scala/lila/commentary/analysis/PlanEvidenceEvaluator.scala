@@ -3,7 +3,7 @@ package lila.commentary.analysis
 import play.api.libs.json.*
 import lila.commentary.model.{ ProbeContractValidator, ProbeRequest, ProbeResult }
 import lila.commentary.model.authoring.PlanHypothesis
-import lila.commentary.analysis.ThemeTaxonomy.{ ThemeL1, ThemeResolver, SubplanCatalog, SubplanId, SubplanSpec }
+import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, ThemeResolver, SubplanCatalog, PlanKind, SubplanSpec }
 
 /**
  * Evaluates strategic plan hypotheses with a fail-closed evidence policy.
@@ -35,7 +35,7 @@ object PlanEvidenceEvaluator:
       refuteProbeIds: List[String] = Nil,
       missingSignals: List[String] = Nil,
       pvCoupled: Boolean = false,
-      themeL1: String = ThemeL1.Unknown.id,
+      themeL1: String = PlanTheme.Unknown.id,
       subplanId: Option[String] = None,
       claimCertification: ClaimCertification = ClaimCertification()
   )
@@ -48,7 +48,7 @@ object PlanEvidenceEvaluator:
       stabilityGrade: PlayerFacingClaimStabilityGrade = PlayerFacingClaimStabilityGrade.Unknown,
       provenanceClass: PlayerFacingClaimProvenanceClass = PlayerFacingClaimProvenanceClass.Deferred,
       taintFlags: List[PlayerFacingClaimTaintFlag] = Nil,
-      ontologyFamily: PlayerFacingClaimOntologyFamily = PlayerFacingClaimOntologyFamily.Unknown,
+      ontologyFamily: PlayerFacingClaimOntologyKind = PlayerFacingClaimOntologyKind.Unknown,
       alternativeDominance: Boolean = false
   )
 
@@ -182,9 +182,9 @@ object PlanEvidenceEvaluator:
       val evaluated =
         hypotheses.map { h =>
           val themeId = hypothesisThemeId(h)
-          val subplanId = hypothesisSubplanId(h)
+          val subplanId = hypothesisPlanKind(h)
           val subplanSpec =
-            subplanId.flatMap(SubplanId.fromId).flatMap(SubplanCatalog.specs.get)
+            subplanId.flatMap(PlanKind.fromId).flatMap(SubplanCatalog.specs.get)
           val linkedRequests = probeRequests.filter(req => requestMatchesHypothesis(req, h))
           val linkedResults =
             linkedRequests.flatMap(req => resultsById.getOrElse(req.id, Nil).map(pr => req -> pr))
@@ -372,8 +372,8 @@ object PlanEvidenceEvaluator:
     val hypSeed = seedIdOf(h).map(_.trim.toLowerCase)
     val reqTheme = reqThemeId(req)
     val hypTheme = hypothesisThemeId(h)
-    val reqSubplan = reqSubplanId(req)
-    val hypSubplan = hypothesisSubplanId(h)
+    val reqSubplan = reqPlanKind(req)
+    val hypSubplan = hypothesisPlanKind(h)
     val themeAligned = reqTheme.nonEmpty && reqTheme == hypTheme
     val subplanAligned = reqSubplan.forall(rsp => hypSubplan.contains(rsp))
     val contractCompatible = requestContractCompatible(req, hypSubplan)
@@ -395,11 +395,11 @@ object PlanEvidenceEvaluator:
   private def reqThemeId(req: ProbeRequest): String =
     req.planId
       .map(pid => ThemeResolver.fromPlanId(pid).id)
-      .filter(_ != ThemeL1.Unknown.id)
-      .orElse(req.planName.map(name => ThemeResolver.fromPlanName(name).id).filter(_ != ThemeL1.Unknown.id))
+      .filter(_ != PlanTheme.Unknown.id)
+      .orElse(req.planName.map(name => ThemeResolver.fromPlanName(name).id).filter(_ != PlanTheme.Unknown.id))
       .getOrElse("")
 
-  private def reqSubplanId(req: ProbeRequest): Option[String] =
+  private def reqPlanKind(req: ProbeRequest): Option[String] =
     req.planName
       .flatMap(explicitSubplanFromPlanName)
       .orElse(req.planName.flatMap(name => ThemeResolver.subplanFromPlanName(name).map(_.id)))
@@ -418,14 +418,14 @@ object PlanEvidenceEvaluator:
           .substring(idx + marker.length)
           .takeWhile(ch => ch.isLetterOrDigit || ch == '_' || ch == '-')
           .trim
-      SubplanId.fromId(token).map(_.id)
+      PlanKind.fromId(token).map(_.id)
 
   private def hypothesisThemeId(h: PlanHypothesis): String =
     ThemeResolver.fromHypothesis(h).id
 
-  private def hypothesisSubplanId(h: PlanHypothesis): Option[String] =
+  private def hypothesisPlanKind(h: PlanHypothesis): Option[String] =
     h.subplanId
-      .flatMap(SubplanId.fromId)
+      .flatMap(PlanKind.fromId)
       .map(_.id)
       .orElse(ThemeResolver.subplanFromHypothesis(h).map(_.id))
 
@@ -444,7 +444,7 @@ object PlanEvidenceEvaluator:
     else
       val required =
         hypSubplan
-          .flatMap(SubplanId.fromId)
+          .flatMap(PlanKind.fromId)
           .flatMap(SubplanCatalog.specs.get)
           .map(_.requiredSignals.toSet)
           .getOrElse(Set.empty[String])
@@ -588,7 +588,7 @@ object PlanEvidenceEvaluator:
       allHypotheses: List[PlanHypothesis],
       themeId: String
   ): Boolean =
-    themeId != ThemeL1.Unknown.id && allHypotheses.exists { other =>
+    themeId != PlanTheme.Unknown.id && allHypotheses.exists { other =>
       other.planId != hypothesis.planId &&
         hypothesisThemeId(other) == themeId &&
         rankingScore(other) >= rankingScore(hypothesis) - 0.04 &&
@@ -601,7 +601,7 @@ object PlanEvidenceEvaluator:
       allHypotheses: List[PlanHypothesis]
   ): Boolean =
     val targetTheme = hypothesisThemeId(target)
-    targetTheme != ThemeL1.Unknown.id && allHypotheses.exists { other =>
+    targetTheme != PlanTheme.Unknown.id && allHypotheses.exists { other =>
       other.planId != target.planId &&
         hypothesisThemeId(other) == targetTheme &&
         rankingScore(other) >= rankingScore(target) + 0.08 &&
@@ -617,15 +617,15 @@ object PlanEvidenceEvaluator:
       snapshot.planPrereqsMet.nonEmpty ||
         snapshot.planBlockersRemoved.nonEmpty
     ) || Set(
-      ThemeL1.OpeningPrinciples.id,
-      ThemeL1.PawnBreakPreparation.id,
-      ThemeL1.AdvantageTransformation.id,
-      ThemeL1.FlankInfrastructure.id,
-      ThemeL1.PieceRedeployment.id
+      PlanTheme.OpeningPrinciples.id,
+      PlanTheme.PawnBreakPreparation.id,
+      PlanTheme.AdvantageTransformation.id,
+      PlanTheme.FlankInfrastructure.id,
+      PlanTheme.PieceRedeployment.id
     ).contains(themeId)
 
   private def indicatesForcing(themeId: String, result: ProbeResult): Boolean =
-    (themeId == ThemeL1.FavorableExchange.id &&
+    (themeId == PlanTheme.FavorableExchange.id &&
       hasReplyCoverage(result)) ||
       result.keyMotifs.exists(motif =>
         containsAny(normalizeText(motif), List("forcing", "exchange", "trade", "simplif"))
@@ -633,8 +633,8 @@ object PlanEvidenceEvaluator:
 
   private def indicatesRemoval(themeId: String, result: ProbeResult): Boolean =
     Set(
-      ThemeL1.RestrictionProphylaxis.id,
-      ThemeL1.WeaknessFixation.id
+      PlanTheme.RestrictionProphylaxis.id,
+      PlanTheme.WeaknessFixation.id
     ).contains(themeId) &&
       result.futureSnapshot.exists(snapshot =>
         snapshot.resolvedThreatKinds.nonEmpty ||
@@ -644,27 +644,27 @@ object PlanEvidenceEvaluator:
   private def ontologyFamily(
       themeId: String,
       hypothesis: PlanHypothesis
-  ): PlayerFacingClaimOntologyFamily =
+  ): PlayerFacingClaimOntologyKind =
     themeId match
-      case id if id == ThemeL1.RestrictionProphylaxis.id =>
+      case id if id == PlanTheme.RestrictionProphylaxis.id =>
         val low = normalizeText(hypothesis.planName)
         if containsAny(low, List("route", "entry", "denial")) then
-          PlayerFacingClaimOntologyFamily.RouteDenial
+          PlayerFacingClaimOntologyKind.RouteDenial
         else if containsAny(low, List("color", "complex", "bishop")) then
-          PlayerFacingClaimOntologyFamily.ColorComplexSqueeze
-        else PlayerFacingClaimOntologyFamily.LongTermRestraint
-      case id if id == ThemeL1.FavorableExchange.id     => PlayerFacingClaimOntologyFamily.Exchange
-      case id if id == ThemeL1.PawnBreakPreparation.id  => PlayerFacingClaimOntologyFamily.PlanAdvance
-      case id if id == ThemeL1.PieceRedeployment.id     => PlayerFacingClaimOntologyFamily.PlanAdvance
-      case id if id == ThemeL1.SpaceClamp.id            => PlayerFacingClaimOntologyFamily.CounterplayRestraint
-      case id if id == ThemeL1.WeaknessFixation.id      => PlayerFacingClaimOntologyFamily.ResourceRemoval
-      case _                                            => PlayerFacingClaimOntologyFamily.Unknown
+          PlayerFacingClaimOntologyKind.ColorComplexSqueeze
+        else PlayerFacingClaimOntologyKind.LongTermRestraint
+      case id if id == PlanTheme.FavorableExchange.id     => PlayerFacingClaimOntologyKind.Exchange
+      case id if id == PlanTheme.PawnBreakPreparation.id  => PlayerFacingClaimOntologyKind.PlanAdvance
+      case id if id == PlanTheme.PieceRedeployment.id     => PlayerFacingClaimOntologyKind.PlanAdvance
+      case id if id == PlanTheme.SpaceClamp.id            => PlayerFacingClaimOntologyKind.CounterplayRestraint
+      case id if id == PlanTheme.WeaknessFixation.id      => PlayerFacingClaimOntologyKind.ResourceRemoval
+      case _                                            => PlayerFacingClaimOntologyKind.Unknown
 
   private def rankingScore(ep: EvaluatedPlan): Double =
     ep.hypothesis.score + (if isDefaultSubplan(ep.themeL1, ep.subplanId) then 0.0 else 0.03)
 
   private def isDefaultSubplan(themeId: String, subplanId: Option[String]): Boolean =
-    val theme = ThemeL1.fromId(themeId).getOrElse(ThemeL1.Unknown)
+    val theme = PlanTheme.fromId(themeId).getOrElse(PlanTheme.Unknown)
     val default = ThemeResolver.defaultSubplanForTheme(theme).map(_.id)
     default.exists(id => subplanId.contains(id))
 
@@ -732,21 +732,21 @@ object PlanEvidenceEvaluator:
       case PlayerFacingClaimTaintFlag.StructuralOnly   => "structural_only"
       case PlayerFacingClaimTaintFlag.BranchConditioned => "branch_conditioned"
 
-  private def ontologyCode(family: PlayerFacingClaimOntologyFamily): String =
+  private def ontologyCode(family: PlayerFacingClaimOntologyKind): String =
     family match
-      case PlayerFacingClaimOntologyFamily.Access              => "access"
-      case PlayerFacingClaimOntologyFamily.Pressure            => "pressure"
-      case PlayerFacingClaimOntologyFamily.Exchange            => "exchange"
-      case PlayerFacingClaimOntologyFamily.CounterplayRestraint => "counterplay_restraint"
-      case PlayerFacingClaimOntologyFamily.ResourceRemoval     => "resource_removal"
-      case PlayerFacingClaimOntologyFamily.PlanAdvance         => "plan_advance"
-      case PlayerFacingClaimOntologyFamily.RouteDenial         => "route_denial"
-      case PlayerFacingClaimOntologyFamily.ColorComplexSqueeze => "color_complex_squeeze"
-      case PlayerFacingClaimOntologyFamily.LongTermRestraint   => "long_term_restraint"
-      case PlayerFacingClaimOntologyFamily.PieceImprovement    => "piece_improvement"
-      case PlayerFacingClaimOntologyFamily.KingSafety          => "king_safety"
-      case PlayerFacingClaimOntologyFamily.TechnicalConversion => "technical_conversion"
-      case PlayerFacingClaimOntologyFamily.Unknown             => "unknown"
+      case PlayerFacingClaimOntologyKind.Access              => "access"
+      case PlayerFacingClaimOntologyKind.Pressure            => "pressure"
+      case PlayerFacingClaimOntologyKind.Exchange            => "exchange"
+      case PlayerFacingClaimOntologyKind.CounterplayRestraint => "counterplay_restraint"
+      case PlayerFacingClaimOntologyKind.ResourceRemoval     => "resource_removal"
+      case PlayerFacingClaimOntologyKind.PlanAdvance         => "plan_advance"
+      case PlayerFacingClaimOntologyKind.RouteDenial         => "route_denial"
+      case PlayerFacingClaimOntologyKind.ColorComplexSqueeze => "color_complex_squeeze"
+      case PlayerFacingClaimOntologyKind.LongTermRestraint   => "long_term_restraint"
+      case PlayerFacingClaimOntologyKind.PieceImprovement    => "piece_improvement"
+      case PlayerFacingClaimOntologyKind.KingSafety          => "king_safety"
+      case PlayerFacingClaimOntologyKind.TechnicalConversion => "technical_conversion"
+      case PlayerFacingClaimOntologyKind.Unknown             => "unknown"
 
   private def diagnosticReasonCodes(
       ep: EvaluatedPlan,

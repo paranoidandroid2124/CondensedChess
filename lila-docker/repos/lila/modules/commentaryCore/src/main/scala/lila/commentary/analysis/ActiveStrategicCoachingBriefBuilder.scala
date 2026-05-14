@@ -258,8 +258,8 @@ private[commentary] object ActiveStrategicCoachingBriefBuilder:
   private def replayClosedNamedRouteNetwork(
       plan: QuestionPlan
   ): Boolean =
-    plan.ownerSource == RouteNetworkBindProof.OwnerSource ||
-      plan.sourceKinds.contains(RouteNetworkBindProof.OwnerSource)
+    plan.plannerSource == RouteNetworkBindProof.ProofSource ||
+      plan.sourceKinds.contains(RouteNetworkBindProof.ProofSource)
 
   private def replayClosedHalfOpenFilePressure(
       plan: QuestionPlan,
@@ -269,7 +269,7 @@ private[commentary] object ActiveStrategicCoachingBriefBuilder:
       val sourceKinds =
         Set(claim.sourceKind, s"${claim.sourceKind}_line").filter(_.trim.nonEmpty)
       claim.packet.exists { packet =>
-        packet.ownerFamily == "half_open_file_pressure" &&
+        packet.proofFamily == "half_open_file_pressure" &&
           (
             NarrativeDedupCore.sameSemanticSentence(claim.claimText, plan.claim) ||
               plan.sourceKinds.exists(sourceKinds.contains)
@@ -285,7 +285,7 @@ private[commentary] object ActiveStrategicCoachingBriefBuilder:
       val sourceKinds =
         Set(claim.sourceKind, s"${claim.sourceKind}_line").filter(_.trim.nonEmpty)
       claim.packet.exists { packet =>
-        packet.ownerFamily == "counterplay_restraint" &&
+        packet.proofFamily == "counterplay_restraint" &&
           (
             NarrativeDedupCore.sameSemanticSentence(claim.claimText, plan.claim) ||
               plan.sourceKinds.exists(sourceKinds.contains)
@@ -343,12 +343,12 @@ private[commentary] object ActiveStrategicCoachingBriefBuilder:
       plan: QuestionPlan,
       inputs: QuestionPlannerInputs
   ): Int =
-    if plan.ownerFamily == OwnerFamily.OpeningRelation &&
-      plan.ownerSource == "opening_relation_translator"
+    if plan.plannerOwnerKind == PlannerOwnerKind.OpeningRelation &&
+      plan.plannerSource == "opening_relation_translator"
     then
       if plan.questionKind == AuthorQuestionKind.WhyThis then 5 else 4
-    else if plan.ownerFamily == OwnerFamily.EndgameTransition &&
-      plan.ownerSource == "endgame_transition_translator"
+    else if plan.plannerOwnerKind == PlannerOwnerKind.EndgameTransition &&
+      plan.plannerSource == "endgame_transition_translator"
     then
       if plan.questionKind == AuthorQuestionKind.WhatChanged then 5 else 4
     else if inputs.mainBundle.flatMap(_.mainClaim).exists(claim => NarrativeDedupCore.sameSemanticSentence(claim.claimText, plan.claim)) then 4

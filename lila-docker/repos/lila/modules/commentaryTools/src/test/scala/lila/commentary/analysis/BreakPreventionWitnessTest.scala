@@ -161,7 +161,7 @@ class BreakPreventionWitnessTest extends FunSuite:
   test("rival family evidence does not become break-prevention authority") {
     val diagnosis = BreakPreventionWitness.diagnose(
       ctx = breakCtx(
-        subplanId = ThemeTaxonomy.SubplanId.IQPInducement.id,
+        subplanId = PlanTaxonomy.PlanKind.IQPInducement.id,
         counterBreakNeutralized = false
       ),
       surface = StrategyPackSurface.from(Some(breakPack())),
@@ -169,7 +169,7 @@ class BreakPreventionWitnessTest extends FunSuite:
     )
 
     assertEquals(diagnosis.witness, None)
-    assertEquals(diagnosis.failureCodes, List(BreakPreventionWitness.Failure.FamilyMismatch))
+    assertEquals(diagnosis.failureCodes, List(BreakPreventionWitness.Failure.ContractMismatch))
     assert(!diagnosis.exactReady)
   }
 
@@ -177,7 +177,7 @@ class BreakPreventionWitnessTest extends FunSuite:
       fen: String = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
       playedMove: String = "c1c8",
       engineMoves: List[String] = List("c1c8", "f8e8"),
-      subplanId: String = ThemeTaxonomy.SubplanId.BreakPrevention.id,
+      subplanId: String = PlanTaxonomy.PlanKind.BreakPrevention.id,
       counterBreakNeutralized: Boolean = true,
       includeStableExperiment: Boolean = true
   ): NarrativeContext =
@@ -198,7 +198,7 @@ class BreakPreventionWitnessTest extends FunSuite:
       strategicPlanExperiments = Option.when(includeStableExperiment)(
         StrategicPlanExperiment(
           planId = "break_plan",
-          themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+          themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
           subplanId = Some(subplanId),
           evidenceTier = "evidence_backed",
           supportProbeCount = 1,
@@ -235,8 +235,8 @@ class BreakPreventionWitnessTest extends FunSuite:
       executionSteps = List("Keep the opponent's main counterplay route closed first."),
       failureModes = Nil,
       viability = PlanViability(score = 0.8, label = "high", risk = "test"),
-      evidenceSources = List(s"theme:${ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id}"),
-      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+      evidenceSources = List(s"theme:${PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id}"),
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
       subplanId = Some(subplanId)
     )
 

@@ -52,7 +52,7 @@ object BreakClampSourceTriage:
         review.diagnosis,
         review.admissionBlockers,
         review.ownerFailureCodes,
-        review.mainClaimSource,
+        review.mainProofSource,
         review.mainClaimScope,
         review.packetSummary,
         review.contractId,
@@ -149,7 +149,7 @@ object BreakClampSourceTriage:
       sourceUrl = sourceUrl,
       pgn = game.pgn,
       candidatePlyRange = SourceWitnessCatalog.CandidatePlyRange(row.ply, row.ply),
-      family = "A:break_prevention",
+      reviewGroup = "A:break_prevention",
       intendedVerdict = SourceReview.Verdict.ScreenOnly,
       validationNote =
         s"Transient clean route-clamp triage candidate: exact ply ${row.ply} ${row.playedUci} denies ${row.routeToken}; discovery only until fixed SourceReview admission."
@@ -186,7 +186,7 @@ object BreakClampSourceTriage:
       "diagnosis",
       "blockers",
       "ownerFailureCodes",
-      "mainClaimSource",
+      "mainProofSource",
       "mainClaimScope",
       "packetSummary",
       "contract",
@@ -268,7 +268,7 @@ object BreakClampSourceTriage:
         val row = triageRow.ranked.row
         val review = triageRow.review
         List(
-          s"- rank=${triageRow.ranked.rank}, score=${triageRow.ranked.score}, id=${row.suggestedSourceId}, game=${row.gameId}, ply=${row.ply}, route=${row.routeToken}, destination=${row.destinationToken}, verdict=${review.verdict}, blockers=${review.admissionBlockers}, source=${review.mainClaimSource}, packet=${review.packetSummary}, surface=${review.primary}"
+          s"- rank=${triageRow.ranked.rank}, score=${triageRow.ranked.score}, id=${row.suggestedSourceId}, game=${row.gameId}, ply=${row.ply}, route=${row.routeToken}, destination=${row.destinationToken}, verdict=${review.verdict}, blockers=${review.admissionBlockers}, source=${review.mainProofSource}, packet=${review.packetSummary}, surface=${review.primary}"
         )
       }
 

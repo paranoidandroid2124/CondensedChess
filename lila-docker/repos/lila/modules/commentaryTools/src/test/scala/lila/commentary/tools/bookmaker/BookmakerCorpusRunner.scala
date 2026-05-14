@@ -98,7 +98,7 @@ object BookmakerCorpusRunner:
             .getOrElse(CommentaryQualitySupport.SurfaceDigestHashes())
           val result =
             Await.result(
-              api.bookmakerCommentPosition(
+              api.moveReviewPosition(
                 fen = entry.fen,
                 lastMove = Some(entry.playedUci),
                 eval = beforeVars.headOption.map(v => EvalData(cp = v.scoreCp, mate = v.mate, pv = Some(v.moves))),
@@ -151,14 +151,14 @@ object BookmakerCorpusRunner:
             plannerSceneType = plannerTrace.sceneType,
             plannerSceneReasons = plannerTrace.sceneReasons,
             plannerOwnerCandidates = plannerTrace.ownerCandidates,
-            plannerAdmittedFamilies = plannerTrace.admittedFamilies,
-            plannerDroppedFamilies = plannerTrace.droppedFamilies,
+            plannerAdmittedOwners = plannerTrace.admittedOwners,
+            plannerDroppedOwners = plannerTrace.droppedOwners,
             plannerSupportMaterialSeparation = plannerTrace.supportMaterialSeparation,
-            plannerProposedFamilyMappings = plannerTrace.proposedFamilyMappings,
+            plannerProposedOwnerMappings = plannerTrace.proposedOwnerMappings,
             plannerDemotionReasons = plannerTrace.demotionReasons,
             plannerSelectedQuestion = plannerTrace.selectedQuestion,
-            plannerSelectedOwnerFamily = plannerTrace.selectedOwnerFamily,
-            plannerSelectedOwnerSource = plannerTrace.selectedOwnerSource,
+            plannerSelectedOwnerKind = plannerTrace.selectedOwnerKind,
+            plannerSelectedSource = plannerTrace.selectedSource,
             rawChoiceType = plannerTrace.rawChoiceType,
             rawDecisionPresent = plannerTrace.rawDecisionPresent,
             rawDecisionIngressReason = plannerTrace.rawDecisionIngressReason,

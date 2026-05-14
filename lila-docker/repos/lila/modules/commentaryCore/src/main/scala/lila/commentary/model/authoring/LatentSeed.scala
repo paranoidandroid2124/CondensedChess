@@ -14,7 +14,7 @@ import lila.commentary.model.PlanId
  * - "tempo injection"은 내부 랭킹 힌트로만 허용하며, 출력 증거는 합법 branch로만 구성한다.
  */
 
-enum SeedFamily:
+enum SeedKind:
   case Pawn, Piece, Structure, Prophylaxis, Exchange, TacticalPrep
 
 enum SideRef:
@@ -117,7 +117,7 @@ case class NarrativeTemplate(
 
 case class LatentSeed(
     id: String, // stable: "PawnStorm_Kingside"
-    family: SeedFamily,
+    seedKind: SeedKind,
     mapsToPlan: Option[PlanId] = None,
     // What this seed tries to "start" (used for matching engine replies).
     candidateMoves: List[MovePattern],
@@ -129,11 +129,10 @@ case class LatentSeed(
 
 case class LatentPlanInfo(
     seedId: String,
-    seedFamily: SeedFamily,
+    seedKind: SeedKind,
     mapsToPlan: Option[PlanId] = None,
     candidateMoves: List[MovePattern] = Nil,
     typicalCounters: List[CounterPattern] = Nil,
     evidencePolicy: EvidencePolicy = EvidencePolicy(),
     narrative: NarrativeTemplate = NarrativeTemplate(template = "")
 )
-

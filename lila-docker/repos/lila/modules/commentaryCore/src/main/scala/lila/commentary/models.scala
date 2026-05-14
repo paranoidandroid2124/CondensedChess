@@ -35,13 +35,13 @@ case class CommentRequest(
     lastMove: Option[String],
     eval: Option[EvalData],
     context: PositionContext,
-    // Bookmaker Stage 2: optional MultiPV payload (sent by client-side Stockfish)
+    // Move Review: optional MultiPV payload sent by client-side Stockfish.
     variations: Option[List[lila.commentary.model.strategic.VariationLine]] = None,
-    // Bookmaker Stage 2 (optional): probe evidence from client to enable a1/a2 sub-branches
+    // Move Review: probe evidence from client to enable support/refutation sub-branches.
     probeResults: Option[List[lila.commentary.model.ProbeResult]] = None,
-    // Bookmaker Stage 2 (optional): explorer data from client to bypass server-side I/O
+    // Move Review: explorer data from client to bypass server-side I/O.
     openingData: Option[lila.commentary.model.OpeningReference] = None,
-    // Bookmaker delta: optional post-move position to compute before/after differences.
+    // Move Review: optional post-move position to compute before/after differences.
     afterFen: Option[String] = None,
     afterEval: Option[EvalData] = None,
     afterVariations: Option[List[lila.commentary.model.strategic.VariationLine]] = None,
@@ -50,21 +50,21 @@ case class CommentRequest(
     endgameStateToken: Option[lila.commentary.model.strategic.EndgamePatternState] = None
 )
 object CommentRequest:
-  val MinBookmakerPly = 5
+  val MinMoveReviewPly = 5
   private def moveNumberFromPly(ply: Int): Int = math.max(1, (ply + 1) / 2)
   given Reads[CommentRequest] = Json.reads[CommentRequest]
 
-  def validateBookmaker(request: CommentRequest): Either[GameAnalysisValidationError, CommentRequest] =
-    if request.context.ply < MinBookmakerPly then
+  def validateMoveReview(request: CommentRequest): Either[GameAnalysisValidationError, CommentRequest] =
+    if request.context.ply < MinMoveReviewPly then
       Left(
         GameAnalysisValidationError(
-          "bookmaker_too_early",
-          s"Bookmaker opens from move ${moveNumberFromPly(MinBookmakerPly)}. Continue a few moves first."
+          "move_review_too_early",
+          s"Move Review opens from move ${moveNumberFromPly(MinMoveReviewPly)}. Continue a few moves first."
         )
       )
     else Right(request)
 
-case class MoveRefV1(
+case class MoveReviewMoveRef(
     refId: String,
     san: String,
     uci: String,
@@ -73,29 +73,29 @@ case class MoveRefV1(
     moveNo: Int,
     marker: Option[String]
 )
-object MoveRefV1:
-  given Writes[MoveRefV1] = Json.writes[MoveRefV1]
+object MoveReviewMoveRef:
+  given Writes[MoveReviewMoveRef] = Json.writes[MoveReviewMoveRef]
 
-case class VariationRefV1(
+case class MoveReviewVariationRef(
     lineId: String,
     scoreCp: Int,
     mate: Option[Int],
     depth: Int,
-    moves: List[MoveRefV1]
+    moves: List[MoveReviewMoveRef]
 )
-object VariationRefV1:
-  given Writes[VariationRefV1] = Json.writes[VariationRefV1]
+object MoveReviewVariationRef:
+  given Writes[MoveReviewVariationRef] = Json.writes[MoveReviewVariationRef]
 
-case class BookmakerRefsV1(
+case class MoveReviewRefs(
     schema: String = "chesstory.refs.v1",
     startFen: String,
     startPly: Int,
-    variations: List[VariationRefV1]
+    variations: List[MoveReviewVariationRef]
 )
-object BookmakerRefsV1:
-  given Writes[BookmakerRefsV1] = Json.writes[BookmakerRefsV1]
+object MoveReviewRefs:
+  given Writes[MoveReviewRefs] = Json.writes[MoveReviewRefs]
 
-case class PolishMetaV1(
+case class MoveReviewPolishMeta(
     provider: String,
     model: Option[String],
     sourceMode: String,
@@ -106,12 +106,12 @@ case class PolishMetaV1(
     cachedTokens: Option[Int],
     completionTokens: Option[Int],
     estimatedCostUsd: Option[Double],
-    strategyCoverage: Option[StrategyCoverageMetaV1] = None
+    strategyCoverage: Option[MoveReviewStrategyCoverageMeta] = None
 )
-object PolishMetaV1:
-  given Writes[PolishMetaV1] = Json.writes[PolishMetaV1]
+object MoveReviewPolishMeta:
+  given Writes[MoveReviewPolishMeta] = Json.writes[MoveReviewPolishMeta]
 
-case class StrategyCoverageMetaV1(
+case class MoveReviewStrategyCoverageMeta(
     mode: String,
     enforced: Boolean,
     threshold: Double,
@@ -127,8 +127,8 @@ case class StrategyCoverageMetaV1(
     focusSignals: Int,
     focusHits: Int
 )
-object StrategyCoverageMetaV1:
-  given Writes[StrategyCoverageMetaV1] = Json.writes[StrategyCoverageMetaV1]
+object MoveReviewStrategyCoverageMeta:
+  given Writes[MoveReviewStrategyCoverageMeta] = Json.writes[MoveReviewStrategyCoverageMeta]
 
 case class StrategySidePlan(
     side: String,
@@ -347,7 +347,7 @@ case class NarrativeSignalDigest(
 object NarrativeSignalDigest:
   given Writes[NarrativeSignalDigest] = Json.writes[NarrativeSignalDigest]
 
-case class BookmakerLedgerLineV1(
+case class MoveReviewLedgerLine(
     title: String,
     sanMoves: List[String] = Nil,
     scoreCp: Option[Int] = None,
@@ -355,11 +355,11 @@ case class BookmakerLedgerLineV1(
     note: Option[String] = None,
     source: String
 )
-object BookmakerLedgerLineV1:
-  given Writes[BookmakerLedgerLineV1] = Json.writes[BookmakerLedgerLineV1]
+object MoveReviewLedgerLine:
+  given Writes[MoveReviewLedgerLine] = Json.writes[MoveReviewLedgerLine]
 
-case class BookmakerStrategicLedgerV1(
-    schema: String = "chesstory.bookmaker.ledger.v1",
+case class MoveReviewStrategicLedger(
+    schema: String = "chesstory.moveReview.ledger.v1",
     motifKey: String,
     motifLabel: String,
     stageKey: String,
@@ -368,11 +368,11 @@ case class BookmakerStrategicLedgerV1(
     stageReason: Option[String] = None,
     prerequisites: List[String] = Nil,
     conversionTrigger: Option[String] = None,
-    primaryLine: Option[BookmakerLedgerLineV1] = None,
-    resourceLine: Option[BookmakerLedgerLineV1] = None
+    primaryLine: Option[MoveReviewLedgerLine] = None,
+    resourceLine: Option[MoveReviewLedgerLine] = None
 )
-object BookmakerStrategicLedgerV1:
-  given Writes[BookmakerStrategicLedgerV1] = Json.writes[BookmakerStrategicLedgerV1]
+object MoveReviewStrategicLedger:
+  given Writes[MoveReviewStrategicLedger] = Json.writes[MoveReviewStrategicLedger]
 
 case class DecisionComparisonDigest(
     chosenMove: Option[String] = None,
@@ -603,18 +603,18 @@ case class CommentResponse(
   endgameStateToken: Option[lila.commentary.model.strategic.EndgamePatternState] = None,
   sourceMode: String = "rule",
   model: Option[String] = None,
-  refs: Option[BookmakerRefsV1] = None,
-  polishMeta: Option[PolishMetaV1] = None,
+  refs: Option[MoveReviewRefs] = None,
+  polishMeta: Option[MoveReviewPolishMeta] = None,
   planTier: String = PlanTier.Basic,
   commentaryMode: String = CommentaryMode.Polish,
   strategyPack: Option[StrategyPack] = None,
   signalDigest: Option[NarrativeSignalDigest] = None,
-  bookmakerLedger: Option[BookmakerStrategicLedgerV1] = None
+  moveReviewLedger: Option[MoveReviewStrategicLedger] = None
 )
 object CommentResponse:
   given Writes[CommentResponse] = Json.writes[CommentResponse]
 
-case class BookmakerResult(
+case class MoveReviewResult(
     response: CommentResponse,
     cacheHit: Boolean,
     diagnosticPlanSidecar: Option[lila.commentary.analysis.PlanEvidenceEvaluator.DiagnosticPlanSidecar] = None
@@ -675,12 +675,12 @@ case class FullAnalysisRequest(
 )
 object FullAnalysisRequest:
   val MaxPgnChars = 200000
-  val MinGameChroniclePly = 9
+  val MinGameReviewPly = 9
   private def moveNumberFromPly(ply: Int): Int = math.max(1, (ply + 1) / 2)
 
   given Reads[FullAnalysisRequest] = Json.reads[FullAnalysisRequest]
 
-  def validateGameChronicle(request: FullAnalysisRequest): Either[GameAnalysisValidationError, FullAnalysisRequest] =
+  def validateGameReview(request: FullAnalysisRequest): Either[GameAnalysisValidationError, FullAnalysisRequest] =
     val normalizedPgn = Option(request.pgn).map(_.trim).getOrElse("")
     if normalizedPgn.isEmpty then
       Left(GameAnalysisValidationError("invalid_pgn", "PGN payload is empty."))
@@ -691,11 +691,11 @@ object FullAnalysisRequest:
         case Left(err)     => Left(GameAnalysisValidationError("invalid_pgn", s"PGN payload is invalid: $err"))
         case Right(plyData) =>
           val totalPly = plyData.lastOption.map(_.ply).getOrElse(0)
-          if totalPly < MinGameChroniclePly then
+          if totalPly < MinGameReviewPly then
             Left(
               GameAnalysisValidationError(
-                "game_chronicle_too_short",
-                s"Game Chronicle opens from move ${moveNumberFromPly(MinGameChroniclePly)}. Let the game develop a little more first."
+                "game_review_too_short",
+                s"Game Review opens from move ${moveNumberFromPly(MinGameReviewPly)}. Let the game develop a little more first."
               )
             )
           else Right(request.copy(pgn = normalizedPgn))

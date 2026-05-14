@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import lila.commentary.BookmakerRefsV1
+import lila.commentary.MoveReviewRefs
 import lila.commentary.StrategyPack
 import lila.commentary.model.*
 import lila.commentary.model.authoring.NarrativeOutline
@@ -42,7 +42,7 @@ object BookmakerPolishSlotsBuilder:
   def build(
       ctx: NarrativeContext,
       outline: NarrativeOutline,
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack] = None,
       truthContract: Option[DecisiveTruthContract] = None
   ): Option[BookmakerPolishSlots] =
@@ -51,7 +51,7 @@ object BookmakerPolishSlotsBuilder:
   def buildOrFallback(
       ctx: NarrativeContext,
       outline: NarrativeOutline,
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack] = None,
       truthContract: Option[DecisiveTruthContract] = None
   ): BookmakerPolishSlots =

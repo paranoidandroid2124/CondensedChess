@@ -6,7 +6,7 @@ import lila.commentary.analysis.L3.{ PvLine, TensionPolicy }
 import chess.*
 import chess.format.Fen
 import lila.commentary.analysis.MoveAnalyzer
-import lila.commentary.analysis.ThemeTaxonomy.{ ThemeL1, ThemeResolver, SubplanCatalog, SubplanId }
+import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, ThemeResolver, SubplanCatalog, PlanKind }
 
 /**
  * Detects "Ghost Plans" and generates ProbeRequests for the client.
@@ -498,7 +498,7 @@ object ProbeDetector:
 
   private case class ThemePlanContract(
       purpose: String,
-      subplanId: Option[SubplanId],
+      subplanId: Option[PlanKind],
       objective: Option[String],
       requiredSignals: List[String],
       horizon: Option[String]
@@ -509,7 +509,7 @@ object ProbeDetector:
       pm.supports
         .collectFirst { case s if s.startsWith("subplan:") => s.stripPrefix("subplan:").trim }
         .filter(_.nonEmpty)
-        .flatMap(SubplanId.fromId)
+        .flatMap(PlanKind.fromId)
     val inferredSubplan =
       taggedSubplan
         .orElse(ThemeResolver.subplanFromPlanId(pm.plan.id.toString))
@@ -517,10 +517,10 @@ object ProbeDetector:
     themePlanContractForSubplan(inferredSubplan)
 
   private def themePlanContract(h: PlanHypothesis): ThemePlanContract =
-    themePlanContractForSubplan(hypothesisSubplanId(h))
+    themePlanContractForSubplan(hypothesisPlanKind(h))
 
   private def themePlanContractForSubplan(
-      inferredSubplan: Option[SubplanId]
+      inferredSubplan: Option[PlanKind]
   ): ThemePlanContract =
     inferredSubplan.flatMap(SubplanCatalog.specs.get) match
       case Some(spec) =>
@@ -547,19 +547,19 @@ object ProbeDetector:
         )
 
   private def hypothesisKey(h: PlanHypothesis): String =
-    val sub = hypothesisSubplanId(h).map(_.id).getOrElse("")
+    val sub = hypothesisPlanKind(h).map(_.id).getOrElse("")
     s"${h.planId.trim.toLowerCase}|${sub.toLowerCase}"
 
-  private def hypothesisThemeId(h: PlanHypothesis): ThemeL1 =
+  private def hypothesisThemeId(h: PlanHypothesis): PlanTheme =
     ThemeResolver.fromHypothesis(h)
 
-  private def hypothesisSubplanId(h: PlanHypothesis): Option[SubplanId] =
-    ThemeResolver.subplanFromHypothesis(h).orElse(h.subplanId.flatMap(SubplanId.fromId))
+  private def hypothesisPlanKind(h: PlanHypothesis): Option[PlanKind] =
+    ThemeResolver.subplanFromHypothesis(h).orElse(h.subplanId.flatMap(PlanKind.fromId))
 
   private val SignalPriority = List("replyPvs", "keyMotifs", "l1Delta", "futureSnapshot")
 
   private def broadenThemeContractForDefaultSubplan(
-      subplan: SubplanId,
+      subplan: PlanKind,
       baseSignals: List[String]
   ): List[String] =
     val isDefault = ThemeResolver.defaultSubplanForTheme(subplan.theme).contains(subplan)
@@ -795,7 +795,7 @@ object ProbeDetector:
     s"${plan.id}_${slug}_${Integer.toHexString(fen.hashCode)}"
 
   private def stableRequestId(h: PlanHypothesis, fen: String): String =
-    val subplanTag = hypothesisSubplanId(h).map(_.id).getOrElse("none")
+    val subplanTag = hypothesisPlanKind(h).map(_.id).getOrElse("none")
     val slug = slugify(s"${h.planId}_${h.planName}_$subplanTag")
     s"hyp_${slug}_${Integer.toHexString(fen.hashCode)}"
 
@@ -848,102 +848,102 @@ object ProbeDetector:
     val pmPlanId = pm.plan.id.toString.trim.toLowerCase
     val hypTheme = hypothesisThemeId(h)
     val pmTheme = ThemeResolver.fromPlanId(pm.plan.id.toString)
-    val hypSubplan = hypothesisSubplanId(h).map(_.id)
+    val hypSubplan = hypothesisPlanKind(h).map(_.id)
     val pmSubplan = themePlanContract(pm).subplanId.map(_.id)
     hypPlanId == pmPlanId ||
       (hypSubplan.nonEmpty && hypSubplan == pmSubplan) ||
-      (hypTheme != ThemeL1.Unknown && hypTheme == pmTheme)
+      (hypTheme != PlanTheme.Unknown && hypTheme == pmTheme)
 
   private def movesFromHypothesis(
       h: PlanHypothesis,
       legalMoves: List[Move]
   ): List[Move] =
-    val subplanMoves = hypothesisSubplanId(h).toList.flatMap(sp => movesFromSubplan(sp, legalMoves))
+    val subplanMoves = hypothesisPlanKind(h).toList.flatMap(sp => movesFromSubplan(sp, legalMoves))
     val themeMoves = movesFromTheme(hypothesisThemeId(h), legalMoves)
     (subplanMoves ++ themeMoves).distinct
 
   private def movesFromSubplan(
-      subplan: SubplanId,
+      subplan: PlanKind,
       legalMoves: List[Move]
   ): List[Move] =
     subplan match
-      case SubplanId.OpeningDevelopment =>
+      case PlanKind.OpeningDevelopment =>
         legalMoves.filter(mv =>
           (!mv.captures && (mv.piece.role == Knight || mv.piece.role == Bishop || mv.piece.role == King)) ||
             (mv.piece.role == Pawn && (mv.dest.file == File.C || mv.dest.file == File.D || mv.dest.file == File.E || mv.dest.file == File.F))
         )
-      case SubplanId.ProphylaxisRestraint | SubplanId.BreakPrevention | SubplanId.KeySquareDenial |
-          SubplanId.MobilitySuppression =>
+      case PlanKind.ProphylaxisRestraint | PlanKind.BreakPrevention | PlanKind.KeySquareDenial |
+          PlanKind.MobilitySuppression =>
         legalMoves.filter(mv => !mv.captures && mv.piece.role != Pawn)
-      case SubplanId.OutpostEntrenchment | SubplanId.WorstPieceImprovement =>
+      case PlanKind.OutpostEntrenchment | PlanKind.WorstPieceImprovement =>
         legalMoves.filter(mv =>
           !mv.captures && (mv.piece.role == Knight || mv.piece.role == Bishop)
         )
-      case SubplanId.BishopReanchor =>
+      case PlanKind.BishopReanchor =>
         legalMoves.filter(mv => mv.piece.role == Bishop && !mv.captures)
-      case SubplanId.RookFileTransfer | SubplanId.RookLiftScaffold =>
+      case PlanKind.RookFileTransfer | PlanKind.RookLiftScaffold =>
         legalMoves.filter(mv => mv.piece.role == Rook && !mv.captures)
-      case SubplanId.OpenFilePressure =>
+      case PlanKind.OpenFilePressure =>
         legalMoves.filter(mv =>
           (mv.piece.role == Rook || mv.piece.role == Queen) &&
             (!mv.captures || mv.dest.file == mv.orig.file)
         )
-      case SubplanId.FlankClamp | SubplanId.RookPawnMarch | SubplanId.HookCreation | SubplanId.WingBreakTiming |
-          SubplanId.MinorityAttackFixation =>
+      case PlanKind.FlankClamp | PlanKind.RookPawnMarch | PlanKind.HookCreation | PlanKind.WingBreakTiming |
+          PlanKind.MinorityAttackFixation =>
         legalMoves.filter(mv =>
           mv.piece.role == Pawn &&
             !mv.dest.file.isCentral &&
             (!mv.captures || mv.dest.file.isKingside || mv.dest.file.isQueenside)
         )
-      case SubplanId.CentralSpaceBind | SubplanId.CentralBreakTiming | SubplanId.TensionMaintenance |
-          SubplanId.IQPInducement =>
+      case PlanKind.CentralSpaceBind | PlanKind.CentralBreakTiming | PlanKind.TensionMaintenance |
+          PlanKind.IQPInducement =>
         legalMoves.filter(mv =>
           mv.piece.role == Pawn &&
             (mv.orig.file.isCentral || mv.dest.file.isCentral || mv.captures)
         )
-      case SubplanId.StaticWeaknessFixation | SubplanId.BackwardPawnTargeting =>
+      case PlanKind.StaticWeaknessFixation | PlanKind.BackwardPawnTargeting =>
         legalMoves.filter(mv => mv.captures || (mv.piece.role == Pawn && !mv.dest.file.isCentral))
-      case SubplanId.SimplificationWindow | SubplanId.DefenderTrade | SubplanId.QueenTradeShield |
-          SubplanId.SimplificationConversion | SubplanId.InvasionTransition | SubplanId.OppositeBishopsConversion |
-          SubplanId.BadPieceLiquidation =>
+      case PlanKind.SimplificationWindow | PlanKind.DefenderTrade | PlanKind.QueenTradeShield |
+          PlanKind.SimplificationConversion | PlanKind.InvasionTransition | PlanKind.OppositeBishopsConversion |
+          PlanKind.BadPieceLiquidation =>
         legalMoves.filter(mv => mv.captures || mv.piece.role == Rook)
-      case SubplanId.PasserConversion | SubplanId.PassedPawnManufacture =>
+      case PlanKind.PasserConversion | PlanKind.PassedPawnManufacture =>
         legalMoves.filter(mv => mv.piece.role == Pawn && !mv.captures)
-      case SubplanId.ForcingTacticalShot | SubplanId.DefenderOverload | SubplanId.ClearanceBreak |
-          SubplanId.BatteryPressure =>
+      case PlanKind.ForcingTacticalShot | PlanKind.DefenderOverload | PlanKind.ClearanceBreak |
+          PlanKind.BatteryPressure =>
         legalMoves.filter(mv => mv.captures || mv.after.check.yes)
 
-  private def movesFromTheme(theme: ThemeL1, legalMoves: List[Move]): List[Move] =
+  private def movesFromTheme(theme: PlanTheme, legalMoves: List[Move]): List[Move] =
     theme match
-      case ThemeL1.OpeningPrinciples =>
+      case PlanTheme.OpeningPrinciples =>
         legalMoves.filter(mv =>
           (!mv.captures && (mv.piece.role == Knight || mv.piece.role == Bishop || mv.piece.role == King)) ||
             (mv.piece.role == Pawn && (mv.dest.file == File.C || mv.dest.file == File.D || mv.dest.file == File.E || mv.dest.file == File.F))
         )
-      case ThemeL1.RestrictionProphylaxis =>
+      case PlanTheme.RestrictionProphylaxis =>
         legalMoves.filter(mv => !mv.captures && mv.piece.role != Pawn)
-      case ThemeL1.PieceRedeployment =>
+      case PlanTheme.PieceRedeployment =>
         legalMoves.filter(mv =>
           !mv.captures && (mv.piece.role == Knight || mv.piece.role == Bishop || mv.piece.role == Rook)
         )
-      case ThemeL1.SpaceClamp =>
+      case PlanTheme.SpaceClamp =>
         legalMoves.filter(mv => mv.piece.role == Pawn && !mv.captures)
-      case ThemeL1.WeaknessFixation =>
+      case PlanTheme.WeaknessFixation =>
         legalMoves.filter(mv => mv.captures || (mv.piece.role == Pawn && !mv.dest.file.isCentral))
-      case ThemeL1.PawnBreakPreparation =>
+      case PlanTheme.PawnBreakPreparation =>
         legalMoves.filter(mv => mv.piece.role == Pawn && (mv.orig.file.isCentral || mv.dest.file.isCentral))
-      case ThemeL1.FavorableExchange =>
+      case PlanTheme.FavorableExchange =>
         legalMoves.filter(_.captures)
-      case ThemeL1.FlankInfrastructure =>
+      case PlanTheme.FlankInfrastructure =>
         legalMoves.filter(mv =>
           (mv.piece.role == Rook && !mv.captures) ||
             (mv.piece.role == Pawn && (mv.dest.file.isKingside || mv.dest.file.isQueenside))
         )
-      case ThemeL1.AdvantageTransformation =>
+      case PlanTheme.AdvantageTransformation =>
         legalMoves.filter(mv => mv.captures || mv.piece.role == Pawn)
-      case ThemeL1.ImmediateTacticalGain =>
+      case PlanTheme.ImmediateTacticalGain =>
         legalMoves.filter(mv => mv.captures || mv.after.check.yes)
-      case ThemeL1.Unknown =>
+      case PlanTheme.Unknown =>
         legalMoves.filter(mv => !mv.captures)
 
   /**

@@ -53,6 +53,11 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
         buildTacticalBundle(ctx, truthContract, candidateEvidenceLines)
       case PlayerFacingTruthMode.Strategic =>
         buildStrategicBundle(ctx, strategyPack, surface, truthContract, candidateEvidenceLines)
+      case PlayerFacingTruthMode.Minimal
+          if PlayerFacingTruthModePolicy
+            .mainPathMoveDeltaEvidence(ctx, surface, truthContract)
+            .exists(_.packet.admitsStrategicTruthMode) =>
+        buildStrategicBundle(ctx, strategyPack, surface, truthContract, candidateEvidenceLines)
       case PlayerFacingTruthMode.Minimal =>
         buildTacticalLineOnly(ctx, truthContract, candidateEvidenceLines)
 
@@ -109,8 +114,8 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
         val anchorTerms =
           (
             delta.packet.anchorTerms ++
-              delta.packet.ownerPathWitness.ownerSeedTerms ++
-              delta.packet.ownerPathWitness.structureTransitionTerms
+              delta.packet.proofPathWitness.ownerSeedTerms ++
+              delta.packet.proofPathWitness.structureTransitionTerms
           ).filter(_.trim.nonEmpty).distinct
         val sourceKind = strategicSourceKind(delta.packet, surface, truthContract)
         val lineEvidence =
@@ -262,16 +267,16 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
         )
       case PlayerFacingMoveDeltaClass.ExchangeForcing =>
         preferredWitnessAnchor(delta.packet).orElse(anchor).map { square =>
-          if delta.packet.ownerFamily == ThemeTaxonomy.SubplanId.QueenTradeShield.id &&
-              delta.packet.ownerSource == PlayerFacingTruthModePolicy.QueenTradeShieldOwnerSource
+          if delta.packet.proofFamily == PlanTaxonomy.PlanKind.QueenTradeShield.id &&
+              delta.packet.proofSource == PlayerFacingTruthModePolicy.QueenTradeShieldProofSource
           then "This exchange moves the game into the queenless branch."
-          else if delta.packet.ownerFamily == ThemeTaxonomy.SubplanId.IQPInducement.id &&
-              delta.packet.ownerSource == PlayerFacingTruthModePolicy.IQPInducementProbeOwnerSource
+          else if delta.packet.proofFamily == PlanTaxonomy.PlanKind.IQPInducement.id &&
+              delta.packet.proofSource == PlayerFacingTruthModePolicy.IQPInducementProbeProofSource
           then "This sequence leaves an isolated pawn as the local target."
-          else if delta.packet.ownerFamily == ThemeTaxonomy.SubplanId.DefenderTrade.id &&
-              delta.packet.ownerSource == PlayerFacingTruthModePolicy.DefenderTradeOwnerSource
+          else if delta.packet.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id &&
+              delta.packet.proofSource == PlayerFacingTruthModePolicy.DefenderTradeProofSource
           then "This exchange removes a defender on the local branch."
-          else if delta.packet.ownerFamily == ThemeTaxonomy.SubplanId.SimplificationWindow.id then
+          else if delta.packet.proofFamily == PlanTaxonomy.PlanKind.SimplificationWindow.id then
             delta.modalityTier match
               case PlayerFacingClaimModalityTier.Forces =>
                 s"This favorable simplification keeps the same local edge after the trade on $square."
@@ -283,16 +288,16 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
               case _                                    => s"This keeps the exchange on $square available."
         }
       case PlayerFacingMoveDeltaClass.CounterplayReduction =>
-        val namedBreakOnly = delta.packet.ownerFamily == "neutralize_key_break"
-        val namedResourceOnly = delta.packet.ownerFamily == "counterplay_restraint"
+        val namedBreakOnly = delta.packet.proofFamily == "neutralize_key_break"
+        val namedResourceOnly = delta.packet.proofFamily == "counterplay_restraint"
         strategicCounterplayClaim(ctx, delta)
           .orElse {
             Option.unless(namedBreakOnly || namedResourceOnly) {
               anchor.map { focal =>
                 delta.ontologyFamily match
-                  case PlayerFacingClaimOntologyFamily.RouteDenial =>
+                  case PlayerFacingClaimOntologyKind.RouteDenial =>
                     "This keeps the opponent from getting easy entry there."
-                  case PlayerFacingClaimOntologyFamily.ColorComplexSqueeze =>
+                  case PlayerFacingClaimOntologyKind.ColorComplexSqueeze =>
                     s"This keeps a longer squeeze around $focal."
                   case _ =>
                     if delta.modalityTier == PlayerFacingClaimModalityTier.Supports then
@@ -322,8 +327,8 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
       delta: PlayerFacingMoveDeltaEvidence
   ): Option[String] =
     val witnessAnchor = preferredWitnessAnchor(delta.packet)
-    val namedBreakOnly = delta.packet.ownerFamily == "neutralize_key_break"
-    val namedResourceOnly = delta.packet.ownerFamily == "counterplay_restraint"
+    val namedBreakOnly = delta.packet.proofFamily == "neutralize_key_break"
+    val namedResourceOnly = delta.packet.proofFamily == "counterplay_restraint"
     Option.unless(HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx) && !namedBreakOnly) {
       val preventedPlans =
         ctx.semantic.toList.flatMap(_.preventedPlans)
@@ -347,12 +352,12 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
             .find(_.sourceScope == FactScope.Now)
             .flatMap { prevented =>
               delta.ontologyFamily match
-                case PlayerFacingClaimOntologyFamily.RouteDenial =>
+                case PlayerFacingClaimOntologyKind.RouteDenial =>
                   prevented.deniedSquares.headOption
                     .flatMap(clean)
                     .orElse(witnessAnchor)
                     .map(square => s"This keeps the opponent out of $square.")
-                case PlayerFacingClaimOntologyFamily.ColorComplexSqueeze =>
+                case PlayerFacingClaimOntologyKind.ColorComplexSqueeze =>
                   clean(prevented.planId)
                     .filterNot(_.equalsIgnoreCase("counterplay"))
                     .map(plan => s"This keeps a longer squeeze on $plan.")
@@ -404,7 +409,7 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
           if delta.modalityTier == PlayerFacingClaimModalityTier.Removes then "removes"
           else "limits"
         delta.ontologyFamily match
-          case PlayerFacingClaimOntologyFamily.RouteDenial =>
+          case PlayerFacingClaimOntologyKind.RouteDenial =>
             prevented.deniedSquares.headOption
               .flatMap(clean)
               .orElse(witnessAnchor)
@@ -441,8 +446,8 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
 
   private def preferredWitnessAnchor(packet: PlayerFacingClaimPacket): Option[String] =
     (
-      packet.ownerPathWitness.ownerSeedTerms ++
-        packet.ownerPathWitness.structureTransitionTerms ++
+      packet.proofPathWitness.ownerSeedTerms ++
+        packet.proofPathWitness.structureTransitionTerms ++
         packet.anchorTerms
     ).find(term => term.matches("[a-h][1-8]") || term.toLowerCase.contains("file"))
 
@@ -463,8 +468,8 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
             contract.truthClass == DecisiveTruthClass.MissedWin =>
         "tactical_contract"
       case Some(contract)
-          if contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
-            contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation =>
+          if contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
+            contract.reasonFamily == DecisiveReasonKind.TacticalRefutation =>
         "forcing_contract"
       case _ if looksLikeTacticalSacrifice(ctx, truthContract) =>
         "tactical_sacrifice"
@@ -479,9 +484,9 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
       contract.truthClass match
         case DecisiveTruthClass.Blunder   => Some("blunder")
         case DecisiveTruthClass.MissedWin => Some("missed_win")
-        case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense =>
+        case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense =>
           Some("only_move_defense")
-        case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation =>
+        case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonKind.TacticalRefutation =>
           Some("tactical_refutation")
         case _ => None
     }.orElse(Option.when(looksLikeTacticalSacrifice(ctx, truthContract))("tactical_sacrifice"))
@@ -502,12 +507,12 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
       truthContract: Option[DecisiveTruthContract]
   ): String =
     Option.when(
-      packet.ownerSource == PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource ||
-        packet.ownerSource == PlayerFacingTruthModePolicy.QueenTradeShieldOwnerSource ||
-        packet.ownerSource == PlayerFacingTruthModePolicy.IQPInducementProbeOwnerSource ||
-        packet.ownerSource == PlayerFacingTruthModePolicy.DefenderTradeOwnerSource
+      packet.proofSource == PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource ||
+        packet.proofSource == PlayerFacingTruthModePolicy.QueenTradeShieldProofSource ||
+        packet.proofSource == PlayerFacingTruthModePolicy.IQPInducementProbeProofSource ||
+        packet.proofSource == PlayerFacingTruthModePolicy.DefenderTradeProofSource
     ) {
-      packet.ownerSource
+      packet.proofSource
     }.getOrElse(mainSourceKind(surface, truthContract))
 
   private def looksLikeTacticalSacrifice(
@@ -515,7 +520,7 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
       truthContract: Option[DecisiveTruthContract]
   ): Boolean =
     truthContract.exists(contract =>
-      contract.reasonFamily == DecisiveReasonFamily.InvestmentSacrifice ||
+      contract.reasonFamily == DecisiveReasonKind.InvestmentSacrifice ||
         contract.truthClass == DecisiveTruthClass.WinningInvestment ||
         contract.truthClass == DecisiveTruthClass.CompensatedInvestment
     ) &&

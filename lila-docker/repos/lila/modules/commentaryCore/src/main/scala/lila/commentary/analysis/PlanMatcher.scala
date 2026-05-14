@@ -6,7 +6,7 @@ import lila.commentary.model.Motif.*
 import lila.commentary.analysis.L3.{ PawnPlayAnalysis, PositionClassification, ThreatAnalysis, TensionPolicy }
 import lila.commentary.model.structure.{ PlanAlignment, StructureId, StructureProfile }
 import chess.Color.White
-import lila.commentary.analysis.ThemeTaxonomy.{ ThemeL1, SubplanId }
+import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, PlanKind }
 
 private val ThemeDiversityPenalty: Boolean =
   sys.env.get("AI_THEME_DIVERSITY_PENALTY")
@@ -58,63 +58,63 @@ case class IntegratedContext(
 
 object PlanMatcher:
   object Theme:
-    val Opening = ThemeL1.OpeningPrinciples.id
-    val Restriction = ThemeL1.RestrictionProphylaxis.id
-    val Redeployment = ThemeL1.PieceRedeployment.id
-    val SpaceClamp = ThemeL1.SpaceClamp.id
-    val WeaknessFixation = ThemeL1.WeaknessFixation.id
-    val PawnBreakPreparation = ThemeL1.PawnBreakPreparation.id
-    val FavorableExchange = ThemeL1.FavorableExchange.id
-    val FlankInfrastructure = ThemeL1.FlankInfrastructure.id
-    val AdvantageTransformation = ThemeL1.AdvantageTransformation.id
-    val ImmediateTacticalGain = ThemeL1.ImmediateTacticalGain.id
+    val Opening = PlanTheme.OpeningPrinciples.id
+    val Restriction = PlanTheme.RestrictionProphylaxis.id
+    val Redeployment = PlanTheme.PieceRedeployment.id
+    val SpaceClamp = PlanTheme.SpaceClamp.id
+    val WeaknessFixation = PlanTheme.WeaknessFixation.id
+    val PawnBreakPreparation = PlanTheme.PawnBreakPreparation.id
+    val FavorableExchange = PlanTheme.FavorableExchange.id
+    val FlankInfrastructure = PlanTheme.FlankInfrastructure.id
+    val AdvantageTransformation = PlanTheme.AdvantageTransformation.id
+    val ImmediateTacticalGain = PlanTheme.ImmediateTacticalGain.id
 
   object Subplan:
-    val OpeningDevelopment = SubplanId.OpeningDevelopment.id
-    val Restriction = SubplanId.ProphylaxisRestraint.id
-    val Redeployment = SubplanId.WorstPieceImprovement.id
-    val OutpostEntrenchment = SubplanId.OutpostEntrenchment.id
-    val RookFileTransfer = SubplanId.RookFileTransfer.id
-    val SpaceClamp = SubplanId.FlankClamp.id
-    val WeaknessFixation = SubplanId.StaticWeaknessFixation.id
-    val MinorityAttackFixation = SubplanId.MinorityAttackFixation.id
-    val BackwardPawnTargeting = SubplanId.BackwardPawnTargeting.id
-    val IQPInducement = SubplanId.IQPInducement.id
-    val PawnBreakPreparation = SubplanId.CentralBreakTiming.id
-    val WingBreakTiming = SubplanId.WingBreakTiming.id
-    val TensionMaintenance = SubplanId.TensionMaintenance.id
-    val FavorableExchange = SubplanId.SimplificationWindow.id
-    val DefenderTrade = SubplanId.DefenderTrade.id
-    val FlankInfrastructure = SubplanId.RookPawnMarch.id
-    val HookCreation = SubplanId.HookCreation.id
-    val RookLiftScaffold = SubplanId.RookLiftScaffold.id
-    val AdvantageTransformation = SubplanId.SimplificationConversion.id
-    val ImmediateTacticalGain = SubplanId.ForcingTacticalShot.id
-    val DefenderOverload = SubplanId.DefenderOverload.id
-    val ClearanceBreak = SubplanId.ClearanceBreak.id
+    val OpeningDevelopment = PlanKind.OpeningDevelopment.id
+    val Restriction = PlanKind.ProphylaxisRestraint.id
+    val Redeployment = PlanKind.WorstPieceImprovement.id
+    val OutpostEntrenchment = PlanKind.OutpostEntrenchment.id
+    val RookFileTransfer = PlanKind.RookFileTransfer.id
+    val SpaceClamp = PlanKind.FlankClamp.id
+    val WeaknessFixation = PlanKind.StaticWeaknessFixation.id
+    val MinorityAttackFixation = PlanKind.MinorityAttackFixation.id
+    val BackwardPawnTargeting = PlanKind.BackwardPawnTargeting.id
+    val IQPInducement = PlanKind.IQPInducement.id
+    val PawnBreakPreparation = PlanKind.CentralBreakTiming.id
+    val WingBreakTiming = PlanKind.WingBreakTiming.id
+    val TensionMaintenance = PlanKind.TensionMaintenance.id
+    val FavorableExchange = PlanKind.SimplificationWindow.id
+    val DefenderTrade = PlanKind.DefenderTrade.id
+    val FlankInfrastructure = PlanKind.RookPawnMarch.id
+    val HookCreation = PlanKind.HookCreation.id
+    val RookLiftScaffold = PlanKind.RookLiftScaffold.id
+    val AdvantageTransformation = PlanKind.SimplificationConversion.id
+    val ImmediateTacticalGain = PlanKind.ForcingTacticalShot.id
+    val DefenderOverload = PlanKind.DefenderOverload.id
+    val ClearanceBreak = PlanKind.ClearanceBreak.id
 
   def triggerKind(themeL1: String, subplanId: Option[String]): String =
-    ThemeTaxonomy.SubplanId.fromId(subplanId.getOrElse("")).map {
-      case ThemeTaxonomy.SubplanId.BreakPrevention     => "break_neutralization"
-      case ThemeTaxonomy.SubplanId.KeySquareDenial     => "entry_square_denial"
-      case ThemeTaxonomy.SubplanId.OpenFilePressure    => "bounded_file_pressure"
-      case ThemeTaxonomy.SubplanId.RookFileTransfer    => "bounded_file_pressure"
-      case ThemeTaxonomy.SubplanId.DefenderTrade       => "trade_key_defender"
-      case ThemeTaxonomy.SubplanId.SimplificationWindow => ThemeTaxonomy.SubplanId.SimplificationWindow.id
-      case ThemeTaxonomy.SubplanId.ProphylaxisRestraint => "counterplay_restraint"
+    PlanTaxonomy.PlanKind.fromId(subplanId.getOrElse("")).map {
+      case PlanTaxonomy.PlanKind.BreakPrevention     => "break_neutralization"
+      case PlanTaxonomy.PlanKind.KeySquareDenial     => "entry_square_denial"
+      case PlanTaxonomy.PlanKind.OpenFilePressure    => "bounded_file_pressure"
+      case PlanTaxonomy.PlanKind.RookFileTransfer    => "bounded_file_pressure"
+      case PlanTaxonomy.PlanKind.DefenderTrade       => "trade_key_defender"
+      case PlanTaxonomy.PlanKind.SimplificationWindow => PlanTaxonomy.PlanKind.SimplificationWindow.id
+      case PlanTaxonomy.PlanKind.ProphylaxisRestraint => "counterplay_restraint"
       case other                                       => other.id
-    }.orElse(ThemeTaxonomy.ThemeL1.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")
+    }.orElse(PlanTaxonomy.PlanTheme.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")
 
-  def ownerFamily(themeL1: String, subplanId: Option[String]): String =
-    ThemeTaxonomy.SubplanId.fromId(subplanId.getOrElse("")).map {
-      case ThemeTaxonomy.SubplanId.BreakPrevention     => "neutralize_key_break"
-      case ThemeTaxonomy.SubplanId.KeySquareDenial     => "half_open_file_pressure"
-      case ThemeTaxonomy.SubplanId.OpenFilePressure    => "half_open_file_pressure"
-      case ThemeTaxonomy.SubplanId.RookFileTransfer    => "half_open_file_pressure"
-      case ThemeTaxonomy.SubplanId.DefenderTrade       => "trade_key_defender"
-      case ThemeTaxonomy.SubplanId.SimplificationWindow => ThemeTaxonomy.SubplanId.SimplificationWindow.id
+  def proofFamily(themeL1: String, subplanId: Option[String]): String =
+    PlanTaxonomy.PlanKind.fromId(subplanId.getOrElse("")).map {
+      case PlanTaxonomy.PlanKind.BreakPrevention     => "neutralize_key_break"
+      case PlanTaxonomy.PlanKind.KeySquareDenial     => "half_open_file_pressure"
+      case PlanTaxonomy.PlanKind.OpenFilePressure    => "half_open_file_pressure"
+      case PlanTaxonomy.PlanKind.RookFileTransfer    => "half_open_file_pressure"
+      case PlanTaxonomy.PlanKind.DefenderTrade       => "trade_key_defender"
+      case PlanTaxonomy.PlanKind.SimplificationWindow => PlanTaxonomy.PlanKind.SimplificationWindow.id
       case other                                       => other.id
-    }.orElse(ThemeTaxonomy.ThemeL1.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")
+    }.orElse(PlanTaxonomy.PlanTheme.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")
 
   case class ActivePlans(
       primary: PlanMatch,

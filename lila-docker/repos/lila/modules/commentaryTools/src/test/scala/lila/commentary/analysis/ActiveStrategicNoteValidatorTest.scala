@@ -171,13 +171,13 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
   private def plannerPrimary(
       questionKind: AuthorQuestionKind,
       claim: String,
-      ownerFamily: OwnerFamily,
+      proofFamily: PlannerOwnerKind,
       contrast: Option[String] = None,
       evidence: Option[String] = None,
       consequence: Option[String] = None
   ): QuestionPlan =
     QuestionPlan(
-      questionId = s"primary_${ownerFamily.wireName}",
+      questionId = s"primary_${proofFamily.wireName}",
       questionKind = questionKind,
       priority = 100,
       claim = claim,
@@ -200,8 +200,8 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
       strengthTier = QuestionPlanStrengthTier.Moderate,
       sourceKinds = List("test"),
       admissibilityReasons = List("test"),
-      ownerFamily = ownerFamily,
-      ownerSource = "test"
+      plannerOwnerKind = proofFamily,
+      plannerSource = "test"
     )
 
   test("accepts a dossier-backed delta note with route anchor and trigger") {
@@ -259,7 +259,7 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
       plannerPrimary(
         questionKind = AuthorQuestionKind.WhyNow,
         claim = "The timing matters now because drifting lets Qe2 take over.",
-        ownerFamily = OwnerFamily.DecisionTiming,
+        proofFamily = PlannerOwnerKind.DecisionTiming,
         contrast = Some("If delayed, the cleaner version runs through Qe2.")
       )
     val result =
@@ -294,7 +294,7 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
             plannerPrimary(
               questionKind = AuthorQuestionKind.WhyNow,
               claim = "The timing matters now because other moves allow the position to slip away.",
-              ownerFamily = OwnerFamily.DecisionTiming,
+              proofFamily = PlannerOwnerKind.DecisionTiming,
               evidence = Some("Maintain color complex clamp and restrict counterplay through Bd4 and Ba5.")
             )
           )
@@ -336,7 +336,7 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
       plannerPrimary(
         questionKind = AuthorQuestionKind.WhyThis,
         claim = "This is a blunder because the queen runs into Qxd6.",
-        ownerFamily = OwnerFamily.TacticalFailure,
+        proofFamily = PlannerOwnerKind.TacticalFailure,
         evidence = Some("Qxd6 wins a pawn immediately.")
       )
     val result =
@@ -361,7 +361,7 @@ class ActiveStrategicNoteValidatorTest extends FunSuite:
       plannerPrimary(
         questionKind = AuthorQuestionKind.WhyThis,
         claim = "The rook lift keeps the kingside pressure rolling.",
-        ownerFamily = OwnerFamily.MoveDelta,
+        proofFamily = PlannerOwnerKind.MoveDelta,
         consequence = Some("That immediately increases pressure on g7.")
       )
     val result =

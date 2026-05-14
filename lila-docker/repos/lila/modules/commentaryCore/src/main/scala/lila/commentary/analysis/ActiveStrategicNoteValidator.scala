@@ -8,7 +8,7 @@ private[commentary] object ActiveStrategicNoteValidator:
 
   private final case class PlannerMinimumContract(
       questionKind: lila.commentary.model.authoring.AuthorQuestionKind,
-      ownerFamily: OwnerFamily,
+      proofFamily: PlannerOwnerKind,
       leadText: String,
       supportTexts: List[String]
   )
@@ -139,7 +139,7 @@ private[commentary] object ActiveStrategicNoteValidator:
     val plannerLeadSatisfied =
       plannerMinimumContract.exists { contract =>
         phraseCovered(normalizedText, contract.leadText) ||
-          (contract.ownerFamily == OwnerFamily.TacticalFailure && tacticalLeadPresent) ||
+          (contract.proofFamily == PlannerOwnerKind.TacticalFailure && tacticalLeadPresent) ||
           (contract.questionKind == lila.commentary.model.authoring.AuthorQuestionKind.WhyNow && plannerWhyNowGrounded)
       }
     val plannerSupportSatisfied =
@@ -268,21 +268,21 @@ private[commentary] object ActiveStrategicNoteValidator:
         .map(_.trim)
         .filter(_.nonEmpty)
         .distinct
-    plan.ownerFamily match
-      case OwnerFamily.TacticalFailure | OwnerFamily.MoveDelta | OwnerFamily.PositionProbe | OwnerFamily.OpeningRelation | OwnerFamily.EndgameTransition =>
+    plan.plannerOwnerKind match
+      case PlannerOwnerKind.TacticalFailure | PlannerOwnerKind.MoveDelta | PlannerOwnerKind.PositionProbe | PlannerOwnerKind.OpeningRelation | PlannerOwnerKind.EndgameTransition =>
         Option.when(plan.claim.trim.nonEmpty && supportTexts.nonEmpty) {
           PlannerMinimumContract(
             questionKind = plan.questionKind,
-            ownerFamily = plan.ownerFamily,
+            proofFamily = plan.plannerOwnerKind,
             leadText = plan.claim.trim,
             supportTexts = supportTexts
           )
         }
-      case OwnerFamily.DecisionTiming if plan.questionKind == lila.commentary.model.authoring.AuthorQuestionKind.WhyNow =>
+      case PlannerOwnerKind.DecisionTiming if plan.questionKind == lila.commentary.model.authoring.AuthorQuestionKind.WhyNow =>
         Option.when(plan.claim.trim.nonEmpty && supportTexts.nonEmpty) {
           PlannerMinimumContract(
             questionKind = plan.questionKind,
-            ownerFamily = plan.ownerFamily,
+            proofFamily = plan.plannerOwnerKind,
             leadText = plan.claim.trim,
             supportTexts = supportTexts
           )

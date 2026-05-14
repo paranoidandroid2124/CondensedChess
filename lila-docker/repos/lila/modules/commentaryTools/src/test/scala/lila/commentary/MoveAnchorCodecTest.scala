@@ -2,17 +2,17 @@ package lila.commentary
 
 class MoveAnchorCodecTest extends munit.FunSuite:
 
-  private val refs = BookmakerRefsV1(
+  private val refs = MoveReviewRefs(
     startFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
     startPly = 1,
     variations = List(
-      VariationRefV1(
+      MoveReviewVariationRef(
         lineId = "line_01",
         scoreCp = 20,
         mate = None,
         depth = 0,
         moves = List(
-          MoveRefV1(
+          MoveReviewMoveRef(
             refId = "l01_m01",
             san = "e4",
             uci = "e2e4",
@@ -21,7 +21,7 @@ class MoveAnchorCodecTest extends munit.FunSuite:
             moveNo = 1,
             marker = Some("1.")
           ),
-          MoveRefV1(
+          MoveReviewMoveRef(
             refId = "l01_m02",
             san = "e5",
             uci = "e7e5",

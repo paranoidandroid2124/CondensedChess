@@ -180,7 +180,7 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
 
   private def truthContract(
       truthClass: DecisiveTruthClass = DecisiveTruthClass.Best,
-      reasonFamily: DecisiveReasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+      reasonFamily: DecisiveReasonKind = DecisiveReasonKind.OnlyMoveDefense,
       verifiedBestMove: Option[String] = Some("Qe2")
   ): DecisiveTruthContract =
     DecisiveTruthContract(
@@ -275,8 +275,8 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       questionId: String,
       kind: AuthorQuestionKind,
       claim: String,
-      ownerFamily: OwnerFamily,
-      ownerSource: String,
+      proofFamily: PlannerOwnerKind,
+      proofSource: String,
       contrast: Option[String]
   ) =
     QuestionPlan(
@@ -289,10 +289,10 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       consequence = None,
       fallbackMode = QuestionPlanFallbackMode.PlannerOwned,
       strengthTier = QuestionPlanStrengthTier.Moderate,
-      sourceKinds = List(ownerSource),
+      sourceKinds = List(proofSource),
       admissibilityReasons = List("test"),
-      ownerFamily = ownerFamily,
-      ownerSource = ownerSource
+      plannerOwnerKind = proofFamily,
+      plannerSource = proofSource
     )
 
   private def moment(
@@ -528,16 +528,16 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
               failureModes = List("If the c-file reopens or b4 becomes available, the bind disappears."),
               viability = PlanViability(score = 0.84, label = "high", risk = "bounded"),
               evidenceSources = List("theme:restriction_prophylaxis"),
-              themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-              subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+              themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
             )
           ),
         strategicPlanExperiments =
           List(
             StrategicPlanExperiment(
               planId = "local_file_entry_bind",
-              themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-              subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+              themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
               evidenceTier = "evidence_backed",
               bestReplyStable = true,
               futureSnapshotAligned = true
@@ -601,9 +601,9 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
 
     assertEquals(withoutContract.rankedPlans.primary.map(_.questionKind), None)
     assertEquals(withContract.rankedPlans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhyNow))
-    assertEquals(withContract.rankedPlans.primary.map(_.ownerSource), Some("truth_contract"))
+    assertEquals(withContract.rankedPlans.primary.map(_.plannerSource), Some("truth_contract"))
     assertEquals(selected.primary.questionKind, AuthorQuestionKind.WhyNow)
-    assertEquals(selected.truthContract.map(_.reasonFamily), Some(DecisiveReasonFamily.OnlyMoveDefense))
+    assertEquals(selected.truthContract.map(_.reasonFamily), Some(DecisiveReasonKind.OnlyMoveDefense))
   }
 
   test("WhyNow active note skips duplicate contrast and keeps the next anchored support") {
@@ -643,8 +643,8 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
             strengthTier = QuestionPlanStrengthTier.Strong,
             sourceKinds = List("decision_comparison"),
             admissibilityReasons = List("timing_reason"),
-            ownerFamily = OwnerFamily.DecisionTiming,
-            ownerSource = "decision_comparison"
+            plannerOwnerKind = PlannerOwnerKind.DecisionTiming,
+            plannerSource = "decision_comparison"
           ),
         secondary = None,
         inputs =
@@ -713,8 +713,8 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
                   questionId = "q_end_change",
                   kind = AuthorQuestionKind.WhatChanged,
                   claim = "The endgame task changes immediately.",
-                  ownerFamily = OwnerFamily.EndgameTransition,
-                  ownerSource = "endgame_transition_translator",
+                  proofFamily = PlannerOwnerKind.EndgameTransition,
+                  proofSource = "endgame_transition_translator",
                   contrast = Some("Before the move, the earlier endgame task still defined the position.")
                 )
               ),
@@ -724,8 +724,8 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
                   questionId = "q_end_why",
                   kind = AuthorQuestionKind.WhyThis,
                   claim = "The move changes the technical task of the ending.",
-                  ownerFamily = OwnerFamily.EndgameTransition,
-                  ownerSource = "endgame_transition_translator",
+                  proofFamily = PlannerOwnerKind.EndgameTransition,
+                  proofSource = "endgame_transition_translator",
                   contrast = Some("The move matters because it changes the technical task of the ending, not just the local geometry.")
                 )
               ),

@@ -34,6 +34,22 @@ Use the documents in this order:
 - `CommentaryTrustBoundary.md`
   - canonical trust-risk map, CTH audit baseline, trust-boundary priority map
 
+## Admission Vocabulary
+
+Current trust/admission wording uses distinct layer names:
+
+- `PlanKind`: the chess plan being reviewed.
+- `proofSource`: the proof lane that produced a packet.
+- `proofFamily`: the proof contract name, checked by `ProofContractRules`.
+- `PlannerOwnerKind`: the planner question-owner lane.
+- `reviewGroup`: a source-review intake bucket.
+- `AdmissionUnit`: one repeatable review unit over a `PlanKind`,
+  `proofSource`, and `proofFamily`.
+
+Blockers for a wrong proof contract use `proof:*_contract_mismatch`. Witness
+or extraction failures may still use `owner:*` when the planner/source row has
+no exact witness, but they do not rename a layer to `family`.
+
 ## Current Canonical State
 
 - Step 1-7:
@@ -86,7 +102,7 @@ Use the documents in this order:
   `PlayerFacingTruthModePolicy`, `MainPathMoveDeltaClaimBuilder`, and
   `QuietMoveIntentBuilder`. The packet is the shared suppression/release-risk
   carrier for move-local strategic admission; it now also carries one private
-  `ownerPathWitness` lane (`ownerSeedTerms`, `continuationTerms`,
+  `proofPathWitness` lane (`ownerSeedTerms`, `continuationTerms`,
   `rivalTerms`, `structureTransitionTerms`) so owner-path proof can deepen
   without adding any new public schema, payload, or persisted debug field.
 - Packet pilot status on 2026-04-03:
@@ -140,8 +156,8 @@ Use the documents in this order:
   profile is absent; the current FEN focus squares contain exactly one
   opponent pawn target; and the defended branch key is present. On that narrow
   admission path the runtime now emits
-  `ownerSource=exact_target_fixation`,
-  `ownerFamily=static_weakness_fixation`,
+  `proofSource=exact_target_fixation`,
+  `proofFamily=static_weakness_fixation`,
   `bestDefenseBranchKey=f3d2|b8a6`, `sameBranchState=Proven`,
   `persistence=Stable`, `main_bundle=This keeps the pressure fixed on d6.`,
   and one narrow planner-owned `WhatChanged` delta on the existing move-delta
@@ -172,8 +188,8 @@ Use the documents in this order:
   on `c6` and `d5`, white pawns on `b2` and `d4`), the defended branch key is
   present, there is no already-admitted move-local `exact_target_fixation`
   owner, and live weakness support survives, the runtime emits
-  `ownerSource=carlsbad_fixed_target_probe`,
-  `ownerFamily=backward_pawn_targeting`,
+  `proofSource=carlsbad_fixed_target_probe`,
+  `proofFamily=backward_pawn_targeting`,
   `scope=PositionLocal`,
   `main_bundle=The key strategic fact here is that c6 is the fixed target.`,
   and planner-owned `WhatMattersHere` with the bounded coda
@@ -194,8 +210,8 @@ Use the documents in this order:
   that keeps the pieces coordinated on that target, a defended branch key, and
   no already-certified `exact_target_fixation` or
   `carlsbad_fixed_target_probe` owner, the runtime emits
-  `ownerSource=target_focused_coordination_probe`,
-  `ownerFamily=target_focused_coordination`,
+  `proofSource=target_focused_coordination_probe`,
+  `proofFamily=target_focused_coordination`,
   `scope=PositionLocal`,
   `main_bundle=The key strategic fact here is that the pressure is coordinated on c6.`,
   and planner-owned `WhatMattersHere` with the bounded coda
@@ -236,7 +252,7 @@ Use the documents in this order:
   removal, branch prefix, planner admission, tactical veto, and claim-only
   surfaces all pass. The first natural slice uses the exact Aronian-Andreikin
   board with branch `c1a3 f8a3 b3a3`; it emits
-  `ownerSource=defender_trade`, `ownerFamily=defender_trade`,
+  `proofSource=defender_trade`, `proofFamily=defender_trade`,
   `scope=MoveLocal`, `fallback=WeakMain`, and the downgraded surface
   `A local reading is that this exchange removes a defender on the local branch.`
   This does not reopen `trade_key_defender`, generic good-trade prose,
@@ -593,7 +609,7 @@ semantics.
 
 Status:
 validation-only expansion completed. No new runtime helper, public payload
-field, or prose family was added. The work stays in test/tooling and reuses the
+field, or surface phrase class was added. The work stays in test/tooling and reuses the
 existing planner/build/replay path. Reverse adversarial review is now green for
 the bounded B1 charter after closing cross-branch stitched-persistence
 loopholes in runtime/tests.
@@ -1016,7 +1032,7 @@ alive against direct best defense on that same defended branch.
 
 Status:
 implemented as a backend-only certification helper plus planner/replay
-containment. No public payload/schema field or new prose family was added.
+containment. No public payload/schema field or new surface phrase class was added.
 Reverse adversarial review is now green for the bounded B2 charter after
 closing validation-only best-defense and stitched-branch persistence loopholes.
 
@@ -1027,8 +1043,8 @@ closing validation-only best-defense and stitched-branch persistence loopholes.
 - owner path:
   `NarrativeContextBuilder -> StrategicPlanExperiment evidence tier downgrade -> StrategicNarrativePlanSupport.filterEvidenceBacked -> QuestionFirstCommentaryPlanner -> Chronicle / Bookmaker / Active replay`
 - applicable experiments only:
-  `ThemeL1.RestrictionProphylaxis` with
-  `SubplanId.BreakPrevention` or `SubplanId.KeySquareDenial`
+  `PlanTheme.RestrictionProphylaxis` with
+  `PlanKind.BreakPrevention` or `PlanKind.KeySquareDenial`
 - positive certification only when all of the following hold:
   late middlegame, clearly better eval posture, one named break/entry axis,
   route-denial or long-term-restraint validation, concrete direct best defense,
@@ -1319,7 +1335,7 @@ Proposed bounded contract:
 | `primaryAxis` | records the concrete main defender resource being compressed | `PreventedPlan.breakNeutralized`, `deniedResourceClass`, denied squares, route-denial language |
 | `corroboratingAxes` | records the additional independent axes needed for B3 | existing `PreventedPlan` set, denied-square network, `futureSnapshot`, subplan family, existing theme aliases |
 | `axisIndependence` | proves the second axis is not just a restatement of the first | existing reply/future-snapshot evidence plus backend-only independence check |
-| `bindArchetype` | stable role label such as `break_plus_entry`, `break_plus_network`, `entry_plus_mobility`, `file_plus_king_route` | `ThemeTaxonomy` subplans, `PlanEvidenceEvaluator` ontology family, `ThemePlanProbePurpose` |
+| `bindArchetype` | stable role label such as `break_plus_entry`, `break_plus_network`, `entry_plus_mobility`, `file_plus_king_route` | `PlanTaxonomy` subplans, `PlanEvidenceEvaluator` ontology family, `ThemePlanProbePurpose` |
 | `restrictionEvidence` | records the actual multi-axis proof | `PreventedPlan`, `counterplayScoreDrop`, `breakNeutralized`, denied squares, `defensiveSufficiency`, `breakNeutralizationStrength` |
 | `defenderResources` | enumerates the meaningful defensive resources instead of gesturing at them | direct `reply_multipv` / `defense_reply_multipv` probe heads and best reply |
 | `freeingResourcesRemaining` | lists still-live breaks, entries, or king/file routes that falsify the bind | existing `PreventedPlan` set plus reply/future-snapshot inspection |
@@ -1425,7 +1441,7 @@ Surface matrix:
   remains the falsification core; reuse its quantifier, stability,
   alternative-dominance, attribution, and ontology-family checks so B3 does not
   create a second truth grammar
-- `ThemeTaxonomy`:
+- `PlanTaxonomy`:
   already contains the subplan families B3 needs to group candidate bind axes:
   `BreakPrevention`, `KeySquareDenial`, `FlankClamp`, `CentralSpaceBind`,
   `MobilitySuppression`, `OpenFilePressure`, `StaticWeaknessFixation`, and
@@ -1524,7 +1540,7 @@ bounded follow-through route on that same defended branch.
 
 Status:
 implemented as a backend-only certification helper plus existing
-planner/replay containment. No public payload/schema field or new prose family
+planner/replay containment. No public payload/schema field or new surface phrase class
 was added. The B3 fix-up for the known loophole trio is now in place, and the
 follow-on reverse adversarial review plus targeted seam review are green for the
 bounded B1 / B2 / B3 maintenance charter.
@@ -1535,8 +1551,8 @@ bounded B1 / B2 / B3 maintenance charter.
   `TwoAxisBindProof.scala` evaluated from
   `NarrativeContextBuilder.buildStrategicPlanExperiments`
 - applicable plan family only:
-  `ThemeL1.RestrictionProphylaxis` with
-  `SubplanId.BreakPrevention` or `SubplanId.KeySquareDenial`
+  `PlanTheme.RestrictionProphylaxis` with
+  `PlanKind.BreakPrevention` or `PlanKind.KeySquareDenial`
 - positive certification only when all of the following hold:
   late middlegame, clearly better eval posture, queen-light late middlegame
   texture, one named break axis plus one independent entry axis, measurable
@@ -1552,7 +1568,7 @@ bounded B1 / B2 / B3 maintenance charter.
 - positive owner cap:
   planner-owned `WhyThis` only;
   existing move-delta `WhatChanged` may survive only when it was already legal
-  on its own lane, not as a new B3 owner family
+  on its own lane, not as a new B3 planner owner kind
 - explicit non-goals remain forbidden:
   whole-position `no-counterplay`, global squeeze, winning-route discovery,
   fortress-break, broad color-complex domination, positive whole-game reuse,
@@ -1707,7 +1723,7 @@ heavy-piece, slight-edge, or color-complex overclaim.
 - architecture reuse only:
   stay inside
   `NarrativeContextBuilder -> PlanEvidenceEvaluator -> StrategicPlanExperiment -> QuestionFirstCommentaryPlanner -> StrategicNarrativePlanSupport -> DecisiveTruth sanitize -> existing surfaces`
-- no new runtime path, payload/schema, prose family, or whole-game owner lane
+- no new runtime path, payload/schema, surface phrase class, or whole-game owner lane
 - surface inflation forbidden:
   uncertified B4 shells must downgrade before Chronicle / Bookmaker / Active /
   whole-game reuse
@@ -2152,7 +2168,7 @@ rollout remains unopened.
 - architecture reuse only:
   stay inside
   `NarrativeContextBuilder -> PlanEvidenceEvaluator -> StrategicPlanExperiment -> QuestionFirstCommentaryPlanner -> StrategicNarrativePlanSupport -> DecisiveTruth sanitize -> existing surfaces`
-- no new runtime path, payload/schema, prose family, or whole-game owner lane
+- no new runtime path, payload/schema, surface phrase class, or whole-game owner lane
 - surface reinflation forbidden:
   uncertified B5 shells must downgrade before Chronicle / Bookmaker / Active /
   whole-game reuse
@@ -2549,7 +2565,7 @@ Session verdict:
   any future B6 work must stay inside the existing
   `RestrictionProphylaxis -> file-entry reuse` lane with backend-only
   contract / downgrade discipline; do **not** add a new runtime path,
-  owner lane, public payload/schema, or prose family
+  owner lane, public payload/schema, or surface phrase class
 
 ### Candidate claim map
 
@@ -2745,7 +2761,7 @@ Narrow scope:
   `WhatChanged`, Bookmaker, Chronicle, Active, and whole-game / wrap-up closed
 - implementation boundary:
   backend-only contract / downgrade work only; no new public payload/schema,
-  owner lane, or prose family
+  owner lane, or surface phrase class
 
 Why this slice should go first:
 
@@ -2773,7 +2789,7 @@ Session verdict:
   one B4-certifiable `file-entry pair + one non-redundant reroute denial` on
   the same defended branch, only in clearly-better late middlegames, only on
   the existing `RestrictionProphylaxis -> file-entry reuse` lane
-- no new runtime path, payload/schema field, prose family, or owner lane was
+- no new runtime path, payload/schema field, surface phrase class, or owner lane was
   introduced
 - positive owner scope is planner-owned `WhyThis` only
 - `WhatChanged`, Bookmaker, Chronicle, Active, and whole-game / wrap-up remain
@@ -2864,7 +2880,7 @@ Session verdict:
   every expansion candidate must stay tied to exact FEN-backed best-defense and
   same-branch continuation proof; route rhetoric does not count as validation
 - boundary rule:
-  no new runtime path, payload/schema, prose family, replay lane, or owner lane
+  no new runtime path, payload/schema, surface phrase class, replay lane, or owner lane
   may open as part of this baseline
 
 ### Candidate map
@@ -3084,8 +3100,8 @@ Current scope:
 
 Runtime reuse:
 
-- no new ingress, planner lane, replay lane, owner family, payload field, or
-  prose family was added in this campaign
+- no new ingress, planner lane, replay lane, planner owner kind, payload field, or
+  surface phrase class was added in this campaign
 - the session used the existing engine/replay helpers plus the new
   `NamedRouteSurfaceLedger.scala` test/tooling runner to refresh the
   current control, candidate pool, and blocker pack on the same branch
@@ -3441,7 +3457,7 @@ Why this slice is first:
   same-branch identity, bounded continuation, prevented-plan grammar, and
   future-snapshot task witnesses
 - it can stay on the existing architecture and planner `WhyThis` lane without
-  opening a new public payload, owner family, or replay surface
+  opening a new public payload, planner owner kind, or replay surface
 - the broader alternatives either collapse into B6 restatement or inflate into
   whole-ending rhetoric too easily
 
@@ -3627,7 +3643,7 @@ Freeze rules:
 - `distinctFromExistingFamily` must explicitly carry
   `not_b1_conversion` and `not_b6_route_bind`
 - `surfaceContainmentMarker` must be planner-local and replay-blocking
-- generic `OwnerFamily.MoveDelta` is not a sufficient contract by itself; it
+- generic `PlannerOwnerKind.MoveDelta` is not a sufficient contract by itself; it
   carries no bounded task pair and therefore cannot certify B7
 
 Intentionally excluded from the frozen contract:
@@ -3830,7 +3846,7 @@ before any runtime work is allowed.
 
 Current status:
 `B8` is now reset to a clean design-only placeholder.
-No runtime slice, new payload field, new owner lane, or new prose family is
+No runtime slice, new payload field, new owner lane, or new surface phrase class is
 opened by this section.
 
 Current working rule:
@@ -4486,7 +4502,7 @@ The current B/C trust-boundary experiment uses one internal authority tiers in
     `certified_position_probe_non_tactical_forcing_scene`.
   - 2026-05-13 source-backed boundary also admits the
     Boleslavsky-Nezhmetdinov exact `static_weakness_fixation` row through
-    `ownerSource=exact_target_fixation`, `scope=MoveLocal`, and
+    `proofSource=exact_target_fixation`, `scope=MoveLocal`, and
     `contract=subplan:static_weakness_fixation`. The released claim is limited
     to fixing d6 as the exact target on the proven branch.
 - `SupportedLocal`
@@ -4521,8 +4537,8 @@ The current B/C trust-boundary experiment uses one internal authority tiers in
     false positives on live quiet B/C controls.
 
 The authority tiers now sits behind a global owner-proof catalog in
-`OwnerProofRules`. The catalog covers every current
-`ThemeTaxonomy.ThemeL1` and `ThemeTaxonomy.SubplanId` with either a releasable
+`ProofContractRules`. The catalog covers every current
+`PlanTaxonomy.PlanTheme` and `PlanTaxonomy.PlanKind` with either a releasable
 contract or an explicit `Deferred` / `BackendOnly` status. This is full-opening
 preparation, not automatic full release: a family may produce player-facing
 strategic prose only when the packet passes the contract, planner admission,
@@ -4594,26 +4610,27 @@ Current expanded matrix result on 2026-05-15:
     `source-salov-ljubojevic-1992-simplification-window`.
   - source-backed natural B examples:
     `source-evans-opsahl-1950` now materializes
-    `ownerSource=carlsbad_fixed_target_probe`, `scope=PositionLocal`, and
+    `proofSource=carlsbad_fixed_target_probe`, `scope=PositionLocal`, and
     planner-owned `WhatMattersHere` despite the non-tactical forcing-defense
     scene. `source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation`
-    materializes `ownerSource=exact_target_fixation`, `scope=MoveLocal`,
+    materializes `proofSource=exact_target_fixation`, `scope=MoveLocal`,
     `contract=subplan:static_weakness_fixation`, and `CertifiedOwner`; the
     primary surface is `This changes the position by fixing d6 as the target.`
     and Bookmaker / Chronicle may add only the exact same-branch
     contrast/consequence.
   - source-backed natural C simplification example:
     `source-salov-ljubojevic-1992-simplification-window` materializes
-    `ownerSource=simplification_window`, `scope=MoveLocal`,
+    `proofSource=simplification_window`, `scope=MoveLocal`,
     `contract=subplan:simplification_window`, and `CertifiedOwner`. The
     primary surface is `This trade keeps the same local edge on d5.`;
     Bookmaker and Chronicle append only the bounded alternative sentence
     `The practical alternative Qxd5 remains secondary here.`
-- `SupportedLocal=14`
+- `SupportedLocal=15`
   - examples:
     controlled `B15A-supported-local-soft` and
     `K09B-supported-local-soft`, controlled `iqp-supported-local-control`,
-    controlled `break-prevention-supported-local-control`, plus source-backed
+    controlled `break-prevention-supported-local-control`, controlled
+    `prophylaxis-restraint-supported-local-control`, plus source-backed
     `source-carlsen-anand-2014-g6`, five natural IQP authority rows,
     `source-aronian-andreikin-2014-defender-trade`, and the natural
     break-prevention rows
@@ -4642,11 +4659,17 @@ Current expanded matrix result on 2026-05-15:
     `A local reading is that this keeps ...c5 from coming right away.`
     across primary, Bookmaker, and Chronicle; it remains a controlled
     `SupportedLocal` proof target, not a broad runtime release.
+  - the controlled prophylaxis-restraint row renders exactly:
+    `A local reading is that this slows down queenside counterplay before it gets started.`
+    across primary, Bookmaker, and Chronicle; it remains a controlled
+    `SupportedLocal` proof target on `prophylactic_move` /
+    `counterplay_restraint`, not a broad prophylaxis release.
   - the natural break-prevention rows render exactly:
     `A local reading is that this keeps ...a5 from coming right away.`
+    or `A local reading is that this keeps ...b5 from coming right away.`
     across primary, Bookmaker, and Chronicle; they are source-backed
     `neutralize_key_break` admission, not a general clean-route release.
-- `Suppressed=40`
+- `Suppressed=42`
   - examples:
     `K03A`, `K08A`, `K08D`, `MI5`, `K09E`, `MI2`, `MI3`, all additional
     FEN-only screen rows, and most PV-backed priority rows including the
@@ -4657,10 +4680,14 @@ Current expanded matrix result on 2026-05-15:
     tactical-first negative controls, not strict veto evidence.
     `break-prevention-missing-witness-control` and
     `break-prevention-rival-relabel-control` also stay suppressed.
-- `TacticalVeto=7`
+    `prophylaxis-restraint-missing-witness-control` and
+    `prophylaxis-restraint-rival-relabel-control` stay suppressed for the same
+    exact-witness / relabel-boundary reason.
+- `TacticalVeto=8`
   - examples:
     tactical overlays on `B15A`, `B16B`, `K09A`, `K09B`, `K09F`, and the
-    softened `B15A` row, plus `break-prevention-tactical-veto`.
+    softened `B15A` row, plus `break-prevention-tactical-veto` and
+    `prophylaxis-restraint-tactical-veto`.
   - this label is now strict: it requires either an explicit
     `strategic_claim_tactical_veto` rejection or a non-tactical baseline that
     would have produced `CertifiedOwner` / `SupportedLocal`.
@@ -4684,7 +4711,7 @@ the runner writes
 `tmp/strategic_claim_source_review.md`; the follow-up window probe
 runner writes `tmp/strategic_claim_source_window_review.tsv` and
 `tmp/strategic_claim_source_window_review.md`. The B/C plus IQP plus
-break-prevention owner-proof pass now produces `admit_authority_row=12,
+break-prevention owner-proof pass now produces `admit_authority_row=13,
 reject_owner_missing=11, reject_tactical_first=2`, with
 `source-evans-opsahl-1950` promoted as a natural B `CertifiedOwner`,
 `source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation` promoted as a
@@ -4697,7 +4724,8 @@ The same pass promotes
 `CertifiedOwner` simplification-window row and
 `source-aronian-andreikin-2014-defender-trade` as a natural `SupportedLocal`
 DefenderTrade row. The clean-route follow-up also promotes
-`source-maderna-palermo-1955-a6-a5-break-prevention` and
+`source-maderna-palermo-1955-a6-a5-break-prevention`,
+`source-camara-bazan-1960-b7-b5-break-prevention`, and
 `source-pfleger-maalouf-1961-a6-a5-break-prevention` as natural
 `break_prevention` `SupportedLocal` rows. Source rows remain
 non-authority until this exact intake path
@@ -4705,7 +4733,7 @@ returns `admit_authority_row`; synthetic rows are control/nasty-case material on
 unless later replaced by natural source positions.
 
 The source intake now records an admission diagnosis separate from the coarse
-verdict, plus `admissionBlockers`, `mainClaimSource`, `mainClaimScope`, packet
+verdict, plus `admissionBlockers`, `mainProofSource`, `mainClaimScope`, packet
 summary, `contractId`, `contractStatus`, `contractFailures`, scene type, owner
 trace, and break-prevention witness failure codes. The current diagnostic split
 is `admit_ready=12, engine_top_move_disagrees=2,
@@ -4713,7 +4741,7 @@ root_vocabulary_or_extraction_gap=9, tactical_first_source=2`, with
 `surface_contract_blocked=0`. The blocker split is
 `engine:source_move_absent_from_multipv=2`,
 `owner:break_prevention_capture_transform_recapture_unproven=1`,
-`owner:break_prevention_family_mismatch=2`,
+`proof:break_prevention_contract_mismatch=2`,
 `owner:break_prevention_no_prevented_plan=1`,
 `owner:break_prevention_witness_missing=2`,
 `owner:carlsbad_probe_missing=1`, `owner:iqp_not_induced=3`,
@@ -4843,8 +4871,8 @@ and one natural DefenderTrade `SupportedLocal` authority row:
   Karpov-Andersson, Milan 1975. The fixed head row is rejected with
   `owner:break_prevention_no_prevented_plan`. Later window plies can
   materialize incidental `iqp_inducement_probe` `SupportedLocal` surfaces, but
-  the family pass rejects them as
-  `owner:break_prevention_family_mismatch` because they do not align to
+  the admission-unit pass rejects them as
+  `proof:break_prevention_contract_mismatch` because they do not align to
   `counterplay_axis_suppression` / `neutralize_key_break`.
 
 The admitted fixed-intake source rows are exact-slice narrow: Evans-Opsahl
@@ -4867,7 +4895,7 @@ no current prevented-plan carrier report
 `owner:break_prevention_no_prevented_plan`, route-denial rows with a surviving
 same-destination capture route report concrete transform blockers such as
 `owner:break_prevention_capture_transform_recapture_unproven`, and
-family-stealing rows report `owner:break_prevention_family_mismatch`.
+contract-stealing rows report `proof:break_prevention_contract_mismatch`.
 Other wider-window
 positives remain review candidates
 until selected as fixed intake rows and rerun through exact replay, engine
@@ -4904,15 +4932,16 @@ source-backed static-weakness `CertifiedOwner` case,
 must still keep the same rule: new natural rows enter authority only through
 exact replay, owner packet proof, and full surface checks.
 
-Future family expansion is now tracked by the reusable owner family proof
-catalog in `OwnerFamilyProofCatalog`. Each execution pass is
-one family/source pair: one controlled positive, three negative controls, 2-5
-natural source candidates, and 0-2 admitted authority rows. The catalog writes
-`tmp/strategic_owner_family_proof_catalog.tsv` and
-`tmp/strategic_owner_family_proof_catalog.md`; it is a test/tooling
-artifact, not runtime policy. The default queue is:
+Future plan-kind expansion is now tracked by the reusable admission-unit
+catalog in `AdmissionUnitCatalog`. Each execution pass is one
+`planKindId` / `proofSource` / `proofFamily` unit: one controlled positive,
+three negative controls, 2-5 natural source candidates, and 0-2 admitted
+authority rows. The catalog writes
+`tmp/strategic_admission_unit_catalog.tsv` and
+`tmp/strategic_admission_unit_catalog.md`; it is a test/tooling artifact, not
+runtime policy. The default queue is:
 
-| family | owner source | owner family | initial status |
+| plan kind | proof source | proof family | initial status |
 | --- | --- | --- | --- |
 | `break_prevention` | `counterplay_axis_suppression` | `neutralize_key_break` | `Releasable` as `SupportedLocal` proof target |
 | `prophylaxis_restraint` | `prophylactic_move` | `counterplay_restraint` | `Releasable` as `SupportedLocal` proof target |
@@ -4922,12 +4951,13 @@ artifact, not runtime policy. The default queue is:
 
 The queue deliberately separates proof target from release: `CertifiedOwner`
 still requires PV1 source-move agreement, while `SupportedLocal` may use the
-near-top MultiPV gate only after exact owner packet proof, planner
+near-top MultiPV gate only after exact proof packet proof, planner
 admission, tactical-first veto, and full claim-only surface checks.
 
-The 2026-05-14 `break_prevention` family pass executed the first queue row:
-`counterplay_axis_suppression` as owner source and `neutralize_key_break` as
-owner family. The controlled positive releases only as `SupportedLocal` with
+The 2026-05-14 `break_prevention` admission-unit pass executed the first queue
+row: `counterplay_axis_suppression` as proof source and
+`neutralize_key_break` as proof family. The controlled positive releases only
+as `SupportedLocal` with
 the downgraded text
 `A local reading is that this keeps ...c5 from coming right away.` The three
 negative controls close as tactical veto, missing exact owner witness, and
@@ -4943,7 +4973,7 @@ diagnostics for exact proof. No source id is used as runtime policy, no broad
 release follows, and `QuestionFirstCommentaryPlanner` filters named-break
 `breakNeutralized` surfaces through the promoted exact named-break packet/proof
 gate before planner-owned `WhyNow`, `WhatChanged`, `WhatMustBeStopped`, or
-plan-race prose can surface. For this family pass that means
+plan-race prose can surface. For this admission-unit pass that means
 `neutralize_key_break`; the already-promoted `counterplay_restraint`
 prophylactic lane keeps its own exact packet gate.
 
@@ -4981,7 +5011,7 @@ window scan contains one transform blocker plus fourteen
 `owner:break_prevention_witness_missing` row, and four engine top-move
 disagreements. Karpov-Andersson stays a screen: the fixed row is
 `owner:break_prevention_no_prevented_plan`, while the window review reports
-three incidental IQP rows as `owner:break_prevention_family_mismatch` and one
+three incidental IQP rows as `proof:break_prevention_contract_mismatch` and one
 row as `owner:break_prevention_no_prevented_plan`.
 
 The test/tooling-only clean break-clamp candidate scanner is a discovery aid
@@ -5030,7 +5060,8 @@ has top-PV source-move agreement and reaches a natural
 Lokvenc-Czerniak also has top-PV agreement and a packet, but the scene is still
 owned by an urgent forcing-defense threat, so the break-prevention row remains
 `owner:break_prevention_witness_missing`; Polugaevsky-Giorgadze is near-top but
-materializes the wrong family and remains `owner:break_prevention_family_mismatch`.
+materializes the wrong proof contract and remains
+`proof:break_prevention_contract_mismatch`.
 The 2026-05-15 wider pass then scanned the next 500 games from the same corpus
 (`offset=120`, `limit=500`). It reviewed 38,934 plies, found 5,214
 route-evidence plies, 3,567 clean candidates, 1,077 transform blockers, and
@@ -5040,7 +5071,7 @@ route-evidence plies, 3,567 clean candidates, 1,077 transform blockers, and
 `source-pfleger-maalouf-1961-a6-a5-break-prevention`. Full SourceReview keeps
 Sliwa closed as `owner:break_prevention_witness_missing` because the scene is
 forcing-defense led, keeps Luckis closed as
-`owner:break_prevention_family_mismatch`, and admits Pfleger-Maalouf as the
+`proof:break_prevention_contract_mismatch`, and admits Pfleger-Maalouf as the
 second natural `counterplay_axis_suppression` / `neutralize_key_break`
 `SupportedLocal` row. That scanner-source-hunt result was two admitted natural
 `break_prevention` rows, not a broad clean-route release.
@@ -5057,12 +5088,33 @@ admits as `counterplay_axis_suppression` / `neutralize_key_break`,
 `release=SupportedLocal`, with primary, Bookmaker, and Chronicle all exactly
 `A local reading is that this keeps ...b5 from coming right away.` Refreshed
 snapshots now report `admit_authority_row=13` in
-`strategic_claim_source_review.*` and `SupportedLocal=14` in
+`strategic_claim_source_review.*` and `SupportedLocal=15` in
 `strategic_claim_authority_surface_review.md`. The current fixed natural
 `break_prevention` authority set is therefore three rows: Maderna-Palermo
 1955, Camara-Bazan 1960, and Pfleger-Maalouf 1961. This is still not a broad
 clean-route release; clean scanner rows remain discovery-only unless the fixed
 catalog row passes the full authority stack.
+
+The 2026-05-15 `prophylaxis_restraint` admission-unit review applied the same
+admission-unit structure to `prophylactic_move` /
+`counterplay_restraint`. Runtime release remains narrow: the exact
+`counterplay_restraint` MoveDelta packet may downgrade only to
+`SupportedLocal`, and only when the packet already proves the named prevented
+resource, defended branch key, same-branch persistence, and no release risk.
+The controlled positive now renders exactly
+`A local reading is that this slows down queenside counterplay before it gets started.`
+across primary, Bookmaker, and Chronicle. The three negative controls close as
+explicit tactical veto, missing witness, and rival/relabel suppression. The
+test/tooling-only `AdmissionUnitReview` runner writes
+`tmp/strategic_admission_unit_review.tsv` and
+`tmp/strategic_admission_unit_review.md`; it dry-runs transient source rows
+through `SourceReview` and never changes runtime authority or the fixed source
+catalog by itself. The first Modern Benoni 6.e4 run reviewed 24 ranked
+transient rows and admitted `0` natural `prophylaxis_restraint` rows, with
+blockers split as `owner:prophylaxis_restraint_witness_missing=18`,
+`proof:prophylaxis_restraint_contract_mismatch=6`, and
+`engine:source_move_absent_from_multipv=5`. This keeps the pass useful as
+coverage tooling and blocker evidence without opening broad prophylaxis prose.
 
 Failure taxonomy anchors for authority rows:
 
@@ -5076,6 +5128,11 @@ Failure taxonomy anchors for authority rows:
 | `source_defender_trade` | source-backed DefenderTrade witness admitted only as `SupportedLocal`; requires exact replay, PV1-or-near-top engine authority, `defender_trade` packet, planner admission, tactical veto, and claim-only surfaces |
 | `break_prevention_supported_local` | controlled exact named-break witness admitted only as `SupportedLocal` through `counterplay_axis_suppression` / `neutralize_key_break`; natural source rows still require exact owner packet proof |
 | `source_break_prevention` | source-backed break-prevention candidates are screen rows unless the exact `neutralize_key_break` packet/proof materializes; incidental non-break owner packets inside the window do not admit the family |
+| `prophylaxis_restraint_supported_local` | controlled exact named-resource prophylactic witness admitted only as `SupportedLocal` through `prophylactic_move` / `counterplay_restraint`; natural source rows still require exact owner packet proof |
+| `source_prophylaxis_restraint` | transient or fixed prophylaxis-restraint source rows are screen rows unless the exact `counterplay_restraint` packet/proof materializes with claim-only surfaces |
+| `owner:prophylaxis_restraint_witness_missing` | no exact named-resource prophylactic witness is available for the family row |
+| `proof:prophylaxis_restraint_contract_mismatch` | a row materializes a rival packet, such as target fixation or named-break prevention, and may not be relabeled as `prophylaxis_restraint` |
+| `owner:prophylaxis_restraint_rival_or_relabel` | a named-resource prophylaxis shell is blocked by release-risk or generic/rival counterplay relabel |
 | `owner:break_prevention_witness_missing` | controlled matrix umbrella for the missing exact named-break witness negative; SourceReview now expands natural-source misses into concrete `break_prevention_*` blockers |
 | `owner:break_prevention_no_prevented_plan` | no current `PreventedPlanInfo` carrier is available, so source vocabulary cannot create authority |
 | `owner:break_prevention_no_named_break` | a current prevented-plan carrier exists but does not name a measurable break with local counterplay loss |
@@ -5091,7 +5148,7 @@ Failure taxonomy anchors for authority rows:
 | `owner:break_prevention_persistence_unstable` | a named-break witness exists but same-family persistence is not stable enough for exact proof |
 | `owner:break_prevention_rival_release` | a named-break witness is blocked by move-order sensitivity or release-risk evidence |
 | `owner:break_prevention_tactical_first` | tactical truth outranks the strategic named-break reading |
-| `owner:break_prevention_family_mismatch` | a source-window row materializes a rival/non-break packet, such as incidental IQP, and may not be relabeled as `break_prevention` |
+| `proof:break_prevention_contract_mismatch` | a source-window row materializes a rival/non-break packet, such as incidental IQP, and may not be relabeled as `break_prevention` |
 | `owner:break_prevention_rival_or_relabel` | named-break shell is blocked by release-risk or generic/rival counterplay relabel |
 | `iqp_inducement_supported_local` | exact IQP witness releases only as `SupportedLocal` through `iqp_inducement_probe` |
 | `position_probe_not_certified` | current-position probe shape exists but lacks the certified slice |

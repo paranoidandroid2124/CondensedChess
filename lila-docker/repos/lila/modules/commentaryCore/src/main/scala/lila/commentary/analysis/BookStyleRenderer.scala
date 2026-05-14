@@ -2,7 +2,7 @@ package lila.commentary.analysis
 
 import lila.commentary.model._
 import lila.commentary.model.authoring._
-import lila.commentary.analysis.ThemeTaxonomy.ThemeResolver
+import lila.commentary.analysis.PlanTaxonomy.ThemeResolver
 
 /**
  * BookStyleRenderer: Pure prose assembler (SSOT Phase 5)

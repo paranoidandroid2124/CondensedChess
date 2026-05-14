@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import lila.commentary.analysis.ThemeTaxonomy.SubplanId
+import lila.commentary.analysis.PlanTaxonomy.PlanKind
 
 object ThemePlanProbePurpose:
 
@@ -51,19 +51,19 @@ object ThemePlanProbePurpose:
   def contractForPurpose(raw: String): Option[PurposeContract] =
     contracts.get(normalize(raw))
 
-  def contractForSubplan(subplan: Option[SubplanId]): PurposeContract =
+  def contractForSubplan(subplan: Option[PlanKind]): PurposeContract =
     subplan
       .flatMap(sp => contractForPurpose(purposeForSubplan(sp)))
       .getOrElse(contracts(ThemePlanValidation))
 
-  def purposeForSubplan(subplan: SubplanId): String =
+  def purposeForSubplan(subplan: PlanKind): String =
     subplan match
-      case SubplanId.KeySquareDenial =>
+      case PlanKind.KeySquareDenial =>
         RouteDenialValidation
-      case SubplanId.ProphylaxisRestraint | SubplanId.BreakPrevention |
-          SubplanId.FlankClamp | SubplanId.CentralSpaceBind | SubplanId.MobilitySuppression =>
+      case PlanKind.ProphylaxisRestraint | PlanKind.BreakPrevention |
+          PlanKind.FlankClamp | PlanKind.CentralSpaceBind | PlanKind.MobilitySuppression =>
         LongTermRestraintValidation
-      case SubplanId.OppositeBishopsConversion =>
+      case PlanKind.OppositeBishopsConversion =>
         ColorComplexSqueezeValidation
       case _ =>
         ThemePlanValidation

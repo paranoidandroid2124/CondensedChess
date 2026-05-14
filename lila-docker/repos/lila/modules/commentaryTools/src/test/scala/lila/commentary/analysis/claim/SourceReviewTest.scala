@@ -17,9 +17,9 @@ class SourceReviewTest extends FunSuite:
   test("source review classifies tactical-first examples as non-strategic") {
     val observations = SourceReview.observations(engine = None)
     val tacticalRows =
-      observations.filter(obs => obs.source.family.toLowerCase.contains("tactical"))
+      observations.filter(obs => obs.source.reviewGroup.toLowerCase.contains("tactical"))
 
-    assert(tacticalRows.nonEmpty, clues(observations.map(obs => obs.source.id -> obs.source.family)))
+    assert(tacticalRows.nonEmpty, clues(observations.map(obs => obs.source.id -> obs.source.reviewGroup)))
     assert(
       tacticalRows.forall(obs =>
         obs.verdict == SourceReview.Verdict.RejectTacticalFirst ||
@@ -34,9 +34,9 @@ class SourceReviewTest extends FunSuite:
   test("carlsbad source candidates reach exact replay or documented rejection") {
     val observations = SourceReview.observations(engine = None)
     val carlsbad =
-      observations.filter(obs => obs.source.family.toLowerCase.contains("carlsbad"))
+      observations.filter(obs => obs.source.reviewGroup.toLowerCase.contains("carlsbad"))
 
-    assert(carlsbad.nonEmpty, clues(observations.map(_.source.family)))
+    assert(carlsbad.nonEmpty, clues(observations.map(_.source.reviewGroup)))
     assert(
       carlsbad.exists(obs =>
         obs.verdict == SourceReview.Verdict.AdmitAuthorityRow ||
@@ -58,7 +58,7 @@ class SourceReviewTest extends FunSuite:
   test("break-prevention source candidates stay screen-only without exact owner proof") {
     val observations = SourceReview.observations(engine = None)
     val breakRows =
-      observations.filter(_.source.family == "A:break_prevention")
+      observations.filter(_.source.reviewGroup == "A:break_prevention")
 
     assertEquals(
       breakRows.map(_.source.id),
@@ -85,7 +85,7 @@ class SourceReviewTest extends FunSuite:
     val observations = SourceReview.observations(engine = None)
     val report = SourceReview.markdown(observations)
     val nonTactical =
-      observations.filterNot(_.source.family.toLowerCase.contains("tactical"))
+      observations.filterNot(_.source.reviewGroup.toLowerCase.contains("tactical"))
 
     assert(nonTactical.nonEmpty, clues(observations.map(_.source.id)))
     assert(
@@ -142,9 +142,9 @@ class SourceReviewTest extends FunSuite:
         rejected = "WhatMattersHere:admission_SupportOnly+position_probe_support_only_outside_quiet_scene",
         mainClaimScope = Some("PositionLocal"),
         ownerTrace = PlannerOwnerTrace(
-          droppedFamilies = List(
-            DroppedOwnerFamilyTrace(
-              family = OwnerFamily.PositionProbe,
+          droppedPlannerOwners = List(
+            DroppedPlannerOwnerTrace(
+              plannerOwnerKind = PlannerOwnerKind.PositionProbe,
               source = "carlsbad_fixed_target_probe",
               reasons = List("position_probe_support_only_outside_quiet_scene"),
               questionKinds = Nil
@@ -260,6 +260,58 @@ class SourceReviewTest extends FunSuite:
     )
   }
 
+  test("source review exposes prophylaxis-restraint taxonomy and owner blockers") {
+    val source =
+      SourceWitnessCatalog.SourceCandidate(
+        id = "source-prophylaxis-restraint-smoke",
+        gameName = "Prophylaxis restraint smoke",
+        sourceUrl = "https://example.invalid/prophylaxis.pgn",
+        pgn =
+          """[Event "Prophylaxis smoke"]
+            |[Site "?"]
+            |[Date "2026.01.01"]
+            |[Round "?"]
+            |[White "White"]
+            |[Black "Black"]
+            |[Result "*"]
+            |
+            |1. d4 Nf6 2. c4 e6 3. Nc3 c5 4. d5 d6 5. Nf3 Be7 6. a3 O-O *
+            |""".stripMargin,
+        candidatePlyRange = SourceWitnessCatalog.CandidatePlyRange(1, 1),
+        reviewGroup = "A:prophylaxis_restraint",
+        intendedVerdict = SourceReview.Verdict.ScreenOnly,
+        validationNote = "smoke"
+      )
+
+    val engineMissing =
+      SourceReview.observationsForSources(List(source), engine = None).head
+
+    assertEquals(engineMissing.taxonomy, "source_prophylaxis_restraint")
+    assertEquals(engineMissing.admissionBlockers, "engine:missing")
+    assertEquals(
+      SourceReview.admissionBlockers(
+        source = source,
+        admitted = false,
+        engineGate = SourceReview.EngineGate.SourceMoveTopPv,
+        ownerDiagnosis = SourceReview.Diagnosis.RootVocabularyOrExtractionGap,
+        surfaceGate = "not_reached_no_release",
+        ownerFailureCodes = List("prophylaxis_restraint_contract_mismatch")
+      ),
+      "proof:prophylaxis_restraint_contract_mismatch"
+    )
+    assertEquals(
+      SourceReview.admissionBlockers(
+        source = source,
+        admitted = false,
+        engineGate = SourceReview.EngineGate.SourceMoveTopPv,
+        ownerDiagnosis = SourceReview.Diagnosis.RootVocabularyOrExtractionGap,
+        surfaceGate = "not_reached_no_release",
+        ownerFailureCodes = List("prophylaxis_restraint_route_persistence_missing")
+      ),
+      "owner:prophylaxis_restraint_route_persistence_missing"
+    )
+  }
+
   test("break-prevention fixed source rows expose concrete witness blockers with engine evidence") {
     val unzickerFen = "1rbn1rk1/2q1bppp/3p1n2/1ppPp3/4P3/2P2N1P/1PBN1PP1/R1BQR1K1 w - - 0 16"
     val anderssonFen = "bq1rrbk1/3n1pp1/pp1ppn1p/8/2P1P3/2N1BP2/PP1NBQPP/2RR3K w - - 6 24"
@@ -311,8 +363,8 @@ class SourceReviewTest extends FunSuite:
     val andersson = byId("source-karpov-andersson-1975-hedgehog-break-screen")
     assertEquals(andersson.admissionBlockers, "owner:break_prevention_no_prevented_plan")
     admitted.foreach { row =>
-      assertEquals(row.mainClaimSource, "counterplay_axis_suppression")
-      assert(row.packetSummary.contains("owner_family=neutralize_key_break"), clues(row))
+      assertEquals(row.mainProofSource, "counterplay_axis_suppression")
+      assert(row.packetSummary.contains("proof_family=neutralize_key_break"), clues(row))
       assertEquals(row.release, "SupportedLocal")
       assertEquals(row.bookmaker, row.primary)
       assertEquals(row.chronicle, row.primary)
@@ -434,8 +486,8 @@ class SourceReviewTest extends FunSuite:
       assertEquals(row.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(row))
       assertEquals(row.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(row))
       assertEquals(row.admissionBlockers, "none", clues(row))
-      assertEquals(row.mainClaimSource, "counterplay_axis_suppression", clues(row))
-      assert(row.packetSummary.contains("owner_family=neutralize_key_break"), clues(row))
+      assertEquals(row.mainProofSource, "counterplay_axis_suppression", clues(row))
+      assert(row.packetSummary.contains("proof_family=neutralize_key_break"), clues(row))
       assertEquals(row.release, "SupportedLocal", clues(row))
       assertEquals(row.primary, row.bookmaker, clues(row))
       assertEquals(row.primary, row.chronicle, clues(row))
@@ -629,9 +681,9 @@ class SourceReviewTest extends FunSuite:
     assertEquals(capablanca.diagnosis, SourceReview.Diagnosis.AdmitReady)
     assertEquals(capablanca.admissionBlockers, "none")
     assertEquals(capablanca.engineAgreement, "top_pv_matches_played")
-    assertEquals(capablanca.mainClaimSource, PlayerFacingTruthModePolicy.IQPInducementProbeOwnerSource)
+    assertEquals(capablanca.mainProofSource, PlayerFacingTruthModePolicy.IQPInducementProbeProofSource)
     assertEquals(capablanca.mainClaimScope, "MoveLocal")
-    assertEquals(capablanca.contractId, s"subplan:${ThemeTaxonomy.SubplanId.IQPInducement.id}")
+    assertEquals(capablanca.contractId, s"subplan:${PlanTaxonomy.PlanKind.IQPInducement.id}")
     assertEquals(capablanca.release, "SupportedLocal")
     assertEquals(capablanca.primary, "A local reading is that this sequence leaves an isolated pawn as the local target.")
 
@@ -645,9 +697,9 @@ class SourceReviewTest extends FunSuite:
       assertEquals(row.diagnosis, SourceReview.Diagnosis.AdmitReady)
       assertEquals(row.admissionBlockers, "none")
       assertEquals(row.engineAgreement, "top_pv_matches_played")
-      assertEquals(row.mainClaimSource, PlayerFacingTruthModePolicy.IQPInducementProbeOwnerSource)
+      assertEquals(row.mainProofSource, PlayerFacingTruthModePolicy.IQPInducementProbeProofSource)
       assertEquals(row.mainClaimScope, "MoveLocal")
-      assertEquals(row.contractId, s"subplan:${ThemeTaxonomy.SubplanId.IQPInducement.id}")
+      assertEquals(row.contractId, s"subplan:${PlanTaxonomy.PlanKind.IQPInducement.id}")
       assertEquals(row.release, "SupportedLocal")
       assertEquals(row.primary, "A local reading is that this sequence leaves an isolated pawn as the local target.")
     }
@@ -672,10 +724,10 @@ class SourceReviewTest extends FunSuite:
     assertEquals(salovSimplification.diagnosis, SourceReview.Diagnosis.AdmitReady)
     assertEquals(salovSimplification.admissionBlockers, "none")
     assertEquals(salovSimplification.engineAgreement, "top_pv_matches_played")
-    assertEquals(salovSimplification.mainClaimSource, ThemeTaxonomy.SubplanId.SimplificationWindow.id)
-    assert(salovSimplification.packetSummary.contains("owner_source=simplification_window"), clues(salovSimplification))
-    assert(salovSimplification.packetSummary.contains("owner_family=simplification_window"), clues(salovSimplification))
-    assertEquals(salovSimplification.contractId, s"subplan:${ThemeTaxonomy.SubplanId.SimplificationWindow.id}")
+    assertEquals(salovSimplification.mainProofSource, PlanTaxonomy.PlanKind.SimplificationWindow.id)
+    assert(salovSimplification.packetSummary.contains("proof_source=simplification_window"), clues(salovSimplification))
+    assert(salovSimplification.packetSummary.contains("proof_family=simplification_window"), clues(salovSimplification))
+    assertEquals(salovSimplification.contractId, s"subplan:${PlanTaxonomy.PlanKind.SimplificationWindow.id}")
     assertEquals(salovSimplification.contractStatus, "Releasable")
     assertEquals(salovSimplification.taxonomy, "source_simplification_window")
 
@@ -684,9 +736,9 @@ class SourceReviewTest extends FunSuite:
     assertEquals(boleslavskyStaticWeakness.diagnosis, SourceReview.Diagnosis.AdmitReady)
     assertEquals(boleslavskyStaticWeakness.admissionBlockers, "none")
     assertEquals(boleslavskyStaticWeakness.engineAgreement, "top_pv_matches_played")
-    assertEquals(boleslavskyStaticWeakness.mainClaimSource, PlayerFacingTruthModePolicy.ExactTargetFixationOwnerSource)
+    assertEquals(boleslavskyStaticWeakness.mainProofSource, PlayerFacingTruthModePolicy.ExactTargetFixationProofSource)
     assertEquals(boleslavskyStaticWeakness.mainClaimScope, "MoveLocal")
-    assertEquals(boleslavskyStaticWeakness.contractId, s"subplan:${ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id}")
+    assertEquals(boleslavskyStaticWeakness.contractId, s"subplan:${PlanTaxonomy.PlanKind.StaticWeaknessFixation.id}")
     assertEquals(boleslavskyStaticWeakness.contractStatus, "Releasable")
     assertEquals(boleslavskyStaticWeakness.release, "CertifiedOwner")
     assertEquals(boleslavskyStaticWeakness.taxonomy, "source_static_weakness_fixation")
@@ -700,9 +752,9 @@ class SourceReviewTest extends FunSuite:
     assertEquals(aronianDefenderTrade.diagnosis, SourceReview.Diagnosis.AdmitReady)
     assertEquals(aronianDefenderTrade.engineAgreement, "near_top_multipv_contains_played_top=c2b1_gap=14cp")
     assertEquals(aronianDefenderTrade.admissionBlockers, "none")
-    assertEquals(aronianDefenderTrade.mainClaimSource, PlayerFacingTruthModePolicy.DefenderTradeOwnerSource)
+    assertEquals(aronianDefenderTrade.mainProofSource, PlayerFacingTruthModePolicy.DefenderTradeProofSource)
     assertEquals(aronianDefenderTrade.mainClaimScope, "MoveLocal")
-    assertEquals(aronianDefenderTrade.contractId, s"subplan:${ThemeTaxonomy.SubplanId.DefenderTrade.id}")
+    assertEquals(aronianDefenderTrade.contractId, s"subplan:${PlanTaxonomy.PlanKind.DefenderTrade.id}")
     assertEquals(aronianDefenderTrade.contractStatus, "Releasable")
     assertEquals(aronianDefenderTrade.release, "SupportedLocal")
     assertEquals(
@@ -746,10 +798,10 @@ class SourceReviewTest extends FunSuite:
 
     assertEquals(row.engineAgreement, "near_top_multipv_contains_played_top=a8b7_gap=8cp")
     assertEquals(row.release, "SupportedLocal")
-    assertEquals(row.mainClaimSource, PlayerFacingTruthModePolicy.IQPInducementProbeOwnerSource)
+    assertEquals(row.mainProofSource, PlayerFacingTruthModePolicy.IQPInducementProbeProofSource)
     assertEquals(row.verdict, SourceReview.Verdict.RejectOwnerMissing)
     assertEquals(row.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
-    assertEquals(row.admissionBlockers, "owner:break_prevention_family_mismatch")
+    assertEquals(row.admissionBlockers, "proof:break_prevention_contract_mismatch")
   }
 
   test("window probe scans every ply in a candidate range instead of collapsing to the head ply") {

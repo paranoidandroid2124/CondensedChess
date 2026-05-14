@@ -31,7 +31,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(soft.primary, "A local reading is that c6 is the fixed target.")
     assert(soft.bookmaker.contains(soft.primary), clues(soft))
     assertEquals(soft.chronicle, soft.primary)
-    assert(soft.owner.contains("PositionProbe"), clues(soft))
+    assert(soft.plannerOwner.contains("PositionProbe"), clues(soft))
     assert(!soft.primary.contains("The key strategic fact"), clues(soft))
     assert(!soft.bookmaker.contains("The key strategic fact"), clues(soft))
 
@@ -40,7 +40,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(cSoft.primary, "A local reading is that this trade keeps the same local edge on e6.")
     assert(cSoft.bookmaker.contains(cSoft.primary), clues(cSoft))
     assertEquals(cSoft.chronicle, cSoft.primary)
-    assert(cSoft.owner.contains("MoveDelta"), clues(cSoft))
+    assert(cSoft.plannerOwner.contains("MoveDelta"), clues(cSoft))
     assert(!cSoft.primary.startsWith("This trade"), clues(cSoft))
     assert(!cSoft.bookmaker.startsWith("This trade"), clues(cSoft))
 
@@ -54,19 +54,19 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
 
     val sourceB = byId("source-evans-opsahl-1950")
     assertEquals(sourceB.release, "CertifiedOwner")
-    assert(sourceB.owner.contains("WhatMattersHere:PositionProbe:carlsbad_fixed_target_probe"), clues(sourceB))
+    assert(sourceB.plannerOwner.contains("WhatMattersHere:PositionProbe:carlsbad_fixed_target_probe"), clues(sourceB))
     assert(sourceB.primary.contains("c6 is the fixed target"), clues(sourceB))
     assertEquals(sourceB.contractStatus, "Releasable")
-    assert(sourceB.contractId.contains(ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id), clues(sourceB))
+    assert(sourceB.contractId.contains(PlanTaxonomy.PlanKind.BackwardPawnTargeting.id), clues(sourceB))
 
     val sourceC = byId("source-carlsen-anand-2014-g6")
     assertEquals(sourceC.release, "SupportedLocal")
     assertEquals(sourceC.primary, "A local reading is that this exchange moves the game into the queenless branch.")
     assert(sourceC.bookmaker.contains(sourceC.primary), clues(sourceC))
     assertEquals(sourceC.chronicle, sourceC.primary)
-    assert(sourceC.owner.contains("WhyThis:MoveDelta:queen_trade_shield"), clues(sourceC))
+    assert(sourceC.plannerOwner.contains("WhyThis:MoveDelta:queen_trade_shield"), clues(sourceC))
     assertEquals(sourceC.contractStatus, "Releasable")
-    assert(sourceC.contractId.contains(ThemeTaxonomy.SubplanId.QueenTradeShield.id), clues(sourceC))
+    assert(sourceC.contractId.contains(PlanTaxonomy.PlanKind.QueenTradeShield.id), clues(sourceC))
     assert(!sourceC.bookmaker.contains("So the task is"), clues(sourceC))
     assert(!sourceC.chronicle.contains("So the task is"), clues(sourceC))
 
@@ -84,9 +84,9 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       assertEquals(naturalIqp.primary, "A local reading is that this sequence leaves an isolated pawn as the local target.")
       assertEquals(naturalIqp.bookmaker, naturalIqp.primary)
       assertEquals(naturalIqp.chronicle, naturalIqp.primary)
-      assert(naturalIqp.owner.contains(s"WhyThis:MoveDelta:${PlayerFacingTruthModePolicy.IQPInducementProbeOwnerSource}"), clues(naturalIqp))
+      assert(naturalIqp.plannerOwner.contains(s"WhyThis:MoveDelta:${PlayerFacingTruthModePolicy.IQPInducementProbeProofSource}"), clues(naturalIqp))
       assertEquals(naturalIqp.contractStatus, "Releasable")
-      assert(naturalIqp.contractId.contains(ThemeTaxonomy.SubplanId.IQPInducement.id), clues(naturalIqp))
+      assert(naturalIqp.contractId.contains(PlanTaxonomy.PlanKind.IQPInducement.id), clues(naturalIqp))
       assertEquals(naturalIqp.taxonomy, "source_iqp_inducement")
       assert(!naturalIqp.bookmaker.contains("So the task is"), clues(naturalIqp))
       assert(!naturalIqp.chronicle.contains("So the task is"), clues(naturalIqp))
@@ -102,7 +102,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       assertEquals(sourceBreakPrevention.primary, s"A local reading is that this keeps $breakToken from coming right away.")
       assertEquals(sourceBreakPrevention.bookmaker, sourceBreakPrevention.primary)
       assertEquals(sourceBreakPrevention.chronicle, sourceBreakPrevention.primary)
-      assert(sourceBreakPrevention.owner.contains("WhyThis:MoveDelta:counterplay_axis_suppression"), clues(sourceBreakPrevention))
+      assert(sourceBreakPrevention.plannerOwner.contains("WhyThis:MoveDelta:counterplay_axis_suppression"), clues(sourceBreakPrevention))
       assertEquals(sourceBreakPrevention.contractStatus, "Releasable")
       assert(sourceBreakPrevention.contractId.contains("neutralize_key_break"), clues(sourceBreakPrevention))
       assertEquals(sourceBreakPrevention.taxonomy, "source_break_prevention")
@@ -115,9 +115,9 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(sourceSimplification.primary, "This trade keeps the same local edge on d5.")
     assertEquals(compact(sourceSimplification.bookmaker), "This trade keeps the same local edge on d5. The practical alternative Qxd5 remains secondary here.")
     assertEquals(compact(sourceSimplification.chronicle), compact(sourceSimplification.bookmaker))
-    assert(sourceSimplification.owner.contains("WhyThis:MoveDelta:target"), clues(sourceSimplification))
+    assert(sourceSimplification.plannerOwner.contains("WhyThis:MoveDelta:target"), clues(sourceSimplification))
     assertEquals(sourceSimplification.contractStatus, "Releasable")
-    assert(sourceSimplification.contractId.contains(ThemeTaxonomy.SubplanId.SimplificationWindow.id), clues(sourceSimplification))
+    assert(sourceSimplification.contractId.contains(PlanTaxonomy.PlanKind.SimplificationWindow.id), clues(sourceSimplification))
     assertEquals(sourceSimplification.taxonomy, "source_simplification_window")
 
     val sourceStaticWeakness = byId("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation")
@@ -128,9 +128,9 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       "This changes the position by fixing d6 as the target. Before the move, d6 was not yet fixed as the target on that defended branch. That same defended branch keeps the pressure fixed on d6."
     )
     assertEquals(compact(sourceStaticWeakness.chronicle), compact(sourceStaticWeakness.bookmaker))
-    assert(sourceStaticWeakness.owner.contains("WhatChanged:MoveDelta:target"), clues(sourceStaticWeakness))
+    assert(sourceStaticWeakness.plannerOwner.contains("WhatChanged:MoveDelta:target"), clues(sourceStaticWeakness))
     assertEquals(sourceStaticWeakness.contractStatus, "Releasable")
-    assert(sourceStaticWeakness.contractId.contains(ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id), clues(sourceStaticWeakness))
+    assert(sourceStaticWeakness.contractId.contains(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id), clues(sourceStaticWeakness))
     assertEquals(sourceStaticWeakness.taxonomy, "source_static_weakness_fixation")
 
     val sourceDefenderTrade = byId("source-aronian-andreikin-2014-defender-trade")
@@ -138,9 +138,9 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(sourceDefenderTrade.primary, "A local reading is that this exchange removes a defender on the local branch.")
     assertEquals(sourceDefenderTrade.bookmaker, sourceDefenderTrade.primary)
     assertEquals(sourceDefenderTrade.chronicle, sourceDefenderTrade.primary)
-    assert(sourceDefenderTrade.owner.contains(s"MoveDelta:${PlayerFacingTruthModePolicy.DefenderTradeOwnerSource}"), clues(sourceDefenderTrade))
+    assert(sourceDefenderTrade.plannerOwner.contains(s"MoveDelta:${PlayerFacingTruthModePolicy.DefenderTradeProofSource}"), clues(sourceDefenderTrade))
     assertEquals(sourceDefenderTrade.contractStatus, "Releasable")
-    assert(sourceDefenderTrade.contractId.contains(ThemeTaxonomy.SubplanId.DefenderTrade.id), clues(sourceDefenderTrade))
+    assert(sourceDefenderTrade.contractId.contains(PlanTaxonomy.PlanKind.DefenderTrade.id), clues(sourceDefenderTrade))
     assertEquals(sourceDefenderTrade.taxonomy, "source_defender_trade")
     assert(!sourceDefenderTrade.bookmaker.contains("stays best"), clues(sourceDefenderTrade))
 
@@ -149,9 +149,9 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(iqpControl.primary, "A local reading is that this sequence leaves an isolated pawn as the local target.")
     assert(iqpControl.bookmaker.contains(iqpControl.primary), clues(iqpControl))
     assertEquals(iqpControl.chronicle, iqpControl.primary)
-    assert(iqpControl.owner.contains(s"WhyThis:MoveDelta:${PlayerFacingTruthModePolicy.IQPInducementProbeOwnerSource}"), clues(iqpControl))
+    assert(iqpControl.plannerOwner.contains(s"WhyThis:MoveDelta:${PlayerFacingTruthModePolicy.IQPInducementProbeProofSource}"), clues(iqpControl))
     assertEquals(iqpControl.contractStatus, "Releasable")
-    assert(iqpControl.contractId.contains(ThemeTaxonomy.SubplanId.IQPInducement.id), clues(iqpControl))
+    assert(iqpControl.contractId.contains(PlanTaxonomy.PlanKind.IQPInducement.id), clues(iqpControl))
     assert(!iqpControl.bookmaker.contains("So the task is"), clues(iqpControl))
     assert(!iqpControl.chronicle.contains("So the task is"), clues(iqpControl))
 
@@ -160,7 +160,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(breakPreventionControl.primary, "A local reading is that this keeps ...c5 from coming right away.")
     assertEquals(breakPreventionControl.bookmaker, breakPreventionControl.primary)
     assertEquals(breakPreventionControl.chronicle, breakPreventionControl.primary)
-    assert(breakPreventionControl.owner.contains("MoveDelta:counterplay_axis_suppression"), clues(breakPreventionControl))
+    assert(breakPreventionControl.plannerOwner.contains("MoveDelta:counterplay_axis_suppression"), clues(breakPreventionControl))
     assertEquals(breakPreventionControl.contractStatus, "Releasable")
     assert(breakPreventionControl.contractId.contains("neutralize_key_break"), clues(breakPreventionControl))
     assertEquals(breakPreventionControl.taxonomy, "break_prevention_supported_local")
@@ -173,6 +173,33 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(!breakTacticalVeto.leak, clues(breakTacticalVeto))
 
     List("break-prevention-missing-witness-control", "break-prevention-rival-relabel-control").foreach { id =>
+      val row = byId(id)
+      assertEquals(row.release, "Suppressed")
+      assertEquals(row.primary, "-")
+      assert(!row.leak, clues(row))
+    }
+
+    val prophylaxisControl = byId("prophylaxis-restraint-supported-local-control")
+    assertEquals(prophylaxisControl.release, "SupportedLocal")
+    assertEquals(
+      prophylaxisControl.primary,
+      "A local reading is that this slows down queenside counterplay before it gets started."
+    )
+    assertEquals(prophylaxisControl.bookmaker, prophylaxisControl.primary)
+    assertEquals(prophylaxisControl.chronicle, prophylaxisControl.primary)
+    assert(prophylaxisControl.plannerOwner.contains("MoveDelta:prophylactic_move"), clues(prophylaxisControl))
+    assertEquals(prophylaxisControl.contractStatus, "Releasable")
+    assert(prophylaxisControl.contractId.contains("counterplay_restraint"), clues(prophylaxisControl))
+    assertEquals(prophylaxisControl.taxonomy, "prophylaxis_restraint_supported_local")
+    assert(!prophylaxisControl.bookmaker.contains("So the task is"), clues(prophylaxisControl))
+    assert(!prophylaxisControl.chronicle.contains("So the task is"), clues(prophylaxisControl))
+
+    val prophylaxisTactical = byId("prophylaxis-restraint-tactical-veto")
+    assertEquals(prophylaxisTactical.release, "TacticalVeto")
+    assertEquals(prophylaxisTactical.primary, "-")
+    assert(!prophylaxisTactical.leak, clues(prophylaxisTactical))
+
+    List("prophylaxis-restraint-missing-witness-control", "prophylaxis-restraint-rival-relabel-control").foreach { id =>
       val row = byId(id)
       assertEquals(row.release, "Suppressed")
       assertEquals(row.primary, "-")
@@ -214,7 +241,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       )
     )
     sourceBreakPreventionRows.foreach { row =>
-      assert(row.owner.contains("MoveDelta:counterplay_axis_suppression"), clues(row))
+      assert(row.plannerOwner.contains("MoveDelta:counterplay_axis_suppression"), clues(row))
       assert(row.contractId.contains("neutralize_key_break"), clues(row))
       assert(row.primary.startsWith("A local reading is that "), clues(row))
       assertEquals(row.bookmaker, row.primary)
@@ -259,7 +286,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     )
 
     val tacticalVetoRows =
-      observations.filter(obs => obs.sample.family.startsWith("negative:") && obs.release == "TacticalVeto")
+      observations.filter(obs => obs.sample.reviewGroup.startsWith("negative:") && obs.release == "TacticalVeto")
     assertEquals(
       tacticalVetoRows.map(_.sample.id).sorted,
       List(
@@ -269,11 +296,12 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         "K09A-tactical-veto",
         "K09B-tactical-veto",
         "K09F-tactical-veto",
-        "break-prevention-tactical-veto"
+        "break-prevention-tactical-veto",
+        "prophylaxis-restraint-tactical-veto"
       )
     )
     val breakNegativeControls =
-      observations.filter(obs => obs.sample.id.startsWith("break-prevention-") && obs.sample.family.startsWith("negative:"))
+      observations.filter(obs => obs.sample.id.startsWith("break-prevention-") && obs.sample.reviewGroup.startsWith("negative:"))
     assertEquals(
       breakNegativeControls.map(obs => obs.sample.id -> obs.release).toMap,
       Map(
@@ -282,8 +310,20 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         "break-prevention-rival-relabel-control" -> "Suppressed"
       )
     )
+    val prophylaxisNegativeControls =
+      observations.filter(obs =>
+        obs.sample.id.startsWith("prophylaxis-restraint-") && obs.sample.reviewGroup.startsWith("negative:")
+      )
+    assertEquals(
+      prophylaxisNegativeControls.map(obs => obs.sample.id -> obs.release).toMap,
+      Map(
+        "prophylaxis-restraint-tactical-veto" -> "TacticalVeto",
+        "prophylaxis-restraint-missing-witness-control" -> "Suppressed",
+        "prophylaxis-restraint-rival-relabel-control" -> "Suppressed"
+      )
+    )
     val tacticalFirstSuppressed =
-      observations.filter(obs => obs.sample.id.startsWith("priority-") && obs.sample.family.startsWith("negative:") && obs.release == "Suppressed")
+      observations.filter(obs => obs.sample.id.startsWith("priority-") && obs.sample.reviewGroup.startsWith("negative:") && obs.release == "Suppressed")
     assertEquals(
       tacticalFirstSuppressed.map(_.sample.id).sorted,
       List("priority-MR1-tactical-veto", "priority-MR2-tactical-veto", "priority-TO1-tactical-veto")
@@ -349,7 +389,8 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       "K09B-tactical-veto",
       "K09F-tactical-veto",
       "B15A-supported-local-veto",
-      "break-prevention-tactical-veto"
+      "break-prevention-tactical-veto",
+      "prophylaxis-restraint-tactical-veto"
     )
 
     assert(tacticalVetoRows.nonEmpty)

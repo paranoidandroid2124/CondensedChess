@@ -31,8 +31,8 @@ class TwoAxisBindProofTest extends FunSuite:
       viability = PlanViability(score = 0.81, label = "high", risk = "B3b unit"),
       refutation = None,
       evidenceSources = List("theme:restriction_prophylaxis"),
-      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-      subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
     )
 
   private def evaluatedRestrictionPlan(
@@ -46,7 +46,7 @@ class TwoAxisBindProofTest extends FunSuite:
           attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
           stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
           provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyFamily.RouteDenial
+          ontologyFamily = PlayerFacingClaimOntologyKind.RouteDenial
         ),
       status: PlanEvidenceEvaluator.PlanEvidenceStatus =
         PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
@@ -62,8 +62,8 @@ class TwoAxisBindProofTest extends FunSuite:
       refuteProbeIds = Nil,
       missingSignals = missingSignals,
       pvCoupled = pvCoupled,
-      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-      subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
       claimCertification = claimCertification
     )
 

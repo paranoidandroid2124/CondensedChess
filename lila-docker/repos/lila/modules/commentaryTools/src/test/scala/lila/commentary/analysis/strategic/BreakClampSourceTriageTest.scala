@@ -117,7 +117,7 @@ final class BreakClampSourceTriageTest extends munit.FunSuite:
       BreakClampSourceTriage.sourceCandidateFor(row, sourceGame(), sourceUrl = "https://example.invalid/source.pgn")
 
     assertEquals(candidate.id, "source-game-clean-break-prevention-ply-19")
-    assertEquals(candidate.family, "A:break_prevention")
+    assertEquals(candidate.reviewGroup, "A:break_prevention")
     assertEquals(candidate.candidatePlyRange.start, 19)
     assertEquals(candidate.candidatePlyRange.end, 19)
     assertEquals(candidate.sourceUrl, "https://example.invalid/source.pgn")
@@ -140,8 +140,8 @@ final class BreakClampSourceTriageTest extends munit.FunSuite:
       .head
 
     assertEquals(observation.verdict, SourceReview.Verdict.AdmitAuthorityRow)
-    assertEquals(observation.mainClaimSource, "counterplay_axis_suppression")
-    assert(observation.packetSummary.contains("owner_family=neutralize_key_break"), clues(observation.packetSummary))
+    assertEquals(observation.mainProofSource, "counterplay_axis_suppression")
+    assert(observation.packetSummary.contains("proof_family=neutralize_key_break"), clues(observation.packetSummary))
     assertEquals(observation.primary, "A local reading is that this keeps ...a5 from coming right away.")
     assertEquals(observation.primary, observation.bookmaker)
     assertEquals(observation.primary, observation.chronicle)

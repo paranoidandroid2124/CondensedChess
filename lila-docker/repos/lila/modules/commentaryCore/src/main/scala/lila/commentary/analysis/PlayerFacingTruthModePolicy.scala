@@ -39,7 +39,7 @@ private[commentary] final case class PlayerFacingMoveDeltaEvidence(
     provenanceClass: PlayerFacingClaimProvenanceClass = PlayerFacingClaimProvenanceClass.Deferred,
     certificateStatus: PlayerFacingCertificateStatus = PlayerFacingCertificateStatus.Invalid,
     taintFlags: Set[PlayerFacingClaimTaintFlag] = Set.empty,
-    ontologyFamily: PlayerFacingClaimOntologyFamily = PlayerFacingClaimOntologyFamily.Unknown,
+    ontologyFamily: PlayerFacingClaimOntologyKind = PlayerFacingClaimOntologyKind.Unknown,
     connectorPermission: Boolean = false,
     packet: PlayerFacingClaimPacket = PlayerFacingClaimPacket.empty
 ):
@@ -108,7 +108,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val exactIqpInducementClaim = exactIqpInducementClaimText(ctx, text)
     val exactDefenderTradeClaim = exactDefenderTradeClaimText(ctx, text)
     val exactBreakPreventionClaim = exactBreakPreventionClaimText(ctx, surface, text)
-    classify(ctx, strategyPack, truthContract) == PlayerFacingTruthMode.Strategic &&
+    val exactCounterplayRestraintClaim = exactCounterplayRestraintClaimText(ctx, text)
+    val exactPacketStrategicMode =
+      deltaEvidence.exists(_.packet.admitsStrategicTruthMode)
+    (classify(ctx, strategyPack, truthContract) == PlayerFacingTruthMode.Strategic ||
+      exactPacketStrategicMode) &&
       deltaEvidence.exists(delta =>
         delta.allowsWeakMainClaim &&
         !overpromotedStrategicFormula(text) &&
@@ -118,6 +122,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
               exactIqpInducementClaim ||
               exactDefenderTradeClaim ||
               exactBreakPreventionClaim ||
+              exactCounterplayRestraintClaim ||
               (
                 strategicTextIsConcrete(text, ctx) &&
                   (
@@ -349,7 +354,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Boolean =
     investedMaterial.exists(_ >= 100) ||
       truthContract.exists(contract =>
-        contract.reasonFamily == DecisiveReasonFamily.InvestmentSacrifice ||
+        contract.reasonFamily == DecisiveReasonKind.InvestmentSacrifice ||
           contract.truthClass == DecisiveTruthClass.WinningInvestment ||
           contract.truthClass == DecisiveTruthClass.CompensatedInvestment
       )
@@ -361,8 +366,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
   private def contractClaimsForcingTacticalTruth(contract: DecisiveTruthContract): Boolean =
     (contract.truthClass == DecisiveTruthClass.Best &&
       (
-        contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
-          contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation
+        contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
+          contract.reasonFamily == DecisiveReasonKind.TacticalRefutation
       )) ||
       contract.failureMode == FailureInterpretationMode.TacticalRefutation
 
@@ -375,9 +380,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
         Some("This is a blunder, and the tactical point has to come first.")
       case DecisiveTruthClass.MissedWin =>
         Some("This misses a win, and the immediate tactical chance matters most.")
-      case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense && forcingProof =>
+      case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense && forcingProof =>
         Some("This is the only move that keeps the position together.")
-      case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation && forcingProof =>
+      case DecisiveTruthClass.Best if contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && forcingProof =>
         Some("This is the clean tactical refutation.")
       case _ =>
         None
@@ -398,7 +403,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       truthContract.exists(contract =>
         verifiedAnchorMatchesSurface(surface, contract.verifiedPayoffAnchor) &&
           (
-            contract.reasonFamily == DecisiveReasonFamily.InvestmentSacrifice ||
+            contract.reasonFamily == DecisiveReasonKind.InvestmentSacrifice ||
               contract.truthClass == DecisiveTruthClass.WinningInvestment ||
               contract.truthClass == DecisiveTruthClass.CompensatedInvestment ||
               contract.surfaceMode == TruthSurfaceMode.InvestmentExplain ||
@@ -463,13 +468,16 @@ private[commentary] object PlayerFacingTruthModePolicy:
       exactDefenderTradeWitness(ctx).nonEmpty
     val exactBreakPreventionProof =
       BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty
+    val exactCounterplayRestraintProof =
+      exactCounterplayRestraintOwnerProof(ctx, preventedNow)
     val exactOwnerProof =
       exactBoundedSimplificationWitness ||
         exactPressureIncreaseProof ||
         exactQueenTradeShieldProof ||
         exactIqpInducementProof ||
         exactDefenderTradeProof ||
-        exactBreakPreventionProof
+        exactBreakPreventionProof ||
+        exactCounterplayRestraintProof
     val moveLinkedAnchor =
       hasMoveLinkedStrategicAnchor(surface) ||
         boundedSimplificationLineAnchors(ctx, surface).nonEmpty ||
@@ -514,7 +522,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
       exactQueenTradeShieldSlice(ctx) ||
       exactIqpInducementWitness(ctx).nonEmpty ||
       exactDefenderTradeWitness(ctx).nonEmpty ||
-      BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty
+      BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty ||
+      exactCounterplayRestraintOwnerProof(ctx, preventedNow)
 
   private def hasConcreteStrategicEvidence(
       moment: GameChronicleMoment,
@@ -845,8 +854,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
     )
 
   private final case class ClaimOwnerSeed(
-      ownerSource: String,
-      ownerFamily: String,
+      proofSource: String,
+      proofFamily: String,
       triggerKind: String,
       ownerSeedTerms: List[String] = Nil,
       structureTransitionTerms: List[String] = Nil
@@ -862,20 +871,20 @@ private[commentary] object PlayerFacingTruthModePolicy:
     )
 
   private val BoundedFavorableSimplificationFamily =
-    ThemeTaxonomy.SubplanId.SimplificationWindow.id
-  private[commentary] val ExactTargetFixationOwnerSource =
+    PlanTaxonomy.PlanKind.SimplificationWindow.id
+  private[commentary] val ExactTargetFixationProofSource =
     "exact_target_fixation"
-  private[commentary] val CarlsbadFixedTargetProbeOwnerSource =
+  private[commentary] val CarlsbadFixedTargetProbeProofSource =
     "carlsbad_fixed_target_probe"
-  private[commentary] val IQPInducementProbeOwnerSource =
+  private[commentary] val IQPInducementProbeProofSource =
     "iqp_inducement_probe"
-  private[commentary] val DefenderTradeOwnerSource =
+  private[commentary] val DefenderTradeProofSource =
     "defender_trade"
-  private[commentary] val QueenTradeShieldOwnerSource =
-    ThemeTaxonomy.SubplanId.QueenTradeShield.id
-  private[commentary] val TargetFocusedCoordinationOwnerSource =
+  private[commentary] val QueenTradeShieldProofSource =
+    PlanTaxonomy.PlanKind.QueenTradeShield.id
+  private[commentary] val TargetFocusedCoordinationProofSource =
     "target_focused_coordination_probe"
-  private[commentary] val TargetFocusedCoordinationOwnerFamily =
+  private[commentary] val TargetFocusedCoordinationProofFamily =
     "target_focused_coordination"
 
   private val QueenTradeShieldExactFen =
@@ -898,42 +907,42 @@ private[commentary] object PlayerFacingTruthModePolicy:
 
   private final case class ExactSliceDescriptor(
       kind: ExactSliceKind,
-      ownerSource: String,
-      ownerFamily: String,
+      proofSource: String,
+      proofFamily: String,
       triggerKind: String,
       releasedScope: PlayerFacingPacketScope,
       releaseOwnerFamilies: Set[String],
       exemptFromRivalChecks: Boolean = false
   ):
     def packetMatches(packet: PlayerFacingClaimPacket): Boolean =
-      packet.ownerSource == ownerSource &&
-        packet.ownerFamily == ownerFamily
+      packet.proofSource == proofSource &&
+        packet.proofFamily == proofFamily
 
     def ownerSeedMatches(ownerSeed: ClaimOwnerSeed): Boolean =
-      ownerSeed.ownerSource == ownerSource &&
-        releaseOwnerFamilies.contains(ownerSeed.ownerFamily)
+      ownerSeed.proofSource == proofSource &&
+        releaseOwnerFamilies.contains(ownerSeed.proofFamily)
 
   private val ExactTargetFixationDescriptor =
     ExactSliceDescriptor(
       kind = ExactSliceKind.TargetFixation,
-      ownerSource = ExactTargetFixationOwnerSource,
-      ownerFamily = ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
+      proofSource = ExactTargetFixationProofSource,
+      proofFamily = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
       triggerKind = "target_fixation",
       releasedScope = PlayerFacingPacketScope.MoveLocal,
-      releaseOwnerFamilies = Set(ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id)
+      releaseOwnerFamilies = Set(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
     )
 
   private val CarlsbadFixedTargetProbeDescriptor =
     ExactSliceDescriptor(
       kind = ExactSliceKind.CarlsbadFixedTargetProbe,
-      ownerSource = CarlsbadFixedTargetProbeOwnerSource,
-      ownerFamily = ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
+      proofSource = CarlsbadFixedTargetProbeProofSource,
+      proofFamily = PlanTaxonomy.PlanKind.BackwardPawnTargeting.id,
       triggerKind = "position_probe",
       releasedScope = PlayerFacingPacketScope.PositionLocal,
       releaseOwnerFamilies =
         Set(
-          ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
-          ThemeTaxonomy.SubplanId.MinorityAttackFixation.id
+          PlanTaxonomy.PlanKind.BackwardPawnTargeting.id,
+          PlanTaxonomy.PlanKind.MinorityAttackFixation.id
         ),
       exemptFromRivalChecks = true
     )
@@ -941,11 +950,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
   private val TargetFocusedCoordinationDescriptor =
     ExactSliceDescriptor(
       kind = ExactSliceKind.TargetFocusedCoordinationProbe,
-      ownerSource = TargetFocusedCoordinationOwnerSource,
-      ownerFamily = TargetFocusedCoordinationOwnerFamily,
+      proofSource = TargetFocusedCoordinationProofSource,
+      proofFamily = TargetFocusedCoordinationProofFamily,
       triggerKind = "position_probe",
       releasedScope = PlayerFacingPacketScope.PositionLocal,
-      releaseOwnerFamilies = Set(TargetFocusedCoordinationOwnerFamily)
+      releaseOwnerFamilies = Set(TargetFocusedCoordinationProofFamily)
     )
 
   private val ExactSliceDescriptors =
@@ -1004,8 +1013,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val packet =
       PlayerFacingClaimPacket(
         claimGate = claimGate,
-        ownerSource = "active_move_delta",
-        ownerFamily = genericOwnerFamily(deltaClass),
+        proofSource = "active_move_delta",
+        proofFamily = genericProofFamily(deltaClass),
         scope = PlayerFacingPacketScope.MoveLocal,
         triggerKind = genericTriggerKind(deltaClass),
         anchorTerms = packetAnchorTerms(anchors, surface),
@@ -1020,8 +1029,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
             PlayerFacingClaimPersistence.BestDefenseOnly
           else PlayerFacingClaimPersistence.Broken,
         rivalKind = surface.secondaryIdea.flatMap(idea => clean(idea.kind)),
-        ownerPathWitness =
-          PlayerFacingOwnerPathWitness(
+        proofPathWitness =
+          PlayerFacingProofPathWitness(
             ownerSeedTerms = packetAnchorTerms(anchors, surface),
             continuationTerms =
               bestDefenseBranchKeyFromContext(ctx).toList ++
@@ -1033,7 +1042,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
           else PlayerFacingClaimFallbackMode.Suppress
       )
     val tracedPacket =
-      OwnerProofRules.attachTrace(packet)
+      ProofContractRules.attachTrace(packet)
     PlayerFacingMoveDeltaEvidence(
       deltaClass = deltaClass,
       anchorTerms = anchors,
@@ -1120,8 +1129,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val packet =
       PlayerFacingClaimPacket(
       claimGate = claimGate,
-      ownerSource = ownerSeed.ownerSource,
-      ownerFamily = ownerSeed.ownerFamily,
+      proofSource = ownerSeed.proofSource,
+      proofFamily = ownerSeed.proofFamily,
       scope = scopeForFallback(fallbackMode, ownerSeed),
       triggerKind = ownerSeed.triggerKind,
       anchorTerms = anchorTerms,
@@ -1130,8 +1139,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
       sameBranchState = sameBranchState,
       persistence = persistence,
       rivalKind = rivalAssessment.rivalKind,
-      ownerPathWitness =
-        PlayerFacingOwnerPathWitness(
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
           ownerSeedTerms = ownerSeed.ownerSeedTerms ++ anchorTerms,
           continuationTerms = continuationTerms,
           rivalTerms = rivalAssessment.rivalWitnessTerms,
@@ -1141,7 +1150,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       releaseRisks = releaseRisks,
         fallbackMode = fallbackMode
       )
-    OwnerProofRules.attachTrace(packet)
+    ProofContractRules.attachTrace(packet)
 
   private def exactPressureIncreaseOwnerSeed(
       ctx: NarrativeContext,
@@ -1149,8 +1158,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Option[ClaimOwnerSeed] =
     exactPressureIncreaseWitness(ctx, surface).map { witness =>
       ClaimOwnerSeed(
-        ownerSource = witness.descriptor.ownerSource,
-        ownerFamily = witness.descriptor.ownerFamily,
+        proofSource = witness.descriptor.proofSource,
+        proofFamily = witness.descriptor.proofFamily,
         triggerKind = witness.descriptor.triggerKind,
         ownerSeedTerms = witness.ownerSeedTerms,
         structureTransitionTerms = witness.structureTransitionTerms
@@ -1163,7 +1172,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       deltaClass: PlayerFacingMoveDeltaClass,
       preventedNow: List[PreventedPlanInfo]
   ): ClaimOwnerSeed =
-    val planOwner = leadingOwnerFamily(ctx)
+    val planOwner = leadingProofFamily(ctx)
     val trigger = leadingTriggerKind(ctx)
     val localFileEntryPair = LocalFileEntryProof.certifiedSurfacePair(ctx)
     val targetComplexTerms = targetComplexWitnessTerms(ctx, surface)
@@ -1183,8 +1192,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
           if localFileEntryPair.nonEmpty =>
         val pair = localFileEntryPair.get
         ClaimOwnerSeed(
-          ownerSource = "local_file_entry_bind",
-          ownerFamily = "half_open_file_pressure",
+          proofSource = "local_file_entry_bind",
+          proofFamily = "half_open_file_pressure",
           triggerKind = "file_entry_denial",
           ownerSeedTerms = List(pair.file, pair.entrySquare),
           structureTransitionTerms = List(s"file-entry:${pair.file}:${pair.entrySquare}")
@@ -1193,8 +1202,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
           if localFileEntryPair.nonEmpty =>
         val pair = localFileEntryPair.get
         ClaimOwnerSeed(
-          ownerSource = "local_file_entry_bind",
-          ownerFamily = "half_open_file_pressure",
+          proofSource = "local_file_entry_bind",
+          proofFamily = "half_open_file_pressure",
           triggerKind = "file_entry_denial",
           ownerSeedTerms = List(pair.file, pair.entrySquare),
           structureTransitionTerms = List(s"file-entry:${pair.file}:${pair.entrySquare}")
@@ -1203,8 +1212,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
           if prophylacticRestraintPlan &&
             hasNamedPreventedResource(preventedNow) =>
         ClaimOwnerSeed(
-          ownerSource = "prophylactic_move",
-          ownerFamily = "counterplay_restraint",
+          proofSource = "prophylactic_move",
+          proofFamily = "counterplay_restraint",
           triggerKind = "prophylactic_move",
           ownerSeedTerms = namedPreventedTerms,
           structureTransitionTerms = namedPreventedTerms
@@ -1213,8 +1222,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
           if breakPreventionWitness.nonEmpty =>
         val witness = breakPreventionWitness.get
         ClaimOwnerSeed(
-          ownerSource = "counterplay_axis_suppression",
-          ownerFamily = "neutralize_key_break",
+          proofSource = "counterplay_axis_suppression",
+          proofFamily = "neutralize_key_break",
           triggerKind = "break_neutralization",
           ownerSeedTerms = witness.ownerSeedTerms,
           structureTransitionTerms = witness.structureTransitionTerms
@@ -1222,9 +1231,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
       case PlayerFacingMoveDeltaClass.ExchangeForcing
           if exactQueenTradeShieldSlice(ctx) =>
         ClaimOwnerSeed(
-          ownerSource = QueenTradeShieldOwnerSource,
-          ownerFamily = ThemeTaxonomy.SubplanId.QueenTradeShield.id,
-          triggerKind = ThemeTaxonomy.SubplanId.QueenTradeShield.id,
+          proofSource = QueenTradeShieldProofSource,
+          proofFamily = PlanTaxonomy.PlanKind.QueenTradeShield.id,
+          triggerKind = PlanTaxonomy.PlanKind.QueenTradeShield.id,
           ownerSeedTerms = List("queen_trade_shield", "queenless_branch", "c6", "d8"),
           structureTransitionTerms = QueenTradeShieldPvPrefix ++ List("queenless_branch", "queen_trade")
         )
@@ -1232,9 +1241,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
           if exactIqpInducementWitness(ctx).nonEmpty =>
         val witness = exactIqpInducementWitness(ctx).get
         ClaimOwnerSeed(
-          ownerSource = IQPInducementProbeOwnerSource,
-          ownerFamily = ThemeTaxonomy.SubplanId.IQPInducement.id,
-          triggerKind = ThemeTaxonomy.SubplanId.IQPInducement.id,
+          proofSource = IQPInducementProbeProofSource,
+          proofFamily = PlanTaxonomy.PlanKind.IQPInducement.id,
+          triggerKind = PlanTaxonomy.PlanKind.IQPInducement.id,
           ownerSeedTerms = witness.ownerSeedTerms,
           structureTransitionTerms = witness.structureTransitionTerms
         )
@@ -1242,9 +1251,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
           if exactDefenderTradeWitness(ctx).nonEmpty =>
         val witness = exactDefenderTradeWitness(ctx).get
         ClaimOwnerSeed(
-          ownerSource = DefenderTradeOwnerSource,
-          ownerFamily = ThemeTaxonomy.SubplanId.DefenderTrade.id,
-          triggerKind = ThemeTaxonomy.SubplanId.DefenderTrade.id,
+          proofSource = DefenderTradeProofSource,
+          proofFamily = PlanTaxonomy.PlanKind.DefenderTrade.id,
+          triggerKind = PlanTaxonomy.PlanKind.DefenderTrade.id,
           ownerSeedTerms = witness.ownerSeedTerms,
           structureTransitionTerms = witness.structureTransitionTerms
         )
@@ -1257,8 +1266,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
             targetComplexTerms = targetComplexTerms
           ) =>
         ClaimOwnerSeed(
-          ownerSource = BoundedFavorableSimplificationFamily,
-          ownerFamily = BoundedFavorableSimplificationFamily,
+          proofSource = BoundedFavorableSimplificationFamily,
+          proofFamily = BoundedFavorableSimplificationFamily,
           triggerKind = BoundedFavorableSimplificationFamily,
           ownerSeedTerms =
             (tradeOwnerTerms ++ targetComplexTerms ++ moveLocalAnchorSeedTerms(ctx, surface)).distinct,
@@ -1267,8 +1276,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
       case PlayerFacingMoveDeltaClass.ExchangeForcing
           if likelyTradeKeyDefender(ctx, surface) || tradeOwnerTerms.nonEmpty || tradeTransitionTerms.nonEmpty =>
         ClaimOwnerSeed(
-          ownerSource = "exchange_forcing_delta",
-          ownerFamily = "trade_key_defender",
+          proofSource = "exchange_forcing_delta",
+          proofFamily = "trade_key_defender",
           triggerKind = trigger.getOrElse("trade_key_defender"),
           ownerSeedTerms = tradeOwnerTerms,
           structureTransitionTerms = tradeTransitionTerms
@@ -1282,8 +1291,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
             (owner == "prophylaxis_restraint" && !hasNamedPreventedResource(preventedNow))
           }
         ClaimOwnerSeed(
-          ownerSource = genericOwnerSource(deltaClass),
-          ownerFamily = guardedPlanOwner.getOrElse(genericOwnerFamily(deltaClass)),
+          proofSource = genericProofSource(deltaClass),
+          proofFamily = guardedPlanOwner.getOrElse(genericProofFamily(deltaClass)),
           triggerKind = trigger.getOrElse(genericTriggerKind(deltaClass)),
           ownerSeedTerms =
             genericOwnerSeedTerms(
@@ -1475,17 +1484,17 @@ private[commentary] object PlayerFacingTruthModePolicy:
         plan.deniedSquares.flatMap(clean)
     ).distinct
 
-  private def leadingOwnerFamily(ctx: NarrativeContext): Option[String] =
+  private def leadingProofFamily(ctx: NarrativeContext): Option[String] =
     StrategicNarrativePlanSupport
       .evidenceBackedMainPlans(ctx)
       .headOption
-      .map(plan => PlanMatcher.ownerFamily(plan.themeL1, plan.subplanId))
+      .map(plan => PlanMatcher.proofFamily(plan.themeL1, plan.subplanId))
 
-  private def secondaryOwnerFamily(ctx: NarrativeContext): Option[String] =
+  private def secondaryProofFamily(ctx: NarrativeContext): Option[String] =
     StrategicNarrativePlanSupport
       .evidenceBackedMainPlans(ctx)
       .lift(1)
-      .map(plan => PlanMatcher.ownerFamily(plan.themeL1, plan.subplanId))
+      .map(plan => PlanMatcher.proofFamily(plan.themeL1, plan.subplanId))
 
   private def leadingTriggerKind(ctx: NarrativeContext): Option[String] =
     StrategicNarrativePlanSupport
@@ -1508,47 +1517,47 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Boolean =
     val subplan = experiment.subplanId.map(normalize)
     val theme = normalize(experiment.themeL1)
-    ownerSeed.ownerFamily match
+    ownerSeed.proofFamily match
       case "neutralize_key_break" =>
-        subplan.contains(normalize(ThemeTaxonomy.SubplanId.BreakPrevention.id)) ||
+        subplan.contains(normalize(PlanTaxonomy.PlanKind.BreakPrevention.id)) ||
           experiment.counterBreakNeutralized
       case "half_open_file_pressure" =>
         Set(
-          ThemeTaxonomy.SubplanId.KeySquareDenial.id,
-          ThemeTaxonomy.SubplanId.OpenFilePressure.id,
-          ThemeTaxonomy.SubplanId.RookFileTransfer.id
+          PlanTaxonomy.PlanKind.KeySquareDenial.id,
+          PlanTaxonomy.PlanKind.OpenFilePressure.id,
+          PlanTaxonomy.PlanKind.RookFileTransfer.id
         ).map(normalize).exists(subplan.contains)
       case "counterplay_restraint" =>
-        subplan.contains(normalize(ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id)) ||
-          theme == normalize(ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id)
+        subplan.contains(normalize(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id)) ||
+          theme == normalize(PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id)
       case "trade_key_defender" =>
         Set(
-          ThemeTaxonomy.SubplanId.DefenderTrade.id,
-          ThemeTaxonomy.SubplanId.SimplificationConversion.id
+          PlanTaxonomy.PlanKind.DefenderTrade.id,
+          PlanTaxonomy.PlanKind.SimplificationConversion.id
         ).map(normalize).exists(subplan.contains) ||
-          theme == normalize(ThemeTaxonomy.ThemeL1.FavorableExchange.id) ||
-          theme == normalize(ThemeTaxonomy.ThemeL1.AdvantageTransformation.id)
+          theme == normalize(PlanTaxonomy.PlanTheme.FavorableExchange.id) ||
+          theme == normalize(PlanTaxonomy.PlanTheme.AdvantageTransformation.id)
       case family if family == BoundedFavorableSimplificationFamily =>
-        subplan.contains(normalize(ThemeTaxonomy.SubplanId.SimplificationWindow.id)) ||
+        subplan.contains(normalize(PlanTaxonomy.PlanKind.SimplificationWindow.id)) ||
           (
-            theme == normalize(ThemeTaxonomy.ThemeL1.FavorableExchange.id) &&
-              subplan.contains(normalize(ThemeTaxonomy.SubplanId.SimplificationWindow.id))
+            theme == normalize(PlanTaxonomy.PlanTheme.FavorableExchange.id) &&
+              subplan.contains(normalize(PlanTaxonomy.PlanKind.SimplificationWindow.id))
           )
       case family
           if Set(
-            ThemeTaxonomy.ThemeL1.WeaknessFixation.id,
-            ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
-            ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
-            ThemeTaxonomy.SubplanId.MinorityAttackFixation.id,
-            ThemeTaxonomy.SubplanId.IQPInducement.id
+            PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+            PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+            PlanTaxonomy.PlanKind.BackwardPawnTargeting.id,
+            PlanTaxonomy.PlanKind.MinorityAttackFixation.id,
+            PlanTaxonomy.PlanKind.IQPInducement.id
           ).contains(family) =>
         Set(
-          ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
-          ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
-          ThemeTaxonomy.SubplanId.MinorityAttackFixation.id,
-          ThemeTaxonomy.SubplanId.IQPInducement.id
+          PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+          PlanTaxonomy.PlanKind.BackwardPawnTargeting.id,
+          PlanTaxonomy.PlanKind.MinorityAttackFixation.id,
+          PlanTaxonomy.PlanKind.IQPInducement.id
         ).map(normalize).exists(subplan.contains) ||
-          theme == normalize(ThemeTaxonomy.ThemeL1.WeaknessFixation.id)
+          theme == normalize(PlanTaxonomy.PlanTheme.WeaknessFixation.id)
       case other =>
         subplan.contains(normalize(other)) || theme == normalize(other)
 
@@ -1568,7 +1577,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       exactDefenderTradeContinuationTerms(ctx, ownerSeed)
     val exactQueenTradeContinuation =
       Option.when(
-        ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.QueenTradeShield.id &&
+        ownerSeed.proofFamily == PlanTaxonomy.PlanKind.QueenTradeShield.id &&
           exactQueenTradeShieldSlice(ctx)
       )(QueenTradeShieldPvPrefix).getOrElse(Nil)
     (
@@ -1607,12 +1616,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
         Option.when(localFileEntryPair.nonEmpty)("half_open_file_pressure" -> "exact:file_entry_pair"),
         Option.when(preventedNow.exists(_.breakNeutralized.exists(_.trim.nonEmpty)))("neutralize_key_break" -> "exact:break_denial"),
         Option.when(hasNamedPreventedResource(preventedNow))("counterplay_restraint" -> "exact:named_resource"),
-        Option.when(targetComplexWitnessTerms(ctx, surface).nonEmpty)(ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id -> "exact:target_complex"),
-        Option.when(tradeStructureTransitionTerms(ctx, surface).nonEmpty)(ownerSeed.ownerFamily -> "exact:trade_transition")
+        Option.when(targetComplexWitnessTerms(ctx, surface).nonEmpty)(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id -> "exact:target_complex"),
+        Option.when(tradeStructureTransitionTerms(ctx, surface).nonEmpty)(ownerSeed.proofFamily -> "exact:trade_transition")
       ).flatten
-    val secondaryPlan = secondaryOwnerFamily(ctx)
+    val secondaryPlan = secondaryProofFamily(ctx)
     val secondaryIdeaFamily =
-      surface.secondaryIdea.flatMap(ownerFamilyForIdea)
+      surface.secondaryIdea.flatMap(proofFamilyForIdea)
     val ownerStrength =
       ownerSeed.ownerSeedTerms.size +
         ownerSeed.structureTransitionTerms.size +
@@ -1620,14 +1629,14 @@ private[commentary] object PlayerFacingTruthModePolicy:
         (if persistence == PlayerFacingClaimPersistence.Stable then 2 else if persistence != PlayerFacingClaimPersistence.Broken then 1 else 0)
     val rivalTerms =
       (
-        secondaryPlan.filter(_ != ownerSeed.ownerFamily).map(family => s"secondary_plan:$family").toList ++
-          secondaryIdeaFamily.filter(_ != ownerSeed.ownerFamily).map(family => s"secondary_idea:$family").toList ++
-          exactSignalFamilies.collect { case (family, tag) if family != ownerSeed.ownerFamily => s"$tag:$family" }
+        secondaryPlan.filter(_ != ownerSeed.proofFamily).map(family => s"secondary_plan:$family").toList ++
+          secondaryIdeaFamily.filter(_ != ownerSeed.proofFamily).map(family => s"secondary_idea:$family").toList ++
+          exactSignalFamilies.collect { case (family, tag) if family != ownerSeed.proofFamily => s"$tag:$family" }
       ).distinct
     val rivalKind =
-      secondaryPlan.filter(_ != ownerSeed.ownerFamily)
-        .orElse(secondaryIdeaFamily.filter(_ != ownerSeed.ownerFamily))
-        .orElse(exactSignalFamilies.collectFirst { case (family, _) if family != ownerSeed.ownerFamily => family })
+      secondaryPlan.filter(_ != ownerSeed.proofFamily)
+        .orElse(secondaryIdeaFamily.filter(_ != ownerSeed.proofFamily))
+        .orElse(exactSignalFamilies.collectFirst { case (family, _) if family != ownerSeed.proofFamily => family })
     val rivalStrength =
       rivalKind.map { family =>
         rivalTerms.count(_.endsWith(s":$family")) +
@@ -1637,31 +1646,31 @@ private[commentary] object PlayerFacingTruthModePolicy:
       }.getOrElse(0)
     val rivalStoryAlive =
       rivalKind.exists { family =>
-        family != ownerSeed.ownerFamily &&
+        family != ownerSeed.proofFamily &&
           (
             rivalStrength > ownerStrength ||
-              (rivalStrength == ownerStrength && PlayerFacingClaimProof.exactOwnerPathFamily(ownerSeed.ownerFamily)) ||
-              (ownerSeed.ownerFamily == "trade_key_defender" && rivalStrength > 0)
+              (rivalStrength == ownerStrength && PlayerFacingClaimProof.exactProofFamily(ownerSeed.proofFamily)) ||
+              (ownerSeed.proofFamily == "trade_key_defender" && rivalStrength > 0)
           )
       }
     RivalAssessment(
       rivalKind = rivalKind,
       rivalWitnessTerms = rivalTerms,
       rivalStoryAlive = rivalStoryAlive,
-      rivalReleaseRisk = rivalStoryAlive && ownerSeed.ownerFamily != deltaFamilyFallback(deltaClass)
+      rivalReleaseRisk = rivalStoryAlive && ownerSeed.proofFamily != deltaFamilyFallback(deltaClass)
     )
 
-  private def ownerFamilyForIdea(idea: StrategyIdeaSignal): Option[String] =
+  private def proofFamilyForIdea(idea: StrategyIdeaSignal): Option[String] =
     idea.kind match
       case StrategicIdeaKind.CounterplaySuppression => Some("neutralize_key_break")
       case StrategicIdeaKind.Prophylaxis            => Some("counterplay_restraint")
       case StrategicIdeaKind.LineOccupation         => Some("half_open_file_pressure")
       case StrategicIdeaKind.TargetFixing =>
         if ideaHasSource(idea, "minority_attack_fixation") || ideaHasSource(idea, "carlsbad_fixation_profile") then
-          Some(ThemeTaxonomy.SubplanId.MinorityAttackFixation.id)
+          Some(PlanTaxonomy.PlanKind.MinorityAttackFixation.id)
         else if ideaHasSource(idea, "weak_complex_fixation") || ideaHasSource(idea, "directional_target_fixation") then
-          Some(ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id)
-        else Some(ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id)
+          Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
+        else Some(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id)
       case StrategicIdeaKind.FavorableTradeOrTransformation =>
         if ideaIsBoundedFavorableSimplification(idea) then Some(BoundedFavorableSimplificationFamily)
         else Some("trade_key_defender")
@@ -1715,7 +1724,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       case PlayerFacingMoveDeltaClass.CounterplayReduction => "neutralize_key_break"
       case PlayerFacingMoveDeltaClass.ResourceRemoval      => "counterplay_restraint"
       case PlayerFacingMoveDeltaClass.ExchangeForcing      => "trade_key_defender"
-      case _                                              => genericOwnerFamily(deltaClass)
+      case _                                              => genericProofFamily(deltaClass)
 
   private def exactSliceDescriptor(
       ownerSeed: ClaimOwnerSeed
@@ -1768,6 +1777,17 @@ private[commentary] object PlayerFacingTruthModePolicy:
       )
       .exists(witness => normalize(text) == normalize(s"This keeps ${witness.breakToken} from coming right away."))
 
+  private def exactCounterplayRestraintClaimText(
+      ctx: NarrativeContext,
+      text: String
+  ): Boolean =
+    val preventedNow =
+      ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
+    exactCounterplayRestraintOwnerProof(ctx, preventedNow) &&
+      preventedNow
+        .flatMap(namedPreventedResourceLabel)
+        .exists(resource => normalize(text) == normalize(s"This slows down $resource before it gets started."))
+
   private def exactQueenTradeShieldSlice(ctx: NarrativeContext): Boolean =
     ctx.fen.trim == QueenTradeShieldExactFen &&
       ctx.engineEvidence.toList.flatMap(_.variations).headOption.exists(exactQueenTradeShieldPvMatches)
@@ -1797,7 +1817,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
         Option.when(targetSquares.nonEmpty && continuationMoves.nonEmpty) {
           targetSquares.flatMap(square =>
             List(
-              descriptor.ownerSource,
+              descriptor.proofSource,
               exactSliceTargetWitnessTag(descriptor, square),
               s"best_branch:${continuationMoves.mkString("|")}",
               square
@@ -1853,19 +1873,19 @@ private[commentary] object PlayerFacingTruthModePolicy:
           continuationTerms.nonEmpty
       then
         PlayerFacingSameBranchState.Proven
-      else if ownerSeed.ownerFamily == BoundedFavorableSimplificationFamily &&
+      else if ownerSeed.proofFamily == BoundedFavorableSimplificationFamily &&
           concreteOwnerSeed &&
           exactTradeContinuation.nonEmpty &&
           continuationTerms.nonEmpty
       then
         PlayerFacingSameBranchState.Proven
-      else if ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.IQPInducement.id &&
+      else if ownerSeed.proofFamily == PlanTaxonomy.PlanKind.IQPInducement.id &&
           concreteOwnerSeed &&
           exactIqpInducementContinuationTerms(ctx, ownerSeed).nonEmpty &&
           continuationTerms.nonEmpty
       then
         PlayerFacingSameBranchState.Proven
-      else if ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.DefenderTrade.id &&
+      else if ownerSeed.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id &&
           concreteOwnerSeed &&
           exactDefenderTradeContinuation.nonEmpty &&
           continuationTerms.nonEmpty
@@ -1891,7 +1911,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     else if claimGate.provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
       PlayerFacingClaimPersistence.Broken
     else if
-      ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.QueenTradeShield.id &&
+      ownerSeed.proofFamily == PlanTaxonomy.PlanKind.QueenTradeShield.id &&
         exactQueenTradeShieldSlice(ctx)
     then PlayerFacingClaimPersistence.BestDefenseOnly
     else
@@ -1902,17 +1922,17 @@ private[commentary] object PlayerFacingTruthModePolicy:
       then
         PlayerFacingClaimPersistence.Stable
       else if exactBoundedSimplificationContinuationSquare(ctx, ownerSeed).nonEmpty &&
-          ownerSeed.ownerFamily == BoundedFavorableSimplificationFamily &&
+          ownerSeed.proofFamily == BoundedFavorableSimplificationFamily &&
           claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
       then
         PlayerFacingClaimPersistence.Stable
       else if exactIqpInducementContinuationTerms(ctx, ownerSeed).nonEmpty &&
-          ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.IQPInducement.id &&
+          ownerSeed.proofFamily == PlanTaxonomy.PlanKind.IQPInducement.id &&
           claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
       then
         PlayerFacingClaimPersistence.Stable
       else if exactDefenderTradeContinuationTerms(ctx, ownerSeed).nonEmpty &&
-          ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.DefenderTrade.id &&
+          ownerSeed.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id &&
           claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
       then
         PlayerFacingClaimPersistence.Stable
@@ -1929,7 +1949,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       surface: StrategyPackSurface.Snapshot,
       ownerSeed: ClaimOwnerSeed
   ): Boolean =
-    ownerSeed.ownerFamily == "neutralize_key_break" &&
+    ownerSeed.proofFamily == "neutralize_key_break" &&
       BreakPreventionWitness
         .exact(
           ctx,
@@ -1949,7 +1969,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val reasons = scala.collection.mutable.ListBuffer.empty[String]
     if claimGate.alternativeDominance then
       reasons += PlayerFacingClaimSuppressionReason.AlternativeDominance
-    if PlayerFacingClaimProof.exactOwnerPathFamily(ownerSeed.ownerFamily)
+    if PlayerFacingClaimProof.exactProofFamily(ownerSeed.proofFamily)
     then
       sameBranchState match
         case PlayerFacingSameBranchState.Missing =>
@@ -1957,11 +1977,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
         case PlayerFacingSameBranchState.Ambiguous =>
           reasons += PlayerFacingClaimSuppressionReason.SameBranchAmbiguous
         case PlayerFacingSameBranchState.Proven => ()
-    if ownerSeed.ownerFamily == "trade_key_defender" then
+    if ownerSeed.proofFamily == "trade_key_defender" then
       reasons += PlayerFacingClaimSuppressionReason.SupportOnlyReinflation
     if standaloneEntrySquareDenialReinflates(ownerSeed) then
       reasons += PlayerFacingClaimSuppressionReason.ScopeInflation
-    if ownerSeed.ownerFamily == BoundedFavorableSimplificationFamily then
+    if ownerSeed.proofFamily == BoundedFavorableSimplificationFamily then
       if boundedSimplificationSameJobConversion(ctx) then
         reasons += PlayerFacingClaimSuppressionReason.SameJobConversion
       if boundedSimplificationTradeKeyDefenderRelabel(ctx, surface) then
@@ -1991,29 +2011,29 @@ private[commentary] object PlayerFacingTruthModePolicy:
       risks += PlayerFacingClaimReleaseRisk.MoveOrderFragility
     if HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx) then
       risks += PlayerFacingClaimReleaseRisk.HeavyPieceLeakage
-    if ownerSeed.ownerFamily == "neutralize_key_break" &&
+    if ownerSeed.proofFamily == "neutralize_key_break" &&
         sameBranchState == PlayerFacingSameBranchState.Proven &&
         persistence != PlayerFacingClaimPersistence.Stable
     then risks += PlayerFacingClaimReleaseRisk.RouteMirage
-    if ownerSeed.ownerFamily == "counterplay_restraint" &&
+    if ownerSeed.proofFamily == "counterplay_restraint" &&
         sameBranchState == PlayerFacingSameBranchState.Proven &&
         persistence != PlayerFacingClaimPersistence.Stable
     then risks += PlayerFacingClaimReleaseRisk.RouteMirage
-    if (ownerSeed.ownerSource == "local_file_entry_bind" || ownerSeed.ownerFamily == "half_open_file_pressure") &&
+    if (ownerSeed.proofSource == "local_file_entry_bind" || ownerSeed.proofFamily == "half_open_file_pressure") &&
         sameBranchState != PlayerFacingSameBranchState.Proven
     then
       risks += PlayerFacingClaimReleaseRisk.SurfaceReinflation
-    if (ownerSeed.ownerSource == "prophylactic_move" || ownerSeed.ownerFamily == "counterplay_restraint") &&
+    if (ownerSeed.proofSource == "prophylactic_move" || ownerSeed.proofFamily == "counterplay_restraint") &&
         sameBranchState != PlayerFacingSameBranchState.Proven
     then
       risks += PlayerFacingClaimReleaseRisk.SurfaceReinflation
-    if ownerSeed.ownerFamily == "trade_key_defender" then
+    if ownerSeed.proofFamily == "trade_key_defender" then
       risks += PlayerFacingClaimReleaseRisk.RivalRelease
     if rivalAssessment.rivalReleaseRisk &&
         !exactSliceDescriptor(ownerSeed).exists(_.exemptFromRivalChecks)
     then
       risks += PlayerFacingClaimReleaseRisk.RivalRelease
-    if ownerSeed.ownerFamily == BoundedFavorableSimplificationFamily &&
+    if ownerSeed.proofFamily == BoundedFavorableSimplificationFamily &&
         boundedSimplificationRouteBindRelabel(rivalAssessment)
     then
       risks += PlayerFacingClaimReleaseRisk.RivalRelease
@@ -2045,7 +2065,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
         taintFlags = claimGate.taintFlags.toSet
       )
     val lineOnlyPilot =
-      PlayerFacingClaimPacket.isLineOnlyPilot(ownerSeed.ownerSource, ownerSeed.ownerFamily)
+      PlayerFacingClaimPacket.isLineOnlyPilot(ownerSeed.proofSource, ownerSeed.proofFamily)
     val promotedReleaseAllowed =
       allowsPromotedMoveLocalRelease(
         ownerSeed = ownerSeed,
@@ -2060,7 +2080,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     else if allowsWeak && promotedReleaseAllowed && suppressionReasons.isEmpty && releaseRisks.isEmpty then
       PlayerFacingClaimFallbackMode.WeakMain
     else if allowsLine &&
-        ownerSeed.ownerFamily != "trade_key_defender" &&
+        ownerSeed.proofFamily != "trade_key_defender" &&
         !suppressionReasons.contains(PlayerFacingClaimSuppressionReason.AlternativeDominance)
     then PlayerFacingClaimFallbackMode.LineOnly
     else if anchors.nonEmpty then PlayerFacingClaimFallbackMode.ExactFactual
@@ -2131,14 +2151,14 @@ private[commentary] object PlayerFacingTruthModePolicy:
         decision.delta.newOpportunities ++ decision.delta.planAdvancements ++ decision.delta.resolvedThreats
       ).map(normalize)
     StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx).exists(plan =>
-      plan.subplanId.contains(ThemeTaxonomy.SubplanId.DefenderTrade.id)
+      plan.subplanId.contains(PlanTaxonomy.PlanKind.DefenderTrade.id)
     ) ||
       evidenceText.exists(text => containsAny(text, List("defender", "guard", "cover", "protector"))) ||
       surface.topMoveRef.exists(ref =>
         containsAny(normalize(ref.idea), List("defender", "guard", "cover", "protector"))
       )
 
-  private def genericOwnerSource(deltaClass: PlayerFacingMoveDeltaClass): String =
+  private def genericProofSource(deltaClass: PlayerFacingMoveDeltaClass): String =
     deltaClass match
       case PlayerFacingMoveDeltaClass.NewAccess            => "new_access_delta"
       case PlayerFacingMoveDeltaClass.PressureIncrease     => "pressure_increase_delta"
@@ -2147,7 +2167,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       case PlayerFacingMoveDeltaClass.ResourceRemoval      => "resource_removal_delta"
       case PlayerFacingMoveDeltaClass.PlanAdvance          => "plan_advance_delta"
 
-  private def genericOwnerFamily(deltaClass: PlayerFacingMoveDeltaClass): String =
+  private def genericProofFamily(deltaClass: PlayerFacingMoveDeltaClass): String =
     deltaClass match
       case PlayerFacingMoveDeltaClass.NewAccess            => "new_access"
       case PlayerFacingMoveDeltaClass.PressureIncrease     => "pressure_increase"
@@ -2167,14 +2187,14 @@ private[commentary] object PlayerFacingTruthModePolicy:
 
   private def ontologyFamilyForActiveDelta(
       deltaClass: PlayerFacingMoveDeltaClass
-  ): PlayerFacingClaimOntologyFamily =
+  ): PlayerFacingClaimOntologyKind =
     deltaClass match
-      case PlayerFacingMoveDeltaClass.NewAccess            => PlayerFacingClaimOntologyFamily.Access
-      case PlayerFacingMoveDeltaClass.PressureIncrease     => PlayerFacingClaimOntologyFamily.Pressure
-      case PlayerFacingMoveDeltaClass.ExchangeForcing      => PlayerFacingClaimOntologyFamily.Exchange
-      case PlayerFacingMoveDeltaClass.CounterplayReduction => PlayerFacingClaimOntologyFamily.CounterplayRestraint
-      case PlayerFacingMoveDeltaClass.ResourceRemoval      => PlayerFacingClaimOntologyFamily.ResourceRemoval
-      case PlayerFacingMoveDeltaClass.PlanAdvance          => PlayerFacingClaimOntologyFamily.PlanAdvance
+      case PlayerFacingMoveDeltaClass.NewAccess            => PlayerFacingClaimOntologyKind.Access
+      case PlayerFacingMoveDeltaClass.PressureIncrease     => PlayerFacingClaimOntologyKind.Pressure
+      case PlayerFacingMoveDeltaClass.ExchangeForcing      => PlayerFacingClaimOntologyKind.Exchange
+      case PlayerFacingMoveDeltaClass.CounterplayReduction => PlayerFacingClaimOntologyKind.CounterplayRestraint
+      case PlayerFacingMoveDeltaClass.ResourceRemoval      => PlayerFacingClaimOntologyKind.ResourceRemoval
+      case PlayerFacingMoveDeltaClass.PlanAdvance          => PlayerFacingClaimOntologyKind.PlanAdvance
 
   private def clean(raw: String): Option[String] =
     Option(raw).map(_.trim).filter(_.nonEmpty)
@@ -2188,18 +2208,18 @@ private[commentary] object PlayerFacingTruthModePolicy:
     if exactSliceDescriptor(ownerSeed).nonEmpty
     then
       exactSliceReleaseAllowed(ownerSeed, bestDefenseBranchKey, sameBranchState, persistence)
-    else if ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.IQPInducement.id then
-      ownerSeed.ownerSource == IQPInducementProbeOwnerSource &&
+    else if ownerSeed.proofFamily == PlanTaxonomy.PlanKind.IQPInducement.id then
+      ownerSeed.proofSource == IQPInducementProbeProofSource &&
         bestDefenseBranchKey.nonEmpty &&
         sameBranchState == PlayerFacingSameBranchState.Proven &&
         persistence == PlayerFacingClaimPersistence.Stable
-    else if ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.DefenderTrade.id then
+    else if ownerSeed.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id then
       bestDefenseBranchKey.nonEmpty &&
         sameBranchState == PlayerFacingSameBranchState.Proven &&
         persistence == PlayerFacingClaimPersistence.Stable
-    else if isReviewedAbsorbedWeaknessOwnerFamily(ownerSeed.ownerFamily) then false
+    else if isReviewedAbsorbedWeaknessProofFamily(ownerSeed.proofFamily) then false
     else
-      ownerSeed.ownerFamily match
+      ownerSeed.proofFamily match
         case "half_open_file_pressure" =>
           bestDefenseBranchKey.nonEmpty &&
             sameBranchState == PlayerFacingSameBranchState.Proven &&
@@ -2223,15 +2243,15 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ownerSeed: ClaimOwnerSeed
   ): Boolean =
     ownerSeed.triggerKind == "entry_square_denial" &&
-      ownerSeed.ownerSource != "local_file_entry_bind" &&
-      ownerSeed.ownerFamily != "half_open_file_pressure" &&
-      ownerSeed.ownerFamily != "counterplay_restraint"
+      ownerSeed.proofSource != "local_file_entry_bind" &&
+      ownerSeed.proofFamily != "half_open_file_pressure" &&
+      ownerSeed.proofFamily != "counterplay_restraint"
 
   private def boundedSimplificationSameJobConversion(
       ctx: NarrativeContext
   ): Boolean =
-    leadingOwnerFamily(ctx).contains(ThemeTaxonomy.SubplanId.SimplificationConversion.id) ||
-      secondaryOwnerFamily(ctx).contains(ThemeTaxonomy.SubplanId.SimplificationConversion.id) ||
+    leadingProofFamily(ctx).contains(PlanTaxonomy.PlanKind.SimplificationConversion.id) ||
+      secondaryProofFamily(ctx).contains(PlanTaxonomy.PlanKind.SimplificationConversion.id) ||
       ctx.semantic.exists(_.compensation.exists(comp =>
         clean(comp.conversionPlan).exists(text =>
           containsAny(normalize(text), List("convert", "cash", "winning", "technical"))
@@ -2247,8 +2267,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot
   ): Boolean =
-    leadingOwnerFamily(ctx).contains(ThemeTaxonomy.SubplanId.DefenderTrade.id) ||
-      secondaryOwnerFamily(ctx).contains(ThemeTaxonomy.SubplanId.DefenderTrade.id) ||
+    leadingProofFamily(ctx).contains(PlanTaxonomy.PlanKind.DefenderTrade.id) ||
+      secondaryProofFamily(ctx).contains(PlanTaxonomy.PlanKind.DefenderTrade.id) ||
       surface.dominantIdea.exists(ideaHasSource(_, "removing_the_defender")) ||
       surface.secondaryIdea.exists(ideaHasSource(_, "removing_the_defender")) ||
       likelyTradeKeyDefender(ctx, surface)
@@ -2277,26 +2297,26 @@ private[commentary] object PlayerFacingTruthModePolicy:
       surface.dominantIdea.exists(ideaIsBoundedFavorableSimplification) ||
         surface.secondaryIdea.exists(ideaIsBoundedFavorableSimplification)
     !boundedIdeaVisible &&
-      leadingOwnerFamily(ctx).exists(family =>
-        family == ThemeTaxonomy.SubplanId.SimplificationConversion.id ||
-          family == ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id ||
-          family == ThemeTaxonomy.SubplanId.IQPInducement.id
+      leadingProofFamily(ctx).exists(family =>
+        family == PlanTaxonomy.PlanKind.SimplificationConversion.id ||
+          family == PlanTaxonomy.PlanKind.StaticWeaknessFixation.id ||
+          family == PlanTaxonomy.PlanKind.IQPInducement.id
       )
 
-  private def isReviewedAbsorbedWeaknessOwnerFamily(ownerFamily: String): Boolean =
+  private def isReviewedAbsorbedWeaknessProofFamily(proofFamily: String): Boolean =
     Set(
-      ThemeTaxonomy.ThemeL1.WeaknessFixation.id,
-      ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id,
-      ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
-      ThemeTaxonomy.SubplanId.MinorityAttackFixation.id,
-      ThemeTaxonomy.SubplanId.IQPInducement.id
-    ).contains(ownerFamily)
+      PlanTaxonomy.PlanTheme.WeaknessFixation.id,
+      PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+      PlanTaxonomy.PlanKind.BackwardPawnTargeting.id,
+      PlanTaxonomy.PlanKind.MinorityAttackFixation.id,
+      PlanTaxonomy.PlanKind.IQPInducement.id
+    ).contains(proofFamily)
 
   private def exactBoundedSimplificationContinuationSquare(
       ctx: NarrativeContext,
       ownerSeed: ClaimOwnerSeed
   ): Option[String] =
-    Option.when(ownerSeed.ownerFamily == BoundedFavorableSimplificationFamily) {
+    Option.when(ownerSeed.proofFamily == BoundedFavorableSimplificationFamily) {
       exactBoundedSimplificationExchangeSquare(ctx).filter(square =>
         ownerSeed.allWitnessTerms.exists(term => normalize(term).contains(square))
       )
@@ -2332,7 +2352,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ctx: NarrativeContext,
       ownerSeed: ClaimOwnerSeed
   ): List[String] =
-    Option.when(ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.IQPInducement.id) {
+    Option.when(ownerSeed.proofFamily == PlanTaxonomy.PlanKind.IQPInducement.id) {
       exactIqpInducementWitness(ctx).toList.flatMap { witness =>
         (
           List(
@@ -2387,7 +2407,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
             "a7",
             "defended_target:a7",
             "local_branch",
-            ThemeTaxonomy.SubplanId.DefenderTrade.id
+            PlanTaxonomy.PlanKind.DefenderTrade.id
           ).distinct,
         structureTransitionTerms =
           (
@@ -2418,8 +2438,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ownerSeed: ClaimOwnerSeed
   ): List[String] =
     Option.when(
-      ownerSeed.ownerSource == DefenderTradeOwnerSource &&
-        ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.DefenderTrade.id
+      ownerSeed.proofSource == DefenderTradeProofSource &&
+        ownerSeed.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id
     ) {
       exactDefenderTradeWitness(ctx).toList.flatMap { witness =>
         (
@@ -2498,7 +2518,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
                         target,
                         s"isolated_pawn:$target",
                         "iqp_inducement",
-                        ThemeTaxonomy.SubplanId.IQPInducement.id
+                        PlanTaxonomy.PlanKind.IQPInducement.id
                       ).distinct,
                     structureTransitionTerms =
                       (
@@ -2606,7 +2626,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
             "c6",
             "fixed_target:c6",
             "queenside",
-            ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id
+            PlanTaxonomy.PlanKind.BackwardPawnTargeting.id
           ).distinct,
         structureTransitionTerms =
           List(
@@ -2646,7 +2666,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
           List(
             targetSquare.get,
             s"coordinated_target:${targetSquare.get}",
-            TargetFocusedCoordinationOwnerFamily,
+            TargetFocusedCoordinationProofFamily,
             "rook_on_c1"
           ).distinct,
         structureTransitionTerms =
@@ -2669,7 +2689,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       StrategicNarrativePlanSupport
         .evidenceBackedMainPlans(ctx)
         .exists(plan =>
-          isReviewedAbsorbedWeaknessOwnerFamily(PlanMatcher.ownerFamily(plan.themeL1, plan.subplanId))
+          isReviewedAbsorbedWeaknessProofFamily(PlanMatcher.proofFamily(plan.themeL1, plan.subplanId))
         )
     val weaknessSupportVisible =
       ctx.plans.top5.exists(plan =>
@@ -2678,9 +2698,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
             normalize(support),
             List(
               "weakness fixation",
-              normalize(ThemeTaxonomy.SubplanId.StaticWeaknessFixation.id),
-              normalize(ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id),
-              normalize(ThemeTaxonomy.SubplanId.MinorityAttackFixation.id)
+              normalize(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id),
+              normalize(PlanTaxonomy.PlanKind.BackwardPawnTargeting.id),
+              normalize(PlanTaxonomy.PlanKind.MinorityAttackFixation.id)
             )
           )
         )
@@ -2885,7 +2905,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       packet: PlayerFacingClaimPacket
   ): Option[String] =
     exactSliceDescriptor(packet).flatMap { _ =>
-      (packet.ownerPathWitness.ownerSeedTerms ++ packet.anchorTerms)
+      (packet.proofPathWitness.ownerSeedTerms ++ packet.anchorTerms)
         .flatMap(clean)
         .map(_.toLowerCase)
         .find(_.matches("[a-h][1-8]"))
@@ -2923,11 +2943,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
       fallbackAnchor: Option[String]
   ): Option[String] =
     exactSliceTargetSquare(packet).orElse(fallbackAnchor).map { square =>
-      if packet.ownerSource == CarlsbadFixedTargetProbeOwnerSource then
+      if packet.proofSource == CarlsbadFixedTargetProbeProofSource then
         s"The key strategic fact here is that $square is the fixed target."
-      else if packet.ownerSource == TargetFocusedCoordinationOwnerSource then
+      else if packet.proofSource == TargetFocusedCoordinationProofSource then
         s"The key strategic fact here is that the pressure is coordinated on $square."
-      else if packet.ownerSource == ExactTargetFixationOwnerSource then
+      else if packet.proofSource == ExactTargetFixationProofSource then
         modalityTier match
           case PlayerFacingClaimModalityTier.Supports => s"This keeps $square fixed as the target."
           case _                                      => s"This keeps the pressure fixed on $square."
@@ -2968,14 +2988,14 @@ private[commentary] object PlayerFacingTruthModePolicy:
       packet: PlayerFacingClaimPacket
   ): Option[String] =
     Option.when(certifiedPositionProbePacket(packet)) {
-      packet.ownerSource match
-        case CarlsbadFixedTargetProbeOwnerSource =>
+      packet.proofSource match
+        case CarlsbadFixedTargetProbeProofSource =>
           exactSliceTargetSquare(packet)
             .map(square =>
               s"So the task is to keep the queenside pressure trained on $square instead of rushing a conversion."
             )
             .orElse(Some("So the task is to keep the pressure on the fixed target instead of rushing a conversion."))
-        case TargetFocusedCoordinationOwnerSource =>
+        case TargetFocusedCoordinationProofSource =>
           exactSliceTargetSquare(packet)
             .map(square =>
               s"So the task is to keep the pressure coordinated on $square until the target has to give way."
@@ -3062,6 +3082,18 @@ private[commentary] object PlayerFacingTruthModePolicy:
       preventedNow: List[PreventedPlanInfo]
   ): Boolean =
     preventedNow.exists(plan => namedPreventedResourceLabel(plan).nonEmpty)
+
+  private def exactCounterplayRestraintOwnerProof(
+      ctx: NarrativeContext,
+      preventedNow: List[PreventedPlanInfo]
+  ): Boolean =
+    val planOwner = leadingProofFamily(ctx)
+    val trigger = leadingTriggerKind(ctx)
+    (trigger.contains("counterplay_restraint") ||
+      planOwner.contains("counterplay_restraint") ||
+      planOwner.contains("prophylaxis_restraint")) &&
+      hasNamedPreventedResource(preventedNow) &&
+      bestDefenseBranchKeyFromContext(ctx).nonEmpty
 
   private def namedPreventedResourceLabel(
       plan: PreventedPlanInfo
@@ -3239,7 +3271,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       deltaClass: PlayerFacingMoveDeltaClass,
       quantifier: PlayerFacingClaimQuantifier,
       stabilityGrade: PlayerFacingClaimStabilityGrade,
-      ontologyFamily: PlayerFacingClaimOntologyFamily
+      ontologyFamily: PlayerFacingClaimOntologyKind
   ): PlayerFacingClaimModalityTier =
     deltaClass match
       case PlayerFacingMoveDeltaClass.NewAccess =>
@@ -3253,7 +3285,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
         then PlayerFacingClaimModalityTier.Forces
         else PlayerFacingClaimModalityTier.Available
       case PlayerFacingMoveDeltaClass.CounterplayReduction =>
-        if ontologyFamily == PlayerFacingClaimOntologyFamily.RouteDenial then PlayerFacingClaimModalityTier.Removes
+        if ontologyFamily == PlayerFacingClaimOntologyKind.RouteDenial then PlayerFacingClaimModalityTier.Removes
         else if quantifier == PlayerFacingClaimQuantifier.Universal then PlayerFacingClaimModalityTier.Supports
         else PlayerFacingClaimModalityTier.Available
       case PlayerFacingMoveDeltaClass.ResourceRemoval =>
@@ -3267,19 +3299,19 @@ private[commentary] object PlayerFacingTruthModePolicy:
       deltaClass: PlayerFacingMoveDeltaClass,
       ctx: NarrativeContext,
       preventedNow: List[PreventedPlanInfo]
-  ): PlayerFacingClaimOntologyFamily =
+  ): PlayerFacingClaimOntologyKind =
     deltaClass match
-      case PlayerFacingMoveDeltaClass.NewAccess => PlayerFacingClaimOntologyFamily.Access
-      case PlayerFacingMoveDeltaClass.PressureIncrease => PlayerFacingClaimOntologyFamily.Pressure
-      case PlayerFacingMoveDeltaClass.ExchangeForcing => PlayerFacingClaimOntologyFamily.Exchange
-      case PlayerFacingMoveDeltaClass.PlanAdvance => PlayerFacingClaimOntologyFamily.PlanAdvance
+      case PlayerFacingMoveDeltaClass.NewAccess => PlayerFacingClaimOntologyKind.Access
+      case PlayerFacingMoveDeltaClass.PressureIncrease => PlayerFacingClaimOntologyKind.Pressure
+      case PlayerFacingMoveDeltaClass.ExchangeForcing => PlayerFacingClaimOntologyKind.Exchange
+      case PlayerFacingMoveDeltaClass.PlanAdvance => PlayerFacingClaimOntologyKind.PlanAdvance
       case PlayerFacingMoveDeltaClass.ResourceRemoval =>
-        if looksLikeRouteDenial(ctx, preventedNow) then PlayerFacingClaimOntologyFamily.RouteDenial
-        else PlayerFacingClaimOntologyFamily.ResourceRemoval
+        if looksLikeRouteDenial(ctx, preventedNow) then PlayerFacingClaimOntologyKind.RouteDenial
+        else PlayerFacingClaimOntologyKind.ResourceRemoval
       case PlayerFacingMoveDeltaClass.CounterplayReduction =>
-        if looksLikeRouteDenial(ctx, preventedNow) then PlayerFacingClaimOntologyFamily.RouteDenial
-        else if looksLikeColorComplexSqueeze(ctx) then PlayerFacingClaimOntologyFamily.ColorComplexSqueeze
-        else PlayerFacingClaimOntologyFamily.LongTermRestraint
+        if looksLikeRouteDenial(ctx, preventedNow) then PlayerFacingClaimOntologyKind.RouteDenial
+        else if looksLikeColorComplexSqueeze(ctx) then PlayerFacingClaimOntologyKind.ColorComplexSqueeze
+        else PlayerFacingClaimOntologyKind.LongTermRestraint
 
   private def looksLikeRouteDenial(
       ctx: NarrativeContext,
@@ -3305,7 +3337,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ctx: NarrativeContext,
       anchors: List[String],
       deltaClass: PlayerFacingMoveDeltaClass,
-      ontologyFamily: PlayerFacingClaimOntologyFamily
+      ontologyFamily: PlayerFacingClaimOntologyKind
   ): PlayerFacingClaimAttributionGrade =
     val anchorTokens = anchors.map(normalize).filter(_.length >= 2).distinct
     if anchorTokens.isEmpty then PlayerFacingClaimAttributionGrade.StateOnly
@@ -3343,14 +3375,14 @@ private[commentary] object PlayerFacingTruthModePolicy:
 
   private def deltaKeywords(
       deltaClass: PlayerFacingMoveDeltaClass,
-      ontologyFamily: PlayerFacingClaimOntologyFamily
+      ontologyFamily: PlayerFacingClaimOntologyKind
   ): List[String] =
     ontologyFamily match
-      case PlayerFacingClaimOntologyFamily.RouteDenial =>
+      case PlayerFacingClaimOntologyKind.RouteDenial =>
         List("entry", "route", "deny", "denial", "access")
-      case PlayerFacingClaimOntologyFamily.ColorComplexSqueeze =>
+      case PlayerFacingClaimOntologyKind.ColorComplexSqueeze =>
         List("color", "complex", "light", "dark", "bishop")
-      case PlayerFacingClaimOntologyFamily.LongTermRestraint =>
+      case PlayerFacingClaimOntologyKind.LongTermRestraint =>
         List("counterplay", "restrain", "clamp", "prevent", "deny")
       case _ =>
         deltaClass match

@@ -36,7 +36,7 @@ object CommentaryQualityContrastSupport:
       targetPly: Int,
       playedSan: String,
       plannerQuestion: Option[String],
-      plannerOwnerFamily: Option[String],
+      plannerProofFamily: Option[String],
       bookmakerFallbackMode: String,
       afterBookmakerFallbackMode: Option[String] = None,
       upstreamTaxonomy: Option[String],
@@ -69,7 +69,7 @@ object CommentaryQualityContrastSupport:
       sliceKind: String,
       targetPly: Int,
       plannerQuestion: String,
-      plannerOwnerFamily: Option[String],
+      plannerProofFamily: Option[String],
       selectionStatus: String,
       selectionReason: String,
       upstreamTaxonomy: Option[String],
@@ -210,7 +210,7 @@ object CommentaryQualityContrastSupport:
           targetPly = before.targetPly,
           playedSan = before.playedSan,
           plannerQuestion = before.plannerPrimaryKind,
-          plannerOwnerFamily = before.plannerSelectedOwnerFamily,
+          plannerProofFamily = before.plannerSelectedOwnerKind,
           bookmakerFallbackMode = before.bookmakerFallbackMode,
           afterBookmakerFallbackMode = Some(after.bookmakerFallbackMode),
           upstreamTaxonomy = upstreamTaxonomy,
@@ -272,7 +272,7 @@ object CommentaryQualityContrastSupport:
                 sliceKind = row.sliceKind,
                 targetPly = row.targetPly,
                 plannerQuestion = row.plannerQuestion.getOrElse("none"),
-                plannerOwnerFamily = row.plannerOwnerFamily,
+                plannerProofFamily = row.plannerProofFamily,
                 selectionStatus = row.selectionStatus,
                 selectionReason = row.selectionReason,
                 upstreamTaxonomy = row.upstreamTaxonomy,
@@ -442,7 +442,7 @@ object CommentaryQualityContrastSupport:
     if rows.isEmpty then "- none"
     else
       rows.map { row =>
-        s"- `${row.sampleId}` question=`${row.plannerQuestion.getOrElse("none")}` owner=`${row.plannerOwnerFamily.getOrElse("-")}` status=`${row.selectionStatus}` reason=`${row.selectionReason}` pairBlockers=`${row.bookmakerPairBlockers.mkString("|")}` contrast=`${row.contrast_source_kind.getOrElse("-")}` reject=`${row.contrast_reject_reason.getOrElse("-")}` changed=`${row.changed}`"
+        s"- `${row.sampleId}` question=`${row.plannerQuestion.getOrElse("none")}` owner=`${row.plannerProofFamily.getOrElse("-")}` status=`${row.selectionStatus}` reason=`${row.selectionReason}` pairBlockers=`${row.bookmakerPairBlockers.mkString("|")}` contrast=`${row.contrast_source_kind.getOrElse("-")}` reject=`${row.contrast_reject_reason.getOrElse("-")}` changed=`${row.changed}`"
       }.mkString("\n")
 
   private def renderEvalRows(rows: List[ContrastEvalRow]): String =

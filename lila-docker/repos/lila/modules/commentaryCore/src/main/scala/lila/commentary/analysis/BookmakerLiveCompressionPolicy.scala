@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import lila.commentary.{ BookmakerRefsV1, StrategyPack }
+import lila.commentary.{ MoveReviewRefs, StrategyPack }
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.model.*
@@ -59,7 +59,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
   def buildSlotsOrFallback(
       ctx: NarrativeContext,
       @unused outline: NarrativeOutline,
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract] = None
   ): BookmakerPolishSlots =
@@ -89,7 +89,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
     cleanSentence(raw, ctx)
 
   private[commentary] def candidateEvidenceLines(
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       ctx: NarrativeContext
   ): List[String] =
     variationGuardrail(refs)
@@ -99,7 +99,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
   def buildSlots(
       ctx: NarrativeContext,
       @unused outline: NarrativeOutline,
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract] = None
   ): Option[BookmakerPolishSlots] =
@@ -109,7 +109,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
 
   private[commentary] def exactFactualQuietSupportTrace(
       ctx: NarrativeContext,
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract] = None
   ): ExactFactualQuietSupportTrace =
@@ -135,7 +135,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
 
   private def plannerInputsRuntime(
       ctx: NarrativeContext,
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract]
   ): PlannerRuntime =
@@ -221,8 +221,8 @@ private[commentary] object BookmakerLiveCompressionPolicy:
   private def replayClosedNamedRouteNetwork(
       plan: QuestionPlan
   ): Boolean =
-    plan.ownerSource == RouteNetworkBindProof.OwnerSource ||
-      plan.sourceKinds.contains(RouteNetworkBindProof.OwnerSource)
+    plan.plannerSource == RouteNetworkBindProof.ProofSource ||
+      plan.sourceKinds.contains(RouteNetworkBindProof.ProofSource)
 
   private def shouldPreferWhyNowSecondary(
       primary: QuestionPlan,
@@ -231,8 +231,8 @@ private[commentary] object BookmakerLiveCompressionPolicy:
   ): Boolean =
     primary.questionKind == AuthorQuestionKind.WhatMustBeStopped &&
       secondary.questionKind == AuthorQuestionKind.WhyNow &&
-      primary.ownerFamily == OwnerFamily.ForcingDefense &&
-      secondary.ownerFamily == OwnerFamily.ForcingDefense &&
+      primary.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
+      secondary.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
       primaryTrace.contrast_reject_reason.contains(
         ContrastiveSupportAdmissibility.RejectReason.QuestionOutsideScope
       )
@@ -698,7 +698,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
           s"$prefix $san:"
       moveHeader.map(h => s"$h $claim").getOrElse(claim)
 
-  private def variationGuardrail(refs: Option[BookmakerRefsV1]): Option[String] =
+  private def variationGuardrail(refs: Option[MoveReviewRefs]): Option[String] =
     refs.flatMap(_.variations.headOption).flatMap { variation =>
       val preview =
         variation.moves

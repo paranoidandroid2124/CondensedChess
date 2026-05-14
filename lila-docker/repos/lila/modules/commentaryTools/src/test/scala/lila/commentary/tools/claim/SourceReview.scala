@@ -72,7 +72,7 @@ private[commentary] object SourceReview:
       bookmaker: String,
       chronicle: String,
       reason: String,
-      mainClaimSource: String = "-",
+      mainProofSource: String = "-",
       mainClaimScope: String = "-",
       packetSummary: String = "-",
       contractId: String = "-",
@@ -93,7 +93,7 @@ private[commentary] object SourceReview:
         engineAgreement,
         plannerOwnership,
         surfaceGate,
-        mainClaimSource,
+        mainProofSource,
         mainClaimScope,
         clean(packetSummary),
         contractId,
@@ -121,7 +121,7 @@ private[commentary] object SourceReview:
       rejected: String,
       ownerTrace: PlannerOwnerTrace,
       mainClaimScope: Option[String],
-      mainClaimSource: Option[String],
+      mainProofSource: Option[String],
       packetSummary: Option[String],
       contractId: Option[String],
       contractStatus: Option[String],
@@ -141,7 +141,7 @@ private[commentary] object SourceReview:
       "engineAgreement",
       "plannerOwnership",
       "surfaceGate",
-      "mainClaimSource",
+      "mainProofSource",
       "mainClaimScope",
       "packetSummary",
       "contractId",
@@ -263,7 +263,7 @@ private[commentary] object SourceReview:
       depth: Int,
       multiPv: Int
   ): Observation =
-    val tacticalFirst = source.intendedVerdict == Verdict.RejectTacticalFirst || source.family.toLowerCase.contains("tactical")
+    val tacticalFirst = source.intendedVerdict == Verdict.RejectTacticalFirst || source.reviewGroup.toLowerCase.contains("tactical")
     val engineLines =
       engine.toList.flatMap { e =>
         e.newGame()
@@ -322,7 +322,7 @@ private[commentary] object SourceReview:
           Some(ply.playedUci)
         )
       val surfaceOk = supportedLocalSurfaceSafe(surface)
-      val familyAligned = sourceFamilyAligned(source, surface)
+      val familyAligned = sourceReviewGroupAligned(source, surface)
       val rawOwnerDiagnosis =
         classifyAdmission(
           admitted = surface.release == "CertifiedOwner" ||
@@ -388,7 +388,7 @@ private[commentary] object SourceReview:
         surface.bookmaker,
         surface.chronicle,
         if admitted then "exact replay and surfaces agree" else s"admission_blocked: $blockers; planner_owner_missing_or_surface_unsafe: ${surface.rejected}",
-        mainClaimSource = surface.mainClaimSource.getOrElse("-"),
+        mainProofSource = surface.mainProofSource.getOrElse("-"),
         mainClaimScope = surface.mainClaimScope.getOrElse("-"),
         packetSummary = surface.packetSummary.getOrElse("-"),
         contractId = surface.contractId.getOrElse("-"),
@@ -441,8 +441,8 @@ private[commentary] object SourceReview:
       positionProbe.flatMap(_.packet).map(packet =>
         releaseDecisionSummary(ClaimAuthorityPolicy.decidePositionProbe(Some(ctx), inputs, None, packet))
       )
-    val ownerProofTrace =
-      mainClaim.flatMap(_.packet).map(_.ownerProofTrace)
+    val proofTrace =
+      mainClaim.flatMap(_.packet).map(_.proofTrace)
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = None)
     val bookmaker =
       Option(
@@ -468,11 +468,11 @@ private[commentary] object SourceReview:
       rejected = ranked.rejected.map(r => s"${r.questionKind}:${r.reasons.mkString("+")}").mkString(" | "),
       ownerTrace = ranked.ownerTrace,
       mainClaimScope = mainClaim.map(_.scope.toString),
-      mainClaimSource = mainClaim.flatMap(_.packet).map(_.ownerSource).orElse(mainClaim.map(_.sourceKind)),
+      mainProofSource = mainClaim.flatMap(_.packet).map(_.proofSource).orElse(mainClaim.map(_.sourceKind)),
       packetSummary = mainClaim.flatMap(_.packet).map(packetSummary),
-      contractId = ownerProofTrace.flatMap(_.contractId),
-      contractStatus = ownerProofTrace.flatMap(_.contractStatus),
-      contractFailures = ownerProofTrace.toList.flatMap(_.failureCodes),
+      contractId = proofTrace.flatMap(_.contractId),
+      contractStatus = proofTrace.flatMap(_.contractStatus),
+      contractFailures = proofTrace.toList.flatMap(_.failureCodes),
       ownerFailureCodes = PlayerFacingTruthModePolicy.iqpInducementFailureCodes(ctx),
       breakPreventionFailureCodes =
         BreakPreventionWitness
@@ -493,13 +493,13 @@ private[commentary] object SourceReview:
     if admitted then Diagnosis.AdmitReady
     else if release == "SupportedLocal" && !supportedLocalSurfaceOk then Diagnosis.SurfaceContractBlocked
     else if rejected.contains("position_probe_support_only_outside_quiet_scene") ||
-        ownerTrace.droppedFamilies.exists(dropped =>
-          dropped.family == OwnerFamily.PositionProbe &&
+        ownerTrace.droppedPlannerOwners.exists(dropped =>
+          dropped.plannerOwnerKind == PlannerOwnerKind.PositionProbe &&
             dropped.reasons.exists(_.contains("position_probe_support_only_outside_quiet_scene"))
         )
     then Diagnosis.PlannerOwnerSceneBlocked
     else if mainClaimScope.contains("PositionLocal") ||
-        ownerTrace.ownerCandidates.exists(_.family == OwnerFamily.PositionProbe)
+        ownerTrace.ownerCandidates.exists(_.plannerOwnerKind == PlannerOwnerKind.PositionProbe)
     then Diagnosis.PlannerOwnerSuppressed
     else if rejected.contains("position_probe_missing") then Diagnosis.RootVocabularyOrExtractionGap
     else if rejected.contains("missing_move_owner") then Diagnosis.MoveOwnerMissing
@@ -509,7 +509,7 @@ private[commentary] object SourceReview:
     if plan.admissibilityReasons.contains("strategic_claim_supported_local") then Some("SupportedLocal")
     else if plan.admissibilityReasons.contains("certified_position_probe") ||
         plan.admissibilityReasons.contains("exact_target_state_delta") ||
-        plan.sourceKinds.exists(_ == ThemeTaxonomy.SubplanId.SimplificationWindow.id) ||
+        plan.sourceKinds.exists(_ == PlanTaxonomy.PlanKind.SimplificationWindow.id) ||
         plan.claim.toLowerCase.contains("same local edge")
     then Some("CertifiedOwner")
     else None
@@ -526,14 +526,19 @@ private[commentary] object SourceReview:
           !low.contains("so the task is")
       }
 
-  private def sourceFamilyAligned(
+  private def sourceReviewGroupAligned(
       source: SourceWitnessCatalog.SourceCandidate,
       surface: EvaluationSurface
   ): Boolean =
-    val family = source.family.toLowerCase
-    if family.contains("break_prevention") then
-      surface.mainClaimSource.contains("counterplay_axis_suppression") ||
-        surface.packetSummary.exists(_.contains("owner_family=neutralize_key_break"))
+    val reviewGroup = source.reviewGroup.toLowerCase
+    if reviewGroup.contains("break_prevention") then
+      surface.mainProofSource.contains("counterplay_axis_suppression") ||
+        surface.packetSummary.exists(_.contains("proof_family=neutralize_key_break"))
+    else if reviewGroup.contains("prophylaxis_restraint") then
+      surface.release == "SupportedLocal" &&
+        surface.mainProofSource.contains("prophylactic_move") &&
+        surface.packetSummary.exists(_.contains("proof_family=counterplay_restraint")) &&
+        surface.contractId.exists(_.contains("counterplay_restraint"))
     else true
 
   private def plannerOwnership(surface: EvaluationSurface): String =
@@ -649,14 +654,24 @@ private[commentary] object SourceReview:
       source: SourceWitnessCatalog.SourceCandidate,
       surface: EvaluationSurface
   ): List[String] =
-    val family = source.family.toLowerCase
-    if family.contains("break_prevention") then
-      val packetFamilyMismatch =
-        surface.mainClaimSource.exists(source => source != "counterplay_axis_suppression") ||
-          surface.packetSummary.exists(summary => summary.contains("owner_family=") && !summary.contains("owner_family=neutralize_key_break"))
-      if packetFamilyMismatch then List("break_prevention_family_mismatch")
-      else surface.breakPreventionFailureCodes
-    else if family.contains("iqp") && surface.contractId.isEmpty then
+    val reviewGroup = source.reviewGroup.toLowerCase
+    if reviewGroup.contains("break_prevention") then
+      val packetContractMismatch =
+        surface.mainProofSource.exists(source => source != "counterplay_axis_suppression") ||
+          surface.packetSummary.exists(summary => summary.contains("proof_family=") && !summary.contains("proof_family=neutralize_key_break"))
+      if packetContractMismatch then List("proof:break_prevention_contract_mismatch")
+      else surface.breakPreventionFailureCodes.map(normalizeBreakPreventionFailureCode)
+    else if reviewGroup.contains("prophylaxis_restraint") then
+      val packetContractMismatch =
+        surface.mainProofSource.exists(source => source != "prophylactic_move") ||
+          surface.packetSummary.exists(summary => summary.contains("proof_family=") && !summary.contains("proof_family=counterplay_restraint")) ||
+          surface.contractId.exists(contract => contract != "-" && !contract.contains("counterplay_restraint"))
+      if packetContractMismatch then List("proof:prophylaxis_restraint_contract_mismatch")
+      else
+        surface.contractFailures
+          .filterNot(failure => failure == "-" || failure == "none")
+          .map(failure => s"prophylaxis_restraint_${blockerCode(failure)}")
+    else if reviewGroup.contains("iqp") && surface.contractId.isEmpty then
       surface.ownerFailureCodes
     else Nil
 
@@ -667,22 +682,28 @@ private[commentary] object SourceReview:
   ): List[String] =
     ownerDiagnosis match
       case Diagnosis.RootVocabularyOrExtractionGap =>
-        val family = source.family.toLowerCase
-        if family.contains("iqp") && ownerFailureCodes.nonEmpty then
-          ownerFailureCodes.map(code => s"owner:${code.replace(":", "_")}")
-        else if family.contains("iqp") then List("owner:iqp_not_induced_or_side_mismatch")
-        else if family.contains("break_prevention") && ownerFailureCodes.nonEmpty then
-          ownerFailureCodes.map(code => s"owner:${code.replace(":", "_")}")
-        else if family.contains("break_prevention") then List("owner:break_prevention_witness_missing")
-        else if family.contains("defender_trade") then List("owner:defender_trade_owner_missing")
-        else if family.contains("carlsbad") then List("owner:carlsbad_probe_missing")
+        val reviewGroup = source.reviewGroup.toLowerCase
+        if reviewGroup.contains("iqp") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
+        else if reviewGroup.contains("iqp") then List("owner:iqp_not_induced_or_side_mismatch")
+        else if reviewGroup.contains("break_prevention") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
+        else if reviewGroup.contains("break_prevention") then List("owner:break_prevention_witness_missing")
+        else if reviewGroup.contains("prophylaxis_restraint") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
+        else if reviewGroup.contains("prophylaxis_restraint") then List("owner:prophylaxis_restraint_witness_missing")
+        else if reviewGroup.contains("defender_trade") then List("owner:defender_trade_owner_missing")
+        else if reviewGroup.contains("carlsbad") then List("owner:carlsbad_probe_missing")
         else List("owner:root_vocabulary_or_extraction_gap")
       case Diagnosis.MoveOwnerMissing =>
-        val family = source.family.toLowerCase
-        if family.contains("break_prevention") && ownerFailureCodes.nonEmpty then
-          ownerFailureCodes.map(code => s"owner:${code.replace(":", "_")}")
-        else if family.contains("break_prevention") then List("owner:break_prevention_witness_missing")
-        else if family.contains("defender_trade") then List("owner:defender_trade_owner_missing")
+        val reviewGroup = source.reviewGroup.toLowerCase
+        if reviewGroup.contains("break_prevention") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
+        else if reviewGroup.contains("break_prevention") then List("owner:break_prevention_witness_missing")
+        else if reviewGroup.contains("prophylaxis_restraint") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
+        else if reviewGroup.contains("prophylaxis_restraint") then List("owner:prophylaxis_restraint_witness_missing")
+        else if reviewGroup.contains("defender_trade") then List("owner:defender_trade_owner_missing")
         else List("owner:move_owner_missing")
       case Diagnosis.PlannerOwnerSceneBlocked  => List("owner:planner_scene_blocked")
       case Diagnosis.PlannerOwnerSuppressed    => List("owner:planner_suppressed")
@@ -696,6 +717,17 @@ private[commentary] object SourceReview:
       case Diagnosis.ReplayFailed                 => Nil
       case _                                      => Nil
 
+  private def blockerFromFailureCode(code: String): String =
+    if code.startsWith("proof:") then code
+    else if code.endsWith("_contract_mismatch") then s"proof:$code"
+    else s"owner:${code.replace(":", "_")}"
+
+  private def normalizeBreakPreventionFailureCode(code: String): String =
+    code match
+      case "contract_mismatch" | "break_prevention_contract_mismatch" =>
+        "proof:break_prevention_contract_mismatch"
+      case other => other
+
   private def releaseDecisionSummary(decision: ClaimAuthorityDecision): String =
     val base = decision.tier.toString
     if decision.vetoReasons.isEmpty then base
@@ -703,14 +735,14 @@ private[commentary] object SourceReview:
 
   private def packetSummary(packet: PlayerFacingClaimPacket): String =
     List(
-      s"owner_source=${packet.ownerSource}",
-      s"owner_family=${packet.ownerFamily}",
+      s"proof_source=${packet.proofSource}",
+      s"proof_family=${packet.proofFamily}",
       s"scope=${packet.scope}",
       s"fallback=${packet.fallbackMode}",
       s"same_branch=${packet.sameBranchState}",
       s"persistence=${packet.persistence}",
-      s"seed=${packet.ownerPathWitness.ownerSeedTerms.mkString("+")}",
-      s"continuation=${packet.ownerPathWitness.continuationTerms.mkString("+")}",
+      s"seed=${packet.proofPathWitness.ownerSeedTerms.mkString("+")}",
+      s"continuation=${packet.proofPathWitness.continuationTerms.mkString("+")}",
       s"suppression=${packet.suppressionReasons.mkString("+")}",
       s"risks=${packet.releaseRisks.mkString("+")}"
     ).mkString(";")
@@ -750,9 +782,10 @@ private[commentary] object SourceReview:
       .getOrElse("-")
 
   private def taxonomy(source: SourceWitnessCatalog.SourceCandidate): String =
-    val low = source.family.toLowerCase
+    val low = source.reviewGroup.toLowerCase
     if low.contains("tactical") then "source_tactical_first"
     else if low.contains("break_prevention") then "source_break_prevention"
+    else if low.contains("prophylaxis_restraint") then "source_prophylaxis_restraint"
     else if low.contains("simplification_window") then "source_simplification_window"
     else if low.contains("queen_trade") then "source_queen_trade_boundary"
     else if low.contains("static_weakness") then "source_static_weakness_fixation"
@@ -761,6 +794,12 @@ private[commentary] object SourceReview:
     else if low.contains("iqp_inducement") then "source_iqp_inducement"
     else if low.contains("iqp") then "source_iqp_simplification"
     else "source_boundary"
+
+  private def blockerCode(raw: String): String =
+    raw.toLowerCase
+      .replace(":", "_")
+      .replaceAll("[^a-z0-9_]+", "_")
+      .replaceAll("(^_+|_+$)", "")
 
   private def phaseFromPly(ply: Int, totalPlies: Int): String =
     if ply <= 20 then "opening"
@@ -816,7 +855,7 @@ private[commentary] object SourceReview:
         s"Surface contract blocked: ${if surfaceBlocked.isEmpty then "none found" else surfaceBlocked.map(_.source.id).mkString(", ")}",
         ""
       ) ++ observations.map { obs =>
-        s"- ${obs.source.id}: verdict=${obs.verdict} diagnosis=${obs.diagnosis} blockers=${obs.admissionBlockers} ownerFailures=${obs.ownerFailureCodes} engine=${obs.engineAgreement} planner=${obs.plannerOwnership} surface=${obs.surfaceGate} source=${obs.mainClaimSource} scope=${obs.mainClaimScope} contract=${obs.contractId} contractStatus=${obs.contractStatus} contractFailures=${obs.contractFailures} scene=${obs.sceneType} packet=${clean(obs.packetSummary)} ownerTrace=${clean(obs.ownerTraceSummary)} release=${obs.release} taxonomy=${obs.taxonomy} ply=${obs.ply.getOrElse("-")} reason=${clean(obs.reason)}"
+        s"- ${obs.source.id}: verdict=${obs.verdict} diagnosis=${obs.diagnosis} blockers=${obs.admissionBlockers} ownerFailures=${obs.ownerFailureCodes} engine=${obs.engineAgreement} planner=${obs.plannerOwnership} surface=${obs.surfaceGate} source=${obs.mainProofSource} scope=${obs.mainClaimScope} contract=${obs.contractId} contractStatus=${obs.contractStatus} contractFailures=${obs.contractFailures} scene=${obs.sceneType} packet=${clean(obs.packetSummary)} ownerTrace=${clean(obs.ownerTraceSummary)} release=${obs.release} taxonomy=${obs.taxonomy} ply=${obs.ply.getOrElse("-")} reason=${clean(obs.reason)}"
       }
     lines.mkString("\n") + "\n"
 
@@ -834,13 +873,13 @@ private[commentary] object SourceReview:
         val representative =
           byPly
             .find(_.verdict == Verdict.AdmitAuthorityRow)
-            .orElse(byPly.find(_.mainClaimSource != "-"))
+            .orElse(byPly.find(_.mainProofSource != "-"))
             .orElse(byPly.headOption)
         val summary =
           s"- $sourceId: scanned=${byPly.size} diagnostics=${countText(byPly.map(_.diagnosis))} blockers=${countText(byPly.flatMap(blockerTerms))}"
         val best =
           representative.toList.map(obs =>
-            s"  best=ply=${obs.ply.getOrElse("-")} verdict=${obs.verdict} release=${obs.release} source=${obs.mainClaimSource} scope=${obs.mainClaimScope} contract=${obs.contractId} contractStatus=${obs.contractStatus} failures=${obs.contractFailures} ownerFailures=${obs.ownerFailureCodes} engine=${obs.engineAgreement} primary=${clean(obs.primary)}"
+            s"  best=ply=${obs.ply.getOrElse("-")} verdict=${obs.verdict} release=${obs.release} source=${obs.mainProofSource} scope=${obs.mainClaimScope} contract=${obs.contractId} contractStatus=${obs.contractStatus} failures=${obs.contractFailures} ownerFailures=${obs.ownerFailureCodes} engine=${obs.engineAgreement} primary=${clean(obs.primary)}"
           )
         summary :: best
       }
@@ -911,9 +950,9 @@ private[commentary] object SourceReview:
   private def ownerTraceSummary(trace: PlannerOwnerTrace): String =
     List(
       s"scene=${trace.sceneType.wireName}",
-      s"selected=${trace.selectedQuestion.map(_.toString).getOrElse("-")}:${trace.selectedOwnerFamily.map(_.wireName).getOrElse("-")}:${trace.selectedOwnerSource.getOrElse("-")}",
+      s"selected=${trace.selectedQuestion.map(_.toString).getOrElse("-")}:${trace.selectedPlannerOwnerKind.map(_.wireName).getOrElse("-")}:${trace.selectedPlannerSource.getOrElse("-")}",
       s"candidates=${trace.ownerCandidateLabels.mkString("|")}",
-      s"dropped=${trace.droppedFamilies.map(dropped => s"${dropped.family.wireName}:${dropped.source}:${dropped.reasons.mkString("+")}").mkString("|")}"
+      s"dropped=${trace.droppedPlannerOwners.map(dropped => s"${dropped.plannerOwnerKind.wireName}:${dropped.source}:${dropped.reasons.mkString("+")}").mkString("|")}"
     ).mkString(";")
 
   @main def runSourceReview(args: String*): Unit =

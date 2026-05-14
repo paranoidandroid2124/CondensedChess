@@ -7,7 +7,7 @@ object MoveAnchorCodec:
 
   final case class EncodedCommentary(
       anchoredText: String,
-      refById: Map[String, MoveRefV1],
+      refById: Map[String, MoveReviewMoveRef],
       evalById: Map[String, String],
       branchById: Map[String, String],
       expectedMoveOrder: List[String],
@@ -50,7 +50,7 @@ object MoveAnchorCodec:
             if xh == yh then loop(xt, yt) else loop(restXs, yt)
       loop(xs, ys)
 
-  private def asQueues(refs: List[MoveRefV1]): mutable.Map[String, mutable.Queue[MoveRefV1]] =
+  private def asQueues(refs: List[MoveReviewMoveRef]): mutable.Map[String, mutable.Queue[MoveReviewMoveRef]] =
     mutable.Map.from:
       refs
         .groupBy(m => canonicalSan(m.san))
@@ -60,8 +60,8 @@ object MoveAnchorCodec:
 
   private def anchorMoveAndMarkerTokens(
       text: String,
-      refs: Option[BookmakerRefsV1]
-  ): (String, Map[String, MoveRefV1], List[String], List[String]) =
+      refs: Option[MoveReviewRefs]
+  ): (String, Map[String, MoveReviewMoveRef], List[String], List[String]) =
     refs match
       case None => (text, Map.empty, Nil, Nil)
       case Some(r) if r.variations.isEmpty => (text, Map.empty, Nil, Nil)
@@ -130,7 +130,7 @@ object MoveAnchorCodec:
     )
     (anchored, branchById.toMap, order.result())
 
-  def encode(text: String, refs: Option[BookmakerRefsV1]): EncodedCommentary =
+  def encode(text: String, refs: Option[MoveReviewRefs]): EncodedCommentary =
     val (moveAnchored, refById, moveOrder, markerOrder) = anchorMoveAndMarkerTokens(text, refs)
     val (evalAnchored, evalById, evalOrder) = anchorEvalTokens(moveAnchored)
     val (fullyAnchored, branchById, branchOrder) = anchorBranchLabels(evalAnchored)
@@ -147,7 +147,7 @@ object MoveAnchorCodec:
 
   def decode(
       text: String,
-      refById: Map[String, MoveRefV1],
+      refById: Map[String, MoveReviewMoveRef],
       evalById: Map[String, String] = Map.empty,
       branchById: Map[String, String] = Map.empty
   ): String =

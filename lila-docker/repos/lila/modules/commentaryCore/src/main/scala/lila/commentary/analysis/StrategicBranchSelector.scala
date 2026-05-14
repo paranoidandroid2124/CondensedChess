@@ -31,7 +31,7 @@ object StrategicBranchSelector:
       exemplarRole: TruthExemplarRole,
       chainKey: Option[String],
       maintenanceExemplarCandidate: Boolean,
-      reasonFamily: DecisiveReasonFamily,
+      reasonFamily: DecisiveReasonKind,
       failureMode: FailureInterpretationMode,
       benchmarkCriticalMove: Boolean
   )
@@ -330,7 +330,7 @@ object StrategicBranchSelector:
 
   private def isPromotedBestHold(truthView: TruthSelectionView): Boolean =
     truthView.classificationKey == "best" &&
-      truthView.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense &&
+      truthView.reasonFamily == DecisiveReasonKind.OnlyMoveDefense &&
       truthView.benchmarkCriticalMove
 
   private def isOverflowProtectedFamily(truthView: TruthSelectionView): Boolean =
@@ -339,9 +339,9 @@ object StrategicBranchSelector:
   private def isCriticalBestTacticalOrTechnical(truthView: TruthSelectionView): Boolean =
     truthView.classificationKey == "best" &&
       (
-        truthView.reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
+        truthView.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
           (
-            truthView.reasonFamily == DecisiveReasonFamily.QuietTechnicalMove &&
+            truthView.reasonFamily == DecisiveReasonKind.QuietTechnicalMove &&
               truthView.benchmarkCriticalMove
           )
       )
@@ -350,9 +350,9 @@ object StrategicBranchSelector:
     truthView.classificationKey != "best" &&
       truthView.failureMode != FailureInterpretationMode.NoClearPlan &&
       (
-        truthView.reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
-          truthView.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense ||
-          truthView.reasonFamily == DecisiveReasonFamily.QuietTechnicalMove
+        truthView.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
+          truthView.reasonFamily == DecisiveReasonKind.OnlyMoveDefense ||
+          truthView.reasonFamily == DecisiveReasonKind.QuietTechnicalMove
       )
 
   private def isMatePivot(moment: GameChronicleMoment): Boolean =
@@ -419,7 +419,7 @@ object StrategicBranchSelector:
       chainKey = projection.chainKey,
       maintenanceExemplarCandidate = projection.maintenanceExemplarCandidate,
       reasonFamily =
-        truthContractsByPly.get(moment.ply).map(_.reasonFamily).getOrElse(DecisiveReasonFamily.QuietTechnicalMove),
+        truthContractsByPly.get(moment.ply).map(_.reasonFamily).getOrElse(DecisiveReasonKind.QuietTechnicalMove),
       failureMode =
         truthContractsByPly.get(moment.ply).map(_.failureMode).getOrElse(FailureInterpretationMode.NoClearPlan),
       benchmarkCriticalMove = truthContractsByPly.get(moment.ply).exists(_.benchmarkCriticalMove)

@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import lila.commentary.analysis.ThemeTaxonomy.{ SubplanCatalog, ThemeL1, ThemeResolver }
+import lila.commentary.analysis.PlanTaxonomy.{ SubplanCatalog, PlanTheme, ThemeResolver }
 
 private[commentary] object FullGameDraftNormalizer:
 
@@ -77,17 +77,17 @@ private[commentary] object FullGameDraftNormalizer:
         .map(_.objective)
         .orElse {
           ThemeResolver.fromEvidenceSource(trimmed) match
-            case ThemeL1.OpeningPrinciples       => Some("development and king safety")
-            case ThemeL1.RestrictionProphylaxis  => Some("restriction and prophylaxis")
-            case ThemeL1.PieceRedeployment       => Some("piece improvement")
-            case ThemeL1.SpaceClamp              => Some("space gains and restriction")
-            case ThemeL1.WeaknessFixation        => Some("persistent structural targets")
-            case ThemeL1.PawnBreakPreparation    => Some("break timing")
-            case ThemeL1.FavorableExchange       => Some("favorable exchanges")
-            case ThemeL1.FlankInfrastructure     => Some("flank attacking infrastructure")
-            case ThemeL1.AdvantageTransformation => Some("durable advantage conversion")
-            case ThemeL1.ImmediateTacticalGain   => Some("forcing tactical pressure")
-            case ThemeL1.Unknown                 => None
+            case PlanTheme.OpeningPrinciples       => Some("development and king safety")
+            case PlanTheme.RestrictionProphylaxis  => Some("restriction and prophylaxis")
+            case PlanTheme.PieceRedeployment       => Some("piece improvement")
+            case PlanTheme.SpaceClamp              => Some("space gains and restriction")
+            case PlanTheme.WeaknessFixation        => Some("persistent structural targets")
+            case PlanTheme.PawnBreakPreparation    => Some("break timing")
+            case PlanTheme.FavorableExchange       => Some("favorable exchanges")
+            case PlanTheme.FlankInfrastructure     => Some("flank attacking infrastructure")
+            case PlanTheme.AdvantageTransformation => Some("durable advantage conversion")
+            case PlanTheme.ImmediateTacticalGain   => Some("forcing tactical pressure")
+            case PlanTheme.Unknown                 => None
         }
         .orElse {
           val lowered = trimmed.toLowerCase

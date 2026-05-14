@@ -41,8 +41,8 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
           failureModes = List("If the file, b4, or the reroute reopens, the route network shell disappears."),
           viability = PlanViability(score = 0.82, label = "high", risk = "B6b narrow"),
           evidenceSources = List(s"fen:${scenario.fen}", s"fixture:${scenario.id}"),
-          themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-          subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+          themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+          subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
         ),
       status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
       userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked,
@@ -51,8 +51,8 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
       refuteProbeIds = Nil,
       missingSignals = Nil,
       pvCoupled = false,
-      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-      subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
       claimCertification =
         PlanEvidenceEvaluator.ClaimCertification(
           certificateStatus = PlayerFacingCertificateStatus.Valid,
@@ -61,7 +61,7 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
           attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
           stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
           provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyFamily.RouteDenial
+          ontologyFamily = PlayerFacingClaimOntologyKind.RouteDenial
         )
     )
 
@@ -712,8 +712,8 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
         strengthTier = QuestionPlanStrengthTier.Moderate,
         sourceKinds = List("prevented_plan"),
         admissibilityReasons = List("test"),
-        ownerFamily = OwnerFamily.MoveDelta,
-        ownerSource = "prevented_plan"
+        plannerOwnerKind = PlannerOwnerKind.MoveDelta,
+        plannerSource = "prevented_plan"
       )
     val ranked =
       RankedQuestionPlans(
@@ -725,8 +725,8 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
     assert(whyThisClaim.contains("b4"), clue(whyThisClaim))
     assert(whyThisClaim.contains("a5"), clue(whyThisClaim))
     assert(whyThisClaim.toLowerCase.contains("reroute"), clue(whyThisClaim))
-    assert(routeWhyThis.sourceKinds.contains(RouteNetworkBindProof.OwnerSource), clue(routeWhyThis))
-    assertEquals(whatChanged.ownerSource == RouteNetworkBindProof.OwnerSource, false, clue(whatChanged))
+    assert(routeWhyThis.sourceKinds.contains(RouteNetworkBindProof.ProofSource), clue(routeWhyThis))
+    assertEquals(whatChanged.plannerSource == RouteNetworkBindProof.ProofSource, false, clue(whatChanged))
     assertEquals(whatChanged.claim.toLowerCase.contains("reroute"), false, clue(whatChanged.claim))
 
     val chronicle =
@@ -743,15 +743,15 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
       )
 
     assert(
-      chronicle.forall(!_.primary.sourceKinds.contains(RouteNetworkBindProof.OwnerSource)),
+      chronicle.forall(!_.primary.sourceKinds.contains(RouteNetworkBindProof.ProofSource)),
       clue(chronicle)
     )
     assert(
-      bookmaker.forall(!_.primary.sourceKinds.contains(RouteNetworkBindProof.OwnerSource)),
+      bookmaker.forall(!_.primary.sourceKinds.contains(RouteNetworkBindProof.ProofSource)),
       clue(bookmaker)
     )
     assert(
-      active.forall(!_.primary.sourceKinds.contains(RouteNetworkBindProof.OwnerSource)),
+      active.forall(!_.primary.sourceKinds.contains(RouteNetworkBindProof.ProofSource)),
       clue(active)
     )
   }
@@ -772,8 +772,8 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
         failureModes = List("If d5 or f5 reopens, the broader route shell disappears."),
         viability = PlanViability(score = 0.75, label = "medium", risk = "recomposition shell"),
         evidenceSources = List(s"fen:$PositiveFen", "fixture:planner_raw_recomposition_stronger_than_contract"),
-        themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-        subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+        themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+        subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
       )
     val preventedPlansNow =
       List(
@@ -814,5 +814,5 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
     assert(primary.claim.contains("a5"), clue(primary))
     assert(!primary.claim.contains("d5"), clue(primary))
     assert(!primary.claim.contains("f5"), clue(primary))
-    assert(primary.sourceKinds.contains(RouteNetworkBindProof.OwnerSource), clue(primary))
+    assert(primary.sourceKinds.contains(RouteNetworkBindProof.ProofSource), clue(primary))
   }

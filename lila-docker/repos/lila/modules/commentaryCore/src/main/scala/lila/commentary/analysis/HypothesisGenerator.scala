@@ -2,7 +2,7 @@ package lila.commentary.analysis
 
 import lila.commentary.model.{ PlanMatch, PlanScoringResult }
 import lila.commentary.model.authoring.{ PlanHypothesis, PlanViability }
-import lila.commentary.analysis.ThemeTaxonomy.{ ThemeResolver, ThemeL1 }
+import lila.commentary.analysis.PlanTaxonomy.{ ThemeResolver, PlanTheme }
 
 /**
  * Plan Proposal Layer v2:
@@ -131,9 +131,9 @@ object HypothesisGenerator:
       .filter(_.nonEmpty)
       .orElse {
         val resolved = ThemeResolver.fromPlanId(pm.plan.id.toString)
-        Option.when(resolved != ThemeL1.Unknown)(resolved.id)
+        Option.when(resolved != PlanTheme.Unknown)(resolved.id)
       }
-      .getOrElse(ThemeL1.Unknown.id)
+      .getOrElse(PlanTheme.Unknown.id)
 
   private def subplanIdFromPlanMatch(pm: PlanMatch): Option[String] =
     pm.supports

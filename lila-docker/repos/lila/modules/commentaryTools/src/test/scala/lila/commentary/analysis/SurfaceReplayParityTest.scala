@@ -215,16 +215,16 @@ class SurfaceReplayParityTest extends FunSuite:
               failureModes = List("Wrong move order restores counterplay."),
               viability = PlanViability(score = 0.8, label = "high", risk = "test"),
               evidenceSources = List("theme:advantage_transformation"),
-              themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
-              subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id)
+              themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id)
             )
           ),
         strategicPlanExperiments =
           List(
             StrategicPlanExperiment(
               planId = "simplification_conversion",
-              themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
-              subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+              themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id),
               evidenceTier = "deferred",
               supportProbeCount = 1,
               bestReplyStable = true,

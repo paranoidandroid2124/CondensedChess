@@ -24,10 +24,10 @@ private[commentary] object ClaimAuthorityPolicy:
       packet: PlayerFacingClaimPacket
   ): ClaimAuthorityDecision =
     val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
-    if tacticalReasons.nonEmpty && isSupportedPositionProbeFamily(packet.ownerFamily) then
+    if tacticalReasons.nonEmpty && isSupportedPositionProbeFamily(packet.proofFamily) then
       ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
     else if PlayerFacingTruthModePolicy.certifiedPositionProbePacket(packet) &&
-        OwnerProofRules.certifiedEligible(packet.ownerFamily)
+        ProofContractRules.certifiedEligible(packet.proofFamily)
     then
       ClaimAuthorityDecision(ClaimAuthorityTier.CertifiedOwner)
     else if supportsLocalPositionProbe(packet) then
@@ -79,7 +79,7 @@ private[commentary] object ClaimAuthorityPolicy:
         List(
           Option.when(contract.truthClass == DecisiveTruthClass.Blunder)("truth_contract_blunder"),
           Option.when(contract.truthClass == DecisiveTruthClass.MissedWin)("truth_contract_missed_win"),
-          Option.when(contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation && contract.isBad)(
+          Option.when(contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad)(
             "truth_contract_tactical_refutation"
           ),
           Option.when(contract.failureMode == FailureInterpretationMode.TacticalRefutation)(
@@ -108,8 +108,8 @@ private[commentary] object ClaimAuthorityPolicy:
       packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
       packet.suppressionReasons.isEmpty &&
       packet.releaseRisks.isEmpty &&
-      isSupportedPositionProbeFamily(packet.ownerFamily) &&
-      OwnerProofRules.supportedLocalEligible(packet.ownerFamily) &&
+      isSupportedPositionProbeFamily(packet.proofFamily) &&
+      ProofContractRules.supportedLocalEligible(packet.proofFamily) &&
       PlayerFacingClaimProof.allowsWeakMainClaim(packet)
 
   private def decideSupportedMoveDelta(
@@ -119,22 +119,24 @@ private[commentary] object ClaimAuthorityPolicy:
     matchingMoveDeltaPacket(inputs, plan)
       .filter(packet =>
         supportsLocalMoveDelta(packet) &&
-          (!hasExactOwnerPath(packet) || exactBreakMoveDeltaSupportedLocal(packet))
+          (!hasExactOwnerPath(packet) || exactMoveDeltaSupportedLocal(packet))
       )
       .map(_ => ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal))
 
-  private def exactBreakMoveDeltaSupportedLocal(packet: PlayerFacingClaimPacket): Boolean =
-    packet.ownerSource == "counterplay_axis_suppression" &&
-      packet.ownerFamily == "neutralize_key_break"
+  private def exactMoveDeltaSupportedLocal(packet: PlayerFacingClaimPacket): Boolean =
+    (packet.proofSource == "counterplay_axis_suppression" &&
+      packet.proofFamily == "neutralize_key_break") ||
+      (packet.proofSource == "prophylactic_move" &&
+        packet.proofFamily == "counterplay_restraint")
 
   private def matchingMoveDeltaPacket(
       inputs: QuestionPlannerInputs,
       plan: QuestionPlan
   ): Option[PlayerFacingClaimPacket] =
-    Option.when(plan.ownerFamily == OwnerFamily.MoveDelta) {
+    Option.when(plan.plannerOwnerKind == PlannerOwnerKind.MoveDelta) {
       inputs.mainBundle.flatMap(_.mainClaim).filter(claim =>
         claim.scope == PlayerFacingClaimScope.MoveLocal &&
-          claim.sourceKind == plan.ownerSource &&
+          claim.sourceKind == plan.plannerSource &&
           sameText(claim.claimText, plan.claim)
       ).flatMap(_.packet)
     }.flatten
@@ -144,20 +146,20 @@ private[commentary] object ClaimAuthorityPolicy:
       packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
       packet.suppressionReasons.isEmpty &&
       packet.releaseRisks.isEmpty &&
-      OwnerProofRules.supportsMoveDeltaFamily(packet.ownerFamily) &&
-      OwnerProofRules.supportedLocalEligible(packet.ownerFamily) &&
+      ProofContractRules.supportsMoveDeltaProofFamily(packet.proofFamily) &&
+      ProofContractRules.supportedLocalEligible(packet.proofFamily) &&
       PlayerFacingClaimProof.allowsWeakMainClaim(packet)
 
   private def hasExactOwnerPath(packet: PlayerFacingClaimPacket): Boolean =
-    OwnerProofRules.certifiedEligible(packet.ownerFamily) &&
+    ProofContractRules.certifiedEligible(packet.proofFamily) &&
       packet.bestDefenseBranchKey.nonEmpty &&
       packet.sameBranchState == PlayerFacingSameBranchState.Proven &&
       packet.persistence == PlayerFacingClaimPersistence.Stable
 
   private def isSupportedPositionProbePlan(plan: QuestionPlan): Boolean =
-    plan.ownerFamily == OwnerFamily.PositionProbe &&
+    plan.plannerOwnerKind == PlannerOwnerKind.PositionProbe &&
       (
-        isSupportedPositionProbeFamily(plan.ownerSource) ||
+        isSupportedPositionProbeFamily(plan.plannerSource) ||
           plan.sourceKinds.exists(isSupportedPositionProbeFamily) ||
           plan.admissibilityReasons.exists(reason =>
             reason == "strategic_claim_supported_local" ||
@@ -165,8 +167,8 @@ private[commentary] object ClaimAuthorityPolicy:
           )
       )
 
-  private def isSupportedPositionProbeFamily(ownerFamily: String): Boolean =
-    OwnerProofRules.supportsPositionProbeFamily(ownerFamily)
+  private def isSupportedPositionProbeFamily(proofFamily: String): Boolean =
+    ProofContractRules.supportsPositionProbeProofFamily(proofFamily)
 
   private def stripPrefix(raw: String, prefix: String): Option[String] =
     Option(raw).map(_.trim).filter(_.startsWith(prefix)).map(_.drop(prefix.length))

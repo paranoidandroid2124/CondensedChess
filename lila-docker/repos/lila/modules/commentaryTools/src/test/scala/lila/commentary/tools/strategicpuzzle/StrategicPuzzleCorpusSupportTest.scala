@@ -405,7 +405,7 @@ class StrategicPuzzleCorpusSupportTest extends FunSuite:
       sourceMode = sourceMode,
       polishMeta =
         Some(
-          PolishMetaV1(
+          MoveReviewPolishMeta(
             provider = "test",
             model = Some("gpt-test"),
             sourceMode = sourceMode,
@@ -418,7 +418,7 @@ class StrategicPuzzleCorpusSupportTest extends FunSuite:
             estimatedCostUsd = None,
             strategyCoverage =
               coveragePass.map { passes =>
-                StrategyCoverageMetaV1(
+                MoveReviewStrategyCoverageMeta(
                   mode = "test",
                   enforced = true,
                   threshold = 0.7,

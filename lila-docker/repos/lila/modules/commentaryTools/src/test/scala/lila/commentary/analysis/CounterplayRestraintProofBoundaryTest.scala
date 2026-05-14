@@ -60,7 +60,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
       planId: String,
       planName: String,
       subplanId: String,
-      ontologyFamily: PlayerFacingClaimOntologyFamily,
+      ontologyFamily: PlayerFacingClaimOntologyKind,
       phaseCell: PhaseCell,
       evalPosture: EvalPostureCell,
       texture: TextureCell,
@@ -113,7 +113,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
           failureModes = List("If the clamp slips, counterplay comes back."),
           viability = PlanViability(score = 0.78, label = "high", risk = "B2b broad"),
           evidenceSources = List("theme:restriction_prophylaxis"),
-          themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+          themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
           subplanId = Some(scenario.subplanId)
         ),
       status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
@@ -123,7 +123,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
       refuteProbeIds = Nil,
       missingSignals = Nil,
       pvCoupled = false,
-      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
       subplanId = Some(scenario.subplanId),
       claimCertification =
         PlanEvidenceEvaluator.ClaimCertification(
@@ -222,8 +222,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "true_prophylactic_move_named_resource",
         planId = "prophylactic_move_named_resource",
         planName = "Slow queenside counterplay before expanding",
-        subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.ProphylaxisRestraint.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.ProphylacticClamp,
@@ -276,8 +276,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "named_resource_missing",
         planId = "named_resource_missing",
         planName = "Quiet prophylactic shell",
-        subplanId = ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.ProphylaxisRestraint.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.QuietImprovementOnly,
@@ -330,8 +330,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "true_named_break_suppression",
         planId = "named_break_suppression",
         planName = "Clamp the ...c5 break",
-        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.NamedBreakSuppression,
@@ -362,8 +362,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "true_entry_route_denial",
         planId = "entry_route_denial",
         planName = "Take away the b4 entry square",
-        subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.RouteDenial,
+        subplanId = PlanTaxonomy.PlanKind.KeySquareDenial.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.RouteDenial,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.RouteDenialShell,
@@ -415,8 +415,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "validation_only_shell",
         planId = "validation_only_shell",
         planName = "Validation-only clamp shell",
-        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.ValidationOnlyShell,
@@ -441,8 +441,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "stitched_defended_branch",
         planId = "stitched_defended_branch",
         planName = "Clamp shell with stitched persistence",
-        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.StitchedBranchShell,
@@ -474,8 +474,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "hidden_freeing_break",
         planId = "hidden_break_shell",
         planName = "Clamp the queenside",
-        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.HiddenBreakFake,
@@ -507,8 +507,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "hidden_tactical_release",
         planId = "tactical_release_shell",
         planName = "Restrain first",
-        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.TacticalReleaseCase,
@@ -561,8 +561,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "move_order_fragile_clamp",
         planId = "fragile_clamp",
         planName = "Hold the queenside clamp",
-        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.ProphylacticClamp,
@@ -590,8 +590,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "pv_restatement_only_quiet",
         planId = "quiet_pv_shell",
         planName = "A quiet clamp shell",
-        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.EqualOrUnclear,
         texture = TextureCell.QuietImprovementOnly,
@@ -619,8 +619,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "waiting_move_only",
         planId = "waiting_move_shell",
         planName = "Improve quietly",
-        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.QuietImprovementOnly,
@@ -671,8 +671,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "slightly_better_but_not_certifiable",
         planId = "slight_edge_clamp",
         planName = "Restrain the break first",
-        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.LateMiddlegame,
         evalPosture = EvalPostureCell.SlightlyBetter,
         texture = TextureCell.NamedBreakSuppression,
@@ -704,8 +704,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "heavy_piece_local_overreach_shell",
         planId = "heavy_piece_clamp",
         planName = "Clamp the center completely",
-        subplanId = ThemeTaxonomy.SubplanId.BreakPrevention.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.LongTermRestraint,
+        subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.LongTermRestraint,
         phaseCell = PhaseCell.HeavyPieceMiddlegame,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.ProphylacticClamp,
@@ -737,8 +737,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "transition_endgame_adjacent_shell",
         planId = "transition_shell",
         planName = "Keep the king entry closed",
-        subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.RouteDenial,
+        subplanId = PlanTaxonomy.PlanKind.KeySquareDenial.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.RouteDenial,
         phaseCell = PhaseCell.TransitionEndgameAdjacent,
         evalPosture = EvalPostureCell.ClearlyBetter,
         texture = TextureCell.RouteDenialShell,
@@ -790,8 +790,8 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         id = "pure_endgame_defending_shell",
         planId = "defending_endgame_shell",
         planName = "Hold the entry squares",
-        subplanId = ThemeTaxonomy.SubplanId.KeySquareDenial.id,
-        ontologyFamily = PlayerFacingClaimOntologyFamily.RouteDenial,
+        subplanId = PlanTaxonomy.PlanKind.KeySquareDenial.id,
+        ontologyFamily = PlayerFacingClaimOntologyKind.RouteDenial,
         phaseCell = PhaseCell.PureEndgame,
         evalPosture = EvalPostureCell.DefendingSide,
         texture = TextureCell.RouteDenialShell,
@@ -880,16 +880,16 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
             failureModes = List("If the c-file opens, Black gets active play."),
             viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
             evidenceSources = List("theme:restriction_prophylaxis"),
-            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
           )
         ),
       strategicPlanExperiments =
         List(
           StrategicPlanExperiment(
             planId = "named_break_suppression",
-            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
             evidenceTier = evidenceTier,
             supportProbeCount = 1,
             bestReplyStable = evidenceTier == "evidence_backed",
@@ -940,16 +940,16 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
             failureModes = List("If the branch opens up, queenside counterplay comes back."),
             viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
             evidenceSources = List("theme:restriction_prophylaxis"),
-            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id)
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id)
           )
         ),
       strategicPlanExperiments =
         List(
           StrategicPlanExperiment(
             planId = "prophylactic_move_named_resource",
-            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.ProphylaxisRestraint.id),
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id),
             evidenceTier = "evidence_backed",
             supportProbeCount = 1,
             bestReplyStable = true,
@@ -1060,16 +1060,16 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
             failureModes = List("none"),
             viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
             evidenceSources = List("theme:restriction_prophylaxis"),
-            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
           )
         ),
       strategicPlanExperiments =
         List(
           StrategicPlanExperiment(
             planId = "named_break_suppression",
-            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
             evidenceTier = "deferred",
             supportProbeCount = 1,
             bestReplyStable = false,
@@ -1246,12 +1246,12 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
 
     assert(surfacedClaim.nonEmpty, clues(plannerInputs.mainBundle))
     assertEquals(
-      surfacedClaim.flatMap(_.packet.map(_.ownerSource)),
+      surfacedClaim.flatMap(_.packet.map(_.proofSource)),
       Some("prophylactic_move"),
       clues(plannerInputs.mainBundle, surfacedClaim)
     )
     assertEquals(
-      surfacedClaim.flatMap(_.packet.map(_.ownerFamily)),
+      surfacedClaim.flatMap(_.packet.map(_.proofFamily)),
       Some("counterplay_restraint"),
       clues(plannerInputs.mainBundle, surfacedClaim)
     )
@@ -1310,7 +1310,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
       plannerInputs.mainBundle.flatMap(bundle => bundle.mainClaim.orElse(bundle.lineScopedClaim))
 
     assertEquals(
-      surfacedClaim.flatMap(_.packet.map(_.ownerSource)),
+      surfacedClaim.flatMap(_.packet.map(_.proofSource)),
       Some("prophylactic_move"),
       clues(plannerInputs.mainBundle, surfacedClaim)
     )
@@ -1380,16 +1380,16 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
               failureModes = List("If the clamp slips, Black gets active play."),
               viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
               evidenceSources = List("theme:restriction_prophylaxis"),
-              themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-              subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+              themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
             )
           ),
         strategicPlanExperiments =
           List(
             StrategicPlanExperiment(
               planId = "named_break_suppression",
-              themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-              subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+              themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
               evidenceTier = "evidence_backed",
               supportProbeCount = 1,
               bestReplyStable = true,
@@ -1485,7 +1485,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
 
     assert(plannerInputs.mainBundle.flatMap(_.mainClaim).nonEmpty, clues(plannerInputs.mainBundle))
     assertEquals(
-      plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet.map(_.ownerFamily)),
+      plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet.map(_.proofFamily)),
       Some("neutralize_key_break"),
       clues(plannerInputs.mainBundle)
     )

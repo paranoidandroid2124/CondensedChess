@@ -229,7 +229,7 @@ private[commentary] object RestrictedDefenseConversionProof:
   private def isConversionPlan(
       plan: PlanEvidenceEvaluator.EvaluatedPlan
   ): Boolean =
-    normalize(plan.themeL1) == ThemeTaxonomy.ThemeL1.AdvantageTransformation.id
+    normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.AdvantageTransformation.id
 
   private def distinctDefenderResources(
       results: List[ProbeResult]

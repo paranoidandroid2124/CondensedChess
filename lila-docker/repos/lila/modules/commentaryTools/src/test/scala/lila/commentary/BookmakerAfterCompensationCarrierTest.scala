@@ -67,10 +67,10 @@ class BookmakerAfterCompensationCarrierTest extends FunSuite:
       cp: Int,
       ply: Int,
       phase: String
-  ): BookmakerResult =
+  ): MoveReviewResult =
     Await
       .result(
-        api().bookmakerCommentPosition(
+        api().moveReviewPosition(
           fen = fen,
           lastMove = Some(playedMove),
           eval = Some(EvalData(cp = cp, mate = None, pv = Some(before.head.moves))),
@@ -94,7 +94,7 @@ class BookmakerAfterCompensationCarrierTest extends FunSuite:
       )
       .getOrElse(fail(s"empty bookmaker response for $fen"))
 
-  private def assertCompensationCarrier(result: BookmakerResult): Unit =
+  private def assertCompensationCarrier(result: MoveReviewResult): Unit =
     val digest = result.response.signalDigest.getOrElse(fail("missing signal digest"))
     assert(digest.compensation.exists(_.trim.nonEmpty), clue(digest))
     assert(digest.compensationVectors.exists(_.trim.nonEmpty), clue(digest))

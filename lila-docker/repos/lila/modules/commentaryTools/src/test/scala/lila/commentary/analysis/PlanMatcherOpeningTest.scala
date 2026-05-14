@@ -2,7 +2,7 @@ package lila.commentary.analysis
 
 import chess.{ Color, File, Knight, Queen, Rook, Square }
 import lila.commentary.analysis.L3.*
-import lila.commentary.analysis.ThemeTaxonomy.ThemeL1
+import lila.commentary.analysis.PlanTaxonomy.PlanTheme
 import lila.commentary.model.{
   ContextHeader,
   ExplorerMove,
@@ -127,7 +127,7 @@ class PlanMatcherOpeningTest extends FunSuite:
 
     assert(openingPlan.nonEmpty, "OpeningDevelopment should be present in opening phase")
     assert(
-      openingPlan.exists(_.supports.contains(s"theme:${ThemeL1.OpeningPrinciples.id}")),
+      openingPlan.exists(_.supports.contains(s"theme:${PlanTheme.OpeningPrinciples.id}")),
       "OpeningDevelopment should use opening_principles theme"
     )
   }
@@ -154,7 +154,7 @@ class PlanMatcherOpeningTest extends FunSuite:
 
     assertNotEquals(top.plan.id, PlanId.OpeningDevelopment)
     assert(
-      top.supports.contains(s"theme:${ThemeL1.ImmediateTacticalGain.id}"),
+      top.supports.contains(s"theme:${PlanTheme.ImmediateTacticalGain.id}"),
       "forcing tactical context should be ranked as immediate_tactical_gain"
     )
   }

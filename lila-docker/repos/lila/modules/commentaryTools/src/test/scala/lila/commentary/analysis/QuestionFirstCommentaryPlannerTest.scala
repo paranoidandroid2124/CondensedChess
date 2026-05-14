@@ -79,7 +79,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
   private def positionLocalClaim(
       text: String,
-      sourceKind: String = PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource,
+      sourceKind: String = PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource,
       packet: PlayerFacingClaimPacket
   ): MainPathScopedClaim =
     MainPathScopedClaim(
@@ -107,14 +107,14 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     )
 
   private def certifiedPositionProbePacket(
-      ownerSource: String = PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource,
-      ownerFamily: String = ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id,
+      proofSource: String = PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource,
+      proofFamily: String = PlanTaxonomy.PlanKind.BackwardPawnTargeting.id,
       anchorSquare: String = "c6",
       ownerSeedTerms: List[String] =
         List(
           "c6",
           "fixed_target:c6",
-          ThemeTaxonomy.SubplanId.BackwardPawnTargeting.id
+          PlanTaxonomy.PlanKind.BackwardPawnTargeting.id
         ),
       continuationTerms: List[String] =
         List("carlsbad_fixed_target_probe", "fixed_target:c6", "best_branch:b5|Qb6"),
@@ -134,10 +134,10 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
           attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
           stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
           provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyFamily.Pressure
+          ontologyFamily = PlayerFacingClaimOntologyKind.Pressure
         ),
-      ownerSource = ownerSource,
-      ownerFamily = ownerFamily,
+      proofSource = proofSource,
+      proofFamily = proofFamily,
       scope = scope,
       triggerKind = "position_probe",
       anchorTerms = List(anchorSquare),
@@ -145,8 +145,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       bestDefenseBranchKey = Some(bestDefenseBranchKey),
       sameBranchState = sameBranchState,
       persistence = persistence,
-      ownerPathWitness =
-        PlayerFacingOwnerPathWitness(
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
           ownerSeedTerms = ownerSeedTerms,
           continuationTerms = continuationTerms,
           structureTransitionTerms = structureTransitionTerms
@@ -163,19 +163,19 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
           attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
           stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
           provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyFamily.Exchange
+          ontologyFamily = PlayerFacingClaimOntologyKind.Exchange
         ),
-      ownerSource = PlayerFacingTruthModePolicy.QueenTradeShieldOwnerSource,
-      ownerFamily = ThemeTaxonomy.SubplanId.QueenTradeShield.id,
+      proofSource = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
+      proofFamily = PlanTaxonomy.PlanKind.QueenTradeShield.id,
       scope = PlayerFacingPacketScope.MoveLocal,
-      triggerKind = ThemeTaxonomy.SubplanId.QueenTradeShield.id,
+      triggerKind = PlanTaxonomy.PlanKind.QueenTradeShield.id,
       anchorTerms = List("c6", "d8"),
       bestDefenseMove = Some("d7c6"),
       bestDefenseBranchKey = Some("d4c6|d7c6|d3d8|e8d8"),
       sameBranchState = PlayerFacingSameBranchState.Proven,
       persistence = PlayerFacingClaimPersistence.Stable,
-      ownerPathWitness =
-        PlayerFacingOwnerPathWitness(
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
           ownerSeedTerms = List("queen_trade_shield", "queenless_branch", "c6", "d8"),
           continuationTerms = List("d4c6", "d7c6", "d3d8", "e8d8"),
           structureTransitionTerms = List("queenless_branch", "queen_trade")
@@ -285,7 +285,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
   private def truthContract(
       truthClass: DecisiveTruthClass = DecisiveTruthClass.Best,
-      reasonFamily: DecisiveReasonFamily = DecisiveReasonFamily.OnlyMoveDefense,
+      reasonFamily: DecisiveReasonKind = DecisiveReasonKind.OnlyMoveDefense,
       verifiedBestMove: Option[String] = Some("Qe2"),
       benchmarkCriticalMove: Boolean = true
   ): DecisiveTruthContract =
@@ -409,8 +409,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     val primary = plans.primary.getOrElse(fail("missing primary position probe"))
     assertEquals(primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-    assertEquals(primary.ownerFamily, OwnerFamily.PositionProbe)
-    assertEquals(primary.ownerSource, PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
+    assertEquals(primary.plannerSource, PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource)
     assert(primary.admissibilityReasons.contains("certified_position_probe"), clues(primary))
     assertEquals(
       primary.consequence.map(_.text),
@@ -445,7 +445,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(plans.ownerTrace.sceneType, SceneType.ForcingDefense)
     val primary = plans.primary.getOrElse(fail("missing primary position probe"))
     assertEquals(primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-    assertEquals(primary.ownerSource, PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeOwnerSource)
+    assertEquals(primary.plannerSource, PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource)
     assert(primary.admissibilityReasons.contains("certified_position_probe"), clues(primary))
     assert(
       plans.ownerTrace.ownerCandidateLabels.exists(label =>
@@ -472,7 +472,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
                 Some(
                   mainClaim(
                     rawClaim,
-                    sourceKind = PlayerFacingTruthModePolicy.QueenTradeShieldOwnerSource,
+                    sourceKind = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
                     packet = Some(queenTradeShieldPacket()),
                     deltaClass = PlayerFacingMoveDeltaClass.ExchangeForcing
                   )
@@ -486,8 +486,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     val primary = plans.primary.getOrElse(fail("missing queen trade shield primary"))
     assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
-    assertEquals(primary.ownerFamily, OwnerFamily.MoveDelta)
-    assertEquals(primary.ownerSource, PlayerFacingTruthModePolicy.QueenTradeShieldOwnerSource)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
+    assertEquals(primary.plannerSource, PlayerFacingTruthModePolicy.QueenTradeShieldProofSource)
     assertEquals(primary.claim, "A local reading is that this exchange moves the game into the queenless branch.")
     assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
     assertEquals(primary.evidence, None)
@@ -508,21 +508,21 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
                 Some(
                   positionLocalClaim(
                     "The key strategic fact here is that the pressure is coordinated on c6.",
-                    sourceKind = PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource,
+                    sourceKind = PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource,
                     packet =
                       certifiedPositionProbePacket(
-                        ownerSource = PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource,
-                        ownerFamily = PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerFamily,
+                        proofSource = PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource,
+                        proofFamily = PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofFamily,
                         ownerSeedTerms =
                           List(
                             "c6",
                             "coordinated_target:c6",
-                            PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerFamily,
+                            PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofFamily,
                             "rook_on_c1"
                           ),
                         continuationTerms =
                           List(
-                            PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource,
+                            PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource,
                             "coordinated_target:c6",
                             "best_branch:d2|Qd7"
                           ),
@@ -542,8 +542,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     val primary = plans.primary.getOrElse(fail("missing target-focused coordination probe"))
     assertEquals(primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-    assertEquals(primary.ownerFamily, OwnerFamily.PositionProbe)
-    assertEquals(primary.ownerSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationOwnerSource)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
+    assertEquals(primary.plannerSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource)
     assertEquals(primary.claim, "The key strategic fact here is that the pressure is coordinated on c6.")
     assertEquals(
       primary.consequence.map(_.text),
@@ -580,7 +580,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       )
 
     assertEquals(plans.primary, None)
-    assert(plans.ownerTrace.ownerCandidates.forall(_.family != OwnerFamily.PositionProbe), clues(plans.ownerTrace))
+    assert(plans.ownerTrace.ownerCandidates.forall(_.plannerOwnerKind != PlannerOwnerKind.PositionProbe), clues(plans.ownerTrace))
     assert(
       plans.rejected.exists(rejected =>
         rejected.questionKind == AuthorQuestionKind.WhatMattersHere &&
@@ -619,7 +619,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     val primary = plans.primary.getOrElse(fail("missing supported position probe"))
     assertEquals(primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-    assertEquals(primary.ownerFamily, OwnerFamily.PositionProbe)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
     assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
     assert(!primary.claim.contains("The key strategic fact"), clues(primary.claim))
     assertEquals(primary.consequence, None)
@@ -649,7 +649,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               )
             )
         ),
-        Some(truthContract(truthClass = DecisiveTruthClass.Blunder, reasonFamily = DecisiveReasonFamily.TacticalRefutation))
+        Some(truthContract(truthClass = DecisiveTruthClass.Blunder, reasonFamily = DecisiveReasonKind.TacticalRefutation))
       )
 
     assertEquals(plans.primary, None)
@@ -809,7 +809,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(rejected.demotedTo, Some(AuthorQuestionKind.WhyThis))
   }
 
-  test("planner owner trace records scene, owner family, and owner source") {
+  test("planner owner trace records scene, planner owner kind, and planner source") {
     val q = question("q_now_trace", AuthorQuestionKind.WhyNow)
     val ctx = baseCtx(List(q))
     val plans =
@@ -820,7 +820,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     )
 
     assertEquals(plans.ownerTrace.sceneType, SceneType.ForcingDefense)
-    assertEquals(plans.ownerTrace.sceneReasons, List("owner_family=ForcingDefense"))
+    assertEquals(plans.ownerTrace.sceneReasons, List("proof_family=ForcingDefense"))
     assert(
       plans.ownerTrace.ownerCandidateLabels.exists(label =>
         label.contains("ForcingDefense") && label.contains("source_kind=threat")
@@ -828,8 +828,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       clues(plans.ownerTrace.ownerCandidateLabels)
     )
     assertEquals(plans.ownerTrace.selectedQuestion, Some(AuthorQuestionKind.WhyNow))
-    assertEquals(plans.ownerTrace.selectedOwnerFamily, Some(OwnerFamily.ForcingDefense))
-    assertEquals(plans.ownerTrace.selectedOwnerSource, Some("threat"))
+    assertEquals(plans.ownerTrace.selectedPlannerOwnerKind, Some(PlannerOwnerKind.ForcingDefense))
+    assertEquals(plans.ownerTrace.selectedPlannerSource, Some("threat"))
   }
 
   test("shadow normalization keeps raw close alternatives as DecisionTiming support material") {
@@ -1038,17 +1038,17 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assert(plans.ownerTrace.ownerCandidateLabels.exists(_.contains("source_kind=opening_relation_translator")))
     assert(!plans.ownerTrace.ownerCandidateLabels.exists(_.contains("EndgameTransition")))
     assert(
-      plans.ownerTrace.admittedFamilyLabels.exists(label =>
+      plans.ownerTrace.admittedPlannerOwnerLabels.exists(label =>
         label.contains("OpeningRelation") &&
           label.contains("source_kind=opening_relation_translator") &&
           label.contains("admission_decision=PrimaryAllowed")
       ),
-      clues(plans.ownerTrace.admittedFamilyLabels)
+      clues(plans.ownerTrace.admittedPlannerOwnerLabels)
     )
     val primary = plans.primary.getOrElse(fail("missing primary"))
     assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
-    assertEquals(primary.ownerFamily, OwnerFamily.OpeningRelation)
-    assertEquals(primary.ownerSource, "opening_relation_translator")
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.OpeningRelation)
+    assertEquals(primary.plannerSource, "opening_relation_translator")
   }
 
   test("scene trace keeps pure endgame translators under endgame transition") {
@@ -1101,17 +1101,17 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assert(plans.ownerTrace.ownerCandidateLabels.exists(_.contains("source_kind=endgame_transition_translator")))
     assert(!plans.ownerTrace.ownerCandidateLabels.exists(_.contains("OpeningRelation")))
     assert(
-      plans.ownerTrace.admittedFamilyLabels.exists(label =>
+      plans.ownerTrace.admittedPlannerOwnerLabels.exists(label =>
         label.contains("EndgameTransition") &&
           label.contains("source_kind=endgame_transition_translator") &&
           label.contains("admission_decision=PrimaryAllowed")
       ),
-      clues(plans.ownerTrace.admittedFamilyLabels)
+      clues(plans.ownerTrace.admittedPlannerOwnerLabels)
     )
     val primary = plans.primary.getOrElse(fail("missing primary"))
     assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
-    assertEquals(primary.ownerFamily, OwnerFamily.EndgameTransition)
-    assertEquals(primary.ownerSource, "endgame_transition_translator")
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.EndgameTransition)
+    assertEquals(primary.plannerSource, "endgame_transition_translator")
   }
 
   test("opening relation scene keeps WhyThis ahead of WhatChanged inside the legal pool") {
@@ -1162,7 +1162,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     val primary = plans.primary.getOrElse(fail("missing primary"))
     assertEquals(plans.ownerTrace.sceneType, SceneType.OpeningRelation)
     assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
-    assertEquals(primary.ownerFamily, OwnerFamily.OpeningRelation)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.OpeningRelation)
   }
 
   test("endgame transition scene keeps WhatChanged ahead of WhyThis inside the legal pool") {
@@ -1215,7 +1215,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     val primary = plans.primary.getOrElse(fail("missing primary"))
     assertEquals(plans.ownerTrace.sceneType, SceneType.EndgameTransition)
     assertEquals(primary.questionKind, AuthorQuestionKind.WhatChanged)
-    assertEquals(primary.ownerFamily, OwnerFamily.EndgameTransition)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.EndgameTransition)
   }
 
   test("scene trace prefers plan clash over forcing defense when both are present") {
@@ -1306,7 +1306,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         Some(
           truthContract(
             truthClass = DecisiveTruthClass.Blunder,
-            reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+            reasonFamily = DecisiveReasonKind.TacticalRefutation,
             verifiedBestMove = Some("Qe2")
           )
         )
@@ -1414,7 +1414,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         Some(
           truthContract(
             truthClass = DecisiveTruthClass.Best,
-            reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+            reasonFamily = DecisiveReasonKind.TacticalRefutation,
             verifiedBestMove = Some("Rc8"),
             benchmarkCriticalMove = false
           )
@@ -1423,7 +1423,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     assertNotEquals(plans.ownerTrace.sceneType, SceneType.TacticalFailure)
     assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
-    assertEquals(plans.ownerTrace.selectedOwnerFamily, Some(OwnerFamily.MoveDelta))
+    assertEquals(plans.ownerTrace.selectedPlannerOwnerKind, Some(PlannerOwnerKind.MoveDelta))
   }
 
   test("best tactical refutation hold without concrete move delta keeps truth-contract forcing defense") {
@@ -1438,7 +1438,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         Some(
           truthContract(
             truthClass = DecisiveTruthClass.Best,
-            reasonFamily = DecisiveReasonFamily.TacticalRefutation,
+            reasonFamily = DecisiveReasonKind.TacticalRefutation,
             verifiedBestMove = Some("e2e4"),
             benchmarkCriticalMove = false
           ).copy(
@@ -1449,8 +1449,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     assertEquals(plans.ownerTrace.sceneType, SceneType.ForcingDefense)
     assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhyNow))
-    assertEquals(plans.ownerTrace.selectedOwnerFamily, Some(OwnerFamily.ForcingDefense))
-    assertEquals(plans.ownerTrace.selectedOwnerSource, Some("truth_contract"))
+    assertEquals(plans.ownerTrace.selectedPlannerOwnerKind, Some(PlannerOwnerKind.ForcingDefense))
+    assertEquals(plans.ownerTrace.selectedPlannerSource, Some("truth_contract"))
     assert(
       plans.ownerTrace.ownerCandidateLabels.exists(label =>
         label.contains("ForcingDefense") &&
@@ -1526,8 +1526,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     assertEquals(plans.ownerTrace.sceneType, SceneType.TransitionConversion)
     assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatChanged))
-    assertEquals(plans.ownerTrace.selectedOwnerFamily, Some(OwnerFamily.MoveDelta))
-    assertEquals(plans.ownerTrace.selectedOwnerSource, Some("pv_delta"))
+    assertEquals(plans.ownerTrace.selectedPlannerOwnerKind, Some(PlannerOwnerKind.MoveDelta))
+    assertEquals(plans.ownerTrace.selectedPlannerSource, Some("pv_delta"))
     assert(!plans.ownerTrace.ownerCandidateLabels.exists(_.contains("source_kind=threat")), clues(plans.ownerTrace.ownerCandidateLabels))
   }
 
@@ -1544,7 +1544,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         Some(
           truthContract(
             truthClass = DecisiveTruthClass.CompensatedInvestment,
-            reasonFamily = DecisiveReasonFamily.InvestmentSacrifice,
+            reasonFamily = DecisiveReasonKind.InvestmentSacrifice,
             verifiedBestMove = Some("Qe2"),
             benchmarkCriticalMove = false
           ).copy(
@@ -1555,8 +1555,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
     assertEquals(plans.ownerTrace.sceneType, SceneType.ForcingDefense)
     assertEquals(plans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMustBeStopped))
-    assertEquals(plans.ownerTrace.selectedOwnerFamily, Some(OwnerFamily.ForcingDefense))
-    assertEquals(plans.ownerTrace.selectedOwnerSource, Some("threat"))
+    assertEquals(plans.ownerTrace.selectedPlannerOwnerKind, Some(PlannerOwnerKind.ForcingDefense))
+    assertEquals(plans.ownerTrace.selectedPlannerSource, Some("threat"))
     assert(
       plans.ownerTrace.ownerCandidateLabels.exists(label =>
         label.contains("ForcingDefense") &&
@@ -1604,7 +1604,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         Some(
           truthContract(
             truthClass = DecisiveTruthClass.Mistake,
-            reasonFamily = DecisiveReasonFamily.InvestmentSacrifice,
+            reasonFamily = DecisiveReasonKind.InvestmentSacrifice,
             verifiedBestMove = Some("g3"),
             benchmarkCriticalMove = true
           )

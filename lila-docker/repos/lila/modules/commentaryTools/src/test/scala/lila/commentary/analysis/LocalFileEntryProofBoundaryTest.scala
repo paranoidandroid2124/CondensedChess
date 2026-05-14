@@ -110,8 +110,8 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
           failureModes = List("If the file or entry reopens, the bind vanishes."),
           viability = PlanViability(score = 0.8, label = "high", risk = "B4b broad"),
           evidenceSources = List("theme:restriction_prophylaxis"),
-          themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-          subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+          themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+          subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
         ),
       status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
       userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked,
@@ -120,8 +120,8 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
       refuteProbeIds = Nil,
       missingSignals = Nil,
       pvCoupled = false,
-      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-      subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
       claimCertification =
         PlanEvidenceEvaluator.ClaimCertification(
           certificateStatus = PlayerFacingCertificateStatus.Valid,
@@ -130,7 +130,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
           attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
           stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
           provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyFamily.RouteDenial
+          ontologyFamily = PlayerFacingClaimOntologyKind.RouteDenial
         )
     )
 
@@ -699,8 +699,8 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
               failureModes = List("If the file or entry reopens, the bind vanishes."),
               viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
               evidenceSources = List("theme:restriction_prophylaxis"),
-              themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-              subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+              themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
             )
           )
         }.getOrElse(Nil),
@@ -708,8 +708,8 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
         List(
           StrategicPlanExperiment(
             planId = "local_file_entry_bind",
-            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
             evidenceTier = evidenceTier,
             supportProbeCount = 2,
             bestReplyStable = evidenceTier == "evidence_backed",
@@ -907,8 +907,8 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
             failureModes = List("If the c-file reopens and b4 becomes available, the bind vanishes."),
             viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
             evidenceSources = List("theme:restriction_prophylaxis"),
-            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
             refutation = Some("Black can fight back by using the c-file and entering on b4.")
           )
         )
@@ -1043,7 +1043,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
       )
 
     assertEquals(
-      plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).map(_.ownerFamily),
+      plannerInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).map(_.proofFamily),
       Some("half_open_file_pressure"),
       clues(plannerInputs.mainBundle)
     )

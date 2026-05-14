@@ -56,7 +56,7 @@ private[commentary] object ContrastiveSupportAdmissibility:
       .getOrElse {
         truthContract
           .filter(contract =>
-            contract.isCriticalBestMove || contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense
+            contract.isCriticalBestMove || contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense
           )
           .flatMap(onlyMoveContrast)
           .map { case (anchor, consequence, sentence) =>
@@ -76,7 +76,7 @@ private[commentary] object ContrastiveSupportAdmissibility:
       .orElse {
         truthContract
           .filter(contract =>
-            contract.isCriticalBestMove || contract.reasonFamily == DecisiveReasonFamily.OnlyMoveDefense
+            contract.isCriticalBestMove || contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense
           )
           .flatMap(_ => inputs.decisionComparison.flatMap(onlyMoveTimingContrast(primary, inputs, _)))
       }

@@ -24,8 +24,8 @@ class ContrastiveSupportAdmissibilityTest extends FunSuite:
       strengthTier = QuestionPlanStrengthTier.Strong,
       sourceKinds = List("planner"),
       admissibilityReasons = List("fixture"),
-      ownerFamily = OwnerFamily.ForcingDefense,
-      ownerSource = "fixture_owner"
+      plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
+      plannerSource = "fixture_owner"
     )
 
   private def inputs(

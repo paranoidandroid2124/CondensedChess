@@ -126,8 +126,8 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             )
           )
         ),
-        bookmakerLedger = Some(
-          BookmakerStrategicLedgerV1(
+        moveReviewLedger = Some(
+          MoveReviewStrategicLedger(
             motifKey = "attack",
             motifLabel = "PlayableByPV attack",
             stageKey = "build",
@@ -137,7 +137,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             prerequisites = List("theme:piece_redeployment"),
             conversionTrigger = Some("return vector"),
             primaryLine = Some(
-              BookmakerLedgerLineV1(
+              MoveReviewLedgerLine(
                 title = "PlayedPV line",
                 note = Some("cash out through initiative"),
                 source = "rule"
@@ -179,7 +179,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
                 d.decisionComparison.toList.flatMap(dc => dc.deferredReason.toList ++ dc.deferredSource.toList ++ dc.evidence.toList)
             )
         ).mkString(" "),
-        sanitized.bookmakerLedger.toList.flatMap(ledger =>
+        sanitized.moveReviewLedger.toList.flatMap(ledger =>
           ledger.stageReason.toList ++
             ledger.prerequisites ++
             ledger.conversionTrigger.toList ++

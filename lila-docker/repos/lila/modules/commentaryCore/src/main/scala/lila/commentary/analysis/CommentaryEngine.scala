@@ -9,7 +9,7 @@ import lila.commentary.model.authoring.{ NarrativeOutline, OutlineBeat, OutlineB
 import lila.commentary.model.strategic.{ VariationLine, PlanContinuity, StrategicSalience }
 import lila.commentary.analysis.L3.*
 import lila.commentary.analysis.PositionAnalyzer
-import lila.commentary.analysis.ThemeTaxonomy.ThemeResolver
+import lila.commentary.analysis.PlanTaxonomy.ThemeResolver
 import lila.commentary.analysis.DecisiveTruth.toContract
 import scala.annotation.unused
 // import scala.util.{ Either, Left, Right } // Removed as it caused warnings
@@ -1302,7 +1302,7 @@ object CommentaryEngine:
     wholeGameTruthContract(moment, truthContractsByPly).exists { contract =>
       contract.truthClass == DecisiveTruthClass.Blunder ||
       contract.truthClass == DecisiveTruthClass.MissedWin ||
-      contract.reasonFamily == DecisiveReasonFamily.TacticalRefutation ||
+      contract.reasonFamily == DecisiveReasonKind.TacticalRefutation ||
       contract.verifiedPayoffAnchor.nonEmpty ||
       contract.surfaceMode == TruthSurfaceMode.ConversionExplain ||
       contract.surfaceMode == TruthSurfaceMode.FailureExplain ||

@@ -35,12 +35,12 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
   )
 
   private final case class FixtureExpectation(
-      bookmakerOwner: Option[(AuthorQuestionKind, OwnerFamily)],
-      chronicleOwner: Option[(AuthorQuestionKind, OwnerFamily)],
+      bookmakerOwner: Option[(AuthorQuestionKind, PlannerOwnerKind)],
+      chronicleOwner: Option[(AuthorQuestionKind, PlannerOwnerKind)],
       bookmakerMode: SurfaceMode,
       chronicleMode: SurfaceMode,
       activeExpectation: ActiveExpectation,
-      activeOwner: Option[(AuthorQuestionKind, OwnerFamily)] = None,
+      activeOwner: Option[(AuthorQuestionKind, PlannerOwnerKind)] = None,
       forbidGeneralizationLeak: Boolean = true,
       forbidFallbackRewrite: Boolean = true,
       forbiddenFragments: List[String] = Nil,
@@ -56,7 +56,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
   )
 
   private final case class BookmakerObservation(
-      owner: Option[(AuthorQuestionKind, OwnerFamily)],
+      owner: Option[(AuthorQuestionKind, PlannerOwnerKind)],
       mode: SurfaceMode,
       claim: String,
       prose: String,
@@ -66,7 +66,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
   )
 
   private final case class ChronicleObservation(
-      owner: Option[(AuthorQuestionKind, OwnerFamily)],
+      owner: Option[(AuthorQuestionKind, PlannerOwnerKind)],
       mode: SurfaceMode,
       narrative: Option[String],
       quietSupportApplied: Boolean,
@@ -74,7 +74,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
   )
 
   private final case class ActiveObservation(
-      owner: Option[(AuthorQuestionKind, OwnerFamily)],
+      owner: Option[(AuthorQuestionKind, PlannerOwnerKind)],
       mode: SurfaceMode,
       note: Option[String]
   )
@@ -434,7 +434,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
       else SurfaceMode.ExactFactualFallback
 
     BookmakerObservation(
-      owner = selection.map(sel => sel.primary.questionKind -> sel.primary.ownerFamily),
+      owner = selection.map(sel => sel.primary.questionKind -> sel.primary.plannerOwnerKind),
       mode = mode,
       claim = BookmakerProseContract.stripMoveHeader(slots.claim),
       prose = prose,
@@ -471,7 +471,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
         case None                                           => SurfaceMode.Omitted
 
     ChronicleObservation(
-      owner = selection.map(sel => sel.primary.questionKind -> sel.primary.ownerFamily),
+      owner = selection.map(sel => sel.primary.questionKind -> sel.primary.plannerOwnerKind),
       mode = mode,
       narrative = artifact.map(_.narrative),
       quietSupportApplied = artifact.exists(_.quietSupportTrace.applied),
@@ -495,7 +495,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
       else SurfaceMode.Omitted
 
     ActiveObservation(
-      owner = selection.map(sel => sel.primary.questionKind -> sel.primary.ownerFamily),
+      owner = selection.map(sel => sel.primary.questionKind -> sel.primary.plannerOwnerKind),
       mode = mode,
       note = note
     )
@@ -636,12 +636,12 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
           ),
         expectation =
           FixtureExpectation(
-            bookmakerOwner = Some(AuthorQuestionKind.WhatChanged -> OwnerFamily.MoveDelta),
-            chronicleOwner = Some(AuthorQuestionKind.WhatChanged -> OwnerFamily.MoveDelta),
+            bookmakerOwner = Some(AuthorQuestionKind.WhatChanged -> PlannerOwnerKind.MoveDelta),
+            chronicleOwner = Some(AuthorQuestionKind.WhatChanged -> PlannerOwnerKind.MoveDelta),
             bookmakerMode = SurfaceMode.PlannerOwned,
             chronicleMode = SurfaceMode.PlannerOwned,
             activeExpectation = ActiveExpectation.MayOmitOrMatch,
-            activeOwner = Some(AuthorQuestionKind.WhatChanged -> OwnerFamily.MoveDelta)
+            activeOwner = Some(AuthorQuestionKind.WhatChanged -> PlannerOwnerKind.MoveDelta)
           )
       ),
       HarnessFixture(
@@ -778,12 +778,12 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
           ),
         expectation =
           FixtureExpectation(
-            bookmakerOwner = Some(AuthorQuestionKind.WhatMustBeStopped -> OwnerFamily.ForcingDefense),
-            chronicleOwner = Some(AuthorQuestionKind.WhatMustBeStopped -> OwnerFamily.ForcingDefense),
+            bookmakerOwner = Some(AuthorQuestionKind.WhatMustBeStopped -> PlannerOwnerKind.ForcingDefense),
+            chronicleOwner = Some(AuthorQuestionKind.WhatMustBeStopped -> PlannerOwnerKind.ForcingDefense),
             bookmakerMode = SurfaceMode.PlannerOwned,
             chronicleMode = SurfaceMode.PlannerOwned,
             activeExpectation = ActiveExpectation.MayOmitOrMatch,
-            activeOwner = Some(AuthorQuestionKind.WhatMustBeStopped -> OwnerFamily.ForcingDefense)
+            activeOwner = Some(AuthorQuestionKind.WhatMustBeStopped -> PlannerOwnerKind.ForcingDefense)
           )
       )
     )
@@ -943,17 +943,17 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
       truthPhase: Option[InvestmentTruthPhase] = None,
       payoffAnchor: Option[String] = None,
       benchmarkProseAllowed: Boolean = false,
-      reasonFamily: DecisiveReasonFamily = DecisiveReasonFamily.InvestmentSacrifice,
+      reasonFamily: DecisiveReasonKind = DecisiveReasonKind.InvestmentSacrifice,
       failureMode: FailureInterpretationMode = FailureInterpretationMode.NoClearPlan,
       cpLoss: Int = 0,
       swingSeverity: Int = 0,
       benchmarkCriticalMove: Boolean = false
   ): DecisiveTruthContract =
     val resolvedReasonFamily =
-      if reasonFamily != DecisiveReasonFamily.InvestmentSacrifice then reasonFamily
-      else if ownershipRole == TruthOwnershipRole.ConversionOwner then DecisiveReasonFamily.Conversion
-      else if ownershipRole == TruthOwnershipRole.BlunderOwner then DecisiveReasonFamily.TacticalRefutation
-      else DecisiveReasonFamily.InvestmentSacrifice
+      if reasonFamily != DecisiveReasonKind.InvestmentSacrifice then reasonFamily
+      else if ownershipRole == TruthOwnershipRole.ConversionOwner then DecisiveReasonKind.Conversion
+      else if ownershipRole == TruthOwnershipRole.BlunderOwner then DecisiveReasonKind.TacticalRefutation
+      else DecisiveReasonKind.InvestmentSacrifice
 
     DecisiveTruthContract(
       playedMove = Some("d1d5"),
@@ -1035,8 +1035,8 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
                       strengthTier = QuestionPlanStrengthTier.Moderate,
                       sourceKinds = List("threat"),
                       admissibilityReasons = List("test"),
-                      ownerFamily = OwnerFamily.ForcingDefense,
-                      ownerSource = "threat"
+                      plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
+                      plannerSource = "threat"
                     ),
                   secondary = None,
                   contrastTrace = ContrastiveSupportAdmissibility.ContrastSupportTrace(),
@@ -1057,8 +1057,8 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
                       gate =
                         QuietStrategicSupportComposer.QuietStrategicSupportGateTrace(
                           sceneType = "quiet_improvement",
-                          selectedOwnerFamily = Some("MoveDelta"),
-                          selectedOwnerSource = Some("pv_delta"),
+                          selectedOwnerKind = Some("MoveDelta"),
+                          selectedSource = Some("pv_delta"),
                           pvDeltaAvailable = true,
                           signalDigestAvailable = true,
                           openingRelationClaimPresent = false,

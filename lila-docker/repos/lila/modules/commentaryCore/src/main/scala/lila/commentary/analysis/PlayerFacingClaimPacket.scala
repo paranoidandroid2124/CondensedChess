@@ -45,7 +45,7 @@ private[commentary] object PlayerFacingClaimReleaseRisk:
   val RouteMirage = "route_mirage"
   val RivalRelease = "rival_release"
 
-private[commentary] final case class PlayerFacingOwnerPathWitness(
+private[commentary] final case class PlayerFacingProofPathWitness(
     ownerSeedTerms: List[String] = Nil,
     continuationTerms: List[String] = Nil,
     rivalTerms: List[String] = Nil,
@@ -56,13 +56,13 @@ private[commentary] final case class PlayerFacingOwnerPathWitness(
   def hasRivalContext: Boolean = rivalTerms.nonEmpty
   def hasStructureTransition: Boolean = structureTransitionTerms.nonEmpty
 
-private[commentary] object PlayerFacingOwnerPathWitness:
-  val empty: PlayerFacingOwnerPathWitness = PlayerFacingOwnerPathWitness()
+private[commentary] object PlayerFacingProofPathWitness:
+  val empty: PlayerFacingProofPathWitness = PlayerFacingProofPathWitness()
 
 private[commentary] final case class PlayerFacingClaimPacket(
     claimGate: PlanEvidenceEvaluator.ClaimCertification = PlanEvidenceEvaluator.ClaimCertification(),
-    ownerSource: String = "unowned",
-    ownerFamily: String = "unknown",
+    proofSource: String = "unowned",
+    proofFamily: String = "unknown",
     scope: PlayerFacingPacketScope = PlayerFacingPacketScope.BackendOnly,
     triggerKind: String = "unknown",
     anchorTerms: List[String] = Nil,
@@ -71,11 +71,11 @@ private[commentary] final case class PlayerFacingClaimPacket(
     sameBranchState: PlayerFacingSameBranchState = PlayerFacingSameBranchState.Missing,
     persistence: PlayerFacingClaimPersistence = PlayerFacingClaimPersistence.Broken,
     rivalKind: Option[String] = None,
-    ownerPathWitness: PlayerFacingOwnerPathWitness = PlayerFacingOwnerPathWitness.empty,
+    proofPathWitness: PlayerFacingProofPathWitness = PlayerFacingProofPathWitness.empty,
     suppressionReasons: List[String] = Nil,
     releaseRisks: List[String] = Nil,
     fallbackMode: PlayerFacingClaimFallbackMode = PlayerFacingClaimFallbackMode.Suppress,
-    ownerProofTrace: OwnerProofTrace = OwnerProofTrace.empty
+    proofTrace: ProofTrace = ProofTrace.empty
 ):
   def admitsStrategicTruthMode: Boolean =
     scope != PlayerFacingPacketScope.BackendOnly &&
@@ -95,7 +95,7 @@ private[commentary] object PlayerFacingClaimPacket:
   private val lineOnlyPilotFamilies =
     Set.empty[String]
 
-  def isLineOnlyPilot(ownerSource: String, ownerFamily: String): Boolean =
-    lineOnlyPilotOwners.contains(ownerSource) || lineOnlyPilotFamilies.contains(ownerFamily)
+  def isLineOnlyPilot(proofSource: String, proofFamily: String): Boolean =
+    lineOnlyPilotOwners.contains(proofSource) || lineOnlyPilotFamilies.contains(proofFamily)
 
   val empty: PlayerFacingClaimPacket = PlayerFacingClaimPacket()

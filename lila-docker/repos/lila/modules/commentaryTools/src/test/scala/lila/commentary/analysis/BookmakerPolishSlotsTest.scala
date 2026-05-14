@@ -57,7 +57,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
       visibilityRole: TruthVisibilityRole,
       surfaceMode: TruthSurfaceMode,
       truthClass: DecisiveTruthClass = DecisiveTruthClass.Best,
-      reasonFamily: DecisiveReasonFamily = DecisiveReasonFamily.QuietTechnicalMove
+      reasonFamily: DecisiveReasonKind = DecisiveReasonKind.QuietTechnicalMove
   ): DecisiveTruthContract =
     DecisiveTruthContract(
       playedMove = Some("c3g3"),
@@ -390,7 +390,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
               visibilityRole = TruthVisibilityRole.PrimaryVisible,
               surfaceMode = TruthSurfaceMode.FailureExplain,
               truthClass = DecisiveTruthClass.Blunder,
-              reasonFamily = DecisiveReasonFamily.TacticalRefutation
+              reasonFamily = DecisiveReasonKind.TacticalRefutation
             )
           )
       )
@@ -407,7 +407,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
               visibilityRole = TruthVisibilityRole.PrimaryVisible,
               surfaceMode = TruthSurfaceMode.FailureExplain,
               truthClass = DecisiveTruthClass.Blunder,
-              reasonFamily = DecisiveReasonFamily.TacticalRefutation
+              reasonFamily = DecisiveReasonKind.TacticalRefutation
             )
           )
       )
@@ -579,7 +579,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
               visibilityRole = TruthVisibilityRole.PrimaryVisible,
               surfaceMode = TruthSurfaceMode.FailureExplain,
               truthClass = DecisiveTruthClass.Blunder,
-              reasonFamily = DecisiveReasonFamily.TacticalRefutation
+              reasonFamily = DecisiveReasonKind.TacticalRefutation
             )
           )
       ).getOrElse(fail("missing slots"))
@@ -729,16 +729,16 @@ class BookmakerPolishSlotsTest extends FunSuite:
               failureModes = List("Wrong move order restores counterplay."),
               viability = PlanViability(score = 0.8, label = "high", risk = "test"),
               evidenceSources = List("theme:advantage_transformation"),
-              themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
-              subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id)
+              themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id)
             )
           ),
         strategicPlanExperiments =
           List(
             StrategicPlanExperiment(
               planId = "simplification_conversion",
-              themeL1 = ThemeTaxonomy.ThemeL1.AdvantageTransformation.id,
-              subplanId = Some(ThemeTaxonomy.SubplanId.SimplificationConversion.id),
+              themeL1 = PlanTaxonomy.PlanTheme.AdvantageTransformation.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.SimplificationConversion.id),
               evidenceTier = "deferred",
               supportProbeCount = 1,
               bestReplyStable = true,
@@ -1012,7 +1012,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
               visibilityRole = TruthVisibilityRole.PrimaryVisible,
               surfaceMode = TruthSurfaceMode.FailureExplain,
               truthClass = DecisiveTruthClass.Best,
-              reasonFamily = DecisiveReasonFamily.OnlyMoveDefense
+              reasonFamily = DecisiveReasonKind.OnlyMoveDefense
             )
           )
       )
@@ -1042,7 +1042,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
           visibilityRole = TruthVisibilityRole.PrimaryVisible,
           surfaceMode = TruthSurfaceMode.FailureExplain,
           truthClass = DecisiveTruthClass.Best,
-          reasonFamily = DecisiveReasonFamily.OnlyMoveDefense
+          reasonFamily = DecisiveReasonKind.OnlyMoveDefense
         )
       )
     val outline =
@@ -1184,7 +1184,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     assertEquals(plannerSlots, None, clues(rankedPlans))
     assertEquals(rankedPlans.primary, None, clues(rankedPlans))
     assertEquals(rankedPlans.ownerTrace.selectedQuestion, None, clues(rankedPlans.ownerTrace))
-    assertEquals(rankedPlans.ownerTrace.selectedOwnerFamily, None, clues(rankedPlans.ownerTrace))
+    assertEquals(rankedPlans.ownerTrace.selectedPlannerOwnerKind, None, clues(rankedPlans.ownerTrace))
     assertEquals(BookmakerProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
     assert(slots.supportPrimary.exists(_.toLowerCase.contains("available")), clues(slots))
     assertEquals(slots.supportSecondary, None)
@@ -1291,19 +1291,19 @@ class BookmakerPolishSlotsTest extends FunSuite:
       )
     val refs =
       Some(
-        BookmakerRefsV1(
+        MoveReviewRefs(
           startFen = ctx.fen,
           startPly = ctx.ply,
           variations = List(
-            VariationRefV1(
+            MoveReviewVariationRef(
               lineId = "pv1",
               scoreCp = 42,
               mate = None,
               depth = 18,
               moves = List(
-                MoveRefV1("m1", "Qxf7+", "f3f7", ctx.fen, ctx.ply + 1, (ctx.ply + 2) / 2, None),
-                MoveRefV1("m2", "Kxf7", "g8f7", ctx.fen, ctx.ply + 2, (ctx.ply + 3) / 2, None),
-                MoveRefV1("m3", "Bxd5+", "c4d5", ctx.fen, ctx.ply + 3, (ctx.ply + 4) / 2, None)
+                MoveReviewMoveRef("m1", "Qxf7+", "f3f7", ctx.fen, ctx.ply + 1, (ctx.ply + 2) / 2, None),
+                MoveReviewMoveRef("m2", "Kxf7", "g8f7", ctx.fen, ctx.ply + 2, (ctx.ply + 3) / 2, None),
+                MoveReviewMoveRef("m3", "Bxd5+", "c4d5", ctx.fen, ctx.ply + 3, (ctx.ply + 4) / 2, None)
               )
             )
           )

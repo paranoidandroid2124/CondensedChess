@@ -27,8 +27,8 @@ private[commentary] object QuietStrategicSupportComposer:
 
   final case class QuietStrategicSupportGateTrace(
       sceneType: String,
-      selectedOwnerFamily: Option[String],
-      selectedOwnerSource: Option[String],
+      selectedOwnerKind: Option[String],
+      selectedSource: Option[String],
       pvDeltaAvailable: Boolean,
       signalDigestAvailable: Boolean,
       openingRelationClaimPresent: Boolean,
@@ -89,16 +89,16 @@ private[commentary] object QuietStrategicSupportComposer:
         Option.when(!AllowedSceneTypes.contains(rankedPlans.ownerTrace.sceneType))(
           s"scene_type_not_allowed:${rankedPlans.ownerTrace.sceneType.wireName}"
         ),
-        rankedPlans.ownerTrace.selectedOwnerFamily.collect {
-          case family if family != OwnerFamily.MoveDelta => s"selected_owner_family_not_movedelta:${family.wireName}"
+        rankedPlans.ownerTrace.selectedPlannerOwnerKind.collect {
+          case ownerKind if ownerKind != PlannerOwnerKind.MoveDelta => s"selected_planner_owner_not_movedelta:${ownerKind.wireName}"
         },
         Option.when(!moveLinkedPvDeltaAnchorAvailable)("move_linked_pv_delta_anchor_missing")
       ).flatten
     val gateTrace =
       QuietStrategicSupportGateTrace(
         sceneType = rankedPlans.ownerTrace.sceneType.wireName,
-        selectedOwnerFamily = rankedPlans.ownerTrace.selectedOwnerFamily.map(_.wireName),
-        selectedOwnerSource = rankedPlans.ownerTrace.selectedOwnerSource,
+        selectedOwnerKind = rankedPlans.ownerTrace.selectedPlannerOwnerKind.map(_.wireName),
+        selectedSource = rankedPlans.ownerTrace.selectedPlannerSource,
         pvDeltaAvailable = inputs.pvDelta.nonEmpty,
         signalDigestAvailable = digest.nonEmpty,
         openingRelationClaimPresent = inputs.openingRelationClaim.nonEmpty,
@@ -182,14 +182,14 @@ private[commentary] object QuietStrategicSupportComposer:
   private def eligibleMoveDeltaPlan(
       plan: QuestionPlan
   ): Boolean =
-    plan.ownerFamily == OwnerFamily.MoveDelta &&
-      plan.ownerSource == "pv_delta" &&
+    plan.plannerOwnerKind == PlannerOwnerKind.MoveDelta &&
+      plan.plannerSource == "pv_delta" &&
       plan.sourceKinds.exists(kind => kind == "pv_delta" || kind == "move_delta")
 
   private def eligibleMoveDeltaCandidate(
       candidate: OwnerCandidateTrace
   ): Boolean =
-    candidate.family == OwnerFamily.MoveDelta &&
+    candidate.plannerOwnerKind == PlannerOwnerKind.MoveDelta &&
       candidate.source == "pv_delta" &&
       candidate.moveLinked &&
       candidate.materiality == OwnerCandidateMateriality.OwnerCandidate &&

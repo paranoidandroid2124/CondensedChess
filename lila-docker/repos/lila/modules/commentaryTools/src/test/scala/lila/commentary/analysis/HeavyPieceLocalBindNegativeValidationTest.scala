@@ -76,8 +76,8 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
           failureModes = List("If the c-file reopens, b4 becomes available, or the heavy pieces get loose, the shell disappears."),
           viability = PlanViability(score = 0.8, label = "high", risk = "heavy-piece negative"),
           evidenceSources = List("theme:restriction_prophylaxis", s"fixture:${fixture.id}"),
-          themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-          subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+          themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+          subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
         ),
       status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
       userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked,
@@ -86,8 +86,8 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
       refuteProbeIds = Nil,
       missingSignals = Nil,
       pvCoupled = false,
-      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-      subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+      themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+      subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
       claimCertification =
         PlanEvidenceEvaluator.ClaimCertification(
           certificateStatus = PlayerFacingCertificateStatus.Valid,
@@ -96,7 +96,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
           attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
           stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
           provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
-          ontologyFamily = PlayerFacingClaimOntologyFamily.RouteDenial
+          ontologyFamily = PlayerFacingClaimOntologyKind.RouteDenial
         )
     )
 
@@ -623,16 +623,16 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
             failureModes = List("If queen checks, rook lifts, or the c-file reopen, the shell disappears."),
             viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
             evidenceSources = List("theme:restriction_prophylaxis"),
-            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
           )
         ),
       strategicPlanExperiments =
         List(
           StrategicPlanExperiment(
             planId = "heavy_piece_local_bind",
-            themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
-            subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
             evidenceTier = "evidence_backed",
             supportProbeCount = 2,
             bestReplyStable = true,

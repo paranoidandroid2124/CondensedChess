@@ -12,7 +12,7 @@ private[commentary] object SourceWitnessCatalog:
       sourceUrl: String,
       pgn: String,
       candidatePlyRange: CandidatePlyRange,
-      family: String,
+      reviewGroup: String,
       intendedVerdict: String,
       validationNote: String
   )
@@ -52,7 +52,7 @@ private[commentary] object SourceWitnessCatalog:
             |79. Kf4 Kg7 80. Kf5 Kf7 81. f3 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(25, 43),
-        family = "B:carlsbad_fixed_target",
+        reviewGroup = "B:carlsbad_fixed_target",
         intendedVerdict = "screen_only",
         validationNote = "Replay around b4-b5xc6; promote only if engine PV proves target persistence and owner path."
       ),
@@ -83,7 +83,7 @@ private[commentary] object SourceWitnessCatalog:
             |43. Qg6 Kf8 44. Nh5 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(31, 47),
-        family = "A:break_prevention",
+        reviewGroup = "A:break_prevention",
         intendedVerdict = "screen_only",
         validationNote =
           "Natural break-prevention source candidate around 16.b4 through 24.Ba7; admit no authority unless exact replay proves neutralize_key_break owner packet, tactical veto, and claim-only surface."
@@ -126,7 +126,7 @@ private[commentary] object SourceWitnessCatalog:
             |78. Rc3 Qg2+ 79. Ke3 Qf3+ 0-1
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(47, 50),
-        family = "A:break_prevention",
+        reviewGroup = "A:break_prevention",
         intendedVerdict = "screen_only",
         validationNote =
           "Hedgehog break-window screen candidate around 24.a3 ...d5 and captures; keep screen-only unless exact owner proof shows a bounded break-prevention packet rather than tactical or rival release."
@@ -160,7 +160,7 @@ private[commentary] object SourceWitnessCatalog:
             |51. Nfd6+ 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(23, 23),
-        family = "A:break_prevention",
+        reviewGroup = "A:break_prevention",
         intendedVerdict = "screen_only",
         validationNote =
           "Clean route-clamp scanner candidate: exact ply 23 Bb5 denies the board-derived ...b6-b5 route with no same-destination transform; admit only if SourceReview materializes a neutralize_key_break packet and claim-only SupportedLocal surface."
@@ -188,7 +188,7 @@ private[commentary] object SourceWitnessCatalog:
             |26. Qd5 fxe5 27. Qxg8+ 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(29, 29),
-        family = "A:break_prevention",
+        reviewGroup = "A:break_prevention",
         intendedVerdict = "screen_only",
         validationNote =
           "Clean route-clamp scanner candidate: exact ply 29 a5 denies the board-derived ...a6-a5 route with no same-destination transform; keep screen-only unless exact neutralize_key_break authority and claim-only surface appear."
@@ -220,7 +220,7 @@ private[commentary] object SourceWitnessCatalog:
             |42. Bf6+ Bxf6 43. Rf1 Kxf8 44. Qxb6 Qc5+ 45. Qxc5 Rxc5 0-1
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(27, 27),
-        family = "A:break_prevention",
+        reviewGroup = "A:break_prevention",
         intendedVerdict = "screen_only",
         validationNote =
           "Clean route-clamp source triage admission: exact ply 27 Bb5 denies the board-derived ...b7-b5 route with no same-destination transform; admitted only under neutralize_key_break owner packet proof and claim-only SupportedLocal surfaces."
@@ -255,7 +255,7 @@ private[commentary] object SourceWitnessCatalog:
             |54. Bc5 Rd7 55. b4 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(55, 55),
-        family = "A:break_prevention",
+        reviewGroup = "A:break_prevention",
         intendedVerdict = "screen_only",
         validationNote =
           "Clean route-clamp scanner candidate: exact ply 55 a5 denies the board-derived ...a6-a5 route with no same-destination transform; admit only if the exact neutralize_key_break packet, planner owner, and claim-only SupportedLocal surface materialize."
@@ -298,7 +298,7 @@ private[commentary] object SourceWitnessCatalog:
             |86. Bxf7 Kxf7 87. Bf4 Ba5 88. Ke3 Ke7 89. Kd4 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(33, 33),
-        family = "A:break_prevention",
+        reviewGroup = "A:break_prevention",
         intendedVerdict = "screen_only",
         validationNote =
           "Clean route-clamp scanner candidate: exact ply 33 a5 denies the board-derived ...a6-a5 route with no same-destination transform; keep screen-only unless exact replay promotes neutralize_key_break with claim-only SupportedLocal parity."
@@ -330,7 +330,7 @@ private[commentary] object SourceWitnessCatalog:
             |42. Qxg6+ 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(33, 33),
-        family = "A:break_prevention",
+        reviewGroup = "A:break_prevention",
         intendedVerdict = "screen_only",
         validationNote =
           "Clean route-clamp scanner candidate: exact ply 33 a5 denies the board-derived ...a6-a5 route with no same-destination transform; promote only under exact neutralize_key_break owner packet proof and claim-only surfaces."
@@ -359,7 +359,7 @@ private[commentary] object SourceWitnessCatalog:
             |30. Kf2 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(23, 23),
-        family = "A:break_prevention",
+        reviewGroup = "A:break_prevention",
         intendedVerdict = "screen_only",
         validationNote =
           "Clean route-clamp scanner candidate: exact ply 23 Nc4 denies the board-derived ...c5-c4 route with no same-destination transform; promote only if the live owner path produces neutralize_key_break with SupportedLocal parity."
@@ -388,7 +388,7 @@ private[commentary] object SourceWitnessCatalog:
             |31. Nxb5 Be7 32. Na3 Bf6 33. Nb5 Be7 1/2-1/2
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(19, 19),
-        family = "B:static_weakness_fixation",
+        reviewGroup = "B:static_weakness_fixation",
         intendedVerdict = "screen_only",
         validationNote =
           "Natural StaticWeaknessFixation authority candidate from public ModernBenoni6e4 PGN: exact ply 19 Nd2 must materialize exact_target_fixation on d6 on the engine top line before matrix admission."
@@ -416,7 +416,7 @@ private[commentary] object SourceWitnessCatalog:
             |26. Qd5 fxe5 27. Qxg8+ 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(17, 17),
-        family = "B:static_weakness_fixation",
+        reviewGroup = "B:static_weakness_fixation",
         intendedVerdict = "screen_only",
         validationNote =
           "Natural static-weakness authority candidate from public ModernBenoni6e4 PGN: exact ply 17 Nd2 must materialize exact_target_fixation on d6 on the engine top line before matrix admission."
@@ -451,7 +451,7 @@ private[commentary] object SourceWitnessCatalog:
             |45. f4 Ra3 46. Kc2 Rxg3 47. Rd4 Re3 48. Kb2 e5 1/2-1/2
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(33, 33),
-        family = "C:defender_trade",
+        reviewGroup = "C:defender_trade",
         intendedVerdict = "screen_only",
         validationNote =
           "ChessBase notes 17.Ba3 as clearing away a defender; exact intake must prove the exchange removes a local defender on the engine top line before matrix admission."
@@ -479,7 +479,7 @@ private[commentary] object SourceWitnessCatalog:
             |28. Nb4 Qa4 29. Nc6 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(33, 47),
-        family = "B:carlsbad_fixed_target",
+        reviewGroup = "B:carlsbad_fixed_target",
         intendedVerdict = "screen_only",
         validationNote = "Identify the post-b5 exact FEN; verify the c6/d5 target is not a transient release."
       ),
@@ -505,7 +505,7 @@ private[commentary] object SourceWitnessCatalog:
             |22. Rxd5 Qc6 23. Rd6 Qe8 24. Rd7 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(20, 34),
-        family = "C:iqp_simplification",
+        reviewGroup = "C:iqp_simplification",
         intendedVerdict = "screen_only",
         validationNote = "Locate the stabilized IQP phase and reject if the truth is tactical breakthrough rather than simplification."
       ),
@@ -535,7 +535,7 @@ private[commentary] object SourceWitnessCatalog:
             |37. Kg2 Rb1 38. Ra5 Rxb2 39. Ra4 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(27, 32),
-        family = "C:tactical_first_blocker",
+        reviewGroup = "C:tactical_first_blocker",
         intendedVerdict = "reject_tactical_first",
         validationNote = "The d5 break must stay tactical-first unless engine replay proves a bounded simplification owner."
       ),
@@ -563,7 +563,7 @@ private[commentary] object SourceWitnessCatalog:
             |30. Kg2 Qe2+ 0-1
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(17, 22),
-        family = "C:tactical_first_blocker",
+        reviewGroup = "C:tactical_first_blocker",
         intendedVerdict = "reject_tactical_first",
         validationNote = "Replay after Bxb8 and validate that ...Nd5 owns the surface tactically."
       ),
@@ -595,7 +595,7 @@ private[commentary] object SourceWitnessCatalog:
             |46. Rxe6 Rxe6 47. Qd7+ 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(20, 20),
-        family = "C:iqp_inducement",
+        reviewGroup = "C:iqp_inducement",
         intendedVerdict = "screen_only",
         validationNote =
           "Natural IQP authority candidate from public Nottingham 1936 PGN: exact ply 20 ...Nxc3 must induce an opponent isolated central pawn on the engine top line before matrix admission."
@@ -627,7 +627,7 @@ private[commentary] object SourceWitnessCatalog:
             |34. Qxd3 Rxa3 35. Qxb5 Rxc3 36. Qxd5 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(71, 71),
-        family = "C:simplification_window",
+        reviewGroup = "C:simplification_window",
         intendedVerdict = "screen_only",
         validationNote =
           "Natural simplification-window authority candidate from public Linares 1992 PGN: exact ply 71 Qxd5 must materialize a SimplificationWindow packet on the engine top line before matrix admission."
@@ -655,7 +655,7 @@ private[commentary] object SourceWitnessCatalog:
             |26. h3 Qg5 27. Qe7 Rf6 28. h4 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(23, 23),
-        family = "C:iqp_inducement",
+        reviewGroup = "C:iqp_inducement",
         intendedVerdict = "screen_only",
         validationNote =
           "Natural IQP authority candidate from public Margate 1939 PGN: exact ply 23 Nxd5 must induce an opponent isolated central pawn on the engine top line before matrix admission."
@@ -686,7 +686,7 @@ private[commentary] object SourceWitnessCatalog:
             |38. Re7+ 1-0
             |""".stripMargin.trim,
         candidatePlyRange = CandidatePlyRange(15, 18),
-        family = "C:queen_trade_boundary",
+        reviewGroup = "C:queen_trade_boundary",
         intendedVerdict = "screen_only",
         validationNote = "Validate the queenless branch separately from the later missed tactic; do not promote from source narrative alone."
       )
@@ -700,7 +700,7 @@ private[commentary] object SourceWitnessCatalog:
           row.copy(
             id = "source-capablanca-golombek-1939-iqp-inducement",
             candidatePlyRange = CandidatePlyRange(45, 45),
-            family = "C:iqp_inducement",
+            reviewGroup = "C:iqp_inducement",
             intendedVerdict = "screen_only",
             validationNote =
               "Natural IQP authority candidate: exact ply 45 b4-b5 must induce an opponent isolated central pawn on the engine top line before matrix admission."
@@ -712,7 +712,7 @@ private[commentary] object SourceWitnessCatalog:
           row.copy(
             id = "source-evans-opsahl-1950-iqp-inducement",
             candidatePlyRange = CandidatePlyRange(33, 33),
-            family = "C:iqp_inducement",
+            reviewGroup = "C:iqp_inducement",
             intendedVerdict = "screen_only",
             validationNote =
               "Natural IQP authority candidate: exact ply 33 Rc1 must induce an opponent isolated central pawn on the engine top line before matrix admission."
@@ -724,7 +724,7 @@ private[commentary] object SourceWitnessCatalog:
           row.copy(
             id = "source-botvinnik-vidmar-1936-iqp-multipv-screen",
             candidatePlyRange = CandidatePlyRange(31, 31),
-            family = "C:iqp_inducement",
+            reviewGroup = "C:iqp_inducement",
             intendedVerdict = "screen_only",
             validationNote =
               "Negative IQP screen: exact ply 31 can materialize an IQP packet, but it must stay non-authority unless the played move is engine top PV."
@@ -732,7 +732,7 @@ private[commentary] object SourceWitnessCatalog:
           row.copy(
             id = "source-botvinnik-vidmar-1936-iqp-opening-inducement",
             candidatePlyRange = CandidatePlyRange(16, 16),
-            family = "C:iqp_inducement",
+            reviewGroup = "C:iqp_inducement",
             intendedVerdict = "screen_only",
             validationNote =
               "Natural IQP authority candidate: exact ply 16 ...cxd4 must induce an opponent isolated central pawn on the engine top line before matrix admission."
@@ -744,7 +744,7 @@ private[commentary] object SourceWitnessCatalog:
           row.copy(
             id = "source-kramnik-anand-2001-iqp-opening-inducement",
             candidatePlyRange = CandidatePlyRange(14, 14),
-            family = "C:iqp_inducement",
+            reviewGroup = "C:iqp_inducement",
             intendedVerdict = "screen_only",
             validationNote =
               "Natural IQP authority candidate: exact ply 14 ...cxd4 must induce an opponent isolated central pawn on the engine top line before matrix admission."

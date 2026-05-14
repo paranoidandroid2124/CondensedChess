@@ -243,8 +243,8 @@ object CommentaryPlayerQcSupport:
       runtimeGatePassed: Option[Boolean] = None,
       runtimeGateRejectReasons: List[String] = Nil,
       runtimeSceneType: Option[String] = None,
-      runtimeSelectedOwnerFamily: Option[String] = None,
-      runtimeSelectedOwnerSource: Option[String] = None,
+      runtimeSelectedOwnerKind: Option[String] = None,
+      runtimeSelectedSource: Option[String] = None,
       runtimePvDeltaAvailable: Option[Boolean] = None,
       runtimeSignalDigestAvailable: Option[Boolean] = None,
       runtimeMoveLinkedPvDeltaAnchorAvailable: Option[Boolean] = None,
@@ -263,8 +263,8 @@ object CommentaryPlayerQcSupport:
       runtimeGatePassed: Option[Boolean] = None,
       runtimeGateRejectReasons: List[String] = Nil,
       runtimeSceneType: Option[String] = None,
-      runtimeSelectedOwnerFamily: Option[String] = None,
-      runtimeSelectedOwnerSource: Option[String] = None,
+      runtimeSelectedOwnerKind: Option[String] = None,
+      runtimeSelectedSource: Option[String] = None,
       runtimePvDeltaAvailable: Option[Boolean] = None,
       runtimeSignalDigestAvailable: Option[Boolean] = None,
       runtimeMoveLinkedPvDeltaAnchorAvailable: Option[Boolean] = None,
@@ -301,14 +301,14 @@ object CommentaryPlayerQcSupport:
       plannerSceneType: Option[String] = None,
       plannerSceneReasons: List[String] = Nil,
       plannerOwnerCandidates: List[String] = Nil,
-      plannerAdmittedFamilies: List[String] = Nil,
-      plannerDroppedFamilies: List[String] = Nil,
+      plannerAdmittedOwners: List[String] = Nil,
+      plannerDroppedOwners: List[String] = Nil,
       plannerSupportMaterialSeparation: List[String] = Nil,
-      plannerProposedFamilyMappings: List[String] = Nil,
+      plannerProposedOwnerMappings: List[String] = Nil,
       plannerDemotionReasons: List[String] = Nil,
       plannerSelectedQuestion: Option[String] = None,
-      plannerSelectedOwnerFamily: Option[String] = None,
-      plannerSelectedOwnerSource: Option[String] = None,
+      plannerSelectedOwnerKind: Option[String] = None,
+      plannerSelectedSource: Option[String] = None,
       rawChoiceType: Option[String] = None,
       rawDecisionPresent: Option[Boolean] = None,
       rawDecisionIngressReason: Option[String] = None,
@@ -347,8 +347,8 @@ object CommentaryPlayerQcSupport:
       quietSupportRuntimeGatePassed: Option[Boolean] = None,
       quietSupportRuntimeGateRejectReasons: List[String] = Nil,
       quietSupportRuntimeSceneType: Option[String] = None,
-      quietSupportRuntimeSelectedOwnerFamily: Option[String] = None,
-      quietSupportRuntimeSelectedOwnerSource: Option[String] = None,
+      quietSupportRuntimeSelectedProofFamily: Option[String] = None,
+      quietSupportRuntimeSelectedProofSource: Option[String] = None,
       quietSupportRuntimePvDeltaAvailable: Option[Boolean] = None,
       quietSupportRuntimeSignalDigestAvailable: Option[Boolean] = None,
       quietSupportRuntimeMoveLinkedPvDeltaAnchorAvailable: Option[Boolean] = None,
@@ -365,8 +365,8 @@ object CommentaryPlayerQcSupport:
         quietSupportRuntimeGatePassed = quietSupportTrace.runtimeGatePassed,
         quietSupportRuntimeGateRejectReasons = quietSupportTrace.runtimeGateRejectReasons,
         quietSupportRuntimeSceneType = quietSupportTrace.runtimeSceneType,
-        quietSupportRuntimeSelectedOwnerFamily = quietSupportTrace.runtimeSelectedOwnerFamily,
-        quietSupportRuntimeSelectedOwnerSource = quietSupportTrace.runtimeSelectedOwnerSource,
+        quietSupportRuntimeSelectedProofFamily = quietSupportTrace.runtimeSelectedOwnerKind,
+        quietSupportRuntimeSelectedProofSource = quietSupportTrace.runtimeSelectedSource,
         quietSupportRuntimePvDeltaAvailable = quietSupportTrace.runtimePvDeltaAvailable,
         quietSupportRuntimeSignalDigestAvailable = quietSupportTrace.runtimeSignalDigestAvailable,
         quietSupportRuntimeMoveLinkedPvDeltaAnchorAvailable =
@@ -384,8 +384,8 @@ object CommentaryPlayerQcSupport:
       "track3RuntimeGatePassed" -> "quietSupportRuntimeGatePassed",
       "track3RuntimeGateRejectReasons" -> "quietSupportRuntimeGateRejectReasons",
       "track3RuntimeSceneType" -> "quietSupportRuntimeSceneType",
-      "track3RuntimeSelectedOwnerFamily" -> "quietSupportRuntimeSelectedOwnerFamily",
-      "track3RuntimeSelectedOwnerSource" -> "quietSupportRuntimeSelectedOwnerSource",
+      "track3RuntimeSelectedProofFamily" -> "quietSupportRuntimeSelectedProofFamily",
+      "track3RuntimeSelectedProofSource" -> "quietSupportRuntimeSelectedProofSource",
       "track3RuntimePvDeltaAvailable" -> "quietSupportRuntimePvDeltaAvailable",
       "track3RuntimeSignalDigestAvailable" -> "quietSupportRuntimeSignalDigestAvailable",
       "track3RuntimeMoveLinkedPvDeltaAnchorAvailable" -> "quietSupportRuntimeMoveLinkedPvDeltaAnchorAvailable",
@@ -425,14 +425,14 @@ object CommentaryPlayerQcSupport:
       sceneType: Option[String] = None,
       sceneReasons: List[String] = Nil,
       ownerCandidates: List[String] = Nil,
-      admittedFamilies: List[String] = Nil,
-      droppedFamilies: List[String] = Nil,
+      admittedOwners: List[String] = Nil,
+      droppedOwners: List[String] = Nil,
       supportMaterialSeparation: List[String] = Nil,
-      proposedFamilyMappings: List[String] = Nil,
+      proposedOwnerMappings: List[String] = Nil,
       demotionReasons: List[String] = Nil,
       selectedQuestion: Option[String] = None,
-      selectedOwnerFamily: Option[String] = None,
-      selectedOwnerSource: Option[String] = None,
+      selectedOwnerKind: Option[String] = None,
+      selectedSource: Option[String] = None,
       rawChoiceType: Option[String] = None,
       rawDecisionPresent: Option[Boolean] = None,
       rawDecisionIngressReason: Option[String] = None,
@@ -610,7 +610,7 @@ object CommentaryPlayerQcSupport:
       strategyPack: Option[StrategyPack],
       signalDigest: Option[NarrativeSignalDigest],
       truthContract: Option[lila.commentary.analysis.DecisiveTruthContract],
-      refs: Option[BookmakerRefsV1]
+      refs: Option[MoveReviewRefs]
   )
 
   final case class SceneCoverageCollectionCandidate(
@@ -1002,7 +1002,7 @@ object CommentaryPlayerQcSupport:
         val strategyPack = truthContract.fold(rawStrategyPack)(DecisiveTruth.sanitizeStrategyPack(rawStrategyPack, _))
         val signalDigest =
           strategyPack.flatMap(_.signalDigest).orElse(NarrativeSignalDigestBuilder.build(ctx))
-        val refs = buildBookmakerRefs(plyData.fen, data.alternatives)
+        val refs = buildMoveReviewRefs(plyData.fen, data.alternatives)
         SliceSnapshot(
           entry = entry,
           plyData = plyData,
@@ -1727,8 +1727,8 @@ object CommentaryPlayerQcSupport:
           runtimeGatePassed = Some(quietSupportGateTrace.gatePassed),
           runtimeGateRejectReasons = quietSupportGateTrace.gate.rejectReasons,
           runtimeSceneType = Some(quietSupportGateTrace.gate.sceneType),
-          runtimeSelectedOwnerFamily = quietSupportGateTrace.gate.selectedOwnerFamily,
-          runtimeSelectedOwnerSource = quietSupportGateTrace.gate.selectedOwnerSource,
+          runtimeSelectedOwnerKind = quietSupportGateTrace.gate.selectedOwnerKind,
+          runtimeSelectedSource = quietSupportGateTrace.gate.selectedSource,
           runtimePvDeltaAvailable = Some(quietSupportGateTrace.gate.pvDeltaAvailable),
           runtimeSignalDigestAvailable = Some(quietSupportGateTrace.gate.signalDigestAvailable),
           runtimeMoveLinkedPvDeltaAnchorAvailable = Some(quietSupportGateTrace.gate.moveLinkedPvDeltaAnchorAvailable)
@@ -1747,8 +1747,8 @@ object CommentaryPlayerQcSupport:
           runtimeGatePassed = Some(trace.composerTrace.gatePassed),
           runtimeGateRejectReasons = trace.composerTrace.gate.rejectReasons,
           runtimeSceneType = Some(trace.composerTrace.gate.sceneType),
-          runtimeSelectedOwnerFamily = trace.composerTrace.gate.selectedOwnerFamily,
-          runtimeSelectedOwnerSource = trace.composerTrace.gate.selectedOwnerSource,
+          runtimeSelectedOwnerKind = trace.composerTrace.gate.selectedOwnerKind,
+          runtimeSelectedSource = trace.composerTrace.gate.selectedSource,
           runtimePvDeltaAvailable = Some(trace.composerTrace.gate.pvDeltaAvailable),
           runtimeSignalDigestAvailable = Some(trace.composerTrace.gate.signalDigestAvailable),
           runtimeMoveLinkedPvDeltaAnchorAvailable = Some(trace.composerTrace.gate.moveLinkedPvDeltaAnchorAvailable),
@@ -1802,14 +1802,14 @@ object CommentaryPlayerQcSupport:
           sceneType = Some(rankedPlans.ownerTrace.sceneType.wireName),
           sceneReasons = rankedPlans.ownerTrace.sceneReasons,
           ownerCandidates = rankedPlans.ownerTrace.ownerCandidateLabels,
-          admittedFamilies = rankedPlans.ownerTrace.admittedFamilyLabels,
-          droppedFamilies = rankedPlans.ownerTrace.droppedFamilyLabels,
+          admittedOwners = rankedPlans.ownerTrace.admittedPlannerOwnerLabels,
+          droppedOwners = rankedPlans.ownerTrace.droppedPlannerOwnerLabels,
           supportMaterialSeparation = rankedPlans.ownerTrace.supportMaterialSeparationLabels,
-          proposedFamilyMappings = rankedPlans.ownerTrace.proposedFamilyMappingLabels,
+          proposedOwnerMappings = rankedPlans.ownerTrace.proposedOwnerMappingLabels,
           demotionReasons = rankedPlans.ownerTrace.demotionReasons,
           selectedQuestion = rankedPlans.ownerTrace.selectedQuestion.map(_.toString),
-          selectedOwnerFamily = rankedPlans.ownerTrace.selectedOwnerFamily.map(_.wireName),
-          selectedOwnerSource = rankedPlans.ownerTrace.selectedOwnerSource,
+          selectedOwnerKind = rankedPlans.ownerTrace.selectedPlannerOwnerKind.map(_.wireName),
+          selectedSource = rankedPlans.ownerTrace.selectedPlannerSource,
           rawChoiceType = Some(rawCtx.header.choiceType),
           rawDecisionPresent = Some(rawCtx.decision.nonEmpty),
           rawDecisionIngressReason = Some(decisionIngressReason(rawCtx)),
@@ -1856,10 +1856,10 @@ object CommentaryPlayerQcSupport:
 
   private def plannerCandidateSources(
       rankedPlans: lila.commentary.analysis.RankedQuestionPlans,
-      familyWireName: String
+      ownerKindWireName: String
   ): List[String] =
     rankedPlans.ownerTrace.ownerCandidates
-      .filter(_.family.wireName == familyWireName)
+      .filter(_.plannerOwnerKind.wireName == ownerKindWireName)
       .map(_.source)
       .distinct
       .sorted
@@ -1908,10 +1908,10 @@ object CommentaryPlayerQcSupport:
       }
       .getOrElse("")
 
-  private def buildBookmakerRefs(
+  private def buildMoveReviewRefs(
       fenBefore: String,
       variations: List[VariationLine]
-  ): Option[BookmakerRefsV1] =
+  ): Option[MoveReviewRefs] =
     if variations.isEmpty then None
     else
       val startPly = NarrativeUtils.plyFromFen(fenBefore).map(_ + 1).getOrElse(1)
@@ -1922,7 +1922,7 @@ object CommentaryPlayerQcSupport:
         val size = List(sanList.size, uciList.size, fensAfter.size).min
         val moves = (0 until size).toList.map { i =>
           val ply = startPly + i
-          MoveRefV1(
+          MoveReviewMoveRef(
             refId = f"l${lineIdx + 1}%02d_m${i + 1}%02d",
             san = sanList(i),
             uci = uciList(i),
@@ -1932,7 +1932,7 @@ object CommentaryPlayerQcSupport:
             marker = Some(markerForPly(ply))
           )
         }
-        VariationRefV1(
+        MoveReviewVariationRef(
           lineId = f"line_${lineIdx + 1}%02d",
           scoreCp = line.scoreCp,
           mate = line.mate,
@@ -1941,7 +1941,7 @@ object CommentaryPlayerQcSupport:
         )
       }
       Some(
-        BookmakerRefsV1(
+        MoveReviewRefs(
           startFen = fenBefore,
           startPly = startPly,
           variations = lines
