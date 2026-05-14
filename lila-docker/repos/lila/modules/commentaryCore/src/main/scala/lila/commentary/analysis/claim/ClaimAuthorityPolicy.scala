@@ -119,9 +119,13 @@ private[commentary] object ClaimAuthorityPolicy:
     matchingMoveDeltaPacket(inputs, plan)
       .filter(packet =>
         supportsLocalMoveDelta(packet) &&
-          !hasExactOwnerPath(packet)
+          (!hasExactOwnerPath(packet) || exactBreakMoveDeltaSupportedLocal(packet))
       )
       .map(_ => ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal))
+
+  private def exactBreakMoveDeltaSupportedLocal(packet: PlayerFacingClaimPacket): Boolean =
+    packet.ownerSource == "counterplay_axis_suppression" &&
+      packet.ownerFamily == "neutralize_key_break"
 
   private def matchingMoveDeltaPacket(
       inputs: QuestionPlannerInputs,

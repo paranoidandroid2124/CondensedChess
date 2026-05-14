@@ -48,7 +48,7 @@ trait PracticalityScorer {
 // Implementation
 class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
   def analyze(fen: String, board: Board, color: Color, mainLine: VariationLine, threatLine: Option[VariationLine], explicitPlanId: Option[String] = None): List[PreventedPlan] = {
-    threatLine.map { threat =>
+    val threatPlans = threatLine.flatMap { threat =>
        val scoreDiff = lila.commentary.analysis.PerspectiveMath.improvementForMover(
          color,
          mainLine.effectiveScore,
@@ -61,7 +61,7 @@ class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
          val finalPlanId = explicitPlanId.orElse(causalThreatOpt.map(_.concept)).getOrElse("Tactical Threat")
          val deniedResourceClass = inferDeniedResourceClass(finalPlanId)
                        
-         PreventedPlan(
+         Some(PreventedPlan(
            planId = finalPlanId, 
            deniedSquares = Nil,
            breakNeutralized =
@@ -78,9 +78,15 @@ class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
            defensiveSufficiency = Some(if scoreDiff >= 120 then 90 else if scoreDiff >= 80 then 75 else 60),
            sourceScope = lila.commentary.model.FactScope.ThreatLine,
            sourceLine = Some(threat)
-         )
-       } else null
-    }.toList.filter(_ != null) 
+         ))
+       } else None
+    }.toList
+
+    val breakClampPlans = BreakClampMaterializer.materialize(fen, board, color, mainLine)
+
+    (threatPlans ++ breakClampPlans).distinctBy { plan =>
+      (plan.sourceScope, plan.breakNeutralized, plan.deniedResourceClass)
+    }
   }
 
   private def inferDeniedResourceClass(planId: String): Option[String] =

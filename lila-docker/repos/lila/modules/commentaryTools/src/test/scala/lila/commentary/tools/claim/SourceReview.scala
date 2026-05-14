@@ -127,6 +127,7 @@ private[commentary] object SourceReview:
       contractStatus: Option[String],
       contractFailures: List[String],
       ownerFailureCodes: List[String],
+      breakPreventionFailureCodes: List[String],
       releaseDecision: Option[String]
   )
 
@@ -176,6 +177,14 @@ private[commentary] object SourceReview:
     SourceWitnessCatalog.all
       .filter(source => sourceIds.isEmpty || sourceIds.contains(source.id))
       .map(observe(_, engine, depth, multiPv))
+
+  private[commentary] def observationsForSources(
+      sources: List[SourceWitnessCatalog.SourceCandidate],
+      engine: Option[SourceReviewEngine],
+      depth: Int = 16,
+      multiPv: Int = 3
+  ): List[Observation] =
+    sources.map(observe(_, engine, depth, multiPv))
 
   private[commentary] def windowObservations(
       engine: Option[RealPgnNarrativeEvalRunner.LocalUciEngine],
@@ -313,7 +322,8 @@ private[commentary] object SourceReview:
           Some(ply.playedUci)
         )
       val surfaceOk = supportedLocalSurfaceSafe(surface)
-      val ownerDiagnosis =
+      val familyAligned = sourceFamilyAligned(source, surface)
+      val rawOwnerDiagnosis =
         classifyAdmission(
           admitted = surface.release == "CertifiedOwner" ||
             surface.release == "SupportedLocal" && surfaceOk,
@@ -323,11 +333,17 @@ private[commentary] object SourceReview:
           ownerTrace = surface.ownerTrace,
           supportedLocalSurfaceOk = surfaceOk
         )
+      val ownerDiagnosis =
+        if familyAligned then rawOwnerDiagnosis
+        else Diagnosis.RootVocabularyOrExtractionGap
       val certifiedOwnerAdmitted =
-        engineGate == EngineGate.SourceMoveTopPv && surface.release == "CertifiedOwner"
+        familyAligned &&
+          engineGate == EngineGate.SourceMoveTopPv &&
+          surface.release == "CertifiedOwner"
       val supportedLocalAdmitted =
-        (engineGate == EngineGate.SourceMoveTopPv ||
-          engineGate == EngineGate.SourceMoveNearTopMultiPv) &&
+        familyAligned &&
+          (engineGate == EngineGate.SourceMoveTopPv ||
+            engineGate == EngineGate.SourceMoveNearTopMultiPv) &&
           surface.release == "SupportedLocal" &&
           surfaceOk
       val admitted =
@@ -412,6 +428,7 @@ private[commentary] object SourceReview:
       StrategyPackBuilder
         .build(data, ctx)
         .getOrElse(sys.error(s"strategy pack missing for corpus FEN: $fen"))
+    val surfaceSnapshot = StrategyPackSurface.from(Some(pack))
     val inputs = QuestionPlannerInputsBuilder.build(ctx, Some(pack), truthContract = None)
     val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
     val primary = ranked.primary.map(_.claim).getOrElse("-")
@@ -457,6 +474,11 @@ private[commentary] object SourceReview:
       contractStatus = ownerProofTrace.flatMap(_.contractStatus),
       contractFailures = ownerProofTrace.toList.flatMap(_.failureCodes),
       ownerFailureCodes = PlayerFacingTruthModePolicy.iqpInducementFailureCodes(ctx),
+      breakPreventionFailureCodes =
+        BreakPreventionWitness
+          .diagnose(ctx, surfaceSnapshot, inputs.preventedPlansNow)
+          .failureCodes
+          .map(code => s"break_prevention_$code"),
       releaseDecision = releaseDecision
     )
 
@@ -503,6 +525,16 @@ private[commentary] object SourceReview:
           !low.contains("the key strategic fact") &&
           !low.contains("so the task is")
       }
+
+  private def sourceFamilyAligned(
+      source: SourceWitnessCatalog.SourceCandidate,
+      surface: EvaluationSurface
+  ): Boolean =
+    val family = source.family.toLowerCase
+    if family.contains("break_prevention") then
+      surface.mainClaimSource.contains("counterplay_axis_suppression") ||
+        surface.packetSummary.exists(_.contains("owner_family=neutralize_key_break"))
+    else true
 
   private def plannerOwnership(surface: EvaluationSurface): String =
     if surface.release == "CertifiedOwner" || surface.release == "SupportedLocal" then
@@ -617,7 +649,14 @@ private[commentary] object SourceReview:
       source: SourceWitnessCatalog.SourceCandidate,
       surface: EvaluationSurface
   ): List[String] =
-    if source.family.toLowerCase.contains("iqp") && surface.contractId.isEmpty then
+    val family = source.family.toLowerCase
+    if family.contains("break_prevention") then
+      val packetFamilyMismatch =
+        surface.mainClaimSource.exists(source => source != "counterplay_axis_suppression") ||
+          surface.packetSummary.exists(summary => summary.contains("owner_family=") && !summary.contains("owner_family=neutralize_key_break"))
+      if packetFamilyMismatch then List("break_prevention_family_mismatch")
+      else surface.breakPreventionFailureCodes
+    else if family.contains("iqp") && surface.contractId.isEmpty then
       surface.ownerFailureCodes
     else Nil
 
@@ -632,11 +671,18 @@ private[commentary] object SourceReview:
         if family.contains("iqp") && ownerFailureCodes.nonEmpty then
           ownerFailureCodes.map(code => s"owner:${code.replace(":", "_")}")
         else if family.contains("iqp") then List("owner:iqp_not_induced_or_side_mismatch")
+        else if family.contains("break_prevention") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(code => s"owner:${code.replace(":", "_")}")
+        else if family.contains("break_prevention") then List("owner:break_prevention_witness_missing")
         else if family.contains("defender_trade") then List("owner:defender_trade_owner_missing")
         else if family.contains("carlsbad") then List("owner:carlsbad_probe_missing")
         else List("owner:root_vocabulary_or_extraction_gap")
       case Diagnosis.MoveOwnerMissing =>
-        if source.family.toLowerCase.contains("defender_trade") then List("owner:defender_trade_owner_missing")
+        val family = source.family.toLowerCase
+        if family.contains("break_prevention") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(code => s"owner:${code.replace(":", "_")}")
+        else if family.contains("break_prevention") then List("owner:break_prevention_witness_missing")
+        else if family.contains("defender_trade") then List("owner:defender_trade_owner_missing")
         else List("owner:move_owner_missing")
       case Diagnosis.PlannerOwnerSceneBlocked  => List("owner:planner_scene_blocked")
       case Diagnosis.PlannerOwnerSuppressed    => List("owner:planner_suppressed")
@@ -706,6 +752,7 @@ private[commentary] object SourceReview:
   private def taxonomy(source: SourceWitnessCatalog.SourceCandidate): String =
     val low = source.family.toLowerCase
     if low.contains("tactical") then "source_tactical_first"
+    else if low.contains("break_prevention") then "source_break_prevention"
     else if low.contains("simplification_window") then "source_simplification_window"
     else if low.contains("queen_trade") then "source_queen_trade_boundary"
     else if low.contains("static_weakness") then "source_static_weakness_fixation"

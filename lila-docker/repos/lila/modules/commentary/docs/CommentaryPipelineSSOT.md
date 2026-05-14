@@ -973,7 +973,53 @@ Current rules:
     generated claim must stay one-board / one-break / one-branch local
     ("takes the ...X break away"), and `QuestionFirstCommentaryPlanner`
     now preserves the admitted move-owner source instead of relabeling that
-    exact move-local claim as support-only `prevented_plan`
+    exact move-local claim as support-only `prevented_plan`.
+    `QuestionFirstCommentaryPlanner` also filters `breakNeutralized`
+    `preventedPlans` through the same packet gate before named-break prose can
+    own `WhyNow`, `WhatChanged`, `WhatMustBeStopped`, or plan-race surfaces.
+    `BreakPreventionWitness` is the centralized runtime extractor for this
+    slice: it requires a current prevented-plan carrier, a normalized named
+    break with local counterplay loss, family alignment, a best-defense branch
+    key, stable same-family persistence, and no tactical/rival-release
+    objection before the packet is exact. Without exact promoted named-break
+    `weak_main` permission, the named-break carrier stays support-only or falls
+    to factual move shape. For this slice that promoted packet is
+    `neutralize_key_break`; the existing `counterplay_restraint` prophylactic
+    lane remains admitted only through its own exact packet proof. This gate is
+    owner-packet/proof based and does not use source ids.
+    Upstream carrier generation for this slice now also includes
+    route-level `BreakClampMaterializer` evidence inside
+    `StrategicAnalyzers.ProphylaxisAnalyzerImpl`: after the existing
+    threat-line `PreventedPlan` extraction, it compares null-turn opponent
+    contact pawn break routes by origin, destination, and quiet-push/capture
+    kind. It may append a `FactScope.Now` `PreventedPlan` only when the exact
+    board proves that the same route was legal before the played move, illegal
+    after the played move, and not restored by the first defended-branch plies.
+    Same-destination alternate routes, such as a surviving capture transform,
+    remain private evidence for `BreakPreventionWitness` and are assessed as
+    unanswered, recapturable-but-unproven, or still-releasing transforms. All
+    transform assessments block exact `neutralize_key_break` authority in the
+    current negative-first pass instead of becoming player-facing prose.
+    The materializer writes only the existing internal carrier
+    (`deniedResourceClass = break`, `deniedEntryScope = file`, named
+    `breakNeutralized`, negative `mobilityDelta`), does not fabricate
+    `counterplayScoreDrop`, does not build planner packets or prose, and does
+    not inspect source ids.
+    The current semantic handoff is now explicit: `NarrativeContextBuilder`
+    keeps a low-salience semantic section when it contains a current
+    `FactScope.Now` break/file carrier, so clean route clamps survive into
+    `PreventedPlanInfo` instead of being dropped before witness extraction.
+    `BreakPreventionWitness` may treat matching clean route evidence as
+    same-branch persistence only when the route has no transform risk and the
+    checked branch supplies at least four plies; short branches, stale route
+    identity, same-route restoration, and transform routes still fail closed.
+    `PlayerFacingTruthModePolicy` then reuses that exact witness for
+    `counterplay_axis_suppression` / `neutralize_key_break` owner seeding,
+    same-branch proof, persistence proof, strategic-mode anchoring, and the
+    narrow claim text `This keeps ...X from coming right away.` The release
+    remains `SupportedLocal`, and `QuestionFirstCommentaryPlanner` may prefer
+    that certified move-delta source over generic prevented-plan or forcing
+    prose only when the same exact packet/proof is present.
   - bounded B4 `half_open_file_pressure` is now promoted on one exact local
     file-entry slice only:
     the packet may release `weak_main` only when the exact file corridor plus
@@ -996,7 +1042,10 @@ Current rules:
     line-scoped packet as the move owner for `WhyThis`, but the release must
     stay one-board / one-resource / one-branch local
     (`slows X before it gets started` / `keeps X from getting going on this
-    branch`), and Active plus whole-game replay remain closed. Generic
+    branch`). `MainPathMoveDeltaClaimBuilder` keeps the named resource ahead of
+    raw break-square wording on this family so the exact resource, not just the
+    blocked square, owns the surface. Active plus whole-game replay remain
+    closed. Generic
     prophylaxis praise, whole-position no-counterplay, move-order-fragile
     shells, support-only reinflation, and heavy-piece relabel stay fail-closed
   - bounded `favorable_simplification` is now promoted on one exact same-task
@@ -1167,7 +1216,7 @@ Primary files:
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/CertifiedDecisionFrameBuilder.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlayerFacingClaimPacket.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/MainPathMoveDeltaClaimBuilder.scala`
-- `modules/commentaryCore/src/main/scala/lila/commentary/analysis/BookmakerStrategicLedgerBuilder.scala`
+- `modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewStrategicLedgerBuilder.scala`
 - `modules/commentaryAi/src/main/scala/lila/commentary/PolishPrompt.scala`
 - `modules/commentary/src/main/CommentaryApi.scala`
 
@@ -2402,7 +2451,7 @@ Primary current-code references:
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/BookStyleRenderer.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/BookmakerLiveCompressionPolicy.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/BookmakerPolishSlots.scala`
-- `modules/commentaryCore/src/main/scala/lila/commentary/analysis/BookmakerStrategicLedgerBuilder.scala`
+- `modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewStrategicLedgerBuilder.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/CommentaryEngine.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/practical/ContrastiveSupportAdmissibility.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/GameChronicleCompressionPolicy.scala`

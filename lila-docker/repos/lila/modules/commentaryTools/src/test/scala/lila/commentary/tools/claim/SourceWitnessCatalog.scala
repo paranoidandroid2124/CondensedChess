@@ -1,6 +1,5 @@
 package lila.commentary.tools.claim
 
-import lila.commentary.analysis.*
 private[commentary] object SourceWitnessCatalog:
 
   final case class CandidatePlyRange(start: Int, end: Int):
@@ -56,6 +55,314 @@ private[commentary] object SourceWitnessCatalog:
         family = "B:carlsbad_fixed_target",
         intendedVerdict = "screen_only",
         validationNote = "Replay around b4-b5xc6; promote only if engine PV proves target persistence and owner path."
+      ),
+      SourceCandidate(
+        id = "source-karpov-unzicker-1974-break-prevention",
+        gameName = "Karpov-Unzicker, Nice Olympiad 1974",
+        sourceUrl = "https://chesspro.ru/guestnew/upload/viewer/724520.pgn",
+        pgn =
+          """[Event "Olympiad Final-A"]
+            |[Site "Nice FRA"]
+            |[Date "1974.06.18"]
+            |[Round "4"]
+            |[White "Anatoly Karpov"]
+            |[Black "Wolfgang Unzicker"]
+            |[Result "1-0"]
+            |[ECO "C98"]
+            |
+            |1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Ba4 Nf6 5. O-O Be7
+            |6. Re1 b5 7. Bb3 d6 8. c3 O-O 9. h3 Na5 10. Bc2 c5
+            |11. d4 Qc7 12. Nbd2 Nc6 13. d5 Nd8 14. a4 Rb8
+            |15. axb5 axb5 16. b4 Nb7 17. Nf1 Bd7 18. Be3 Ra8
+            |19. Qd2 Rfc8 20. Bd3 g6 21. Ng3 Bf8 22. Ra2 c4
+            |23. Bb1 Qd8 24. Ba7 Ne8 25. Bc2 Nc7 26. Rea1 Qe7
+            |27. Bb1 Be8 28. Ne2 Nd8 29. Nh2 Bg7 30. f4 f6
+            |31. f5 g5 32. Bc2 Bf7 33. Ng3 Nb7 34. Bd1 h6
+            |35. Bh5 Qe8 36. Qd1 Nd8 37. Ra3 Kf8 38. R1a2 Kg8
+            |39. Ng4 Kf8 40. Ne3 Kg8 41. Bxf7+ Nxf7 42. Qh5 Nd8
+            |43. Qg6 Kf8 44. Nh5 1-0
+            |""".stripMargin.trim,
+        candidatePlyRange = CandidatePlyRange(31, 47),
+        family = "A:break_prevention",
+        intendedVerdict = "screen_only",
+        validationNote =
+          "Natural break-prevention source candidate around 16.b4 through 24.Ba7; admit no authority unless exact replay proves neutralize_key_break owner packet, tactical veto, and claim-only surface."
+      ),
+      SourceCandidate(
+        id = "source-karpov-andersson-1975-hedgehog-break-screen",
+        gameName = "Karpov-Andersson, Milan 1975",
+        sourceUrl = "https://www.pgnmentor.com/events/Milan1975.pgn",
+        pgn =
+          """[Event "Milan"]
+            |[Site "Milan"]
+            |[Date "1975.??.??"]
+            |[Round "8"]
+            |[White "Karpov, Anatoly"]
+            |[Black "Andersson, Ulf"]
+            |[Result "0-1"]
+            |[WhiteElo "2705"]
+            |[BlackElo "2565"]
+            |[ECO "B44"]
+            |
+            |1. e4 c5 2. Nf3 e6 3. d4 cxd4 4. Nxd4 Nc6 5. Nb5 d6
+            |6. c4 Nf6 7. N1c3 a6 8. Na3 Be7 9. Be2 O-O
+            |10. O-O b6 11. Be3 Bb7 12. Rc1 Re8 13. Qb3 Nd7
+            |14. Rfd1 Rc8 15. Rd2 Qc7 16. Qd1 Qb8 17. f3 Ba8
+            |18. Qf1 Nce5 19. Nab1 Nf6 20. Kh1 h6 21. Rdd1 Bf8
+            |22. Nd2 Rcd8 23. Qf2 Ned7 24. a3 d5 25. cxd5 exd5
+            |26. exd5 Bd6 27. Nf1 Rxe3 28. Nxe3 Bxh2 29. Nf1 Bf4
+            |30. Rc2 b5 31. Bd3 Nb6 32. Be4 Nc4 33. a4 Re8
+            |34. axb5 axb5 35. Re2 Be5 36. Qc5 Nd6 37. Na2 Ndxe4
+            |38. fxe4 Bd6 39. Qc2 Re5 40. g3 Qe8 41. Rde1 Bb7
+            |42. Kg1 Nh7 43. Nc1 Ng5 44. Nd2 Bb4 45. Kf2 Bxd2
+            |46. Rxd2 Nxe4+ 47. Rxe4 Rxe4 48. Ne2 Bc8 49. Nc3 Re1
+            |50. Ne2 Ra1 51. Rd4 Qd8 52. Qc6 Bd7 53. Qd6 Qe8
+            |54. Qf4 Qc8 55. b4 Bh3 56. Qe4 Bf5 57. Qe3 Qc2
+            |58. g4 Bd7 59. Qe4 Qb3 60. Qd3 Qb2 61. Qe4 Ra8
+            |62. Qe3 Ra2 63. d6 Ra8 64. Re4 Bc6 65. Qd4 Qb1
+            |66. Re7 Qh1 67. Qf4 Qg2+ 68. Ke1 Ra1+ 69. Kd2 Qd5+
+            |70. Qd4 Ra2+ 71. Kc3 Qf3+ 72. Re3 Ra3+ 73. Kd2 Ra2+
+            |74. Ke1 Qh1+ 75. Kf2 Qg2+ 76. Ke1 Qh1+ 77. Kf2 Ra1
+            |78. Rc3 Qg2+ 79. Ke3 Qf3+ 0-1
+            |""".stripMargin.trim,
+        candidatePlyRange = CandidatePlyRange(47, 50),
+        family = "A:break_prevention",
+        intendedVerdict = "screen_only",
+        validationNote =
+          "Hedgehog break-window screen candidate around 24.a3 ...d5 and captures; keep screen-only unless exact owner proof shows a bounded break-prevention packet rather than tactical or rival release."
+      ),
+      SourceCandidate(
+        id = "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
+        gameName = "Lokvenc-Czerniak, Helsinki Olympiad 1952",
+        sourceUrl = "https://www.pgnmentor.com/openings/ModernBenoni6e4.zip",
+        pgn =
+          """[Event "Helsinki olm"]
+            |[Site "Helsinki"]
+            |[Date "1952.??.??"]
+            |[Round "?"]
+            |[White "Lokvenc, Josef"]
+            |[Black "Czerniak, Moshe"]
+            |[Result "1-0"]
+            |[ECO "A76"]
+            |
+            |1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6
+            |6. e4 g6 7. Be2 Bg7 8. Nf3 O-O 9. O-O Re8 10. Qc2 b6
+            |11. Re1 Na6 12. Bb5 Re7 13. Qa4 Nc7 14. Bc6 Rb8
+            |15. Bf4 Nh5 16. Bg5 f6 17. Be3 a6 18. h3 Bf8
+            |19. Rad1 b5 20. Qc2 b4 21. Nb1 Nb5 22. Nbd2 Bd7
+            |23. Bxd7 Qxd7 24. Nc4 Rbe8 25. Bc1 Rf7 26. Qd3 Nc7
+            |27. g4 Ng7 28. Nh2 Rfe7 29. b3 Rd8 30. Bb2 Nge8
+            |31. Na5 Rf7 32. Nc6 Ra8 33. f4 Bg7 34. Re2 Rf8
+            |35. f5 g5 36. Qg3 a5 37. h4 h6 38. Nf3 a4
+            |39. Nd2 Nb5 40. Nc4 Qc7 41. hxg5 fxg5 42. e5 dxe5
+            |43. Bxe5 Bxe5 44. Rxe5 Nc3 45. Ne7+ Kg7 46. Rde1 axb3
+            |47. axb3 Ra2 48. f6+ Rxf6 49. Nf5+ Kg6 50. Qd3 Rfa6
+            |51. Nfd6+ 1-0
+            |""".stripMargin.trim,
+        candidatePlyRange = CandidatePlyRange(23, 23),
+        family = "A:break_prevention",
+        intendedVerdict = "screen_only",
+        validationNote =
+          "Clean route-clamp scanner candidate: exact ply 23 Bb5 denies the board-derived ...b6-b5 route with no same-destination transform; admit only if SourceReview materializes a neutralize_key_break packet and claim-only SupportedLocal surface."
+      ),
+      SourceCandidate(
+        id = "source-maderna-palermo-1955-a6-a5-break-prevention",
+        gameName = "Maderna-Palermo, Argentine Championship 1955",
+        sourceUrl = "https://www.pgnmentor.com/openings/ModernBenoni6e4.zip",
+        pgn =
+          """[Event "ARG-ch"]
+            |[Site "Buenos Aires"]
+            |[Date "1955.??.??"]
+            |[Round "18"]
+            |[White "Maderna, Carlos"]
+            |[Black "Palermo, Vicente"]
+            |[Result "1-0"]
+            |[ECO "A69"]
+            |
+            |1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6
+            |6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. Nd2 Nbd7
+            |10. O-O a6 11. a4 Re8 12. f4 Rb8 13. Re1 Nb6
+            |14. Bf3 Nfd7 15. a5 Na8 16. Nc4 Qc7 17. e5 dxe5
+            |18. d6 Qd8 19. Nd5 e4 20. Ne7+ Kf8 21. Rxe4 Nf6
+            |22. Re1 Be6 23. Ne5 Ng8 24. f5 Bxf5 25. Bg5 f6
+            |26. Qd5 fxe5 27. Qxg8+ 1-0
+            |""".stripMargin.trim,
+        candidatePlyRange = CandidatePlyRange(29, 29),
+        family = "A:break_prevention",
+        intendedVerdict = "screen_only",
+        validationNote =
+          "Clean route-clamp scanner candidate: exact ply 29 a5 denies the board-derived ...a6-a5 route with no same-destination transform; keep screen-only unless exact neutralize_key_break authority and claim-only surface appear."
+      ),
+      SourceCandidate(
+        id = "source-camara-bazan-1960-b7-b5-break-prevention",
+        gameName = "Camara-Bazan, Sao Paulo Zonal Tournament 1960",
+        sourceUrl = "https://www.pgnmentor.com/openings/ModernBenoni6e4.zip",
+        pgn =
+          """[Event "Sao Paulo zt"]
+            |[Site "Sao Paulo"]
+            |[Date "1960.??.??"]
+            |[Round "13"]
+            |[White "Camara, Ronald"]
+            |[Black "Bazan, Osvaldo"]
+            |[Result "0-1"]
+            |[ECO "A67"]
+            |
+            |1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6
+            |6. e4 g6 7. f4 Bg7 8. Bb5+ Nfd7 9. Bd3 O-O
+            |10. Nge2 Na6 11. O-O Re8 12. h3 Rb8 13. Kh1 Nb4
+            |14. Bb5 Na6 15. Bd3 Nc7 16. a4 b6 17. Nb5 Nf6
+            |18. Nec3 a6 19. Nxc7 Qxc7 20. Qf3 c4 21. Bc2 Nd7
+            |22. e5 dxe5 23. f5 Nc5 24. fxg6 fxg6 25. d6 Qb7
+            |26. Nd5 Kh8 27. Bg5 e4 28. Qd1 Nd3 29. Nc7 Re5
+            |30. Qd2 Bxh3 31. Qe3 Bf5 32. b3 c3 33. b4 Qc6
+            |34. Nxa6 Rg8 35. Be7 Bc8 36. Bb3 Bxa6 37. Bxg8 Kxg8
+            |38. b5 Qd5 39. bxa6 Rh5+ 40. Kg1 Bd4 41. Rf8+ Kg7
+            |42. Bf6+ Bxf6 43. Rf1 Kxf8 44. Qxb6 Qc5+ 45. Qxc5 Rxc5 0-1
+            |""".stripMargin.trim,
+        candidatePlyRange = CandidatePlyRange(27, 27),
+        family = "A:break_prevention",
+        intendedVerdict = "screen_only",
+        validationNote =
+          "Clean route-clamp source triage admission: exact ply 27 Bb5 denies the board-derived ...b7-b5 route with no same-destination transform; admitted only under neutralize_key_break owner packet proof and claim-only SupportedLocal surfaces."
+      ),
+      SourceCandidate(
+        id = "source-sliwa-gromek-1960-a6-a5-break-prevention",
+        gameName = "Sliwa-Gromek, Polish Championship 1960",
+        sourceUrl = "https://www.pgnmentor.com/openings/ModernBenoni6e4.zip",
+        pgn =
+          """[Event "POL-ch"]
+            |[Site "Wroclaw"]
+            |[Date "1960.??.??"]
+            |[Round "4"]
+            |[White "Sliwa, Bogdan"]
+            |[Black "Gromek, Jozef"]
+            |[Result "1-0"]
+            |[ECO "A67"]
+            |
+            |1. d4 Nf6 2. c4 e6 3. Nc3 c5 4. d5 exd5 5. cxd5 d6
+            |6. e4 g6 7. f4 Bg7 8. Bb5+ Nfd7 9. Bd3 Qh4+
+            |10. g3 Qe7 11. Nf3 O-O 12. O-O Nb6 13. Re1 Bg4
+            |14. Bf1 Na6 15. h3 Bxf3 16. Qxf3 Nb4 17. Qd1 Rfe8
+            |18. Be3 Rac8 19. a3 Na6 20. Bf2 Nc7 21. Qb3 Rb8
+            |22. Rad1 Red8 23. a4 Kh8 24. Qa3 Na6 25. Nb5 Nb4
+            |26. Qb3 a6 27. Na3 Qd7 28. a5 Qa4 29. Qxa4 Nxa4
+            |30. b3 Nc3 31. Rd2 Re8 32. Bg2 Rbd8 33. Nc4 Kg8
+            |34. Kf1 f5 35. Nxd6 Rxd6 36. Bxc5 Rdd8 37. Bxb4 fxe4
+            |38. d6 Rd7 39. Rc2 Nd5 40. Ba3 Bc3 41. Ree2 Bd4
+            |42. Bxe4 Ne3+ 43. Rxe3 Bxe3 44. Bd5+ Kf8 45. Rc7 Red8
+            |46. Bxb7 Bd2 47. Bc6 Rxd6 48. Bd5 Ke8 49. Bf7+ Kf8
+            |50. Bc4 Bxa5 51. Rc6 Ke7 52. Bxa6 Bd2 53. Ke2 Ba5
+            |54. Bc5 Rd7 55. b4 1-0
+            |""".stripMargin.trim,
+        candidatePlyRange = CandidatePlyRange(55, 55),
+        family = "A:break_prevention",
+        intendedVerdict = "screen_only",
+        validationNote =
+          "Clean route-clamp scanner candidate: exact ply 55 a5 denies the board-derived ...a6-a5 route with no same-destination transform; admit only if the exact neutralize_key_break packet, planner owner, and claim-only SupportedLocal surface materialize."
+      ),
+      SourceCandidate(
+        id = "source-luckis-bielicki-1961-a6-a5-break-prevention",
+        gameName = "Luckis-Bielicki, Argentine Championship 1961",
+        sourceUrl = "https://www.pgnmentor.com/openings/ModernBenoni6e4.zip",
+        pgn =
+          """[Event "ARG-ch"]
+            |[Site "Buenos Aires"]
+            |[Date "1961.??.??"]
+            |[Round "14"]
+            |[White "Luckis, Marcos"]
+            |[Black "Bielicki, Carlos"]
+            |[Result "1-0"]
+            |[ECO "A75"]
+            |
+            |1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6
+            |6. e4 g6 7. Nf3 Bg7 8. Be2 O-O 9. O-O a6
+            |10. a4 Bg4 11. h3 Bxf3 12. Bxf3 Nbd7 13. Bf4 Qc7
+            |14. Qc2 Rfe8 15. Be2 c4 16. Rfe1 Rac8 17. a5 b5
+            |18. axb6 Qxb6 19. Ra4 Bf8 20. Rxc4 Rxc4 21. Bxc4 Rb8
+            |22. b3 Nc5 23. b4 Ncd7 24. Na2 Rc8 25. Qe2 Re8
+            |26. Be3 Qd8 27. f3 a5 28. Bb5 axb4 29. Nxb4 Qa5
+            |30. Nc6 Qa3 31. Qd3 Qa2 32. Bc4 Qa4 33. Qc3 Ra8
+            |34. Bd4 Bg7 35. Rb1 h5 36. Qc1 Qa3 37. Qd2 Ne5
+            |38. Nxe5 dxe5 39. Ra1 Qf8 40. Rxa8 Qxa8 41. Be3 Bf8
+            |42. Qa2 Qxa2 43. Bxa2 Nd7 44. Kf1 Bc5 45. Bd2 Kg7
+            |46. Bb1 Nb6 47. Bd3 f5 48. Bc3 Kf6 49. f4 Bd6
+            |50. Ke2 Na4 51. Ba1 Nc5 52. exf5 gxf5 53. Bc2 Nd7
+            |54. Bc3 Nf8 55. h4 Ng6 56. g3 Nf8 57. Ba4 Ng6
+            |58. Be8 Ne7 59. Bc6 Ng6 60. Bd7 Ne7 61. Be6 Ng6
+            |62. Kf3 Bc7 63. Bb2 Bd6 64. Bd7 Ne7 65. Bc6 Ng6
+            |66. Be8 Ne7 67. Bc6 Ng6 68. Bd7 Ne7 69. Be6 Ng6
+            |70. Ke2 Bc7 71. Bc8 Ne7 72. Bb7 Ng6 73. Bc8 Ne7
+            |74. Be6 Ng6 75. Bc3 Bd6 76. Ba1 Bc7 77. Bc3 Bb8
+            |78. Kd3 Ba7 79. fxe5+ Nxe5+ 80. Ke2 Bb8 81. Bd7 Kg6
+            |82. Be8+ Nf7 83. Kf3 Bd6 84. Bd4 Bc7 85. Be3 Kf6
+            |86. Bxf7 Kxf7 87. Bf4 Ba5 88. Ke3 Ke7 89. Kd4 1-0
+            |""".stripMargin.trim,
+        candidatePlyRange = CandidatePlyRange(33, 33),
+        family = "A:break_prevention",
+        intendedVerdict = "screen_only",
+        validationNote =
+          "Clean route-clamp scanner candidate: exact ply 33 a5 denies the board-derived ...a6-a5 route with no same-destination transform; keep screen-only unless exact replay promotes neutralize_key_break with claim-only SupportedLocal parity."
+      ),
+      SourceCandidate(
+        id = "source-pfleger-maalouf-1961-a6-a5-break-prevention",
+        gameName = "Pfleger-Maalouf, World Junior Championship preliminary 1961",
+        sourceUrl = "https://www.pgnmentor.com/openings/ModernBenoni6e4.zip",
+        pgn =
+          """[Event "Wch U20 prel-B"]
+            |[Site "The Hague"]
+            |[Date "1961.??.??"]
+            |[Round "4"]
+            |[White "Pfleger, Helmut"]
+            |[Black "Maalouf, Carlos"]
+            |[Result "1-0"]
+            |[ECO "A70"]
+            |
+            |1. d4 Nf6 2. c4 e6 3. Nc3 c5 4. d5 exd5 5. cxd5 d6
+            |6. e4 g6 7. Nf3 Bg7 8. Bb5+ Bd7 9. Bxd7+ Nbxd7
+            |10. O-O O-O 11. Bg5 h6 12. Bf4 Nb6 13. Qd3 Nh5
+            |14. Bd2 Nf6 15. Rfe1 Re8 16. a4 a6 17. a5 Nbd7
+            |18. Bf4 Qb8 19. Re2 Ng4 20. h3 Nge5 21. Nxe5 Nxe5
+            |22. Bxe5 Bxe5 23. Na4 Qc7 24. Nb6 Rad8 25. Rf1 Qe7
+            |26. f4 Bd4+ 27. Kh1 Qf6 28. Rf3 Qg7 29. Nc4 Kf8
+            |30. Rf1 Qf6 31. Ree1 Qg7 32. e5 dxe5 33. fxe5 Bxe5
+            |34. Nxe5 Rxe5 35. Rxe5 Qxe5 36. Qxg6 Qxd5 37. Qxh6+ Kg8
+            |38. Rf3 Qd1+ 39. Kh2 Rd6 40. Rg3+ Rg6 41. Rxg6+ fxg6
+            |42. Qxg6+ 1-0
+            |""".stripMargin.trim,
+        candidatePlyRange = CandidatePlyRange(33, 33),
+        family = "A:break_prevention",
+        intendedVerdict = "screen_only",
+        validationNote =
+          "Clean route-clamp scanner candidate: exact ply 33 a5 denies the board-derived ...a6-a5 route with no same-destination transform; promote only under exact neutralize_key_break owner packet proof and claim-only surfaces."
+      ),
+      SourceCandidate(
+        id = "source-polugaevsky-giorgadze-1956-c5-c4-break-prevention",
+        gameName = "Polugaevsky-Giorgadze, USSR Championship semifinal 1956",
+        sourceUrl = "https://www.pgnmentor.com/openings/ModernBenoni6e4.zip",
+        pgn =
+          """[Event "URS-ch sf"]
+            |[Site "Tbilisi"]
+            |[Date "1956.??.??"]
+            |[Round "19"]
+            |[White "Polugaevsky, Lev"]
+            |[Black "Giorgadze, Tamaz"]
+            |[Result "1-0"]
+            |[ECO "A65"]
+            |
+            |1. d4 Nf6 2. c4 c5 3. d5 e6 4. Nc3 exd5 5. cxd5 d6
+            |6. e4 Be7 7. Nf3 O-O 8. Be2 Ne8 9. O-O Bf6
+            |10. Nd2 b6 11. a4 a6 12. Nc4 Nd7 13. f4 Rb8
+            |14. e5 dxe5 15. Ne4 exf4 16. Nxf6+ Ndxf6 17. Bxf4 Rb7
+            |18. Bf3 Rd7 19. Ne5 Rxd5 20. Bxd5 Qxd5 21. Qxd5 Nxd5
+            |22. a5 bxa5 23. Rad1 Nef6 24. Bg5 Be6 25. Bxf6 gxf6
+            |26. Nd7 Ne3 27. Nxf8 Kxf8 28. Rd6 Nxf1 29. Kxf1 a4
+            |30. Kf2 1-0
+            |""".stripMargin.trim,
+        candidatePlyRange = CandidatePlyRange(23, 23),
+        family = "A:break_prevention",
+        intendedVerdict = "screen_only",
+        validationNote =
+          "Clean route-clamp scanner candidate: exact ply 23 Nc4 denies the board-derived ...c5-c4 route with no same-destination transform; promote only if the live owner path produces neutralize_key_break with SupportedLocal parity."
       ),
       SourceCandidate(
         id = "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",

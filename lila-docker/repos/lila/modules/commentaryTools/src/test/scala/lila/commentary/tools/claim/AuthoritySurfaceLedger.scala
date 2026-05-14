@@ -7,9 +7,10 @@ import java.nio.file.{ Files, Paths }
 
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
+import lila.commentary.{ DirectionalTargetReadiness, NarrativeSignalDigest, StrategyDirectionalTarget, StrategyPack }
 import lila.commentary.model.*
-import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, NarrativeOutline }
-import lila.commentary.model.strategic.VariationLine
+import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, NarrativeOutline, PlanHypothesis, PlanViability }
+import lila.commentary.model.strategic.{ EngineEvidence, VariationLine }
 
 object AuthoritySurfaceLedger:
 
@@ -96,6 +97,9 @@ object AuthoritySurfaceLedger:
       "source-alekhine-bogoljubow-1936-iqp-inducement",
       "source-najdorf-sergeant-1939-iqp-inducement",
       "source-botvinnik-vidmar-1936-iqp-opening-inducement",
+      "source-maderna-palermo-1955-a6-a5-break-prevention",
+      "source-camara-bazan-1960-b7-b5-break-prevention",
+      "source-pfleger-maalouf-1961-a6-a5-break-prevention",
       "source-salov-ljubojevic-1992-simplification-window",
       "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
       "source-aronian-andreikin-2014-defender-trade"
@@ -158,6 +162,30 @@ object AuthoritySurfaceLedger:
           "source:C:iqp_inducement",
           "Source-backed Botvinnik-Vidmar opening exact replay admitted after near-top IQP inducement owner proof.",
           taxonomy = "source_iqp_inducement"
+        )
+      case "source-maderna-palermo-1955-a6-a5-break-prevention" =>
+        Sample(
+          "source-maderna-palermo-1955-a6-a5-break-prevention",
+          "source-maderna-palermo-1955-a6-a5-break-prevention",
+          "source:A:break_prevention",
+          "Source-backed Maderna-Palermo exact replay admitted after clean route-clamp neutralize_key_break owner proof.",
+          taxonomy = "source_break_prevention"
+        )
+      case "source-camara-bazan-1960-b7-b5-break-prevention" =>
+        Sample(
+          "source-camara-bazan-1960-b7-b5-break-prevention",
+          "source-camara-bazan-1960-b7-b5-break-prevention",
+          "source:A:break_prevention",
+          "Source-backed Camara-Bazan exact replay admitted after clean route-clamp neutralize_key_break owner proof.",
+          taxonomy = "source_break_prevention"
+        )
+      case "source-pfleger-maalouf-1961-a6-a5-break-prevention" =>
+        Sample(
+          "source-pfleger-maalouf-1961-a6-a5-break-prevention",
+          "source-pfleger-maalouf-1961-a6-a5-break-prevention",
+          "source:A:break_prevention",
+          "Source-backed Pfleger-Maalouf exact replay admitted after clean route-clamp neutralize_key_break owner proof.",
+          taxonomy = "source_break_prevention"
         )
       case "source-salov-ljubojevic-1992-simplification-window" =>
         Sample(
@@ -242,11 +270,42 @@ object AuthoritySurfaceLedger:
         "Controlled exact board/PV where the sequence leaves an opponent isolated pawn.",
         taxonomy = "iqp_inducement_supported_local"
       ),
+      Sample(
+        "break-prevention-supported-local-control",
+        "break-prevention-supported-local-control",
+        "A:break_prevention_control",
+        "Controlled exact board/PV where a named key break is locally neutralized, then deliberately weakened to SupportedLocal.",
+        softenOwnerPath = true,
+        taxonomy = "break_prevention_supported_local"
+      ),
       Sample("B15A-tactical-veto", "B15A", "negative:tactical_veto", "Same B15A strategic row under tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
       Sample("B16B-tactical-veto", "B16B", "negative:tactical_veto", "Same B16B strategic row under tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
       Sample("K09A-tactical-veto", "K09A", "negative:tactical_veto", "Same K09A coordination row under tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
       Sample("K09B-tactical-veto", "K09B", "negative:tactical_veto", "Same K09B simplification row under tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
       Sample("K09F-tactical-veto", "K09F", "negative:tactical_veto", "Same K09F simplification row under tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
+      Sample(
+        "break-prevention-tactical-veto",
+        "break-prevention-supported-local-control",
+        "negative:break_prevention_tactical_veto",
+        "Same named-break control under explicit tactical failure.",
+        tacticalContract = true,
+        softenOwnerPath = true,
+        taxonomy = "tactical_truth_first"
+      ),
+      Sample(
+        "break-prevention-missing-witness-control",
+        "break-prevention-missing-witness-control",
+        "negative:break_prevention_missing_witness",
+        "Named-break shell with the best-defense branch witness missing.",
+        taxonomy = "owner:break_prevention_witness_missing"
+      ),
+      Sample(
+        "break-prevention-rival-relabel-control",
+        "break-prevention-rival-relabel-control",
+        "negative:break_prevention_rival_or_relabel",
+        "Named-break shell blocked by release-risk rather than promoted as generic counterplay prose.",
+        taxonomy = "owner:break_prevention_rival_or_relabel"
+      ),
       Sample("priority-MR1-tactical-veto", "priority-MR1", "negative:tactical_veto", "PlanPriority MR1 under explicit tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
       Sample("priority-MR2-tactical-veto", "priority-MR2", "negative:tactical_veto", "PlanPriority MR2 under explicit tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
       Sample("priority-TO1-tactical-veto", "priority-TO1", "negative:tactical_veto", "PlanPriority TO1 under explicit tactical failure.", tacticalContract = true, taxonomy = "tactical_truth_first"),
@@ -366,7 +425,7 @@ object AuthoritySurfaceLedger:
       else
         QuestionPlannerInputsBuilder.build(ctx, Some(pack), truthContract = truthContract)
     val effectiveInputs =
-      if sample.softenOwnerPath then softenPositionProbeOwner(inputs)
+      if sample.softenOwnerPath then softenMainClaimOwnerPath(inputs)
       else inputs
     val ranked = QuestionFirstCommentaryPlanner.plan(ctx, effectiveInputs, truthContract)
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = truthContract)
@@ -385,13 +444,24 @@ object AuthoritySurfaceLedger:
     val primary = ranked.primary.map(_.claim).getOrElse("-")
     val baselineRelease =
       Option.when(sample.tacticalContract)(strategicBaselineRelease(sample, ctx, pack)).flatten
+    val mainClaimPacket =
+      effectiveInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet)
     val ownerProofTrace =
-      effectiveInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).map(_.ownerProofTrace)
+      mainClaimPacket.map(_.ownerProofTrace)
+    val ownerDisplaySource =
+      ranked.primary.map { plan =>
+        if ownerProofTrace.flatMap(_.contractId).contains("runtime:neutralize_key_break") then
+          mainClaimPacket.map(_.ownerSource).getOrElse(plan.ownerSource)
+        else plan.ownerSource
+      }
     Observation(
       sample = sample,
       release = releaseLabel(sample, ranked, primary, bookmaker, chronicle, baselineRelease),
       taxonomy = sample.taxonomy,
-      owner = ranked.primary.map(plan => s"${plan.questionKind}:${plan.ownerFamily}:${plan.ownerSource}").getOrElse("-"),
+      owner = ranked.primary
+        .zip(ownerDisplaySource)
+        .map { case (plan, source) => s"${plan.questionKind}:${plan.ownerFamily}:$source" }
+        .getOrElse("-"),
       primary = primary,
       bookmaker = bookmaker,
       chronicle = chronicle,
@@ -417,7 +487,7 @@ object AuthoritySurfaceLedger:
     val baseInputs =
       QuestionPlannerInputsBuilder.build(ctx, Some(pack), truthContract = None)
     val effectiveBaseInputs =
-      if sample.softenOwnerPath then softenPositionProbeOwner(baseInputs)
+      if sample.softenOwnerPath then softenMainClaimOwnerPath(baseInputs)
       else baseInputs
     val baseRanked =
       QuestionFirstCommentaryPlanner.plan(ctx, effectiveBaseInputs, truthContract = None)
@@ -434,7 +504,12 @@ object AuthoritySurfaceLedger:
       expectedTags: List[String],
       note: String,
       playedUci: Option[String] = None,
-      extraVariations: List[VariationLine] = Nil
+      extraVariations: List[VariationLine] = Nil,
+      mainStrategicPlans: List[PlanHypothesis] = Nil,
+      strategicPlanExperiments: List[StrategicPlanExperiment] = Nil,
+      semantic: Option[SemanticSection] = None,
+      engineEvidence: Option[EngineEvidence] = None,
+      strategyPackOverride: Option[StrategyPack] = None
   )
 
   private def scene(id: String) =
@@ -459,6 +534,9 @@ object AuthoritySurfaceLedger:
         )
         .orElse(
           sourceScene(id)
+        )
+        .orElse(
+          controlledScene(id)
         )
         .orElse(
           StrategicIdeaFenFixtures.all.find(_.id == id).map(fixture =>
@@ -489,14 +567,27 @@ object AuthoritySurfaceLedger:
           prevMove = fixture.playedUci
         )
         .getOrElse(sys.error(s"analysis missing for ${fixture.id}"))
-    val ctx =
+    val baseCtx =
       NarrativeContextBuilder
         .build(data, data.toContext, None)
-        .copy(authorQuestions = defaultQuestions)
+    val ctx =
+      baseCtx.copy(
+        authorQuestions = defaultQuestions,
+        mainStrategicPlans =
+          if fixture.mainStrategicPlans.nonEmpty then fixture.mainStrategicPlans
+          else baseCtx.mainStrategicPlans,
+        strategicPlanExperiments =
+          if fixture.strategicPlanExperiments.nonEmpty then fixture.strategicPlanExperiments
+          else baseCtx.strategicPlanExperiments,
+        semantic = fixture.semantic.orElse(baseCtx.semantic),
+        engineEvidence = fixture.engineEvidence.orElse(baseCtx.engineEvidence)
+      )
     val pack =
-      StrategyPackBuilder
-        .build(data, ctx)
-        .getOrElse(sys.error(s"strategy pack missing for ${fixture.id}"))
+      fixture.strategyPackOverride.getOrElse(
+        StrategyPackBuilder
+          .build(data, ctx)
+          .getOrElse(sys.error(s"strategy pack missing for ${fixture.id}"))
+      )
     (fixture, ctx, pack)
 
   private def priorityScene(id: String): Option[SceneFixture] =
@@ -504,6 +595,145 @@ object AuthoritySurfaceLedger:
 
   private def sourceScene(id: String): Option[SceneFixture] =
     sourceScenes.get(id)
+
+  private def controlledScene(id: String): Option[SceneFixture] =
+    controlledScenes.get(id)
+
+  private val breakPreventionFen =
+    "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23"
+
+  private val breakPreventionPv =
+    List("c1c8", "f8e8", "c8e8")
+
+  private def evidenceBackedPlan(
+      planId: String,
+      moveOrderSensitive: Boolean
+  ): PlanHypothesis =
+    PlanHypothesis(
+      planId = planId,
+      planName = "Clamp the ...c5 break",
+      rank = 1,
+      score = 0.82,
+      preconditions = Nil,
+      executionSteps =
+        if moveOrderSensitive then List("This candidate is intentionally marked move-order sensitive.")
+        else List("Keep the opponent's main counterplay route closed first."),
+      failureModes = Nil,
+      viability = PlanViability(score = 0.8, label = "high", risk = "test"),
+      evidenceSources = List(s"theme:${ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id}"),
+      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+      subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id)
+    )
+
+  private def evidenceBackedExperiment(
+      planId: String,
+      moveOrderSensitive: Boolean
+  ): StrategicPlanExperiment =
+    StrategicPlanExperiment(
+      planId = planId,
+      themeL1 = ThemeTaxonomy.ThemeL1.RestrictionProphylaxis.id,
+      subplanId = Some(ThemeTaxonomy.SubplanId.BreakPrevention.id),
+      evidenceTier = "evidence_backed",
+      supportProbeCount = 1,
+      refuteProbeCount = 0,
+      bestReplyStable = true,
+      futureSnapshotAligned = true,
+      counterBreakNeutralized = true,
+      moveOrderSensitive = moveOrderSensitive,
+      experimentConfidence = if moveOrderSensitive then 0.62 else 0.86
+    )
+
+  private def breakPreventionSemantic: SemanticSection =
+    SemanticSection(
+      structuralWeaknesses = Nil,
+      pieceActivity = Nil,
+      positionalFeatures = Nil,
+      compensation = None,
+      endgameFeatures = None,
+      practicalAssessment = None,
+      preventedPlans = List(
+        PreventedPlanInfo(
+          planId = "deny_counterplay",
+          deniedSquares = List("c5"),
+          breakNeutralized = Some("...c5"),
+          mobilityDelta = -2,
+          counterplayScoreDrop = 140,
+          preventedThreatType = Some("counterplay"),
+          deniedResourceClass = Some("break"),
+          citationLine = Some("The ...c5 break never becomes available on the defended branch.")
+        )
+      ),
+      conceptSummary = Nil
+    )
+
+  private def breakPreventionPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_c5",
+          ownerSide = "white",
+          piece = "R",
+          from = "c1",
+          targetSquare = "c5",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("deny the ...c5 break"),
+          evidence = List("probe")
+        )
+      ),
+      signalDigest = Some(NarrativeSignalDigest(decision = Some("deny the ...c5 break")))
+    )
+
+  private def breakPreventionEngineEvidence(pv: List[String]): EngineEvidence =
+    EngineEvidence(
+      depth = 18,
+      variations = List(VariationLine(moves = pv, scoreCp = 88, depth = 18))
+    )
+
+  private def breakPreventionControlFixture(
+      id: String,
+      pv: List[String],
+      note: String,
+      moveOrderSensitive: Boolean = false
+  ): SceneFixture =
+    val planId = s"${id}_plan"
+    SceneFixture(
+      id = id,
+      label = note,
+      fen = breakPreventionFen,
+      phase = "middlegame",
+      ply = 46,
+      scoreCp = 88,
+      pvMoves = pv,
+      expectedTags = List("break_prevention", "counterplay_axis_suppression"),
+      note = note,
+      playedUci = Some("c1c8"),
+      mainStrategicPlans = List(evidenceBackedPlan(planId, moveOrderSensitive)),
+      strategicPlanExperiments = List(evidenceBackedExperiment(planId, moveOrderSensitive)),
+      semantic = Some(breakPreventionSemantic),
+      engineEvidence = Some(breakPreventionEngineEvidence(pv)),
+      strategyPackOverride = Some(breakPreventionPack)
+    )
+
+  private val controlledScenes: Map[String, SceneFixture] =
+    List(
+      breakPreventionControlFixture(
+        id = "break-prevention-supported-local-control",
+        pv = breakPreventionPv,
+        note = "Controlled exact board/PV for named ...c5-break prevention."
+      ),
+      breakPreventionControlFixture(
+        id = "break-prevention-missing-witness-control",
+        pv = List("c1c8"),
+        note = "Named ...c5-break prevention shell missing the best-defense branch witness."
+      ),
+      breakPreventionControlFixture(
+        id = "break-prevention-rival-relabel-control",
+        pv = breakPreventionPv,
+        note = "Named ...c5-break prevention shell with move-order release risk.",
+        moveOrderSensitive = true
+      )
+    ).map(scene => scene.id -> scene).toMap
 
   private val sourceScenes: Map[String, SceneFixture] =
     List(
@@ -718,6 +948,112 @@ object AuthoritySurfaceLedger:
               depth = 16
             )
           )
+      ),
+      SceneFixture(
+        id = "source-maderna-palermo-1955-a6-a5-break-prevention",
+        label = "Maderna-Palermo 1955 exact break-prevention source row",
+        fen = "1rbqr1k1/1p1n1pbp/pn1p2p1/2pP4/P3PP2/2N2B2/1P1N2PP/R1BQR1K1 w - - 5 15",
+        phase = "middlegame",
+        ply = 29,
+        scoreCp = 20,
+        pvMoves =
+          List(
+            "a4a5",
+            "b6a8",
+            "d2c4",
+            "d7f8",
+            "e4e5",
+            "d6e5",
+            "f4e5",
+            "b7b5",
+            "a5b6",
+            "a8b6",
+            "c4a5",
+            "c8d7",
+            "c1f4",
+            "d8c7",
+            "f4g3",
+            "g7e5",
+            "e1e5",
+            "e8e5",
+            "a5c6",
+            "d7c6",
+            "d5c6",
+            "f8e6"
+          ),
+        expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
+        note = "Copied from Stockfish-backed source review after clean route-clamp neutralize_key_break admission.",
+        playedUci = Some("a4a5")
+      ),
+      SceneFixture(
+        id = "source-camara-bazan-1960-b7-b5-break-prevention",
+        label = "Camara-Bazan 1960 exact break-prevention source row",
+        fen = "1rbqr1k1/pp1n1pbp/3p2p1/2pP4/1n2PP2/2NB3P/PP2N1P1/R1BQ1R1K w - - 3 14",
+        phase = "middlegame",
+        ply = 27,
+        scoreCp = 20,
+        pvMoves =
+          List(
+            "d3b5",
+            "b4a6",
+            "e4e5",
+            "a6c7",
+            "e5e6",
+            "f7e6",
+            "d5e6",
+            "c7e6",
+            "f4f5",
+            "g6f5",
+            "e2g3",
+            "a7a6",
+            "b5d7",
+            "c8d7",
+            "g3f5",
+            "e8f8",
+            "f5g7",
+            "f8f1",
+            "d1f1",
+            "e6g7"
+          ),
+        expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
+        note = "Copied from Stockfish-backed source triage after clean route-clamp neutralize_key_break admission.",
+        playedUci = Some("d3b5")
+      ),
+      SceneFixture(
+        id = "source-pfleger-maalouf-1961-a6-a5-break-prevention",
+        label = "Pfleger-Maalouf 1961 exact break-prevention source row",
+        fen = "r2qr1k1/1p3pb1/pn1p1npp/2pP4/P3P3/2NQ1N2/1P1B1PPP/R3R1K1 w - - 0 17",
+        phase = "middlegame",
+        ply = 33,
+        scoreCp = 20,
+        pvMoves =
+          List(
+            "a4a5",
+            "b6d7",
+            "c3a4",
+            "f6g4",
+            "d2c3",
+            "g4e5",
+            "f3e5",
+            "g7e5",
+            "c3e5",
+            "d7e5",
+            "d3g3",
+            "d8g5",
+            "a4b6",
+            "g5g3",
+            "h2g3",
+            "a8d8",
+            "f2f4",
+            "e5d3",
+            "e1e3",
+            "d3b4",
+            "a1d1",
+            "b4c2"
+          ),
+        expectedTags = List("source", "break_prevention", "counterplay_axis_suppression"),
+        note = "Copied from Stockfish-backed source review after clean route-clamp neutralize_key_break admission.",
+        playedUci = Some("a4a5")
       ),
       SceneFixture(
         id = "source-salov-ljubojevic-1992-simplification-window",
@@ -966,7 +1302,7 @@ object AuthoritySurfaceLedger:
       )
     ).map(scene => scene.id -> scene).toMap
 
-  private def softenPositionProbeOwner(inputs: QuestionPlannerInputs): QuestionPlannerInputs =
+  private def softenMainClaimOwnerPath(inputs: QuestionPlannerInputs): QuestionPlannerInputs =
     inputs.copy(
       mainBundle =
         inputs.mainBundle.map(bundle =>

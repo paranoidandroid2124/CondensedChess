@@ -175,8 +175,15 @@ object NarrativeContextBuilder:
         )
 
     // Phase A: Semantic section from ExtendedAnalysisData
+    val hasCurrentBreakCarrier =
+      data.preventedPlans.exists(plan =>
+        plan.sourceScope == FactScope.Now &&
+          plan.deniedResourceClass.contains("break") &&
+          plan.deniedEntryScope.contains("file") &&
+          plan.breakNeutralized.exists(_.trim.nonEmpty)
+      )
     val semantic =
-      if data.strategicSalience == StrategicSalience.Low && data.endgameFeatures.isEmpty then None
+      if data.strategicSalience == StrategicSalience.Low && data.endgameFeatures.isEmpty && !hasCurrentBreakCarrier then None
       else buildSemanticSection(data, afterAnalysis)
 
     // B-axis: Meta signals (Step 1-3)

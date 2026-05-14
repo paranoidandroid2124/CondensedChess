@@ -55,6 +55,32 @@ class SourceReviewTest extends FunSuite:
       assert(report.contains("Natural SupportedLocal search: none found"), clues(report))
   }
 
+  test("break-prevention source candidates stay screen-only without exact owner proof") {
+    val observations = SourceReview.observations(engine = None)
+    val breakRows =
+      observations.filter(_.source.family == "A:break_prevention")
+
+    assertEquals(
+      breakRows.map(_.source.id),
+      List(
+        "source-karpov-unzicker-1974-break-prevention",
+        "source-karpov-andersson-1975-hedgehog-break-screen",
+        "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
+        "source-maderna-palermo-1955-a6-a5-break-prevention",
+        "source-camara-bazan-1960-b7-b5-break-prevention",
+        "source-sliwa-gromek-1960-a6-a5-break-prevention",
+        "source-luckis-bielicki-1961-a6-a5-break-prevention",
+        "source-pfleger-maalouf-1961-a6-a5-break-prevention",
+        "source-polugaevsky-giorgadze-1956-c5-c4-break-prevention"
+      )
+    )
+    assert(breakRows.forall(_.verdict == SourceReview.Verdict.RejectOwnerMissing), clues(breakRows))
+    assert(breakRows.forall(_.diagnosis == SourceReview.Diagnosis.EngineMissingBeforeAdmission), clues(breakRows))
+    assert(breakRows.forall(_.taxonomy == "source_break_prevention"), clues(breakRows))
+    assert(breakRows.forall(_.admissionBlockers == "engine:missing"), clues(breakRows))
+    assert(!breakRows.exists(_.release == "SupportedLocal"), clues(breakRows))
+  }
+
   test("source review keeps admission diagnosis separate from coarse verdict") {
     val observations = SourceReview.observations(engine = None)
     val report = SourceReview.markdown(observations)
@@ -216,6 +242,205 @@ class SourceReviewTest extends FunSuite:
       ),
       "engine:source_move_multipv_only;owner:iqp_not_induced_or_side_mismatch"
     )
+
+    val breakPrevention =
+      SourceWitnessCatalog.all
+        .find(_.id == "source-karpov-unzicker-1974-break-prevention")
+        .getOrElse(fail("missing break_prevention source row"))
+    assertEquals(
+      SourceReview.admissionBlockers(
+        source = breakPrevention,
+        admitted = false,
+        engineGate = SourceReview.EngineGate.SourceMoveTopPv,
+        ownerDiagnosis = SourceReview.Diagnosis.RootVocabularyOrExtractionGap,
+        surfaceGate = "not_reached_no_release",
+        ownerFailureCodes = List("break_prevention_no_named_break")
+      ),
+      "owner:break_prevention_no_named_break"
+    )
+  }
+
+  test("break-prevention fixed source rows expose concrete witness blockers with engine evidence") {
+    val unzickerFen = "1rbn1rk1/2q1bppp/3p1n2/1ppPp3/4P3/2P2N1P/1PBN1PP1/R1BQR1K1 w - - 0 16"
+    val anderssonFen = "bq1rrbk1/3n1pp1/pp1ppn1p/8/2P1P3/2N1BP2/PP1NBQPP/2RR3K w - - 6 24"
+    val engine =
+      StaticSourceReviewEngine(
+        Map(
+          unzickerFen ->
+            List(
+              VariationLine(
+                List("b2b4", "f6e8", "d2f1", "f7f6", "d1e2", "g7g6"),
+                scoreCp = 28,
+                depth = 16
+              )
+            ),
+          anderssonFen ->
+            List(
+              VariationLine(
+                List("a2a3", "a6a5", "d2f1", "d8c8", "f1g3", "a8b7"),
+                scoreCp = 20,
+                depth = 16
+              )
+            )
+        )
+      )
+
+    val rows =
+      SourceReview.observationsWithEngine(
+        Some(engine),
+        sourceIds = Set(
+          "source-karpov-unzicker-1974-break-prevention",
+          "source-karpov-andersson-1975-hedgehog-break-screen"
+        )
+      )
+
+    assertEquals(rows.map(_.engineAgreement).distinct, List("top_pv_matches_played"), clues(rows))
+    assert(
+      rows.forall(row =>
+        row.verdict == SourceReview.Verdict.RejectOwnerMissing ||
+          row.verdict == SourceReview.Verdict.AdmitAuthorityRow
+      ),
+      clues(rows)
+    )
+    val admitted = rows.filter(_.verdict == SourceReview.Verdict.AdmitAuthorityRow)
+    assert(admitted.size <= 1, clues(admitted))
+    val byId = rows.map(row => row.source.id -> row).toMap
+    val unzicker = byId("source-karpov-unzicker-1974-break-prevention")
+    assertEquals(unzicker.admissionBlockers, "owner:break_prevention_capture_transform_recapture_unproven")
+    assertEquals(unzicker.ownerFailureCodes, "break_prevention_capture_transform_recapture_unproven")
+    val andersson = byId("source-karpov-andersson-1975-hedgehog-break-screen")
+    assertEquals(andersson.admissionBlockers, "owner:break_prevention_no_prevented_plan")
+    admitted.foreach { row =>
+      assertEquals(row.mainClaimSource, "counterplay_axis_suppression")
+      assert(row.packetSummary.contains("owner_family=neutralize_key_break"), clues(row))
+      assertEquals(row.release, "SupportedLocal")
+      assertEquals(row.bookmaker, row.primary)
+      assertEquals(row.chronicle, row.primary)
+    }
+    rows.filterNot(row => admitted.exists(_.source.id == row.source.id)).foreach { row =>
+      assert(row.admissionBlockers.startsWith("owner:break_prevention_"), clues(row))
+    }
+  }
+
+  test("clean break-clamp source rows can reach neutralize-key-break owner packets") {
+    val lokvencFen = "r1bqr1k1/p4pbp/np1p1np1/2pP4/4P3/2N2N2/PPQ1BPPP/R1B1R1K1 w - - 2 12"
+    val madernaFen = "1rbqr1k1/1p1n1pbp/pn1p2p1/2pP4/P3PP2/2N2B2/1P1N2PP/R1BQR1K1 w - - 5 15"
+    val camaraFen = "1rbqr1k1/pp1n1pbp/3p2p1/2pP4/1n2PP2/2NB3P/PP2N1P1/R1BQ1R1K w - - 3 14"
+    val pflegerFen = "r2qr1k1/1p3pb1/pn1p1npp/2pP4/P3P3/2NQ1N2/1P1B1PPP/R3R1K1 w - - 0 17"
+    val polugaevskyFen = "rnbqnrk1/5ppp/pp1p1b2/2pP4/P3P3/2N5/1P1NBPPP/R1BQ1RK1 w - - 0 12"
+    val engine =
+      StaticSourceReviewEngine(
+        Map(
+          lokvencFen ->
+            List(
+              VariationLine(
+                List("e2b5", "a6b4", "c2d1", "c8d7", "b5f1", "b6b5", "a2a3", "b4a6"),
+                scoreCp = 37,
+                depth = 16
+              )
+            ),
+          madernaFen ->
+            List(
+              VariationLine(
+                List("a4a5", "b6a8", "d2c4", "d7f8", "e4e5", "d6e5", "f4e5", "b7b5"),
+                scoreCp = 82,
+                depth = 16
+              )
+            ),
+          camaraFen ->
+            List(
+              VariationLine(
+                List(
+                  "d3b5",
+                  "b4a6",
+                  "e4e5",
+                  "a6c7",
+                  "e5e6",
+                  "f7e6",
+                  "d5e6",
+                  "c7e6",
+                  "f4f5",
+                  "g6f5",
+                  "e2g3",
+                  "a7a6",
+                  "b5d7",
+                  "c8d7",
+                  "g3f5",
+                  "e8f8",
+                  "f5g7",
+                  "f8f1",
+                  "d1f1",
+                  "e6g7"
+                ),
+                scoreCp = 20,
+                depth = 16
+              )
+            ),
+          pflegerFen ->
+            List(
+              VariationLine(
+                List(
+                  "a4a5",
+                  "b6d7",
+                  "c3a4",
+                  "f6g4",
+                  "d2c3",
+                  "g4e5",
+                  "f3e5",
+                  "g7e5",
+                  "c3e5",
+                  "d7e5",
+                  "d3g3",
+                  "d8g5",
+                  "a4b6",
+                  "g5g3",
+                  "h2g3",
+                  "a8d8",
+                  "f2f4",
+                  "e5d3",
+                  "e1e3",
+                  "d3b4",
+                  "a1d1",
+                  "b4c2"
+                ),
+                scoreCp = 20,
+                depth = 16
+              )
+            ),
+          polugaevskyFen ->
+            List(
+              VariationLine(
+                List("d2c4", "b8d7", "f2f4", "a8b8", "c1e3", "b6b5", "a4b5", "a6b5"),
+                scoreCp = 64,
+                depth = 16
+              )
+            )
+        )
+      )
+    val rows =
+      SourceReview.observationsWithEngine(
+        Some(engine),
+        sourceIds = Set(
+          "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
+          "source-maderna-palermo-1955-a6-a5-break-prevention",
+          "source-camara-bazan-1960-b7-b5-break-prevention",
+          "source-pfleger-maalouf-1961-a6-a5-break-prevention",
+          "source-polugaevsky-giorgadze-1956-c5-c4-break-prevention"
+        )
+      )
+
+    assertEquals(rows.map(_.engineAgreement).distinct, List("top_pv_matches_played"), clues(rows))
+    rows.foreach { row =>
+      assertEquals(row.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(row))
+      assertEquals(row.diagnosis, SourceReview.Diagnosis.AdmitReady, clues(row))
+      assertEquals(row.admissionBlockers, "none", clues(row))
+      assertEquals(row.mainClaimSource, "counterplay_axis_suppression", clues(row))
+      assert(row.packetSummary.contains("owner_family=neutralize_key_break"), clues(row))
+      assertEquals(row.release, "SupportedLocal", clues(row))
+      assertEquals(row.primary, row.bookmaker, clues(row))
+      assertEquals(row.primary, row.chronicle, clues(row))
+      assert(!row.primary.toLowerCase.contains("counterplay"), clues(row))
+    }
   }
 
   test("natural SupportedLocal source rows admit with top or near-top engine authority") {
@@ -487,6 +712,44 @@ class SourceReviewTest extends FunSuite:
     assertEquals(aronianDefenderTrade.bookmaker, aronianDefenderTrade.primary)
     assertEquals(aronianDefenderTrade.chronicle, aronianDefenderTrade.primary)
     assertEquals(aronianDefenderTrade.taxonomy, "source_defender_trade")
+  }
+
+  test("break-prevention window scan does not admit incidental IQP rows") {
+    val anderssonBreakFen = "bq1rrbk1/3n1pp1/pp1ppn1p/8/2P1P3/P1N1BP2/1P1NBQPP/2RR3K b - - 0 24"
+    val engine =
+      StaticSourceReviewEngine(
+        Map(
+          anderssonBreakFen ->
+            List(
+              VariationLine(
+                List("a8b7", "b2b4", "d6d5", "e4d5", "e6d5", "c4d5", "b6b5", "d2f1"),
+                scoreCp = 20,
+                depth = 16
+              ),
+              VariationLine(
+                List("d6d5", "e4d5", "e6d5", "c4d5", "b6b5", "d2f1", "d7e5", "e3b6"),
+                scoreCp = 12,
+                depth = 16
+              )
+            )
+        )
+      )
+    val windows =
+      SourceReview.windowObservationsWithEngine(
+        Some(engine),
+        sourceIds = Set("source-karpov-andersson-1975-hedgehog-break-screen")
+      )
+    val row =
+      windows
+        .find(_.ply.contains(48))
+        .getOrElse(fail(s"missing Andersson break-window ply 48: ${windows.map(obs => obs.ply -> obs.engineAgreement)}"))
+
+    assertEquals(row.engineAgreement, "near_top_multipv_contains_played_top=a8b7_gap=8cp")
+    assertEquals(row.release, "SupportedLocal")
+    assertEquals(row.mainClaimSource, PlayerFacingTruthModePolicy.IQPInducementProbeOwnerSource)
+    assertEquals(row.verdict, SourceReview.Verdict.RejectOwnerMissing)
+    assertEquals(row.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
+    assertEquals(row.admissionBlockers, "owner:break_prevention_family_mismatch")
   }
 
   test("window probe scans every ply in a candidate range instead of collapsing to the head ply") {

@@ -321,17 +321,28 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
       ctx: NarrativeContext,
       delta: PlayerFacingMoveDeltaEvidence
   ): Option[String] =
-    Option.unless(HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx)) {
-      val witnessAnchor = preferredWitnessAnchor(delta.packet)
-      val namedBreakOnly = delta.packet.ownerFamily == "neutralize_key_break"
-      val namedResourceOnly = delta.packet.ownerFamily == "counterplay_restraint"
+    val witnessAnchor = preferredWitnessAnchor(delta.packet)
+    val namedBreakOnly = delta.packet.ownerFamily == "neutralize_key_break"
+    val namedResourceOnly = delta.packet.ownerFamily == "counterplay_restraint"
+    Option.unless(HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx) && !namedBreakOnly) {
       val preventedPlans =
         ctx.semantic.toList.flatMap(_.preventedPlans)
-      LocalFileEntryProof.certifiedSurfacePair(ctx)
-        .map(pair =>
-          s"This keeps ${pair.entrySquare} closed and takes the ${pair.file} away as a counterplay route."
-        )
-        .orElse {
+      val namedBreakClaim =
+        preventedPlans
+          .find(_.sourceScope == FactScope.Now)
+          .flatMap { prevented =>
+            prevented.breakNeutralized
+              .flatMap(clean)
+              .orElse(witnessAnchor)
+              .map(file => s"This keeps $file from coming right away.")
+          }
+      if namedBreakOnly then namedBreakClaim
+      else
+        LocalFileEntryProof.certifiedSurfacePair(ctx)
+          .map(pair =>
+            s"This keeps ${pair.entrySquare} closed and takes the ${pair.file} away as a counterplay route."
+          )
+          .orElse {
           preventedPlans
             .find(_.sourceScope == FactScope.Now)
             .flatMap { prevented =>
@@ -346,17 +357,24 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
                     .filterNot(_.equalsIgnoreCase("counterplay"))
                     .map(plan => s"This keeps a longer squeeze on $plan.")
                 case _ =>
-                  prevented.breakNeutralized
-                    .flatMap(clean)
-                    .orElse(witnessAnchor)
-                    .map(file => s"This keeps $file from coming right away.")
-                    .orElse(Option.unless(namedBreakOnly) {
+                  Option.when(namedResourceOnly) {
+                      clean(prevented.planId)
+                        .filterNot(_.equalsIgnoreCase("counterplay"))
+                        .map(plan => s"This slows down $plan before it gets started.")
+                  }.flatten
+                    .orElse {
+                      prevented.breakNeutralized
+                        .flatMap(clean)
+                        .orElse(witnessAnchor)
+                        .map(file => s"This keeps $file from coming right away.")
+                    }
+                    .orElse(Option.unless(namedResourceOnly) {
                       prevented.deniedSquares.headOption
                         .flatMap(clean)
                         .orElse(witnessAnchor)
                         .map(square => s"This keeps the opponent out of $square.")
                     }.flatten)
-                    .orElse(Option.unless(namedBreakOnly) {
+                    .orElse(Option.unless(namedResourceOnly) {
                       clean(prevented.planId)
                         .filterNot(_.equalsIgnoreCase("counterplay"))
                         .orElse(witnessAnchor)

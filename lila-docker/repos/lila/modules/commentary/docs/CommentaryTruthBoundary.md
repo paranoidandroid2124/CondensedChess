@@ -614,7 +614,17 @@ plus the local quality-audit rerun artifacts referenced there.
     `DecisionComparison`, current-board `preventedPlans`, `PVDelta`, threat
     tables, and exact factual move semantics); raw author-question text,
     latent carriers, and support-only shell prose may not own `DecisionPoint`
-    claims
+    claims.
+    - named-break `breakNeutralized` prose is narrower than generic
+      `preventedPlans`: it may own a strategic planner surface only when the
+      current move also carries an exact promoted named-break packet/proof
+      (`neutralize_key_break` for the break-prevention slice, or the already
+      promoted `counterplay_restraint` prophylactic lane) that allows
+      `weak_main`; the break-prevention slice uses the centralized
+      `BreakPreventionWitness` extractor, so no current prevented-plan carrier,
+      no measurable named-break counterplay loss, missing branch proof, unstable
+      persistence, release risk, rival relabel, or tactical truth leaves it
+      suppressed or factual
   - planner factual fallback reasons are diagnostic-only:
     if planner admission fails and only `exactFactualSentence` survives, the
     user-facing claim must stay at literal move-shape scope and may not turn

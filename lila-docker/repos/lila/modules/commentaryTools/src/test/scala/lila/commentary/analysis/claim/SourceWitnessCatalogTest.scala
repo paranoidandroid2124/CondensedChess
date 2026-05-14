@@ -2,7 +2,6 @@ package lila.commentary.analysis.claim
 
 import lila.commentary.tools.claim.*
 
-import lila.commentary.analysis.*
 import lila.commentary.PgnAnalysisHelper
 import munit.FunSuite
 
@@ -15,6 +14,15 @@ class SourceWitnessCatalogTest extends FunSuite:
       List(
         "source-evans-opsahl-1950",
         "source-evans-opsahl-1950-iqp-inducement",
+        "source-karpov-unzicker-1974-break-prevention",
+        "source-karpov-andersson-1975-hedgehog-break-screen",
+        "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
+        "source-maderna-palermo-1955-a6-a5-break-prevention",
+        "source-camara-bazan-1960-b7-b5-break-prevention",
+        "source-sliwa-gromek-1960-a6-a5-break-prevention",
+        "source-luckis-bielicki-1961-a6-a5-break-prevention",
+        "source-pfleger-maalouf-1961-a6-a5-break-prevention",
+        "source-polugaevsky-giorgadze-1956-c5-c4-break-prevention",
         "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
         "source-maderna-palermo-1955-static-weakness-fixation",
         "source-aronian-andreikin-2014-defender-trade",
@@ -68,6 +76,15 @@ class SourceWitnessCatalogTest extends FunSuite:
     val boleslavskyStaticWeakness = byId("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation")
     val madernaStaticWeakness = byId("source-maderna-palermo-1955-static-weakness-fixation")
     val aronianDefenderTrade = byId("source-aronian-andreikin-2014-defender-trade")
+    val karpovUnzickerBreakPrevention = byId("source-karpov-unzicker-1974-break-prevention")
+    val karpovAnderssonBreakScreen = byId("source-karpov-andersson-1975-hedgehog-break-screen")
+    val lokvencBreakPrevention = byId("source-lokvenc-czerniak-1952-b6-b5-break-prevention")
+    val madernaBreakPrevention = byId("source-maderna-palermo-1955-a6-a5-break-prevention")
+    val camaraBreakPrevention = byId("source-camara-bazan-1960-b7-b5-break-prevention")
+    val sliwaBreakPrevention = byId("source-sliwa-gromek-1960-a6-a5-break-prevention")
+    val luckisBreakPrevention = byId("source-luckis-bielicki-1961-a6-a5-break-prevention")
+    val pflegerBreakPrevention = byId("source-pfleger-maalouf-1961-a6-a5-break-prevention")
+    val polugaevskyBreakPrevention = byId("source-polugaevsky-giorgadze-1956-c5-c4-break-prevention")
 
     val evansWindow =
       PgnAnalysisHelper
@@ -170,4 +187,89 @@ class SourceWitnessCatalogTest extends FunSuite:
       aronianDefenderTradeWindow.head.fen,
       "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17"
     )
+
+    val karpovUnzickerWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(karpovUnzickerBreakPrevention.pgn)
+        .fold(err => fail(s"${karpovUnzickerBreakPrevention.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => karpovUnzickerBreakPrevention.candidatePlyRange.contains(ply.ply))
+    assertEquals(karpovUnzickerWindow.map(_.ply), (31 to 47).toList)
+    assertEquals(karpovUnzickerWindow.head.fen, "1rbn1rk1/2q1bppp/3p1n2/1ppPp3/4P3/2P2N1P/1PBN1PP1/R1BQR1K1 w - - 0 16")
+    assertEquals(karpovUnzickerWindow.head.playedUci, "b2b4")
+    assertEquals(karpovUnzickerWindow.last.fen, "r1rq1bk1/1n1b1p1p/3p1np1/1p1Pp3/1Pp1P3/2P1BNNP/R2Q1PP1/1B2R1K1 w - - 2 24")
+    assertEquals(karpovUnzickerWindow.last.playedUci, "e3a7")
+
+    val karpovAnderssonWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(karpovAnderssonBreakScreen.pgn)
+        .fold(err => fail(s"${karpovAnderssonBreakScreen.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => karpovAnderssonBreakScreen.candidatePlyRange.contains(ply.ply))
+    assertEquals(karpovAnderssonWindow.map(_.ply), (47 to 50).toList)
+    assertEquals(karpovAnderssonWindow.head.fen, "bq1rrbk1/3n1pp1/pp1ppn1p/8/2P1P3/2N1BP2/PP1NBQPP/2RR3K w - - 6 24")
+    assertEquals(karpovAnderssonWindow.head.playedUci, "a2a3")
+    assertEquals(karpovAnderssonWindow.last.fen, "bq1rrbk1/3n1pp1/pp2pn1p/3P4/4P3/P1N1BP2/1P1NBQPP/2RR3K b - - 0 25")
+    assertEquals(karpovAnderssonWindow.last.playedUci, "e6d5")
+
+    val lokvencBreakWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(lokvencBreakPrevention.pgn)
+        .fold(err => fail(s"${lokvencBreakPrevention.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => lokvencBreakPrevention.candidatePlyRange.contains(ply.ply))
+    assertEquals(lokvencBreakWindow.map(_.ply), List(23))
+    assertEquals(lokvencBreakWindow.head.fen, "r1bqr1k1/p4pbp/np1p1np1/2pP4/4P3/2N2N2/PPQ1BPPP/R1B1R1K1 w - - 2 12")
+    assertEquals(lokvencBreakWindow.head.playedUci, "e2b5")
+
+    val madernaBreakWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(madernaBreakPrevention.pgn)
+        .fold(err => fail(s"${madernaBreakPrevention.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => madernaBreakPrevention.candidatePlyRange.contains(ply.ply))
+    assertEquals(madernaBreakWindow.map(_.ply), List(29))
+    assertEquals(madernaBreakWindow.head.fen, "1rbqr1k1/1p1n1pbp/pn1p2p1/2pP4/P3PP2/2N2B2/1P1N2PP/R1BQR1K1 w - - 5 15")
+    assertEquals(madernaBreakWindow.head.playedUci, "a4a5")
+
+    val camaraBreakWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(camaraBreakPrevention.pgn)
+        .fold(err => fail(s"${camaraBreakPrevention.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => camaraBreakPrevention.candidatePlyRange.contains(ply.ply))
+    assertEquals(camaraBreakWindow.map(_.ply), List(27))
+    assertEquals(camaraBreakWindow.head.fen, "1rbqr1k1/pp1n1pbp/3p2p1/2pP4/1n2PP2/2NB3P/PP2N1P1/R1BQ1R1K w - - 3 14")
+    assertEquals(camaraBreakWindow.head.playedUci, "d3b5")
+
+    val sliwaBreakWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(sliwaBreakPrevention.pgn)
+        .fold(err => fail(s"${sliwaBreakPrevention.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => sliwaBreakPrevention.candidatePlyRange.contains(ply.ply))
+    assertEquals(sliwaBreakWindow.map(_.ply), List(55))
+    assertEquals(sliwaBreakWindow.head.fen, "1r1r3k/1p1q1pbp/pn1p2p1/2pP4/Pn2PP2/NQ4PP/1P3B2/3RRBK1 w - - 2 28")
+    assertEquals(sliwaBreakWindow.head.playedUci, "a4a5")
+
+    val luckisBreakWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(luckisBreakPrevention.pgn)
+        .fold(err => fail(s"${luckisBreakPrevention.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => luckisBreakPrevention.candidatePlyRange.contains(ply.ply))
+    assertEquals(luckisBreakWindow.map(_.ply), List(33))
+    assertEquals(luckisBreakWindow.head.fen, "2r1r1k1/1pqn1pbp/p2p1np1/3P4/P1p1PB2/2N4P/1PQ1BPP1/R3R1K1 w - - 2 17")
+    assertEquals(luckisBreakWindow.head.playedUci, "a4a5")
+
+    val pflegerBreakWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(pflegerBreakPrevention.pgn)
+        .fold(err => fail(s"${pflegerBreakPrevention.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => pflegerBreakPrevention.candidatePlyRange.contains(ply.ply))
+    assertEquals(pflegerBreakWindow.map(_.ply), List(33))
+    assertEquals(pflegerBreakWindow.head.fen, "r2qr1k1/1p3pb1/pn1p1npp/2pP4/P3P3/2NQ1N2/1P1B1PPP/R3R1K1 w - - 0 17")
+    assertEquals(pflegerBreakWindow.head.playedUci, "a4a5")
+
+    val polugaevskyBreakWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(polugaevskyBreakPrevention.pgn)
+        .fold(err => fail(s"${polugaevskyBreakPrevention.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => polugaevskyBreakPrevention.candidatePlyRange.contains(ply.ply))
+    assertEquals(polugaevskyBreakWindow.map(_.ply), List(23))
+    assertEquals(polugaevskyBreakWindow.head.fen, "rnbqnrk1/5ppp/pp1p1b2/2pP4/P3P3/2N5/1P1NBPPP/R1BQ1RK1 w - - 0 12")
+    assertEquals(polugaevskyBreakWindow.head.playedUci, "d2c4")
   }

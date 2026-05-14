@@ -92,6 +92,24 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       assert(!naturalIqp.chronicle.contains("So the task is"), clues(naturalIqp))
     }
 
+    List(
+      "source-maderna-palermo-1955-a6-a5-break-prevention" -> "...a5",
+      "source-camara-bazan-1960-b7-b5-break-prevention" -> "...b5",
+      "source-pfleger-maalouf-1961-a6-a5-break-prevention" -> "...a5"
+    ).foreach { case (id, breakToken) =>
+      val sourceBreakPrevention = byId(id)
+      assertEquals(sourceBreakPrevention.release, "SupportedLocal")
+      assertEquals(sourceBreakPrevention.primary, s"A local reading is that this keeps $breakToken from coming right away.")
+      assertEquals(sourceBreakPrevention.bookmaker, sourceBreakPrevention.primary)
+      assertEquals(sourceBreakPrevention.chronicle, sourceBreakPrevention.primary)
+      assert(sourceBreakPrevention.owner.contains("WhyThis:MoveDelta:counterplay_axis_suppression"), clues(sourceBreakPrevention))
+      assertEquals(sourceBreakPrevention.contractStatus, "Releasable")
+      assert(sourceBreakPrevention.contractId.contains("neutralize_key_break"), clues(sourceBreakPrevention))
+      assertEquals(sourceBreakPrevention.taxonomy, "source_break_prevention")
+      assert(!sourceBreakPrevention.bookmaker.contains("So the task is"), clues(sourceBreakPrevention))
+      assert(!sourceBreakPrevention.chronicle.contains("So the task is"), clues(sourceBreakPrevention))
+    }
+
     val sourceSimplification = byId("source-salov-ljubojevic-1992-simplification-window")
     assertEquals(sourceSimplification.release, "CertifiedOwner")
     assertEquals(sourceSimplification.primary, "This trade keeps the same local edge on d5.")
@@ -137,6 +155,30 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(!iqpControl.bookmaker.contains("So the task is"), clues(iqpControl))
     assert(!iqpControl.chronicle.contains("So the task is"), clues(iqpControl))
 
+    val breakPreventionControl = byId("break-prevention-supported-local-control")
+    assertEquals(breakPreventionControl.release, "SupportedLocal")
+    assertEquals(breakPreventionControl.primary, "A local reading is that this keeps ...c5 from coming right away.")
+    assertEquals(breakPreventionControl.bookmaker, breakPreventionControl.primary)
+    assertEquals(breakPreventionControl.chronicle, breakPreventionControl.primary)
+    assert(breakPreventionControl.owner.contains("MoveDelta:counterplay_axis_suppression"), clues(breakPreventionControl))
+    assertEquals(breakPreventionControl.contractStatus, "Releasable")
+    assert(breakPreventionControl.contractId.contains("neutralize_key_break"), clues(breakPreventionControl))
+    assertEquals(breakPreventionControl.taxonomy, "break_prevention_supported_local")
+    assert(!breakPreventionControl.bookmaker.contains("So the task is"), clues(breakPreventionControl))
+    assert(!breakPreventionControl.chronicle.contains("So the task is"), clues(breakPreventionControl))
+
+    val breakTacticalVeto = byId("break-prevention-tactical-veto")
+    assertEquals(breakTacticalVeto.release, "TacticalVeto")
+    assertEquals(breakTacticalVeto.primary, "-")
+    assert(!breakTacticalVeto.leak, clues(breakTacticalVeto))
+
+    List("break-prevention-missing-witness-control", "break-prevention-rival-relabel-control").foreach { id =>
+      val row = byId(id)
+      assertEquals(row.release, "Suppressed")
+      assertEquals(row.primary, "-")
+      assert(!row.leak, clues(row))
+    }
+
     assert(observations.forall(!_.leak), clues(observations.filter(_.leak)))
   }
 
@@ -158,9 +200,30 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(observations.count(_.sample.id.startsWith("priority-")) >= 14, clues(observations.map(_.sample.id)))
 
     assertEquals(observations.filter(_.sample.id.startsWith("natural-")).filter(_.release == "SupportedLocal").map(_.sample.id), Nil)
-    assertEquals(
+    val supportedSourceRows =
       observations
         .filter(obs => obs.sample.id.startsWith("source-") && obs.release == "SupportedLocal")
+    val sourceBreakPreventionRows =
+      supportedSourceRows.filter(_.taxonomy == "source_break_prevention")
+    assertEquals(
+      sourceBreakPreventionRows.map(_.sample.id),
+      List(
+        "source-maderna-palermo-1955-a6-a5-break-prevention",
+        "source-camara-bazan-1960-b7-b5-break-prevention",
+        "source-pfleger-maalouf-1961-a6-a5-break-prevention"
+      )
+    )
+    sourceBreakPreventionRows.foreach { row =>
+      assert(row.owner.contains("MoveDelta:counterplay_axis_suppression"), clues(row))
+      assert(row.contractId.contains("neutralize_key_break"), clues(row))
+      assert(row.primary.startsWith("A local reading is that "), clues(row))
+      assertEquals(row.bookmaker, row.primary)
+      assertEquals(row.chronicle, row.primary)
+      assert(!row.bookmaker.contains("So the task is"), clues(row))
+    }
+    assertEquals(
+      supportedSourceRows
+        .filterNot(row => sourceBreakPreventionRows.exists(_.sample.id == row.sample.id))
         .map(_.sample.id),
       List(
         "source-carlsen-anand-2014-g6",
@@ -188,6 +251,12 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         .map(_.sample.id),
       List("iqp-supported-local-control")
     )
+    assertEquals(
+      observations
+        .filter(obs => obs.sample.id == "break-prevention-supported-local-control" && obs.release == "SupportedLocal")
+        .map(_.sample.id),
+      List("break-prevention-supported-local-control")
+    )
 
     val tacticalVetoRows =
       observations.filter(obs => obs.sample.family.startsWith("negative:") && obs.release == "TacticalVeto")
@@ -199,7 +268,18 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         "B16B-tactical-veto",
         "K09A-tactical-veto",
         "K09B-tactical-veto",
-        "K09F-tactical-veto"
+        "K09F-tactical-veto",
+        "break-prevention-tactical-veto"
+      )
+    )
+    val breakNegativeControls =
+      observations.filter(obs => obs.sample.id.startsWith("break-prevention-") && obs.sample.family.startsWith("negative:"))
+    assertEquals(
+      breakNegativeControls.map(obs => obs.sample.id -> obs.release).toMap,
+      Map(
+        "break-prevention-tactical-veto" -> "TacticalVeto",
+        "break-prevention-missing-witness-control" -> "Suppressed",
+        "break-prevention-rival-relabel-control" -> "Suppressed"
       )
     )
     val tacticalFirstSuppressed =
@@ -219,13 +299,13 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(review.contains("## TacticalVeto"), clues(review))
     assert(
       review.contains(
-        "Natural SupportedLocal search: source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-aronian-andreikin-2014-defender-trade"
+        "Natural SupportedLocal search: source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention, source-pfleger-maalouf-1961-a6-a5-break-prevention, source-aronian-andreikin-2014-defender-trade"
       ),
       clues(review)
     )
     assert(
       review.contains(
-        "Source admitted authority rows: source-evans-opsahl-1950, source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-salov-ljubojevic-1992-simplification-window, source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation, source-aronian-andreikin-2014-defender-trade"
+        "Source admitted authority rows: source-evans-opsahl-1950, source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention, source-pfleger-maalouf-1961-a6-a5-break-prevention, source-salov-ljubojevic-1992-simplification-window, source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation, source-aronian-andreikin-2014-defender-trade"
       ),
       clues(review)
     )
@@ -246,6 +326,9 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         "source-alekhine-bogoljubow-1936-iqp-inducement",
         "source-najdorf-sergeant-1939-iqp-inducement",
         "source-botvinnik-vidmar-1936-iqp-opening-inducement",
+        "source-maderna-palermo-1955-a6-a5-break-prevention",
+        "source-camara-bazan-1960-b7-b5-break-prevention",
+        "source-pfleger-maalouf-1961-a6-a5-break-prevention",
         "source-salov-ljubojevic-1992-simplification-window",
         "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
         "source-aronian-andreikin-2014-defender-trade"
@@ -253,7 +336,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     )
     val sourceRows = AuthoritySurfaceLedger.observations().filter(_.sample.id.startsWith("source-"))
     assertEquals(sourceRows.map(_.sample.id), AuthoritySurfaceLedger.sourceAdmittedAuthorityRowIds)
-    assertEquals(sourceRows.map(_.release), List("CertifiedOwner", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "CertifiedOwner", "CertifiedOwner", "SupportedLocal"))
+    assertEquals(sourceRows.map(_.release), List("CertifiedOwner", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "CertifiedOwner", "CertifiedOwner", "SupportedLocal"))
   }
 
   test("TacticalVeto rows require explicit veto or a releasable baseline") {
@@ -265,7 +348,8 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       "K09A-tactical-veto",
       "K09B-tactical-veto",
       "K09F-tactical-veto",
-      "B15A-supported-local-veto"
+      "B15A-supported-local-veto",
+      "break-prevention-tactical-veto"
     )
 
     assert(tacticalVetoRows.nonEmpty)

@@ -107,6 +107,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val exactQueenTradeShieldClaim = exactQueenTradeShieldClaimText(ctx, text)
     val exactIqpInducementClaim = exactIqpInducementClaimText(ctx, text)
     val exactDefenderTradeClaim = exactDefenderTradeClaimText(ctx, text)
+    val exactBreakPreventionClaim = exactBreakPreventionClaimText(ctx, surface, text)
     classify(ctx, strategyPack, truthContract) == PlayerFacingTruthMode.Strategic &&
       deltaEvidence.exists(delta =>
         delta.allowsWeakMainClaim &&
@@ -116,6 +117,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
             exactQueenTradeShieldClaim ||
               exactIqpInducementClaim ||
               exactDefenderTradeClaim ||
+              exactBreakPreventionClaim ||
               (
                 strategicTextIsConcrete(text, ctx) &&
                   (
@@ -211,11 +213,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
       surface: StrategyPackSurface.Snapshot,
       truthContract: Option[DecisiveTruthContract]
   ): Option[PlayerFacingMoveDeltaEvidence] =
+    val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
     val exactOwnerProof = hasExactMainPathOwnerProof(ctx, surface)
     val anchors =
       (
         moveLinkedAnchorTerms(surface, truthContract) ++
           boundedSimplificationLineAnchors(ctx, surface) ++
+          BreakPreventionWitness.anchorTerms(ctx, surface, preventedNow) ++
           exactIqpInducementAnchorTerms(ctx) ++
           exactPressureIncreaseAnchorTerms(ctx, surface) ++
           exactDefenderTradeAnchorTerms(ctx) ++
@@ -228,7 +232,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
     else
       val squareAnchors = extractSquareAnchors(anchors)
       val decisionDelta = ctx.decision.map(_.delta)
-      val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
       val bestLine = ctx.engineEvidence.toList.flatMap(_.variations).headOption
       def result(kind: PlayerFacingMoveDeltaClass): Option[PlayerFacingMoveDeltaEvidence] =
         Some(
@@ -241,7 +244,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
           )
         )
 
-      if hasMainPathSpecificResourceRemoval(ctx, preventedNow, bestLine) then
+      if BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty then
+        result(PlayerFacingMoveDeltaClass.CounterplayReduction)
+      else if hasMainPathSpecificResourceRemoval(ctx, preventedNow, bestLine) then
         result(PlayerFacingMoveDeltaClass.ResourceRemoval)
       else if hasMainPathExchangeForcing(ctx, surface, bestLine, squareAnchors) then
         result(PlayerFacingMoveDeltaClass.ExchangeForcing)
@@ -443,6 +448,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       surface: StrategyPackSurface.Snapshot,
       truthContract: Option[DecisiveTruthContract]
   ): Boolean =
+    val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
     val exactBoundedSimplificationWitness =
       exactBoundedSimplificationExchangeSquare(ctx, surface).nonEmpty &&
         bestDefenseBranchKeyFromContext(ctx).nonEmpty
@@ -455,15 +461,19 @@ private[commentary] object PlayerFacingTruthModePolicy:
       exactIqpInducementWitness(ctx).nonEmpty
     val exactDefenderTradeProof =
       exactDefenderTradeWitness(ctx).nonEmpty
+    val exactBreakPreventionProof =
+      BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty
     val exactOwnerProof =
       exactBoundedSimplificationWitness ||
         exactPressureIncreaseProof ||
         exactQueenTradeShieldProof ||
         exactIqpInducementProof ||
-        exactDefenderTradeProof
+        exactDefenderTradeProof ||
+        exactBreakPreventionProof
     val moveLinkedAnchor =
       hasMoveLinkedStrategicAnchor(surface) ||
         boundedSimplificationLineAnchors(ctx, surface).nonEmpty ||
+        BreakPreventionWitness.anchorTerms(ctx, surface, preventedNow).nonEmpty ||
         exactIqpInducementAnchorTerms(ctx).nonEmpty ||
         exactPressureIncreaseAnchorTerms(ctx, surface).nonEmpty ||
         exactDefenderTradeAnchorTerms(ctx).nonEmpty ||
@@ -496,13 +506,15 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot
   ): Boolean =
+    val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
     (exactBoundedSimplificationExchangeSquare(ctx, surface).nonEmpty &&
       bestDefenseBranchKeyFromContext(ctx).nonEmpty) ||
       (exactPressureIncreaseWitness(ctx, surface).nonEmpty &&
         bestDefenseBranchKeyFromContext(ctx).nonEmpty) ||
       exactQueenTradeShieldSlice(ctx) ||
       exactIqpInducementWitness(ctx).nonEmpty ||
-      exactDefenderTradeWitness(ctx).nonEmpty
+      exactDefenderTradeWitness(ctx).nonEmpty ||
+      BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty
 
   private def hasConcreteStrategicEvidence(
       moment: GameChronicleMoment,
@@ -525,11 +537,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
       surface: StrategyPackSurface.Snapshot,
       truthContract: Option[DecisiveTruthContract]
   ): Option[PlayerFacingMoveDeltaEvidence] =
+    val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
     val exactOwnerProof = hasExactMainPathOwnerProof(ctx, surface)
     val anchors =
       (
         moveLinkedAnchorTerms(surface, truthContract) ++
           boundedSimplificationLineAnchors(ctx, surface) ++
+          BreakPreventionWitness.anchorTerms(ctx, surface, preventedNow) ++
           exactIqpInducementAnchorTerms(ctx) ++
           exactPressureIncreaseAnchorTerms(ctx, surface) ++
           exactDefenderTradeAnchorTerms(ctx)
@@ -541,7 +555,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
     else
       val delta = ctx.delta
       val decisionDelta = ctx.decision.map(_.delta)
-      val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
       val route = surface.topRoute
       val target = surface.topDirectionalTarget
       val moveRef = surface.topMoveRef
@@ -761,16 +774,25 @@ private[commentary] object PlayerFacingTruthModePolicy:
       preventedNow: List[PreventedPlanInfo]
   ): PlayerFacingMoveDeltaEvidence =
     val ontologyFamily = ontologyFamilyForDelta(deltaClass, ctx, preventedNow)
-    val provenanceClass = claimProvenance(ctx, surface, deltaClass)
-    val quantifier = quantifierForDelta(ctx, surface, deltaClass, provenanceClass)
-    val stabilityGrade = stabilityForDelta(ctx, surface, deltaClass, provenanceClass)
+    val exactBreakPrevention = BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty
+    val provenanceClass =
+      if exactBreakPrevention then PlayerFacingClaimProvenanceClass.ProbeBacked
+      else claimProvenance(ctx, surface, deltaClass)
+    val quantifier =
+      if exactBreakPrevention then PlayerFacingClaimQuantifier.BestResponse
+      else quantifierForDelta(ctx, surface, deltaClass, provenanceClass)
+    val stabilityGrade =
+      if exactBreakPrevention then PlayerFacingClaimStabilityGrade.Stable
+      else stabilityForDelta(ctx, surface, deltaClass, provenanceClass)
     val attributionGrade =
-      attributionForDelta(
-        ctx = ctx,
-        anchors = anchors,
-        deltaClass = deltaClass,
-        ontologyFamily = ontologyFamily
-      )
+      if exactBreakPrevention then PlayerFacingClaimAttributionGrade.Distinctive
+      else
+        attributionForDelta(
+          ctx = ctx,
+          anchors = anchors,
+          deltaClass = deltaClass,
+          ontologyFamily = ontologyFamily
+        )
     val taintFlags =
       claimTaintFlags(
         provenanceClass = provenanceClass,
@@ -1049,12 +1071,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val sameBranchState =
       sameBranchStateForMainPath(
         ctx = ctx,
+        surface = surface,
         ownerSeed = ownerSeed,
         claimGate = claimGate,
         bestDefenseBranchKey = bestDefenseBranchKey,
         continuationTerms = continuationTerms
       )
-    val persistence = persistenceForMainPath(ctx, ownerSeed, claimGate)
+    val persistence = persistenceForMainPath(ctx, surface, ownerSeed, claimGate)
     val rivalAssessment =
       rivalAssessmentForMainPath(
         ctx = ctx,
@@ -1148,6 +1171,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val tradeTransitionTerms = tradeStructureTransitionTerms(ctx, surface)
     val namedPreventedTerms = namedPreventedResourceTerms(preventedNow)
     val breakTerms = breakResourceTerms(preventedNow)
+    val breakPreventionWitness = BreakPreventionWitness.candidate(ctx, surface, preventedNow)
     val exactPressureIncreaseSeed = exactPressureIncreaseOwnerSeed(ctx, surface)
     val prophylacticRestraintPlan =
       trigger.contains("counterplay_restraint") || planOwner.contains("prophylaxis_restraint")
@@ -1185,14 +1209,15 @@ private[commentary] object PlayerFacingTruthModePolicy:
           ownerSeedTerms = namedPreventedTerms,
           structureTransitionTerms = namedPreventedTerms
         )
-      case PlayerFacingMoveDeltaClass.CounterplayReduction
-          if preventedNow.exists(_.breakNeutralized.exists(_.trim.nonEmpty)) =>
+      case PlayerFacingMoveDeltaClass.CounterplayReduction | PlayerFacingMoveDeltaClass.ResourceRemoval
+          if breakPreventionWitness.nonEmpty =>
+        val witness = breakPreventionWitness.get
         ClaimOwnerSeed(
           ownerSource = "counterplay_axis_suppression",
           ownerFamily = "neutralize_key_break",
           triggerKind = "break_neutralization",
-          ownerSeedTerms = breakTerms,
-          structureTransitionTerms = breakTerms
+          ownerSeedTerms = witness.ownerSeedTerms,
+          structureTransitionTerms = witness.structureTransitionTerms
         )
       case PlayerFacingMoveDeltaClass.ExchangeForcing
           if exactQueenTradeShieldSlice(ctx) =>
@@ -1730,6 +1755,19 @@ private[commentary] object PlayerFacingTruthModePolicy:
     exactQueenTradeShieldSlice(ctx) &&
       normalize(text) == normalize(QueenTradeShieldReleasedClaim)
 
+  private def exactBreakPreventionClaimText(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot,
+      text: String
+  ): Boolean =
+    BreakPreventionWitness
+      .exact(
+        ctx,
+        surface,
+        ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
+      )
+      .exists(witness => normalize(text) == normalize(s"This keeps ${witness.breakToken} from coming right away."))
+
   private def exactQueenTradeShieldSlice(ctx: NarrativeContext): Boolean =
     ctx.fen.trim == QueenTradeShieldExactFen &&
       ctx.engineEvidence.toList.flatMap(_.variations).headOption.exists(exactQueenTradeShieldPvMatches)
@@ -1782,13 +1820,18 @@ private[commentary] object PlayerFacingTruthModePolicy:
 
   private def sameBranchStateForMainPath(
       ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot,
       ownerSeed: ClaimOwnerSeed,
       claimGate: PlanEvidenceEvaluator.ClaimCertification,
       bestDefenseBranchKey: Option[String],
       continuationTerms: List[String]
   ): PlayerFacingSameBranchState =
     val branchVisible = bestDefenseBranchKey.nonEmpty
-    if claimGate.provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
+    val exactBreakPrevention = exactBreakPreventionProof(ctx, surface, ownerSeed)
+    val concreteOwnerSeed = ownerSeed.ownerSeedTerms.nonEmpty
+    if exactBreakPrevention && branchVisible && concreteOwnerSeed && continuationTerms.nonEmpty then
+      PlayerFacingSameBranchState.Proven
+    else if claimGate.provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
       PlayerFacingSameBranchState.Missing
     else if !branchVisible then
       PlayerFacingSameBranchState.Missing
@@ -1803,7 +1846,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
       val stableBestDefense = evidenceBacked.exists(_.bestReplyStable)
       val futureAligned = evidenceBacked.exists(_.futureSnapshotAligned)
       val moveOrderClean = !evidenceBacked.exists(_.moveOrderSensitive)
-      val concreteOwnerSeed = ownerSeed.ownerSeedTerms.nonEmpty
       val concreteTransition = ownerSeed.structureTransitionTerms.nonEmpty
       if exactSliceDescriptor(ownerSeed).nonEmpty &&
           concreteOwnerSeed &&
@@ -1839,10 +1881,14 @@ private[commentary] object PlayerFacingTruthModePolicy:
 
   private def persistenceForMainPath(
       ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot,
       ownerSeed: ClaimOwnerSeed,
       claimGate: PlanEvidenceEvaluator.ClaimCertification
   ): PlayerFacingClaimPersistence =
-    if claimGate.provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
+    if exactBreakPreventionProof(ctx, surface, ownerSeed) &&
+        claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
+    then PlayerFacingClaimPersistence.Stable
+    else if claimGate.provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
       PlayerFacingClaimPersistence.Broken
     else if
       ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.QueenTradeShield.id &&
@@ -1877,6 +1923,20 @@ private[commentary] object PlayerFacingTruthModePolicy:
       else if evidenceBacked.exists(_.futureSnapshotAligned) then
         PlayerFacingClaimPersistence.FutureOnly
       else PlayerFacingClaimPersistence.Broken
+
+  private def exactBreakPreventionProof(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot,
+      ownerSeed: ClaimOwnerSeed
+  ): Boolean =
+    ownerSeed.ownerFamily == "neutralize_key_break" &&
+      BreakPreventionWitness
+        .exact(
+          ctx,
+          surface,
+          ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
+        )
+        .nonEmpty
 
   private def suppressionReasonsForMainPath(
       ctx: NarrativeContext,
@@ -2129,7 +2189,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
     then
       exactSliceReleaseAllowed(ownerSeed, bestDefenseBranchKey, sameBranchState, persistence)
     else if ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.IQPInducement.id then
-      bestDefenseBranchKey.nonEmpty &&
+      ownerSeed.ownerSource == IQPInducementProbeOwnerSource &&
+        bestDefenseBranchKey.nonEmpty &&
         sameBranchState == PlayerFacingSameBranchState.Proven &&
         persistence == PlayerFacingClaimPersistence.Stable
     else if ownerSeed.ownerFamily == ThemeTaxonomy.SubplanId.DefenderTrade.id then

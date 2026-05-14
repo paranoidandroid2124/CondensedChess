@@ -1303,6 +1303,102 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assert(!PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet))
   }
 
+  test("named-break shell does not materialize counterplay-axis authority under a rival family") {
+    val ctx =
+      baseCtx().copy(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "iqp_rival_shell",
+              planName = "Induce the isolated pawn",
+              subplanId = ThemeTaxonomy.SubplanId.IQPInducement.id,
+              executionSteps = List("Use the central capture sequence.")
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            StrategicPlanExperiment(
+              planId = "iqp_rival_shell",
+              themeL1 = ThemeTaxonomy.ThemeL1.WeaknessFixation.id,
+              subplanId = Some(ThemeTaxonomy.SubplanId.IQPInducement.id),
+              evidenceTier = "evidence_backed",
+              supportProbeCount = 1,
+              refuteProbeCount = 0,
+              bestReplyStable = true,
+              futureSnapshotAligned = true,
+              counterBreakNeutralized = false,
+              moveOrderSensitive = false,
+              experimentConfidence = 0.86
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_counterplay",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("...c5"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 140,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("break"),
+                citationLine = Some("The ...c5 break never becomes available on the defended branch.")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("c1c8", "f8e8", "c8c6"),
+                scoreCp = 88,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          directionalTargets = List(
+            StrategyDirectionalTarget(
+              targetId = "target_c5",
+              ownerSide = "white",
+              piece = "R",
+              from = "c1",
+              targetSquare = "c5",
+              readiness = DirectionalTargetReadiness.Build,
+              strategicReasons = List("deny the ...c5 break"),
+              evidence = List("probe")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("deny the ...c5 break")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(
+        ctx,
+        StrategyPackSurface.from(pack),
+        None
+      ).get
+
+    assertNotEquals(delta.packet.ownerSource, "counterplay_axis_suppression")
+    assert(!PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet), clues(delta.packet))
+  }
+
   test("exact prophylactic-move packet is admitted as a bounded move-local counterplay-restraint release") {
     val ctx =
       baseCtx().copy(
