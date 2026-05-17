@@ -17,7 +17,12 @@ class TerminologyBoundaryTest extends FunSuite:
       "familyId",
       "owner_family",
       "owner_source",
-      "mainClaimSource"
+      "mainClaimSource",
+      "sourceAdmittedAuthorityRowIds",
+      "sourceAuthorityRowIds",
+      "Source admitted authority rows",
+      "Natural SupportedLocal search",
+      "Maderna-Palermo, Camara-Bazan, and Pfleger-Maalouf are current natural SupportedLocal rows"
     )
 
   test("source and tracked snapshots do not reintroduce ambiguous layer names") {

@@ -378,7 +378,7 @@ Current canonical flow:
       translators coexist with a move-local transition anchor, shadow
       classification absorbs them into `transition_conversion` rather than
       forcing an arbitrary opening-vs-endgame prior
-- v1 admission is intentionally conservative:
+- current admission is intentionally conservative:
   `support_material` never enters the owner pool;
   `DecisionTiming(close_candidate)` is always `SupportOnly`;
   `PlanRace` is `PrimaryAllowed` only in `plan_clash`;
@@ -401,7 +401,7 @@ Current canonical flow:
       Active replay can reuse the same legal planner-owned domain claim
       instead of minting a new owner locally
     - `WhyNow` / `WhatChanged` plans that rely only on `DecisionTiming` are
-      filtered out of the legal pool in v1; even the
+      filtered out of the current legal pool; even the
       `concrete_reply_or_reason` decision-comparison subtype remains trace-only
       at this stage, so fail-closed fallback or another already-legal owner
       must carry the scene instead
@@ -860,7 +860,7 @@ Current rules:
       `tactical_failure` rows stay in `selector_mismatch` rather than the
       baseline-selected lane
     - latest real16 upstream-fix rerun:
-      the local quiet-support prototype summary under the quality-audit report
+      the local quiet-support report summary under the quality-audit report
       root
       shows the selected quiet-support subset repaired (`runtimeGatePassCount=4`,
       quiet-support lift applied in the artifact field `quietSupportLiftAppliedCount=4`,
@@ -872,7 +872,7 @@ Current rules:
     - the remaining blocked spike is the style-choice `Ng4` row where
       `NarrativeContextBuilder` does not surface move-linked `pv_delta`
       ingress (`style_choice_pv_delta_unavailable`); that residual sits
-      outside the Track 3 Phase A quiet-support owner-preservation gate
+      outside the Track 3 quiet-support owner-preservation gate
   - surfaced Chronicle moments also do not surface blank prose:
     if a selected visible move renders empty after tactical / strategic /
     quiet-intent gating, `CommentaryEngine` runs a post-selection
@@ -1074,6 +1074,17 @@ Current rules:
     whole-game replay remain closed. Generic
     prophylaxis praise, whole-position no-counterplay, move-order-fragile
     shells, support-only reinflation, and heavy-piece relabel stay fail-closed
+  - bounded `central_break_timing` now uses a two-part break-support model on
+    the existing move-delta path:
+    board-backed break support may release only as `SupportedLocal`
+    when the packet proves the same defended branch, stable persistence, no
+    tactical-first override, and no rival-family release; plan-only central
+    break rows remain diagnostic / review-only and may not materialize a player-facing
+    owner. The retained exact rows are positive controls / regression seeds for
+    that board-backed path, not the only release mechanism. This opens no
+    new public API, planner question, or generic owner lane: broad generic
+    `plan_advance` remains owner-closed, and only the certified
+    `central_break_timing` packet may use the bounded release
   - bounded `favorable_simplification` is now promoted on one exact same-task
     simplification slice only:
     the packet may release `weak_main` on the existing move-delta lane only
@@ -1945,7 +1956,7 @@ Primary files:
   `ambiguous_defended_branch`,
   `missing_branch_identity_fails_close`, and planner triplet-mismatch boundary,
   and the local engine verifier reproduces the positive reroute-denial branch as
-  an exact witness on the bounded slice; B6b is now close-ready inside that
+  an exact witness on the bounded slice; B6b is now current bounded scope complete inside that
   narrow planner-only charter
 - status interpretation:
   this closes the B6 minimum slice, not the full B6 family; the next required
@@ -2222,7 +2233,7 @@ Current deterministic rerun status for Step 7 final signoff:
 - surviving residuals are classified as fail-closed suppressions, not surface
   legality violations:
   `missing_move_owner`, `missing_certified_race_pair`, and
-  `decision_timing_support_only_in_v1` remain intentional suppression buckets;
+  `decision_timing_support_only` remain intentional suppression buckets;
   the single visible `endgame_transition` mismatch above is treated as an
   upstream input-bundle/support-gate issue rather than a replay-layer owner
   revival
@@ -2288,7 +2299,7 @@ Current quality-audit scaffold rules:
   `afterBookmakerFallbackMode=exact_factual` after the rerun are classified as
   `after_fallback_blocked`, not `eligible`
 - current real16 contrast-support result for the narrow Bookmaker-first
-  prototype is signoff-ready, not rollout-ready:
+  report path is signoff-ready, not runtime release evidence:
   `totalWhyRows=46`, `contrastEligibleRows=40`, `upstreamBlockedRows=0`,
   `replayBlockedRows=0`, `track1BlockedRows=0`, `questionFilteredRows=0`,
   `eligibleKeepCount=9`, `eligibleRejectCount=31`, `afterFallbackCount=0`,
@@ -2344,11 +2355,11 @@ Current quality-audit scaffold rules:
 - current cross-surface contrast-support verdict is:
   Bookmaker `signoff-ready`, Chronicle `signoff-ready`,
   Active `scope-cut (diagnostic-only)`; quality-rubric regression remains
-  `no_track1_regression` on the Bookmaker signoff path, and `rollout-ready` is
-  still not claimed
+  `no_track1_regression` on the Bookmaker signoff path, and a runtime release
+  boundary is still not claimed
 - the corpus-maintenance lane may add scene buckets, but it may not create new
   owner families or bypass shared-planner legality
-- the current Track 4 scene-coverage lane is `close-candidate` on the
+- the current Track 4 scene-coverage lane is maintenance-ready on the
   report-only corpus-maintenance path:
   the important bucket set is materialized with target candidate / curated /
   stable-fixture coverage, and the final `complex_sacrifice` widening probe

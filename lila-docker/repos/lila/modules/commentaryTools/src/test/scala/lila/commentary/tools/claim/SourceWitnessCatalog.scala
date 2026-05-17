@@ -718,6 +718,26 @@ private[commentary] object SourceWitnessCatalog:
               "Natural IQP authority candidate: exact ply 33 Rc1 must induce an opponent isolated central pawn on the engine top line before matrix admission."
           )
         )
+      case row if row.id == "source-maderna-palermo-1955-a6-a5-break-prevention" =>
+        List(
+          row,
+          row.copy(
+            id = "source-maderna-palermo-1955-central-break-timing",
+            candidatePlyRange = CandidatePlyRange(33, 33),
+            reviewGroup = "A:central_break_timing",
+            intendedVerdict = "screen_only",
+            validationNote =
+              "Natural central-break authority candidate: exact ply 33 e4-e5 must keep the direct central-break geometry and timing gap on the admitted PV before release."
+          ),
+          row.copy(
+            id = "source-maderna-palermo-1955-central-break-prep-review",
+            candidatePlyRange = CandidatePlyRange(31, 31),
+            reviewGroup = "A:central_break_timing",
+            intendedVerdict = "screen_only",
+            validationNote =
+              "Plan-only central-break review candidate: exact ply 31 Nc4 leaves the e5 break visible but has no direct board link, so it must never release."
+          )
+        )
       case row if row.id == "source-botvinnik-vidmar-1936" =>
         List(
           row,

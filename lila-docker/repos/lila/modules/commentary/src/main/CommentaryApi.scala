@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 import java.time.Instant
 import java.util.UUID
 import com.roundeights.hasher.Algo
-import lila.commentary.analysis.{ ActiveBranchDossierBuilder, ActiveCompensationPolicy, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, BookmakerStrategicLedgerBuilder, BookStyleRenderer, CertifiedDecisionFrame, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, CompensationContractMatcher, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary }
+import lila.commentary.analysis.{ ActiveBranchDossierBuilder, ActiveCompensationPolicy, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, MoveReviewStrategicLedgerBuilder, BookStyleRenderer, CertifiedDecisionFrame, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, CompensationContractMatcher, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary }
 import lila.commentary.model.{ OpeningReference, ProbeResult }
 import lila.commentary.model.structure.StructureId
 import lila.commentary.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -149,7 +149,7 @@ final class CommentaryApi(
       sourceMode: String,
       model: Option[String],
       cacheHit: Boolean,
-      meta: Option[PolishMetaV1],
+      meta: Option[MoveReviewPolishMeta],
       promptUsages: List[(String, OpenAiPolishResult)] = Nil
   )
 
@@ -1295,7 +1295,7 @@ final class CommentaryApi(
 
   private def shouldTrySegmentPolish(
       prose: String,
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       allowedSans: List[String],
       momentType: Option[String],
       bookmakerSlots: Option[BookmakerPolishSlots]
@@ -1311,7 +1311,7 @@ final class CommentaryApi(
 
   private def adaptiveOutputTokenCap(
       prose: String,
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       asyncTier: Boolean
   ): Int =
     // Structured polish prompts can become long once anchors (MV/MK/EV/VB) are embedded.
@@ -1327,7 +1327,7 @@ final class CommentaryApi(
   private val StrategyCoverageThreshold = 0.34
 
   private case class StrategyCoverageEvaluation(
-      meta: Option[StrategyCoverageMetaV1],
+      meta: Option[MoveReviewStrategyCoverageMeta],
       reasons: List[String]
   )
 
@@ -1350,7 +1350,7 @@ final class CommentaryApi(
         case None =>
           StrategyCoverageEvaluation(
             meta = Some(
-              StrategyCoverageMetaV1(
+              MoveReviewStrategyCoverageMeta(
                 mode = "no_signals",
                 enforced = false,
                 threshold = StrategyCoverageThreshold,
@@ -1459,7 +1459,7 @@ final class CommentaryApi(
 
           StrategyCoverageEvaluation(
             meta = Some(
-              StrategyCoverageMetaV1(
+              MoveReviewStrategyCoverageMeta(
                 mode = "active_enforced",
                 enforced = true,
                 threshold = StrategyCoverageThreshold,
@@ -1483,7 +1483,7 @@ final class CommentaryApi(
       isValid: Boolean,
       decodedText: String,
       reasons: List[String],
-      strategyCoverage: Option[StrategyCoverageMetaV1],
+      strategyCoverage: Option[MoveReviewStrategyCoverageMeta],
       softRepairApplied: Boolean = false,
       softRepairActions: List[String] = Nil,
       softRepairMaterialApplied: Boolean = false,
@@ -2193,10 +2193,10 @@ final class CommentaryApi(
       phase: String,
       validationReasons: List[String],
       attempts: List[(String, OpenAiPolishResult)],
-      strategyCoverage: Option[StrategyCoverageMetaV1]
-  ): PolishMetaV1 =
+      strategyCoverage: Option[MoveReviewStrategyCoverageMeta]
+  ): MoveReviewPolishMeta =
     val promptAttempts = attempts.map(_._2)
-    PolishMetaV1(
+    MoveReviewPolishMeta(
       provider = "openai",
       model = model.orElse(promptAttempts.lastOption.map(_.model)),
       sourceMode = sourceMode,
@@ -2215,9 +2215,9 @@ final class CommentaryApi(
       sourceMode: String,
       phase: String,
       validationReasons: List[String],
-      strategyCoverage: Option[StrategyCoverageMetaV1]
-  ): PolishMetaV1 =
-    PolishMetaV1(
+      strategyCoverage: Option[MoveReviewStrategyCoverageMeta]
+  ): MoveReviewPolishMeta =
+    MoveReviewPolishMeta(
       provider = "gemini",
       model = model,
       sourceMode = sourceMode,
@@ -2595,7 +2595,7 @@ final class CommentaryApi(
       lang: String,
       allowedSans: List[String],
       asyncTier: Boolean,
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       planTier: String,
       commentaryMode: String,
       momentType: Option[String] = None,
@@ -2642,7 +2642,7 @@ final class CommentaryApi(
           model = None,
           cacheHit = false,
           meta = Some(
-            PolishMetaV1(
+            MoveReviewPolishMeta(
               provider = providerConfig.provider,
               model = None,
               sourceMode = "rule_circuit_open",
@@ -3756,7 +3756,7 @@ final class CommentaryApi(
   private def buildBookmakerRefs(
       fenBefore: String,
       variations: List[VariationLine]
-  ): Option[BookmakerRefsV1] =
+  ): Option[MoveReviewRefs] =
     if variations.isEmpty then None
     else
       val startPly = NarrativeUtils.plyFromFen(fenBefore).map(_ + 1).getOrElse(1)
@@ -3768,7 +3768,7 @@ final class CommentaryApi(
         val moves = (0 until size).toList.map { i =>
           val ply = startPly + i
           val moveNo = (ply + 1) / 2
-          MoveRefV1(
+          MoveReviewMoveRef(
             refId = f"l${lineIdx + 1}%02d_m${i + 1}%02d",
             san = sanList(i),
             uci = uciList(i),
@@ -3778,7 +3778,7 @@ final class CommentaryApi(
             marker = Some(markerForPly(ply))
           )
         }
-        VariationRefV1(
+        MoveReviewVariationRef(
           lineId = f"line_${lineIdx + 1}%02d",
           scoreCp = line.scoreCp,
           mate = line.mate,
@@ -3787,7 +3787,7 @@ final class CommentaryApi(
         )
       }
       Some(
-        BookmakerRefsV1(
+        MoveReviewRefs(
           startFen = fenBefore,
           startPly = startPly,
           variations = lines
@@ -3802,8 +3802,8 @@ final class CommentaryApi(
   def fetchOpeningMasterPgn(gameId: String): Future[Option[String]] =
     openingExplorer.fetchMasterPgn(gameId)
 
-  /** Generate deep bookmaker commentary (rule-based). */
-  def bookmakerCommentPosition(
+  /** Generate move-review commentary (rule-based). */
+  def moveReviewPosition(
       fen: String,
       lastMove: Option[String],
       eval: Option[EvalData],
@@ -3823,7 +3823,7 @@ final class CommentaryApi(
       lang: String = "en",
       planTier: String = PlanTier.Basic,
       commentaryMode: String = CommentaryMode.Polish
-  ): Future[Option[BookmakerResult]] =
+  ): Future[Option[MoveReviewResult]] =
     val requestStartNs = System.nanoTime()
     val normalizedPlanTier = normalizePlanTier(planTier)
     val effectiveLevel = effectiveCommentaryMode(normalizedPlanTier, commentaryMode, allowAiPolish)
@@ -3858,7 +3858,7 @@ final class CommentaryApi(
         )
         recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = None)
         maybeLogBookmakerMetrics()
-        Future.successful(Some(BookmakerResult(response = sanitizedCached, cacheHit = true)))
+        Future.successful(Some(MoveReviewResult(response = sanitizedCached, cacheHit = true)))
       case None =>
         stateAwareCacheMissCount.incrementAndGet()
         computeBookmakerResponse(
@@ -3893,7 +3893,7 @@ final class CommentaryApi(
       cacheCtx: Option[CommentaryCacheContext],
       planTier: String,
       commentaryMode: String
-  ): Future[(Option[BookmakerResult], Option[Long])] =
+  ): Future[(Option[MoveReviewResult], Option[Long])] =
     val effectivePly = NarrativeUtils.resolveAnnotationPly(fen, lastMove, ply)
     val normalizedVariant = EarlyOpeningNarrationPolicy.normalizeVariantKey(variant)
 
@@ -4041,7 +4041,7 @@ final class CommentaryApi(
             val baseConcepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil)
             val allowedSans =
               dataWithContinuity.alternatives.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
-            val bookmakerLedger = BookmakerStrategicLedgerBuilder.build(
+            val moveReviewLedger = MoveReviewStrategicLedgerBuilder.build(
               ctx = ctx,
               strategyPack = strategyPack,
               refs = refs,
@@ -4101,7 +4101,7 @@ final class CommentaryApi(
                       commentaryMode = commentaryMode,
                       strategyPack = strategyPack,
                       signalDigest = strategyPack.flatMap(_.signalDigest),
-                      bookmakerLedger = bookmakerLedger
+                      moveReviewLedger = moveReviewLedger
                     )
                   )
                 )
@@ -4132,7 +4132,7 @@ final class CommentaryApi(
                 commentaryContext = cacheCtx
               )
               Some(
-                BookmakerResult(
+                MoveReviewResult(
                   response = response,
                   cacheHit = decision.cacheHit,
                   diagnosticPlanSidecar = Some(contextBuild.diagnosticPlanSidecar)

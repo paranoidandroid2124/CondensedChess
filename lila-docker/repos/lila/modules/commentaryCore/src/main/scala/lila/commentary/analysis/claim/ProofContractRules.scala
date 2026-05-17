@@ -273,6 +273,19 @@ private[commentary] object ProofContractRules:
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "source_queen_trade_boundary"
         )
+      case subplan @ PlanTaxonomy.PlanKind.CentralBreakTiming =>
+        subplanContract(
+          subplan = subplan,
+          status = ProofContractStatus.Releasable,
+          acceptedSources = Set(CentralBreakTimingWitness.ProofSource),
+          allowedScopes = Set(PlayerFacingPacketScope.MoveLocal),
+          requiredWitnesses =
+            WeakOwnerWitnesses +
+              ProofWitness.ExactSlice,
+          certifiedEligible = false,
+          supportedLocalEligible = true,
+          defaultFailureTaxonomy = "central_break_timing_witness_missing"
+        )
       case subplan @ PlanTaxonomy.PlanKind.BadPieceLiquidation =>
         subplanContract(
           subplan = subplan,

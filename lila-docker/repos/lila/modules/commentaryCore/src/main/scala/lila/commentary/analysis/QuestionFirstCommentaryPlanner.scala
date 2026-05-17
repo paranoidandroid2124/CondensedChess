@@ -2141,13 +2141,13 @@ private[commentary] object QuestionFirstCommentaryPlanner:
                 case SceneType.TacticalFailure =>
                   demote("decision_timing_demoted_under_tactical_failure", AuthorQuestionKind.WhyThis)
                 case _ =>
-                  support("decision_timing_support_only_in_v1")
+                  support("decision_timing_support_only")
             case Some(TimingSource.PreventedResource | TimingSource.OnlyMove) =>
               sceneType match
                 case SceneType.TacticalFailure =>
                   demote("decision_timing_demoted_under_tactical_failure", AuthorQuestionKind.WhyThis)
                 case _ =>
-                  support("decision_timing_support_only_in_v1")
+                  support("decision_timing_support_only")
             case _ =>
               forbid("decision_timing_missing_supported_source")
         case PlannerOwnerKind.PlanRace =>

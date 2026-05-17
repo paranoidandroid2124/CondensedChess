@@ -1,6 +1,6 @@
 # Strategic Plan Kind Admission Matrix
 
-Snapshot date: 2026-05-15
+Snapshot date: 2026-05-17
 
 Scope: all 35 `PlanTaxonomy.PlanKind` values on the current local `master`
 worktree. This is a tooling-only coverage snapshot. It does not widen runtime
@@ -59,7 +59,7 @@ Priority legend:
 | `minority_attack_fixation` | `weakness_fixation` | `Releasable` | contract exists; no separate live slice | `minority_attack_fixation` / `carlsbad_fixed_target_probe` | partial, absorbed under Carlsbad target proof | not recommended until distinct exact owner survives | support-only/absorbed | `P3_defer` | `backward_pawn_targeting` |
 | `backward_pawn_targeting` | `weakness_fixation` | `Releasable` | `subplan:backward_pawn_targeting` | `backward_pawn_targeting` / `carlsbad_fixed_target_probe` | yes | no for current Carlsbad lane | CertifiedOwner open | `P0_open` | `backward_pawn_targeting` |
 | `iqp_inducement` | `weakness_fixation` | `Releasable` | `subplan:iqp_inducement` | `iqp_inducement` / `iqp_inducement_probe` | yes | no for current SupportedLocal lane | SupportedLocal open | `P0_open` | `iqp_inducement` |
-| `central_break_timing` | `pawn_break_preparation` | `Deferred` | none; catalog row is Deferred | `central_break_timing` / `central_break_timing` | partial timing support only | yes, own-break timing materializer | deferred | `P2_probe` | `central_break_timing` |
+| `central_break_timing` | `pawn_break_preparation` | `Releasable` | `subplan:central_break_timing` | `central_break_timing` / `central_break_timing` | yes, board-backed break support plus retained exact controls | no for board-backed break support; plan-only rows stay review-only | SupportedLocal open | `P0_open` | `central_break_timing` |
 | `wing_break_timing` | `pawn_break_preparation` | `Deferred` | none | `wing_break_timing` / `wing_break_timing` | no | yes, flank-break transform/release witness | deferred/support-only | `P3_defer` | `wing_break_timing` |
 | `tension_maintenance` | `pawn_break_preparation` | `Deferred` | none | `tension_maintenance` / `tension_maintenance` | no | yes, keep-tension and conversion/rival arbitration | deferred/support-only | `P4_later` | `tension_maintenance` |
 | `simplification_window` | `favorable_exchange` | `Releasable` | `subplan:simplification_window` | `simplification_window` / `simplification_window` plus transformation sources | yes | no for current same-task simplification | CertifiedOwner open | `P0_open` | `simplification_window` |

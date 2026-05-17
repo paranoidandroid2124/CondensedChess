@@ -51,14 +51,17 @@ class AdmissionUnitCatalogTest extends FunSuite:
       assert(!contract.acceptedSources.exists(_.toLowerCase.contains("source-")), clues(unit, contract))
     }
 
-    val deferredPawnBreak = byFamily(PlanTaxonomy.PlanKind.CentralBreakTiming.id)
-    val deferredContract =
+    val centralBreakTiming = byFamily(PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+    val centralBreakTimingContract =
       ProofContractRules
-        .contractForProofFamily(deferredPawnBreak.proofFamily)
-        .getOrElse(fail(s"missing proof contract for ${deferredPawnBreak.proofFamily}"))
+        .contractForProofFamily(centralBreakTiming.proofFamily)
+        .getOrElse(fail(s"missing proof contract for ${centralBreakTiming.proofFamily}"))
 
-    assertEquals(deferredContract.status, ProofContractStatus.Deferred)
-    assert(!deferredContract.authorityEligible, clues(deferredContract))
+    assertEquals(centralBreakTiming.acceptedScope, PlayerFacingPacketScope.MoveLocal)
+    assertEquals(centralBreakTiming.defaultAuthorityTier, "SupportedLocal")
+    assertEquals(centralBreakTimingContract.status, ProofContractStatus.Releasable)
+    assert(centralBreakTimingContract.supportedLocalEligible, clues(centralBreakTimingContract))
+    assert(centralBreakTimingContract.acceptedSources.contains(centralBreakTiming.proofSource), clues(centralBreakTimingContract))
   }
 
   test("admission unit catalog report fixes the execution contract for future passes") {
@@ -72,4 +75,5 @@ class AdmissionUnitCatalogTest extends FunSuite:
     assert(markdown.contains("prophylactic_move"), clues(markdown))
     assert(markdown.contains("local_file_entry_bind"), clues(markdown))
     assert(markdown.contains("bad_piece_liquidation"), clues(markdown))
+    assert(markdown.contains("central_break_timing"), clues(markdown))
   }

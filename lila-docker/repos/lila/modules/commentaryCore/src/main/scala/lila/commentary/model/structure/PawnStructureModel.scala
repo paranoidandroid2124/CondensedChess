@@ -25,7 +25,7 @@ enum StructureId:
   case Unknown
 
 object StructureId:
-  val taxonomyV1: List[StructureId] = List(
+  val taxonomy: List[StructureId] = List(
     StructureId.Carlsbad,
     StructureId.IQPWhite,
     StructureId.IQPBlack,

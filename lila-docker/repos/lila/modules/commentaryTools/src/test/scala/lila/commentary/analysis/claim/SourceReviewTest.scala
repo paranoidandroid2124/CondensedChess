@@ -47,12 +47,12 @@ class SourceReviewTest extends FunSuite:
     assert(carlsbad.forall(_.fen.nonEmpty), clues(carlsbad))
   }
 
-  test("source review report documents natural SupportedLocal absence") {
+  test("source review report documents admitted SupportedLocal absence") {
     val observations = SourceReview.observations(engine = None)
     val report = SourceReview.markdown(observations)
 
     if !observations.exists(obs => obs.verdict == SourceReview.Verdict.AdmitAuthorityRow && obs.release == "SupportedLocal") then
-      assert(report.contains("Natural SupportedLocal search: none found"), clues(report))
+      assert(report.contains("Admitted SupportedLocal source rows: none found"), clues(report))
   }
 
   test("break-prevention source candidates stay screen-only without exact owner proof") {
@@ -495,6 +495,67 @@ class SourceReviewTest extends FunSuite:
     }
   }
 
+  test("central-break timing review exposes one exact Maderna row and one plan-only prep row") {
+    val exactFen = "nrb1r1k1/1pqn1pbp/p2p2p1/P1pP4/2N1PP2/2N2B2/1P4PP/R1BQR1K1 w - - 3 17"
+    val semanticScreenFen = "nrbqr1k1/1p1n1pbp/p2p2p1/P1pP4/4PP2/2N2B2/1P1N2PP/R1BQR1K1 w - - 1 16"
+    val engine =
+      StaticSourceReviewEngine(
+        Map(
+          exactFen ->
+            List(
+              VariationLine(
+                List("e4e5", "d6e5", "f4e5", "d7e5", "c4e5"),
+                scoreCp = 82,
+                depth = 16
+              ),
+              VariationLine(
+                List("c1e3", "b7b5", "a5b6"),
+                scoreCp = 36,
+                depth = 16
+              )
+            ),
+          semanticScreenFen ->
+            List(
+              VariationLine(
+                List("d2c4", "d7f8", "e4e5", "d6e5", "f4e5"),
+                scoreCp = 82,
+                depth = 16
+              ),
+              VariationLine(
+                List("b2b3", "d7f8", "e4e5"),
+                scoreCp = 44,
+                depth = 16
+              )
+            )
+        )
+      )
+    val rows =
+      SourceReview.observationsWithEngine(
+        Some(engine),
+        sourceIds = Set(
+          "source-maderna-palermo-1955-central-break-timing",
+          "source-maderna-palermo-1955-central-break-prep-review"
+        )
+      )
+    val byId = rows.map(row => row.source.id -> row).toMap
+
+    val exact = byId("source-maderna-palermo-1955-central-break-timing")
+    assertEquals(exact.verdict, SourceReview.Verdict.AdmitAuthorityRow)
+    assertEquals(exact.diagnosis, SourceReview.Diagnosis.AdmitReady)
+    assertEquals(exact.admissionBlockers, "none")
+    assertEquals(exact.release, "SupportedLocal")
+    assertEquals(exact.mainProofSource, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+    assert(exact.packetSummary.contains(s"proof_family=${PlanTaxonomy.PlanKind.CentralBreakTiming.id}"), clues(exact))
+    assertEquals(exact.taxonomy, "source_central_break_timing")
+
+    val prep = byId("source-maderna-palermo-1955-central-break-prep-review")
+    assertEquals(prep.verdict, SourceReview.Verdict.RejectOwnerMissing)
+    assertEquals(prep.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
+    assertEquals(prep.release, "-")
+    assertEquals(prep.taxonomy, "source_central_break_timing")
+    assertEquals(prep.admissionBlockers, "owner:central_break_timing_witness_missing")
+  }
+
   test("natural SupportedLocal source rows admit with top or near-top engine authority") {
     val evansFen = "r1b1rnk1/pp2qppp/2p5/3p4/3Pn3/2NBPN2/PPQ2PPP/1R3RK1 w - - 0 13"
     val evansIqpFen = "r3rnk1/1p3ppp/p1p5/3p2q1/PP1P2b1/2QBP3/3N1PPP/1R3RK1 w - - 3 17"
@@ -837,4 +898,5 @@ class SourceReviewTest extends FunSuite:
     assert(report.contains("source-capablanca-golombek-1939: scanned=15"), clues(report))
     assert(report.contains("diagnostics=engine_missing_before_admission=15"), clues(report))
     assert(report.contains("blockers=engine:missing=15"), clues(report))
+    assert(report.contains("Acceptance rule: only verdict=admit_authority_row is source acceptance"), clues(report))
   }

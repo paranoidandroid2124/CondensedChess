@@ -378,7 +378,8 @@ private[commentary] object SourceReview:
         engineAgreement(ply.playedUci, engineLines),
         plannerOwnership(surface),
         gate,
-        surface.release,
+        if !admitted && source.reviewGroup.toLowerCase.contains("central_break_timing") then "-"
+        else surface.release,
         taxonomy(source),
         Some(ply.ply),
         Some(ply.fen),
@@ -534,6 +535,9 @@ private[commentary] object SourceReview:
     if reviewGroup.contains("break_prevention") then
       surface.mainProofSource.contains("counterplay_axis_suppression") ||
         surface.packetSummary.exists(_.contains("proof_family=neutralize_key_break"))
+    else if reviewGroup.contains("central_break_timing") then
+      surface.mainProofSource.contains(PlanTaxonomy.PlanKind.CentralBreakTiming.id) ||
+        surface.packetSummary.exists(_.contains(s"proof_family=${PlanTaxonomy.PlanKind.CentralBreakTiming.id}"))
     else if reviewGroup.contains("prophylaxis_restraint") then
       surface.release == "SupportedLocal" &&
         surface.mainProofSource.contains("prophylactic_move") &&
@@ -661,6 +665,15 @@ private[commentary] object SourceReview:
           surface.packetSummary.exists(summary => summary.contains("proof_family=") && !summary.contains("proof_family=neutralize_key_break"))
       if packetContractMismatch then List("proof:break_prevention_contract_mismatch")
       else surface.breakPreventionFailureCodes.map(normalizeBreakPreventionFailureCode)
+    else if reviewGroup.contains("central_break_timing") then
+      val packetContractMismatch =
+        surface.mainProofSource.exists(source => source != PlanTaxonomy.PlanKind.CentralBreakTiming.id) ||
+          surface.packetSummary.exists(summary =>
+            summary.contains("proof_family=") &&
+              !summary.contains(s"proof_family=${PlanTaxonomy.PlanKind.CentralBreakTiming.id}")
+          )
+      if packetContractMismatch || surface.mainProofSource.isEmpty then List("central_break_timing_witness_missing")
+      else Nil
     else if reviewGroup.contains("prophylaxis_restraint") then
       val packetContractMismatch =
         surface.mainProofSource.exists(source => source != "prophylactic_move") ||
@@ -689,6 +702,9 @@ private[commentary] object SourceReview:
         else if reviewGroup.contains("break_prevention") && ownerFailureCodes.nonEmpty then
           ownerFailureCodes.map(blockerFromFailureCode)
         else if reviewGroup.contains("break_prevention") then List("owner:break_prevention_witness_missing")
+        else if reviewGroup.contains("central_break_timing") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
+        else if reviewGroup.contains("central_break_timing") then List("owner:central_break_timing_witness_missing")
         else if reviewGroup.contains("prophylaxis_restraint") && ownerFailureCodes.nonEmpty then
           ownerFailureCodes.map(blockerFromFailureCode)
         else if reviewGroup.contains("prophylaxis_restraint") then List("owner:prophylaxis_restraint_witness_missing")
@@ -700,6 +716,9 @@ private[commentary] object SourceReview:
         if reviewGroup.contains("break_prevention") && ownerFailureCodes.nonEmpty then
           ownerFailureCodes.map(blockerFromFailureCode)
         else if reviewGroup.contains("break_prevention") then List("owner:break_prevention_witness_missing")
+        else if reviewGroup.contains("central_break_timing") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(blockerFromFailureCode)
+        else if reviewGroup.contains("central_break_timing") then List("owner:central_break_timing_witness_missing")
         else if reviewGroup.contains("prophylaxis_restraint") && ownerFailureCodes.nonEmpty then
           ownerFailureCodes.map(blockerFromFailureCode)
         else if reviewGroup.contains("prophylaxis_restraint") then List("owner:prophylaxis_restraint_witness_missing")
@@ -785,6 +804,7 @@ private[commentary] object SourceReview:
     val low = source.reviewGroup.toLowerCase
     if low.contains("tactical") then "source_tactical_first"
     else if low.contains("break_prevention") then "source_break_prevention"
+    else if low.contains("central_break_timing") then "source_central_break_timing"
     else if low.contains("prophylaxis_restraint") then "source_prophylaxis_restraint"
     else if low.contains("simplification_window") then "source_simplification_window"
     else if low.contains("queen_trade") then "source_queen_trade_boundary"
@@ -851,7 +871,7 @@ private[commentary] object SourceReview:
         s"Admission diagnostics: ${diagnosisCounts.map { case (k, v) => s"$k=$v" }.mkString(", ")}",
         s"Admission blockers: ${if blockerCounts.isEmpty then "none" else blockerCounts.map { case (k, v) => s"$k=$v" }.mkString(", ")}",
         s"Contract proof: ${contractCountText(observations)}",
-        s"Natural SupportedLocal search: ${if naturalSupported.isEmpty then "none found" else naturalSupported.map(_.source.id).mkString(", ")}",
+        s"Admitted SupportedLocal source rows: ${if naturalSupported.isEmpty then "none found" else naturalSupported.map(_.source.id).mkString(", ")}",
         s"Surface contract blocked: ${if surfaceBlocked.isEmpty then "none found" else surfaceBlocked.map(_.source.id).mkString(", ")}",
         ""
       ) ++ observations.map { obs =>
@@ -867,6 +887,7 @@ private[commentary] object SourceReview:
         "# Strategic Claim Authority Source Window Review",
         "",
         s"rows=${observations.size}",
+        "Acceptance rule: only verdict=admit_authority_row is source acceptance; release on rejected rows is diagnostic materialization.",
         ""
       ) ++ grouped.flatMap { case (sourceId, rows) =>
         val byPly = rows.sortBy(_.ply.getOrElse(Int.MaxValue))

@@ -18,6 +18,8 @@ class SourceWitnessCatalogTest extends FunSuite:
         "source-karpov-andersson-1975-hedgehog-break-screen",
         "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
         "source-maderna-palermo-1955-a6-a5-break-prevention",
+        "source-maderna-palermo-1955-central-break-timing",
+        "source-maderna-palermo-1955-central-break-prep-review",
         "source-camara-bazan-1960-b7-b5-break-prevention",
         "source-sliwa-gromek-1960-a6-a5-break-prevention",
         "source-luckis-bielicki-1961-a6-a5-break-prevention",
@@ -80,6 +82,8 @@ class SourceWitnessCatalogTest extends FunSuite:
     val karpovAnderssonBreakScreen = byId("source-karpov-andersson-1975-hedgehog-break-screen")
     val lokvencBreakPrevention = byId("source-lokvenc-czerniak-1952-b6-b5-break-prevention")
     val madernaBreakPrevention = byId("source-maderna-palermo-1955-a6-a5-break-prevention")
+    val madernaCentralBreak = byId("source-maderna-palermo-1955-central-break-timing")
+    val madernaCentralBreakPrep = byId("source-maderna-palermo-1955-central-break-prep-review")
     val camaraBreakPrevention = byId("source-camara-bazan-1960-b7-b5-break-prevention")
     val sliwaBreakPrevention = byId("source-sliwa-gromek-1960-a6-a5-break-prevention")
     val luckisBreakPrevention = byId("source-luckis-bielicki-1961-a6-a5-break-prevention")
@@ -227,6 +231,24 @@ class SourceWitnessCatalogTest extends FunSuite:
     assertEquals(madernaBreakWindow.map(_.ply), List(29))
     assertEquals(madernaBreakWindow.head.fen, "1rbqr1k1/1p1n1pbp/pn1p2p1/2pP4/P3PP2/2N2B2/1P1N2PP/R1BQR1K1 w - - 5 15")
     assertEquals(madernaBreakWindow.head.playedUci, "a4a5")
+
+    val madernaCentralBreakWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(madernaCentralBreak.pgn)
+        .fold(err => fail(s"${madernaCentralBreak.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => madernaCentralBreak.candidatePlyRange.contains(ply.ply))
+    assertEquals(madernaCentralBreakWindow.map(_.ply), List(33))
+    assertEquals(madernaCentralBreakWindow.head.fen, "nrb1r1k1/1pqn1pbp/p2p2p1/P1pP4/2N1PP2/2N2B2/1P4PP/R1BQR1K1 w - - 3 17")
+    assertEquals(madernaCentralBreakWindow.head.playedUci, "e4e5")
+
+    val madernaCentralBreakPrepWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(madernaCentralBreakPrep.pgn)
+        .fold(err => fail(s"${madernaCentralBreakPrep.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => madernaCentralBreakPrep.candidatePlyRange.contains(ply.ply))
+    assertEquals(madernaCentralBreakPrepWindow.map(_.ply), List(31))
+    assertEquals(madernaCentralBreakPrepWindow.head.fen, "nrbqr1k1/1p1n1pbp/p2p2p1/P1pP4/4PP2/2N2B2/1P1N2PP/R1BQR1K1 w - - 1 16")
+    assertEquals(madernaCentralBreakPrepWindow.head.playedUci, "d2c4")
 
     val camaraBreakWindow =
       PgnAnalysisHelper

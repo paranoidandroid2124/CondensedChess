@@ -717,7 +717,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       plans.rejected.exists(rejected =>
         rejected.questionKind == AuthorQuestionKind.WhyNow &&
           rejected.fallbackMode == QuestionPlanFallbackMode.Suppressed &&
-          rejected.reasons.contains("decision_timing_support_only_in_v1")
+          rejected.reasons.contains("decision_timing_support_only")
       ),
       clues(plans.rejected)
     )

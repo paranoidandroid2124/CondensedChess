@@ -222,7 +222,7 @@ selectors, but they remain below the truth boundary:
   them as
   `after_fallback_blocked`
 - current real16 Bookmaker contrast-support evidence is signoff-ready, not
-  rollout-ready:
+  runtime release evidence:
   `contrastEligibleRows=40`, `eligibleKeepCount=9`, `eligibleRejectCount=31`,
   `afterFallbackCount=0`, `afterFallbackBlockedRows=6`, `degradedCount=0`, and
   `track1RegressionStatus=no_track1_regression`
@@ -459,7 +459,7 @@ plus the local quality-audit rerun artifacts referenced there.
   - close-review status:
     the exact FEN positive control, the same-first-move divergent /
     ambiguous-branch negatives, and the planner triplet-recomposition negative
-    now pass together, so the bounded B6b slice is close-ready inside its
+    now pass together, so the bounded B6b slice is current bounded scope complete inside its
     narrow charter; broader B6 route-chain / replay / whole-position rollout
     remains closed
   - broader route-chain expansion on that same lane has now been narrowed back
@@ -625,6 +625,15 @@ plus the local quality-audit rerun artifacts referenced there.
       no measurable named-break counterplay loss, missing branch proof, unstable
       persistence, release risk, rival relabel, or tactical truth leaves it
       suppressed or factual
+    - `central_break_timing` is narrower than generic `plan_advance`:
+      board-backed break support may cross the truth boundary only as
+      `SupportedLocal` after same-branch proof, stable persistence, the
+      tactical-first veto, and the rival-family veto all survive; rows backed
+      only by plan carriers remain diagnostic / review-only, and retained
+      exact rows stay positive controls / regression seeds rather than becoming
+      a broader exact-row owner rule. This creates no public API change and no
+      generic owner-lane expansion; broad generic `plan_advance` remains
+      owner-closed outside a certified `central_break_timing` packet
   - planner factual fallback reasons are diagnostic-only:
     if planner admission fails and only `exactFactualSentence` survives, the
     user-facing claim must stay at literal move-shape scope and may not turn
@@ -667,7 +676,7 @@ plus the local quality-audit rerun artifacts referenced there.
     `dropped_families`, `demotion_reasons`, `selected_question`,
     `selected_proof_family`, `selected_proof_source`) but they may not mint a
     new planner owner kind locally from that trace
-  - shared-planner admission is now live in v1:
+  - shared-planner admission is now live:
     every normalized candidate carries `admission_decision`,
     `admission_reason`, and optional `demoted_to`, and ranking only sees
     `PrimaryAllowed`
@@ -699,7 +708,7 @@ plus the local quality-audit rerun artifacts referenced there.
     `transition_conversion` prior if a move-local transition anchor is also
     present; this avoids arbitrary domain precedence while keeping tactical /
     race / forcing scenes above it
-  - v1 legality is intentionally conservative:
+  - current legality is intentionally conservative:
     `support_material` never becomes a primary owner,
     `DecisionTiming(close_candidate)` is always `SupportOnly`,
     `DecisionTiming` is kept out of the primary pool,
@@ -711,7 +720,7 @@ plus the local quality-audit rerun artifacts referenced there.
     concrete timing loss may still be traced, including the
     `concrete_reply_or_reason` decision-comparison subtype, but timing-only
     `WhyNow` / `WhatChanged` plans are filtered from the legal pool until a
-    later admission phase explicitly widens them
+    future admission rules explicitly widen them
   - demotion must close on a real planner path:
     if `WhyNow`, `WhatMustBeStopped`, or `WhosePlanIsFaster` demotes into a
     legal `WhyThis` fallback, that fallback remains planner-owned; if no legal

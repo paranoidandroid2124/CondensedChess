@@ -18,7 +18,7 @@ Authority defaults:
 | `prophylaxis_restraint` | `prophylactic_move` | `counterplay_restraint` | `SupportedLocal` | `2-5` | `2` | `Releasable` |
 | `open_file_pressure` | `local_file_entry_bind` | `half_open_file_pressure` | `SupportedLocal` | `2-5` | `2` | `Releasable` |
 | `bad_piece_liquidation` | `bad_piece_liquidation` | `bad_piece_liquidation` | `SupportedLocal` | `2-5` | `2` | `Releasable` |
-| `central_break_timing` | `central_break_timing` | `central_break_timing` | `Deferred` | `2-5` | `2` | `Deferred` |
+| `central_break_timing` | `central_break_timing` | `central_break_timing` | `SupportedLocal` | `2-5` | `2` | `Releasable` |
 
 Documentation targets:
 

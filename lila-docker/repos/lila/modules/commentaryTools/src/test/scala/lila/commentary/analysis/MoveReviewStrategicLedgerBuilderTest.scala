@@ -1,22 +1,22 @@
 package lila.commentary.analysis
 
 import munit.FunSuite
-import lila.commentary.{ BookmakerRefsV1, MoveRefV1, StrategyPack, StrategyPieceRoute, VariationRefV1 }
+import lila.commentary.{ MoveReviewMoveRef, MoveReviewRefs, MoveReviewVariationRef, StrategyPack, StrategyPieceRoute }
 import lila.commentary.model.NarrativeContext
 import lila.commentary.model.ProbeResult
 import lila.commentary.model.strategic.{ EngineEvidence, PlanContinuity, PlanLifecyclePhase, VariationLine }
 import _root_.chess.Color
 
-class BookmakerStrategicLedgerBuilderTest extends FunSuite:
+class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
 
   private def maybeBuild(
       ctx: NarrativeContext,
       strategyPack: Option[StrategyPack] = None,
-      refs: Option[BookmakerRefsV1] = None,
+      refs: Option[MoveReviewRefs] = None,
       probeResults: List[ProbeResult] = Nil,
       planStateToken: Option[PlanStateTracker] = None
   ) =
-    BookmakerStrategicLedgerBuilder.build(
+    MoveReviewStrategicLedgerBuilder.build(
       ctx = ctx,
       strategyPack = strategyPack,
       refs = refs,
@@ -28,7 +28,7 @@ class BookmakerStrategicLedgerBuilderTest extends FunSuite:
   private def build(
       ctx: NarrativeContext,
       strategyPack: Option[StrategyPack] = None,
-      refs: Option[BookmakerRefsV1] = None,
+      refs: Option[MoveReviewRefs] = None,
       probeResults: List[ProbeResult] = Nil,
       planStateToken: Option[PlanStateTracker] = None
   ) =
@@ -208,31 +208,31 @@ class BookmakerStrategicLedgerBuilderTest extends FunSuite:
     assertEquals(maybeBuild(BookmakerProseGoldenFixtures.practicalChoice.ctx), None)
   }
 
-  private def sampleRefs(fen: String): BookmakerRefsV1 =
-    BookmakerRefsV1(
+  private def sampleRefs(fen: String): MoveReviewRefs =
+    MoveReviewRefs(
       startFen = fen,
       startPly = 12,
       variations = List(
-        VariationRefV1(
-          lineId = "v1",
+        MoveReviewVariationRef(
+          lineId = "main",
           scoreCp = 14,
           mate = None,
           depth = 18,
           moves = List(
-            MoveRefV1("v1-0", "Rad1", "a1d1", fen, 12, 6, Some("6.")),
-            MoveRefV1("v1-1", "O-O", "e8g8", fen, 13, 6, None),
-            MoveRefV1("v1-2", "e4", "e3e4", fen, 14, 7, Some("7."))
+            MoveReviewMoveRef("main-0", "Rad1", "a1d1", fen, 12, 6, Some("6.")),
+            MoveReviewMoveRef("main-1", "O-O", "e8g8", fen, 13, 6, None),
+            MoveReviewMoveRef("main-2", "e4", "e3e4", fen, 14, 7, Some("7."))
           )
         ),
-        VariationRefV1(
-          lineId = "v2",
+        MoveReviewVariationRef(
+          lineId = "resource",
           scoreCp = 8,
           mate = None,
           depth = 17,
           moves = List(
-            MoveRefV1("v2-0", "e4", "e3e4", fen, 12, 6, Some("6.")),
-            MoveRefV1("v2-1", "O-O", "e8g8", fen, 13, 6, None),
-            MoveRefV1("v2-2", "Re1", "f1e1", fen, 14, 7, Some("7."))
+            MoveReviewMoveRef("resource-0", "e4", "e3e4", fen, 12, 6, Some("6.")),
+            MoveReviewMoveRef("resource-1", "O-O", "e8g8", fen, 13, 6, None),
+            MoveReviewMoveRef("resource-2", "Re1", "f1e1", fen, 14, 7, Some("7."))
           )
         )
       )

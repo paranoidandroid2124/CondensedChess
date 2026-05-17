@@ -74,7 +74,18 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val sacrificeClass = classifySacrifice(ctx, surface, truthContract)
     val forcingProof = forcingProofAvailable(ctx.engineEvidence.toList.flatMap(_.variations))
     val deltaEvidence = strategicDeltaEvidence(ctx, surface, truthContract)
-    if isTactical(truthContract, sacrificeClass, forcingProof) then PlayerFacingTruthMode.Tactical
+    val centralBreakTimingStrategic =
+      deltaEvidence.exists(delta =>
+        delta.packet.proofFamily == CentralBreakTimingWitness.ProofFamily &&
+          delta.packet.admitsStrategicTruthMode
+      )
+    val contractTactical =
+      truthContract.exists(contract =>
+        contractOwnsDirectTacticalTruth(contract) ||
+          contractClaimsForcingTacticalTruth(contract)
+      )
+    if centralBreakTimingStrategic && !contractTactical then PlayerFacingTruthMode.Strategic
+    else if isTactical(truthContract, sacrificeClass, forcingProof) then PlayerFacingTruthMode.Tactical
     else if sacrificeClass == PlayerFacingSacrificeClass.StrategicSacrifice ||
         deltaEvidence.exists(_.packet.admitsStrategicTruthMode)
     then
@@ -109,6 +120,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val exactDefenderTradeClaim = exactDefenderTradeClaimText(ctx, text)
     val exactBreakPreventionClaim = exactBreakPreventionClaimText(ctx, surface, text)
     val exactCounterplayRestraintClaim = exactCounterplayRestraintClaimText(ctx, text)
+    val exactCentralBreakTimingClaim = exactCentralBreakTimingClaimText(ctx, text)
     val exactPacketStrategicMode =
       deltaEvidence.exists(_.packet.admitsStrategicTruthMode)
     (classify(ctx, strategyPack, truthContract) == PlayerFacingTruthMode.Strategic ||
@@ -123,6 +135,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
               exactDefenderTradeClaim ||
               exactBreakPreventionClaim ||
               exactCounterplayRestraintClaim ||
+              exactCentralBreakTimingClaim ||
               (
                 strategicTextIsConcrete(text, ctx) &&
                   (
@@ -220,11 +233,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Option[PlayerFacingMoveDeltaEvidence] =
     val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
     val exactOwnerProof = hasExactMainPathOwnerProof(ctx, surface)
+    val centralBreakTimingWitness = centralBreakTimingReleaseWitness(ctx)
     val anchors =
       (
         moveLinkedAnchorTerms(surface, truthContract) ++
           boundedSimplificationLineAnchors(ctx, surface) ++
           BreakPreventionWitness.anchorTerms(ctx, surface, preventedNow) ++
+          centralBreakTimingWitness.toList.flatMap(_.ownerSeedTerms) ++
           exactIqpInducementAnchorTerms(ctx) ++
           exactPressureIncreaseAnchorTerms(ctx, surface) ++
           exactDefenderTradeAnchorTerms(ctx) ++
@@ -232,7 +247,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ).distinct
     if anchors.isEmpty ||
         (surfaceLooksShellOnly(surface) && !exactOwnerProof) ||
-        !hasConcreteStrategicEvidence(ctx, surface, truthContract)
+        (!hasConcreteStrategicEvidence(ctx, surface, truthContract) && centralBreakTimingWitness.isEmpty)
     then None
     else
       val squareAnchors = extractSquareAnchors(anchors)
@@ -251,10 +266,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
 
       if BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty then
         result(PlayerFacingMoveDeltaClass.CounterplayReduction)
-      else if hasMainPathSpecificResourceRemoval(ctx, preventedNow, bestLine) then
-        result(PlayerFacingMoveDeltaClass.ResourceRemoval)
       else if hasMainPathExchangeForcing(ctx, surface, bestLine, squareAnchors) then
         result(PlayerFacingMoveDeltaClass.ExchangeForcing)
+      else if centralBreakTimingWitness.nonEmpty then
+        result(PlayerFacingMoveDeltaClass.PlanAdvance)
+      else if hasMainPathSpecificResourceRemoval(ctx, preventedNow, bestLine) then
+        result(PlayerFacingMoveDeltaClass.ResourceRemoval)
       else if hasMainPathCounterplayReduction(preventedNow) then
         result(PlayerFacingMoveDeltaClass.CounterplayReduction)
       else if hasMainPathNewAccess(ctx, surface, decisionDelta) then
@@ -466,6 +483,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
       exactIqpInducementWitness(ctx).nonEmpty
     val exactDefenderTradeProof =
       exactDefenderTradeWitness(ctx).nonEmpty
+    val exactCentralBreakTimingProof =
+      centralBreakTimingReleaseWitness(ctx).nonEmpty
     val exactBreakPreventionProof =
       BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty
     val exactCounterplayRestraintProof =
@@ -476,12 +495,14 @@ private[commentary] object PlayerFacingTruthModePolicy:
         exactQueenTradeShieldProof ||
         exactIqpInducementProof ||
         exactDefenderTradeProof ||
+        exactCentralBreakTimingProof ||
         exactBreakPreventionProof ||
         exactCounterplayRestraintProof
     val moveLinkedAnchor =
       hasMoveLinkedStrategicAnchor(surface) ||
         boundedSimplificationLineAnchors(ctx, surface).nonEmpty ||
         BreakPreventionWitness.anchorTerms(ctx, surface, preventedNow).nonEmpty ||
+        exactCentralBreakTimingProof ||
         exactIqpInducementAnchorTerms(ctx).nonEmpty ||
         exactPressureIncreaseAnchorTerms(ctx, surface).nonEmpty ||
         exactDefenderTradeAnchorTerms(ctx).nonEmpty ||
@@ -522,6 +543,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       exactQueenTradeShieldSlice(ctx) ||
       exactIqpInducementWitness(ctx).nonEmpty ||
       exactDefenderTradeWitness(ctx).nonEmpty ||
+      centralBreakTimingReleaseWitness(ctx).nonEmpty ||
       BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty ||
       exactCounterplayRestraintOwnerProof(ctx, preventedNow)
 
@@ -548,18 +570,20 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Option[PlayerFacingMoveDeltaEvidence] =
     val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
     val exactOwnerProof = hasExactMainPathOwnerProof(ctx, surface)
+    val centralBreakTimingWitness = centralBreakTimingReleaseWitness(ctx)
     val anchors =
       (
         moveLinkedAnchorTerms(surface, truthContract) ++
           boundedSimplificationLineAnchors(ctx, surface) ++
           BreakPreventionWitness.anchorTerms(ctx, surface, preventedNow) ++
+          centralBreakTimingWitness.toList.flatMap(_.ownerSeedTerms) ++
           exactIqpInducementAnchorTerms(ctx) ++
           exactPressureIncreaseAnchorTerms(ctx, surface) ++
           exactDefenderTradeAnchorTerms(ctx)
       ).distinct
     if anchors.isEmpty ||
         (surfaceLooksShellOnly(surface) && !exactOwnerProof) ||
-        !hasConcreteStrategicEvidence(ctx, surface, truthContract)
+        (!hasConcreteStrategicEvidence(ctx, surface, truthContract) && centralBreakTimingWitness.isEmpty)
     then None
     else
       val delta = ctx.delta
@@ -600,7 +624,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
           )
         )
 
-      if preventedNow.exists(plan =>
+      if centralBreakTimingWitness.nonEmpty then
+        result(PlayerFacingMoveDeltaClass.PlanAdvance)
+      else if preventedNow.exists(plan =>
           plan.counterplayScoreDrop > 0 ||
             plan.mobilityDelta < 0 ||
             plan.breakNeutralized.exists(_.trim.nonEmpty) ||
@@ -1166,6 +1192,34 @@ private[commentary] object PlayerFacingTruthModePolicy:
       )
     }
 
+  private def centralBreakTimingReleaseWitness(ctx: NarrativeContext): Option[CentralBreakTimingWitness.Witness] =
+    CentralBreakTimingWitness.exact(ctx).filter(_ => centralBreakTimingFamilyAligned(ctx))
+
+  private def centralBreakTimingFamilyAligned(ctx: NarrativeContext): Boolean =
+    val evidencePlans = StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx)
+    val rivalSubplans =
+      Set(
+        PlanTaxonomy.PlanKind.BreakPrevention.id,
+        PlanTaxonomy.PlanKind.WingBreakTiming.id
+      )
+    val centralPlan =
+      evidencePlans.exists(plan =>
+        plan.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+      ) ||
+        ctx.strategicPlanExperiments.exists(exp =>
+          exp.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.CentralBreakTiming.id) &&
+            isEvidenceBackedTier(exp.evidenceTier)
+        )
+    val rivalPlan =
+      evidencePlans.exists(plan =>
+        plan.subplanId.exists(id => rivalSubplans.contains(normalize(id)))
+      ) ||
+        ctx.strategicPlanExperiments.exists(exp =>
+          exp.subplanId.exists(id => rivalSubplans.contains(normalize(id))) &&
+            isEvidenceBackedTier(exp.evidenceTier)
+      )
+    centralPlan || !rivalPlan
+
   private def ownerSeedForMainPath(
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot,
@@ -1181,6 +1235,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val namedPreventedTerms = namedPreventedResourceTerms(preventedNow)
     val breakTerms = breakResourceTerms(preventedNow)
     val breakPreventionWitness = BreakPreventionWitness.candidate(ctx, surface, preventedNow)
+    val centralBreakTimingWitness = centralBreakTimingReleaseWitness(ctx)
     val exactPressureIncreaseSeed = exactPressureIncreaseOwnerSeed(ctx, surface)
     val prophylacticRestraintPlan =
       trigger.contains("counterplay_restraint") || planOwner.contains("prophylaxis_restraint")
@@ -1188,6 +1243,16 @@ private[commentary] object PlayerFacingTruthModePolicy:
       case PlayerFacingMoveDeltaClass.PressureIncrease
           if exactPressureIncreaseSeed.nonEmpty =>
         exactPressureIncreaseSeed.get
+      case PlayerFacingMoveDeltaClass.PlanAdvance
+          if centralBreakTimingWitness.nonEmpty =>
+        val witness = centralBreakTimingWitness.get
+        ClaimOwnerSeed(
+          proofSource = CentralBreakTimingWitness.ProofSource,
+          proofFamily = CentralBreakTimingWitness.ProofFamily,
+          triggerKind = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
+          ownerSeedTerms = witness.ownerSeedTerms,
+          structureTransitionTerms = witness.structureTransitionTerms
+        )
       case PlayerFacingMoveDeltaClass.CounterplayReduction
           if localFileEntryPair.nonEmpty =>
         val pair = localFileEntryPair.get
@@ -1580,6 +1645,18 @@ private[commentary] object PlayerFacingTruthModePolicy:
         ownerSeed.proofFamily == PlanTaxonomy.PlanKind.QueenTradeShield.id &&
           exactQueenTradeShieldSlice(ctx)
       )(QueenTradeShieldPvPrefix).getOrElse(Nil)
+    val centralBreakTimingContinuation =
+      Option.when(ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily) {
+        CentralBreakTimingWitness.exact(ctx).toList.flatMap { witness =>
+          (
+            List(
+              "central_break_timing_branch",
+              s"central_break:${witness.breakSquare}",
+              s"break_move:${witness.breakMove}"
+            ) ++ witness.structureTransitionTerms
+          ).distinct
+        }
+      }.getOrElse(Nil)
     (
       bestDefenseBranchKey.toList ++
         bestDefenseMove.toList ++
@@ -1590,6 +1667,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
         exactIqpContinuation ++
         exactDefenderTradeContinuation ++
         exactQueenTradeContinuation ++
+        centralBreakTimingContinuation ++
         ownerLinkedEvidenceBackedExperiments(ctx, ownerSeed).flatMap { experiment =>
           List(
             Option.when(experiment.bestReplyStable)("best_reply_stable"),
@@ -1777,6 +1855,19 @@ private[commentary] object PlayerFacingTruthModePolicy:
       )
       .exists(witness => normalize(text) == normalize(s"This keeps ${witness.breakToken} from coming right away."))
 
+  private def exactCentralBreakTimingClaimText(
+      ctx: NarrativeContext,
+      text: String
+  ): Boolean =
+    centralBreakTimingReleaseWitness(ctx).exists { witness =>
+      normalize(text) == normalize(centralBreakTimingClaimText(witness))
+    }
+
+  private[commentary] def centralBreakTimingClaimText(
+      witness: CentralBreakTimingWitness.Witness
+  ): String =
+    s"A local reading is that this improves the ${witness.breakToken} timing on this branch."
+
   private def exactCounterplayRestraintClaimText(
       ctx: NarrativeContext,
       text: String
@@ -1863,6 +1954,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
         exactSliceContinuationTerms(ctx, ownerSeed)
       val exactDefenderTradeContinuation =
         exactDefenderTradeContinuationTerms(ctx, ownerSeed)
+      val exactCentralBreakTimingContinuation =
+        Option.when(ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily) {
+          CentralBreakTimingWitness.exact(ctx).toList.flatMap(_.structureTransitionTerms)
+        }.getOrElse(Nil)
       val stableBestDefense = evidenceBacked.exists(_.bestReplyStable)
       val futureAligned = evidenceBacked.exists(_.futureSnapshotAligned)
       val moveOrderClean = !evidenceBacked.exists(_.moveOrderSensitive)
@@ -1888,6 +1983,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
       else if ownerSeed.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id &&
           concreteOwnerSeed &&
           exactDefenderTradeContinuation.nonEmpty &&
+          continuationTerms.nonEmpty
+      then
+        PlayerFacingSameBranchState.Proven
+      else if ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily &&
+          concreteOwnerSeed &&
+          exactCentralBreakTimingContinuation.nonEmpty &&
           continuationTerms.nonEmpty
       then
         PlayerFacingSameBranchState.Proven
@@ -1933,6 +2034,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
         PlayerFacingClaimPersistence.Stable
       else if exactDefenderTradeContinuationTerms(ctx, ownerSeed).nonEmpty &&
           ownerSeed.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id &&
+          claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
+      then
+        PlayerFacingClaimPersistence.Stable
+      else if CentralBreakTimingWitness.exact(ctx).nonEmpty &&
+          ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily &&
           claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
       then
         PlayerFacingClaimPersistence.Stable
@@ -2016,6 +2122,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
         persistence != PlayerFacingClaimPersistence.Stable
     then risks += PlayerFacingClaimReleaseRisk.RouteMirage
     if ownerSeed.proofFamily == "counterplay_restraint" &&
+        sameBranchState == PlayerFacingSameBranchState.Proven &&
+        persistence != PlayerFacingClaimPersistence.Stable
+    then risks += PlayerFacingClaimReleaseRisk.RouteMirage
+    if ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily &&
         sameBranchState == PlayerFacingSameBranchState.Proven &&
         persistence != PlayerFacingClaimPersistence.Stable
     then risks += PlayerFacingClaimReleaseRisk.RouteMirage
@@ -2230,6 +2340,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
             persistence == PlayerFacingClaimPersistence.Stable
         case "counterplay_restraint" =>
           bestDefenseBranchKey.nonEmpty &&
+            sameBranchState == PlayerFacingSameBranchState.Proven &&
+            persistence == PlayerFacingClaimPersistence.Stable
+        case family if family == CentralBreakTimingWitness.ProofFamily =>
+          ownerSeed.proofSource == CentralBreakTimingWitness.ProofSource &&
+            bestDefenseBranchKey.nonEmpty &&
             sameBranchState == PlayerFacingSameBranchState.Proven &&
             persistence == PlayerFacingClaimPersistence.Stable
         case family if family == BoundedFavorableSimplificationFamily =>
@@ -3140,6 +3255,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
       deltaClass == PlayerFacingMoveDeltaClass.PressureIncrease &&
         exactPressureIncreaseWitness(ctx, surface).nonEmpty &&
         bestDefenseBranchKeyFromContext(ctx).nonEmpty
+    val exactCentralBreakTiming =
+      deltaClass == PlayerFacingMoveDeltaClass.PlanAdvance &&
+        centralBreakTimingReleaseWitness(ctx).nonEmpty &&
+        bestDefenseBranchKeyFromContext(ctx).nonEmpty
     val evidenceBacked =
       StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx).nonEmpty ||
         ctx.strategicPlanExperiments.exists(_.evidenceTier == "evidence_backed")
@@ -3148,7 +3267,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val deferred =
       ctx.strategicPlanExperiments.exists(_.evidenceTier == "deferred") ||
         ctx.probeRequests.nonEmpty
-    if evidenceBacked || exactBoundedSimplification || exactIqpInducement || exactDefenderTrade || exactPressureIncrease || exactQueenTradeShield then
+    if evidenceBacked || exactBoundedSimplification || exactIqpInducement || exactDefenderTrade || exactPressureIncrease || exactQueenTradeShield || exactCentralBreakTiming then
       PlayerFacingClaimProvenanceClass.ProbeBacked
     else if pvCoupled then PlayerFacingClaimProvenanceClass.PvCoupled
     else if deferred then PlayerFacingClaimProvenanceClass.Deferred
@@ -3182,6 +3301,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
     else if
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
         exactDefenderTradeWitness(ctx).nonEmpty
+    then PlayerFacingClaimQuantifier.BestResponse
+    else if
+      deltaClass == PlayerFacingMoveDeltaClass.PlanAdvance &&
+        centralBreakTimingReleaseWitness(ctx).nonEmpty
     then PlayerFacingClaimQuantifier.BestResponse
     else
       val evidenceBackedExperiments =
@@ -3222,6 +3345,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
     else if
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
         exactDefenderTradeWitness(ctx).nonEmpty
+    then PlayerFacingClaimStabilityGrade.Stable
+    else if
+      deltaClass == PlayerFacingMoveDeltaClass.PlanAdvance &&
+        centralBreakTimingReleaseWitness(ctx).nonEmpty
     then PlayerFacingClaimStabilityGrade.Stable
     else
       val evidenceBackedExperiments =

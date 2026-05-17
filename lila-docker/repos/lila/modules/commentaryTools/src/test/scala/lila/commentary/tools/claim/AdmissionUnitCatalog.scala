@@ -164,13 +164,8 @@ private[commentary] object AdmissionUnitCatalog:
         planKindId = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
         proofFamily = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
         proofSource = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
-        acceptedScope = PlayerFacingPacketScope.LineScoped,
-        defaultAuthorityTier = "Deferred",
-        requiredWitnesses =
-          Set(
-            ProofWitness.OwnerSeed,
-            ProofWitness.NoTacticalVeto
-          )
+        acceptedScope = PlayerFacingPacketScope.MoveLocal,
+        requiredWitnesses = defaultWitnesses + ProofWitness.ExactSlice
       )
     )
 

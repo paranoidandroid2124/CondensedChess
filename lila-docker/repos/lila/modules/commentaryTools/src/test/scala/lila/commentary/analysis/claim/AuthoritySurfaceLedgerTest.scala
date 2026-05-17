@@ -333,31 +333,35 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(failRows.forall(_.taxonomy != "-"), clues(failRows.filter(_.taxonomy == "-").map(_.sample.id)))
 
     val review = AuthoritySurfaceLedger.surfaceReviewMarkdown(observations)
+    assert(review.contains("# Strategic Claim Authority Surface Ledger"), clues(review))
+    assert(!review.contains("Source admitted" + " authority rows"), clues(review))
+    assert(!review.contains("Natural SupportedLocal" + " search"), clues(review))
     assert(review.contains("## CertifiedOwner"), clues(review))
     assert(review.contains("## SupportedLocal"), clues(review))
     assert(review.contains("## Suppressed"), clues(review))
     assert(review.contains("## TacticalVeto"), clues(review))
     assert(
       review.contains(
-        "Natural SupportedLocal search: source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention, source-pfleger-maalouf-1961-a6-a5-break-prevention, source-aronian-andreikin-2014-defender-trade"
+        "Surface SupportedLocal fixtures: source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention, source-pfleger-maalouf-1961-a6-a5-break-prevention, source-aronian-andreikin-2014-defender-trade"
       ),
       clues(review)
     )
     assert(
       review.contains(
-        "Source admitted authority rows: source-evans-opsahl-1950, source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention, source-pfleger-maalouf-1961-a6-a5-break-prevention, source-salov-ljubojevic-1992-simplification-window, source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation, source-aronian-andreikin-2014-defender-trade"
+        "Source surface fixtures: source-evans-opsahl-1950, source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention, source-pfleger-maalouf-1961-a6-a5-break-prevention, source-salov-ljubojevic-1992-simplification-window, source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation, source-aronian-andreikin-2014-defender-trade"
       ),
       clues(review)
     )
+    assert(review.contains("Engine-backed source admission: SourceReview only"), clues(review))
     assert(review.contains("taxonomy="), clues(review))
     assert(review.contains("contract="), clues(review))
   }
 
-  test("source intake rows require engine admission, and exact admitted source fixtures enter matrix authority") {
+  test("source intake rows require engine admission, and fixed source fixtures enter surface matrix only") {
     val intake = SourceReview.observations(engine = None)
     assert(intake.forall(_.verdict != SourceReview.Verdict.AdmitAuthorityRow), clues(intake))
     assertEquals(
-      AuthoritySurfaceLedger.sourceAdmittedAuthorityRowIds,
+      AuthoritySurfaceLedger.sourceSurfaceFixtureIds,
       List(
         "source-evans-opsahl-1950",
         "source-carlsen-anand-2014-g6",
@@ -375,7 +379,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
       )
     )
     val sourceRows = AuthoritySurfaceLedger.observations().filter(_.sample.id.startsWith("source-"))
-    assertEquals(sourceRows.map(_.sample.id), AuthoritySurfaceLedger.sourceAdmittedAuthorityRowIds)
+    assertEquals(sourceRows.map(_.sample.id), AuthoritySurfaceLedger.sourceSurfaceFixtureIds)
     assertEquals(sourceRows.map(_.release), List("CertifiedOwner", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "CertifiedOwner", "CertifiedOwner", "SupportedLocal"))
   }
 

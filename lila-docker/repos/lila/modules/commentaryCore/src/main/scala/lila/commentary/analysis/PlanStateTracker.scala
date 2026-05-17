@@ -206,13 +206,13 @@ object PlanStateTracker:
     node match
       case JsNull => JsSuccess(ColorPlanState())
       case obj: JsObject =>
-        val isV2Node =
+        val isCurrentStateNode =
           (obj \ "primary").toOption.isDefined ||
             (obj \ "secondary").toOption.isDefined ||
             (obj \ "lastTransition").toOption.isDefined ||
             (obj \ "lastPly").toOption.isDefined
 
-        if isV2Node then obj.validate[ColorPlanState]
+        if isCurrentStateNode then obj.validate[ColorPlanState]
         else if obj.value.isEmpty then JsSuccess(ColorPlanState())
         else obj.validate[PlanContinuity].map(cont => ColorPlanState(primary = Some(cont)))
       case _ => JsSuccess(ColorPlanState())

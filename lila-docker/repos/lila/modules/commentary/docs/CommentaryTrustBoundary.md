@@ -737,7 +737,7 @@ charter before any later B2 extension slice.
 - proof / falsification first:
   define what must be measured before asking for richer prose
 - broad validation before confidence:
-  no B2 slice is close-ready from smoke coverage alone
+  no B2 slice is current bounded scope complete from smoke coverage alone
 - minor-criticism resistance:
   the slice must survive cooperative-defense, hidden-resource, and
   move-order-fragility criticism without rhetorical escape hatches
@@ -878,7 +878,7 @@ Mandatory fail-closed reasons for B2 should include at least:
 | `hidden_freeing_break` | one live break invalidates `no-counterplay` | `PreventedPlan.breakNeutralized`, route-denial probe purposes, null-move threat checks | enumerate `freeingBreaksRemaining` and fail if any certified break/entry route survives | clamp-looking scene with one untested pawn break or entry square |
 | `hidden_tactical_release` | exchange sac / perpetual / active king route revives counterplay | reply probes, collapse reasons, future snapshots | enumerate `tacticalReleasesRemaining`; require no forcing release under best defense | quiet bind that fails to an exchange sacrifice, perpetual, or king route |
 | `move_order_fragility` | one inaccurate order collapses the clamp | existing `moveOrderSensitive`, B1 fragility handling | certification must reject exact-order-only squeeze shells | same plan succeeds in PV order but fails when the defender changes move order |
-| `local_to_global_overreach` | a local restraint claim becomes whole-position `no-counterplay` | ForcedLineTruth bans scene-local to global revival; B1 uses eval/scope guard | backend `claimScope` must stay local until a later whole-position matrix exists | one denied file/square inflated into a full winning/no-counterplay thesis |
+| `local_to_global_overreach` | a local restraint claim becomes whole-position `no-counterplay` | `CommentaryTruthBoundary` bans scene-local to global revival; B1 uses eval/scope guard | backend `claimScope` must stay local until a later whole-position matrix exists | one denied file/square inflated into a full winning/no-counterplay thesis |
 | `waiting_move_disguised_as_plan` | a harmless improving move is mistaken for a squeeze | quiet-intent fallback already exists and is intentionally weak | require measurable restriction delta plus persistence; otherwise demote to quiet intent or exact factual | king/piece improvement with no counterplay compression |
 | `fortress_like_but_not_winning` | static restriction is confused with a certifiable squeeze route | B1 conversion-ready threshold and whole-game decisive-proof rules | distinguish `restraining but not winning` from `certified squeeze`; block strong payoff/conversion language | passive-looking bind with no breakthrough and equal/near-equal eval |
 | `surface_reinflation` | uncertified squeeze shell returns on Chronicle/Active/whole-game | shared replay filter, exact factual fallback, support-only whole-game checks | B2 experiments must downgrade before planner reuse and remain support-only afterward | uncertified squeeze text present in support carriers but forbidden from every primary surface |
@@ -1163,7 +1163,7 @@ Session verdict:
 
 Verdict:
 
-- `B2 close-ready`
+- `B2 bounded-scope completion`
 
 Reason:
 
@@ -1206,7 +1206,7 @@ may certify bounded `multi-axis squeeze` or `bind` claims.
 Status:
 design baseline only; no runtime semantics, public payload/schema, or prose
 family changed in this step. Use this section as the canonical B3 entry
-charter after B2 close-ready and before any later B3 implementation slice.
+charter after B2 bounded-scope completion and before any later B3 implementation slice.
 
 #### Design posture
 
@@ -1373,7 +1373,7 @@ Mandatory fail-closed reasons for B3 should include at least:
 | `pv_restatement_only` | engine PV is merely rewritten as `squeeze` or `bind` | claim-certification quantifier/modality checks, probe-purpose contracts, source attribution | require explicit axis bundle, resource loss, and falsification burden rather than pretty PV prose | PV keeps the edge but no distinct axis compression or resource enumeration exists |
 | `move_order_fragility` | one move-order change collapses the shell | existing `moveOrderSensitive`, B1/B2 fragility handling, reply/future-snapshot checks | reject exact-order-only shells from B3 certification | same bind works only in the PV order and fails when the defender changes move order |
 | `fortress_like_but_not_winning` | static restriction is confused with a certifiable squeeze route | existing whole-position caution, conversion-tail checks, decisive-proof discipline | require bounded route continuity and block strong payoff language when progress is not visible | cramped-looking hold with no breakthrough, no bounded follow-through, and no worsening defender resource state |
-| `local_to_global_overreach` | local multi-axis restriction gets inflated into whole-position domination | ForcedLineTruth scene-local limits, planner ownership, support-only replay discipline | backend `claimScope` must stay local and B3 positives stay off whole-game reuse | one sector bind is rewritten as `the opponent has no play anywhere` |
+| `local_to_global_overreach` | local multi-axis restriction gets inflated into whole-position domination | `CommentaryTruthBoundary` scene-local limits, planner ownership, support-only replay discipline | backend `claimScope` must stay local and B3 positives stay off whole-game reuse | one sector bind is rewritten as `the opponent has no play anywhere` |
 | `waiting_move_disguised_as_bind` | a quiet improving move is mistaken for a squeeze | quiet-intent fallback, move-delta anchoring, prevented-plan gating | require opponent-facing multi-axis restriction plus continuity; otherwise demote to support-only or exact factual | king/piece improvement with nicer coordination but no measurable defender-resource loss |
 | `surface_reinflation` | uncertified shell returns on Bookmaker, Chronicle, Active, or wrappers as a stronger claim | shared replay gate, `StrategicNarrativePlanSupport`, `CommentaryEngine`, existing parity harnesses | certification must downgrade before planner reuse and remain support-only everywhere else | uncertified squeeze wording appears in sidecars/support carriers and tries to revive on a stronger surface |
 
@@ -2140,7 +2140,7 @@ Session verdict:
   criticism matrix, broad validation charter, and self-critique-revised next
   slice without changing runtime semantics
 
-### CTH-B5a — Next Local Strategic Frontier Design
+### CTH-B5a — Next Local Strategic Boundary Design
 
 Purpose:
 choose which deferred harder local strategic family, if any, can become the
@@ -2858,7 +2858,7 @@ Session verdict:
   adversarial-review green on the bounded planner-only slice after the branch
   identity and planner surface fix-up
 - operational consequence:
-  B6b is now `close-ready` inside the narrow planner-only charter, which closes
+  B6b is now current bounded scope complete inside the narrow planner-only charter, which closes
   the B6 minimum slice only; the next required work remains B6-family
   expansion, with broader route-chain coverage first, then broader
   posture/phase coverage, before any replay / whole-game positive reuse review.
@@ -2870,7 +2870,7 @@ Session verdict:
 ### Problem framing
 
 - B6 minimum slice is complete:
-  B6b is now `close-ready` inside one bounded planner-owned `WhyThis` charter
+  B6b is now current bounded scope complete inside one bounded planner-owned `WhyThis` charter
 - B6 product-complete is not:
   the live slice still proves only one `file-entry pair + one reroute denial`
 - next work remains inside B6, not B7:
@@ -4259,7 +4259,7 @@ Observed in current runtime:
 Current guards:
 
 - Chronicle threat-stop preservation
-- ForcedLineTruth requirement for same-contract consumption
+- `CommentaryTruthBoundary` requirement for same-contract consumption
 
 Residual problem:
 
@@ -4300,7 +4300,7 @@ Current guards:
 
 - planner demotion
 - active gate
-- ForcedLineTruth prohibition on raw support sentence families becoming truth owners
+- `CommentaryTruthBoundary` prohibition on raw support sentence families becoming truth owners
 
 Residual problem:
 
@@ -4358,7 +4358,7 @@ Observed in current runtime:
 Current guards:
 
 - fail-closed classification
-- ForcedLineTruth/SSOT blocked-lane prohibitions
+- `CommentaryTruthBoundary` / SSoT blocked-lane prohibitions
 - duplicate/same-sentence rejection on Bookmaker/Chronicle
 
 Residual problem:
@@ -4510,24 +4510,22 @@ The current B/C trust-boundary experiment uses one internal authority tiers in
     eligible but lacks exact owner-path strength.
   - surface wording must be downgraded to `A local reading is that ...`.
   - supporting consequence / coda / contrast must not re-inflate the claim.
-  - 2026-05-15 source-backed boundary admits ten natural `SupportedLocal`
-    rows. `source-carlsen-anand-2014-g6` is a `queen_trade_shield` move-local
-    owner on FEN
-    `r1bqk2r/1p1p1ppp/p1n1pn2/8/1bPNP3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 5 8`
-    with required PV prefix `d4c6 d7c6 d3d8 e8d8`.
-    Five natural IQP rows now admit through `iqp_inducement_probe`:
+  - `AuthoritySurfaceLedger` contains fixed source surface fixtures copied
+    from prior source-review evidence. Those fixtures prove surface-contract
+    behavior only; they are not the current engine-backed source-admission set.
+    Current source acceptance is defined only by `SourceReview` rows whose
+    verdict is `admit_authority_row`.
+  - the 2026-05-17 Stockfish 18 `SourceReview` rerun admits ten
+    `SupportedLocal` source rows: `source-carlsen-anand-2014-g6`,
     `source-capablanca-golombek-1939-iqp-inducement`,
-    `source-evans-opsahl-1950-iqp-inducement`,
+    `source-botvinnik-vidmar-1936-iqp-opening-inducement`,
     `source-alekhine-bogoljubow-1936-iqp-inducement`,
-    `source-najdorf-sergeant-1939-iqp-inducement`, and
-    `source-botvinnik-vidmar-1936-iqp-opening-inducement`.
-    `source-aronian-andreikin-2014-defender-trade` admits through
-    `defender_trade` as a near-top, claim-only `SupportedLocal` source row.
-    Three natural break-prevention rows now admit through
-    `counterplay_axis_suppression` / `neutralize_key_break`:
+    `source-najdorf-sergeant-1939-iqp-inducement`,
+    `source-aronian-andreikin-2014-defender-trade`,
     `source-maderna-palermo-1955-a6-a5-break-prevention`,
-    `source-camara-bazan-1960-b7-b5-break-prevention`, and
-    `source-pfleger-maalouf-1961-a6-a5-break-prevention`.
+    `source-maderna-palermo-1955-central-break-timing`,
+    `source-sliwa-gromek-1960-a6-a5-break-prevention`, and
+    `source-polugaevsky-giorgadze-1956-c5-c4-break-prevention`.
 - `Suppressed`
   - no owner surface survives.
 - `TacticalVeto`
@@ -4552,6 +4550,7 @@ Current contract posture:
 | bounded favorable exchange packets | `Releasable` | `CertifiedOwner` for exact simplification; `SupportedLocal` for weak local exchange packets such as the exact queen-trade shield |
 | exact IQP inducement packets | `Releasable` | `SupportedLocal` only through `iqp_inducement_probe`; requires opponent isolated central-pawn transition, PV prefix, branch key, no rival release, no tactical veto |
 | exact defender-trade packets | `Releasable` | `SupportedLocal` only through `defender_trade`; requires exchanged defender square, defended target/resource, before/after defender removal, PV prefix, branch key, no rival release, no tactical veto |
+| board-backed central-break-timing packets | `Releasable` | `SupportedLocal` only through the bounded `central_break_timing` break-support path; requires same-branch proof, stable persistence, no rival-family release, and no tactical-first veto |
 | restriction runtime packets | `Releasable` | existing exact owner-path families remain available only when their private witness path proves them; named-break prose from `breakNeutralized` must pass a promoted named-break packet/proof gate (`neutralize_key_break` or the existing `counterplay_restraint`) |
 | other strategic taxonomy cells | `Deferred` | explicit `deferred_no_exact_owner`; no player-facing strategic claim from vocabulary alone |
 | immediate tactical-gain taxonomy | `BackendOnly` | tactical truth may surface, but it is not a strategic-release owner |
@@ -4710,79 +4709,66 @@ the runner writes
 `tmp/strategic_claim_source_review.tsv` and
 `tmp/strategic_claim_source_review.md`; the follow-up window probe
 runner writes `tmp/strategic_claim_source_window_review.tsv` and
-`tmp/strategic_claim_source_window_review.md`. The B/C plus IQP plus
-break-prevention owner-proof pass now produces `admit_authority_row=13,
-reject_owner_missing=11, reject_tactical_first=2`, with
-`source-evans-opsahl-1950` promoted as a natural B `CertifiedOwner`,
-`source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation` promoted as a
-natural B `CertifiedOwner`,
-`source-carlsen-anand-2014-g6` promoted as a natural C `SupportedLocal`, and
-five natural IQP rows promoted as `SupportedLocal`: Capablanca-Golombek,
-Evans-Opsahl, Alekhine-Bogoljubow, Najdorf-Sergeant, and Botvinnik-Vidmar.
-The same pass promotes
-`source-salov-ljubojevic-1992-simplification-window` as a natural
-`CertifiedOwner` simplification-window row and
-`source-aronian-andreikin-2014-defender-trade` as a natural `SupportedLocal`
-DefenderTrade row. The clean-route follow-up also promotes
-`source-maderna-palermo-1955-a6-a5-break-prevention`,
-`source-camara-bazan-1960-b7-b5-break-prevention`, and
-`source-pfleger-maalouf-1961-a6-a5-break-prevention` as natural
-`break_prevention` `SupportedLocal` rows. Source rows remain
-non-authority until this exact intake path
-returns `admit_authority_row`; synthetic rows are control/nasty-case material only
+`tmp/strategic_claim_source_window_review.md`. The latest 2026-05-17
+Stockfish 18 source-review rerun reports `admit_authority_row=12,
+reject_owner_missing=14, reject_tactical_first=2`. That rerun admits the exact
+`source-maderna-palermo-1955-central-break-timing` row as
+`central_break_timing` / `SupportedLocal`, and closes
+`source-maderna-palermo-1955-central-break-prep-review` with
+`owner:central_break_timing_witness_missing` and `release=-`. The matching
+window review scans 106 rows and preserves the same central-break split.
+
+Do not reuse older clean-route promotion notes as current real-engine
+acceptance: in the 2026-05-17 rerun, the Camara-Bazan and Pfleger-Maalouf
+break-prevention rows close under witness/surface blockers, while Maderna,
+Sliwa-Gromek, and Polugaevsky-Giorgadze are the real-engine
+`break_prevention` source rows that admit. The canned
+`AuthoritySurfaceLedger` matrix remains a surface-contract fixture; its
+source-row list is not a substitute for the engine-backed `SourceReview`
+gate. Source rows remain non-authority until this exact intake path returns
+`admit_authority_row`; synthetic rows are control/nasty-case material only
 unless later replaced by natural source positions.
 
 The source intake now records an admission diagnosis separate from the coarse
 verdict, plus `admissionBlockers`, `mainProofSource`, `mainClaimScope`, packet
 summary, `contractId`, `contractStatus`, `contractFailures`, scene type, owner
-trace, and break-prevention witness failure codes. The current diagnostic split
-is `admit_ready=12, engine_top_move_disagrees=2,
-root_vocabulary_or_extraction_gap=9, tactical_first_source=2`, with
-`surface_contract_blocked=0`. The blocker split is
-`engine:source_move_absent_from_multipv=2`,
+trace, and family witness failure codes. The 2026-05-17 Stockfish 18 rerun
+reports `summary=admit_authority_row=12, reject_owner_missing=14,
+reject_tactical_first=2`. Its diagnostic split is
+`admit_ready=14, engine_top_move_disagrees=5,
+root_vocabulary_or_extraction_gap=7, tactical_first_source=2`; `admit_ready`
+is only a diagnostic bucket and is not acceptance. The blocker split is
+`engine:source_move_absent_from_multipv=5`,
 `owner:break_prevention_capture_transform_recapture_unproven=1`,
-`proof:break_prevention_contract_mismatch=2`,
-`owner:break_prevention_no_prevented_plan=1`,
+`owner:break_prevention_no_prevented_plan=2`,
 `owner:break_prevention_witness_missing=2`,
-`owner:carlsbad_probe_missing=1`, `owner:iqp_not_induced=3`,
-`owner:root_vocabulary_or_extraction_gap=1`, and `tactical:first=2`. That means
-the current batch did not fail because Bookmaker or Chronicle distorted an
-admitted local claim. Evans moved from `planner_owner_scene_blocked` to
-`admit_authority_row`; Carlsen-Anand moved from
-`root_vocabulary_or_extraction_gap` to `admit_authority_row`.
-The contract-proof split is `Releasable:subplan:backward_pawn_targeting=1`,
+`owner:carlsbad_probe_missing=1`,
+`owner:central_break_timing_witness_missing=1`,
+`owner:iqp_not_induced=4`,
+`proof:break_prevention_contract_mismatch=1`, and `tactical:first=2`.
+
+The same rerun's contract-proof split is `-:-=10`,
+`Releasable:runtime:neutralize_key_break=6`,
+`Releasable:subplan:backward_pawn_targeting=1`,
+`Releasable:subplan:central_break_timing=1`,
 `Releasable:subplan:defender_trade=1`,
 `Releasable:subplan:iqp_inducement=5`,
 `Releasable:subplan:queen_trade_shield=1`,
-`Releasable:subplan:simplification_window=1`,
-`Releasable:subplan:static_weakness_fixation=1`,
-`Releasable:runtime:neutralize_key_break=4`, and `-:-=11` rows with no
-contract packet.
-Capablanca-Golombek is now separated as an engine/source mismatch first
-(`source_move_absent_from_multipv`) plus missing Carlsbad owner for the
-original Carlsbad row, while the separate ply-45 IQP row is admitted.
-Botvinnik-Vidmar is separated into two outcomes: the opening IQP source row is
-near-top and admits as `SupportedLocal`, while the original fixed intake row and
-the ply-31 IQP screen remain non-authority because exact IQP owner
-proof fails with `owner:iqp_not_induced`. Boleslavsky-Nezhmetdinov is admitted as the first natural
-`StaticWeaknessFixation` authority row, while the separate Maderna-Palermo
-static-weakness screen remains a
-same-family negative screen: engine top line agrees with the source move, but
-the backend records `owner:root_vocabulary_or_extraction_gap` and no owner
-packet. Aronian-Andreikin is the first DefenderTrade natural authority row:
-the public source move `c1a3` is near-top rather than PV1, and it enters matrix
-authority only because the `defender_trade` packet, planner admission,
-tactical-first veto, and claim-only surfaces all pass. Kramnik-Anand and
-Tartakower-Capablanca remain
-tactical-first blockers.
-Karpov-Unzicker 1974 and Karpov-Andersson 1975 were added as
-`break_prevention` natural source screens for
-`counterplay_axis_suppression`, but neither materializes the exact
-`neutralize_key_break` packet/proof in the fixed source review. Karpov-Unzicker
-now reaches route-level evidence and fails on
-`owner:break_prevention_capture_transform_recapture_unproven`;
-Karpov-Andersson remains
-`reject_owner_missing` with `owner:break_prevention_no_prevented_plan`.
+`Releasable:subplan:simplification_window=1`, and
+`Releasable:subplan:static_weakness_fixation=2`. This batch did not fail
+because Bookmaker or Chronicle distorted an admitted local claim; current
+source acceptance is instead determined by the `verdict=admit_authority_row`
+rows in `strategic_claim_source_review.*`.
+
+Central-break timing now has one exact source acceptance and one diagnostic
+screen in that rerun: `source-maderna-palermo-1955-central-break-timing`
+admits as `central_break_timing` / `SupportedLocal`, while
+`source-maderna-palermo-1955-central-break-prep-review` rejects with
+`owner:central_break_timing_witness_missing` and `release=-`. The current
+break-prevention source-review acceptances are Maderna-Palermo 1955,
+Sliwa-Gromek 1960, and Polugaevsky-Giorgadze 1956. Camara-Bazan 1960 and
+Pfleger-Maalouf 1961 remain review evidence under this engine snapshot, not
+current source-review authority.
 
 The targeted IQP plus simplification, static-weakness, and DefenderTrade window
 probes confirm five natural IQP authority rows, one Botvinnik IQP
@@ -4914,23 +4900,13 @@ The same pass caught two surface issues before signoff:
   `SupportedLocal` claim-only slot gate so the downgraded one-liner can surface
   without support/coda reinflation.
 
-As of this expanded run, there are ten natural `SupportedLocal` cases:
-`source-carlsen-anand-2014-g6`,
-`source-capablanca-golombek-1939-iqp-inducement`,
-`source-evans-opsahl-1950-iqp-inducement`,
-`source-alekhine-bogoljubow-1936-iqp-inducement`,
-`source-najdorf-sergeant-1939-iqp-inducement`,
-`source-botvinnik-vidmar-1936-iqp-opening-inducement`, and
-`source-aronian-andreikin-2014-defender-trade`,
-`source-maderna-palermo-1955-a6-a5-break-prevention`,
-`source-camara-bazan-1960-b7-b5-break-prevention`, and
-`source-pfleger-maalouf-1961-a6-a5-break-prevention`, plus one natural source-backed
-simplification `CertifiedOwner` case,
-`source-salov-ljubojevic-1992-simplification-window`, and one natural
-source-backed static-weakness `CertifiedOwner` case,
-`source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation`. Wider rollout
-must still keep the same rule: new natural rows enter authority only through
-exact replay, owner packet proof, and full surface checks.
+The `AuthoritySurfaceLedger` may still contain older fixed source surface
+fixtures such as Camara-Bazan and Pfleger-Maalouf. That ledger exists to replay
+surface contracts and cross-surface non-reinflation, not to define current
+source admission. Wider source rollout must keep the stricter rule: a natural
+row enters authority only through current exact replay, engine gate, owner
+packet proof, tactical veto, planner admission, and full surface checks in
+`SourceReview`.
 
 Future plan-kind expansion is now tracked by the reusable admission-unit
 catalog in `AdmissionUnitCatalog`. Each execution pass is one
@@ -4947,12 +4923,22 @@ runtime policy. The default queue is:
 | `prophylaxis_restraint` | `prophylactic_move` | `counterplay_restraint` | `Releasable` as `SupportedLocal` proof target |
 | `open_file_pressure` | `local_file_entry_bind` | `half_open_file_pressure` | `Releasable` as `SupportedLocal` proof target |
 | `bad_piece_liquidation` | `bad_piece_liquidation` | `bad_piece_liquidation` | `Releasable` as `SupportedLocal` proof target |
-| `central_break_timing` | `central_break_timing` | `central_break_timing` | `Deferred`; do not open until a new exact probe is proven |
+| `central_break_timing` | `central_break_timing` | `central_break_timing` | `Releasable` as `SupportedLocal` through board-backed break support only |
 
 The queue deliberately separates proof target from release: `CertifiedOwner`
 still requires PV1 source-move agreement, while `SupportedLocal` may use the
 near-top MultiPV gate only after exact proof packet proof, planner
 admission, tactical-first veto, and full claim-only surface checks.
+
+`central_break_timing` is now a bounded break-support model, not a
+one-exact-row probe. Board-backed break support may enter the
+`SupportedLocal` lane only when they preserve same-branch proof, stable
+persistence, the tactical-first veto, and the rival-family veto. Rows backed
+only by plan carriers remain diagnostic / review-only; they do not create
+player-facing ownership. The retained exact rows stay as positive controls /
+regression seeds for the board-backed path, while broad generic `plan_advance`
+remains owner-closed. This changes no public API and opens no generic owner-lane
+expansion beyond the certified `central_break_timing` packet.
 
 The 2026-05-14 `break_prevention` admission-unit pass executed the first queue
 row: `counterplay_axis_suppression` as proof source and
@@ -4999,20 +4985,11 @@ risk and the checked branch has at least four plies. `PlayerFacingTruthModePolic
 `ClaimAuthorityPolicy`, and `QuestionFirstCommentaryPlanner` then reuse that
 same exact witness for the `counterplay_axis_suppression` /
 `neutralize_key_break` owner packet, `SupportedLocal` release, tactical-first
-veto, and claim-only surface. Refreshed snapshots now admit exactly two natural
-`break_prevention` rows:
-`source-maderna-palermo-1955-a6-a5-break-prevention` and
-`source-pfleger-maalouf-1961-a6-a5-break-prevention`, both with the surface
-`A local reading is that this keeps ...a5 from coming right away.` Karpov still
-does not admit: Karpov-Unzicker rejects with
-`owner:break_prevention_capture_transform_recapture_unproven`, and its 17-ply
-window scan contains one transform blocker plus fourteen
-`owner:break_prevention_no_prevented_plan` rows, one
-`owner:break_prevention_witness_missing` row, and four engine top-move
-disagreements. Karpov-Andersson stays a screen: the fixed row is
-`owner:break_prevention_no_prevented_plan`, while the window review reports
-three incidental IQP rows as `proof:break_prevention_contract_mismatch` and one
-row as `owner:break_prevention_no_prevented_plan`.
+veto, and claim-only surface. The current Stockfish 18 source-review snapshot
+admits three natural `break_prevention` rows: Maderna-Palermo 1955,
+Sliwa-Gromek 1960, and Polugaevsky-Giorgadze 1956. Older notes that counted
+Pfleger-Maalouf or Camara-Bazan as admitted belong to historical surface
+fixture snapshots, not current source-review authority.
 
 The test/tooling-only clean break-clamp candidate scanner is a discovery aid
 for the next source hunt, not an authority path. It reads PGN / RealPgn-style
@@ -5043,38 +5020,15 @@ still needs the fixed catalog copy plus exact replay, engine authority,
 `neutralize_key_break` owner packet proof, tactical veto, planner admission,
 and claim-only surfaces before it can enter the authority matrix.
 
-The 2026-05-14 corpus source-hunt pass used the scanner on the first 120 games
-of the PGNMentor Modern Benoni 6.e4 corpus. It found 786 structural
-`clean_route_clamp` rows from 1,188 route-evidence plies, then promoted only
-three non-transform, non-source-id smoke candidates into `SourceWitnessCatalog`
-for exact SourceReview:
-`source-lokvenc-czerniak-1952-b6-b5-break-prevention` (12.Bb5 denying the
-board-derived `...b6-b5` route),
-`source-maderna-palermo-1955-a6-a5-break-prevention` (15.a5 denying
-`...a6-a5`), and
-`source-polugaevsky-giorgadze-1956-c5-c4-break-prevention` (12.Nc4 denying
-`...c5-c4`). The scanner still classifies all three as clean no-transform route
-clamps. Full SourceReview now separates their actual blockers: Maderna-Palermo
-has top-PV source-move agreement and reaches a natural
-`counterplay_axis_suppression` / `neutralize_key_break` `SupportedLocal` row;
-Lokvenc-Czerniak also has top-PV agreement and a packet, but the scene is still
-owned by an urgent forcing-defense threat, so the break-prevention row remains
-`owner:break_prevention_witness_missing`; Polugaevsky-Giorgadze is near-top but
-materializes the wrong proof contract and remains
-`proof:break_prevention_contract_mismatch`.
-The 2026-05-15 wider pass then scanned the next 500 games from the same corpus
-(`offset=120`, `limit=500`). It reviewed 38,934 plies, found 5,214
-route-evidence plies, 3,567 clean candidates, 1,077 transform blockers, and
-1,558 engine blockers. Three additional non-transform smoke candidates entered
-`SourceWitnessCatalog`: `source-sliwa-gromek-1960-a6-a5-break-prevention`,
-`source-luckis-bielicki-1961-a6-a5-break-prevention`, and
-`source-pfleger-maalouf-1961-a6-a5-break-prevention`. Full SourceReview keeps
-Sliwa closed as `owner:break_prevention_witness_missing` because the scene is
-forcing-defense led, keeps Luckis closed as
-`proof:break_prevention_contract_mismatch`, and admits Pfleger-Maalouf as the
-second natural `counterplay_axis_suppression` / `neutralize_key_break`
-`SupportedLocal` row. That scanner-source-hunt result was two admitted natural
-`break_prevention` rows, not a broad clean-route release.
+The 2026-05-14 and 2026-05-15 corpus source-hunt passes remain discovery
+history, not acceptance. They added Modern Benoni clean-route candidates such
+as Lokvenc-Czerniak, Maderna-Palermo, Polugaevsky-Giorgadze, Sliwa-Gromek,
+Luckis-Bielicki, and Pfleger-Maalouf to `SourceWitnessCatalog` for exact
+review. The current Stockfish 18 `SourceReview` result is the authority:
+Maderna-Palermo, Sliwa-Gromek, and Polugaevsky-Giorgadze admit as
+`counterplay_axis_suppression` / `neutralize_key_break` `SupportedLocal`;
+Lokvenc-Czerniak, Luckis-Bielicki, and Pfleger-Maalouf remain non-authority
+under their current blockers. This is still not a broad clean-route release.
 
 The 2026-05-15 source-triage admission pass reran the same Modern Benoni
 `offset=120`, `limit=500` slice through `BreakClampSourceTriage` with
@@ -5083,17 +5037,22 @@ ranked clean candidates and exposed exactly one promotable row under the pass
 limit: `source-camara-bazan-1960-b7-b5-break-prevention`, the exact ply-27
 `Bb5` position from Camara-Bazan 1960, where the played move denies the
 board-derived `...b7-b5` route. After copying only that row into the fixed
-catalog and rerunning the full source review and authority surface ledger, it
-admits as `counterplay_axis_suppression` / `neutralize_key_break`,
-`release=SupportedLocal`, with primary, Bookmaker, and Chronicle all exactly
-`A local reading is that this keeps ...b5 from coming right away.` Refreshed
-snapshots now report `admit_authority_row=13` in
-`strategic_claim_source_review.*` and `SupportedLocal=15` in
-`strategic_claim_authority_surface_review.md`. The current fixed natural
-`break_prevention` authority set is therefore three rows: Maderna-Palermo
-1955, Camara-Bazan 1960, and Pfleger-Maalouf 1961. This is still not a broad
-clean-route release; clean scanner rows remain discovery-only unless the fixed
-catalog row passes the full authority stack.
+catalog and rerunning the then-current full source review and authority surface
+ledger, it admitted as `counterplay_axis_suppression` /
+`neutralize_key_break`, `release=SupportedLocal`, with primary, Bookmaker, and
+Chronicle all exactly
+`A local reading is that this keeps ...b5 from coming right away.` That older
+snapshot is historical only. The 2026-05-17 Stockfish 18 rerun of
+`strategic_claim_source_review.*` now reports `admit_authority_row=12`; the
+real-engine break-prevention rows that currently admit are Maderna-Palermo
+1955, Sliwa-Gromek 1960, and Polugaevsky-Giorgadze 1956. Camara-Bazan 1960
+and Pfleger-Maalouf 1961 are review evidence, not current source-review
+authority, until they again pass the full engine-backed owner stack. The
+surface ledger still reports `SupportedLocal=15` as a canned surface-contract
+matrix, but it must not be read as source-review acceptance when it conflicts
+with `SourceReview`. This is still not a broad clean-route release; clean
+scanner rows remain discovery-only unless the fixed catalog row passes the
+full authority stack.
 
 The 2026-05-15 `prophylaxis_restraint` admission-unit review applied the same
 admission-unit structure to `prophylactic_move` /
@@ -5130,6 +5089,8 @@ Failure taxonomy anchors for authority rows:
 | `source_break_prevention` | source-backed break-prevention candidates are screen rows unless the exact `neutralize_key_break` packet/proof materializes; incidental non-break owner packets inside the window do not admit the family |
 | `prophylaxis_restraint_supported_local` | controlled exact named-resource prophylactic witness admitted only as `SupportedLocal` through `prophylactic_move` / `counterplay_restraint`; natural source rows still require exact owner packet proof |
 | `source_prophylaxis_restraint` | transient or fixed prophylaxis-restraint source rows are screen rows unless the exact `counterplay_restraint` packet/proof materializes with claim-only surfaces |
+| `central_break_timing_supported_local` | board-backed break support admitted only as `SupportedLocal`; exact rows stay positive controls / regression seeds and do not widen the path by themselves |
+| `source_central_break_timing_plan_only` | plan-only central-break rows are diagnostic / review-only and may not become player-facing owners |
 | `owner:prophylaxis_restraint_witness_missing` | no exact named-resource prophylactic witness is available for the family row |
 | `proof:prophylaxis_restraint_contract_mismatch` | a row materializes a rival packet, such as target fixation or named-break prevention, and may not be relabeled as `prophylaxis_restraint` |
 | `owner:prophylaxis_restraint_rival_or_relabel` | a named-resource prophylaxis shell is blocked by release-risk or generic/rival counterplay relabel |
@@ -5181,6 +5142,6 @@ update this document in the same change.
 Current maintenance rule:
 
 - treat compile/test green as `implementation-green`, not final closure
-- require adversarial review before `close-ready`
+- require adversarial review before bounded-scope completion
 - if a fresh runtime change touches a bounded B1 / B2 / B3 seam, reopen only
   the touched slice and extend its negative fixtures first

@@ -56,18 +56,20 @@ private[commentary] object ClaimAuthorityPolicy:
       .orElse(decideSupportedMoveDelta(inputs, plan))
 
   def supportedLocalSurface(raw: String): String =
-    val stripped =
-      stripPrefix(raw, "The key strategic fact here is that ")
-        .orElse(stripPrefix(raw, "The strategic point is that "))
-        .orElse(stripPrefix(raw, "This shows that "))
-        .getOrElse(raw.trim)
-        .stripSuffix(".")
-        .trim
-    val lowered =
-      stripped.headOption match
-        case Some(head) => s"${head.toLower}${stripped.drop(1)}"
-        case None       => stripped
-    s"A local reading is that $lowered."
+    if normalize(raw).startsWith("a local reading is that ") then raw.trim
+    else
+      val stripped =
+        stripPrefix(raw, "The key strategic fact here is that ")
+          .orElse(stripPrefix(raw, "The strategic point is that "))
+          .orElse(stripPrefix(raw, "This shows that "))
+          .getOrElse(raw.trim)
+          .stripSuffix(".")
+          .trim
+      val lowered =
+        stripped.headOption match
+          case Some(head) => s"${head.toLower}${stripped.drop(1)}"
+          case None       => stripped
+      s"A local reading is that $lowered."
 
   private def tacticalVetoReasons(
       ctx: Option[NarrativeContext],

@@ -315,12 +315,19 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
             else s"This limits the defensive resource tied to $focal."
           })
       case PlayerFacingMoveDeltaClass.PlanAdvance =>
-        preferredWitnessAnchor(delta.packet).orElse(anchor).map { square =>
-          delta.modalityTier match
-            case PlayerFacingClaimModalityTier.Advances => s"This advances the plan toward $square."
-            case PlayerFacingClaimModalityTier.Supports => s"This supports the plan toward $square."
-            case _                                      => s"This keeps the plan toward $square available."
-        }
+        if delta.packet.proofFamily == CentralBreakTimingWitness.ProofFamily &&
+            delta.packet.proofSource == CentralBreakTimingWitness.ProofSource
+        then
+          CentralBreakTimingWitness
+            .exact(ctx)
+            .map(PlayerFacingTruthModePolicy.centralBreakTimingClaimText)
+        else
+          preferredWitnessAnchor(delta.packet).orElse(anchor).map { square =>
+            delta.modalityTier match
+              case PlayerFacingClaimModalityTier.Advances => s"This advances the plan toward $square."
+              case PlayerFacingClaimModalityTier.Supports => s"This supports the plan toward $square."
+              case _                                      => s"This keeps the plan toward $square available."
+          }
 
   private def strategicCounterplayClaim(
       ctx: NarrativeContext,
@@ -510,7 +517,8 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
       packet.proofSource == PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource ||
         packet.proofSource == PlayerFacingTruthModePolicy.QueenTradeShieldProofSource ||
         packet.proofSource == PlayerFacingTruthModePolicy.IQPInducementProbeProofSource ||
-        packet.proofSource == PlayerFacingTruthModePolicy.DefenderTradeProofSource
+        packet.proofSource == PlayerFacingTruthModePolicy.DefenderTradeProofSource ||
+        packet.proofSource == CentralBreakTimingWitness.ProofSource
     ) {
       packet.proofSource
     }.getOrElse(mainSourceKind(surface, truthContract))

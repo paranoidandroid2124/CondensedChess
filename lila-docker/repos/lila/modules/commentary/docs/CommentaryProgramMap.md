@@ -104,7 +104,7 @@ may still say family when it is not naming a current pipeline layer.
   reproduced the after-trigger defended branch
   `a7a5 b4a5 c6a5 f3e5 ... a5c4`, but root best on the control FEN stayed
   `c3b4`, not `a3b4`, and the matrix produced `0` independent broader B6
-  survivors. The practical result is narrower than the earlier close-ready
+  survivors. The practical result is narrower than the earlier completion-candidate
   reading:
   current branch keeps the exact intermediate route-chain visible only on the
   backend helper lane, not as planner-owned live truth, so A-track closeout
@@ -149,6 +149,13 @@ may still say family when it is not naming a current pipeline layer.
   closed, and
   `B9 = bounded color-complex / mobility-cage` as the last and most
   risk-sensitive family
+- Separate from the B-route map, `central_break_timing` now has a bounded
+  `SupportedLocal` release boundary on the existing move-delta path:
+  board-backed break support may release only through the certified
+  `central_break_timing` packet after same-branch proof, stable persistence,
+  tactical-first veto, and rival-family veto; plan-only central-break rows are
+  review / diagnostic material only, exact rows are regression seeds, and broad
+  generic `plan_advance` remains owner-closed.
 
 ## Mid-Layer Cluster Map
 
@@ -164,13 +171,15 @@ canonical docs.
 | B | Target Fixation / Weakness Pressure | reviewed `static_weakness_fixation`, `backward_pawn_targeting`, `target_focused_coordination`, `minority_attack_fixation`, `iqp_inducement` | cluster B now has three live exact slices on the canonical path: `B21` / `B21A` keep the existing move-local `exact_target_fixation` lane (`bestDefenseBranchKey=f3d2|b8a6`, `sameBranchState=Proven`, `persistence=Stable`, `main_bundle=This keeps the pressure fixed on d6.`, planner-primary `WhatChanged=This changes the position by fixing d6 as the target.` plus same-branch contrast/consequence), `B15A` / `B16B` keep the Carlsbad fixed-target current-position probe (`proofSource=carlsbad_fixed_target_probe`, `proofFamily=backward_pawn_targeting`, `scope=PositionLocal`, `main_bundle=The key strategic fact here is that c6 is the fixed target.`, planner-primary `WhatMattersHere`, deterministic Bookmaker / Chronicle primary, and coda `So the task is to keep the queenside pressure trained on c6 instead of rushing a conversion.`), and `K09A` / `K09D` now open the second planner-owned current-position probe lane on exact coordination (`proofSource=target_focused_coordination_probe`, `proofFamily=target_focused_coordination`, `scope=PositionLocal`, `bestDefenseBranchKey=d1b3|d8d7` on `K09A` / `h2h3|g4f3` on `K09D`, `sameBranchState=Proven`, `persistence=Stable`, `main_bundle=The key strategic fact here is that the pressure is coordinated on c6.`, planner-primary `WhatMattersHere`, and deterministic Bookmaker / Chronicle coda `So the task is to keep the pressure coordinated on c6 until the target has to give way.`); the same exact `B21A` packet still backs the only support-only `decisionComparison` comparative digest (`Nd2` versus `Qc2`: `Nd2 fixes d6 as the target; Qc2 leaves d6 unfixed on the compared branch.`); `minority_attack_fixation` stays absorbed support-only; `iqp_inducement` stays structure/conversion support-only; `K03A` remains fail-closed and `K09E` remains file-pressure / release-rival blocked | keep all three exact lanes narrow: `B21` / `B21A` stay move-owned delta only, `B15A` / `B16B` stay Carlsbad current-position probe only, `K09A` / `K09D` stay exact coordination current-position probe only, and fail-close siblings unless a new reviewed row survives exact board + same-branch proof without relabel drift |
 | C | Exchange / Removal Without Task-Shift | `17.trade_key_defender`, bounded `favorable_simplification`, bounded `trade_attacking_piece`, bounded `remove_key_defender` trigger-only form | bounded `favorable_simplification` is now promoted on one exact same-task simplification slice; `trade_key_defender` stays blocked; `trade_attacking_piece` is now reviewed fail-closed because `K08A` is not a real live-attacker removal row, `K08D` is not root-best, and exploratory `MI5` collapses into tactic-first `Qxd6` relief; `remove_key_defender` is now reviewed fail-closed because `K09B`/`K09F` only survive as same-task simplification on `d4e6|f7e6`, `K09A` / `K09D` now belong to the separate `target_focused_coordination` current-position probe lane, `K09E` stays file-pressure / release-rival dominated, and `MI5` is still tactic-first relief rather than a one-defender local trigger | keep the promoted simplification slice narrow and keep `trade_key_defender`, `trade_attacking_piece`, and `remove_key_defender` blocked; reopen `trade_attacking_piece` or `remove_key_defender` only with a new exact row whose planner-owned move-local owner survives without relabeling into simplification, blocked defender-trade ownership, attack-piece removal, tactical cleanup, or the exact coordination probe lane |
 | D | Coordination / Access Conversion | bounded `support_file_occupation`, bounded `entry_square_enable_deny`, bounded `target_focused_piece_coordination` | `entry_square_enable_deny` reviewed and blocked; `support_file_occupation` and `target_focused_piece_coordination` remain queued | keep `entry_square_enable_deny` blocked unless a new exact root-best row materializes a one-square move-local owner without relabeling into prophylaxis or file-entry reuse; keep the other two cells queue-only |
+| E | Pawn-Break Timing | `central_break_timing`, `wing_break_timing`, `tension_maintenance` | `central_break_timing` has a bounded `SupportedLocal` path through board-backed break support; plan-only central-break rows are review-only; `wing_break_timing` and `tension_maintenance` remain closed | keep central-break release limited to the certified packet; do not widen generic `plan_advance`, exact-row whitelists, or plan-only carriers into player-facing owners |
 
 Current mid-layer priority remains machinery-first for the remaining unopened
 review cells:
 deepen owner seed, same-branch continuation, rival-story arbitration, and
 structure-transition witness inside the existing canonical owner-path modules
-while keeping the newly opened Cluster B slice narrow and the remaining C / D
-reviews fail-closed until they survive the same proof burden.
+while keeping the newly opened Cluster B slice narrow, the central-break timing
+packet bounded, the remaining C / D reviews fail-closed, and any future
+pawn-break timing broadening closed until it survives the same proof burden.
 
 ## What Step 1-7 Closed
 
@@ -262,7 +271,7 @@ Current status:
   reverse adversarial review green
 - `CTH-B2`:
   bounded named-break / entry-axis suppression slice implemented and
-  `close-ready` inside that narrow charter
+  current bounded scope complete inside that narrow charter
 - `CTH-B3`:
   bounded dual-axis clamp / bind slice implemented and adversarial-review green
   inside that narrow charter
@@ -421,8 +430,10 @@ maintenance/report lanes, not the active implementation frontier.
 
 Current frontier status:
 
-- the live trust-owning runtime is still:
-  bounded B1 / B2 / B3 / B4 only
+- the B-route runtime remains narrow:
+  bounded B1 / B2 / B3 / B4, B5b containment, and B6b planner-only
+- separately, `central_break_timing` has a bounded `SupportedLocal`
+  move-delta path through board-backed break support
 - the only live B4 positive scope remains:
   clearly-better late-middlegame local file-entry bind certification with one
   single corroborating entry-square axis on the existing
@@ -431,7 +442,7 @@ Current frontier status:
   no new positive slice is open, and the selected next recon family is
   heavy-piece local bind on a negative-first criticism/validation lane
 - B5b is implemented only as a negative-first containment slice and is now
-  `close-ready` inside that bounded charter:
+  current bounded scope complete inside that bounded charter:
   queen-on heavy-piece local bind shells now downgrade through the existing
   `RestrictionProphylaxis` file-entry reuse path, with exact-FEN nasty cases,
   exact-branch replay release proof, fixed-depth engine-path reproduction, and
@@ -468,7 +479,7 @@ CQF maintenance status:
 - Track 3 is in maintenance monitoring, not an active blocker
 - quiet-support wording itself is no longer the main blocker, and the
   planner-owned blocked-lane forcing-row preservation blocker remains closed
-- Track 4 no longer has a collection blocker and remains a close-candidate on
+- Track 4 no longer has a collection blocker and remains maintenance-ready on
   the corpus-maintenance lane
 
 Representative preserved rows include:
@@ -566,4 +577,4 @@ Use this shorthand consistently:
 
 Use this wording when you need a concise new-session handoff:
 
-`Step 1-7 is complete and signoff-ready. That closed scene-first admission, owner legality, planner/build/replay consistency, surface parity, and collision signoff. We are now in CQF, but the active trust-owning rollout remains narrow: the live runtime is still bounded B1 / B2 / B3 / B4, B5b is current-bounded-scope complete as a negative-first containment slice only, and B6b remains the only route-network positive attempt on the same restriction-prophylaxis lane: clearly-better late-middlegame named route-network bind still requires a certified B4 file-entry pair plus one non-redundant reroute denial on the same defended branch, opens only planner-owned WhyThis wording, and stays fail-closed on Chronicle / Bookmaker / Active / whole-game replay. The 2026-04-03 broadened exact-FEN matrix reran 25 rows, found 0 independent broader B6 survivors, and again failed to reproduce the earlier `a3b4` root-best reading under the helper-backed rerun, so A-track closeout is plateaued rather than advanced. The broader route-chain intermediate remains backend-visible only on the current branch; planner-owned live wording for that wider slice is closed again until a fresh exact-FEN root-best control exists. Broad route-chain, sector-network, heavy-piece positive, slight-edge squeeze, and color-complex expansion stay closed. Use CommentaryProgramMap first, then SSoT and ForcedLineTruth; detailed rerun evidence lives in local quality artifacts rather than a separate appendix document.`
+`Step 1-7 is complete and signoff-ready. That closed scene-first admission, owner legality, planner/build/replay consistency, surface parity, and collision signoff. We are now in CQF, but the active trust-owning rollout remains narrow: the B-route runtime is bounded to B1 / B2 / B3 / B4, B5b negative-first containment is current bounded scope complete, and B6b remains planner-only on the same restriction-prophylaxis lane. Separately, central_break_timing has a bounded SupportedLocal move-delta path through board-backed break support; plan-only central-break rows remain review-only. Broad route-chain, sector-network, heavy-piece positive, slight-edge squeeze, and color-complex expansion stay closed. Use CommentaryProgramMap first, then SSoT and CommentaryTruthBoundary; detailed rerun evidence lives in local quality artifacts rather than a separate appendix document.`

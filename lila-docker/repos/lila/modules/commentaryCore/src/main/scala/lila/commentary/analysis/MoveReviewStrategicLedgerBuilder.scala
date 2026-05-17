@@ -1,18 +1,19 @@
 package lila.commentary.analysis
 
-import lila.commentary.{ BookmakerLedgerLineV1, BookmakerRefsV1, BookmakerStrategicLedgerV1, DecisionComparisonDigest, NarrativeSignalDigest, StrategyPack }
+import lila.commentary.{ DecisionComparisonDigest, MoveReviewLedgerLine, MoveReviewRefs, MoveReviewStrategicLedger, NarrativeSignalDigest, StrategyPack }
+import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme, ThemeResolver }
 import lila.commentary.model.{ FactScope, NarrativeContext, ProbeResult }
 import lila.commentary.model.authoring.QuestionEvidence
 import lila.commentary.model.strategic.{ EndgamePatternState, PlanLifecyclePhase }
 
-object BookmakerStrategicLedgerBuilder:
+object MoveReviewStrategicLedgerBuilder:
 
   private final case class MotifDef(
       key: String,
       label: String,
       markers: List[String],
-      allowedThemes: Set[ThemeTaxonomy.ThemeL1] = Set.empty,
-      preferredSubplans: Set[ThemeTaxonomy.SubplanId] = Set.empty
+      allowedThemes: Set[PlanTheme] = Set.empty,
+      preferredSubplans: Set[PlanKind] = Set.empty
   )
 
   private final case class MotifChoice(
@@ -27,8 +28,8 @@ object BookmakerStrategicLedgerBuilder:
   )
 
   private final case class PlanProfile(
-      themes: Set[ThemeTaxonomy.ThemeL1],
-      subplans: Set[ThemeTaxonomy.SubplanId]
+      themes: Set[PlanTheme],
+      subplans: Set[PlanKind]
   )
 
   private final case class LineCandidate(
@@ -40,10 +41,10 @@ object BookmakerStrategicLedgerBuilder:
       source: String,
       weight: Double
   ):
-    def toWire: Option[BookmakerLedgerLineV1] =
+    def toWire: Option[MoveReviewLedgerLine] =
       val normalizedMoves = sanMoves.map(_.trim).filter(_.nonEmpty).take(4)
       Option.when(title.trim.nonEmpty && normalizedMoves.nonEmpty)(
-        BookmakerLedgerLineV1(
+        MoveReviewLedgerLine(
           title = title.trim,
           sanMoves = normalizedMoves,
           scoreCp = scoreCp,
@@ -60,11 +61,11 @@ object BookmakerStrategicLedgerBuilder:
       key = "rook_pawn_march",
       label = "Rook-pawn march",
       markers = List("rook pawn march", "h pawn lever", "rook lift", "kingside clamp"),
-      allowedThemes = Set(ThemeTaxonomy.ThemeL1.FlankInfrastructure),
+      allowedThemes = Set(PlanTheme.FlankInfrastructure),
       preferredSubplans = Set(
-        ThemeTaxonomy.SubplanId.RookPawnMarch,
-        ThemeTaxonomy.SubplanId.HookCreation,
-        ThemeTaxonomy.SubplanId.RookLiftScaffold
+        PlanKind.RookPawnMarch,
+        PlanKind.HookCreation,
+        PlanKind.RookLiftScaffold
       )
     ),
     MotifDef(
@@ -72,39 +73,39 @@ object BookmakerStrategicLedgerBuilder:
       label = "Entrenched piece",
       markers = List("entrenched piece", "entrenched", "french chain", "fixed knight"),
       allowedThemes = Set(
-        ThemeTaxonomy.ThemeL1.PieceRedeployment,
-        ThemeTaxonomy.ThemeL1.WeaknessFixation
+        PlanTheme.PieceRedeployment,
+        PlanTheme.WeaknessFixation
       ),
       preferredSubplans = Set(
-        ThemeTaxonomy.SubplanId.OutpostEntrenchment,
-        ThemeTaxonomy.SubplanId.WorstPieceImprovement
+        PlanKind.OutpostEntrenchment,
+        PlanKind.WorstPieceImprovement
       )
     ),
     MotifDef(
       key = "minority_attack",
       label = "Minority attack",
       markers = List("minority attack", "carlsbad"),
-      allowedThemes = Set(ThemeTaxonomy.ThemeL1.WeaknessFixation),
-      preferredSubplans = Set(ThemeTaxonomy.SubplanId.MinorityAttackFixation)
+      allowedThemes = Set(PlanTheme.WeaknessFixation),
+      preferredSubplans = Set(PlanKind.MinorityAttackFixation)
     ),
     MotifDef(
       key = "outpost_reinforcement",
       label = "Outpost reinforcement",
       markers = List("outpost reinforcement", "outpost", "strong square", "anchor square"),
-      allowedThemes = Set(ThemeTaxonomy.ThemeL1.PieceRedeployment),
-      preferredSubplans = Set(ThemeTaxonomy.SubplanId.OutpostEntrenchment)
+      allowedThemes = Set(PlanTheme.PieceRedeployment),
+      preferredSubplans = Set(PlanKind.OutpostEntrenchment)
     ),
     MotifDef(
       key = "color_complex",
       label = "Color complex",
       markers = List("color complex", "colour complex", "color complex weakness"),
       allowedThemes = Set(
-        ThemeTaxonomy.ThemeL1.SpaceClamp,
-        ThemeTaxonomy.ThemeL1.WeaknessFixation
+        PlanTheme.SpaceClamp,
+        PlanTheme.WeaknessFixation
       ),
       preferredSubplans = Set(
-        ThemeTaxonomy.SubplanId.FlankClamp,
-        ThemeTaxonomy.SubplanId.StaticWeaknessFixation
+        PlanKind.FlankClamp,
+        PlanKind.StaticWeaknessFixation
       )
     ),
     MotifDef(
@@ -115,22 +116,22 @@ object BookmakerStrategicLedgerBuilder:
         "opposite colored bishops draw",
         "good bishop rook pawn conversion"
       ),
-      allowedThemes = Set(ThemeTaxonomy.ThemeL1.AdvantageTransformation),
+      allowedThemes = Set(PlanTheme.AdvantageTransformation),
       preferredSubplans = Set(
-        ThemeTaxonomy.SubplanId.OppositeBishopsConversion,
-        ThemeTaxonomy.SubplanId.SimplificationConversion,
-        ThemeTaxonomy.SubplanId.PasserConversion,
-        ThemeTaxonomy.SubplanId.InvasionTransition
+        PlanKind.OppositeBishopsConversion,
+        PlanKind.SimplificationConversion,
+        PlanKind.PasserConversion,
+        PlanKind.InvasionTransition
       )
     ),
     MotifDef(
       key = "active_passive_exchange",
       label = "Active-passive exchange",
       markers = List("active passive exchange", "exchange active pieces", "leave passive pieces"),
-      allowedThemes = Set(ThemeTaxonomy.ThemeL1.FavorableExchange),
+      allowedThemes = Set(PlanTheme.FavorableExchange),
       preferredSubplans = Set(
-        ThemeTaxonomy.SubplanId.SimplificationWindow,
-        ThemeTaxonomy.SubplanId.DefenderTrade
+        PlanKind.SimplificationWindow,
+        PlanKind.DefenderTrade
       )
     ),
     MotifDef(
@@ -142,30 +143,30 @@ object BookmakerStrategicLedgerBuilder:
       key = "counterplay_restraint",
       label = "Counterplay restraint",
       markers = List("counterplay restraint", "counterplay cut", "prophylaxis", "deny break"),
-      allowedThemes = Set(ThemeTaxonomy.ThemeL1.RestrictionProphylaxis),
+      allowedThemes = Set(PlanTheme.RestrictionProphylaxis),
       preferredSubplans = Set(
-        ThemeTaxonomy.SubplanId.ProphylaxisRestraint,
-        ThemeTaxonomy.SubplanId.BreakPrevention,
-        ThemeTaxonomy.SubplanId.KeySquareDenial
+        PlanKind.ProphylaxisRestraint,
+        PlanKind.BreakPrevention,
+        PlanKind.KeySquareDenial
       )
     ),
     MotifDef(
       key = "opening_branch",
       label = "Opening branch",
       markers = List("opening branch", "opening theory", "theory"),
-      allowedThemes = Set(ThemeTaxonomy.ThemeL1.OpeningPrinciples),
-      preferredSubplans = Set(ThemeTaxonomy.SubplanId.OpeningDevelopment)
+      allowedThemes = Set(PlanTheme.OpeningPrinciples),
+      preferredSubplans = Set(PlanKind.OpeningDevelopment)
     )
   )
 
   def build(
       ctx: NarrativeContext,
       strategyPack: Option[StrategyPack],
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       probeResults: List[ProbeResult],
       planStateToken: Option[PlanStateTracker],
       endgameStateToken: Option[EndgamePatternState]
-  ): Option[BookmakerStrategicLedgerV1] =
+  ): Option[MoveReviewStrategicLedger] =
     val digest = strategyPack.flatMap(_.signalDigest).orElse(NarrativeSignalDigestBuilder.build(ctx))
     val decision = digest.flatMap(_.decisionComparison).orElse(DecisionComparisonBuilder.digest(ctx))
     val routeSignal = hasRouteSignal(ctx, strategyPack, digest)
@@ -188,7 +189,7 @@ object BookmakerStrategicLedgerBuilder:
         openingSignal
       )
     val primaryLine = choosePrimaryLine(ctx, decision, motif.map(_.motif.key), refs, probeResults)
-    val resourceLine = chooseResourceLine(ctx, decision, refs, probeResults)
+    val resourceLine = chooseResourceLine(ctx, refs, probeResults)
     val stage = classifyStage(
       ctx = ctx,
       digest = digest,
@@ -224,7 +225,7 @@ object BookmakerStrategicLedgerBuilder:
       )
     ) {
       val resolvedMotif = finalMotif.getOrElse(sys.error("ledger emission requires a motif"))
-      BookmakerStrategicLedgerV1(
+      MoveReviewStrategicLedger(
         motifKey = resolvedMotif.motif.key,
         motifLabel = resolvedMotif.motif.label,
         stageKey = stage.key,
@@ -328,19 +329,19 @@ object BookmakerStrategicLedgerBuilder:
     val themes =
       (
         ctx.mainStrategicPlans.flatMap { hypothesis =>
-          val theme = ThemeTaxonomy.ThemeResolver.fromHypothesis(hypothesis)
-          Option.when(theme != ThemeTaxonomy.ThemeL1.Unknown)(theme)
+          val theme = ThemeResolver.fromHypothesis(hypothesis)
+          Option.when(theme != PlanTheme.Unknown)(theme)
         } ++
           ctx.planContinuity.toList.flatMap(_.planId).flatMap { raw =>
-            val theme = ThemeTaxonomy.ThemeResolver.fromPlanId(raw)
-            Option.when(theme != ThemeTaxonomy.ThemeL1.Unknown)(theme)
+            val theme = ThemeResolver.fromPlanId(raw)
+            Option.when(theme != PlanTheme.Unknown)(theme)
           }
       ).toSet
 
     val subplans =
       (
-        ctx.mainStrategicPlans.flatMap(ThemeTaxonomy.ThemeResolver.subplanFromHypothesis) ++
-          ctx.planContinuity.toList.flatMap(_.planId).flatMap(ThemeTaxonomy.ThemeResolver.subplanFromPlanId)
+        ctx.mainStrategicPlans.flatMap(ThemeResolver.subplanFromHypothesis) ++
+          ctx.planContinuity.toList.flatMap(_.planId).flatMap(ThemeResolver.subplanFromPlanId)
       ).toSet
 
     PlanProfile(themes = themes, subplans = subplans)
@@ -369,14 +370,14 @@ object BookmakerStrategicLedgerBuilder:
     ctx.semantic.exists(_.positionalFeatures.exists(_.tagType == "OppositeColorBishops"))
 
   private def hasOppositeBishopsConversionPlan(planProfile: PlanProfile): Boolean =
-    planProfile.subplans.contains(ThemeTaxonomy.SubplanId.OppositeBishopsConversion) ||
+    planProfile.subplans.contains(PlanKind.OppositeBishopsConversion) ||
       (
-        planProfile.themes.contains(ThemeTaxonomy.ThemeL1.AdvantageTransformation) &&
+        planProfile.themes.contains(PlanTheme.AdvantageTransformation) &&
           planProfile.subplans.exists(subplan =>
             Set(
-              ThemeTaxonomy.SubplanId.SimplificationConversion,
-              ThemeTaxonomy.SubplanId.PasserConversion,
-              ThemeTaxonomy.SubplanId.InvasionTransition
+              PlanKind.SimplificationConversion,
+              PlanKind.PasserConversion,
+              PlanKind.InvasionTransition
             ).contains(subplan)
           )
       )
@@ -572,7 +573,7 @@ object BookmakerStrategicLedgerBuilder:
       ctx: NarrativeContext,
       decision: Option[DecisionComparisonDigest],
       motifKey: Option[String],
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       probeResults: List[ProbeResult]
   ): Option[LineCandidate] =
     val supportiveProbe =
@@ -586,8 +587,7 @@ object BookmakerStrategicLedgerBuilder:
 
   private def chooseResourceLine(
       ctx: NarrativeContext,
-      _decision: Option[DecisionComparisonDigest],
-      _refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       probeResults: List[ProbeResult]
   ): Option[LineCandidate] =
     val authoringBranch =
@@ -599,7 +599,9 @@ object BookmakerStrategicLedgerBuilder:
         .sortBy(candidate => (-candidate.weight, candidate.title))
         .headOption
 
-    authoringBranch.orElse(negativeProbe)
+    authoringBranch
+      .orElse(negativeProbe)
+      .orElse(refVariationCandidate(refs, preferredIndex = 1))
 
   private def supportiveProbeCandidate(
       ctx: NarrativeContext,
@@ -673,7 +675,7 @@ object BookmakerStrategicLedgerBuilder:
     }.flatMap(candidate => candidate.toWire.map(_ => candidate))
 
   private def refVariationCandidate(
-      refs: Option[BookmakerRefsV1],
+      refs: Option[MoveReviewRefs],
       preferredIndex: Int
   ): Option[LineCandidate] =
     refs.flatMap { refsValue =>

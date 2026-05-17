@@ -88,7 +88,7 @@ object AuthoritySurfaceLedger:
       )
     )
 
-  private val sourceAuthorityRowIds =
+  private[commentary] val sourceSurfaceFixtureIds =
     List(
       "source-evans-opsahl-1950",
       "source-carlsen-anand-2014-g6",
@@ -105,14 +105,14 @@ object AuthoritySurfaceLedger:
       "source-aronian-andreikin-2014-defender-trade"
     )
 
-  private val sourceSamples =
-    sourceAuthorityRowIds.map {
+  private val sourceSurfaceFixtures =
+    sourceSurfaceFixtureIds.map {
       case "source-evans-opsahl-1950" =>
         Sample(
           "source-evans-opsahl-1950",
           "source-evans-opsahl-1950",
           "source:B:carlsbad_fixed_target",
-          "Source-backed Evans-Opsahl exact replay admitted after certified carlsbad owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_carlsbad_fixed_target"
         )
       case "source-carlsen-anand-2014-g6" =>
@@ -120,7 +120,7 @@ object AuthoritySurfaceLedger:
           "source-carlsen-anand-2014-g6",
           "source-carlsen-anand-2014-g6",
           "source:C:queen_trade_shield",
-          "Source-backed Carlsen-Anand game 6 exact replay admitted after queen_trade_shield owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_queen_trade_boundary"
         )
       case "source-capablanca-golombek-1939-iqp-inducement" =>
@@ -128,7 +128,7 @@ object AuthoritySurfaceLedger:
           "source-capablanca-golombek-1939-iqp-inducement",
           "source-capablanca-golombek-1939-iqp-inducement",
           "source:C:iqp_inducement",
-          "Source-backed Capablanca-Golombek exact replay admitted after IQP inducement owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_iqp_inducement"
         )
       case "source-evans-opsahl-1950-iqp-inducement" =>
@@ -136,7 +136,7 @@ object AuthoritySurfaceLedger:
           "source-evans-opsahl-1950-iqp-inducement",
           "source-evans-opsahl-1950-iqp-inducement",
           "source:C:iqp_inducement",
-          "Source-backed Evans-Opsahl exact replay admitted after IQP inducement owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_iqp_inducement"
         )
       case "source-alekhine-bogoljubow-1936-iqp-inducement" =>
@@ -144,7 +144,7 @@ object AuthoritySurfaceLedger:
           "source-alekhine-bogoljubow-1936-iqp-inducement",
           "source-alekhine-bogoljubow-1936-iqp-inducement",
           "source:C:iqp_inducement",
-          "Source-backed Alekhine-Bogoljubow exact replay admitted after IQP inducement owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_iqp_inducement"
         )
       case "source-najdorf-sergeant-1939-iqp-inducement" =>
@@ -152,7 +152,7 @@ object AuthoritySurfaceLedger:
           "source-najdorf-sergeant-1939-iqp-inducement",
           "source-najdorf-sergeant-1939-iqp-inducement",
           "source:C:iqp_inducement",
-          "Source-backed Najdorf-Sergeant exact replay admitted after IQP inducement owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_iqp_inducement"
         )
       case "source-botvinnik-vidmar-1936-iqp-opening-inducement" =>
@@ -160,7 +160,7 @@ object AuthoritySurfaceLedger:
           "source-botvinnik-vidmar-1936-iqp-opening-inducement",
           "source-botvinnik-vidmar-1936-iqp-opening-inducement",
           "source:C:iqp_inducement",
-          "Source-backed Botvinnik-Vidmar opening exact replay admitted after near-top IQP inducement owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_iqp_inducement"
         )
       case "source-maderna-palermo-1955-a6-a5-break-prevention" =>
@@ -168,7 +168,7 @@ object AuthoritySurfaceLedger:
           "source-maderna-palermo-1955-a6-a5-break-prevention",
           "source-maderna-palermo-1955-a6-a5-break-prevention",
           "source:A:break_prevention",
-          "Source-backed Maderna-Palermo exact replay admitted after clean route-clamp neutralize_key_break owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_break_prevention"
         )
       case "source-camara-bazan-1960-b7-b5-break-prevention" =>
@@ -176,7 +176,7 @@ object AuthoritySurfaceLedger:
           "source-camara-bazan-1960-b7-b5-break-prevention",
           "source-camara-bazan-1960-b7-b5-break-prevention",
           "source:A:break_prevention",
-          "Source-backed Camara-Bazan exact replay admitted after clean route-clamp neutralize_key_break owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_break_prevention"
         )
       case "source-pfleger-maalouf-1961-a6-a5-break-prevention" =>
@@ -184,7 +184,7 @@ object AuthoritySurfaceLedger:
           "source-pfleger-maalouf-1961-a6-a5-break-prevention",
           "source-pfleger-maalouf-1961-a6-a5-break-prevention",
           "source:A:break_prevention",
-          "Source-backed Pfleger-Maalouf exact replay admitted after clean route-clamp neutralize_key_break owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_break_prevention"
         )
       case "source-salov-ljubojevic-1992-simplification-window" =>
@@ -192,7 +192,7 @@ object AuthoritySurfaceLedger:
           "source-salov-ljubojevic-1992-simplification-window",
           "source-salov-ljubojevic-1992-simplification-window",
           "source:C:simplification_window",
-          "Source-backed Salov-Ljubojevic exact replay admitted after SimplificationWindow owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_simplification_window"
         )
       case "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation" =>
@@ -200,7 +200,7 @@ object AuthoritySurfaceLedger:
           "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
           "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
           "source:B:static_weakness_fixation",
-          "Source-backed Boleslavsky-Nezhmetdinov exact replay admitted after StaticWeaknessFixation owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_static_weakness_fixation"
         )
       case "source-aronian-andreikin-2014-defender-trade" =>
@@ -208,7 +208,7 @@ object AuthoritySurfaceLedger:
           "source-aronian-andreikin-2014-defender-trade",
           "source-aronian-andreikin-2014-defender-trade",
           "source:C:defender_trade",
-          "Source-backed Aronian-Andreikin exact replay admitted after near-top DefenderTrade owner proof.",
+          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_defender_trade"
         )
       case other => sys.error(s"missing source sample metadata: $other")
@@ -350,7 +350,7 @@ object AuthoritySurfaceLedger:
     )
 
   private[commentary] val samples =
-    curatedSamples ++ naturalSamples ++ sourceSamples ++ screenSamples ++ prioritySamples ++ controlledSamples
+    curatedSamples ++ naturalSamples ++ sourceSurfaceFixtures ++ screenSamples ++ prioritySamples ++ controlledSamples
 
   private val header =
     List(
@@ -404,12 +404,13 @@ object AuthoritySurfaceLedger:
       )
     val lines =
       List(
-        "# Strategic Claim Authority Surface Review",
+        "# Strategic Claim Authority Surface Ledger",
         "",
         summary(observations),
-        s"Natural SupportedLocal search: ${if naturalSupported.isEmpty then "none found" else naturalSupported.map(_.sample.id).mkString(", ")}",
+        s"Surface SupportedLocal fixtures: ${if naturalSupported.isEmpty then "none found" else naturalSupported.map(_.sample.id).mkString(", ")}",
         s"Candidate screen rows: ${observations.count(_.sample.id.startsWith("screen-"))}",
-        s"Source admitted authority rows: ${if sourceAdmittedAuthorityRowIds.isEmpty then "none" else sourceAdmittedAuthorityRowIds.mkString(", ")}",
+        s"Source surface fixtures: ${if sourceSurfaceFixtureIds.isEmpty then "none" else sourceSurfaceFixtureIds.mkString(", ")}",
+        "Engine-backed source admission: SourceReview only",
         ""
       ) ++
         List("CertifiedOwner", "SupportedLocal", "Suppressed", "TacticalVeto").flatMap { release =>
@@ -420,9 +421,6 @@ object AuthoritySurfaceLedger:
 
   private def reviewLine(obs: Observation): String =
     s"- ${obs.sample.id} (${obs.sample.reviewGroup}) plannerOwner=${clean(obs.plannerOwner)} taxonomy=${obs.taxonomy} contract=${obs.contractId}:${obs.contractStatus}:${obs.contractFailures} primary=${clean(obs.primary)} bookmaker=${clean(obs.bookmaker)} chronicle=${clean(obs.chronicle)}"
-
-  private[commentary] def sourceAdmittedAuthorityRowIds: List[String] =
-    sourceAuthorityRowIds
 
   private def naturalReviewGroup(fixture: TaskShiftProvingFixtures.ReviewFixture): String =
     val tags = fixture.expectedTags.toSet

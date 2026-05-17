@@ -29,7 +29,7 @@ object UserFacingPayloadSanitizer:
       planStateToken = response.planStateToken.filter(_ => sanitizedPlans.nonEmpty),
       strategyPack = response.strategyPack.flatMap(pack => sanitizeStrategyPack(pack, allowedPlanNames)),
       signalDigest = response.signalDigest.map(sanitizeSignalDigest),
-      bookmakerLedger = response.bookmakerLedger.filter(_ => sanitizedPlans.nonEmpty).map(sanitizeBookmakerLedger)
+      moveReviewLedger = response.moveReviewLedger.filter(_ => sanitizedPlans.nonEmpty).map(sanitizeMoveReviewLedger)
     )
 
   def sanitize(response: GameChronicleResponse): GameChronicleResponse =
@@ -197,7 +197,7 @@ object UserFacingPayloadSanitizer:
       evidence = None
     )
 
-  private def sanitizeBookmakerLedger(ledger: BookmakerStrategicLedgerV1): BookmakerStrategicLedgerV1 =
+  private def sanitizeMoveReviewLedger(ledger: MoveReviewStrategicLedger): MoveReviewStrategicLedger =
     ledger.copy(
       motifLabel = clean(ledger.motifLabel),
       stageLabel = clean(ledger.stageLabel),
@@ -208,7 +208,7 @@ object UserFacingPayloadSanitizer:
       resourceLine = ledger.resourceLine.map(sanitizeLedgerLine)
     )
 
-  private def sanitizeLedgerLine(line: BookmakerLedgerLineV1): BookmakerLedgerLineV1 =
+  private def sanitizeLedgerLine(line: MoveReviewLedgerLine): MoveReviewLedgerLine =
     line.copy(
       title = clean(line.title),
       note = cleanOpt(line.note)
