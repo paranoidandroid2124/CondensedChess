@@ -97,6 +97,30 @@ class BreakPreventionWitnessTest extends FunSuite:
     assert(!diagnosis.exactReady, clues(diagnosis))
   }
 
+  test("route-level witness with branch-proven harmless recapture becomes exact") {
+    val fen = "4k3/8/8/1pp5/8/2P5/1P6/4K3 w - - 0 1"
+    val line = List("b2b4", "c5b4", "c3b4", "e8e7")
+    val routeInfo = materializedBreakInfo(
+      fen = fen,
+      line = line,
+      expectedBreak = "...b5-b4"
+    )
+    val diagnosis = BreakPreventionWitness.diagnose(
+      ctx = breakCtx(
+        fen = fen,
+        playedMove = "b2b4",
+        engineMoves = line,
+        includeStableExperiment = false
+      ),
+      surface = StrategyPackSurface.from(Some(breakPack())),
+      preventedNow = List(routeInfo)
+    )
+
+    assert(diagnosis.witness.exists(_.breakToken == "...b5-b4"), clues(diagnosis))
+    assertEquals(diagnosis.failureCodes, Nil)
+    assert(diagnosis.exactReady, clues(diagnosis))
+  }
+
   test("route-level carrier fails closed when the same route is still legal") {
     val fen = "4k3/8/8/1p6/P7/8/7P/4K3 w - - 0 1"
     val staleCarrier =

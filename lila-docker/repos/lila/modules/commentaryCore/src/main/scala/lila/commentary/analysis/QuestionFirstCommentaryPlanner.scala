@@ -217,6 +217,15 @@ private[commentary] final case class PlannerOwnerTrace(
         )
     )
 
+private[commentary] final case class QuestionPlanTimingWitness(
+    proofFamily: String,
+    source: String,
+    namedBreak: Option[String] = None,
+    continuationMove: Option[String] = None,
+    branchKey: Option[String] = None,
+    witnessTokens: List[String] = Nil
+)
+
 private[commentary] final case class QuestionPlan(
     questionId: String,
     questionKind: AuthorQuestionKind,
@@ -231,7 +240,8 @@ private[commentary] final case class QuestionPlan(
     admissibilityReasons: List[String],
     plannerOwnerKind: PlannerOwnerKind,
     plannerSource: String,
-    demotionReasons: List[String] = Nil
+    demotionReasons: List[String] = Nil,
+    timingWitness: Option[QuestionPlanTimingWitness] = None
 )
 
 private[commentary] final case class RejectedQuestionPlan(
@@ -385,6 +395,7 @@ private[commentary] object QuestionPlannerInputsBuilder:
 private[commentary] object QuestionFirstCommentaryPlanner:
 
   private val PlannerLinePurpose = "planner_line_proof"
+  private val NeutralizeKeyBreakProofFamily = "neutralize_key_break"
 
   private[commentary] def openingRelationReplayClaim(ctx: NarrativeContext): Option[String] =
     OpeningPrecedentBranching
@@ -704,7 +715,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       admissibilityReasons: List[String],
       plannerOwnerKind: PlannerOwnerKind,
       plannerSource: String,
-      demotionReasons: List[String] = Nil
+      demotionReasons: List[String] = Nil,
+      timingWitness: Option[QuestionPlanTimingWitness] = None
   ): Either[QuestionPlan, RejectedQuestionPlan] =
     cleanLine(claim) match
       case Some(cleanClaim) =>
@@ -723,7 +735,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
             admissibilityReasons = admissibilityReasons.distinct,
             plannerOwnerKind = plannerOwnerKind,
             plannerSource = plannerSource,
-            demotionReasons = demotionReasons.distinct
+            demotionReasons = demotionReasons.distinct,
+            timingWitness = timingWitness.map(witness =>
+              witness.copy(witnessTokens = witness.witnessTokens.flatMap(timingWitnessTokenVariants).distinct)
+            )
           )
         )
       case None =>
@@ -783,6 +798,11 @@ private[commentary] object QuestionFirstCommentaryPlanner:
 
   private def normalizeText(raw: String): String =
     Option(raw).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").replaceAll("\\s+", " ").trim
+
+  private def timingWitnessTokenVariants(raw: String): List[String] =
+    cleanLine(raw).toList.flatMap { text =>
+      (text :: text.split("""[^A-Za-z0-9]+""").toList).map(normalizeText).filter(_.nonEmpty)
+    }
 
   private def cleanLine(raw: String): Option[String] =
     Option(raw).map(_.trim.replaceAll("\\s+", " ")).filter(_.nonEmpty)
@@ -1505,7 +1525,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
               case WhyNowTimingOwner.Threat(_)                  => "threat"
               case WhyNowTimingOwner.Prevented(_)               => "prevented_plan"
               case WhyNowTimingOwner.OnlyMove(_)                => "truth_contract"
-              case WhyNowTimingOwner.DecisionComparisonOwner(_) => "decision_comparison"
+              case WhyNowTimingOwner.DecisionComparisonOwner(_) => "decision_comparison",
+          timingWitness = neutralizeKeyBreakTimingWitness(owner)
         )
 
   private def concreteWhyNowTimingOwner(
@@ -1542,6 +1563,40 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           .filter(plan => preventedPlanTimingClaim(plan).nonEmpty)
           .map(WhyNowTimingOwner.Prevented.apply)
       )
+
+  private def neutralizeKeyBreakTimingWitness(owner: WhyNowTimingOwner): Option[QuestionPlanTimingWitness] =
+    owner match
+      case WhyNowTimingOwner.Threat(threat) =>
+        neutralizeKeyBreakThreatTimingWitness(threat)
+      case WhyNowTimingOwner.Prevented(plan) =>
+        neutralizeKeyBreakPreventedPlanTimingWitness(plan)
+      case WhyNowTimingOwner.OnlyMove(_) | WhyNowTimingOwner.DecisionComparisonOwner(_) =>
+        None
+
+  private def neutralizeKeyBreakThreatTimingWitness(threat: ThreatRow): Option[QuestionPlanTimingWitness] =
+    val continuationMove = threat.bestDefense.flatMap(cleanLine)
+    val tokens = continuationMove.toList ++ threat.square.flatMap(cleanLine)
+    Option.when(tokens.nonEmpty)(
+      QuestionPlanTimingWitness(
+        proofFamily = NeutralizeKeyBreakProofFamily,
+        source = "threat",
+        continuationMove = continuationMove,
+        witnessTokens = tokens
+      )
+    )
+
+  private def neutralizeKeyBreakPreventedPlanTimingWitness(plan: PreventedPlanInfo): Option[QuestionPlanTimingWitness] =
+    val namedBreak = plan.breakNeutralized.flatMap(cleanLine)
+    val squareTokens = plan.deniedSquares.flatMap(cleanLine)
+    val tokens = namedBreak.toList ++ squareTokens
+    Option.when(tokens.nonEmpty)(
+      QuestionPlanTimingWitness(
+        proofFamily = NeutralizeKeyBreakProofFamily,
+        source = "prevented_plan",
+        namedBreak = namedBreak,
+        witnessTokens = tokens
+      )
+    )
 
   private def buildWhatChangedPlan(
       question: AuthorQuestion,
@@ -1774,6 +1829,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
               )
             )
           }
+        val plannerSource = if urgentThreat.nonEmpty then "threat" else "prevented_plan"
+        val timingWitness =
+          if plannerSource == "threat" then urgentThreat.flatMap(neutralizeKeyBreakThreatTimingWitness)
+          else preventedNow.flatMap(neutralizeKeyBreakPreventedPlanTimingWitness)
         mkPlan(
           question = question,
           kind = AuthorQuestionKind.WhatMustBeStopped,
@@ -1794,8 +1853,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
             urgentThreat.toList.map(_ => "threat") ++ preventedNow.toList.map(_ => "prevented_plan"),
           admissibilityReasons = List("defensive_owner", "loss_if_ignored"),
           plannerOwnerKind = PlannerOwnerKind.ForcingDefense,
-          plannerSource =
-            if urgentThreat.nonEmpty then "threat" else "prevented_plan"
+          plannerSource = plannerSource,
+          timingWitness = timingWitness
         )
 
   private def buildWhosePlanIsFasterPlan(

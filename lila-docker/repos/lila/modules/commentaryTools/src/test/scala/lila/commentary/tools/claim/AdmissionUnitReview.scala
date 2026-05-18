@@ -202,7 +202,7 @@ object AdmissionUnitReview:
       sourceUrl = game.sourceUrl,
       pgn = game.pgn,
       candidatePlyRange = SourceWitnessCatalog.CandidatePlyRange(ply.ply, ply.ply),
-      reviewGroup = s"A:$planKind",
+      reviewGroup = reviewGroupForPlanKind(planKind),
       intendedVerdict = SourceReview.Verdict.ScreenOnly,
       validationNote =
         s"Transient $planKind admission-unit candidate: exact ply ${ply.ply} ${ply.playedMove} (${ply.playedUci}); discovery only until fixed SourceReview admission."
@@ -263,11 +263,24 @@ object AdmissionUnitReview:
           .iterator
           .filter(ply =>
             game.plyRange.forall { case (start, end) => ply.ply >= start && ply.ply <= end } &&
-              prophylaxisPreScreen(ply, plyData.size)
+              candidatePreScreen(ply, plyData.size, config.planKind)
           )
           .map(sourceCandidateFor(game, _, config.planKind))
       }
     }.take(config.maxCandidates).toList
+
+  private def reviewGroupForPlanKind(planKind: String): String =
+    planKind match
+      case "bad_piece_liquidation" => "C:bad_piece_liquidation"
+      case other                   => s"A:$other"
+
+  private def candidatePreScreen(
+      ply: PgnAnalysisHelper.PlyData,
+      totalPlies: Int,
+      planKind: String
+  ): Boolean =
+    if planKind == "bad_piece_liquidation" then badPieceLiquidationPreScreen(ply, totalPlies)
+    else prophylaxisPreScreen(ply, totalPlies)
 
   private def prophylaxisPreScreen(
       ply: PgnAnalysisHelper.PlyData,
@@ -277,6 +290,16 @@ object AdmissionUnitReview:
       ply.playedUci.length >= 4 &&
       !ply.playedMove.contains("x") &&
       !ply.playedMove.contains("+") &&
+      !ply.playedMove.contains("#") &&
+      !ply.playedMove.contains("=") &&
+      !ply.playedMove.startsWith("O-O")
+
+  private def badPieceLiquidationPreScreen(
+      ply: PgnAnalysisHelper.PlyData,
+      totalPlies: Int
+  ): Boolean =
+    totalPlies - ply.ply >= 1 &&
+      ply.playedUci.length >= 4 &&
       !ply.playedMove.contains("#") &&
       !ply.playedMove.contains("=") &&
       !ply.playedMove.startsWith("O-O")

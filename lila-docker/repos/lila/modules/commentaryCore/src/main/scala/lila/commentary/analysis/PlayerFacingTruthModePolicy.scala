@@ -2,7 +2,7 @@ package lila.commentary.analysis
 
 
 import lila.commentary.analysis.claim.*
-import _root_.chess.{ Pawn, Square }
+import _root_.chess.{ Bishop, Board, Color, King, Pawn, Queen, Square }
 import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
 
@@ -115,9 +115,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Boolean =
     val surface = StrategyPackSurface.from(strategyPack)
     val deltaEvidence = mainPathMoveDeltaEvidence(ctx, surface, truthContract)
-    val exactQueenTradeShieldClaim = exactQueenTradeShieldClaimText(ctx, text)
+    val queenTradeShieldClaim = queenTradeShieldClaimText(ctx, text)
     val exactIqpInducementClaim = exactIqpInducementClaimText(ctx, text)
-    val exactDefenderTradeClaim = exactDefenderTradeClaimText(ctx, text)
+    val defenderTradeClaim = defenderTradeClaimText(ctx, text)
+    val badPieceLiquidationClaim = badPieceLiquidationClaimText(ctx, text)
     val exactBreakPreventionClaim = exactBreakPreventionClaimText(ctx, surface, text)
     val exactCounterplayRestraintClaim = exactCounterplayRestraintClaimText(ctx, text)
     val exactCentralBreakTimingClaim = exactCentralBreakTimingClaimText(ctx, text)
@@ -130,9 +131,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
         !overpromotedStrategicFormula(text) &&
           !containsUnsupportedConnector(text, delta) &&
           (
-            exactQueenTradeShieldClaim ||
+            queenTradeShieldClaim ||
               exactIqpInducementClaim ||
-              exactDefenderTradeClaim ||
+              defenderTradeClaim ||
+              badPieceLiquidationClaim ||
               exactBreakPreventionClaim ||
               exactCounterplayRestraintClaim ||
               exactCentralBreakTimingClaim ||
@@ -232,7 +234,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       truthContract: Option[DecisiveTruthContract]
   ): Option[PlayerFacingMoveDeltaEvidence] =
     val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
-    val exactOwnerProof = hasExactMainPathOwnerProof(ctx, surface)
+    val mainPathOwnerProof = hasMainPathOwnerProof(ctx, surface)
     val centralBreakTimingWitness = centralBreakTimingReleaseWitness(ctx)
     val anchors =
       (
@@ -242,11 +244,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
           centralBreakTimingWitness.toList.flatMap(_.ownerSeedTerms) ++
           exactIqpInducementAnchorTerms(ctx) ++
           exactPressureIncreaseAnchorTerms(ctx, surface) ++
-          exactDefenderTradeAnchorTerms(ctx) ++
-          exactQueenTradeShieldAnchorTerms(ctx)
+          defenderTradeAnchorTerms(ctx) ++
+          badPieceLiquidationAnchorTerms(ctx) ++
+          queenTradeShieldAnchorTerms(ctx)
       ).distinct
     if anchors.isEmpty ||
-        (surfaceLooksShellOnly(surface) && !exactOwnerProof) ||
+        (surfaceLooksShellOnly(surface) && !mainPathOwnerProof) ||
         (!hasConcreteStrategicEvidence(ctx, surface, truthContract) && centralBreakTimingWitness.isEmpty)
     then None
     else
@@ -266,6 +269,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
 
       if BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty then
         result(PlayerFacingMoveDeltaClass.CounterplayReduction)
+      else if badPieceLiquidationWitness(ctx).nonEmpty then
+        result(PlayerFacingMoveDeltaClass.ExchangeForcing)
       else if hasMainPathExchangeForcing(ctx, surface, bestLine, squareAnchors) then
         result(PlayerFacingMoveDeltaClass.ExchangeForcing)
       else if centralBreakTimingWitness.nonEmpty then
@@ -477,24 +482,27 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val exactPressureIncreaseProof =
       exactPressureIncreaseWitness(ctx, surface).nonEmpty &&
         bestDefenseBranchKeyFromContext(ctx).nonEmpty
-    val exactQueenTradeShieldProof =
-      exactQueenTradeShieldSlice(ctx)
+    val queenTradeShieldProof =
+      hasQueenTradeShieldWitness(ctx)
     val exactIqpInducementProof =
       exactIqpInducementWitness(ctx).nonEmpty
-    val exactDefenderTradeProof =
-      exactDefenderTradeWitness(ctx).nonEmpty
+    val defenderTradeProof =
+      defenderTradeWitness(ctx).nonEmpty
+    val badPieceLiquidationProof =
+      badPieceLiquidationWitness(ctx).nonEmpty
     val exactCentralBreakTimingProof =
       centralBreakTimingReleaseWitness(ctx).nonEmpty
     val exactBreakPreventionProof =
       BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty
     val exactCounterplayRestraintProof =
       exactCounterplayRestraintOwnerProof(ctx, preventedNow)
-    val exactOwnerProof =
+    val specificOwnerProof =
       exactBoundedSimplificationWitness ||
         exactPressureIncreaseProof ||
-        exactQueenTradeShieldProof ||
+        queenTradeShieldProof ||
         exactIqpInducementProof ||
-        exactDefenderTradeProof ||
+        defenderTradeProof ||
+        badPieceLiquidationProof ||
         exactCentralBreakTimingProof ||
         exactBreakPreventionProof ||
         exactCounterplayRestraintProof
@@ -505,8 +513,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
         exactCentralBreakTimingProof ||
         exactIqpInducementAnchorTerms(ctx).nonEmpty ||
         exactPressureIncreaseAnchorTerms(ctx, surface).nonEmpty ||
-        exactDefenderTradeAnchorTerms(ctx).nonEmpty ||
-        exactQueenTradeShieldAnchorTerms(ctx).nonEmpty
+        defenderTradeAnchorTerms(ctx).nonEmpty ||
+        badPieceLiquidationAnchorTerms(ctx).nonEmpty ||
+        queenTradeShieldAnchorTerms(ctx).nonEmpty
     val semanticConcrete =
       ctx.decision.exists(decision =>
         decision.delta.resolvedThreats.nonEmpty ||
@@ -527,11 +536,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
       (
           semanticConcrete ||
           truthBacked ||
-          exactOwnerProof
+          specificOwnerProof
       ) &&
-      (!surfaceLooksShellOnly(surface) || exactOwnerProof)
+      (!surfaceLooksShellOnly(surface) || specificOwnerProof)
 
-  private def hasExactMainPathOwnerProof(
+  private def hasMainPathOwnerProof(
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot
   ): Boolean =
@@ -540,9 +549,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
       bestDefenseBranchKeyFromContext(ctx).nonEmpty) ||
       (exactPressureIncreaseWitness(ctx, surface).nonEmpty &&
         bestDefenseBranchKeyFromContext(ctx).nonEmpty) ||
-      exactQueenTradeShieldSlice(ctx) ||
+      hasQueenTradeShieldWitness(ctx) ||
       exactIqpInducementWitness(ctx).nonEmpty ||
-      exactDefenderTradeWitness(ctx).nonEmpty ||
+      defenderTradeWitness(ctx).nonEmpty ||
+      badPieceLiquidationWitness(ctx).nonEmpty ||
       centralBreakTimingReleaseWitness(ctx).nonEmpty ||
       BreakPreventionWitness.exact(ctx, surface, preventedNow).nonEmpty ||
       exactCounterplayRestraintOwnerProof(ctx, preventedNow)
@@ -569,7 +579,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       truthContract: Option[DecisiveTruthContract]
   ): Option[PlayerFacingMoveDeltaEvidence] =
     val preventedNow = ctx.semantic.toList.flatMap(_.preventedPlans).filter(_.sourceScope == FactScope.Now)
-    val exactOwnerProof = hasExactMainPathOwnerProof(ctx, surface)
+    val mainPathOwnerProof = hasMainPathOwnerProof(ctx, surface)
     val centralBreakTimingWitness = centralBreakTimingReleaseWitness(ctx)
     val anchors =
       (
@@ -579,10 +589,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
           centralBreakTimingWitness.toList.flatMap(_.ownerSeedTerms) ++
           exactIqpInducementAnchorTerms(ctx) ++
           exactPressureIncreaseAnchorTerms(ctx, surface) ++
-          exactDefenderTradeAnchorTerms(ctx)
+          defenderTradeAnchorTerms(ctx) ++
+          badPieceLiquidationAnchorTerms(ctx)
       ).distinct
     if anchors.isEmpty ||
-        (surfaceLooksShellOnly(surface) && !exactOwnerProof) ||
+        (surfaceLooksShellOnly(surface) && !mainPathOwnerProof) ||
         (!hasConcreteStrategicEvidence(ctx, surface, truthContract) && centralBreakTimingWitness.isEmpty)
     then None
     else
@@ -613,7 +624,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       val iqpInducementSignal =
         exactIqpInducementWitness(ctx).nonEmpty
       val defenderTradeSignal =
-        exactDefenderTradeWitness(ctx).nonEmpty
+        defenderTradeWitness(ctx).nonEmpty
       def result(kind: PlayerFacingMoveDeltaClass): Option[PlayerFacingMoveDeltaEvidence] =
         Some(
           activeStrategicDeltaEvidence(
@@ -692,12 +703,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
       bestLine: Option[VariationLine],
       squareAnchors: List[String]
   ): Boolean =
-    val exactQueenTradeShield =
-      exactQueenTradeShieldSlice(ctx)
+    val queenTradeShieldWitnessed =
+      hasQueenTradeShieldWitness(ctx)
     val exactIqpInducement =
       exactIqpInducementWitness(ctx).nonEmpty
-    val exactDefenderTrade =
-      exactDefenderTradeWitness(ctx).nonEmpty
+    val defenderTradeWitnessed =
+      defenderTradeWitness(ctx).nonEmpty
     val provingLineShowsExchange =
       bestLine.exists(line => variationShowsAnchoredExchange(line, squareAnchors))
     val moveLinkedExchangeEvidence =
@@ -716,9 +727,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
         ) ||
         surface.dominantIdea.exists(ideaIsBoundedFavorableSimplification) ||
         surface.secondaryIdea.exists(ideaIsBoundedFavorableSimplification)
-    exactQueenTradeShield ||
+    queenTradeShieldWitnessed ||
       exactIqpInducement ||
-      exactDefenderTrade ||
+      defenderTradeWitnessed ||
       squareAnchors.nonEmpty && provingLineShowsExchange && (moveLinkedExchangeEvidence || ideaLinkedExchangeEvidence)
 
   private def hasMainPathCounterplayReduction(
@@ -906,6 +917,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
     "iqp_inducement_probe"
   private[commentary] val DefenderTradeProofSource =
     "defender_trade"
+  private[commentary] val BadPieceLiquidationProofSource =
+    PlanTaxonomy.PlanKind.BadPieceLiquidation.id
   private[commentary] val QueenTradeShieldProofSource =
     PlanTaxonomy.PlanKind.QueenTradeShield.id
   private[commentary] val TargetFocusedCoordinationProofSource =
@@ -913,18 +926,12 @@ private[commentary] object PlayerFacingTruthModePolicy:
   private[commentary] val TargetFocusedCoordinationProofFamily =
     "target_focused_coordination"
 
-  private val QueenTradeShieldExactFen =
-    "r1bqk2r/1p1p1ppp/p1n1pn2/8/1bPNP3/2NQ4/PP3PPP/R1B1KB1R w KQkq - 5 8"
-  private val QueenTradeShieldPvPrefix =
-    List("d4c6", "d7c6", "d3d8", "e8d8")
   private val QueenTradeShieldReleasedClaim =
     "This exchange moves the game into the queenless branch."
-  private val DefenderTradeExactFen =
-    "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17"
-  private val DefenderTradePvPrefix =
-    List("c1a3", "f8a3", "b3a3")
   private val DefenderTradeReleasedClaim =
     "This exchange removes a defender on the local branch."
+  private val BadPieceLiquidationReleasedClaim =
+    "This trade clears the bad piece from the local branch."
 
   private enum ExactSliceKind:
     case TargetFixation
@@ -1011,6 +1018,27 @@ private[commentary] object PlayerFacingTruthModePolicy:
       lineMoves: List[String],
       ownerSeedTerms: List[String],
       structureTransitionTerms: List[String]
+  )
+
+  private final case class DefenderTradeBranch(
+      defenderSquare: String,
+      exchangeSquare: String,
+      targetSquare: String,
+      lineMoves: List[String]
+  )
+
+  private final case class BadPieceLiquidationWitness(
+      badPieceSquare: String,
+      exchangeSquare: String,
+      lineMoves: List[String],
+      ownerSeedTerms: List[String],
+      structureTransitionTerms: List[String]
+  )
+
+  private final case class BadPieceLiquidationBranch(
+      badPieceSquare: String,
+      exchangeSquare: String,
+      lineMoves: List[String]
   )
 
   private[commentary] final case class PositionProbeQuestionSeed(
@@ -1294,13 +1322,15 @@ private[commentary] object PlayerFacingTruthModePolicy:
           structureTransitionTerms = witness.structureTransitionTerms
         )
       case PlayerFacingMoveDeltaClass.ExchangeForcing
-          if exactQueenTradeShieldSlice(ctx) =>
+          if hasQueenTradeShieldWitness(ctx) =>
+        val lineMoves = queenTradeShieldLineMoves(ctx)
         ClaimOwnerSeed(
           proofSource = QueenTradeShieldProofSource,
           proofFamily = PlanTaxonomy.PlanKind.QueenTradeShield.id,
           triggerKind = PlanTaxonomy.PlanKind.QueenTradeShield.id,
-          ownerSeedTerms = List("queen_trade_shield", "queenless_branch", "c6", "d8"),
-          structureTransitionTerms = QueenTradeShieldPvPrefix ++ List("queenless_branch", "queen_trade")
+          ownerSeedTerms =
+            (List("queen_trade_shield", "queenless_branch", "queen_trade") ++ lineMoves.takeRight(2)).distinct,
+          structureTransitionTerms = (lineMoves ++ List("queenless_branch", "queen_trade")).distinct
         )
       case PlayerFacingMoveDeltaClass.ExchangeForcing
           if exactIqpInducementWitness(ctx).nonEmpty =>
@@ -1313,12 +1343,22 @@ private[commentary] object PlayerFacingTruthModePolicy:
           structureTransitionTerms = witness.structureTransitionTerms
         )
       case PlayerFacingMoveDeltaClass.ExchangeForcing
-          if exactDefenderTradeWitness(ctx).nonEmpty =>
-        val witness = exactDefenderTradeWitness(ctx).get
+          if defenderTradeWitness(ctx).nonEmpty =>
+        val witness = defenderTradeWitness(ctx).get
         ClaimOwnerSeed(
           proofSource = DefenderTradeProofSource,
           proofFamily = PlanTaxonomy.PlanKind.DefenderTrade.id,
           triggerKind = PlanTaxonomy.PlanKind.DefenderTrade.id,
+          ownerSeedTerms = witness.ownerSeedTerms,
+          structureTransitionTerms = witness.structureTransitionTerms
+        )
+      case PlayerFacingMoveDeltaClass.ExchangeForcing
+          if badPieceLiquidationWitness(ctx).nonEmpty =>
+        val witness = badPieceLiquidationWitness(ctx).get
+        ClaimOwnerSeed(
+          proofSource = BadPieceLiquidationProofSource,
+          proofFamily = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+          triggerKind = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
           ownerSeedTerms = witness.ownerSeedTerms,
           structureTransitionTerms = witness.structureTransitionTerms
         )
@@ -1638,13 +1678,15 @@ private[commentary] object PlayerFacingTruthModePolicy:
       exactSliceContinuationTerms(ctx, ownerSeed)
     val exactIqpContinuation =
       exactIqpInducementContinuationTerms(ctx, ownerSeed)
-    val exactDefenderTradeContinuation =
-      exactDefenderTradeContinuationTerms(ctx, ownerSeed)
-    val exactQueenTradeContinuation =
+    val defenderTradeContinuation =
+      defenderTradeContinuationTerms(ctx, ownerSeed)
+    val badPieceLiquidationContinuation =
+      badPieceLiquidationContinuationTerms(ctx, ownerSeed)
+    val queenTradeShieldContinuation =
       Option.when(
         ownerSeed.proofFamily == PlanTaxonomy.PlanKind.QueenTradeShield.id &&
-          exactQueenTradeShieldSlice(ctx)
-      )(QueenTradeShieldPvPrefix).getOrElse(Nil)
+          hasQueenTradeShieldWitness(ctx)
+      )(queenTradeShieldLineMoves(ctx)).getOrElse(Nil)
     val centralBreakTimingContinuation =
       Option.when(ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily) {
         CentralBreakTimingWitness.exact(ctx).toList.flatMap { witness =>
@@ -1665,8 +1707,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
         ) ++
         exactSliceContinuation ++
         exactIqpContinuation ++
-        exactDefenderTradeContinuation ++
-        exactQueenTradeContinuation ++
+        defenderTradeContinuation ++
+        badPieceLiquidationContinuation ++
+        queenTradeShieldContinuation ++
         centralBreakTimingContinuation ++
         ownerLinkedEvidenceBackedExperiments(ctx, ownerSeed).flatMap { experiment =>
           List(
@@ -1830,16 +1873,17 @@ private[commentary] object PlayerFacingTruthModePolicy:
         descriptor.kind == ExactSliceKind.TargetFocusedCoordinationProbe
     )
 
-  private def exactQueenTradeShieldAnchorTerms(ctx: NarrativeContext): List[String] =
-    Option.when(exactQueenTradeShieldSlice(ctx)) {
-      List("queen_trade_shield", "queenless_branch", "queen_trade", "c6", "d8")
-    }.getOrElse(Nil)
+  private def queenTradeShieldAnchorTerms(ctx: NarrativeContext): List[String] =
+    val lineMoves = queenTradeShieldLineMoves(ctx)
+    if lineMoves.nonEmpty then
+      (List("queen_trade_shield", "queenless_branch", "queen_trade") ++ lineMoves.takeRight(2)).distinct
+    else Nil
 
-  private def exactQueenTradeShieldClaimText(
+  private def queenTradeShieldClaimText(
       ctx: NarrativeContext,
       text: String
   ): Boolean =
-    exactQueenTradeShieldSlice(ctx) &&
+    hasQueenTradeShieldWitness(ctx) &&
       normalize(text) == normalize(QueenTradeShieldReleasedClaim)
 
   private def exactBreakPreventionClaimText(
@@ -1879,15 +1923,38 @@ private[commentary] object PlayerFacingTruthModePolicy:
         .flatMap(namedPreventedResourceLabel)
         .exists(resource => normalize(text) == normalize(s"This slows down $resource before it gets started."))
 
-  private def exactQueenTradeShieldSlice(ctx: NarrativeContext): Boolean =
-    ctx.fen.trim == QueenTradeShieldExactFen &&
-      ctx.engineEvidence.toList.flatMap(_.variations).headOption.exists(exactQueenTradeShieldPvMatches)
+  private def hasQueenTradeShieldWitness(ctx: NarrativeContext): Boolean =
+    queenTradeShieldLineMoves(ctx).nonEmpty
 
-  private def exactQueenTradeShieldPvMatches(line: VariationLine): Boolean =
-    def matchesPrefix(moves: List[String]) =
-      moves.take(QueenTradeShieldPvPrefix.size).map(normalizeUciMove) == QueenTradeShieldPvPrefix
-    matchesPrefix(line.moves) ||
-      matchesPrefix(line.parsedMoves.flatMap(move => clean(move.uci)))
+  private def queenTradeShieldLineMoves(ctx: NarrativeContext): List[String] =
+    Fen.read(Standard, Fen.Full(ctx.fen))
+      .flatMap(position => queenTradeShieldLineMoves(position.board, position.color, normalizedTopUciMoves(ctx)))
+      .getOrElse(Nil)
+
+  private def queenTradeShieldLineMoves(
+      board: Board,
+      movingSide: Color,
+      topMoves: List[String]
+  ): Option[List[String]] =
+    topMoves.zipWithIndex.flatMap { (move, index) =>
+      val sameSideMove = index % 2 == 0
+      val reply = topMoves.lift(index + 1)
+      for
+        queenFrom <- squareFromKey(squareKey(move, from = true))
+        queenExchange <- squareFromKey(squareKey(move, from = false))
+        if sameSideMove
+        movingQueen <- board.pieceAt(queenFrom)
+        capturedQueen <- board.pieceAt(queenExchange)
+        if movingQueen.color == movingSide && movingQueen.role == Queen
+        if capturedQueen.color != movingSide && capturedQueen.role == Queen
+        replyMove <- reply
+        kingFrom <- squareFromKey(squareKey(replyMove, from = true))
+        replyDest <- squareFromKey(squareKey(replyMove, from = false))
+        recapturingKing <- board.pieceAt(kingFrom)
+        if recapturingKing.color != movingSide && recapturingKing.role == King
+        if replyDest == queenExchange
+      yield topMoves.take(index + 2)
+    }.headOption
 
   private def normalizeUciMove(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase
@@ -1952,8 +2019,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
         exactBoundedSimplificationContinuationSquare(ctx, ownerSeed)
       val exactSliceContinuation =
         exactSliceContinuationTerms(ctx, ownerSeed)
-      val exactDefenderTradeContinuation =
-        exactDefenderTradeContinuationTerms(ctx, ownerSeed)
+      val defenderTradeContinuation =
+        defenderTradeContinuationTerms(ctx, ownerSeed)
       val exactCentralBreakTimingContinuation =
         Option.when(ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily) {
           CentralBreakTimingWitness.exact(ctx).toList.flatMap(_.structureTransitionTerms)
@@ -1982,7 +2049,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
         PlayerFacingSameBranchState.Proven
       else if ownerSeed.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id &&
           concreteOwnerSeed &&
-          exactDefenderTradeContinuation.nonEmpty &&
+          defenderTradeContinuation.nonEmpty &&
+          continuationTerms.nonEmpty
+      then
+        PlayerFacingSameBranchState.Proven
+      else if ownerSeed.proofFamily == PlanTaxonomy.PlanKind.BadPieceLiquidation.id &&
+          concreteOwnerSeed &&
+          badPieceLiquidationContinuationTerms(ctx, ownerSeed).nonEmpty &&
           continuationTerms.nonEmpty
       then
         PlayerFacingSameBranchState.Proven
@@ -2013,7 +2086,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       PlayerFacingClaimPersistence.Broken
     else if
       ownerSeed.proofFamily == PlanTaxonomy.PlanKind.QueenTradeShield.id &&
-        exactQueenTradeShieldSlice(ctx)
+        hasQueenTradeShieldWitness(ctx)
     then PlayerFacingClaimPersistence.BestDefenseOnly
     else
       val evidenceBacked = ownerLinkedEvidenceBackedExperiments(ctx, ownerSeed)
@@ -2032,8 +2105,13 @@ private[commentary] object PlayerFacingTruthModePolicy:
           claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
       then
         PlayerFacingClaimPersistence.Stable
-      else if exactDefenderTradeContinuationTerms(ctx, ownerSeed).nonEmpty &&
+      else if defenderTradeContinuationTerms(ctx, ownerSeed).nonEmpty &&
           ownerSeed.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id &&
+          claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
+      then
+        PlayerFacingClaimPersistence.Stable
+      else if badPieceLiquidationContinuationTerms(ctx, ownerSeed).nonEmpty &&
+          ownerSeed.proofFamily == PlanTaxonomy.PlanKind.BadPieceLiquidation.id &&
           claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
       then
         PlayerFacingClaimPersistence.Stable
@@ -2327,6 +2405,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
       bestDefenseBranchKey.nonEmpty &&
         sameBranchState == PlayerFacingSameBranchState.Proven &&
         persistence == PlayerFacingClaimPersistence.Stable
+    else if ownerSeed.proofFamily == PlanTaxonomy.PlanKind.BadPieceLiquidation.id then
+      ownerSeed.proofSource == BadPieceLiquidationProofSource &&
+        bestDefenseBranchKey.nonEmpty &&
+        sameBranchState == PlayerFacingSameBranchState.Proven &&
+        persistence == PlayerFacingClaimPersistence.Stable
     else if isReviewedAbsorbedWeaknessProofFamily(ownerSeed.proofFamily) then false
     else
       ownerSeed.proofFamily match
@@ -2486,58 +2569,105 @@ private[commentary] object PlayerFacingTruthModePolicy:
     exactIqpInducementWitness(ctx).nonEmpty &&
       normalize(text) == normalize(IqpInducementReleasedClaim)
 
-  private def exactDefenderTradeWitness(
+  private def defenderTradeWitness(
       ctx: NarrativeContext
   ): Option[DefenderTradeWitness] =
-    val topMoves =
-      ctx.engineEvidence.toList.flatMap(_.variations).headOption.toList
-        .flatMap(line =>
-          val rawMoves =
-            line.moves
-              .map(NarrativeUtils.normalizeUciMove)
-              .filter(_.matches("""[a-h][1-8][a-h][1-8][qrbn]?"""))
-          if rawMoves.nonEmpty then rawMoves
-          else
-            line.parsedMoves
-              .flatMap(move => clean(move.uci))
-              .map(NarrativeUtils.normalizeUciMove)
-              .filter(_.matches("""[a-h][1-8][a-h][1-8][qrbn]?"""))
+    val topMoves = normalizedTopUciMoves(ctx)
+    val played = ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty).orElse(topMoves.headOption)
+    val branch =
+      Fen.read(Standard, Fen.Full(ctx.fen)).flatMap(position =>
+        played.flatMap(playedMove =>
+          defenderTradeBranch(ctx, position.board, position.color, playedMove, topMoves)
         )
-    val played =
-      ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
-        .orElse(topMoves.headOption)
-    val exactBoard = ctx.fen.trim == DefenderTradeExactFen
-    val exactPrefix = topMoves.take(DefenderTradePvPrefix.size) == DefenderTradePvPrefix
-    Option.when(exactBoard && played.contains(DefenderTradePvPrefix.head) && exactPrefix) {
+      )
+    branch.map { branch =>
       DefenderTradeWitness(
-        defenderSquare = "f8",
-        exchangeSquare = "a3",
-        targetSquare = "a7",
-        lineMoves = DefenderTradePvPrefix,
+        defenderSquare = branch.defenderSquare,
+        exchangeSquare = branch.exchangeSquare,
+        targetSquare = branch.targetSquare,
+        lineMoves = branch.lineMoves,
         ownerSeedTerms =
           List(
             "defender",
-            "defender:f8",
-            "a3",
-            "a7",
-            "defended_target:a7",
+            s"defender:${branch.defenderSquare}",
+            branch.exchangeSquare,
+            branch.targetSquare,
+            s"defended_target:${branch.targetSquare}",
             "local_branch",
             PlanTaxonomy.PlanKind.DefenderTrade.id
           ).distinct,
         structureTransitionTerms =
           (
             List(
-              "defender_removed:f8-a3",
-              "exchange_square:a3",
-              "target_unlocked:a7",
-              "branch:c1a3|f8a3"
-            ) ++ DefenderTradePvPrefix.map(move => s"pv:$move")
+              s"defender_removed:${branch.defenderSquare}-${branch.exchangeSquare}",
+              s"exchange_square:${branch.exchangeSquare}",
+              s"target_unlocked:${branch.targetSquare}",
+              s"branch:${branch.lineMoves.take(2).mkString("|")}"
+            ) ++ branch.lineMoves.map(move => s"pv:$move")
           ).distinct
       )
     }
 
-  private def exactDefenderTradeAnchorTerms(ctx: NarrativeContext): List[String] =
-    exactDefenderTradeWitness(ctx).toList.flatMap { witness =>
+  private def defenderTradeBranch(
+      ctx: NarrativeContext,
+      board: Board,
+      movingSide: Color,
+      playedMove: String,
+      topMoves: List[String]
+  ): Option[DefenderTradeBranch] =
+    val normalizedPlayed = NarrativeUtils.normalizeUciMove(playedMove)
+    Option.when(defenderTradeFamilyVisible(ctx)) {
+      for
+        firstMove <- topMoves.headOption.filter(_ == normalizedPlayed)
+        defenderMove <- topMoves.lift(1)
+        recaptureMove <- topMoves.lift(2)
+        exchangeSquare <- squareFromKey(squareKey(firstMove, from = false))
+        defenderSquare <- squareFromKey(squareKey(defenderMove, from = true))
+        defenderDest <- squareFromKey(squareKey(defenderMove, from = false))
+        recaptureDest <- squareFromKey(squareKey(recaptureMove, from = false))
+        defender <- board.pieceAt(defenderSquare)
+        if defender.color != movingSide
+        if defenderDest == exchangeSquare && recaptureDest == exchangeSquare
+      yield DefenderTradeBranch(
+        defenderSquare = defenderSquare.key,
+        exchangeSquare = exchangeSquare.key,
+        targetSquare = defenderTradeTargetSquare(ctx).getOrElse(exchangeSquare.key),
+        lineMoves = topMoves.take(3)
+      )
+    }.flatten
+
+  private def defenderTradeFamilyVisible(ctx: NarrativeContext): Boolean =
+    leadingProofFamily(ctx).contains(PlanTaxonomy.PlanKind.DefenderTrade.id) ||
+      ctx.strategicPlanExperiments.exists(exp =>
+        exp.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.DefenderTrade.id) &&
+          isEvidenceBackedTier(exp.evidenceTier)
+      ) ||
+      ctx.mainStrategicPlans.exists(plan =>
+        plan.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.DefenderTrade.id)
+      ) ||
+      defenderTradeCarrierTextVisible(ctx)
+
+  private def defenderTradeCarrierTextVisible(ctx: NarrativeContext): Boolean =
+    val texts =
+      ctx.decision.toList.flatMap(decision =>
+        List(decision.logicSummary) ++
+          decision.delta.newOpportunities ++
+          decision.delta.planAdvancements
+      ) ++
+        ctx.mainStrategicPlans.flatMap(plan =>
+          List(plan.planName) ++ plan.executionSteps ++ plan.preconditions ++ plan.evidenceSources
+        )
+    texts.exists { text =>
+      val normalized = normalize(text)
+      containsAny(normalized, List("defender", "guard")) &&
+        containsAny(normalized, List("exchange", "trade", "remove"))
+    }
+
+  private def defenderTradeTargetSquare(ctx: NarrativeContext): Option[String] =
+    ctx.decision.flatMap(_.focalPoint).collect { case TargetSquare(key) => key }
+
+  private def defenderTradeAnchorTerms(ctx: NarrativeContext): List[String] =
+    defenderTradeWitness(ctx).toList.flatMap { witness =>
       (
         List(
           "defender",
@@ -2548,7 +2678,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ).distinct
     }
 
-  private def exactDefenderTradeContinuationTerms(
+  private def defenderTradeContinuationTerms(
       ctx: NarrativeContext,
       ownerSeed: ClaimOwnerSeed
   ): List[String] =
@@ -2556,7 +2686,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ownerSeed.proofSource == DefenderTradeProofSource &&
         ownerSeed.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id
     ) {
-      exactDefenderTradeWitness(ctx).toList.flatMap { witness =>
+      defenderTradeWitness(ctx).toList.flatMap { witness =>
         (
           List(
             "defender_trade_branch",
@@ -2564,17 +2694,168 @@ private[commentary] object PlayerFacingTruthModePolicy:
             s"defended_target:${witness.targetSquare}",
             witness.exchangeSquare,
             witness.targetSquare
-          ) ++ witness.lineMoves.take(DefenderTradePvPrefix.size)
+          ) ++ witness.lineMoves
         ).distinct
       }
     }.getOrElse(Nil)
 
-  private def exactDefenderTradeClaimText(
+  private def defenderTradeClaimText(
       ctx: NarrativeContext,
       text: String
   ): Boolean =
-    exactDefenderTradeWitness(ctx).nonEmpty &&
+    defenderTradeWitness(ctx).nonEmpty &&
       normalize(text) == normalize(DefenderTradeReleasedClaim)
+
+  private def badPieceLiquidationWitness(
+      ctx: NarrativeContext
+  ): Option[BadPieceLiquidationWitness] =
+    val topMoves = normalizedTopUciMoves(ctx)
+    val played = ctx.playedMove.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty).orElse(topMoves.headOption)
+    val branch =
+      Fen.read(Standard, Fen.Full(ctx.fen)).flatMap(position =>
+        played.flatMap(playedMove =>
+          badPieceLiquidationBranch(position.board, position.color, playedMove, topMoves)
+        )
+      )
+    branch.map { branch =>
+      BadPieceLiquidationWitness(
+        badPieceSquare = branch.badPieceSquare,
+        exchangeSquare = branch.exchangeSquare,
+        lineMoves = branch.lineMoves,
+        ownerSeedTerms =
+          List(
+            "bad_piece",
+            s"bad_piece:${branch.badPieceSquare}",
+            s"exchange_square:${branch.exchangeSquare}",
+            branch.exchangeSquare,
+            PlanTaxonomy.PlanKind.BadPieceLiquidation.id
+          ).distinct,
+        structureTransitionTerms =
+          (
+            List(
+              s"bad_piece_removed:${branch.badPieceSquare}-${branch.exchangeSquare}",
+              s"exchange_square:${branch.exchangeSquare}",
+              "bad_piece_liquidation_branch",
+              s"branch:${branch.lineMoves.take(2).mkString("|")}"
+            ) ++ branch.lineMoves.map(move => s"pv:$move")
+          ).distinct
+      )
+    }
+
+  private def normalizedTopUciMoves(ctx: NarrativeContext): List[String] =
+    ctx.engineEvidence.toList.flatMap(_.variations).headOption.toList
+      .flatMap(line =>
+        val parsedUciMoves =
+          line.parsedMoves
+            .flatMap(move => clean(move.uci))
+            .map(NarrativeUtils.normalizeUciMove)
+            .filter(isUciMove)
+        if parsedUciMoves.nonEmpty then parsedUciMoves
+        else line.moves.map(NarrativeUtils.normalizeUciMove).filter(isUciMove)
+      )
+
+  private def isUciMove(move: String): Boolean =
+    move.matches("""[a-h][1-8][a-h][1-8][qrbn]?""")
+
+  private def squareKey(move: String, from: Boolean): String =
+    if from then move.take(2) else move.slice(2, 4)
+
+  private def squareFromKey(key: String): Option[Square] =
+    Square.fromKey(Option(key).map(_.trim.toLowerCase).getOrElse(""))
+
+  private def badPieceLiquidationBranch(
+      board: Board,
+      movingSide: Color,
+      playedMove: String,
+      topMoves: List[String]
+  ): Option[BadPieceLiquidationBranch] =
+    val normalizedPlayed = NarrativeUtils.normalizeUciMove(playedMove)
+    for
+      firstMove <- topMoves.headOption.filter(_ == normalizedPlayed)
+      badPieceSquareKey = squareKey(firstMove, from = true)
+      firstDestKey = squareKey(firstMove, from = false)
+      badPieceSquare <- squareFromKey(badPieceSquareKey)
+      firstDest <- squareFromKey(firstDestKey)
+      piece <- board.pieceAt(badPieceSquare)
+      if piece.color == movingSide && piece.role == Bishop
+      if isBadBishopOnCurrentBoard(board, movingSide, badPieceSquare)
+      branch <- sameBranchBadPieceLiquidation(board, movingSide, firstDest, topMoves)
+    yield BadPieceLiquidationBranch(
+      badPieceSquare = badPieceSquare.key,
+      exchangeSquare = branch.exchangeSquare,
+      lineMoves = branch.lineMoves
+    )
+
+  private def sameBranchBadPieceLiquidation(
+      board: Board,
+      movingSide: Color,
+      firstDest: Square,
+      topMoves: List[String]
+  ): Option[BadPieceLiquidationBranch] =
+    topMoves.zipWithIndex.drop(2).flatMap { (move, index) =>
+      val sameSideMove = index % 2 == 0
+      val recapture = topMoves.lift(index + 1)
+      for
+        from <- squareFromKey(squareKey(move, from = true))
+        exchange <- squareFromKey(squareKey(move, from = false))
+        if sameSideMove && from == firstDest
+        capturedBefore <- board.pieceAt(exchange)
+        if capturedBefore.color != movingSide
+        reply <- recapture
+        replyDest <- squareFromKey(squareKey(reply, from = false))
+        if replyDest == exchange
+      yield BadPieceLiquidationBranch(
+        badPieceSquare = firstDest.key,
+        exchangeSquare = exchange.key,
+        lineMoves = topMoves.take(index + 2)
+      )
+    }.headOption
+
+  private def isBadBishopOnCurrentBoard(board: Board, color: Color, square: Square): Boolean =
+    board.pieceAt(square).exists(piece => piece.color == color && piece.role == Bishop) &&
+      board
+        .byPiece(color, Pawn)
+        .squares
+        .count(pawn => Set("c", "d", "e", "f").contains(pawn.key.take(1)) && pawn.isLight == square.isLight) >= 2
+
+  private def badPieceLiquidationAnchorTerms(ctx: NarrativeContext): List[String] =
+    badPieceLiquidationWitness(ctx).toList.flatMap { witness =>
+      (
+        List(
+          "bad piece",
+          witness.badPieceSquare,
+          witness.exchangeSquare
+        ) ++ witness.ownerSeedTerms
+      ).distinct
+    }
+
+  private def badPieceLiquidationContinuationTerms(
+      ctx: NarrativeContext,
+      ownerSeed: ClaimOwnerSeed
+  ): List[String] =
+    Option.when(
+      ownerSeed.proofSource == BadPieceLiquidationProofSource &&
+        ownerSeed.proofFamily == PlanTaxonomy.PlanKind.BadPieceLiquidation.id
+    ) {
+      badPieceLiquidationWitness(ctx).toList.flatMap { witness =>
+        (
+          List(
+            "bad_piece_liquidation_branch",
+            s"bad_piece:${witness.badPieceSquare}",
+            s"exchange_square:${witness.exchangeSquare}",
+            witness.badPieceSquare,
+            witness.exchangeSquare
+          ) ++ witness.structureTransitionTerms ++ witness.lineMoves
+        ).distinct
+      }
+    }.getOrElse(Nil)
+
+  private def badPieceLiquidationClaimText(
+      ctx: NarrativeContext,
+      text: String
+  ): Boolean =
+    badPieceLiquidationWitness(ctx).nonEmpty &&
+      normalize(text) == normalize(BadPieceLiquidationReleasedClaim)
 
   private[commentary] def iqpInducementFailureCodes(ctx: NarrativeContext): List[String] =
     exactIqpInducementAnalysis(ctx)._2
@@ -3239,18 +3520,21 @@ private[commentary] object PlayerFacingTruthModePolicy:
       surface: StrategyPackSurface.Snapshot,
       deltaClass: PlayerFacingMoveDeltaClass
   ): PlayerFacingClaimProvenanceClass =
-    val exactQueenTradeShield =
+    val queenTradeShieldWitnessed =
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
-        exactQueenTradeShieldSlice(ctx)
+        hasQueenTradeShieldWitness(ctx)
     val exactBoundedSimplification =
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
         exactBoundedSimplificationExchangeSquare(ctx, surface).nonEmpty
     val exactIqpInducement =
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
         exactIqpInducementWitness(ctx).nonEmpty
-    val exactDefenderTrade =
+    val defenderTradeWitnessed =
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
-        exactDefenderTradeWitness(ctx).nonEmpty
+        defenderTradeWitness(ctx).nonEmpty
+    val badPieceLiquidationWitnessed =
+      deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
+        badPieceLiquidationWitness(ctx).nonEmpty
     val exactPressureIncrease =
       deltaClass == PlayerFacingMoveDeltaClass.PressureIncrease &&
         exactPressureIncreaseWitness(ctx, surface).nonEmpty &&
@@ -3267,7 +3551,15 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val deferred =
       ctx.strategicPlanExperiments.exists(_.evidenceTier == "deferred") ||
         ctx.probeRequests.nonEmpty
-    if evidenceBacked || exactBoundedSimplification || exactIqpInducement || exactDefenderTrade || exactPressureIncrease || exactQueenTradeShield || exactCentralBreakTiming then
+    if evidenceBacked ||
+        exactBoundedSimplification ||
+        exactIqpInducement ||
+        defenderTradeWitnessed ||
+        badPieceLiquidationWitnessed ||
+        exactPressureIncrease ||
+        queenTradeShieldWitnessed ||
+        exactCentralBreakTiming
+    then
       PlayerFacingClaimProvenanceClass.ProbeBacked
     else if pvCoupled then PlayerFacingClaimProvenanceClass.PvCoupled
     else if deferred then PlayerFacingClaimProvenanceClass.Deferred
@@ -3288,7 +3580,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     then PlayerFacingClaimQuantifier.BestResponse
     else if
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
-        exactQueenTradeShieldSlice(ctx)
+        hasQueenTradeShieldWitness(ctx)
     then PlayerFacingClaimQuantifier.BestResponse
     else if
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
@@ -3300,7 +3592,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
     then PlayerFacingClaimQuantifier.BestResponse
     else if
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
-        exactDefenderTradeWitness(ctx).nonEmpty
+        defenderTradeWitness(ctx).nonEmpty
+    then PlayerFacingClaimQuantifier.BestResponse
+    else if
+      deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
+        badPieceLiquidationWitness(ctx).nonEmpty
     then PlayerFacingClaimQuantifier.BestResponse
     else if
       deltaClass == PlayerFacingMoveDeltaClass.PlanAdvance &&
@@ -3332,7 +3628,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     then PlayerFacingClaimStabilityGrade.Stable
     else if
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
-        exactQueenTradeShieldSlice(ctx)
+        hasQueenTradeShieldWitness(ctx)
     then PlayerFacingClaimStabilityGrade.Stable
     else if
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
@@ -3344,7 +3640,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
     then PlayerFacingClaimStabilityGrade.Stable
     else if
       deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
-        exactDefenderTradeWitness(ctx).nonEmpty
+        defenderTradeWitness(ctx).nonEmpty
+    then PlayerFacingClaimStabilityGrade.Stable
+    else if
+      deltaClass == PlayerFacingMoveDeltaClass.ExchangeForcing &&
+        badPieceLiquidationWitness(ctx).nonEmpty
     then PlayerFacingClaimStabilityGrade.Stable
     else if
       deltaClass == PlayerFacingMoveDeltaClass.PlanAdvance &&

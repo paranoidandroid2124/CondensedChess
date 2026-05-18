@@ -247,18 +247,33 @@ no exact witness, but they do not rename a layer to `family`.
   forces `SupportOnlyReinflation` / `RivalRelease` closure until a distinct
   public certification lane exists.
   `defender_trade` now has a separate narrow `SupportedLocal` materializer.
-  It may release from an exact top-PV branch or a near-top MultiPV source branch
-  when the exchanged defender, defended local target, before/after defender
-  removal, branch prefix, planner admission, tactical veto, and claim-only
-  surfaces all pass. The first natural slice uses the exact Aronian-Andreikin
-  board with branch `c1a3 f8a3 b3a3`; it emits
+  It may release from a top-PV branch or a near-top MultiPV source branch when
+  the defender-trade carrier is visible and the current board/PV branch proves
+  the exchanged defender is actually removed on the same exchange square.
+  Exact source rows, including the Aronian-Andreikin branch
+  `c1a3 f8a3 b3a3`, are regression/admission samples for this detector, not
+  runtime family conditions. The packet emits
   `proofSource=defender_trade`, `proofFamily=defender_trade`,
   `scope=MoveLocal`, `fallback=WeakMain`, and the downgraded surface
   `A local reading is that this exchange removes a defender on the local branch.`
   This does not reopen `trade_key_defender`, generic good-trade prose,
   attacking-piece trades, or simplification relabels. The public
-  Aronian-Andreikin source row is authority only as `SupportedLocal`; its
-  source branch is near-top, not certified PV1.
+  Aronian-Andreikin source row is no longer authority by itself: under the
+  current engine/PV review it remains source evidence only until the live
+  board/PV witness proves the defender removal on the checked branch.
+  `bad_piece_liquidation` now has a bounded `SupportedLocal` lane on the same
+  move-delta path. It releases only from board/PV facts: the current board
+  must show a same-color-central-pawn-constrained bishop, and the defended PV
+  branch must show that bishop move into an exchange square and disappear
+  through the actual exchange. Exact source rows are positive controls and
+  source-review samples for this detector, not runtime family conditions. The
+  packet emits `proofSource=bad_piece_liquidation`,
+  `proofFamily=bad_piece_liquidation`, `scope=MoveLocal`, `fallback=WeakMain`,
+  and the downgraded surface
+  `A local reading is that this trade clears the bad piece from the local branch.`
+  The pilot does not open `PositionLocal`, generic favorable-exchange prose,
+  `defender_trade`, `queen_trade_shield`, `simplification_window`, or future
+  `worst_piece_improvement`; rows without actual liquidation stay review-only.
 - Promotion-record requirement:
   pilot-cell status, exact FEN controls, blockers, and touched verification now
   live in
@@ -4515,17 +4530,19 @@ The current B/C trust-boundary experiment uses one internal authority tiers in
     behavior only; they are not the current engine-backed source-admission set.
     Current source acceptance is defined only by `SourceReview` rows whose
     verdict is `admit_authority_row`.
-  - the 2026-05-17 Stockfish 18 `SourceReview` rerun admits ten
-    `SupportedLocal` source rows: `source-carlsen-anand-2014-g6`,
+  - the current Stockfish 18 `SourceReview` rerun admits twelve
+    `SupportedLocal` source rows: `source-evans-opsahl-1950-iqp-inducement`,
+    `source-lokvenc-czerniak-1952-b6-b5-break-prevention`,
+    `source-maderna-palermo-1955-a6-a5-break-prevention`,
+    `source-maderna-palermo-1955-central-break-timing`,
+    `source-camara-bazan-1960-b7-b5-break-prevention`,
+    `source-sliwa-gromek-1960-a6-a5-break-prevention`,
+    `source-pfleger-maalouf-1961-a6-a5-break-prevention`,
     `source-capablanca-golombek-1939-iqp-inducement`,
     `source-botvinnik-vidmar-1936-iqp-opening-inducement`,
     `source-alekhine-bogoljubow-1936-iqp-inducement`,
-    `source-najdorf-sergeant-1939-iqp-inducement`,
-    `source-aronian-andreikin-2014-defender-trade`,
-    `source-maderna-palermo-1955-a6-a5-break-prevention`,
-    `source-maderna-palermo-1955-central-break-timing`,
-    `source-sliwa-gromek-1960-a6-a5-break-prevention`, and
-    `source-polugaevsky-giorgadze-1956-c5-c4-break-prevention`.
+    `source-najdorf-sergeant-1939-iqp-inducement`, and
+    `source-carlsen-anand-2014-g6`.
 - `Suppressed`
   - no owner surface survives.
 - `TacticalVeto`
@@ -4547,9 +4564,9 @@ Current contract posture:
 | contract group | status | surface authority boundary |
 | --- | --- | --- |
 | exact weakness / fixed-target / coordination packets | `Releasable` | `CertifiedOwner` only with owner seed, continuation, proven branch, stable persistence, no release risk |
-| bounded favorable exchange packets | `Releasable` | `CertifiedOwner` for exact simplification; `SupportedLocal` for weak local exchange packets such as the exact queen-trade shield |
+| bounded favorable exchange packets | `Releasable` | `CertifiedOwner` for exact simplification; `SupportedLocal` for weak local exchange packets such as the board/PV queen-trade shield |
 | exact IQP inducement packets | `Releasable` | `SupportedLocal` only through `iqp_inducement_probe`; requires opponent isolated central-pawn transition, PV prefix, branch key, no rival release, no tactical veto |
-| exact defender-trade packets | `Releasable` | `SupportedLocal` only through `defender_trade`; requires exchanged defender square, defended target/resource, before/after defender removal, PV prefix, branch key, no rival release, no tactical veto |
+| board/PV defender-trade packets | `Releasable` | `SupportedLocal` only through `defender_trade`; requires exchanged defender square, defended target/resource, before/after defender removal, branch key, no rival release, no tactical veto |
 | board-backed central-break-timing packets | `Releasable` | `SupportedLocal` only through the bounded `central_break_timing` break-support path; requires same-branch proof, stable persistence, no rival-family release, and no tactical-first veto |
 | restriction runtime packets | `Releasable` | existing exact owner-path families remain available only when their private witness path proves them; named-break prose from `breakNeutralized` must pass a promoted named-break packet/proof gate (`neutralize_key_break` or the existing `counterplay_restraint`) |
 | other strategic taxonomy cells | `Deferred` | explicit `deferred_no_exact_owner`; no player-facing strategic claim from vocabulary alone |
@@ -4560,11 +4577,13 @@ internal `proofTrace` with contract id/status, witness booleans,
 branch/persistence state, rival context, suppression reasons, release risks,
 and failure codes. `ClaimAuthorityPolicy` derives supported position
 probe and move-delta eligibility from this catalog instead of local allowlists.
-Exact-slice predicates such as `carlsbad_fixed_target_probe`,
+Runtime predicates such as `carlsbad_fixed_target_probe`,
 `queen_trade_shield`, `iqp_inducement_probe`, and `defender_trade` remain
-runtime predicates, not source-witness-id gates. The IQP and DefenderTrade contracts
-are deliberately capped at `SupportedLocal` for this pass; neither can become
-`CertifiedOwner`.
+runtime predicates, not source-witness-id gates. `queen_trade_shield` is now
+recognized from the current board and PV queen-trade/king-recapture pattern;
+the Carlsen-Anand row remains a surface regression sample, not the family
+condition. The IQP and DefenderTrade contracts are deliberately capped at
+`SupportedLocal` for this pass; neither can become `CertifiedOwner`.
 
 Bookmaker and Chronicle must consume the planner-owned authority decision and may
 not independently reconstruct a stronger surface. The matrix now records the
@@ -4589,8 +4608,8 @@ Current matrix scope:
   (Capablanca-Golombek 1939, Evans-Opsahl 1950,
   Alekhine-Bogoljubow 1936, Najdorf-Sergeant 1939, and Botvinnik-Vidmar
   1936), the Salov-Ljubojevic 1992 simplification-window row, the
-  Boleslavsky-Nezhmetdinov 1950 static-weakness row, and the
-  Aronian-Andreikin 2014 defender-trade row
+  Boleslavsky-Nezhmetdinov 1950 static-weakness row, plus the
+  Aronian-Andreikin 2014 defender-trade row as non-authority source evidence
 - controlled `SupportedLocal` degradation rows for B fixed-target and C
   favorable-simplification, a controlled exact IQP inducement row, and a
   controlled `break_prevention` / `counterplay_axis_suppression` row
@@ -4624,14 +4643,13 @@ Current expanded matrix result on 2026-05-15:
     primary surface is `This trade keeps the same local edge on d5.`;
     Bookmaker and Chronicle append only the bounded alternative sentence
     `The practical alternative Qxd5 remains secondary here.`
-- `SupportedLocal=15`
+- `SupportedLocal=14`
   - examples:
     controlled `B15A-supported-local-soft` and
     `K09B-supported-local-soft`, controlled `iqp-supported-local-control`,
     controlled `break-prevention-supported-local-control`, controlled
     `prophylaxis-restraint-supported-local-control`, plus source-backed
-    `source-carlsen-anand-2014-g6`, five natural IQP authority rows,
-    `source-aronian-andreikin-2014-defender-trade`, and the natural
+    `source-carlsen-anand-2014-g6`, five natural IQP authority rows, and the natural
     break-prevention rows
     `source-maderna-palermo-1955-a6-a5-break-prevention`,
     `source-camara-bazan-1960-b7-b5-break-prevention`, and
@@ -4709,9 +4727,9 @@ the runner writes
 `tmp/strategic_claim_source_review.tsv` and
 `tmp/strategic_claim_source_review.md`; the follow-up window probe
 runner writes `tmp/strategic_claim_source_window_review.tsv` and
-`tmp/strategic_claim_source_window_review.md`. The latest 2026-05-17
-Stockfish 18 source-review rerun reports `admit_authority_row=12,
-reject_owner_missing=14, reject_tactical_first=2`. That rerun admits the exact
+`tmp/strategic_claim_source_window_review.md`. The latest 2026-05-18
+Stockfish 18 source-review rerun reports `admit_authority_row=15,
+reject_owner_missing=12, reject_tactical_first=2`. That rerun admits the exact
 `source-maderna-palermo-1955-central-break-timing` row as
 `central_break_timing` / `SupportedLocal`, and closes
 `source-maderna-palermo-1955-central-break-prep-review` with
@@ -4719,10 +4737,10 @@ reject_owner_missing=14, reject_tactical_first=2`. That rerun admits the exact
 window review scans 106 rows and preserves the same central-break split.
 
 Do not reuse older clean-route promotion notes as current real-engine
-acceptance: in the 2026-05-17 rerun, the Camara-Bazan and Pfleger-Maalouf
-break-prevention rows close under witness/surface blockers, while Maderna,
-Sliwa-Gromek, and Polugaevsky-Giorgadze are the real-engine
-`break_prevention` source rows that admit. The canned
+acceptance: in the 2026-05-18 rerun, Lokvenc-Czerniak, Maderna-Palermo,
+Camara-Bazan, Sliwa-Gromek, and Pfleger-Maalouf are the real-engine
+`break_prevention` source rows that admit. Luckis-Bielicki and
+Polugaevsky-Giorgadze remain current non-authority evidence. The canned
 `AuthoritySurfaceLedger` matrix remains a surface-contract fixture; its
 source-row list is not a substitute for the engine-backed `SourceReview`
 gate. Source rows remain non-authority until this exact intake path returns
@@ -4732,30 +4750,31 @@ unless later replaced by natural source positions.
 The source intake now records an admission diagnosis separate from the coarse
 verdict, plus `admissionBlockers`, `mainProofSource`, `mainClaimScope`, packet
 summary, `contractId`, `contractStatus`, `contractFailures`, scene type, owner
-trace, and family witness failure codes. The 2026-05-17 Stockfish 18 rerun
-reports `summary=admit_authority_row=12, reject_owner_missing=14,
+trace, and family witness failure codes. The 2026-05-18 Stockfish 18 rerun
+reports `summary=admit_authority_row=15, reject_owner_missing=12,
 reject_tactical_first=2`. Its diagnostic split is
-`admit_ready=14, engine_top_move_disagrees=5,
-root_vocabulary_or_extraction_gap=7, tactical_first_source=2`; `admit_ready`
+`admit_ready=15, engine_top_move_disagrees=2,
+root_vocabulary_or_extraction_gap=10, tactical_first_source=2`; `admit_ready`
 is only a diagnostic bucket and is not acceptance. The blocker split is
-`engine:source_move_absent_from_multipv=5`,
+`engine:source_move_absent_from_multipv=2`,
+`owner:bad_piece_liquidation_witness_missing=1`,
 `owner:break_prevention_capture_transform_recapture_unproven=1`,
-`owner:break_prevention_no_prevented_plan=2`,
-`owner:break_prevention_witness_missing=2`,
+`owner:break_prevention_no_prevented_plan=1`,
 `owner:carlsbad_probe_missing=1`,
 `owner:central_break_timing_witness_missing=1`,
-`owner:iqp_not_induced=4`,
-`proof:break_prevention_contract_mismatch=1`, and `tactical:first=2`.
+`owner:defender_trade_owner_missing=1`,
+`owner:iqp_not_induced=3`,
+`owner:root_vocabulary_or_extraction_gap=1`,
+`proof:break_prevention_contract_mismatch=2`, and `tactical:first=2`.
 
-The same rerun's contract-proof split is `-:-=10`,
+The same rerun's contract-proof split is `-:-=12`,
 `Releasable:runtime:neutralize_key_break=6`,
 `Releasable:subplan:backward_pawn_targeting=1`,
 `Releasable:subplan:central_break_timing=1`,
-`Releasable:subplan:defender_trade=1`,
-`Releasable:subplan:iqp_inducement=5`,
+`Releasable:subplan:iqp_inducement=6`,
 `Releasable:subplan:queen_trade_shield=1`,
 `Releasable:subplan:simplification_window=1`, and
-`Releasable:subplan:static_weakness_fixation=2`. This batch did not fail
+`Releasable:subplan:static_weakness_fixation=1`. This batch did not fail
 because Bookmaker or Chronicle distorted an admitted local claim; current
 source acceptance is instead determined by the `verdict=admit_authority_row`
 rows in `strategic_claim_source_review.*`.
@@ -4765,10 +4784,11 @@ screen in that rerun: `source-maderna-palermo-1955-central-break-timing`
 admits as `central_break_timing` / `SupportedLocal`, while
 `source-maderna-palermo-1955-central-break-prep-review` rejects with
 `owner:central_break_timing_witness_missing` and `release=-`. The current
-break-prevention source-review acceptances are Maderna-Palermo 1955,
-Sliwa-Gromek 1960, and Polugaevsky-Giorgadze 1956. Camara-Bazan 1960 and
-Pfleger-Maalouf 1961 remain review evidence under this engine snapshot, not
-current source-review authority.
+break-prevention source-review acceptances are Lokvenc-Czerniak 1952,
+Maderna-Palermo 1955, Camara-Bazan 1960, Sliwa-Gromek 1960, and
+Pfleger-Maalouf 1961. Luckis-Bielicki 1961 and Polugaevsky-Giorgadze 1956
+remain review evidence under this engine snapshot, not current source-review
+authority.
 
 The targeted IQP plus simplification, static-weakness, and DefenderTrade window
 probes confirm five natural IQP authority rows, one Botvinnik IQP
@@ -4835,17 +4855,18 @@ and one natural DefenderTrade `SupportedLocal` authority row:
   ply 33, FEN
   `3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17`.
   The source move `c1a3` is near-top rather than PV1:
-  `near_top_multipv_contains_played_top=c2b1_gap=15cp`, with source branch
-  prefix `c1a3 f8a3 b3a3 e2c4`. It materializes `defender_trade` as
-  `MoveLocal` / `SupportedLocal`, and primary, Bookmaker, and Chronicle all
-  render exactly
-  `A local reading is that this exchange removes a defender on the local branch.`
+  `near_top_multipv_contains_played_top=c2b1_gap=14cp`. The current engine
+  branch does not prove the defender is removed on the same exchange square, so
+  the row remains non-authority with `owner:defender_trade_owner_missing`.
+  The historical source branch is useful as a regression/admission sample only;
+  it is not a runtime family condition.
 - `source-karpov-unzicker-1974-break-prevention` reviews the 16.b4 to 24.Ba7
   clamp window from Karpov-Unzicker, Nice Olympiad 1974. The fixed head row
   has top-PV agreement at ply 31 and now materializes route-level break-clamp
   evidence, but the same destination can still be reached by a capture
-  transform. The capture can be recaptured, but that is not a harmless-transform
-  proof in the current negative-first contract, so exact authority is blocked as
+  transform. The capture can be recaptured, but the current branch does not
+  prove the transform capture plus immediate recapture as a closed harmless
+  route, so exact authority is blocked as
   `owner:break_prevention_capture_transform_recapture_unproven`. The full
   window scans 17 plies, rejects all rows, and has no admitted
   `break_prevention` authority row: one row is
@@ -4869,8 +4890,9 @@ Qxd5 simplification row. Boleslavsky-Nezhmetdinov admits only through the
 fixed ply-19 Nd2 d6-fixation row; the Maderna-Palermo sibling shows that the
 same Benoni/static-weakness vocabulary is not sufficient without the exact
 owner packet. Aronian-Andreikin shows that source-backed "remove the defender"
-language is not sufficient by itself: a non-PV1 branch may enter only as
-near-top `SupportedLocal`, and only after exact owner and full-surface checks.
+language is not sufficient by itself: a source branch may enter only after the
+current board/PV witness proves defender removal on the checked branch and the
+full planner/surface gates pass.
 The Karpov break-prevention screens add the same negative rule for named-break
 language: source vocabulary and a visually plausible clamp window are not
 authority without the exact `neutralize_key_break` owner packet/proof, and
@@ -4971,25 +4993,45 @@ null-turn opponent contact break route is legal before the move, illegal after
 the move, and not restored in the early same branch. Route identity is
 board-derived (`color:origin-destination:kind`) and remains private runtime
 evidence; the public carrier schema is unchanged. Same-destination alternate
-routes are assessed as unanswered, recapturable-but-unproven, or still-releasing
-transforms, and all three block exact `neutralize_key_break` authority in this
-negative-first pass. The materializer does not create planner packets, renderer
-prose, source-id gates, broad runtime release, or synthetic centipawn drops.
+routes are assessed as unanswered, recapturable-but-unproven, still-releasing,
+or branch-proven harmless transforms. Only branch-proven harmless recapture can
+avoid the transform blocker; unanswered, unproven, and still-releasing
+transforms continue to block exact `neutralize_key_break` authority. The
+materializer does not create planner packets, renderer prose, source-id gates,
+broad runtime release, or synthetic centipawn drops.
 
 The later handoff pass broke the clean-route carrier bottleneck without opening
 a broad release. `NarrativeContextBuilder` now preserves low-salience semantic
 sections that contain a current break/file `PreventedPlan`, so exact route
 clamps reach `PreventedPlanInfo`. `BreakPreventionWitness` can use matching
-clean route evidence as persistence only when the same route has no transform
-risk and the checked branch has at least four plies. `PlayerFacingTruthModePolicy`,
+route evidence as persistence only when the same route has no transform risk,
+or when a same-destination transform is proven harmless by the checked
+capture-and-recapture branch, and the checked branch has at least four plies.
+`PlayerFacingTruthModePolicy`,
 `ClaimAuthorityPolicy`, and `QuestionFirstCommentaryPlanner` then reuse that
 same exact witness for the `counterplay_axis_suppression` /
 `neutralize_key_break` owner packet, `SupportedLocal` release, tactical-first
 veto, and claim-only surface. The current Stockfish 18 source-review snapshot
-admits three natural `break_prevention` rows: Maderna-Palermo 1955,
-Sliwa-Gromek 1960, and Polugaevsky-Giorgadze 1956. Older notes that counted
-Pfleger-Maalouf or Camara-Bazan as admitted belong to historical surface
-fixture snapshots, not current source-review authority.
+admits five natural `break_prevention` rows: Lokvenc-Czerniak 1952,
+Maderna-Palermo 1955, Camara-Bazan 1960, Sliwa-Gromek 1960, and
+Pfleger-Maalouf 1961. Luckis-Bielicki 1961 and Polugaevsky-Giorgadze 1956
+remain non-authority under their current proof-contract blockers.
+
+The 2026-05-18 timing-release pass deliberately relaxes only planner surface
+admission for `neutralize_key_break`. The chess witness gate is unchanged:
+source id, game id, family label, or `breakNeutralized` vocabulary still cannot
+release a row without the promoted packet. `ClaimAuthorityPolicy` now admits
+`WhyNow` / `WhatMustBeStopped` forcing-defense timing plans only when the main
+packet is exactly `counterplay_axis_suppression` / `neutralize_key_break`,
+`MoveLocal`, `WeakMain`, `sameBranchState=Proven`, `persistence=Stable`, has no
+suppression or release-risk reasons, and the plan carries a structured
+`timingWitness` whose source and runtime tokens intersect the packet's named
+break, continuation, or branch witness. The released surface remains capped at
+`SupportedLocal`, is downgraded to
+`A local reading is that ...`, drops evidence / contrast / consequence, and is
+still vetoed by tactical truth mode. This opens the real release lane for the
+packet-backed Lokvenc-Czerniak and Sliwa-Gromek forcing-defense timing rows
+without making clean-route detection itself a release condition.
 
 The test/tooling-only clean break-clamp candidate scanner is a discovery aid
 for the next source hunt, not an authority path. It reads PGN / RealPgn-style
@@ -5025,10 +5067,11 @@ history, not acceptance. They added Modern Benoni clean-route candidates such
 as Lokvenc-Czerniak, Maderna-Palermo, Polugaevsky-Giorgadze, Sliwa-Gromek,
 Luckis-Bielicki, and Pfleger-Maalouf to `SourceWitnessCatalog` for exact
 review. The current Stockfish 18 `SourceReview` result is the authority:
-Maderna-Palermo, Sliwa-Gromek, and Polugaevsky-Giorgadze admit as
-`counterplay_axis_suppression` / `neutralize_key_break` `SupportedLocal`;
-Lokvenc-Czerniak, Luckis-Bielicki, and Pfleger-Maalouf remain non-authority
-under their current blockers. This is still not a broad clean-route release.
+Lokvenc-Czerniak, Maderna-Palermo, Camara-Bazan, Sliwa-Gromek, and
+Pfleger-Maalouf admit as `counterplay_axis_suppression` /
+`neutralize_key_break` `SupportedLocal`; Luckis-Bielicki and
+Polugaevsky-Giorgadze remain non-authority under their current blockers. This
+is still not a broad clean-route release.
 
 The 2026-05-15 source-triage admission pass reran the same Modern Benoni
 `offset=120`, `limit=500` slice through `BreakClampSourceTriage` with
@@ -5042,12 +5085,13 @@ ledger, it admitted as `counterplay_axis_suppression` /
 `neutralize_key_break`, `release=SupportedLocal`, with primary, Bookmaker, and
 Chronicle all exactly
 `A local reading is that this keeps ...b5 from coming right away.` That older
-snapshot is historical only. The 2026-05-17 Stockfish 18 rerun of
-`strategic_claim_source_review.*` now reports `admit_authority_row=12`; the
-real-engine break-prevention rows that currently admit are Maderna-Palermo
-1955, Sliwa-Gromek 1960, and Polugaevsky-Giorgadze 1956. Camara-Bazan 1960
-and Pfleger-Maalouf 1961 are review evidence, not current source-review
-authority, until they again pass the full engine-backed owner stack. The
+snapshot is historical only. The 2026-05-18 Stockfish 18 rerun of
+`strategic_claim_source_review.*` now reports `admit_authority_row=15`; the
+real-engine break-prevention rows that currently admit are Lokvenc-Czerniak
+1952, Maderna-Palermo 1955, Camara-Bazan 1960, Sliwa-Gromek 1960, and
+Pfleger-Maalouf 1961. Luckis-Bielicki 1961 and Polugaevsky-Giorgadze 1956 are
+review evidence, not current source-review authority, until they again pass the
+full engine-backed owner stack. The
 surface ledger still reports `SupportedLocal=15` as a canned surface-contract
 matrix, but it must not be read as source-review acceptance when it conflicts
 with `SourceReview`. This is still not a broad clean-route release; clean
@@ -5084,13 +5128,19 @@ Failure taxonomy anchors for authority rows:
 | `source_iqp_inducement` | source-backed exact IQP witness admitted as natural `SupportedLocal` |
 | `source_simplification_window` | source-backed exact simplification-window witness admitted as natural `CertifiedOwner` |
 | `source_static_weakness_fixation` | source-backed exact static-weakness witness admitted as natural `CertifiedOwner` |
-| `source_defender_trade` | source-backed DefenderTrade witness admitted only as `SupportedLocal`; requires exact replay, PV1-or-near-top engine authority, `defender_trade` packet, planner admission, tactical veto, and claim-only surfaces |
+| `source_defender_trade` | source-backed DefenderTrade witness admitted only as `SupportedLocal`; requires exact source replay through the board/PV-derived `defender_trade` packet, PV1-or-near-top engine authority, planner admission, tactical veto, and claim-only surfaces |
+| `source_bad_piece_liquidation` | source-backed bad-piece-liquidation witness admitted only as `SupportedLocal`; requires exact source replay through the board/PV-derived `bad_piece_liquidation` packet, planner admission, tactical veto, rival-family closure, and claim-only surfaces |
 | `break_prevention_supported_local` | controlled exact named-break witness admitted only as `SupportedLocal` through `counterplay_axis_suppression` / `neutralize_key_break`; natural source rows still require exact owner packet proof |
 | `source_break_prevention` | source-backed break-prevention candidates are screen rows unless the exact `neutralize_key_break` packet/proof materializes; incidental non-break owner packets inside the window do not admit the family |
 | `prophylaxis_restraint_supported_local` | controlled exact named-resource prophylactic witness admitted only as `SupportedLocal` through `prophylactic_move` / `counterplay_restraint`; natural source rows still require exact owner packet proof |
 | `source_prophylaxis_restraint` | transient or fixed prophylaxis-restraint source rows are screen rows unless the exact `counterplay_restraint` packet/proof materializes with claim-only surfaces |
 | `central_break_timing_supported_local` | board-backed break support admitted only as `SupportedLocal`; exact rows stay positive controls / regression seeds and do not widen the path by themselves |
 | `source_central_break_timing_plan_only` | plan-only central-break rows are diagnostic / review-only and may not become player-facing owners |
+| `owner:bad_piece_liquidation_witness_missing` | no board/PV bad-piece liquidation witness is available for the family row |
+| `owner:bad_piece_liquidation_piece_not_bad` | liquidation-like exchange lacks direct bad-piece evidence such as low mobility, blocked route, domination, or own-plan obstruction |
+| `owner:bad_piece_liquidation_no_actual_liquidation` | bad-piece prose or repositioning exists, but the played move / PV prefix does not actually trade or remove the constrained piece |
+| `owner:bad_piece_liquidation_rival_or_relabel` | the row belongs to tactical-first, generic simplification, defender removal, queen-trade shield, or another rival family |
+| `proof:bad_piece_liquidation_contract_mismatch` | a row materializes a non-`bad_piece_liquidation` packet and may not be relabeled into the pilot family |
 | `owner:prophylaxis_restraint_witness_missing` | no exact named-resource prophylactic witness is available for the family row |
 | `proof:prophylaxis_restraint_contract_mismatch` | a row materializes a rival packet, such as target fixation or named-break prevention, and may not be relabeled as `prophylaxis_restraint` |
 | `owner:prophylaxis_restraint_rival_or_relabel` | a named-resource prophylaxis shell is blocked by release-risk or generic/rival counterplay relabel |
@@ -5101,7 +5151,7 @@ Failure taxonomy anchors for authority rows:
 | `owner:break_prevention_route_still_legal` | a route-shaped named-break carrier is unsafe because the same route remains legal after the move |
 | `owner:break_prevention_capture_transform_risk` | the exact route is denied, but the same destination remains reachable by a different capture route, so route-only authority is unsafe |
 | `owner:break_prevention_capture_transform_unanswered` | a same-destination capture transform remains and there is no immediate exact-board recapture |
-| `owner:break_prevention_capture_transform_recapture_unproven` | a same-destination capture transform can be recaptured, but harmless-transform proof is not part of the current authority contract |
+| `owner:break_prevention_capture_transform_recapture_unproven` | a same-destination capture transform can be recaptured, but the defended branch does not prove the transform capture plus immediate harmless recapture |
 | `owner:break_prevention_capture_transform_recapture_still_releases` | a same-destination capture transform can be recaptured, but another same-destination break route still remains afterward |
 | `owner:break_prevention_same_route_restored` | the same break route reappears in the early defended branch, so the clamp is not stable |
 | `owner:break_prevention_branch_unstable` | the same break route becomes legal again inside the checked branch without becoming a stable exact clamp |

@@ -276,6 +276,9 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
           else if delta.packet.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id &&
               delta.packet.proofSource == PlayerFacingTruthModePolicy.DefenderTradeProofSource
           then "This exchange removes a defender on the local branch."
+          else if delta.packet.proofFamily == PlanTaxonomy.PlanKind.BadPieceLiquidation.id &&
+              delta.packet.proofSource == PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource
+          then "This trade clears the bad piece from the local branch."
           else if delta.packet.proofFamily == PlanTaxonomy.PlanKind.SimplificationWindow.id then
             delta.modalityTier match
               case PlayerFacingClaimModalityTier.Forces =>
@@ -518,6 +521,7 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
         packet.proofSource == PlayerFacingTruthModePolicy.QueenTradeShieldProofSource ||
         packet.proofSource == PlayerFacingTruthModePolicy.IQPInducementProbeProofSource ||
         packet.proofSource == PlayerFacingTruthModePolicy.DefenderTradeProofSource ||
+        packet.proofSource == PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource ||
         packet.proofSource == CentralBreakTimingWitness.ProofSource
     ) {
       packet.proofSource

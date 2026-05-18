@@ -28,6 +28,7 @@ class SourceWitnessCatalogTest extends FunSuite:
         "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
         "source-maderna-palermo-1955-static-weakness-fixation",
         "source-aronian-andreikin-2014-defender-trade",
+        "source-bad-piece-liquidation-pilot",
         "source-capablanca-golombek-1939",
         "source-capablanca-golombek-1939-iqp-inducement",
         "source-botvinnik-vidmar-1936",
@@ -78,6 +79,7 @@ class SourceWitnessCatalogTest extends FunSuite:
     val boleslavskyStaticWeakness = byId("source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation")
     val madernaStaticWeakness = byId("source-maderna-palermo-1955-static-weakness-fixation")
     val aronianDefenderTrade = byId("source-aronian-andreikin-2014-defender-trade")
+    val badPieceLiquidation = byId("source-bad-piece-liquidation-pilot")
     val karpovUnzickerBreakPrevention = byId("source-karpov-unzicker-1974-break-prevention")
     val karpovAnderssonBreakScreen = byId("source-karpov-andersson-1975-hedgehog-break-screen")
     val lokvencBreakPrevention = byId("source-lokvenc-czerniak-1952-b6-b5-break-prevention")
@@ -190,6 +192,18 @@ class SourceWitnessCatalogTest extends FunSuite:
     assertEquals(
       aronianDefenderTradeWindow.head.fen,
       "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17"
+    )
+
+    val badPieceLiquidationWindow =
+      PgnAnalysisHelper
+        .extractPlyDataStrict(badPieceLiquidation.pgn)
+        .fold(err => fail(s"${badPieceLiquidation.id} PGN did not parse strictly: $err"), identity)
+        .filter(ply => badPieceLiquidation.candidatePlyRange.contains(ply.ply))
+    assertEquals(badPieceLiquidationWindow.map(_.ply), List(1))
+    assertEquals(badPieceLiquidationWindow.head.playedUci, "c1a3")
+    assertEquals(
+      badPieceLiquidationWindow.head.fen,
+      "5b2/4k1pp/8/8/3P4/1R2P3/P4PPP/2B3K1 w - - 0 1"
     )
 
     val karpovUnzickerWindow =

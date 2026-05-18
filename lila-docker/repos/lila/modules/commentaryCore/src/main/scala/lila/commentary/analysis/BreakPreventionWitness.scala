@@ -174,7 +174,8 @@ object BreakPreventionWitness:
   private def routeFailure(evidence: BreakClampMaterializer.BreakRouteEvidence): Option[String] =
     evidence.transformRisk match
       case BreakClampMaterializer.BreakTransformRisk.CaptureTransform =>
-        captureTransformFailure(evidence.transformAssessments)
+        if recaptureHarmless(evidence) then None
+        else captureTransformFailure(evidence.transformAssessments)
       case BreakClampMaterializer.BreakTransformRisk.SameRouteRestored => Some(Failure.SameRouteRestored)
       case BreakClampMaterializer.BreakTransformRisk.BranchUnstable    => Some(Failure.BranchUnstable)
       case BreakClampMaterializer.BreakTransformRisk.None              => None
@@ -185,14 +186,22 @@ object BreakPreventionWitness:
   ): Boolean =
     evidence.exists(route =>
       (normalize(route.token) == normalize(token) || normalize(route.destinationToken) == normalize(token)) &&
-        route.transformRisk == BreakClampMaterializer.BreakTransformRisk.None &&
+        (route.transformRisk == BreakClampMaterializer.BreakTransformRisk.None || recaptureHarmless(route)) &&
         route.sourceLine.exists(_.moves.size >= 4)
     )
+
+  private def recaptureHarmless(evidence: BreakClampMaterializer.BreakRouteEvidence): Boolean =
+    evidence.transformRisk == BreakClampMaterializer.BreakTransformRisk.CaptureTransform &&
+      evidence.transformAssessments.nonEmpty &&
+      evidence.transformAssessments.forall(_.verdict == BreakClampMaterializer.BreakTransformVerdict.RecaptureProvenHarmless)
 
   private def captureTransformFailure(
       assessments: List[BreakClampMaterializer.BreakTransformAssessment]
   ): Option[String] =
-    if assessments.exists(_.verdict == BreakClampMaterializer.BreakTransformVerdict.RecaptureStillReleases) then
+    if assessments.nonEmpty &&
+      assessments.forall(_.verdict == BreakClampMaterializer.BreakTransformVerdict.RecaptureProvenHarmless)
+    then None
+    else if assessments.exists(_.verdict == BreakClampMaterializer.BreakTransformVerdict.RecaptureStillReleases) then
       Some(Failure.CaptureTransformRecaptureStillReleases)
     else if assessments.exists(_.verdict == BreakClampMaterializer.BreakTransformVerdict.UnansweredCapture) then
       Some(Failure.CaptureTransformUnanswered)

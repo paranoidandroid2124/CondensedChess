@@ -1179,18 +1179,6 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       Some(
         StrategyPack(
           sideToMove = "white",
-          directionalTargets = List(
-            StrategyDirectionalTarget(
-              targetId = "target_c5",
-              ownerSide = "white",
-              piece = "R",
-              from = "c1",
-              targetSquare = "c5",
-              readiness = DirectionalTargetReadiness.Build,
-              strategicReasons = List("deny the ...c5 break"),
-              evidence = List("probe")
-            )
-          ),
           signalDigest = Some(NarrativeSignalDigest(decision = Some("deny the ...c5 break")))
         )
       )
@@ -1210,6 +1198,486 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(delta.packet.releaseRisks, Nil)
     assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
     assert(PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet))
+  }
+
+  test("forcing-defense named-break timing can release as SupportedLocal when packet proof is stable") {
+    val ctx =
+      baseCtx().copy(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        authorQuestions = List(AuthorQuestion("why_now", AuthorQuestionKind.WhyNow, 100, "Why now?")),
+        threats = ThreatTable(
+          toUs = List(
+            ThreatRow(
+              kind = "Material",
+              side = "US",
+              square = Some("c8"),
+              lossIfIgnoredCp = 320,
+              turnsToImpact = 1,
+              bestDefense = Some("c1c8"),
+              defenseCount = 1,
+              insufficientData = false
+            )
+          ),
+          toThem = Nil
+        ),
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "named_break_timing_release",
+              planName = "Clamp the ...c5 break",
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+              executionSteps = List("Keep the opponent's main counterplay route closed first.")
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "named_break_timing_release",
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_counterplay",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("...c5"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 140,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("break"),
+                citationLine = Some("The ...c5 break never becomes available on the defended branch.")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("c1c8", "f8e8", "c8e8"),
+                scoreCp = 88,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("deny the ...c5 break")))
+        )
+      )
+
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
+    val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+    val primary =
+      ranked.primary.getOrElse(fail(s"stable named-break timing should produce a plan: ${ranked.ownerTrace} ${ranked.rejected}"))
+
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyNow)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.ForcingDefense)
+    assertEquals(primary.fallbackMode, QuestionPlanFallbackMode.FactualFallback)
+    assertEquals(primary.strengthTier, QuestionPlanStrengthTier.Moderate)
+    assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
+    assertEquals(
+      primary.claim,
+      "A local reading is that the move has to happen now because otherwise c1c8 is demanded immediately."
+    )
+    assertEquals(primary.evidence, None)
+    assertEquals(primary.contrast, None)
+    assertEquals(primary.consequence, None)
+  }
+
+  test("forcing-defense WhatMustBeStopped timing can release from structured packet witness") {
+    val ctx =
+      baseCtx().copy(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        authorQuestions = List(AuthorQuestion("what_stop", AuthorQuestionKind.WhatMustBeStopped, 100, "What must be stopped?")),
+        threats = ThreatTable(
+          toUs = List(
+            ThreatRow(
+              kind = "Material",
+              side = "US",
+              square = Some("c8"),
+              lossIfIgnoredCp = 320,
+              turnsToImpact = 1,
+              bestDefense = Some("c1c8"),
+              defenseCount = 1,
+              insufficientData = false
+            )
+          ),
+          toThem = Nil
+        ),
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "named_break_stop_release",
+              planName = "Clamp the ...c5 break",
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+              executionSteps = List("Keep the opponent's main counterplay route closed first.")
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "named_break_stop_release",
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_counterplay",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("...c5"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 140,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("break"),
+                citationLine = Some("The ...c5 break never becomes available on the defended branch.")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("c1c8", "f8e8", "c8e8"),
+                scoreCp = 88,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("deny the ...c5 break")))
+        )
+      )
+
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
+    val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+    val primary =
+      ranked.primary.getOrElse(fail(s"stable WhatMustBeStopped timing should produce a plan: ${ranked.ownerTrace} ${ranked.rejected}"))
+
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhatMustBeStopped)
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.ForcingDefense)
+    assertEquals(primary.plannerSource, "threat")
+    assertEquals(primary.timingWitness.map(_.proofFamily), Some("neutralize_key_break"))
+    assert(primary.timingWitness.exists(_.witnessTokens.contains("c1c8")), clues(primary))
+    assertEquals(primary.fallbackMode, QuestionPlanFallbackMode.FactualFallback)
+    assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
+    assertEquals(
+      primary.claim,
+      "A local reading is that this has to stop the opponent's material threat before it lands."
+    )
+    assertEquals(primary.evidence, None)
+    assertEquals(primary.contrast, None)
+    assertEquals(primary.consequence, None)
+  }
+
+  test("forcing-defense named-break timing stays unreleased when packet proof lacks a branch") {
+    val ctx =
+      baseCtx().copy(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        authorQuestions = List(AuthorQuestion("why_now", AuthorQuestionKind.WhyNow, 100, "Why now?")),
+        threats = ThreatTable(
+          toUs = List(
+            ThreatRow(
+              kind = "Material",
+              side = "US",
+              square = Some("c8"),
+              lossIfIgnoredCp = 320,
+              turnsToImpact = 1,
+              bestDefense = Some("c1c8"),
+              defenseCount = 1,
+              insufficientData = false
+            )
+          ),
+          toThem = Nil
+        ),
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "named_break_timing_missing_branch",
+              planName = "Clamp the ...c5 break",
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+              executionSteps = List("Keep the opponent's main counterplay route closed first.")
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "named_break_timing_missing_branch",
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_counterplay",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("...c5"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 140,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("break"),
+                citationLine = Some("The ...c5 break never becomes available on the defended branch.")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("c1c8"),
+                scoreCp = 88,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("deny the ...c5 break")))
+        )
+      )
+
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
+    val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+    val primary = ranked.primary.getOrElse(fail("forcing timing shell should still produce a plan"))
+
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyNow)
+    assert(!primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
+    assertNotEquals(primary.fallbackMode, QuestionPlanFallbackMode.FactualFallback)
+  }
+
+  test("forcing-defense named-break timing stays unreleased when timing text is uncoupled from packet witness") {
+    val ctx =
+      baseCtx().copy(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        authorQuestions = List(AuthorQuestion("why_now", AuthorQuestionKind.WhyNow, 100, "Why now?")),
+        threats = ThreatTable(
+          toUs = List(
+            ThreatRow(
+              kind = "Material",
+              side = "US",
+              square = Some("h3"),
+              lossIfIgnoredCp = 320,
+              turnsToImpact = 1,
+              bestDefense = Some("h2h3"),
+              defenseCount = 1,
+              insufficientData = false
+            )
+          ),
+          toThem = Nil
+        ),
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "named_break_timing_uncoupled",
+              planName = "Clamp the ...c5 break",
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+              executionSteps = List("Keep the opponent's main counterplay route closed first.")
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "named_break_timing_uncoupled",
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_counterplay",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("...c5"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 140,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("break"),
+                citationLine = Some("The ...c5 break never becomes available on the defended branch.")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("c1c8", "f8e8", "c8e8"),
+                scoreCp = 88,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("deny the ...c5 break")))
+        )
+      )
+
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
+    val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+    val primary =
+      ranked.primary.getOrElse(fail(s"uncoupled forcing timing shell should still produce a plan: ${ranked.ownerTrace} ${ranked.rejected}"))
+
+    assertEquals(primary.questionKind, AuthorQuestionKind.WhyNow)
+    assert(!primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
+    assertNotEquals(primary.fallbackMode, QuestionPlanFallbackMode.FactualFallback)
+  }
+
+  test("forcing-defense named-break timing is vetoed under tactical truth mode") {
+    val ctx =
+      baseCtx().copy(
+        fen = "2r2rk1/pp3pp1/2n1p2p/3p4/3P1P2/2P1PN1P/PP4P1/2R2RK1 w - - 0 23",
+        authorQuestions = List(AuthorQuestion("why_now", AuthorQuestionKind.WhyNow, 100, "Why now?")),
+        threats = ThreatTable(
+          toUs = List(
+            ThreatRow(
+              kind = "Material",
+              side = "US",
+              square = Some("c8"),
+              lossIfIgnoredCp = 320,
+              turnsToImpact = 1,
+              bestDefense = Some("c1c8"),
+              defenseCount = 1,
+              insufficientData = false
+            )
+          ),
+          toThem = Nil
+        ),
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "named_break_timing_tactical_veto",
+              planName = "Clamp the ...c5 break",
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id,
+              executionSteps = List("Keep the opponent's main counterplay route closed first.")
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "named_break_timing_tactical_veto",
+              subplanId = PlanTaxonomy.PlanKind.BreakPrevention.id
+            )
+          ),
+        semantic = Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_counterplay",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("...c5"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 140,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("break"),
+                citationLine = Some("The ...c5 break never becomes available on the defended branch.")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("c1c8", "f8e8", "c8e8"),
+                scoreCp = 88,
+                depth = 18
+              )
+            )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("deny the ...c5 break")))
+        )
+      )
+
+    val stableInputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
+    assert(
+      stableInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet).exists(packet =>
+        packet.proofFamily == "neutralize_key_break" &&
+          packet.sameBranchState == PlayerFacingSameBranchState.Proven &&
+          packet.persistence == PlayerFacingClaimPersistence.Stable
+      )
+    )
+    val tacticalInputs = stableInputs.copy(truthMode = PlayerFacingTruthMode.Tactical)
+    val ranked = QuestionFirstCommentaryPlanner.plan(ctx, tacticalInputs, truthContract = None)
+
+    assert(ranked.primary.forall(!_.admissibilityReasons.contains("strategic_claim_supported_local")), clues(ranked.primary))
+    assert(
+      ranked.rejected.exists(rejected =>
+        rejected.reasons.contains("strategic_claim_tactical_veto") &&
+          rejected.reasons.contains("planner_truth_mode_tactical")
+      ),
+      clues(ranked.rejected)
+    )
   }
 
   test("named-break promotion fails closed when the best-defense branch key is missing") {
@@ -2625,7 +3093,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
   }
 
-  test("exact defender-trade branch materializes a supported-local move owner") {
+  test("board/PV defender-trade branch materializes a supported-local move owner") {
     val ctx =
       baseCtx().copy(
         fen = "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17",
@@ -2636,7 +3104,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         mainStrategicPlans =
           List(
             evidenceBackedPlan(
-              planId = "defender_trade_exact_branch",
+              planId = "defender_trade_board_pv_branch",
               planName = "Exchange the defender of a7",
               subplanId = PlanTaxonomy.PlanKind.DefenderTrade.id,
               executionSteps = List("Put the bishop on a3 so Black's bishop must be exchanged."),
@@ -2646,7 +3114,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         strategicPlanExperiments =
           List(
             evidenceBackedExperiment(
-              planId = "defender_trade_exact_branch",
+              planId = "defender_trade_board_pv_branch",
               subplanId = PlanTaxonomy.PlanKind.DefenderTrade.id,
               themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
             )
@@ -2718,7 +3186,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     val delta =
       PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx, surface, None)
-        .getOrElse(fail("exact defender-trade branch should create move-delta evidence"))
+        .getOrElse(fail("board/PV defender-trade branch should create move-delta evidence"))
     val packet = delta.packet
 
     assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
@@ -2736,7 +3204,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     val inputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
     val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
-    val primary = ranked.primary.getOrElse(fail("exact defender trade should admit WhyThis"))
+    val primary = ranked.primary.getOrElse(fail("board/PV defender trade should admit WhyThis"))
 
     assert(
       Set(AuthorQuestionKind.WhyThis, AuthorQuestionKind.WhatChanged).contains(primary.questionKind),
@@ -2748,6 +3216,347 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assertEquals(primary.contrast, None)
     assertEquals(primary.consequence, None)
     assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
+  }
+
+  test("board/PV bad-piece liquidation branch materializes a supported-local move owner") {
+    val ctx =
+      baseCtx().copy(
+        fen = "5b2/4k1pp/8/8/3P4/1R2P3/P4PPP/2B3K1 w - - 0 1",
+        ply = 1,
+        playedMove = Some("c1a3"),
+        playedSan = Some("Ba3"),
+        authorQuestions = defaultQuestions,
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "bad_piece_liquidation_board_pv_branch",
+              planName = "Trade the bad bishop",
+              subplanId = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+              executionSteps = List("Put the bishop on a3 so the blocked bishop is exchanged."),
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "bad_piece_liquidation_board_pv_branch",
+              subplanId = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
+            )
+          ),
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("f8")),
+            logicSummary = "The branch trades away White's blocked bishop.",
+            delta = PVDelta(
+              resolvedThreats = Nil,
+              newOpportunities = List("trade the bad bishop"),
+              planAdvancements = List("clear the bad bishop from the local branch"),
+              concessions = Nil
+            ),
+            confidence = ConfidenceLevel.Probe
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations =
+              List(
+                VariationLine(
+                  moves = List("c1a3", "e7f7", "a3f8", "f7f8"),
+                  scoreCp = 38,
+                  depth = 18,
+                  parsedMoves = List(
+                    PvMove("c1a3", "Ba3", "c1", "a3", "B", isCapture = false, capturedPiece = None, givesCheck = false),
+                    PvMove("e7f7", "Kf7", "e7", "f7", "K", isCapture = false, capturedPiece = None, givesCheck = false),
+                    PvMove("a3f8", "Bxf8", "a3", "f8", "B", isCapture = true, capturedPiece = Some("B"), givesCheck = false),
+                    PvMove("f7f8", "Kxf8", "f7", "f8", "K", isCapture = true, capturedPiece = Some("B"), givesCheck = false)
+                  )
+                )
+              )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          pieceMoveRefs = List(
+            StrategyPieceMoveRef(
+              ownerSide = "white",
+              piece = "B",
+              from = "c1",
+              target = "a3",
+              idea = "trade the bad bishop",
+              tacticalTheme = Some("exchange"),
+              evidence = List("bad_piece_liquidation")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("trade the bad bishop")))
+        )
+      )
+    val surface = StrategyPackSurface.from(pack)
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx, surface, None)
+        .getOrElse(fail("board/PV bad-piece liquidation branch should create move-delta evidence"))
+    val packet = delta.packet
+
+    assertEquals(delta.deltaClass, PlayerFacingMoveDeltaClass.ExchangeForcing)
+    assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource)
+    assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.BadPieceLiquidation.id)
+    assertEquals(packet.scope, PlayerFacingPacketScope.MoveLocal)
+    assertEquals(packet.bestDefenseBranchKey, Some("c1a3|e7f7"))
+    assertEquals(packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+    assert(packet.proofPathWitness.ownerSeedTerms.contains("bad_piece:c1"), clues(packet))
+    assert(packet.proofPathWitness.structureTransitionTerms.contains("bad_piece_removed:c1-f8"), clues(packet))
+
+    val inputs = QuestionPlannerInputsBuilder.build(ctx, pack, truthContract = None)
+    val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract = None)
+    val primary = ranked.primary.getOrElse(fail("board/PV bad-piece liquidation should admit WhyThis"))
+
+    assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
+    assertEquals(primary.plannerSource, PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource)
+    assertEquals(primary.claim, "A local reading is that this trade clears the bad piece from the local branch.")
+    assertEquals(primary.contrast, None)
+    assertEquals(primary.consequence, None)
+    assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
+  }
+
+  test("bad-piece liquidation is admitted by board/PV facts beyond the original source row") {
+    val ctx =
+      baseCtx().copy(
+        fen = "5b2/p3k1pp/8/8/3P4/1R2P3/P4PPP/2B3K1 w - - 0 1",
+        ply = 1,
+        playedMove = Some("c1a3"),
+        playedSan = Some("Ba3"),
+        authorQuestions = defaultQuestions,
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "bad_piece_liquidation_general_branch",
+              planName = "Trade the bad bishop",
+              subplanId = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+              executionSteps = List("Put the bishop on a3 so the blocked bishop is exchanged."),
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "bad_piece_liquidation_general_branch",
+              subplanId = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
+            )
+          ),
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("f8")),
+            logicSummary = "The branch trades away White's blocked bishop.",
+            delta = PVDelta(
+              resolvedThreats = Nil,
+              newOpportunities = List("trade the bad bishop"),
+              planAdvancements = List("clear the bad bishop from the local branch"),
+              concessions = Nil
+            ),
+            confidence = ConfidenceLevel.Probe
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations =
+              List(
+                VariationLine(
+                  moves = List("c1a3", "e7f7", "a3f8", "f7f8"),
+                  scoreCp = 38,
+                  depth = 18,
+                  parsedMoves = List(
+                    PvMove("c1a3", "Ba3", "c1", "a3", "B", isCapture = false, capturedPiece = None, givesCheck = false),
+                    PvMove("e7f7", "Kf7", "e7", "f7", "K", isCapture = false, capturedPiece = None, givesCheck = false),
+                    PvMove("a3f8", "Bxf8", "a3", "f8", "B", isCapture = true, capturedPiece = Some("B"), givesCheck = false),
+                    PvMove("f7f8", "Kxf8", "f7", "f8", "K", isCapture = true, capturedPiece = Some("B"), givesCheck = false)
+                  )
+                )
+              )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          pieceMoveRefs = List(
+            StrategyPieceMoveRef(
+              ownerSide = "white",
+              piece = "B",
+              from = "c1",
+              target = "a3",
+              idea = "trade the bad bishop",
+              tacticalTheme = Some("exchange"),
+              evidence = List("bad_piece_liquidation")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("trade the bad bishop")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx, StrategyPackSurface.from(pack), None)
+        .getOrElse(fail("general bad-piece liquidation branch should create move-delta evidence"))
+
+    assertEquals(delta.packet.proofSource, PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource)
+    assertEquals(delta.packet.proofFamily, PlanTaxonomy.PlanKind.BadPieceLiquidation.id)
+    assertEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
+    assert(delta.packet.proofPathWitness.ownerSeedTerms.contains("bad_piece:c1"), clues(delta.packet))
+    assert(delta.packet.proofPathWitness.structureTransitionTerms.contains("bad_piece_removed:c1-f8"), clues(delta.packet))
+  }
+
+  test("bad-piece liquidation rejects the same trade when the piece is not constrained") {
+    val ctx =
+      baseCtx().copy(
+        fen = "5b2/p3k1pp/8/8/8/1R6/P3PPPP/2B3K1 w - - 0 1",
+        ply = 1,
+        playedMove = Some("c1a3"),
+        playedSan = Some("Ba3"),
+        authorQuestions = defaultQuestions,
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "bad_piece_liquidation_not_bad",
+              planName = "Trade the bishop",
+              subplanId = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+              executionSteps = List("Trade the bishop on f8."),
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
+            )
+          ),
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "bad_piece_liquidation_not_bad",
+              subplanId = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
+            )
+          ),
+        decision = Some(
+          DecisionRationale(
+            focalPoint = Some(TargetSquare("f8")),
+            logicSummary = "The branch trades a bishop.",
+            delta = PVDelta(
+              resolvedThreats = Nil,
+              newOpportunities = List("trade the bishop"),
+              planAdvancements = List("exchange the bishop on f8"),
+              concessions = Nil
+            ),
+            confidence = ConfidenceLevel.Probe
+          )
+        ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations =
+              List(
+                VariationLine(
+                  moves = List("c1a3", "e7f7", "a3f8", "f7f8"),
+                  scoreCp = 18,
+                  depth = 18,
+                  parsedMoves = List(
+                    PvMove("c1a3", "Ba3", "c1", "a3", "B", isCapture = false, capturedPiece = None, givesCheck = false),
+                    PvMove("e7f7", "Kf7", "e7", "f7", "K", isCapture = false, capturedPiece = None, givesCheck = false),
+                    PvMove("a3f8", "Bxf8", "a3", "f8", "B", isCapture = true, capturedPiece = Some("B"), givesCheck = false),
+                    PvMove("f7f8", "Kxf8", "f7", "f8", "K", isCapture = true, capturedPiece = Some("B"), givesCheck = false)
+                  )
+                )
+              )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          pieceMoveRefs = List(
+            StrategyPieceMoveRef(
+              ownerSide = "white",
+              piece = "B",
+              from = "c1",
+              target = "a3",
+              idea = "trade the bishop",
+              tacticalTheme = Some("exchange"),
+              evidence = List("bad_piece_liquidation")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("trade the bishop")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx, StrategyPackSurface.from(pack), None)
+
+    assert(delta.forall(_.packet.proofSource != PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource), clues(delta))
+    assert(delta.forall(_.packet.fallbackMode != PlayerFacingClaimFallbackMode.WeakMain), clues(delta))
+  }
+
+  test("bad-piece labels stay owner-closed without actual liquidation branch") {
+    val ctx =
+      baseCtx().copy(
+        fen = "5b2/4k1pp/8/8/3P4/1R2P3/P4PPP/2B3K1 w - - 0 1",
+        ply = 1,
+        playedMove = Some("c1d2"),
+        playedSan = Some("Bd2"),
+        authorQuestions = defaultQuestions,
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "bad_piece_reposition_only",
+              planName = "Improve the bad bishop",
+              subplanId = PlanTaxonomy.PlanKind.BadPieceLiquidation.id,
+              executionSteps = List("Move the bishop without trading it."),
+              themeL1 = PlanTaxonomy.PlanTheme.FavorableExchange.id
+            )
+          ),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 18,
+            variations =
+              List(
+                VariationLine(
+                  moves = List("c1d2", "e7f7"),
+                  scoreCp = 20,
+                  depth = 18,
+                  parsedMoves = List(
+                    PvMove("c1d2", "Bd2", "c1", "d2", "B", isCapture = false, capturedPiece = None, givesCheck = false),
+                    PvMove("e7f7", "Kf7", "e7", "f7", "K", isCapture = false, capturedPiece = None, givesCheck = false)
+                  )
+                )
+              )
+          )
+        )
+      )
+    val pack =
+      Some(
+        StrategyPack(
+          sideToMove = "white",
+          pieceMoveRefs = List(
+            StrategyPieceMoveRef(
+              ownerSide = "white",
+              piece = "B",
+              from = "c1",
+              target = "d2",
+              idea = "improve the bad bishop",
+              tacticalTheme = Some("improvement"),
+              evidence = List("bad_piece_liquidation")
+            )
+          ),
+          signalDigest = Some(NarrativeSignalDigest(decision = Some("improve the bad bishop")))
+        )
+      )
+
+    val delta =
+      PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx, StrategyPackSurface.from(pack), None)
+
+    assert(delta.forall(_.packet.proofSource != PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource), clues(delta))
+    assert(delta.forall(_.packet.fallbackMode != PlayerFacingClaimFallbackMode.WeakMain), clues(delta))
   }
 
   test("standalone entry-square denial stays owner-closed without a promoted family") {

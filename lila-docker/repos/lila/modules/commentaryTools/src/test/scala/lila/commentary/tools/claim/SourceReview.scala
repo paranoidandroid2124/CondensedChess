@@ -543,6 +543,11 @@ private[commentary] object SourceReview:
         surface.mainProofSource.contains("prophylactic_move") &&
         surface.packetSummary.exists(_.contains("proof_family=counterplay_restraint")) &&
         surface.contractId.exists(_.contains("counterplay_restraint"))
+    else if reviewGroup.contains("bad_piece_liquidation") then
+      surface.release == "SupportedLocal" &&
+        surface.mainProofSource.contains(PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource) &&
+        surface.packetSummary.exists(_.contains(s"proof_family=${PlanTaxonomy.PlanKind.BadPieceLiquidation.id}")) &&
+        surface.contractId.exists(_.contains(PlanTaxonomy.PlanKind.BadPieceLiquidation.id))
     else true
 
   private def plannerOwnership(surface: EvaluationSurface): String =
@@ -684,6 +689,22 @@ private[commentary] object SourceReview:
         surface.contractFailures
           .filterNot(failure => failure == "-" || failure == "none")
           .map(failure => s"prophylaxis_restraint_${blockerCode(failure)}")
+    else if reviewGroup.contains("bad_piece_liquidation") then
+      val packetContractMismatch =
+        surface.mainProofSource.exists(source => source != PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource) ||
+          surface.packetSummary.exists(summary =>
+            summary.contains("proof_family=") &&
+              !summary.contains(s"proof_family=${PlanTaxonomy.PlanKind.BadPieceLiquidation.id}")
+          ) ||
+          surface.contractId.exists(contract =>
+            contract != "-" && !contract.contains(PlanTaxonomy.PlanKind.BadPieceLiquidation.id)
+          )
+      if packetContractMismatch then List("proof:bad_piece_liquidation_contract_mismatch")
+      else if surface.mainProofSource.isEmpty then List("bad_piece_liquidation_witness_missing")
+      else
+        surface.contractFailures
+          .filterNot(failure => failure == "-" || failure == "none")
+          .map(badPieceLiquidationFailureCode)
     else if reviewGroup.contains("iqp") && surface.contractId.isEmpty then
       surface.ownerFailureCodes
     else Nil
@@ -708,6 +729,9 @@ private[commentary] object SourceReview:
         else if reviewGroup.contains("prophylaxis_restraint") && ownerFailureCodes.nonEmpty then
           ownerFailureCodes.map(blockerFromFailureCode)
         else if reviewGroup.contains("prophylaxis_restraint") then List("owner:prophylaxis_restraint_witness_missing")
+        else if reviewGroup.contains("bad_piece_liquidation") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(badPieceLiquidationBlockerFromFailureCode)
+        else if reviewGroup.contains("bad_piece_liquidation") then List("owner:bad_piece_liquidation_witness_missing")
         else if reviewGroup.contains("defender_trade") then List("owner:defender_trade_owner_missing")
         else if reviewGroup.contains("carlsbad") then List("owner:carlsbad_probe_missing")
         else List("owner:root_vocabulary_or_extraction_gap")
@@ -722,6 +746,9 @@ private[commentary] object SourceReview:
         else if reviewGroup.contains("prophylaxis_restraint") && ownerFailureCodes.nonEmpty then
           ownerFailureCodes.map(blockerFromFailureCode)
         else if reviewGroup.contains("prophylaxis_restraint") then List("owner:prophylaxis_restraint_witness_missing")
+        else if reviewGroup.contains("bad_piece_liquidation") && ownerFailureCodes.nonEmpty then
+          ownerFailureCodes.map(badPieceLiquidationBlockerFromFailureCode)
+        else if reviewGroup.contains("bad_piece_liquidation") then List("owner:bad_piece_liquidation_witness_missing")
         else if reviewGroup.contains("defender_trade") then List("owner:defender_trade_owner_missing")
         else List("owner:move_owner_missing")
       case Diagnosis.PlannerOwnerSceneBlocked  => List("owner:planner_scene_blocked")
@@ -740,6 +767,26 @@ private[commentary] object SourceReview:
     if code.startsWith("proof:") then code
     else if code.endsWith("_contract_mismatch") then s"proof:$code"
     else s"owner:${code.replace(":", "_")}"
+
+  private def badPieceLiquidationBlockerFromFailureCode(code: String): String =
+    val normalized = badPieceLiquidationFailureCode(code)
+    if normalized.startsWith("proof:") then normalized
+    else s"owner:$normalized"
+
+  private def badPieceLiquidationFailureCode(raw: String): String =
+    blockerCode(raw) match
+      case "contract_mismatch" | "bad_piece_liquidation_contract_mismatch" =>
+        "proof:bad_piece_liquidation_contract_mismatch"
+      case "witness_missing" | "bad_piece_liquidation_witness_missing" =>
+        "bad_piece_liquidation_witness_missing"
+      case "piece_not_bad" | "bad_piece_liquidation_piece_not_bad" =>
+        "bad_piece_liquidation_piece_not_bad"
+      case "no_actual_liquidation" | "bad_piece_liquidation_no_actual_liquidation" =>
+        "bad_piece_liquidation_no_actual_liquidation"
+      case "rival_or_relabel" | "bad_piece_liquidation_rival_or_relabel" =>
+        "bad_piece_liquidation_rival_or_relabel"
+      case other if other.startsWith("bad_piece_liquidation_") => other
+      case other                                                => s"bad_piece_liquidation_$other"
 
   private def normalizeBreakPreventionFailureCode(code: String): String =
     code match
@@ -810,6 +857,7 @@ private[commentary] object SourceReview:
     else if low.contains("queen_trade") then "source_queen_trade_boundary"
     else if low.contains("static_weakness") then "source_static_weakness_fixation"
     else if low.contains("defender_trade") then "source_defender_trade"
+    else if low.contains("bad_piece_liquidation") then "source_bad_piece_liquidation"
     else if low.contains("carlsbad") then "source_carlsbad_fixed_target"
     else if low.contains("iqp_inducement") then "source_iqp_inducement"
     else if low.contains("iqp") then "source_iqp_simplification"

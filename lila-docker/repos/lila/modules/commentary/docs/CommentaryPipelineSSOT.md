@@ -1015,9 +1015,11 @@ Current rules:
     after the played move, and not restored by the first defended-branch plies.
     Same-destination alternate routes, such as a surviving capture transform,
     remain private evidence for `BreakPreventionWitness` and are assessed as
-    unanswered, recapturable-but-unproven, or still-releasing transforms. All
-    transform assessments block exact `neutralize_key_break` authority in the
-    current negative-first pass instead of becoming player-facing prose.
+    unanswered, recapturable-but-unproven, still-releasing, or
+    branch-proven harmless transforms. Only the harmless case can avoid the
+    transform blocker, and only when the defended branch itself shows the
+    transform capture, the immediate recapture, and no restored same-destination
+    release route. Transform evidence never becomes player-facing prose.
     The materializer writes only the existing internal carrier
     (`deniedResourceClass = break`, `deniedEntryScope = file`, named
     `breakNeutralized`, negative `mobilityDelta`), does not fabricate
@@ -1028,9 +1030,11 @@ Current rules:
     `FactScope.Now` break/file carrier, so clean route clamps survive into
     `PreventedPlanInfo` instead of being dropped before witness extraction.
     `BreakPreventionWitness` may treat matching clean route evidence as
-    same-branch persistence only when the route has no transform risk and the
-    checked branch supplies at least four plies; short branches, stale route
-    identity, same-route restoration, and transform routes still fail closed.
+    same-branch persistence only when the route has no transform risk or has a
+    branch-proven harmless recapture transform, and the checked branch supplies
+    at least four plies; short branches, stale route identity, same-route
+    restoration, unanswered transforms, unproven recaptures, and
+    still-releasing transforms still fail closed.
     `PlayerFacingTruthModePolicy` then reuses that exact witness for
     `counterplay_axis_suppression` / `neutralize_key_break` owner seeding,
     same-branch proof, persistence proof, strategic-mode anchoring, and the
@@ -1038,6 +1042,21 @@ Current rules:
     remains `SupportedLocal`, and `QuestionFirstCommentaryPlanner` may prefer
     that certified move-delta source over generic prevented-plan or forcing
     prose only when the same exact packet/proof is present.
+    The timing release lane is similarly packet-backed: `ClaimAuthorityPolicy`
+    may downgrade `WhyNow` / `WhatMustBeStopped` forcing-defense plans to
+    `SupportedLocal` only when the main packet is
+    `proofSource=counterplay_axis_suppression`,
+    `proofFamily=neutralize_key_break`, `scope=MoveLocal`,
+    `fallback=WeakMain`, `sameBranchState=Proven`,
+    `persistence=Stable`, has no suppression or release-risk reasons, and the
+    plan carries a structured `timingWitness` whose source and runtime witness
+    tokens intersect the packet's named break, continuation, or branch witness.
+    The planner then reuses the existing
+    `strategic_claim_supported_local` path: the surface is downgraded to
+    `A local reading is that ...`, evidence / contrast / consequence are
+    removed, and tactical truth mode still vetoes the strategic timing
+    surface. No source id, game id, or family label can open this lane without
+    the exact packet proof.
   - bounded B4 `half_open_file_pressure` is now promoted on one exact local
     file-entry slice only:
     the packet may release `weak_main` only when the exact file corridor plus
@@ -1200,6 +1219,22 @@ Current rules:
     prove the same defended branch privately, but `SupportOnlyReinflation`,
     `RivalRelease`, and the absence of a distinct public certification lane
     still keep release closed
+  - bounded `bad_piece_liquidation` is a board/PV-derived move-local lane on
+    the existing move-delta path:
+    `PlayerFacingTruthModePolicy` no longer treats a fixed source FEN or game
+    row as the family condition. It seeds `proofSource=bad_piece_liquidation` /
+    `proofFamily=bad_piece_liquidation` only when the current board contains a
+    same-color-central-pawn-constrained bishop and the same defended PV branch
+    shows that bishop move into an exchange square and disappear through the
+    actual exchange. Exact source rows remain regression/admission samples for
+    this detector, not runtime policy. The packet proves branch and persistence
+    through the private packet witness, and `MainPathMoveDeltaClaimBuilder`
+    emits only `This trade clears the bad piece from the local branch.` before
+    the standard `SupportedLocal` surface downgrade. No public schema, API,
+    frontend, new planner question, PositionLocal release, source-id gate, or
+    game-id gate opens with this lane; generic favorable exchanges, defender
+    removal, queenless branches, and reposition-only bad-piece prose remain
+    closed
   - `Minimal` and `Tactical` packaging may not surface unsupported `Better is
     ...`, `The concrete square is ...`, or `A concrete target is ...` claims
     unless the shared truth mode policy has already admitted a concrete,

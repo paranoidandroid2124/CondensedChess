@@ -18,7 +18,7 @@ object BreakClampMaterializer:
     case SameDestinationCapture, SameDestinationQuiet, UnknownTransform
 
   enum BreakTransformVerdict:
-    case UnansweredCapture, RecaptureAvailableUnproven, RecaptureStillReleases
+    case UnansweredCapture, RecaptureAvailableUnproven, RecaptureStillReleases, RecaptureProvenHarmless
 
   final case class BreakTransformAssessment(
       routeId: String,
@@ -278,9 +278,16 @@ object BreakClampMaterializer:
         }
         .distinct
         .sorted
+    val sameDestinationCapture =
+      transformShape(transform) == BreakTransformShape.SameDestinationCapture &&
+        transform.destination == snapshot.playedMove.dest
+    val branchProvesTransformRecapture =
+      branchMoveId(snapshot, 0).contains(moveId(transform.move)) &&
+        branchMoveId(snapshot, 1).exists(recaptures.map(moveId).toSet.contains)
     val verdict =
       if recaptures.isEmpty then BreakTransformVerdict.UnansweredCapture
       else if releaseRoutesAfterRecapture.nonEmpty then BreakTransformVerdict.RecaptureStillReleases
+      else if sameDestinationCapture && branchProvesTransformRecapture then BreakTransformVerdict.RecaptureProvenHarmless
       else BreakTransformVerdict.RecaptureAvailableUnproven
 
     BreakTransformAssessment(
@@ -304,6 +311,9 @@ object BreakClampMaterializer:
         move.captures &&
         move.dest == destination
     }
+
+  private def branchMoveId(snapshot: RouteSnapshot, index: Int): Option[String] =
+    snapshot.branchMoves.lift(index).flatMap(parseUci).map(move => s"${move.orig.key}${move.dest.key}")
 
   private def moveId(move: Move): String =
     s"${move.orig.key}${move.dest.key}"

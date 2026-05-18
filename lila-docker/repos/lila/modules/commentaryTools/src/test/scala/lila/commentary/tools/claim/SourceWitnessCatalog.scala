@@ -457,6 +457,29 @@ private[commentary] object SourceWitnessCatalog:
           "ChessBase notes 17.Ba3 as clearing away a defender; exact intake must prove the exchange removes a local defender on the engine top line before matrix admission."
       ),
       SourceCandidate(
+        id = "source-bad-piece-liquidation-pilot",
+        gameName = "Bad-piece liquidation exact pilot",
+        sourceUrl = "https://example.invalid/bad-piece-liquidation-pilot.pgn",
+        pgn =
+          """[Event "Bad piece liquidation pilot"]
+            |[Site "?"]
+            |[Date "2026.01.01"]
+            |[Round "?"]
+            |[White "White"]
+            |[Black "Black"]
+            |[Result "*"]
+            |[SetUp "1"]
+            |[FEN "5b2/4k1pp/8/8/3P4/1R2P3/P4PPP/2B3K1 w - - 0 1"]
+            |
+            |1. Ba3 Kf7 2. Bxf8 Kxf8 *
+            |""".stripMargin.trim,
+        candidatePlyRange = CandidatePlyRange(1, 1),
+        reviewGroup = "C:bad_piece_liquidation",
+        intendedVerdict = "screen_only",
+        validationNote =
+          "Exact bad-piece liquidation pilot: admit only if 1.Ba3 Kf7 2.Bxf8 Kxf8 is engine-backed on the same branch and materializes the bounded SupportedLocal bad_piece_liquidation packet."
+      ),
+      SourceCandidate(
         id = "source-capablanca-golombek-1939",
         gameName = "Capablanca-Golombek, Margate 1939",
         sourceUrl = "https://www.chessgames.com/perl/chessgame?comp=1&gid=1004963",

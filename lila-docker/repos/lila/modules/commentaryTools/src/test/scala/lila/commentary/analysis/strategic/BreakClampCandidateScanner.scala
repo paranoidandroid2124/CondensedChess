@@ -366,9 +366,13 @@ object BreakClampCandidateScanner:
                 "owner:break_prevention_capture_transform_recapture_unproven"
               case BreakClampMaterializer.BreakTransformVerdict.RecaptureStillReleases =>
                 "owner:break_prevention_capture_transform_recapture_still_releases"
+              case BreakClampMaterializer.BreakTransformVerdict.RecaptureProvenHarmless =>
+                "none"
             }
-        if blockers.isEmpty then "owner:break_prevention_capture_transform_risk"
-        else blockers.mkString(";")
+        val activeBlockers = blockers.filterNot(_ == "none")
+        if activeBlockers.isEmpty && blockers.nonEmpty then "none"
+        else if activeBlockers.isEmpty then "owner:break_prevention_capture_transform_risk"
+        else activeBlockers.mkString(";")
 
   private def transformVerdicts(evidence: BreakClampMaterializer.BreakRouteEvidence): String =
     val verdicts = evidence.transformAssessments.map(_.verdict.toString).distinct

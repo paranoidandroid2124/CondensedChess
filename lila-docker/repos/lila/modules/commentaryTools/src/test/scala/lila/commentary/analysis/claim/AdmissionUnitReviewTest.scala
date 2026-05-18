@@ -118,6 +118,41 @@ class AdmissionUnitReviewTest extends FunSuite:
     assertEquals(candidate.candidatePlyRange.end, 3)
   }
 
+  test("bad-piece liquidation transient candidates use C review group and allow captures") {
+    val capturePgn =
+      """[Event "Bad piece liquidation sample"]
+        |[Site "?"]
+        |[Date "2026.01.01"]
+        |[Round "?"]
+        |[White "White"]
+        |[Black "Black"]
+        |[Result "*"]
+        |[SetUp "1"]
+        |[FEN "5b2/4k1pp/8/8/3P4/1R2P3/P4PPP/2B3K1 w - - 0 1"]
+        |
+        |1. Ba3 Kf7 2. Bxf8 Kxf8 *
+        |""".stripMargin
+    val report =
+      AdmissionUnitReview.admit(
+        games = List(
+          AdmissionUnitReview.SourceGame(
+            id = "bad-piece-sample",
+            label = "Bad piece sample",
+            pgn = capturePgn,
+            sourceUrl = "https://example.invalid/bad-piece.pgn"
+          )
+        ),
+        engine = None,
+        config = AdmissionUnitReview.AdmissionConfig(
+          planKind = "bad_piece_liquidation",
+          maxCandidates = 4
+        )
+      )
+
+    assert(report.rows.exists(_.observation.playedUci.contains("a3f8")), clues(report.tsv))
+    assert(report.rows.forall(_.observation.source.reviewGroup == "C:bad_piece_liquidation"), clues(report.tsv))
+  }
+
   test("ranks exact counterplay-restraint SupportedLocal rows ahead of mismatches and noise") {
     val admitted =
       observation(

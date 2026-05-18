@@ -2,6 +2,7 @@ package lila.commentary.analysis.claim
 
 import lila.commentary.analysis.*
 import lila.commentary.model.*
+import lila.commentary.model.authoring.AuthorQuestionKind
 
 private[commentary] enum ClaimAuthorityTier:
   case CertifiedOwner
@@ -54,6 +55,7 @@ private[commentary] object ClaimAuthorityPolicy:
   ): Option[ClaimAuthorityDecision] =
     shouldTacticalVetoPlan(ctx, inputs, truthContract, plan)
       .orElse(decideSupportedMoveDelta(inputs, plan))
+      .orElse(decideSupportedNeutralizeKeyBreakTiming(ctx, inputs, truthContract, plan))
 
   def supportedLocalSurface(raw: String): String =
     if normalize(raw).startsWith("a local reading is that ") then raw.trim
@@ -125,6 +127,44 @@ private[commentary] object ClaimAuthorityPolicy:
       )
       .map(_ => ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal))
 
+  private def decideSupportedNeutralizeKeyBreakTiming(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      plan: QuestionPlan
+  ): Option[ClaimAuthorityDecision] =
+    if !isNeutralizeKeyBreakTimingPlan(plan) then None
+    else
+      matchingNeutralizeKeyBreakTimingPacket(inputs, plan).map { _ =>
+        val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
+        if tacticalReasons.nonEmpty then
+          ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
+        else ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
+      }
+
+  private def isNeutralizeKeyBreakTimingPlan(plan: QuestionPlan): Boolean =
+    plan.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
+      (plan.questionKind == AuthorQuestionKind.WhyNow ||
+        plan.questionKind == AuthorQuestionKind.WhatMustBeStopped) &&
+      (plan.plannerSource == "threat" || plan.plannerSource == "prevented_plan")
+
+  private def matchingNeutralizeKeyBreakTimingPacket(
+      inputs: QuestionPlannerInputs,
+      plan: QuestionPlan
+  ): Option[PlayerFacingClaimPacket] =
+    mainPathPackets(inputs).find(packet =>
+      packet.proofSource == "counterplay_axis_suppression" &&
+        packet.proofFamily == "neutralize_key_break" &&
+        supportsLocalMoveDelta(packet) &&
+        hasExactOwnerPath(packet) &&
+        timingWitnessMatchesPacket(plan, packet)
+    )
+
+  private def mainPathPackets(inputs: QuestionPlannerInputs): List[PlayerFacingClaimPacket] =
+    inputs.mainBundle.toList.flatMap { bundle =>
+      List(bundle.mainClaim, bundle.lineScopedClaim).flatten.flatMap(_.packet)
+    }
+
   private def exactMoveDeltaSupportedLocal(packet: PlayerFacingClaimPacket): Boolean =
     (packet.proofSource == "counterplay_axis_suppression" &&
       packet.proofFamily == "neutralize_key_break") ||
@@ -171,6 +211,44 @@ private[commentary] object ClaimAuthorityPolicy:
 
   private def isSupportedPositionProbeFamily(proofFamily: String): Boolean =
     ProofContractRules.supportsPositionProbeProofFamily(proofFamily)
+
+  private def timingWitnessMatchesPacket(
+      plan: QuestionPlan,
+      packet: PlayerFacingClaimPacket
+  ): Boolean =
+    val packetTokens = timingWitnessTokens(packet)
+    plan.timingWitness.exists { witness =>
+      witness.proofFamily == packet.proofFamily &&
+        witness.source == plan.plannerSource &&
+        timingWitnessTokens(witness).exists(packetTokens.contains)
+    }
+
+  private def timingWitnessTokens(witness: QuestionPlanTimingWitness): Set[String] =
+    (
+      witness.namedBreak.toList ++
+        witness.continuationMove.toList ++
+        witness.branchKey.toList ++
+        witness.witnessTokens
+    ).flatMap(witnessTokenVariants).filter(validTimingWitnessToken).toSet
+
+  private def timingWitnessTokens(packet: PlayerFacingClaimPacket): Set[String] =
+    (
+      packet.anchorTerms ++
+        packet.bestDefenseBranchKey.toList ++
+        packet.proofPathWitness.ownerSeedTerms ++
+        packet.proofPathWitness.continuationTerms ++
+        packet.proofPathWitness.structureTransitionTerms
+    ).flatMap(witnessTokenVariants).filter(validTimingWitnessToken).toSet
+
+  private def witnessTokenVariants(raw: String): List[String] =
+    val trimmed = Option(raw).map(_.trim).filter(_.nonEmpty).toList
+    (trimmed ++ trimmed.flatMap(_.split("""[^A-Za-z0-9]+""").toList)).map(normalize)
+
+  private def validTimingWitnessToken(token: String): Boolean =
+    val normalized = normalize(token)
+    normalized.length >= 4 ||
+      normalized.matches("""[a-h][1-8]""") ||
+      normalized.matches("""[nbrqk][a-h][1-8]""")
 
   private def stripPrefix(raw: String, prefix: String): Option[String] =
     Option(raw).map(_.trim).filter(_.startsWith(prefix)).map(_.drop(prefix.length))

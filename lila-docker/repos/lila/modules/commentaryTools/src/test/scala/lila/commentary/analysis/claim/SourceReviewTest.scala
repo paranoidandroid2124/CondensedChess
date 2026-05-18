@@ -378,6 +378,7 @@ class SourceReviewTest extends FunSuite:
     val lokvencFen = "r1bqr1k1/p4pbp/np1p1np1/2pP4/4P3/2N2N2/PPQ1BPPP/R1B1R1K1 w - - 2 12"
     val madernaFen = "1rbqr1k1/1p1n1pbp/pn1p2p1/2pP4/P3PP2/2N2B2/1P1N2PP/R1BQR1K1 w - - 5 15"
     val camaraFen = "1rbqr1k1/pp1n1pbp/3p2p1/2pP4/1n2PP2/2NB3P/PP2N1P1/R1BQ1R1K w - - 3 14"
+    val sliwaFen = "1r1r3k/1p1q1pbp/pn1p2p1/2pP4/Pn2PP2/NQ4PP/1P3B2/3RRBK1 w - - 2 28"
     val pflegerFen = "r2qr1k1/1p3pb1/pn1p1npp/2pP4/P3P3/2NQ1N2/1P1B1PPP/R3R1K1 w - - 0 17"
     val polugaevskyFen = "rnbqnrk1/5ppp/pp1p1b2/2pP4/P3P3/2N5/1P1NBPPP/R1BQ1RK1 w - - 0 12"
     val engine =
@@ -386,7 +387,24 @@ class SourceReviewTest extends FunSuite:
           lokvencFen ->
             List(
               VariationLine(
-                List("e2b5", "a6b4", "c2d1", "c8d7", "b5f1", "b6b5", "a2a3", "b4a6"),
+                List(
+                  "e2b5",
+                  "a6b4",
+                  "c2d1",
+                  "c8d7",
+                  "b5f1",
+                  "b6b5",
+                  "a2a3",
+                  "b4a6",
+                  "c1f4",
+                  "d8b6",
+                  "h2h3",
+                  "c5c4",
+                  "e4e5",
+                  "d6e5",
+                  "f3e5",
+                  "d7f5"
+                ),
                 scoreCp = 37,
                 depth = 16
               )
@@ -425,6 +443,27 @@ class SourceReviewTest extends FunSuite:
                   "e6g7"
                 ),
                 scoreCp = 20,
+                depth = 16
+              )
+            ),
+          sliwaFen ->
+            List(
+              VariationLine(
+                List(
+                  "a4a5",
+                  "d7a4",
+                  "b3f3",
+                  "a4a5",
+                  "e4e5",
+                  "d6e5",
+                  "f4e5",
+                  "b4d5",
+                  "h3h4",
+                  "a5b4",
+                  "h4h5",
+                  "g6h5"
+                ),
+                scoreCp = 34,
                 depth = 16
               )
             ),
@@ -476,6 +515,7 @@ class SourceReviewTest extends FunSuite:
           "source-lokvenc-czerniak-1952-b6-b5-break-prevention",
           "source-maderna-palermo-1955-a6-a5-break-prevention",
           "source-camara-bazan-1960-b7-b5-break-prevention",
+          "source-sliwa-gromek-1960-a6-a5-break-prevention",
           "source-pfleger-maalouf-1961-a6-a5-break-prevention",
           "source-polugaevsky-giorgadze-1956-c5-c4-break-prevention"
         )
@@ -568,6 +608,7 @@ class SourceReviewTest extends FunSuite:
     val salovSimplificationFen = "7k/p4qp1/8/1Q1pR3/3P1P2/2r3P1/7P/6K1 w - - 0 36"
     val boleslavskyStaticWeaknessFen = "rnbqr1k1/pp3pbp/3p1np1/2pP4/4P3/2N2N2/PP2BPPP/R1BQ1RK1 w - - 6 10"
     val aronianDefenderTradeFen = "3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17"
+    val badPieceLiquidationFen = "5b2/4k1pp/8/8/3P4/1R2P3/P4PPP/2B3K1 w - - 0 1"
     val engine =
       StaticSourceReviewEngine(
         Map(
@@ -715,6 +756,14 @@ class SourceReviewTest extends FunSuite:
                 scoreCp = 44,
                 depth = 16
               )
+            ),
+          badPieceLiquidationFen ->
+            List(
+              VariationLine(
+                List("c1a3", "e7f7", "a3f8", "f7f8"),
+                scoreCp = 38,
+                depth = 18
+              )
             )
         )
       )
@@ -732,7 +781,8 @@ class SourceReviewTest extends FunSuite:
           "source-carlsen-anand-2014-g6",
           "source-salov-ljubojevic-1992-simplification-window",
           "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
-          "source-aronian-andreikin-2014-defender-trade"
+          "source-aronian-andreikin-2014-defender-trade",
+          "source-bad-piece-liquidation-pilot"
         )
       )
     val byId = observations.map(obs => obs.source.id -> obs).toMap
@@ -806,25 +856,34 @@ class SourceReviewTest extends FunSuite:
     assertEquals(boleslavskyStaticWeakness.primary, "This changes the position by fixing d6 as the target.")
 
     val aronianDefenderTrade = byId("source-aronian-andreikin-2014-defender-trade")
-    assert(
-      aronianDefenderTrade.verdict == SourceReview.Verdict.AdmitAuthorityRow,
-      clues(aronianDefenderTrade)
-    )
-    assertEquals(aronianDefenderTrade.diagnosis, SourceReview.Diagnosis.AdmitReady)
+    assertEquals(aronianDefenderTrade.verdict, SourceReview.Verdict.RejectOwnerMissing, clues(aronianDefenderTrade))
+    assertEquals(aronianDefenderTrade.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
     assertEquals(aronianDefenderTrade.engineAgreement, "near_top_multipv_contains_played_top=c2b1_gap=14cp")
-    assertEquals(aronianDefenderTrade.admissionBlockers, "none")
-    assertEquals(aronianDefenderTrade.mainProofSource, PlayerFacingTruthModePolicy.DefenderTradeProofSource)
-    assertEquals(aronianDefenderTrade.mainClaimScope, "MoveLocal")
-    assertEquals(aronianDefenderTrade.contractId, s"subplan:${PlanTaxonomy.PlanKind.DefenderTrade.id}")
-    assertEquals(aronianDefenderTrade.contractStatus, "Releasable")
-    assertEquals(aronianDefenderTrade.release, "SupportedLocal")
-    assertEquals(
-      aronianDefenderTrade.primary,
-      "A local reading is that this exchange removes a defender on the local branch."
-    )
-    assertEquals(aronianDefenderTrade.bookmaker, aronianDefenderTrade.primary)
-    assertEquals(aronianDefenderTrade.chronicle, aronianDefenderTrade.primary)
+    assert(aronianDefenderTrade.admissionBlockers.contains("owner:defender_trade_owner_missing"))
+    assertEquals(aronianDefenderTrade.mainProofSource, "-")
+    assertEquals(aronianDefenderTrade.mainClaimScope, "-")
+    assertEquals(aronianDefenderTrade.contractId, "-")
+    assertEquals(aronianDefenderTrade.contractStatus, "-")
+    assertEquals(aronianDefenderTrade.release, "-")
     assertEquals(aronianDefenderTrade.taxonomy, "source_defender_trade")
+
+    val badPieceLiquidation = byId("source-bad-piece-liquidation-pilot")
+    assertEquals(badPieceLiquidation.verdict, SourceReview.Verdict.AdmitAuthorityRow, clues(badPieceLiquidation.tsv))
+    assertEquals(badPieceLiquidation.diagnosis, SourceReview.Diagnosis.AdmitReady)
+    assertEquals(badPieceLiquidation.admissionBlockers, "none")
+    assertEquals(badPieceLiquidation.engineAgreement, "top_pv_matches_played")
+    assertEquals(badPieceLiquidation.mainProofSource, PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource)
+    assertEquals(badPieceLiquidation.mainClaimScope, "MoveLocal")
+    assertEquals(badPieceLiquidation.contractId, s"subplan:${PlanTaxonomy.PlanKind.BadPieceLiquidation.id}")
+    assertEquals(badPieceLiquidation.contractStatus, "Releasable")
+    assertEquals(badPieceLiquidation.release, "SupportedLocal")
+    assertEquals(
+      badPieceLiquidation.primary,
+      "A local reading is that this trade clears the bad piece from the local branch."
+    )
+    assertEquals(badPieceLiquidation.bookmaker, badPieceLiquidation.primary)
+    assertEquals(badPieceLiquidation.chronicle, badPieceLiquidation.primary)
+    assertEquals(badPieceLiquidation.taxonomy, "source_bad_piece_liquidation")
   }
 
   test("break-prevention window scan does not admit incidental IQP rows") {

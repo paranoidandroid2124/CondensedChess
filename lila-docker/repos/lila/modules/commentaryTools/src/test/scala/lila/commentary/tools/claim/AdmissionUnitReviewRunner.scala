@@ -28,7 +28,7 @@ object AdmissionUnitReviewRunner:
         .getOrElse("https://www.pgnmentor.com/openings/ModernBenoni6e4.zip")
     val selectedIds = optionSet(argList, "--ids")
     val games =
-      sourceCatalogGames(argList, selectedIds) ++
+      sourceCatalogGames(argList, selectedIds, planKind) ++
         corpusGames(argList, sourceUrl) ++
         pgnFileGames(argList, sourceUrl)
     if games.isEmpty then
@@ -68,12 +68,19 @@ object AdmissionUnitReviewRunner:
 
   private def sourceCatalogGames(
       args: List[String],
-      ids: Set[String]
+      ids: Set[String],
+      planKind: String
   ): List[AdmissionUnitReview.SourceGame] =
     if !args.contains("--source-catalog") then Nil
     else
-      SourceWitnessCatalog.all
-        .filter(source => ids.isEmpty || ids.contains(source.id))
+      val idFiltered = SourceWitnessCatalog.all.filter(source => ids.isEmpty || ids.contains(source.id))
+      val planFiltered =
+        if ids.nonEmpty then idFiltered
+        else idFiltered.filter(source => source.reviewGroup.toLowerCase.contains(planKind.toLowerCase))
+      val selected =
+        if planFiltered.nonEmpty then planFiltered
+        else idFiltered
+      selected
         .map(source =>
           AdmissionUnitReview.SourceGame(
             id = source.id,

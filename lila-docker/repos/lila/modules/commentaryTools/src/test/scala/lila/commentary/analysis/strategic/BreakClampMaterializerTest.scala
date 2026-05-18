@@ -85,6 +85,22 @@ class BreakClampMaterializerTest extends FunSuite:
     assertEquals(assessment.verdict, BreakClampMaterializer.BreakTransformVerdict.RecaptureAvailableUnproven)
   }
 
+  test("classifies a branch-proven same-destination capture recapture as harmless") {
+    val fen = "4k3/8/8/1pp5/8/2P5/1P6/4K3 w - - 0 1"
+    val route =
+      routeEvidence(fen = fen, line = List("b2b4", "c5b4", "c3b4", "e8e7"))
+        .find(_.routeId == "black:b5-b4:quiet_push")
+        .getOrElse(fail("missing b5-b4 route evidence"))
+
+    val assessment = route.transformAssessments.headOption.getOrElse(fail("missing transform assessment"))
+    assertEquals(assessment.routeId, "black:c5-b4:capture_break")
+    assertEquals(assessment.shape, BreakClampMaterializer.BreakTransformShape.SameDestinationCapture)
+    assertEquals(assessment.captureDestinationIsPlayedDestination, true)
+    assertEquals(assessment.immediateRecapture, Some("c3b4"))
+    assertEquals(assessment.releaseRoutesAfterRecapture, Nil)
+    assertEquals(assessment.verdict.toString, "RecaptureProvenHarmless")
+  }
+
   test("classifies recapture that leaves another same-destination break as still releasing") {
     val fen = "4k3/8/8/ppp5/8/2P5/1P6/4K3 w - - 0 1"
     val route =
