@@ -58,13 +58,15 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       facts: List[Fact] = Nil,
       motifs: List[Motif] = Nil,
       openingGoal: Option[OpeningGoals.Evaluation] = None,
-      openingName: Option[String] = None
+      openingName: Option[String] = None,
+      strategicDelta: Option[PlayerFacingMoveDeltaEvidence] = None
   ): CommentaryIdeaSurface.MoveReviewEvidence =
     CommentaryIdeaSurface.MoveReviewEvidence(
       facts = facts,
       motifs = motifs,
       openingGoal = openingGoal,
-      openingName = openingName
+      openingName = openingName,
+      strategicDelta = strategicDelta
     )
 
   private def moveRef(refId: String, san: String, uci: String, ply: Int): MoveReviewMoveRef =
@@ -175,7 +177,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assertEquals(CommentaryIdeaSurface.canonicalFactId(Fact.ActivatesPiece(Bishop, Square.F1, Square.C4, openedRay = false, FactScope.Now)), None)
   }
 
-  test("opening label alone is not a descriptor but grounded opening goal is") {
+  test("opening label and grounded goal both require PV proof for a descriptor") {
     val current =
       played("f1c4", "Bc4", Square.F1, Square.C4, Piece(Color.White, _root_.chess.Bishop))
     val labelOnly = evidence(openingName = Some("Italian Game"))
@@ -194,16 +196,26 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       )
 
     assertEquals(CommentaryIdeaSurface.describe(current, labelOnly, None), None)
-    val descriptor = CommentaryIdeaSurface.describe(current, grounded, None).getOrElse(fail("expected opening descriptor"))
+    assertEquals(CommentaryIdeaSurface.describe(current, grounded, None), None)
+    val descriptor =
+      CommentaryIdeaSurface
+        .describe(
+          current,
+          grounded,
+          Some(lineFacts(moveRef("m1", "Bc4", "f1c4", 5), Some(moveRef("m2", "Nf6", "g8f6", 6)), Some(moveRef("m3", "d3", "d2d3", 7))))
+        )
+        .getOrElse(fail("expected PV-proved opening descriptor"))
 
     assertEquals(descriptor.source, "opening_goal", clue(descriptor))
     assertEquals(descriptor.reviewIntent, "normal_development", clue(descriptor))
     assertEquals(descriptor.moveCharacterBand, CommentaryIdeaSurface.MoveCharacterBand.Neutral, clue(descriptor))
     assert(descriptor.movePurpose.contains("Italian Game"), clue(descriptor.movePurpose))
-    assertEquals(descriptor.requiresPvForAdmission, false, clue(descriptor))
+    assertEquals(descriptor.requiresPvForAdmission, true, clue(descriptor))
     assert(descriptor.reasonTags.contains("opening_goal"), clue(descriptor.reasonTags))
     assert(descriptor.reasonTags.contains("review_intent:normal_development"), clue(descriptor.reasonTags))
     assert(descriptor.reasonTags.contains("character_band:neutral"), clue(descriptor.reasonTags))
+    assert(descriptor.reasonTags.contains("line_proof:opening_goal"), clue(descriptor.reasonTags))
+    assert(descriptor.reasonTags.contains("line_subject:f1c4"), clue(descriptor.reasonTags))
     assert(descriptor.baseProse.contains("Italian Game"), clue(descriptor.baseProse))
   }
 
@@ -293,11 +305,11 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
           Some(lineFacts(moveRef("m1", "Qh5", "d1h5", 3), Some(moveRef("m2", "g6", "g7g6", 4))))
         )
         .getOrElse(fail("expected direct-threat descriptor"))
-    assertEquals(directThreat.linePurpose, Some("answer_direct_threat"), clue(directThreat))
-    assertEquals(directThreat.reviewIntent, "answers_threat", clue(directThreat))
+    assertEquals(directThreat.linePurpose, Some("create_tactical_threat"), clue(directThreat))
+    assertEquals(directThreat.reviewIntent, "creates_threat", clue(directThreat))
     assert(directThreat.opponentQuestion.exists(_.contains("g6")), clue(directThreat.opponentQuestion))
     assert(directThreat.confirms.contains("direct_threat"), clue(directThreat.confirms))
-    assert(directThreat.confirms.contains("answers_threat"), clue(directThreat.confirms))
+    assert(directThreat.confirms.contains("creates_threat"), clue(directThreat.confirms))
     assert(directThreat.learningPoint.exists(_.contains("g6")), clue(directThreat.learningPoint))
     assertEquals(endgame.linePurpose, Some("improve_endgame_activity"), clue(endgame))
     assertEquals(endgame.reviewIntent, "improves_endgame_activity", clue(endgame))
@@ -356,21 +368,87 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assertEquals(noReply, None)
   }
 
-  test("castling descriptor stays local king-safety surface without requiring PV") {
+  test("defensive intent requires defense truth and PV proof instead of target creation") {
+    val current =
+      played("g1f3", "Nf3", Square.G1, Square.F3, Piece(Color.White, Knight))
+    val target =
+      Fact.TargetPiece(Square.E5, Pawn, List(Square.H5), Nil, FactScope.CandidatePv)
+    val line =
+      Some(lineFacts(moveRef("m1", "Nf3", "g1f3", 3), Some(moveRef("m2", "Nc6", "b8c6", 4)), Some(moveRef("m3", "d4", "d2d4", 5))))
+    val defensiveContract =
+      truthContract(
+        DecisiveTruthClass.Best,
+        DecisiveReasonKind.OnlyMoveDefense,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        benchmarkCriticalMove = true
+      )
+    val targetCreation =
+      CommentaryIdeaSurface
+        .describe(current, evidence(facts = List(target)), line)
+        .getOrElse(fail("expected target creation descriptor"))
+    val defensive =
+      CommentaryIdeaSurface
+        .describe(current, evidence(facts = List(target)), line, truthContract = Some(defensiveContract))
+        .getOrElse(fail("expected defensive descriptor"))
+
+    assertEquals(targetCreation.reviewIntent, "creates_threat", clue(targetCreation))
+    assertEquals(defensive.reviewIntent, "answers_threat", clue(defensive))
+    assertEquals(defensive.linePurpose, Some("answer_direct_threat"), clue(defensive))
+    assert(defensive.reasonTags.contains("line_proof:defensive_answer"), clue(defensive.reasonTags))
+    assert(defensive.confirms.contains("answers_threat"), clue(defensive.confirms))
+  }
+
+  test("castling descriptor requires PV proof for king-safety surface") {
+    val noPv =
+      CommentaryIdeaSurface.describe(
+        played("e1g1", "O-O", Square.E1, Square.G1, Piece(Color.White, _root_.chess.King)),
+        evidence(),
+        None
+      )
     val descriptor =
       CommentaryIdeaSurface
         .describe(
           played("e1g1", "O-O", Square.E1, Square.G1, Piece(Color.White, _root_.chess.King)),
           evidence(),
-          None
+          Some(lineFacts(moveRef("m1", "O-O", "e1g1", 9), Some(moveRef("m2", "Nf6", "g8f6", 10)), Some(moveRef("m3", "Re1", "f1e1", 11))))
         )
-        .getOrElse(fail("expected castling descriptor"))
+        .getOrElse(fail("expected PV-proved castling descriptor"))
 
+    assertEquals(noPv, None)
     assertEquals(descriptor.ideaKind, "king_safety", clue(descriptor))
     assertEquals(descriptor.reviewIntent, "king_safety", clue(descriptor))
-    assertEquals(descriptor.requiresPvForAdmission, false, clue(descriptor))
+    assertEquals(descriptor.requiresPvForAdmission, true, clue(descriptor))
     assertEquals(descriptor.linePurpose, Some("king_safety_first"), clue(descriptor))
     assert(descriptor.reasonTags.contains("king_safety"), clue(descriptor.reasonTags))
+    assert(descriptor.reasonTags.contains("line_proof:king_safety"), clue(descriptor.reasonTags))
+  }
+
+  test("certified strategic support needs packet proof and PV proof") {
+    val current =
+      played("h2h3", "h3", Square.H2, Square.H3, Piece(Color.White, Pawn))
+    val line =
+      Some(lineFacts(moveRef("m1", "h3", "h2h3", 22), Some(moveRef("m2", "b5", "b7b5", 23)), Some(moveRef("m3", "a4", "a2a4", 24))))
+    val certified =
+      strategicDelta("neutralize_key_break", "counterplay_axis_suppression", PlayerFacingMoveDeltaClass.CounterplayReduction)
+    val packetOnly =
+      CommentaryIdeaSurface.describe(current, evidence(strategicDelta = Some(certified)), None)
+    val descriptor =
+      CommentaryIdeaSurface
+        .describe(current, evidence(strategicDelta = Some(certified)), line)
+        .getOrElse(fail("expected certified strategic support descriptor"))
+    val risky =
+      certified.copy(packet = certified.packet.copy(releaseRisks = List(PlayerFacingClaimReleaseRisk.RivalRelease)))
+
+    assertEquals(packetOnly, None)
+    assertEquals(
+      CommentaryIdeaSurface.describe(current, evidence(strategicDelta = Some(risky)), line),
+      None
+    )
+    assertEquals(descriptor.reviewIntent, "prevents_counterplay", clue(descriptor))
+    assertEquals(descriptor.linePurpose, Some("prevent_counterplay"), clue(descriptor))
+    assertEquals(descriptor.source, "certified_strategy_support", clue(descriptor))
+    assert(descriptor.reasonTags.contains("line_proof:certified_strategy"), clue(descriptor.reasonTags))
+    assert(descriptor.reasonTags.contains("proof_family:neutralize_key_break"), clue(descriptor.reasonTags))
   }
 
   test("truth contract only derives an internal character band") {
@@ -399,13 +477,15 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
         )
       )
 
+    val pv =
+      Some(lineFacts(moveRef("m1", "Bc4", "f1c4", 5), Some(moveRef("m2", "Nf6", "g8f6", 6)), Some(moveRef("m3", "d3", "d2d3", 7))))
     val bad =
       CommentaryIdeaSurface
-        .describe(current, grounded, None, truthContract = Some(badContract))
+        .describe(current, grounded, pv, truthContract = Some(badContract))
         .getOrElse(fail("expected bad-band descriptor"))
     val necessary =
       CommentaryIdeaSurface
-        .describe(current, grounded, None, truthContract = Some(necessaryContract))
+        .describe(current, grounded, pv, truthContract = Some(necessaryContract))
         .getOrElse(fail("expected necessary-band descriptor"))
 
     assertEquals(bad.moveCharacterBand, CommentaryIdeaSurface.MoveCharacterBand.Bad, clue(bad))
@@ -446,4 +526,45 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       failureIntentConfidence = 0.0,
       failureIntentAnchor = None,
       failureInterpretationAllowed = false
+    )
+
+  private def strategicDelta(
+      proofFamily: String,
+      proofSource: String,
+      deltaClass: PlayerFacingMoveDeltaClass
+  ): PlayerFacingMoveDeltaEvidence =
+    val packet =
+      PlayerFacingClaimPacket(
+        claimGate = PlanEvidenceEvaluator.ClaimCertification(
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
+          certificateStatus = PlayerFacingCertificateStatus.Valid
+        ),
+        proofSource = proofSource,
+        proofFamily = proofFamily,
+        scope = PlayerFacingPacketScope.MoveLocal,
+        triggerKind = "test",
+        anchorTerms = List("b5"),
+        sameBranchState = PlayerFacingSameBranchState.Proven,
+        persistence = PlayerFacingClaimPersistence.Stable,
+        proofPathWitness = PlayerFacingProofPathWitness(
+          ownerSeedTerms = List("b5"),
+          continuationTerms = List("a4"),
+          structureTransitionTerms = List("b5")
+        ),
+        fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
+      )
+    PlayerFacingMoveDeltaEvidence(
+      deltaClass = deltaClass,
+      anchorTerms = List("b5"),
+      quantifier = PlayerFacingClaimQuantifier.BestResponse,
+      modalityTier = PlayerFacingClaimModalityTier.Supports,
+      attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
+      stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+      provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
+      certificateStatus = PlayerFacingCertificateStatus.Valid,
+      ontologyFamily = PlayerFacingClaimOntologyKind.CounterplayRestraint,
+      packet = packet
     )

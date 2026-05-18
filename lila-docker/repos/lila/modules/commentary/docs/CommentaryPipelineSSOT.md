@@ -558,10 +558,10 @@ Current canonical flow:
 6. if no certified planner slot survives, `MoveReviewExplanationBuilder` may
    admit a bounded instructional MoveReview explanation before exact-factual
    fallback:
-   - v1 admission is intentionally narrow: opening / formation contexts,
-     explicit castling, or non-opening moves with UCI-coupled PV semantics only,
-     so tactical/trust fallback fixtures do not get re-inflated into generic
-     purpose prose without line support
+   - v1 admission is intentionally narrow and PV-first: semantic basic prose is
+     admitted only when a legal, UCI-coupled PV line proves the local review
+     role; opening / formation goals and castling are evidence inputs, not
+     no-PV prose exceptions
    - input is current move SAN/UCI, legal current-move replay, existing
      `NarrativeContext` facts, candidate facts/motifs, opening goal evaluation,
      endgame facts, and optional short PV refs
@@ -587,8 +587,8 @@ Current canonical flow:
      evidence already carried by `NarrativeContextBuilder` and
      `CandidateInfo`; `FactExtractor`, `MoveAnalyzer`, `ThreatAnalyzer`, and
      the endgame oracle remain the meaning producers
-   - phase-only endgame moves remain closed unless exact endgame facts or a
-     validated PV-backed semantic interpretation exists
+   - phase-only endgame moves remain closed unless exact endgame facts are
+     paired with a validated PV-backed semantic interpretation
    - this lane may own a basic instructional paragraph, but it is not a
      strategic authority lane and may not override a certified planner claim
    - when refs contain a safe preview line, `MoveReviewShortLine` carries the
@@ -618,16 +618,25 @@ Current canonical flow:
     - `MoveReviewPvLine` owns only legal replay, coupled-line selection,
       short-line assembly, and normalization; capture / center / endgame /
       opening surface meaning is not rederived there
+    - `CommentaryIdeaSurface.MoveReviewLineProof` is a nested descriptor only:
+      it records what the already-validated PV line proves (`line_proof:*`,
+      `line_subject:*`, reply, continuation, and blocked reasons) and must not
+      duplicate legal replay or FEN validation from `MoveReviewPvLine`
     - the basic descriptor is selected as a bounded review intent first, then
-      rendered as title/prose; validated PV facts are the admission core for
-      non-trivial non-opening meanings, while `Fact` / `Motif` / opening-goal /
+      rendered as title/prose; validated PV line proof is the admission core for
+      every semantic basic explanation, while `Fact` / `Motif` / opening-goal /
       endgame facts support that intent rather than triggering prose by
       themselves
+    - certified strategic packets may support MoveReview only as local review
+      evidence: the builder may pass an existing `PlayerFacingMoveDeltaEvidence`
+      when its packet is accepted by `ProofContractRules`, proven on the same
+      branch, stable, and risk-free; the strategy family label alone never
+      admits basic prose and does not replace planner authority
     - the descriptor may additionally attach `MoveReviewPvInterpretation` from
-      canonical facts/motifs plus validated PV facts; besides opening/castling
-      semantics, it may use PV-backed non-opening meanings such as
-      `answer_direct_threat`, `create_tactical_threat`,
-      `resolve_capture_tension`, `clarify_exchange`, and
+      canonical facts/motifs plus validated PV line proof; meanings include
+      `normal_development`, `king_safety`, `answers_threat`,
+      `creates_threat`, `resolve_capture_tension`, `clarify_exchange`,
+      `prevent_counterplay`, `advance_plan`, and
       `improve_endgame_activity`
    - internal `moveCharacterBand` derives from `DecisiveTruthContract` only as
      a tone selector for the basic MoveReview lane; it is not a new truth tier

@@ -124,8 +124,12 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
   private def variationForLine(startFen: String, ucis: List[String], sans: List[String], lineId: String): MoveReviewVariationRef =
     refsForLine(startFen, ucis, sans, lineId).variations.head
 
-  test("opening explanation consumes OpeningGoals rather than an opening idea catalog") {
-    val explanation = MoveReviewExplanationBuilder.build(italianCtx, None).getOrElse(fail("expected opening goal explanation"))
+  test("grounded opening explanation requires validated PV proof") {
+    assertEquals(MoveReviewExplanationBuilder.build(italianCtx, None), None)
+    val explanation =
+      MoveReviewExplanationBuilder
+        .build(italianCtx, Some(refsForLine(italianBeforeBc4, List("f1c4", "g8f6", "d2d3"), List("Bc4", "Nf6", "d3"))))
+        .getOrElse(fail("expected PV-proved opening goal explanation"))
 
     assertEquals(explanation.source, "opening_goal", clue(explanation))
     assert(explanation.title.contains("Development Logic"), clue(explanation.title))
@@ -134,8 +138,9 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(explanation.reasonTags.contains("development_logic"), clue(explanation.reasonTags))
     assert(explanation.reasonTags.contains("review_intent:normal_development"), clue(explanation.reasonTags))
     assert(explanation.reasonTags.contains("character_band:neutral"), clue(explanation.reasonTags))
-    assertEquals(explanation.shortLine, None, clue(explanation))
-    assertEquals(explanation.pvInterpretation, None, clue(explanation))
+    assert(explanation.reasonTags.contains("line_proof:opening_goal"), clue(explanation.reasonTags))
+    assertEquals(explanation.shortLine.map(_.san), Some(List("Bc4", "Nf6", "d3")), clue(explanation.shortLine))
+    assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("quiet_development"), clue(explanation.pvInterpretation))
   }
 
   test("opening name alone does not admit opening prose without a grounded goal") {
@@ -183,7 +188,10 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
       )
     val ctx = italianCtx.copy(openingGoalEvaluation = Some(injectedGoal))
     val headerText = BookStyleRenderer.validatedOutline(ctx).getBeat(OutlineBeatKind.MoveHeader).map(_.text).getOrElse("")
-    val explanation = MoveReviewExplanationBuilder.build(ctx, None).getOrElse(fail("expected opening explanation"))
+    val explanation =
+      MoveReviewExplanationBuilder
+        .build(ctx, Some(refsForLine(italianBeforeBc4, List("f1c4", "g8f6", "d2d3"), List("Bc4", "Nf6", "d3"))))
+        .getOrElse(fail("expected opening explanation"))
 
     assert(headerText.contains("Injected Opening Goal"), clue(headerText))
     assert(explanation.title.contains("Injected Opening Goal"), clue(explanation))
@@ -226,7 +234,7 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(explanation, None, clue(explanation))
   }
 
-  test("target-piece fact admits direct-threat explanation only with a coupled PV reply") {
+  test("target-piece fact creates target pressure and does not claim defensive answer") {
     val fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
     val targetFact =
       Fact.TargetPiece(Square.E5, Pawn, List(Square.H5), Nil, FactScope.CandidatePv)
@@ -244,11 +252,65 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
         )
         .getOrElse(fail("expected direct-threat explanation"))
 
-    assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("answer_direct_threat"), clue(explanation))
+    assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("create_tactical_threat"), clue(explanation))
     assert(explanation.pvInterpretation.exists(_.confirms.contains("direct_threat")), clue(explanation.pvInterpretation))
-    assert(explanation.pvInterpretation.exists(_.confirms.contains("answers_threat")), clue(explanation.pvInterpretation))
-    assert(explanation.reasonTags.contains("review_intent:answers_threat"), clue(explanation.reasonTags))
+    assert(explanation.pvInterpretation.exists(_.confirms.contains("creates_threat")), clue(explanation.pvInterpretation))
+    assert(!explanation.pvInterpretation.exists(_.confirms.contains("answers_threat")), clue(explanation.pvInterpretation))
+    assert(explanation.reasonTags.contains("review_intent:creates_threat"), clue(explanation.reasonTags))
     assert(explanation.pvInterpretation.exists(_.learningPoint.contains("g6")), clue(explanation.pvInterpretation))
+  }
+
+  test("only-move defense truth admits answers-threat only with coupled PV proof") {
+    val fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+    val targetFact =
+      Fact.TargetPiece(Square.E4, Pawn, List(Square.F3), Nil, FactScope.ThreatLine)
+    val defenseContract =
+      DecisiveTruthContract(
+        playedMove = Some("d2d3"),
+        verifiedBestMove = Some("d2d3"),
+        truthClass = DecisiveTruthClass.Best,
+        cpLoss = 0,
+        swingSeverity = 0,
+        reasonFamily = DecisiveReasonKind.OnlyMoveDefense,
+        allowConcreteBenchmark = false,
+        chosenMatchesBest = true,
+        compensationAllowed = false,
+        truthPhase = None,
+        ownershipRole = TruthOwnershipRole.NoneRole,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        surfaceMode = TruthSurfaceMode.Neutral,
+        exemplarRole = TruthExemplarRole.NonExemplar,
+        surfacedMoveOwnsTruth = false,
+        verifiedPayoffAnchor = None,
+        compensationProseAllowed = false,
+        benchmarkProseAllowed = false,
+        investmentTruthChainKey = None,
+        maintenanceExemplarCandidate = false,
+        benchmarkCriticalMove = true,
+        failureMode = FailureInterpretationMode.NoClearPlan,
+        failureIntentConfidence = 0.0,
+        failureIntentAnchor = None,
+        failureInterpretationAllowed = false
+      )
+    val noPv =
+      MoveReviewExplanationBuilder.build(
+        ctx(fen, "d2d3", "d3", phase = "Opening", ply = 5, phaseReason = "defensive support", facts = List(targetFact)),
+        None,
+        Some(defenseContract)
+      )
+    val explanation =
+      MoveReviewExplanationBuilder
+        .build(
+          ctx(fen, "d2d3", "d3", phase = "Opening", ply = 5, phaseReason = "defensive support", facts = List(targetFact)),
+          Some(refsForLine(fen, List("d2d3", "g8f6", "f1e2"), List("d3", "Nf6", "Be2"))),
+          Some(defenseContract)
+        )
+        .getOrElse(fail("expected PV-proved defensive answer"))
+
+    assertEquals(noPv, None)
+    assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("answer_direct_threat"), clue(explanation))
+    assert(explanation.reasonTags.contains("review_intent:answers_threat"), clue(explanation.reasonTags))
+    assert(explanation.reasonTags.contains("line_proof:defensive_answer"), clue(explanation.reasonTags))
   }
 
   test("endgame facts admit activity prose without an endgame idea catalog") {
@@ -296,11 +358,10 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     val corrupted =
       valid.copy(variations = List(valid.variations.head.copy(moves = valid.variations.head.moves.updated(1, corruptedMove))))
 
-    val explanation = MoveReviewExplanationBuilder.build(italianCtx, Some(corrupted)).getOrElse(fail("expected opening explanation"))
+    val explanation = MoveReviewExplanationBuilder.build(italianCtx, Some(corrupted))
 
-    assertEquals(explanation.pvInterpretation, None, clue(explanation))
-    assertEquals(explanation.shortLine.map(_.san), Some(List("Bc4", "Nf6", "d3")), clue(explanation.shortLine))
-    assert(explanation.reasonTags.contains("review_intent:normal_development"), clue(explanation.reasonTags))
+    assertEquals(explanation, None, clue(explanation))
+    assertEquals(MoveReviewPvLine.shortLine(Some(corrupted), None).map(_.san), Some(List("Bc4", "Nf6", "d3")))
   }
 
   test("illegal current move creates no basic move explanation") {

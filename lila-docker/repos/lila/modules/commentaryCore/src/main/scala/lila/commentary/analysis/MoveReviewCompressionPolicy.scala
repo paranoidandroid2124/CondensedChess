@@ -66,7 +66,7 @@ private[commentary] object MoveReviewCompressionPolicy:
     val plannerRuntime =
       plannerInputsRuntime(ctx, refs, strategyPack, truthContract)
     slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
-      .orElse(basicMoveExplanationSlots(ctx, refs, truthContract))
+      .orElse(basicMoveExplanationSlots(ctx, refs, truthContract, strategyPack))
       .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, strategyPack))
       .getOrElse(omittedSlots)
 
@@ -585,9 +585,10 @@ private[commentary] object MoveReviewCompressionPolicy:
   private def basicMoveExplanationSlots(
       ctx: NarrativeContext,
       refs: Option[MoveReviewRefs],
-      truthContract: Option[DecisiveTruthContract]
+      truthContract: Option[DecisiveTruthContract],
+      strategyPack: Option[StrategyPack]
   ): Option[MoveReviewPolishSlots] =
-    MoveReviewExplanationBuilder.build(ctx, refs, truthContract).flatMap { explanation =>
+    MoveReviewExplanationBuilder.build(ctx, refs, truthContract, strategyPack).flatMap { explanation =>
       cleanSentence(explanation.prose, ctx).map { claim =>
         val support =
           explanation.shortLine.flatMap { line =>
@@ -600,6 +601,8 @@ private[commentary] object MoveReviewCompressionPolicy:
             Some(s"MoveReview source: ${explanation.source}"),
             reviewTagValue(explanation, "review_intent").map(intent => s"MoveReview review intent: $intent"),
             reviewTagValue(explanation, "character_band").map(band => s"MoveReview character band: $band"),
+            reviewTagValue(explanation, "line_proof").map(proof => s"MoveReview line proof: $proof"),
+            reviewTagValue(explanation, "line_subject").map(subject => s"MoveReview PV subject: $subject"),
             Option.when(explanation.reasonTags.nonEmpty)(s"MoveReview reason tags: ${explanation.reasonTags.mkString(", ")}"),
             explanation.pvInterpretation.map(interpretation => s"PV line purpose: ${interpretation.linePurpose}"),
             explanation.pvInterpretation.map(interpretation => s"PV confirms: ${interpretation.confirms.mkString(", ")}"),

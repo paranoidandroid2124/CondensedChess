@@ -1,8 +1,10 @@
 package lila.commentary.analysis
 
 import chess.{ Color, King, Piece, Role, Square }
+import lila.commentary.analysis.claim.ProofContractRules
 import lila.commentary.{ MoveReviewMoveRef, MoveReviewPvInterpretation }
 import lila.commentary.model.*
+import scala.annotation.unused
 
 private[commentary] object CommentaryIdeaSurface:
 
@@ -29,7 +31,8 @@ private[commentary] object CommentaryIdeaSurface:
       facts: List[Fact],
       motifs: List[Motif],
       openingGoal: Option[OpeningGoals.Evaluation],
-      openingName: Option[String]
+      openingName: Option[String],
+      strategicDelta: Option[PlayerFacingMoveDeltaEvidence] = None
   ):
     def endgameFacts: List[Fact] =
       facts.collect {
@@ -50,6 +53,16 @@ private[commentary] object CommentaryIdeaSurface:
 
     def key: String =
       toString.toLowerCase
+
+  final case class MoveReviewLineProof(
+      proofKind: String,
+      subject: String,
+      reply: Option[MoveReviewMoveRef],
+      continuation: Option[MoveReviewMoveRef],
+      blockedReasons: List[String] = Nil
+  ):
+    def tags: List[String] =
+      List(Some(s"line_proof:$proofKind"), Some(s"line_subject:$subject")).flatten
 
   final case class MoveReviewIdeaDescriptor(
       ideaKind: String,
@@ -101,20 +114,27 @@ private[commentary] object CommentaryIdeaSurface:
     val characterBand = moveCharacterBand(truthContract)
     val descriptor =
       MoveReviewIdeaRules.iterator
-        .map(_.describe(played, evidence, lineFacts, characterBand))
+        .map(_.describe(played, evidence, lineFacts, characterBand, truthContract))
         .collectFirst { case Some(desc) => desc }
 
     descriptor.filter(desc => !desc.requiresPvForAdmission || lineFacts.nonEmpty)
 
   private final case class MoveReviewIdeaRule(
       name: String,
-      describe: (PlayedMove, MoveReviewEvidence, Option[MoveReviewPvLine.LineFacts], MoveCharacterBand) => Option[MoveReviewIdeaDescriptor]
+      describe: (
+          PlayedMove,
+          MoveReviewEvidence,
+          Option[MoveReviewPvLine.LineFacts],
+          MoveCharacterBand,
+          Option[DecisiveTruthContract]
+      ) => Option[MoveReviewIdeaDescriptor]
   )
 
   private val MoveReviewIdeaRules: List[MoveReviewIdeaRule] =
     List(
       MoveReviewIdeaRule("opening_goal", openingDescriptor),
-      MoveReviewIdeaRule("castling", (played, _, lineFacts, characterBand) => castlingDescriptor(played, lineFacts, characterBand)),
+      MoveReviewIdeaRule("castling", (played, _, lineFacts, characterBand, _) => castlingDescriptor(played, lineFacts, characterBand)),
+      MoveReviewIdeaRule("strategic_support", strategicSupportDescriptor),
       MoveReviewIdeaRule("tactical", tacticalDescriptor),
       MoveReviewIdeaRule("target", targetDescriptor),
       MoveReviewIdeaRule("capture", captureDescriptor),
@@ -126,9 +146,13 @@ private[commentary] object CommentaryIdeaSurface:
       played: PlayedMove,
       evidence: MoveReviewEvidence,
       lineFacts: Option[MoveReviewPvLine.LineFacts],
-      characterBand: MoveCharacterBand
+      characterBand: MoveCharacterBand,
+      @unused truthContract: Option[DecisiveTruthContract]
   ): Option[MoveReviewIdeaDescriptor] =
-    evidence.openingGoal.map { goal =>
+    for
+      goal <- evidence.openingGoal
+      line <- lineFacts
+    yield
       val reasonTags = List("opening_goal", slug(goal.goalName))
       val purpose = lineFacts.flatMap(line => PvMeaning.classifyOpeningPurpose(played, evidence, line.continuation, reasonTags))
       val openingPart = evidence.openingName.map(name => s" in the $name").getOrElse("")
@@ -145,19 +169,19 @@ private[commentary] object CommentaryIdeaSurface:
         baseProse = s"${played.san}$openingPart develops through ${goal.goalName}; the opening name supports the explanation but does not admit it by itself.$supportText",
         reasonTags = reasonTags,
         linePurpose = purpose,
+        lineProof = lineProof("opening_goal", played, line),
         played = played,
         evidence = evidence,
         lineFacts = lineFacts,
-        requiresPvForAdmission = false
+        requiresPvForAdmission = true
       )
-    }
 
   private def castlingDescriptor(
       played: PlayedMove,
       lineFacts: Option[MoveReviewPvLine.LineFacts],
       characterBand: MoveCharacterBand
   ): Option[MoveReviewIdeaDescriptor] =
-    Option.when(played.isCastle) {
+    lineFacts.filter(_ => played.isCastle).map { line =>
       val reasonTags = List("king_safety")
       descriptor(
         ideaKind = "king_safety",
@@ -168,18 +192,52 @@ private[commentary] object CommentaryIdeaSurface:
         baseProse = s"${played.san} improves king safety before the position asks for a more concrete central or tactical decision.",
         reasonTags = reasonTags,
         linePurpose = Some("king_safety_first"),
+        lineProof = lineProof("king_safety", played, line),
         played = played,
         evidence = MoveReviewEvidence(Nil, Nil, None, None),
         lineFacts = lineFacts,
-        requiresPvForAdmission = false
+        requiresPvForAdmission = true
       )
     }
+
+  private def strategicSupportDescriptor(
+      played: PlayedMove,
+      evidence: MoveReviewEvidence,
+      lineFacts: Option[MoveReviewPvLine.LineFacts],
+      characterBand: MoveCharacterBand,
+      @unused truthContract: Option[DecisiveTruthContract]
+  ): Option[MoveReviewIdeaDescriptor] =
+    for
+      delta <- evidence.strategicDelta.filter(certifiedStrategicSupport)
+      line <- lineFacts
+    yield
+      val intent = strategicIntent(delta)
+      descriptor(
+        ideaKind = intent,
+        reviewIntent = intent,
+        moveCharacterBand = characterBand,
+        source = "certified_strategy_support",
+        title = strategicTitle(played, delta),
+        baseProse = strategicPurpose(played, delta),
+        reasonTags = List(
+          "certified_strategy_support",
+          s"proof_family:${delta.packet.proofFamily}",
+          s"proof_source:${delta.packet.proofSource}"
+        ),
+        linePurpose = Some(strategicLinePurpose(delta)),
+        lineProof = lineProof("certified_strategy", played, line, subjectOverride = preferredStrategicSubject(delta).orElse(Some(played.uci))),
+        played = played,
+        evidence = evidence,
+        lineFacts = lineFacts,
+        requiresPvForAdmission = true
+      )
 
   private def tacticalDescriptor(
       played: PlayedMove,
       evidence: MoveReviewEvidence,
       lineFacts: Option[MoveReviewPvLine.LineFacts],
-      characterBand: MoveCharacterBand
+      characterBand: MoveCharacterBand,
+      @unused truthContract: Option[DecisiveTruthContract]
   ): Option[MoveReviewIdeaDescriptor] =
     val factKind =
       if evidence.facts.exists(_.isInstanceOf[Fact.Fork]) then Some("fork")
@@ -213,6 +271,7 @@ private[commentary] object CommentaryIdeaSurface:
           baseProse = prose,
           reasonTags = evidenceTags(evidence.facts, evidence.motifs),
           linePurpose = Some("create_tactical_threat"),
+          lineProof = lineProof("tactical_threat", played, lineFacts.get),
           played = played,
           evidence = evidence,
           lineFacts = lineFacts,
@@ -225,21 +284,29 @@ private[commentary] object CommentaryIdeaSurface:
       played: PlayedMove,
       evidence: MoveReviewEvidence,
       lineFacts: Option[MoveReviewPvLine.LineFacts],
-      characterBand: MoveCharacterBand
+      characterBand: MoveCharacterBand,
+      truthContract: Option[DecisiveTruthContract]
   ): Option[MoveReviewIdeaDescriptor] =
     Option.when(
       evidence.facts.exists(f => f.isInstanceOf[Fact.HangingPiece] || f.isInstanceOf[Fact.TargetPiece]) &&
         lineFacts.flatMap(_.reply).nonEmpty
     ) {
+      val defensive = defensiveTruth(truthContract) || evidence.facts.exists(_.scope == FactScope.ThreatLine)
+      val purpose = if defensive then "answer_direct_threat" else "create_tactical_threat"
+      val intent = if defensive then "answers_threat" else "creates_threat"
+      val proofKind = if defensive then "defensive_answer" else "target_pressure"
       descriptor(
         ideaKind = "direct_threat",
-        reviewIntent = "answers_threat",
+        reviewIntent = intent,
         moveCharacterBand = characterBand,
         source = "canonical_fact",
-        title = s"${played.san} asks a concrete question",
-        baseProse = s"${played.san} creates a concrete target that the opponent has to answer.",
+        title = if defensive then s"${played.san} answers the immediate question" else s"${played.san} asks a concrete question",
+        baseProse =
+          if defensive then s"${played.san} answers the immediate threat shown by the local evidence."
+          else s"${played.san} creates a concrete target that the opponent has to answer.",
         reasonTags = evidenceTags(evidence.facts, evidence.motifs),
-        linePurpose = Some("answer_direct_threat"),
+        linePurpose = Some(purpose),
+        lineProof = lineProof(proofKind, played, lineFacts.get),
         played = played,
         evidence = evidence,
         lineFacts = lineFacts,
@@ -251,7 +318,8 @@ private[commentary] object CommentaryIdeaSurface:
       played: PlayedMove,
       evidence: MoveReviewEvidence,
       lineFacts: Option[MoveReviewPvLine.LineFacts],
-      characterBand: MoveCharacterBand
+      characterBand: MoveCharacterBand,
+      @unused truthContract: Option[DecisiveTruthContract]
   ): Option[MoveReviewIdeaDescriptor] =
     Option.when(evidence.hasCaptureMotif && played.isCapture && isImmediateRecapture(played.toKey, lineFacts.flatMap(_.reply))) {
       val purpose =
@@ -268,6 +336,7 @@ private[commentary] object CommentaryIdeaSurface:
         baseProse = s"${played.san} serves a concrete local purpose.",
         reasonTags = List("capture_sequence"),
         linePurpose = Some(purpose),
+        lineProof = lineProof(if purpose == "clarify_exchange" then "exchange_clarification" else "capture_tension", played, lineFacts.get),
         played = played,
         evidence = evidence,
         lineFacts = lineFacts,
@@ -279,9 +348,10 @@ private[commentary] object CommentaryIdeaSurface:
       played: PlayedMove,
       evidence: MoveReviewEvidence,
       lineFacts: Option[MoveReviewPvLine.LineFacts],
-      characterBand: MoveCharacterBand
+      characterBand: MoveCharacterBand,
+      @unused truthContract: Option[DecisiveTruthContract]
   ): Option[MoveReviewIdeaDescriptor] =
-    Option.when(evidence.endgameFacts.nonEmpty && lineFacts.nonEmpty) {
+    lineFacts.filter(_ => evidence.endgameFacts.nonEmpty).map { line =>
       descriptor(
         ideaKind = "endgame_activity",
         reviewIntent = "improves_endgame_activity",
@@ -291,6 +361,7 @@ private[commentary] object CommentaryIdeaSurface:
         baseProse = s"${played.san} improves activity through exact endgame facts, keeping the explanation local to the verified feature.",
         reasonTags = evidenceTags(evidence.facts, evidence.motifs),
         linePurpose = Some("improve_endgame_activity"),
+        lineProof = lineProof("endgame_activity", played, line),
         played = played,
         evidence = evidence,
         lineFacts = lineFacts,
@@ -307,6 +378,7 @@ private[commentary] object CommentaryIdeaSurface:
       baseProse: String,
       reasonTags: List[String],
       linePurpose: Option[String],
+      lineProof: MoveReviewLineProof,
       played: PlayedMove,
       evidence: MoveReviewEvidence,
       lineFacts: Option[MoveReviewPvLine.LineFacts],
@@ -319,7 +391,7 @@ private[commentary] object CommentaryIdeaSurface:
     val lineResolution =
       linePurpose.flatMap(purpose => lineFacts.flatMap(line => PvMeaning.lineResolution(purpose, played, evidence, line)))
     val expandedReasonTags =
-      (reasonTags ++ List(s"review_intent:$reviewIntent", s"character_band:${moveCharacterBand.key}")).distinct
+      (reasonTags ++ lineProof.tags ++ List(s"review_intent:$reviewIntent", s"character_band:${moveCharacterBand.key}")).distinct
     val confirms = PvMeaning.confirmedFacts(reviewIntent, linePurpose, evidence, expandedReasonTags)
     MoveReviewIdeaDescriptor(
       ideaKind = ideaKind,
@@ -362,6 +434,80 @@ private[commentary] object CommentaryIdeaSurface:
         MoveCharacterBand.Quiet
       case _ =>
         MoveCharacterBand.Neutral
+
+  private def lineProof(
+      proofKind: String,
+      played: PlayedMove,
+      line: MoveReviewPvLine.LineFacts,
+      subjectOverride: Option[String] = None,
+      blockedReasons: List[String] = Nil
+  ): MoveReviewLineProof =
+    MoveReviewLineProof(
+      proofKind = proofKind,
+      subject = subjectOverride.getOrElse(played.uci),
+      reply = line.reply,
+      continuation = line.continuation,
+      blockedReasons = blockedReasons
+    )
+
+  private def defensiveTruth(truthContract: Option[DecisiveTruthContract]): Boolean =
+    truthContract.exists(contract =>
+      contract.truthClass == DecisiveTruthClass.Best &&
+        contract.reasonFamily == DecisiveReasonKind.OnlyMoveDefense
+    )
+
+  private def certifiedStrategicSupport(delta: PlayerFacingMoveDeltaEvidence): Boolean =
+    val packet = delta.packet
+    packet.scope == PlayerFacingPacketScope.MoveLocal &&
+      packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
+      packet.sameBranchState == PlayerFacingSameBranchState.Proven &&
+      packet.persistence == PlayerFacingClaimPersistence.Stable &&
+      packet.releaseRisks.isEmpty &&
+      packet.suppressionReasons.isEmpty &&
+      ProofContractRules.supportedLocalEligible(packet.proofFamily) &&
+      ProofContractRules.failureCodes(packet).isEmpty
+
+  private def strategicIntent(delta: PlayerFacingMoveDeltaEvidence): String =
+    delta.deltaClass match
+      case PlayerFacingMoveDeltaClass.CounterplayReduction => "prevents_counterplay"
+      case PlayerFacingMoveDeltaClass.ExchangeForcing      => "clarifies_exchange"
+      case PlayerFacingMoveDeltaClass.PlanAdvance          => "advances_plan"
+      case PlayerFacingMoveDeltaClass.ResourceRemoval      => "answers_threat"
+      case PlayerFacingMoveDeltaClass.PressureIncrease     => "creates_threat"
+      case PlayerFacingMoveDeltaClass.NewAccess            => "quiet_improvement"
+
+  private def strategicLinePurpose(delta: PlayerFacingMoveDeltaEvidence): String =
+    delta.deltaClass match
+      case PlayerFacingMoveDeltaClass.CounterplayReduction => "prevent_counterplay"
+      case PlayerFacingMoveDeltaClass.ExchangeForcing      => "clarify_exchange"
+      case PlayerFacingMoveDeltaClass.PlanAdvance          => "advance_plan"
+      case PlayerFacingMoveDeltaClass.ResourceRemoval      => "answer_direct_threat"
+      case PlayerFacingMoveDeltaClass.PressureIncrease     => "create_tactical_threat"
+      case PlayerFacingMoveDeltaClass.NewAccess            => "quiet_improvement"
+
+  private def strategicTitle(played: PlayedMove, delta: PlayerFacingMoveDeltaEvidence): String =
+    strategicIntent(delta) match
+      case "prevents_counterplay" => s"${played.san} keeps counterplay restrained"
+      case "clarifies_exchange"   => s"${played.san} clarifies the exchange"
+      case "advances_plan"        => s"${played.san} advances the local plan"
+      case "answers_threat"       => s"${played.san} answers the local resource"
+      case "creates_threat"       => s"${played.san} increases local pressure"
+      case _                      => s"${played.san} improves the local setup"
+
+  private def strategicPurpose(played: PlayedMove, delta: PlayerFacingMoveDeltaEvidence): String =
+    val anchor = preferredStrategicSubject(delta).map(subject => s" around $subject").getOrElse("")
+    strategicIntent(delta) match
+      case "prevents_counterplay" => s"${played.san} restrains the certified counterplay resource$anchor."
+      case "clarifies_exchange"   => s"${played.san} uses a certified exchange proof$anchor."
+      case "advances_plan"        => s"${played.san} supports the certified local plan$anchor."
+      case "answers_threat"       => s"${played.san} limits the certified defensive resource$anchor."
+      case "creates_threat"       => s"${played.san} increases certified local pressure$anchor."
+      case _                      => s"${played.san} improves the certified local setup$anchor."
+
+  private def preferredStrategicSubject(delta: PlayerFacingMoveDeltaEvidence): Option[String] =
+    (delta.packet.anchorTerms ++ delta.anchorTerms ++ delta.packet.proofPathWitness.ownerSeedTerms ++ delta.packet.proofPathWitness.continuationTerms)
+      .map(_.trim)
+      .find(_.nonEmpty)
 
   private object PvMeaning:
     def classifyOpeningPurpose(

@@ -3929,12 +3929,12 @@ now take a bounded `MoveReview` basic explanation lane before exact-factual
 fallback. That lane is local instructional prose built from move SAN/UCI, legal
 current-move replay, existing `NarrativeContext` facts, candidate facts/motifs,
 opening-goal evaluation, exact endgame facts, and optional short PV refs.
-Its admission remains limited to opening / formation contexts,
-explicit castling, or non-opening moves with UCI-coupled PV semantic evidence,
-so tactical/trust fallback fixtures remain exact-factual unless the supplied
-line itself supports bounded instructional meaning; it is not a strategic
-authority lane and may not rebuild decision/meta/close-candidate shell prose as
-a substitute owner.
+Its admission is now PV-first: opening / formation goals, castling, tactical
+facts, endgame facts, and certified strategic packets are support inputs, but
+semantic basic prose is admitted only when the supplied first-line PV is legally
+coupled to the current move and proves the local review role. It is not a
+strategic authority lane and may not rebuild decision/meta/close-candidate
+shell prose as a substitute owner.
 When a short PV is present, `CommentaryIdeaSurface` may add
 `MoveReviewPvInterpretation` only for a first-line UCI-coupled move sequence
 whose refs start from the current FEN and whose moves pass
@@ -3947,15 +3947,17 @@ prose. `MoveReviewPvLine`, `CommentaryIdeaSurface`, and
 wording, branch reasons, consequence bodies, surface tags, priority ordering,
 canonical fact IDs, motif corroboration, and MoveReview descriptors consumed by MoveReview,
 NarrativeLexicon, Outline, decisive-truth motif tagging, and claim policy.
-The MoveReview descriptor first records a bounded `reviewIntent` plus internal
-`moveCharacterBand`, then renders `movePurpose`, `opponentQuestion`, and
-`lineResolution` through the existing `MoveReviewExplanation` shape. These are
-local instructional metadata only: `reviewIntent` is not player-intent proof,
-and `moveCharacterBand` is not a truth tier, `SupportedLocal` upgrade, or
-permission to claim engine preference.
+The MoveReview descriptor first records a bounded `MoveReviewLineProof`, then
+maps that proof into `reviewIntent` plus internal `moveCharacterBand`, and only
+then renders `movePurpose`, `opponentQuestion`, and `lineResolution` through the
+existing `MoveReviewExplanation` shape. These are local instructional metadata
+only: `reviewIntent` is not player-intent proof, `MoveReviewLineProof` is not a
+new proof system beyond the supplied legal PV, and `moveCharacterBand` is not a
+truth tier, `SupportedLocal` upgrade, or permission to claim engine preference.
 Its `MoveReviewEvidence` bundle is only the MoveReview basic-lane projection
-input assembled by `MoveReviewExplanationBuilder`; it is not a cross-surface
-carrier for Chronicle, Outline, or Claim truth.
+input assembled by `MoveReviewExplanationBuilder`; it may include an existing
+certified `PlayerFacingMoveDeltaEvidence` as support, but it is not a
+cross-surface carrier for Chronicle, Outline, or Claim truth.
 `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, `OpeningGoals`, and endgame
 oracle output remain the meaning producer boundary.
 The interpretation is bounded
@@ -3967,10 +3969,11 @@ Opening identity itself is reference metadata: `OpeningNameLookup` resolves
 canonical `eco/name` from normalized FEN/EPD keys and
 `OpeningExplorerClient` may merge that label with explorer statistics, but the
 label must not authorize strategic or instructional prose by itself. MoveReview
-opening prose still requires the centralized
+opening prose still requires both the centralized
 `NarrativeContext.openingGoalEvaluation`, computed after legal current-move
-replay. Endgame prose similarly requires canonical endgame facts; phase-only
-king/pawn/rook prose is not enough.
+replay, and a validated PV proof. Endgame prose similarly requires canonical
+endgame facts plus a validated PV proof; phase-only king/pawn/rook prose is not
+enough.
 `moveReviewExplanation` is carried by the selected MoveReview slots and attached
 to the API payload only when the selected source is
 `basic_move_explanation`; planner-owned prose does not carry this basic
@@ -4443,7 +4446,7 @@ longer appends quiet-support prose.
 | `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only` | `unsupported_generalization` |
 | `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only` | `support_only_overreach` |
 | `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
-| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `CommentaryIdeaSurface.scala`, `MoveReviewPvLine.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, endgame facts, and descriptor-local `reviewIntent` / `moveCharacterBand` metadata | `responsePayload.ts`, `moveReview.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
+| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `CommentaryIdeaSurface.scala`, `MoveReviewPvLine.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from legal current-move replay, validated/coupled PV line proof, `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, endgame facts, optional certified `PlayerFacingMoveDeltaEvidence`, and descriptor-local `reviewIntent` / `moveCharacterBand` metadata | `responsePayload.ts`, `moveReview.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, admitted without PV proof, or extended beyond supplied SAN/PV |
 | `activeStrategicNote`, `activeStrategicIdeas`, `activeStrategicRoutes`, `activeStrategicMoves`, `activeDirectionalTargets`, `activeBranchDossier` | `GameChronicleResponse.scala` | `narrativeView.ts` | `Active-only surface` | `surface_divergence` |
 | `topEngineMove` | `GameChronicleResponse.scala` | `narrativeView.ts` | `fallback input only` | `blocked_lane_contamination` residual; Chronicle decision-comparison fallback rewrite closed |
 

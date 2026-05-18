@@ -3,7 +3,7 @@ package lila.commentary.analysis
 import chess.Square
 import chess.format.Fen
 import chess.variant.Standard
-import lila.commentary.{ MoveReviewExplanation, MoveReviewRefs }
+import lila.commentary.{ MoveReviewExplanation, MoveReviewRefs, StrategyPack }
 import lila.commentary.model.*
 
 private[commentary] object MoveReviewExplanationBuilder:
@@ -11,12 +11,13 @@ private[commentary] object MoveReviewExplanationBuilder:
   def build(
       ctx: NarrativeContext,
       refs: Option[MoveReviewRefs],
-      truthContract: Option[DecisiveTruthContract] = None
+      truthContract: Option[DecisiveTruthContract] = None,
+      strategyPack: Option[StrategyPack] = None
   ): Option[MoveReviewExplanation] =
     for
       played <- current(ctx)
       lineFacts = MoveReviewPvLine.firstCoupled(ctx.fen, played.uci, refs)
-      evidence = moveReviewEvidence(ctx, played)
+      evidence = moveReviewEvidence(ctx, played, strategyPack, truthContract)
       descriptor <- CommentaryIdeaSurface.describe(played, evidence, lineFacts, truthContract)
       pvInterpretation = descriptor.pvInterpretation(lineFacts)
       shortLine = MoveReviewPvLine.shortLine(refs, pvInterpretation.flatMap(_.supportedByLineId))
@@ -54,7 +55,12 @@ private[commentary] object MoveReviewExplanationBuilder:
         capturedRole = before.board.pieceAt(to).filter(_.color != piece.color).map(_.role)
       )
 
-  private def moveReviewEvidence(ctx: NarrativeContext, played: CommentaryIdeaSurface.PlayedMove): CommentaryIdeaSurface.MoveReviewEvidence =
+  private def moveReviewEvidence(
+      ctx: NarrativeContext,
+      played: CommentaryIdeaSurface.PlayedMove,
+      strategyPack: Option[StrategyPack],
+      truthContract: Option[DecisiveTruthContract]
+  ): CommentaryIdeaSurface.MoveReviewEvidence =
     val playedCandidate =
       ctx.candidates.find(candidate =>
         candidate.uci.exists(uci => MoveReviewPvLine.normalizeUci(uci) == played.uci) ||
@@ -72,7 +78,8 @@ private[commentary] object MoveReviewExplanationBuilder:
       facts = facts,
       motifs = motifs,
       openingGoal = openingGoal,
-      openingName = ctx.openingData.flatMap(_.name).orElse(openingNameFromEvent(ctx))
+      openingName = ctx.openingData.flatMap(_.name).orElse(openingNameFromEvent(ctx)),
+      strategicDelta = PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx, StrategyPackSurface.from(strategyPack), truthContract)
     )
 
   private def qualityLabel(truthContract: Option[DecisiveTruthContract]): Option[String] =

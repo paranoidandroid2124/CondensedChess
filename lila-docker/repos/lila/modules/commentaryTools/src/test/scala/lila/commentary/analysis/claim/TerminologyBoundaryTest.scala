@@ -84,7 +84,7 @@ class TerminologyBoundaryTest extends FunSuite:
       scalaFiles(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis"))
         .map(_.getFileName.toString)
         .filter(name =>
-          name.matches(""".*MoveReview.*(Intent|Judgment|Surface|Facts|Validator|Rules|Classifier).*\.scala""") &&
+          name.matches(""".*MoveReview.*(Intent|Judgment|Surface|Facts|Validator|Rules|Classifier|Proof).*\.scala""") &&
             !allowed.contains(name)
         )
 
