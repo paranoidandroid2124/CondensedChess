@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import _root_.chess.{ Knight, Pawn, Queen, Rook, Square }
+import _root_.chess.{ Color, Knight, Pawn, Queen, Rook, Square }
 import lila.commentary.*
 import lila.commentary.model.*
 import lila.commentary.model.authoring.OutlineBeatKind
@@ -257,6 +257,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     val fen = "4k3/4r3/8/8/3N3q/8/8/6K1 w - - 0 1"
     val forkFact =
       Fact.Fork(Square.F5, Knight, List(Square.E7 -> Rook, Square.H4 -> Queen), FactScope.CandidatePv)
+    val forkMotif =
+      Motif.Fork(Knight, List(Rook, Queen), Square.F5, List(Square.E7, Square.H4), Color.White, 0, Some("Nf5"))
     val explanation =
       MoveReviewExplanationBuilder
         .build(
@@ -265,7 +267,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
             playedMove = "d4f5",
             playedSan = "Nf5",
             phaseReason = "fork evidence",
-            candidateFacts = List(forkFact)
+            candidateFacts = List(forkFact),
+            candidateMotifs = List(forkMotif)
           ),
           Some(refsForLine(fen, List("d4f5", "h4g5"), List("Nf5", "Qg5")))
         )
@@ -277,6 +280,28 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(explanation.pvInterpretation.exists(_.confirms.contains("creates_threat")), clue(explanation.pvInterpretation))
     assert(explanation.reasonTags.contains("review_intent:creates_threat"), clue(explanation.reasonTags))
     assert(explanation.prose.toLowerCase.contains("fork"), clue(explanation.prose))
+  }
+
+  test("tactical fact without current-move motif ownership does not admit creates-threat prose") {
+    val fen = "4k3/4r3/8/8/3N3q/8/8/6K1 w - - 0 1"
+    val leakedFork =
+      Fact.Fork(Square.F5, Knight, List(Square.E7 -> Rook, Square.H4 -> Queen), FactScope.CandidatePv)
+    val wrongPlyMotif =
+      Motif.Fork(Knight, List(Rook, Queen), Square.F5, List(Square.E7, Square.H4), Color.White, 1, Some("Nf5"))
+    val explanation =
+      MoveReviewExplanationBuilder.build(
+        ctx(
+          fen = fen,
+          playedMove = "d4f5",
+          playedSan = "Nf5",
+          phaseReason = "leaked fork evidence",
+          candidateFacts = List(leakedFork),
+          candidateMotifs = List(wrongPlyMotif)
+        ),
+        Some(refsForLine(fen, List("d4f5", "h4g5"), List("Nf5", "Qg5")))
+      )
+
+    assertEquals(explanation, None, clue(explanation))
   }
 
   test("same tactical-looking PV text does not admit prose without canonical evidence") {
@@ -390,6 +415,17 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("king_safety_first"), clue(explanation.pvInterpretation))
     assert(explanation.reasonTags.contains("review_intent:king_safety"), clue(explanation.reasonTags))
     assert(explanation.pvInterpretation.exists(_.learningPoint.contains("king safety")), clue(explanation.pvInterpretation))
+
+    val aliasExplanation =
+      MoveReviewExplanationBuilder
+        .build(
+          ctx(fen, "e1h1", "O-O", phase = "Opening", ply = 7, phaseReason = "king safety with castling alias"),
+          Some(refsForLine(fen, List("e1g1", "f8e7", "f1e1"), List("O-O", "Be7", "Re1")))
+        )
+        .getOrElse(fail("expected castling alias to normalize into exact castle explanation"))
+
+    assertEquals(aliasExplanation.source, "basic_move_explanation", clue(aliasExplanation))
+    assertEquals(aliasExplanation.pvInterpretation.map(_.linePurpose), Some("king_safety_first"), clue(aliasExplanation.pvInterpretation))
   }
 
   test("endgame facts admit activity prose without an endgame idea catalog") {

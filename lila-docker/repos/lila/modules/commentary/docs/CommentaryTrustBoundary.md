@@ -3935,6 +3935,10 @@ semantic basic prose is admitted only when the supplied first-line PV is legally
 coupled to the current move and proves the local review role. It is not a
 strategic authority lane and may not rebuild decision/meta/close-candidate
 shell prose as a substitute owner.
+For live MoveReview requests, the server may append a proof-only variation from
+`lastMove` plus the after-move PV tail, but only after `afterFen` matches legal
+current-move replay; this appended line does not displace the root engine line
+used by planner guardrails.
 When a short PV is present, `CommentaryIdeaSurface` may add
 `MoveReviewPvInterpretation` only for a first-line UCI-coupled move sequence
 whose refs start from the current FEN and whose moves pass
@@ -3943,6 +3947,12 @@ recorded `fenAfter` must match the replayed board state. `shortLine` may still
 show a malformed or mismatched PV preview, but that PV cannot admit semantic
 prose. `MoveReviewPvLine`, `CommentaryIdeaSurface`, and
 `MoveReviewExplanationBuilder` are the local consumer boundary for this lane.
+Tactical basic prose is additionally current-move-owned: fork, pin, and skewer
+facts must be backed by a ply-zero candidate motif whose side, role, SAN, and
+geometry match the played move, and by a coupled PV reply / continuation that
+keeps the tactic concrete. Ambient facts from the context, threat line, main PV,
+or counterfactual pool are support material only and cannot trigger
+`creates_threat` prose by themselves.
 `CommentaryIdeaSurface` is also the shared projection boundary for `Fact`
 wording, branch reasons, consequence bodies, surface tags, priority ordering,
 canonical fact IDs, motif corroboration, and MoveReview descriptors consumed by MoveReview,

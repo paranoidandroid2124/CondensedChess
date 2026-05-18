@@ -239,19 +239,11 @@ private[commentary] object CommentaryIdeaSurface:
       characterBand: MoveCharacterBand,
       @unused truthContract: Option[DecisiveTruthContract]
   ): Option[MoveReviewIdeaDescriptor] =
-    val factKind =
-      if evidence.facts.exists(_.isInstanceOf[Fact.Fork]) then Some("fork")
-      else if evidence.facts.exists(_.isInstanceOf[Fact.Pin]) then Some("pin")
-      else if evidence.facts.exists(_.isInstanceOf[Fact.Skewer]) then Some("skewer")
-      else if evidence.facts.exists(_.isInstanceOf[Fact.DoubleCheck]) then Some("double_check")
-      else None
-
-    factKind.flatMap { kind =>
-      Option.when(lineFacts.nonEmpty) {
+    ownedTacticalFact(played, evidence, lineFacts).map { owned =>
+      val kind = owned.kind
         val label = kind.replace("_", " ")
         val title =
-          if kind == "double_check" then s"${played.san} creates a tactical threat"
-          else s"${played.san} creates a $label"
+          s"${played.san} creates a $label"
         val prose =
           kind match
             case "fork" =>
@@ -269,7 +261,7 @@ private[commentary] object CommentaryIdeaSurface:
           source = "canonical_fact",
           title = title,
           baseProse = prose,
-          reasonTags = evidenceTags(evidence.facts, evidence.motifs),
+          reasonTags = evidenceTags(List(owned.fact), List(owned.motif)),
           linePurpose = Some("create_tactical_threat"),
           lineProof = lineProof("tactical_threat", played, lineFacts.get),
           played = played,
@@ -277,8 +269,122 @@ private[commentary] object CommentaryIdeaSurface:
           lineFacts = lineFacts,
           requiresPvForAdmission = true
         )
-      }
     }
+
+  private final case class OwnedTacticalFact(kind: String, fact: Fact, motif: Motif)
+
+  private def ownedTacticalFact(
+      played: PlayedMove,
+      evidence: MoveReviewEvidence,
+      lineFacts: Option[MoveReviewPvLine.LineFacts]
+  ): Option[OwnedTacticalFact] =
+    lineFacts
+      .filter(line => MoveReviewPvLine.normalizeUci(line.first.uci) == played.uci && line.reply.nonEmpty)
+      .flatMap { line =>
+        val immediateMotifs = evidence.motifs.filter(immediateMotifOwnsMove(played, _))
+        val fork =
+          evidence.facts.collectFirst {
+            case fact: Fact.Fork
+                if fact.attacker == played.to &&
+                  immediateMotifs.exists(motif => motifOwnsFork(played, fact, motif)) &&
+                  lineConfirmsTactic("fork", fact, line) =>
+              OwnedTacticalFact("fork", fact, immediateMotifs.find(motifOwnsFork(played, fact, _)).get)
+          }
+        val pin =
+          evidence.facts.collectFirst {
+            case fact: Fact.Pin
+                if fact.attacker == played.to &&
+                  immediateMotifs.exists(motif => motifOwnsPin(played, fact, motif)) &&
+                  lineConfirmsTactic("pin", fact, line) =>
+              OwnedTacticalFact("pin", fact, immediateMotifs.find(motifOwnsPin(played, fact, _)).get)
+          }
+        val skewer =
+          evidence.facts.collectFirst {
+            case fact: Fact.Skewer
+                if fact.attacker == played.to &&
+                  immediateMotifs.exists(motif => motifOwnsSkewer(played, fact, motif)) &&
+                  lineConfirmsTactic("skewer", fact, line) =>
+              OwnedTacticalFact("skewer", fact, immediateMotifs.find(motifOwnsSkewer(played, fact, _)).get)
+          }
+        List(fork, pin, skewer).flatten.headOption
+      }
+
+  private def immediateMotifOwnsMove(played: PlayedMove, motif: Motif): Boolean =
+    motif match
+      case m: Motif.Fork =>
+        m.plyIndex == 0 &&
+          m.color == played.color &&
+          m.attackingPiece == played.role &&
+          m.square == played.to &&
+          m.move.exists(sanEquivalent(_, played.san))
+      case m: Motif.Pin =>
+        m.plyIndex == 0 &&
+          m.color == played.color &&
+          m.pinningPiece == played.role &&
+          m.pinningSq.contains(played.to) &&
+          m.move.exists(sanEquivalent(_, played.san))
+      case m: Motif.Skewer =>
+        m.plyIndex == 0 &&
+          m.color == played.color &&
+          m.attackingPiece == played.role &&
+          m.attackingSq.contains(played.to) &&
+          m.move.exists(sanEquivalent(_, played.san))
+      case _ => false
+
+  private def motifOwnsFork(played: PlayedMove, fact: Fact.Fork, motif: Motif): Boolean =
+    motif match
+      case m: Motif.Fork =>
+        val motifTargets = m.targetSquares.toSet
+        val factTargets = fact.targets.map(_._1).toSet
+        fact.attacker == played.to &&
+          m.square == played.to &&
+          motifTargets.nonEmpty &&
+          factTargets.nonEmpty &&
+          factTargets.subsetOf(motifTargets)
+      case _ => false
+
+  private def motifOwnsPin(played: PlayedMove, fact: Fact.Pin, motif: Motif): Boolean =
+    motif match
+      case m: Motif.Pin =>
+        fact.attacker == played.to &&
+          m.pinningSq.contains(fact.attacker) &&
+          m.pinnedSq.contains(fact.pinned) &&
+          m.behindSq.contains(fact.behind)
+      case _ => false
+
+  private def motifOwnsSkewer(played: PlayedMove, fact: Fact.Skewer, motif: Motif): Boolean =
+    motif match
+      case m: Motif.Skewer =>
+        fact.attacker == played.to &&
+          m.attackingSq.contains(fact.attacker) &&
+          m.frontSq.contains(fact.front) &&
+          m.backSq.contains(fact.back)
+      case _ => false
+
+  private def lineConfirmsTactic(kind: String, fact: Fact, line: MoveReviewPvLine.LineFacts): Boolean =
+    kind match
+      case "fork" =>
+        line.reply.nonEmpty
+      case "pin" =>
+        fact match
+          case pin: Fact.Pin => line.continuation.exists(moveTouchesAny(_, List(pin.pinned, pin.behind)))
+          case _             => false
+      case "skewer" =>
+        fact match
+          case skewer: Fact.Skewer => line.continuation.exists(moveTouchesAny(_, List(skewer.front, skewer.back)))
+          case _                   => false
+      case _ => false
+
+  private def moveTouchesAny(move: MoveReviewMoveRef, squares: List[Square]): Boolean =
+    val normalized = MoveReviewPvLine.normalizeUci(move.uci)
+    val from = Square.fromKey(normalized.take(2))
+    val to = Square.fromKey(normalized.slice(2, 4))
+    squares.exists(square => from.contains(square) || to.contains(square))
+
+  private def sanEquivalent(left: String, right: String): Boolean =
+    def clean(value: String): String =
+      Option(value).getOrElse("").trim.replaceAll("""[+#?!]+$""", "")
+    clean(left) == clean(right)
 
   private def targetDescriptor(
       played: PlayedMove,

@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 import java.time.Instant
 import java.util.UUID
 import com.roundeights.hasher.Algo
-import lila.commentary.analysis.{ ActiveBranchDossierBuilder, ActiveCompensationPolicy, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, MoveReviewPolishSlots, MoveReviewPolishSlotsBuilder, MoveReviewProseContract, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, BookStyleRenderer, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary }
+import lila.commentary.analysis.{ ActiveBranchDossierBuilder, ActiveCompensationPolicy, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, MoveReviewPolishSlots, MoveReviewPolishSlotsBuilder, MoveReviewProseContract, MoveReviewPvLine, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, BookStyleRenderer, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary }
 import lila.commentary.model.{ OpeningReference, ProbeResult }
 import lila.commentary.model.structure.StructureId
 import lila.commentary.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -4026,7 +4026,15 @@ final class CommentaryApi(
                 rawStrategyPack,
                 truthContract
               )
-            val refs = buildMoveReviewRefs(fen, dataWithContinuity.alternatives)
+            val moveReviewRefVariations =
+              CommentaryApi.appendMoveReviewAfterPvProofVariation(
+                fenBefore = fen,
+                lastMove = lastMove,
+                afterFen = afterFen,
+                base = dataWithContinuity.alternatives,
+                afterVars = afterVars
+              )
+            val refs = buildMoveReviewRefs(fen, moveReviewRefVariations)
             val outline = BookStyleRenderer.validatedOutline(ctx, Some(truthContract), strategyPack)
             val moveReviewSlots = MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs, strategyPack, Some(truthContract))
             val moveReviewExplanation = moveReviewSlots.moveReviewExplanation
@@ -4041,7 +4049,7 @@ final class CommentaryApi(
             val compactProse = EarlyOpeningNarrationPolicy.clampNarrative(ctx, prose)
             val baseConcepts = ctx.semantic.map(_.conceptSummary).getOrElse(Nil)
             val allowedSans =
-              dataWithContinuity.alternatives.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
+              moveReviewRefVariations.flatMap(v => NarrativeUtils.uciListToSan(fen, v.moves))
             val moveReviewLedger = MoveReviewStrategicLedgerBuilder.build(
               ctx = ctx,
               strategyPack = strategyPack,
@@ -4775,6 +4783,40 @@ private[commentary] object RuleTemplateSanitizer:
     )
 
 object CommentaryApi:
+
+  private[commentary] def appendMoveReviewAfterPvProofVariation(
+      fenBefore: String,
+      lastMove: Option[String],
+      afterFen: Option[String],
+      base: List[VariationLine],
+      afterVars: List[VariationLine]
+  ): List[VariationLine] =
+    val normalizedPlayed =
+      lastMove.map(MoveReviewPvLine.normalizeUci).filter(_.matches("^[a-h][1-8][a-h][1-8][qrbn]?$"))
+    normalizedPlayed match
+      case None => base
+      case Some(played) if base.exists(line => line.moves.headOption.exists(move => MoveReviewPvLine.normalizeUci(move) == played) && line.moves.size >= 2) =>
+        base
+      case Some(played) =>
+        val legalAfterMatches =
+          for
+            declaredAfter <- afterFen.map(_.trim).filter(_.nonEmpty)
+            actualAfter <- MoveReviewPvLine.legalFenAfter(fenBefore, played)
+          yield sameBoardStateFen(actualAfter, declaredAfter)
+        val proofLine =
+          for
+            afterLine <- afterVars.headOption
+            if legalAfterMatches.contains(true)
+            normalizedTail = afterLine.moves.map(MoveReviewPvLine.normalizeUci).filter(_.nonEmpty)
+            tail = if normalizedTail.headOption.contains(played) then normalizedTail.drop(1) else normalizedTail
+            if tail.nonEmpty
+          yield afterLine.copy(moves = played :: tail)
+        proofLine.map(line => base :+ line).getOrElse(base)
+
+  private def sameBoardStateFen(left: String, right: String): Boolean =
+    def boardState(fen: String): String =
+      Option(fen).getOrElse("").trim.split("\\s+").filter(_.nonEmpty).take(4).mkString(" ")
+    boardState(left) == boardState(right)
 
   private[commentary] def activeNoteOptionalPolishEligible(
       activeEligible: Boolean,

@@ -363,10 +363,22 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       CommentaryIdeaSurface
         .describe(
           played("d4f5", "Nf5", Square.D4, Square.F5, Piece(Color.White, Knight)),
-          evidence(facts = List(fork)),
+          evidence(
+            facts = List(fork),
+            motifs = List(Motif.Fork(Knight, List(Rook, Queen), Square.F5, List(Square.E7, Square.H4), Color.White, 0, Some("Nf5")))
+          ),
           Some(lineFacts(moveRef("m1", "Nf5", "d4f5", 1), Some(moveRef("m2", "Qg5", "h4g5", 2))))
         )
         .getOrElse(fail("expected tactical descriptor"))
+    val leakedTactical =
+      CommentaryIdeaSurface.describe(
+        played("d4f5", "Nf5", Square.D4, Square.F5, Piece(Color.White, Knight)),
+        evidence(
+          facts = List(fork),
+          motifs = List(Motif.Fork(Knight, List(Rook, Queen), Square.F5, List(Square.E7, Square.H4), Color.White, 1, Some("Nf5")))
+        ),
+        Some(lineFacts(moveRef("m1", "Nf5", "d4f5", 1), Some(moveRef("m2", "Qg5", "h4g5", 2))))
+      )
     val directThreatNoPv =
       CommentaryIdeaSurface.describe(
         played("d1h5", "Qh5", Square.D1, Square.H5, Piece(Color.White, Queen)),
@@ -394,6 +406,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assert(tactical.confirms.contains("creates_threat"), clue(tactical.confirms))
     assert(tactical.title.contains("fork"), clue(tactical.title))
     assert(tactical.learningPoint.exists(_.toLowerCase.contains("tactical")), clue(tactical.learningPoint))
+    assertEquals(leakedTactical, None, clue("ambient tactical fact without ply-0 current-move motif should stay closed"))
     assertEquals(directThreatNoPv, None)
     val directThreat =
       CommentaryIdeaSurface
@@ -437,7 +450,22 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       CommentaryIdeaSurface
         .describe(
           played("f8b4", "Bb4", Square.F8, Square.B4, Piece(Color.Black, Bishop)),
-          evidence(facts = List(pinFact)),
+          evidence(
+            facts = List(pinFact),
+            motifs = List(
+              Motif.Pin(
+                pinningPiece = Bishop,
+                pinnedPiece = Knight,
+                targetBehind = _root_.chess.King,
+                color = Color.Black,
+                plyIndex = 0,
+                move = Some("Bb4"),
+                pinningSq = Some(Square.B4),
+                pinnedSq = Some(Square.C3),
+                behindSq = Some(Square.E1)
+              )
+            )
+          ),
           Some(exactLineFacts(pinFen, "f8b4", List("f8b4", "e1f1", "b4c3"), List("Bb4", "Kf1", "Bxc3"), "pin"))
         )
         .getOrElse(fail("expected exact pin descriptor"))
@@ -445,10 +473,31 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       CommentaryIdeaSurface
         .describe(
           played("a8a1", "Ra1+", Square.A8, Square.A1, Piece(Color.Black, Rook)),
-          evidence(facts = List(skewerFact)),
+          evidence(
+            facts = List(skewerFact),
+            motifs = List(
+              Motif.Skewer(
+                attackingPiece = Rook,
+                frontPiece = _root_.chess.King,
+                backPiece = Queen,
+                color = Color.Black,
+                plyIndex = 0,
+                move = Some("Ra1+"),
+                attackingSq = Some(Square.A1),
+                frontSq = Some(Square.E1),
+                backSq = Some(Square.H1)
+              )
+            )
+          ),
           Some(exactLineFacts(skewerFen, "a8a1", List("a8a1", "e1f2", "a1h1"), List("Ra1+", "Kf2", "Rxh1"), "skewer"))
         )
         .getOrElse(fail("expected exact skewer descriptor"))
+    val leakedPin =
+      CommentaryIdeaSurface.describe(
+        played("f8b4", "Bb4", Square.F8, Square.B4, Piece(Color.Black, Bishop)),
+        evidence(facts = List(pinFact)),
+        Some(exactLineFacts(pinFen, "f8b4", List("f8b4", "e1f1", "b4c3"), List("Bb4", "Kf1", "Bxc3"), "pin_no_motif"))
+      )
 
     assertEquals(pin.reviewIntent, "creates_threat", clue(pin))
     assertEquals(pin.ideaKind, "pin", clue(pin))
@@ -459,6 +508,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assertEquals(skewer.ideaKind, "skewer", clue(skewer))
     assertEquals(skewer.linePurpose, Some("create_tactical_threat"), clue(skewer))
     assert(skewer.confirms.contains("skewer"), clue(skewer.confirms))
+    assertEquals(leakedPin, None, clue("pin fact without current-move motif ownership should stay closed"))
   }
 
   test("endgame activity descriptors cover exact passed-pawn and rook-activity PVs") {

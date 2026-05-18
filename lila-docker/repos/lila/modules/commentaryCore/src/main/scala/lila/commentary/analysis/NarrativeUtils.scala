@@ -141,6 +141,10 @@ object NarrativeUtils:
       .replaceAll("""\s+""", "")
     val pattern = """^([a-h][1-8])([a-h][1-8])([qrbn])?$""".r
     cleaned match
+      case "e1h1"                   => "e1g1"
+      case "e1a1"                   => "e1c1"
+      case "e8h8"                   => "e8g8"
+      case "e8a8"                   => "e8c8"
       case pattern(from, to, promo) => s"$from$to${Option(promo).getOrElse("")}"
       case _                        => cleaned
 
@@ -301,5 +305,4 @@ object NarrativeUtils:
       val isAttackedByOpponent = board.attackers(sq, !victimColor).nonEmpty
       isOccupiedByVictim && isAttackedByOpponent
     }
-
 

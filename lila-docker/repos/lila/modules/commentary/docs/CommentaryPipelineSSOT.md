@@ -599,6 +599,12 @@ Current canonical flow:
      FEN, with ordered non-empty `fenAfter` refs matching the replayed board
      state; malformed, uncoupled, illegal, mismatched-start, or mismatched-FEN
      PV may remain `shortLine` evidence but does not admit semantic prose
+   - `CommentaryApi` may append a synthetic proof variation built from
+     `lastMove :: afterVariations.head.moves` when `afterFen` matches legal
+     replay of `lastMove` from the before-FEN and the root alternatives do not
+     already contain a coupled played-move line; this appended line is for
+     MoveReview semantic proof only, while the original root first line remains
+     first so planner variation guardrails keep their engine-line meaning
     - `CommentaryIdeaSurface` is the shared projection boundary from canonical
       `Fact` / `Motif` / opening-goal evidence to user-facing statements,
       branch reasons, consequence bodies, reusable tags, priority ordering,
@@ -627,6 +633,12 @@ Current canonical flow:
       every semantic basic explanation, while `Fact` / `Motif` / opening-goal /
       endgame facts support that intent rather than triggering prose by
       themselves
+    - tactical `creates_threat` descriptors require current-move ownership:
+      fork / pin / skewer facts must be corroborated by a `plyIndex=0`
+      candidate motif whose color, role, SAN, and geometry match the played
+      move, plus a coupled PV reply / continuation proving that local tactic;
+      ambient context facts, main-PV facts, threat-line facts, or later-PV
+      motifs cannot open the tactical MoveReview surface by themselves
     - certified strategic packets may support MoveReview only as local review
       evidence: the builder may pass an existing `PlayerFacingMoveDeltaEvidence`
       when its packet is accepted by `ProofContractRules`, proven on the same

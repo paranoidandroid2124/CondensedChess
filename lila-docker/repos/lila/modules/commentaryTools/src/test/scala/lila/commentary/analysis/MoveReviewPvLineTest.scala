@@ -1,6 +1,7 @@
 package lila.commentary.analysis
 
 import lila.commentary.*
+import lila.commentary.model.strategic.VariationLine
 import munit.FunSuite
 
 final class MoveReviewPvLineTest extends FunSuite:
@@ -81,10 +82,64 @@ final class MoveReviewPvLineTest extends FunSuite:
     assertEquals(MoveReviewPvLine.shortLine(Some(refs), Some("invalid")).map(_.san), Some(List("Bc4", "Ng6")))
   }
 
+  test("appends played plus after-PV as proof variation without disturbing root line order") {
+    val fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+    val afterFen = NarrativeUtils.uciListToFen(fen, List("f1c4"))
+    val rootLine = VariationLine(List("d2d4", "e5d4"), scoreCp = 22, mate = None, depth = 16)
+    val afterLine = VariationLine(List("g8f6", "d2d3"), scoreCp = 18, mate = None, depth = 16)
+
+    val merged =
+      CommentaryApi.appendMoveReviewAfterPvProofVariation(
+        fenBefore = fen,
+        lastMove = Some("f1c4"),
+        afterFen = Some(afterFen),
+        base = List(rootLine),
+        afterVars = List(afterLine)
+      )
+
+    assertEquals(merged.map(_.moves), List(List("d2d4", "e5d4"), List("f1c4", "g8f6", "d2d3")))
+    assertEquals(merged.head, rootLine)
+  }
+
+  test("does not append after-PV proof variation when afterFen mismatches or root already has a played line") {
+    val fen = "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+    val mismatchedAfterFen = NarrativeUtils.uciListToFen(fen, List("d2d4"))
+    val rootLine = VariationLine(List("d2d4", "e5d4"), scoreCp = 22, mate = None, depth = 16)
+    val existingPlayed = VariationLine(List("f1c4", "g8f6"), scoreCp = 14, mate = None, depth = 16)
+    val afterLine = VariationLine(List("g8f6", "d2d3"), scoreCp = 18, mate = None, depth = 16)
+
+    val mismatched =
+      CommentaryApi.appendMoveReviewAfterPvProofVariation(
+        fenBefore = fen,
+        lastMove = Some("f1c4"),
+        afterFen = Some(mismatchedAfterFen),
+        base = List(rootLine),
+        afterVars = List(afterLine)
+      )
+    val alreadyCoupled =
+      CommentaryApi.appendMoveReviewAfterPvProofVariation(
+        fenBefore = fen,
+        lastMove = Some("f1c4"),
+        afterFen = Some(NarrativeUtils.uciListToFen(fen, List("f1c4"))),
+        base = List(existingPlayed, rootLine),
+        afterVars = List(afterLine)
+      )
+
+    assertEquals(mismatched, List(rootLine))
+    assertEquals(alreadyCoupled, List(existingPlayed, rootLine))
+  }
+
   test("validates castling, promotion, and en-passant legal replay") {
     val castleFen = "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"
     val castle = line(castleFen, List("e1g1", "f8c5"), List("O-O", "Bc5"), "castle")
     assert(MoveReviewPvLine.validatedLine(castleFen, castle, "e1g1").nonEmpty)
+    assertEquals(MoveReviewPvLine.normalizeUci("e1h1"), "e1g1")
+    assertEquals(MoveReviewPvLine.normalizeUci("e1a1"), "e1c1")
+    assertEquals(MoveReviewPvLine.normalizeUci("e8h8"), "e8g8")
+    assertEquals(MoveReviewPvLine.normalizeUci("e8a8"), "e8c8")
+    val castleAlias =
+      castle.copy(moves = castle.moves.updated(0, castle.moves.head.copy(uci = "e1h1")))
+    assert(MoveReviewPvLine.validatedLine(castleFen, castleAlias, "e1h1").nonEmpty)
 
     val promotionFen = "4k3/P7/8/8/8/8/8/4K3 w - - 0 1"
     val promotion = line(promotionFen, List("a7a8q", "e8f7"), List("a8=Q", "Kf7"), "promotion")
