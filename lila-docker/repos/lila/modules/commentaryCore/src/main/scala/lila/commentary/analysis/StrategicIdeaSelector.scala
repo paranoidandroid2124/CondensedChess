@@ -612,21 +612,58 @@ private[commentary] object StrategicIdeaSelector:
           )
       }
 
+    val minorityConcepts =
+      StrategicConceptSemantics
+        .minorityAttackObservations(semantic)
+        .filter(observation =>
+          matchesSide(observation.side, side) &&
+            observation.status == StrategicConceptSemantics.ConceptStatus.SemanticReady
+        )
+    val compensationMaterialDeficit =
+      semantic.positionFeatures.exists(features => hasCompensationMaterialDeficitFor(side, features))
+
     val minorityAttackEvidence =
-      semantic.positionalFeatures.collect {
-        case PositionalTag.MinorityAttack(color, flank) if matchesSide(color, side) =>
-          val focusSquares = flankTargetSquares(flank, exactTargetSquares).take(3)
-          evidence(
-            ownerSide = side,
-            kind = StrategicIdeaKind.TargetFixing,
-            readiness = StrategicIdeaReadiness.Build,
-            source = "minority_attack_fixation",
-            confidence = 0.70 + Option.when(focusSquares.nonEmpty)(0.06).getOrElse(0.0),
-            focusSquares = focusSquares,
-            focusZone = Some(flank),
-            factIds = List(s"minority_attack_$flank")
-          )
+      Option.unless(compensationMaterialDeficit)(minorityConcepts).toList.flatten.map { observation =>
+        val focusSquares =
+          if observation.targets.nonEmpty then observation.targets.take(3)
+          else flankTargetSquares(observation.wing, exactTargetSquares).take(3)
+        evidence(
+          ownerSide = side,
+          kind = StrategicIdeaKind.TargetFixing,
+          readiness = StrategicIdeaReadiness.Build,
+          source = "minority_attack_fixation",
+          confidence =
+            0.54 +
+              math.min(0.05, focusSquares.size * 0.01 + observation.primaryBreak.fold(0.0)(_ => 0.02)),
+          focusSquares = focusSquares,
+          focusZone = Some(observation.wing),
+          factIds =
+            (
+              List("minority_attack_semantic", s"minority_attack_${observation.wing}") ++
+                observation.primaryBreak.map(move => s"minority_break_$move").toList ++
+                observation.essentialEvidence.map(evidence => s"concept_${evidence.id}")
+            ).distinct
+        )
       }
+
+    val minorityAttackSupportEvidence =
+      Option.when(minorityConcepts.isEmpty) {
+        semantic.positionalFeatures.collect {
+          case PositionalTag.MinorityAttack(color, flank)
+              if matchesSide(color, side) && flankTargetSquares(flank, exactTargetSquares).nonEmpty =>
+            val focusSquares = flankTargetSquares(flank, exactTargetSquares).take(3)
+            evidence(
+              ownerSide = side,
+              kind = StrategicIdeaKind.TargetFixing,
+              readiness = StrategicIdeaReadiness.Build,
+              source = "minority_attack_support",
+              confidence = 0.56,
+              focusSquares = focusSquares,
+              focusZone = Some(flank),
+              factIds = List(s"minority_attack_support_$flank")
+            )
+        }
+      }.toList.flatten
 
     val weakComplexEvidence =
       semantic.structuralWeaknesses
@@ -733,10 +770,10 @@ private[commentary] object StrategicIdeaSelector:
     val carlsbadFixation =
       Option.when(
         structureIs(semantic, StructureId.Carlsbad) &&
-          semantic.positionalFeatures.exists {
-            case PositionalTag.MinorityAttack(color, _) => matchesSide(color, side)
-            case _                                      => false
-          } &&
+          minorityConcepts.exists(observation =>
+            observation.wing == "queenside" &&
+              observation.targets.exists(target => exactTargetSquares.map(normalizeFactToken).contains(normalizeFactToken(target)))
+          ) &&
           exactTargetSquares.nonEmpty
       ) {
         val queensideTargets = flankTargetSquares("queenside", exactTargetSquares).take(3)
@@ -751,7 +788,7 @@ private[commentary] object StrategicIdeaSelector:
         )
       }.toList
 
-    weakSquareEvidence ++ colorComplexEvidence ++ minorityAttackEvidence ++ weakComplexEvidence ++
+    weakSquareEvidence ++ colorComplexEvidence ++ minorityAttackEvidence ++ minorityAttackSupportEvidence ++ weakComplexEvidence ++
       planBridge ++ directionalFixation ++ compensationTargetFixation ++ carlsbadFixation
 
   private def collectLineOccupationEvidence(

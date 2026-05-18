@@ -234,16 +234,18 @@ class StrategicIdeaSelectorTest extends FunSuite:
   }
 
   test("minority-attack fixation carries queenside target squares into the idea packet") {
+    val fen = "4k3/pp3ppp/2p5/3p4/1P1P4/4P3/P4PPP/4K3 w - - 0 1"
     val semantic =
       StrategicIdeaSemanticContext(
         sideToMove = "white",
-        positionalFeatures = List(PositionalTag.MinorityAttack(Color.White, "queenside")),
+        board = Some(boardFromFen(fen)),
+        fen = fen,
         structuralWeaknesses = List(
           WeakComplex(
             color = Color.Black,
-            squares = List(Square.B7),
+            squares = List(Square.C6),
             isOutpost = false,
-            cause = "Minority-attack target on b7"
+            cause = "Minority-attack target on c6"
           )
         ),
         structureProfile = Some(
@@ -261,7 +263,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     val ideas = StrategicIdeaSelector.select(pack, semantic)
 
     assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.TargetFixing))
-    assert(ideas.headOption.exists(_.focusSquares.contains("b7")))
+    assert(ideas.headOption.exists(_.focusSquares.contains("c6")))
     assert(ideas.headOption.exists(_.evidenceRefs.contains("source:minority_attack_fixation")))
   }
 

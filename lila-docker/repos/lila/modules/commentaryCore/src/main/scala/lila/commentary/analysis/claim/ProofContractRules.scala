@@ -126,14 +126,15 @@ private[commentary] object ProofContractRules:
       requiredWitnesses: Set[ProofWitness],
       certifiedEligible: Boolean,
       supportedLocalEligible: Boolean,
-      defaultFailureTaxonomy: String
+      defaultFailureTaxonomy: String,
+      includeSubplanSource: Boolean = true
   ): ProofContract =
     ProofContract(
       id = s"subplan:${subplan.id}",
       proofFamily = subplan.id,
       theme = Some(subplan.theme),
       subplan = Some(subplan),
-      acceptedSources = acceptedSources + subplan.id,
+      acceptedSources = acceptedSources ++ Option.when(includeSubplanSource)(subplan.id),
       allowedScopes = allowedScopes,
       requiredWitnesses = requiredWitnesses,
       status = status,
@@ -220,12 +221,13 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource, "minority_attack_fixation"),
+          acceptedSources = Set(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource),
           allowedScopes = Set(PlayerFacingPacketScope.PositionLocal),
           requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
           certifiedEligible = true,
           supportedLocalEligible = true,
-          defaultFailureTaxonomy = "position_probe_not_certified"
+          defaultFailureTaxonomy = "position_probe_not_certified",
+          includeSubplanSource = false
         )
       case subplan @ PlanTaxonomy.PlanKind.IQPInducement =>
         subplanContract(

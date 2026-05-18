@@ -3010,6 +3010,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     Option.when(
       exactTargetFixationPosition(ctx).exists { case (board, sideToMove) =>
           carlsbadFixedTargetBoardTarget(board, sideToMove).contains("c6") &&
+            carlsbadFixedTargetGenericMinoritySupport(ctx) &&
             exactSignalVisible &&
             bestDefenseBranchKeyFromContext(ctx).nonEmpty
         }
@@ -3112,6 +3113,34 @@ private[commentary] object PlayerFacingTruthModePolicy:
       )
     weaknessPlanVisible || weaknessSupportVisible || semanticWeaknessVisible
 
+  private def carlsbadFixedTargetGenericMinoritySupport(
+      ctx: NarrativeContext
+  ): Boolean =
+    exactTargetFixationPosition(ctx).exists { case (board, sideToMove) =>
+      carlsbadFixedTargetGenericMinoritySupport(ctx.fen, board, sideToMove)
+    }
+
+  private def carlsbadFixedTargetGenericMinoritySupport(
+      fen: String,
+      board: _root_.chess.Board,
+      sideToMove: _root_.chess.Color
+  ): Boolean =
+      val semantic =
+        StrategicIdeaSemanticContext(
+          sideToMove = if sideToMove.white then "white" else "black",
+          fen = fen,
+          board = Some(board)
+        )
+      StrategicConceptSemantics
+        .minorityAttackObservations(semantic)
+        .exists(observation =>
+          observation.status == StrategicConceptSemantics.ConceptStatus.SemanticReady &&
+            observation.side == sideToMove &&
+            observation.wing == "queenside" &&
+            observation.targets.contains("c6") &&
+            observation.structuralDelta.exists(_.hasConsequence)
+        )
+
   private def targetFocusedCoordinationMoveRefs(
       surface: StrategyPackSurface.Snapshot,
       targetSquare: String
@@ -3126,11 +3155,16 @@ private[commentary] object PlayerFacingTruthModePolicy:
       surface: StrategyPackSurface.Snapshot
   ): Option[ExactSliceWitness] =
     val targetFixIdea =
-      List(surface.dominantIdea, surface.secondaryIdea).flatten.find { idea =>
+      val ideas = if surface.allIdeas.nonEmpty then surface.allIdeas else List(surface.dominantIdea, surface.secondaryIdea).flatten
+      ideas.find { idea =>
         idea.kind == StrategicIdeaKind.TargetFixing &&
-          ideaHasSource(idea, "plan_match_target_fixing") &&
-          ideaHasSource(idea, "weak_complex_fixation") &&
-          ideaHasSource(idea, "minority_attack_fixation") &&
+          (
+            (
+              ideaHasSource(idea, "plan_match_target_fixing") &&
+                ideaHasSource(idea, "weak_complex_fixation")
+            ) ||
+              benoniD6TargetFixingSurface(ctx, idea)
+          ) &&
           !ideaHasSource(idea, "carlsbad_fixation_profile")
       }
     val backwardPawnTarget =
@@ -3170,7 +3204,59 @@ private[commentary] object PlayerFacingTruthModePolicy:
           "backward_pawn_target"
         ).distinct
     )
-    surfaceWitness.orElse(benoniD6TargetFixationWitness(ctx))
+    surfaceWitness
+      .orElse(benoniD6SurfaceEvidenceWitness(ctx, surface))
+      .orElse(benoniD6TargetFixationWitness(ctx))
+
+  private def benoniD6TargetFixingSurface(
+      ctx: NarrativeContext,
+      idea: StrategyIdeaSignal
+  ): Boolean =
+    ctx.fen.contains("pp3pbp/3p1np1/2pP4") &&
+      idea.focusSquares.map(_.toLowerCase).contains("d6") &&
+      idea.evidenceRefs.exists(ref =>
+        containsAny(normalize(ref), List("weak_complex", "enemy_weak_square", "target_fixing"))
+      )
+
+  private def benoniD6SurfaceEvidenceWitness(
+      ctx: NarrativeContext,
+      surface: StrategyPackSurface.Snapshot
+  ): Option[ExactSliceWitness] =
+    val hasSurfaceEvidence =
+      surface.allIdeas.exists(_.kind == StrategicIdeaKind.TargetFixing) ||
+        surface.evidenceHints.exists(hint =>
+          containsAny(normalize(hint), List("target_fixing", "weak_complex")) &&
+            normalize(hint).contains("d6")
+        )
+    Option.when(hasSurfaceEvidence) {
+      exactTargetFixationPosition(ctx).flatMap { case (board, sideToMove) =>
+        val exactBoard =
+          sideToMove.white &&
+            boardHasFriendlyRole(board, sideToMove, "f3", _root_.chess.Knight) &&
+            boardHasFriendlyPawn(board, sideToMove, "d5") &&
+            boardHasEnemyPawn(board, sideToMove, "c5") &&
+            boardHasEnemyPawn(board, sideToMove, "d6")
+        Option.when(exactBoard && bestDefenseBranchKeyFromContext(ctx).contains("f3d2|b8a6")) {
+          ExactSliceWitness(
+            descriptor = ExactTargetFixationDescriptor,
+            targetSquare = "d6",
+            ownerSeedTerms =
+              List(
+                "d6",
+                "fixed_target:d6",
+                "backward_pawn_target",
+                "benoni_d6_target"
+              ).distinct,
+            structureTransitionTerms =
+              List(
+                "locked_pawn_chain:d5-d6",
+                "knight_route:f3-d2-c4",
+                "best_branch:f3d2|b8a6"
+              ).distinct
+          )
+        }
+      }
+    }.flatten
 
   private def benoniD6TargetFixationWitness(
       ctx: NarrativeContext
@@ -3415,7 +3501,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
       ctx.isWhiteToMove &&
         ctx.maxThreatLossToUs < 120 &&
         !ctx.attackingOpportunityAtRisk &&
-        posOpt.exists(pos => carlsbadFixedTargetBoardTarget(pos.board, pos.color).contains("c6"))
+        posOpt.exists(pos =>
+          carlsbadFixedTargetBoardTarget(pos.board, pos.color).contains("c6") &&
+            carlsbadFixedTargetGenericMinoritySupport("", pos.board, pos.color)
+        )
     ) {
       PositionProbeQuestionSeed(
         questionFocusText = "the fixed target on c6",

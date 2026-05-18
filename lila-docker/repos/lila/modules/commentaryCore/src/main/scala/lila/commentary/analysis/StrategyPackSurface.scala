@@ -50,6 +50,7 @@ private[commentary] object StrategyPackSurface:
       compensationVectors: List[String],
       investedMaterial: Option[Int],
       compensationSubtype: Option[CompensationSubtype],
+      allIdeas: List[StrategyIdeaSignal] = Nil,
       displayNormalization: Option[DisplayNormalization] = None
   ):
     def rawDominantIdeaText: Option[String] = dominantIdea.flatMap(StrategyPackSurface.ideaText)
@@ -109,8 +110,9 @@ private[commentary] object StrategyPackSurface:
 
   def from(packOpt: Option[StrategyPack]): Snapshot =
     val pack = packOpt
-    val dominantIdea = pack.toList.flatMap(_.strategicIdeas).headOption
-    val secondaryIdea = pack.toList.flatMap(_.strategicIdeas).lift(1)
+    val strategicIdeas = pack.toList.flatMap(_.strategicIdeas)
+    val dominantIdea = strategicIdeas.headOption
+    val secondaryIdea = strategicIdeas.lift(1)
     val preferredOwner = dominantIdea.map(_.ownerSide).orElse(pack.map(_.sideToMove))
     val sideToMove = pack.map(_.sideToMove).map(normalizeSide)
     val campaignOwner = preferredOwner.map(normalizeSide)
@@ -166,7 +168,8 @@ private[commentary] object StrategyPackSurface:
         compensationSummary = compensationSummary,
         compensationVectors = compensationVectors,
         investedMaterial = investedMaterial,
-        compensationSubtype = compensationSubtype
+        compensationSubtype = compensationSubtype,
+        allIdeas = strategicIdeas
     )
     rawSnapshot.copy(displayNormalization = deriveDisplayNormalization(rawSnapshot))
 

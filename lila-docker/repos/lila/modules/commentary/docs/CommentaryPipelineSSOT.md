@@ -1255,11 +1255,11 @@ Current rules:
     probe on the reviewed `backward_pawn_targeting` subtype:
     exact `B21` / `B21A` now admit one planner-owned exact-target state-delta
     slice on the canonical runtime path when the current FEN proves one
-    move-local fixed target: the `TargetFixing` idea must carry
-    `plan_match_target_fixing`, `weak_complex_fixation`, and
-    `minority_attack_fixation`, must not carry the Carlsbad profile, and the
-    exact focus squares must contain one opponent pawn target on the live
-    board. On that admitted slice the runtime now materializes
+    move-local fixed target: the `TargetFixing` idea must carry the reviewed
+    plan/weak-complex target evidence, or the exact Benoni d6 surface evidence
+    must be present in `StrategyPackSurface.allIdeas`; the Carlsbad profile
+    must be absent, and the exact focus squares must contain one opponent pawn
+    target on the live board. On that admitted slice the runtime now materializes
     `proofSource=exact_target_fixation`,
     `proofFamily=static_weakness_fixation`,
     `bestDefenseBranchKey=f3d2|b8a6`, `sameBranchState=Proven`,
@@ -1289,9 +1289,12 @@ Current rules:
     exact `B15A` / `B16B` now open the first planner-owned current-position
     probe on that same cluster when the live FEN proves the exact Carlsbad
     target shape (`white to move`, black pawns on `c6` and `d5`, white pawns
-    on `b2` and `d4`), the defended branch key is present, there is no live
-    `exact_target_fixation` move owner already, and the reviewed weakness
-    support survives on the live row. On that admitted slice the runtime now
+    on `b2` and `d4`), `StrategicConceptSemantics` also recognizes the same
+    board as a generic `minority_attack` observation with a targetable enemy
+    majority, reachable queenside break, and structural delta, the defended
+    branch key is present, there is no live `exact_target_fixation` move owner
+    already, and the reviewed weakness support survives on the live row. On
+    that admitted slice the runtime now
     materializes `proofSource=carlsbad_fixed_target_probe`,
     `proofFamily=backward_pawn_targeting`, `scope=PositionLocal`,
     `bestDefenseBranchKey=h4f2|b7b5` on `B15A` / `f1e1|c8d7` on `B16B`,

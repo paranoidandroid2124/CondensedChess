@@ -105,6 +105,16 @@ no exact witness, but they do not rename a layer to `family`.
   `proofPathWitness` lane (`ownerSeedTerms`, `continuationTerms`,
   `rivalTerms`, `structureTransitionTerms`) so owner-path proof can deepen
   without adding any new public schema, payload, or persisted debug field.
+- Generic concept boundary note:
+  `StrategicConceptSemantics` is now the generic semantic predicate boundary
+  before packet release. Its first live concept is `minority_attack`, represented
+  as an internal observation over side, wing/file-set, target chain, reachable
+  pawn break, structural delta, essential/supporting evidence, blocked reasons,
+  and symmetry key. `SemanticReady` here is not `CertifiedOwner`: it is support
+  evidence for selector/probe code, while user-facing release still requires a
+  separate exact packet/certificate. Existing QGD/Carlsbad/c6 logic is therefore
+  one release-safe instance of a generic observation, not the definition of
+  minority attack.
 - Packet pilot status on 2026-04-03:
   `neutralize_key_break` is now the first promoted packet-owned family:
   one exact-board named-break suppression may release as a bounded move-local
@@ -151,10 +161,11 @@ no exact witness, but they do not rename a layer to `family`.
   on reviewed `target_focused_coordination`:
   exact `B21` / `B21A` now materialize a one-board / one-target / one-branch
   owner only when the live row proves all of the following at once:
-  the `TargetFixing` idea carries `plan_match_target_fixing`,
-  `weak_complex_fixation`, and `minority_attack_fixation`; the Carlsbad
-  profile is absent; the current FEN focus squares contain exactly one
-  opponent pawn target; and the defended branch key is present. On that narrow
+  the `TargetFixing` idea carries the reviewed plan/weak-complex target
+  evidence, or exact Benoni d6 surface evidence survives in
+  `StrategyPackSurface.allIdeas`; the Carlsbad profile is absent; the current
+  FEN focus squares contain exactly one opponent pawn target; and the defended
+  branch key is present. On that narrow
   admission path the runtime now emits
   `proofSource=exact_target_fixation`,
   `proofFamily=static_weakness_fixation`,
@@ -185,9 +196,11 @@ no exact witness, but they do not rename a layer to `family`.
   exact `B15A` / `B16B` now also materialize the first current-position probe
   owner on the live Carlsbad fixed target:
   when the live FEN proves the exact board shape (`white to move`, black pawns
-  on `c6` and `d5`, white pawns on `b2` and `d4`), the defended branch key is
-  present, there is no already-admitted move-local `exact_target_fixation`
-  owner, and live weakness support survives, the runtime emits
+  on `c6` and `d5`, white pawns on `b2` and `d4`), the same board also passes
+  the generic `minority_attack` semantic observation with targetable enemy
+  majority, reachable queenside break, and structural delta, the defended
+  branch key is present, there is no already-admitted move-local
+  `exact_target_fixation` owner, and live weakness support survives, the runtime emits
   `proofSource=carlsbad_fixed_target_probe`,
   `proofFamily=backward_pawn_targeting`,
   `scope=PositionLocal`,

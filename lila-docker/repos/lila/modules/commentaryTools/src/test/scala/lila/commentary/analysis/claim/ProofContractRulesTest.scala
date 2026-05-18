@@ -82,6 +82,12 @@ class ProofContractRulesTest extends FunSuite:
 
     assert(carlsbad.certifiedEligible, clues(carlsbad))
     assert(carlsbad.acceptedSources.contains(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource), clues(carlsbad))
+    val minority =
+      ProofContractRules
+        .contractForProofFamily(PlanTaxonomy.PlanKind.MinorityAttackFixation.id)
+        .getOrElse(fail("missing minority attack fixation contract"))
+    assert(minority.acceptedSources.contains(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource), clues(minority))
+    assert(!minority.acceptedSources.contains("minority_attack_fixation"), clues(minority))
     assert(queenTrade.supportedLocalEligible, clues(queenTrade))
     assert(!queenTrade.certifiedEligible, clues(queenTrade))
     assert(queenTrade.acceptedSources.contains(PlayerFacingTruthModePolicy.QueenTradeShieldProofSource), clues(queenTrade))
