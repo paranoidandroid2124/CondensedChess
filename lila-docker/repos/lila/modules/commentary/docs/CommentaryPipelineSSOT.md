@@ -603,8 +603,10 @@ Current canonical flow:
       `Fact` / `Motif` / opening-goal evidence to user-facing statements,
       branch reasons, consequence bodies, reusable tags, priority ordering,
       canonical fact IDs, motif corroboration, and the MoveReview basic-review descriptor
-      (`title`, `baseProse`, `reasonTags`, `source`, PV `confirms`,
-      `linePurpose`, `tension`, `opponentReplyMeaning`, and `learningPoint`);
+      (`reviewIntent`, internal `moveCharacterBand`, `movePurpose`,
+      `opponentQuestion`, `lineResolution`, `title`, `baseProse`,
+      `reasonTags`, `source`, PV `confirms`, `linePurpose`, `tension`,
+      `opponentReplyMeaning`, and `learningPoint`);
       `NarrativeLexicon`, `StandardCommentaryClaimPolicy`,
       `NarrativeOutlineBuilder`, decisive-truth motif tagging, and MoveReview
       consume this same projection boundary instead of re-encoding parallel
@@ -616,12 +618,20 @@ Current canonical flow:
     - `MoveReviewPvLine` owns only legal replay, coupled-line selection,
       short-line assembly, and normalization; capture / center / endgame /
       opening surface meaning is not rederived there
+    - the basic descriptor is selected as a bounded review intent first, then
+      rendered as title/prose; validated PV facts are the admission core for
+      non-trivial non-opening meanings, while `Fact` / `Motif` / opening-goal /
+      endgame facts support that intent rather than triggering prose by
+      themselves
     - the descriptor may additionally attach `MoveReviewPvInterpretation` from
       canonical facts/motifs plus validated PV facts; besides opening/castling
       semantics, it may use PV-backed non-opening meanings such as
       `answer_direct_threat`, `create_tactical_threat`,
       `resolve_capture_tension`, `clarify_exchange`, and
       `improve_endgame_activity`
+   - internal `moveCharacterBand` derives from `DecisiveTruthContract` only as
+     a tone selector for the basic MoveReview lane; it is not a new truth tier
+     and does not change planner authority, `SupportedLocal`, or signoff
    - the prose may use that interpretation to explain current-move purpose,
      the opponent reply's local question, and the learning point confirmed by
      the short PV, but the PV line remains a separate `shortLine` field and may

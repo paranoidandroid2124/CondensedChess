@@ -132,6 +132,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(explanation.prose.contains("Italian Game"), clue(explanation.prose))
     assert(explanation.reasonTags.contains("opening_goal"), clue(explanation.reasonTags))
     assert(explanation.reasonTags.contains("development_logic"), clue(explanation.reasonTags))
+    assert(explanation.reasonTags.contains("review_intent:normal_development"), clue(explanation.reasonTags))
+    assert(explanation.reasonTags.contains("character_band:neutral"), clue(explanation.reasonTags))
     assertEquals(explanation.shortLine, None, clue(explanation))
     assertEquals(explanation.pvInterpretation, None, clue(explanation))
   }
@@ -163,7 +165,10 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("quiet_development"), clue(explanation))
     assertEquals(explanation.pvInterpretation.map(_.tension), Some("tension_maintained"), clue(explanation))
     assertEquals(explanation.pvInterpretation.flatMap(_.opponentReplyMeaning), Some("attacks_center_pawn"), clue(explanation))
+    assert(explanation.pvInterpretation.exists(_.confirms.contains("normal_development")), clue(explanation.pvInterpretation))
     assert(explanation.pvInterpretation.exists(_.learningPoint.contains("d3")), clue(explanation.pvInterpretation))
+    assert(explanation.prose.contains("Nf6"), clue(explanation.prose))
+    assert(explanation.prose.contains("d3"), clue(explanation.prose))
     assertEquals(explanation.shortLine.map(_.san), Some(List("Bc4", "Nf6", "d3")), clue(explanation.shortLine))
   }
 
@@ -205,6 +210,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(explanation.source, "canonical_fact", clue(explanation))
     assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("create_tactical_threat"), clue(explanation))
     assert(explanation.pvInterpretation.exists(_.confirms.contains("fork")), clue(explanation.pvInterpretation))
+    assert(explanation.pvInterpretation.exists(_.confirms.contains("creates_threat")), clue(explanation.pvInterpretation))
+    assert(explanation.reasonTags.contains("review_intent:creates_threat"), clue(explanation.reasonTags))
     assert(explanation.prose.toLowerCase.contains("fork"), clue(explanation.prose))
   }
 
@@ -239,6 +246,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
 
     assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("answer_direct_threat"), clue(explanation))
     assert(explanation.pvInterpretation.exists(_.confirms.contains("direct_threat")), clue(explanation.pvInterpretation))
+    assert(explanation.pvInterpretation.exists(_.confirms.contains("answers_threat")), clue(explanation.pvInterpretation))
+    assert(explanation.reasonTags.contains("review_intent:answers_threat"), clue(explanation.reasonTags))
     assert(explanation.pvInterpretation.exists(_.learningPoint.contains("g6")), clue(explanation.pvInterpretation))
   }
 
@@ -265,6 +274,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(explanation.source, "canonical_fact", clue(explanation))
     assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("improve_endgame_activity"), clue(explanation))
     assert(explanation.pvInterpretation.exists(_.confirms.contains("king_activity")), clue(explanation.pvInterpretation))
+    assert(explanation.pvInterpretation.exists(_.confirms.contains("improves_endgame_activity")), clue(explanation.pvInterpretation))
+    assert(explanation.reasonTags.contains("review_intent:improves_endgame_activity"), clue(explanation.reasonTags))
     assert(explanation.prose.toLowerCase.contains("king activity"), clue(explanation.prose))
   }
 
@@ -289,6 +300,7 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
 
     assertEquals(explanation.pvInterpretation, None, clue(explanation))
     assertEquals(explanation.shortLine.map(_.san), Some(List("Bc4", "Nf6", "d3")), clue(explanation.shortLine))
+    assert(explanation.reasonTags.contains("review_intent:normal_development"), clue(explanation.reasonTags))
   }
 
   test("illegal current move creates no basic move explanation") {

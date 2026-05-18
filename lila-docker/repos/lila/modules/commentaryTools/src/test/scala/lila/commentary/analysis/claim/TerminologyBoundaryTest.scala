@@ -31,7 +31,11 @@ class TerminologyBoundaryTest extends FunSuite:
       "MoveReview" + "IdeaSurface",
       "MoveReviewPv" + "ChainValidator",
       "MoveReviewPv" + "Facts",
-      "truth" + "MotifId"
+      "truth" + "MotifId",
+      "ReviewIntent" + "Classifier",
+      "MoveReview" + "JudgmentBuilder",
+      "MoveReview" + "IntentSurface",
+      "MoveReview" + "JudgmentPolicy"
     )
 
   test("source and tracked snapshots do not reintroduce ambiguous layer names") {
@@ -64,6 +68,25 @@ class TerminologyBoundaryTest extends FunSuite:
           val text = Files.readString(path, StandardCharsets.UTF_8)
           legacyCommentarySymbols.filter(text.contains).map(term => s"${path.toString}:$term")
         }
+
+    assertEquals(offenders, Nil)
+  }
+
+  test("move review intent cleanup does not create parallel helper files") {
+    val allowed =
+      Set(
+        "MoveReviewCompressionPolicy.scala",
+        "MoveReviewExplanationBuilder.scala",
+        "MoveReviewPolishSlots.scala",
+        "MoveReviewPvLine.scala"
+      )
+    val offenders =
+      scalaFiles(Paths.get("modules/commentaryCore/src/main/scala/lila/commentary/analysis"))
+        .map(_.getFileName.toString)
+        .filter(name =>
+          name.matches(""".*MoveReview.*(Intent|Judgment|Surface|Facts|Validator|Rules|Classifier).*\.scala""") &&
+            !allowed.contains(name)
+        )
 
     assertEquals(offenders, Nil)
   }

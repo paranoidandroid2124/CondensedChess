@@ -3947,6 +3947,12 @@ prose. `MoveReviewPvLine`, `CommentaryIdeaSurface`, and
 wording, branch reasons, consequence bodies, surface tags, priority ordering,
 canonical fact IDs, motif corroboration, and MoveReview descriptors consumed by MoveReview,
 NarrativeLexicon, Outline, decisive-truth motif tagging, and claim policy.
+The MoveReview descriptor first records a bounded `reviewIntent` plus internal
+`moveCharacterBand`, then renders `movePurpose`, `opponentQuestion`, and
+`lineResolution` through the existing `MoveReviewExplanation` shape. These are
+local instructional metadata only: `reviewIntent` is not player-intent proof,
+and `moveCharacterBand` is not a truth tier, `SupportedLocal` upgrade, or
+permission to claim engine preference.
 Its `MoveReviewEvidence` bundle is only the MoveReview basic-lane projection
 input assembled by `MoveReviewExplanationBuilder`; it is not a cross-surface
 carrier for Chronicle, Outline, or Claim truth.
@@ -4437,7 +4443,7 @@ longer appends quiet-support prose.
 | `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only` | `unsupported_generalization` |
 | `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only` | `support_only_overreach` |
 | `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
-| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `CommentaryIdeaSurface.scala`, `MoveReviewPvLine.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, and endgame facts | `responsePayload.ts`, `moveReview.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
+| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `CommentaryIdeaSurface.scala`, `MoveReviewPvLine.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, endgame facts, and descriptor-local `reviewIntent` / `moveCharacterBand` metadata | `responsePayload.ts`, `moveReview.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
 | `activeStrategicNote`, `activeStrategicIdeas`, `activeStrategicRoutes`, `activeStrategicMoves`, `activeDirectionalTargets`, `activeBranchDossier` | `GameChronicleResponse.scala` | `narrativeView.ts` | `Active-only surface` | `surface_divergence` |
 | `topEngineMove` | `GameChronicleResponse.scala` | `narrativeView.ts` | `fallback input only` | `blocked_lane_contamination` residual; Chronicle decision-comparison fallback rewrite closed |
 

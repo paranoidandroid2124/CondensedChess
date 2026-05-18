@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import lila.commentary.{ MoveReviewRefs, StrategyPack }
+import lila.commentary.{ MoveReviewExplanation, MoveReviewRefs, StrategyPack }
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.model.*
@@ -598,6 +598,8 @@ private[commentary] object MoveReviewCompressionPolicy:
           List(
             Some(s"MoveReview title draft: ${explanation.title}"),
             Some(s"MoveReview source: ${explanation.source}"),
+            reviewTagValue(explanation, "review_intent").map(intent => s"MoveReview review intent: $intent"),
+            reviewTagValue(explanation, "character_band").map(band => s"MoveReview character band: $band"),
             Option.when(explanation.reasonTags.nonEmpty)(s"MoveReview reason tags: ${explanation.reasonTags.mkString(", ")}"),
             explanation.pvInterpretation.map(interpretation => s"PV line purpose: ${interpretation.linePurpose}"),
             explanation.pvInterpretation.map(interpretation => s"PV confirms: ${interpretation.confirms.mkString(", ")}"),
@@ -621,6 +623,12 @@ private[commentary] object MoveReviewCompressionPolicy:
           moveReviewExplanation = Some(explanation)
         )
       }
+    }
+
+  private def reviewTagValue(explanation: MoveReviewExplanation, key: String): Option[String] =
+    val prefix = s"$key:"
+    explanation.reasonTags.collectFirst {
+      case tag if tag.startsWith(prefix) => tag.stripPrefix(prefix)
     }
 
   private def exactFactualFallbackResult(

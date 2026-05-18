@@ -17,7 +17,7 @@ private[commentary] object MoveReviewExplanationBuilder:
       played <- current(ctx)
       lineFacts = MoveReviewPvLine.firstCoupled(ctx.fen, played.uci, refs)
       evidence = moveReviewEvidence(ctx, played)
-      descriptor <- CommentaryIdeaSurface.describe(played, evidence, lineFacts)
+      descriptor <- CommentaryIdeaSurface.describe(played, evidence, lineFacts, truthContract)
       pvInterpretation = descriptor.pvInterpretation(lineFacts)
       shortLine = MoveReviewPvLine.shortLine(refs, pvInterpretation.flatMap(_.supportedByLineId))
     yield

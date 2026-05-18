@@ -197,8 +197,13 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     val descriptor = CommentaryIdeaSurface.describe(current, grounded, None).getOrElse(fail("expected opening descriptor"))
 
     assertEquals(descriptor.source, "opening_goal", clue(descriptor))
+    assertEquals(descriptor.reviewIntent, "normal_development", clue(descriptor))
+    assertEquals(descriptor.moveCharacterBand, CommentaryIdeaSurface.MoveCharacterBand.Neutral, clue(descriptor))
+    assert(descriptor.movePurpose.contains("Italian Game"), clue(descriptor.movePurpose))
     assertEquals(descriptor.requiresPvForAdmission, false, clue(descriptor))
     assert(descriptor.reasonTags.contains("opening_goal"), clue(descriptor.reasonTags))
+    assert(descriptor.reasonTags.contains("review_intent:normal_development"), clue(descriptor.reasonTags))
+    assert(descriptor.reasonTags.contains("character_band:neutral"), clue(descriptor.reasonTags))
     assert(descriptor.baseProse.contains("Italian Game"), clue(descriptor.baseProse))
   }
 
@@ -232,6 +237,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
 
     assertEquals(descriptor.source, "opening_goal", clue(descriptor))
     assertEquals(descriptor.ideaKind, "opening_goal", clue(descriptor))
+    assertEquals(descriptor.reviewIntent, "normal_development", clue(descriptor))
     assert(descriptor.confirms.contains("fork"), clue(descriptor.confirms))
   }
 
@@ -267,10 +273,15 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
         .getOrElse(fail("expected endgame descriptor"))
 
     assertEquals(tactical.linePurpose, Some("create_tactical_threat"), clue(tactical))
+    assertEquals(tactical.reviewIntent, "creates_threat", clue(tactical))
+    assert(tactical.opponentQuestion.exists(_.contains("Qg5")), clue(tactical.opponentQuestion))
+    assert(tactical.lineResolution.exists(_.toLowerCase.contains("tactical")), clue(tactical.lineResolution))
     assertEquals(tactical.ideaKind, "fork", clue(tactical))
     assertEquals(tactical.source, "canonical_fact", clue(tactical))
     assert(tactical.reasonTags.contains("fork"), clue(tactical.reasonTags))
+    assert(tactical.reasonTags.contains("review_intent:creates_threat"), clue(tactical.reasonTags))
     assert(tactical.confirms.contains("fork"), clue(tactical.confirms))
+    assert(tactical.confirms.contains("creates_threat"), clue(tactical.confirms))
     assert(tactical.title.contains("fork"), clue(tactical.title))
     assert(tactical.learningPoint.exists(_.toLowerCase.contains("tactical")), clue(tactical.learningPoint))
     assertEquals(directThreatNoPv, None)
@@ -283,9 +294,13 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
         )
         .getOrElse(fail("expected direct-threat descriptor"))
     assertEquals(directThreat.linePurpose, Some("answer_direct_threat"), clue(directThreat))
+    assertEquals(directThreat.reviewIntent, "answers_threat", clue(directThreat))
+    assert(directThreat.opponentQuestion.exists(_.contains("g6")), clue(directThreat.opponentQuestion))
     assert(directThreat.confirms.contains("direct_threat"), clue(directThreat.confirms))
+    assert(directThreat.confirms.contains("answers_threat"), clue(directThreat.confirms))
     assert(directThreat.learningPoint.exists(_.contains("g6")), clue(directThreat.learningPoint))
     assertEquals(endgame.linePurpose, Some("improve_endgame_activity"), clue(endgame))
+    assertEquals(endgame.reviewIntent, "improves_endgame_activity", clue(endgame))
     assert(endgame.reasonTags.contains("king_activity"), clue(endgame.reasonTags))
     assertEquals(
       CommentaryIdeaSurface.describe(
@@ -329,11 +344,15 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       )
 
     assertEquals(pawnCapture.ideaKind, "capture_tension", clue(pawnCapture))
+    assertEquals(pawnCapture.reviewIntent, "keeps_tension", clue(pawnCapture))
     assertEquals(pawnCapture.linePurpose, Some("resolve_capture_tension"), clue(pawnCapture))
     assert(pawnCapture.confirms.contains("capture_tension"), clue(pawnCapture.confirms))
+    assert(pawnCapture.confirms.contains("keeps_tension"), clue(pawnCapture.confirms))
     assertEquals(pieceCapture.ideaKind, "exchange_clarified", clue(pieceCapture))
+    assertEquals(pieceCapture.reviewIntent, "clarifies_exchange", clue(pieceCapture))
     assertEquals(pieceCapture.linePurpose, Some("clarify_exchange"), clue(pieceCapture))
     assert(pieceCapture.confirms.contains("exchange_clarified"), clue(pieceCapture.confirms))
+    assert(pieceCapture.confirms.contains("clarifies_exchange"), clue(pieceCapture.confirms))
     assertEquals(noReply, None)
   }
 
@@ -348,7 +367,83 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
         .getOrElse(fail("expected castling descriptor"))
 
     assertEquals(descriptor.ideaKind, "king_safety", clue(descriptor))
+    assertEquals(descriptor.reviewIntent, "king_safety", clue(descriptor))
     assertEquals(descriptor.requiresPvForAdmission, false, clue(descriptor))
     assertEquals(descriptor.linePurpose, Some("king_safety_first"), clue(descriptor))
     assert(descriptor.reasonTags.contains("king_safety"), clue(descriptor.reasonTags))
   }
+
+  test("truth contract only derives an internal character band") {
+    val badContract =
+      truthContract(DecisiveTruthClass.Blunder, DecisiveReasonKind.TacticalRefutation)
+    val necessaryContract =
+      truthContract(
+        DecisiveTruthClass.Best,
+        DecisiveReasonKind.OnlyMoveDefense,
+        visibilityRole = TruthVisibilityRole.PrimaryVisible,
+        benchmarkCriticalMove = true
+      )
+    val current =
+      played("f1c4", "Bc4", Square.F1, Square.C4, Piece(Color.White, _root_.chess.Bishop))
+    val grounded =
+      evidence(
+        openingName = Some("Italian Game"),
+        openingGoal = Some(
+          OpeningGoals.Evaluation(
+            goalName = "Development Logic",
+            status = OpeningGoals.Status.Achieved,
+            supportedEvidence = List("Minor piece developed"),
+            missingEvidence = Nil,
+            confidence = 0.86
+          )
+        )
+      )
+
+    val bad =
+      CommentaryIdeaSurface
+        .describe(current, grounded, None, truthContract = Some(badContract))
+        .getOrElse(fail("expected bad-band descriptor"))
+    val necessary =
+      CommentaryIdeaSurface
+        .describe(current, grounded, None, truthContract = Some(necessaryContract))
+        .getOrElse(fail("expected necessary-band descriptor"))
+
+    assertEquals(bad.moveCharacterBand, CommentaryIdeaSurface.MoveCharacterBand.Bad, clue(bad))
+    assert(bad.reasonTags.contains("character_band:bad"), clue(bad.reasonTags))
+    assertEquals(necessary.moveCharacterBand, CommentaryIdeaSurface.MoveCharacterBand.Necessary, clue(necessary))
+    assert(necessary.reasonTags.contains("character_band:necessary"), clue(necessary.reasonTags))
+  }
+
+  private def truthContract(
+      truthClass: DecisiveTruthClass,
+      reasonFamily: DecisiveReasonKind,
+      visibilityRole: TruthVisibilityRole = TruthVisibilityRole.Hidden,
+      benchmarkCriticalMove: Boolean = false
+  ): DecisiveTruthContract =
+    DecisiveTruthContract(
+      playedMove = Some("f1c4"),
+      verifiedBestMove = Some("f1c4"),
+      truthClass = truthClass,
+      cpLoss = 0,
+      swingSeverity = 0,
+      reasonFamily = reasonFamily,
+      allowConcreteBenchmark = false,
+      chosenMatchesBest = true,
+      compensationAllowed = false,
+      truthPhase = None,
+      ownershipRole = TruthOwnershipRole.NoneRole,
+      visibilityRole = visibilityRole,
+      surfaceMode = TruthSurfaceMode.Neutral,
+      exemplarRole = TruthExemplarRole.NonExemplar,
+      surfacedMoveOwnsTruth = false,
+      verifiedPayoffAnchor = None,
+      compensationProseAllowed = false,
+      benchmarkProseAllowed = false,
+      investmentTruthChainKey = None,
+      maintenanceExemplarCandidate = false,
+      benchmarkCriticalMove = benchmarkCriticalMove,
+      failureMode = FailureInterpretationMode.NoClearPlan,
+      failureIntentConfidence = 0.0,
+      failureIntentAnchor = None,
+      failureInterpretationAllowed = false
+    )
