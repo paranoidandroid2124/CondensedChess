@@ -76,7 +76,7 @@ object CommentaryOpsSignals:
     val labelHits =
       labels.filter(label => significantTokens(label).exists(low.contains))
 
-    val baseClaim = BookmakerProseContract.stripMoveHeader(firstSentence(baseNarrative))
+    val baseClaim = MoveReviewProseContract.stripMoveHeader(firstSentence(baseNarrative))
     val claimTokens = significantTokens(baseClaim)
     val claimHit =
       claimTokens.nonEmpty &&
@@ -169,7 +169,7 @@ object CommentaryOpsSignals:
       case Some(d) if d.decision.exists(_.trim.nonEmpty) =>
         List(d.decision.get.trim)
       case _ =>
-        List(BookmakerProseContract.stripMoveHeader(firstSentence(baseNarrative))).filter(_.trim.nonEmpty)
+        List(MoveReviewProseContract.stripMoveHeader(firstSentence(baseNarrative))).filter(_.trim.nonEmpty)
 
   private def firstSentence(text: String): String =
     Option(text)

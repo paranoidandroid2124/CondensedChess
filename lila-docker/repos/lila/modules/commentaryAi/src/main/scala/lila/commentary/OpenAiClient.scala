@@ -7,7 +7,7 @@ import play.api.libs.ws.DefaultBodyReadables.*
 import scala.concurrent.Future
 import scala.concurrent.duration.*
 import scala.util.control.NonFatal
-import lila.commentary.analysis.BookmakerPolishSlots
+import lila.commentary.analysis.MoveReviewPolishSlots
 
 case class OpenAiPolishResult(
     commentary: String,
@@ -153,7 +153,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
       commentaryMode: String = CommentaryMode.Polish,
-      bookmakerSlots: Option[BookmakerPolishSlots] = None
+      bookmakerSlots: Option[MoveReviewPolishSlots] = None
   ): Future[Option[OpenAiPolishResult]] =
     polishWithFallback(
       prose = prose,
@@ -189,7 +189,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
       commentaryMode: String = CommentaryMode.Polish,
-      bookmakerSlots: Option[BookmakerPolishSlots] = None
+      bookmakerSlots: Option[MoveReviewPolishSlots] = None
   ): Future[Option[OpenAiPolishResult]] =
     polishWithFallback(
       prose = prose,
@@ -223,7 +223,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
       commentaryMode: String = CommentaryMode.Polish,
-      bookmakerSlots: Option[BookmakerPolishSlots] = None,
+      bookmakerSlots: Option[MoveReviewPolishSlots] = None,
       segmentMode: Boolean = false
   ): Future[Option[OpenAiPolishResult]] =
     repairWithFallback(
@@ -257,7 +257,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
       commentaryMode: String = CommentaryMode.Polish,
-      bookmakerSlots: Option[BookmakerPolishSlots] = None,
+      bookmakerSlots: Option[MoveReviewPolishSlots] = None,
       segmentMode: Boolean = false
   ): Future[Option[OpenAiPolishResult]] =
     repairWithFallback(
@@ -494,7 +494,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       commentaryMode: String,
       lang: String,
       maxOutputTokens: Option[Int],
-      bookmakerSlots: Option[BookmakerPolishSlots]
+      bookmakerSlots: Option[MoveReviewPolishSlots]
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || prose.isBlank then Future.successful(None)
     else
@@ -558,7 +558,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       commentaryMode: String,
       lang: String,
       maxOutputTokens: Option[Int],
-      bookmakerSlots: Option[BookmakerPolishSlots],
+      bookmakerSlots: Option[MoveReviewPolishSlots],
       segmentMode: Boolean
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || originalProse.isBlank || rejectedPolish.isBlank then Future.successful(None)
@@ -823,7 +823,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       reasoningEffort: Option[String],
       lang: String,
       maxOutputTokens: Option[Int],
-      bookmakerSlots: Option[BookmakerPolishSlots]
+      bookmakerSlots: Option[MoveReviewPolishSlots]
   ): Future[Option[OpenAiPolishResult]] =
     val _ = momentType
     val userPrompt = PolishPrompt.buildPolishPrompt(
@@ -940,7 +940,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       reasoningEffort: Option[String],
       lang: String,
       maxOutputTokens: Option[Int],
-      bookmakerSlots: Option[BookmakerPolishSlots],
+      bookmakerSlots: Option[MoveReviewPolishSlots],
       segmentMode: Boolean
   ): Future[Option[OpenAiPolishResult]] =
     val repairPrompt =

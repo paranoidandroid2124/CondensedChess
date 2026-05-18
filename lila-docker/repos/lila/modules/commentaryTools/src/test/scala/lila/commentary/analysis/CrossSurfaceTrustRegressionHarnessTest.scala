@@ -62,7 +62,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
       prose: String,
       quietSupportLifted: Boolean,
       supportText: Option[String],
-      slots: BookmakerPolishSlots
+      slots: MoveReviewPolishSlots
   )
 
   private final case class ChronicleObservation(
@@ -411,9 +411,9 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
     val rankedPlans =
       QuestionFirstCommentaryPlanner.plan(scene.ctx, plannerInputs, scene.truthContract)
     val selection =
-      BookmakerLiveCompressionPolicy.renderSelection(plannerInputs, rankedPlans, scene.truthContract)
+      MoveReviewCompressionPolicy.renderSelection(plannerInputs, rankedPlans, scene.truthContract)
     val slots =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx = scene.ctx,
         outline = outline,
         refs = None,
@@ -421,7 +421,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
         truthContract = scene.truthContract
       )
     val quietTrace =
-      BookmakerLiveCompressionPolicy.exactFactualQuietSupportTrace(
+      MoveReviewCompressionPolicy.exactFactualQuietSupportTrace(
         ctx = scene.ctx,
         refs = None,
         strategyPack = scene.strategyPack,
@@ -436,7 +436,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
     BookmakerObservation(
       owner = selection.map(sel => sel.primary.questionKind -> sel.primary.plannerOwnerKind),
       mode = mode,
-      claim = BookmakerProseContract.stripMoveHeader(slots.claim),
+      claim = MoveReviewProseContract.stripMoveHeader(slots.claim),
       prose = prose,
       quietSupportLifted = quietTrace.liftApplied,
       supportText = slots.supportPrimary.orElse(slots.supportSecondary),
@@ -1138,13 +1138,13 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
             pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Quiet", "Background", None, false, "quiet")
           )
           val slots =
-            BookmakerPolishSlotsBuilder.buildOrFallback(
+            MoveReviewPolishSlotsBuilder.buildOrFallback(
               ctx,
               genericDecisionOutline("A capture.", "Nothing else is stable."),
               refs = None,
               strategyPack = None
             )
-          val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
+          val claim = MoveReviewProseContract.stripMoveHeader(slots.claim).toLowerCase
 
           assertEquals(claim, "this captures.", clues(slots))
           assertEquals(slots.paragraphPlan, List("p1=claim"), clues(slots))
@@ -1330,7 +1330,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
           val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
           val outline = BookStyleRenderer.validatedOutline(ctx)
           val slots =
-            BookmakerPolishSlotsBuilder.buildOrFallback(
+            MoveReviewPolishSlotsBuilder.buildOrFallback(
               ctx,
               outline,
               refs = None,
@@ -1353,7 +1353,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
                 )
             )
 
-          assertEquals(BookmakerProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.", clues(slots))
+          assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.", clues(slots))
           assertEquals(slots.paragraphPlan, List("p1=claim"), clues(slots))
           assert(!LiveNarrativeCompressionCore.deterministicProse(slots).toLowerCase.contains("compensation"), clues(slots))
           assert(!LiveNarrativeCompressionCore.deterministicProse(slots).toLowerCase.contains("initiative against the king"), clues(slots))

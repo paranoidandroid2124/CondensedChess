@@ -1,7 +1,7 @@
 package lila.commentary
 
 import munit.FunSuite
-import lila.commentary.analysis.{ BookStyleRenderer, BookmakerPolishSlotsBuilder, BookmakerProseGoldenFixtures }
+import lila.commentary.analysis.{ BookStyleRenderer, MoveReviewPolishSlotsBuilder, BookmakerProseGoldenFixtures }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ NarrativeOutline, OutlineBeat, OutlineBeatKind }
 
@@ -57,7 +57,7 @@ class PolishPromptTest extends FunSuite:
     val fixture = BookmakerProseGoldenFixtures.openFileFight
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         fixture.ctx,
         outline,
         refs = None,
@@ -119,7 +119,7 @@ class PolishPromptTest extends FunSuite:
           OutlineBeat(kind = OutlineBeatKind.MainMove, text = "The move keeps the center balanced.")
         )
       )
-    val slots = BookmakerPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = None)
+    val slots = MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = None)
     val prompt = PolishPrompt.buildPolishPrompt(
       prose = slots.claim,
       phase = "opening",

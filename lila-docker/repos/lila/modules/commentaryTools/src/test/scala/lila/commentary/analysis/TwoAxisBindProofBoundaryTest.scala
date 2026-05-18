@@ -839,7 +839,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
     }.toMap
 
   private def assertNoBindInflation(text: String): Unit =
-    val low = BookmakerProseContract.stripMoveHeader(text).toLowerCase
+    val low = MoveReviewProseContract.stripMoveHeader(text).toLowerCase
     List("no counterplay", "completely bound", "wins by force", "whole position", "totally squeezed").foreach {
       fragment =>
         assert(!low.contains(fragment), clues(text, fragment))
@@ -916,7 +916,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
         )
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(
+      MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
         refs = None,
@@ -924,7 +924,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
         truthContract = None
       )
     val bookmakerFallback =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
         refs = None,
@@ -932,7 +932,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
         truthContract = None
       )
     val bookmakerParagraphs =
-      BookmakerProseContract.splitParagraphs(
+      MoveReviewProseContract.splitParagraphs(
         LiveNarrativeCompressionCore.deterministicProse(bookmakerFallback)
       )
 
@@ -969,7 +969,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
         )
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(
+      MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
         refs = None,
@@ -977,14 +977,14 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
         truthContract = None
       )
     val fallbackSlots =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
         refs = None,
         strategyPack = None,
         truthContract = None
       )
-    val fallbackClaim = BookmakerProseContract.stripMoveHeader(fallbackSlots.claim)
+    val fallbackClaim = MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim)
     val wholeGameSupport =
       CommentaryEngine.buildWholeGameConclusionSupport(
         moments =

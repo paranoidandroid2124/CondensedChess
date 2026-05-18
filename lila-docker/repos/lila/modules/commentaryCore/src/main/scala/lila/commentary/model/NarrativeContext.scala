@@ -63,6 +63,9 @@ case class NarrativeContext(
   
   // === OPENING DATA (for internal use, not rendered directly) ===
   openingData: Option[OpeningReference] = None,
+
+  // === OPENING GOAL EVIDENCE (after current move legal replay) ===
+  openingGoalEvaluation: Option[lila.commentary.analysis.OpeningGoals.Evaluation] = None,
   
   // === UPDATED BUDGET (for game-level accumulation) ===
   updatedBudget: OpeningEventBudget = OpeningEventBudget(),

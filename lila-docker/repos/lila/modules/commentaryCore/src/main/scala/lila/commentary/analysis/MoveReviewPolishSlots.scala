@@ -1,11 +1,11 @@
 package lila.commentary.analysis
 
-import lila.commentary.MoveReviewRefs
+import lila.commentary.{ MoveReviewExplanation, MoveReviewRefs }
 import lila.commentary.StrategyPack
 import lila.commentary.model.*
 import lila.commentary.model.authoring.NarrativeOutline
 
-final case class BookmakerPolishSlots(
+final case class MoveReviewPolishSlots(
     lens: StrategicLens,
     claim: String,
     supportPrimary: Option[String],
@@ -15,7 +15,8 @@ final case class BookmakerPolishSlots(
     coda: Option[String],
     factGuardrails: List[String],
     paragraphPlan: List[String],
-    sourceKind: String = BookmakerPolishSlots.Source.Planner
+    sourceKind: String = MoveReviewPolishSlots.Source.Planner,
+    moveReviewExplanation: Option[MoveReviewExplanation] = None
 ):
   def support: List[String] = List(supportPrimary, supportSecondary).flatten.filter(_.nonEmpty)
   def validationSeedText: String =
@@ -28,23 +29,23 @@ final case class BookmakerPolishSlots(
         coda.map(_.trim).filter(_.nonEmpty)
       ).flatten ++ factGuardrails.map(_.trim).filter(_.nonEmpty)
       ).distinct.mkString("\n\n")
-  def withFactGuardrails(lines: List[String]): BookmakerPolishSlots =
+  def withFactGuardrails(lines: List[String]): MoveReviewPolishSlots =
     copy(factGuardrails = lines.map(_.trim).filter(_.nonEmpty))
 
-object BookmakerPolishSlots:
+object MoveReviewPolishSlots:
   object Source:
     val Planner = "planner"
     val BasicMoveExplanation = "basic_move_explanation"
     val ExactFactualFallback = "exact_factual_fallback"
 
-object BookmakerSlotSanitizer:
+object MoveReviewSlotSanitizer:
   def sanitizeUserText(raw: String): String =
     UserFacingSignalSanitizer.sanitize(raw)
 
   def placeholderHits(raw: String): List[String] =
     UserFacingSignalSanitizer.placeholderHits(raw)
 
-object BookmakerPolishSlotsBuilder:
+object MoveReviewPolishSlotsBuilder:
 
   def build(
       ctx: NarrativeContext,
@@ -52,8 +53,8 @@ object BookmakerPolishSlotsBuilder:
       refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack] = None,
       truthContract: Option[DecisiveTruthContract] = None
-  ): Option[BookmakerPolishSlots] =
-    BookmakerLiveCompressionPolicy.buildSlots(ctx, outline, refs, strategyPack, truthContract)
+  ): Option[MoveReviewPolishSlots] =
+    MoveReviewCompressionPolicy.buildSlots(ctx, outline, refs, strategyPack, truthContract)
 
   def buildOrFallback(
       ctx: NarrativeContext,
@@ -61,10 +62,10 @@ object BookmakerPolishSlotsBuilder:
       refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack] = None,
       truthContract: Option[DecisiveTruthContract] = None
-  ): BookmakerPolishSlots =
-    BookmakerLiveCompressionPolicy.buildSlotsOrFallback(ctx, outline, refs, strategyPack, truthContract)
+  ): MoveReviewPolishSlots =
+    MoveReviewCompressionPolicy.buildSlotsOrFallback(ctx, outline, refs, strategyPack, truthContract)
 
-object BookmakerProseContract:
+object MoveReviewProseContract:
 
   private val claimStopWords = Set(
     "this", "that", "with", "from", "into", "where", "because", "belongs", "calls",
@@ -91,14 +92,14 @@ object BookmakerProseContract:
     "good practical choice"
   )
 
-  def evaluate(text: String, slots: BookmakerPolishSlots): Evaluation =
+  def evaluate(text: String, slots: MoveReviewPolishSlots): Evaluation =
     val paragraphs = splitParagraphs(text)
     val first = paragraphs.headOption.getOrElse("")
     val claimLike = claimLikeFirstParagraph(first, slots.claim)
-    val placeholderHits = BookmakerSlotSanitizer.placeholderHits(text)
+    val placeholderHits = MoveReviewSlotSanitizer.placeholderHits(text)
     val genericHits =
       (genericPhrases.filter(text.toLowerCase.contains) ++
-        BookmakerLiveCompressionPolicy.systemLanguageHits(text)).distinct
+        MoveReviewCompressionPolicy.systemLanguageHits(text)).distinct
     val sentenceCount = countSentences(paragraphs)
     val paragraphBudgetOk =
       if expectsSingleParagraph(slots) then
@@ -144,7 +145,7 @@ object BookmakerProseContract:
     val bs = normalizeWords(b).filter(token => token.length > 2 && !claimStopWords.contains(token)).toSet
     (as intersect bs).size
 
-  private def expectsSingleParagraph(slots: BookmakerPolishSlots): Boolean =
+  private def expectsSingleParagraph(slots: MoveReviewPolishSlots): Boolean =
     slots.paragraphPlan == List("p1=claim")
 
   private def countSentences(paragraphs: List[String]): Int =
@@ -174,7 +175,7 @@ object BookmakerProseContract:
       .replace("<ELLIPSIS>", "...")
       .replace("<PLY>", ".")
 
-object BookmakerSoftRepair:
+object MoveReviewSoftRepair:
 
   private val CosmeticActions = Set("claim_restore")
 
@@ -184,10 +185,10 @@ object BookmakerSoftRepair:
       actions: List[String],
       materialApplied: Boolean,
       materialActions: List[String],
-      evaluation: BookmakerProseContract.Evaluation
+      evaluation: MoveReviewProseContract.Evaluation
   )
 
-  def repair(text: String, slots: BookmakerPolishSlots): RepairResult =
+  def repair(text: String, slots: MoveReviewPolishSlots): RepairResult =
     val deterministic = deterministicParagraphs(slots)
     val initial = normalizeParagraphs(text)
     val actions = scala.collection.mutable.ListBuffer.empty[String]
@@ -199,7 +200,7 @@ object BookmakerSoftRepair:
     var paragraphs = if initial.nonEmpty then initial else deterministic
     if initial.isEmpty then actions += "empty_to_deterministic"
 
-    val scrubbed = paragraphs.map(BookmakerSlotSanitizer.sanitizeUserText)
+    val scrubbed = paragraphs.map(MoveReviewSlotSanitizer.sanitizeUserText)
     if scrubbed != paragraphs then actions += "placeholder_scrub"
     paragraphs = scrubbed
 
@@ -217,7 +218,7 @@ object BookmakerSoftRepair:
 
     paragraphs = trimToSentenceBudget(paragraphs, sentenceTarget, paragraphTarget)
 
-    val currentEval = BookmakerProseContract.evaluate(paragraphs.mkString("\n\n"), slots)
+    val currentEval = MoveReviewProseContract.evaluate(paragraphs.mkString("\n\n"), slots)
     if !currentEval.claimLikeFirstParagraph || currentEval.genericHits.nonEmpty then
       paragraphs = deterministic.headOption.toList ++ paragraphs.drop(1)
       actions += "claim_restore"
@@ -230,15 +231,15 @@ object BookmakerSoftRepair:
       val p3 = deterministic.lift(2)
       if p3.nonEmpty then
         val currentText = paragraphs.mkString(" ")
-        val alreadyCovered = BookmakerProseContract.significantClaimTokenOverlap(currentText, p3.get) >= 3
+        val alreadyCovered = MoveReviewProseContract.significantClaimTokenOverlap(currentText, p3.get) >= 3
         if paragraphs.size < 3 then
           if !alreadyCovered then
             paragraphs = paragraphs :+ p3.get
             actions += "evidence_append"
-        else if BookmakerSlotSanitizer.placeholderHits(paragraphs(2)).nonEmpty then
+        else if MoveReviewSlotSanitizer.placeholderHits(paragraphs(2)).nonEmpty then
           paragraphs = paragraphs.updated(2, p3.get)
           actions += "evidence_restore"
-        else if !alreadyCovered && BookmakerProseContract.significantClaimTokenOverlap(paragraphs.lift(2).getOrElse(""), p3.get) < 2 then
+        else if !alreadyCovered && MoveReviewProseContract.significantClaimTokenOverlap(paragraphs.lift(2).getOrElse(""), p3.get) < 2 then
           // If paragraph 3 exists but doesn't cover the evidence and the whole text doesn't either, we might need a restore,
           // but for now, we prioritize not duplicating if the AI integrated it elsewhere.
           ()
@@ -250,7 +251,7 @@ object BookmakerSoftRepair:
       actions += "drop_extra_coda"
 
     val repairedText = paragraphs.map(_.trim).filter(_.nonEmpty).mkString("\n\n")
-    val evaluation = BookmakerProseContract.evaluate(repairedText, slots)
+    val evaluation = MoveReviewProseContract.evaluate(repairedText, slots)
     if !evaluation.claimLikeFirstParagraph then
       println(s"[soft-repair] claim-fail text=${repairedText.replace('\n', '|')}")
     val distinctActions = actions.toList.distinct
@@ -264,7 +265,7 @@ object BookmakerSoftRepair:
       evaluation = evaluation
     )
 
-  def deterministicParagraphs(slots: BookmakerPolishSlots): List[String] =
+  def deterministicParagraphs(slots: MoveReviewPolishSlots): List[String] =
     if slots.paragraphPlan == List("p1=claim") then List(slots.claim.trim)
     else
       val supportParagraph = slots.support.mkString(" ").trim
@@ -281,9 +282,9 @@ object BookmakerSoftRepair:
       ).flatten
 
   private def normalizeParagraphs(text: String): List[String] =
-    BookmakerProseContract.splitParagraphs(text).map(_.trim).filter(_.nonEmpty)
+    MoveReviewProseContract.splitParagraphs(text).map(_.trim).filter(_.nonEmpty)
 
-  private def composeThirdParagraph(slots: BookmakerPolishSlots): String =
+  private def composeThirdParagraph(slots: MoveReviewPolishSlots): String =
     (slots.tension.map(_.trim).filter(_.nonEmpty), slots.evidenceHook.map(_.trim).filter(_.nonEmpty)) match
       case (Some(tension), Some(evidence)) =>
         s"${ensureSentence(tension)} ${normalizeEvidenceHook(evidence)}".trim

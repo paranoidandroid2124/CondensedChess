@@ -1162,7 +1162,7 @@ Verification:
 - `CounterplayRestraintProofBoundaryTest`
 - `SurfaceReplayParityTest`
 - `QuestionFirstCommentaryPlannerTest`
-- `BookmakerPolishSlotsTest`
+- `MoveReviewPolishSlotsTest`
 - `CrossSurfaceTrustRegressionHarnessTest`
 
 Session verdict:
@@ -1485,7 +1485,7 @@ Surface matrix:
   `CounterplayRestraintProofTest`,
   `CounterplayRestraintProofBoundaryTest`,
   `SurfaceReplayParityTest`,
-  `BookmakerPolishSlotsTest`, and
+  `MoveReviewPolishSlotsTest`, and
   `CrossSurfaceTrustRegressionHarnessTest` already provide the patterns needed
   for B3 contract tests, corpus expansion, parity checks, and
   surface-reinflation regressions
@@ -1683,7 +1683,7 @@ bounded B1 / B2 / B3 maintenance charter.
   `CounterplayRestraintProofBoundaryTest`,
   `SurfaceReplayParityTest`,
   `QuestionFirstCommentaryPlannerTest`,
-  `BookmakerPolishSlotsTest`, and
+  `MoveReviewPolishSlotsTest`, and
   `CrossSurfaceTrustRegressionHarnessTest`
 
 Current operating rule:
@@ -2143,7 +2143,7 @@ Verification burden closed in the same session:
   `TwoAxisBindProofBoundaryTest`,
   `CounterplayRestraintProofBoundaryTest`,
   `SurfaceReplayParityTest`,
-  `BookmakerPolishSlotsTest`,
+  `MoveReviewPolishSlotsTest`,
   `CrossSurfaceTrustRegressionHarnessTest`,
   `ActiveStrategicCoachingBriefBuilderTest`
 
@@ -3919,46 +3919,53 @@ Chronicle is the most canonical truth-bound surface path:
   builds the truth frame / truth contract
 - sanitized context and strategy pack then feed outline / render
 
-Bookmaker is also truth-bound:
+Bookmaker / MoveReview is also truth-bound:
 
-- `BookmakerLiveCompressionPolicy.scala`
+- `MoveReviewCompressionPolicy.scala`
 - `CommentaryApi.scala`
 
 It stays planner-first. If no certified planner slot survives, the runtime may
 now take a bounded `MoveReview` basic explanation lane before exact-factual
-fallback. That lane is local instructional prose built from move SAN/UCI, board
-geometry produced by legal current-move replay, opening-family pattern facts,
-primitive reason tags, exact endgame catalog facts, and optional short PV refs.
-Its v1 admission is limited to opening / formation contexts,
+fallback. That lane is local instructional prose built from move SAN/UCI, legal
+current-move replay, existing `NarrativeContext` facts, candidate facts/motifs,
+opening-goal evaluation, exact endgame facts, and optional short PV refs.
+Its admission remains limited to opening / formation contexts,
 explicit castling, or non-opening moves with UCI-coupled PV semantic evidence,
 so tactical/trust fallback fixtures remain exact-factual unless the supplied
 line itself supports bounded instructional meaning; it is not a strategic
 authority lane and may not rebuild decision/meta/close-candidate shell prose as
 a substitute owner.
-When a short PV is present, `PvSemanticInterpreter` may add
+When a short PV is present, `MoveReviewIdeaSurface` may add
 `MoveReviewPvInterpretation` only for a first-line UCI-coupled move sequence
 whose refs start from the current FEN and whose moves pass
 `MoveReviewPvChainValidator`: each UCI must replay legally in sequence and the
 recorded `fenAfter` must match the replayed board state. `shortLine` may still
 show a malformed or mismatched PV preview, but that PV cannot admit semantic
-prose. `MoveReviewBoardFacts`, `MoveReviewPvFacts`, and
-`MoveReviewPvChainValidator` are the local semantic boundary for this lane.
+prose. `MoveReviewPvFacts`, `MoveReviewPvChainValidator`,
+`MoveReviewIdeaSurface`, and `MoveReviewExplanationBuilder` are the local
+consumer boundary for this lane; `Fact`, `Motif`, `FactExtractor`,
+`ThreatAnalyzer`, `OpeningGoals`, and endgame oracle output remain the meaning
+producer boundary.
 The interpretation is bounded
 instructional metadata (`linePurpose`, `confirms`, `tension`,
 `opponentReplyMeaning`, `learningPoint`) for prose density; it is not engine
 truth, strategic authority, or permission to invent SAN/PV/evaluation claims
 beyond the supplied line.
-`OpeningIdeaCatalog` entries are requirement-backed, not prose-only opening
-names; the family/move match must be accompanied by required primitive, board,
-and PV facts before an opening pattern can own `opening_idea`. `EndgameIdeaCatalog`
-is stricter: v1 admits only validated-PV king activity, passed-pawn support, and
-rook-behind-passer patterns, and it does not open opposition, breakthrough,
-zugzwang, fortress, or stalemate-trick claims.
-`moveReviewExplanation` is attached to the API payload only when the selected
-Bookmaker slot source is `basic_move_explanation`; planner-owned prose does not
-carry this basic instructional title as a sidecar. The payload sanitizer also
-cleans the structured title/prose/tags/shortLine/PV interpretation fields before
-frontend consumption.
+Opening identity itself is reference metadata: `OpeningNameLookup` resolves
+canonical `eco/name` from normalized FEN/EPD keys and
+`OpeningExplorerClient` may merge that label with explorer statistics, but the
+label must not authorize strategic or instructional prose by itself. MoveReview
+opening prose still requires the centralized
+`NarrativeContext.openingGoalEvaluation`, computed after legal current-move
+replay. Endgame prose similarly requires canonical endgame facts; phase-only
+king/pawn/rook prose is not enough.
+`moveReviewExplanation` is carried by the selected Bookmaker slots and attached
+to the API payload only when the selected source is
+`basic_move_explanation`; planner-owned prose does not carry this basic
+instructional title as a sidecar, and the API does not recompute the basic
+explanation. The payload sanitizer also cleans the structured
+title/prose/tags/shortLine/PV interpretation fields before frontend
+consumption.
 
 Active is the main exception:
 
@@ -4020,7 +4027,7 @@ tagged at their own fragment or call-site boundary.
 | `momentBlockLead` | `CommentaryEngine.scala` | `render_only` | `out_of_scene_generalization` | No |
 | `hybridBridge` | `CommentaryEngine.scala` | `render_only` | `unsupported_generalization` | No |
 | `getOpening` | `NarrativeOutlineBuilder.scala` | `unsafe_as_truth` | `out_of_scene_generalization` | No |
-| `getOpeningReference` | `BookStyleRenderer.scala`, `NarrativeOutlineBuilder.scala` | `support_only` | `support_only_overreach` | Evidence-only, not lesson core |
+| `getOpeningReference` | `BookStyleRenderer.scala`, `NarrativeOutlineBuilder.scala`; source label may come from FEN/EPD `OpeningNameLookup` plus explorer stats | `support_only` | `support_only_overreach` | Evidence-only, not lesson core |
 | `getThreatStatement` | `NarrativeOutlineBuilder.scala` | `support_only` | `overclaim_strength` | Maybe later, only with tighter anchor gate |
 | `getPlanStatement` | `NarrativeOutlineBuilder.scala` | `support_only` | `unsupported_generalization` | No now |
 | `getPawnPlayStatement` | `NarrativeOutlineBuilder.scala` | `support_only` | `out_of_scene_generalization` | Maybe later, with tighter board anchor gate |
@@ -4124,7 +4131,7 @@ The current harness is
 `modules/commentaryTools/src/test/scala/lila/commentary/analysis/CrossSurfaceTrustRegressionHarnessTest.scala`.
 It reuses existing runtime entrypoints only:
 
-- `BookmakerLiveCompressionPolicy.buildSlotsOrFallback`
+- `MoveReviewCompressionPolicy.buildSlotsOrFallback`
 - `GameChronicleCompressionPolicy.renderWithTrace`
 - `ActiveStrategicCoachingBriefBuilder.selectPlannerSurface` plus
   `buildDeterministicNote`
@@ -4299,7 +4306,7 @@ scope.
 Observed in current runtime:
 
 - `GameChronicleCompressionPolicy.scala`
-- `BookmakerLiveCompressionPolicy.scala`
+- `MoveReviewCompressionPolicy.scala`
 - `ActiveStrategicCoachingBriefBuilder.scala`
 - `CommentaryApi.scala`
 
@@ -4359,7 +4366,7 @@ Observed in current runtime:
 
 - `DecisiveTruth.scala`
 - `QuestionFirstCommentaryPlanner.scala`
-- `BookmakerLiveCompressionPolicy.scala`
+- `MoveReviewCompressionPolicy.scala`
 - `GameChronicleCompressionPolicy.scala`
 
 Structural risk not fully realized yet:
@@ -4424,7 +4431,7 @@ longer appends quiet-support prose.
 | `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `unsupported_generalization` |
 | `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `support_only_overreach` |
 | `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
-| `moveReviewExplanation` | `models.scala`, `BasicMoveExplanationBuilder.scala`, `MoveReviewBoardFacts.scala`, `MoveReviewPvFacts.scala`, `MoveReviewPvChainValidator.scala`, `PvSemanticInterpreter.scala`, `MoveReviewLearningPointRenderer.scala`, `OpeningIdeaCatalog.scala`, `EndgameIdeaCatalog.scala`, `UserFacingPayloadSanitizer.scala` | `responsePayload.ts`, `bookmaker.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
+| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `MoveReviewIdeaSurface.scala`, `MoveReviewPvFacts.scala`, `MoveReviewPvChainValidator.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, and endgame facts | `responsePayload.ts`, `bookmaker.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
 | `activeStrategicNote`, `activeStrategicIdeas`, `activeStrategicRoutes`, `activeStrategicMoves`, `activeDirectionalTargets`, `activeBranchDossier` | `GameChronicleResponse.scala` | `narrativeView.ts` | `Active-only surface` | `surface_divergence` |
 | `topEngineMove` | `GameChronicleResponse.scala` | `narrativeView.ts` | `fallback input only` | `blocked_lane_contamination` residual; Chronicle decision-comparison fallback rewrite closed |
 
@@ -4446,9 +4453,9 @@ Accepted residuals:
    `QuestionOutsideScope`.
 2. exact-factual fallback may still receive one quiet-support sentence, but
    only if duplicate rejection and `bookmakerContractSafe` pass.
-3. basic MoveReview explanation may use legal board-local primitives,
-   requirement-backed opening-family pattern facts, exact endgame catalog facts,
-   optional short PV refs, and UCI-coupled validated
+3. basic MoveReview explanation may use legal current-move replay,
+   canonical facts/motifs, centralized grounded opening goals, exact endgame
+   facts, optional short PV refs, and descriptor-backed UCI-coupled validated
    `MoveReviewPvInterpretation`; it must remain instructional/local and must
    not claim a broader strategic plan. Non-opening admission requires
    PV-backed semantic interpretation; uncoupled/malformed/missing-fen,

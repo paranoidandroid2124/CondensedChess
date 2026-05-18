@@ -258,9 +258,8 @@ object NarrativeContextBuilder:
         FactExtractor.fromMotifs(board, MoveAnalyzer.tokenizePv(data.fen, line.moves), FactScope.ThreatLine)
       }
 
-    BuildResult(
-      context =
-        NarrativeContext(
+    val baseContext =
+      NarrativeContext(
           fen = data.fen,
           header = header,
           ply = data.ply,
@@ -301,10 +300,27 @@ object NarrativeContextBuilder:
           strategicSalience = data.strategicSalience,
           renderMode = renderMode,
           variantKey = EarlyOpeningNarrationPolicy.normalizeVariantKey(Some(variantKey))
-        ),
+        )
+    BuildResult(
+      context = baseContext.copy(openingGoalEvaluation = openingGoalEvaluation(baseContext)),
       diagnosticPlanSidecar = strategicPartition.diagnosticSidecar
     )
   }
+
+  private def openingGoalEvaluation(ctx: NarrativeContext): Option[OpeningGoals.Evaluation] =
+    Option
+      .when(openingContext(ctx)) {
+        ctx.playedMove
+          .flatMap(uci => MoveReviewPvChainValidator.legalFenAfter(ctx.fen, uci))
+          .flatMap(afterFen => OpeningGoals.analyze(ctx.copy(fen = afterFen, openingGoalEvaluation = None)))
+      }
+      .flatten
+
+  private def openingContext(ctx: NarrativeContext): Boolean =
+    ctx.header.phase.equalsIgnoreCase("Opening") ||
+      ctx.phase.current.equalsIgnoreCase("Opening") ||
+      ctx.openingData.nonEmpty ||
+      ctx.openingEvent.nonEmpty
 
   private[commentary] def buildStrategicPlanExperiments(
       evaluated: List[PlanEvidenceEvaluator.EvaluatedPlan],

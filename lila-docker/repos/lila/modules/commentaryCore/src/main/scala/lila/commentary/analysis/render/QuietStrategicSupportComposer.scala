@@ -144,7 +144,7 @@ private[commentary] object QuietStrategicSupportComposer:
       )
     else
       val selected = candidates.sortBy(candidate => -candidate.priority).head.line
-      BookmakerLiveCompressionPolicy.cleanNarrativeSentence(selected.text, ctx) match
+      MoveReviewCompressionPolicy.cleanNarrativeSentence(selected.text, ctx) match
         case None =>
           QuietStrategicSupportTrace(
             emitted = false,

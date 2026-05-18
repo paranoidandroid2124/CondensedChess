@@ -502,7 +502,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
           )
         )
       val bookmakerSlots =
-        BookmakerLiveCompressionPolicy.buildSlots(
+        MoveReviewCompressionPolicy.buildSlots(
           fixture.ctx,
           outline,
           refs = None,
@@ -510,16 +510,16 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
           truthContract = fixture.truthContract
         )
       val fallbackSlots =
-        BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+        MoveReviewCompressionPolicy.buildSlotsOrFallback(
           fixture.ctx,
           outline,
           refs = None,
           strategyPack = fixture.strategyPack,
           truthContract = fixture.truthContract
         )
-      val bookmakerClaim = BookmakerProseContract.stripMoveHeader(fallbackSlots.claim)
+      val bookmakerClaim = MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim)
       val bookmakerParagraphs =
-        BookmakerProseContract.splitParagraphs(
+        MoveReviewProseContract.splitParagraphs(
           LiveNarrativeCompressionCore.deterministicProse(fallbackSlots)
         )
 

@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 import java.time.Instant
 import java.util.UUID
 import com.roundeights.hasher.Algo
-import lila.commentary.analysis.{ ActiveBranchDossierBuilder, ActiveCompensationPolicy, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BasicMoveExplanationBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, MoveReviewStrategicLedgerBuilder, BookStyleRenderer, CertifiedDecisionFrame, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, CompensationContractMatcher, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary }
+import lila.commentary.analysis.{ ActiveBranchDossierBuilder, ActiveCompensationPolicy, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, MoveReviewPolishSlots, MoveReviewPolishSlotsBuilder, MoveReviewProseContract, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, BookStyleRenderer, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary }
 import lila.commentary.model.{ OpeningReference, ProbeResult }
 import lila.commentary.model.structure.StructureId
 import lila.commentary.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -1097,7 +1097,7 @@ final class CommentaryApi(
 
   private def safeDeterministicFallbackProse(
       prose: String,
-      bookmakerSlots: Option[BookmakerPolishSlots]
+      bookmakerSlots: Option[MoveReviewPolishSlots]
   ): String =
     val candidates =
       List(
@@ -1298,7 +1298,7 @@ final class CommentaryApi(
       refs: Option[MoveReviewRefs],
       allowedSans: List[String],
       momentType: Option[String],
-      bookmakerSlots: Option[BookmakerPolishSlots]
+      bookmakerSlots: Option[MoveReviewPolishSlots]
   ): Boolean =
     val normalizedMomentType = momentType.map(_.trim.toLowerCase).getOrElse("")
     val introOrConclusion =
@@ -1541,7 +1541,7 @@ final class CommentaryApi(
       strategyPack: Option[StrategyPack],
       planTier: String,
       commentaryMode: String,
-      bookmakerSlots: Option[BookmakerPolishSlots]
+      bookmakerSlots: Option[MoveReviewPolishSlots]
   ): CandidateValidation =
     val normalizedCandidate = unwrapCommentaryPayload(candidateText)
     val anchorReasons =
@@ -1565,17 +1565,17 @@ final class CommentaryApi(
       else normalizedCandidate
     val repaired = bookmakerSlots match
       case Some(slots) =>
-        val repair = BookmakerSoftRepair.repair(decoded, slots)
+        val repair = MoveReviewSoftRepair.repair(decoded, slots)
         repair
       case None =>
-        BookmakerSoftRepair.RepairResult(
+        MoveReviewSoftRepair.RepairResult(
           text = decoded,
           applied = false,
           actions = Nil,
           materialApplied = false,
           materialActions = Nil,
           evaluation =
-            BookmakerProseContract.Evaluation(
+            MoveReviewProseContract.Evaluation(
               paragraphs = Nil,
               sentenceCount = 0,
               claimLikeFirstParagraph = true,
@@ -2599,7 +2599,7 @@ final class CommentaryApi(
       planTier: String,
       commentaryMode: String,
       momentType: Option[String] = None,
-      bookmakerSlots: Option[BookmakerPolishSlots],
+      bookmakerSlots: Option[MoveReviewPolishSlots],
       disablePolishCircuit: Boolean = false
   ): Future[PolishDecision] =
     val deterministicFallback =
@@ -4028,11 +4028,8 @@ final class CommentaryApi(
               )
             val refs = buildBookmakerRefs(fen, dataWithContinuity.alternatives)
             val outline = BookStyleRenderer.validatedOutline(ctx, Some(truthContract), strategyPack)
-            val bookmakerSlots = BookmakerPolishSlotsBuilder.buildOrFallback(ctx, outline, refs, strategyPack, Some(truthContract))
-            val moveReviewExplanation =
-              Option.when(bookmakerSlots.sourceKind == BookmakerPolishSlots.Source.BasicMoveExplanation) {
-                BasicMoveExplanationBuilder.build(ctx, refs, Some(truthContract))
-              }.flatten
+            val bookmakerSlots = MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs, strategyPack, Some(truthContract))
+            val moveReviewExplanation = bookmakerSlots.moveReviewExplanation
             val proseRaw = LiveNarrativeCompressionCore.deterministicProse(bookmakerSlots)
             val prose = RuleTemplateSanitizer.sanitize(
               proseRaw,

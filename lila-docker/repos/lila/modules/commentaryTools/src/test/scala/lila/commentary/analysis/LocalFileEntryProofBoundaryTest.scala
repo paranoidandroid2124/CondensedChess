@@ -928,13 +928,13 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
     }.toMap
 
   private def assertNoFileEntryInflation(text: String): Unit =
-    val low = BookmakerProseContract.stripMoveHeader(text).toLowerCase
+    val low = MoveReviewProseContract.stripMoveHeader(text).toLowerCase
     List("no counterplay", "whole position", "wins by force", "totally squeezed").foreach { fragment =>
       assert(!low.contains(fragment), clues(text, fragment))
     }
 
   private def assertNoPositiveFileEntryPair(text: String): Unit =
-    val low = BookmakerProseContract.stripMoveHeader(text).toLowerCase
+    val low = MoveReviewProseContract.stripMoveHeader(text).toLowerCase
     assert(!(low.contains("c-file") && low.contains("b4")), clues(text))
 
   corpusScenarios.foreach { scenario =>
@@ -990,7 +990,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
         ActiveStrategicCoachingBriefBuilder.PlannerReplay(ctx.authorQuestions, plannerInputs, rankedPlans)
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(
+      MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
         refs = None,
@@ -1011,8 +1011,8 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
     chronicleArtifact.foreach(artifact => assertNoFileEntryInflation(artifact.narrative))
     bookmakerSlots.foreach { slots =>
-      assert(BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase.contains("c-file"), clues(slots.claim))
-      assert(BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase.contains("b4"), clues(slots.claim))
+      assert(MoveReviewProseContract.stripMoveHeader(slots.claim).toLowerCase.contains("c-file"), clues(slots.claim))
+      assert(MoveReviewProseContract.stripMoveHeader(slots.claim).toLowerCase.contains("b4"), clues(slots.claim))
       assertNoFileEntryInflation(slots.claim)
     }
   }
@@ -1034,7 +1034,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
         ActiveStrategicCoachingBriefBuilder.PlannerReplay(ctx.authorQuestions, plannerInputs, rankedPlans)
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(
+      MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
         refs = None,
@@ -1127,10 +1127,10 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
         ActiveStrategicCoachingBriefBuilder.PlannerReplay(ctx.authorQuestions, plannerInputs, rankedPlans)
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = None)
+      MoveReviewCompressionPolicy.buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = None)
     val fallbackSlots =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(ctx, outline, refs = None, strategyPack = None, truthContract = None)
-    val fallbackClaim = BookmakerProseContract.stripMoveHeader(fallbackSlots.claim)
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(ctx, outline, refs = None, strategyPack = None, truthContract = None)
+    val fallbackClaim = MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim)
 
     assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs))
     assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
@@ -1162,7 +1162,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
     val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = None)
+      MoveReviewCompressionPolicy.buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = None)
     val chronicleArtifact =
       GameChronicleCompressionPolicy.renderWithTrace(
         ctx = ctx,

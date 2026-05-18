@@ -103,7 +103,7 @@ class SurfaceReplayParityTest extends FunSuite:
           )
         )
       val bookmakerSlots =
-        BookmakerLiveCompressionPolicy.buildSlots(
+        MoveReviewCompressionPolicy.buildSlots(
           fixture.ctx,
           outline,
           refs = None,
@@ -157,7 +157,7 @@ class SurfaceReplayParityTest extends FunSuite:
         )
       else
         val fallbackSlots =
-          BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+          MoveReviewCompressionPolicy.buildSlotsOrFallback(
             fixture.ctx,
             outline,
             refs = None,
@@ -246,7 +246,7 @@ class SurfaceReplayParityTest extends FunSuite:
         )
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(
+      MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
         refs = None,
@@ -254,7 +254,7 @@ class SurfaceReplayParityTest extends FunSuite:
         truthContract = None
       )
     val fallbackSlots =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
         refs = None,
@@ -266,5 +266,5 @@ class SurfaceReplayParityTest extends FunSuite:
     assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
     assertEquals(bookmakerSlots, None, clues(bookmakerSlots, rankedPlans))
-    assertEquals(BookmakerProseContract.stripMoveHeader(fallbackSlots.claim), "This puts the rook on c4.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim), "This puts the rook on c4.")
   }

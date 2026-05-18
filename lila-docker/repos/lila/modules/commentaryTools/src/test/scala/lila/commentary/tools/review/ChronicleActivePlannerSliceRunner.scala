@@ -594,7 +594,7 @@ object ChronicleActivePlannerSliceRunner:
       api: CommentaryApi
   ): TargetReplayState =
     val candidateEvidence =
-      BookmakerLiveCompressionPolicy.candidateEvidenceLines(snapshot.refs, snapshot.ctx)
+      MoveReviewCompressionPolicy.candidateEvidenceLines(snapshot.refs, snapshot.ctx)
     val plannerInputs =
       QuestionPlannerInputsBuilder.build(
         snapshot.ctx,

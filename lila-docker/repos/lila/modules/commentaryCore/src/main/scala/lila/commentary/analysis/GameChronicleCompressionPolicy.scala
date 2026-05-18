@@ -84,7 +84,7 @@ private[commentary] object GameChronicleCompressionPolicy:
         .flatMap(renderSurface(ctx, _))
     val beatEvidence = citedLineCandidates(parts, surfaces)
     val candidateEvidence =
-      beatEvidence.flatMap(text => BookmakerLiveCompressionPolicy.cleanNarrativeSentence(text, ctx))
+      beatEvidence.flatMap(text => MoveReviewCompressionPolicy.cleanNarrativeSentence(text, ctx))
     val plannerInputs =
       QuestionPlannerInputsBuilder.build(ctx, strategyPack, truthContract, candidateEvidence)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract)
@@ -264,7 +264,7 @@ private[commentary] object GameChronicleCompressionPolicy:
     cleanChronicleSentence(plan.claim, ctx)
       .orElse {
         Option.when(plan.questionKind == AuthorQuestionKind.WhosePlanIsFaster) {
-          BookmakerLiveCompressionPolicy.relaxedCertifiedRaceSentence(plan.claim, ctx)
+          MoveReviewCompressionPolicy.relaxedCertifiedRaceSentence(plan.claim, ctx)
         }.flatten
       }
 
@@ -520,7 +520,7 @@ private[commentary] object GameChronicleCompressionPolicy:
       raw: String,
       ctx: NarrativeContext
   ): Option[String] =
-    BookmakerLiveCompressionPolicy.cleanNarrativeSentence(raw, ctx)
+    MoveReviewCompressionPolicy.cleanNarrativeSentence(raw, ctx)
       .filterNot(isQuestionLike)
       .filterNot(isLowValueSentence)
 
@@ -534,13 +534,13 @@ private[commentary] object GameChronicleCompressionPolicy:
     val rendered = BookStyleRenderer.renderBeatForSelection(beat, ctx)
     val sentences =
       splitSentences(rendered)
-        .flatMap(raw => BookmakerLiveCompressionPolicy.cleanNarrativeSentence(raw, ctx))
+        .flatMap(raw => MoveReviewCompressionPolicy.cleanNarrativeSentence(raw, ctx))
         .filterNot(isQuestionLike)
         .filterNot(isLowValueSentence)
         .filterNot(s => beat.branchScoped && !LineScopedCitation.hasInlineCitation(s))
     val citedLine =
       citationFromBeat(beat, rendered)
-        .flatMap(raw => BookmakerLiveCompressionPolicy.cleanNarrativeSentence(raw, ctx))
+        .flatMap(raw => MoveReviewCompressionPolicy.cleanNarrativeSentence(raw, ctx))
         .filterNot(isLowValueSentence)
     Option.when(sentences.nonEmpty || citedLine.nonEmpty)(
       BeatSurface(

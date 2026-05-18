@@ -9,10 +9,10 @@ import lila.commentary.model.authoring.*
 import lila.commentary.model.strategic.{ EngineEvidence, PvMove, VariationLine }
 import scala.annotation.unused
 
-class BookmakerPolishSlotsTest extends FunSuite:
+class MoveReviewPolishSlotsTest extends FunSuite:
 
   private def assertNoStateSummaryLeak(text: String): Unit =
-    val low = BookmakerProseContract.stripMoveHeader(text).toLowerCase
+    val low = MoveReviewProseContract.stripMoveHeader(text).toLowerCase
     assert(!low.contains("carlsbad"), clues(low))
     assert(!low.contains("fluidcenter"), clues(low))
     assert(!low.contains("french chain"), clues(low))
@@ -25,12 +25,12 @@ class BookmakerPolishSlotsTest extends FunSuite:
     assert(!low.contains("queen route"), clues(low))
 
   @unused private def assertSingleParagraphQuietIntent(
-      slotsOpt: Option[BookmakerPolishSlots],
+      slotsOpt: Option[MoveReviewPolishSlots],
       expectedLens: StrategicLens,
       expectedFragment: String
   ): Unit =
     val slots = slotsOpt.getOrElse(fail("expected quiet-intent slots"))
-    val claim = BookmakerProseContract.stripMoveHeader(slots.claim)
+    val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
     assertEquals(slots.lens, expectedLens)
     assert(claim.toLowerCase.contains(expectedFragment.toLowerCase), clues(claim))
     assertEquals(slots.supportPrimary, None)
@@ -41,11 +41,11 @@ class BookmakerPolishSlotsTest extends FunSuite:
     assertNoStateSummaryLeak(slots.claim)
 
   private def assertExactFactualFallback(
-      slots: BookmakerPolishSlots,
+      slots: MoveReviewPolishSlots,
       expectedClaim: String
   ): Unit =
     assertEquals(slots.lens, StrategicLens.Decision)
-    assertEquals(BookmakerProseContract.stripMoveHeader(slots.claim), expectedClaim)
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedClaim)
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
     assertEquals(slots.tension, None)
@@ -247,8 +247,8 @@ class BookmakerPolishSlotsTest extends FunSuite:
   BookmakerProseGoldenFixtures.all.foreach { fixture =>
     test(s"${fixture.id} direct bookmaker slots stay non-empty for ${fixture.expectedLens}") {
       val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
-      val slots = BookmakerPolishSlotsBuilder.buildOrFallback(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
-      assert(BookmakerProseContract.stripMoveHeader(slots.claim).nonEmpty, clues(fixture.id))
+      val slots = MoveReviewPolishSlotsBuilder.buildOrFallback(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
+      assert(MoveReviewProseContract.stripMoveHeader(slots.claim).nonEmpty, clues(fixture.id))
     }
   }
 
@@ -313,11 +313,11 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, Some(strategyPack), truthContract = None)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, None)
     val slots =
-      BookmakerLiveCompressionPolicy
+      MoveReviewCompressionPolicy
         .buildSlots(ctx, outline, None, Some(strategyPack))
         .getOrElse(fail(outline.diagnostics.map(_.summary).getOrElse("expected bookmaker slots")))
 
-    val claim = BookmakerProseContract.stripMoveHeader(slots.claim)
+    val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
     assertEquals(
       rankedPlans.primary.map(_.questionKind),
       Some(AuthorQuestionKind.WhosePlanIsFaster),
@@ -352,14 +352,14 @@ class BookmakerPolishSlotsTest extends FunSuite:
       )
     val strategyPack = surfaceDrivenPack(routePurpose = "kingside pressure", targetSquare = "g7")
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         ctx,
         genericDecisionOutline("This increases pressure on g7.", "The route stays concrete."),
         refs = None,
         strategyPack = Some(strategyPack)
       )
 
-    assertEquals(BookmakerProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
   }
@@ -395,7 +395,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
           )
       )
     val slots =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx = ctx,
         outline = outline,
         refs = None,
@@ -419,7 +419,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val fixture = BookmakerProseGoldenFixtures.entrenchedPiece
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
+      MoveReviewPolishSlotsBuilder.buildOrFallback(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
     assertExactFactualFallback(slots, "This puts the knight on f1.")
   }
 
@@ -447,7 +447,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
 
   test("soft repair restores missing claim and strips placeholders") {
     val slots =
-      BookmakerPolishSlots(
+      MoveReviewPolishSlots(
         lens = StrategicLens.Decision,
         claim = "12... Qc7: This increases pressure on h7.",
         supportPrimary = None,
@@ -462,7 +462,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
       """The move keeps pressure and remains preferable.
         |
         |The direct alternative stays secondary because Piece Activation is deferred as PlayableByPV under strict evidence mode (supported by engine-coupled continuation (probe evidence pending)). Further probe work still targets Piece Activation [subplan:worst piece improvement].""".stripMargin
-    val repaired = BookmakerSoftRepair.repair(broken, slots)
+    val repaired = MoveReviewSoftRepair.repair(broken, slots)
     assert(repaired.applied)
     assertEquals(repaired.evaluation.placeholderHits, Nil)
     assertEquals(repaired.evaluation.genericHits, Nil)
@@ -474,7 +474,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
 
   test("soft repair treats claim-only restore as cosmetic") {
     val slots =
-      BookmakerPolishSlots(
+      MoveReviewPolishSlots(
         lens = StrategicLens.Decision,
         claim = "1. e4: This move claims central space.",
         supportPrimary = Some("It opens lines for both bishops."),
@@ -489,7 +489,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
       """The move remains preferable.
         |
         |It opens lines for both bishops.""".stripMargin
-    val repaired = BookmakerSoftRepair.repair(generic, slots)
+    val repaired = MoveReviewSoftRepair.repair(generic, slots)
     assert(repaired.applied)
     assert(repaired.actions.contains("claim_restore"))
     assert(!repaired.materialApplied)
@@ -498,7 +498,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
 
   test("deterministic third paragraph wraps bare variation evidence in prose") {
     val slots =
-      BookmakerPolishSlots(
+      MoveReviewPolishSlots(
         lens = StrategicLens.Decision,
         claim = "1. e4: This move claims central space.",
         supportPrimary = Some("It opens lines for both bishops."),
@@ -509,7 +509,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
         factGuardrails = Nil,
         paragraphPlan = List("p1=claim", "p2=support_chain", "p3=tension_or_evidence")
       )
-    val paragraphs = BookmakerSoftRepair.deterministicParagraphs(slots)
+    val paragraphs = MoveReviewSoftRepair.deterministicParagraphs(slots)
     assertEquals(paragraphs.size, 3)
     assert(paragraphs(2).contains("One concrete line that keeps the idea in play is a) ...c5 Nf3 Nc6 (+0.2)"))
   }
@@ -517,7 +517,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
   test("sanitizer preserves chess ellipsis markers in prose") {
     val raw =
       "Probe evidence starts with. Rc8: Rc8 Rc3 Rg6 (+0.42). The alternative is 12.. Qh5, and fixing lines with.. h5 makes.. Rh6-g6 realistic."
-    val sanitized = BookmakerSlotSanitizer.sanitizeUserText(raw)
+    val sanitized = MoveReviewSlotSanitizer.sanitizeUserText(raw)
     assertEquals(
       sanitized,
       "Probe evidence starts with ...Rc8: Rc8 Rc3 Rg6 (+0.42). The alternative is 12...Qh5, and fixing lines with ...h5 makes ...Rh6-g6 realistic."
@@ -568,7 +568,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
         )
       )
     val slots =
-      BookmakerPolishSlotsBuilder.build(
+      MoveReviewPolishSlotsBuilder.build(
         ctx,
         outline,
         refs = None,
@@ -583,7 +583,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
             )
           )
       ).getOrElse(fail("missing slots"))
-    val claimCore = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
+    val claimCore = MoveReviewProseContract.stripMoveHeader(slots.claim).toLowerCase
     assert(claimCore.contains("blunder"))
     assert(!claimCore.contains("reorganizes the pieces around kingside clamp"))
     val rendered = (slots.claim :: slots.support).appended(slots.evidenceHook.getOrElse("")).mkString(" ").toLowerCase
@@ -594,7 +594,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val fixture = BookmakerProseGoldenFixtures.exchangeSacrifice
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slotsOpt =
-      BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
+      MoveReviewPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
 
     assert(
       slotsOpt.forall { slots =>
@@ -608,7 +608,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val fixture = BookmakerProseGoldenFixtures.exchangeSacrifice
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slotsOpt =
-      BookmakerPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
+      MoveReviewPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
 
     assert(
       slotsOpt.forall { slots =>
@@ -642,7 +642,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
       )
 
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = None, strategyPack = weakPack)
+      MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = None, strategyPack = weakPack)
 
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
@@ -651,7 +651,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
     val outline = BookStyleRenderer.validatedOutline(ctx)
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = None, strategyPack = Some(surfaceDrivenPack()))
+      MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = None, strategyPack = Some(surfaceDrivenPack()))
 
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
@@ -699,7 +699,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
           )
       )
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         ctx,
         outline,
         refs = None,
@@ -752,7 +752,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
         "The edge still needs clean technique."
       )
     val slots =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx = ctx,
         outline = outline,
         refs = None,
@@ -771,7 +771,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
         "The practical alternative Ng5 stays secondary because the attack is not ready."
       )
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         ctx,
         outline,
         refs = None,
@@ -798,7 +798,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
         "The practical alternative Qd2 stays secondary because the attack is not ready."
       )
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         ctx,
         outline,
         refs = None,
@@ -821,7 +821,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
     val outline = BookStyleRenderer.validatedOutline(ctx)
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         ctx,
         outline,
         refs = None,
@@ -845,7 +845,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
     val outline = BookStyleRenderer.validatedOutline(ctx)
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         ctx,
         outline,
         refs = None,
@@ -898,7 +898,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
       )
 
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         ctx,
         outline,
         refs = None,
@@ -942,7 +942,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
       )
 
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         ctx,
         outline,
         refs = None,
@@ -990,7 +990,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
         "The route is ready once the rook joins."
       )
     val slots =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx = ctx,
         outline = outline,
         refs = None,
@@ -1053,11 +1053,11 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val inputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = contract)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, inputs, contract)
     val renderSelection =
-      BookmakerLiveCompressionPolicy
+      MoveReviewCompressionPolicy
         .renderSelection(inputs, rankedPlans, contract)
         .getOrElse(fail("expected bookmaker render selection"))
     val slots =
-      BookmakerLiveCompressionPolicy
+      MoveReviewCompressionPolicy
         .buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = contract)
         .getOrElse(fail("expected bookmaker slots"))
 
@@ -1069,7 +1069,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
       Some(ContrastiveSupportAdmissibility.SourceKind.ExplicitReplyLoss),
       clues(renderSelection.contrastTrace)
     )
-    val claim = BookmakerProseContract.stripMoveHeader(slots.claim).toLowerCase
+    val claim = MoveReviewProseContract.stripMoveHeader(slots.claim).toLowerCase
     assert(claim.contains("timing") || claim.contains("now"), clues(claim, slots))
     assert(!claim.contains("has to stop"), clues(claim, slots))
     assert(slots.supportPrimary.exists(_.contains("Qd8")), clues(slots.supportPrimary, slots))
@@ -1087,7 +1087,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
       )
 
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         ctx,
         outline,
         refs = None,
@@ -1117,14 +1117,14 @@ class BookmakerPolishSlotsTest extends FunSuite:
       )
     val outline = genericDecisionOutline("A capture.", "Nothing else is stable.")
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         ctx,
         outline,
         refs = None,
         strategyPack = None
       )
 
-    assertEquals(BookmakerProseContract.stripMoveHeader(slots.claim), "This captures on c6.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures on c6.")
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
@@ -1140,14 +1140,14 @@ class BookmakerPolishSlotsTest extends FunSuite:
       )
     val outline = genericDecisionOutline("A capture.", "Nothing else is stable.")
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
         ctx,
         outline,
         refs = None,
         strategyPack = None
       )
 
-    assertEquals(BookmakerProseContract.stripMoveHeader(slots.claim), "This captures.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures.")
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
@@ -1166,15 +1166,15 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = strategyPack)
     val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack, truthContract = None)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
-    val plannerSlots = BookmakerLiveCompressionPolicy.buildSlots(ctx, outline, refs = None, strategyPack = strategyPack)
+    val plannerSlots = MoveReviewCompressionPolicy.buildSlots(ctx, outline, refs = None, strategyPack = strategyPack)
     val quietTrace =
-      BookmakerLiveCompressionPolicy.exactFactualQuietSupportTrace(
+      MoveReviewCompressionPolicy.exactFactualQuietSupportTrace(
         ctx = ctx,
         refs = None,
         strategyPack = strategyPack
       )
     val slots =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx = ctx,
         outline = outline,
         refs = None,
@@ -1185,7 +1185,7 @@ class BookmakerPolishSlotsTest extends FunSuite:
     assertEquals(rankedPlans.primary, None, clues(rankedPlans))
     assertEquals(rankedPlans.ownerTrace.selectedQuestion, None, clues(rankedPlans.ownerTrace))
     assertEquals(rankedPlans.ownerTrace.selectedPlannerOwnerKind, None, clues(rankedPlans.ownerTrace))
-    assertEquals(BookmakerProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
     assert(slots.supportPrimary.exists(_.toLowerCase.contains("available")), clues(slots))
     assertEquals(slots.supportSecondary, None)
     assertEquals(slots.paragraphPlan, List("p1=claim", "p2=support_chain"))
@@ -1262,11 +1262,11 @@ class BookmakerPolishSlotsTest extends FunSuite:
     val strategyPack = Some(surfaceDrivenPack(routePurpose = "kingside pressure", targetSquare = "g7"))
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = strategyPack)
     val plannerOwned =
-      BookmakerLiveCompressionPolicy
+      MoveReviewCompressionPolicy
         .buildSlots(ctx, outline, refs = None, strategyPack = strategyPack)
         .getOrElse(fail("expected planner-owned bookmaker slots"))
     val fallbackAware =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx = ctx,
         outline = outline,
         refs = None,
@@ -1311,9 +1311,9 @@ class BookmakerPolishSlotsTest extends FunSuite:
       )
 
     val slots =
-      BookmakerPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = refs, strategyPack = None)
+      MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = refs, strategyPack = None)
 
-    val claim = BookmakerProseContract.stripMoveHeader(slots.claim)
+    val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
     assertEquals(claim, "This puts the rook on c3.")
     assertEquals(slots.evidenceHook, None)
   }

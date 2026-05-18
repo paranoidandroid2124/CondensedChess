@@ -497,7 +497,7 @@ object NarrativeOutlineBuilder:
       val prefix = if ctx.ply % 2 == 1 then s"$moveNum." else s"$moveNum..."
       val bead = Math.abs(ctx.hashCode)
       
-      val evaluation = OpeningGoals.analyze(ctx)
+      val evaluation = ctx.openingGoalEvaluation
 
       val text = evaluation match
         case Some(eval) =>

@@ -11,6 +11,24 @@ import java.nio.charset.StandardCharsets
 import lila.commentary.model._
 import lila.commentary.PgnAnalysisHelper
 
+object OpeningExplorerClient:
+  private[analysis] def mergeStaticName(
+      fen: String,
+      explorerRef: Option[OpeningReference],
+      lookup: OpeningNameLookup = OpeningNameLookup.default
+  ): Option[OpeningReference] =
+    val staticRef = lookup.lookup(fen)
+    (staticRef, explorerRef) match
+      case (Some(static), Some(explorer)) =>
+        Some(
+          explorer.copy(
+            eco = static.eco.orElse(explorer.eco),
+            name = static.name.orElse(explorer.name)
+          )
+        )
+      case (Some(static), None) => Some(static)
+      case (None, refOpt)       => refOpt
+
 /**
  * P3: Client for Lichess Opening Explorer API (Masters Database).
  * Provides historical context and representative games for the narrative.
@@ -18,7 +36,8 @@ import lila.commentary.PgnAnalysisHelper
 final class OpeningExplorerClient(
     ws: StandaloneWSClient,
     explorerBaseConfig: Option[String] = None,
-    explorerTokenConfig: Option[String] = None
+    explorerTokenConfig: Option[String] = None,
+    openingNameLookup: OpeningNameLookup = OpeningNameLookup.default
 )(using ec: ExecutionContext):
   private val explorerBase =
     explorerBaseConfig
@@ -50,40 +69,50 @@ final class OpeningExplorerClient(
    */
   def fetchMasters(fen: String): Future[Option[OpeningReference]] =
     val now = System.currentTimeMillis()
-    val fenKey = normalizeFen(fen)
+    val fenKeyOpt = OpeningNameLookup.normalizedKey(fen)
 
-    cache.get(fenKey) match
-      case Some((ts, refOpt)) if (now - ts) <= cacheTtl.toMillis =>
-        Future.successful(refOpt)
-      case _ =>
-        inFlight.getOrElseUpdate(
-          fenKey,
-          ws.url(mastersUrl)
-            .addHttpHeaders(authHeaders*)
-            .withQueryStringParameters("fen" -> fenKey)
-            .withRequestTimeout(requestTimeout)
-            .get()
-            .flatMap { response =>
-              if response.status == 200 then
-                enrichWithSnippets(fenKey, parseExplorerResponse(response.body[String]))
-              else
-                if (response.status != 404) then
-                  lila.log("commentary").warn(s"Explorer API error: ${response.status} for FEN $fenKey")
-                Future.successful(None)
-            }
-            .recover { case e: Throwable =>
-              lila.log("commentary").error(s"Explorer API call failed: ${e.getMessage}")
-              None
-            }
-            .map { refOpt =>
-              cache.put(fenKey, System.currentTimeMillis() -> refOpt)
-              pruneCache()
-              refOpt
-            }
-            .andThen { case _ =>
-              inFlight.remove(fenKey)
-            }
-        )
+    fenKeyOpt match
+      case None => Future.successful(None)
+      case Some(fenKey) =>
+        cache.get(fenKey) match
+          case Some((ts, refOpt)) if (now - ts) <= cacheTtl.toMillis =>
+            Future.successful(refOpt)
+          case _ =>
+            val explorerFen = s"$fenKey 0 1"
+            inFlight.getOrElseUpdate(
+              fenKey,
+              ws.url(mastersUrl)
+                .addHttpHeaders(authHeaders*)
+                .withQueryStringParameters("fen" -> explorerFen)
+                .withRequestTimeout(requestTimeout)
+                .get()
+                .flatMap { response =>
+                  if response.status == 200 then
+                    val merged =
+                      OpeningExplorerClient.mergeStaticName(
+                        explorerFen,
+                        parseExplorerResponse(response.body[String]),
+                        openingNameLookup
+                      )
+                    enrichWithSnippets(explorerFen, merged)
+                  else
+                    if (response.status != 404) then
+                      lila.log("commentary").warn(s"Explorer API error: ${response.status} for FEN $explorerFen")
+                    Future.successful(OpeningExplorerClient.mergeStaticName(explorerFen, None, openingNameLookup))
+                }
+                .recover { case e: Throwable =>
+                  lila.log("commentary").error(s"Explorer API call failed: ${e.getMessage}")
+                  OpeningExplorerClient.mergeStaticName(explorerFen, None, openingNameLookup)
+                }
+                .map { refOpt =>
+                  cache.put(fenKey, System.currentTimeMillis() -> refOpt)
+                  pruneCache()
+                  refOpt
+                }
+                .andThen { case _ =>
+                  inFlight.remove(fenKey)
+                }
+            )
 
   /** Fetches the raw PGN for a master game id. */
   def fetchMasterPgn(gameId: String): Future[Option[String]] =
@@ -100,12 +129,6 @@ final class OpeningExplorerClient(
         lila.log("commentary").debug(s"Explorer raw PGN fetch failed for $gameId: ${e.getMessage}")
         None
       }
-
-  private def normalizeFen(fen: String): String =
-    val parts = fen.trim.split("\\s+").toList
-    parts match
-      case a :: b :: c :: d :: _ => s"$a $b $c $d 0 1"
-      case _                     => fen.trim
 
   private def fenKey4(fen: String): String =
     fen.trim.split("\\s+").take(4).mkString(" ")

@@ -209,7 +209,7 @@ class CentralBreakTimingPolicyTest extends FunSuite:
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = truthContract)
     val bookmaker =
       LiveNarrativeCompressionCore.deterministicProse(
-        BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+        MoveReviewCompressionPolicy.buildSlotsOrFallback(
           ctx = ctx,
           outline = outline,
           refs = None,

@@ -449,7 +449,7 @@ private[commentary] object SourceReview:
       Option(
         clean(
           LiveNarrativeCompressionCore.deterministicProse(
-            BookmakerLiveCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+            MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
               ctx = ctx,
               inputs = inputs,
               rankedPlans = ranked,

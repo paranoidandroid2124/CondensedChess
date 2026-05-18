@@ -1095,7 +1095,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
     }.toMap
 
   private def assertNoSuppressionInflation(text: String): Unit =
-    val low = BookmakerProseContract.stripMoveHeader(text).toLowerCase
+    val low = MoveReviewProseContract.stripMoveHeader(text).toLowerCase
     List("no counterplay", "win by force", "completely shut", "squeeze").foreach { fragment =>
       assert(!low.contains(fragment), clues(text, fragment))
     }
@@ -1171,7 +1171,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         )
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(
+      MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
         refs = None,
@@ -1179,7 +1179,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         truthContract = None
       )
     val bookmakerFallback =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
         refs = None,
@@ -1187,7 +1187,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         truthContract = None
       )
     val bookmakerParagraphs =
-      BookmakerProseContract.splitParagraphs(
+      MoveReviewProseContract.splitParagraphs(
         LiveNarrativeCompressionCore.deterministicProse(bookmakerFallback)
       )
 
@@ -1226,7 +1226,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         )
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(
+      MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
         refs = None,
@@ -1234,7 +1234,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         truthContract = None
       )
     val bookmakerFallback =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
         refs = None,
@@ -1327,7 +1327,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
     assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs))
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
     assertNoSuppressionInflation(
-      BookmakerLiveCompressionPolicy
+      MoveReviewCompressionPolicy
         .buildSlotsOrFallback(
           ctx,
           outline,
@@ -1467,7 +1467,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         truthContract = None
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(
+      MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
         refs = None,
@@ -1475,7 +1475,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         truthContract = None
       )
     val bookmakerFallback =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
         refs = None,
@@ -1532,7 +1532,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         )
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(
+      MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
         refs = None,
@@ -1540,14 +1540,14 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         truthContract = None
       )
     val fallbackSlots =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
         refs = None,
         strategyPack = None,
         truthContract = None
       )
-    val fallbackClaim = BookmakerProseContract.stripMoveHeader(fallbackSlots.claim)
+    val fallbackClaim = MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim)
     val wholeGameSupport =
       CommentaryEngine.buildWholeGameConclusionSupport(
         moments =

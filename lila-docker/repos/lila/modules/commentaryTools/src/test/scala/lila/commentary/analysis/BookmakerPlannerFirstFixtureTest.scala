@@ -5,8 +5,8 @@ import lila.commentary.model.authoring.AuthorQuestionKind
 
 class BookmakerPlannerFirstFixtureTest extends FunSuite:
 
-  private def strippedClaim(slots: BookmakerPolishSlots): String =
-    BookmakerProseContract.stripMoveHeader(slots.claim)
+  private def strippedClaim(slots: MoveReviewPolishSlots): String =
+    MoveReviewProseContract.stripMoveHeader(slots.claim)
 
   BookmakerProseGoldenFixtures.plannerRuntimeFixtures.foreach { fixture =>
     test(s"${fixture.id} ${fixture.expectation} runtime remains planner-first for ${fixture.questionKind}") {
@@ -21,7 +21,7 @@ class BookmakerPlannerFirstFixtureTest extends FunSuite:
       val rankedPlans =
         QuestionFirstCommentaryPlanner.plan(fixture.ctx, plannerInputs, fixture.truthContract)
       val slots =
-        BookmakerPolishSlotsBuilder.buildOrFallback(
+        MoveReviewPolishSlotsBuilder.buildOrFallback(
           fixture.ctx,
           outline,
           refs = None,
@@ -29,7 +29,7 @@ class BookmakerPlannerFirstFixtureTest extends FunSuite:
           truthContract = fixture.truthContract
         )
       val prose = LiveNarrativeCompressionCore.deterministicProse(slots)
-      val paragraphs = BookmakerProseContract.splitParagraphs(prose)
+      val paragraphs = MoveReviewProseContract.splitParagraphs(prose)
 
       assertEquals(
         rankedPlans.primary.map(_.questionKind),
@@ -47,7 +47,7 @@ class BookmakerPlannerFirstFixtureTest extends FunSuite:
           val expectedFragment = fixture.expectedClaimFragment.map(_.toLowerCase).getOrElse("")
           assert(claim.contains(expectedFragment), clues(fixture.id, claim, slots))
           assertNotEquals(slots.paragraphPlan, List("p1=claim"), clues(fixture.id, slots))
-          assert(BookmakerProseContract.claimLikeFirstParagraph(paragraphs.headOption.getOrElse(""), slots.claim), clues(fixture.id, prose, slots))
+          assert(MoveReviewProseContract.claimLikeFirstParagraph(paragraphs.headOption.getOrElse(""), slots.claim), clues(fixture.id, prose, slots))
           assert(paragraphs.size >= 2, clues(fixture.id, prose))
           fixture.expectedPrimaryKind.foreach { kind =>
             if kind == AuthorQuestionKind.WhyNow || kind == AuthorQuestionKind.WhosePlanIsFaster || kind == AuthorQuestionKind.WhatMustBeStopped then

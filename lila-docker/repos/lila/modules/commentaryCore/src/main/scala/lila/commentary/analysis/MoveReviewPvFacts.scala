@@ -47,36 +47,6 @@ private[commentary] object MoveReviewPvFacts:
   def normalizeUci(uci: String): String =
     Option(uci).getOrElse("").trim.toLowerCase
 
-  def toSquare(uci: String): Option[String] =
-    val move = normalizeUci(uci)
-    Option.when(move.length >= 4)(move.slice(2, 4))
-
-  def fromSquare(uci: String): Option[String] =
-    val move = normalizeUci(uci)
-    Option.when(move.length >= 4)(move.take(2))
-
-  def isCaptureLike(move: MoveReviewMoveRef): Boolean =
-    val uci = normalizeUci(move.uci)
-    move.san.contains("x") ||
-      (uci.length >= 4 && uci.charAt(0) != uci.charAt(2) && move.san.headOption.forall(!"KQRBN".contains(_)))
-
-  def isImmediateRecapture(played: MoveReviewBoardFacts.MoveFacts, reply: Option[MoveReviewMoveRef]): Boolean =
-    reply.exists { move =>
-      isCaptureLike(move) && toSquare(move.uci).contains(played.toKey)
-    }
-
-  def isCentralBreak(uci: String, whiteMove: Boolean): Boolean =
-    val move = normalizeUci(uci)
-    val whiteBreaks = Set("d2d4", "e2e4", "c2c4")
-    val blackBreaks = Set("d7d5", "e7e5", "c7c5")
-    if whiteMove then whiteBreaks.contains(move) else blackBreaks.contains(move)
-
-  def isCenterCapture(uci: String): Boolean =
-    val move = normalizeUci(uci)
-    move.length >= 4 &&
-      MoveReviewBoardFacts.CenterSquares.contains(move.slice(2, 4)) &&
-      move.take(2).headOption.exists(file => file != move.slice(2, 4).headOption.getOrElse(file))
-
   private def coupledLine(line: MoveReviewVariationRef, playedUci: String): Boolean =
     line.moves.headOption.exists { first =>
       normalizeUci(first.uci) == playedUci &&

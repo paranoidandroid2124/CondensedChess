@@ -1,6 +1,6 @@
 package lila.commentary
 
-import lila.commentary.analysis.{ BookmakerPolishSlots, LiveNarrativeCompressionCore }
+import lila.commentary.analysis.{ MoveReviewPolishSlots, LiveNarrativeCompressionCore }
 
 /** System prompt and per-request polish prompt builder for AI polishing.
   *
@@ -13,7 +13,7 @@ object PolishPrompt:
 
   private def bookmakerParagraphReminder(
       momentType: Option[String],
-      bookmakerSlots: Option[BookmakerPolishSlots]
+      bookmakerSlots: Option[MoveReviewPolishSlots]
   ): String =
     if momentType.isDefined then
       "When refining this narrative, preserve the draft paragraph rhythm unless a small edit improves clarity."
@@ -152,7 +152,7 @@ object PolishPrompt:
       tension: Option[Double] = None,
       salience: Option[lila.commentary.model.strategic.StrategicSalience] = None,
       momentType: Option[String] = None,
-      bookmakerSlots: Option[BookmakerPolishSlots] = None
+      bookmakerSlots: Option[MoveReviewPolishSlots] = None
   ): String =
     val deltaStr = evalDelta.map(d => s"$d cp").getOrElse("N/A")
     val momentTypeStr = momentType.map(m => s"Key Moment ($m) - Part of Full Game Review").getOrElse("Isolated Move")
@@ -254,7 +254,7 @@ object PolishPrompt:
       fen: String,
       openingName: Option[String] = None,
       allowedSans: List[String] = Nil,
-      bookmakerSlots: Option[BookmakerPolishSlots] = None
+      bookmakerSlots: Option[MoveReviewPolishSlots] = None
   ): String =
     val deltaStr = evalDelta.map(d => s"$d cp").getOrElse("N/A")
     val allowedSansStr =

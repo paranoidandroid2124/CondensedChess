@@ -7,7 +7,7 @@ import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestionKind, NarrativeOutline }
 import scala.annotation.unused
 
-private[commentary] object BookmakerLiveCompressionPolicy:
+private[commentary] object MoveReviewCompressionPolicy:
 
   private[commentary] final case class PlannerRenderSelection(
       primary: QuestionPlan,
@@ -28,7 +28,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
   )
 
   private final case class ExactFactualFallbackResult(
-      finalSlots: BookmakerPolishSlots,
+      finalSlots: MoveReviewPolishSlots,
       trace: ExactFactualQuietSupportTrace
   )
 
@@ -62,7 +62,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
       refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract] = None
-  ): BookmakerPolishSlots =
+  ): MoveReviewPolishSlots =
     val plannerRuntime =
       plannerInputsRuntime(ctx, refs, strategyPack, truthContract)
     slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
@@ -76,7 +76,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
       rankedPlans: RankedQuestionPlans,
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract] = None
-  ): BookmakerPolishSlots =
+  ): MoveReviewPolishSlots =
     val plannerRuntime =
       PlannerRuntime(
         inputs = inputs,
@@ -103,7 +103,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
       refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract] = None
-  ): Option[BookmakerPolishSlots] =
+  ): Option[MoveReviewPolishSlots] =
     val plannerRuntime =
       plannerInputsRuntime(ctx, refs, strategyPack, truthContract)
     slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
@@ -166,7 +166,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
       inputs: QuestionPlannerInputs,
       rankedPlans: RankedQuestionPlans,
       truthContract: Option[DecisiveTruthContract]
-  ): Option[BookmakerPolishSlots] =
+  ): Option[MoveReviewPolishSlots] =
     renderSelection(inputs, rankedPlans, truthContract)
       .flatMap(selection =>
         plannerDraft(
@@ -345,12 +345,12 @@ private[commentary] object BookmakerLiveCompressionPolicy:
   private def finalizePlannerSlots(
       ctx: NarrativeContext,
       draft: PlannerSlotDraft
-  ): Option[BookmakerPolishSlots] =
+  ): Option[MoveReviewPolishSlots] =
     val cleanedClaim = sanitizePlannerClaim(draft, ctx)
     cleanedClaim.flatMap { claim =>
       if draft.claimOnlyAllowed then
         Some(
-          BookmakerPolishSlots(
+          MoveReviewPolishSlots(
             lens = draft.lens,
             claim = claim,
             supportPrimary = None,
@@ -392,7 +392,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
         Option.when(hasPlannerSupport(supportPrimary, supportSecondary, tension, evidenceHook, coda)) {
           val supportLines = List(supportPrimary, supportSecondary).flatten
           val slots =
-            BookmakerPolishSlots(
+            MoveReviewPolishSlots(
               lens = draft.lens,
               claim = prefixMoveHeader(ctx, claim),
               supportPrimary = supportPrimary,
@@ -525,9 +525,9 @@ private[commentary] object BookmakerLiveCompressionPolicy:
   ): Boolean =
     List(supportPrimary, supportSecondary, tension, evidenceHook, coda).flatten.exists(_.trim.nonEmpty)
 
-  private def bookmakerContractSafe(slots: BookmakerPolishSlots): Boolean =
+  private def bookmakerContractSafe(slots: MoveReviewPolishSlots): Boolean =
     val prose = LiveNarrativeCompressionCore.deterministicProse(slots)
-    val evaluation = BookmakerProseContract.evaluate(prose, slots)
+    val evaluation = MoveReviewProseContract.evaluate(prose, slots)
     prose.trim.nonEmpty &&
     evaluation.claimLikeFirstParagraph &&
     evaluation.paragraphBudgetOk &&
@@ -547,7 +547,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
 
   private[analysis] def relaxedCertifiedRaceSentence(raw: String, ctx: NarrativeContext): Option[String] =
     normalized(raw)
-      .map(BookmakerSlotSanitizer.sanitizeUserText)
+      .map(MoveReviewSlotSanitizer.sanitizeUserText)
       .map(LiveNarrativeCompressionCore.rewritePlayerLanguage)
       .flatMap(normalized)
       .map(LiveNarrativeCompressionCore.trimLeadScaffold)
@@ -579,15 +579,15 @@ private[commentary] object BookmakerLiveCompressionPolicy:
       ctx: NarrativeContext,
       plannerRuntime: PlannerRuntime,
       strategyPack: Option[StrategyPack]
-  ): Option[BookmakerPolishSlots] =
+  ): Option[MoveReviewPolishSlots] =
     exactFactualFallbackResult(ctx, plannerRuntime, strategyPack).map(_.finalSlots)
 
   private def basicMoveExplanationSlots(
       ctx: NarrativeContext,
       refs: Option[MoveReviewRefs],
       truthContract: Option[DecisiveTruthContract]
-  ): Option[BookmakerPolishSlots] =
-    BasicMoveExplanationBuilder.build(ctx, refs, truthContract).flatMap { explanation =>
+  ): Option[MoveReviewPolishSlots] =
+    MoveReviewExplanationBuilder.build(ctx, refs, truthContract).flatMap { explanation =>
       cleanSentence(explanation.prose, ctx).map { claim =>
         val support =
           explanation.shortLine.flatMap { line =>
@@ -605,7 +605,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
             explanation.pvInterpretation.flatMap(_.opponentReplyMeaning).map(meaning => s"PV opponent reply: $meaning"),
             explanation.pvInterpretation.map(interpretation => s"PV learning point: ${interpretation.learningPoint}")
           ).flatten
-        BookmakerPolishSlots(
+        MoveReviewPolishSlots(
           lens = StrategicLens.Decision,
           claim = prefixMoveHeader(ctx, claim),
           supportPrimary = support,
@@ -617,7 +617,8 @@ private[commentary] object BookmakerLiveCompressionPolicy:
           paragraphPlan =
             if support.nonEmpty then List("p1=claim", "p2=support_chain")
             else List("p1=claim"),
-          sourceKind = BookmakerPolishSlots.Source.BasicMoveExplanation
+          sourceKind = MoveReviewPolishSlots.Source.BasicMoveExplanation,
+          moveReviewExplanation = Some(explanation)
         )
       }
     }
@@ -631,7 +632,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
       .flatMap(cleanSentence(_, ctx))
       .map { factual =>
         val claimOnly =
-          BookmakerPolishSlots(
+          MoveReviewPolishSlots(
             lens = StrategicLens.Decision,
             claim = prefixMoveHeader(ctx, factual),
             supportPrimary = None,
@@ -641,7 +642,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
             coda = None,
             factGuardrails = Nil,
             paragraphPlan = List("p1=claim"),
-            sourceKind = BookmakerPolishSlots.Source.ExactFactualFallback
+            sourceKind = MoveReviewPolishSlots.Source.ExactFactualFallback
           )
         val composerTrace =
           QuietStrategicSupportComposer.diagnose(
@@ -679,8 +680,8 @@ private[commentary] object BookmakerLiveCompressionPolicy:
         )
       }
 
-  private def omittedSlots: BookmakerPolishSlots =
-    BookmakerPolishSlots(
+  private def omittedSlots: MoveReviewPolishSlots =
+    MoveReviewPolishSlots(
       lens = StrategicLens.Decision,
       claim = "",
       supportPrimary = None,
@@ -694,7 +695,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
 
   private def cleanSentence(raw: String, ctx: NarrativeContext): Option[String] =
     normalized(raw)
-      .map(BookmakerSlotSanitizer.sanitizeUserText)
+      .map(MoveReviewSlotSanitizer.sanitizeUserText)
       .map(LiveNarrativeCompressionCore.rewritePlayerLanguage)
       .flatMap(normalized)
       .map(LiveNarrativeCompressionCore.trimLeadScaffold)

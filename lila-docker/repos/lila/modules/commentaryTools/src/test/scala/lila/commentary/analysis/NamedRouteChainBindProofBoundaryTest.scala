@@ -663,7 +663,7 @@ class NamedRouteChainBindProofBoundaryTest extends FunSuite:
     val chronicle =
       GameChronicleCompressionPolicy.selectPlannerSurface(rankedFromPlanner, plannerInputs)
     val bookmaker =
-      BookmakerLiveCompressionPolicy.renderSelection(plannerInputs, rankedFromPlanner, None)
+      MoveReviewCompressionPolicy.renderSelection(plannerInputs, rankedFromPlanner, None)
     val active =
       ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
         ActiveStrategicCoachingBriefBuilder.PlannerReplay(

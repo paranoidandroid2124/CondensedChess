@@ -458,7 +458,7 @@ object AuthoritySurfaceLedger:
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = truthContract)
     val bookmaker =
       bookmakerNarrative(
-        BookmakerLiveCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
+        MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
           ctx = ctx,
           inputs = effectiveInputs,
           rankedPlans = ranked,
@@ -505,7 +505,7 @@ object AuthoritySurfaceLedger:
           .getOrElse("-")
     )
 
-  private def bookmakerNarrative(slots: BookmakerPolishSlots): String =
+  private def bookmakerNarrative(slots: MoveReviewPolishSlots): String =
     val prose = LiveNarrativeCompressionCore.deterministicProse(slots).trim
     if prose.isEmpty then "-" else prose
 

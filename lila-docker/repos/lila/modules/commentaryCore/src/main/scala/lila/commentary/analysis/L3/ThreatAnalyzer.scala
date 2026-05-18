@@ -338,6 +338,7 @@ object ThreatAnalyzer:
     multiPv: List[PvLine]
   ): List[Threat] =
     if threats.isEmpty then threats
+    else if multiPv.isEmpty then threats
     else
       // Count defenses that keep eval within ONLY_DEFENSE_TOLERANCE of best
       val bestEval = multiPv.headOption.map(_.score).getOrElse(0)

@@ -644,7 +644,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
     )
 
   private def assertNoHeavyPieceInflation(text: String): Unit =
-    val low = BookmakerProseContract.stripMoveHeader(text).toLowerCase
+    val low = MoveReviewProseContract.stripMoveHeader(text).toLowerCase
     assert(!low.contains("no counterplay"), clues(text))
     assert(!low.contains("whole position"), clues(text))
     assert(!low.contains("completely bound"), clues(text))
@@ -838,7 +838,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
         )
       )
     val bookmakerSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(
+      MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
         refs = None,
@@ -846,14 +846,14 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
         truthContract = None
       )
     val fallbackSlots =
-      BookmakerLiveCompressionPolicy.buildSlotsOrFallback(
+      MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
         refs = None,
         strategyPack = None,
         truthContract = None
       )
-    val fallbackClaim = BookmakerProseContract.stripMoveHeader(fallbackSlots.claim)
+    val fallbackClaim = MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim)
     val wholeGameSupport =
       CommentaryEngine.buildWholeGameConclusionSupport(
         moments =

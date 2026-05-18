@@ -12,7 +12,7 @@ import scala.jdk.CollectionConverters.*
 import scala.util.control.NonFatal
 
 import lila.commentary.*
-import lila.commentary.analysis.{ BookStyleRenderer, BookmakerLiveCompressionPolicy, BookmakerPolishSlotsBuilder, CommentaryEngine, DecisiveTruth, EarlyOpeningNarrationPolicy, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeSignalDigestBuilder, NarrativeUtils, QuestionFirstCommentaryPlanner, QuestionPlannerInputsBuilder, QuietMoveIntentBuilder, StrategyPackBuilder, UserFacingSignalSanitizer }
+import lila.commentary.analysis.{ BookStyleRenderer, MoveReviewCompressionPolicy, MoveReviewPolishSlotsBuilder, CommentaryEngine, DecisiveTruth, EarlyOpeningNarrationPolicy, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeSignalDigestBuilder, NarrativeUtils, QuestionFirstCommentaryPlanner, QuestionPlannerInputsBuilder, QuietMoveIntentBuilder, StrategyPackBuilder, UserFacingSignalSanitizer }
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.model.NarrativeRenderMode
@@ -1685,7 +1685,7 @@ object CommentaryPlayerQcSupport:
         strategyPack = snapshot.strategyPack
       )
     val candidateEvidence =
-      BookmakerLiveCompressionPolicy.candidateEvidenceLines(snapshot.refs, snapshot.ctx)
+      MoveReviewCompressionPolicy.candidateEvidenceLines(snapshot.refs, snapshot.ctx)
     val plannerInputs =
       QuestionPlannerInputsBuilder.build(
         snapshot.ctx,
@@ -1696,7 +1696,7 @@ object CommentaryPlayerQcSupport:
     val rankedPlans =
       QuestionFirstCommentaryPlanner.plan(snapshot.ctx, plannerInputs, truthContract = snapshot.truthContract)
     val renderSelection =
-      BookmakerLiveCompressionPolicy.renderSelection(
+      MoveReviewCompressionPolicy.renderSelection(
         plannerInputs,
         rankedPlans,
         truthContract = snapshot.truthContract
@@ -1713,7 +1713,7 @@ object CommentaryPlayerQcSupport:
         .map(_.contrastTrace)
         .getOrElse(ContrastiveSupportAdmissibility.ContrastSupportTrace())
     val plannerOwnedSlots =
-      BookmakerLiveCompressionPolicy.buildSlots(
+      MoveReviewCompressionPolicy.buildSlots(
         ctx = snapshot.ctx,
         outline = outline,
         refs = snapshot.refs,
@@ -1735,7 +1735,7 @@ object CommentaryPlayerQcSupport:
         )
       else
         val trace =
-          BookmakerLiveCompressionPolicy.exactFactualQuietSupportTrace(
+          MoveReviewCompressionPolicy.exactFactualQuietSupportTrace(
             ctx = snapshot.ctx,
             refs = snapshot.refs,
             strategyPack = snapshot.strategyPack,
@@ -1760,7 +1760,7 @@ object CommentaryPlayerQcSupport:
         )
     val slots =
       plannerOwnedSlots.getOrElse(
-        BookmakerPolishSlotsBuilder.buildOrFallback(
+        MoveReviewPolishSlotsBuilder.buildOrFallback(
           ctx = snapshot.ctx,
           outline = outline,
           refs = snapshot.refs,

@@ -341,21 +341,21 @@ private[commentary] object LiveNarrativeCompressionCore:
       low.contains("more confirmation is still needed") ||
       low.contains("so the plan cannot drift")
 
-  def deterministicProse(slots: BookmakerPolishSlots): String =
-    BookmakerSoftRepair.deterministicParagraphs(slots).mkString("\n\n").trim
+  def deterministicProse(slots: MoveReviewPolishSlots): String =
+    MoveReviewSoftRepair.deterministicParagraphs(slots).mkString("\n\n").trim
 
   def deterministicFallbackProse(
       prose: String,
-      slots: Option[BookmakerPolishSlots]
+      slots: Option[MoveReviewPolishSlots]
   ): String =
     slots.map(deterministicProse).filter(_.nonEmpty).getOrElse(Option(prose).getOrElse("").trim)
 
   def slotsFromCompressedProse(
       prose: String,
       lens: StrategicLens = StrategicLens.Decision
-  ): Option[BookmakerPolishSlots] =
+  ): Option[MoveReviewPolishSlots] =
     val paragraphs =
-      BookmakerProseContract.splitParagraphs(prose)
+      MoveReviewProseContract.splitParagraphs(prose)
         .map(_.trim)
         .filter(_.nonEmpty)
     paragraphs.headOption.map { claim =>
@@ -370,7 +370,7 @@ private[commentary] object LiveNarrativeCompressionCore:
           evidenceHook.map(_ => "p3=cited_line")
             .orElse(tension.map(_ => "p3=practical_nuance"))
         ).flatten
-      BookmakerPolishSlots(
+      MoveReviewPolishSlots(
         lens = lens,
         claim = claim,
         supportPrimary = supportPrimary,
@@ -383,11 +383,11 @@ private[commentary] object LiveNarrativeCompressionCore:
       )
     }
 
-  def openingSlotsFromCompressedProse(prose: String): Option[BookmakerPolishSlots] =
+  def openingSlotsFromCompressedProse(prose: String): Option[MoveReviewPolishSlots] =
     slotsFromCompressedProse(prose, StrategicLens.Opening)
 
-  def practicalSlotsFromCompressedProse(prose: String): Option[BookmakerPolishSlots] =
+  def practicalSlotsFromCompressedProse(prose: String): Option[MoveReviewPolishSlots] =
     slotsFromCompressedProse(prose, StrategicLens.Practical)
 
-  def decisionSlotsFromCompressedProse(prose: String): Option[BookmakerPolishSlots] =
+  def decisionSlotsFromCompressedProse(prose: String): Option[MoveReviewPolishSlots] =
     slotsFromCompressedProse(prose, StrategicLens.Decision)
