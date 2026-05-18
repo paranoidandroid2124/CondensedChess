@@ -1,6 +1,5 @@
 package lila.commentary.analysis
 
-import chess.{ Bishop, King, Knight, Pawn, Queen, Role, Rook }
 import lila.commentary.model.{ CandidateTag, Fact, HypothesisAxis, HypothesisHorizon, NarrativeContext }
 
 /**
@@ -2679,115 +2678,8 @@ object NarrativeLexicon {
         ))
   }
 
-  private def roleLabel(role: Role): String =
-    role match
-      case Pawn   => "pawn"
-      case Knight => "knight"
-      case Bishop => "bishop"
-      case Rook   => "rook"
-      case Queen  => "queen"
-      case King   => "king"
-
   def getFactStatement(bead: Int, fact: Fact, ctx: NarrativeContext): String =
-    fact match
-      case Fact.HangingPiece(square, role, attackers, defenders, _) =>
-        val a = attackers.size
-        val d = defenders.size
-        def plural(n: Int, one: String, many: String): String = if n == 1 then one else many
-        val aText = if a == 0 then "no attackers" else s"$a ${plural(a, "attacker", "attackers")}"
-        val dText = if d == 0 then "no defenders" else s"$d ${plural(d, "defender", "defenders")}"
-        val balance = if d == 0 then s"$aText, $dText" else s"$aText vs $dText"
-        StandardCommentaryClaimPolicy.hangingTier(ctx, square, role, attackers, defenders) match
-          case StandardCommentaryClaimPolicy.HangingTier.Red =>
-            pick(bead, List(
-              s"The ${roleLabel(role)} on ${square.key} is hanging ($balance).",
-              s"The ${roleLabel(role)} on ${square.key} is underdefended: $balance.",
-              s"Keep an eye on the ${roleLabel(role)} on ${square.key} — $balance."
-            ))
-          case StandardCommentaryClaimPolicy.HangingTier.Amber =>
-            pick(bead, List(
-              s"Pressure is building against the ${roleLabel(role)} on ${square.key} ($balance).",
-              s"The ${roleLabel(role)} on ${square.key} can become a target if the pressure grows ($balance).",
-              s"The ${roleLabel(role)} on ${square.key} needs watching ($balance)."
-            ))
-          case StandardCommentaryClaimPolicy.HangingTier.Suppress =>
-            ""
-
-      case Fact.TargetPiece(square, role, attackers, defenders, _) =>
-        val a = attackers.size
-        val d = defenders.size
-        def plural(n: Int, one: String, many: String): String = if n == 1 then one else many
-        val aText = if a == 0 then "no attackers" else s"$a ${plural(a, "attacker", "attackers")}"
-        val dText = if d == 0 then "no defenders" else s"$d ${plural(d, "defender", "defenders")}"
-        val balance = if d == 0 then s"$aText, $dText" else s"$aText vs $dText"
-        if StandardCommentaryClaimPolicy.quietStandardPosition(ctx) &&
-            !StandardCommentaryClaimPolicy.allowsAmberTier(ctx)
-        then ""
-        else
-          pick(bead, List(
-            s"Pressure can build against the ${roleLabel(role)} on ${square.key} ($balance).",
-            s"The ${roleLabel(role)} on ${square.key} is a practical point to watch ($balance).",
-            s"The ${roleLabel(role)} on ${square.key} can become a target if move order slips ($balance)."
-          ))
-
-      case Fact.Pin(_, _, pinned, pinnedRole, behind, behindRole, isAbsolute, _) =>
-        val abs = if isAbsolute then " (absolute)" else ""
-        pick(bead, List(
-          s"The ${roleLabel(pinnedRole)} on ${pinned.key} is pinned$abs to the ${roleLabel(behindRole)} on ${behind.key}.",
-          s"There's a pin: the ${roleLabel(pinnedRole)} on ${pinned.key} cannot move without exposing the ${roleLabel(behindRole)} on ${behind.key}.",
-          s"${pinned.key} is pinned, leaving the ${roleLabel(pinnedRole)} with limited mobility.",
-          s"The pin on ${pinned.key} slows coordination of that ${roleLabel(pinnedRole)}, costing valuable tempi.",
-          s"The pin restrains the ${roleLabel(pinnedRole)} on ${pinned.key}, reducing practical flexibility."
-        ))
-
-      case Fact.Fork(attacker, attackerRole, targets, _) =>
-        val targetText =
-          targets.take(2).map { case (sq, r) => s"${roleLabel(r)} on ${sq.key}" } match
-            case a :: b :: Nil => s"$a and $b"
-            case a :: Nil      => a
-            case _             => "multiple targets"
-        pick(bead, List(
-          s"The ${roleLabel(attackerRole)} on ${attacker.key} has a fork idea against $targetText.",
-          s"Watch for a fork by the ${roleLabel(attackerRole)} on ${attacker.key} hitting $targetText.",
-          s"A fork motif is in the air: ${attacker.key} can attack $targetText."
-        ))
-
-      case Fact.WeakSquare(square, color, reason, _) =>
-        val owner = color.name.toLowerCase
-        val why = reason.trim
-        val detail = if why.nonEmpty then s" ($why)" else ""
-        pick(bead, List(
-          s"${square.key} is a weak square for $owner$detail.",
-          s"The square ${square.key} looks vulnerable$detail.",
-          s"A potential outpost on ${square.key} appears$detail."
-        ))
-
-      case Fact.Outpost(square, role, _) =>
-        pick(bead, List(
-          s"${square.key} can serve as an outpost for a ${roleLabel(role)}.",
-          s"An outpost on ${square.key} could be valuable for a ${roleLabel(role)}.",
-          s"Keep ${square.key} in mind as an outpost square."
-        ))
-
-      case Fact.Opposition(_, _, _, isDirect, oppositionType, _) =>
-        val kind =
-          if oppositionType.nonEmpty && !oppositionType.equalsIgnoreCase("None") then s"${oppositionType.toLowerCase} opposition"
-          else if isDirect then "direct opposition"
-          else "opposition"
-        pick(bead, List(
-          s"The kings are in $kind.",
-          s"$kind is an important endgame detail.",
-          s"King opposition becomes a key factor."
-        ))
-
-      case Fact.KingActivity(square, mobility, _, _) =>
-        pick(bead, List(
-          s"The king on ${square.key} is active (mobility: $mobility).",
-          s"King activity matters: ${square.key} has $mobility safe steps.",
-          s"The king on ${square.key} is well-placed for the endgame."
-        ))
-
-      case _ => ""
+    CommentaryFactSurface.statement(bead, fact, ctx).getOrElse("")
 
   def getPreventedPlanStatement(bead: Int, planName: String): String = {
     pick(bead, List(

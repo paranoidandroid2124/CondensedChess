@@ -1982,7 +1982,7 @@ object CommentaryEngine:
     (
       EarlyOpeningNarrationPolicy.clampNarrative(
         ctx,
-        StandardCommentaryClaimPolicy.sanitizeOnly(
+        StandardCommentaryClaimPolicy.finalizeProse(
           ctx,
           FullGameDraftNormalizer.normalize(rendered).trim,
           truthContract

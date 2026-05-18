@@ -237,30 +237,7 @@ private[commentary] object MoveReviewIdeaSurface:
     )
 
   private def factTags(evidence: MoveReviewExplanationBuilder.CanonicalEvidence): List[String] =
-    val tags = scala.collection.mutable.LinkedHashSet.empty[String]
-    evidence.facts.foreach {
-      case _: Fact.Fork                     => tags += "fork"
-      case _: Fact.Pin                      => tags += "pin"
-      case _: Fact.Skewer                   => tags += "skewer"
-      case _: Fact.HangingPiece             => tags += "hanging_piece"
-      case _: Fact.TargetPiece              => tags += "direct_threat"
-      case _: Fact.DoubleCheck              => tags += "double_check"
-      case _: Fact.KingActivity             => tags += "king_activity"
-      case _: Fact.Opposition               => tags += "opposition"
-      case _: Fact.RuleOfSquare             => tags += "rule_of_square"
-      case _: Fact.RookEndgamePattern       => tags += "rook_endgame_pattern"
-      case _: Fact.PawnPromotion            => tags += "pawn_promotion"
-      case _: Fact.TriangulationOpportunity => tags += "triangulation"
-      case _: Fact.Zugzwang                 => tags += "zugzwang"
-      case _                                =>
-    }
-    evidence.motifs.foreach {
-      case _: Motif.Capture        => tags += "capture_sequence"
-      case _: Motif.PawnBreak      => tags += "center_break_setup"
-      case _: Motif.Centralization => tags += "piece_activity"
-      case _                       =>
-    }
-    tags.toList
+    CommentaryFactSurface.evidenceTags(evidence.facts, evidence.motifs)
 
   private def classifyOpeningPurpose(
       played: MoveReviewExplanationBuilder.PlayedMove,

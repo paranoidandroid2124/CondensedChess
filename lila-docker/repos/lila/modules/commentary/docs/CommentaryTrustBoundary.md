@@ -3943,9 +3943,11 @@ recorded `fenAfter` must match the replayed board state. `shortLine` may still
 show a malformed or mismatched PV preview, but that PV cannot admit semantic
 prose. `MoveReviewPvFacts`, `MoveReviewPvChainValidator`,
 `MoveReviewIdeaSurface`, and `MoveReviewExplanationBuilder` are the local
-consumer boundary for this lane; `Fact`, `Motif`, `FactExtractor`,
-`ThreatAnalyzer`, `OpeningGoals`, and endgame oracle output remain the meaning
-producer boundary.
+consumer boundary for this lane. `CommentaryFactSurface` is the shared
+projection boundary for `Fact` wording, branch reasons, consequence bodies, and
+surface tags consumed by MoveReview, NarrativeLexicon, Outline, and claim
+policy. `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, `OpeningGoals`, and
+endgame oracle output remain the meaning producer boundary.
 The interpretation is bounded
 instructional metadata (`linePurpose`, `confirms`, `tension`,
 `opponentReplyMeaning`, `learningPoint`) for prose density; it is not engine
@@ -4431,7 +4433,7 @@ longer appends quiet-support prose.
 | `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `unsupported_generalization` |
 | `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `support_only_overreach` |
 | `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
-| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `MoveReviewIdeaSurface.scala`, `MoveReviewPvFacts.scala`, `MoveReviewPvChainValidator.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, and endgame facts | `responsePayload.ts`, `bookmaker.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
+| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `MoveReviewIdeaSurface.scala`, `CommentaryFactSurface.scala`, `MoveReviewPvFacts.scala`, `MoveReviewPvChainValidator.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, and endgame facts | `responsePayload.ts`, `bookmaker.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
 | `activeStrategicNote`, `activeStrategicIdeas`, `activeStrategicRoutes`, `activeStrategicMoves`, `activeDirectionalTargets`, `activeBranchDossier` | `GameChronicleResponse.scala` | `narrativeView.ts` | `Active-only surface` | `surface_divergence` |
 | `topEngineMove` | `GameChronicleResponse.scala` | `narrativeView.ts` | `fallback input only` | `blocked_lane_contamination` residual; Chronicle decision-comparison fallback rewrite closed |
 

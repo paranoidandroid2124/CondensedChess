@@ -4016,12 +4016,7 @@ object NarrativeOutlineBuilder:
       }
 
     val factConsequence =
-      playedCand.flatMap(_.facts.collectFirst {
-        case Fact.WeakSquare(square, _, _, _) =>
-          s"Consequence: ${square.key} can become a long-term target."
-        case Fact.HangingPiece(square, role, _, _, _) =>
-          s"Consequence: the ${roleLabel(role)} on ${square.key} can become a direct tactical target."
-      })
+      playedCand.flatMap(_.facts.iterator.flatMap(CommentaryFactSurface.issueConsequence).toList.headOption)
 
     val replyConsequence =
       Option.when(cpLoss >= Thresholds.INACCURACY_CP) {
@@ -4345,22 +4340,7 @@ object NarrativeOutlineBuilder:
     })
 
   private def factConsequenceBody(fact: Fact): Option[String] =
-    Option(fact).collect {
-      case Fact.HangingPiece(square, role, _, defenders, _) if defenders.isEmpty =>
-        s"it leaves the ${roleLabel(role)} on ${square.key} hanging."
-      case Fact.Pin(_, _, pinned, pinnedRole, behind, behindRole, _, _) =>
-        s"it allows a pin on ${pinned.key}, tying the ${roleLabel(pinnedRole)} to the ${roleLabel(behindRole)} on ${behind.key}."
-      case Fact.Fork(attacker, attackerRole, targets, _) if targets.nonEmpty =>
-        val targetText = targets.take(2).map { case (sq, r) => s"${roleLabel(r)} on ${sq.key}" } match
-          case a :: b :: Nil => s"$a and $b"
-          case a :: Nil      => a
-          case _             => "multiple targets"
-        s"it allows a fork by the ${roleLabel(attackerRole)} on ${attacker.key} against $targetText."
-      case Fact.Skewer(attacker, attackerRole, front, frontRole, back, backRole, _) =>
-        s"it allows a skewer: ${roleLabel(attackerRole)} on ${attacker.key} can hit ${roleLabel(frontRole)} on ${front.key} and then ${roleLabel(backRole)} on ${back.key}."
-      case Fact.WeakSquare(square, _, _, _) =>
-        s"it creates a durable weakness on ${square.key}."
-    }
+    CommentaryFactSurface.consequenceBody(fact)
 
   private def counterfactualTeachingSentence(
     ctx: NarrativeContext,
@@ -4393,8 +4373,6 @@ object NarrativeOutlineBuilder:
                 "the practical refutation becomes clear"
           LineScopedCitation.afterClause(cited, body)
     }
-
-  private def roleLabel(role: chess.Role): String = role.toString.toLowerCase
 
   private def defaultIssueBySeverity(bead: Int, cpLoss: Int): String =
     Thresholds.classifySeverity(cpLoss) match

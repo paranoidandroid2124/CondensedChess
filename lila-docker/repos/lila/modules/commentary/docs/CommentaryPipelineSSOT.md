@@ -600,10 +600,17 @@ Current canonical flow:
      FEN, with ordered non-empty `fenAfter` refs matching the replayed board
      state; malformed, uncoupled, illegal, mismatched-start, or mismatched-FEN
      PV may remain `shortLine` evidence but does not admit semantic prose
+    - `CommentaryFactSurface` is the shared projection helper from canonical
+      `Fact` evidence to user-facing statements, branch reasons, consequence
+      bodies, and reusable fact tags; `NarrativeLexicon`,
+      `StandardCommentaryClaimPolicy`, `NarrativeOutlineBuilder`, and
+      MoveReview consume that same surface instead of re-encoding parallel
+      `Fact -> wording` switches
     - `MoveReviewIdeaSurface` is the single projection layer from canonical
       evidence to visible basic-review meaning: it owns the descriptor for
       `title`, `baseProse`, `reasonTags`, `source`, PV `confirms`,
-      `linePurpose`, `tension`, `opponentReplyMeaning`, and `learningPoint`
+      `linePurpose`, `tension`, `opponentReplyMeaning`, and `learningPoint`,
+      while delegating fact tags/wording primitives to `CommentaryFactSurface`
     - `MoveReviewPvFacts` owns only coupled-line selection, short-line assembly,
       and normalization; capture / center / endgame / opening surface meaning is
       not rederived there
@@ -1363,6 +1370,7 @@ Primary files:
 
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeContextBuilder.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/BookStyleRenderer.scala`
+- `modules/commentaryCore/src/main/scala/lila/commentary/analysis/CommentaryFactSurface.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewIdeaSurface.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewPolishSlots.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/CertifiedDecisionFrameBuilder.scala`

@@ -147,16 +147,11 @@ private[analysis] object StandardCommentaryClaimPolicy:
   def branchReasonFromFact(ctx: NarrativeContext, fact: Fact): Option[String] =
     fact match
       case Fact.HangingPiece(square, role, attackers, defenders, _) =>
-        hangingTier(ctx, square, role, attackers, defenders) match
-          case HangingTier.Red =>
-            Some(s"It also keeps the ${roleLabel(role)} on ${square.key} from becoming a tactical liability.")
-          case HangingTier.Amber =>
-            Some(s"It also keeps pressure from building against the ${roleLabel(role)} on ${square.key}.")
-          case HangingTier.Suppress => None
-      case Fact.Pin(_, _, pinned, pinnedRole, _, _, _, _) =>
-        Some(s"It reduces the pin pressure against the ${roleLabel(pinnedRole)} on ${pinned.key}.")
-      case Fact.WeakSquare(square, _, _, _) if allowsAmberTier(ctx) || hasDurableStructuralCommitment(ctx) =>
-        Some(s"It prevents longer-term weakening around ${square.key}.")
+        CommentaryFactSurface.branchReason(fact, Some(hangingTier(ctx, square, role, attackers, defenders)))
+      case Fact.Pin(_, _, _, _, _, _, _, _) =>
+        CommentaryFactSurface.branchReason(fact)
+      case Fact.WeakSquare(_, _, _, _) if allowsAmberTier(ctx) || hasDurableStructuralCommitment(ctx) =>
+        CommentaryFactSurface.branchReason(fact)
       case _ => None
 
   def finalizeProse(
@@ -312,9 +307,6 @@ private[analysis] object StandardCommentaryClaimPolicy:
       openingLike(ctx) &&
       ctx.ply <= GuardedOpeningPlyCutoff &&
       CentralOpeningPawnSquares.contains(square.key.toLowerCase)
-
-  private def roleLabel(role: Role): String =
-    role.toString.toLowerCase
 
   private def sentenceCount(text: String): Long =
     Option(text)
