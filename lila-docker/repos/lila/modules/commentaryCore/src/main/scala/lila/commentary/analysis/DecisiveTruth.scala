@@ -1539,18 +1539,7 @@ private[commentary] object DecisiveTruth:
       )
 
   private def tacticalMotifId(fact: Fact): Option[String] =
-    fact match
-      case _: Fact.HangingPiece    => Some("hanging_piece")
-      case _: Fact.TargetPiece     => Some("target_piece")
-      case _: Fact.Pin             => Some("pin")
-      case _: Fact.Skewer          => Some("skewer")
-      case _: Fact.Fork            => Some("fork")
-      case _: Fact.PawnPromotion   => Some("promotion_race")
-      case _: Fact.StalemateThreat => Some("stalemate_resource")
-      case _: Fact.DoubleCheck     => Some("double_check")
-      case _: Fact.Zugzwang        => Some("zugzwang")
-      case _: Fact.Opposition      => Some("opposition")
-      case _                       => None
+    CommentaryIdeaSurface.canonicalFactId(fact)
 
   private def moverPerspectiveCp(fen: String, cp: Int): Int =
     if fenSideToMoveIsWhite(fen) then cp else -cp

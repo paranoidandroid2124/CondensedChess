@@ -147,11 +147,11 @@ private[analysis] object StandardCommentaryClaimPolicy:
   def branchReasonFromFact(ctx: NarrativeContext, fact: Fact): Option[String] =
     fact match
       case Fact.HangingPiece(square, role, attackers, defenders, _) =>
-        CommentaryFactSurface.branchReason(fact, Some(hangingTier(ctx, square, role, attackers, defenders)))
+        CommentaryIdeaSurface.branchReason(fact, Some(hangingTier(ctx, square, role, attackers, defenders)))
       case Fact.Pin(_, _, _, _, _, _, _, _) =>
-        CommentaryFactSurface.branchReason(fact)
+        CommentaryIdeaSurface.branchReason(fact)
       case Fact.WeakSquare(_, _, _, _) if allowsAmberTier(ctx) || hasDurableStructuralCommitment(ctx) =>
-        CommentaryFactSurface.branchReason(fact)
+        CommentaryIdeaSurface.branchReason(fact)
       case _ => None
 
   def finalizeProse(

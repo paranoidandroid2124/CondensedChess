@@ -3935,19 +3935,23 @@ so tactical/trust fallback fixtures remain exact-factual unless the supplied
 line itself supports bounded instructional meaning; it is not a strategic
 authority lane and may not rebuild decision/meta/close-candidate shell prose as
 a substitute owner.
-When a short PV is present, `MoveReviewIdeaSurface` may add
+When a short PV is present, `CommentaryIdeaSurface` may add
 `MoveReviewPvInterpretation` only for a first-line UCI-coupled move sequence
 whose refs start from the current FEN and whose moves pass
-`MoveReviewPvChainValidator`: each UCI must replay legally in sequence and the
+`MoveReviewPvLine`: each UCI must replay legally in sequence and the
 recorded `fenAfter` must match the replayed board state. `shortLine` may still
 show a malformed or mismatched PV preview, but that PV cannot admit semantic
-prose. `MoveReviewPvFacts`, `MoveReviewPvChainValidator`,
-`MoveReviewIdeaSurface`, and `MoveReviewExplanationBuilder` are the local
-consumer boundary for this lane. `CommentaryFactSurface` is the shared
-projection boundary for `Fact` wording, branch reasons, consequence bodies, and
-surface tags consumed by MoveReview, NarrativeLexicon, Outline, and claim
-policy. `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, `OpeningGoals`, and
-endgame oracle output remain the meaning producer boundary.
+prose. `MoveReviewPvLine`, `CommentaryIdeaSurface`, and
+`MoveReviewExplanationBuilder` are the local consumer boundary for this lane.
+`CommentaryIdeaSurface` is also the shared projection boundary for `Fact`
+wording, branch reasons, consequence bodies, surface tags, priority ordering,
+canonical fact IDs, motif corroboration, and MoveReview descriptors consumed by MoveReview,
+NarrativeLexicon, Outline, decisive-truth motif tagging, and claim policy.
+Its `MoveReviewEvidence` bundle is only the MoveReview basic-lane projection
+input assembled by `MoveReviewExplanationBuilder`; it is not a cross-surface
+carrier for Chronicle, Outline, or Claim truth.
+`Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, `OpeningGoals`, and endgame
+oracle output remain the meaning producer boundary.
 The interpretation is bounded
 instructional metadata (`linePurpose`, `confirms`, `tension`,
 `opponentReplyMeaning`, `learningPoint`) for prose density; it is not engine
@@ -4433,7 +4437,7 @@ longer appends quiet-support prose.
 | `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only` | `unsupported_generalization` |
 | `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only` | `support_only_overreach` |
 | `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
-| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `MoveReviewIdeaSurface.scala`, `CommentaryFactSurface.scala`, `MoveReviewPvFacts.scala`, `MoveReviewPvChainValidator.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, and endgame facts | `responsePayload.ts`, `moveReview.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
+| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `CommentaryIdeaSurface.scala`, `MoveReviewPvLine.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, and endgame facts | `responsePayload.ts`, `moveReview.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
 | `activeStrategicNote`, `activeStrategicIdeas`, `activeStrategicRoutes`, `activeStrategicMoves`, `activeDirectionalTargets`, `activeBranchDossier` | `GameChronicleResponse.scala` | `narrativeView.ts` | `Active-only surface` | `surface_divergence` |
 | `topEngineMove` | `GameChronicleResponse.scala` | `narrativeView.ts` | `fallback input only` | `blocked_lane_contamination` residual; Chronicle decision-comparison fallback rewrite closed |
 

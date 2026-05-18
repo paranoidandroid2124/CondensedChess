@@ -25,6 +25,15 @@ class TerminologyBoundaryTest extends FunSuite:
       "Maderna-Palermo, Camara-Bazan, and Pfleger-Maalouf are current natural SupportedLocal rows"
     )
 
+  private val legacyCommentarySymbols =
+    List(
+      "Commentary" + "FactSurface",
+      "MoveReview" + "IdeaSurface",
+      "MoveReviewPv" + "ChainValidator",
+      "MoveReviewPv" + "Facts",
+      "truth" + "MotifId"
+    )
+
   test("source and tracked snapshots do not reintroduce ambiguous layer names") {
     val files =
       scalaFiles(Paths.get("modules/commentaryCore/src/main/scala")) ++
@@ -37,6 +46,23 @@ class TerminologyBoundaryTest extends FunSuite:
         .flatMap { path =>
           val text = Files.readString(path, StandardCharsets.UTF_8)
           forbidden.filter(text.contains).map(term => s"${path.toString}:$term")
+        }
+
+    assertEquals(offenders, Nil)
+  }
+
+  test("commentary surface cleanup does not reintroduce legacy boundary symbols") {
+    val files =
+      scalaFiles(Paths.get("modules/commentaryCore/src/main/scala")) ++
+        scalaFiles(Paths.get("modules/commentaryTools/src/test/scala")) ++
+        markdownFiles(Paths.get("modules/commentary/docs"))
+
+    val offenders =
+      files
+        .filterNot(path => path.endsWith(Paths.get("TerminologyBoundaryTest.scala")))
+        .flatMap { path =>
+          val text = Files.readString(path, StandardCharsets.UTF_8)
+          legacyCommentarySymbols.filter(text.contains).map(term => s"${path.toString}:$term")
         }
 
     assertEquals(offenders, Nil)
@@ -75,4 +101,14 @@ class TerminologyBoundaryTest extends FunSuite:
         .iterator()
         .asScala
         .filter(path => Files.isRegularFile(path) && names.contains(path.getFileName.toString))
+        .toList
+
+  private def markdownFiles(root: Path): List[Path] =
+    if !Files.exists(root) then Nil
+    else
+      Files
+        .walk(root)
+        .iterator()
+        .asScala
+        .filter(path => Files.isRegularFile(path) && path.toString.endsWith(".md"))
         .toList

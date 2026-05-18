@@ -2679,7 +2679,7 @@ object NarrativeLexicon {
   }
 
   def getFactStatement(bead: Int, fact: Fact, ctx: NarrativeContext): String =
-    CommentaryFactSurface.statement(bead, fact, ctx).getOrElse("")
+    CommentaryIdeaSurface.statement(bead, fact, ctx).getOrElse("")
 
   def getPreventedPlanStatement(bead: Int, planName: String): String = {
     pick(bead, List(

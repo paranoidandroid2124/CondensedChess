@@ -595,7 +595,7 @@ object NarrativeOutlineBuilder:
             derivedContextSignals.exists(sig => motifSignalMatches(sig, motif)) ||
             deltaMotifSignals.exists(sig => motifSignalMatches(sig, motif)) ||
             counterfactualMotifSignals.exists(sig => motifSignalMatches(sig, motif)) ||
-            keyFact.exists(f => motifCorroboratedByFact(motif, f)) ||
+            keyFact.exists(f => CommentaryIdeaSurface.motifCorroboratedByFact(motif, f)) ||
             motifCorroboratedByThreat(motif, ctx.threats.toUs) ||
             motifCorroboratedByPawnPlay(motif, ctx.pawnPlay) ||
             stableStrategicConcept
@@ -716,10 +716,7 @@ object NarrativeOutlineBuilder:
         val hasTacticalProof =
           ctx.candidates.exists { c =>
             c.tags.exists(tag => tag == CandidateTag.Sharp || tag == CandidateTag.TacticalGamble) ||
-              c.facts.exists {
-                case _: Fact.Fork | _: Fact.Pin | _: Fact.Skewer | _: Fact.HangingPiece => true
-                case _                                                                   => false
-              }
+              c.facts.exists(CommentaryIdeaSurface.isTacticalProofFact)
           } ||
             ctx.threats.toUs.exists(t =>
               t.lossIfIgnoredCp >= Thresholds.SIGNIFICANT_THREAT_CP || t.kind.toLowerCase.contains("mate")
@@ -2786,24 +2783,8 @@ object NarrativeOutlineBuilder:
   private def pickKeyFact(ctx: NarrativeContext): Option[Fact] =
     ctx.facts
       .filter(_.scope == FactScope.Now)
-      .filterNot {
-        case _: Fact.TargetPiece    => true
-        case _: Fact.DoubleCheck    => true
-        case _: Fact.ActivatesPiece => true
-        case _                      => false
-      }
-      .sortBy {
-        case _: Fact.HangingPiece  => 0
-        case _: Fact.Pin           => 1
-        case _: Fact.Fork          => 2
-        case _: Fact.Skewer        => 3
-        case _: Fact.PawnPromotion => 4
-        case _: Fact.WeakSquare    => 5
-        case _: Fact.Outpost       => 6
-        case _: Fact.Opposition    => 7
-        case _: Fact.KingActivity  => 8
-        case _                     => 99
-      }
+      .filter(CommentaryIdeaSurface.isKeyFactEligible)
+      .sortBy(CommentaryIdeaSurface.keyFactPriority)
       .headOption
 
   private def buildDeltaAfterMoveText(ctx: NarrativeContext, bead: Int): Option[String] =
@@ -3744,7 +3725,7 @@ object NarrativeOutlineBuilder:
       val fromConceptSummary = conceptSummarySignals.exists(sig => motifSignalMatches(sig, motif))
       val fromDerived = derivedSignals.exists(sig => motifSignalMatches(sig, motif))
       val corroboratedByBoard =
-        keyFact.exists(f => motifCorroboratedByFact(motif, f)) ||
+        keyFact.exists(f => CommentaryIdeaSurface.motifCorroboratedByFact(motif, f)) ||
           motifCorroboratedByThreat(motif, threatsToUs) ||
           motifCorroboratedByPawnPlay(motif, pawnPlay)
 
@@ -3797,26 +3778,6 @@ object NarrativeOutlineBuilder:
         motif.contains(signal) ||
         signal.replace("_", "").contains(motif.replace("_", "")) ||
         motif.replace("_", "").contains(signal.replace("_", ""))
-
-  private def motifCorroboratedByFact(motif: String, fact: Fact): Boolean =
-    fact match
-      case _: Fact.Pin =>
-        motif.contains("pin") || motif.contains("xray")
-      case _: Fact.Skewer =>
-        motif.contains("skewer") || motif.contains("xray")
-      case _: Fact.Fork =>
-        motif.contains("fork") || motif.contains("deflection")
-      case _: Fact.HangingPiece =>
-        motif.contains("trapped_piece") || motif.contains("battery")
-      case _: Fact.WeakSquare =>
-        List("minority_attack", "color_complex", "bad_bishop", "good_bishop", "outpost").exists(motif.contains)
-      case _: Fact.Outpost =>
-        List("outpost", "knight_domination", "maneuver", "knight_vs_bishop").exists(motif.contains)
-      case _: Fact.Opposition =>
-        motif.contains("opposition")
-      case _: Fact.KingActivity =>
-        motif.contains("king_cut_off") || motif.contains("passed_pawn")
-      case _ => false
 
   private def motifCorroboratedByThreat(motif: String, threatsToUs: List[ThreatRow]): Boolean =
     val tacticalMotif =
@@ -4016,7 +3977,7 @@ object NarrativeOutlineBuilder:
       }
 
     val factConsequence =
-      playedCand.flatMap(_.facts.iterator.flatMap(CommentaryFactSurface.issueConsequence).toList.headOption)
+      playedCand.flatMap(_.facts.iterator.flatMap(CommentaryIdeaSurface.issueConsequence).toList.headOption)
 
     val replyConsequence =
       Option.when(cpLoss >= Thresholds.INACCURACY_CP) {
@@ -4312,17 +4273,10 @@ object NarrativeOutlineBuilder:
 
   private def extractFactConsequence(candidate: CandidateInfo, currentPly: Int): Option[String] =
     val facts = candidate.facts
-    val prioritized = facts.sortBy {
-      case _: Fact.HangingPiece => 0
-      case _: Fact.Pin          => 1
-      case _: Fact.Fork         => 2
-      case _: Fact.Skewer       => 3
-      case _: Fact.WeakSquare   => 4
-      case _                    => 99
-    }
+    val prioritized = facts.sortBy(CommentaryIdeaSurface.factPriority)
 
     prioritized.collectFirst(Function.unlift { fact =>
-      val body = factConsequenceBody(fact)
+      val body = CommentaryIdeaSurface.consequenceBody(fact)
       fact.scope match
         case FactScope.Now =>
           body
@@ -4338,9 +4292,6 @@ object NarrativeOutlineBuilder:
         case _ =>
           None
     })
-
-  private def factConsequenceBody(fact: Fact): Option[String] =
-    CommentaryFactSurface.consequenceBody(fact)
 
   private def counterfactualTeachingSentence(
     ctx: NarrativeContext,

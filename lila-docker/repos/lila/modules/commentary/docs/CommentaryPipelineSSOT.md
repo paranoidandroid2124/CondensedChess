@@ -593,26 +593,29 @@ Current canonical flow:
      strategic authority lane and may not override a certified planner claim
    - when refs contain a safe preview line, `MoveReviewShortLine` carries the
      2-5 ply PV/SAN line separately from prose
-   - `MoveReviewPvFacts` centralizes the first usable PV line only when its
+   - `MoveReviewPvLine` centralizes the first usable PV line only when its
      first move is coupled to the played move by UCI and
-     `MoveReviewPvChainValidator` can legally replay the line from the current
+     the same boundary can legally replay the line from the current
      FEN, with ordered non-empty `fenAfter` refs matching the replayed board
      state; malformed, uncoupled, illegal, mismatched-start, or mismatched-FEN
      PV may remain `shortLine` evidence but does not admit semantic prose
-    - `CommentaryFactSurface` is the shared projection helper from canonical
-      `Fact` evidence to user-facing statements, branch reasons, consequence
-      bodies, and reusable fact tags; `NarrativeLexicon`,
-      `StandardCommentaryClaimPolicy`, `NarrativeOutlineBuilder`, and
-      MoveReview consume that same surface instead of re-encoding parallel
-      `Fact -> wording` switches
-    - `MoveReviewIdeaSurface` is the single projection layer from canonical
-      evidence to visible basic-review meaning: it owns the descriptor for
-      `title`, `baseProse`, `reasonTags`, `source`, PV `confirms`,
-      `linePurpose`, `tension`, `opponentReplyMeaning`, and `learningPoint`,
-      while delegating fact tags/wording primitives to `CommentaryFactSurface`
-    - `MoveReviewPvFacts` owns only coupled-line selection, short-line assembly,
-      and normalization; capture / center / endgame / opening surface meaning is
-      not rederived there
+    - `CommentaryIdeaSurface` is the shared projection boundary from canonical
+      `Fact` / `Motif` / opening-goal evidence to user-facing statements,
+      branch reasons, consequence bodies, reusable tags, priority ordering,
+      canonical fact IDs, motif corroboration, and the MoveReview basic-review descriptor
+      (`title`, `baseProse`, `reasonTags`, `source`, PV `confirms`,
+      `linePurpose`, `tension`, `opponentReplyMeaning`, and `learningPoint`);
+      `NarrativeLexicon`, `StandardCommentaryClaimPolicy`,
+      `NarrativeOutlineBuilder`, decisive-truth motif tagging, and MoveReview
+      consume this same projection boundary instead of re-encoding parallel
+      `Fact -> wording/tag/descriptor` switches
+    - `CommentaryIdeaSurface.MoveReviewEvidence` is only the MoveReview
+      basic-lane projection input assembled by `MoveReviewExplanationBuilder`;
+      it is not a Chronicle / Outline / Claim carrier and must not be treated
+      as the canonical evidence model for other runtime surfaces
+    - `MoveReviewPvLine` owns only legal replay, coupled-line selection,
+      short-line assembly, and normalization; capture / center / endgame /
+      opening surface meaning is not rederived there
     - the descriptor may additionally attach `MoveReviewPvInterpretation` from
       canonical facts/motifs plus validated PV facts; besides opening/castling
       semantics, it may use PV-backed non-opening meanings such as
@@ -1369,8 +1372,8 @@ Primary files:
 
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeContextBuilder.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/BookStyleRenderer.scala`
-- `modules/commentaryCore/src/main/scala/lila/commentary/analysis/CommentaryFactSurface.scala`
-- `modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewIdeaSurface.scala`
+- `modules/commentaryCore/src/main/scala/lila/commentary/analysis/CommentaryIdeaSurface.scala`
+- `modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewPvLine.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewPolishSlots.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/CertifiedDecisionFrameBuilder.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/PlayerFacingClaimPacket.scala`

@@ -311,7 +311,7 @@ object NarrativeContextBuilder:
     Option
       .when(openingContext(ctx)) {
         ctx.playedMove
-          .flatMap(uci => MoveReviewPvChainValidator.legalFenAfter(ctx.fen, uci))
+          .flatMap(uci => MoveReviewPvLine.legalFenAfter(ctx.fen, uci))
           .flatMap(afterFen => OpeningGoals.analyze(ctx.copy(fen = afterFen, openingGoalEvaluation = None)))
       }
       .flatten
