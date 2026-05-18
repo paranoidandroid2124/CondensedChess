@@ -144,6 +144,37 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
               )
             )
           )
+        ),
+        moveReviewExplanation = Some(
+          MoveReviewExplanation(
+            title = "PlayableByPV title",
+            prose = "strict evidence mode prose with return vector",
+            qualityLabel = Some("probe evidence pending"),
+            reasonTags = List("theme:piece_redeployment", "cash out"),
+            shortLine = Some(
+              MoveReviewShortLine(
+                san = List("PlayableByPV"),
+                uci = List("seed:uci"),
+                lineId = Some("support:line"),
+                scoreCp = Some(12),
+                mate = None,
+                depth = Some(16),
+                source = "engine-coupled continuation"
+              )
+            ),
+            pvInterpretation = Some(
+              MoveReviewPvInterpretation(
+                linePurpose = "PlayableByPV",
+                confirms = List("return vector"),
+                tension = "strict evidence mode",
+                opponentReplyMeaning = Some("probe evidence pending"),
+                learningPoint = "cash out through {seed}",
+                supportedByLineId = Some("support:line"),
+                confidence = "engine-coupled continuation"
+              )
+            ),
+            source = "support:basic"
+          )
         )
       )
 
@@ -185,6 +216,18 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             ledger.conversionTrigger.toList ++
             ledger.primaryLine.toList.flatMap(line => line.note.toList ++ List(line.title)) ++
             List(ledger.motifLabel, ledger.stageLabel)
+        ).mkString(" "),
+        sanitized.moveReviewExplanation.toList.flatMap(explanation =>
+          List(explanation.title, explanation.prose, explanation.source) ++
+            explanation.qualityLabel.toList ++
+            explanation.reasonTags ++
+            explanation.shortLine.toList.flatMap(line => line.san ++ line.uci ++ line.lineId.toList ++ List(line.source)) ++
+            explanation.pvInterpretation.toList.flatMap(interpretation =>
+              List(interpretation.linePurpose, interpretation.tension, interpretation.learningPoint, interpretation.confidence) ++
+                interpretation.confirms ++
+                interpretation.opponentReplyMeaning.toList ++
+                interpretation.supportedByLineId.toList
+            )
         ).mkString(" ")
       ).mkString(" ")
 

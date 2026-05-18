@@ -2,6 +2,7 @@ import type {
   BookmakerRefsV1,
   BookmakerStrategicLedgerV1,
   DecodedBookmakerResponse,
+  MoveReviewExplanationV1,
   PolishMetaV1,
 } from './responsePayload';
 import type { EndgameStateToken, PlanStateToken } from './types';
@@ -20,6 +21,7 @@ export type StoredBookmakerEntry = {
   sourceMode: string | null;
   model: string | null;
   cacheHit: boolean | null;
+  moveReviewExplanation?: MoveReviewExplanationV1 | null;
   mainPlansCount: number;
   bookmakerLedger?: BookmakerStrategicLedgerV1 | null;
   planStateToken?: PlanStateToken | null;
@@ -28,7 +30,7 @@ export type StoredBookmakerEntry = {
 };
 
 export type StudyBookmakerSnapshot = {
-  schema: 'chesstory.bookmaker.study.v1';
+  schema: 'chesstory.move_review.study.v1' | 'chesstory.bookmaker.study.v1';
   studyId: string;
   chapterId: string;
   commentPath: string;
@@ -43,10 +45,17 @@ export type StudyBookmakerRef = {
   chapterId: string;
 };
 
-const storagePrefix = 'chesstory.bookmaker.study.v1';
+const storageSchema = 'chesstory.move_review.study.v1';
+const legacyStorageSchema = 'chesstory.bookmaker.study.v1';
+const storagePrefix = storageSchema;
+const legacyStoragePrefix = legacyStorageSchema;
 const storageIndexKey = `${storagePrefix}.index`;
+const legacyStorageIndexKey = `${legacyStoragePrefix}.index`;
 const maxSnapshots = 300;
-const sessionPrefix = 'chesstory.bookmaker.session.v1';
+const sessionSchema = 'chesstory.move_review.session.v1';
+const legacySessionSchema = 'chesstory.bookmaker.session.v1';
+const sessionPrefix = sessionSchema;
+const legacySessionPrefix = legacySessionSchema;
 
 type StoredBookmakerEntrySource = Pick<
   DecodedBookmakerResponse,
@@ -55,6 +64,7 @@ type StoredBookmakerEntrySource = Pick<
   | 'sourceMode'
   | 'model'
   | 'cacheHit'
+  | 'moveReviewExplanation'
   | 'mainStrategicPlans'
   | 'bookmakerLedger'
   | 'planStateToken'
@@ -73,6 +83,7 @@ export function buildStoredBookmakerEntry(
     sourceMode: decoded.sourceMode,
     model: decoded.model,
     cacheHit: decoded.cacheHit,
+    moveReviewExplanation: decoded.moveReviewExplanation,
     mainPlansCount: decoded.mainStrategicPlans.length,
     bookmakerLedger: decoded.bookmakerLedger,
     planStateToken: decoded.planStateToken,
@@ -97,17 +108,26 @@ function snapshotKey(ref: StudyBookmakerRef, commentPath: string): string {
   return `${storagePrefix}:${ref.studyId}:${ref.chapterId}:${commentPath}`;
 }
 
-function readIndex(): string[] {
+function legacySnapshotKey(ref: StudyBookmakerRef, commentPath: string): string {
+  return `${legacyStoragePrefix}:${ref.studyId}:${ref.chapterId}:${commentPath}`;
+}
+
+function readIndexAt(key: string): string[] {
   const store = localStore();
   if (!store) return [];
   try {
-    const raw = store.getItem(storageIndexKey);
+    const raw = store.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
   } catch {
     return [];
   }
+}
+
+function readIndex(): string[] {
+  migrateLegacyStudySnapshots();
+  return readIndexAt(storageIndexKey);
 }
 
 function writeIndex(keys: string[]): void {
@@ -117,6 +137,50 @@ function writeIndex(keys: string[]): void {
     store.setItem(storageIndexKey, JSON.stringify(keys));
   } catch {
     // Ignore storage quota and serialization failures.
+  }
+}
+
+function normalizeStudySnapshot(raw: unknown): StudyBookmakerSnapshot | null {
+  const parsed = raw as StudyBookmakerSnapshot | null;
+  if (
+    !parsed ||
+    (parsed.schema !== storageSchema && parsed.schema !== legacyStorageSchema) ||
+    !parsed.entry ||
+    typeof parsed.entry.html !== 'string'
+  )
+    return null;
+  return {
+    ...parsed,
+    schema: storageSchema,
+  };
+}
+
+function migrateLegacyStudySnapshots(): void {
+  const store = localStore();
+  if (!store) return;
+  const legacyKeys = readIndexAt(legacyStorageIndexKey);
+  if (!legacyKeys.length) return;
+  const nextKeys = new Set(readIndexAt(storageIndexKey));
+
+  for (const legacyKey of legacyKeys) {
+    try {
+      const raw = store.getItem(legacyKey);
+      if (!raw) continue;
+      const parsed = normalizeStudySnapshot(JSON.parse(raw));
+      if (!parsed) continue;
+      const newKey = legacyKey.replace(legacyStoragePrefix, storagePrefix);
+      store.setItem(newKey, JSON.stringify(parsed));
+      store.removeItem(legacyKey);
+      nextKeys.add(newKey);
+    } catch {
+      // Ignore malformed legacy snapshots.
+    }
+  }
+  writeIndex([...nextKeys]);
+  try {
+    store.removeItem(legacyStorageIndexKey);
+  } catch {
+    // Ignore cleanup failures.
   }
 }
 
@@ -161,7 +225,7 @@ export function persistStudyBookmakerSnapshot(
   if (!store) return;
   const key = snapshotKey(ref, commentPath);
   const payload: StudyBookmakerSnapshot = {
-    schema: 'chesstory.bookmaker.study.v1',
+    schema: storageSchema,
     studyId: ref.studyId,
     chapterId: ref.chapterId,
     commentPath,
@@ -189,12 +253,13 @@ export function readStudyBookmakerSnapshot(
   const store = localStore();
   if (!store) return null;
   try {
-    const raw = store.getItem(snapshotKey(ref, commentPath));
+    const key = snapshotKey(ref, commentPath);
+    const legacyKey = legacySnapshotKey(ref, commentPath);
+    const raw = store.getItem(key) || store.getItem(legacyKey);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as StudyBookmakerSnapshot;
+    const parsed = normalizeStudySnapshot(JSON.parse(raw));
     if (
       !parsed ||
-      parsed.schema !== 'chesstory.bookmaker.study.v1' ||
       parsed.studyId !== ref.studyId ||
       parsed.chapterId !== ref.chapterId ||
       parsed.commentPath !== commentPath ||
@@ -202,6 +267,13 @@ export function readStudyBookmakerSnapshot(
       typeof parsed.entry.html !== 'string'
     )
       return null;
+    if (store.getItem(key) !== raw) {
+      store.setItem(key, JSON.stringify(parsed));
+      store.removeItem(legacyKey);
+      const keys = readIndexAt(storageIndexKey).filter(existing => existing !== key);
+      keys.push(key);
+      writeIndex(keys);
+    }
     return parsed;
   } catch {
     return null;
@@ -218,14 +290,14 @@ export function listStudyBookmakerSnapshots(ref: StudyBookmakerRef): StudyBookma
         if (!raw) return null;
         const parsed = JSON.parse(raw) as StudyBookmakerSnapshot;
         if (
-          parsed?.schema !== 'chesstory.bookmaker.study.v1' ||
+          (parsed?.schema !== storageSchema && parsed?.schema !== legacyStorageSchema) ||
           parsed.studyId !== ref.studyId ||
           parsed.chapterId !== ref.chapterId ||
           !parsed.entry ||
           typeof parsed.entry.html !== 'string'
         )
           return null;
-        return parsed;
+        return { ...parsed, schema: storageSchema };
       } catch {
         return null;
       }
@@ -238,6 +310,10 @@ export function listStudyBookmakerSnapshots(ref: StudyBookmakerRef): StudyBookma
 
 function sessionKey(scope: string, commentPath: string): string {
   return `${sessionPrefix}:${scope}:${commentPath}`;
+}
+
+function legacySessionKey(scope: string, commentPath: string): string {
+  return `${legacySessionPrefix}:${scope}:${commentPath}`;
 }
 
 export function persistSessionBookmakerSnapshot(
@@ -253,7 +329,7 @@ export function persistSessionBookmakerSnapshot(
     store.setItem(
       sessionKey(scope, commentPath),
       JSON.stringify({
-        schema: 'chesstory.bookmaker.session.v1',
+        schema: sessionSchema,
         scope,
         commentPath,
         originPath,
@@ -271,7 +347,9 @@ export function readSessionBookmakerSnapshot(scope: string, commentPath: string)
   const store = sessionStore();
   if (!store) return null;
   try {
-    const raw = store.getItem(sessionKey(scope, commentPath));
+    const key = sessionKey(scope, commentPath);
+    const legacyKey = legacySessionKey(scope, commentPath);
+    const raw = store.getItem(key) || store.getItem(legacyKey);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as {
       schema?: string;
@@ -283,15 +361,25 @@ export function readSessionBookmakerSnapshot(scope: string, commentPath: string)
       entry?: StoredBookmakerEntry;
     };
     if (
-      parsed?.schema !== 'chesstory.bookmaker.session.v1' ||
+      (parsed?.schema !== sessionSchema && parsed?.schema !== legacySessionSchema) ||
       parsed.scope !== scope ||
       parsed.commentPath !== commentPath ||
       !parsed.entry ||
       typeof parsed.entry.html !== 'string'
     )
       return null;
+    if (store.getItem(key) !== raw) {
+      store.setItem(
+        key,
+        JSON.stringify({
+          ...parsed,
+          schema: sessionSchema,
+        }),
+      );
+      store.removeItem(legacyKey);
+    }
     return {
-      schema: 'chesstory.bookmaker.study.v1',
+      schema: storageSchema,
       studyId: '',
       chapterId: '',
       commentPath,

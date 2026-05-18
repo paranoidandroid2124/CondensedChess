@@ -32,6 +32,7 @@ import {
     type DecodedBookmakerResponse,
     type BookmakerStrategicLedgerV1,
     type BookmakerRefsV1,
+    type MoveReviewExplanationV1,
     type NarrativeSignalDigest,
     type PolishMetaV1,
     type StrategyPackV1,
@@ -500,6 +501,7 @@ function buildBookmakerStrategySurface(
 
 function decorateBookmakerHtml(
     html: string,
+    moveReviewExplanation: MoveReviewExplanationV1 | null,
     refs: BookmakerRefsV1 | null,
     ledger: BookmakerStrategicLedgerV1 | null,
     strategyPack: StrategyPackV1 | null,
@@ -521,6 +523,9 @@ function decorateBookmakerHtml(
     const authorQuestionById = new Map(authorQuestions.map(question => [question.id, question]));
     const experimentIndex = strategicPlanExperimentIndex(strategicPlanExperiments);
     const supportOpts = buildPlayerFacingSupportOptions(signalDigest);
+    const moveReviewTitle = moveReviewExplanation?.title?.trim()
+        ? `<div class="bookmaker-move-review__title">${escapeHtml(moveReviewExplanation.title.trim())}</div>`
+        : '';
     const mainPlanTexts = mainPlans
         .slice(0, 2)
         .map(plan => formatStrategicPlanText(plan, experimentIndex))
@@ -664,9 +669,11 @@ function decorateBookmakerHtml(
         });
     }
 
-    if (!rows.length && !advancedRows.length && !probeRows.length && !authorRows.length) return html;
+    if (!rows.length && !advancedRows.length && !probeRows.length && !authorRows.length)
+        return moveReviewTitle ? `${moveReviewTitle}${html}` : html;
 
     return `
+      ${moveReviewTitle}
       <div class="bookmaker-strategic-summary">
         <div class="bookmaker-strategic-summary__title">Support</div>
         ${rows.join('')}
@@ -708,6 +715,7 @@ function decorateBookmakerHtml(
 function decorateDecodedBookmakerHtml(decoded: DecodedBookmakerResponse): string {
     return decorateBookmakerHtml(
         decoded.html,
+        decoded.moveReviewExplanation,
         decoded.refs,
         decoded.bookmakerLedger,
         decoded.strategyPack,
@@ -980,6 +988,7 @@ export default function bookmakerNarrative(ctrl?: AnalyseCtrl): BookmakerNarrati
             sourceMode: 'study_saved',
             model: null,
             cacheHit: true,
+            moveReviewExplanation: null,
             mainPlansCount: 0,
             bookmakerLedger: null,
             planStateToken: null,

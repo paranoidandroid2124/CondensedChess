@@ -27,11 +27,43 @@ export type VariationRefV1 = {
   moves: MoveRefV1[];
 };
 
-export type BookmakerRefsV1 = {
+export type MoveReviewRefsV1 = {
   schema: 'chesstory.refs.v1';
   startFen: string;
   startPly: number;
   variations: VariationRefV1[];
+};
+
+export type BookmakerRefsV1 = MoveReviewRefsV1;
+
+export type MoveReviewShortLineV1 = {
+  san: string[];
+  uci: string[];
+  lineId?: string | null;
+  scoreCp?: number | null;
+  mate?: number | null;
+  depth?: number | null;
+  source: string;
+};
+
+export type MoveReviewPvInterpretationV1 = {
+  linePurpose: string;
+  confirms: string[];
+  tension: string;
+  opponentReplyMeaning?: string | null;
+  learningPoint: string;
+  supportedByLineId?: string | null;
+  confidence: string;
+};
+
+export type MoveReviewExplanationV1 = {
+  title: string;
+  prose: string;
+  qualityLabel?: string | null;
+  reasonTags: string[];
+  shortLine?: MoveReviewShortLineV1 | null;
+  pvInterpretation?: MoveReviewPvInterpretationV1 | null;
+  source: string;
 };
 
 export type PolishMetaV1 = {
@@ -169,6 +201,7 @@ export type DecodedBookmakerResponse = {
   cacheHit: boolean | null;
   refs: BookmakerRefsV1 | null;
   polishMeta: PolishMetaV1 | null;
+  moveReviewExplanation: MoveReviewExplanationV1 | null;
   bookmakerLedger: BookmakerStrategicLedgerV1 | null;
   strategyPack: StrategyPackV1 | null;
   signalDigest: NarrativeSignalDigest | null;
@@ -205,6 +238,7 @@ export type MaybeResponse = {
   cacheHit?: unknown;
   signalDigest?: unknown;
   bookmakerLedger?: unknown;
+  moveReviewExplanation?: unknown;
   strategyPack?: unknown;
   refs?: unknown;
   polishMeta?: unknown;
@@ -321,6 +355,7 @@ export function decodeBookmakerResponse(
     cacheHit: cacheHitFromResponse(data),
     refs: refsFromResponse(data),
     polishMeta: polishMetaFromResponse(data),
+    moveReviewExplanation: moveReviewExplanationFromResponse(data),
     bookmakerLedger: bookmakerLedgerFromResponse(data),
     strategyPack: strategyPackFromResponse(data),
     signalDigest: signalDigestFromResponse(data),
@@ -331,6 +366,71 @@ export function decodeBookmakerResponse(
     authorEvidence: fallbackList(authorEvidenceFromResponse(data), fallbacks.authorEvidence),
     planStateToken: planStateTokenFromResponse(data),
     endgameStateToken: endgameStateTokenFromResponse(data),
+  };
+}
+
+function stringListFromUnknown(raw: unknown): string[] | null {
+  if (!Array.isArray(raw)) return null;
+  const values = raw.filter((value): value is string => typeof value === 'string');
+  return values.length === raw.length ? values : null;
+}
+
+function moveReviewShortLineFromUnknown(raw: unknown): MoveReviewShortLineV1 | null {
+  if (!isRecord(raw)) return null;
+  const san = stringListFromUnknown(raw.san);
+  const uci = stringListFromUnknown(raw.uci);
+  if (!san || !uci || typeof raw.source !== 'string') return null;
+  return {
+    san,
+    uci,
+    lineId: typeof raw.lineId === 'string' ? raw.lineId : null,
+    scoreCp: typeof raw.scoreCp === 'number' ? raw.scoreCp : null,
+    mate: typeof raw.mate === 'number' ? raw.mate : null,
+    depth: typeof raw.depth === 'number' ? raw.depth : null,
+    source: raw.source,
+  };
+}
+
+function moveReviewPvInterpretationFromUnknown(raw: unknown): MoveReviewPvInterpretationV1 | null {
+  if (!isRecord(raw)) return null;
+  const confirms = stringListFromUnknown(raw.confirms);
+  if (
+    typeof raw.linePurpose !== 'string' ||
+    !confirms ||
+    typeof raw.tension !== 'string' ||
+    typeof raw.learningPoint !== 'string' ||
+    typeof raw.confidence !== 'string'
+  )
+    return null;
+  return {
+    linePurpose: raw.linePurpose,
+    confirms,
+    tension: raw.tension,
+    opponentReplyMeaning: typeof raw.opponentReplyMeaning === 'string' ? raw.opponentReplyMeaning : null,
+    learningPoint: raw.learningPoint,
+    supportedByLineId: typeof raw.supportedByLineId === 'string' ? raw.supportedByLineId : null,
+    confidence: raw.confidence,
+  };
+}
+
+export function moveReviewExplanationFromResponse(data: MaybeResponse): MoveReviewExplanationV1 | null {
+  const raw = data?.moveReviewExplanation;
+  if (!isRecord(raw)) return null;
+  if (typeof raw.title !== 'string' || typeof raw.prose !== 'string' || typeof raw.source !== 'string') return null;
+  const reasonTags = stringListFromUnknown(raw.reasonTags);
+  if (!reasonTags) return null;
+  const shortLine = moveReviewShortLineFromUnknown(raw.shortLine);
+  if (raw.shortLine != null && !shortLine) return null;
+  const pvInterpretation = moveReviewPvInterpretationFromUnknown(raw.pvInterpretation);
+  if (raw.pvInterpretation != null && !pvInterpretation) return null;
+  return {
+    title: raw.title,
+    prose: raw.prose,
+    qualityLabel: typeof raw.qualityLabel === 'string' ? raw.qualityLabel : null,
+    reasonTags,
+    shortLine,
+    pvInterpretation,
+    source: raw.source,
   };
 }
 

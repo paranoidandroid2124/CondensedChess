@@ -14,7 +14,8 @@ final case class BookmakerPolishSlots(
     evidenceHook: Option[String],
     coda: Option[String],
     factGuardrails: List[String],
-    paragraphPlan: List[String]
+    paragraphPlan: List[String],
+    sourceKind: String = BookmakerPolishSlots.Source.Planner
 ):
   def support: List[String] = List(supportPrimary, supportSecondary).flatten.filter(_.nonEmpty)
   def validationSeedText: String =
@@ -26,9 +27,15 @@ final case class BookmakerPolishSlots(
         evidenceHook.map(_.trim).filter(_.nonEmpty),
         coda.map(_.trim).filter(_.nonEmpty)
       ).flatten ++ factGuardrails.map(_.trim).filter(_.nonEmpty)
-    ).distinct.mkString("\n\n")
+      ).distinct.mkString("\n\n")
   def withFactGuardrails(lines: List[String]): BookmakerPolishSlots =
     copy(factGuardrails = lines.map(_.trim).filter(_.nonEmpty))
+
+object BookmakerPolishSlots:
+  object Source:
+    val Planner = "planner"
+    val BasicMoveExplanation = "basic_move_explanation"
+    val ExactFactualFallback = "exact_factual_fallback"
 
 object BookmakerSlotSanitizer:
   def sanitizeUserText(raw: String): String =

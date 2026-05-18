@@ -3924,9 +3924,41 @@ Bookmaker is also truth-bound:
 - `BookmakerLiveCompressionPolicy.scala`
 - `CommentaryApi.scala`
 
-It stays planner-first except when exact-factual fallback is explicitly taken,
-and that fallback is now fail-closed: an empty author-question branch may not
-rebuild decision/meta/close-candidate shell prose as a substitute owner.
+It stays planner-first. If no certified planner slot survives, the runtime may
+now take a bounded `MoveReview` basic explanation lane before exact-factual
+fallback. That lane is local instructional prose built from move SAN/UCI, board
+geometry produced by legal current-move replay, opening-family pattern facts,
+primitive reason tags, exact endgame catalog facts, and optional short PV refs.
+Its v1 admission is limited to opening / formation contexts,
+explicit castling, or non-opening moves with UCI-coupled PV semantic evidence,
+so tactical/trust fallback fixtures remain exact-factual unless the supplied
+line itself supports bounded instructional meaning; it is not a strategic
+authority lane and may not rebuild decision/meta/close-candidate shell prose as
+a substitute owner.
+When a short PV is present, `PvSemanticInterpreter` may add
+`MoveReviewPvInterpretation` only for a first-line UCI-coupled move sequence
+whose refs start from the current FEN and whose moves pass
+`MoveReviewPvChainValidator`: each UCI must replay legally in sequence and the
+recorded `fenAfter` must match the replayed board state. `shortLine` may still
+show a malformed or mismatched PV preview, but that PV cannot admit semantic
+prose. `MoveReviewBoardFacts`, `MoveReviewPvFacts`, and
+`MoveReviewPvChainValidator` are the local semantic boundary for this lane.
+The interpretation is bounded
+instructional metadata (`linePurpose`, `confirms`, `tension`,
+`opponentReplyMeaning`, `learningPoint`) for prose density; it is not engine
+truth, strategic authority, or permission to invent SAN/PV/evaluation claims
+beyond the supplied line.
+`OpeningIdeaCatalog` entries are requirement-backed, not prose-only opening
+names; the family/move match must be accompanied by required primitive, board,
+and PV facts before an opening pattern can own `opening_idea`. `EndgameIdeaCatalog`
+is stricter: v1 admits only validated-PV king activity, passed-pawn support, and
+rook-behind-passer patterns, and it does not open opposition, breakthrough,
+zugzwang, fortress, or stalemate-trick claims.
+`moveReviewExplanation` is attached to the API payload only when the selected
+Bookmaker slot source is `basic_move_explanation`; planner-owned prose does not
+carry this basic instructional title as a sidecar. The payload sanitizer also
+cleans the structured title/prose/tags/shortLine/PV interpretation fields before
+frontend consumption.
 
 Active is the main exception:
 
@@ -4392,6 +4424,7 @@ longer appends quiet-support prose.
 | `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `unsupported_generalization` |
 | `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `support_only_overreach` |
 | `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
+| `moveReviewExplanation` | `models.scala`, `BasicMoveExplanationBuilder.scala`, `MoveReviewBoardFacts.scala`, `MoveReviewPvFacts.scala`, `MoveReviewPvChainValidator.scala`, `PvSemanticInterpreter.scala`, `MoveReviewLearningPointRenderer.scala`, `OpeningIdeaCatalog.scala`, `EndgameIdeaCatalog.scala`, `UserFacingPayloadSanitizer.scala` | `responsePayload.ts`, `bookmaker.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
 | `activeStrategicNote`, `activeStrategicIdeas`, `activeStrategicRoutes`, `activeStrategicMoves`, `activeDirectionalTargets`, `activeBranchDossier` | `GameChronicleResponse.scala` | `narrativeView.ts` | `Active-only surface` | `surface_divergence` |
 | `topEngineMove` | `GameChronicleResponse.scala` | `narrativeView.ts` | `fallback input only` | `blocked_lane_contamination` residual; Chronicle decision-comparison fallback rewrite closed |
 
@@ -4402,7 +4435,8 @@ longer appends quiet-support prose.
 Bookmaker remains the most stable trust-bound surface.
 
 - planner-first
-- exact-factual fallback only when needed
+- bounded basic MoveReview explanation before exact-factual fallback when no
+  planner slot survives
 - narrow secondary swap only in constrained conditions
 
 Accepted residuals:
@@ -4412,10 +4446,18 @@ Accepted residuals:
    `QuestionOutsideScope`.
 2. exact-factual fallback may still receive one quiet-support sentence, but
    only if duplicate rejection and `bookmakerContractSafe` pass.
-3. planner/direct exact-factual fallback may stay as a narrow residual only at
+3. basic MoveReview explanation may use legal board-local primitives,
+   requirement-backed opening-family pattern facts, exact endgame catalog facts,
+   optional short PV refs, and UCI-coupled validated
+   `MoveReviewPvInterpretation`; it must remain instructional/local and must
+   not claim a broader strategic plan. Non-opening admission requires
+   PV-backed semantic interpretation; uncoupled/malformed/missing-fen,
+   illegal-chain, mismatched-start, or mismatched-board PV lines may keep
+   `shortLine` but must not receive semantic interpretation.
+4. planner/direct exact-factual fallback may stay as a narrow residual only at
    literal move-shape scope; ambiguous captures may not pick up
    simplification/exchange meaning.
-4. decision-comparison support may render the exact comparative lane only from
+5. decision-comparison support may render the exact comparative lane only from
    canonical `signalDigest.decisionComparison`; it may not replace the primary
    planner claim.
 

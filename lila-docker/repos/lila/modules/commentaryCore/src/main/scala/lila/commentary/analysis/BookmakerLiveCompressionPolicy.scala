@@ -66,6 +66,7 @@ private[commentary] object BookmakerLiveCompressionPolicy:
     val plannerRuntime =
       plannerInputsRuntime(ctx, refs, strategyPack, truthContract)
     slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
+      .orElse(basicMoveExplanationSlots(ctx, refs, truthContract))
       .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, strategyPack))
       .getOrElse(omittedSlots)
 
@@ -581,6 +582,46 @@ private[commentary] object BookmakerLiveCompressionPolicy:
   ): Option[BookmakerPolishSlots] =
     exactFactualFallbackResult(ctx, plannerRuntime, strategyPack).map(_.finalSlots)
 
+  private def basicMoveExplanationSlots(
+      ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs],
+      truthContract: Option[DecisiveTruthContract]
+  ): Option[BookmakerPolishSlots] =
+    BasicMoveExplanationBuilder.build(ctx, refs, truthContract).flatMap { explanation =>
+      cleanSentence(explanation.prose, ctx).map { claim =>
+        val support =
+          explanation.shortLine.flatMap { line =>
+            val preview = line.san.take(5).map(_.trim).filter(_.nonEmpty).mkString(" ")
+            Option.when(preview.nonEmpty)(s"Short line: $preview.")
+          }
+        val localFactGuardrails =
+          List(
+            Some(s"MoveReview title draft: ${explanation.title}"),
+            Some(s"MoveReview source: ${explanation.source}"),
+            Option.when(explanation.reasonTags.nonEmpty)(s"MoveReview reason tags: ${explanation.reasonTags.mkString(", ")}"),
+            explanation.pvInterpretation.map(interpretation => s"PV line purpose: ${interpretation.linePurpose}"),
+            explanation.pvInterpretation.map(interpretation => s"PV confirms: ${interpretation.confirms.mkString(", ")}"),
+            explanation.pvInterpretation.map(interpretation => s"PV tension: ${interpretation.tension}"),
+            explanation.pvInterpretation.flatMap(_.opponentReplyMeaning).map(meaning => s"PV opponent reply: $meaning"),
+            explanation.pvInterpretation.map(interpretation => s"PV learning point: ${interpretation.learningPoint}")
+          ).flatten
+        BookmakerPolishSlots(
+          lens = StrategicLens.Decision,
+          claim = prefixMoveHeader(ctx, claim),
+          supportPrimary = support,
+          supportSecondary = None,
+          tension = None,
+          evidenceHook = None,
+          coda = None,
+          factGuardrails = (localFactGuardrails ++ support.toList).distinct,
+          paragraphPlan =
+            if support.nonEmpty then List("p1=claim", "p2=support_chain")
+            else List("p1=claim"),
+          sourceKind = BookmakerPolishSlots.Source.BasicMoveExplanation
+        )
+      }
+    }
+
   private def exactFactualFallbackResult(
       ctx: NarrativeContext,
       plannerRuntime: PlannerRuntime,
@@ -599,7 +640,8 @@ private[commentary] object BookmakerLiveCompressionPolicy:
             evidenceHook = None,
             coda = None,
             factGuardrails = Nil,
-            paragraphPlan = List("p1=claim")
+            paragraphPlan = List("p1=claim"),
+            sourceKind = BookmakerPolishSlots.Source.ExactFactualFallback
           )
         val composerTrace =
           QuietStrategicSupportComposer.diagnose(

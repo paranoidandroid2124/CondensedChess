@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.{ AtomicLong, AtomicReference }
 import java.time.Instant
 import java.util.UUID
 import com.roundeights.hasher.Algo
-import lila.commentary.analysis.{ ActiveBranchDossierBuilder, ActiveCompensationPolicy, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, MoveReviewStrategicLedgerBuilder, BookStyleRenderer, CertifiedDecisionFrame, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, CompensationContractMatcher, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary }
+import lila.commentary.analysis.{ ActiveBranchDossierBuilder, ActiveCompensationPolicy, ActiveStrategicCoachingBriefBuilder, ActiveStrategicNoteValidator, AuthoringEvidenceSummaryBuilder, BasicMoveExplanationBuilder, BookmakerPolishSlots, BookmakerPolishSlotsBuilder, BookmakerProseContract, BookmakerSoftRepair, MoveReviewStrategicLedgerBuilder, BookStyleRenderer, CertifiedDecisionFrame, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, CompensationContractMatcher, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary }
 import lila.commentary.model.{ OpeningReference, ProbeResult }
 import lila.commentary.model.structure.StructureId
 import lila.commentary.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -4029,6 +4029,10 @@ final class CommentaryApi(
             val refs = buildBookmakerRefs(fen, dataWithContinuity.alternatives)
             val outline = BookStyleRenderer.validatedOutline(ctx, Some(truthContract), strategyPack)
             val bookmakerSlots = BookmakerPolishSlotsBuilder.buildOrFallback(ctx, outline, refs, strategyPack, Some(truthContract))
+            val moveReviewExplanation =
+              Option.when(bookmakerSlots.sourceKind == BookmakerPolishSlots.Source.BasicMoveExplanation) {
+                BasicMoveExplanationBuilder.build(ctx, refs, Some(truthContract))
+              }.flatten
             val proseRaw = LiveNarrativeCompressionCore.deterministicProse(bookmakerSlots)
             val prose = RuleTemplateSanitizer.sanitize(
               proseRaw,
@@ -4101,7 +4105,8 @@ final class CommentaryApi(
                       commentaryMode = commentaryMode,
                       strategyPack = strategyPack,
                       signalDigest = strategyPack.flatMap(_.signalDigest),
-                      moveReviewLedger = moveReviewLedger
+                      moveReviewLedger = moveReviewLedger,
+                      moveReviewExplanation = moveReviewExplanation
                     )
                   )
                 )

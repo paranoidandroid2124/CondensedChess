@@ -95,6 +95,42 @@ case class MoveReviewRefs(
 object MoveReviewRefs:
   given Writes[MoveReviewRefs] = Json.writes[MoveReviewRefs]
 
+case class MoveReviewShortLine(
+    san: List[String],
+    uci: List[String] = Nil,
+    lineId: Option[String] = None,
+    scoreCp: Option[Int] = None,
+    mate: Option[Int] = None,
+    depth: Option[Int] = None,
+    source: String = "pv"
+)
+object MoveReviewShortLine:
+  given Writes[MoveReviewShortLine] = Json.writes[MoveReviewShortLine]
+
+case class MoveReviewPvInterpretation(
+    linePurpose: String,
+    confirms: List[String] = Nil,
+    tension: String,
+    opponentReplyMeaning: Option[String] = None,
+    learningPoint: String,
+    supportedByLineId: Option[String] = None,
+    confidence: String = "bounded_local"
+)
+object MoveReviewPvInterpretation:
+  given Writes[MoveReviewPvInterpretation] = Json.writes[MoveReviewPvInterpretation]
+
+case class MoveReviewExplanation(
+    title: String,
+    prose: String,
+    qualityLabel: Option[String] = None,
+    reasonTags: List[String] = Nil,
+    shortLine: Option[MoveReviewShortLine] = None,
+    pvInterpretation: Option[MoveReviewPvInterpretation] = None,
+    source: String = "basic_move_explanation"
+)
+object MoveReviewExplanation:
+  given Writes[MoveReviewExplanation] = Json.writes[MoveReviewExplanation]
+
 case class MoveReviewPolishMeta(
     provider: String,
     model: Option[String],
@@ -609,7 +645,8 @@ case class CommentResponse(
   commentaryMode: String = CommentaryMode.Polish,
   strategyPack: Option[StrategyPack] = None,
   signalDigest: Option[NarrativeSignalDigest] = None,
-  moveReviewLedger: Option[MoveReviewStrategicLedger] = None
+  moveReviewLedger: Option[MoveReviewStrategicLedger] = None,
+  moveReviewExplanation: Option[MoveReviewExplanation] = None
 )
 object CommentResponse:
   given Writes[CommentResponse] = Json.writes[CommentResponse]

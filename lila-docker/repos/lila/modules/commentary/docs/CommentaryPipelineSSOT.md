@@ -509,7 +509,13 @@ Primary files:
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineValidator.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/BookStyleRenderer.scala`
 
-### Bookmaker
+### MoveReview (legacy Bookmaker internals)
+
+`Bookmaker` remains a legacy internal identifier in existing module and test
+names. New user-facing schema and product language should use `MoveReview` /
+general commentary naming. The compatibility `commentary` payload field remains
+unchanged, while structured local review facts may also be exposed through
+`moveReviewExplanation`.
 
 Current canonical flow:
 
@@ -550,7 +556,60 @@ Current canonical flow:
      use the `WhyNow` secondary for visible prose/contrast while leaving the raw
      planner trace unchanged; this is not a legality, ranking, or owner-path
      change
-6. deterministic draft prose is rendered from those planner-owned slots.
+6. if no certified planner slot survives, `BasicMoveExplanationBuilder` may
+   admit a bounded instructional MoveReview explanation before exact-factual
+   fallback:
+   - v1 admission is intentionally narrow: opening / formation contexts,
+     explicit castling, or non-opening moves with UCI-coupled PV semantics only,
+     so tactical/trust fallback fixtures do not get re-inflated into generic
+     purpose prose without line support
+   - input is current move SAN/UCI, legal replayed board geometry, opening
+     reference, primitive reason tags, and optional short PV refs
+   - `MoveReviewBoardFacts` centralizes current-move board facts such as
+     piece/from/to, capture, attacked/defended targets, center contact, king
+     safety, line opening, direct targets, and endgame king/pawn/rook activity;
+     it rejects illegal current moves and reads the post-move board from legal
+     replay rather than synthetic piece relocation
+   - primitive tags are local facts such as `develops_piece`,
+     `controls_center`, `targets_f7_or_f2`, `king_safety`, `tempo`,
+     `opens_line`, `defends_center_pawn`, `creates_basic_threat`, and
+     `endgame_technique`
+   - `OpeningIdeaCatalog` is separate from board primitives and now uses
+     requirement-backed `family + pattern` entries: family/move match, required
+     primitive tags, required board facts, optional required PV facts, and
+     blockers must pass before opening prose is admitted
+   - `EndgameIdeaCatalog` is separate from generic endgame primitives and opens
+     only exact PV-backed v1 ideas: king activity/centralization, passed-pawn
+     support, and rook-behind-passer; phase-only king/pawn/rook prose is not a
+     catalog admission
+   - this lane may own a basic instructional paragraph, but it is not a
+     strategic authority lane and may not override a certified planner claim
+   - when refs contain a safe preview line, `MoveReviewShortLine` carries the
+     2-5 ply PV/SAN line separately from prose
+   - `MoveReviewPvFacts` centralizes the first usable PV line only when its
+     first move is coupled to the played move by UCI and
+     `MoveReviewPvChainValidator` can legally replay the line from the current
+     FEN, with ordered non-empty `fenAfter` refs matching the replayed board
+     state; malformed, uncoupled, illegal, mismatched-start, or mismatched-FEN
+     PV may remain `shortLine` evidence but does not admit semantic prose
+   - `PvSemanticInterpreter` may additionally attach
+     `MoveReviewPvInterpretation` from board/PV facts; besides opening/castling
+     semantics, it may now use PV-backed non-opening meanings such as
+     `resolve_capture_tension`, `answer_direct_threat`, `clarify_exchange`, and
+     `improve_endgame_activity`
+   - `MoveReviewLearningPointRenderer` owns the sentence-form learning point so
+     semantic classification stays separate from wording
+   - the prose may use that interpretation to explain current-move purpose,
+     the opponent reply's local question, and the learning point confirmed by
+     the short PV, but the PV line remains a separate `shortLine` field and may
+     not become a broader strategic/evaluation claim
+   - `BookmakerPolishSlots.sourceKind` records the selected visible lane; the
+     structured `moveReviewExplanation` payload is attached only when
+     `sourceKind=basic_move_explanation`, so a planner-owned surface does not
+     carry a separate basic title into the UI
+7. if neither planner nor basic instructional lane survives, runtime uses the
+   exact factual fallback or omission.
+8. deterministic draft prose is rendered from those slots.
    - `NarrativeOutlineBuilder` still emits plain `OutlineBeat.text`, but the
      runtime now keeps several mixed families split locally until the final
      stitch:
@@ -590,15 +649,15 @@ Current canonical flow:
     it removes leaked `Shared lesson:` sentences, strips raw helper-label
     prefixes, and drops ungrounded generalized fallback families outside
     anchored / opening-theory scopes if they survive builder release
-7. `BookmakerPolishSlots` / `BookmakerPolishSlotsBuilder` expose the narrow
+9. `BookmakerPolishSlots` / `BookmakerPolishSlotsBuilder` expose the narrow
    slot contract for optional prose polish.
-8. `PolishPrompt` may polish the Bookmaker body only.
-9. `BookmakerSoftRepair` and payload normalization preserve the structural
+10. `PolishPrompt` may polish the Bookmaker body only.
+11. `BookmakerSoftRepair` and payload normalization preserve the structural
    contract after polish.
-10. user-facing Bookmaker prose must pass one shared hard gate before it may
+12. user-facing MoveReview prose must pass one shared hard gate before it may
    enter the payload: no helper/debug notation leak, placeholder/meta leak,
    broken fragment, unparsed JSON wrapper, or duplicated sentence survives.
-11. user-facing prose is assembled through one canonical dedupe layer before
+13. user-facing prose is assembled through one canonical dedupe layer before
    final emission:
    - `BookStyleRenderer`, whole-game conclusion support, and payload assembly
      reduce exact duplicates, near-duplicates, and wrapper restatements at the
@@ -609,6 +668,10 @@ Current canonical flow:
 Current rules:
 
 - Bookmaker ledger rows are computed, evidence-gated, and UI-owned.
+- `moveReviewExplanation` is structured local review output: `title`, `prose`,
+  optional `qualityLabel`, `reasonTags`, optional `shortLine`, optional
+  `pvInterpretation`, and `source`; it is emitted only when the selected
+  Bookmaker slots have `sourceKind=basic_move_explanation`.
 - the commentary body is optional-polish prose only
 - AI polish must stay slot-grounded and must not add new topics
 - Bookmaker slot ownership is planner-first:
@@ -618,10 +681,11 @@ Current rules:
   - `WhosePlanIsFaster` race framing may surface only after certified planner
     admission; generic race shells do not survive slot cleaning
 - Bookmaker fails closed directly from the planner path:
-  - when no admissible `primary` survives, runtime goes straight to the exact
-    factual one-liner
+  - when no admissible `primary` survives, runtime tries the bounded
+    `BasicMoveExplanationBuilder` lane before falling to exact factual prose
   - when planner-owned slots fail slot sanitization or the structural prose
-    contract, runtime also goes straight to the exact factual one-liner
+    contract, runtime also tries the bounded basic lane before exact factual
+    fallback
   - old `mainBundle` / `quietIntent` direct compression is not a prose salvage
     owner path anymore
 - release-safe payload prose is stricter than internal support text:

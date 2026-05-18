@@ -29,7 +29,8 @@ object UserFacingPayloadSanitizer:
       planStateToken = response.planStateToken.filter(_ => sanitizedPlans.nonEmpty),
       strategyPack = response.strategyPack.flatMap(pack => sanitizeStrategyPack(pack, allowedPlanNames)),
       signalDigest = response.signalDigest.map(sanitizeSignalDigest),
-      moveReviewLedger = response.moveReviewLedger.filter(_ => sanitizedPlans.nonEmpty).map(sanitizeMoveReviewLedger)
+      moveReviewLedger = response.moveReviewLedger.filter(_ => sanitizedPlans.nonEmpty).map(sanitizeMoveReviewLedger),
+      moveReviewExplanation = response.moveReviewExplanation.map(sanitizeMoveReviewExplanation)
     )
 
   def sanitize(response: GameChronicleResponse): GameChronicleResponse =
@@ -212,6 +213,36 @@ object UserFacingPayloadSanitizer:
     line.copy(
       title = clean(line.title),
       note = cleanOpt(line.note)
+    )
+
+  private def sanitizeMoveReviewExplanation(explanation: MoveReviewExplanation): MoveReviewExplanation =
+    explanation.copy(
+      title = clean(explanation.title),
+      prose = clean(explanation.prose),
+      qualityLabel = cleanOpt(explanation.qualityLabel),
+      reasonTags = cleanList(explanation.reasonTags),
+      shortLine = explanation.shortLine.map(sanitizeMoveReviewShortLine),
+      pvInterpretation = explanation.pvInterpretation.map(sanitizeMoveReviewPvInterpretation),
+      source = clean(explanation.source)
+    )
+
+  private def sanitizeMoveReviewShortLine(line: MoveReviewShortLine): MoveReviewShortLine =
+    line.copy(
+      san = cleanList(line.san),
+      uci = cleanList(line.uci),
+      lineId = cleanOpt(line.lineId),
+      source = clean(line.source)
+    )
+
+  private def sanitizeMoveReviewPvInterpretation(interpretation: MoveReviewPvInterpretation): MoveReviewPvInterpretation =
+    interpretation.copy(
+      linePurpose = clean(interpretation.linePurpose),
+      confirms = cleanList(interpretation.confirms),
+      tension = clean(interpretation.tension),
+      opponentReplyMeaning = cleanOpt(interpretation.opponentReplyMeaning),
+      learningPoint = clean(interpretation.learningPoint),
+      supportedByLineId = cleanOpt(interpretation.supportedByLineId),
+      confidence = clean(interpretation.confidence)
     )
 
   private def sanitizeActiveIdeaRef(ref: ActiveStrategicIdeaRef): ActiveStrategicIdeaRef =
