@@ -1,14 +1,14 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  bookmakerLedgerRootAttrs,
-  renderBookmakerLedgerProbeRows,
-  renderBookmakerLedgerSignalRows,
-} from '../src/bookmaker/ledgerSurface';
-import type { BookmakerStrategicLedgerV1 } from '../src/bookmaker/responsePayload';
+  moveReviewLedgerRootAttrs,
+  renderMoveReviewLedgerProbeRows,
+  renderMoveReviewLedgerSignalRows,
+} from '../src/moveReview/ledgerSurface';
+import type { MoveReviewStrategicLedgerV1 } from '../src/moveReview/responsePayload';
 
-const sampleLedger: BookmakerStrategicLedgerV1 = {
-  schema: 'chesstory.bookmaker.ledger.v1',
+const sampleLedger: MoveReviewStrategicLedgerV1 = {
+  schema: 'chesstory.move_review.ledger.v1',
   motifKey: 'rook_pawn_march',
   motifLabel: 'Rook-pawn march',
   stageKey: 'build',
@@ -35,9 +35,9 @@ const sampleLedger: BookmakerStrategicLedgerV1 = {
   },
 };
 
-describe('bookmaker ledger surface', () => {
+describe('moveReview ledger surface', () => {
   test('renders compact signal rows inside the existing strategic summary', () => {
-    const rows = renderBookmakerLedgerSignalRows(sampleLedger).join('');
+    const rows = renderMoveReviewLedgerSignalRows(sampleLedger).join('');
     assert.match(rows, /Motif:/);
     assert.match(rows, /Stage:/);
     assert.match(rows, /Carry-over:/);
@@ -46,7 +46,7 @@ describe('bookmaker ledger surface', () => {
   });
 
   test('renders compact probe rows with interactive move chips', () => {
-    const rows = renderBookmakerLedgerProbeRows(sampleLedger, san => {
+    const rows = renderMoveReviewLedgerProbeRows(sampleLedger, san => {
       if (san === 'Rh3') return { refId: 'r1', san: 'Rh3', uci: 'h1h3' };
       if (san === 'Rg3') return { refId: 'r2', san: 'Rg3', uci: 'h3g3' };
       return null;
@@ -59,7 +59,7 @@ describe('bookmaker ledger surface', () => {
   });
 
   test('exports root observability attrs from the ledger', () => {
-    assert.deepEqual(bookmakerLedgerRootAttrs(sampleLedger), {
+    assert.deepEqual(moveReviewLedgerRootAttrs(sampleLedger), {
       'data-commentary-motif': 'rook_pawn_march',
       'data-commentary-stage': 'build',
       'data-commentary-carry-over': 'true',

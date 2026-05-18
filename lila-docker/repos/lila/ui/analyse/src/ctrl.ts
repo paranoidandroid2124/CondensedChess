@@ -32,7 +32,7 @@ import { makeUci } from 'chessops';
 import { storedBooleanProp, storedProp, tempStorage } from 'lib/storage';
 import { PromotionCtrl } from 'lib/game/promotion';
 import { valid as crazyValid } from './crazy/crazyCtrl';
-import bookmakerNarrative, { bookmakerClear, type BookmakerNarrative } from './bookmaker';
+import moveReviewNarrative, { moveReviewClear, type MoveReviewNarrative } from './moveReview';
 import ExplorerCtrl from './explorer/explorerCtrl';
 import { uciToMove } from '@lichess-org/chessground/util';
 import { IdbTree } from './idbTree';
@@ -41,7 +41,7 @@ import * as pgnExport from './pgnExport';
 import { emptyPgnError, normalizeInlinePgn, submitPgnToImportPipeline } from './pgnPipeline';
 import ForecastCtrl from './forecast/forecastCtrl';
 import * as studyApi from './studyApi';
-import { listSessionBookmakerSnapshots, type StudyBookmakerSnapshot } from './bookmaker/studyPersistence';
+import { listSessionMoveReviewSnapshots, type StudyMoveReviewSnapshot } from './moveReview/studyPersistence';
 
 import type { PgnError } from 'chessops/pgn';
 
@@ -147,7 +147,7 @@ function buildStudyNarrativeNote(data: GameChronicleResponse | null | undefined)
   return lines.join('\n').trim();
 }
 
-function snapshotVariationsForStudy(snapshot: StudyBookmakerSnapshot): any[] {
+function snapshotVariationsForStudy(snapshot: StudyMoveReviewSnapshot): any[] {
   return (snapshot.entry.refs?.variations || [])
     .map(variation => {
       const moves = variation.moves.map(move => move.uci).filter(Boolean);
@@ -187,7 +187,7 @@ export default class AnalyseCtrl implements CevalHandler {
   fork: ForkCtrl;
   promotion: PromotionCtrl;
 
-  bookmaker?: BookmakerNarrative;
+  moveReview?: MoveReviewNarrative;
   narrative?: NarrativeCtrl;
 
   // state flags
@@ -266,7 +266,7 @@ export default class AnalyseCtrl implements CevalHandler {
     );
 
     if (this.data.forecast) this.forecast = new ForecastCtrl(this.data.forecast, this.data, redraw);
-    if (this.opts.bookmaker) this.bookmaker = bookmakerNarrative(this);
+    if (this.opts.moveReview) this.moveReview = moveReviewNarrative(this);
 
     this.narrative = makeNarrative(this);
 
@@ -429,8 +429,8 @@ export default class AnalyseCtrl implements CevalHandler {
     });
   }
 
-  syncBookmaker(payload: studyApi.BookmakerSyncPayload): void {
-    this.enqueueStudyWrite(ref => studyApi.bookmakerSync(ref, payload));
+  syncMoveReview(payload: studyApi.MoveReviewSyncPayload): void {
+    this.enqueueStudyWrite(ref => studyApi.moveReviewSync(ref, payload));
   }
 
   studyLoginHref = (): string => magicLinkHref();
@@ -506,7 +506,7 @@ export default class AnalyseCtrl implements CevalHandler {
 
     const currentPgn = pgnExport.renderFullTxt(this);
     const sessionScope = `${location.pathname}${location.search}`;
-    const snapshots = listSessionBookmakerSnapshots(sessionScope).filter(snapshot => !!snapshot.commentary?.trim());
+    const snapshots = listSessionMoveReviewSnapshots(sessionScope).filter(snapshot => !!snapshot.commentary?.trim());
 
     try {
       const created = await studyApi.createStudyFromAnalysis({
@@ -535,14 +535,14 @@ export default class AnalyseCtrl implements CevalHandler {
         if (!commentary) continue;
         const originPath = snapshot.originPath || snapshot.entry.tokenContext?.originPath || treePath.init(snapshot.commentPath);
         try {
-          await studyApi.bookmakerSync(ref, {
+          await studyApi.moveReviewSync(ref, {
             commentPath: snapshot.commentPath,
             originPath,
             commentary,
             variations: snapshotVariationsForStudy(snapshot),
           });
         } catch (e) {
-          console.warn('Study bookmaker transfer failed', snapshot.commentPath, e);
+          console.warn('Study moveReview transfer failed', snapshot.commentPath, e);
         }
       }
 
@@ -600,10 +600,10 @@ export default class AnalyseCtrl implements CevalHandler {
     } else return treePath.root;
   };
 
-  enableBookmaker = (v: boolean) => {
-    this.bookmaker = v ? bookmakerNarrative(this) : undefined;
-    if (this.bookmaker) this.bookmaker(this.nodeList);
-    else bookmakerClear();
+  enableMoveReview = (v: boolean) => {
+    this.moveReview = v ? moveReviewNarrative(this) : undefined;
+    if (this.moveReview) this.moveReview(this.nodeList);
+    else moveReviewClear();
   };
 
   private setPath = (path: Tree.Path): void => {
@@ -614,7 +614,7 @@ export default class AnalyseCtrl implements CevalHandler {
     this.onMainline = this.tree.pathIsMainline(path);
     this.fenInput = undefined;
     this.pgnInput = undefined;
-    if (this.bookmaker) this.bookmaker(this.nodeList);
+    if (this.moveReview) this.moveReview(this.nodeList);
     this.idbTree.saveMoves();
     this.idbTree.revealNode();
   };

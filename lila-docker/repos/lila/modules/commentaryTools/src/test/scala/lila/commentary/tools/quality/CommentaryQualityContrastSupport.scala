@@ -37,12 +37,12 @@ object CommentaryQualityContrastSupport:
       playedSan: String,
       plannerQuestion: Option[String],
       plannerProofFamily: Option[String],
-      bookmakerFallbackMode: String,
-      afterBookmakerFallbackMode: Option[String] = None,
+      moveReviewFallbackMode: String,
+      afterMoveReviewFallbackMode: Option[String] = None,
       upstreamTaxonomy: Option[String],
       upstreamAllowedByDesign: Boolean,
       upstreamAllowanceTag: Option[String],
-      bookmakerPairBlockers: List[String] = Nil,
+      moveReviewPairBlockers: List[String] = Nil,
       selectionStatus: String,
       selectionReason: String,
       baselineSelectorScore: Option[Int] = None,
@@ -120,7 +120,7 @@ object CommentaryQualityContrastSupport:
       degradedCount: Int,
       selectorStatusCounts: Map[String, Int],
       upstreamTaxonomyCounts: Map[String, Int],
-      bookmakerPairBlockerCounts: Map[String, Int],
+      moveReviewPairBlockerCounts: Map[String, Int],
       upstreamPairBlockerCounts: Map[String, Int],
       replayPairBlockerCounts: Map[String, Int],
       contrastRejectReasonCounts: Map[String, Int],
@@ -141,8 +141,8 @@ object CommentaryQualityContrastSupport:
   )
 
   def buildContrastReport(
-      beforeEntries: List[BookmakerOutputEntry],
-      afterEntries: List[BookmakerOutputEntry],
+      beforeEntries: List[MoveReviewOutputEntry],
+      afterEntries: List[MoveReviewOutputEntry],
       surfaceEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry],
       parityReport: SamePlyParityReport
   ): Either[String, ContrastReport] =
@@ -154,9 +154,9 @@ object CommentaryQualityContrastSupport:
     else
       val parityIndex = parityReport.rows.map(row => parityKey(row.gameKey, row.targetPly, row.sliceKind) -> row).toMap
       val beforeThresholdBySampleId =
-        buildBookmakerThresholdRows(beforeEntries, surfaceEntries, parityReport).map(row => row.sampleId -> row).toMap
+        buildMoveReviewThresholdRows(beforeEntries, surfaceEntries, parityReport).map(row => row.sampleId -> row).toMap
       val afterThresholdBySampleId =
-        buildBookmakerThresholdRows(afterEntries, surfaceEntries, parityReport).map(row => row.sampleId -> row).toMap
+        buildMoveReviewThresholdRows(afterEntries, surfaceEntries, parityReport).map(row => row.sampleId -> row).toMap
       val surfaceThresholdReport =
         buildSurfaceThresholdReport(beforeEntries, surfaceEntries, parityReport)
       val whyRows =
@@ -170,8 +170,8 @@ object CommentaryQualityContrastSupport:
         val upstreamTaxonomy = parityRow.map(_.primaryTaxonomy)
         val allowanceTag = rowSurfaceOnlyAllowanceTag(parityRow)
         val allowedByDesign = rowAllowedByDesign(parityRow)
-        val upstreamPairBlockers = bookmakerPairBlockers(parityRow, MismatchLayer.Upstream)
-        val replayPairBlockers = bookmakerPairBlockers(parityRow, MismatchLayer.Replay)
+        val upstreamPairBlockers = moveReviewPairBlockers(parityRow, MismatchLayer.Upstream)
+        val replayPairBlockers = moveReviewPairBlockers(parityRow, MismatchLayer.Replay)
         val pairBlockers = upstreamPairBlockers ++ replayPairBlockers
         val beforeThreshold = beforeThresholdBySampleId.get(before.sampleId)
         val beforeSelection = beforeThreshold.map(_.selection)
@@ -187,7 +187,7 @@ object CommentaryQualityContrastSupport:
             SelectionStatus.QuestionFiltered
           else if upstreamPairBlockers.nonEmpty then SelectionStatus.UpstreamBlocked
           else if replayPairBlockers.nonEmpty then SelectionStatus.ReplayBlocked
-          else if passedBaselineKeepGate && after.bookmakerFallbackMode == "exact_factual" then
+          else if passedBaselineKeepGate && after.moveReviewFallbackMode == "exact_factual" then
             SelectionStatus.AfterFallbackBlocked
           else if passedBaselineKeepGate then SelectionStatus.Eligible
           else SelectionStatus.BaselineBlocked
@@ -197,7 +197,7 @@ object CommentaryQualityContrastSupport:
             case SelectionStatus.UpstreamBlocked  => pairBlockers.headOption.getOrElse(upstreamTaxonomy.getOrElse(MismatchTaxonomy.UpstreamLayerMismatch))
             case SelectionStatus.ReplayBlocked    => replayPairBlockers.headOption.getOrElse(MismatchTaxonomy.ReplayLayerRewrite)
             case SelectionStatus.AfterFallbackBlocked =>
-              "after_bookmaker_exact_factual"
+              "after_move_review_exact_factual"
             case SelectionStatus.BaselineBlocked  => "baseline_keep_gate_failed"
             case SelectionStatus.QuestionFiltered => "question_outside_scope"
             case SelectionStatus.NoPrimary        => "no_planner_primary"
@@ -205,18 +205,18 @@ object CommentaryQualityContrastSupport:
         ContrastSelectorRow(
           sampleId = before.sampleId,
           gameKey = before.gameKey,
-          surface = SurfaceName.Bookmaker,
+          surface = SurfaceName.MoveReview,
           sliceKind = before.sliceKind,
           targetPly = before.targetPly,
           playedSan = before.playedSan,
           plannerQuestion = before.plannerPrimaryKind,
           plannerProofFamily = before.plannerSelectedOwnerKind,
-          bookmakerFallbackMode = before.bookmakerFallbackMode,
-          afterBookmakerFallbackMode = Some(after.bookmakerFallbackMode),
+          moveReviewFallbackMode = before.moveReviewFallbackMode,
+          afterMoveReviewFallbackMode = Some(after.moveReviewFallbackMode),
           upstreamTaxonomy = upstreamTaxonomy,
           upstreamAllowedByDesign = allowedByDesign,
           upstreamAllowanceTag = allowanceTag,
-          bookmakerPairBlockers = pairBlockers,
+          moveReviewPairBlockers = pairBlockers,
           selectionStatus = selectionStatus,
           selectionReason = selectionReason,
           baselineSelectorScore = beforeSelection.map(_.selectorScore),
@@ -334,9 +334,9 @@ object CommentaryQualityContrastSupport:
             beforeBlankLikeCount = selectorRows.count(row => blankLike(row.beforeText)),
             afterBlankLikeCount = selectorRows.count(row => blankLike(row.afterText)),
             beforeFallbackCount =
-              evalSampleIds.count(sampleId => beforeById(sampleId).bookmakerFallbackMode == "exact_factual"),
+              evalSampleIds.count(sampleId => beforeById(sampleId).moveReviewFallbackMode == "exact_factual"),
             afterFallbackCount =
-              evalSampleIds.count(sampleId => afterById(sampleId).bookmakerFallbackMode == "exact_factual"),
+              evalSampleIds.count(sampleId => afterById(sampleId).moveReviewFallbackMode == "exact_factual"),
             afterFallbackBlockedRows =
               selectorRows.count(_.selectionStatus == SelectionStatus.AfterFallbackBlocked),
             changedCount = selectorRows.count(_.changed),
@@ -353,18 +353,18 @@ object CommentaryQualityContrastSupport:
                   case row if row.selectionStatus == SelectionStatus.UpstreamBlocked => row.upstreamTaxonomy
                 }.flatten
               ),
-            bookmakerPairBlockerCounts = countValues(selectorRows.flatMap(_.bookmakerPairBlockers)),
+            moveReviewPairBlockerCounts = countValues(selectorRows.flatMap(_.moveReviewPairBlockers)),
             upstreamPairBlockerCounts =
               countValues(
                 selectorRows
                   .filter(_.selectionStatus == SelectionStatus.UpstreamBlocked)
-                  .flatMap(_.bookmakerPairBlockers)
+                  .flatMap(_.moveReviewPairBlockers)
               ),
             replayPairBlockerCounts =
               countValues(
                 selectorRows
                   .filter(_.selectionStatus == SelectionStatus.ReplayBlocked)
-                  .flatMap(_.bookmakerPairBlockers)
+                  .flatMap(_.moveReviewPairBlockers)
               ),
             contrastRejectReasonCounts = countValues(selectorRows.flatMap(_.contrast_reject_reason)),
             contrastUsefulnessDelta =
@@ -400,7 +400,7 @@ object CommentaryQualityContrastSupport:
        |
        |- Selector status counts: ${renderCountMap(report.summary.selectorStatusCounts)}
        |- Upstream taxonomy counts: ${renderCountMap(report.summary.upstreamTaxonomyCounts)}
-       |- Bookmaker pair blockers: ${renderCountMap(report.summary.bookmakerPairBlockerCounts)}
+       |- MoveReview pair blockers: ${renderCountMap(report.summary.moveReviewPairBlockerCounts)}
        |- Upstream pair blockers: ${renderCountMap(report.summary.upstreamPairBlockerCounts)}
        |- Replay pair blockers: ${renderCountMap(report.summary.replayPairBlockerCounts)}
        |- Contrast reject reasons: ${renderCountMap(report.summary.contrastRejectReasonCounts)}
@@ -442,7 +442,7 @@ object CommentaryQualityContrastSupport:
     if rows.isEmpty then "- none"
     else
       rows.map { row =>
-        s"- `${row.sampleId}` question=`${row.plannerQuestion.getOrElse("none")}` owner=`${row.plannerProofFamily.getOrElse("-")}` status=`${row.selectionStatus}` reason=`${row.selectionReason}` pairBlockers=`${row.bookmakerPairBlockers.mkString("|")}` contrast=`${row.contrast_source_kind.getOrElse("-")}` reject=`${row.contrast_reject_reason.getOrElse("-")}` changed=`${row.changed}`"
+        s"- `${row.sampleId}` question=`${row.plannerQuestion.getOrElse("none")}` owner=`${row.plannerProofFamily.getOrElse("-")}` status=`${row.selectionStatus}` reason=`${row.selectionReason}` pairBlockers=`${row.moveReviewPairBlockers.mkString("|")}` contrast=`${row.contrast_source_kind.getOrElse("-")}` reject=`${row.contrast_reject_reason.getOrElse("-")}` changed=`${row.changed}`"
       }.mkString("\n")
 
   private def renderEvalRows(rows: List[ContrastEvalRow]): String =
@@ -473,7 +473,7 @@ object CommentaryQualityContrastSupport:
   private def formatDouble(value: Double): String =
     f"$value%.2f"
 
-  private def bookmakerPairBlockers(
+  private def moveReviewPairBlockers(
       parityRow: Option[SamePlyParityRow],
       layer: String
   ): List[String] =
@@ -481,6 +481,6 @@ object CommentaryQualityContrastSupport:
       case mismatch
           if !mismatch.allowedByDesign &&
             mismatch.layer == layer &&
-            (mismatch.leftSurface == SurfaceName.Bookmaker || mismatch.rightSurface == SurfaceName.Bookmaker) =>
+            (mismatch.leftSurface == SurfaceName.MoveReview || mismatch.rightSurface == SurfaceName.MoveReview) =>
         s"${mismatch.leftSurface}/${mismatch.rightSurface}:${mismatch.taxonomy}"
     }

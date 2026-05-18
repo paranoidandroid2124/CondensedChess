@@ -2,14 +2,14 @@ import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import {
-  buildStoredBookmakerEntry,
-  persistSessionBookmakerSnapshot,
-  readSessionBookmakerSnapshot,
-  type StoredBookmakerEntry,
-} from '../src/bookmaker/studyPersistence';
-import { restoreStoredBookmakerTokens } from '../src/bookmaker/stateContinuity';
+  buildStoredMoveReviewEntry,
+  persistSessionMoveReviewSnapshot,
+  readSessionMoveReviewSnapshot,
+  type StoredMoveReviewEntry,
+} from '../src/moveReview/studyPersistence';
+import { restoreStoredMoveReviewTokens } from '../src/moveReview/stateContinuity';
 
-describe('bookmaker session persistence', () => {
+describe('moveReview session persistence', () => {
   afterEach(() => {
     delete (globalThis as { window?: Window }).window;
     delete (globalThis as { document?: Document }).document;
@@ -22,7 +22,7 @@ describe('bookmaker session persistence', () => {
     dom.window.document.body.dataset.cookieConsentDecided = '1';
     dom.window.document.body.dataset.cookieConsentPrefs = '1';
 
-    const entry: StoredBookmakerEntry = {
+    const entry: StoredMoveReviewEntry = {
       html: '<div>cached</div>',
       refs: null,
       polishMeta: null,
@@ -30,8 +30,8 @@ describe('bookmaker session persistence', () => {
       model: null,
       cacheHit: true,
       mainPlansCount: 1,
-      bookmakerLedger: {
-        schema: 'chesstory.bookmaker.ledger.v1',
+      moveReviewLedger: {
+        schema: 'chesstory.move_review.ledger.v1',
         motifKey: 'counterplay_restraint',
         motifLabel: 'Counterplay restraint',
         stageKey: 'restrain',
@@ -71,17 +71,17 @@ describe('bookmaker session persistence', () => {
       },
     };
 
-    persistSessionBookmakerSnapshot('scope', 'path', 'path-a', 'commentary', entry);
-    const restored = readSessionBookmakerSnapshot('scope', 'path');
+    persistSessionMoveReviewSnapshot('scope', 'path', 'path-a', 'commentary', entry);
+    const restored = readSessionMoveReviewSnapshot('scope', 'path');
     assert(restored);
-    assert.deepEqual(restored.entry.bookmakerLedger, entry.bookmakerLedger);
+    assert.deepEqual(restored.entry.moveReviewLedger, entry.moveReviewLedger);
     assert.deepEqual(restored.entry.planStateToken, entry.planStateToken);
     assert.deepEqual(restored.entry.endgameStateToken, entry.endgameStateToken);
     assert.deepEqual(restored.entry.tokenContext, entry.tokenContext);
 
     const planStateByPath = new Map();
     const endgameStateByPath = new Map();
-    restoreStoredBookmakerTokens(
+    restoreStoredMoveReviewTokens(
       restored.entry,
       { stateKey: 'state-key', analysisFen: 'fen-1', originPath: 'path-a' },
       planStateByPath,
@@ -96,7 +96,7 @@ describe('bookmaker session persistence', () => {
     const dom = new JSDOM('', { url: 'https://example.test/analyse' });
     (globalThis as { window?: Window }).window = dom.window as unknown as Window;
 
-    const entry: StoredBookmakerEntry = {
+    const entry: StoredMoveReviewEntry = {
       html: '<div>cached</div>',
       refs: null,
       polishMeta: null,
@@ -134,7 +134,7 @@ describe('bookmaker session persistence', () => {
 
     const planStateByPath = new Map();
     const endgameStateByPath = new Map();
-    const restored = restoreStoredBookmakerTokens(
+    const restored = restoreStoredMoveReviewTokens(
       entry,
       { stateKey: 'state-key', analysisFen: 'fen-2', originPath: 'path-a' },
       planStateByPath,
@@ -147,8 +147,8 @@ describe('bookmaker session persistence', () => {
     assert.equal(endgameStateByPath.has('state-key'), false);
   });
 
-  test('buildStoredBookmakerEntry derives cache metadata from decoded response shape', () => {
-    const entry = buildStoredBookmakerEntry(
+  test('buildStoredMoveReviewEntry derives cache metadata from decoded response shape', () => {
+    const entry = buildStoredMoveReviewEntry(
       {
         refs: null,
         polishMeta: null,
@@ -169,7 +169,7 @@ describe('bookmaker session persistence', () => {
             risk: 'medium',
           },
         }],
-        bookmakerLedger: null,
+        moveReviewLedger: null,
         planStateToken: null,
         endgameStateToken: null,
       },

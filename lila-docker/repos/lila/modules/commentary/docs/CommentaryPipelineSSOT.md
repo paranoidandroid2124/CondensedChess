@@ -34,7 +34,7 @@ Current canonical scope includes:
 - strategic / semantic / endgame / opening / probe / plan / pawn / structure /
   threat / practicality / counterfactual helper modules
 - Chronicle / Game Arc generation
-- Bookmaker context, rendering, slot building, optional polish, and frontend
+- MoveReview context, rendering, slot building, optional polish, and frontend
   consumption
 - Active-note selection, deterministic draft generation, optional polish, and
   frontend consumption
@@ -72,7 +72,7 @@ Out of scope:
 
 - Canonical decisive-move truth is derived before prose generation.
 - Canonical Chronicle / Game Arc behavior is deterministic.
-- Canonical Bookmaker draft generation is deterministic.
+- Canonical MoveReview draft generation is deterministic.
 - Canonical Active-note attach / omit behavior is deterministic.
 - AI polish may improve wording, but it does not own strategic truth or note
   existence on the signoff path.
@@ -80,7 +80,7 @@ Out of scope:
 ### 1A. Truth-first move fact layer
 
 - Per key moment, the canonical runtime derives an internal
-  `MoveTruthFrame` before Chronicle / Bookmaker / Active prose is built.
+  `MoveTruthFrame` before Chronicle / MoveReview / Active prose is built.
 - `MoveTruthFrame` is the fact layer; `DecisiveTruthContract` is only the
   surface projection consumed by selection and rendering.
 - The frame classifies seven fact families:
@@ -216,7 +216,7 @@ Out of scope:
 
 - `StrategyPackBuilder` builds the shared strategic carrier.
 - `StrategyPackSurface` is the shared extraction / normalization layer used by
-  Chronicle, Bookmaker, and Active note.
+  Chronicle, MoveReview, and Active note.
 - compensation family / theater / mode / normalization are resolved once and
   reused across surfaces instead of being independently reinterpreted.
 - raw compensation flags on `StrategyPackSurface`
@@ -232,7 +232,7 @@ Out of scope:
   fresh investment ownership by default.
 - decisive-truth derivation reads the raw pre-sanitization `StrategyPack`
   before surface cleanup. Investment exemplars are classified from verified raw
-  pack evidence first, and only then are Chronicle / Bookmaker / Active
+  pack evidence first, and only then are Chronicle / MoveReview / Active
   surfaces sanitized from the finalized contract.
 - decisive-truth derivation tracks four evidence provenance buckets:
   - `current_material`
@@ -297,7 +297,7 @@ Out of scope:
 
 - frontend cards, sections, badges, and ledgers are UI-owned
 - AI-owned output is prose only
-- Bookmaker / Active / Puzzle prompts must not recreate UI chrome
+- MoveReview / Active / Puzzle prompts must not recreate UI chrome
 
 ## Current Runtime Path Map
 
@@ -326,7 +326,7 @@ Current canonical flow:
    move may stay supporting-visible without being allowed to claim investment
    ownership or compensation-positive prose.
 8. exemplar preservation is explicit: a `provisional_exemplar` may remain
-   visible even when Chronicle / Bookmaker / Active are still forced to stay
+   visible even when Chronicle / MoveReview / Active are still forced to stay
    neutral about why the investment works.
 9. decisive-moment promotion prefers verified blunders, missed wins, verified
    exemplars, first investment commitments, and forced conversion pivots over
@@ -509,21 +509,20 @@ Primary files:
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineValidator.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/BookStyleRenderer.scala`
 
-### MoveReview (legacy Bookmaker internals)
+### MoveReview
 
-`Bookmaker` remains a legacy internal identifier in existing module and test
-names. New user-facing schema and product language should use `MoveReview` /
-general commentary naming. The compatibility `commentary` payload field remains
+`MoveReview` is the canonical runtime, API, tool, and frontend name for the
+single-move review surface. The compatibility `commentary` payload field remains
 unchanged, while structured local review facts may also be exposed through
 `moveReviewExplanation`.
 
 Current canonical flow:
 
-1. `NarrativeContextBuilder` builds the Bookmaker context from analysis,
+1. `NarrativeContextBuilder` builds the MoveReview context from analysis,
    references, probe evidence, and strategic carriers.
 2. decisive-truth sanitization removes unverified benchmark and compensation
-   claims before Bookmaker outline / prose rendering.
-3. `QuestionPlannerInputsBuilder` is built once for the Bookmaker owner path
+   claims before MoveReview outline / prose rendering.
+3. `QuestionPlannerInputsBuilder` is built once for the MoveReview owner path
    from live carriers only:
    `MainPathMoveDeltaClaimBuilder`, `QuietMoveIntentBuilder`,
    `CertifiedDecisionFrameBuilder`, sanitized `DecisionComparison` plus the
@@ -532,7 +531,7 @@ Current canonical flow:
    threat tables, opponent plan, and cleaned candidate evidence lines.
 4. `QuestionFirstCommentaryPlanner` ranks `primary + optional secondary`
    question plans from that shared bundle.
-   - the shared planner also emits owner-admission diagnostics for Bookmaker
+   - the shared planner also emits owner-admission diagnostics for MoveReview
      signoff:
      `scene_type`, `owner_candidates`, `admitted_families`,
      `dropped_families`, `demotion_reasons`, `selected_question`,
@@ -547,8 +546,8 @@ Current canonical flow:
    - `secondary` may fill support-only slots and may not replace the main
      claim or evidence owner
    - `mainBundle` / `quietIntent` are input-only and no longer directly own
-     Bookmaker prose
-  - the Bookmaker-side contrast-support render guard is renderer-scoped and
+     MoveReview prose
+  - the MoveReview-side contrast-support render guard is renderer-scoped and
      trace-preserving:
      when raw planner `primary` is `WhatMustBeStopped`, shared-planner
      `secondary` is `WhyNow`, both stay in `ForcingDefense`, and the raw primary
@@ -673,7 +672,7 @@ Current canonical flow:
     anchored / opening-theory scopes if they survive builder release
 9. `MoveReviewPolishSlots` / `MoveReviewPolishSlotsBuilder` expose the narrow
    slot contract for optional prose polish.
-10. `PolishPrompt` may polish the Bookmaker body only.
+10. `PolishPrompt` may polish the MoveReview body only.
 11. `MoveReviewSoftRepair` and payload normalization preserve the structural
    contract after polish.
 12. user-facing MoveReview prose must pass one shared hard gate before it may
@@ -689,20 +688,20 @@ Current canonical flow:
 
 Current rules:
 
-- Bookmaker ledger rows are computed, evidence-gated, and UI-owned.
+- MoveReview ledger rows are computed, evidence-gated, and UI-owned.
 - `moveReviewExplanation` is structured local review output: `title`, `prose`,
   optional `qualityLabel`, `reasonTags`, optional `shortLine`, optional
   `pvInterpretation`, and `source`; it is emitted only when the selected
-  Bookmaker slots have `sourceKind=basic_move_explanation`.
+  MoveReview slots have `sourceKind=basic_move_explanation`.
 - the commentary body is optional-polish prose only
 - AI polish must stay slot-grounded and must not add new topics
-- Bookmaker slot ownership is planner-first:
-  - `primary.claim` is the only owner of the main Bookmaker claim
+- MoveReview slot ownership is planner-first:
+  - `primary.claim` is the only owner of the main MoveReview claim
   - `secondary` may fill only `supportPrimary` / `supportSecondary`
   - `secondary` may not replace `claim` or `evidenceHook`
   - `WhosePlanIsFaster` race framing may surface only after certified planner
     admission; generic race shells do not survive slot cleaning
-- Bookmaker fails closed directly from the planner path:
+- MoveReview fails closed directly from the planner path:
   - when no admissible `primary` survives, runtime tries the bounded
     `MoveReviewExplanationBuilder` lane before falling to exact factual prose
   - when planner-owned slots fail slot sanitization or the structural prose
@@ -724,13 +723,13 @@ Current rules:
   - payload sanitization covers active route refs as well as active idea /
     move / target carriers; no active-side route purpose may bypass the final
     scrubber
-- Bookmaker runtime semantics are truth-first:
+- MoveReview runtime semantics are truth-first:
   - compensation significance comes from `ownershipRole`, `visibilityRole`,
     `surfaceMode`, `exemplarRole`, and `maintenanceExemplarCandidate` when a
     contract exists
   - raw compensation surface flags may only assist no-contract fallback flows
   - one shared player-facing truth mode policy now owns visible packaging
-    across Chronicle / Bookmaker / Active:
+    across Chronicle / MoveReview / Active:
     - `Minimal` is the default for quiet / weak-evidence moments; it keeps the
       surface terse, suppresses speculative route / target / long-plan prose,
       and prefers move-local factual copy or existing cited-line evidence over
@@ -742,7 +741,7 @@ Current rules:
       swing size alone may not promote a move into tactical narration
     - `only_move_defense` and `tactical_refutation` do not own player-facing
       tactical narration on contract shape alone; they need a shared forcing
-      proof inside the current horizon before Chronicle / Bookmaker may lead
+      proof inside the current horizon before Chronicle / MoveReview may lead
       with tactical text
     - when a move is `Tactical`, the immediate tactical truth must lead before
       any route / target narration, and cited variations may survive only when
@@ -771,28 +770,28 @@ Current rules:
   - tactical tension, cited-line pressure, and early-opening escape hatches
     consume a shared canonical tension policy rather than re-reading raw
     `criticality` / `choiceType` strings in each surface
-- Bookmaker may not name a concrete benchmark unless the decisive-truth
+- MoveReview may not name a concrete benchmark unless the decisive-truth
   contract marks that benchmark as verified.
-- Bookmaker may not use compensation-positive framing on a verified bad move.
-- Bookmaker may use compensation-positive framing on a verified
+- MoveReview may not use compensation-positive framing on a verified bad move.
+- MoveReview may use compensation-positive framing on a verified
   `winning_investment` or `compensated_investment` only when the payoff anchor
   comes from the decisive-truth contract rather than raw route-purpose shells.
 - `The move gives up material ...` belongs only to a truth-owning commitment
   row. Maintenance rows describe preservation, and conversion rows describe
   realization.
 - private maintenance-exemplar candidates may remain focus-visible for audit /
-  signoff while Bookmaker stays neutral and avoids compensation-positive
+  signoff while MoveReview stays neutral and avoids compensation-positive
   ownership language.
-- Bookmaker / Chronicle may omit weak strategic packaging entirely:
+- MoveReview / Chronicle may omit weak strategic packaging entirely:
   - user-facing main-path legacy thesis / fallback helpers are no longer
     canonical runtime behavior; `StrategicThesisBuilder`-style state-summary
-    promotion does not own Bookmaker / Chronicle claims anymore
+    promotion does not own MoveReview / Chronicle claims anymore
   - repo-wide runtime no longer emits or consumes `dominant thesis:` /
     `dominant_thesis:` carriers:
     outline, strategy-pack enrichment, full-game evidence gating, hybrid
-    bridge helpers, and bookmaker strategic ledger selection now read direct
+    bridge helpers, and moveReview strategic ledger selection now read direct
     semantic / digest / move-delta signals instead of thesis revival
-  - bookmaker and chronicle main-path claim permission now flows through the
+  - moveReview and chronicle main-path claim permission now flows through the
     shared `MainPathMoveDeltaClaimBuilder` carrier:
     tactical ownership is checked first, then strategic move-delta ownership,
     then move-linked evidence; sanitized prose is the last filter rather than
@@ -805,7 +804,7 @@ Current rules:
     claim
   - cross-surface trust regression watch now exists in test tooling:
     `CrossSurfaceTrustRegressionHarnessTest` replays the same fixture bundles
-    through Bookmaker / Chronicle / Active entrypoints and compares owner,
+    through MoveReview / Chronicle / Active entrypoints and compares owner,
     strength, scope, support-only carry, and fallback rewrite behavior against
     the documented residual envelope rather than adding a new runtime path
   - that test-side watch is now widened by a large negative fixture pack:
@@ -881,7 +880,7 @@ Current rules:
     moment `concepts`, response `themes`, thread summaries/counterplans, and
     signal-digest strategic idea / opponent-plan hints do not survive the
     runtime sanitizer unless a probe-backed strategic plan owns them
-  - direct Bookmaker requests do not surface blank prose:
+  - direct MoveReview requests do not surface blank prose:
     after tactical / strategic / quiet-intent checks fail, runtime may still
     emit one exact factual fallback sentence from current move semantics
     - that exact-factual floor is literal move-shape only:
@@ -964,7 +963,7 @@ Current rules:
     quiet-intent gating, `CommentaryEngine` runs a post-selection
     commentability pass that reselects the next commentable move in the same
     thread or drops that surfaced move when no same-thread replacement exists
-    - Chronicle quiet-support replay now mirrors the accepted Bookmaker
+    - Chronicle quiet-support replay now mirrors the accepted MoveReview
       fallback-lift only on the same narrow quiet subset
       (`long_structural_squeeze`, `slow_route_improvement`,
       `pressure_maintenance_without_immediate_tactic`) and only when the
@@ -987,12 +986,12 @@ Current rules:
   - support rows may no longer promote themselves into stronger claims; support
     can justify an admitted claim, but it may not replace a missing canonical
     claim or upgrade a weak one
-  - Bookmaker now consumes planner output rather than raw support bridges:
+  - MoveReview now consumes planner output rather than raw support bridges:
     `QuestionFirstCommentaryPlanner.primary` is mapped to
     `claim/evidenceHook/coda`, `secondary` is support-only, and direct
     `mainBundle` / `quietIntent` compression is reserved for exact factual
     fallback only
-  - bookmaker / chronicle support slots now run through one backend-only
+  - moveReview / chronicle support slots now run through one backend-only
     `CertifiedDecisionFrameBuilder` bridge:
     the move-local claim still leads, and only after that claim survives may
     runtime append at most two certified support sentences from the fixed
@@ -1007,7 +1006,7 @@ Current rules:
     keys or the concrete alignment keys extracted from the probe-backed main
     plan itself; probe-backed plan presence alone is not enough, and raw plan
     labels by themselves do not count as concrete plan alignment
-  - in bookmaker / chronicle runtime that alignment is fail-closed:
+  - in moveReview / chronicle runtime that alignment is fail-closed:
     if no admitted move-local keys survive (`mainBundle` / `quietIntent`), the
     decision frame may still certify `Urgency`, but it may not surface
     `Intent` or `Battlefront` from probe-backed support carriers alone
@@ -1034,7 +1033,7 @@ Current rules:
     carriers stay keyed to the admitted move-local alignment set that backed
     that certification, so a square-focused rendered sentence does not
     accidentally hide an aligned route/dossier carrier
-  - bookmaker / chronicle strategic prose now consumes certified delta atoms
+  - moveReview / chronicle strategic prose now consumes certified delta atoms
     only:
     `MainPathMoveDeltaClaimBuilder` and `QuietMoveIntentBuilder` read
     provenance-aware carrier objects with modality tiers such as `available`,
@@ -1171,7 +1170,7 @@ Current rules:
     exact path only as the `(proofSource=prophylactic_move,
     proofFamily=counterplay_restraint)` MoveDelta packet, parallel to the
     already bounded `(counterplay_axis_suppression, neutralize_key_break)`
-    named-break packet; generic MoveDelta scope is not enough. Bookmaker and
+    named-break packet; generic MoveDelta scope is not enough. MoveReview and
     Chronicle consume the planner's `strategic_claim_supported_local` decision
     as claim-only, and the shared sentence sanitizer treats side-specific
     `queenside` / `kingside` / `central counterplay` as a concrete anchor only
@@ -1237,7 +1236,7 @@ Current rules:
     branch.` / `That same defended branch keeps the pressure fixed on d6.`).
     `QuestionFirstCommentaryPlanner` gives that exact same-branch delta a
     narrow ranking preference over the sibling `WhyThis` restatement only on
-    this admitted owner lane, so Bookmaker and Chronicle now consume
+    this admitted owner lane, so MoveReview and Chronicle now consume
     `planner_primary=[WhatChanged | MoveDelta | target | This changes the
     position by fixing d6 as the target.]` rather than exact factual fallback.
     Broad structure-summary `WhatChanged`, generic weakness prose, and
@@ -1266,7 +1265,7 @@ Current rules:
     `main_bundle=The key strategic fact here is that c6 is the fixed target.`
     `QuestionFirstCommentaryPlanner` now admits only that certified packet as
     planner-owned `WhatMattersHere` and rejects generic `PositionLocal`
-    shells as `position_probe_not_certified`, so Bookmaker and Chronicle
+    shells as `position_probe_not_certified`, so MoveReview and Chronicle
     consume the deterministic primary claim plus coda
     (`So the task is to keep the queenside pressure trained on c6 instead of
     rushing a conversion.`) rather than inflating support-only Carlsbad prose
@@ -1286,7 +1285,7 @@ Current rules:
     `main_bundle=The key strategic fact here is that the pressure is coordinated on c6.`
     `QuestionFirstCommentaryPlanner` still rejects generic `PositionLocal`
     shells, but it now admits the certified Carlsbad or target-focused
-    coordination packet as planner-owned `WhatMattersHere`, so Bookmaker and
+    coordination packet as planner-owned `WhatMattersHere`, so MoveReview and
     Chronicle consume the deterministic primary claim plus bounded coda
     (`So the task is to keep the pressure coordinated on c6 until the target
     has to give way.`) rather than inflating support-only coordination wording,
@@ -1345,25 +1344,25 @@ Current rules:
   - proving lines are also delta-aware: a cited variation may survive only when
     it proves the tactical point or demonstrates the admitted strategic delta;
     boilerplate “keeps the idea in play” lines are not canonical
-- Bookmaker-only corpus tooling now records internal planner selection
+- MoveReview-only corpus tooling now records internal planner selection
   (`primary kind`, `secondary kind`, planner-owned vs exact-factual fallback)
   for signoff review without changing the typed runtime payload
-- `BookmakerPlannerSliceBuilder` is the canonical real-PGN slice miner for
-  selected-ply Bookmaker signoff: it scans catalog PGNs ply-by-ply, selects Bookmaker-only
+- `MoveReviewPlannerSliceBuilder` is the canonical real-PGN slice miner for
+  selected-ply MoveReview signoff: it scans catalog PGNs ply-by-ply, selects MoveReview-only
   planner-positive or fail-closed moments, and writes a dedicated signoff slice
   manifest rather than reusing the generic mixed-surface slice manifest
-- `BookmakerPlannerSignoffRunner` now records deterministic Bookmaker prose from
+- `MoveReviewPlannerSignoffRunner` now records deterministic MoveReview prose from
   the same `truthContract + refs + planner + slots` path that runtime uses;
-  outline prose is not canonical signoff output for Bookmaker anymore
-- selected-ply Bookmaker signoff must also preserve runtime authoring parity:
+  outline prose is not canonical signoff output for MoveReview anymore
+- selected-ply MoveReview signoff must also preserve runtime authoring parity:
   `CommentaryPlayerQcSupport.analyzePly` passes the played UCI as both
   `playedMove` and `prevMove`, matching selected-ply runtime seeding so
   `AuthorQuestionGenerator` and planner signoff observe the same question
   inventory
-- Bookmaker slice mining and signoff reruns also reset the UCI engine with
+- MoveReview slice mining and signoff reruns also reset the UCI engine with
   `ucinewgame` before each before/after position analysis, so planner-positive
   selection is not polluted by prior hash state from unrelated corpus entries
-- Bookmaker remains compatible with rule-only signoff and provider-none audit
+- MoveReview remains compatible with rule-only signoff and provider-none audit
   runs
 
 Primary files:
@@ -1636,7 +1635,7 @@ Current canonical flow:
 1. plan / tactical / conversion hypotheses may request bounded probes
 2. probes validate current-plan evidence or bounded alternative branches
 3. probe results flow back into context / evidence surfaces
-4. Chronicle / Bookmaker / Active may mention those results when they are
+4. Chronicle / MoveReview / Active may mention those results when they are
    evidence-backed
 
 Current rules:
@@ -1675,7 +1674,7 @@ Current rules:
     prevented-resource pressure or equivalent counterplay compression
   - uncertified conversion contracts fail closed:
     the experiment evidence tier is downgraded to `deferred` before
-    `mainStrategicPlans` are filtered for shared planner/Chronicle/Bookmaker/
+    `mainStrategicPlans` are filtered for shared planner/Chronicle/MoveReview/
     Active reuse
   - counterplay-axis suppression certification is also runtime-scoped:
     `NarrativeContextBuilder` evaluates a backend-only certificate for
@@ -1714,7 +1713,7 @@ Current rules:
     when the dual-axis contract is present and uncertified,
     `NarrativeContextBuilder` forces the experiment evidence tier to
     `deferred` before `mainStrategicPlans` are filtered for shared
-    planner/Chronicle/Bookmaker/Active reuse
+    planner/Chronicle/MoveReview/Active reuse
   - validation probes may corroborate the shell, but they may not replace
     direct best-defense evidence or stitch persistence / continuation from a
     different defended branch; explicit fail-closed reasons include
@@ -1743,7 +1742,7 @@ Current rules:
   - uncertified local file-entry contracts fail closed before planner reuse:
     when the contract is present and uncertified, `NarrativeContextBuilder`
     forces the experiment evidence tier to `deferred` before
-    `mainStrategicPlans` are filtered for shared planner/Chronicle/Bookmaker/
+    `mainStrategicPlans` are filtered for shared planner/Chronicle/MoveReview/
     Active reuse
   - carrier closure stays inside the existing runtime path:
     `StrategicAnalyzers.ProphylaxisAnalyzerImpl` may preserve
@@ -1820,7 +1819,7 @@ Primary files:
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineBuilder.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeOutlineValidator.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeContextBuilder.scala`
-- `ui/analyse/src/bookmaker/probeOrchestrator.ts`
+- `ui/analyse/src/moveReview/probeOrchestrator.ts`
 
 ## Shared Strategic Logic
 
@@ -1829,7 +1828,7 @@ Primary files:
 - `StrategyPack` is the shared strategic payload
 - it carries dominant ideas, routes, move refs, directional targets,
   long-term focus, and signal digest
-- Chronicle / Bookmaker / Active all consume it through current shared
+- Chronicle / MoveReview / Active all consume it through current shared
   extraction logic
 - `StrategyPackSurface.Snapshot` no longer carries legacy dead-stub fields such
   as `strategicStack`, `latentPlan`, or `decisionEvidence`; runtime consumers
@@ -1857,7 +1856,7 @@ Primary files:
   instead of remaining `evidence_backed`
 - `StrategicNarrativePlanSupport.filterEvidenceBacked` is the shared replay
   gate used by `NarrativeContextBuilder`, `CertifiedDecisionFrameBuilder`, and
-  `ActiveStrategicCoachingBriefBuilder`, so Chronicle / Bookmaker / Active all
+  `ActiveStrategicCoachingBriefBuilder`, so Chronicle / MoveReview / Active all
   consume the same downgraded planner pool
 - when that pool becomes empty, runtime remains on the existing exact-factual
   fallback path rather than keeping a stronger-looking conversion shell
@@ -1892,7 +1891,7 @@ Primary files:
   bundles fail closed at that builder gate with explicit reasons
   `direct_best_defense_missing` or `stitched_defended_branch`
 - `StrategicNarrativePlanSupport.filterEvidenceBacked` remains the shared replay
-  gate, so Chronicle / Bookmaker / Active reuse the same downgraded pool and
+  gate, so Chronicle / MoveReview / Active reuse the same downgraded pool and
   whole-game helpers never see a revived positive shell
 - `QuestionFirstCommentaryPlanner` keeps the existing ownership architecture:
   for already-certified suppression plans, `prevented_plan` support no longer
@@ -1938,7 +1937,7 @@ Primary files:
   proof bundles fail closed at that builder gate rather than borrowing broader
   validation support into a positive B3b certification
 - `StrategicNarrativePlanSupport.filterEvidenceBacked` remains the shared replay
-  gate, so Chronicle / Bookmaker / Active all consume the same downgraded pool
+  gate, so Chronicle / MoveReview / Active all consume the same downgraded pool
   and whole-game helpers never see a revived positive dual-axis shell
 - `QuestionFirstCommentaryPlanner` reuses the same containment rule already used
   for certified restriction-prophylaxis clamps:
@@ -2002,7 +2001,7 @@ Primary files:
   gate, and `LocalFileEntryProof.certifiedSurfacePair` also reads
   only experiment-filtered evidence-backed plans plus file/entry pairs that are
   explicitly named in the surviving plan's affirmative text
-  (`planName`, `executionSteps`), so Chronicle / Bookmaker / builder-owned
+  (`planName`, `executionSteps`), so Chronicle / MoveReview / builder-owned
   move-delta surfaces cannot revive a deferred residual shell or a pair that
   appears only inside negative/refutation wording
 - `QuestionFirstCommentaryPlanner` keeps the existing owner architecture:
@@ -2065,7 +2064,7 @@ Primary files:
   `RouteNetworkBindProof.certifiedSurfaceNetwork` now fails closed
   unless one exact plan-scoped file/entry/reroute triplet is uniquely named by
   the surviving evidence-backed plans;
-  `WhatChanged`, Bookmaker, Chronicle, Active, and whole-game replay do not
+  `WhatChanged`, MoveReview, Chronicle, Active, and whole-game replay do not
   gain a new positive owner lane
 - replay closure:
   `GameChronicleCompressionPolicy`, `MoveReviewCompressionPolicy`, and
@@ -2118,7 +2117,7 @@ Primary files:
   `replay_reinflation`, and `whole_game_wrapper_leak`
 - positive owner scope:
   no positive owner widening is authorized by this pass. Planner-owned
-  `WhyThis`, `WhatChanged`, Chronicle, Bookmaker, Active, and whole-game replay
+  `WhyThis`, `WhatChanged`, Chronicle, MoveReview, Active, and whole-game replay
   all remain bound to the pre-closeout charter because the closeout campaign
   did not supply a second survivor and did not re-confirm the earlier root-best
   reading for `a3b4`. The broader intermediate route-chain now stays
@@ -2195,7 +2194,7 @@ Primary files:
   `NarrativeContextBuilder` forces player-facing evidence to `deferred` when the
   heavy-piece contract exists, and `MainPathMoveDeltaClaimBuilder`,
   `QuietMoveIntentBuilder`, and `QuestionFirstCommentaryPlanner` block file-entry
-  shell reuse so Chronicle / Bookmaker / Active / whole-game replay cannot
+  shell reuse so Chronicle / MoveReview / Active / whole-game replay cannot
   re-inflate the deferred shell
 - boundary:
   the helper applies only when both queens are still present, so the existing B4
@@ -2224,7 +2223,7 @@ Primary files:
   matching helpers
 - canonical subtype resolution drives:
   - Game Arc wording
-  - Bookmaker support wording
+  - MoveReview support wording
   - Active-note family / idea / anchor selection
 - normalized compensation contract is authoritative when normalization is
   active
@@ -2243,7 +2242,7 @@ Prompt-bearing surfaces are intentionally narrow and role-specific.
 
 ### `PolishPrompt`
 
-- optional polish over deterministic Chronicle / Bookmaker draft prose
+- optional polish over deterministic Chronicle / MoveReview draft prose
 - slot-grounded
 - no new topic introduction
 - preserves deterministic whole-game anchor nouns instead of rewriting them
@@ -2299,15 +2298,15 @@ This split is a runtime polish-routing choice, not a canonical attach contract.
 - provider-none eval remains the canonical measurement path for release signoff
 - rerun outputs under the local quality-audit temp root are local evidence only
 - historical thesis snapshot tooling is removed from canonical signoff:
-  `BookmakerProseGoldenTest`, `BookmakerProseGoldenDump`,
-  `BookmakerThesisQaRunner`, and `src/test/resources/bookmaker_thesis_goldens`
+  `MoveReviewProseGoldenTest`, `MoveReviewProseGoldenDump`,
+  `MoveReviewThesisQaRunner`, and `src/test/resources/move_review_thesis_goldens`
   are stale non-canonical regressions, not release gates
 - merged shard signoff must preserve the canonical positive-exemplar gate
   carried in the truth inventory; exemplar coverage is not reduced to the
   intersection of exemplar keys with the current main-corpus focus set
 - audit calibration keeps verified `winning_investment` /
   `compensated_investment` pivots eligible as positive exemplars when Game Arc
-  and Bookmaker agree on the compensation contract; legacy suppression is for
+  and MoveReview agree on the compensation contract; legacy suppression is for
   fake compensation only
 - signoff `path/payoff divergence` counts only unresolved divergence after
   display-subtype resolution, not benign path-vs-payoff differences that have
@@ -2380,7 +2379,7 @@ Current quality-audit scaffold rules:
 - parity classification must keep `replay_layer_rewrite` separate from
   `upstream_layer_mismatch`
 - surface digest bundles are the canonical reason this separation is auditable:
-  snapshot / carry / augmentation / bundle hashes are emitted for Bookmaker,
+  snapshot / carry / augmentation / bundle hashes are emitted for MoveReview,
   Chronicle, and Active audit outputs
 - the fixed mismatch taxonomy is:
   `bundle_missing`, `carry_mismatch`, `snapshot_skew`,
@@ -2390,8 +2389,8 @@ Current quality-audit scaffold rules:
   `active_no_primary_vs_chronicle_factual_fallback`,
   `active_attached_vs_chronicle_planner_owned`,
   `active_omitted_after_primary_vs_planner_owned`, and
-  `active_attached_vs_bookmaker_planner_owned`,
-  `active_no_primary_vs_bookmaker_exact_factual`
+  `active_attached_vs_move_review_planner_owned`,
+  `active_no_primary_vs_move_review_exact_factual`
 - real16 parity currently reports `groupedPlies=107`, `mismatchedPlies=107`,
   `taxonomyCounts={carry_mismatch=2, snapshot_skew=43, upstream_layer_mismatch=62}`,
   `layerCounts={upstream=107}`
@@ -2399,14 +2398,14 @@ Current quality-audit scaffold rules:
   are now different artifacts:
   the baseline still shows upstream digest drift, while the contrast-support
   after-rerun has already closed the previously targeted
-  `active/bookmaker:surface_only_augmentation=6` and primary
-  `bookmaker/chronicle:replay_layer_rewrite=4` blocker set
+  `active/moveReview:surface_only_augmentation=6` and primary
+  `moveReview/chronicle:replay_layer_rewrite=4` blocker set
 - the internal AI judge scaffold is internal-only and must not outrank the truth
   gate or human signoff
 - the internal keep/review selector is fixed at:
   `move_attribution_correctness >= 4` to unlock usefulness credit,
   `selectorScore >= 12`, `overclaim_penalty <= 1`
-- the contrast-support runtime is signoff-scoped on Bookmaker / Chronicle and
+- the contrast-support runtime is signoff-scoped on MoveReview / Chronicle and
   diagnostic-only on Active, and it stays support-slot only:
   `WhyThis` / `WhyNow` may replace planner `primary.contrast` or the first
   support sentence only when `ContrastiveSupportAdmissibility` marks the
@@ -2415,13 +2414,13 @@ Current quality-audit scaffold rules:
 - contrast-support trace fields are fixed at:
   `contrast_source_kind`, `contrast_anchor`, `contrast_consequence`,
   `contrast_admissible`, `contrast_reject_reason`
-- contrast-support selector accounting keeps Bookmaker fail-closed rows out of
+- contrast-support selector accounting keeps MoveReview fail-closed rows out of
   gain
   accounting:
   rows that were `planner_owned` before but land at
-  `afterBookmakerFallbackMode=exact_factual` after the rerun are classified as
+  `afterMoveReviewFallbackMode=exact_factual` after the rerun are classified as
   `after_fallback_blocked`, not `eligible`
-- current real16 contrast-support result for the narrow Bookmaker-first
+- current real16 contrast-support result for the narrow MoveReview-first
   report path is signoff-ready, not runtime release evidence:
   `totalWhyRows=46`, `contrastEligibleRows=40`, `upstreamBlockedRows=0`,
   `replayBlockedRows=0`, `track1BlockedRows=0`, `questionFilteredRows=0`,
@@ -2456,11 +2455,11 @@ Current quality-audit scaffold rules:
   `legacy_preselection_blocked=14`
 - because Active contributes only one contrast-bearing Why row on the current
   real16 shard, and that row already attaches, contrast-support is
-  canonically cut to Bookmaker + Chronicle signoff scope; reopening Active
+  canonically cut to MoveReview + Chronicle signoff scope; reopening Active
   would require a later explicit scope expansion, not a silent lane drift
-- current pair-scoped blocker decomposition on those `46` Bookmaker target rows is
+- current pair-scoped blocker decomposition on those `46` MoveReview target rows is
   now empty:
-  `bookmakerPairBlockerCounts={}`, `upstreamPairBlockerCounts={}`,
+  `moveReviewPairBlockerCounts={}`, `upstreamPairBlockerCounts={}`,
   `replayPairBlockerCounts={}`;
   with the blocker set closed, the remaining primary admissibility blocker on
   real eligible rows is `missing_concrete_consequence=30`, with
@@ -2472,13 +2471,13 @@ Current quality-audit scaffold rules:
   `moveAttributionDelta=0`)
 - aggregate maintenance baseline after the Chronicle / Active contrast-support rerun
   reads:
-  Bookmaker `keep=55/review=52/gateFail=0`, Chronicle
+  MoveReview `keep=55/review=52/gateFail=0`, Chronicle
   `keep=57/review=50/gateFail=0`, Active `keep=2/review=105/gateFail=57`,
   `crossSurfaceVerdictDisagreementCount=55`
 - current cross-surface contrast-support verdict is:
-  Bookmaker `signoff-ready`, Chronicle `signoff-ready`,
+  MoveReview `signoff-ready`, Chronicle `signoff-ready`,
   Active `scope-cut (diagnostic-only)`; quality-rubric regression remains
-  `no_track1_regression` on the Bookmaker signoff path, and a runtime release
+  `no_track1_regression` on the MoveReview signoff path, and a runtime release
   boundary is still not claimed
 - the corpus-maintenance lane may add scene buckets, but it may not create new
   owner families or bypass shared-planner legality
@@ -2516,7 +2515,7 @@ Current frontend rule:
 - frontend may not synthesize the comparative lane from `topEngineMove`,
   `cpLossVsChosen`, deferred fields, `whyAbsentFromTopMultiPV`, or latent
   strategy carriers when the canonical digest omits it
-- bookmaker controller / decoder no longer serialize or expect legacy
+- moveReview controller / decoder no longer serialize or expect legacy
   `latentPlans` / `whyAbsentFromTopMultiPV` fields on the user-facing runtime
   response
 - compact support / decision-compare frontend helpers no longer carry
@@ -2530,7 +2529,7 @@ Current frontend rule:
   panels
 - no new user-facing wire fields are introduced for Stage-4 uplift:
   certified decision-frame state stays backend-only and may appear only in
-  internal audit/debug paths, while Bookmaker / Chronicle / Active prose
+  internal audit/debug paths, while MoveReview / Chronicle / Active prose
   consumes it without changing the typed runtime payload shape
 
 ## Module Map Appendix
@@ -2569,8 +2568,8 @@ Current owner map for Stage-4 surface uplift:
 
 Primary files:
 
-- `ui/analyse/src/bookmaker.ts`
-- `ui/analyse/src/bookmaker/responsePayload.ts`
+- `ui/analyse/src/moveReview.ts`
+- `ui/analyse/src/moveReview/responsePayload.ts`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/RestrictedDefenseConversionProof.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/TwoAxisBindProof.scala`
 - `ui/analyse/src/narrative/narrativeCtrl.ts`
@@ -2582,7 +2581,7 @@ Current maintained markdown contracts in `modules/commentary/docs`:
 - `CommentaryProgramMap.md`
   - current document roles, active priorities, and navigation
 - `CommentaryPipelineSSOT.md`
-  - full commentary-analysis runtime, prompt ownership, Bookmaker prose
+  - full commentary-analysis runtime, prompt ownership, MoveReview prose
     boundary, and signoff contract
 - `CommentaryTruthBoundary.md`
   - decisive-truth signoff contract and GM-audit grading
@@ -2624,8 +2623,8 @@ Primary current-code references:
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/StrategyPackSurface.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/GameChronicleResponse.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/models.scala`
-- `ui/analyse/src/bookmaker.ts`
-- `ui/analyse/src/bookmaker/responsePayload.ts`
+- `ui/analyse/src/moveReview.ts`
+- `ui/analyse/src/moveReview/responsePayload.ts`
 - `ui/analyse/src/narrative/narrativeCtrl.ts`
 
 ## Maintenance Rule
@@ -2633,7 +2632,7 @@ Primary current-code references:
 Update this file in the same change if any of the following changes:
 
 - Chronicle / Game Arc generation logic
-- Bookmaker deterministic draft logic
+- MoveReview deterministic draft logic
 - Active-note selection / attach / omit / polish ownership
 - shared strategic carrier extraction or compensation normalization
 - prompt-family ownership or provider routing semantics

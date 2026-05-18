@@ -73,7 +73,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
           futureSnapshotAligned = true
         )
       ),
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   private def strategyPack(
@@ -149,7 +149,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
       )
     )
 
-  private def bookmakerBundle(
+  private def moveReviewBundle(
       claimText: String = "This advances the plan toward g3.",
       anchorTerms: List[String] = List("g7", "kingside pressure"),
       evidenceLines: List[String] = List("Line: a) Rg3.")
@@ -318,7 +318,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
         ctx = narrativeCtx,
         strategyPack = pack,
         truthContract = None,
-        mainBundle = Some(bookmakerBundle())
+        mainBundle = Some(moveReviewBundle())
       )
 
     assertEquals(frame.intent.map(_.sentence), Some("White is playing for pressure on g7."), clues(frame))
@@ -347,14 +347,14 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
         ctx = deferredCtx,
         strategyPack = pack,
         truthContract = None,
-        mainBundle = Some(bookmakerBundle())
+        mainBundle = Some(moveReviewBundle())
       )
 
     assertEquals(frame.intent, None, clues(frame))
     assertEquals(frame.battlefront, None, clues(frame))
   }
 
-  test("builder refuses bookmaker support carriers that do not align with the admitted move claim") {
+  test("builder refuses moveReview support carriers that do not align with the admitted move claim") {
     val conflictingPack =
       strategyPack(
         routePurpose = "queenside pressure",
@@ -372,7 +372,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
         truthContract = None,
         mainBundle =
           Some(
-            bookmakerBundle(
+            moveReviewBundle(
               claimText = "This keeps the rook flexible.",
               anchorTerms = List("h-file"),
               evidenceLines = Nil
@@ -400,7 +400,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
         truthContract = None,
         mainBundle =
           Some(
-            bookmakerBundle(
+            moveReviewBundle(
               claimText = "This keeps the rook flexible.",
               anchorTerms = List("h-file"),
               evidenceLines = Nil
@@ -419,7 +419,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
         truthContract = None,
         mainBundle =
           Some(
-            bookmakerBundle(
+            moveReviewBundle(
               claimText = "This keeps the rook flexible.",
               anchorTerms = List("h-file"),
               evidenceLines = Nil
@@ -442,10 +442,10 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
         ctx = narrativeCtx.copy(header = narrativeCtx.header.copy(choiceType = "OnlyMove")),
         strategyPack = strategyPack(),
         truthContract = None,
-        mainBundle = Some(bookmakerBundle())
+        mainBundle = Some(moveReviewBundle())
       )
     val slowCtx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         strategicPlanExperiments =
           List(
             StrategicPlanExperiment(
@@ -547,7 +547,7 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
         truthContract = None,
         mainBundle =
           Some(
-            bookmakerBundle(
+            moveReviewBundle(
               claimText = "This keeps the rook flexible.",
               anchorTerms = List("kingside pressure"),
               evidenceLines = Nil

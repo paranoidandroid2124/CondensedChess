@@ -1,4 +1,4 @@
-import type { ProbeRequest, ProbeResult } from '../bookmaker/types';
+import type { ProbeRequest, ProbeResult } from '../moveReview/types';
 
 export type ProbePlanningMoment = {
   ply: number;

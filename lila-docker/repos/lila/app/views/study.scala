@@ -74,7 +74,7 @@ object study:
         Json
           .obj(
             "data" -> data,
-            "bookmaker" -> (chapter.setup.variant.standard || chapter.setup.variant.chess960),
+            "moveReview" -> (chapter.setup.variant.standard || chapter.setup.variant.chess960),
             "study" -> studyCfg
           ) ++ analyseUi.explorerAndCevalConfig
 

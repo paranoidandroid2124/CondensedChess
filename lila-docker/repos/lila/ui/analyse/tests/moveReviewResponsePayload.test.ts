@@ -1,11 +1,11 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  decodeBookmakerResponse,
+  decodeMoveReviewResponse,
   signalDigestFromResponse,
-} from '../src/bookmaker/responsePayload';
+} from '../src/moveReview/responsePayload';
 
-describe('bookmaker response payload', () => {
+describe('moveReview response payload', () => {
   test('signal digest preserves authoring evidence alongside strategic fields', () => {
     const digest = signalDigestFromResponse({
       signalDigest: {
@@ -43,8 +43,8 @@ describe('bookmaker response payload', () => {
     assert.equal(digest?.decisionComparison?.comparativeSource, 'exact_target_fixation_delta');
   });
 
-  test('decodeBookmakerResponse reuses fallback prose and supporting arrays when refined payload omits them', () => {
-    const decoded = decodeBookmakerResponse(
+  test('decodeMoveReviewResponse reuses fallback prose and supporting arrays when refined payload omits them', () => {
+    const decoded = decodeMoveReviewResponse(
       {
         sourceMode: 'ai_polished',
         model: 'gpt-5-mini',
@@ -94,8 +94,8 @@ describe('bookmaker response payload', () => {
     assert.equal(decoded.signalDigest?.authoringEvidence, 'Question remains open.');
   });
 
-  test('decodeBookmakerResponse preserves optional strategyPack payload', () => {
-    const decoded = decodeBookmakerResponse({
+  test('decodeMoveReviewResponse preserves optional strategyPack payload', () => {
+    const decoded = decodeMoveReviewResponse({
       strategyPack: {
         schema: 'chesstory.strategyPack.v2',
         sideToMove: 'black',
@@ -144,8 +144,8 @@ describe('bookmaker response payload', () => {
     assert.equal(decoded.strategyPack?.directionalTargets[0]?.targetSquare, 'h7');
   });
 
-  test('decodeBookmakerResponse preserves strategicPlanExperiments for UI support labels', () => {
-    const decoded = decodeBookmakerResponse({
+  test('decodeMoveReviewResponse preserves strategicPlanExperiments for UI support labels', () => {
+    const decoded = decodeMoveReviewResponse({
       mainStrategicPlans: [
         {
           planId: 'king_attack',

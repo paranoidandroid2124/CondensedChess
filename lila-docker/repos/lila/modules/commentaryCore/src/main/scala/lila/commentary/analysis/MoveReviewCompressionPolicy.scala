@@ -403,7 +403,7 @@ private[commentary] object MoveReviewCompressionPolicy:
               factGuardrails = (supportLines ++ tension.toList ++ evidenceHook.toList ++ coda.toList).distinct,
               paragraphPlan = plannerParagraphPlan(supportLines, tension, evidenceHook, coda)
             )
-          Option.when(bookmakerContractSafe(slots))(slots)
+          Option.when(moveReviewContractSafe(slots))(slots)
         }.flatten
       }
     }
@@ -525,7 +525,7 @@ private[commentary] object MoveReviewCompressionPolicy:
   ): Boolean =
     List(supportPrimary, supportSecondary, tension, evidenceHook, coda).flatten.exists(_.trim.nonEmpty)
 
-  private def bookmakerContractSafe(slots: MoveReviewPolishSlots): Boolean =
+  private def moveReviewContractSafe(slots: MoveReviewPolishSlots): Boolean =
     val prose = LiveNarrativeCompressionCore.deterministicProse(slots)
     val evaluation = MoveReviewProseContract.evaluate(prose, slots)
     prose.trim.nonEmpty &&
@@ -663,13 +663,13 @@ private[commentary] object MoveReviewCompressionPolicy:
               }
             )
         val liftApplied =
-          supportCandidate.exists(bookmakerContractSafe)
+          supportCandidate.exists(moveReviewContractSafe)
         val rejectReasons =
           composerTrace.rejectReasons ++
             Option.when(composerTrace.line.nonEmpty && supportCandidate.isEmpty)("support_same_sentence_as_claim") ++
             Option.when(supportCandidate.nonEmpty && !liftApplied)("support_contract_rejected")
         ExactFactualFallbackResult(
-          finalSlots = supportCandidate.filter(bookmakerContractSafe).getOrElse(claimOnly),
+          finalSlots = supportCandidate.filter(moveReviewContractSafe).getOrElse(claimOnly),
           trace =
             ExactFactualQuietSupportTrace(
               factualSentence = Some(factual),

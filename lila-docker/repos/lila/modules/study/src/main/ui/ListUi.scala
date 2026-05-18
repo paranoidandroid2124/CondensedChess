@@ -48,7 +48,7 @@ final class ListUi(helpers: Helpers, bits: StudyBits):
           "Your research shelf",
           "Create a blank notebook or reopen the ones you already use for lines, notes, and reusable sections.",
           "Analysis carry-over",
-          "Carry over PGN trees, Bookmaker notes, and Chronicle summaries from analysis."
+          "Carry over PGN trees, MoveReview notes, and Chronicle summaries from analysis."
         )
       else
         (

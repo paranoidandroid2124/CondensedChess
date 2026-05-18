@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   formatStrategicPlanText,
   strategicPlanExperimentIndex,
-} from '../src/bookmaker/planSupportSurface';
+} from '../src/moveReview/planSupportSurface';
 
 describe('plan support surface', () => {
   test('formats pv-coupled plans as engine-line only with move-order caution', () => {

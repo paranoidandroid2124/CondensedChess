@@ -749,25 +749,25 @@ $label-width: 5ch;
     margin-top: 0.9rem;
   }
 
-  &__bookmaker-card {
+  &__move-review-card {
     margin: 0;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
     min-height: 0;
 
-    .analyse__bookmaker-text {
+    .analyse__move-review-text {
       position: relative;
       min-height: 0;
       overflow: auto;
     }
 
-    .bookmaker-state {
+    .move-review-state {
       margin-top: 0;
     }
   }
 
-  &__bookmaker-copy {
+  &__move-review-copy {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
@@ -781,7 +781,7 @@ $label-width: 5ch;
     }
   }
 
-  &__bookmaker-note {
+  &__move-review-note {
     margin: 0;
   }
 

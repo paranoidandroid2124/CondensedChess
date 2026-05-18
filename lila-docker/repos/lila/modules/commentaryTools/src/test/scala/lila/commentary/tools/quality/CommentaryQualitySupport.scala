@@ -12,7 +12,7 @@ import lila.commentary.tools.review.{ ChronicleActivePlannerSliceRunner, Comment
 object CommentaryQualitySupport:
 
   object SurfaceName:
-    val Bookmaker = "bookmaker"
+    val MoveReview = "moveReview"
     val Chronicle = "chronicle"
     val Active = "active"
 
@@ -73,10 +73,10 @@ object CommentaryQualitySupport:
 
   object SurfaceOnlyAugmentationAllowance:
     val ActiveNoPrimaryAgainstChronicleFallback = "active_no_primary_vs_chronicle_factual_fallback"
-    val ActiveNoPrimaryAgainstBookmakerExactFactual = "active_no_primary_vs_bookmaker_exact_factual"
+    val ActiveNoPrimaryAgainstMoveReviewExactFactual = "active_no_primary_vs_move_review_exact_factual"
     val ActiveAttachedAgainstChroniclePlannerOwned = "active_attached_vs_chronicle_planner_owned"
     val ActiveOmittedAfterPrimaryAgainstPlannerOwned = "active_omitted_after_primary_vs_planner_owned"
-    val ActiveAttachedAgainstBookmakerPlannerOwned = "active_attached_vs_bookmaker_planner_owned"
+    val ActiveAttachedAgainstMoveReviewPlannerOwned = "active_attached_vs_move_review_planner_owned"
     val ReviewRequired = "review_required"
 
   final case class SurfaceDigestHashes(
@@ -312,7 +312,7 @@ object CommentaryQualitySupport:
       afterFlags: List[String] = Nil
   )
 
-  def bookmakerDigests(
+  def moveReviewDigests(
       snapshot: CommentaryPlayerQcSupport.SliceSnapshot
   ): SurfaceDigestHashes =
     sharedReplayDigests(snapshot)
@@ -411,13 +411,13 @@ object CommentaryQualitySupport:
       preserveCarry = shared.carryDigestHash
     )
 
-  def bookmakerParitySnapshot(
-      entry: CommentaryPlayerQcSupport.BookmakerOutputEntry
+  def moveReviewParitySnapshot(
+      entry: CommentaryPlayerQcSupport.MoveReviewOutputEntry
   ): SurfaceParitySnapshot =
     SurfaceParitySnapshot(
       sampleId = entry.sampleId,
       gameKey = entry.gameKey,
-      surface = SurfaceName.Bookmaker,
+      surface = SurfaceName.MoveReview,
       sliceKind = entry.sliceKind,
       targetPly = entry.targetPly,
       playedSan = entry.playedSan,
@@ -427,10 +427,10 @@ object CommentaryQualitySupport:
       replayOutcome = entry.surfaceReplayOutcome,
       digests =
         SurfaceDigestHashes(
-          snapshotDigestHash = entry.bookmakerSnapshotDigestHash,
-          carryDigestHash = entry.bookmakerCarryDigestHash,
-          augmentationDigestHash = entry.bookmakerAugmentationDigestHash,
-          bundleDigestHash = entry.bookmakerBundleDigestHash
+          snapshotDigestHash = entry.moveReviewSnapshotDigestHash,
+          carryDigestHash = entry.moveReviewCarryDigestHash,
+          augmentationDigestHash = entry.moveReviewAugmentationDigestHash,
+          bundleDigestHash = entry.moveReviewBundleDigestHash
         )
     )
 
@@ -707,10 +707,10 @@ object CommentaryQualitySupport:
   def sampleEvaluationSlice(): (List[CommentaryQualityEvalRecord], List[CommentaryQualityEvalSummary]) =
     val before =
       makeEvaluationRecord(
-          comparisonKey = "commentary_quality_demo_bookmaker_42",
-        sampleId = "demo-game:long_structural_squeeze:42:bookmaker",
+          comparisonKey = "commentary_quality_demo_move_review_42",
+        sampleId = "demo-game:long_structural_squeeze:42:moveReview",
         gameKey = "demo-game",
-        surface = SurfaceName.Bookmaker,
+        surface = SurfaceName.MoveReview,
         sliceKind = "long_structural_squeeze",
         targetPly = 42,
         candidateLabel = "before",
@@ -761,33 +761,33 @@ object CommentaryQualitySupport:
     (List(before, after), List(summary))
 
   def buildRealEvaluationSeedSlice(
-      bookmakerEntries: List[CommentaryPlayerQcSupport.BookmakerOutputEntry],
+      moveReviewEntries: List[CommentaryPlayerQcSupport.MoveReviewOutputEntry],
       parityReport: SamePlyParityReport
   ): Either[String, (List[CommentaryQualityEvalRecord], List[CommentaryQualityEvalSummary])] =
-    val bookmakerBySampleId = bookmakerEntries.map(entry => entry.sampleId -> entry).toMap
+    val moveReviewBySampleId = moveReviewEntries.map(entry => entry.sampleId -> entry).toMap
     val taxonomyByParityKey =
       parityReport.rows.map(row => s"${row.gameKey}:${row.targetPly}:${row.sliceKind}" -> row.primaryTaxonomy).toMap
-    val missing = realEvalSeedSpecs.filterNot(spec => bookmakerBySampleId.contains(spec.sampleId)).map(_.sampleId)
+    val missing = realEvalSeedSpecs.filterNot(spec => moveReviewBySampleId.contains(spec.sampleId)).map(_.sampleId)
 
-    if missing.nonEmpty then Left(s"missing bookmaker seed rows: ${missing.mkString(", ")}")
+    if missing.nonEmpty then Left(s"missing moveReview seed rows: ${missing.mkString(", ")}")
     else
       val resolved =
         realEvalSeedSpecs.map { spec =>
-          val entry = bookmakerBySampleId(spec.sampleId)
+          val entry = moveReviewBySampleId(spec.sampleId)
           val taxonomy = taxonomyByParityKey.get(s"${entry.gameKey}:${entry.targetPly}:${entry.sliceKind}")
           val before =
             makeEvaluationRecord(
               comparisonKey = spec.comparisonKey,
               sampleId = entry.sampleId,
               gameKey = entry.gameKey,
-              surface = SurfaceName.Bookmaker,
+              surface = SurfaceName.MoveReview,
               sliceKind = entry.sliceKind,
               targetPly = entry.targetPly,
               candidateLabel = "before",
               truthAnchor = spec.truthAnchor,
               candidateText = entry.commentary,
               upstreamTaxonomy = taxonomy,
-              bundleDigestHash = entry.bookmakerBundleDigestHash,
+              bundleDigestHash = entry.moveReviewBundleDigestHash,
               rubric = spec.beforeRubric,
               summary = spec.beforeSummary,
               evidenceNotes = spec.beforeEvidenceNotes,
@@ -798,14 +798,14 @@ object CommentaryQualitySupport:
               comparisonKey = spec.comparisonKey,
               sampleId = entry.sampleId,
               gameKey = entry.gameKey,
-              surface = SurfaceName.Bookmaker,
+              surface = SurfaceName.MoveReview,
               sliceKind = entry.sliceKind,
               targetPly = entry.targetPly,
               candidateLabel = "after",
               truthAnchor = spec.truthAnchor,
               candidateText = spec.afterText,
               upstreamTaxonomy = taxonomy,
-              bundleDigestHash = entry.bookmakerBundleDigestHash,
+              bundleDigestHash = entry.moveReviewBundleDigestHash,
               rubric = spec.afterRubric,
               summary = spec.afterSummary,
               evidenceNotes = spec.afterEvidenceNotes,
@@ -816,7 +816,7 @@ object CommentaryQualitySupport:
       Right(resolved.flatMap(pair => List(pair._1, pair._2)) -> resolved.map(buildComparisonSummary))
 
   def buildSurfaceThresholdReport(
-      bookmakerEntries: List[CommentaryPlayerQcSupport.BookmakerOutputEntry],
+      moveReviewEntries: List[CommentaryPlayerQcSupport.MoveReviewOutputEntry],
       surfaceEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry],
       parityReport: SamePlyParityReport
   ): SurfaceThresholdReport =
@@ -825,10 +825,10 @@ object CommentaryQualitySupport:
     val chronicleByKey =
       surfaceEntries.map(entry => parityKey(entry.gameKey, entry.targetPly, entry.sliceKind) -> entry).toMap
 
-    val bookmakerRows =
-      bookmakerEntries.flatMap { entry =>
+    val moveReviewRows =
+      moveReviewEntries.flatMap { entry =>
         chronicleByKey.get(parityKey(entry.gameKey, entry.targetPly, entry.sliceKind)).map { surfaceEntry =>
-          buildBookmakerThresholdRow(entry, surfaceEntry, parityByKey.get(parityKey(entry.gameKey, entry.targetPly, entry.sliceKind)))
+          buildMoveReviewThresholdRow(entry, surfaceEntry, parityByKey.get(parityKey(entry.gameKey, entry.targetPly, entry.sliceKind)))
         }
       }
     val surfaceRows =
@@ -839,7 +839,7 @@ object CommentaryQualitySupport:
           buildActiveThresholdRow(entry, parityRow)
         )
       }
-    val rows = (bookmakerRows ++ surfaceRows).sortBy(row => (row.sampleId, row.surface))
+    val rows = (moveReviewRows ++ surfaceRows).sortBy(row => (row.sampleId, row.surface))
     val rowsByParityKey = rows.groupBy(row => parityKey(row.gameKey, row.targetPly, row.sliceKind))
     val surfaceSummaries =
       rows
@@ -924,8 +924,8 @@ object CommentaryQualitySupport:
        |$renderedRows
        |""".stripMargin
 
-  def buildBookmakerThresholdRows(
-      bookmakerEntries: List[CommentaryPlayerQcSupport.BookmakerOutputEntry],
+  def buildMoveReviewThresholdRows(
+      moveReviewEntries: List[CommentaryPlayerQcSupport.MoveReviewOutputEntry],
       surfaceEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry],
       parityReport: SamePlyParityReport
   ): List[SurfaceThresholdRow] =
@@ -933,9 +933,9 @@ object CommentaryQualitySupport:
       parityReport.rows.map(row => parityKey(row.gameKey, row.targetPly, row.sliceKind) -> row).toMap
     val surfaceByKey =
       surfaceEntries.map(entry => parityKey(entry.gameKey, entry.targetPly, entry.sliceKind) -> entry).toMap
-    bookmakerEntries.flatMap { entry =>
+    moveReviewEntries.flatMap { entry =>
       surfaceByKey.get(parityKey(entry.gameKey, entry.targetPly, entry.sliceKind)).map { surfaceEntry =>
-        buildBookmakerThresholdRow(
+        buildMoveReviewThresholdRow(
           entry,
           surfaceEntry,
           parityByKey.get(parityKey(entry.gameKey, entry.targetPly, entry.sliceKind))
@@ -943,8 +943,8 @@ object CommentaryQualitySupport:
       }
     }
 
-  private def buildBookmakerThresholdRow(
-      entry: CommentaryPlayerQcSupport.BookmakerOutputEntry,
+  private def buildMoveReviewThresholdRow(
+      entry: CommentaryPlayerQcSupport.MoveReviewOutputEntry,
       surfaceEntry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry,
       parityRow: Option[SamePlyParityRow]
   ): SurfaceThresholdRow =
@@ -964,18 +964,18 @@ object CommentaryQualitySupport:
         surfaceQuestion = entry.plannerSelectedQuestion,
         surfaceProofFamily = entry.plannerSelectedOwnerKind,
         surfaceProofSource = entry.plannerSelectedSource,
-        surfaceOutcome = entry.surfaceReplayOutcome.getOrElse(entry.bookmakerFallbackMode),
-        exactFactual = entry.bookmakerFallbackMode == "exact_factual"
+        surfaceOutcome = entry.surfaceReplayOutcome.getOrElse(entry.moveReviewFallbackMode),
+        exactFactual = entry.moveReviewFallbackMode == "exact_factual"
       )
     SurfaceThresholdRow(
       sampleId = entry.sampleId,
       gameKey = entry.gameKey,
-      surface = SurfaceName.Bookmaker,
+      surface = SurfaceName.MoveReview,
       sliceKind = entry.sliceKind,
       targetPly = entry.targetPly,
       playedSan = entry.playedSan,
       candidateText = candidateText,
-      surfaceOutcome = entry.surfaceReplayOutcome.getOrElse(entry.bookmakerFallbackMode),
+      surfaceOutcome = entry.surfaceReplayOutcome.getOrElse(entry.moveReviewFallbackMode),
       plannerQuestion = entry.plannerSelectedQuestion,
       plannerProofFamily = entry.plannerSelectedOwnerKind,
       plannerProofSource = entry.plannerSelectedSource,
@@ -994,12 +994,12 @@ object CommentaryQualitySupport:
       selection = evaluateSelection(rubric),
       evidenceNotes =
         List(
-          Option.when(entry.bookmakerFallbackMode == "exact_factual")("exact_factual_surface"),
-          Option.when(entry.bookmakerFallbackMode == "planner_owned")("planner_owned_surface")
+          Option.when(entry.moveReviewFallbackMode == "exact_factual")("exact_factual_surface"),
+          Option.when(entry.moveReviewFallbackMode == "planner_owned")("planner_owned_surface")
         ).flatten,
       flags =
         List(
-          Option.when(entry.bookmakerFallbackMode == "exact_factual")("fallback_like"),
+          Option.when(entry.moveReviewFallbackMode == "exact_factual")("fallback_like"),
           Option.when(blankLikeText(candidateText))("blank_like")
         ).flatten
     )
@@ -1262,10 +1262,10 @@ object CommentaryQualitySupport:
     ).exists(normalized.contains)
 
   private def isPlannerOwnedLike(surfaceOutcome: String): Boolean =
-    Set("planner_owned", "bookmaker_planner_owned", "attached").contains(surfaceOutcome)
+    Set("planner_owned", "move_review_planner_owned", "attached").contains(surfaceOutcome)
 
   private def isFallbackLike(surfaceOutcome: String): Boolean =
-    Set("factual_fallback", "exact_factual", "bookmaker_exact_factual", "omitted_after_primary", "omitted_no_primary")
+    Set("factual_fallback", "exact_factual", "move_review_exact_factual", "omitted_after_primary", "omitted_no_primary")
       .contains(surfaceOutcome)
 
   private def normalizeText(raw: String): String =
@@ -1466,11 +1466,11 @@ object CommentaryQualitySupport:
           selectionUnset(other)
       then Some(SurfaceOnlyAugmentationAllowance.ActiveNoPrimaryAgainstChronicleFallback)
       else if active.replayOutcome.contains("omitted_no_primary") &&
-          other.surface == SurfaceName.Bookmaker &&
-          other.replayOutcome.contains("bookmaker_exact_factual") &&
+          other.surface == SurfaceName.MoveReview &&
+          other.replayOutcome.contains("move_review_exact_factual") &&
           selectionUnset(active) &&
           selectionUnset(other)
-      then Some(SurfaceOnlyAugmentationAllowance.ActiveNoPrimaryAgainstBookmakerExactFactual)
+      then Some(SurfaceOnlyAugmentationAllowance.ActiveNoPrimaryAgainstMoveReviewExactFactual)
       else if active.replayOutcome.contains("omitted_after_primary") &&
           isPlannerOwnedLike(other.replayOutcome.getOrElse("")) &&
           active.selectedQuestion == other.selectedQuestion &&
@@ -1485,12 +1485,12 @@ object CommentaryQualitySupport:
           active.selectedSource == other.selectedSource
       then Some(SurfaceOnlyAugmentationAllowance.ActiveAttachedAgainstChroniclePlannerOwned)
       else if active.replayOutcome.contains("attached") &&
-          other.surface == SurfaceName.Bookmaker &&
-          other.replayOutcome.contains("bookmaker_planner_owned") &&
+          other.surface == SurfaceName.MoveReview &&
+          other.replayOutcome.contains("move_review_planner_owned") &&
           active.selectedQuestion == other.selectedQuestion &&
           active.selectedOwnerKind == other.selectedOwnerKind &&
           active.selectedSource == other.selectedSource
-      then Some(SurfaceOnlyAugmentationAllowance.ActiveAttachedAgainstBookmakerPlannerOwned)
+      then Some(SurfaceOnlyAugmentationAllowance.ActiveAttachedAgainstMoveReviewPlannerOwned)
       else None
     }
 
@@ -1500,7 +1500,7 @@ object CommentaryQualitySupport:
         comparisonKey =
           "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:strategic_choice:14",
         sampleId =
-          "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:strategic_choice:14:bookmaker",
+          "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:strategic_choice:14:moveReview",
         truthAnchor =
           "cxd4 had to come before White got a cleaner recapture; Black keeps the center from opening on White's terms.",
         afterText =
@@ -1535,7 +1535,7 @@ object CommentaryQualitySupport:
         comparisonKey =
           "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:practical_simplification:20",
         sampleId =
-          "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:practical_simplification:20:bookmaker",
+          "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:practical_simplification:20:moveReview",
         truthAnchor =
           "Be7 is mainly a development move to e7 here; it does not by itself seize the whole initiative or solve every queenside question.",
         afterText =
@@ -1571,7 +1571,7 @@ object CommentaryQualitySupport:
         comparisonKey =
           "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:long_structural_squeeze:54",
         sampleId =
-          "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:long_structural_squeeze:54:bookmaker",
+          "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:long_structural_squeeze:54:moveReview",
         truthAnchor =
           "Ke7 is a timing move inside the squeeze: Black improves coordination before the rook ending loosens, so White does not get the freer version of the position.",
         afterText =
@@ -1651,8 +1651,8 @@ object CommentaryQualitySupport:
       outcome: Option[String]
   ): Option[String] =
     outcome.map {
-      case "bookmaker_planner_owned" => "planner_owned"
-      case "bookmaker_exact_factual" => "factual_fallback"
+      case "move_review_planner_owned" => "planner_owned"
+      case "move_review_exact_factual" => "factual_fallback"
       case other                     => other
     }
 

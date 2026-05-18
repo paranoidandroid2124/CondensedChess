@@ -2,34 +2,34 @@ import { ratelimitSecondsFromResponse, resetAtFromResponse } from './responsePay
 
 const moveNumberFromPly = (ply: number): number => Math.max(1, Math.ceil(ply / 2));
 
-function renderBookmakerStateCard(
+function renderMoveReviewStateCard(
   kind: 'auth' | 'quota' | 'idle' | 'error',
   title: string,
   message: string,
   actionHtml: string,
 ): string {
   return `
-    <div class="bookmaker-state bookmaker-state--${kind}" role="status" aria-live="polite">
-      <div class="bookmaker-state__body">
-        <h3 class="bookmaker-state__title">${title}</h3>
-        <p class="bookmaker-state__message">${message}</p>
+    <div class="move-review-state move-review-state--${kind}" role="status" aria-live="polite">
+      <div class="move-review-state__body">
+        <h3 class="move-review-state__title">${title}</h3>
+        <p class="move-review-state__message">${message}</p>
       </div>
-      <div class="bookmaker-state__actions">${actionHtml}</div>
+      <div class="move-review-state__actions">${actionHtml}</div>
     </div>
   `;
 }
 
-export function bookmakerIdleHtml(): string {
-  return renderBookmakerStateCard(
+export function moveReviewIdleHtml(): string {
+  return renderMoveReviewStateCard(
     'idle',
     'Explain This Move',
     'Ask for a move-level explanation only when you want it. This keeps requests focused, lowers cost, and avoids queue pileups.',
-    '<button type="button" class="button button-metal" data-bookmaker-request="1">Explain this move</button>',
+    '<button type="button" class="button button-metal" data-move-review-request="1">Explain this move</button>',
   );
 }
 
-export function bookmakerTooEarlyHtml(minPly: number): string {
-  return renderBookmakerStateCard(
+export function moveReviewTooEarlyHtml(minPly: number): string {
+  return renderMoveReviewStateCard(
     'idle',
     'Need a few more moves first',
     `Move explanations open from move ${moveNumberFromPly(minPly)}. Continue a little further so the commentary has enough position and branch context to say something useful.`,
@@ -37,12 +37,12 @@ export function bookmakerTooEarlyHtml(minPly: number): string {
   );
 }
 
-export function bookmakerRetryHtml(message = 'Commentary generation took too long or failed. Try again when the position is settled.'): string {
-  return renderBookmakerStateCard(
+export function moveReviewRetryHtml(message = 'Commentary generation took too long or failed. Try again when the position is settled.'): string {
+  return renderMoveReviewStateCard(
     'error',
     'Commentary unavailable',
     message,
-    '<button type="button" class="button button-metal" data-bookmaker-request="1" data-bookmaker-force="1">Retry explanation</button>',
+    '<button type="button" class="button button-metal" data-move-review-request="1" data-move-review-force="1">Retry explanation</button>',
   );
 }
 
@@ -50,8 +50,8 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
   if (res.status === 400) {
     try {
       const data = await res.json();
-      if (data?.error === 'bookmaker_too_early') {
-        return renderBookmakerStateCard(
+      if (data?.error === 'moveReview_too_early') {
+        return renderMoveReviewStateCard(
           'idle',
           'Need a few more moves first',
           data?.msg || `Move explanations open from move ${moveNumberFromPly(5)}. Continue a few moves first before asking for commentary.`,
@@ -66,14 +66,14 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
     try {
       const data = await res.json();
       const resetAt = resetAtFromResponse(data);
-      return renderBookmakerStateCard(
+      return renderMoveReviewStateCard(
         'quota',
         'Move explanation blocked',
         `This move request hit the current usage policy. Review the limits and retry after ${resetAt.slice(0, 10)}.`,
         '<a href="/support" class="button primary">Support Chesstory</a>',
       );
     } catch {
-      return renderBookmakerStateCard(
+      return renderMoveReviewStateCard(
         'quota',
         'Move explanation blocked',
         'This move request hit the current usage policy. Please retry later.',
@@ -83,7 +83,7 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
   }
 
   if (res.status === 401) {
-    return renderBookmakerStateCard(
+    return renderMoveReviewStateCard(
       'auth',
       'Sign In Required',
       'Sign in to continue using move explanations.',
@@ -99,9 +99,9 @@ export async function blockedHtmlFromErrorResponse(res: Response, loginHref: str
         typeof seconds === 'number'
           ? `Move explanation quota reached. Try again in ${seconds}s.`
           : 'Move explanation quota reached. Please retry shortly.';
-      return renderBookmakerStateCard('quota', 'Rate Limit Reached', message, '');
+      return renderMoveReviewStateCard('quota', 'Rate Limit Reached', message, '');
     } catch {
-      return renderBookmakerStateCard('quota', 'Rate Limit Reached', 'Move explanation quota reached. Please retry shortly.', '');
+      return renderMoveReviewStateCard('quota', 'Rate Limit Reached', 'Move explanation quota reached. Please retry shortly.', '');
     }
   }
 

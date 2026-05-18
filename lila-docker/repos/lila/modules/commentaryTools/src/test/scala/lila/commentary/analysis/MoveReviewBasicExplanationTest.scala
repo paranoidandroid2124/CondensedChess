@@ -79,7 +79,7 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
       openingEvent = opening.map(ref => OpeningEvent.Intro(ref.eco.getOrElse(""), ref.name.getOrElse("Opening"), phaseReason, List(playedSan))),
       openingData = opening,
       openingGoalEvaluation = Option.when(opening.exists(_.name.contains("Italian Game")) && playedMove == "f1c4")(developmentGoal),
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   private def italianCtx: NarrativeContext =

@@ -71,7 +71,7 @@ object AdmissionUnitReview:
         obs.playedUci.getOrElse("-"),
         obs.enginePv.mkString(" "),
         obs.primary,
-        obs.bookmaker,
+        obs.moveReview,
         obs.chronicle,
         obs.reason
       ).map(clean).mkString("\t")
@@ -394,7 +394,7 @@ object AdmissionUnitReview:
       "playedUci",
       "enginePv",
       "primary",
-      "bookmaker",
+      "moveReview",
       "chronicle",
       "reason"
     ).mkString("\t")

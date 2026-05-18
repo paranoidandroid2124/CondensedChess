@@ -69,13 +69,13 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
     Files.writeString(path, Json.prettyPrint(raw))
     path.toString
 
-  private def bookmakerEntry(
+  private def moveReviewEntry(
       sampleId: String,
       sliceKind: String,
       playedSan: String,
       rawResponsePath: String,
       commentary: String = "",
-      bookmakerFallbackMode: String = "planner_owned",
+      moveReviewFallbackMode: String = "planner_owned",
       plannerSelectedQuestion: Option[String] = Some("WhyThis"),
       plannerSceneType: Option[String] = Some("quiet_improvement"),
       plannerSelectedOwnerKind: Option[String] = None,
@@ -119,8 +119,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       quietSupportCandidateSourceKinds: List[String] = Nil,
       quietSupportCandidateVerbFamily: Option[String] = None,
       quietSupportCandidateText: Option[String] = None
-  ): BookmakerOutputEntry =
-    BookmakerOutputEntry(
+  ): MoveReviewOutputEntry =
+    MoveReviewOutputEntry(
       sampleId = sampleId,
       gameKey = sampleId.takeWhile(_ != ':'),
       sliceKind = sliceKind,
@@ -141,7 +141,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       plannerPrimaryFallbackMode = Some("PlannerOwned"),
       plannerSecondaryKind = None,
       plannerSecondarySurfaced = false,
-      bookmakerFallbackMode = bookmakerFallbackMode,
+      moveReviewFallbackMode = moveReviewFallbackMode,
       plannerSceneType = plannerSceneType,
       plannerOwnerCandidates = plannerOwnerCandidates,
       plannerAdmittedOwners = plannerAdmittedOwners,
@@ -175,7 +175,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       plannerForcingDefenseSources = plannerForcingDefenseSources,
       plannerMoveDeltaSources = plannerMoveDeltaSources,
       surfaceReplayOutcome =
-        Some(if bookmakerFallbackMode == "planner_owned" then "bookmaker_planner_owned" else "bookmaker_exact_factual"),
+        Some(if moveReviewFallbackMode == "planner_owned" then "move_review_planner_owned" else "move_review_exact_factual"),
       quietSupportLiftApplied = quietSupportLiftApplied,
       quietSupportRejectReasons = quietSupportRejectReasons,
       quietSupportRuntimeGatePassed = runtimeGatePassed,
@@ -256,10 +256,10 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
       val rawPath = writeRawPayload(dir, "opening-blocked", "h3", 22, "a3", 18)
       val report =
         buildQuietRichReport(
-          bookmakerEntries =
+          moveReviewEntries =
             List(
-              bookmakerEntry(
-                sampleId = "g-opening:opening_transition:42:bookmaker",
+              moveReviewEntry(
+                sampleId = "g-opening:opening_transition:42:moveReview",
                 sliceKind = SliceKind.OpeningTransition,
                 playedSan = "h3",
                 rawResponsePath = rawPath
@@ -297,10 +297,10 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         )
       val report =
         buildQuietRichReport(
-          bookmakerEntries =
+          moveReviewEntries =
             List(
-              bookmakerEntry(
-                sampleId = "g-long:long_structural_squeeze:42:bookmaker",
+              moveReviewEntry(
+                sampleId = "g-long:long_structural_squeeze:42:moveReview",
                 sliceKind = SliceKind.LongStructuralSqueeze,
                 playedSan = "Rc8",
                 rawResponsePath = rawPath,
@@ -341,10 +341,10 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         )
       val report =
         buildQuietRichReport(
-          bookmakerEntries =
+          moveReviewEntries =
             List(
-              bookmakerEntry(
-                sampleId = "g-closed:long_structural_squeeze:42:bookmaker",
+              moveReviewEntry(
+                sampleId = "g-closed:long_structural_squeeze:42:moveReview",
                 sliceKind = SliceKind.LongStructuralSqueeze,
                 playedSan = "Rc8",
                 rawResponsePath = rawPath,
@@ -378,10 +378,10 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         )
       val report =
         buildQuietRichReport(
-          bookmakerEntries =
+          moveReviewEntries =
             List(
-              bookmakerEntry(
-                sampleId = "g-prophylaxis:strategic_choice:42:bookmaker",
+              moveReviewEntry(
+                sampleId = "g-prophylaxis:strategic_choice:42:moveReview",
                 sliceKind = SliceKind.StrategicChoice,
                 playedSan = "a3",
                 rawResponsePath = rawPath
@@ -400,13 +400,13 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
     }
   }
 
-  test("bookmaker output entry reader tolerates legacy rows without upstream isolation fields") {
+  test("moveReview output entry reader tolerates legacy rows without upstream isolation fields") {
     withTempDir { dir =>
       val rawPath = writeRawPayload(dir, "legacy-schema", "Rc8", 24, "Kh7", 18)
       val legacyJson =
         Json.toJson(
-          bookmakerEntry(
-            sampleId = "g-legacy:long_structural_squeeze:42:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-legacy:long_structural_squeeze:42:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Rc8",
             rawResponsePath = rawPath
@@ -431,7 +431,7 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
           - "plannerForcingDefenseSources"
           - "plannerMoveDeltaSources"
 
-      val parsed = legacyJson.as[BookmakerOutputEntry]
+      val parsed = legacyJson.as[MoveReviewOutputEntry]
 
       assertEquals(parsed.rawChoiceType, None, clues(parsed))
       assertEquals(parsed.rawDecisionPresent, None, clues(parsed))
@@ -469,35 +469,35 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         buildQuietSupportSelectorRows(
           beforeEntries =
             List(
-              bookmakerEntry(
-                sampleId = "g-phasea:long_structural_squeeze:42:bookmaker",
+              moveReviewEntry(
+                sampleId = "g-phasea:long_structural_squeeze:42:moveReview",
                 sliceKind = SliceKind.LongStructuralSqueeze,
                 playedSan = "Rc8",
                 rawResponsePath = eligibleRaw,
                 commentary = "This puts the rook on c8.",
-                bookmakerFallbackMode = "exact_factual",
+                moveReviewFallbackMode = "exact_factual",
                 plannerSelectedQuestion = None,
                 plannerSelectedSource = None,
                 plannerOwnerCandidates = List("source_kind=pv_delta")
               ),
-              bookmakerEntry(
-                sampleId = "g-blocked:long_structural_squeeze:43:bookmaker",
+              moveReviewEntry(
+                sampleId = "g-blocked:long_structural_squeeze:43:moveReview",
                 sliceKind = SliceKind.LongStructuralSqueeze,
                 playedSan = "Rc8",
                 rawResponsePath = blockedRaw,
                 commentary = "This puts the rook on c8.",
-                bookmakerFallbackMode = "exact_factual",
+                moveReviewFallbackMode = "exact_factual",
                 plannerSelectedQuestion = None,
                 plannerSelectedSource = None,
                 plannerOwnerCandidates = List("source_kind=pv_delta")
               ),
-              bookmakerEntry(
-                sampleId = "g-mismatch:long_structural_squeeze:44:bookmaker",
+              moveReviewEntry(
+                sampleId = "g-mismatch:long_structural_squeeze:44:moveReview",
                 sliceKind = SliceKind.LongStructuralSqueeze,
                 playedSan = "Qa5",
                 rawResponsePath = eligibleRaw,
                 commentary = "This puts the queen on a5.",
-                bookmakerFallbackMode = "exact_factual",
+                moveReviewFallbackMode = "exact_factual",
                 plannerSceneType = Some("tactical_failure"),
                 plannerSelectedQuestion = None,
                 plannerSelectedSource = None,
@@ -555,37 +555,37 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         )
       val beforeEntries =
         List(
-          bookmakerEntry(
-            sampleId = "g-phasea:long_structural_squeeze:42:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-phasea:long_structural_squeeze:42:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Rc8",
             rawResponsePath = eligibleRaw,
             commentary = "This puts the rook on c8.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta")
           ),
-          bookmakerEntry(
-            sampleId = "g-blocked:long_structural_squeeze:43:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-blocked:long_structural_squeeze:43:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Rc8",
             rawResponsePath = blockedRaw,
             commentary = "This puts the rook on c8.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedSource = None
           )
         )
       val afterEntries =
         List(
-          bookmakerEntry(
-            sampleId = "g-phasea:long_structural_squeeze:42:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-phasea:long_structural_squeeze:42:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Rc8",
             rawResponsePath = eligibleRaw,
             commentary = "This puts the rook on c8.\n\nThis keeps the route toward c4 available.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta"),
@@ -596,13 +596,13 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             quietSupportCandidateVerbFamily = Some("keeps available"),
             quietSupportCandidateText = Some("This keeps the route toward c4 available.")
           ),
-          bookmakerEntry(
-            sampleId = "g-blocked:long_structural_squeeze:43:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-blocked:long_structural_squeeze:43:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Rc8",
             rawResponsePath = blockedRaw,
             commentary = "This puts the rook on c8.\n\nThis secures the squeeze.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             runtimeGatePassed = Some(false),
@@ -671,24 +671,24 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         )
       val beforeEntries =
         List(
-          bookmakerEntry(
-            sampleId = "g-phaseb:long_structural_squeeze:68:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-phaseb:long_structural_squeeze:68:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "a5",
             rawResponsePath = eligibleRaw,
             commentary = "This is a pawn move to a5.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta")
           ),
-          bookmakerEntry(
-            sampleId = "g-phaseb-blocked:long_structural_squeeze:69:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-phaseb-blocked:long_structural_squeeze:69:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Ke7",
             rawResponsePath = blockedRaw,
             commentary = "This is a king move to e7.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedOwnerKind = Some("ForcingDefense"),
             plannerSelectedSource = Some("threat")
@@ -696,13 +696,13 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         )
       val afterEntries =
         List(
-          bookmakerEntry(
-            sampleId = "g-phaseb:long_structural_squeeze:68:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-phaseb:long_structural_squeeze:68:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "a5",
             rawResponsePath = eligibleRaw,
             commentary = "This is a pawn move to a5.\n\nThis reinforces the fluid center.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta"),
@@ -715,13 +715,13 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             quietSupportCandidateVerbFamily = Some("reinforces"),
             quietSupportCandidateText = Some("This reinforces the fluid center.")
           ),
-          bookmakerEntry(
-            sampleId = "g-phaseb-blocked:long_structural_squeeze:69:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-phaseb-blocked:long_structural_squeeze:69:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Ke7",
             rawResponsePath = blockedRaw,
             commentary = "This is a king move to e7.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedOwnerKind = Some("ForcingDefense"),
             plannerSelectedSource = Some("threat"),
@@ -808,8 +808,8 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         buildQuietSupportEvaluation(
           beforeEntries = beforeEntries,
           afterEntries = afterEntries,
-          beforeSource = s"${dir.toString}/before-bookmaker",
-          afterSource = s"${dir.toString}/after-bookmaker",
+          beforeSource = s"${dir.toString}/before-moveReview",
+          afterSource = s"${dir.toString}/after-moveReview",
           beforeChronicleEntries = beforeChronicleEntries,
           afterChronicleEntries = afterChronicleEntries,
           beforeChronicleSource = Some(s"${dir.toString}/before-chronicle"),
@@ -861,24 +861,24 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         )
       val beforeEntries =
         List(
-          bookmakerEntry(
-            sampleId = "g-stable:long_structural_squeeze:42:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-stable:long_structural_squeeze:42:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Rc8",
             rawResponsePath = eligibleRaw,
             commentary = "This puts the rook on c8.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta")
           ),
-          bookmakerEntry(
-            sampleId = "g-drift:pressure_maintenance_without_immediate_tactic:43:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-drift:pressure_maintenance_without_immediate_tactic:43:moveReview",
             sliceKind = SliceKind.EndgameConversion,
             playedSan = "a5",
             rawResponsePath = driftRaw,
             commentary = "This is a pawn move to a5.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta")
@@ -886,13 +886,13 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         )
       val afterEntries =
         List(
-          bookmakerEntry(
-            sampleId = "g-stable:long_structural_squeeze:42:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-stable:long_structural_squeeze:42:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Rc8",
             rawResponsePath = eligibleRaw,
             commentary = "This puts the rook on c8.\n\nThis keeps the route toward c4 available.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             plannerOwnerCandidates = List("source_kind=pv_delta"),
@@ -903,13 +903,13 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             quietSupportCandidateVerbFamily = Some("keeps available"),
             quietSupportCandidateText = Some("This keeps the route toward c4 available.")
           ),
-          bookmakerEntry(
-            sampleId = "g-drift:pressure_maintenance_without_immediate_tactic:43:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-drift:pressure_maintenance_without_immediate_tactic:43:moveReview",
             sliceKind = SliceKind.EndgameConversion,
             playedSan = "a5",
             rawResponsePath = driftRaw,
             commentary = "This forces the opponent to stay passive.",
-            bookmakerFallbackMode = "planner_owned",
+            moveReviewFallbackMode = "planner_owned",
             plannerSelectedQuestion = Some("WhatMustBeStopped"),
             plannerSelectedOwnerKind = Some("ForcingDefense"),
             plannerSelectedSource = Some("threat"),
@@ -999,25 +999,25 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         )
       val beforeEntries =
         List(
-          bookmakerEntry(
-            sampleId = "g-selector:long_structural_squeeze:42:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-selector:long_structural_squeeze:42:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Qa5",
             rawResponsePath = selectorMismatchRaw,
             commentary = "This puts the queen on a5.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSceneType = Some("tactical_failure"),
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             plannerMoveDeltaSources = Nil
           ),
-          bookmakerEntry(
-            sampleId = "g-ingress:long_structural_squeeze:43:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-ingress:long_structural_squeeze:43:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Rc8",
             rawResponsePath = ingressRegressionRaw,
             commentary = "This puts the rook on c8.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             plannerOwnerCandidates = List("MoveDelta:source_kind=pv_delta"),
@@ -1035,13 +1035,13 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             truthFailureMode = Some("NoClearPlan"),
             plannerMoveDeltaSources = List("pv_delta")
           ),
-          bookmakerEntry(
-            sampleId = "g-blocked:long_structural_squeeze:44:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-blocked:long_structural_squeeze:44:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Ke7",
             rawResponsePath = blockedSpikeRaw,
             commentary = "The timing matters now because Other moves allow the position to slip away.",
-            bookmakerFallbackMode = "planner_owned",
+            moveReviewFallbackMode = "planner_owned",
             plannerSceneType = Some("forcing_defense"),
             plannerSelectedQuestion = Some("WhyNow"),
             plannerSelectedOwnerKind = Some("ForcingDefense"),
@@ -1051,26 +1051,26 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
         )
       val afterEntries =
         List(
-          bookmakerEntry(
-            sampleId = "g-selector:long_structural_squeeze:42:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-selector:long_structural_squeeze:42:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Qa5",
             rawResponsePath = selectorMismatchRaw,
             commentary = "This puts the queen on a5.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSceneType = Some("tactical_failure"),
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
             runtimeGatePassed = Some(false),
             runtimeGateRejectReasons = List("scene_type_not_allowed:tactical_failure")
           ),
-          bookmakerEntry(
-            sampleId = "g-ingress:long_structural_squeeze:43:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-ingress:long_structural_squeeze:43:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Rc8",
             rawResponsePath = ingressRegressionRaw,
             commentary = "This puts the rook on c8.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSceneType = Some("tactical_failure"),
             plannerSelectedQuestion = None,
             plannerSelectedSource = None,
@@ -1103,13 +1103,13 @@ class CommentaryQualityQuietSupportTest extends FunSuite:
             runtimePvDeltaAvailable = Some(false),
             runtimeMoveLinkedPvDeltaAnchorAvailable = Some(false)
           ),
-          bookmakerEntry(
-            sampleId = "g-blocked:long_structural_squeeze:44:bookmaker",
+          moveReviewEntry(
+            sampleId = "g-blocked:long_structural_squeeze:44:moveReview",
             sliceKind = SliceKind.LongStructuralSqueeze,
             playedSan = "Ke7",
             rawResponsePath = blockedSpikeRaw,
             commentary = "This puts the king on e7.",
-            bookmakerFallbackMode = "exact_factual",
+            moveReviewFallbackMode = "exact_factual",
             plannerSceneType = Some("tactical_failure"),
             plannerSelectedQuestion = None,
             plannerSelectedOwnerKind = None,

@@ -121,7 +121,7 @@ class RuleTemplateSanitizerTest extends munit.FunSuite:
     }
   }
 
-  test("applies user-facing placeholder rewrites to bookmaker fallback prose") {
+  test("applies user-facing placeholder rewrites to moveReview fallback prose") {
     val input =
       """The direct alternative stays secondary because Piece Activation is deferred as PlayableByPV under strict evidence mode (supported by engine-coupled continuation (probe evidence pending)).
         |

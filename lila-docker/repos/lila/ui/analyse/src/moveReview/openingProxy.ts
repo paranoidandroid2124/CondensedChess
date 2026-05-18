@@ -62,7 +62,7 @@ export async function fetchOpeningReferenceViaProxy(
     };
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') return null;
-    console.warn('Bookmaker: failed to fetch opening reference via proxy', e);
+    console.warn('MoveReview: failed to fetch opening reference via proxy', e);
     return null;
   }
 }

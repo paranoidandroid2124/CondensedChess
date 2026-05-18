@@ -11,8 +11,8 @@ object CommentaryQualityQuietSupportRunner:
   import CommentaryQualityQuietSupport.*
 
   final case class Config(
-      beforeBookmakerPath: Path = DefaultBookmakerRunDir.resolve("bookmaker_outputs_before.jsonl"),
-      afterBookmakerPath: Path = DefaultBookmakerRunDir.resolve("bookmaker_outputs.jsonl"),
+      beforeMoveReviewPath: Path = DefaultMoveReviewRunDir.resolve("move_review_outputs_before.jsonl"),
+      afterMoveReviewPath: Path = DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl"),
       selectorRowsPath: Path = DefaultReportDir.resolve("commentary_quality_quiet_support_selector_rows.jsonl"),
       evalRowsPath: Path = DefaultReportDir.resolve("commentary_quality_quiet_support_eval_rows.jsonl"),
       summaryJsonPath: Path = DefaultReportDir.resolve("commentary_quality_quiet_support_summary.json"),
@@ -24,16 +24,16 @@ object CommentaryQualityQuietSupportRunner:
   def main(args: Array[String]): Unit =
     val config = parseConfig(args.toList)
     val beforeEntries =
-      readJsonLines[BookmakerOutputEntry](config.beforeBookmakerPath) match
+      readJsonLines[MoveReviewOutputEntry](config.beforeMoveReviewPath) match
         case Right(value) => value
         case Left(err) =>
-          System.err.println(s"[quality-quiet-support] failed to read before bookmaker outputs `${config.beforeBookmakerPath}`: $err")
+          System.err.println(s"[quality-quiet-support] failed to read before moveReview outputs `${config.beforeMoveReviewPath}`: $err")
           sys.exit(1)
     val afterEntries =
-      readJsonLines[BookmakerOutputEntry](config.afterBookmakerPath) match
+      readJsonLines[MoveReviewOutputEntry](config.afterMoveReviewPath) match
         case Right(value) => value
         case Left(err) =>
-          System.err.println(s"[quality-quiet-support] failed to read after bookmaker outputs `${config.afterBookmakerPath}`: $err")
+          System.err.println(s"[quality-quiet-support] failed to read after moveReview outputs `${config.afterMoveReviewPath}`: $err")
           sys.exit(1)
     val beforeChronicleEntries =
       config.beforeChroniclePath match
@@ -58,8 +58,8 @@ object CommentaryQualityQuietSupportRunner:
       buildQuietSupportEvaluation(
         beforeEntries = beforeEntries,
         afterEntries = afterEntries,
-        beforeSource = config.beforeBookmakerPath.toString,
-        afterSource = config.afterBookmakerPath.toString,
+        beforeSource = config.beforeMoveReviewPath.toString,
+        afterSource = config.afterMoveReviewPath.toString,
         beforeChronicleEntries = beforeChronicleEntries,
         afterChronicleEntries = afterChronicleEntries,
         beforeChronicleSource = config.beforeChroniclePath.map(_.toString),
@@ -96,8 +96,8 @@ object CommentaryQualityQuietSupportRunner:
         case (positionalArgs, flagMap, None) =>
           (positionalArgs, flagMap)
     Config(
-      beforeBookmakerPath = positional.headOption.map(Paths.get(_)).getOrElse(DefaultBookmakerRunDir.resolve("bookmaker_outputs_before.jsonl")),
-      afterBookmakerPath = positional.lift(1).map(Paths.get(_)).getOrElse(DefaultBookmakerRunDir.resolve("bookmaker_outputs.jsonl")),
+      beforeMoveReviewPath = positional.headOption.map(Paths.get(_)).getOrElse(DefaultMoveReviewRunDir.resolve("move_review_outputs_before.jsonl")),
+      afterMoveReviewPath = positional.lift(1).map(Paths.get(_)).getOrElse(DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl")),
       selectorRowsPath = positional.lift(2).map(Paths.get(_)).getOrElse(DefaultReportDir.resolve("commentary_quality_quiet_support_selector_rows.jsonl")),
       evalRowsPath = positional.lift(3).map(Paths.get(_)).getOrElse(DefaultReportDir.resolve("commentary_quality_quiet_support_eval_rows.jsonl")),
       summaryJsonPath = positional.lift(4).map(Paths.get(_)).getOrElse(DefaultReportDir.resolve("commentary_quality_quiet_support_summary.json")),

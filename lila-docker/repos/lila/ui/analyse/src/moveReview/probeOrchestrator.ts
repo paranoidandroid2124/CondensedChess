@@ -139,10 +139,10 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
 
   const isCompatMotifFallbackEnabled = (): boolean => {
     const g = globalThis as Record<string, unknown>;
-    const runtimeFlag = g['__bookmakerCompatMotifFallback'];
+    const runtimeFlag = g['__moveReviewCompatMotifFallback'];
     if (typeof runtimeFlag === 'boolean') return runtimeFlag;
     try {
-      const stored = preferenceLocalStorage()?.getItem('bookmaker.compatMotifFallback');
+      const stored = preferenceLocalStorage()?.getItem('move_review.compatMotifFallback');
       return stored === '1' || stored === 'true';
     } catch {
       return false;
@@ -193,7 +193,7 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
     const coverage = current.requiredSlots > 0 ? current.generatedRequired / current.requiredSlots : 1;
     const compatRate = current.probes > 0 ? current.compatFallbackUses / current.probes : 0;
     console.info(
-      `[bookmaker.probe.signals] purpose=${purpose} probes=${current.probes} required_slots=${current.requiredSlots} generated=${current.generatedRequired} coverage=${coverage.toFixed(3)} compat_fallback_rate=${compatRate.toFixed(3)}`,
+      `[move-review.probe.signals] purpose=${purpose} probes=${current.probes} required_slots=${current.requiredSlots} generated=${current.generatedRequired} coverage=${coverage.toFixed(3)} compat_fallback_rate=${compatRate.toFixed(3)}`,
     );
   };
 
@@ -352,7 +352,7 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
     session: number,
   ): Promise<Tree.LocalEval | null> =>
     runEval(
-      `bookmaker-eval:${session}`,
+      `move-review-eval:${session}`,
       fen,
       [],
       depth,
@@ -375,7 +375,7 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
     session: number,
   ): Promise<Tree.LocalEval | null> =>
     runEval(
-      `bookmaker-probe:${session}:${move}`,
+      `move-review-probe:${session}:${move}`,
       fen,
       [move],
       depth,

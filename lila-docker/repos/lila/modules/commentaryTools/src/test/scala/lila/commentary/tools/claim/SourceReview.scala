@@ -69,7 +69,7 @@ private[commentary] object SourceReview:
       playedUci: Option[String],
       enginePv: List[String],
       primary: String,
-      bookmaker: String,
+      moveReview: String,
       chronicle: String,
       reason: String,
       mainProofSource: String = "-",
@@ -108,7 +108,7 @@ private[commentary] object SourceReview:
         playedUci.getOrElse("-"),
         clean(enginePv.mkString(" ")),
         clean(primary),
-        clean(bookmaker),
+        clean(moveReview),
         clean(chronicle),
         clean(reason)
       ).mkString("\t")
@@ -116,7 +116,7 @@ private[commentary] object SourceReview:
   private final case class EvaluationSurface(
       release: String,
       primary: String,
-      bookmaker: String,
+      moveReview: String,
       chronicle: String,
       rejected: String,
       ownerTrace: PlannerOwnerTrace,
@@ -156,7 +156,7 @@ private[commentary] object SourceReview:
       "playedUci",
       "enginePv",
       "primary",
-      "bookmaker",
+      "moveReview",
       "chronicle",
       "reason"
     ).mkString("\t")
@@ -386,7 +386,7 @@ private[commentary] object SourceReview:
         Some(ply.playedUci),
         engineLines.headOption.toList.flatMap(_.moves),
         surface.primary,
-        surface.bookmaker,
+        surface.moveReview,
         surface.chronicle,
         if admitted then "exact replay and surfaces agree" else s"admission_blocked: $blockers; planner_owner_missing_or_surface_unsafe: ${surface.rejected}",
         mainProofSource = surface.mainProofSource.getOrElse("-"),
@@ -445,7 +445,7 @@ private[commentary] object SourceReview:
     val proofTrace =
       mainClaim.flatMap(_.packet).map(_.proofTrace)
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = None)
-    val bookmaker =
+    val moveReview =
       Option(
         clean(
           LiveNarrativeCompressionCore.deterministicProse(
@@ -464,7 +464,7 @@ private[commentary] object SourceReview:
     EvaluationSurface(
       release = release,
       primary = primary,
-      bookmaker = bookmaker,
+      moveReview = moveReview,
       chronicle = chronicle,
       rejected = ranked.rejected.map(r => s"${r.questionKind}:${r.reasons.mkString("+")}").mkString(" | "),
       ownerTrace = ranked.ownerTrace,
@@ -517,10 +517,10 @@ private[commentary] object SourceReview:
 
   private def supportedLocalSurfaceSafe(surface: EvaluationSurface): Boolean =
     val claimOnly =
-      surface.primary == surface.bookmaker &&
+      surface.primary == surface.moveReview &&
         surface.primary == surface.chronicle
     claimOnly &&
-      List(surface.primary, surface.bookmaker, surface.chronicle).forall { text =>
+      List(surface.primary, surface.moveReview, surface.chronicle).forall { text =>
         val low = text.toLowerCase
         low.contains("a local reading is that") &&
           !low.contains("the key strategic fact") &&

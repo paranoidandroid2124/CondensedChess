@@ -24,7 +24,7 @@ class OpenAiClientRoutingTest extends FunSuite:
       modelActiveFallback = "gpt-5-mini",
       modelActiveAsync = "gpt-5.2",
       reasoningEffortActive = "none",
-      promptCacheKeyPrefix = "bookmaker:test",
+      promptCacheKeyPrefix = "moveReview:test",
       enabled = true,
       temperature = 0.2,
       maxOutputTokens = 256,

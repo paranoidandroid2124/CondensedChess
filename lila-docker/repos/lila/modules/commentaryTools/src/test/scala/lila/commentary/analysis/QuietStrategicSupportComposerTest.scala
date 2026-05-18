@@ -9,7 +9,7 @@ import lila.commentary.model.NarrativeContext
 class QuietStrategicSupportComposerTest extends FunSuite:
 
   private def baseCtx: NarrativeContext =
-    BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+    MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
       authorQuestions = Nil,
       authorEvidence = Nil
     )

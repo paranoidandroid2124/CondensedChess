@@ -65,14 +65,14 @@ object analyse:
     def lpv(@unused pgn: Any, @unused board: Boolean = true, @unused title: String = "") = emptyFrag
     def userAnalysis(
         data: play.api.libs.json.JsObject,
-        bookmaker: Boolean,
+        moveReview: Boolean,
         inlinePgn: Option[String] = None
     )(using EmbedContext) =
       val cfg =
         Json
           .obj(
             "data" -> data,
-            "bookmaker" -> bookmaker,
+            "moveReview" -> moveReview,
             "embed" -> true
           )
           .add("inlinePgn", inlinePgn) ++ analyseUi.explorerAndCevalConfig

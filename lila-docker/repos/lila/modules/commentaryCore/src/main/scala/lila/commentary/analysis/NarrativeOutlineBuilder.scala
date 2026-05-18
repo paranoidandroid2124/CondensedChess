@@ -466,7 +466,7 @@ object NarrativeOutlineBuilder:
   def isMoveAnnotation(ctx: NarrativeContext): Boolean =
     ctx.playedMove.isDefined && ctx.playedSan.isDefined
 
-  private def buildBookmakerPracticalWrapSentence(pa: PracticalInfo): Option[String] =
+  private def buildMoveReviewPracticalWrapSentence(pa: PracticalInfo): Option[String] =
     val verdict = Option(pa.verdict).map(_.trim).filter(_.nonEmpty)
     val drivers = summarizePracticalDrivers(pa.biasFactors, limit = 2)
     if verdict.isEmpty && drivers.isEmpty then None
@@ -480,7 +480,7 @@ object NarrativeOutlineBuilder:
           case _                            => ""
       Option.when(sentence.nonEmpty)(sentence)
 
-  private def buildBookmakerCompensationWrapSentence(
+  private def buildMoveReviewCompensationWrapSentence(
     signal: CompensationInterpretation.Signal
   ): Option[String] =
     val plan = signal.summary.map(_.trim).filter(_.nonEmpty)

@@ -145,26 +145,26 @@ object RealPgnNarrativeEvalRunner:
       campaignOwner: Option[String],
       ownerMismatch: Boolean,
       gameArcCompensationPosition: Boolean,
-      bookmakerCompensationPosition: Boolean,
+      moveReviewCompensationPosition: Boolean,
       compensationPosition: Boolean,
       exemplarVisible: Boolean,
       gameArcCompensationSubtype: Option[String],
-      bookmakerCompensationSubtype: Option[String],
+      moveReviewCompensationSubtype: Option[String],
       compensationSubtype: Option[String],
       gameArcPreparationCompensationSubtype: Option[String],
-      bookmakerPreparationCompensationSubtype: Option[String],
+      moveReviewPreparationCompensationSubtype: Option[String],
       gameArcPayoffCompensationSubtype: Option[String],
-      bookmakerPayoffCompensationSubtype: Option[String],
+      moveReviewPayoffCompensationSubtype: Option[String],
       gameArcDisplaySubtypeSource: String,
-      bookmakerDisplaySubtypeSource: String,
+      moveReviewDisplaySubtypeSource: String,
       activeCompensationMention: Boolean,
-      bookmakerCompensationMention: Boolean,
+      moveReviewCompensationMention: Boolean,
       execution: Option[String],
       objective: Option[String],
       focus: Option[String],
       gameArcNarrative: String,
-      bookmakerCommentary: String,
-      bookmakerSourceMode: String,
+      moveReviewCommentary: String,
+      moveReviewSourceMode: String,
       activeNoteStatus: String,
       activeNote: Option[String],
       probeRequestCount: Int,
@@ -227,7 +227,7 @@ object RealPgnNarrativeEvalRunner:
       label: String,
       targetPly: Int,
       compensationPosition: Boolean,
-      bookmakerCompensationMention: Boolean,
+      moveReviewCompensationMention: Boolean,
       passed: Boolean
   )
 
@@ -549,7 +549,7 @@ object RealPgnNarrativeEvalRunner:
       val beforeVars = engine.analyze(pd.fen, config.depth, config.multiPv)
       val afterEval = afterMoveEvals.find(_.ply == pd.ply)
       val afterFen = NarrativeUtils.uciListToFen(pd.fen, List(pd.playedUci))
-      val bookmakerResultOpt =
+      val moveReviewResultOpt =
         Await.result(
           api.moveReviewPosition(
             fen = pd.fen,
@@ -573,29 +573,29 @@ object RealPgnNarrativeEvalRunner:
           ),
           180.seconds
         )
-      bookmakerResultOpt.map { bookmakerResult =>
+      moveReviewResultOpt.map { moveReviewResult =>
         val momentSurface = StrategyPackSurface.from(moment.strategyPack)
-        val bookmakerSurface = StrategyPackSurface.from(bookmakerResult.response.strategyPack)
+        val moveReviewSurface = StrategyPackSurface.from(moveReviewResult.response.strategyPack)
         val internalTruth = internalTruthByPly.get(moment.ply)
         val activeNoteText = moment.activeStrategicNote.map(oneLine)
-        val bookmakerCommentary = oneLine(bookmakerResult.response.commentary)
+        val moveReviewCommentary = oneLine(moveReviewResult.response.commentary)
         val gameArcCompensationPosition = momentSurface.compensationPosition
-        val bookmakerCompensationPosition = bookmakerSurface.compensationPosition
+        val moveReviewCompensationPosition = moveReviewSurface.compensationPosition
         val compensationPosition =
           RealPgnNarrativeEvalCalibration.compensationEvalPosition(
             moment,
             momentSurface,
-            bookmakerSurface,
+            moveReviewSurface,
             Some(pd.playedUci)
           )
         val exemplarVisible =
-          RealPgnNarrativeEvalCalibration.exemplarEvalPosition(moment, momentSurface, bookmakerSurface, internalTruth)
-        val rawBookmakerPath = config.rawDir.resolve(s"${game.id}.ply_${moment.ply}.bookmaker.json")
-        writeJson(rawBookmakerPath, Json.toJson(bookmakerResult.response))
-        bookmakerResult.diagnosticPlanSidecar
+          RealPgnNarrativeEvalCalibration.exemplarEvalPosition(moment, momentSurface, moveReviewSurface, internalTruth)
+        val rawMoveReviewPath = config.rawDir.resolve(s"${game.id}.ply_${moment.ply}.move_review.json")
+        writeJson(rawMoveReviewPath, Json.toJson(moveReviewResult.response))
+        moveReviewResult.diagnosticPlanSidecar
           .filter(sidecar => sidecar.entries.nonEmpty || sidecar.droppedProbeCount > 0)
           .foreach { sidecar =>
-            val sidecarPath = config.rawDir.resolve(s"${game.id}.ply_${moment.ply}.bookmaker.plan_diagnostic.json")
+            val sidecarPath = config.rawDir.resolve(s"${game.id}.ply_${moment.ply}.move_review.plan_diagnostic.json")
             writeJson(sidecarPath, Json.toJson(sidecar))
           }
         FocusMomentReport(
@@ -609,41 +609,41 @@ object RealPgnNarrativeEvalRunner:
           campaignOwner = momentSurface.campaignOwnerText,
           ownerMismatch = momentSurface.ownerMismatch,
           gameArcCompensationPosition = gameArcCompensationPosition,
-          bookmakerCompensationPosition = bookmakerCompensationPosition,
+          moveReviewCompensationPosition = moveReviewCompensationPosition,
           compensationPosition = compensationPosition,
           exemplarVisible = exemplarVisible,
           gameArcCompensationSubtype =
             StrategyPackSurface.strictCompensationSubtypeLabel(momentSurface)
               .orElse(StrategyPackSurface.compensationSubtypeLabel(momentSurface)),
-          bookmakerCompensationSubtype =
-            StrategyPackSurface.strictCompensationSubtypeLabel(bookmakerSurface)
-              .orElse(StrategyPackSurface.compensationSubtypeLabel(bookmakerSurface)),
+          moveReviewCompensationSubtype =
+            StrategyPackSurface.strictCompensationSubtypeLabel(moveReviewSurface)
+              .orElse(StrategyPackSurface.compensationSubtypeLabel(moveReviewSurface)),
           compensationSubtype =
             Option.when(compensationPosition) {
               StrategyPackSurface.strictCompensationSubtypeLabel(momentSurface)
-                .orElse(StrategyPackSurface.strictCompensationSubtypeLabel(bookmakerSurface))
+                .orElse(StrategyPackSurface.strictCompensationSubtypeLabel(moveReviewSurface))
                 .orElse(StrategyPackSurface.compensationSubtypeLabel(momentSurface))
-                .orElse(StrategyPackSurface.compensationSubtypeLabel(bookmakerSurface))
+                .orElse(StrategyPackSurface.compensationSubtypeLabel(moveReviewSurface))
             }.flatten,
           gameArcPreparationCompensationSubtype =
             StrategyPackSurface.preparationCompensationSubtypeLabel(momentSurface),
-          bookmakerPreparationCompensationSubtype =
-            StrategyPackSurface.preparationCompensationSubtypeLabel(bookmakerSurface),
+          moveReviewPreparationCompensationSubtype =
+            StrategyPackSurface.preparationCompensationSubtypeLabel(moveReviewSurface),
           gameArcPayoffCompensationSubtype =
             StrategyPackSurface.payoffCompensationSubtypeLabel(momentSurface),
-          bookmakerPayoffCompensationSubtype =
-            StrategyPackSurface.payoffCompensationSubtypeLabel(bookmakerSurface),
+          moveReviewPayoffCompensationSubtype =
+            StrategyPackSurface.payoffCompensationSubtypeLabel(moveReviewSurface),
           gameArcDisplaySubtypeSource = momentSurface.displaySubtypeSource,
-          bookmakerDisplaySubtypeSource = bookmakerSurface.displaySubtypeSource,
+          moveReviewDisplaySubtypeSource = moveReviewSurface.displaySubtypeSource,
           activeCompensationMention =
             activeNoteText.exists(text => mentionsCompensationContract(text, momentSurface)),
-          bookmakerCompensationMention = mentionsCompensationContract(bookmakerCommentary, bookmakerSurface),
+          moveReviewCompensationMention = mentionsCompensationContract(moveReviewCommentary, moveReviewSurface),
           execution = momentSurface.executionText,
           objective = momentSurface.objectiveText,
           focus = momentSurface.focusText,
           gameArcNarrative = oneLine(moment.narrative),
-          bookmakerCommentary = bookmakerCommentary,
-          bookmakerSourceMode = bookmakerResult.response.sourceMode,
+          moveReviewCommentary = moveReviewCommentary,
+          moveReviewSourceMode = moveReviewResult.response.sourceMode,
           activeNoteStatus = moment.activeStrategicSourceMode.getOrElse("missing"),
           activeNote = activeNoteText,
           probeRequestCount = moment.probeRequests.size,
@@ -741,8 +741,8 @@ object RealPgnNarrativeEvalRunner:
           label = guard.label,
           targetPly = guard.targetPly,
           compensationPosition = report.compensationPosition,
-          bookmakerCompensationMention = report.bookmakerCompensationMention,
-          passed = !report.compensationPosition && !report.bookmakerCompensationMention
+          moveReviewCompensationMention = report.moveReviewCompensationMention,
+          passed = !report.compensationPosition && !report.moveReviewCompensationMention
         )
       }
     }
@@ -1173,14 +1173,14 @@ object RealPgnNarrativeEvalRunner:
         key = guard.id,
         gameId = Some(guard.id),
         ply = Some(guard.targetPly),
-        detail = "Negative guard still leaks compensation in report tagging or raw Bookmaker prose."
+        detail = "Negative guard still leaks compensation in report tagging or raw MoveReview prose."
       )
     }
     val crossSurfaceAgreementRate =
       ratio(
         compensationMoments.count(moment =>
           moment.gameArcCompensationPosition &&
-            moment.bookmakerCompensationPosition &&
+            moment.moveReviewCompensationPosition &&
             moment.activeCompensationMention
         ),
         compensationMoments.size
@@ -1189,7 +1189,7 @@ object RealPgnNarrativeEvalRunner:
       ratio(
         compensationMoments.count(moment =>
           moment.gameArcCompensationSubtype.nonEmpty &&
-            moment.gameArcCompensationSubtype == moment.bookmakerCompensationSubtype
+            moment.gameArcCompensationSubtype == moment.moveReviewCompensationSubtype
         ),
         compensationMoments.size
       )
@@ -1197,8 +1197,8 @@ object RealPgnNarrativeEvalRunner:
       ratio(
         compensationMoments.count(moment =>
           extractTheater(moment.gameArcPayoffCompensationSubtype)
-            .zip(extractTheater(moment.bookmakerPayoffCompensationSubtype))
-            .exists { case (gameArcTheater, bookmakerTheater) => gameArcTheater == bookmakerTheater }
+            .zip(extractTheater(moment.moveReviewPayoffCompensationSubtype))
+            .exists { case (gameArcTheater, moveReviewTheater) => gameArcTheater == moveReviewTheater }
         ),
         compensationMoments.size
       )
@@ -1216,20 +1216,20 @@ object RealPgnNarrativeEvalRunner:
           case _ => false
       ) +
         compensationMoments.count(moment =>
-          (moment.bookmakerPreparationCompensationSubtype, moment.bookmakerPayoffCompensationSubtype) match
+          (moment.moveReviewPreparationCompensationSubtype, moment.moveReviewPayoffCompensationSubtype) match
             case (Some(path), Some(payoff))
                 if unresolvedPathPayoffDivergence(
                   path,
                   payoff,
-                  moment.bookmakerCompensationSubtype,
-                  moment.bookmakerDisplaySubtypeSource
+                  moment.moveReviewCompensationSubtype,
+                  moment.moveReviewDisplaySubtypeSource
                 ) =>
               true
             case _ => false
         )
     val displaySubtypeSourceDistribution =
       compensationMoments
-        .flatMap(moment => List(moment.gameArcDisplaySubtypeSource, moment.bookmakerDisplaySubtypeSource))
+        .flatMap(moment => List(moment.gameArcDisplaySubtypeSource, moment.moveReviewDisplaySubtypeSource))
         .groupBy(identity)
         .view
         .mapValues(_.size)
@@ -1240,7 +1240,7 @@ object RealPgnNarrativeEvalRunner:
       val missingSurfaces =
         List(
           "chronicle" -> moment.gameArcCompensationPosition,
-          "bookmaker" -> moment.bookmakerCompensationPosition,
+          "moveReview" -> moment.moveReviewCompensationPosition,
           "active" -> moment.activeCompensationMention
         ).collect { case (surface, false) => surface }
       if missingSurfaces.nonEmpty then
@@ -1252,15 +1252,15 @@ object RealPgnNarrativeEvalRunner:
           ply = Some(moment.ply),
           detail = s"Compensation contract is missing on ${missingSurfaces.mkString(", ")}."
         )
-      (moment.gameArcCompensationSubtype, moment.bookmakerCompensationSubtype) match
-        case (Some(gameArcSubtype), Some(bookmakerSubtype)) if gameArcSubtype != bookmakerSubtype =>
+      (moment.gameArcCompensationSubtype, moment.moveReviewCompensationSubtype) match
+        case (Some(gameArcSubtype), Some(moveReviewSubtype)) if gameArcSubtype != moveReviewSubtype =>
           auditFailures += AuditFailure(
             category = "subtype_mismatch",
             severity = "P1",
             key = key,
             gameId = Some(gameId),
             ply = Some(moment.ply),
-            detail = s"Chronicle subtype `$gameArcSubtype` and Bookmaker subtype `$bookmakerSubtype` disagree."
+            detail = s"Chronicle subtype `$gameArcSubtype` and MoveReview subtype `$moveReviewSubtype` disagree."
           )
         case _ => ()
       List(
@@ -1270,11 +1270,11 @@ object RealPgnNarrativeEvalRunner:
           moment.gameArcCompensationSubtype,
           moment.gameArcDisplaySubtypeSource
         ),
-        "bookmaker" -> (
-          moment.bookmakerPreparationCompensationSubtype,
-          moment.bookmakerPayoffCompensationSubtype,
-          moment.bookmakerCompensationSubtype,
-          moment.bookmakerDisplaySubtypeSource
+        "moveReview" -> (
+          moment.moveReviewPreparationCompensationSubtype,
+          moment.moveReviewPayoffCompensationSubtype,
+          moment.moveReviewCompensationSubtype,
+          moment.moveReviewDisplaySubtypeSource
         )
       ).foreach { case (surface, pair) =>
         pair match
@@ -1365,7 +1365,7 @@ object RealPgnNarrativeEvalRunner:
       sb.append("### Negative Guards\n\n")
       report.signoff.negativeGuards.foreach { guard =>
         sb.append(
-          s"- `${guard.id}` ply `${guard.targetPly}` passed=`${guard.passed}` compensation=`${guard.compensationPosition}` rawBookmakerMention=`${guard.bookmakerCompensationMention}`\n"
+          s"- `${guard.id}` ply `${guard.targetPly}` passed=`${guard.passed}` compensation=`${guard.compensationPosition}` rawMoveReviewMention=`${guard.moveReviewCompensationMention}`\n"
         )
       }
       sb.append("\n")
@@ -1397,7 +1397,7 @@ object RealPgnNarrativeEvalRunner:
         sb.append(s"  - Surface: dominant=`${dominantIdeaText}` owner=`${campaignOwnerText}` mismatch=`${moment.ownerMismatch}` compensation=`${moment.compensationPosition}` exemplar=`${moment.exemplarVisible}` subtype=`${compensationSubtypeText}`\n")
         sb.append(s"  - Execution / objective / focus: `${executionText}` / `${objectiveText}` / `${focusText}`\n")
         sb.append(s"  - Game Arc: ${moment.gameArcNarrative}\n")
-        sb.append(s"  - Bookmaker (`${moment.bookmakerSourceMode}`): ${moment.bookmakerCommentary}\n")
+        sb.append(s"  - MoveReview (`${moment.moveReviewSourceMode}`): ${moment.moveReviewCommentary}\n")
         sb.append(s"  - Active (`${moment.activeNoteStatus}`): ${activeNoteText}\n")
       }
       sb.append("\n")
@@ -1708,28 +1708,28 @@ private[tools] object RealPgnNarrativeEvalCalibration:
   def compensationEvalPosition(
       moment: GameChronicleMoment,
       gameArcSurface: StrategyPackSurface.Snapshot,
-      bookmakerSurface: StrategyPackSurface.Snapshot,
+      moveReviewSurface: StrategyPackSurface.Snapshot,
       playedMove: Option[String] = None
   ): Boolean =
-    if truthBoundInvestmentCompensation(moment, gameArcSurface, bookmakerSurface) then true
+    if truthBoundInvestmentCompensation(moment, gameArcSurface, moveReviewSurface) then true
     else if !gameArcSurface.compensationPosition then false
-    else if !bookmakerSurface.compensationPosition then false
+    else if !moveReviewSurface.compensationPosition then false
     else if !surfaceSupportsCompensationContract(gameArcSurface) then false
-    else if !surfaceSupportsCompensationContract(bookmakerSurface) then false
-    else if !sharedCompensationSubtype(gameArcSurface, bookmakerSurface) then false
-    else if recaptureNeutralizedCompensation(moment, gameArcSurface, bookmakerSurface, playedMove) then false
-    else if lateTechnicalSpaceOnlyCompensation(moment, gameArcSurface, bookmakerSurface) then false
-    else if lateTechnicalStaticTailCompensation(moment, gameArcSurface, bookmakerSurface) then false
-    else if lateTransitionOnlyCompensation(moment, gameArcSurface, bookmakerSurface) then false
+    else if !surfaceSupportsCompensationContract(moveReviewSurface) then false
+    else if !sharedCompensationSubtype(gameArcSurface, moveReviewSurface) then false
+    else if recaptureNeutralizedCompensation(moment, gameArcSurface, moveReviewSurface, playedMove) then false
+    else if lateTechnicalSpaceOnlyCompensation(moment, gameArcSurface, moveReviewSurface) then false
+    else if lateTechnicalStaticTailCompensation(moment, gameArcSurface, moveReviewSurface) then false
+    else if lateTransitionOnlyCompensation(moment, gameArcSurface, moveReviewSurface) then false
     else true
 
   def exemplarEvalPosition(
       moment: GameChronicleMoment,
       gameArcSurface: StrategyPackSurface.Snapshot,
-      bookmakerSurface: StrategyPackSurface.Snapshot,
+      moveReviewSurface: StrategyPackSurface.Snapshot,
       internalTruth: Option[CommentaryEngine.TruthTraceMoment] = None
   ): Boolean =
-    if truthBoundInvestmentCompensation(moment, gameArcSurface, bookmakerSurface) then true
+    if truthBoundInvestmentCompensation(moment, gameArcSurface, moveReviewSurface) then true
     else if internalTruth.exists(_.maintenanceExemplarCandidate) then true
     else
       moment.moveClassification.exists(TruthBoundInvestmentLabels.contains) ||
@@ -1738,14 +1738,14 @@ private[tools] object RealPgnNarrativeEvalCalibration:
   def lateTechnicalSpaceOnlyCompensation(
       moment: GameChronicleMoment,
       gameArcSurface: StrategyPackSurface.Snapshot,
-      bookmakerSurface: StrategyPackSurface.Snapshot
+      moveReviewSurface: StrategyPackSurface.Snapshot
   ): Boolean =
     val gameArcSpaceOnly = compensationVectorsAreSpaceOnly(gameArcSurface)
-    val bookmakerSpaceOnly = compensationVectorsAreSpaceOnly(bookmakerSurface)
+    val moveReviewSpaceOnly = compensationVectorsAreSpaceOnly(moveReviewSurface)
     val heavyInvestment =
       gameArcSurface.investedMaterial.exists(_ >= 500) ||
-        bookmakerSurface.investedMaterial.exists(_ >= 500)
-    technicalTail(moment) && heavyInvestment && gameArcSpaceOnly && bookmakerSpaceOnly
+        moveReviewSurface.investedMaterial.exists(_ >= 500)
+    technicalTail(moment) && heavyInvestment && gameArcSpaceOnly && moveReviewSpaceOnly
 
   def compensationVectorsAreSpaceOnly(surface: StrategyPackSurface.Snapshot): Boolean =
     surface.compensationVectors.nonEmpty &&
@@ -1754,29 +1754,29 @@ private[tools] object RealPgnNarrativeEvalCalibration:
   def lateTechnicalStaticTailCompensation(
       moment: GameChronicleMoment,
       gameArcSurface: StrategyPackSurface.Snapshot,
-      bookmakerSurface: StrategyPackSurface.Snapshot
+      moveReviewSurface: StrategyPackSurface.Snapshot
   ): Boolean =
     technicalTail(moment) &&
       !surfaceHasDynamicCompensation(gameArcSurface) &&
-      !surfaceHasDynamicCompensation(bookmakerSurface)
+      !surfaceHasDynamicCompensation(moveReviewSurface)
 
   def lateTransitionOnlyCompensation(
       moment: GameChronicleMoment,
       gameArcSurface: StrategyPackSurface.Snapshot,
-      bookmakerSurface: StrategyPackSurface.Snapshot
+      moveReviewSurface: StrategyPackSurface.Snapshot
   ): Boolean =
     technicalTail(moment) &&
       gameArcSurface.compensationSubtype.exists(_.transitionOnly) &&
-      bookmakerSurface.compensationSubtype.exists(_.transitionOnly)
+      moveReviewSurface.compensationSubtype.exists(_.transitionOnly)
 
   def recaptureNeutralizedCompensation(
       moment: GameChronicleMoment,
       gameArcSurface: StrategyPackSurface.Snapshot,
-      bookmakerSurface: StrategyPackSurface.Snapshot,
+      moveReviewSurface: StrategyPackSurface.Snapshot,
       playedMove: Option[String]
   ): Boolean =
     val investedMaterial =
-      (gameArcSurface.investedMaterial.toList ++ bookmakerSurface.investedMaterial.toList).maxOption.getOrElse(0)
+      (gameArcSurface.investedMaterial.toList ++ moveReviewSurface.investedMaterial.toList).maxOption.getOrElse(0)
     playedMove.exists(move =>
       CompensationRecaptureBoundary.suppressAfterCompensation(moment.fen, move, investedMaterial)
     )
@@ -1789,12 +1789,12 @@ private[tools] object RealPgnNarrativeEvalCalibration:
   private def truthBoundInvestmentCompensation(
       moment: GameChronicleMoment,
       gameArcSurface: StrategyPackSurface.Snapshot,
-      bookmakerSurface: StrategyPackSurface.Snapshot
+      moveReviewSurface: StrategyPackSurface.Snapshot
   ): Boolean =
     (moment.moveClassification.exists(TruthBoundInvestmentLabels.contains) || moment.momentType == "InvestmentPivot") &&
       gameArcSurface.compensationPosition &&
-      bookmakerSurface.compensationPosition &&
-      sharedCompensationSubtype(gameArcSurface, bookmakerSurface)
+      moveReviewSurface.compensationPosition &&
+      sharedCompensationSubtype(gameArcSurface, moveReviewSurface)
 
   private def technicalTail(moment: GameChronicleMoment): Boolean =
     moment.moveNumber >= 35 && TechnicalTailMomentTypes.contains(moment.momentType)
@@ -1806,9 +1806,9 @@ private[tools] object RealPgnNarrativeEvalCalibration:
 
   private def sharedCompensationSubtype(
       gameArcSurface: StrategyPackSurface.Snapshot,
-      bookmakerSurface: StrategyPackSurface.Snapshot
+      moveReviewSurface: StrategyPackSurface.Snapshot
   ): Boolean =
     StrategyPackSurface
       .strictCompensationSubtypeLabel(gameArcSurface)
-      .zip(StrategyPackSurface.strictCompensationSubtypeLabel(bookmakerSurface))
-      .exists { case (gameArcSubtype, bookmakerSubtype) => gameArcSubtype == bookmakerSubtype }
+      .zip(StrategyPackSurface.strictCompensationSubtypeLabel(moveReviewSurface))
+      .exists { case (gameArcSubtype, moveReviewSubtype) => gameArcSubtype == moveReviewSubtype }

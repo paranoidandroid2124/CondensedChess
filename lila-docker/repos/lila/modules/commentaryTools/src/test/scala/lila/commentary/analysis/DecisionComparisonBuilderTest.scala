@@ -20,7 +20,7 @@ class DecisionComparisonBuilderTest extends FunSuite:
       delta = None,
       phase = PhaseContext("Middlegame", "Balanced middlegame"),
       candidates = Nil,
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   test("build falls back to engine-gap deferred branch when engine evidence and counterfactual diverge") {

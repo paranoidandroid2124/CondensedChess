@@ -1,4 +1,4 @@
-import type { StoredBookmakerEntry } from './studyPersistence';
+import type { StoredMoveReviewEntry } from './studyPersistence';
 import type { EndgameStateToken, PlanStateToken } from './types';
 
 type StoredTokenRestoreContext = {
@@ -7,8 +7,8 @@ type StoredTokenRestoreContext = {
   originPath: string;
 };
 
-export function restoreStoredBookmakerTokens(
-  entry: StoredBookmakerEntry,
+export function restoreStoredMoveReviewTokens(
+  entry: StoredMoveReviewEntry,
   context: StoredTokenRestoreContext,
   planStateByPath: Map<string, PlanStateToken | null>,
   endgameStateByPath: Map<string, EndgameStateToken | null>,

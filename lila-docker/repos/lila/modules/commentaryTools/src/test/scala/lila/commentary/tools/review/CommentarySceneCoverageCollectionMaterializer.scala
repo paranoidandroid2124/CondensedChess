@@ -81,7 +81,7 @@ object CommentarySceneCoverageCollectionMaterializer:
       lane: String,
       statusReasons: List[String],
       plannerSceneType: Option[String],
-      bookmakerFallbackMode: Option[String],
+      moveReviewFallbackMode: Option[String],
       quietnessVerified: Option[Boolean],
       quietnessSpreadCp: Option[Int],
       quietnessNotes: List[String],
@@ -102,7 +102,7 @@ object CommentarySceneCoverageCollectionMaterializer:
       sourceSliceKind: String,
       sourceStatus: String,
       selectionMode: String,
-      bookmakerFallbackMode: Option[String],
+      moveReviewFallbackMode: Option[String],
       plannerSceneType: Option[String],
       quietnessSpreadCp: Option[Int],
       directSources: List[String],
@@ -373,9 +373,9 @@ object CommentarySceneCoverageCollectionMaterializer:
           manifestEntriesFor(
             SliceKind.OpeningDeviationAfterMiddlegamePlanClash,
             enriched
-          ).find(_.surface == "bookmaker").map(_.sampleId)
+          ).find(_.surface == "moveReview").map(_.sampleId)
             .getOrElse(
-              s"${entry.gameKey}:${SliceKind.OpeningDeviationAfterMiddlegamePlanClash}:${enriched.plyData.ply}:bookmaker"
+              s"${entry.gameKey}:${SliceKind.OpeningDeviationAfterMiddlegamePlanClash}:${enriched.plyData.ply}:moveReview"
             )
         MaterializedOpeningPlanClashSelection(
           snapshot = enriched,
@@ -383,7 +383,7 @@ object CommentarySceneCoverageCollectionMaterializer:
             MaterializedOpeningPlanClashRow(
               sampleId = sampleId,
               gameKey = entry.gameKey,
-              surface = "bookmaker",
+              surface = "moveReview",
               targetPly = enriched.plyData.ply,
               playedSan = enriched.plyData.playedMove,
               bucket = SliceKind.OpeningDeviationAfterMiddlegamePlanClash,
@@ -482,9 +482,9 @@ object CommentarySceneCoverageCollectionMaterializer:
         manifestEntriesFor(
           SliceKind.ProphylaxisRestraint,
           snapshot
-        ).find(_.surface == "bookmaker").map(_.sampleId)
+        ).find(_.surface == "moveReview").map(_.sampleId)
           .getOrElse(
-            s"${entry.gameKey}:${SliceKind.ProphylaxisRestraint}:${snapshot.plyData.ply}:bookmaker"
+            s"${entry.gameKey}:${SliceKind.ProphylaxisRestraint}:${snapshot.plyData.ply}:moveReview"
           )
       CollectionLaneSelection(
         row =
@@ -492,14 +492,14 @@ object CommentarySceneCoverageCollectionMaterializer:
             sampleId = sampleId,
             sourceSampleId = sampleId,
             gameKey = entry.gameKey,
-            surface = "bookmaker",
+            surface = "moveReview",
             targetPly = snapshot.plyData.ply,
             playedSan = snapshot.plyData.playedMove,
             bucket = SliceKind.ProphylaxisRestraint,
             sourceSliceKind = SliceKind.ProphylaxisRestraint,
             sourceStatus = "collected",
             selectionMode = "collected_real_row",
-            bookmakerFallbackMode = None,
+            moveReviewFallbackMode = None,
             plannerSceneType = None,
             quietnessSpreadCp = None,
             directSources = Nil,
@@ -574,12 +574,12 @@ object CommentarySceneCoverageCollectionMaterializer:
   ): List[CollectionLaneRow] =
     val preferredSampleIds =
       List(
-        "2024_10_20_1_16_bryakin_m_diermair_a_twic_master_classical_19:opening_deviation_after_middlegame_plan_clash:28:bookmaker",
-        "2024_10_22_3_3_tsolakidou_stavroula_goryachkina_a_twic_master_classical_26:opening_deviation_after_middlegame_plan_clash:22:bookmaker",
-        "maghsoodloo_parham_rapport_richard_lichess_broadcast_master_classical_58:opening_deviation_after_middlegame_plan_clash:23:bookmaker",
-        "praggnanandhaa_r_gukesh_d_lichess_broadcast_master_classical_141:opening_deviation_after_middlegame_plan_clash:36:bookmaker",
-        "2_3_domalchuk_jonasson_aleksandr_laurusas_tomas_lichess_broadcast_master_classical_25:opening_deviation_after_middlegame_plan_clash:26:bookmaker",
-        "tarhan_adar_puranik_abhimanyu_lichess_broadcast_master_classical_118:opening_deviation_after_middlegame_plan_clash:21:bookmaker"
+        "2024_10_20_1_16_bryakin_m_diermair_a_twic_master_classical_19:opening_deviation_after_middlegame_plan_clash:28:moveReview",
+        "2024_10_22_3_3_tsolakidou_stavroula_goryachkina_a_twic_master_classical_26:opening_deviation_after_middlegame_plan_clash:22:moveReview",
+        "maghsoodloo_parham_rapport_richard_lichess_broadcast_master_classical_58:opening_deviation_after_middlegame_plan_clash:23:moveReview",
+        "praggnanandhaa_r_gukesh_d_lichess_broadcast_master_classical_141:opening_deviation_after_middlegame_plan_clash:36:moveReview",
+        "2_3_domalchuk_jonasson_aleksandr_laurusas_tomas_lichess_broadcast_master_classical_25:opening_deviation_after_middlegame_plan_clash:26:moveReview",
+        "tarhan_adar_puranik_abhimanyu_lichess_broadcast_master_classical_118:opening_deviation_after_middlegame_plan_clash:21:moveReview"
       )
     val preferredOrder = preferredSampleIds.zipWithIndex.toMap
     materializedRows
@@ -607,7 +607,7 @@ object CommentarySceneCoverageCollectionMaterializer:
           sourceSliceKind = row.bucket,
           sourceStatus = "collected",
           selectionMode = "curated_signoff_candidate",
-          bookmakerFallbackMode = None,
+          moveReviewFallbackMode = None,
           plannerSceneType = None,
           quietnessSpreadCp = None,
           directSources = Nil,
@@ -716,7 +716,7 @@ object CommentarySceneCoverageCollectionMaterializer:
       .sortBy { row =>
         (
           statusOrder.getOrElse(row.status, Int.MaxValue),
-          row.bookmakerFallbackMode.contains("planner_owned"),
+          row.moveReviewFallbackMode.contains("planner_owned"),
           row.directSources.isEmpty,
           !row.quietnessVerified.getOrElse(false),
           row.quietnessSpreadCp.getOrElse(Int.MaxValue),
@@ -742,26 +742,26 @@ object CommentarySceneCoverageCollectionMaterializer:
   ): CollectionLaneSelection =
     val sourceEntries = resolveManifestEntriesForSample(quietRow.sampleId, acceptedEntries, legacyEntries)
     val retargetedEntries = retargetManifestEntries(sourceEntries, targetBucket)
-    val bookmakerEntry =
-      retargetedEntries.find(_.surface == "bookmaker").getOrElse {
+    val moveReviewEntry =
+      retargetedEntries.find(_.surface == "moveReview").getOrElse {
         throw new IllegalStateException(
-          s"collection row `${quietRow.sampleId}` resolved no bookmaker entry while targeting `$targetBucket`"
+          s"collection row `${quietRow.sampleId}` resolved no moveReview entry while targeting `$targetBucket`"
         )
       }
     CollectionLaneSelection(
       row =
         CollectionLaneRow(
-          sampleId = bookmakerEntry.sampleId,
+          sampleId = moveReviewEntry.sampleId,
           sourceSampleId = quietRow.sampleId,
           gameKey = quietRow.gameKey,
-          surface = "bookmaker",
+          surface = "moveReview",
           targetPly = quietRow.targetPly,
           playedSan = quietRow.playedSan,
           bucket = targetBucket,
           sourceSliceKind = quietRow.sliceKind,
           sourceStatus = quietRow.status,
           selectionMode = selectionMode,
-          bookmakerFallbackMode = quietRow.bookmakerFallbackMode,
+          moveReviewFallbackMode = quietRow.moveReviewFallbackMode,
           plannerSceneType = quietRow.plannerSceneType,
           quietnessSpreadCp = quietRow.quietnessSpreadCp,
           directSources = quietRow.directSources,
@@ -787,7 +787,7 @@ object CommentarySceneCoverageCollectionMaterializer:
     }
 
   private def prophylaxisFailureMode(quietRow: QuietRichRow): String =
-    if quietRow.bookmakerFallbackMode.contains("planner_owned") then "owner_starvation"
+    if quietRow.moveReviewFallbackMode.contains("planner_owned") then "owner_starvation"
     else if quietRow.directSources.isEmpty then "support_only_overuse"
     else "scene_misclassification"
 
@@ -810,15 +810,15 @@ object CommentarySceneCoverageCollectionMaterializer:
 
     fixtureSeedSpecs.flatMap { spec =>
       val entries = resolveFixtureManifestEntries(spec, acceptedEntries, legacyEntries)
-      entries.find(_.surface == "bookmaker").map { bookmakerEntry =>
+      entries.find(_.surface == "moveReview").map { moveReviewEntry =>
         CuratedFixtureSeed(
           row =
             CuratedFixtureSeedRow(
               candidateName = spec.candidateName,
-              sampleId = bookmakerEntry.sampleId,
-              gameKey = bookmakerEntry.gameKey,
-              targetPly = bookmakerEntry.targetPly,
-              playedSan = bookmakerEntry.playedSan,
+              sampleId = moveReviewEntry.sampleId,
+              gameKey = moveReviewEntry.gameKey,
+              targetPly = moveReviewEntry.targetPly,
+              playedSan = moveReviewEntry.playedSan,
               bucket = spec.bucket,
               whyThisIsStable = spec.whyThisIsStable,
               likelyFailureMode = spec.likelyFailureMode,
@@ -866,11 +866,11 @@ object CommentarySceneCoverageCollectionMaterializer:
         collectionPriority = 1,
         note =
           if materializedOpeningPlanClashRows >= 15 && curatedOpeningPlanClashRows >= 5 then
-            s"Collection lane now holds $materializedOpeningPlanClashRows bookmaker rows plus $curatedOpeningPlanClashRows curated signoff rows; next work is fixing 2-4 stable fixtures, not widening the candidate pool."
+            s"Collection lane now holds $materializedOpeningPlanClashRows moveReview rows plus $curatedOpeningPlanClashRows curated signoff rows; next work is fixing 2-4 stable fixtures, not widening the candidate pool."
           else if materializedOpeningPlanClashRows >= 15 then
-            s"Collection lane now holds $materializedOpeningPlanClashRows bookmaker rows, which reaches the 15-25 candidate band; next work is curated signoff trimming rather than raw expansion."
+            s"Collection lane now holds $materializedOpeningPlanClashRows moveReview rows, which reaches the 15-25 candidate band; next work is curated signoff trimming rather than raw expansion."
           else if materializedOpeningPlanClashRows > 0 then
-            s"Materialized into the new collection manifest with $materializedOpeningPlanClashRows bookmaker rows; widen toward the 15-25 candidate target next."
+            s"Materialized into the new collection manifest with $materializedOpeningPlanClashRows moveReview rows; widen toward the 15-25 candidate target next."
           else "Still blocked until explorer-backed opening anchors or equivalent opening-branch evidence are wired into collection."
       ),
       SceneCoverageBucketPlanRow(
@@ -879,9 +879,9 @@ object CommentarySceneCoverageCollectionMaterializer:
         collectionPriority = 2,
         note =
           if materializedProphylaxisRows >= 15 then
-            s"Real-row materialization now holds $materializedProphylaxisRows bookmaker rows, which reaches the candidate band; next work is narrowing them into 5-8 curated signoff rows."
+            s"Real-row materialization now holds $materializedProphylaxisRows moveReview rows, which reaches the candidate band; next work is narrowing them into 5-8 curated signoff rows."
           else if materializedProphylaxisRows > 0 then
-            s"Real-row materialization now exists with $materializedProphylaxisRows bookmaker rows; expand toward 15-25 distinct restraint rows next."
+            s"Real-row materialization now exists with $materializedProphylaxisRows moveReview rows; expand toward 15-25 distinct restraint rows next."
           else "Current coverage is still indirect; collect real rows that carry move-linked restriction evidence, not only support-only clamps."
       ),
       SceneCoverageBucketPlanRow(
@@ -970,11 +970,11 @@ object CommentarySceneCoverageCollectionMaterializer:
       }.mkString("\n")
     val prophylaxisPreview =
       prophylaxisRows.map { row =>
-        s"- `${row.sampleId}` <- `${row.sourceSampleId}` | sourceSlice=${row.sourceSliceKind} | fallback=${row.bookmakerFallbackMode.getOrElse("none")} | score=${row.score.map(_.toString).getOrElse("na")} | plannerScene=${row.plannerSceneType.getOrElse("none")} | likelyFailure=${row.likelyFailureMode}"
+        s"- `${row.sampleId}` <- `${row.sourceSampleId}` | sourceSlice=${row.sourceSliceKind} | fallback=${row.moveReviewFallbackMode.getOrElse("none")} | score=${row.score.map(_.toString).getOrElse("na")} | plannerScene=${row.plannerSceneType.getOrElse("none")} | likelyFailure=${row.likelyFailureMode}"
       }.mkString("\n")
     val curatedOpeningPreview =
       curatedOpeningRows.map { row =>
-        s"- `${row.sampleId}` <- `${row.sourceSampleId}` | fallback=${row.bookmakerFallbackMode.getOrElse("none")} | spread=${row.quietnessSpreadCp.map(_.toString).getOrElse("na")}cp | likelyFailure=${row.likelyFailureMode}"
+        s"- `${row.sampleId}` <- `${row.sourceSampleId}` | fallback=${row.moveReviewFallbackMode.getOrElse("none")} | spread=${row.quietnessSpreadCp.map(_.toString).getOrElse("na")}cp | likelyFailure=${row.likelyFailureMode}"
       }.mkString("\n")
     val fixturePreview =
       fixtureSeeds.map(row => s"- `${row.candidateName}` -> `${row.sampleId}`").mkString("\n")
@@ -1109,7 +1109,7 @@ object CommentarySceneCoverageCollectionMaterializer:
       FixtureSeedSpec(
         candidateName = "bochnicka_ke7_squeeze54",
         sampleId =
-          "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:long_structural_squeeze:54:bookmaker",
+          "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:long_structural_squeeze:54:moveReview",
         bucket = SliceKind.LongStructuralSqueeze,
         whyThisIsStable = "Already behaves as a real-row quality seed and consistently collides with the same squeeze/restraint failure pattern.",
         likelyFailureMode = "tactical_shadowing",
@@ -1118,7 +1118,7 @@ object CommentarySceneCoverageCollectionMaterializer:
       FixtureSeedSpec(
         candidateName = "albornoz_a5_transition67",
         sampleId =
-          "2023_07_30_1_11_albornoz_cabrera_carlos_daniel_cub_suleymenov_alisher_kaz_fide_endgame_heavy_29:transition_heavy_endgames:67:bookmaker",
+          "2023_07_30_1_11_albornoz_cabrera_carlos_daniel_cub_suleymenov_alisher_kaz_fide_endgame_heavy_29:transition_heavy_endgames:67:moveReview",
         bucket = SliceKind.TransitionHeavyEndgames,
         whyThisIsStable = "It is the cleanest accepted overlap row between technical endgame transition and pressure maintenance.",
         likelyFailureMode = "cross_surface_divergence",
@@ -1127,7 +1127,7 @@ object CommentarySceneCoverageCollectionMaterializer:
       FixtureSeedSpec(
         candidateName = "yankelevich_qa5_squeeze55",
         sampleId =
-          "2024_10_20_1_12_yankelevich_l_rodshtein_m_twic_master_classical_11:long_structural_squeeze:55:bookmaker",
+          "2024_10_20_1_12_yankelevich_l_rodshtein_m_twic_master_classical_11:long_structural_squeeze:55:moveReview",
         bucket = "pressure_maintenance_without_immediate_tactic",
         whyThisIsStable = "Quiet queen reroute with low tactical noise; it reproduces support-only overuse and exact-factual fallback cleanly.",
         likelyFailureMode = "support_only_overuse",
@@ -1136,7 +1136,7 @@ object CommentarySceneCoverageCollectionMaterializer:
       FixtureSeedSpec(
         candidateName = "bochnicka_a6_opening10",
         sampleId =
-          "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:opening_transition:10:bookmaker",
+          "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:opening_transition:10:moveReview",
         bucket = "opening_deviation_after_stable_development",
         whyThisIsStable = "Simple and repeated opening deviation row whose current blocker is stable translator absence rather than tactical ambiguity.",
         likelyFailureMode = "translator_missing",
@@ -1145,7 +1145,7 @@ object CommentarySceneCoverageCollectionMaterializer:
       FixtureSeedSpec(
         candidateName = "complex_proxy_qxf3_akkarakaran17",
         sampleId =
-          "2024_10_27_2_1_akkarakaran_john_veny_laurent_paoli_pierre_twic_master_classical_37:compensation_or_exchange_sac:17:bookmaker",
+          "2024_10_27_2_1_akkarakaran_john_veny_laurent_paoli_pierre_twic_master_classical_37:compensation_or_exchange_sac:17:moveReview",
         bucket = "complex_sacrifice",
         whyThisIsStable = "Broad forcing proxy row that stays useful precisely because it exposes how unstable the current complex-sac proxy remains.",
         likelyFailureMode = "proxy_too_broad",

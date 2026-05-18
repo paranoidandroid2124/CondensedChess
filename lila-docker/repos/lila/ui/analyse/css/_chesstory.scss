@@ -463,7 +463,7 @@
     grid-row-gap: var(---atlas-shell-block-gap);
     padding: var(---atlas-shell-block-gap) var(---atlas-shell-gutter-x);
 
-    &--bookmaker {
+    &--moveReview {
       grid-template-columns: minmax(14rem, 18rem) minmax(20rem, 1fr) minmax(17rem, 24rem);
       grid-template-areas:
         'sidebar sidebar sidebar'
@@ -487,7 +487,7 @@
       'round-training round-training'
       'chat uchat';
 
-    &--bookmaker {
+    &--moveReview {
       grid-template-columns: minmax(16rem, 21rem) minmax(28rem, 1fr) minmax(20rem, 27rem);
       grid-template-areas:
         'sidebar sidebar sidebar'
@@ -957,7 +957,7 @@
     padding: 0.85rem;
     animation: atlas-rise 0.58s ease both;
 
-    #bookmaker-field {
+    #move-review-field {
       background: transparent;
       border: none;
       margin: 0;
@@ -1544,7 +1544,7 @@
     }
   }
 
-  .bookmaker-thinking-hud {
+  .move-review-thinking-hud {
     margin-top: 1rem;
     padding: 1rem;
     min-height: 6.2rem;
@@ -1851,7 +1851,7 @@ html.dark {
     --atlas-accent-strong: #ffd1a8;
     --atlas-shadow: 0 20px 40px rgba(0, 0, 0, 0.28);
 
-    .bookmaker-thinking-hud {
+    .move-review-thinking-hud {
       border-color: rgba(240, 167, 109, 0.18);
       background:
         linear-gradient(135deg, rgba(240, 167, 109, 0.14), rgba(240, 167, 109, 0)),

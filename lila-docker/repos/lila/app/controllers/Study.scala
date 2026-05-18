@@ -29,7 +29,7 @@ final class Study(
 
   private val importPgnForm = Form(single("pgn" -> text))
 
-  private case class BookmakerSyncRequest(
+  private case class MoveReviewSyncRequest(
       commentPath: String,
       originPath: String,
       commentary: String,
@@ -38,8 +38,8 @@ final class Study(
       maxPlies: Option[Int] = None
   )
 
-  private object BookmakerSyncRequest:
-    given Reads[BookmakerSyncRequest] = Json.reads[BookmakerSyncRequest]
+  private object MoveReviewSyncRequest:
+    given Reads[MoveReviewSyncRequest] = Json.reads[MoveReviewSyncRequest]
 
   private val defaultPvLines = 5
   private val defaultPvPlies = 16
@@ -341,9 +341,9 @@ final class Study(
                       case None => NotFound("Node not found")
   }
 
-  def bookmakerSync(id: StudyId, chapterId: StudyChapterId) = AuthBody(parse.json) { ctx ?=> me ?=>
+  def moveReviewSync(id: StudyId, chapterId: StudyChapterId) = AuthBody(parse.json) { ctx ?=> me ?=>
     ctx.body.body
-      .validate[BookmakerSyncRequest]
+      .validate[MoveReviewSyncRequest]
       .fold(
         errors => BadRequest(JsError.toJson(errors)).toFuccess,
         req =>

@@ -48,7 +48,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
   private enum SurfaceCell:
     case PlannerWhyThis
     case PlannerWhatChanged
-    case Bookmaker
+    case MoveReview
     case Chronicle
     case Active
     case WholeGame
@@ -634,7 +634,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
     )
 
   private def whyThisSurfaceCtx(evidenceTier: String): NarrativeContext =
-    BookmakerProseGoldenFixtures.prophylacticCut.ctx.copy(
+    MoveReviewProseGoldenFixtures.prophylacticCut.ctx.copy(
       authorQuestions =
         List(
           AuthorQuestion(
@@ -661,7 +661,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
           )
         ),
       semantic =
-        BookmakerProseGoldenFixtures.prophylacticCut.ctx.semantic.map(_.copy(
+        MoveReviewProseGoldenFixtures.prophylacticCut.ctx.semantic.map(_.copy(
           preventedPlans =
             List(
               PreventedPlanInfo(
@@ -989,7 +989,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
       ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
         ActiveStrategicCoachingBriefBuilder.PlannerReplay(ctx.authorQuestions, plannerInputs, rankedPlans)
       )
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
@@ -1010,7 +1010,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
     }
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
     chronicleArtifact.foreach(artifact => assertNoFileEntryInflation(artifact.narrative))
-    bookmakerSlots.foreach { slots =>
+    moveReviewSlots.foreach { slots =>
       assert(MoveReviewProseContract.stripMoveHeader(slots.claim).toLowerCase.contains("c-file"), clues(slots.claim))
       assert(MoveReviewProseContract.stripMoveHeader(slots.claim).toLowerCase.contains("b4"), clues(slots.claim))
       assertNoFileEntryInflation(slots.claim)
@@ -1033,7 +1033,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
       ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
         ActiveStrategicCoachingBriefBuilder.PlannerReplay(ctx.authorQuestions, plannerInputs, rankedPlans)
       )
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
@@ -1070,7 +1070,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
       assert(artifact.narrative.toLowerCase.contains("b4"), clues(artifact.narrative))
     }
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
-    bookmakerSlots.foreach { slots =>
+    moveReviewSlots.foreach { slots =>
       assertNoFileEntryInflation(slots.claim)
       assert(slots.claim.toLowerCase.contains("c-file"), clues(slots.claim))
       assert(slots.claim.toLowerCase.contains("b4"), clues(slots.claim))
@@ -1126,7 +1126,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
       ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
         ActiveStrategicCoachingBriefBuilder.PlannerReplay(ctx.authorQuestions, plannerInputs, rankedPlans)
       )
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = None)
     val fallbackSlots =
       MoveReviewCompressionPolicy.buildSlotsOrFallback(ctx, outline, refs = None, strategyPack = None, truthContract = None)
@@ -1135,7 +1135,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
     assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs))
     assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
-    assertEquals(bookmakerSlots, None, clues(bookmakerSlots, rankedPlans))
+    assertEquals(moveReviewSlots, None, clues(moveReviewSlots, rankedPlans))
     assertEquals(fallbackSlots.paragraphPlan, List("p1=claim"), clues(fallbackSlots))
     assertNoFileEntryInflation(fallbackClaim)
   }
@@ -1161,7 +1161,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = None, truthContract = None)
     val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = None)
     val chronicleArtifact =
       GameChronicleCompressionPolicy.renderWithTrace(
@@ -1174,7 +1174,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
       plannerInputs.mainBundle.flatMap(_.mainClaim).map(_.claimText).toList ++
         plannerInputs.quietIntent.map(_.claimText).toList ++
         rankedPlans.primary.map(_.claim).toList ++
-        bookmakerSlots.map(_.claim).toList ++
+        moveReviewSlots.map(_.claim).toList ++
         chronicleArtifact.map(_.narrative).filter(_.nonEmpty).toList
 
     assertEquals(LocalFileEntryProof.certifiedSurfacePair(ctx), None, clues(ctx.mainStrategicPlans))
@@ -1193,7 +1193,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
     val surfaceCoverage =
       computeCoverage(
         SurfaceCell.values.toSet,
-        covered = Set(SurfaceCell.PlannerWhyThis, SurfaceCell.PlannerWhatChanged, SurfaceCell.Bookmaker, SurfaceCell.Chronicle),
+        covered = Set(SurfaceCell.PlannerWhyThis, SurfaceCell.PlannerWhatChanged, SurfaceCell.MoveReview, SurfaceCell.Chronicle),
         unsafe = Set(SurfaceCell.WholeGame)
       )
 

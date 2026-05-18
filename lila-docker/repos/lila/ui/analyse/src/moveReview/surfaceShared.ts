@@ -1,4 +1,4 @@
-export type BookmakerInteractiveRefLike = {
+export type MoveReviewInteractiveRefLike = {
   refId: string;
   san: string;
   uci: string;
@@ -31,7 +31,7 @@ export function normalizeSanToken(raw: string | undefined | null): string {
 
 export function renderInteractiveSanChip(
   rawSan: string,
-  ref: BookmakerInteractiveRefLike | null,
+  ref: MoveReviewInteractiveRefLike | null,
   opts: RenderInteractiveSanChipOpts = {},
 ): string {
   if (!ref) {

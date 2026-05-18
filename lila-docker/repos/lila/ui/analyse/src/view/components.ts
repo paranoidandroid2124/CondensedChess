@@ -98,7 +98,7 @@ export function renderMain(ctx: ViewContext, ...kids: LooseVNodes[]): VNode {
         'has-players': !!playerBars,
         'gamebook-play': !!gamebookPlayView,
         'analyse-hunter': ctrl.opts.hunter,
-        'analyse--bookmaker': !!ctrl.opts.bookmaker && !ctrl.isReviewShell(),
+        'analyse--moveReview': !!ctrl.opts.moveReview && !ctrl.isReviewShell(),
         'analyse--review-shell': ctrl.isReviewShell(),
         'analyse--notebook': ctrl.isStudy(),
       },

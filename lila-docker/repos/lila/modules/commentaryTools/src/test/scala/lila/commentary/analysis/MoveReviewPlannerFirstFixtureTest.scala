@@ -3,12 +3,12 @@ package lila.commentary.analysis
 import munit.FunSuite
 import lila.commentary.model.authoring.AuthorQuestionKind
 
-class BookmakerPlannerFirstFixtureTest extends FunSuite:
+class MoveReviewPlannerFirstFixtureTest extends FunSuite:
 
   private def strippedClaim(slots: MoveReviewPolishSlots): String =
     MoveReviewProseContract.stripMoveHeader(slots.claim)
 
-  BookmakerProseGoldenFixtures.plannerRuntimeFixtures.foreach { fixture =>
+  MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.foreach { fixture =>
     test(s"${fixture.id} ${fixture.expectation} runtime remains planner-first for ${fixture.questionKind}") {
       val outline =
         BookStyleRenderer.validatedOutline(

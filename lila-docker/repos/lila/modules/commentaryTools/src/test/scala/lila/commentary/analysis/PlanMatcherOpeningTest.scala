@@ -105,7 +105,7 @@ class PlanMatcherOpeningTest extends FunSuite:
       delta = None,
       phase = PhaseContext("Opening", "Opening structure"),
       candidates = Nil,
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   test("opening phase should emit OpeningDevelopment plan with opening theme") {

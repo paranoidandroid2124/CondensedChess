@@ -36,7 +36,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
     case SurfaceReinflation
 
   private enum SurfaceCell:
-    case Bookmaker
+    case MoveReview
     case Chronicle
     case Active
     case WholeGame
@@ -67,7 +67,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
       expectedPlannerPrimary: Option[AuthorQuestionKind],
       expectedChroniclePlannerOwned: Boolean,
       expectedActivePrimary: Option[AuthorQuestionKind],
-      expectedBookmakerPlannerOwned: Boolean,
+      expectedMoveReviewPlannerOwned: Boolean,
       expectedFallbackClaim: Option[String]
   )
 
@@ -388,7 +388,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         expectedPlannerPrimary = Some(AuthorQuestionKind.WhyThis),
         expectedChroniclePlannerOwned = true,
         expectedActivePrimary = Some(AuthorQuestionKind.WhyThis),
-        expectedBookmakerPlannerOwned = true,
+        expectedMoveReviewPlannerOwned = true,
         expectedFallbackClaim = None
       ),
       SurfaceFixtureExpectation(
@@ -396,15 +396,15 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         expectedPlannerPrimary = None,
         expectedChroniclePlannerOwned = false,
         expectedActivePrimary = None,
-        expectedBookmakerPlannerOwned = false,
+        expectedMoveReviewPlannerOwned = false,
         expectedFallbackClaim = Some("This puts the bishop on f3.")
       )
     )
 
   private def plannerFixture(
       id: String
-  ): BookmakerProseGoldenFixtures.PlannerRuntimeFixture =
-    BookmakerProseGoldenFixtures.plannerRuntimeFixtures
+  ): MoveReviewProseGoldenFixtures.PlannerRuntimeFixture =
+    MoveReviewProseGoldenFixtures.plannerRuntimeFixtures
       .find(_.id == id)
       .getOrElse(fail(s"missing planner runtime fixture: $id"))
 
@@ -501,7 +501,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
             rankedPlans = rankedPlans
           )
         )
-      val bookmakerSlots =
+      val moveReviewSlots =
         MoveReviewCompressionPolicy.buildSlots(
           fixture.ctx,
           outline,
@@ -517,8 +517,8 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
           strategyPack = fixture.strategyPack,
           truthContract = fixture.truthContract
         )
-      val bookmakerClaim = MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim)
-      val bookmakerParagraphs =
+      val moveReviewClaim = MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim)
+      val moveReviewParagraphs =
         MoveReviewProseContract.splitParagraphs(
           LiveNarrativeCompressionCore.deterministicProse(fallbackSlots)
         )
@@ -539,21 +539,21 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         clues(expectation.id, activeSelection, rankedPlans)
       )
       assertEquals(
-        bookmakerSlots.nonEmpty,
-        expectation.expectedBookmakerPlannerOwned,
-        clues(expectation.id, bookmakerSlots, fallbackSlots)
+        moveReviewSlots.nonEmpty,
+        expectation.expectedMoveReviewPlannerOwned,
+        clues(expectation.id, moveReviewSlots, fallbackSlots)
       )
 
       expectation.expectedFallbackClaim match
         case Some(claim) =>
-          assertEquals(bookmakerClaim, claim, clues(expectation.id, fallbackSlots))
-          assertEquals(bookmakerParagraphs.size, 1, clues(expectation.id, bookmakerParagraphs))
+          assertEquals(moveReviewClaim, claim, clues(expectation.id, fallbackSlots))
+          assertEquals(moveReviewParagraphs.size, 1, clues(expectation.id, moveReviewParagraphs))
         case None =>
-          assert(bookmakerParagraphs.size >= 2, clues(expectation.id, bookmakerParagraphs, fallbackSlots))
+          assert(moveReviewParagraphs.size >= 2, clues(expectation.id, moveReviewParagraphs, fallbackSlots))
           assertNotEquals(
-            bookmakerClaim,
+            moveReviewClaim,
             "This puts the bishop on f3.",
-            clues(expectation.id, bookmakerClaim, fallbackSlots)
+            clues(expectation.id, moveReviewClaim, fallbackSlots)
           )
           assert(chronicleArtifact.exists(_.narrative.nonEmpty), clues(expectation.id, chronicleArtifact))
     }
@@ -630,7 +630,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
     val surfaceCoverage =
       computeCoverage(
         SurfaceCell.values.toSet,
-        Set(SurfaceCell.Bookmaker, SurfaceCell.Chronicle, SurfaceCell.Active, SurfaceCell.WholeGame)
+        Set(SurfaceCell.MoveReview, SurfaceCell.Chronicle, SurfaceCell.Active, SurfaceCell.WholeGame)
       )
 
     assertEquals(
@@ -673,7 +673,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
     assertEquals(
       surfaceCoverage,
       Map(
-        SurfaceCell.Bookmaker -> CoverageState.Covered,
+        SurfaceCell.MoveReview -> CoverageState.Covered,
         SurfaceCell.Chronicle -> CoverageState.Covered,
         SurfaceCell.Active -> CoverageState.Covered,
         SurfaceCell.WholeGame -> CoverageState.Covered

@@ -14,7 +14,7 @@ class StandardCommentaryClaimPolicyTest extends FunSuite:
       .getOrElse(0)
 
   private def quietOpeningCtx(
-      renderMode: NarrativeRenderMode = NarrativeRenderMode.Bookmaker,
+      renderMode: NarrativeRenderMode = NarrativeRenderMode.MoveReview,
       variantKey: String = EarlyOpeningNarrationPolicy.StandardVariant
   ): NarrativeContext =
     NarrativeContext(
@@ -57,17 +57,17 @@ class StandardCommentaryClaimPolicyTest extends FunSuite:
       variantKey = variantKey
     )
 
-  test("quiet standard opening collapses to a shared no-event note across bookmaker and chronicle") {
-    val bookmakerCtx = quietOpeningCtx()
-    val bookmaker = BookStyleRenderer.render(bookmakerCtx)
+  test("quiet standard opening collapses to a shared no-event note across moveReview and chronicle") {
+    val moveReviewCtx = quietOpeningCtx()
+    val moveReview = BookStyleRenderer.render(moveReviewCtx)
 
     assertEquals(
-      bookmaker,
+      moveReview,
       "This is still standard opening development, and no major imbalance has hardened yet."
     )
-    assertEquals(sentenceCount(bookmaker), 1, clue(bookmaker))
-    assert(!bookmaker.toLowerCase.contains("hanging"), clue(bookmaker))
-    assert(!bookmaker.toLowerCase.contains("underdefended"), clue(bookmaker))
+    assertEquals(sentenceCount(moveReview), 1, clue(moveReview))
+    assert(!moveReview.toLowerCase.contains("hanging"), clue(moveReview))
+    assert(!moveReview.toLowerCase.contains("underdefended"), clue(moveReview))
 
     val chronicleCtx = quietOpeningCtx(renderMode = NarrativeRenderMode.FullGame)
     val moment =
@@ -79,7 +79,7 @@ class StandardCommentaryClaimPolicyTest extends FunSuite:
       )
     val (chronicle, _) = CommentaryEngine.renderHybridMomentNarrative(chronicleCtx, moment)
 
-    assertEquals(chronicle, bookmaker)
+    assertEquals(chronicle, moveReview)
   }
 
   test("quiet standard opening suppresses central-pawn hanging wording") {

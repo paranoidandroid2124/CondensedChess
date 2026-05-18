@@ -224,7 +224,7 @@ object StrategicPuzzlePrePolishRunner:
               )
             resultOpt match
               case None =>
-                rejectRows += RejectRow(row.source.seedId, row.position.fen, row.position.fenKey, "prepolish_move", List(s"empty_bookmaker_response:${move.uci}"))
+                rejectRows += RejectRow(row.source.seedId, row.position.fen, row.position.fenKey, "prepolish_move", List(s"empty_move_review_response:${move.uci}"))
               case Some(result) =>
                 val response = result.response
                 val stage03Row =

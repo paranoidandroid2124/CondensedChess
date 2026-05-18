@@ -1,11 +1,11 @@
 package lila.analyse.test
 
 import lila.commentary.model.strategic.VariationLine
-import lila.analyse.ui.BookmakerRenderer
+import lila.analyse.ui.MoveReviewRenderer
 import lila.commentary.analysis.NarrativeUtils
-import lila.commentary.{ BookmakerRefsV1, MoveRefV1, VariationRefV1 }
+import lila.commentary.{ MoveReviewMoveRef, MoveReviewRefs, MoveReviewVariationRef }
 
-class BookmakerRendererTest extends munit.FunSuite:
+class MoveReviewRendererTest extends munit.FunSuite:
 
   test("should render interactive variation spans and preview container") {
     val fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
@@ -18,10 +18,10 @@ class BookmakerRendererTest extends munit.FunSuite:
       )
     )
     val commentary = "White should play e4."
-    val html = BookmakerRenderer.render(commentary, vars, fen).toString
+    val html = MoveReviewRenderer.render(commentary, vars, fen).toString
 
     assert(html.contains("pv-line"))
-    assert(html.contains("bookmaker-pv-preview"))
+    assert(html.contains("move-review-pv-preview"))
     assert(html.contains("""data-board="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1|e2e4""""))
     assert(
       """<span class="move-chip[^"]*" data-san="e4" data-uci="e2e4"""".r.findFirstIn(html).nonEmpty
@@ -37,7 +37,7 @@ class BookmakerRendererTest extends munit.FunSuite:
       VariationLine(moves = List("e2e4"), scoreCp = 30, mate = None),
       VariationLine(moves = List("d2d4"), scoreCp = 25, mate = None)
     )
-    val html = BookmakerRenderer.render(commentary, vars, fen).toString
+    val html = MoveReviewRenderer.render(commentary, vars, fen).toString
 
     assert(
       """<span class="move-chip[^"]*" data-san="e4" data-uci="e2e4" data-board="rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1\|e2e4"[^>]*>e4</span>""".r
@@ -53,7 +53,7 @@ class BookmakerRendererTest extends munit.FunSuite:
 
   test("moves not in variations only get data-san") {
     val commentary = "Castling O-O is possible later."
-    val html = BookmakerRenderer.render(commentary, Nil, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").toString
+    val html = MoveReviewRenderer.render(commentary, Nil, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").toString
     assert(html.contains("<span class=\"move-chip\" data-san=\"O-O\">O-O</span>"))
   }
 
@@ -64,7 +64,7 @@ class BookmakerRendererTest extends munit.FunSuite:
       VariationLine(moves = List("g1f3", "d7d5"), scoreCp = 20, mate = None),
       VariationLine(moves = List("d2d4", "g8f6", "g1f3"), scoreCp = 18, mate = None)
     )
-    val html = BookmakerRenderer.render(commentary, vars, fen).toString
+    val html = MoveReviewRenderer.render(commentary, vars, fen).toString
     val pattern =
       """<span class="move-chip[^"]*" data-san="Nf3" data-uci="g1f3" data-board="([^"]+)"[^>]*>Nf3</span>""".r
     val boards = pattern.findAllMatchIn(html).map(_.group(1)).toList
@@ -84,7 +84,7 @@ class BookmakerRendererTest extends munit.FunSuite:
   }
 
   test("should handle empty variations gracefully") {
-    val html = BookmakerRenderer.render("Just text.", Nil, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").toString
+    val html = MoveReviewRenderer.render("Just text.", Nil, "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").toString
     assert(!html.contains("Alternative Options"))
     assert(html.contains("Just text."))
   }
@@ -98,7 +98,7 @@ class BookmakerRendererTest extends munit.FunSuite:
         mate = None
       )
     )
-    val html = BookmakerRenderer.render("Main line.", vars, fen).toString
+    val html = MoveReviewRenderer.render("Main line.", vars, fen).toString
     assert(html.contains("17..."))
     assert(html.contains("18."))
   }
@@ -108,7 +108,7 @@ class BookmakerRendererTest extends munit.FunSuite:
     val uciLine = List("e2e4", "e7e5", "g1f3", "b8c6")
     val vars = List(VariationLine(moves = uciLine, scoreCp = 30, mate = None))
     val commentary = "Main line: 1 e4 e5 2 Nf3 Nc6."
-    val html = BookmakerRenderer.render(commentary, vars, fen).toString
+    val html = MoveReviewRenderer.render(commentary, vars, fen).toString
 
     val fenAfterE4 = NarrativeUtils.uciListToFen(fen, List("e2e4"))
     val fenAfterE5 = NarrativeUtils.uciListToFen(fenAfterE4, List("e7e5"))
@@ -126,7 +126,7 @@ class BookmakerRendererTest extends munit.FunSuite:
     val uciLine = List("e7e5", "g1f3")
     val vars = List(VariationLine(moves = uciLine, scoreCp = 12, mate = None))
     val commentary = "Critical line: 17... e5! 18 Nf3."
-    val html = BookmakerRenderer.render(commentary, vars, fen).toString
+    val html = MoveReviewRenderer.render(commentary, vars, fen).toString
 
     val fenAfterE5 = NarrativeUtils.uciListToFen(fen, List("e7e5"))
     val fenAfterNf3 = NarrativeUtils.uciListToFen(fenAfterE5, List("g1f3"))
@@ -145,7 +145,7 @@ class BookmakerRendererTest extends munit.FunSuite:
         mate = Some(1)
       )
     )
-    val html = BookmakerRenderer.render("Critical sequence: Qe8!.", vars, fen).toString
+    val html = MoveReviewRenderer.render("Critical sequence: Qe8!.", vars, fen).toString
     assert(
       """<span class="move-chip[^"]*" data-san="Qe8" data-uci="e2e8"""".r.findFirstIn(html).nonEmpty
     )
@@ -159,17 +159,17 @@ class BookmakerRendererTest extends munit.FunSuite:
     )
     val fenAfterE4 = NarrativeUtils.uciListToFen(fen, List("e2e4"))
     val fenAfterE5 = NarrativeUtils.uciListToFen(fenAfterE4, List("e7e5"))
-    val refs = BookmakerRefsV1(
+    val refs = MoveReviewRefs(
       startFen = fen,
       startPly = 1,
       variations = List(
-        VariationRefV1(
+        MoveReviewVariationRef(
           lineId = "line_01",
           scoreCp = 28,
           mate = None,
           depth = 0,
           moves = List(
-            MoveRefV1(
+            MoveReviewMoveRef(
               refId = "l01_m01",
               san = "e4",
               uci = "e2e4",
@@ -178,7 +178,7 @@ class BookmakerRendererTest extends munit.FunSuite:
               moveNo = 1,
               marker = Some("1.")
             ),
-            MoveRefV1(
+            MoveReviewMoveRef(
               refId = "l01_m02",
               san = "e5",
               uci = "e7e5",
@@ -192,7 +192,7 @@ class BookmakerRendererTest extends munit.FunSuite:
       )
     )
 
-    val html = BookmakerRenderer.render("Critical line: 1 e4 e5.", vars, fen, refs = Some(refs)).toString
+    val html = MoveReviewRenderer.render("Critical line: 1 e4 e5.", vars, fen, refs = Some(refs)).toString
     assert(html.contains("""data-ref-id="l01_m01""""))
     assert(html.contains("""data-ref-id="l01_m02""""))
     assert(html.contains(s"""data-board="$fenAfterE4|e2e4""""))

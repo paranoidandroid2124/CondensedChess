@@ -120,7 +120,7 @@ export function setNodeComment(ref: StudyRef, path: string, text: string): Promi
   return postJson(`/api/study/${ref.id}/${ref.chapterId}/comment`, { path, text });
 }
 
-export type BookmakerSyncPayload = {
+export type MoveReviewSyncPayload = {
   commentPath: string;
   originPath: string;
   commentary: string;
@@ -129,8 +129,8 @@ export type BookmakerSyncPayload = {
   maxPlies?: number;
 };
 
-export function bookmakerSync(ref: StudyRef, payload: BookmakerSyncPayload): Promise<void> {
-  return postNoContent(`/api/study/${ref.id}/${ref.chapterId}/bookmaker-sync`, payload);
+export function moveReviewSync(ref: StudyRef, payload: MoveReviewSyncPayload): Promise<void> {
+  return postNoContent(`/api/study/${ref.id}/${ref.chapterId}/move-review-sync`, payload);
 }
 
 export function setNotebookDossier(studyId: string, dossier: NotebookDossierV1): Promise<void> {

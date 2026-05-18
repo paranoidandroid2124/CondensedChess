@@ -5,7 +5,7 @@ import lila.commentary.model.strategic.{ PlanContinuity, PlanLifecyclePhase }
 import _root_.chess.Color
 
 /**
- * Tracks strategic continuity per color for the live Bookmaker path.
+ * Tracks strategic continuity per color for the live MoveReview path.
  *
  * v2 token schema:
  * - primary/secondary continuity per color

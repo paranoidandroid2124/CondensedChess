@@ -26,7 +26,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
   private def sampleFocusMoment(
       ply: Int = 24,
       gameArcNarrative: String = "White fixed the d5 square and should now build around it.",
-      bookmakerCommentary: String = "12... Nd5: The move fixes the knight on d5 and prepares c4 next.",
+      moveReviewCommentary: String = "12... Nd5: The move fixes the knight on d5 and prepares c4 next.",
       activeNote: Option[String] = Some("The key idea is to keep the knight on d5 and follow with c4.")
   ): FocusMomentReport =
     FocusMomentReport(
@@ -40,26 +40,26 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
       campaignOwner = Some("White"),
       ownerMismatch = false,
       gameArcCompensationPosition = false,
-      bookmakerCompensationPosition = false,
+      moveReviewCompensationPosition = false,
       compensationPosition = false,
       exemplarVisible = false,
       gameArcCompensationSubtype = None,
-      bookmakerCompensationSubtype = None,
+      moveReviewCompensationSubtype = None,
       compensationSubtype = None,
       gameArcPreparationCompensationSubtype = None,
-      bookmakerPreparationCompensationSubtype = None,
+      moveReviewPreparationCompensationSubtype = None,
       gameArcPayoffCompensationSubtype = None,
-      bookmakerPayoffCompensationSubtype = None,
+      moveReviewPayoffCompensationSubtype = None,
       gameArcDisplaySubtypeSource = "path",
-      bookmakerDisplaySubtypeSource = "path",
+      moveReviewDisplaySubtypeSource = "path",
       activeCompensationMention = false,
-      bookmakerCompensationMention = false,
+      moveReviewCompensationMention = false,
       execution = Some("rook toward c1"),
       objective = Some("c4 to support the knight"),
       focus = Some("The knight stays pointed at d5."),
       gameArcNarrative = gameArcNarrative,
-      bookmakerCommentary = bookmakerCommentary,
-      bookmakerSourceMode = "rule",
+      moveReviewCommentary = moveReviewCommentary,
+      moveReviewSourceMode = "rule",
       activeNoteStatus = activeNote.fold("omitted")(_ => "rule"),
       activeNote = activeNote,
       probeRequestCount = 0,
@@ -191,7 +191,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
     assert(auditSet.games.exists(_.reportPath.endsWith("single_runs\\single_actorxu_77\\report.json")))
   }
 
-  test("buildAuditQueue emits whole-game, chronicle focus, bookmaker, and active-note rows for one audit game") {
+  test("buildAuditQueue emits whole-game, chronicle focus, moveReview, and active-note rows for one audit game") {
     val root = tempDir("audit-queue-builder")
     val runDir = root.resolve("edge_case_000")
     val rawDir = runDir.resolve("raw")
@@ -232,7 +232,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
       )
     writeJson(rawDir.resolve("game_focus.game_arc.json"), rawGame)
 
-    val rawBookmaker =
+    val rawMoveReview =
       Json.obj(
         "commentary" -> "12... Nd5: The move fixes the knight on d5 and prepares c4 next.",
         "mainStrategicPlans" -> Json.arr(
@@ -253,7 +253,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
           "preservedSignals" -> Json.arr("Pressure on d5")
         )
       )
-    writeJson(rawDir.resolve("game_focus.ply_24.bookmaker.json"), rawBookmaker)
+    writeJson(rawDir.resolve("game_focus.ply_24.move_review.json"), rawMoveReview)
 
     val auditSet =
       AuditSetManifest(
@@ -291,7 +291,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
     assertEquals(summary.wholeGameReviewCount, 1)
     assert(queue.forall(_.auditId.contains("edge_case_000:game_focus")))
     assert(queue.exists(entry => entry.surface == ReviewSurface.Chronicle && entry.reviewKind == ReviewKind.WholeGame))
-    assert(queue.exists(entry => entry.surface == ReviewSurface.Bookmaker && entry.supportRows.exists(_.startsWith("Main plans:"))))
+    assert(queue.exists(entry => entry.surface == ReviewSurface.MoveReview && entry.supportRows.exists(_.startsWith("Main plans:"))))
     assert(queue.exists(entry => entry.surface == ReviewSurface.ActiveNote && entry.pairedSampleId.nonEmpty))
     val wholeGame = queue.find(entry => entry.surface == ReviewSurface.Chronicle && entry.reviewKind == ReviewKind.WholeGame).getOrElse(fail("missing whole-game row"))
     assert(wholeGame.mainProse.contains("White was mainly playing for"), clue(wholeGame.mainProse))
@@ -313,9 +313,9 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
         ReviewQueueEntry(
           sampleId = "audit:1",
           gameId = "game_a",
-          surface = ReviewSurface.Bookmaker,
-          reviewKind = ReviewKind.BookmakerFocus,
-          sliceKind = WholeGameSliceKind.BookmakerFocus,
+          surface = ReviewSurface.MoveReview,
+          reviewKind = ReviewKind.MoveReviewFocus,
+          sliceKind = WholeGameSliceKind.MoveReviewFocus,
           tier = Some("master_classical"),
           openingFamily = Some("sicilian"),
           label = Some("Game A"),
@@ -358,7 +358,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
     val auditReport = Files.readString(reportDir.resolve("audit-report.md"))
 
     assertEquals((fixPriority \ "familyCounts" \ FixFamily.AnchoredSupportMissingFromProse).as[Int], 1)
-    assertEquals((fixPriority \ "surfaceFamilyCounts" \ ReviewSurface.Bookmaker \ FixFamily.AnchoredSupportMissingFromProse).as[Int], 1)
+    assertEquals((fixPriority \ "surfaceFamilyCounts" \ ReviewSurface.MoveReview \ FixFamily.AnchoredSupportMissingFromProse).as[Int], 1)
     assert(auditReport.contains(FixFamily.AnchoredSupportMissingFromProse), clue(auditReport))
-    assert(auditReport.contains("Bookmaker"), clue(auditReport))
+    assert(auditReport.contains("MoveReview"), clue(auditReport))
   }

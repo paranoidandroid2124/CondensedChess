@@ -2,19 +2,19 @@ package lila.analyse
 package ui
 
 import lila.commentary.model.strategic.VariationLine
-import lila.commentary.BookmakerRefsV1
+import lila.commentary.MoveReviewRefs
 import lila.ui.ScalatagsTemplate.*
 import lila.commentary.analysis.NarrativeUtils
 import scalalib.StringUtils.escapeHtmlRaw
 import scala.collection.mutable
 
 /**
- * Bookmaker Renderer
+ * MoveReview Renderer
  * 
  * Transforms raw LLM text and engine variation data into 
  * interactive HTML fragments for the Chesstory AI commentary UI.
  */
-object BookmakerRenderer:
+object MoveReviewRenderer:
 
   private case class MoveBoardRef(refId: Option[String], uci: String, fenAfter: String)
   private case class NumberedSan(prefix: Option[String], san: String)
@@ -75,11 +75,11 @@ object BookmakerRenderer:
     }
 
   /**
-   * Main entry point for rendering a Bookmaker panel.
+   * Main entry point for rendering a MoveReview panel.
    * @param commentary The raw text from the LLM.
    * @param variations Structured Multi-PV data.
    */
-  def render(commentary: String, variations: List[VariationLine], fenBefore: String, refs: Option[BookmakerRefsV1] = None): Frag =
+  def render(commentary: String, variations: List[VariationLine], fenBefore: String, refs: Option[MoveReviewRefs] = None): Frag =
     // Preserve SAN occurrence order across variations to keep move-chip mapping stable.
     val refsFromContract: List[(String, MoveBoardRef)] =
       refs.toList
@@ -97,16 +97,16 @@ object BookmakerRenderer:
           }
         }
     
-    div(cls := "bookmaker-content")(
-      div(cls := "bookmaker-toolbar")(
+    div(cls := "move-review-content")(
+      div(cls := "move-review-toolbar")(
         button(
-          cls := "bookmaker-score-toggle",
+          cls := "move-review-score-toggle",
           attr("type") := "button",
           attr("aria-pressed") := "true"
         )("Eval: On")
       ),
       // Hover preview board (mounted by client; stays hidden until hover).
-      div(cls := "bookmaker-pv-preview"),
+      div(cls := "move-review-pv-preview"),
       div(cls := "commentary")(
         renderTextWithMoves(commentary, sanRefs, variations, fenBefore, refs)
       ),
@@ -126,7 +126,7 @@ object BookmakerRenderer:
       sanRefs: List[(String, MoveBoardRef)],
       variations: List[VariationLine],
       fenBefore: String,
-      refs: Option[BookmakerRefsV1]
+      refs: Option[MoveReviewRefs]
   ): Frag =
     // Support Markdown-style emphasis used by the LLM prompt (**...**).
     val boldRegex = """\*\*(.+?)\*\*""".r
@@ -222,7 +222,7 @@ object BookmakerRenderer:
   /**
    * Renders a list of interactive variation lines with mini-board hover support.
    */
-  private def renderVariations(vars: List[VariationLine], fen: String, refs: Option[BookmakerRefsV1]): Frag =
+  private def renderVariations(vars: List[VariationLine], fen: String, refs: Option[MoveReviewRefs]): Frag =
     val startPly = NarrativeUtils.plyFromFen(fen).map(_ + 1).getOrElse(1)
     div(cls := "variation-list", attr("data-variation-swipe") := "true")(
       vars.zipWithIndex.map { (v, idx) =>

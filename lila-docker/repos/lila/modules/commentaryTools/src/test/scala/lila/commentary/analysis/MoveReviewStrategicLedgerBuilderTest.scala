@@ -55,26 +55,26 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
           )
         )
       )
-    val ledger = build(BookmakerProseGoldenFixtures.rookPawnMarch.ctx, strategyPack = Some(routePack))
+    val ledger = build(MoveReviewProseGoldenFixtures.rookPawnMarch.ctx, strategyPack = Some(routePack))
     assertEquals(ledger.motifKey, "rook_pawn_march")
     assertEquals(ledger.motifLabel, "Rook-pawn march")
   }
 
   test("classifies prophylactic fixtures as restrain") {
-    val ledger = build(BookmakerProseGoldenFixtures.prophylacticCut.ctx)
+    val ledger = build(MoveReviewProseGoldenFixtures.prophylacticCut.ctx)
     assertEquals(ledger.stageKey, "restrain")
     assert(ledger.stageReason.exists(_.toLowerCase.contains("counterplay")))
   }
 
   test("classifies compensation fixtures as convert") {
-    val ledger = build(BookmakerProseGoldenFixtures.exchangeSacrifice.ctx)
+    val ledger = build(MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx)
     assertEquals(ledger.stageKey, "convert")
     assertEquals(ledger.motifKey, "compensation_attack")
     assertEquals(ledger.conversionTrigger, Some("Mating Attack"))
   }
 
   test("compensation ledger stays aligned with surfaced execution and objective") {
-    val fixture = BookmakerProseGoldenFixtures.exchangeSacrifice
+    val fixture = MoveReviewProseGoldenFixtures.exchangeSacrifice
     val ledger = build(fixture.ctx, strategyPack = fixture.strategyPack)
     val surface = StrategyPackSurface.from(fixture.strategyPack)
     assertEquals(ledger.motifKey, "compensation_attack")
@@ -83,14 +83,14 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
   }
 
   test("selects opposite_bishops_conversion when conversion signals and plan family align") {
-    val ledger = build(BookmakerProseGoldenFixtures.oppositeBishopsConversion.ctx)
+    val ledger = build(MoveReviewProseGoldenFixtures.oppositeBishopsConversion.ctx)
     assertEquals(ledger.motifKey, "opposite_bishops_conversion")
     assertEquals(ledger.stageKey, "convert")
   }
 
   test("does not upgrade opposite-color bishops without a conversion plan") {
     val ctx =
-      BookmakerProseGoldenFixtures.oppositeBishopsConversion.ctx.copy(
+      MoveReviewProseGoldenFixtures.oppositeBishopsConversion.ctx.copy(
         mainStrategicPlans = Nil,
         planContinuity = None
       )
@@ -114,7 +114,7 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
       )
     val ledger =
       build(
-        BookmakerProseGoldenFixtures.rookPawnMarch.ctx.copy(fen = legalFen),
+        MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(fen = legalFen),
         probeResults = List(probe)
       )
     val primary = ledger.primaryLine.getOrElse(fail("missing primary line"))
@@ -125,7 +125,7 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
   test("falls back to decision-compare engine pv when no supportive probe exists") {
     val legalFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     val ctx =
-      BookmakerProseGoldenFixtures.exchangeSacrifice.ctx.copy(
+      MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx.copy(
         fen = legalFen,
         engineEvidence = Some(
           EngineEvidence(
@@ -147,15 +147,15 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
   }
 
   test("prefers authoring branches for the resource line") {
-    val ledger = build(BookmakerProseGoldenFixtures.exchangeSacrifice.ctx)
+    val ledger = build(MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx)
     val resource = ledger.resourceLine.getOrElse(fail("missing resource line"))
     assertEquals(resource.source, "authoring")
     assert(resource.sanMoves.nonEmpty)
   }
 
   test("uses variation fallback for the resource line when authoring evidence is absent") {
-    val refs = sampleRefs(BookmakerProseGoldenFixtures.rookPawnMarch.ctx.fen)
-    val ledger = build(BookmakerProseGoldenFixtures.rookPawnMarch.ctx, refs = Some(refs))
+    val refs = sampleRefs(MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.fen)
+    val ledger = build(MoveReviewProseGoldenFixtures.rookPawnMarch.ctx, refs = Some(refs))
     val resource = ledger.resourceLine.getOrElse(fail("missing variation resource line"))
     assertEquals(resource.source, "variation")
     assertEquals(resource.sanMoves.length, 3)
@@ -163,7 +163,7 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
 
   test("classifies aborted continuity as blocked") {
     val ctx =
-      BookmakerProseGoldenFixtures.rookPawnMarch.ctx.copy(
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
         planContinuity = Some(
           PlanContinuity(
             planName = "Rook-Pawn March",
@@ -199,13 +199,13 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
           PlanStateTracker.ColorPlanState(primary = Some(continuity))
         )
       )
-    val ledger = build(BookmakerProseGoldenFixtures.rookPawnMarch.ctx, planStateToken = Some(token))
+    val ledger = build(MoveReviewProseGoldenFixtures.rookPawnMarch.ctx, planStateToken = Some(token))
     assertEquals(ledger.carryOver, true)
     assertEquals(ledger.stageKey, "build")
   }
 
   test("does not emit a ledger for practical-only positions without a supported motif") {
-    assertEquals(maybeBuild(BookmakerProseGoldenFixtures.practicalChoice.ctx), None)
+    assertEquals(maybeBuild(MoveReviewProseGoldenFixtures.practicalChoice.ctx), None)
   }
 
   private def sampleRefs(fen: String): MoveReviewRefs =

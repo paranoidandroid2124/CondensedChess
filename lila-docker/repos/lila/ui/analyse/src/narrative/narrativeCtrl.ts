@@ -5,8 +5,8 @@ import { storedBooleanProp, tempStorage } from 'lib/storage';
 import * as pgnExport from '../pgnExport';
 import type { CevalEngine, Work } from 'lib/ceval';
 import type { BoardPreview } from 'lib/view/boardPreview';
-import { createProbeOrchestrator } from '../bookmaker/probeOrchestrator';
-import type { StrategicPlanExperiment } from '../bookmaker/types';
+import { createProbeOrchestrator } from '../moveReview/probeOrchestrator';
+import type { StrategicPlanExperiment } from '../moveReview/types';
 import {
     buildProbeResultsByPlyEntries,
     collectGameArcProbeMomentBundles,

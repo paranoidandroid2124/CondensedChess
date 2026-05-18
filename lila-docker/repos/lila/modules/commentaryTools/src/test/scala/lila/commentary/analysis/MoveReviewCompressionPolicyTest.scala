@@ -20,7 +20,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
       delta = None,
       phase = PhaseContext("Opening", "quiet opening move"),
       candidates = Nil,
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   private val italianBeforeBc4 =
@@ -58,7 +58,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
           confidence = 0.86
         )
       ),
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   private def refsForLine(startFen: String, ucis: List[String], sans: List[String]): MoveReviewRefs =
@@ -130,7 +130,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
 
   test("existing planner-positive fixture still outranks the new basic lane") {
     val fixture =
-      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.expectedClaimFragment.nonEmpty).get
+      MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.find(_.expectedClaimFragment.nonEmpty).get
     val outline =
       BookStyleRenderer.validatedOutline(
         fixture.ctx,

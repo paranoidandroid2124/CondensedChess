@@ -92,7 +92,7 @@ POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/delete-node controllers.Study.dele
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/promote controllers.Study.promoteNode(id: StudyId, chapterId: StudyChapterId)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/force-variation controllers.Study.forceVariationNode(id: StudyId, chapterId: StudyChapterId)
 POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/comment controllers.Study.setNodeComment(id: StudyId, chapterId: StudyChapterId)
-POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/bookmaker-sync controllers.Study.bookmakerSync(id: StudyId, chapterId: StudyChapterId)
+POST  /api/study/$id<\w{8}>/$chapterId<\w{8}>/move-review-sync controllers.Study.moveReviewSync(id: StudyId, chapterId: StudyChapterId)
 POST  /api/study/$id<\w{8}>/notebook-dossier controllers.Study.setNotebookDossier(id: StudyId)
 
 # User Analysis
@@ -110,7 +110,7 @@ GET   /api/explorer/:db                controllers.ExplorerProxy.opening(db: Str
 POST  /api/commentary/game-analysis-local     controllers.CommentaryController.analyzeGameLocal
 POST  /api/commentary/game-analysis-async     controllers.CommentaryController.analyzeGameAsync
 GET   /api/commentary/game-analysis-async/:jobId controllers.CommentaryController.analyzeGameAsyncStatus(jobId)
-POST  /api/commentary/bookmaker-position      controllers.CommentaryController.bookmakerPosition
+POST  /api/commentary/move-review-position      controllers.CommentaryController.moveReviewPosition
 GET   /api/commentary/opening/masters          controllers.CommentaryController.openingMasters(fen: String)
 GET   /api/commentary/opening/master-pgn/:id   controllers.CommentaryController.openingMasterPgn(id)
 GET   /api/commentary/defeat-dna              controllers.CommentaryController.defeatDna

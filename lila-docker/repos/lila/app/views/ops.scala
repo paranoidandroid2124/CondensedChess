@@ -941,8 +941,8 @@ object ops:
               "Rates with no underlying observations are shown as no data instead of looking healthy by default."
             ),
             div(cls := "ops-summary-grid")(
-              statCard("Bookmaker requests", snapshot.bookmaker.requests.toString),
-              statCard("Bookmaker fallback", percentageOrNoData(snapshot.bookmaker.polishFallbackRate, snapshot.bookmaker.polishAttempts, "attempts")),
+              statCard("MoveReview requests", snapshot.moveReview.requests.toString),
+              statCard("MoveReview fallback", percentageOrNoData(snapshot.moveReview.polishFallbackRate, snapshot.moveReview.polishAttempts, "attempts")),
               statCard("Full-game consistency", percentageOrNoData(snapshot.fullgame.compareConsistencyRate, snapshot.fullgame.compareObserved)),
               statCard("Active attach rate", percentageOrNoData(snapshot.active.attachRate, snapshot.active.attempts, "attempts"))
             )
@@ -950,17 +950,17 @@ object ops:
           div(cls := "ops-grid")(
             div(cls := "ops-main")(
               div(cls := "ops-card")(
-                h2("Bookmaker"),
+                h2("MoveReview"),
                 renderKeyValues(
-                  "Requests" -> snapshot.bookmaker.requests.toString,
-                  "Polish attempts" -> snapshot.bookmaker.polishAttempts.toString,
-                  "Polish accepted" -> snapshot.bookmaker.polishAccepted.toString,
-                  "Fallback rate" -> percentageOrNoData(snapshot.bookmaker.polishFallbackRate, snapshot.bookmaker.polishAttempts, "attempts"),
-                  "Soft repair any" -> percentageOrNoData(snapshot.bookmaker.softRepairAnyRate, snapshot.bookmaker.polishAccepted, "accepted"),
-                  "Soft repair material" -> percentageOrNoData(snapshot.bookmaker.softRepairMaterialRate, snapshot.bookmaker.polishAccepted, "accepted"),
-                  "Compare observed" -> snapshot.bookmaker.compareObserved.toString,
-                  "Compare consistency" -> percentageOrNoData(snapshot.bookmaker.compareConsistencyRate, snapshot.bookmaker.compareObserved),
-                  "Average cost USD" -> usd(snapshot.bookmaker.avgCostUsd)
+                  "Requests" -> snapshot.moveReview.requests.toString,
+                  "Polish attempts" -> snapshot.moveReview.polishAttempts.toString,
+                  "Polish accepted" -> snapshot.moveReview.polishAccepted.toString,
+                  "Fallback rate" -> percentageOrNoData(snapshot.moveReview.polishFallbackRate, snapshot.moveReview.polishAttempts, "attempts"),
+                  "Soft repair any" -> percentageOrNoData(snapshot.moveReview.softRepairAnyRate, snapshot.moveReview.polishAccepted, "accepted"),
+                  "Soft repair material" -> percentageOrNoData(snapshot.moveReview.softRepairMaterialRate, snapshot.moveReview.polishAccepted, "accepted"),
+                  "Compare observed" -> snapshot.moveReview.compareObserved.toString,
+                  "Compare consistency" -> percentageOrNoData(snapshot.moveReview.compareConsistencyRate, snapshot.moveReview.compareObserved),
+                  "Average cost USD" -> usd(snapshot.moveReview.avgCostUsd)
                 )
               ),
               div(cls := "ops-card")(

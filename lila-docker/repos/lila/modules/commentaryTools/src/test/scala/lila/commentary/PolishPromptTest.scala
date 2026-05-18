@@ -1,7 +1,7 @@
 package lila.commentary
 
 import munit.FunSuite
-import lila.commentary.analysis.{ BookStyleRenderer, MoveReviewPolishSlotsBuilder, BookmakerProseGoldenFixtures }
+import lila.commentary.analysis.{ BookStyleRenderer, MoveReviewPolishSlotsBuilder, MoveReviewProseGoldenFixtures }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ NarrativeOutline, OutlineBeat, OutlineBeatKind }
 
@@ -23,7 +23,7 @@ class PolishPromptTest extends FunSuite:
     assert(prompt.contains("2-3 short paragraphs and 2-4 total sentences"))
     assert(prompt.contains("Context Mode: Isolated Move"))
     assert(prompt.indexOf("## CONTEXT") < prompt.indexOf("## DRAFT COMMENTARY"))
-    assert(!prompt.contains("## BOOKMAKER PROSE CONTRACT"))
+    assert(!prompt.contains("## MOVE_REVIEW PROSE CONTRACT"))
   }
 
   test("system prompt preserves the dominant strategic claim and causal chain") {
@@ -50,11 +50,11 @@ class PolishPromptTest extends FunSuite:
     assert(prompt.contains("Repair REJECTED_POLISH into a strict-valid final commentary."))
     assert(prompt.contains("2-3 short paragraphs and 2-4 total sentences"))
     assert(prompt.indexOf("## CONTEXT") < prompt.indexOf("## ORIGINAL_DRAFT"))
-    assert(!prompt.contains("## BOOKMAKER PROSE CONTRACT"))
+    assert(!prompt.contains("## MOVE_REVIEW PROSE CONTRACT"))
   }
 
-  test("slot-mode bookmaker prompt bans system language and keeps slot budget fixed") {
-    val fixture = BookmakerProseGoldenFixtures.openFileFight
+  test("slot-mode moveReview prompt bans system language and keeps slot budget fixed") {
+    val fixture = MoveReviewProseGoldenFixtures.openFileFight
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slots =
       MoveReviewPolishSlotsBuilder.buildOrFallback(
@@ -70,7 +70,7 @@ class PolishPromptTest extends FunSuite:
       concepts = List("coordination"),
       fen = "r2q1rk1/p4ppp/1p2pn2/8/2PP4/5N2/P4PPP/R2Q1RK1 w - - 0 14",
       openingName = Some("Queen's Gambit Declined"),
-      bookmakerSlots = Some(slots)
+      moveReviewSlots = Some(slots)
     )
 
     assert(prompt.contains("Do not introduce a new topic beyond the slots."))
@@ -83,7 +83,7 @@ class PolishPromptTest extends FunSuite:
       assert(prompt.contains("Do not add a fourth paragraph."))
   }
 
-  test("slot-mode compact bookmaker prompt allows a single brief paragraph") {
+  test("slot-mode compact moveReview prompt allows a single brief paragraph") {
     val ctx =
       NarrativeContext(
         fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
@@ -109,7 +109,7 @@ class PolishPromptTest extends FunSuite:
         ),
         openingEvent = Some(OpeningEvent.Intro("C20", "Open Game", "central development", List("e4", "e5"))),
         openingData = Some(OpeningReference(Some("C20"), Some("Open Game"), 0, Nil, Nil)),
-        renderMode = NarrativeRenderMode.Bookmaker,
+        renderMode = NarrativeRenderMode.MoveReview,
         variantKey = "standard"
       )
     val outline =
@@ -127,7 +127,7 @@ class PolishPromptTest extends FunSuite:
       concepts = Nil,
       fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
       openingName = Some("Open Game"),
-      bookmakerSlots = Some(slots)
+      moveReviewSlots = Some(slots)
     )
 
     assert(prompt.contains("keep one brief paragraph with 1-2 sentences"))

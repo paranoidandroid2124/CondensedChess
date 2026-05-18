@@ -28,7 +28,7 @@ case class PlanSequence(
 }
 
 /**
- * Compact transition summary used by Bookmaker runtime path.
+ * Compact transition summary used by MoveReview runtime path.
  * Carries enough information for narrative flow and token tracking.
  */
 case class PlanSequenceSummary(

@@ -11,7 +11,7 @@ class SurfaceReplayParityTest extends FunSuite:
       id: String,
       expectedPlannerPrimary: Option[AuthorQuestionKind],
       expectedActivePrimary: Option[AuthorQuestionKind],
-      expectedBookmakerPlannerOwned: Boolean
+      expectedMoveReviewPlannerOwned: Boolean
   )
 
   private val fixtureExpectations =
@@ -20,59 +20,59 @@ class SurfaceReplayParityTest extends FunSuite:
         id = "why_this_positive",
         expectedPlannerPrimary = Some(AuthorQuestionKind.WhyThis),
         expectedActivePrimary = Some(AuthorQuestionKind.WhyThis),
-        expectedBookmakerPlannerOwned = true
+        expectedMoveReviewPlannerOwned = true
       ),
       FixtureExpectation(
         id = "why_now_tactical_fallback",
         expectedPlannerPrimary = None,
         expectedActivePrimary = None,
-        expectedBookmakerPlannerOwned = false
+        expectedMoveReviewPlannerOwned = false
       ),
       FixtureExpectation(
         id = "restricted_defense_conversion_positive",
         expectedPlannerPrimary = Some(AuthorQuestionKind.WhyThis),
         expectedActivePrimary = Some(AuthorQuestionKind.WhyThis),
-        expectedBookmakerPlannerOwned = true
+        expectedMoveReviewPlannerOwned = true
       ),
       FixtureExpectation(
         id = "restricted_defense_conversion_fragile",
         expectedPlannerPrimary = None,
         expectedActivePrimary = None,
-        expectedBookmakerPlannerOwned = false
+        expectedMoveReviewPlannerOwned = false
       ),
       FixtureExpectation(
         id = "what_changed_positive",
         expectedPlannerPrimary = Some(AuthorQuestionKind.WhatChanged),
         expectedActivePrimary = Some(AuthorQuestionKind.WhatChanged),
-        expectedBookmakerPlannerOwned = true
+        expectedMoveReviewPlannerOwned = true
       ),
       FixtureExpectation(
         id = "what_must_be_stopped_positive",
         expectedPlannerPrimary = Some(AuthorQuestionKind.WhatMustBeStopped),
         expectedActivePrimary = Some(AuthorQuestionKind.WhatMustBeStopped),
-        expectedBookmakerPlannerOwned = true
+        expectedMoveReviewPlannerOwned = true
       ),
       FixtureExpectation(
         id = "whose_plan_is_faster_positive",
         expectedPlannerPrimary = Some(AuthorQuestionKind.WhosePlanIsFaster),
         expectedActivePrimary = None,
-        expectedBookmakerPlannerOwned = true
+        expectedMoveReviewPlannerOwned = true
       ),
       FixtureExpectation(
         id = "whose_plan_is_faster_negative",
         expectedPlannerPrimary = Some(AuthorQuestionKind.WhatMustBeStopped),
         expectedActivePrimary = Some(AuthorQuestionKind.WhatMustBeStopped),
-        expectedBookmakerPlannerOwned = true
+        expectedMoveReviewPlannerOwned = true
       )
     )
 
-  private def fixture(id: String): BookmakerProseGoldenFixtures.PlannerRuntimeFixture =
-    BookmakerProseGoldenFixtures.plannerRuntimeFixtures
+  private def fixture(id: String): MoveReviewProseGoldenFixtures.PlannerRuntimeFixture =
+    MoveReviewProseGoldenFixtures.plannerRuntimeFixtures
       .find(_.id == id)
       .getOrElse(fail(s"missing fixture: $id"))
 
   fixtureExpectations.foreach { expectation =>
-    test(s"${expectation.id} keeps replay parity across planner, chronicle, active, and bookmaker") {
+    test(s"${expectation.id} keeps replay parity across planner, chronicle, active, and moveReview") {
       val fixture = this.fixture(expectation.id)
       val outline =
         BookStyleRenderer.validatedOutline(
@@ -102,7 +102,7 @@ class SurfaceReplayParityTest extends FunSuite:
             rankedPlans = rankedPlans
           )
         )
-      val bookmakerSlots =
+      val moveReviewSlots =
         MoveReviewCompressionPolicy.buildSlots(
           fixture.ctx,
           outline,
@@ -145,15 +145,15 @@ class SurfaceReplayParityTest extends FunSuite:
       )
 
       assertEquals(
-        bookmakerSlots.nonEmpty,
-        expectation.expectedBookmakerPlannerOwned,
-        clues(expectation.id, bookmakerSlots, rankedPlans.primary)
+        moveReviewSlots.nonEmpty,
+        expectation.expectedMoveReviewPlannerOwned,
+        clues(expectation.id, moveReviewSlots, rankedPlans.primary)
       )
 
-      if bookmakerSlots.nonEmpty then
+      if moveReviewSlots.nonEmpty then
         assert(
           rankedPlans.primary.nonEmpty,
-          clues(expectation.id, bookmakerSlots, rankedPlans)
+          clues(expectation.id, moveReviewSlots, rankedPlans)
         )
       else
         val fallbackSlots =
@@ -174,7 +174,7 @@ class SurfaceReplayParityTest extends FunSuite:
 
   test("uncertified restricted-defense conversion stays out of planner and replay primaries") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         playedMove = Some("c3c4"),
         playedSan = Some("Rc4"),
         phase = PhaseContext("Endgame", "Technical conversion edge"),
@@ -245,7 +245,7 @@ class SurfaceReplayParityTest extends FunSuite:
           rankedPlans = rankedPlans
         )
       )
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
@@ -265,6 +265,6 @@ class SurfaceReplayParityTest extends FunSuite:
     assertEquals(rankedPlans.primary, None, clues(rankedPlans, inputs.decisionFrame))
     assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
-    assertEquals(bookmakerSlots, None, clues(bookmakerSlots, rankedPlans))
+    assertEquals(moveReviewSlots, None, clues(moveReviewSlots, rankedPlans))
     assertEquals(MoveReviewProseContract.stripMoveHeader(fallbackSlots.claim), "This puts the rook on c4.")
   }

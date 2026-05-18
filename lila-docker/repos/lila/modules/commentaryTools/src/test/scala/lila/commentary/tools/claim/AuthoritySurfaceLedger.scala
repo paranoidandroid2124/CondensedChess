@@ -30,7 +30,7 @@ object AuthoritySurfaceLedger:
       taxonomy: String,
       plannerOwner: String,
       primary: String,
-      bookmaker: String,
+      moveReview: String,
       chronicle: String,
       leak: Boolean,
       rejected: String,
@@ -46,7 +46,7 @@ object AuthoritySurfaceLedger:
         taxonomy,
         plannerOwner,
         clean(primary),
-        clean(bookmaker),
+        clean(moveReview),
         clean(chronicle),
         leak.toString,
         clean(rejected),
@@ -360,7 +360,7 @@ object AuthoritySurfaceLedger:
       "taxonomy",
       "plannerOwner",
       "primary",
-      "bookmaker",
+      "moveReview",
       "chronicle",
       "leak",
       "rejected",
@@ -420,7 +420,7 @@ object AuthoritySurfaceLedger:
     lines.mkString("\n") + "\n"
 
   private def reviewLine(obs: Observation): String =
-    s"- ${obs.sample.id} (${obs.sample.reviewGroup}) plannerOwner=${clean(obs.plannerOwner)} taxonomy=${obs.taxonomy} contract=${obs.contractId}:${obs.contractStatus}:${obs.contractFailures} primary=${clean(obs.primary)} bookmaker=${clean(obs.bookmaker)} chronicle=${clean(obs.chronicle)}"
+    s"- ${obs.sample.id} (${obs.sample.reviewGroup}) plannerOwner=${clean(obs.plannerOwner)} taxonomy=${obs.taxonomy} contract=${obs.contractId}:${obs.contractStatus}:${obs.contractFailures} primary=${clean(obs.primary)} moveReview=${clean(obs.moveReview)} chronicle=${clean(obs.chronicle)}"
 
   private def naturalReviewGroup(fixture: TaskShiftProvingFixtures.ReviewFixture): String =
     val tags = fixture.expectedTags.toSet
@@ -456,8 +456,8 @@ object AuthoritySurfaceLedger:
       else inputs
     val ranked = QuestionFirstCommentaryPlanner.plan(ctx, effectiveInputs, truthContract)
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = truthContract)
-    val bookmaker =
-      bookmakerNarrative(
+    val moveReview =
+      moveReviewNarrative(
         MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
           ctx = ctx,
           inputs = effectiveInputs,
@@ -486,16 +486,16 @@ object AuthoritySurfaceLedger:
       }
     Observation(
       sample = sample,
-      release = releaseLabel(sample, ranked, primary, bookmaker, chronicle, baselineRelease),
+      release = releaseLabel(sample, ranked, primary, moveReview, chronicle, baselineRelease),
       taxonomy = sample.taxonomy,
       plannerOwner = ranked.primary
         .zip(ownerDisplaySource)
         .map { case (plan, source) => s"${plan.questionKind}:${plan.plannerOwnerKind}:$source" }
         .getOrElse("-"),
       primary = primary,
-      bookmaker = bookmaker,
+      moveReview = moveReview,
       chronicle = chronicle,
-      leak = sample.tacticalContract && strategicLeak(primary, bookmaker, chronicle),
+      leak = sample.tacticalContract && strategicLeak(primary, moveReview, chronicle),
       rejected = ranked.rejected.map(r => s"${r.questionKind}:${r.reasons.mkString("+")}").mkString(" | "),
       contractId = proofTrace.flatMap(_.contractId).getOrElse("-"),
       contractStatus = proofTrace.flatMap(_.contractStatus).getOrElse("-"),
@@ -505,7 +505,7 @@ object AuthoritySurfaceLedger:
           .getOrElse("-")
     )
 
-  private def bookmakerNarrative(slots: MoveReviewPolishSlots): String =
+  private def moveReviewNarrative(slots: MoveReviewPolishSlots): String =
     val prose = LiveNarrativeCompressionCore.deterministicProse(slots).trim
     if prose.isEmpty then "-" else prose
 
@@ -858,7 +858,7 @@ object AuthoritySurfaceLedger:
       delta = None,
       phase = PhaseContext("Middlegame", "Normal middlegame"),
       candidates = Nil,
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   private def prophylaxisRestraintControlFixture(
@@ -1624,7 +1624,7 @@ object AuthoritySurfaceLedger:
       sample: Sample,
       ranked: RankedQuestionPlans,
       primary: String,
-      bookmaker: String,
+      moveReview: String,
       chronicle: String,
       baselineRelease: Option[String]
   ): String =
@@ -1634,7 +1634,7 @@ object AuthoritySurfaceLedger:
       case Some(plan) =>
         s"Other:${plan.plannerOwnerKind.wireName}"
       case None if sample.tacticalContract &&
-          !strategicLeak(primary, bookmaker, chronicle) &&
+          !strategicLeak(primary, moveReview, chronicle) &&
           (baselineRelease.nonEmpty || ranked.rejected.exists(_.reasons.contains("strategic_claim_tactical_veto"))) =>
         "TacticalVeto"
       case None =>

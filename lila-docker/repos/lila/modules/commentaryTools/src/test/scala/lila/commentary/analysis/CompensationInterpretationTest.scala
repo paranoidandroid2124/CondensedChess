@@ -27,7 +27,7 @@ class CompensationInterpretationTest extends FunSuite:
       delta = None,
       phase = PhaseContext(phase, phase),
       candidates = Nil,
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   private def compensationInfo(

@@ -244,17 +244,17 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       insufficientData = false
     )
 
-  BookmakerProseGoldenFixtures.all.foreach { fixture =>
-    test(s"${fixture.id} direct bookmaker slots stay non-empty for ${fixture.expectedLens}") {
+  MoveReviewProseGoldenFixtures.all.foreach { fixture =>
+    test(s"${fixture.id} direct moveReview slots stay non-empty for ${fixture.expectedLens}") {
       val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
       val slots = MoveReviewPolishSlotsBuilder.buildOrFallback(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
       assert(MoveReviewProseContract.stripMoveHeader(slots.claim).nonEmpty, clues(fixture.id))
     }
   }
 
-  test("bookmaker maps a race question plan into claim support and cited proof slots") {
+  test("moveReview maps a race question plan into claim support and cited proof slots") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         summary = NarrativeSummary("Kingside Pressure", None, "NarrowChoice", "Maintain", "+0.20"),
         plans =
           PlanTable(
@@ -315,7 +315,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     val slots =
       MoveReviewCompressionPolicy
         .buildSlots(ctx, outline, None, Some(strategyPack))
-        .getOrElse(fail(outline.diagnostics.map(_.summary).getOrElse("expected bookmaker slots")))
+        .getOrElse(fail(outline.diagnostics.map(_.summary).getOrElse("expected moveReview slots")))
 
     val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
     assertEquals(
@@ -334,9 +334,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(slots.paragraphPlan, List("p1=claim", "p2=support_chain", "p3=tension_or_evidence"))
   }
 
-  test("bookmaker does not attach uncertified decision-frame support when only fallback survives") {
+  test("moveReview does not attach uncertified decision-frame support when only fallback survives") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         semantic = None,
         decision = None,
         mainStrategicPlans = Nil,
@@ -364,9 +364,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(slots.supportSecondary, None)
   }
 
-  test("bookmaker fails closed when tactical failure owns a WhyNow request") {
+  test("moveReview fails closed when tactical failure owns a WhyNow request") {
     val ctx =
-      tacticalCtx(BookmakerProseGoldenFixtures.openFileFight.ctx).copy(
+      tacticalCtx(MoveReviewProseGoldenFixtures.openFileFight.ctx).copy(
         threats = ThreatTable(toUs = List(threat("Mate", 900, Some("Qd8"))), toThem = Nil),
         authorQuestions = List(
           question("q_now", AuthorQuestionKind.WhyNow, evidencePurposes = List("reply_multipv"))
@@ -416,7 +416,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
   }
 
   test("state-only structure fixture now falls back to an exact factual one-liner") {
-    val fixture = BookmakerProseGoldenFixtures.entrenchedPiece
+    val fixture = MoveReviewProseGoldenFixtures.entrenchedPiece
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slots =
       MoveReviewPolishSlotsBuilder.buildOrFallback(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
@@ -425,7 +425,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
 
   test("quiet intent ignores break-ready hints and refuses to emit break-preparation prose") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         playedSan = Some("Qc7"),
         semantic = None,
         pawnPlay = PawnPlayTable(
@@ -526,7 +526,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
 
   test("tactical blunders now surface through planner-owned WhyThis claims") {
     val ctx =
-      BookmakerProseGoldenFixtures.rookPawnMarch.ctx.copy(
+      MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(
         authorQuestions = List(
           question("q_blunder", AuthorQuestionKind.WhyThis, evidencePurposes = List("reply_multipv"))
         ),
@@ -590,8 +590,8 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assert(!rendered.contains("better is"), clue(rendered))
   }
 
-  test("compensation slots may omit bookmaker prose instead of inventing a stronger compensation thesis") {
-    val fixture = BookmakerProseGoldenFixtures.exchangeSacrifice
+  test("compensation slots may omit moveReview prose instead of inventing a stronger compensation thesis") {
+    val fixture = MoveReviewProseGoldenFixtures.exchangeSacrifice
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slotsOpt =
       MoveReviewPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
@@ -605,7 +605,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
   }
 
   test("compensation omission path avoids broken compensation skeleton fragments") {
-    val fixture = BookmakerProseGoldenFixtures.exchangeSacrifice
+    val fixture = MoveReviewProseGoldenFixtures.exchangeSacrifice
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slotsOpt =
       MoveReviewPolishSlotsBuilder.build(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
@@ -622,7 +622,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
   }
 
   test("weak compensation slots collapse to an exact factual one-liner instead of compensation copy") {
-    val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+    val ctx = MoveReviewProseGoldenFixtures.openFileFight.ctx
     val outline = BookStyleRenderer.validatedOutline(ctx)
     val weakPack =
       Some(
@@ -647,8 +647,8 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
-  test("surface-only strategic pack cannot revive a bookmaker thesis beyond exact factual fallback") {
-    val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+  test("surface-only strategic pack cannot revive a moveReview thesis beyond exact factual fallback") {
+    val ctx = MoveReviewProseGoldenFixtures.openFileFight.ctx
     val outline = BookStyleRenderer.validatedOutline(ctx)
     val slots =
       MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = None, strategyPack = Some(surfaceDrivenPack()))
@@ -658,7 +658,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
 
   test("pv-coupled support traces cannot prevent exact factual fallback") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         semantic = None,
         decision = None,
         mainStrategicPlans =
@@ -711,7 +711,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
 
   test("uncertified restricted-defense conversion falls back instead of reviving a technical conversion claim") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         playedMove = Some("c3c4"),
         playedSan = Some("Rc4"),
         phase = PhaseContext("Endgame", "Technical conversion edge"),
@@ -764,7 +764,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
   }
 
   test("EVA01-style surface pack drops unsupported routed thesis and keeps only exact factual fallback") {
-    val ctx = tacticalCtx(BookmakerProseGoldenFixtures.openFileFight.ctx)
+    val ctx = tacticalCtx(MoveReviewProseGoldenFixtures.openFileFight.ctx)
     val outline =
       genericDecisionOutline(
         "The whole decision turns on b7.",
@@ -791,7 +791,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
   }
 
   test("KG01-style surface pack drops unsupported route-first thesis and keeps only exact factual fallback") {
-    val ctx = tacticalCtx(BookmakerProseGoldenFixtures.openFileFight.ctx)
+    val ctx = tacticalCtx(MoveReviewProseGoldenFixtures.openFileFight.ctx)
     val outline =
       genericDecisionOutline(
         "The whole decision turns on e5.",
@@ -818,7 +818,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
   }
 
   test("CAT02-style state-only exchange thesis cannot outlive exact factual fallback") {
-    val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+    val ctx = MoveReviewProseGoldenFixtures.openFileFight.ctx
     val outline = BookStyleRenderer.validatedOutline(ctx)
     val slots =
       MoveReviewPolishSlotsBuilder.buildOrFallback(
@@ -842,7 +842,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
   }
 
   test("QID02-style state-only routed thesis cannot outlive exact factual fallback") {
-    val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+    val ctx = MoveReviewProseGoldenFixtures.openFileFight.ctx
     val outline = BookStyleRenderer.validatedOutline(ctx)
     val slots =
       MoveReviewPolishSlotsBuilder.buildOrFallback(
@@ -866,7 +866,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
 
   test("quiet low-evidence moves now return an exact factual one-liner instead of route narration") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         semantic = None,
         decision = None,
         mainStrategicPlans = Nil,
@@ -910,7 +910,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
 
   test("quiet bogus tactical labels collapse to an exact factual one-liner") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         semantic = None,
         decision = None,
         mainStrategicPlans = Nil,
@@ -952,9 +952,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
-  test("only-move defense stays support-only when no bookmaker-safe WhyNow surface survives") {
+  test("only-move defense stays support-only when no move-review-safe WhyNow surface survives") {
     val ctx =
-      tacticalCtx(BookmakerProseGoldenFixtures.openFileFight.ctx).copy(
+      tacticalCtx(MoveReviewProseGoldenFixtures.openFileFight.ctx).copy(
         authorQuestions =
           List(question("q_only", AuthorQuestionKind.WhyNow, evidencePurposes = List("defense_reply_multipv"))),
         authorEvidence =
@@ -1020,9 +1020,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
-  test("bookmaker keeps WhyNow as the rendered primary when threat-stop would leak outside contrast scope") {
+  test("moveReview keeps WhyNow as the rendered primary when threat-stop would leak outside contrast scope") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         threats = ThreatTable(toUs = List(threat("Material threat", 220, Some("Qd8"))), toThem = Nil),
         authorQuestions =
           List(
@@ -1055,11 +1055,11 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     val renderSelection =
       MoveReviewCompressionPolicy
         .renderSelection(inputs, rankedPlans, contract)
-        .getOrElse(fail("expected bookmaker render selection"))
+        .getOrElse(fail("expected moveReview render selection"))
     val slots =
       MoveReviewCompressionPolicy
         .buildSlots(ctx, outline, refs = None, strategyPack = None, truthContract = contract)
-        .getOrElse(fail("expected bookmaker slots"))
+        .getOrElse(fail("expected moveReview slots"))
 
     assertEquals(rankedPlans.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMustBeStopped), clues(rankedPlans))
     assertEquals(rankedPlans.secondary.map(_.questionKind), Some(AuthorQuestionKind.WhyNow), clues(rankedPlans))
@@ -1076,7 +1076,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
   }
 
   test("neutral truth contract drops raw compensation prose and falls back to exact move semantics") {
-    val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+    val ctx = MoveReviewProseGoldenFixtures.openFileFight.ctx
     val outline = BookStyleRenderer.validatedOutline(ctx)
     val rawCompensationPack =
       Some(
@@ -1105,9 +1105,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
-  test("direct bookmaker fallback returns an exact factual one-liner when quiet taxonomy also fails") {
+  test("direct moveReview fallback returns an exact factual one-liner when quiet taxonomy also fails") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         playedSan = Some("Qxc6"),
         semantic = None,
         decision = None,
@@ -1128,9 +1128,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
-  test("direct bookmaker fallback keeps ambiguous captures literal") {
+  test("direct moveReview fallback keeps ambiguous captures literal") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         playedSan = Some("Qx"),
         semantic = None,
         decision = None,
@@ -1153,7 +1153,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
 
   test("exact factual fallback can lift an eligible quiet-support row with one bounded support sentence") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         authorQuestions = Nil,
         authorEvidence = Nil
       )
@@ -1203,9 +1203,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertNoForbiddenQuietSupport(slots.supportPrimary.getOrElse(""))
   }
 
-  test("planner-owned bookmaker rows skip quiet-support fallback lifting") {
+  test("planner-owned moveReview rows skip quiet-support fallback lifting") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         summary = NarrativeSummary("Kingside Pressure", None, "NarrowChoice", "Maintain", "+0.20"),
         plans =
           PlanTable(
@@ -1264,7 +1264,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     val plannerOwned =
       MoveReviewCompressionPolicy
         .buildSlots(ctx, outline, refs = None, strategyPack = strategyPack)
-        .getOrElse(fail("expected planner-owned bookmaker slots"))
+        .getOrElse(fail("expected planner-owned moveReview slots"))
     val fallbackAware =
       MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx = ctx,
@@ -1276,9 +1276,9 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(fallbackAware, plannerOwned)
   }
 
-  test("line-scoped tactical proof alone no longer owns bookmaker prose and falls back to exact move semantics") {
+  test("line-scoped tactical proof alone no longer owns moveReview prose and falls back to exact move semantics") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         semantic = None,
         decision = None,
         mainStrategicPlans = Nil,

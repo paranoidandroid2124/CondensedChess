@@ -66,14 +66,14 @@ assembly:
    blunder truth do not share the same decisive explanation.
 7. Resolve `TruthVisibilityRole` so real exemplars can stay visible even when
    prose permission is too weak to let them overclaim.
-8. Resolve `TruthSurfaceMode` so Chronicle / Bookmaker / Active know whether a
+8. Resolve `TruthSurfaceMode` so Chronicle / MoveReview / Active know whether a
    row may explain investment, preserve it, explain conversion, explain
    failure, or stay neutral.
 9. Resolve `TruthExemplarRole` so visible exemplar preservation is measured
    separately from ownership and separately from compensation-positive prose.
 10. Promote decisive moments using truth and exemplar preservation, not only
    salience.
-11. Realize Chronicle / Bookmaker / Active from that truth-bound state.
+11. Realize Chronicle / MoveReview / Active from that truth-bound state.
 12. Allow optional wording polish only after truth-bound prose exists.
 13. Judge release readiness with both automatic health checks and GM-style
    manual audit.
@@ -111,7 +111,7 @@ list, and not only against compensation-positive prose permission.
 
 Verified `WinningInvestment` / `CompensatedInvestment` moments stay eligible as
 positive compensation exemplars during audit calibration when Game Arc and
-Bookmaker agree on the same compensation contract. Legacy suppression rules may
+MoveReview agree on the same compensation contract. Legacy suppression rules may
 still remove fake compensation, but they must not erase truth-bound investment
 exemplars.
 
@@ -138,7 +138,7 @@ The following are automatic truth-boundary blockers:
 - played move is verified best, but a surface calls it wrong / loose /
   inaccurate / blunder-like
 - a surface names a benchmark move that is not the verified best move
-- internal blunder truth is softened into compensation-positive Bookmaker or
+- internal blunder truth is softened into compensation-positive MoveReview or
   Active framing
 - whole-game decisive shift / punishment story contradicts the decisive-truth
   contract
@@ -177,9 +177,9 @@ unresolved divergence. If display normalization has already resolved a path vs
 payoff split by selecting a canonical subtype, that resolved split is not a
 truth-boundary failure and must not count as remaining divergence.
 
-Historical bookmaker thesis snapshot tools are also non-authoritative:
-`BookmakerProseGoldenTest`, `BookmakerProseGoldenDump`,
-`BookmakerThesisQaRunner`, and `src/test/resources/bookmaker_thesis_goldens`
+Historical moveReview thesis snapshot tools are also non-authoritative:
+`MoveReviewProseGoldenTest`, `MoveReviewProseGoldenDump`,
+`MoveReviewThesisQaRunner`, and `src/test/resources/move_review_thesis_goldens`
 are stale regression artifacts, not chess-truth signoff gates.
 
 ## Quality-Audit Internal Scaffold
@@ -205,7 +205,7 @@ selectors, but they remain below the truth boundary:
   `active_no_primary_vs_chronicle_factual_fallback` and
   `active_attached_vs_chronicle_planner_owned`; anything else stays review-only
 - the contrast-support lane is legal only as a support-slot replacement for
-  Bookmaker / Chronicle signoff surfaces and for Active diagnostic traces on
+  MoveReview / Chronicle signoff surfaces and for Active diagnostic traces on
   `WhyThis` / `WhyNow`; it may consume shared-planner `decisionComparison`,
   opponent-threat, prevented-resource, or decisive-truth inputs, but it may
   not mint a new owner or reopen DecisionTiming recovery
@@ -216,12 +216,12 @@ selectors, but they remain below the truth boundary:
   vague engine preference, generic `better was ...`, explanation-free eval
   gaps, raw `close_candidate`, and line-conditioned branches promoted to
   general prose
-- rows that fall from planner-owned before-state to Bookmaker
-  `afterBookmakerFallbackMode=exact_factual` after the rerun are truth-clean
+- rows that fall from planner-owned before-state to MoveReview
+  `afterMoveReviewFallbackMode=exact_factual` after the rerun are truth-clean
   fail-closed rows, not contrast-support gain rows; the selector must classify
   them as
   `after_fallback_blocked`
-- current real16 Bookmaker contrast-support evidence is signoff-ready, not
+- current real16 MoveReview contrast-support evidence is signoff-ready, not
   runtime release evidence:
   `contrastEligibleRows=40`, `eligibleKeepCount=9`, `eligibleRejectCount=31`,
   `afterFallbackCount=0`, `afterFallbackBlockedRows=6`, `degradedCount=0`, and
@@ -257,7 +257,7 @@ selectors, but they remain below the truth boundary:
   `missing_concrete_consequence=30` and `vague_engine_preference=1`;
   `question_outside_scope=0`
 - current cross-surface contrast-support verdict is:
-  Bookmaker `signoff-ready`, Chronicle `signoff-ready`,
+  MoveReview `signoff-ready`, Chronicle `signoff-ready`,
   Active `scope-cut (diagnostic-only)`
 
 Parity-baseline, quality-rubric, contrast-support, and quiet-support lane status
@@ -267,7 +267,7 @@ plus the local quality-audit rerun artifacts referenced there.
 
 ## Required Runtime Behavior
 
-- Chronicle, Bookmaker, and Active must all consume the same decisive-truth
+- Chronicle, MoveReview, and Active must all consume the same decisive-truth
   contract for a given key moment.
   - for Active, `CommentaryApi.attachActiveStrategicNotes` must thread the backend-only
     per-ply contract sidecar into planner replay and support admissibility;
@@ -334,7 +334,7 @@ plus the local quality-audit rerun artifacts referenced there.
   - PV paraphrase alone is not certification
   - cross-branch stitched persistence is not certification
   - uncertified or move-order-fragile conversion experiments must downgrade
-    before Chronicle / Bookmaker / Active / whole-game replay, and support-only
+    before Chronicle / MoveReview / Active / whole-game replay, and support-only
     carriers may not re-inflate them afterward
 - bounded counterplay-axis suppression is planner-gated:
   - only `RestrictionProphylaxis` strategic experiments with backend-only
@@ -356,7 +356,7 @@ plus the local quality-audit rerun artifacts referenced there.
     otherwise legal); raw `prevented_plan` forcing shells may not override that
     certification into broader `WhyNow` / whole-position ownership
   - uncertified suppression experiments must downgrade before Chronicle /
-    Bookmaker / Active / whole-game replay, and support-only carriers may not
+    MoveReview / Active / whole-game replay, and support-only carriers may not
     re-inflate them afterward
 - bounded dual-axis bind is planner-gated too:
   - only `RestrictionProphylaxis` strategic experiments with backend-only
@@ -380,7 +380,7 @@ plus the local quality-audit rerun artifacts referenced there.
     existing move-delta `WhatChanged` remains legal only when independently
     admissible, and B3b opens no new `WhyNow`, whole-position, or whole-game
     owner lane
-  - uncertified dual-axis shells must downgrade before Chronicle / Bookmaker /
+  - uncertified dual-axis shells must downgrade before Chronicle / MoveReview /
     Active / whole-game replay, and support-only carriers may not re-inflate
     them afterward
 - bounded local file-entry bind is planner-gated too:
@@ -414,7 +414,7 @@ plus the local quality-audit rerun artifacts referenced there.
     `WhyThis` and bounded move-linked `WhatChanged`; B4b opens no new `WhyNow`,
     whole-position, Active-owner, or whole-game owner lane
   - uncertified local file-entry shells must downgrade before Chronicle /
-    Bookmaker / Active / whole-game replay, and support-only or residual
+    MoveReview / Active / whole-game replay, and support-only or residual
     main-plan carriers may not re-inflate them afterward; runtime surface
     helpers must read experiment-filtered evidence-backed plans before they may
     reconstruct any file-entry claim, and they may use only affirmative plan
@@ -450,10 +450,10 @@ plus the local quality-audit rerun artifacts referenced there.
     `sourceKinds += named_route_network_bind`; planner `WhyThis` must consume
     only the exact certified file / entry / reroute triplet carried from the B6
     contract path, not a raw prevented-plan recomposition; `WhatChanged`,
-    Chronicle, Bookmaker, Active, and whole-game replay remain closed to that
+    Chronicle, MoveReview, Active, and whole-game replay remain closed to that
     tag
   - replay selection must fail closed on route-network planner plans:
-    Chronicle / Bookmaker / Active may not reuse a
+    Chronicle / MoveReview / Active may not reuse a
     `named_route_network_bind` primary, and whole-game / wrap-up remain outside
     the slice
   - close-review status:
@@ -484,7 +484,7 @@ plus the local quality-audit rerun artifacts referenced there.
     wording on the current branch. The exact `a5` detour witness remains
     backend-visible only until a future repair session adds a new exact-FEN
     root-best control and a real positive suite; `WhatChanged`, Chronicle,
-    Bookmaker, Active, and whole-game / wrap-up all remain closed
+    MoveReview, Active, and whole-game / wrap-up all remain closed
   - current truth-boundary status for route-chain closeout is `plateau / do not
     widen`:
     the exact FEN control still proves the backend after-trigger detour, but
@@ -527,7 +527,7 @@ plus the local quality-audit rerun artifacts referenced there.
     only inside the negative-first charter; maintenance-only watch applies to
     that containment slice only, while heavy-piece positive wording and broader
     B5/B6 frontier work stay deferred
-- Bookmaker and Active may use compensation-positive language only when the
+- MoveReview and Active may use compensation-positive language only when the
   contract allows compensation framing.
 - fake compensation suppression and real investment exemplar preservation are
   both required. Passing one while failing the other is not truth-clean.
@@ -602,7 +602,7 @@ plus the local quality-audit rerun artifacts referenced there.
   - support promotion is no longer canonical behavior:
     weak support may justify an admitted claim, but it may not be promoted into
     a stronger claim of its own
-  - bookmaker / chronicle main-path move commentary now uses one shared
+  - moveReview / chronicle main-path move commentary now uses one shared
     ownership carrier (`MainPathMoveDeltaClaimBuilder`):
     tactical ownership is evaluated before strategic delta ownership, and
     strategic text may surface only after move-linked evidence survives
@@ -640,17 +640,17 @@ plus the local quality-audit rerun artifacts referenced there.
     ambiguous capture shape into generalized “simplifying” or exchange meaning;
     an empty author-question list may not rebuild decision/meta/close-candidate
     shell prose as a substitute owner
-  - Bookmaker prose now consumes that same planner output directly:
-    `primary.claim` is the only owner of the main Bookmaker claim,
+  - MoveReview prose now consumes that same planner output directly:
+    `primary.claim` is the only owner of the main MoveReview claim,
     `secondary` is support-only, and planner admission failure or slot
     contract failure must fall straight to the exact factual one-liner
     instead of reviving `mainBundle` / `quietIntent` compression as a separate
     prose owner path
-  - the Bookmaker-side contrast-support render guard is narrow and
+  - the move-review-side contrast-support render guard is narrow and
     trace-preserving:
     when raw planner `primary` is `WhatMustBeStopped`, shared-planner
     `secondary` is `WhyNow`, both stay in `ForcingDefense`, and the raw primary
-    contrast trace rejects with `question_outside_scope`, Bookmaker may render
+    contrast trace rejects with `question_outside_scope`, MoveReview may render
     the `WhyNow` secondary for visible prose/contrast while keeping the raw
     planner trace unchanged; this prevents support-slot leakage without
     reopening owner choice or ranking
@@ -671,7 +671,7 @@ plus the local quality-audit rerun artifacts referenced there.
     quiet-support diagnostics may still run for audit, but fallback rows may
     not append a support sentence once planner-owned surface composition failed
   - shared-planner scene-first admission is shared-planner owned:
-    Chronicle / Bookmaker / Active may consume the same planner trace
+    Chronicle / MoveReview / Active may consume the same planner trace
     (`scene_type`, `owner_candidates`, `admitted_families`,
     `dropped_families`, `demotion_reasons`, `selected_question`,
     `selected_proof_family`, `selected_proof_source`) but they may not mint a
@@ -741,7 +741,7 @@ plus the local quality-audit rerun artifacts referenced there.
     move-attributed `preventedPlans`, counterplay-window removal, or concrete
     decision-comparison balance shift may own `WhatChanged`, but a bare
     structural summary still fails closed as `state_truth_only`
-  - Bookmaker race framing remains especially strict:
+  - MoveReview race framing remains especially strict:
     `WhosePlanIsFaster` may surface only after certified intent, certified
     battlefront, and a concrete timing anchor survive planner admission; a
     generic race shell is not a player-facing owner even if support rows exist
@@ -758,12 +758,12 @@ plus the local quality-audit rerun artifacts referenced there.
     canonical main-path strategic claim
   - user-facing state-summary thesis / fallback revival is not canonical:
     old `StrategicThesisBuilder`-style main-path promotion may not recreate a
-    Bookmaker / Chronicle claim once tactical / strategic ownership failed
+    MoveReview / Chronicle claim once tactical / strategic ownership failed
   - runtime also removed legacy thesis carriers outside the main sentence
     path:
     `dominant thesis:` / `dominant_thesis:` enrichment and hybrid thesis
     bridge helpers are no longer canonical truth inputs for outline,
-    strategy-pack, full-game evidence, or bookmaker-ledger consumers
+    strategy-pack, full-game evidence, or move-review-ledger consumers
   - `ExchangeForcing` / `ResourceRemoval` require current-move causal proof:
     a thematic exchange, a generic pressure map, or a vague defensive easing
     is insufficient; runtime needs prevented-resource identity, or a proving
@@ -796,13 +796,13 @@ plus the local quality-audit rerun artifacts referenced there.
     unbacked moment concepts, response themes, thread summaries/counterplans,
     and signal-digest strategic idea / opponent-plan hints are cleared by the
     user-facing sanitizer
-  - direct Bookmaker requests do not surface blank prose:
+  - direct MoveReview requests do not surface blank prose:
     if tactical / strategic / quiet-intent all fail, runtime may still emit a
     final exact factual one-liner from current move semantics
     - that fallback floor must stay literal:
       when target-square anchoring is absent, capture fallback may say only
       `This captures.` and may not infer simplification / exchange semantics
-  - direct Bookmaker requests also do not surface half-admitted planner prose:
+  - direct MoveReview requests also do not surface half-admitted planner prose:
     if planner-owned slots lose their support/evidence owner or fail the hard
     gate, runtime must still fall back to the exact factual one-liner rather
     than keeping a bare certified shell

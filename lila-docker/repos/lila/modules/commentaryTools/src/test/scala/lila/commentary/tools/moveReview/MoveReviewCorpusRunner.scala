@@ -1,4 +1,4 @@
-package lila.commentary.tools.bookmaker
+package lila.commentary.tools.moveReview
 
 import java.nio.file.{ Files, Path, Paths }
 
@@ -13,14 +13,14 @@ import lila.commentary.analysis.OpeningExplorerClient
 import lila.commentary.tools.review.CommentaryPlayerQcSupport
 import lila.commentary.tools.quality.CommentaryQualitySupport
 
-object BookmakerCorpusRunner:
+object MoveReviewCorpusRunner:
 
   import CommentaryPlayerQcSupport.*
 
   final case class Config(
       manifestPath: Path = DefaultManifestDir.resolve("slice_manifest.jsonl"),
-      outPath: Path = DefaultBookmakerRunDir.resolve("bookmaker_outputs.jsonl"),
-      rawDir: Path = DefaultBookmakerRunDir.resolve("raw"),
+      outPath: Path = DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl"),
+      rawDir: Path = DefaultMoveReviewRunDir.resolve("raw"),
       depth: Int = 10,
       multiPv: Int = 3,
       enginePath: Path
@@ -28,18 +28,18 @@ object BookmakerCorpusRunner:
 
   def main(args: Array[String]): Unit =
     given Executor = ExecutionContext.global
-    given ActorSystem = ActorSystem("bookmaker-corpus-runner")
+    given ActorSystem = ActorSystem("move-review-corpus-runner")
 
     val config = parseConfig(args.toList)
     val entries =
       readJsonLines[SliceManifestEntry](config.manifestPath) match
-        case Right(value) => value.filter(_.surface == "bookmaker")
+        case Right(value) => value.filter(_.surface == "moveReview")
         case Left(err) =>
-          System.err.println(s"[bookmaker-corpus] failed to read manifest `${config.manifestPath}`: $err")
+          System.err.println(s"[move-review-corpus] failed to read manifest `${config.manifestPath}`: $err")
           sys.exit(1)
 
     if entries.isEmpty then
-      System.err.println(s"[bookmaker-corpus] no bookmaker entries in `${config.manifestPath}`")
+      System.err.println(s"[move-review-corpus] no moveReview entries in `${config.manifestPath}`")
       sys.exit(1)
 
     ensureDir(config.rawDir)
@@ -89,12 +89,12 @@ object BookmakerCorpusRunner:
                 )
               )
             )
-          val runtimeTrace = analyzedPly.map(bookmakerPlannerRuntime)
-          val plannerTrace = runtimeTrace.map(_.planner).getOrElse(BookmakerPlannerTrace())
-          val quietSupportTrace = runtimeTrace.map(_.quietSupport).getOrElse(BookmakerQuietSupportTrace())
+          val runtimeTrace = analyzedPly.map(moveReviewPlannerRuntime)
+          val plannerTrace = runtimeTrace.map(_.planner).getOrElse(MoveReviewPlannerTrace())
+          val quietSupportTrace = runtimeTrace.map(_.quietSupport).getOrElse(MoveReviewQuietSupportTrace())
           val digestHashes =
             analyzedPly
-            .map(CommentaryQualitySupport.bookmakerDigests)
+            .map(CommentaryQualitySupport.moveReviewDigests)
             .getOrElse(CommentaryQualitySupport.SurfaceDigestHashes())
           val result =
             Await.result(
@@ -120,13 +120,13 @@ object BookmakerCorpusRunner:
                 commentaryMode = CommentaryMode.Polish
               ),
               180.seconds
-            ).getOrElse(throw new IllegalStateException(s"${entry.sampleId}: empty bookmaker response"))
+            ).getOrElse(throw new IllegalStateException(s"${entry.sampleId}: empty moveReview response"))
 
           val rawPath = config.rawDir.resolve(s"${entry.sampleId.replace(':', '_')}.json")
           writeJson(rawPath, Json.toJson(result.response))
-          val (supportRows, advancedRows) = buildBookmakerRows(result.response)
+          val (supportRows, advancedRows) = buildMoveReviewRows(result.response)
 
-          BookmakerOutputEntry(
+          MoveReviewOutputEntry(
             sampleId = entry.sampleId,
             gameKey = entry.gameKey,
             sliceKind = entry.sliceKind,
@@ -147,7 +147,7 @@ object BookmakerCorpusRunner:
             plannerPrimaryFallbackMode = plannerTrace.primaryFallbackMode,
             plannerSecondaryKind = plannerTrace.secondaryKind,
             plannerSecondarySurfaced = plannerTrace.secondarySurfaced,
-            bookmakerFallbackMode = plannerTrace.bookmakerFallbackMode,
+            moveReviewFallbackMode = plannerTrace.moveReviewFallbackMode,
             plannerSceneType = plannerTrace.sceneType,
             plannerSceneReasons = plannerTrace.sceneReasons,
             plannerOwnerCandidates = plannerTrace.ownerCandidates,
@@ -188,15 +188,15 @@ object BookmakerCorpusRunner:
             contrast_admissible = Some(plannerTrace.contrastAdmissible),
             contrast_reject_reason = plannerTrace.contrastRejectReason,
             contrast_replacement_used = Some(plannerTrace.contrastReplacementUsed),
-            bookmakerSnapshotDigestHash = digestHashes.snapshotDigestHash,
-            bookmakerCarryDigestHash = digestHashes.carryDigestHash,
-            bookmakerAugmentationDigestHash = digestHashes.augmentationDigestHash,
-            bookmakerBundleDigestHash = digestHashes.bundleDigestHash
+            moveReviewSnapshotDigestHash = digestHashes.snapshotDigestHash,
+            moveReviewCarryDigestHash = digestHashes.carryDigestHash,
+            moveReviewAugmentationDigestHash = digestHashes.augmentationDigestHash,
+            moveReviewBundleDigestHash = digestHashes.bundleDigestHash
           ).withQuietSupportTrace(quietSupportTrace)
         }
 
       writeJsonLines(config.outPath, outputs)
-      println(s"[bookmaker-corpus] wrote `${config.outPath}` (samples=${outputs.size})")
+      println(s"[move-review-corpus] wrote `${config.outPath}` (samples=${outputs.size})")
     finally
       engine.close()
       ws.close()
@@ -236,13 +236,13 @@ object BookmakerCorpusRunner:
         .orElse(sys.env.get("STOCKFISH_BIN").map(_.trim).filter(_.nonEmpty))
         .map(Paths.get(_))
         .getOrElse {
-          System.err.println("[bookmaker-corpus] missing engine path. Pass `--engine /path/to/uci-engine`.")
+          System.err.println("[move-review-corpus] missing engine path. Pass `--engine /path/to/uci-engine`.")
           sys.exit(1)
         }
     Config(
       manifestPath = positional.headOption.map(Paths.get(_)).getOrElse(DefaultManifestDir.resolve("slice_manifest.jsonl")),
-      outPath = positional.lift(1).map(Paths.get(_)).getOrElse(DefaultBookmakerRunDir.resolve("bookmaker_outputs.jsonl")),
-      rawDir = positional.lift(2).map(Paths.get(_)).getOrElse(DefaultBookmakerRunDir.resolve("raw")),
+      outPath = positional.lift(1).map(Paths.get(_)).getOrElse(DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl")),
+      rawDir = positional.lift(2).map(Paths.get(_)).getOrElse(DefaultMoveReviewRunDir.resolve("raw")),
       depth = optionInt(args, "--depth").getOrElse(10).max(8),
       multiPv = optionInt(args, "--multi-pv").orElse(optionInt(args, "--multiPv")).getOrElse(3).max(1),
       enginePath = enginePath

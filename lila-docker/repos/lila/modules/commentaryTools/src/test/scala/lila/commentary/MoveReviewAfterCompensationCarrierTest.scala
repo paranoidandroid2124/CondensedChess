@@ -8,7 +8,7 @@ import scala.concurrent.duration.Duration
 
 import lila.commentary.model.strategic.VariationLine
 
-class BookmakerAfterCompensationCarrierTest extends FunSuite:
+class MoveReviewAfterCompensationCarrierTest extends FunSuite:
 
   given Executor = ExecutionContext.global
 
@@ -28,7 +28,7 @@ class BookmakerAfterCompensationCarrierTest extends FunSuite:
         modelActiveFallback = "gpt-4.1-mini",
         modelActiveAsync = "gpt-5-mini",
         reasoningEffortActive = "none",
-        promptCacheKeyPrefix = "bookmaker:test",
+        promptCacheKeyPrefix = "moveReview:test",
         enabled = false,
         temperature = 0.2,
         maxOutputTokens = 256,
@@ -58,7 +58,7 @@ class BookmakerAfterCompensationCarrierTest extends FunSuite:
       providerConfig = AiProviderConfig.fromEnv.copy(provider = "none")
     )
 
-  private def directBookmaker(
+  private def directMoveReview(
       fen: String,
       playedMove: String,
       before: List[VariationLine],
@@ -92,7 +92,7 @@ class BookmakerAfterCompensationCarrierTest extends FunSuite:
         ),
         Duration(90, "seconds")
       )
-      .getOrElse(fail(s"empty bookmaker response for $fen"))
+      .getOrElse(fail(s"empty moveReview response for $fen"))
 
   private def assertCompensationCarrier(result: MoveReviewResult): Unit =
     val digest = result.response.signalDigest.getOrElse(fail("missing signal digest"))
@@ -105,9 +105,9 @@ class BookmakerAfterCompensationCarrierTest extends FunSuite:
       clue(result.response.commentary)
     )
 
-  test("CAT02 bookmaker path keeps after-move compensation carrier alive") {
+  test("CAT02 moveReview path keeps after-move compensation carrier alive") {
     val result =
-      directBookmaker(
+      directMoveReview(
         fen = "r3kb1r/2R2p1p/4p1p1/p2qP3/3p4/P4PP1/1P1Q2KP/R7 w kq - 0 23",
         playedMove = "d2f4",
         before = List(
@@ -138,9 +138,9 @@ class BookmakerAfterCompensationCarrierTest extends FunSuite:
     assertCompensationCarrier(result)
   }
 
-  test("QID02 bookmaker path keeps after-move compensation carrier alive") {
+  test("QID02 moveReview path keeps after-move compensation carrier alive") {
     val result =
-      directBookmaker(
+      directMoveReview(
         fen = "5rk1/p1r3p1/1p2p2p/1q1nP3/2p1Q2P/P1P3P1/1P2RPK1/2B4R b - - 2 26",
         playedMove = "c7f7",
         before = List(

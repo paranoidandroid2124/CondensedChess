@@ -331,7 +331,7 @@ object StrategicPuzzleCorpusRunner:
               )
             resultOpt match
               case None =>
-                rejectRows += RejectRow(row.source.seedId, row.position.fen, row.position.fenKey, "stage03_move", List(s"empty_bookmaker_response:${move.uci}"))
+                rejectRows += RejectRow(row.source.seedId, row.position.fen, row.position.fenKey, "stage03_move", List(s"empty_move_review_response:${move.uci}"))
               case Some(result) =>
                 val response = result.response
                 val stage03Row =
@@ -371,7 +371,7 @@ object StrategicPuzzleCorpusRunner:
           NarrativeContextBuilder.build(
             data = data,
             ctx = data.toContext,
-            renderMode = NarrativeRenderMode.Bookmaker
+            renderMode = NarrativeRenderMode.MoveReview
           )
         val strategyPack = StrategyPackBuilder.build(data, ctx)
         summarizeRootPreScan(strategyPack, strategyPack.flatMap(_.signalDigest))

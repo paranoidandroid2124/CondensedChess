@@ -731,7 +731,7 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
 
     val chronicle =
       GameChronicleCompressionPolicy.selectPlannerSurface(ranked, plannerInputs)
-    val bookmaker =
+    val moveReview =
       MoveReviewCompressionPolicy.renderSelection(plannerInputs, ranked, None)
     val active =
       ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(
@@ -747,8 +747,8 @@ class RouteNetworkBindProofBoundaryTest extends FunSuite:
       clue(chronicle)
     )
     assert(
-      bookmaker.forall(!_.primary.sourceKinds.contains(RouteNetworkBindProof.ProofSource)),
-      clue(bookmaker)
+      moveReview.forall(!_.primary.sourceKinds.contains(RouteNetworkBindProof.ProofSource)),
+      clue(moveReview)
     )
     assert(
       active.forall(!_.primary.sourceKinds.contains(RouteNetworkBindProof.ProofSource)),

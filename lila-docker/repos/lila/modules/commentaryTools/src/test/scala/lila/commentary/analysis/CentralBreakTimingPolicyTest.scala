@@ -12,7 +12,7 @@ class CentralBreakTimingPolicyTest extends FunSuite:
       pack: lila.commentary.StrategyPack,
       inputs: QuestionPlannerInputs,
       ranked: RankedQuestionPlans,
-      bookmaker: String,
+      moveReview: String,
       chronicle: String
   )
 
@@ -81,7 +81,7 @@ class CentralBreakTimingPolicyTest extends FunSuite:
 
     assertEquals(claim.packet.map(_.proofSource), Some(PlanTaxonomy.PlanKind.CentralBreakTiming.id))
     assertEquals(scene.ranked.primary.map(_.claim), Some(claim.claimText))
-    assertEquals(sentenceOccurrences(scene.bookmaker, claim.claimText), 1, clues(scene.bookmaker))
+    assertEquals(sentenceOccurrences(scene.moveReview, claim.claimText), 1, clues(scene.moveReview))
     assertEquals(sentenceOccurrences(scene.chronicle, claim.claimText), 1, clues(scene.chronicle))
   }
 
@@ -207,7 +207,7 @@ class CentralBreakTimingPolicyTest extends FunSuite:
     val inputs = QuestionPlannerInputsBuilder.build(ctx, Some(pack), truthContract)
     val ranked = QuestionFirstCommentaryPlanner.plan(ctx, inputs, truthContract)
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = truthContract)
-    val bookmaker =
+    val moveReview =
       LiveNarrativeCompressionCore.deterministicProse(
         MoveReviewCompressionPolicy.buildSlotsOrFallback(
           ctx = ctx,
@@ -227,7 +227,7 @@ class CentralBreakTimingPolicyTest extends FunSuite:
         )
         .map(_.narrative)
         .getOrElse("-")
-    Snapshot(ctx, pack, inputs, ranked, bookmaker, chronicle)
+    Snapshot(ctx, pack, inputs, ranked, moveReview, chronicle)
 
   private def centralPacket(scene: Snapshot): PlayerFacingClaimPacket =
     scene.inputs.mainBundle

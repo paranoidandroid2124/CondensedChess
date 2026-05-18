@@ -14,4 +14,4 @@ for /f "usebackq tokens=1,2 delims==" %%A in ("settings.env") do (
 )
 
 :: QA 도구를 실행합니다.
-sbt "llm/testOnly lila.llm.analysis.BookmakerThesisQaRunner"
+sbt "llm/testOnly lila.llm.analysis.MoveReviewThesisQaRunner"

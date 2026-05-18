@@ -662,7 +662,7 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
 
   test("hybrid narrative parts keep a neutral default bridge without legacy thesis promotion") {
     locally {
-      val ctx = BookmakerProseGoldenFixtures.exchangeSacrifice.ctx
+      val ctx = MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx
       val moment =
         KeyMoment(
           ply = ctx.ply,
@@ -685,7 +685,7 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
     }
 
     locally {
-      val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+      val ctx = MoveReviewProseGoldenFixtures.openFileFight.ctx
       val moment =
         KeyMoment(
           ply = ctx.ply,

@@ -31,7 +31,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       assert(!text.toLowerCase.contains(phrase.toLowerCase), clue(text))
     }
 
-  test("sanitizes bookmaker response across structured user-facing fields") {
+  test("sanitizes moveReview response across structured user-facing fields") {
     val response =
       CommentResponse(
         commentary =

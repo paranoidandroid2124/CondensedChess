@@ -535,7 +535,7 @@ class NarrativeContextBuilderTest extends FunSuite {
         data = currentData,
         ctx = ctx,
         afterAnalysis = Some(afterData),
-        renderMode = NarrativeRenderMode.Bookmaker
+        renderMode = NarrativeRenderMode.MoveReview
       )
 
     assertEquals(narrativeCtx.semantic.flatMap(_.compensation), None)

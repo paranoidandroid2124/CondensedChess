@@ -63,7 +63,7 @@ class AdmissionUnitReviewTest extends FunSuite:
       playedUci = Some(playedUci),
       enginePv = List(playedUci, "b7b5", "a3a4", "c6b4"),
       primary = primary,
-      bookmaker = primary,
+      moveReview = primary,
       chronicle = primary,
       reason = "test observation",
       mainProofSource = mainProofSource,

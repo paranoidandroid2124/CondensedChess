@@ -149,7 +149,7 @@ class RealPgnNarrativeEvalCalibrationTest extends FunSuite:
     )
   }
 
-  test("signoff compensation is demoted when Chronicle and Bookmaker do not share a canonical subtype") {
+  test("signoff compensation is demoted when Chronicle and MoveReview do not share a canonical subtype") {
     val structuralMoment = moment(moveNumber = 24, momentType = "SustainedPressure")
     val gameArcSurface =
       snapshot().copy(
@@ -178,7 +178,7 @@ class RealPgnNarrativeEvalCalibrationTest extends FunSuite:
           )
         )
       )
-    val bookmakerSurface =
+    val moveReviewSurface =
       gameArcSurface.copy(
         displayNormalization = Some(
           gameArcSurface.displayNormalization.get.copy(
@@ -195,5 +195,5 @@ class RealPgnNarrativeEvalCalibrationTest extends FunSuite:
         )
       )
 
-    assert(!RealPgnNarrativeEvalCalibration.compensationEvalPosition(structuralMoment, gameArcSurface, bookmakerSurface))
+    assert(!RealPgnNarrativeEvalCalibration.compensationEvalPosition(structuralMoment, gameArcSurface, moveReviewSurface))
   }

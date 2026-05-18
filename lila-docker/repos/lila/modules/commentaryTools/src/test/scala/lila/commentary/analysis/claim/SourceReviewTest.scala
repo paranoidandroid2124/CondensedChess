@@ -366,7 +366,7 @@ class SourceReviewTest extends FunSuite:
       assertEquals(row.mainProofSource, "counterplay_axis_suppression")
       assert(row.packetSummary.contains("proof_family=neutralize_key_break"), clues(row))
       assertEquals(row.release, "SupportedLocal")
-      assertEquals(row.bookmaker, row.primary)
+      assertEquals(row.moveReview, row.primary)
       assertEquals(row.chronicle, row.primary)
     }
     rows.filterNot(row => admitted.exists(_.source.id == row.source.id)).foreach { row =>
@@ -529,7 +529,7 @@ class SourceReviewTest extends FunSuite:
       assertEquals(row.mainProofSource, "counterplay_axis_suppression", clues(row))
       assert(row.packetSummary.contains("proof_family=neutralize_key_break"), clues(row))
       assertEquals(row.release, "SupportedLocal", clues(row))
-      assertEquals(row.primary, row.bookmaker, clues(row))
+      assertEquals(row.primary, row.moveReview, clues(row))
       assertEquals(row.primary, row.chronicle, clues(row))
       assert(!row.primary.toLowerCase.contains("counterplay"), clues(row))
     }
@@ -881,7 +881,7 @@ class SourceReviewTest extends FunSuite:
       badPieceLiquidation.primary,
       "A local reading is that this trade clears the bad piece from the local branch."
     )
-    assertEquals(badPieceLiquidation.bookmaker, badPieceLiquidation.primary)
+    assertEquals(badPieceLiquidation.moveReview, badPieceLiquidation.primary)
     assertEquals(badPieceLiquidation.chronicle, badPieceLiquidation.primary)
     assertEquals(badPieceLiquidation.taxonomy, "source_bad_piece_liquidation")
   }

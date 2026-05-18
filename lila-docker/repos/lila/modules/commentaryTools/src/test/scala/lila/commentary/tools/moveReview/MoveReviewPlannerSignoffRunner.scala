@@ -1,4 +1,4 @@
-package lila.commentary.tools.bookmaker
+package lila.commentary.tools.moveReview
 
 import java.nio.file.{ Files, Path, Paths }
 
@@ -8,13 +8,13 @@ import lila.commentary.{ MoveEval, PgnAnalysisHelper }
 import lila.commentary.tools.review.CommentaryPlayerQcSupport
 import scala.util.control.NonFatal
 
-object BookmakerPlannerSignoffRunner:
+object MoveReviewPlannerSignoffRunner:
 
   import CommentaryPlayerQcSupport.*
 
   final case class Config(
       manifestPath: Path = DefaultManifestDir.resolve("slice_manifest.jsonl"),
-      outPath: Path = DefaultBookmakerRunDir.resolve("bookmaker_planner_signoff.jsonl"),
+      outPath: Path = DefaultMoveReviewRunDir.resolve("move_review_planner_signoff.jsonl"),
       depth: Int = 8,
       multiPv: Int = 2,
       perKindTarget: Int = 2,
@@ -33,7 +33,7 @@ object BookmakerPlannerSignoffRunner:
       plannerPrimaryFallbackMode: Option[String],
       plannerSecondaryKind: Option[String],
       plannerSecondarySurfaced: Boolean,
-      bookmakerFallbackMode: String,
+      moveReviewFallbackMode: String,
       prose: String
   )
   object SignoffEntry:
@@ -43,13 +43,13 @@ object BookmakerPlannerSignoffRunner:
     val config = parseConfig(args.toList)
     val entries =
       readJsonLines[SliceManifestEntry](config.manifestPath) match
-        case Right(value) => value.filter(_.surface == "bookmaker")
+        case Right(value) => value.filter(_.surface == "moveReview")
         case Left(err) =>
-          System.err.println(s"[bookmaker-planner-signoff] failed to read `${config.manifestPath}`: $err")
+          System.err.println(s"[move-review-planner-signoff] failed to read `${config.manifestPath}`: $err")
           sys.exit(1)
 
     if entries.isEmpty then
-      System.err.println(s"[bookmaker-planner-signoff] no bookmaker entries in `${config.manifestPath}`")
+      System.err.println(s"[move-review-planner-signoff] no moveReview entries in `${config.manifestPath}`")
       sys.exit(1)
 
     val engine = new LocalUciEngine(config.enginePath, timeoutMs = 30000L)
@@ -63,7 +63,7 @@ object BookmakerPlannerSignoffRunner:
           try
             analyzeEntry(entry, engine, config).foreach { signoff =>
               val observedKey =
-                s"${signoff.plannerPrimaryKind.getOrElse("none")}|${signoff.bookmakerFallbackMode}"
+                s"${signoff.plannerPrimaryKind.getOrElse("none")}|${signoff.moveReviewFallbackMode}"
               observed.update(observedKey, observed(observedKey) + 1)
               categoryOf(signoff).foreach { category =>
                 val limit =
@@ -76,21 +76,21 @@ object BookmakerPlannerSignoffRunner:
             }
           catch
             case NonFatal(err) =>
-              println(s"[bookmaker-planner-signoff] skipped `${entry.sampleId}`: ${err.getMessage}")
+              println(s"[move-review-planner-signoff] skipped `${entry.sampleId}`: ${err.getMessage}")
       }
 
       writeJsonLines(config.outPath, selected.toList)
       println(
-        s"[bookmaker-planner-signoff] wrote `${config.outPath}` (samples=${selected.size}, counts=${counts.toMap.toList.sortBy(_._1).mkString(", ")})"
+        s"[move-review-planner-signoff] wrote `${config.outPath}` (samples=${selected.size}, counts=${counts.toMap.toList.sortBy(_._1).mkString(", ")})"
       )
       println(
-        s"[bookmaker-planner-signoff] observed primary/fallback states: ${
+        s"[move-review-planner-signoff] observed primary/fallback states: ${
             observed.toMap.toList.sortBy { case (_, count) => -count }.take(12).mkString(", ")
           }"
       )
       if !targetsMet(counts.toMap, config) then
         println(
-          s"[bookmaker-planner-signoff] target incomplete after scanning ${config.maxScan} bookmaker entries: ${counts.toMap}"
+          s"[move-review-planner-signoff] target incomplete after scanning ${config.maxScan} moveReview entries: ${counts.toMap}"
         )
     finally engine.close()
 
@@ -130,7 +130,7 @@ object BookmakerPlannerSignoffRunner:
         )
       )
     ).map { snapshot =>
-      val runtime = bookmakerPlannerRuntime(snapshot)
+      val runtime = moveReviewPlannerRuntime(snapshot)
       val plannerTrace = runtime.planner
       SignoffEntry(
         sampleId = entry.sampleId,
@@ -142,17 +142,17 @@ object BookmakerPlannerSignoffRunner:
         plannerPrimaryFallbackMode = plannerTrace.primaryFallbackMode,
         plannerSecondaryKind = plannerTrace.secondaryKind,
         plannerSecondarySurfaced = plannerTrace.secondarySurfaced,
-        bookmakerFallbackMode = plannerTrace.bookmakerFallbackMode,
+        moveReviewFallbackMode = plannerTrace.moveReviewFallbackMode,
         prose = runtime.prose.trim
       )
     }
 
   private def categoryOf(entry: SignoffEntry): Option[String] =
-    val plannerOwned = entry.bookmakerFallbackMode == "planner_owned"
+    val plannerOwned = entry.moveReviewFallbackMode == "planner_owned"
     entry.plannerPrimaryKind match
       case Some(kind) if plannerOwned && Set("WhyThis", "WhyNow", "WhatChanged", "WhatMustBeStopped", "WhosePlanIsFaster").contains(kind) =>
         Some(kind)
-      case _ if entry.bookmakerFallbackMode == "exact_factual" || entry.plannerPrimaryFallbackMode.exists(_ != "PlannerOwned") =>
+      case _ if entry.moveReviewFallbackMode == "exact_factual" || entry.plannerPrimaryFallbackMode.exists(_ != "PlannerOwned") =>
         Some("negative")
       case _ => None
 
@@ -195,12 +195,12 @@ object BookmakerPlannerSignoffRunner:
         .orElse(sys.env.get("STOCKFISH_BIN").map(_.trim).filter(_.nonEmpty))
         .map(Paths.get(_))
         .getOrElse {
-          System.err.println("[bookmaker-planner-signoff] missing engine path. Pass `--engine /path/to/uci-engine`.")
+          System.err.println("[move-review-planner-signoff] missing engine path. Pass `--engine /path/to/uci-engine`.")
           sys.exit(1)
         }
     Config(
       manifestPath = positional.headOption.map(Paths.get(_)).getOrElse(DefaultManifestDir.resolve("slice_manifest.jsonl")),
-      outPath = positional.lift(1).map(Paths.get(_)).getOrElse(DefaultBookmakerRunDir.resolve("bookmaker_planner_signoff.jsonl")),
+      outPath = positional.lift(1).map(Paths.get(_)).getOrElse(DefaultMoveReviewRunDir.resolve("move_review_planner_signoff.jsonl")),
       depth = optionInt(args, "--depth").getOrElse(8).max(6),
       multiPv = optionInt(args, "--multi-pv").orElse(optionInt(args, "--multiPv")).getOrElse(2).max(1),
       perKindTarget = optionInt(args, "--per-kind").getOrElse(2).max(1),

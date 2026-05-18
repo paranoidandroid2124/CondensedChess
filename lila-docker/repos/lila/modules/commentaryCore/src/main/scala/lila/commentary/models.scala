@@ -395,7 +395,7 @@ object MoveReviewLedgerLine:
   given Writes[MoveReviewLedgerLine] = Json.writes[MoveReviewLedgerLine]
 
 case class MoveReviewStrategicLedger(
-    schema: String = "chesstory.moveReview.ledger.v1",
+    schema: String = "chesstory.move_review.ledger.v1",
     motifKey: String,
     motifLabel: String,
     stageKey: String,

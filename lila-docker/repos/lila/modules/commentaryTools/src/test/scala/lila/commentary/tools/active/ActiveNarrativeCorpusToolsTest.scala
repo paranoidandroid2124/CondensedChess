@@ -223,8 +223,8 @@ class ActiveNarrativeCorpusToolsTest extends FunSuite:
       Some(
         CommentaryOpsBoard.Snapshot(
           generatedAtMs = 0L,
-          bookmaker =
-            CommentaryOpsBoard.BookmakerMetrics(
+          moveReview =
+            CommentaryOpsBoard.MoveReviewMetrics(
               requests = 0L,
               polishAttempts = 0L,
               polishAccepted = 0L,

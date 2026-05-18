@@ -35,7 +35,7 @@ final class CommentaryApi(
   private val logger = lila.log("commentary.api")
   private val OpeningRefMinPly = 3
   private val OpeningRefMaxPly = 24
-  private val bookmakerRequests = new AtomicLong(0L)
+  private val moveReviewRequests = new AtomicLong(0L)
   private val tokenPresentCount = new AtomicLong(0L)
   private val tokenEmitCount = new AtomicLong(0L)
   private val continuityAppliedCount = new AtomicLong(0L)
@@ -93,8 +93,8 @@ final class CommentaryApi(
   private val softRepairMaterialCount = new AtomicLong(0L)
   private val polishReasonCount = scala.collection.concurrent.TrieMap.empty[String, AtomicLong]
   private val polishEstimatedCostMicros = new AtomicLong(0L)
-  private val bookmakerCompareObservedCount = new AtomicLong(0L)
-  private val bookmakerCompareConsistentCount = new AtomicLong(0L)
+  private val moveReviewCompareObservedCount = new AtomicLong(0L)
+  private val moveReviewCompareConsistentCount = new AtomicLong(0L)
   private val fullGameCompareObservedCount = new AtomicLong(0L)
   private val fullGameCompareConsistentCount = new AtomicLong(0L)
   private val fullGameSegmentRepairAttemptCount = new AtomicLong(0L)
@@ -374,7 +374,7 @@ final class CommentaryApi(
       .foreach { obs =>
         val (total, hit) =
           path match
-            case "bookmaker" => (bookmakerCompareObservedCount, bookmakerCompareConsistentCount)
+            case "moveReview" => (moveReviewCompareObservedCount, moveReviewCompareConsistentCount)
             case _           => (fullGameCompareObservedCount, fullGameCompareConsistentCount)
         total.incrementAndGet()
         if obs.consistent then hit.incrementAndGet()
@@ -391,7 +391,7 @@ final class CommentaryApi(
           )
       }
 
-  private def traceBookmakerFallbackResponse(
+  private def traceMoveReviewFallbackResponse(
       response: CommentResponse,
       phase: String,
       ply: Int,
@@ -412,10 +412,10 @@ final class CommentaryApi(
       val model = response.polishMeta.flatMap(_.model).orElse(response.model).getOrElse("")
       val sampleKind =
         sourceMode match
-          case "fallback_rule_invalid" => "bookmaker_fallback.invalid"
-          case "fallback_rule_empty"   => "bookmaker_fallback.empty"
-          case "rule_circuit_open"     => "bookmaker_fallback.circuit_open"
-          case other                   => s"bookmaker_fallback.${other.replaceAll("""[^a-zA-Z0-9]+""", "_")}"
+          case "fallback_rule_invalid" => "move_review_fallback.invalid"
+          case "fallback_rule_empty"   => "move_review_fallback.empty"
+          case "rule_circuit_open"     => "move_review_fallback.circuit_open"
+          case other                   => s"move_review_fallback.${other.replaceAll("""[^a-zA-Z0-9]+""", "_")}"
       val fields = Seq(
         "sourceMode" -> sourceMode,
         "reasons" -> reasons.mkString(","),
@@ -436,7 +436,7 @@ final class CommentaryApi(
             s"$k=${if safe.nonEmpty then safe else "-"}"
           }
           .mkString(" ")
-      logger.warn(s"commentary.bookmaker.fallback $rendered")
+      logger.warn(s"commentary.move_review.fallback $rendered")
 
   private def recordActiveThesisAgreement(
       moment: GameChronicleMoment,
@@ -642,7 +642,7 @@ final class CommentaryApi(
     )
 
   def commentaryOpsSnapshot(limit: Int = 20): CommentaryOpsBoard.Snapshot =
-    val requests = bookmakerRequests.get()
+    val requests = moveReviewRequests.get()
     val attempts = polishAttemptCount.get()
     val accepted = polishAcceptedCount.get()
     val fallbackRate =
@@ -654,9 +654,9 @@ final class CommentaryApi(
     val softRepairMaterialRate =
       if accepted == 0 then 0.0
       else softRepairMaterialCount.get().toDouble / accepted.toDouble
-    val bookmakerCompareRate =
-      if bookmakerCompareObservedCount.get() == 0 then 1.0
-      else bookmakerCompareConsistentCount.get().toDouble / bookmakerCompareObservedCount.get().toDouble
+    val moveReviewCompareRate =
+      if moveReviewCompareObservedCount.get() == 0 then 1.0
+      else moveReviewCompareConsistentCount.get().toDouble / moveReviewCompareObservedCount.get().toDouble
     val fullGameCompareRate =
       if fullGameCompareObservedCount.get() == 0 then 1.0
       else fullGameCompareConsistentCount.get().toDouble / fullGameCompareObservedCount.get().toDouble
@@ -685,15 +685,15 @@ final class CommentaryApi(
 
     CommentaryOpsBoard.Snapshot(
       generatedAtMs = System.currentTimeMillis(),
-      bookmaker = CommentaryOpsBoard.BookmakerMetrics(
+      moveReview = CommentaryOpsBoard.MoveReviewMetrics(
         requests = requests,
         polishAttempts = attempts,
         polishAccepted = accepted,
         polishFallbackRate = fallbackRate,
         softRepairAnyRate = softRepairAnyRate,
         softRepairMaterialRate = softRepairMaterialRate,
-        compareObserved = bookmakerCompareObservedCount.get(),
-        compareConsistencyRate = bookmakerCompareRate,
+        compareObserved = moveReviewCompareObservedCount.get(),
+        compareConsistencyRate = moveReviewCompareRate,
         avgCostUsd = avgCostUsd
       ),
       fullgame = CommentaryOpsBoard.FullGameMetrics(
@@ -740,15 +740,15 @@ final class CommentaryApi(
   private def updateCommentaryOpsGauges(): Unit =
     val attempts = polishAttemptCount.get()
     val accepted = polishAcceptedCount.get()
-    val bookmakerFallbackRate =
+    val moveReviewFallbackRate =
       if attempts == 0 then 0.0
       else polishFallbackCount.get().toDouble / attempts.toDouble
-    val bookmakerSoftRepairMaterialRate =
+    val moveReviewSoftRepairMaterialRate =
       if accepted == 0 then 0.0
       else softRepairMaterialCount.get().toDouble / accepted.toDouble
-    val bookmakerCompareRate =
-      if bookmakerCompareObservedCount.get() == 0 then 1.0
-      else bookmakerCompareConsistentCount.get().toDouble / bookmakerCompareObservedCount.get().toDouble
+    val moveReviewCompareRate =
+      if moveReviewCompareObservedCount.get() == 0 then 1.0
+      else moveReviewCompareConsistentCount.get().toDouble / moveReviewCompareObservedCount.get().toDouble
     val fullGameCompareRate =
       if fullGameCompareObservedCount.get() == 0 then 1.0
       else fullGameCompareConsistentCount.get().toDouble / fullGameCompareObservedCount.get().toDouble
@@ -782,9 +782,9 @@ final class CommentaryApi(
       else polishEstimatedCostMicros.get().toDouble / attempts.toDouble / 1000000.0
     val latencyP95 = polishLatencyP95Ms
 
-    lila.mon.commentary.commentary.metric("polish_fallback_rate", "bookmaker").update(bookmakerFallbackRate)
-    lila.mon.commentary.commentary.metric("soft_repair_material_rate", "bookmaker").update(bookmakerSoftRepairMaterialRate)
-    lila.mon.commentary.commentary.metric("compare_consistency_rate", "bookmaker").update(bookmakerCompareRate)
+    lila.mon.commentary.commentary.metric("polish_fallback_rate", "moveReview").update(moveReviewFallbackRate)
+    lila.mon.commentary.commentary.metric("soft_repair_material_rate", "moveReview").update(moveReviewSoftRepairMaterialRate)
+    lila.mon.commentary.commentary.metric("compare_consistency_rate", "moveReview").update(moveReviewCompareRate)
     lila.mon.commentary.commentary.metric("compare_consistency_rate", "fullgame").update(fullGameCompareRate)
     lila.mon.commentary.commentary.metric("thesis_agreement_rate", "active").update(activeThesisRate)
     lila.mon.commentary.commentary.metric("attach_rate", "active").update(activeAttachRate)
@@ -798,8 +798,8 @@ final class CommentaryApi(
     lila.mon.commentary.commentary.metric("route_toward_only_count", "active").update(routeTowardOnlyCount)
     lila.mon.commentary.commentary.metric("route_exact_surface_count", "active").update(routeExactSurfaceCount)
     lila.mon.commentary.commentary.metric("route_opponent_hidden_count", "active").update(routeOpponentHiddenCount)
-    lila.mon.commentary.commentary.metric("avg_cost_usd", "bookmaker").update(avgCostUsd)
-    lila.mon.commentary.commentary.metric("polish_latency_p95_ms", "bookmaker").update(latencyP95)
+    lila.mon.commentary.commentary.metric("avg_cost_usd", "moveReview").update(avgCostUsd)
+    lila.mon.commentary.commentary.metric("polish_latency_p95_ms", "moveReview").update(latencyP95)
 
   private def latencySnapshot: (Int, Double, Double, Int, Double, Double) =
     latencyWindowLock.synchronized {
@@ -826,8 +826,8 @@ final class CommentaryApi(
   private def endgameMode: String =
     "enabled"
 
-  private def maybeLogBookmakerMetrics(): Unit =
-    val total = bookmakerRequests.get()
+  private def maybeLogMoveReviewMetrics(): Unit =
+    val total = moveReviewRequests.get()
     if total > 0 && total % 100 == 0 then
       val tokenPresentRate = tokenPresentCount.get().toDouble / total.toDouble
       val tokenEmitRate = tokenEmitCount.get().toDouble / total.toDouble
@@ -864,9 +864,9 @@ final class CommentaryApi(
       val softRepairMaterialRate =
         if polishAccepted == 0 then 0.0
         else softRepairMaterialCount.get().toDouble / polishAccepted.toDouble
-      val bookmakerCompareRate =
-        if bookmakerCompareObservedCount.get() == 0 then 1.0
-        else bookmakerCompareConsistentCount.get().toDouble / bookmakerCompareObservedCount.get().toDouble
+      val moveReviewCompareRate =
+        if moveReviewCompareObservedCount.get() == 0 then 1.0
+        else moveReviewCompareConsistentCount.get().toDouble / moveReviewCompareObservedCount.get().toDouble
       val fullGameCompareRate =
         if fullGameCompareObservedCount.get() == 0 then 1.0
         else fullGameCompareConsistentCount.get().toDouble / fullGameCompareObservedCount.get().toDouble
@@ -913,7 +913,7 @@ final class CommentaryApi(
       val (totalWindowSize, totalP50, totalP95, structWindowSize, structP50, structP95) = latencySnapshot
       val epochSec = Instant.now().getEpochSecond
       logger.info(
-        s"bookmaker.metrics epoch=$epochSec total=$total " +
+        s"move_review.metrics epoch=$epochSec total=$total " +
           s"struct_mode=${structureMode} " +
           s"endgame_mode=${endgameMode} " +
           s"shadow_window=$totalWindowSize " +
@@ -940,7 +940,7 @@ final class CommentaryApi(
           f"polish_soft_repair_material_rate=$softRepairMaterialRate%.3f " +
           f"polish_fallback_window_rate=$polishFallbackRateWindow%.3f " +
           f"polish_latency_p95_ms=$polishLatencyP95Window%.3f " +
-          f"bookmaker_compare_consistency_rate=$bookmakerCompareRate%.3f " +
+          f"move_review_compare_consistency_rate=$moveReviewCompareRate%.3f " +
           f"fullgame_compare_consistency_rate=$fullGameCompareRate%.3f " +
           f"active_thesis_agreement_rate=$activeThesisAgreementRateValue%.3f " +
           f"plan_recall_at3=$planRecallAt3%.3f " +
@@ -1097,13 +1097,13 @@ final class CommentaryApi(
 
   private def safeDeterministicFallbackProse(
       prose: String,
-      bookmakerSlots: Option[MoveReviewPolishSlots]
+      moveReviewSlots: Option[MoveReviewPolishSlots]
   ): String =
     val candidates =
       List(
-        LiveNarrativeCompressionCore.deterministicFallbackProse(prose, bookmakerSlots),
-        bookmakerSlots.map(LiveNarrativeCompressionCore.deterministicProse).getOrElse(""),
-        bookmakerSlots.flatMap(slots => Option(slots.claim).map(_.trim).filter(_.nonEmpty)).getOrElse(""),
+        LiveNarrativeCompressionCore.deterministicFallbackProse(prose, moveReviewSlots),
+        moveReviewSlots.map(LiveNarrativeCompressionCore.deterministicProse).getOrElse(""),
+        moveReviewSlots.flatMap(slots => Option(slots.claim).map(_.trim).filter(_.nonEmpty)).getOrElse(""),
         PlayerProseBoundary.sanitize(prose)
       )
         .map(PlayerProseBoundary.sanitize)
@@ -1291,20 +1291,20 @@ final class CommentaryApi(
       case Some(value) if value.equalsIgnoreCase("Game Intro")      => "fullgame_intro"
       case Some(value) if value.equalsIgnoreCase("Game Conclusion") => "fullgame_conclusion"
       case Some(_)                                                  => "fullgame_moment"
-      case None                                                     => "bookmaker"
+      case None                                                     => "moveReview"
 
   private def shouldTrySegmentPolish(
       prose: String,
       refs: Option[MoveReviewRefs],
       allowedSans: List[String],
       momentType: Option[String],
-      bookmakerSlots: Option[MoveReviewPolishSlots]
+      moveReviewSlots: Option[MoveReviewPolishSlots]
   ): Boolean =
     val normalizedMomentType = momentType.map(_.trim.toLowerCase).getOrElse("")
     val introOrConclusion =
       normalizedMomentType == "game intro" || normalizedMomentType == "game conclusion"
     val hasConcreteEvidence = refs.exists(_.variations.nonEmpty) || allowedSans.distinct.size >= SegmentPolishMinAllowedSans
-    bookmakerSlots.isEmpty &&
+    moveReviewSlots.isEmpty &&
       !introOrConclusion &&
       hasConcreteEvidence &&
       wordCount(prose) >= SegmentPolishMinWords
@@ -1541,11 +1541,11 @@ final class CommentaryApi(
       strategyPack: Option[StrategyPack],
       planTier: String,
       commentaryMode: String,
-      bookmakerSlots: Option[MoveReviewPolishSlots]
+      moveReviewSlots: Option[MoveReviewPolishSlots]
   ): CandidateValidation =
     val normalizedCandidate = unwrapCommentaryPayload(candidateText)
     val anchorReasons =
-      if anchors.hasAnchors && bookmakerSlots.isEmpty then
+      if anchors.hasAnchors && moveReviewSlots.isEmpty then
         MoveAnchorCodec.validateAnchors(
           text = normalizedCandidate,
           expectedMoveOrder = anchors.expectedMoveOrder,
@@ -1563,7 +1563,7 @@ final class CommentaryApi(
           branchById = anchors.branchById
         )
       else normalizedCandidate
-    val repaired = bookmakerSlots match
+    val repaired = moveReviewSlots match
       case Some(slots) =>
         val repair = MoveReviewSoftRepair.repair(decoded, slots)
         repair
@@ -1587,21 +1587,21 @@ final class CommentaryApi(
     val surfacedText = PlayerProseBoundary.sanitize(repaired.text)
     if repaired.applied then
       softRepairAppliedCount.incrementAndGet()
-      lila.mon.commentary.commentary.repair("bookmaker", "any").increment()
+      lila.mon.commentary.commentary.repair("moveReview", "any").increment()
       logger.debug(s"commentary.polish.soft_repair applied=true actions=${repaired.actions.mkString(",")}")
     if repaired.materialApplied then
       softRepairMaterialCount.incrementAndGet()
-      lila.mon.commentary.commentary.repair("bookmaker", "material").increment()
+      lila.mon.commentary.commentary.repair("moveReview", "material").increment()
       logOpsSample(
-        kind = "material_repair.bookmaker",
+        kind = "material_repair.moveReview",
         "actions" -> repaired.materialActions.mkString(","),
-        "lens" -> bookmakerSlots.map(_.lens.toString).getOrElse("")
+        "lens" -> moveReviewSlots.map(_.lens.toString).getOrElse("")
       )
     val proseValidation =
-      validatePolishedCommentary(surfacedText, originalProse, allowedSans, slotMode = bookmakerSlots.isDefined)
+      validatePolishedCommentary(surfacedText, originalProse, allowedSans, slotMode = moveReviewSlots.isDefined)
     val strategyValidation = evaluateStrategyCoverage(surfacedText, strategyPack, planTier, commentaryMode)
     val userFacingReasons =
-      Option.when(bookmakerSlots.isEmpty)(fullGameLeakReasons(surfacedText)).getOrElse(Nil)
+      Option.when(moveReviewSlots.isEmpty)(fullGameLeakReasons(surfacedText)).getOrElse(Nil)
     val reasons =
       (anchorReasons ++ proseValidation.reasons ++ strategyValidation.reasons ++ userFacingReasons ++ extraReasons).distinct
     CandidateValidation(
@@ -2599,11 +2599,11 @@ final class CommentaryApi(
       planTier: String,
       commentaryMode: String,
       momentType: Option[String] = None,
-      bookmakerSlots: Option[MoveReviewPolishSlots],
+      moveReviewSlots: Option[MoveReviewPolishSlots],
       disablePolishCircuit: Boolean = false
   ): Future[PolishDecision] =
     val deterministicFallback =
-      safeDeterministicFallbackProse(prose, bookmakerSlots)
+      safeDeterministicFallbackProse(prose, moveReviewSlots)
     if prose.isBlank then
       Future.successful(
         PolishDecision(
@@ -2677,7 +2677,7 @@ final class CommentaryApi(
               refs = refs,
               allowedSans = allowedSans,
               momentType = momentType,
-              bookmakerSlots = bookmakerSlots
+              moveReviewSlots = moveReviewSlots
             )
           val segmentAttemptFut =
             if shouldTrySegmentPolishNow then
@@ -2703,11 +2703,11 @@ final class CommentaryApi(
             case Some(segmentDecision) =>
               Future.successful(withRecordedPolishMetrics(requestStartNs, segmentDecision))
             case None =>
-              val anchorSeed = if bookmakerSlots.isDefined then validationSeed else prose
+              val anchorSeed = if moveReviewSlots.isDefined then validationSeed else prose
               val anchors = MoveAnchorCodec.encode(anchorSeed, refs)
               val slotsForModel =
-                bookmakerSlots.map(slots => slots.withFactGuardrails(anchors.anchoredText.split('\n').toList))
-              val proseForModel = if bookmakerSlots.isDefined then prose else if anchors.hasAnchors then anchors.anchoredText else prose
+                moveReviewSlots.map(slots => slots.withFactGuardrails(anchors.anchoredText.split('\n').toList))
+              val proseForModel = if moveReviewSlots.isDefined then prose else if anchors.hasAnchors then anchors.anchoredText else prose
               val adaptiveCap = adaptiveOutputTokenCap(prose, refs, asyncTier)
               val op =
                 if asyncTier then
@@ -2724,7 +2724,7 @@ final class CommentaryApi(
                     maxOutputTokens = Some(adaptiveCap),
                     planTier = normalizedPlanTier,
                     commentaryMode = normalizedCommentaryMode,
-                    bookmakerSlots = slotsForModel
+                    moveReviewSlots = slotsForModel
                   )
                 else
                   openAiClient.polishSync(
@@ -2740,7 +2740,7 @@ final class CommentaryApi(
                     maxOutputTokens = Some(adaptiveCap),
                     planTier = normalizedPlanTier,
                     commentaryMode = normalizedCommentaryMode,
-                    bookmakerSlots = slotsForModel
+                    moveReviewSlots = slotsForModel
                   )
               op.flatMap {
                 case Some(polished) =>
@@ -2753,7 +2753,7 @@ final class CommentaryApi(
                     strategyPack = strategyPack,
                     planTier = normalizedPlanTier,
                     commentaryMode = normalizedCommentaryMode,
-                    bookmakerSlots = bookmakerSlots
+                    moveReviewSlots = moveReviewSlots
                   )
                   if firstValidation.isValid then
                     Future.successful(
@@ -2786,7 +2786,7 @@ final class CommentaryApi(
                       model = Some(polished.model),
                       reasons = firstValidation.reasons.distinct
                     )
-                    if bookmakerSlots.isEmpty then
+                    if moveReviewSlots.isEmpty then
                       recordFullGameInvalidPair(
                         stage = "fullgame_primary",
                         phase = phase,
@@ -2810,7 +2810,7 @@ final class CommentaryApi(
                           maxOutputTokens = Some(adaptiveCap),
                           planTier = normalizedPlanTier,
                           commentaryMode = normalizedCommentaryMode,
-                          bookmakerSlots = slotsForModel
+                          moveReviewSlots = slotsForModel
                         )
                       else
                         openAiClient.repairSync(
@@ -2826,7 +2826,7 @@ final class CommentaryApi(
                           maxOutputTokens = Some(adaptiveCap),
                           planTier = normalizedPlanTier,
                           commentaryMode = normalizedCommentaryMode,
-                          bookmakerSlots = slotsForModel
+                          moveReviewSlots = slotsForModel
                         )
                     repairFut.map {
                       case Some(repaired) =>
@@ -2839,7 +2839,7 @@ final class CommentaryApi(
                           strategyPack = strategyPack,
                           planTier = normalizedPlanTier,
                           commentaryMode = normalizedCommentaryMode,
-                          bookmakerSlots = bookmakerSlots
+                          moveReviewSlots = moveReviewSlots
                         )
                         if repairedValidation.isValid then
                           withRecordedPolishMetrics(
@@ -2871,7 +2871,7 @@ final class CommentaryApi(
                             model = Some(repaired.model),
                             reasons = reasons
                           )
-                          if bookmakerSlots.isEmpty then
+                          if moveReviewSlots.isEmpty then
                             recordFullGameInvalidPair(
                               stage = "fullgame_repair",
                               phase = phase,
@@ -2949,11 +2949,11 @@ final class CommentaryApi(
           }
         case "gemini" if geminiClient.isEnabled =>
           val requestStartNs = System.nanoTime()
-          val anchorSeed = if bookmakerSlots.isDefined then validationSeed else prose
+          val anchorSeed = if moveReviewSlots.isDefined then validationSeed else prose
           val anchors = MoveAnchorCodec.encode(anchorSeed, refs)
           val slotsForModel =
-            bookmakerSlots.map(slots => slots.withFactGuardrails(anchors.anchoredText.split('\n').toList))
-          val proseForModel = if bookmakerSlots.isDefined then prose else if anchors.hasAnchors then anchors.anchoredText else prose
+            moveReviewSlots.map(slots => slots.withFactGuardrails(anchors.anchoredText.split('\n').toList))
+          val proseForModel = if moveReviewSlots.isDefined then prose else if anchors.hasAnchors then anchors.anchoredText else prose
           geminiClient
             .polish(
               prose = proseForModel,
@@ -2964,7 +2964,7 @@ final class CommentaryApi(
               openingName = openingName,
               salience = salience,
               momentType = momentType,
-              bookmakerSlots = slotsForModel
+              moveReviewSlots = slotsForModel
             )
             .flatMap {
               case Some(polished) =>
@@ -2977,7 +2977,7 @@ final class CommentaryApi(
                   strategyPack = strategyPack,
                   planTier = normalizedPlanTier,
                   commentaryMode = normalizedCommentaryMode,
-                  bookmakerSlots = bookmakerSlots
+                  moveReviewSlots = moveReviewSlots
                 )
                 if validation.isValid then
                   Future.successful(
@@ -3009,7 +3009,7 @@ final class CommentaryApi(
                     model = Some(geminiClient.modelName),
                     reasons = primaryReasons
                   )
-                  if bookmakerSlots.isEmpty then
+                  if moveReviewSlots.isEmpty then
                     recordFullGameInvalidPair(
                       stage = "fullgame_primary",
                       phase = phase,
@@ -3028,7 +3028,7 @@ final class CommentaryApi(
                       fen = fen,
                       openingName = openingName,
                       allowedSans = allowedSans,
-                      bookmakerSlots = slotsForModel
+                      moveReviewSlots = slotsForModel
                     )
                     .map {
                       case Some(repaired) =>
@@ -3041,7 +3041,7 @@ final class CommentaryApi(
                           strategyPack = strategyPack,
                           planTier = normalizedPlanTier,
                           commentaryMode = normalizedCommentaryMode,
-                          bookmakerSlots = bookmakerSlots
+                          moveReviewSlots = moveReviewSlots
                         )
                         if repairedValidation.isValid then
                           withRecordedPolishMetrics(
@@ -3071,7 +3071,7 @@ final class CommentaryApi(
                             model = Some(geminiClient.modelName),
                             reasons = reasons
                           )
-                          if bookmakerSlots.isEmpty then
+                          if moveReviewSlots.isEmpty then
                             recordFullGameInvalidPair(
                               stage = "fullgame_repair",
                               phase = phase,
@@ -3175,26 +3175,26 @@ final class CommentaryApi(
         familyOverride = familyOverride
       )
 
-  private def dedupeBookmakerCommentary(
+  private def dedupeMoveReviewCommentary(
       commentary: String
   ): String =
     LiveNarrativeCompressionCore.slotsFromCompressedProse(commentary).map { slots =>
       val claim =
         dedupeNarrativeSurface(
           prose = slots.claim,
-          surface = "bookmaker",
+          surface = "moveReview",
           role = "plan_lead",
           priorityBase = 100,
           familyOverride = Some(NarrativeDedupCore.NarrativeClaimFamily.PlanLead)
         )
       val support =
         slots.supportPrimary
-          .map(text => dedupeNarrativeSurface(text, "bookmaker", "support", 80))
+          .map(text => dedupeNarrativeSurface(text, "moveReview", "support", 80))
           .filter(text => !NarrativeDedupCore.sameSemanticSentence(text, claim))
       val third =
         slots.evidenceHook
           .orElse(slots.tension)
-          .map(text => dedupeNarrativeSurface(text, "bookmaker", "support", 70))
+          .map(text => dedupeNarrativeSurface(text, "moveReview", "support", 70))
           .filter(text =>
             !NarrativeDedupCore.sameSemanticSentence(text, claim) &&
               support.forall(other => !NarrativeDedupCore.sameSemanticSentence(text, other))
@@ -3219,7 +3219,7 @@ final class CommentaryApi(
           paragraphPlan = if paragraphPlan.nonEmpty then paragraphPlan else List("p1=claim")
         )
       )
-    }.getOrElse(dedupeNarrativeSurface(commentary, "bookmaker", "plan_lead", 80))
+    }.getOrElse(dedupeNarrativeSurface(commentary, "moveReview", "plan_lead", 80))
 
   private def dedupeChronicleMomentSurfaces(
       moment: GameChronicleMoment
@@ -3272,11 +3272,11 @@ final class CommentaryApi(
         )
     )
 
-  private def dedupeBookmakerResponse(
+  private def dedupeMoveReviewResponse(
       response: CommentResponse
   ): CommentResponse =
     response.copy(
-      commentary = dedupeBookmakerCommentary(response.commentary)
+      commentary = dedupeMoveReviewCommentary(response.commentary)
     )
 
   private def selectFullGamePolishTargetPlies(
@@ -3387,7 +3387,7 @@ final class CommentaryApi(
             planTier = normalizedPlanTier,
             commentaryMode = basePolishLevel,
             momentType = Some("Game Intro"),
-            bookmakerSlots = introSlots,
+            moveReviewSlots = introSlots,
             disablePolishCircuit = disablePolishCircuit
           )
           conclusionPolish <- maybePolishCommentary(
@@ -3409,7 +3409,7 @@ final class CommentaryApi(
             planTier = normalizedPlanTier,
             commentaryMode = basePolishLevel,
             momentType = Some("Game Conclusion"),
-            bookmakerSlots = conclusionSlots,
+            moveReviewSlots = conclusionSlots,
             disablePolishCircuit = disablePolishCircuit
           )
           polishedMoments <- Future.traverse(response.moments) { moment =>
@@ -3436,7 +3436,7 @@ final class CommentaryApi(
                 planTier = normalizedPlanTier,
                 commentaryMode = basePolishLevel,
                 momentType = Some(moment.momentType),
-                bookmakerSlots = momentSlots,
+                moveReviewSlots = momentSlots,
                 disablePolishCircuit = disablePolishCircuit
               ).map { decision =>
                 (moment.copy(narrative = decision.commentary), decision.sourceMode, decision.model, decision.cacheHit)
@@ -3753,7 +3753,7 @@ final class CommentaryApi(
     if ply % 2 == 1 then s"$moveNo."
     else s"$moveNo..."
 
-  private def buildBookmakerRefs(
+  private def buildMoveReviewRefs(
       fenBefore: String,
       variations: List[VariationLine]
   ): Option[MoveReviewRefs] =
@@ -3837,17 +3837,17 @@ final class CommentaryApi(
         planTier = normalizedPlanTier,
         commentaryMode = effectiveLevel
       )
-    bookmakerRequests.incrementAndGet()
+    moveReviewRequests.incrementAndGet()
     if prevStateToken.isDefined || prevEndgameStateToken.isDefined then tokenPresentCount.incrementAndGet()
     commentaryCache.get(fen, lastMove, incomingProbes, prevStateToken, prevEndgameStateToken, cacheCtx) match
       case Some(cached) =>
         val sanitizedCached =
-          dedupeBookmakerResponse(
+          dedupeMoveReviewResponse(
             UserFacingPayloadSanitizer.sanitize(cached)
           )
         stateAwareCacheHitCount.incrementAndGet()
         logger.debug(s"Cache hit: ${fen.take(20)}...")
-        traceBookmakerFallbackResponse(
+        traceMoveReviewFallbackResponse(
           response = sanitizedCached,
           phase = phase,
           ply = resolvedPly,
@@ -3857,22 +3857,22 @@ final class CommentaryApi(
           incomingProbeCount = incomingProbes.size
         )
         recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = None)
-        maybeLogBookmakerMetrics()
+        maybeLogMoveReviewMetrics()
         Future.successful(Some(MoveReviewResult(response = sanitizedCached, cacheHit = true)))
       case None =>
         stateAwareCacheMissCount.incrementAndGet()
-        computeBookmakerResponse(
+        computeMoveReviewResponse(
           fen, lastMove, eval, variations, probeResults, openingData,
           afterFen, afterEval, afterVariations, opening, phase, ply, variant, prevStateToken, prevEndgameStateToken, allowAiPolish, lang, cacheCtx, normalizedPlanTier, effectiveLevel
         ).map:
           case (responseOpt, structEvalMsOpt) =>
           recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = structEvalMsOpt)
-          maybeLogBookmakerMetrics()
+          maybeLogMoveReviewMetrics()
           responseOpt
         
 
 
-  private def computeBookmakerResponse(
+  private def computeMoveReviewResponse(
       fen: String,
       lastMove: Option[String],
       eval: Option[EvalData],
@@ -4003,7 +4003,7 @@ final class CommentaryApi(
                 probeResults = probeResults.getOrElse(Nil),
                 openingRef = openingRef,
                 afterAnalysis = afterDataOpt,
-                renderMode = lila.commentary.model.NarrativeRenderMode.Bookmaker,
+                renderMode = lila.commentary.model.NarrativeRenderMode.MoveReview,
                 variantKey = normalizedVariant
               )
             val rawCtx = contextBuild.context
@@ -4026,11 +4026,11 @@ final class CommentaryApi(
                 rawStrategyPack,
                 truthContract
               )
-            val refs = buildBookmakerRefs(fen, dataWithContinuity.alternatives)
+            val refs = buildMoveReviewRefs(fen, dataWithContinuity.alternatives)
             val outline = BookStyleRenderer.validatedOutline(ctx, Some(truthContract), strategyPack)
-            val bookmakerSlots = MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs, strategyPack, Some(truthContract))
-            val moveReviewExplanation = bookmakerSlots.moveReviewExplanation
-            val proseRaw = LiveNarrativeCompressionCore.deterministicProse(bookmakerSlots)
+            val moveReviewSlots = MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs, strategyPack, Some(truthContract))
+            val moveReviewExplanation = moveReviewSlots.moveReviewExplanation
+            val proseRaw = LiveNarrativeCompressionCore.deterministicProse(moveReviewSlots)
             val prose = RuleTemplateSanitizer.sanitize(
               proseRaw,
               opening = opening,
@@ -4052,7 +4052,7 @@ final class CommentaryApi(
             )
             val authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
             val strategyPromptHints = strategyHints(strategyPack)
-            val validationSeed = Option(bookmakerSlots.validationSeedText).filter(_.nonEmpty).getOrElse(compactProse)
+            val validationSeed = Option(moveReviewSlots.validationSeedText).filter(_.nonEmpty).getOrElse(compactProse)
 
             maybePolishCommentary(
               prose = compactProse,
@@ -4072,10 +4072,10 @@ final class CommentaryApi(
               refs = refs,
               planTier = planTier,
               commentaryMode = commentaryMode,
-              bookmakerSlots = Some(bookmakerSlots)
+              moveReviewSlots = Some(moveReviewSlots)
             ).map { decision =>
               val response =
-                dedupeBookmakerResponse(
+                dedupeMoveReviewResponse(
                   UserFacingPayloadSanitizer.sanitize(
                     CommentResponse(
                       commentary = EarlyOpeningNarrationPolicy.clampNarrative(ctx, decision.commentary),
@@ -4108,13 +4108,13 @@ final class CommentaryApi(
                   )
                 )
               recordComparisonObservation(
-                path = "bookmaker",
+                path = "moveReview",
                 digest = response.signalDigest.flatMap(_.decisionComparison),
                 authorEvidence = response.authorEvidence,
                 probeRequests = response.probeRequests,
                 strategyPack = response.strategyPack
               )
-              traceBookmakerFallbackResponse(
+              traceMoveReviewFallbackResponse(
                 response = response,
                 phase = phase,
                 ply = effectivePly,

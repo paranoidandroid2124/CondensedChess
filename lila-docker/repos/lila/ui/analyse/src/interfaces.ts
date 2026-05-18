@@ -198,7 +198,7 @@ export interface AnalyseOpts {
     enhance: EnhanceOpts;
     instance?: any;
   };
-  bookmaker?: boolean;
+  moveReview?: boolean;
   inlinePgn?: string;
   importHistory?: ImportHistoryView;
   externalEngineEndpoint: string;

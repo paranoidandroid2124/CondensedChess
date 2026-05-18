@@ -52,7 +52,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
 
   private enum SurfaceCell:
     case PlannerWhyThis
-    case Bookmaker
+    case MoveReview
     case Chronicle
     case Active
     case WholeGame
@@ -760,7 +760,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
     )
 
   private def whyThisSurfaceCtx(evidenceTier: String, planName: String): NarrativeContext =
-    BookmakerProseGoldenFixtures.prophylacticCut.ctx.copy(
+    MoveReviewProseGoldenFixtures.prophylacticCut.ctx.copy(
       authorQuestions =
         List(
           AuthorQuestion(
@@ -915,7 +915,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
           rankedPlans = rankedPlans
         )
       )
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
@@ -923,7 +923,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
         strategyPack = None,
         truthContract = None
       )
-    val bookmakerFallback =
+    val moveReviewFallback =
       MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
@@ -931,9 +931,9 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
         strategyPack = None,
         truthContract = None
       )
-    val bookmakerParagraphs =
+    val moveReviewParagraphs =
       MoveReviewProseContract.splitParagraphs(
-        LiveNarrativeCompressionCore.deterministicProse(bookmakerFallback)
+        LiveNarrativeCompressionCore.deterministicProse(moveReviewFallback)
       )
 
     assertEquals(
@@ -944,9 +944,9 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
     assert(chronicleSelection.nonEmpty, clues(chronicleSelection, rankedPlans))
     assert(chronicleArtifact.exists(_.narrative.nonEmpty), clues(chronicleArtifact))
     assert(activeSelection.forall(_.primary.questionKind == AuthorQuestionKind.WhyThis), clues(activeSelection, rankedPlans))
-    assert(bookmakerSlots.nonEmpty, clues(bookmakerSlots, rankedPlans))
-    assert(bookmakerParagraphs.size >= 2, clues(bookmakerParagraphs, bookmakerFallback))
-    bookmakerSlots.foreach { slots =>
+    assert(moveReviewSlots.nonEmpty, clues(moveReviewSlots, rankedPlans))
+    assert(moveReviewParagraphs.size >= 2, clues(moveReviewParagraphs, moveReviewFallback))
+    moveReviewSlots.foreach { slots =>
       assertNoBindInflation(slots.claim)
       slots.supportPrimary.foreach(assertNoBindInflation)
       slots.supportSecondary.foreach(assertNoBindInflation)
@@ -968,7 +968,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
           rankedPlans = rankedPlans
         )
       )
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
@@ -1030,7 +1030,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
     assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs.decisionFrame))
     assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
-    assertEquals(bookmakerSlots, None, clues(bookmakerSlots, rankedPlans))
+    assertEquals(moveReviewSlots, None, clues(moveReviewSlots, rankedPlans))
     assertEquals(fallbackSlots.paragraphPlan, List("p1=claim"), clues(fallbackSlots))
     assertNoBindInflation(fallbackClaim)
     assertEquals(wholeGameSupport.decisiveShift, None, clues(wholeGameSupport))
@@ -1075,7 +1075,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
         covered =
           Set(
             SurfaceCell.PlannerWhyThis,
-            SurfaceCell.Bookmaker,
+            SurfaceCell.MoveReview,
             SurfaceCell.Chronicle
           ),
         unsafe = Set(SurfaceCell.WholeGame)
@@ -1137,7 +1137,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
       surfaceCoverage,
       Map(
         SurfaceCell.PlannerWhyThis -> CoverageState.Covered,
-        SurfaceCell.Bookmaker -> CoverageState.Covered,
+        SurfaceCell.MoveReview -> CoverageState.Covered,
         SurfaceCell.Chronicle -> CoverageState.Covered,
         SurfaceCell.Active -> CoverageState.Deferred,
         SurfaceCell.WholeGame -> CoverageState.Unsafe

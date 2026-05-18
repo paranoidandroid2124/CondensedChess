@@ -7,12 +7,12 @@ export interface PubsubEvents {
     'analysis.chart.click': (index: number) => void;
     'analysis.comp.toggle': (enabled: boolean) => void;
     'analysis.server.progress': (analyseData: any) => void;
-    'analysis.bookmaker.hover': (data: {
+    'analysis.move-review.hover': (data: {
         fen: string;
         color: string;
         lastmove: string | undefined;
     } | null) => void;
-    'analysis.bookmaker.move': (data: {
+    'analysis.move-review.move': (data: {
         uci: string;
         san: string | undefined;
     }) => void;

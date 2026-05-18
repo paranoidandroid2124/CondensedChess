@@ -3,9 +3,9 @@ package lila.commentary.analysis
 import lila.commentary.*
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
-import lila.commentary.model.strategic.{ PlanContinuity, PlanLifecyclePhase }
+import lila.commentary.model.strategic.{ EngineEvidence, PlanContinuity, PlanLifecyclePhase, VariationLine }
 
-object BookmakerProseGoldenFixtures:
+object MoveReviewProseGoldenFixtures:
 
   final case class Fixture(
       id: String,
@@ -75,7 +75,7 @@ object BookmakerProseGoldenFixtures:
           whyNot = None
         )
       ),
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   private def plan(
@@ -244,6 +244,73 @@ object BookmakerProseGoldenFixtures:
           dominantIdeaFocus = Some(focusSquares.mkString(", "))
         )
       )
+    )
+
+  private def neutralizeKeyBreakPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      signalDigest = Some(NarrativeSignalDigest(decision = Some("deny the ...c5 break")))
+    )
+
+  private def withNeutralizeKeyBreakProof(ctx: NarrativeContext, planId: String): NarrativeContext =
+    ctx.copy(
+      mainStrategicPlans =
+        List(
+          plan(
+            id = planId,
+            name = "Clamp the ...c5 break",
+            theme = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            evidence = List(s"theme:${PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id}"),
+            subplan = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
+          ).copy(executionSteps = List("Keep the opponent's main counterplay route closed first."))
+        ),
+      strategicPlanExperiments =
+        List(
+          StrategicPlanExperiment(
+            planId = planId,
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
+            evidenceTier = "evidence_backed",
+            supportProbeCount = 1,
+            refuteProbeCount = 0,
+            bestReplyStable = true,
+            futureSnapshotAligned = true,
+            counterBreakNeutralized = true,
+            moveOrderSensitive = false,
+            experimentConfidence = 0.86
+          )
+        ),
+      semantic =
+        ctx.semantic.map(
+          _.copy(
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_counterplay",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("...c5"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 140,
+                preventedThreatType = Some("counterplay"),
+                deniedResourceClass = Some("break"),
+                citationLine = Some("The ...c5 break never becomes available on the defended branch.")
+              )
+            )
+          )
+        ),
+      engineEvidence =
+        Some(
+          EngineEvidence(
+            depth = 18,
+            variations =
+              List(
+                VariationLine(
+                  moves = List("c1c8", "f8e8", "c8e8"),
+                  scoreCp = 88,
+                  depth = 18
+                )
+              )
+          )
+        )
     )
 
   private def conversionPack(
@@ -1072,17 +1139,19 @@ object BookmakerProseGoldenFixtures:
         id = "what_must_be_stopped_positive",
         title = "WhatMustBeStopped surfaces defensive necessity",
         expectation = PlannerFixtureExpectation.Positive,
-        questionKind = AuthorQuestionKind.WhatMustBeStopped,
-        ctx =
-          prophylacticCut.ctx.copy(
-            authorQuestions =
-              List(question("q_stop", AuthorQuestionKind.WhatMustBeStopped, evidencePurposes = List("reply_multipv"))),
-            authorEvidence =
-              List(evidence("q_stop", "reply_multipv", List("23...c5 24.a4 Rc8", "23...b5 24.axb4 Rc4")))
-          ),
-        expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
-        expectedClaimFragment = Some("stop")
-      ),
+          questionKind = AuthorQuestionKind.WhatMustBeStopped,
+          ctx =
+            withNeutralizeKeyBreakProof(prophylacticCut.ctx, "named_break_stop_parity").copy(
+              authorQuestions =
+                List(question("q_stop", AuthorQuestionKind.WhatMustBeStopped, evidencePurposes = List("reply_multipv"))),
+              authorEvidence =
+                List(evidence("q_stop", "reply_multipv", List("23...c5 24.a4 Rc8", "23...b5 24.axb4 Rc4"))),
+              threats = ThreatTable(toUs = List(threat("Material", 320, Some("c1c8"))), toThem = Nil)
+            ),
+          strategyPack = Some(neutralizeKeyBreakPack),
+          expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
+          expectedClaimFragment = Some("stop")
+        ),
       PlannerRuntimeFixture(
         id = "what_must_be_stopped_negative",
         title = "WhatMustBeStopped demotes generic opponent plan text",
@@ -1126,20 +1195,21 @@ object BookmakerProseGoldenFixtures:
       PlannerRuntimeFixture(
         id = "whose_plan_is_faster_negative",
         title = "WhosePlanIsFaster demotes to stopping counterplay when only pressure survives",
-        expectation = PlannerFixtureExpectation.Negative,
-        questionKind = AuthorQuestionKind.WhosePlanIsFaster,
-        ctx =
-          prophylacticCut.ctx.copy(
-            authorQuestions =
-              List(question("q_race_negative", AuthorQuestionKind.WhosePlanIsFaster, evidencePurposes = List("reply_multipv"))),
-            authorEvidence =
-              List(evidence("q_race_negative", "reply_multipv", List("23...c5 24.a4 Rc8", "23...b5 24.axb4 Rc4"))),
-            opponentPlan = Some(PlanRow(1, "Queenside Counterplay", 0.72, List("...c5 break")))
-          ),
-        strategyPack = Some(pressurePack()),
-        expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
-        expectedClaimFragment = Some("stop")
-      ),
+          expectation = PlannerFixtureExpectation.Negative,
+          questionKind = AuthorQuestionKind.WhosePlanIsFaster,
+          ctx =
+            withNeutralizeKeyBreakProof(prophylacticCut.ctx, "named_break_race_demote_parity").copy(
+              authorQuestions =
+                List(question("q_race_negative", AuthorQuestionKind.WhosePlanIsFaster, evidencePurposes = List("reply_multipv"))),
+              authorEvidence =
+                List(evidence("q_race_negative", "reply_multipv", List("23...c5 24.a4 Rc8", "23...b5 24.axb4 Rc4"))),
+              opponentPlan = Some(PlanRow(1, "Queenside Counterplay", 0.72, List("...c5 break"))),
+              threats = ThreatTable(toUs = List(threat("Material", 320, Some("c1c8"))), toThem = Nil)
+            ),
+          strategyPack = Some(neutralizeKeyBreakPack),
+          expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
+          expectedClaimFragment = Some("stop")
+        ),
       PlannerRuntimeFixture(
         id = "whose_plan_is_faster_fallback",
         title = "WhosePlanIsFaster falls back when no race pair survives",

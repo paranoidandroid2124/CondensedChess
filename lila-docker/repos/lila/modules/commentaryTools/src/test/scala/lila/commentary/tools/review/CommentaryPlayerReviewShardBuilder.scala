@@ -46,7 +46,7 @@ object CommentaryPlayerReviewShardBuilder:
         entry.surface match
           case ReviewSurface.Chronicle if entry.reviewKind == ReviewKind.WholeGame => "chronicle_whole_game"
           case ReviewSurface.Chronicle                                             => "chronicle_focus"
-          case ReviewSurface.Bookmaker                                             => "bookmaker"
+          case ReviewSurface.MoveReview                                             => "moveReview"
           case ReviewSurface.ActiveNote                                            => "active_note"
           case other                                                               => other
       s"${surfaceKey}_${entry.tier.getOrElse("unknown")}"
@@ -65,7 +65,7 @@ object CommentaryPlayerReviewShardBuilder:
   private def usesAuditSharding(entries: Iterable[ReviewQueueEntry]): Boolean =
     entries.exists(entry =>
       entry.tier.nonEmpty &&
-        Set(ReviewKind.WholeGame, ReviewKind.FocusMoment, ReviewKind.BookmakerFocus, ReviewKind.ActiveParity).contains(entry.reviewKind)
+        Set(ReviewKind.WholeGame, ReviewKind.FocusMoment, ReviewKind.MoveReviewFocus, ReviewKind.ActiveParity).contains(entry.reviewKind)
     )
 
   private def parseConfig(args: List[String]): Config =

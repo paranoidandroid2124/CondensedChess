@@ -35,16 +35,16 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
   )
 
   private final case class FixtureExpectation(
-      bookmakerOwner: Option[(AuthorQuestionKind, PlannerOwnerKind)],
+      moveReviewOwner: Option[(AuthorQuestionKind, PlannerOwnerKind)],
       chronicleOwner: Option[(AuthorQuestionKind, PlannerOwnerKind)],
-      bookmakerMode: SurfaceMode,
+      moveReviewMode: SurfaceMode,
       chronicleMode: SurfaceMode,
       activeExpectation: ActiveExpectation,
       activeOwner: Option[(AuthorQuestionKind, PlannerOwnerKind)] = None,
       forbidGeneralizationLeak: Boolean = true,
       forbidFallbackRewrite: Boolean = true,
       forbiddenFragments: List[String] = Nil,
-      bookmakerMustLiftQuietSupport: Boolean = false,
+      moveReviewMustLiftQuietSupport: Boolean = false,
       chronicleMustBlockQuietSupport: Boolean = false
   )
 
@@ -55,7 +55,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
       expectation: FixtureExpectation
   )
 
-  private final case class BookmakerObservation(
+  private final case class MoveReviewObservation(
       owner: Option[(AuthorQuestionKind, PlannerOwnerKind)],
       mode: SurfaceMode,
       claim: String,
@@ -81,7 +81,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
 
   private final case class FixtureResult(
       fixture: HarnessFixture,
-      bookmaker: BookmakerObservation,
+      moveReview: MoveReviewObservation,
       chronicle: ChronicleObservation,
       active: ActiveObservation
   )
@@ -110,8 +110,8 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
       "these precedent lines point to one key driver:"
     )
 
-  private def plannerRuntimeFixture(id: String): BookmakerProseGoldenFixtures.PlannerRuntimeFixture =
-    BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == id)
+  private def plannerRuntimeFixture(id: String): MoveReviewProseGoldenFixtures.PlannerRuntimeFixture =
+    MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == id)
       .getOrElse(fail(s"missing planner runtime fixture: $id"))
 
   private val activeStrategyPack = Some(
@@ -399,7 +399,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
         )
     )
 
-  private def bookmakerObservation(scene: BookChronicleScene): BookmakerObservation =
+  private def moveReviewObservation(scene: BookChronicleScene): MoveReviewObservation =
     val outline =
       BookStyleRenderer.validatedOutline(
         scene.ctx,
@@ -433,7 +433,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
       else if quietTrace.liftApplied then SurfaceMode.ExactFactualFallbackWithSupport
       else SurfaceMode.ExactFactualFallback
 
-    BookmakerObservation(
+    MoveReviewObservation(
       owner = selection.map(sel => sel.primary.questionKind -> sel.primary.plannerOwnerKind),
       mode = mode,
       claim = MoveReviewProseContract.stripMoveHeader(slots.claim),
@@ -503,7 +503,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
   private def observe(fixture: HarnessFixture): FixtureResult =
     FixtureResult(
       fixture = fixture,
-      bookmaker = bookmakerObservation(fixture.scene),
+      moveReview = moveReviewObservation(fixture.scene),
       chronicle = chronicleObservation(fixture.scene),
       active = activeObservation(fixture.active)
     )
@@ -522,11 +522,11 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
     val expectation = result.fixture.expectation
     val fixtureId = result.fixture.id
 
-    assertEquals(result.bookmaker.mode, expectation.bookmakerMode, clues(fixtureId, result.bookmaker))
+    assertEquals(result.moveReview.mode, expectation.moveReviewMode, clues(fixtureId, result.moveReview))
     assertEquals(result.chronicle.mode, expectation.chronicleMode, clues(fixtureId, result.chronicle))
 
-    expectation.bookmakerOwner.foreach(expected =>
-      assertEquals(result.bookmaker.owner, Some(expected), clues(fixtureId, result.bookmaker))
+    expectation.moveReviewOwner.foreach(expected =>
+      assertEquals(result.moveReview.owner, Some(expected), clues(fixtureId, result.moveReview))
     )
     expectation.chronicleOwner.foreach(expected =>
       assertEquals(result.chronicle.owner, Some(expected), clues(fixtureId, result.chronicle))
@@ -553,7 +553,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
         assertEquals(result.active.note, None, clues(fixtureId, result.active))
 
     result.fixture.scene.expectedFallbackClaim.foreach { expected =>
-      assertEquals(result.bookmaker.claim, expected, clues(fixtureId, result.bookmaker))
+      assertEquals(result.moveReview.claim, expected, clues(fixtureId, result.moveReview))
       expectation.chronicleMode match
         case SurfaceMode.ExactFactualFallback | SurfaceMode.ExactFactualFallbackWithSupport =>
           assertEquals(result.chronicle.narrative, Some(expected), clues(fixtureId, result.chronicle))
@@ -563,7 +563,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
 
     if expectation.forbidGeneralizationLeak then
       List(
-        "bookmaker" -> Some(result.bookmaker.prose),
+        "moveReview" -> Some(result.moveReview.prose),
         "chronicle" -> result.chronicle.narrative,
         "active" -> result.active.note
       ).foreach { case (surface, textOpt) =>
@@ -573,21 +573,21 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
       }
 
     if expectation.forbidFallbackRewrite then
-      expectation.bookmakerMode match
+      expectation.moveReviewMode match
         case SurfaceMode.ExactFactualFallback =>
-          assertEquals(result.bookmaker.supportText, None, clues(fixtureId, result.bookmaker))
-          assertEquals(result.bookmaker.slots.paragraphPlan, List("p1=claim"), clues(fixtureId, result.bookmaker.slots))
+          assertEquals(result.moveReview.supportText, None, clues(fixtureId, result.moveReview))
+          assertEquals(result.moveReview.slots.paragraphPlan, List("p1=claim"), clues(fixtureId, result.moveReview.slots))
         case SurfaceMode.ExactFactualFallbackWithSupport =>
-          assert(result.bookmaker.supportText.nonEmpty, clues(fixtureId, result.bookmaker))
+          assert(result.moveReview.supportText.nonEmpty, clues(fixtureId, result.moveReview))
         case _ =>
           ()
 
-    if expectation.bookmakerMustLiftQuietSupport then
-      assertEquals(result.bookmaker.mode, SurfaceMode.ExactFactualFallbackWithSupport, clues(fixtureId, result.bookmaker))
-      assertEquals(result.bookmaker.quietSupportLifted, true, clues(fixtureId, result.bookmaker))
-      assert(result.bookmaker.supportText.exists(_.toLowerCase.contains("available")), clues(fixtureId, result.bookmaker))
-      assertEquals(result.bookmaker.slots.paragraphPlan, List("p1=claim", "p2=support_chain"), clues(fixtureId, result.bookmaker.slots))
-      assertNoForbiddenQuietSupport(result.bookmaker.supportText.getOrElse(""))
+    if expectation.moveReviewMustLiftQuietSupport then
+      assertEquals(result.moveReview.mode, SurfaceMode.ExactFactualFallbackWithSupport, clues(fixtureId, result.moveReview))
+      assertEquals(result.moveReview.quietSupportLifted, true, clues(fixtureId, result.moveReview))
+      assert(result.moveReview.supportText.exists(_.toLowerCase.contains("available")), clues(fixtureId, result.moveReview))
+      assertEquals(result.moveReview.slots.paragraphPlan, List("p1=claim", "p2=support_chain"), clues(fixtureId, result.moveReview.slots))
+      assertNoForbiddenQuietSupport(result.moveReview.supportText.getOrElse(""))
 
     if expectation.chronicleMustBlockQuietSupport then
       assertEquals(result.chronicle.quietSupportApplied, false, clues(fixtureId, result.chronicle))
@@ -599,7 +599,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
     expectation.forbiddenFragments.foreach { fragment =>
       val lowered = fragment.toLowerCase
       List(
-        "bookmaker" -> result.bookmaker.prose,
+        "moveReview" -> result.moveReview.prose,
         "chronicle" -> result.chronicle.narrative.getOrElse(""),
         "active" -> result.active.note.getOrElse("")
       ).foreach { case (surface, text) =>
@@ -636,9 +636,9 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
           ),
         expectation =
           FixtureExpectation(
-            bookmakerOwner = Some(AuthorQuestionKind.WhatChanged -> PlannerOwnerKind.MoveDelta),
+            moveReviewOwner = Some(AuthorQuestionKind.WhatChanged -> PlannerOwnerKind.MoveDelta),
             chronicleOwner = Some(AuthorQuestionKind.WhatChanged -> PlannerOwnerKind.MoveDelta),
-            bookmakerMode = SurfaceMode.PlannerOwned,
+            moveReviewMode = SurfaceMode.PlannerOwned,
             chronicleMode = SurfaceMode.PlannerOwned,
             activeExpectation = ActiveExpectation.MayOmitOrMatch,
             activeOwner = Some(AuthorQuestionKind.WhatChanged -> PlannerOwnerKind.MoveDelta)
@@ -669,9 +669,9 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
           ),
         expectation =
           FixtureExpectation(
-            bookmakerOwner = None,
+            moveReviewOwner = None,
             chronicleOwner = None,
-            bookmakerMode = SurfaceMode.ExactFactualFallback,
+            moveReviewMode = SurfaceMode.ExactFactualFallback,
             chronicleMode = SurfaceMode.ExactFactualFallback,
             activeExpectation = ActiveExpectation.MustOmit
           )
@@ -681,7 +681,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
         scene =
           BookChronicleScene(
             ctx =
-              BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+              MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
                 authorQuestions = Nil,
                 authorEvidence = Nil
               ),
@@ -705,12 +705,12 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
           ),
         expectation =
           FixtureExpectation(
-            bookmakerOwner = None,
+            moveReviewOwner = None,
             chronicleOwner = None,
-            bookmakerMode = SurfaceMode.ExactFactualFallbackWithSupport,
+            moveReviewMode = SurfaceMode.ExactFactualFallbackWithSupport,
             chronicleMode = SurfaceMode.ExactFactualFallback,
             activeExpectation = ActiveExpectation.MustOmit,
-            bookmakerMustLiftQuietSupport = true,
+            moveReviewMustLiftQuietSupport = true,
             chronicleMustBlockQuietSupport = true
           )
       ),
@@ -735,9 +735,9 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
           ),
         expectation =
           FixtureExpectation(
-            bookmakerOwner = None,
+            moveReviewOwner = None,
             chronicleOwner = None,
-            bookmakerMode = SurfaceMode.ExactFactualFallback,
+            moveReviewMode = SurfaceMode.ExactFactualFallback,
             chronicleMode = SurfaceMode.ExactFactualFallback,
             activeExpectation = ActiveExpectation.MustOmit,
             forbiddenFragments = List("pressure on g7", "keep pressure on g7", "mating net")
@@ -778,9 +778,9 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
           ),
         expectation =
           FixtureExpectation(
-            bookmakerOwner = Some(AuthorQuestionKind.WhatMustBeStopped -> PlannerOwnerKind.ForcingDefense),
+            moveReviewOwner = Some(AuthorQuestionKind.WhatMustBeStopped -> PlannerOwnerKind.ForcingDefense),
             chronicleOwner = Some(AuthorQuestionKind.WhatMustBeStopped -> PlannerOwnerKind.ForcingDefense),
-            bookmakerMode = SurfaceMode.PlannerOwned,
+            moveReviewMode = SurfaceMode.PlannerOwned,
             chronicleMode = SurfaceMode.PlannerOwned,
             activeExpectation = ActiveExpectation.MayOmitOrMatch,
             activeOwner = Some(AuthorQuestionKind.WhatMustBeStopped -> PlannerOwnerKind.ForcingDefense)
@@ -814,9 +814,9 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
           ),
         expectation =
           FixtureExpectation(
-            bookmakerOwner = None,
+            moveReviewOwner = None,
             chronicleOwner = None,
-            bookmakerMode = SurfaceMode.ExactFactualFallback,
+            moveReviewMode = SurfaceMode.ExactFactualFallback,
             chronicleMode = SurfaceMode.ExactFactualFallback,
             activeExpectation = ActiveExpectation.MustOmit
           )
@@ -991,19 +991,19 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
   private val negativeFixtures =
     List(
       NegativeFixture(
-        id = "bookmaker_quiet_support_residual_stays_bounded",
+        id = "moveReview_quiet_support_residual_stays_bounded",
         riskClass = RiskClass.SupportOnlyOverreach,
-        surfacesUnderTest = List("Bookmaker", "Chronicle"),
-        mustNotHappen = List("support-only quiet support becomes bookmaker thesis", "chronicle lifts the same support sentence"),
-        allowedResidual = List("Bookmaker may keep one bounded quiet-support sentence", "Chronicle may stay claim-only"),
+        surfacesUnderTest = List("MoveReview", "Chronicle"),
+        mustNotHappen = List("support-only quiet support becomes moveReview thesis", "chronicle lifts the same support sentence"),
+        allowedResidual = List("MoveReview may keep one bounded quiet-support sentence", "Chronicle may stay claim-only"),
         whyItIsDangerous = "Quiet support is the easiest place for support-only carrier to reacquire truth-like force.",
         assertion = () =>
           val result = observe(harnessFixture("quiet_support_residual"))
-          assertEquals(result.bookmaker.mode, SurfaceMode.ExactFactualFallbackWithSupport, clues(result.bookmaker))
-          assertEquals(result.bookmaker.claim, "This puts the rook on c3.", clues(result.bookmaker))
-          assert(result.bookmaker.supportText.exists(_.toLowerCase.contains("available")), clues(result.bookmaker))
-          assertEquals(result.bookmaker.slots.paragraphPlan, List("p1=claim", "p2=support_chain"), clues(result.bookmaker.slots))
-          assertNoForbiddenQuietSupport(result.bookmaker.supportText.getOrElse(""))
+          assertEquals(result.moveReview.mode, SurfaceMode.ExactFactualFallbackWithSupport, clues(result.moveReview))
+          assertEquals(result.moveReview.claim, "This puts the rook on c3.", clues(result.moveReview))
+          assert(result.moveReview.supportText.exists(_.toLowerCase.contains("available")), clues(result.moveReview))
+          assertEquals(result.moveReview.slots.paragraphPlan, List("p1=claim", "p2=support_chain"), clues(result.moveReview.slots))
+          assertNoForbiddenQuietSupport(result.moveReview.supportText.getOrElse(""))
           assertEquals(result.chronicle.mode, SurfaceMode.ExactFactualFallback, clues(result.chronicle))
           assertEquals(result.chronicle.narrative, Some("This puts the rook on c3."), clues(result.chronicle))
           assertEquals(result.chronicle.quietSupportApplied, false, clues(result.chronicle))
@@ -1123,13 +1123,13 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
       NegativeFixture(
         id = "ambiguous_capture_stays_literal",
         riskClass = RiskClass.FallbackRewriteRegression,
-        surfacesUnderTest = List("Bookmaker"),
+        surfacesUnderTest = List("MoveReview"),
         mustNotHappen = List("ambiguous capture regains exchange or simplification thesis"),
         allowedResidual = List("single exact-factual fallback sentence"),
         whyItIsDangerous = "Fallback rewrite drift tends to reintroduce semantic meaning that the engine bundle did not certify.",
         assertion = () =>
           val ctx =
-            BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+            MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
               playedSan = Some("Qx"),
             semantic = None,
             decision = None,
@@ -1163,7 +1163,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
             GameChronicleCompressionPolicy
               .renderWithTrace(
                 ctx =
-                  BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+                  MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
                     authorQuestions = Nil,
                     authorEvidence = Nil
                   ),
@@ -1263,17 +1263,17 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
       NegativeFixture(
         id = "generalized_support_negative_bundle_stays_grounded",
         riskClass = RiskClass.OutOfSceneGeneralization,
-        surfacesUnderTest = List("Bookmaker", "Chronicle", "Active"),
+        surfacesUnderTest = List("MoveReview", "Chronicle", "Active"),
         mustNotHappen = List("generalized support carrier leaks pressure thesis across surfaces"),
-        allowedResidual = List("Bookmaker and Chronicle may fall back to exact factual claim", "Active may omit"),
+        allowedResidual = List("MoveReview and Chronicle may fall back to exact factual claim", "Active may omit"),
         whyItIsDangerous = "Cross-surface drift is how generalized support reappears as if it were canonical truth.",
         assertion = () =>
           val result = observe(harnessFixture("generalized_support_negative"))
-          assertEquals(result.bookmaker.mode, SurfaceMode.ExactFactualFallback, clues(result.bookmaker))
+          assertEquals(result.moveReview.mode, SurfaceMode.ExactFactualFallback, clues(result.moveReview))
           assertEquals(result.chronicle.mode, SurfaceMode.ExactFactualFallback, clues(result.chronicle))
           assertEquals(result.active.mode, SurfaceMode.Omitted, clues(result.active))
           List(
-            result.bookmaker.prose,
+            result.moveReview.prose,
             result.chronicle.narrative.getOrElse(""),
             result.active.note.getOrElse("")
           ).foreach { text =>
@@ -1320,14 +1320,14 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
           assertEquals(support.payoff, None)
       ),
       NegativeFixture(
-        id = "weak_compensation_cannot_revive_bookmaker_thesis",
+        id = "weak_compensation_cannot_revive_moveReview_thesis",
         riskClass = RiskClass.OwnerOrStrengthOverclaim,
-        surfacesUnderTest = List("Bookmaker"),
-        mustNotHappen = List("weak compensation summary becomes bookmaker compensation thesis"),
+        surfacesUnderTest = List("MoveReview"),
+        mustNotHappen = List("weak compensation summary becomes moveReview compensation thesis"),
         allowedResidual = List("exact factual fallback"),
         whyItIsDangerous = "Compensation prose is easy to overclaim because it sounds strategic even when unsupported.",
         assertion = () =>
-          val ctx = BookmakerProseGoldenFixtures.openFileFight.ctx
+          val ctx = MoveReviewProseGoldenFixtures.openFileFight.ctx
           val outline = BookStyleRenderer.validatedOutline(ctx)
           val slots =
             MoveReviewPolishSlotsBuilder.buildOrFallback(
@@ -1564,7 +1564,7 @@ class CrossSurfaceTrustRegressionHarnessTest extends FunSuite:
     }
     assertEquals(
       coveredSurfaces,
-      Set("Bookmaker", "Chronicle", "Active", "Validator", "WholeGame")
+      Set("MoveReview", "Chronicle", "Active", "Validator", "WholeGame")
     )
   }
 

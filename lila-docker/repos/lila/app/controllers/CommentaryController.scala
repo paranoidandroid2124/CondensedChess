@@ -4,7 +4,7 @@ import play.api.mvc._
 import play.api.libs.json._
 import lila.app.{ *, given }
 import lila.commentary.{ AsyncGameAnalysisDurability, CommentRequest, FullAnalysisRequest, GameAnalysisValidationError, CommentaryApi }
-import lila.analyse.ui.BookmakerRenderer
+import lila.analyse.ui.MoveReviewRenderer
 import lila.commentary.model.OpeningReference.given
 
 import scala.concurrent.duration.*
@@ -75,9 +75,9 @@ final class CommentaryController(
       duration = 1.minute
     )
 
-  private val premiumBookmakerBurstLimiter =
+  private val premiumMoveReviewBurstLimiter =
     env.memo.mongoRateLimitApi[String](
-      name = "commentary.request.premium.user.burst.bookmaker",
+      name = "commentary.request.premium.user.burst.moveReview",
       credits = 60,
       duration = 1.minute,
       queueTimeout = 40.seconds
@@ -213,18 +213,18 @@ final class CommentaryController(
             )
       ).toFuccess
 
-  /** Per-ply bookmaker commentary. */
-  def bookmakerPosition = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
+  /** Per-ply moveReview commentary. */
+  def moveReviewPosition = OpenBodyOf(parse.json): (ctx: BodyContext[JsValue]) ?=>
     withPerMoveQuota:
       allowAiPolish =>
         ctx.body.body.validate[CommentRequest].fold(
           errors => BadRequest(JsError.toJson(errors)).toFuccess,
           commentReq =>
-            validatedBookmakerRequest(commentReq).fold(
+            validatedMoveReviewRequest(commentReq).fold(
               err => validationErrorResult(err).toFuccess,
               validReq =>
                 api
-                  .bookmakerCommentPosition(
+                  .moveReviewPosition(
                     fen = validReq.fen,
                     lastMove = validReq.lastMove,
                     eval = validReq.eval,
@@ -243,12 +243,12 @@ final class CommentaryController(
                     allowAiPolish = allowAiPolish,
                     lang = requestLang,
                     planTier = resolvedPlanTier,
-                    commentaryMode = resolvedBookmakerCommentaryMode
+                    commentaryMode = resolvedMoveReviewCommentaryMode
                   )
                   .map {
                     case Some(result) =>
                       val response = result.response
-                      val html = BookmakerRenderer
+                      val html = MoveReviewRenderer
                         .render(
                           commentary = response.commentary,
                           variations = response.variations,
@@ -257,7 +257,7 @@ final class CommentaryController(
                         )
                         .toString
                       val baseJson = Json.obj(
-                        "schema" -> "chesstory.bookmaker.v2",
+                        "schema" -> "chesstory.move_review.v2",
                         "html" -> html,
                         "commentary" -> response.commentary,
                         "variations" -> response.variations,
@@ -348,7 +348,7 @@ final class CommentaryController(
     if resolvedPlanTier == lila.commentary.PlanTier.Pro then lila.commentary.CommentaryMode.Active
     else lila.commentary.CommentaryMode.Polish
 
-  private def resolvedBookmakerCommentaryMode: String =
+  private def resolvedMoveReviewCommentaryMode: String =
     lila.commentary.CommentaryMode.Polish
 
   private def requestLang(using RequestHeader): String =
@@ -365,12 +365,12 @@ final class CommentaryController(
   private def validatedGameChronicleRequest(
       request: FullAnalysisRequest
   ): Either[GameAnalysisValidationError, FullAnalysisRequest] =
-    FullAnalysisRequest.validateGameChronicle(request)
+    FullAnalysisRequest.validateGameReview(request)
 
-  private def validatedBookmakerRequest(
+  private def validatedMoveReviewRequest(
       request: CommentRequest
   ): Either[GameAnalysisValidationError, CommentRequest] =
-    CommentRequest.validateBookmaker(request)
+    CommentRequest.validateMoveReview(request)
 
   private def validationErrorResult(error: GameAnalysisValidationError): Result =
     BadRequest(Json.obj("error" -> error.code, "msg" -> error.message))
@@ -405,9 +405,9 @@ final class CommentaryController(
       limitedMsg = "Too many requests. Please slow down."
     )(op)
 
-  private def withPremiumBookmakerBurstQuota(key: String, msg: String)(op: => Fu[Result]): Fu[Result] =
+  private def withPremiumMoveReviewBurstQuota(key: String, msg: String)(op: => Fu[Result]): Fu[Result] =
     withHardQuota(
-      limiter = premiumBookmakerBurstLimiter,
+      limiter = premiumMoveReviewBurstLimiter,
       key = key,
       msg = msg,
       limitedMsg = "Too many commentary requests. Please wait a moment and try again."
@@ -456,7 +456,7 @@ final class CommentaryController(
 
   private def withPerMoveQuota(op: Boolean => Fu[Result])(using ctx: Context): Fu[Result] =
     if hasPremiumExperience then
-      withPremiumBookmakerBurstQuota(userRequesterKey, "commentary.move.premium.burst"):
+      withPremiumMoveReviewBurstQuota(userRequesterKey, "commentary.move.premium.burst"):
         withPremiumSoftAiQuota(
           limiter = premiumPerMoveRollingLimiter,
           key = userRequesterKey,

@@ -12,7 +12,7 @@ object CommentaryQualityRunner:
   import CommentaryQualityQuietSupport.*
 
   final case class Config(
-      bookmakerPath: Path = DefaultBookmakerRunDir.resolve("bookmaker_outputs.jsonl"),
+      moveReviewPath: Path = DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl"),
       surfaceEntriesPath: Path = DefaultReportDir.resolve("planner_surface_entries.jsonl"),
       parityJsonPath: Path = DefaultReportDir.resolve("commentary_quality_same_ply_parity_report.json"),
       parityMarkdownPath: Path = DefaultReportDir.resolve("commentary_quality_same_ply_parity_report.md"),
@@ -30,11 +30,11 @@ object CommentaryQualityRunner:
 
   def main(args: Array[String]): Unit =
     val config = parseConfig(args.toList)
-    val bookmakerEntries =
-      readJsonLines[BookmakerOutputEntry](config.bookmakerPath) match
+    val moveReviewEntries =
+      readJsonLines[MoveReviewOutputEntry](config.moveReviewPath) match
         case Right(value) => value
         case Left(err) =>
-          System.err.println(s"[quality] failed to read bookmaker outputs `${config.bookmakerPath}`: $err")
+          System.err.println(s"[quality] failed to read moveReview outputs `${config.moveReviewPath}`: $err")
           sys.exit(1)
 
     val surfaceEntries =
@@ -45,14 +45,14 @@ object CommentaryQualityRunner:
           sys.exit(1)
 
     val paritySnapshots =
-      bookmakerEntries.map(bookmakerParitySnapshot) ++
+      moveReviewEntries.map(moveReviewParitySnapshot) ++
         surfaceEntries.flatMap(entry => List(chronicleParitySnapshot(entry), activeParitySnapshot(entry)))
     val parityReport = buildSamePlyParityReport(paritySnapshots)
     writeJson(config.parityJsonPath, Json.toJson(parityReport))
     writeText(config.parityMarkdownPath, renderSamePlyParityMarkdown(parityReport))
 
     val (records, summaries) =
-      buildRealEvaluationSeedSlice(bookmakerEntries, parityReport) match
+      buildRealEvaluationSeedSlice(moveReviewEntries, parityReport) match
         case Right(value) => value
         case Left(err) =>
           System.err.println(s"[quality] failed to build real evaluation seed shard: $err")
@@ -72,15 +72,15 @@ object CommentaryQualityRunner:
     writeText(config.judgePromptPath, judgePrompt)
 
     val surfaceThresholdReport =
-      buildSurfaceThresholdReport(bookmakerEntries, surfaceEntries, parityReport)
+      buildSurfaceThresholdReport(moveReviewEntries, surfaceEntries, parityReport)
     writeJsonLines(config.surfaceThresholdRowsPath, surfaceThresholdReport.rows)
     writeJson(config.surfaceThresholdSummaryPath, Json.toJson(surfaceThresholdReport.summary))
     writeText(config.surfaceThresholdMarkdownPath, renderSurfaceThresholdMarkdown(surfaceThresholdReport))
 
     val quietSupportReport =
       buildQuietRichReport(
-        bookmakerEntries = bookmakerEntries,
-        realShardSource = config.bookmakerPath.toString
+        moveReviewEntries = moveReviewEntries,
+        realShardSource = config.moveReviewPath.toString
       )
     writeJsonLines(config.quietSupportRowsPath, quietSupportReport.rows)
     writeJson(config.quietSupportReportPath, Json.toJson(quietSupportReport))
@@ -93,7 +93,7 @@ object CommentaryQualityRunner:
   private def parseConfig(args: List[String]): Config =
     val positional = positionalArgs(args)
     Config(
-      bookmakerPath = positional.headOption.map(Paths.get(_)).getOrElse(DefaultBookmakerRunDir.resolve("bookmaker_outputs.jsonl")),
+      moveReviewPath = positional.headOption.map(Paths.get(_)).getOrElse(DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl")),
       surfaceEntriesPath = positional.lift(1).map(Paths.get(_)).getOrElse(DefaultReportDir.resolve("planner_surface_entries.jsonl")),
       parityJsonPath = positional.lift(2).map(Paths.get(_)).getOrElse(DefaultReportDir.resolve("commentary_quality_same_ply_parity_report.json")),
       parityMarkdownPath = positional.lift(3).map(Paths.get(_)).getOrElse(DefaultReportDir.resolve("commentary_quality_same_ply_parity_report.md")),

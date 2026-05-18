@@ -6,7 +6,7 @@ export type EvalData = {
   pv: string[] | null;
 };
 
-type BuildBookmakerRequestInput = {
+type BuildMoveReviewRequestInput = {
   fen: string;
   lastMove: string | null;
   variations: EvalVariation[] | null;
@@ -58,7 +58,7 @@ export function deriveAfterVariations(
   ];
 }
 
-export function buildBookmakerRequest(input: BuildBookmakerRequestInput) {
+export function buildMoveReviewRequest(input: BuildMoveReviewRequestInput) {
   const { fen, lastMove, variations, probeResults, openingData, afterFen, afterVariations, phase, ply, variant, planStateToken, endgameStateToken } = input;
   return {
     fen,

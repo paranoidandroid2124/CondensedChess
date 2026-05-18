@@ -45,17 +45,17 @@ class CommentaryQualitySupportTest extends FunSuite:
     val report =
       buildSamePlyParityReport(
         List(
-          paritySurface("g1", 10, SurfaceName.Bookmaker, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b1")),
+          paritySurface("g1", 10, SurfaceName.MoveReview, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b1")),
           paritySurface("g1", 10, SurfaceName.Chronicle, snapshot = Some("s2"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b2")),
-          paritySurface("g2", 20, SurfaceName.Bookmaker, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b1")),
+          paritySurface("g2", 20, SurfaceName.MoveReview, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b1")),
           paritySurface("g2", 20, SurfaceName.Active, snapshot = Some("s1"), carry = Some("c2"), augmentation = Some("a1"), bundle = Some("b2")),
-          paritySurface("g3", 30, SurfaceName.Bookmaker, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b1")),
+          paritySurface("g3", 30, SurfaceName.MoveReview, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b1")),
           paritySurface("g3", 30, SurfaceName.Active, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a2"), bundle = Some("b2")),
-          paritySurface("g4", 40, SurfaceName.Bookmaker, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b1")),
+          paritySurface("g4", 40, SurfaceName.MoveReview, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b1")),
           paritySurface("g4", 40, SurfaceName.Chronicle, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b1"), question = Some("WhatChanged")),
-          paritySurface("g5", 50, SurfaceName.Bookmaker, bundle = None),
+          paritySurface("g5", 50, SurfaceName.MoveReview, bundle = None),
           paritySurface("g5", 50, SurfaceName.Active, bundle = Some("b2")),
-          paritySurface("g6", 60, SurfaceName.Bookmaker, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b1")),
+          paritySurface("g6", 60, SurfaceName.MoveReview, snapshot = Some("s1"), carry = Some("c1"), augmentation = Some("a1"), bundle = Some("b1")),
           paritySurface("g6", 60, SurfaceName.Active, snapshot = Some("s2"), carry = Some("c2"), augmentation = Some("a1"), bundle = Some("b2"))
         )
       )
@@ -117,7 +117,7 @@ class CommentaryQualitySupportTest extends FunSuite:
     )
   }
 
-  test("active omitted-no-primary against bookmaker exact factual is an allowed surface-only augmentation") {
+  test("active omitted-no-primary against moveReview exact factual is an allowed surface-only augmentation") {
     val report =
       buildSamePlyParityReport(
         List(
@@ -137,7 +137,7 @@ class CommentaryQualitySupportTest extends FunSuite:
           paritySurface(
             "g7b",
             71,
-            SurfaceName.Bookmaker,
+            SurfaceName.MoveReview,
             snapshot = Some("s1"),
             carry = Some("c1"),
             augmentation = None,
@@ -145,7 +145,7 @@ class CommentaryQualitySupportTest extends FunSuite:
             question = None,
             proofFamily = None,
             proofSource = None,
-            replayOutcome = Some("bookmaker_exact_factual")
+            replayOutcome = Some("move_review_exact_factual")
           )
         )
       )
@@ -154,12 +154,12 @@ class CommentaryQualitySupportTest extends FunSuite:
     assertEquals(mismatch.taxonomy, MismatchTaxonomy.SurfaceOnlyAugmentation)
     assertEquals(
       mismatch.allowanceTag,
-      Some(SurfaceOnlyAugmentationAllowance.ActiveNoPrimaryAgainstBookmakerExactFactual)
+      Some(SurfaceOnlyAugmentationAllowance.ActiveNoPrimaryAgainstMoveReviewExactFactual)
     )
     assert(mismatch.allowedByDesign, clues(mismatch))
     assertEquals(
       report.summary.surfaceOnlyAugmentationAllowanceCounts,
-      Map(SurfaceOnlyAugmentationAllowance.ActiveNoPrimaryAgainstBookmakerExactFactual -> 1)
+      Map(SurfaceOnlyAugmentationAllowance.ActiveNoPrimaryAgainstMoveReviewExactFactual -> 1)
     )
   }
 
@@ -196,7 +196,7 @@ class CommentaryQualitySupportTest extends FunSuite:
           paritySurface(
             "g8",
             80,
-            SurfaceName.Bookmaker,
+            SurfaceName.MoveReview,
             snapshot = Some("s2"),
             carry = Some("c1"),
             augmentation = Some("a1"),
@@ -204,7 +204,7 @@ class CommentaryQualitySupportTest extends FunSuite:
             question = Some("WhyThis"),
             proofFamily = Some("TacticalFailure"),
             proofSource = Some("forcing_contract"),
-            replayOutcome = Some("bookmaker_planner_owned")
+            replayOutcome = Some("move_review_planner_owned")
           )
         )
       )
@@ -229,10 +229,10 @@ class CommentaryQualitySupportTest extends FunSuite:
           paritySurface(
             "g9",
             90,
-            SurfaceName.Bookmaker,
+            SurfaceName.MoveReview,
             augmentation = None,
             bundle = Some("b1"),
-            replayOutcome = Some("bookmaker_planner_owned")
+            replayOutcome = Some("move_review_planner_owned")
           ),
           paritySurface(
             "g9",
@@ -246,19 +246,19 @@ class CommentaryQualitySupportTest extends FunSuite:
       )
 
     val row = report.rows.headOption.getOrElse(fail("missing parity row"))
-    val activeBookmaker =
-      row.pairwiseMismatches.find(m => m.leftSurface == SurfaceName.Active && m.rightSurface == SurfaceName.Bookmaker)
-        .getOrElse(fail("missing active/bookmaker mismatch"))
+    val activeMoveReview =
+      row.pairwiseMismatches.find(m => m.leftSurface == SurfaceName.Active && m.rightSurface == SurfaceName.MoveReview)
+        .getOrElse(fail("missing active/moveReview mismatch"))
     val activeChronicle =
       row.pairwiseMismatches.find(m => m.leftSurface == SurfaceName.Active && m.rightSurface == SurfaceName.Chronicle)
         .getOrElse(fail("missing active/chronicle mismatch"))
 
-    assertEquals(activeBookmaker.taxonomy, MismatchTaxonomy.SurfaceOnlyAugmentation)
+    assertEquals(activeMoveReview.taxonomy, MismatchTaxonomy.SurfaceOnlyAugmentation)
     assertEquals(
-      activeBookmaker.allowanceTag,
+      activeMoveReview.allowanceTag,
       Some(SurfaceOnlyAugmentationAllowance.ActiveOmittedAfterPrimaryAgainstPlannerOwned)
     )
-    assert(activeBookmaker.allowedByDesign, clues(activeBookmaker))
+    assert(activeMoveReview.allowedByDesign, clues(activeMoveReview))
     assertEquals(
       activeChronicle.allowanceTag,
       Some(SurfaceOnlyAugmentationAllowance.ActiveOmittedAfterPrimaryAgainstPlannerOwned)
@@ -268,15 +268,15 @@ class CommentaryQualitySupportTest extends FunSuite:
     assertEquals(row.primaryLayer, MismatchLayer.Upstream)
   }
 
-  test("bookmaker planner-owned and chronicle planner-owned normalize to the same replay outcome") {
+  test("moveReview planner-owned and chronicle planner-owned normalize to the same replay outcome") {
     val report =
       buildSamePlyParityReport(
         List(
           paritySurface(
             "g10",
             100,
-            SurfaceName.Bookmaker,
-            replayOutcome = Some("bookmaker_planner_owned")
+            SurfaceName.MoveReview,
+            replayOutcome = Some("move_review_planner_owned")
           ),
           paritySurface(
             "g10",
@@ -291,18 +291,18 @@ class CommentaryQualitySupportTest extends FunSuite:
     assertEquals(report.rows, Nil)
   }
 
-  test("bookmaker exact factual and chronicle factual fallback normalize to the same replay outcome") {
+  test("moveReview exact factual and chronicle factual fallback normalize to the same replay outcome") {
     val report =
       buildSamePlyParityReport(
         List(
           paritySurface(
             "g10b",
             101,
-            SurfaceName.Bookmaker,
+            SurfaceName.MoveReview,
             question = None,
             proofFamily = None,
             proofSource = None,
-            replayOutcome = Some("bookmaker_exact_factual")
+            replayOutcome = Some("move_review_exact_factual")
           ),
           paritySurface(
             "g10b",
@@ -351,9 +351,9 @@ class CommentaryQualitySupportTest extends FunSuite:
   test("selector blocks usefulness credit when move attribution fails") {
     val (records, _) = buildRealEvaluationSeedSlice(
       List(
-        CommentaryPlayerQcSupport.BookmakerOutputEntry(
+        CommentaryPlayerQcSupport.MoveReviewOutputEntry(
           sampleId =
-            "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:strategic_choice:14:bookmaker",
+            "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:strategic_choice:14:moveReview",
           gameKey = "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67",
           sliceKind = "strategic_choice",
           targetPly = 14,
@@ -369,11 +369,11 @@ class CommentaryQualitySupportTest extends FunSuite:
           rawResponsePath = "raw",
           variationCount = 1,
           cacheHit = false,
-          bookmakerBundleDigestHash = Some("b1")
+          moveReviewBundleDigestHash = Some("b1")
         ),
-        CommentaryPlayerQcSupport.BookmakerOutputEntry(
+        CommentaryPlayerQcSupport.MoveReviewOutputEntry(
           sampleId =
-            "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:practical_simplification:20:bookmaker",
+            "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:practical_simplification:20:moveReview",
           gameKey = "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67",
           sliceKind = "practical_simplification",
           targetPly = 20,
@@ -389,11 +389,11 @@ class CommentaryQualitySupportTest extends FunSuite:
           rawResponsePath = "raw",
           variationCount = 1,
           cacheHit = false,
-          bookmakerBundleDigestHash = Some("b2")
+          moveReviewBundleDigestHash = Some("b2")
         ),
-        CommentaryPlayerQcSupport.BookmakerOutputEntry(
+        CommentaryPlayerQcSupport.MoveReviewOutputEntry(
           sampleId =
-            "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:long_structural_squeeze:54:bookmaker",
+            "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67:long_structural_squeeze:54:moveReview",
           gameKey = "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67",
           sliceKind = "long_structural_squeeze",
           targetPly = 54,
@@ -409,7 +409,7 @@ class CommentaryQualitySupportTest extends FunSuite:
           rawResponsePath = "raw",
           variationCount = 1,
           cacheHit = false,
-          bookmakerBundleDigestHash = Some("b3")
+          moveReviewBundleDigestHash = Some("b3")
         )
       ),
       buildSamePlyParityReport(
@@ -417,19 +417,19 @@ class CommentaryQualitySupportTest extends FunSuite:
           paritySurface(
             "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67",
             14,
-            SurfaceName.Bookmaker,
+            SurfaceName.MoveReview,
             sliceKind = "strategic_choice"
           ),
           paritySurface(
             "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67",
             20,
-            SurfaceName.Bookmaker,
+            SurfaceName.MoveReview,
             sliceKind = "practical_simplification"
           ),
           paritySurface(
             "2024_03_03_4_1_bochnicka_vladimir_krivoborodov_egor_lichess_broadcast_master_classical_67",
             54,
-            SurfaceName.Bookmaker,
+            SurfaceName.MoveReview,
             sliceKind = "long_structural_squeeze"
           )
         )
@@ -438,7 +438,7 @@ class CommentaryQualitySupportTest extends FunSuite:
 
     val gatedAfter =
       records.find(record =>
-        record.sampleId.endsWith("practical_simplification:20:bookmaker") && record.candidateLabel == "after"
+        record.sampleId.endsWith("practical_simplification:20:moveReview") && record.candidateLabel == "after"
       ).getOrElse(fail("missing gated after row"))
 
     assert(!gatedAfter.selection.moveAttributionGatePassed, clues(gatedAfter))

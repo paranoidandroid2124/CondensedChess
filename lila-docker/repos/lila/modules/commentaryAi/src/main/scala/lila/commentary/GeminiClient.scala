@@ -45,7 +45,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       tension: Option[Double] = None,
       salience: Option[lila.commentary.model.strategic.StrategicSalience] = None,
       momentType: Option[String] = None,
-      bookmakerSlots: Option[MoveReviewPolishSlots] = None
+      moveReviewSlots: Option[MoveReviewPolishSlots] = None
   ): Future[Option[String]] =
     if !config.enabled then Future.successful(None)
     else if prose.isBlank then Future.successful(None)
@@ -61,7 +61,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         tension = tension,
         salience = salience,
         momentType = momentType,
-        bookmakerSlots = bookmakerSlots
+        moveReviewSlots = moveReviewSlots
       )
       callWithSystemPrompt(userPrompt)
         .recover { case e: Throwable =>
@@ -79,7 +79,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
       fen: String,
       openingName: Option[String] = None,
       allowedSans: List[String] = Nil,
-      bookmakerSlots: Option[MoveReviewPolishSlots] = None
+      moveReviewSlots: Option[MoveReviewPolishSlots] = None
   ): Future[Option[String]] =
     if !config.enabled then Future.successful(None)
     else if originalProse.isBlank || rejectedPolish.isBlank then Future.successful(None)
@@ -93,7 +93,7 @@ final class GeminiClient(ws: StandaloneWSClient, config: GeminiConfig)(using Exe
         fen = fen,
         openingName = openingName,
         allowedSans = allowedSans,
-        bookmakerSlots = bookmakerSlots
+        moveReviewSlots = moveReviewSlots
       )
       callWithSystemPrompt(repairPrompt)
         .recover { case e: Throwable =>

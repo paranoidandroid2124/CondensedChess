@@ -54,7 +54,7 @@ OPENAI_MODEL_ASYNC=gpt-5-mini
 OPENAI_MODEL_PRO_SYNC=gpt-5.2
 OPENAI_MODEL_PRO_FALLBACK=gpt-5-mini
 OPENAI_MODEL_PRO_ASYNC=gpt-5.2
-OPENAI_PROMPT_CACHE_KEY_PREFIX=bookmaker:polish:v1
+OPENAI_PROMPT_CACHE_KEY_PREFIX=moveReview:polish:v1
 OPENAI_MAX_OUTPUT_TOKENS=256
 
 # Optional Gemini fallback
@@ -117,7 +117,7 @@ modules/llm/           # AI Commentary Engine
 
 ui/analyse/            # Analysis Board UI
 ├── src/narrative/     # Narrative display components
-└── src/bookmaker.ts   # Story generation orchestration
+└── src/moveReview.ts   # Story generation orchestration
 ```
 
 ## License

@@ -34,8 +34,6 @@ export type MoveReviewRefsV1 = {
   variations: VariationRefV1[];
 };
 
-export type BookmakerRefsV1 = MoveReviewRefsV1;
-
 export type MoveReviewShortLineV1 = {
   san: string[];
   uci: string[];
@@ -109,7 +107,7 @@ export type {
   StrategicIdeaKind,
 } from '../chesstory/signalTypes';
 
-export type BookmakerLedgerLineV1 = {
+export type MoveReviewLedgerLineV1 = {
   title: string;
   sanMoves: string[];
   scoreCp?: number | null;
@@ -118,8 +116,8 @@ export type BookmakerLedgerLineV1 = {
   source: 'probe' | 'decision_compare' | 'variation' | 'authoring';
 };
 
-export type BookmakerStrategicLedgerV1 = {
-  schema: 'chesstory.bookmaker.ledger.v1';
+export type MoveReviewStrategicLedgerV1 = {
+  schema: 'chesstory.move_review.ledger.v1';
   motifKey: string;
   motifLabel: string;
   stageKey: string;
@@ -128,8 +126,8 @@ export type BookmakerStrategicLedgerV1 = {
   stageReason?: string | null;
   prerequisites: string[];
   conversionTrigger?: string | null;
-  primaryLine?: BookmakerLedgerLineV1 | null;
-  resourceLine?: BookmakerLedgerLineV1 | null;
+  primaryLine?: MoveReviewLedgerLineV1 | null;
+  resourceLine?: MoveReviewLedgerLineV1 | null;
 };
 
 export type StrategyPieceRouteV1 = {
@@ -193,16 +191,16 @@ export type StrategyPackV1 = {
   signalDigest?: NarrativeSignalDigest | null;
 };
 
-export type DecodedBookmakerResponse = {
+export type DecodedMoveReviewResponse = {
   html: string;
   commentary: string;
   sourceMode: string | null;
   model: string | null;
   cacheHit: boolean | null;
-  refs: BookmakerRefsV1 | null;
+  refs: MoveReviewRefsV1 | null;
   polishMeta: PolishMetaV1 | null;
   moveReviewExplanation: MoveReviewExplanationV1 | null;
-  bookmakerLedger: BookmakerStrategicLedgerV1 | null;
+  moveReviewLedger: MoveReviewStrategicLedgerV1 | null;
   strategyPack: StrategyPackV1 | null;
   signalDigest: NarrativeSignalDigest | null;
   mainStrategicPlans: PlanHypothesis[];
@@ -214,7 +212,7 @@ export type DecodedBookmakerResponse = {
   endgameStateToken: EndgameStateToken | null;
 };
 
-type DecodeBookmakerResponseFallbacks = {
+type DecodeMoveReviewResponseFallbacks = {
   html?: string;
   commentary?: string;
   probeRequests?: ProbeRequest[];
@@ -237,7 +235,7 @@ export type MaybeResponse = {
   model?: unknown;
   cacheHit?: unknown;
   signalDigest?: unknown;
-  bookmakerLedger?: unknown;
+  moveReviewLedger?: unknown;
   moveReviewExplanation?: unknown;
   strategyPack?: unknown;
   refs?: unknown;
@@ -343,10 +341,10 @@ function fallbackList<T>(primary: T[], fallback?: T[]): T[] {
   return primary.length ? primary : fallback || [];
 }
 
-export function decodeBookmakerResponse(
+export function decodeMoveReviewResponse(
   data: MaybeResponse,
-  fallbacks: DecodeBookmakerResponseFallbacks = {},
-): DecodedBookmakerResponse {
+  fallbacks: DecodeMoveReviewResponseFallbacks = {},
+): DecodedMoveReviewResponse {
   return {
     html: htmlFromResponse(data, fallbacks.html || ''),
     commentary: commentaryFromResponse(data, fallbacks.commentary || ''),
@@ -356,7 +354,7 @@ export function decodeBookmakerResponse(
     refs: refsFromResponse(data),
     polishMeta: polishMetaFromResponse(data),
     moveReviewExplanation: moveReviewExplanationFromResponse(data),
-    bookmakerLedger: bookmakerLedgerFromResponse(data),
+    moveReviewLedger: moveReviewLedgerFromResponse(data),
     strategyPack: strategyPackFromResponse(data),
     signalDigest: signalDigestFromResponse(data),
     mainStrategicPlans: mainStrategicPlansFromResponse(data),
@@ -434,7 +432,7 @@ export function moveReviewExplanationFromResponse(data: MaybeResponse): MoveRevi
   };
 }
 
-function ledgerLineFromUnknown(raw: unknown): BookmakerLedgerLineV1 | null {
+function ledgerLineFromUnknown(raw: unknown): MoveReviewLedgerLineV1 | null {
   if (!isRecord(raw)) return null;
   if (typeof raw.title !== 'string' || typeof raw.source !== 'string' || !Array.isArray(raw.sanMoves)) return null;
   const sanMoves = raw.sanMoves.filter((value): value is string => typeof value === 'string');
@@ -446,14 +444,14 @@ function ledgerLineFromUnknown(raw: unknown): BookmakerLedgerLineV1 | null {
     scoreCp: typeof raw.scoreCp === 'number' ? raw.scoreCp : null,
     mate: typeof raw.mate === 'number' ? raw.mate : null,
     note: typeof raw.note === 'string' ? raw.note : null,
-    source: raw.source as BookmakerLedgerLineV1['source'],
+    source: raw.source as MoveReviewLedgerLineV1['source'],
   };
 }
 
-export function bookmakerLedgerFromResponse(data: MaybeResponse): BookmakerStrategicLedgerV1 | null {
-  const raw = data?.bookmakerLedger;
+export function moveReviewLedgerFromResponse(data: MaybeResponse): MoveReviewStrategicLedgerV1 | null {
+  const raw = data?.moveReviewLedger;
   if (!isRecord(raw)) return null;
-  if (raw.schema !== 'chesstory.bookmaker.ledger.v1') return null;
+  if (raw.schema !== 'chesstory.move_review.ledger.v1') return null;
   if (
     typeof raw.motifKey !== 'string' ||
     typeof raw.motifLabel !== 'string' ||
@@ -470,7 +468,7 @@ export function bookmakerLedgerFromResponse(data: MaybeResponse): BookmakerStrat
   if (raw.primaryLine != null && !primaryLine) return null;
   if (raw.resourceLine != null && !resourceLine) return null;
   return {
-    schema: 'chesstory.bookmaker.ledger.v1',
+    schema: 'chesstory.move_review.ledger.v1',
     motifKey: raw.motifKey,
     motifLabel: raw.motifLabel,
     stageKey: raw.stageKey,
@@ -484,7 +482,7 @@ export function bookmakerLedgerFromResponse(data: MaybeResponse): BookmakerStrat
   };
 }
 
-export function refsFromResponse(data: MaybeResponse): BookmakerRefsV1 | null {
+export function refsFromResponse(data: MaybeResponse): MoveReviewRefsV1 | null {
   const raw = data?.refs;
   if (!isRecord(raw)) return null;
   if (raw.schema !== 'chesstory.refs.v1') return null;

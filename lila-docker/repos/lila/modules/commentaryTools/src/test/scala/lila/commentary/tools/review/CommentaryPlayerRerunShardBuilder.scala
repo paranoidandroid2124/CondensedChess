@@ -85,7 +85,7 @@ object CommentaryPlayerRerunShardBuilder:
     writeText(config.outDir.resolve("shard_plan.json"), Json.prettyPrint(Json.toJson(plan)) + "\n")
     if config.writeScripts then
       writeText(config.outDir.resolve("run_real_pgn_shards.ps1"), renderRealPgnScript(shardMetas))
-      writeText(config.outDir.resolve("run_bookmaker_shards.ps1"), renderBookmakerScript(shardMetas))
+      writeText(config.outDir.resolve("run_move_review_shards.ps1"), renderMoveReviewScript(shardMetas))
       writeText(config.outDir.resolve("run_review_queue_shards.ps1"), renderReviewQueueScript(shardMetas))
       writeText(config.outDir.resolve("merge_real_pgn_reports.ps1"), renderMergeScript(config.outDir))
     println(
@@ -152,20 +152,20 @@ object CommentaryPlayerRerunShardBuilder:
         s"""sbt 'commentaryTools/test:runMain lila.commentary.tools.realpgn.RealPgnNarrativeEvalRunner ${quoteSbtArg(shard.corpusPath)} ${quoteSbtArg(reportMd)} ${quoteSbtArg(reportJson)} ${quoteSbtArg(rawDir)} --depth 10 --multi-pv 3'"""
     }
 
-  private def renderBookmakerScript(shards: List[ShardMeta]): String =
-    renderScript(shards, "run shard bookmaker outputs") { shard =>
-      val outPath = s"${shard.runDir}\\bookmaker_outputs.jsonl"
-      val rawDir = s"${shard.runDir}\\bookmaker_raw"
-        s"""sbt 'commentaryTools/test:runMain lila.commentary.tools.bookmaker.BookmakerCorpusRunner ${quoteSbtArg(shard.manifestPath)} ${quoteSbtArg(outPath)} ${quoteSbtArg(rawDir)} --depth 10 --multi-pv 3'"""
+  private def renderMoveReviewScript(shards: List[ShardMeta]): String =
+    renderScript(shards, "run shard moveReview outputs") { shard =>
+      val outPath = s"${shard.runDir}\\move_review_outputs.jsonl"
+      val rawDir = s"${shard.runDir}\\move_review_raw"
+        s"""sbt 'commentaryTools/test:runMain lila.commentary.tools.moveReview.MoveReviewCorpusRunner ${quoteSbtArg(shard.manifestPath)} ${quoteSbtArg(outPath)} ${quoteSbtArg(rawDir)} --depth 10 --multi-pv 3'"""
     }
 
   private def renderReviewQueueScript(shards: List[ShardMeta]): String =
     renderScript(shards, "build shard review queue") { shard =>
-      val bookmakerPath = s"${shard.runDir}\\bookmaker_outputs.jsonl"
+      val moveReviewPath = s"${shard.runDir}\\move_review_outputs.jsonl"
       val chronicleReport = s"${shard.runDir}\\report.json"
       val queuePath = s"${shard.runDir}\\review_queue.jsonl"
       val summaryPath = s"${shard.runDir}\\review_queue_summary.json"
-        s"""sbt 'commentaryTools/test:runMain lila.commentary.tools.review.CommentaryPlayerReviewQueueBuilder ${quoteSbtArg(shard.manifestPath)} ${quoteSbtArg(bookmakerPath)} ${quoteSbtArg(chronicleReport)} ${quoteSbtArg(queuePath)} ${quoteSbtArg(summaryPath)}'"""
+        s"""sbt 'commentaryTools/test:runMain lila.commentary.tools.review.CommentaryPlayerReviewQueueBuilder ${quoteSbtArg(shard.manifestPath)} ${quoteSbtArg(moveReviewPath)} ${quoteSbtArg(chronicleReport)} ${quoteSbtArg(queuePath)} ${quoteSbtArg(summaryPath)}'"""
     }
 
   private def renderMergeScript(outDir: Path): String =

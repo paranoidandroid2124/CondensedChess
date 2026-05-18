@@ -24,7 +24,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
     )
 
   private def partsFor(
-      fixture: BookmakerProseGoldenFixtures.PlannerRuntimeFixture,
+      fixture: MoveReviewProseGoldenFixtures.PlannerRuntimeFixture,
       extraBeats: List[OutlineBeat] = Nil
   ) =
     emptyParts.copy(
@@ -41,7 +41,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
         )
     )
 
-  private def render(fixture: BookmakerProseGoldenFixtures.PlannerRuntimeFixture) =
+  private def render(fixture: MoveReviewProseGoldenFixtures.PlannerRuntimeFixture) =
     GameChronicleCompressionPolicy.render(
       ctx = fixture.ctx,
       parts = partsFor(fixture),
@@ -145,7 +145,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
     )
 
   private def renderPlanSurface(
-      fixture: BookmakerProseGoldenFixtures.PlannerRuntimeFixture,
+      fixture: MoveReviewProseGoldenFixtures.PlannerRuntimeFixture,
       primary: QuestionPlan,
       secondary: Option[QuestionPlan] = None,
       quietTrace: QuietStrategicSupportComposer.QuietStrategicSupportTrace = quietSupportTrace(
@@ -165,7 +165,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
 
   test("chronicle positive planner fixtures surface planner-owned claims") {
     val positives =
-      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.filter(_.expectation == BookmakerProseGoldenFixtures.PlannerFixtureExpectation.Positive)
+      MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.filter(_.expectation == MoveReviewProseGoldenFixtures.PlannerFixtureExpectation.Positive)
 
     positives.foreach { fixture =>
       val rendered = render(fixture).getOrElse(fail(s"expected chronicle render for ${fixture.id}"))
@@ -180,7 +180,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
 
   test("chronicle negative and fallback fixtures fail closed to compact factual prose") {
     val failClosed =
-      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.filter(fixture =>
+      MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.filter(fixture =>
         fixture.expectedPrimaryKind.isEmpty && fixture.expectedFallbackClaim.nonEmpty
       )
 
@@ -192,7 +192,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
 
   test("chronicle can surface a safe top-2 swap when race framing demotes to stopping counterplay") {
     val fixture =
-      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "whose_plan_is_faster_negative")
+      MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "whose_plan_is_faster_negative")
         .getOrElse(fail("missing race-negative fixture"))
 
     val rendered = render(fixture).getOrElse(fail("expected chronicle render"))
@@ -203,7 +203,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
 
   test("chronicle surfaces certified race framing only with supporting sentence material") {
     val fixture =
-      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "whose_plan_is_faster_positive")
+      MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "whose_plan_is_faster_positive")
         .getOrElse(fail("missing race-positive fixture"))
 
     val rendered = render(fixture).getOrElse(fail("expected race chronicle render"))
@@ -215,7 +215,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
 
   test("chronicle only uses branch-scoped evidence when the cited line is anchored") {
     val fixture =
-      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
+      MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
         .getOrElse(fail("missing what-changed fixture"))
     val branchyParts =
       partsFor(
@@ -241,7 +241,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
 
   test("chronicle omits instead of salvaging raw bundle prose when there is no admitted plan or factual fallback") {
     val fixture =
-      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "why_this_negative")
+      MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "why_this_negative")
         .getOrElse(fail("missing negative fixture"))
     val noFallbackCtx =
       fixture.ctx.copy(
@@ -337,7 +337,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
 
   test("chronicle attaches quiet support only for claim-only MoveDelta pv_delta replay rows") {
     val fixture =
-      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
+      MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
         .getOrElse(fail("missing what-changed fixture"))
     val artifact =
       renderPlanSurface(
@@ -360,7 +360,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
 
   test("chronicle factual fallback stays claim-only even when quiet support is available") {
     val ctx =
-      BookmakerProseGoldenFixtures.openFileFight.ctx.copy(
+      MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         authorQuestions = Nil,
         authorEvidence = Nil
       )
@@ -395,7 +395,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
 
   test("chronicle does not add quiet support when planner support is already present") {
     val fixture =
-      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
+      MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
         .getOrElse(fail("missing what-changed fixture"))
     val artifact =
       renderPlanSurface(
@@ -421,7 +421,7 @@ class GameChronicleCompressionPolicyTest extends FunSuite:
 
   test("chronicle does not reinterpret non-MoveDelta rows as quiet support scenes") {
     val fixture =
-      BookmakerProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
+      MoveReviewProseGoldenFixtures.plannerRuntimeFixtures.find(_.id == "what_changed_positive")
         .getOrElse(fail("missing what-changed fixture"))
     val artifact =
       renderPlanSurface(

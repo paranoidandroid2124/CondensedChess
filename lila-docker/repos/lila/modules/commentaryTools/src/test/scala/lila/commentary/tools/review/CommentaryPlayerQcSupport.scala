@@ -26,7 +26,7 @@ object CommentaryPlayerQcSupport:
   val DefaultRawPgnDir: Path = ExternalRoot.resolve("raw-pgn")
   val DefaultCatalogDir: Path = ExternalRoot.resolve("catalog")
   val DefaultManifestDir: Path = ExternalRoot.resolve("manifests")
-  val DefaultBookmakerRunDir: Path = ExternalRoot.resolve("runs").resolve("bookmaker")
+  val DefaultMoveReviewRunDir: Path = ExternalRoot.resolve("runs").resolve("move_review")
   val DefaultChronicleRunDir: Path = ExternalRoot.resolve("runs").resolve("chronicle")
   val DefaultReviewDir: Path = ExternalRoot.resolve("reviews")
   val DefaultReportDir: Path = ExternalRoot.resolve("reports")
@@ -108,7 +108,7 @@ object CommentaryPlayerQcSupport:
     val ToneNotPlayerFacing = "tone_not_player_facing"
 
   object ReviewSurface:
-    val Bookmaker = "bookmaker"
+    val MoveReview = "moveReview"
     val Chronicle = "chronicle"
     val ActiveNote = "active_note"
 
@@ -116,13 +116,13 @@ object CommentaryPlayerQcSupport:
     val FocusMoment = "focus_moment"
     val WholeGame = "whole_game"
     val ActiveParity = "active_parity"
-    val BookmakerFocus = "bookmaker_focus"
+    val MoveReviewFocus = "move_review_focus"
 
   object WholeGameSliceKind:
     val ChronicleWholeGame = "chronicle_whole_game"
     val ChronicleFocus = "chronicle_focus"
     val ActiveParity = "active_parity"
-    val BookmakerFocus = "bookmaker_focus"
+    val MoveReviewFocus = "move_review_focus"
 
   object FixFamily:
     val WholeGamePlanDrift = "whole_game_plan_drift"
@@ -237,7 +237,7 @@ object CommentaryPlayerQcSupport:
   object SupportRow:
     given Format[SupportRow] = Json.format[SupportRow]
 
-  final case class BookmakerQuietSupportTrace(
+  final case class MoveReviewQuietSupportTrace(
       liftApplied: Boolean = false,
       rejectReasons: List[String] = Nil,
       runtimeGatePassed: Option[Boolean] = None,
@@ -254,8 +254,8 @@ object CommentaryPlayerQcSupport:
       candidateText: Option[String] = None,
       factualSentence: Option[String] = None
   )
-  object BookmakerQuietSupportTrace:
-    given Format[BookmakerQuietSupportTrace] = Json.format[BookmakerQuietSupportTrace]
+  object MoveReviewQuietSupportTrace:
+    given Format[MoveReviewQuietSupportTrace] = Json.format[MoveReviewQuietSupportTrace]
 
   final case class ChronicleQuietSupportTrace(
       applied: Boolean = false,
@@ -276,7 +276,7 @@ object CommentaryPlayerQcSupport:
   object ChronicleQuietSupportTrace:
     given Format[ChronicleQuietSupportTrace] = Json.format[ChronicleQuietSupportTrace]
 
-  final case class BookmakerOutputEntry(
+  final case class MoveReviewOutputEntry(
       sampleId: String,
       gameKey: String,
       sliceKind: String,
@@ -297,7 +297,7 @@ object CommentaryPlayerQcSupport:
       plannerPrimaryFallbackMode: Option[String] = None,
       plannerSecondaryKind: Option[String] = None,
       plannerSecondarySurfaced: Boolean = false,
-      bookmakerFallbackMode: String = "unknown",
+      moveReviewFallbackMode: String = "unknown",
       plannerSceneType: Option[String] = None,
       plannerSceneReasons: List[String] = Nil,
       plannerOwnerCandidates: List[String] = Nil,
@@ -338,10 +338,10 @@ object CommentaryPlayerQcSupport:
       contrast_admissible: Option[Boolean] = None,
       contrast_reject_reason: Option[String] = None,
       contrast_replacement_used: Option[Boolean] = None,
-      bookmakerSnapshotDigestHash: Option[String] = None,
-      bookmakerCarryDigestHash: Option[String] = None,
-      bookmakerAugmentationDigestHash: Option[String] = None,
-      bookmakerBundleDigestHash: Option[String] = None,
+      moveReviewSnapshotDigestHash: Option[String] = None,
+      moveReviewCarryDigestHash: Option[String] = None,
+      moveReviewAugmentationDigestHash: Option[String] = None,
+      moveReviewBundleDigestHash: Option[String] = None,
       quietSupportLiftApplied: Option[Boolean] = None,
       quietSupportRejectReasons: List[String] = Nil,
       quietSupportRuntimeGatePassed: Option[Boolean] = None,
@@ -358,7 +358,7 @@ object CommentaryPlayerQcSupport:
       quietSupportCandidateText: Option[String] = None,
       quietSupportFactualSentence: Option[String] = None
   ):
-    def withQuietSupportTrace(quietSupportTrace: BookmakerQuietSupportTrace): BookmakerOutputEntry =
+    def withQuietSupportTrace(quietSupportTrace: MoveReviewQuietSupportTrace): MoveReviewOutputEntry =
       copy(
         quietSupportLiftApplied = Some(quietSupportTrace.liftApplied),
         quietSupportRejectReasons = quietSupportTrace.rejectReasons,
@@ -377,7 +377,7 @@ object CommentaryPlayerQcSupport:
         quietSupportCandidateText = quietSupportTrace.candidateText,
         quietSupportFactualSentence = quietSupportTrace.factualSentence
       )
-  object BookmakerOutputEntry:
+  object MoveReviewOutputEntry:
     private val LegacyToStableQuietSupportFields = List(
       "track3QuietSupportLiftApplied" -> "quietSupportLiftApplied",
       "track3QuietSupportRejectReasons" -> "quietSupportRejectReasons",
@@ -396,8 +396,8 @@ object CommentaryPlayerQcSupport:
       "track3QuietSupportFactualSentence" -> "quietSupportFactualSentence"
     )
 
-    private val reads0: Reads[BookmakerOutputEntry] = Json.using[Json.WithDefaultValues].reads[BookmakerOutputEntry]
-    private val writes0: OWrites[BookmakerOutputEntry] = Json.writes[BookmakerOutputEntry]
+    private val reads0: Reads[MoveReviewOutputEntry] = Json.using[Json.WithDefaultValues].reads[MoveReviewOutputEntry]
+    private val writes0: OWrites[MoveReviewOutputEntry] = Json.writes[MoveReviewOutputEntry]
 
     private def normalizeForRead(js: JsObject): JsObject =
       LegacyToStableQuietSupportFields.foldLeft(js) { case (acc, (legacyKey, stableKey)) =>
@@ -408,7 +408,7 @@ object CommentaryPlayerQcSupport:
             case None        => acc
       }
 
-    given Format[BookmakerOutputEntry] = Format(
+    given Format[MoveReviewOutputEntry] = Format(
       Reads {
         case obj: JsObject => reads0.reads(normalizeForRead(obj))
         case _             => JsError("error.expected.jsobject")
@@ -416,12 +416,12 @@ object CommentaryPlayerQcSupport:
       writes0
     )
 
-  final case class BookmakerPlannerTrace(
+  final case class MoveReviewPlannerTrace(
       primaryKind: Option[String] = None,
       primaryFallbackMode: Option[String] = None,
       secondaryKind: Option[String] = None,
       secondarySurfaced: Boolean = false,
-      bookmakerFallbackMode: String = "unknown",
+      moveReviewFallbackMode: String = "unknown",
       sceneType: Option[String] = None,
       sceneReasons: List[String] = Nil,
       ownerCandidates: List[String] = Nil,
@@ -464,10 +464,10 @@ object CommentaryPlayerQcSupport:
       contrastReplacementUsed: Boolean = false
   )
 
-  final case class BookmakerRuntimeTrace(
-      planner: BookmakerPlannerTrace,
+  final case class MoveReviewRuntimeTrace(
+      planner: MoveReviewPlannerTrace,
       prose: String,
-      quietSupport: BookmakerQuietSupportTrace = BookmakerQuietSupportTrace()
+      quietSupport: MoveReviewQuietSupportTrace = MoveReviewQuietSupportTrace()
   )
 
   final case class AuditSetEntry(
@@ -522,7 +522,7 @@ object CommentaryPlayerQcSupport:
           sampleId = sampleId,
           auditId = (js \ "auditId").asOpt[String],
           gameId = (js \ "gameId").asOpt[String].getOrElse(sampleId),
-          surface = (js \ "surface").asOpt[String].getOrElse(ReviewSurface.Bookmaker),
+          surface = (js \ "surface").asOpt[String].getOrElse(ReviewSurface.MoveReview),
           reviewKind = (js \ "reviewKind").asOpt[String].getOrElse(ReviewKind.FocusMoment),
           sliceKind = (js \ "sliceKind").asOpt[String].getOrElse(SliceKind.StrategicChoice),
           tier = (js \ "tier").asOpt[String],
@@ -584,7 +584,7 @@ object CommentaryPlayerQcSupport:
   final case class ChronicleQueueReport(
       version: Int,
       generatedAt: String,
-      bookmakerOutputCount: Int,
+      moveReviewOutputCount: Int,
       chronicleMomentCount: Int,
       wholeGameReviewCount: Int = 0,
       mandatoryReviewCount: Int,
@@ -868,7 +868,7 @@ object CommentaryPlayerQcSupport:
       generatedAt = Instant.now().toString,
       asOfDate = java.time.LocalDate.now().toString,
       title = "Commentary Player QC Corpus",
-      description = "External mixed PGN corpus for Bookmaker/Game Chronicle qualitative signoff.",
+      description = "External mixed PGN corpus for MoveReview/Game Chronicle qualitative signoff.",
       games =
         entries.map { entry =>
           val pgn = Files.readString(Paths.get(entry.pgnPath), StandardCharsets.UTF_8)
@@ -986,7 +986,7 @@ object CommentaryPlayerQcSupport:
             probeResults = Nil,
             openingRef = openingRef,
             afterAnalysis = afterData,
-            renderMode = NarrativeRenderMode.Bookmaker,
+            renderMode = NarrativeRenderMode.MoveReview,
             variantKey = entry.variant
           )
         val rawStrategyPack = StrategyPackBuilder.build(data, rawCtx)
@@ -1405,7 +1405,7 @@ object CommentaryPlayerQcSupport:
 
   def manifestEntriesFor(sliceKind: String, snapshot: SliceSnapshot): List[SliceManifestEntry] =
     val baseId = s"${snapshot.entry.gameKey}:${sliceKind}:${snapshot.plyData.ply}"
-    List("bookmaker", "chronicle").map { surface =>
+    List("moveReview", "chronicle").map { surface =>
       SliceManifestEntry(
         sampleId = s"$baseId:$surface",
         gameKey = snapshot.entry.gameKey,
@@ -1575,7 +1575,7 @@ object CommentaryPlayerQcSupport:
       flags += s"priority_slice:$sliceKind"
     flags.toList.distinct
 
-  def buildBookmakerRows(response: CommentResponse): (List[SupportRow], List[SupportRow]) =
+  def buildMoveReviewRows(response: CommentResponse): (List[SupportRow], List[SupportRow]) =
     val support = scala.collection.mutable.ListBuffer.empty[SupportRow]
     val advanced = scala.collection.mutable.ListBuffer.empty[SupportRow]
     val compensationContext =
@@ -1674,9 +1674,9 @@ object CommentaryPlayerQcSupport:
         strategyPack = moment.strategyPack,
         signalDigest = moment.signalDigest
       )
-    buildBookmakerRows(proxy)
+    buildMoveReviewRows(proxy)
 
-  def bookmakerPlannerRuntime(snapshot: SliceSnapshot): BookmakerRuntimeTrace =
+  def moveReviewPlannerRuntime(snapshot: SliceSnapshot): MoveReviewRuntimeTrace =
     val rawCtx = snapshot.rawCtx.getOrElse(snapshot.ctx)
     val outline =
       BookStyleRenderer.validatedOutline(
@@ -1722,7 +1722,7 @@ object CommentaryPlayerQcSupport:
       )
     val quietSupportTrace =
       if plannerOwnedSlots.nonEmpty then
-        BookmakerQuietSupportTrace(
+        MoveReviewQuietSupportTrace(
           rejectReasons = List("planner_owned_row"),
           runtimeGatePassed = Some(quietSupportGateTrace.gatePassed),
           runtimeGateRejectReasons = quietSupportGateTrace.gate.rejectReasons,
@@ -1741,7 +1741,7 @@ object CommentaryPlayerQcSupport:
             strategyPack = snapshot.strategyPack,
             truthContract = snapshot.truthContract
           )
-        BookmakerQuietSupportTrace(
+        MoveReviewQuietSupportTrace(
           liftApplied = trace.liftApplied,
           rejectReasons = trace.rejectReasons,
           runtimeGatePassed = Some(trace.composerTrace.gatePassed),
@@ -1788,9 +1788,9 @@ object CommentaryPlayerQcSupport:
         ),
         snapshot.truthContract
       )
-    BookmakerRuntimeTrace(
+    MoveReviewRuntimeTrace(
       planner =
-        BookmakerPlannerTrace(
+        MoveReviewPlannerTrace(
           primaryKind = rankedPlans.primary.map(_.questionKind.toString),
           primaryFallbackMode =
             rankedPlans.primary.map(_.fallbackMode.toString)
@@ -1798,7 +1798,7 @@ object CommentaryPlayerQcSupport:
           secondaryKind = rankedPlans.secondary.map(_.questionKind.toString),
           secondarySurfaced =
             rankedPlans.secondary.nonEmpty && plannerOwnedSlots.exists(_.supportSecondary.nonEmpty),
-          bookmakerFallbackMode = if plannerOwnedSlots.nonEmpty then "planner_owned" else "exact_factual",
+          moveReviewFallbackMode = if plannerOwnedSlots.nonEmpty then "planner_owned" else "exact_factual",
           sceneType = Some(rankedPlans.ownerTrace.sceneType.wireName),
           sceneReasons = rankedPlans.ownerTrace.sceneReasons,
           ownerCandidates = rankedPlans.ownerTrace.ownerCandidateLabels,
@@ -1833,7 +1833,7 @@ object CommentaryPlayerQcSupport:
           forcingDefenseSources = forcingDefenseSources,
           moveDeltaSources = moveDeltaSources,
           surfaceReplayOutcome =
-            Some(if plannerOwnedSlots.nonEmpty then "bookmaker_planner_owned" else "bookmaker_exact_factual"),
+            Some(if plannerOwnedSlots.nonEmpty then "move_review_planner_owned" else "move_review_exact_factual"),
           contrastSourceKind = contrastTrace.contrast_source_kind,
           contrastAnchor = contrastTrace.contrast_anchor,
           contrastConsequence = contrastTrace.contrast_consequence,
@@ -1851,8 +1851,8 @@ object CommentaryPlayerQcSupport:
       quietSupport = quietSupportTrace
     )
 
-  def bookmakerPlannerTrace(snapshot: SliceSnapshot): BookmakerPlannerTrace =
-    bookmakerPlannerRuntime(snapshot).planner
+  def moveReviewPlannerTrace(snapshot: SliceSnapshot): MoveReviewPlannerTrace =
+    moveReviewPlannerRuntime(snapshot).planner
 
   private def plannerCandidateSources(
       rankedPlans: lila.commentary.analysis.RankedQuestionPlans,

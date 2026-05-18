@@ -12,6 +12,8 @@ export default function (
     opts.element = document.querySelector('main.analyse') as HTMLElement;
 
     const view = makeView();
+    // redraw closes over ctrl before construction completes; keep this as a guarded late assignment.
+    // eslint-disable-next-line prefer-const
     let ctrl: InstanceType<typeof makeCtrl> | undefined;
     let vnode: VNode | Element | DocumentFragment = opts.element;
 

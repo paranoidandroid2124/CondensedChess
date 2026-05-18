@@ -153,7 +153,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
       commentaryMode: String = CommentaryMode.Polish,
-      bookmakerSlots: Option[MoveReviewPolishSlots] = None
+      moveReviewSlots: Option[MoveReviewPolishSlots] = None
   ): Future[Option[OpenAiPolishResult]] =
     polishWithFallback(
       prose = prose,
@@ -171,7 +171,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       commentaryMode = commentaryMode,
       lang = lang,
       maxOutputTokens = maxOutputTokens,
-      bookmakerSlots = bookmakerSlots
+      moveReviewSlots = moveReviewSlots
     )
 
   def polishAsync(
@@ -189,7 +189,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
       commentaryMode: String = CommentaryMode.Polish,
-      bookmakerSlots: Option[MoveReviewPolishSlots] = None
+      moveReviewSlots: Option[MoveReviewPolishSlots] = None
   ): Future[Option[OpenAiPolishResult]] =
     polishWithFallback(
       prose = prose,
@@ -207,7 +207,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       commentaryMode = commentaryMode,
       lang = lang,
       maxOutputTokens = maxOutputTokens,
-      bookmakerSlots = bookmakerSlots
+      moveReviewSlots = moveReviewSlots
     )
 
   def repairSync(
@@ -223,7 +223,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
       commentaryMode: String = CommentaryMode.Polish,
-      bookmakerSlots: Option[MoveReviewPolishSlots] = None,
+      moveReviewSlots: Option[MoveReviewPolishSlots] = None,
       segmentMode: Boolean = false
   ): Future[Option[OpenAiPolishResult]] =
     repairWithFallback(
@@ -240,7 +240,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       commentaryMode = commentaryMode,
       lang = lang,
       maxOutputTokens = maxOutputTokens,
-      bookmakerSlots = bookmakerSlots,
+      moveReviewSlots = moveReviewSlots,
       segmentMode = segmentMode
     )
 
@@ -257,7 +257,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       maxOutputTokens: Option[Int] = None,
       planTier: String = PlanTier.Basic,
       commentaryMode: String = CommentaryMode.Polish,
-      bookmakerSlots: Option[MoveReviewPolishSlots] = None,
+      moveReviewSlots: Option[MoveReviewPolishSlots] = None,
       segmentMode: Boolean = false
   ): Future[Option[OpenAiPolishResult]] =
     repairWithFallback(
@@ -274,7 +274,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       commentaryMode = commentaryMode,
       lang = lang,
       maxOutputTokens = maxOutputTokens,
-      bookmakerSlots = bookmakerSlots,
+      moveReviewSlots = moveReviewSlots,
       segmentMode = segmentMode
     )
 
@@ -494,7 +494,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       commentaryMode: String,
       lang: String,
       maxOutputTokens: Option[Int],
-      bookmakerSlots: Option[MoveReviewPolishSlots]
+      moveReviewSlots: Option[MoveReviewPolishSlots]
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || prose.isBlank then Future.successful(None)
     else
@@ -516,7 +516,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         reasoningEffort = route.reasoningEffort,
         lang = lang,
         maxOutputTokens = maxOutputTokens,
-        bookmakerSlots = bookmakerSlots
+        moveReviewSlots = moveReviewSlots
       ).flatMap {
         case some @ Some(_) => Future.successful(some)
         case None =>
@@ -538,7 +538,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
                 reasoningEffort = route.reasoningEffort,
                 lang = lang,
                 maxOutputTokens = maxOutputTokens,
-                bookmakerSlots = bookmakerSlots
+                moveReviewSlots = moveReviewSlots
               )
             case None =>
               Future.successful(None)
@@ -558,7 +558,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       commentaryMode: String,
       lang: String,
       maxOutputTokens: Option[Int],
-      bookmakerSlots: Option[MoveReviewPolishSlots],
+      moveReviewSlots: Option[MoveReviewPolishSlots],
       segmentMode: Boolean
   ): Future[Option[OpenAiPolishResult]] =
     if !config.enabled || originalProse.isBlank || rejectedPolish.isBlank then Future.successful(None)
@@ -579,7 +579,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
         reasoningEffort = route.reasoningEffort,
         lang = lang,
         maxOutputTokens = maxOutputTokens,
-        bookmakerSlots = bookmakerSlots,
+        moveReviewSlots = moveReviewSlots,
         segmentMode = segmentMode
       ).flatMap {
         case some @ Some(_) => Future.successful(some)
@@ -600,7 +600,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
                 reasoningEffort = route.reasoningEffort,
                 lang = lang,
                 maxOutputTokens = maxOutputTokens,
-                bookmakerSlots = bookmakerSlots,
+                moveReviewSlots = moveReviewSlots,
                 segmentMode = segmentMode
               )
             case None =>
@@ -823,7 +823,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       reasoningEffort: Option[String],
       lang: String,
       maxOutputTokens: Option[Int],
-      bookmakerSlots: Option[MoveReviewPolishSlots]
+      moveReviewSlots: Option[MoveReviewPolishSlots]
   ): Future[Option[OpenAiPolishResult]] =
     val _ = momentType
     val userPrompt = PolishPrompt.buildPolishPrompt(
@@ -837,7 +837,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       tension = tension,
       salience = salience,
       momentType = momentType,
-      bookmakerSlots = bookmakerSlots
+      moveReviewSlots = moveReviewSlots
     )
     callModelWithPrompt(
       userPrompt = userPrompt,
@@ -940,7 +940,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       reasoningEffort: Option[String],
       lang: String,
       maxOutputTokens: Option[Int],
-      bookmakerSlots: Option[MoveReviewPolishSlots],
+      moveReviewSlots: Option[MoveReviewPolishSlots],
       segmentMode: Boolean
   ): Future[Option[OpenAiPolishResult]] =
     val repairPrompt =
@@ -964,7 +964,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
           fen = fen,
           openingName = openingName,
           allowedSans = allowedSans,
-          bookmakerSlots = bookmakerSlots
+          moveReviewSlots = moveReviewSlots
         )
     callModelWithPrompt(
       userPrompt = repairPrompt,

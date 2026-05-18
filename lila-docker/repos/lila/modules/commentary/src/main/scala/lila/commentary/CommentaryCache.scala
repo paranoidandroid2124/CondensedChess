@@ -21,7 +21,7 @@ case class CommentaryCacheContext(
 
 /** Server-side Caffeine TTL cache for commentary responses.
   *
-  * Provides 2nd-layer caching (after client-side Map in bookmaker.ts).
+  * Provides 2nd-layer caching (after client-side Map in moveReview.ts).
   * Particularly effective for opening positions (ply < 20) where FEN
   * reuse across users is high.
   *

@@ -13,8 +13,8 @@ export interface PubsubEvents {
   ) => void;
   'analysis.comp.toggle': (enabled: boolean) => void;
   'analysis.server.progress': (analyseData: any) => void;
-  'analysis.bookmaker.hover': (data: { fen: string; color: string; lastmove: string | undefined } | null) => void;
-  'analysis.bookmaker.move': (data: { uci: string; san: string | undefined }) => void;
+  'analysis.move-review.hover': (data: { fen: string; color: string; lastmove: string | undefined } | null) => void;
+  'analysis.move-review.move': (data: { uci: string; san: string | undefined }) => void;
   'board.change': (is3d: boolean) => void;
   'challenge-app.open': () => void;
   'chart.panning': () => void;

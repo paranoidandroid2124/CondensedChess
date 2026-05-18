@@ -44,7 +44,7 @@ class BranchProvenanceRegressionTest extends FunSuite:
         evidencePurposes = List("reply_multipv")
       )
     val ctx =
-      BookmakerProseGoldenFixtures.exchangeSacrifice.ctx.copy(
+      MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx.copy(
         renderMode = NarrativeRenderMode.FullGame,
         authorQuestions = List(question),
         authorEvidence = List(
@@ -82,7 +82,7 @@ class BranchProvenanceRegressionTest extends FunSuite:
   }
 
   test("line-scoped prophylaxis stays out of signal digest sidecars") {
-    val base = BookmakerProseGoldenFixtures.exchangeSacrifice.ctx
+    val base = MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx
     val semantic = base.semantic.getOrElse(fail("fixture needs semantic signals"))
     val ctx =
       base.copy(

@@ -6,7 +6,7 @@ import play.api.libs.json.*
 
 enum NarrativeRenderMode:
   case FullGame
-  case Bookmaker
+  case MoveReview
 
 /** Aggregates all analysis layers into a hierarchical structure for AI prompts. */
 case class NarrativeContext(

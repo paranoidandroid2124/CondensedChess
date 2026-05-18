@@ -80,7 +80,7 @@ class OpeningPrecedentBranchingTest extends FunSuite:
           )
         )
       ),
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   test("representative precedent selects a player game and maps it to a strategic branch") {

@@ -12,7 +12,7 @@ object CommentaryOpsBoard:
   object Sample:
     given Writes[Sample] = Json.writes[Sample]
 
-  final case class BookmakerMetrics(
+  final case class MoveReviewMetrics(
       requests: Long,
       polishAttempts: Long,
       polishAccepted: Long,
@@ -23,8 +23,8 @@ object CommentaryOpsBoard:
       compareConsistencyRate: Double,
       avgCostUsd: Double
   )
-  object BookmakerMetrics:
-    given Writes[BookmakerMetrics] = Json.writes[BookmakerMetrics]
+  object MoveReviewMetrics:
+    given Writes[MoveReviewMetrics] = Json.writes[MoveReviewMetrics]
 
   final case class FullGameMetrics(
       compareObserved: Long,
@@ -82,7 +82,7 @@ object CommentaryOpsBoard:
 
   final case class Snapshot(
       generatedAtMs: Long,
-      bookmaker: BookmakerMetrics,
+      moveReview: MoveReviewMetrics,
       fullgame: FullGameMetrics,
       active: ActiveMetrics,
       promptUsage: Map[String, PromptUsageMetrics],

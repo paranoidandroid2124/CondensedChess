@@ -9,7 +9,7 @@ import lila.commentary.tools.review.{ ChronicleActivePlannerSliceRunner, Comment
 
 object CommentaryQualityQuietSupport:
 
-  import CommentaryPlayerQcSupport.{ BookmakerOutputEntry, SliceKind }
+  import CommentaryPlayerQcSupport.{ MoveReviewOutputEntry, SliceKind }
   import CommentaryQualitySupport.{ EvalRubric, EvaluationRubricScores, evaluateSelection }
 
   object Schema:
@@ -65,7 +65,7 @@ object CommentaryQualityQuietSupport:
       plannerSceneType: Option[String],
       plannerSelectedOwnerKind: Option[String],
       plannerSelectedSource: Option[String],
-      bookmakerFallbackMode: String,
+      moveReviewFallbackMode: String,
       quietnessVerified: Boolean,
       quietnessSpreadCp: Option[Int],
       quietnessNotes: List[String],
@@ -197,16 +197,16 @@ object CommentaryQualityQuietSupport:
   )
 
   def buildQuietRichReport(
-      bookmakerEntries: List[BookmakerOutputEntry],
+      moveReviewEntries: List[MoveReviewOutputEntry],
       realShardSource: String
   ): QuietRichReport =
     val rawCache =
-      bookmakerEntries
+      moveReviewEntries
         .flatMap(entry => parseRawPayload(entry.rawResponsePath).map(payload => entry.rawResponsePath -> payload))
         .toMap
 
     val rows =
-      bookmakerEntries.flatMap { entry =>
+      moveReviewEntries.flatMap { entry =>
         rawCache.get(entry.rawResponsePath).toList.flatMap { payload =>
           classifyEntry(entry, payload)
         }
@@ -278,7 +278,7 @@ object CommentaryQualityQuietSupport:
           )
         ),
       nextRecommendedMove =
-        "quiet_support_chronicle_replay: mirror the accepted Bookmaker quiet-support chain into Chronicle replay only for planner-owned claim-only quiet scenes, without reopening owner selection or blocked lanes."
+        "quiet_support_chronicle_replay: mirror the accepted MoveReview quiet-support chain into Chronicle replay only for planner-owned claim-only quiet scenes, without reopening owner selection or blocked lanes."
     )
 
   def renderQuietRichMarkdown(
@@ -392,7 +392,7 @@ object CommentaryQualityQuietSupport:
       "",
       rewriteBullets,
       "",
-      "## 4. Bookmaker / Chronicle quiet-support plan",
+      "## 4. MoveReview / Chronicle quiet-support plan",
       "",
       planBullets,
       "",
@@ -412,7 +412,7 @@ object CommentaryQualityQuietSupport:
     ).mkString("\n")
 
   private def classifyEntry(
-      entry: BookmakerOutputEntry,
+      entry: MoveReviewOutputEntry,
       payload: ParsedRawPayload
   ): List[QuietRichRow] =
     candidateBuckets(entry, payload).map { bucket =>
@@ -449,7 +449,7 @@ object CommentaryQualityQuietSupport:
         plannerSceneType = entry.plannerSceneType,
         plannerSelectedOwnerKind = entry.plannerSelectedOwnerKind,
         plannerSelectedSource = entry.plannerSelectedSource,
-        bookmakerFallbackMode = entry.bookmakerFallbackMode,
+        moveReviewFallbackMode = entry.moveReviewFallbackMode,
         quietnessVerified = quietness.passed,
         quietnessSpreadCp = payload.spreadCp,
         quietnessNotes = quietness.notes,
@@ -459,7 +459,7 @@ object CommentaryQualityQuietSupport:
     }
 
   private def candidateBuckets(
-      entry: BookmakerOutputEntry,
+      entry: MoveReviewOutputEntry,
       payload: ParsedRawPayload
   ): List[String] =
     List(
@@ -472,7 +472,7 @@ object CommentaryQualityQuietSupport:
     ).flatten.distinct
 
   private def hasSlowRouteImprovementCandidate(
-      entry: BookmakerOutputEntry,
+      entry: MoveReviewOutputEntry,
       payload: ParsedRawPayload
   ): Boolean =
     (entry.sliceKind == SliceKind.StrategicChoice ||
@@ -482,7 +482,7 @@ object CommentaryQualityQuietSupport:
     (payload.signal.deploymentRoute.nonEmpty || looksLikePieceImprovement(entry.playedSan))
 
   private def hasPressureMaintenanceCandidate(
-      entry: BookmakerOutputEntry,
+      entry: MoveReviewOutputEntry,
       payload: ParsedRawPayload
   ): Boolean =
     (entry.sliceKind == SliceKind.LongStructuralSqueeze ||
@@ -495,7 +495,7 @@ object CommentaryQualityQuietSupport:
     )
 
   private def hasProphylaxisCandidate(
-      entry: BookmakerOutputEntry,
+      entry: MoveReviewOutputEntry,
       payload: ParsedRawPayload
   ): Boolean =
     (entry.sliceKind == SliceKind.LongStructuralSqueeze ||
@@ -549,7 +549,7 @@ object CommentaryQualityQuietSupport:
 
   private def sourceProfile(
       bucket: String,
-      entry: BookmakerOutputEntry,
+      entry: MoveReviewOutputEntry,
       payload: ParsedRawPayload
   ): SourceProfile =
     val direct = List.newBuilder[String]
@@ -689,7 +689,7 @@ object CommentaryQualityQuietSupport:
     }
 
   private def hasTrace(
-      entry: BookmakerOutputEntry,
+      entry: MoveReviewOutputEntry,
       needle: String
   ): Boolean =
     (entry.plannerOwnerCandidates ++ entry.plannerAdmittedOwners ++ entry.plannerProposedOwnerMappings)
@@ -894,7 +894,7 @@ object CommentaryQualityQuietSupport:
   private val quietSupportPlans =
     List(
       SurfaceQuietSupportPlan(
-        surface = "Bookmaker",
+        surface = "MoveReview",
         attachMode = "keep existing main claim, add at most one quiet support sentence",
         sentenceBudget = 1,
         allowedSources =
@@ -908,7 +908,7 @@ object CommentaryQualityQuietSupport:
             "Digest.restriction"
           ),
         safeBecause =
-      "Bookmaker already has supportPrimary/supportSecondary slots. The quiet-support lane can fill one of them only when quietness passes and the modality envelope stays inside support-level verbs."
+      "MoveReview already has supportPrimary/supportSecondary slots. The quiet-support lane can fill one of them only when quietness passes and the modality envelope stays inside support-level verbs."
       ),
       SurfaceQuietSupportPlan(
         surface = "Chronicle",
@@ -1114,7 +1114,7 @@ object CommentaryQualityQuietSupport:
     given Format[QuietSupportLaneSummary] = Json.format[QuietSupportLaneSummary]
 
   final case class ChronicleMirrorRepresentative(
-      bookmakerSampleId: String,
+      moveReviewSampleId: String,
       chronicleSampleId: String,
       bucket: String,
       lane: String,
@@ -1210,7 +1210,7 @@ object CommentaryQualityQuietSupport:
   )
 
   private def quietSupportTraceView(
-      entry: BookmakerOutputEntry
+      entry: MoveReviewOutputEntry
   ): QuietSupportTraceView =
     QuietSupportTraceView(
       liftApplied = entry.quietSupportLiftApplied,
@@ -1230,7 +1230,7 @@ object CommentaryQualityQuietSupport:
     )
 
   private def buildBaselineSelectorRows(
-      beforeEntries: List[BookmakerOutputEntry],
+      beforeEntries: List[MoveReviewOutputEntry],
       beforeSource: String
   ): List[QuietSupportSelectorRow] =
     val beforeReport = buildQuietRichReport(beforeEntries, beforeSource)
@@ -1240,7 +1240,7 @@ object CommentaryQualityQuietSupport:
         val selectedReasons =
           List(
             Option.when(row.status == Status.Eligible)("baseline_eligible"),
-            Option.when(row.bookmakerFallbackMode == "exact_factual")("before_exact_factual"),
+            Option.when(row.moveReviewFallbackMode == "exact_factual")("before_exact_factual"),
             Option.when(row.directSources.contains("MoveDelta.pv_delta"))("move_delta_pv_delta"),
             Option.when(row.supportSources.exists(EligibilityProfile.AllowedSupportSources.contains))("digest_support_whitelisted"),
             Option.when(beforeQuietSceneEligible(row.plannerSceneType))("before_quiet_scene")
@@ -1266,7 +1266,7 @@ object CommentaryQualityQuietSupport:
                     .toList
               ).distinct,
           beforeStatus = row.status,
-          beforeFallbackMode = row.bookmakerFallbackMode,
+          beforeFallbackMode = row.moveReviewFallbackMode,
           directSources = row.directSources,
           supportSources = row.supportSources,
           plannerSceneType = row.plannerSceneType,
@@ -1278,14 +1278,14 @@ object CommentaryQualityQuietSupport:
       .sortBy(row => (row.bucket, row.sampleId))
 
   def buildQuietSupportSelectorRows(
-      beforeEntries: List[BookmakerOutputEntry],
+      beforeEntries: List[MoveReviewOutputEntry],
       beforeSource: String
   ): List[QuietSupportSelectorRow] =
     buildBaselineSelectorRows(beforeEntries, beforeSource)
 
   private def buildBaselineEvaluation(
-      beforeEntries: List[BookmakerOutputEntry],
-      afterEntries: List[BookmakerOutputEntry],
+      beforeEntries: List[MoveReviewOutputEntry],
+      afterEntries: List[MoveReviewOutputEntry],
       beforeSource: String,
       afterSource: String
   ): (List[QuietSupportSelectorRow], List[QuietSupportEvalRow], QuietSupportSummary) =
@@ -1315,7 +1315,7 @@ object CommentaryQualityQuietSupport:
             val beforeRubric =
               quietSupportRubric(
                 candidateText = beforeEntry.commentary,
-                fallbackMode = beforeEntry.bookmakerFallbackMode,
+                fallbackMode = beforeEntry.moveReviewFallbackMode,
                 baselineQuestion = beforeEntry.plannerSelectedQuestion,
                 baselineProofFamily = beforeEntry.plannerSelectedOwnerKind,
                 baselineProofSource = beforeEntry.plannerSelectedSource,
@@ -1329,7 +1329,7 @@ object CommentaryQualityQuietSupport:
             val afterRubric =
               quietSupportRubric(
                 candidateText = afterEntry.map(_.commentary).getOrElse(""),
-                fallbackMode = afterEntry.map(_.bookmakerFallbackMode).getOrElse("missing_after"),
+                fallbackMode = afterEntry.map(_.moveReviewFallbackMode).getOrElse("missing_after"),
                 baselineQuestion = beforeEntry.plannerSelectedQuestion,
                 baselineProofFamily = beforeEntry.plannerSelectedOwnerKind,
                 baselineProofSource = beforeEntry.plannerSelectedSource,
@@ -1347,8 +1347,8 @@ object CommentaryQualityQuietSupport:
               !sameOpt(beforeEntry.plannerSelectedQuestion, afterEntry.flatMap(_.plannerSelectedQuestion))
             val ownerQuestionUnchanged = !ownerDivergence && !questionDivergence
             val fallbackIncrease =
-              fallbackSeverity(afterEntry.map(_.bookmakerFallbackMode).getOrElse("missing_after")) >
-                fallbackSeverity(beforeEntry.bookmakerFallbackMode)
+              fallbackSeverity(afterEntry.map(_.moveReviewFallbackMode).getOrElse("missing_after")) >
+                fallbackSeverity(beforeEntry.moveReviewFallbackMode)
             val afterText = afterEntry.map(_.commentary).getOrElse("")
             val runtimeGatePassed = afterQuietSupport.flatMap(_.runtimeGatePassed)
             val runtimeGateRejectReasons =
@@ -1369,7 +1369,7 @@ object CommentaryQualityQuietSupport:
               quietSupportUpstreamCause(beforeEntry, afterEntry, isolationClassification, fallbackIncrease)
             val changed =
               normalize(beforeEntry.commentary) != normalize(afterText) ||
-                beforeEntry.bookmakerFallbackMode != afterEntry.map(_.bookmakerFallbackMode).getOrElse("missing_after")
+                beforeEntry.moveReviewFallbackMode != afterEntry.map(_.moveReviewFallbackMode).getOrElse("missing_after")
             val changeFamily =
               quietSupportChangeFamily(selector, ownerQuestionUnchanged)
             val quietSupportLift =
@@ -1394,8 +1394,8 @@ object CommentaryQualityQuietSupport:
               selectorDelta = afterSelection.selectorScore - beforeSelection.selectorScore,
               beforeStatus = beforeRow.status,
               afterStatus = afterRow.map(_.status),
-              beforeFallbackMode = beforeEntry.bookmakerFallbackMode,
-              afterFallbackMode = afterEntry.map(_.bookmakerFallbackMode).getOrElse("missing_after"),
+              beforeFallbackMode = beforeEntry.moveReviewFallbackMode,
+              afterFallbackMode = afterEntry.map(_.moveReviewFallbackMode).getOrElse("missing_after"),
               fallbackIncrease = fallbackIncrease,
               beforeSceneType = beforeEntry.plannerSceneType,
               afterSceneType = runtimeSceneType,
@@ -1638,8 +1638,8 @@ object CommentaryQualityQuietSupport:
     (selectorRows, evalRows.sortBy(row => (row.bucket, row.sampleId)), summary)
 
   def buildQuietSupportEvaluation(
-      beforeEntries: List[BookmakerOutputEntry],
-      afterEntries: List[BookmakerOutputEntry],
+      beforeEntries: List[MoveReviewOutputEntry],
+      afterEntries: List[MoveReviewOutputEntry],
       beforeSource: String,
       afterSource: String,
       beforeChronicleEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry] = Nil,
@@ -1658,7 +1658,7 @@ object CommentaryQualityQuietSupport:
       ) {
         buildChronicleMirrorSummary(
           selectorRows = selectorRows,
-          afterBookmakerEntries = afterEntries,
+          afterMoveReviewEntries = afterEntries,
           beforeChronicleEntries = beforeChronicleEntries,
           afterChronicleEntries = afterChronicleEntries,
           beforeSource = beforeChronicleSource.getOrElse("chronicle_before_unspecified"),
@@ -1669,13 +1669,13 @@ object CommentaryQualityQuietSupport:
 
   private def buildChronicleMirrorSummary(
       selectorRows: List[QuietSupportSelectorRow],
-      afterBookmakerEntries: List[BookmakerOutputEntry],
+      afterMoveReviewEntries: List[MoveReviewOutputEntry],
       beforeChronicleEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry],
       afterChronicleEntries: List[ChronicleActivePlannerSliceRunner.SliceSurfaceEntry],
       beforeSource: String,
       afterSource: String
   ): ChronicleMirrorSummary =
-    val afterBookmakerBySample = afterBookmakerEntries.map(entry => entry.sampleId -> entry).toMap
+    val afterMoveReviewBySample = afterMoveReviewEntries.map(entry => entry.sampleId -> entry).toMap
     val beforeChronicleBySample = beforeChronicleEntries.map(entry => entry.sampleId -> entry).toMap
     val afterChronicleBySample = afterChronicleEntries.map(entry => entry.sampleId -> entry).toMap
 
@@ -1684,7 +1684,7 @@ object CommentaryQualityQuietSupport:
         val chronicleSampleId = chronicleSampleIdFor(selector.sampleId)
         val beforeChronicle = beforeChronicleBySample.get(chronicleSampleId)
         val afterChronicle = afterChronicleBySample.get(chronicleSampleId)
-        val bookmakerQuietSupport = afterBookmakerBySample.get(selector.sampleId).map(quietSupportTraceView)
+        val moveReviewQuietSupport = afterMoveReviewBySample.get(selector.sampleId).map(quietSupportTraceView)
         val replayQuestion = afterChronicle.flatMap(chronicleReplayQuestion)
         val replayProofFamily = afterChronicle.flatMap(chronicleReplayProofFamily)
         val replayProofSource = afterChronicle.flatMap(chronicleReplayProofSource)
@@ -1725,8 +1725,8 @@ object CommentaryQualityQuietSupport:
         val crossSurfaceOwnerDivergence =
           selector.selected && (
             afterChronicle.isEmpty ||
-              !sameOpt(bookmakerQuietSupport.flatMap(_.runtimeSelectedOwnerKind), replayProofFamily) ||
-              !sameOpt(bookmakerQuietSupport.flatMap(_.runtimeSelectedSource), replayProofSource)
+              !sameOpt(moveReviewQuietSupport.flatMap(_.runtimeSelectedOwnerKind), replayProofFamily) ||
+              !sameOpt(moveReviewQuietSupport.flatMap(_.runtimeSelectedSource), replayProofSource)
           )
 
         ChronicleMirrorRow(
@@ -1779,7 +1779,7 @@ object CommentaryQualityQuietSupport:
       representatives =
         highlightedRows.map { row =>
           ChronicleMirrorRepresentative(
-            bookmakerSampleId = row.selector.sampleId,
+            moveReviewSampleId = row.selector.sampleId,
             chronicleSampleId = row.chronicleSampleId,
             bucket = row.selector.bucket,
             lane = row.selector.lane,
@@ -2019,8 +2019,8 @@ object CommentaryQualityQuietSupport:
 
   private def quietSupportSummaryLine(
       selector: QuietSupportSelectorRow,
-      beforeEntry: BookmakerOutputEntry,
-      afterEntry: Option[BookmakerOutputEntry],
+      beforeEntry: MoveReviewOutputEntry,
+      afterEntry: Option[MoveReviewOutputEntry],
       beforeSelection: Int,
       afterSelection: Int,
       fallbackIncrease: Boolean,
@@ -2043,7 +2043,7 @@ object CommentaryQualityQuietSupport:
       s"pvDelta=${afterQuietSupport.flatMap(_.runtimePvDeltaAvailable).map(_.toString).getOrElse("n/a")}",
       s"anchor=${afterQuietSupport.flatMap(_.runtimeMoveLinkedPvDeltaAnchorAvailable).map(_.toString).getOrElse("n/a")}",
       s"selector=${beforeSelection}->${afterSelection}",
-      s"fallback=${beforeEntry.bookmakerFallbackMode}->${afterEntry.map(_.bookmakerFallbackMode).getOrElse("missing_after")}",
+      s"fallback=${beforeEntry.moveReviewFallbackMode}->${afterEntry.map(_.moveReviewFallbackMode).getOrElse("missing_after")}",
       s"quietSupportLift=${actualQuietSupportLiftApplied(selector, beforeEntry, afterEntry, afterEntry.map(_.commentary).getOrElse(""), !ownerDivergence && !questionDivergence)}",
       s"upstream=${upstreamCause.map(c => s"${c.primarySubsystem}:${c.primaryCause}").getOrElse("none")}",
       s"ownerDivergence=$ownerDivergence",
@@ -2101,8 +2101,8 @@ object CommentaryQualityQuietSupport:
 
   private def quietSupportIsolationClassification(
       selector: QuietSupportSelectorRow,
-      beforeEntry: BookmakerOutputEntry,
-      afterEntry: Option[BookmakerOutputEntry],
+      beforeEntry: MoveReviewOutputEntry,
+      afterEntry: Option[MoveReviewOutputEntry],
       ownerQuestionUnchanged: Boolean,
       fallbackIncrease: Boolean
   ): String =
@@ -2110,12 +2110,12 @@ object CommentaryQualityQuietSupport:
     val beforeMoveDeltaCandidate =
       beforeEntry.plannerOwnerCandidates.exists(_.contains("MoveDelta:source_kind=pv_delta"))
     val beforeTacticalScene = beforeEntry.plannerSceneType.contains("tactical_failure")
-    val afterPlannerOwned = afterEntry.exists(_.bookmakerFallbackMode == "planner_owned")
+    val afterPlannerOwned = afterEntry.exists(_.moveReviewFallbackMode == "planner_owned")
     val blockedFallbackSpike =
       selector.lane == Lane.Blocked &&
         fallbackIncrease &&
-        beforeEntry.bookmakerFallbackMode == "planner_owned" &&
-        afterEntry.exists(_.bookmakerFallbackMode == "exact_factual")
+        beforeEntry.moveReviewFallbackMode == "planner_owned" &&
+        afterEntry.exists(_.moveReviewFallbackMode == "exact_factual")
     if blockedFallbackSpike then IsolationCategory.BlockedFallbackSpike
     else if selector.lane == Lane.Eligible && selector.selected && !ownerQuestionUnchanged && afterPlannerOwned then
         IsolationCategory.NonTargetDrift
@@ -2128,8 +2128,8 @@ object CommentaryQualityQuietSupport:
     else selector.lane
 
   private def quietSupportUpstreamCause(
-      beforeEntry: BookmakerOutputEntry,
-      afterEntry: Option[BookmakerOutputEntry],
+      beforeEntry: MoveReviewOutputEntry,
+      afterEntry: Option[MoveReviewOutputEntry],
       isolationClassification: String,
       fallbackIncrease: Boolean
   ): Option[UpstreamCauseTrace] =
@@ -2271,16 +2271,16 @@ object CommentaryQualityQuietSupport:
 
   private def actualQuietSupportLiftApplied(
       selector: QuietSupportSelectorRow,
-      beforeEntry: BookmakerOutputEntry,
-      afterEntry: Option[BookmakerOutputEntry],
+      beforeEntry: MoveReviewOutputEntry,
+      afterEntry: Option[MoveReviewOutputEntry],
       afterText: String,
       ownerQuestionUnchanged: Boolean
   ): Boolean =
     val stableExactFactualWindow =
       selector.selected &&
         ownerQuestionUnchanged &&
-        beforeEntry.bookmakerFallbackMode == "exact_factual" &&
-        afterEntry.exists(_.bookmakerFallbackMode == "exact_factual")
+        beforeEntry.moveReviewFallbackMode == "exact_factual" &&
+        afterEntry.exists(_.moveReviewFallbackMode == "exact_factual")
     stableExactFactualWindow &&
       afterEntry
         .map(quietSupportTraceView)
@@ -2299,11 +2299,11 @@ object CommentaryQualityQuietSupport:
     EligibilityProfile.ForbiddenVerbStems.filter(stem => addedTokens.exists(_.startsWith(stem)))
 
   private def chronicleSampleIdFor(
-      bookmakerSampleId: String
+      moveReviewSampleId: String
   ): String =
-    if bookmakerSampleId.endsWith(":bookmaker") then
-      bookmakerSampleId.stripSuffix(":bookmaker") + ":chronicle"
-    else bookmakerSampleId
+    if moveReviewSampleId.endsWith(":moveReview") then
+      moveReviewSampleId.stripSuffix(":moveReview") + ":chronicle"
+    else moveReviewSampleId
 
   private def chronicleNarrativeText(
       entry: ChronicleActivePlannerSliceRunner.SliceSurfaceEntry
@@ -2400,7 +2400,7 @@ object CommentaryQualityQuietSupport:
     Option(mode).map(_.trim.toLowerCase).getOrElse("") match
       case "planner_owned"               => 0
       case "exact_factual"               => 1
-      case "bookmaker_exact_factual"     => 1
+      case "move_review_exact_factual"     => 1
       case "missing_after"               => 3
       case value if value.startsWith("omitted") => 3
       case _                             => 2

@@ -86,7 +86,7 @@ const narrativeCtrlTs = readFileSync(
   fileURLToPath(new URL('../src/narrative/narrativeCtrl.ts', import.meta.url)),
   'utf8',
 );
-const bookmakerTs = readFileSync(fileURLToPath(new URL('../src/bookmaker.ts', import.meta.url)), 'utf8');
+const moveReviewTs = readFileSync(fileURLToPath(new URL('../src/moveReview.ts', import.meta.url)), 'utf8');
 const narrativeViewTs = readFileSync(
   fileURLToPath(new URL('../src/narrative/narrativeView.ts', import.meta.url)),
   'utf8',
@@ -393,16 +393,16 @@ describe('frontend audit regressions', () => {
     assert.match(reviewViewTs, /Turn on local engine from the header above/);
   });
 
-  test('bookmaker fallback guard still blocks internal commentary leak tokens', () => {
-    assert.match(bookmakerTs, /PlayableByPV\|PlayedPV\|return vector\|cash out/i);
-    assert.match(bookmakerTs, /engine-coupled continuation/);
+  test('moveReview fallback guard still blocks internal commentary leak tokens', () => {
+    assert.match(moveReviewTs, /PlayableByPV\|PlayedPV\|return vector\|cash out/i);
+    assert.match(moveReviewTs, /engine-coupled continuation/);
   });
 
-  test('bookmaker and chronicle default support surfaces use the compact player-facing panel with collapsed details', () => {
-    assert.match(bookmakerTs, /buildCompactSupportSurface/);
-    assert.match(bookmakerTs, /bookmaker-strategic-summary__title">Support/);
-    assert.match(bookmakerTs, /<details class="bookmaker-strategic-summary__details">/);
-    assert.match(bookmakerTs, /Advanced details/);
+  test('moveReview and chronicle default support surfaces use the compact player-facing panel with collapsed details', () => {
+    assert.match(moveReviewTs, /buildCompactSupportSurface/);
+    assert.match(moveReviewTs, /move-review-strategic-summary__title">Support/);
+    assert.match(moveReviewTs, /<details class="move-review-strategic-summary__details">/);
+    assert.match(moveReviewTs, /Advanced details/);
 
     assert.match(narrativeViewTs, /buildCompactSupportSurface/);
     assert.match(narrativeViewTs, /const decisionComparison = digest\?\.decisionComparison;/);
@@ -413,10 +413,10 @@ describe('frontend audit regressions', () => {
   });
 
   test('decision comparison surfaces only read canonical comparative digest fields for the new exact lane', () => {
-    const bookmakerDecisionBlock = extractBetween(
-      bookmakerTs,
+    const moveReviewDecisionBlock = extractBetween(
+      moveReviewTs,
       'function renderDecisionCompareStrip(',
-      'type BookmakerStrategySurface = {',
+      'type MoveReviewStrategySurface = {',
     );
     const narrativeDecisionBlock = extractBetween(
       narrativeViewTs,
@@ -424,10 +424,10 @@ describe('frontend audit regressions', () => {
       'function narrativeDecisionMoveChip(',
     );
 
-    assert.match(bookmakerDecisionBlock, /comparison\?\.comparativeConsequence\?\.trim\(\) \? comparison\?\.comparedMove/);
-    assert.match(bookmakerDecisionBlock, /renderBookmakerMoveChip\('Compared'/);
+    assert.match(moveReviewDecisionBlock, /comparison\?\.comparativeConsequence\?\.trim\(\) \? comparison\?\.comparedMove/);
+    assert.match(moveReviewDecisionBlock, /renderMoveReviewMoveChip\('Compared'/);
     assert.match(narrativeDecisionBlock, /comparison\.comparativeConsequence[\s\S]*narrativeDecisionMoveChip\('Compared'/);
-    assert.doesNotMatch(bookmakerDecisionBlock, /topEngineMove/);
+    assert.doesNotMatch(moveReviewDecisionBlock, /topEngineMove/);
     assert.doesNotMatch(narrativeDecisionBlock, /topEngineMove/);
   });
 });

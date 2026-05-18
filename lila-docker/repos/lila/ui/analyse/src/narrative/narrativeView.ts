@@ -19,8 +19,8 @@ import { makeSanAndPlay } from 'chessops/san';
 import { parseUci } from 'chessops/util';
 import type { DrawShape } from '@lichess-org/chessground/draw';
 import { plyToTurn } from 'lib/game/chess';
-import type { StrategicPlanExperiment } from '../bookmaker/types';
-import { formatStrategicPlanText, strategicPlanExperimentIndex } from '../bookmaker/planSupportSurface';
+import type { StrategicPlanExperiment } from '../moveReview/types';
+import { formatStrategicPlanText, strategicPlanExperimentIndex } from '../moveReview/planSupportSurface';
 import {
     buildDecisionComparisonSurface,
 } from '../decisionComparison';

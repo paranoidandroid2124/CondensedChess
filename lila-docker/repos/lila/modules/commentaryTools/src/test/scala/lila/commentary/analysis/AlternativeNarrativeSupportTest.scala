@@ -20,7 +20,7 @@ class AlternativeNarrativeSupportTest extends FunSuite:
       delta = None,
       phase = PhaseContext("Middlegame", "Balanced middlegame"),
       candidates = Nil,
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   test("returns no alternative narrative when no close candidate support survives") {

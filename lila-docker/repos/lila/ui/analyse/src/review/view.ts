@@ -2,7 +2,7 @@ import type { LooseVNode, LooseVNodes, VNode } from 'lib/view';
 import { bind, hl } from 'lib/view';
 import { cleanNarrativeProseText, cleanNarrativeSurfaceLabel } from '../chesstory/signalFormatting';
 import type AnalyseCtrl from '../ctrl';
-import { bookmakerToggleBox } from '../bookmaker';
+import { moveReviewToggleBox } from '../moveReview';
 import type { NarrativeMomentFilter, ReviewPrimaryTab } from './state';
 import {
   MIN_GAME_CHRONICLE_PLY,
@@ -232,7 +232,7 @@ function renderMomentListCard(
 function renderCoachTabs(ctrl: AnalyseCtrl, activeTab: CoachPaneTab): VNode {
   return hl('div.analyse-review__tool-tabs', [
     coachTabButton(ctrl, activeTab, 'review', 'Review', 'overview'),
-    ctrl.opts.bookmaker ? coachTabButton(ctrl, activeTab, 'explain', 'Explain', 'explain') : null,
+    ctrl.opts.moveReview ? coachTabButton(ctrl, activeTab, 'explain', 'Explain', 'explain') : null,
     coachTabButton(ctrl, activeTab, 'engine', 'Engine', 'engine'),
     ctrl.explorer.allowed() ? coachTabButton(ctrl, activeTab, 'explorer', 'Explorer', 'explorer') : null,
     coachTabButton(ctrl, activeTab, 'board', 'Board', 'board'),
@@ -375,7 +375,7 @@ function renderCoachReviewCard(
           },
         }),
         hl('div.analyse-review__context-actions', [
-          ctrl.opts.bookmaker
+          ctrl.opts.moveReview
             ? hl(
                 'button.button.button-empty',
                 {
@@ -455,7 +455,7 @@ function renderRawWorkspace(ctrl: AnalyseCtrl, nodes: ReviewViewNodes): VNode {
         'Back to guided review',
       ),
       rawTabButton(ctrl, activeTab, 'moves', 'Moves'),
-      ctrl.opts.bookmaker ? rawTabButton(ctrl, activeTab, 'explain', 'Explain This Move') : null,
+      ctrl.opts.moveReview ? rawTabButton(ctrl, activeTab, 'explain', 'Explain This Move') : null,
       rawTabButton(ctrl, activeTab, 'engine', 'Engine'),
       ctrl.explorer.allowed() ? rawTabButton(ctrl, activeTab, 'explorer', 'Explorer') : null,
       rawTabButton(ctrl, activeTab, 'board', 'Board'),
@@ -685,23 +685,23 @@ function renderBoardTab(nodes: ReviewViewNodes): VNode {
 }
 
 function renderExplainMovePanel(ctrl: AnalyseCtrl, title: string, copy: string): VNode {
-  return ctrl.opts.bookmaker
+  return ctrl.opts.moveReview
     ? hl(
-        'fieldset.analyse-review__detail-card.analyse-review__bookmaker-card.analyse__bookmaker.toggle-box.toggle-box--toggle.empty',
+        'fieldset.analyse-review__detail-card.analyse-review__move-review-card.analyse__move-review.toggle-box.toggle-box--toggle.empty',
         {
-          attrs: { id: 'bookmaker-field' },
+          attrs: { id: 'move-review-field' },
           hook: {
-            insert: () => bookmakerToggleBox(ctrl),
-            update: () => bookmakerToggleBox(ctrl),
+            insert: () => moveReviewToggleBox(ctrl),
+            update: () => moveReviewToggleBox(ctrl),
           },
         },
         [
           hl('legend', { attrs: { tabindex: '0' } }, 'Explain This Move'),
-          hl('div.analyse-review__bookmaker-copy', [
+          hl('div.analyse-review__move-review-copy', [
             hl('strong', title),
-            hl('p.analyse-review__bookmaker-note', copy),
+            hl('p.analyse-review__move-review-note', copy),
           ]),
-          hl('div.analyse__bookmaker-text'),
+          hl('div.analyse__move-review-text'),
         ],
       )
     : hl('div.analyse-review__empty', 'Explain This Move is unavailable for this account.');
@@ -775,7 +775,7 @@ function openFullAnalysis(ctrl: AnalyseCtrl, options: { tab?: RawPaneTab } = {})
 function renderCoachExpertStrip(ctrl: AnalyseCtrl): VNode {
   const engineReady = !!ctrl.cevalEnabled();
   return hl('div.analyse-review__expert-strip', [
-    ctrl.opts.bookmaker
+    ctrl.opts.moveReview
       ? hl(
           `button.analyse-review__reference-action${ctrl.reviewPrimaryTab() === 'explain' ? '.analyse-review__reference-action--primary' : ''}`,
           {

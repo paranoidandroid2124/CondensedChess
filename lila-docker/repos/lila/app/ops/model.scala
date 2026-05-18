@@ -243,7 +243,7 @@ object OpsMetricsSnapshot:
   private val sectionTitles = Map(
     "active" -> "Commentary / AI",
     "akka" -> "Akka",
-    "bookmaker" -> "Commentary / AI",
+    "moveReview" -> "Commentary / AI",
     "cache" -> "Cache",
     "commentary" -> "Commentary / AI",
     "db" -> "Database",

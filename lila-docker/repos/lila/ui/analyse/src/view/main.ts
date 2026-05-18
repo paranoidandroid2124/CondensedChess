@@ -7,7 +7,7 @@ import crazyView from '../crazy/crazyView';
 import type AnalyseCtrl from '../ctrl';
 import forecastView from '../forecast/forecastView';
 import { view as keyboardView } from '../keyboard';
-import { bookmakerToggleBox } from '../bookmaker';
+import { moveReviewToggleBox } from '../moveReview';
 
 import { viewContext, renderBoard, renderMain, renderTools, renderUnderboard } from './components';
 import { boardRectSig } from './boardRect';
@@ -69,21 +69,21 @@ function analyseView(ctrl: AnalyseCtrl): VNode {
 }
 
 function renderSide(ctrl: AnalyseCtrl): VNode | undefined {
-  if (!ctrl.opts.bookmaker) return;
+  if (!ctrl.opts.moveReview) return;
   if (ctrl.isReviewShell()) return;
 
   return hl('aside.analyse__side', {
     hook: {
-      insert: () => bookmakerToggleBox(ctrl),
-      update: () => bookmakerToggleBox(ctrl),
+      insert: () => moveReviewToggleBox(ctrl),
+      update: () => moveReviewToggleBox(ctrl),
     },
   }, [
     hl(
-      'fieldset.analyse__bookmaker.toggle-box.toggle-box--toggle.empty',
+      'fieldset.analyse__move-review.toggle-box.toggle-box--toggle.empty',
       {
-        attrs: { id: 'bookmaker-field' },
+        attrs: { id: 'move-review-field' },
       },
-      [hl('legend', { attrs: { tabindex: '0' } }, 'Explain This Move'), hl('div.analyse__bookmaker-text')],
+      [hl('legend', { attrs: { tabindex: '0' } }, 'Explain This Move'), hl('div.analyse__move-review-text')],
     ),
   ]);
 }

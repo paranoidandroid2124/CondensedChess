@@ -5,7 +5,7 @@ import lila.commentary.model.*
 
 class CriticalAnnotationPolicyTest extends FunSuite:
 
-  private val baseCtx = BookmakerProseGoldenFixtures.rookPawnMarch.ctx
+  private val baseCtx = MoveReviewProseGoldenFixtures.rookPawnMarch.ctx
 
   test("claim prioritization follows tactical meta signals") {
     val tacticalCtx =

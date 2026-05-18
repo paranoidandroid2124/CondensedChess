@@ -24,7 +24,7 @@ class EarlyOpeningNarrationPolicyTest extends FunSuite:
       openingEvent: OpeningEvent = OpeningEvent.Intro("E04", "Catalan", "queenside pressure", List("d4", "Nf3", "g3")),
       ply: Int = 8,
       header: ContextHeader = ContextHeader("Opening", "Normal", "NarrowChoice", "Medium", "ExplainPlan"),
-      renderMode: NarrativeRenderMode = NarrativeRenderMode.Bookmaker
+      renderMode: NarrativeRenderMode = NarrativeRenderMode.MoveReview
   ): NarrativeContext =
     NarrativeContext(
       fen = "r1bqkbnr/pppp1ppp/2n5/4p3/3PP3/5N2/PPP2PPP/RNBQKB1R b KQkq - 2 3",
@@ -70,7 +70,7 @@ class EarlyOpeningNarrationPolicyTest extends FunSuite:
     assertEquals(EarlyOpeningNarrationPolicy.normalizeVariantKey(Some("unknown")), EarlyOpeningNarrationPolicy.StandardVariant)
   }
 
-  test("standard intro-only opening collapses bookmaker outline and prose") {
+  test("standard intro-only opening collapses moveReview outline and prose") {
     val ctx = earlyOpeningContext()
 
     assert(EarlyOpeningNarrationPolicy.collapsedEarlyOpening(ctx), clue(ctx))

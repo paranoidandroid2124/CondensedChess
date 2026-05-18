@@ -1,64 +1,59 @@
 import type {
-  BookmakerRefsV1,
-  BookmakerStrategicLedgerV1,
-  DecodedBookmakerResponse,
+  MoveReviewRefsV1,
+  MoveReviewStrategicLedgerV1,
+  DecodedMoveReviewResponse,
   MoveReviewExplanationV1,
   PolishMetaV1,
 } from './responsePayload';
 import type { EndgameStateToken, PlanStateToken } from './types';
 import { preferenceLocalStorage, preferenceSessionStorage } from 'lib/cookieConsent';
 
-export type StoredBookmakerTokenContext = {
+export type StoredMoveReviewTokenContext = {
   stateKey: string;
   analysisFen: string;
   originPath: string;
 };
 
-export type StoredBookmakerEntry = {
+export type StoredMoveReviewEntry = {
   html: string;
-  refs: BookmakerRefsV1 | null;
+  refs: MoveReviewRefsV1 | null;
   polishMeta: PolishMetaV1 | null;
   sourceMode: string | null;
   model: string | null;
   cacheHit: boolean | null;
   moveReviewExplanation?: MoveReviewExplanationV1 | null;
   mainPlansCount: number;
-  bookmakerLedger?: BookmakerStrategicLedgerV1 | null;
+  moveReviewLedger?: MoveReviewStrategicLedgerV1 | null;
   planStateToken?: PlanStateToken | null;
   endgameStateToken?: EndgameStateToken | null;
-  tokenContext?: StoredBookmakerTokenContext | null;
+  tokenContext?: StoredMoveReviewTokenContext | null;
 };
 
-export type StudyBookmakerSnapshot = {
-  schema: 'chesstory.move_review.study.v1' | 'chesstory.bookmaker.study.v1';
+export type StudyMoveReviewSnapshot = {
+  schema: 'chesstory.move_review.study.v1';
   studyId: string;
   chapterId: string;
   commentPath: string;
   originPath: string;
   savedAt: number;
   commentary?: string | null;
-  entry: StoredBookmakerEntry;
+  entry: StoredMoveReviewEntry;
 };
 
-export type StudyBookmakerRef = {
+export type StudyMoveReviewRef = {
   studyId: string;
   chapterId: string;
 };
 
 const storageSchema = 'chesstory.move_review.study.v1';
-const legacyStorageSchema = 'chesstory.bookmaker.study.v1';
 const storagePrefix = storageSchema;
-const legacyStoragePrefix = legacyStorageSchema;
 const storageIndexKey = `${storagePrefix}.index`;
-const legacyStorageIndexKey = `${legacyStoragePrefix}.index`;
 const maxSnapshots = 300;
 const sessionSchema = 'chesstory.move_review.session.v1';
-const legacySessionSchema = 'chesstory.bookmaker.session.v1';
 const sessionPrefix = sessionSchema;
-const legacySessionPrefix = legacySessionSchema;
 
-type StoredBookmakerEntrySource = Pick<
-  DecodedBookmakerResponse,
+type StoredMoveReviewEntrySource = Pick<
+  DecodedMoveReviewResponse,
   | 'refs'
   | 'polishMeta'
   | 'sourceMode'
@@ -66,16 +61,16 @@ type StoredBookmakerEntrySource = Pick<
   | 'cacheHit'
   | 'moveReviewExplanation'
   | 'mainStrategicPlans'
-  | 'bookmakerLedger'
+  | 'moveReviewLedger'
   | 'planStateToken'
   | 'endgameStateToken'
 >;
 
-export function buildStoredBookmakerEntry(
-  decoded: StoredBookmakerEntrySource,
+export function buildStoredMoveReviewEntry(
+  decoded: StoredMoveReviewEntrySource,
   html: string,
-  tokenContext: StoredBookmakerTokenContext,
-): StoredBookmakerEntry {
+  tokenContext: StoredMoveReviewTokenContext,
+): StoredMoveReviewEntry {
   return {
     html,
     refs: decoded.refs,
@@ -85,7 +80,7 @@ export function buildStoredBookmakerEntry(
     cacheHit: decoded.cacheHit,
     moveReviewExplanation: decoded.moveReviewExplanation,
     mainPlansCount: decoded.mainStrategicPlans.length,
-    bookmakerLedger: decoded.bookmakerLedger,
+    moveReviewLedger: decoded.moveReviewLedger,
     planStateToken: decoded.planStateToken,
     endgameStateToken: decoded.endgameStateToken,
     tokenContext,
@@ -104,12 +99,8 @@ function sessionStore(): Storage | null {
   return preferenceSessionStorage();
 }
 
-function snapshotKey(ref: StudyBookmakerRef, commentPath: string): string {
+function snapshotKey(ref: StudyMoveReviewRef, commentPath: string): string {
   return `${storagePrefix}:${ref.studyId}:${ref.chapterId}:${commentPath}`;
-}
-
-function legacySnapshotKey(ref: StudyBookmakerRef, commentPath: string): string {
-  return `${legacyStoragePrefix}:${ref.studyId}:${ref.chapterId}:${commentPath}`;
 }
 
 function readIndexAt(key: string): string[] {
@@ -126,7 +117,6 @@ function readIndexAt(key: string): string[] {
 }
 
 function readIndex(): string[] {
-  migrateLegacyStudySnapshots();
   return readIndexAt(storageIndexKey);
 }
 
@@ -140,48 +130,16 @@ function writeIndex(keys: string[]): void {
   }
 }
 
-function normalizeStudySnapshot(raw: unknown): StudyBookmakerSnapshot | null {
-  const parsed = raw as StudyBookmakerSnapshot | null;
+function normalizeStudySnapshot(raw: unknown): StudyMoveReviewSnapshot | null {
+  const parsed = raw as StudyMoveReviewSnapshot | null;
   if (
     !parsed ||
-    (parsed.schema !== storageSchema && parsed.schema !== legacyStorageSchema) ||
+    parsed.schema !== storageSchema ||
     !parsed.entry ||
     typeof parsed.entry.html !== 'string'
   )
     return null;
-  return {
-    ...parsed,
-    schema: storageSchema,
-  };
-}
-
-function migrateLegacyStudySnapshots(): void {
-  const store = localStore();
-  if (!store) return;
-  const legacyKeys = readIndexAt(legacyStorageIndexKey);
-  if (!legacyKeys.length) return;
-  const nextKeys = new Set(readIndexAt(storageIndexKey));
-
-  for (const legacyKey of legacyKeys) {
-    try {
-      const raw = store.getItem(legacyKey);
-      if (!raw) continue;
-      const parsed = normalizeStudySnapshot(JSON.parse(raw));
-      if (!parsed) continue;
-      const newKey = legacyKey.replace(legacyStoragePrefix, storagePrefix);
-      store.setItem(newKey, JSON.stringify(parsed));
-      store.removeItem(legacyKey);
-      nextKeys.add(newKey);
-    } catch {
-      // Ignore malformed legacy snapshots.
-    }
-  }
-  writeIndex([...nextKeys]);
-  try {
-    store.removeItem(legacyStorageIndexKey);
-  } catch {
-    // Ignore cleanup failures.
-  }
+  return parsed;
 }
 
 function pruneSnapshots(): void {
@@ -194,7 +152,7 @@ function pruneSnapshots(): void {
       try {
         const raw = localStore()?.getItem(key);
         if (!raw) return null;
-        const parsed = JSON.parse(raw) as StudyBookmakerSnapshot;
+        const parsed = JSON.parse(raw) as StudyMoveReviewSnapshot;
         return { key, savedAt: typeof parsed?.savedAt === 'number' ? parsed.savedAt : 0 };
       } catch {
         return { key, savedAt: 0 };
@@ -214,17 +172,17 @@ function pruneSnapshots(): void {
   writeIndex(snapshots.slice(toDrop.length).map(({ key }) => key));
 }
 
-export function persistStudyBookmakerSnapshot(
-  ref: StudyBookmakerRef,
+export function persistStudyMoveReviewSnapshot(
+  ref: StudyMoveReviewRef,
   commentPath: string,
   originPath: string,
   commentary: string | null,
-  entry: StoredBookmakerEntry,
+  entry: StoredMoveReviewEntry,
 ): void {
   const store = localStore();
   if (!store) return;
   const key = snapshotKey(ref, commentPath);
-  const payload: StudyBookmakerSnapshot = {
+  const payload: StudyMoveReviewSnapshot = {
     schema: storageSchema,
     studyId: ref.studyId,
     chapterId: ref.chapterId,
@@ -246,16 +204,15 @@ export function persistStudyBookmakerSnapshot(
   }
 }
 
-export function readStudyBookmakerSnapshot(
-  ref: StudyBookmakerRef,
+export function readStudyMoveReviewSnapshot(
+  ref: StudyMoveReviewRef,
   commentPath: string,
-): StudyBookmakerSnapshot | null {
+): StudyMoveReviewSnapshot | null {
   const store = localStore();
   if (!store) return null;
   try {
     const key = snapshotKey(ref, commentPath);
-    const legacyKey = legacySnapshotKey(ref, commentPath);
-    const raw = store.getItem(key) || store.getItem(legacyKey);
+    const raw = store.getItem(key);
     if (!raw) return null;
     const parsed = normalizeStudySnapshot(JSON.parse(raw));
     if (
@@ -267,20 +224,13 @@ export function readStudyBookmakerSnapshot(
       typeof parsed.entry.html !== 'string'
     )
       return null;
-    if (store.getItem(key) !== raw) {
-      store.setItem(key, JSON.stringify(parsed));
-      store.removeItem(legacyKey);
-      const keys = readIndexAt(storageIndexKey).filter(existing => existing !== key);
-      keys.push(key);
-      writeIndex(keys);
-    }
     return parsed;
   } catch {
     return null;
   }
 }
 
-export function listStudyBookmakerSnapshots(ref: StudyBookmakerRef): StudyBookmakerSnapshot[] {
+export function listStudyMoveReviewSnapshots(ref: StudyMoveReviewRef): StudyMoveReviewSnapshot[] {
   if (!hasStorage()) return [];
   const keys = readIndex();
   const snapshots = keys
@@ -288,21 +238,21 @@ export function listStudyBookmakerSnapshots(ref: StudyBookmakerRef): StudyBookma
       try {
         const raw = localStore()?.getItem(key);
         if (!raw) return null;
-        const parsed = JSON.parse(raw) as StudyBookmakerSnapshot;
+        const parsed = JSON.parse(raw) as StudyMoveReviewSnapshot;
         if (
-          (parsed?.schema !== storageSchema && parsed?.schema !== legacyStorageSchema) ||
+          parsed?.schema !== storageSchema ||
           parsed.studyId !== ref.studyId ||
           parsed.chapterId !== ref.chapterId ||
           !parsed.entry ||
           typeof parsed.entry.html !== 'string'
         )
           return null;
-        return { ...parsed, schema: storageSchema };
+        return parsed;
       } catch {
         return null;
       }
     })
-    .filter(Boolean) as StudyBookmakerSnapshot[];
+    .filter(Boolean) as StudyMoveReviewSnapshot[];
 
   snapshots.sort((a, b) => b.savedAt - a.savedAt);
   return snapshots;
@@ -312,16 +262,12 @@ function sessionKey(scope: string, commentPath: string): string {
   return `${sessionPrefix}:${scope}:${commentPath}`;
 }
 
-function legacySessionKey(scope: string, commentPath: string): string {
-  return `${legacySessionPrefix}:${scope}:${commentPath}`;
-}
-
-export function persistSessionBookmakerSnapshot(
+export function persistSessionMoveReviewSnapshot(
   scope: string,
   commentPath: string,
   originPath: string,
   commentary: string | null,
-  entry: StoredBookmakerEntry,
+  entry: StoredMoveReviewEntry,
 ): void {
   const store = sessionStore();
   if (!store) return;
@@ -343,13 +289,12 @@ export function persistSessionBookmakerSnapshot(
   }
 }
 
-export function readSessionBookmakerSnapshot(scope: string, commentPath: string): StudyBookmakerSnapshot | null {
+export function readSessionMoveReviewSnapshot(scope: string, commentPath: string): StudyMoveReviewSnapshot | null {
   const store = sessionStore();
   if (!store) return null;
   try {
     const key = sessionKey(scope, commentPath);
-    const legacyKey = legacySessionKey(scope, commentPath);
-    const raw = store.getItem(key) || store.getItem(legacyKey);
+    const raw = store.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as {
       schema?: string;
@@ -358,26 +303,16 @@ export function readSessionBookmakerSnapshot(scope: string, commentPath: string)
       originPath?: string;
       savedAt?: number;
       commentary?: string | null;
-      entry?: StoredBookmakerEntry;
+      entry?: StoredMoveReviewEntry;
     };
     if (
-      (parsed?.schema !== sessionSchema && parsed?.schema !== legacySessionSchema) ||
+      parsed?.schema !== sessionSchema ||
       parsed.scope !== scope ||
       parsed.commentPath !== commentPath ||
       !parsed.entry ||
       typeof parsed.entry.html !== 'string'
     )
       return null;
-    if (store.getItem(key) !== raw) {
-      store.setItem(
-        key,
-        JSON.stringify({
-          ...parsed,
-          schema: sessionSchema,
-        }),
-      );
-      store.removeItem(legacyKey);
-    }
     return {
       schema: storageSchema,
       studyId: '',
@@ -393,18 +328,18 @@ export function readSessionBookmakerSnapshot(scope: string, commentPath: string)
   }
 }
 
-export function listSessionBookmakerSnapshots(scope: string): StudyBookmakerSnapshot[] {
+export function listSessionMoveReviewSnapshots(scope: string): StudyMoveReviewSnapshot[] {
   const store = sessionStore();
   if (!store) return [];
   const prefix = `${sessionPrefix}:${scope}:`;
-  const snapshots: StudyBookmakerSnapshot[] = [];
+  const snapshots: StudyMoveReviewSnapshot[] = [];
 
   for (let i = 0; i < store.length; i += 1) {
     const key = store.key(i);
     if (!key || !key.startsWith(prefix)) continue;
     const commentPath = key.slice(prefix.length);
     if (!commentPath) continue;
-    const snapshot = readSessionBookmakerSnapshot(scope, commentPath);
+    const snapshot = readSessionMoveReviewSnapshot(scope, commentPath);
     if (snapshot) snapshots.push(snapshot);
   }
 

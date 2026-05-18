@@ -23,7 +23,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       delta = None,
       phase = PhaseContext("Middlegame", "Normal middlegame"),
       candidates = Nil,
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   private def truthContract(
@@ -2548,14 +2548,14 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       val outline =
         BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = None)
 
-      val bookmakerSelection =
+      val moveReviewSelection =
         MoveReviewCompressionPolicy.renderSelection(inputs, ranked, truthContract = None)
-          .getOrElse(fail(s"$id should select a planner-owned bookmaker surface"))
-      val bookmakerSlots =
+          .getOrElse(fail(s"$id should select a planner-owned moveReview surface"))
+      val moveReviewSlots =
         MoveReviewCompressionPolicy
           .buildSlots(ctx, outline, refs = None, strategyPack = Some(pack))
-          .getOrElse(fail(s"$id should build planner-owned bookmaker slots"))
-      val bookmakerFallbackAware =
+          .getOrElse(fail(s"$id should build planner-owned moveReview slots"))
+      val moveReviewFallbackAware =
         MoveReviewCompressionPolicy.buildSlotsOrFallback(
           ctx = ctx,
           outline = outline,
@@ -2564,17 +2564,17 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           truthContract = None
         )
 
-      assertEquals(bookmakerSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-      assertEquals(bookmakerSelection.primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
+      assertEquals(moveReviewSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
+      assertEquals(moveReviewSelection.primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
       assertEquals(
-        MoveReviewProseContract.stripMoveHeader(bookmakerSlots.claim),
+        MoveReviewProseContract.stripMoveHeader(moveReviewSlots.claim),
         "The key strategic fact here is that the pressure is coordinated on c6."
       )
       assertEquals(
-        bookmakerSlots.coda,
+        moveReviewSlots.coda,
         Some("So the task is to keep the pressure coordinated on c6 until the target has to give way.")
       )
-      assertEquals(bookmakerFallbackAware, bookmakerSlots)
+      assertEquals(moveReviewFallbackAware, moveReviewSlots)
 
       val chronicleSelection =
         GameChronicleCompressionPolicy.selectPlannerSurface(ranked, inputs)
@@ -2605,14 +2605,14 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       val outline =
         BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = None)
 
-      val bookmakerSelection =
+      val moveReviewSelection =
         MoveReviewCompressionPolicy.renderSelection(inputs, ranked, truthContract = None)
-          .getOrElse(fail(s"$id should select a planner-owned bookmaker surface"))
-      val bookmakerSlots =
+          .getOrElse(fail(s"$id should select a planner-owned moveReview surface"))
+      val moveReviewSlots =
         MoveReviewCompressionPolicy
           .buildSlots(ctx, outline, refs = None, strategyPack = Some(pack))
-          .getOrElse(fail(s"$id should build planner-owned bookmaker slots"))
-      val bookmakerFallbackAware =
+          .getOrElse(fail(s"$id should build planner-owned moveReview slots"))
+      val moveReviewFallbackAware =
         MoveReviewCompressionPolicy.buildSlotsOrFallback(
           ctx = ctx,
           outline = outline,
@@ -2621,17 +2621,17 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           truthContract = None
         )
 
-      assertEquals(bookmakerSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
-      assertEquals(bookmakerSelection.primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
+      assertEquals(moveReviewSelection.primary.questionKind, AuthorQuestionKind.WhatMattersHere)
+      assertEquals(moveReviewSelection.primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
       assertEquals(
-        MoveReviewProseContract.stripMoveHeader(bookmakerSlots.claim),
+        MoveReviewProseContract.stripMoveHeader(moveReviewSlots.claim),
         "The key strategic fact here is that c6 is the fixed target."
       )
       assertEquals(
-        bookmakerSlots.coda,
+        moveReviewSlots.coda,
         Some("So the task is to keep the queenside pressure trained on c6 instead of rushing a conversion.")
       )
-      assertEquals(bookmakerFallbackAware, bookmakerSlots)
+      assertEquals(moveReviewFallbackAware, moveReviewSlots)
 
       val chronicleSelection =
         GameChronicleCompressionPolicy.selectPlannerSurface(ranked, inputs)
@@ -2662,14 +2662,14 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       val outline =
         BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = None)
 
-      val bookmakerSelection =
+      val moveReviewSelection =
         MoveReviewCompressionPolicy.renderSelection(inputs, ranked, truthContract = None)
-          .getOrElse(fail(s"$id should select a planner-owned bookmaker surface"))
-      val bookmakerSlots =
+          .getOrElse(fail(s"$id should select a planner-owned moveReview surface"))
+      val moveReviewSlots =
         MoveReviewCompressionPolicy
           .buildSlots(ctx, outline, refs = None, strategyPack = Some(pack))
-          .getOrElse(fail(s"$id should build planner-owned bookmaker slots"))
-      val bookmakerFallbackAware =
+          .getOrElse(fail(s"$id should build planner-owned moveReview slots"))
+      val moveReviewFallbackAware =
         MoveReviewCompressionPolicy.buildSlotsOrFallback(
           ctx = ctx,
           outline = outline,
@@ -2678,13 +2678,13 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
           truthContract = None
         )
 
-      assertEquals(bookmakerSelection.primary.questionKind, AuthorQuestionKind.WhatChanged)
-      assertEquals(bookmakerSelection.primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
+      assertEquals(moveReviewSelection.primary.questionKind, AuthorQuestionKind.WhatChanged)
+      assertEquals(moveReviewSelection.primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
       assertEquals(
-        MoveReviewProseContract.stripMoveHeader(bookmakerSlots.claim),
+        MoveReviewProseContract.stripMoveHeader(moveReviewSlots.claim),
         "This changes the position by fixing d6 as the target."
       )
-      assertEquals(bookmakerFallbackAware, bookmakerSlots)
+      assertEquals(moveReviewFallbackAware, moveReviewSlots)
 
       val chronicleSelection =
         GameChronicleCompressionPolicy.selectPlannerSurface(ranked, inputs)

@@ -192,7 +192,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     minimalMoveSentence(ctx)
       .orElse(StandardCommentaryClaimPolicy.noEventNote(ctx, truthContract))
 
-  def minimalBookmakerSentence(
+  def minimalMoveReviewSentence(
       ctx: NarrativeContext,
       truthContract: Option[DecisiveTruthContract]
   ): Option[String] =

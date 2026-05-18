@@ -25,7 +25,7 @@ class ActiveNoteCrossProviderRoutingTest extends FunSuite:
         modelActiveFallback = "gpt-4.1-mini",
         modelActiveAsync = "gpt-5-mini",
         reasoningEffortActive = "none",
-        promptCacheKeyPrefix = "bookmaker:test",
+        promptCacheKeyPrefix = "moveReview:test",
         enabled = openAiEnabled,
         temperature = 0.2,
         maxOutputTokens = 256,

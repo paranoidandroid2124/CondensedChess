@@ -265,7 +265,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assert(flags.exists(_.startsWith("taxonomy_residue:")), clues(flags))
   }
 
-  test("buildBookmakerRows humanizes raw support labels") {
+  test("buildMoveReviewRows humanizes raw support labels") {
     val response =
       CommentResponse(
         commentary = "7... O-O: The move prepares the e pawn break.",
@@ -312,7 +312,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         signalDigest = Some(NarrativeSignalDigest())
       )
 
-    val (support, advanced) = buildBookmakerRows(response)
+    val (support, advanced) = buildMoveReviewRows(response)
 
     assertEquals(
       support.find(_.label == "Main plans").map(_.text),
@@ -323,7 +323,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(advanced.find(_.label == "Latent reason"), None)
   }
 
-  test("buildBookmakerRows drops abstract support labels in compensation context") {
+  test("buildMoveReviewRows drops abstract support labels in compensation context") {
     val response =
       CommentResponse(
         commentary = "12... Rxb2: The material can wait while the queenside files stay active.",
@@ -360,14 +360,14 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         )
       )
 
-    val (support, advanced) = buildBookmakerRows(response)
+    val (support, advanced) = buildMoveReviewRows(response)
 
     assertEquals(support.find(_.label == "Main plans").map(_.text), Some("Preparing the e-break"))
     assertEquals(advanced.find(_.label == "Latent plan"), None)
     assertEquals(advanced.find(_.label == "Latent reason"), None)
   }
 
-  test("sentenceCount ignores chess move-number dots in cited bookmaker prose") {
+  test("sentenceCount ignores chess move-number dots in cited moveReview prose") {
     val prose =
       """12... Rc3: White keeps the initiative ahead of Queenside Counterplay because the reply window is short.
         |
@@ -378,9 +378,9 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(sentenceCount(prose), 3)
   }
 
-  test("BookmakerOutputEntry round-trips planner signoff fields") {
+  test("MoveReviewOutputEntry round-trips planner signoff fields") {
     val entry =
-      BookmakerOutputEntry(
+      MoveReviewOutputEntry(
         sampleId = "sample_1",
         gameKey = "game_1",
         sliceKind = SliceKind.StrategicChoice,
@@ -401,7 +401,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         plannerPrimaryFallbackMode = Some("PlannerOwned"),
           plannerSecondaryKind = Some("WhyNow"),
           plannerSecondarySurfaced = true,
-          bookmakerFallbackMode = "planner_owned",
+          moveReviewFallbackMode = "planner_owned",
           plannerSceneType = Some("plan_clash"),
           plannerSceneReasons = List("proof_family=PlanRace"),
           plannerOwnerCandidates = List("PlanRace:evidence_backed_plan:move_linked"),
@@ -417,9 +417,9 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
           rawPvDeltaIngressReason = Some("pv_delta_present_with_content"),
           sanitizedDecisionIngressReason = Some("decision_present"),
           sanitizedPvDeltaIngressReason = Some("pv_delta_present_with_content"),
-          surfaceReplayOutcome = Some("bookmaker_planner_owned")
+          surfaceReplayOutcome = Some("move_review_planner_owned")
         ).withQuietSupportTrace(
-          BookmakerQuietSupportTrace(
+          MoveReviewQuietSupportTrace(
             liftApplied = true,
             runtimeGatePassed = Some(true),
             runtimeSceneType = Some("quiet_improvement"),
@@ -432,10 +432,10 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         )
 
     val js = Json.toJson(entry).as[play.api.libs.json.JsObject]
-    val parsed = js.validate[BookmakerOutputEntry].asEither.toOption.get
+    val parsed = js.validate[MoveReviewOutputEntry].asEither.toOption.get
 
     assertEquals(parsed.plannerPrimaryKind, Some("WhosePlanIsFaster"))
-    assertEquals(parsed.bookmakerFallbackMode, "planner_owned")
+    assertEquals(parsed.moveReviewFallbackMode, "planner_owned")
     assertEquals(parsed.plannerSceneType, Some("plan_clash"))
     assertEquals(parsed.plannerSceneReasons, List("proof_family=PlanRace"))
     assertEquals(parsed.plannerSelectedOwnerKind, Some("PlanRace"))
@@ -451,7 +451,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals((js \ "track3RuntimeGatePassed").toOption, None)
   }
 
-  test("BookmakerOutputEntry reads legacy quiet-support artifact keys") {
+  test("MoveReviewOutputEntry reads legacy quiet-support artifact keys") {
     val legacyJson =
       Json.obj(
         "sampleId" -> "sample_1",
@@ -487,7 +487,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         "track3QuietSupportFactualSentence" -> "The route toward c4 stays available."
       )
 
-    val parsed = legacyJson.validate[BookmakerOutputEntry].asEither.toOption.get
+    val parsed = legacyJson.validate[MoveReviewOutputEntry].asEither.toOption.get
 
     assertEquals(parsed.quietSupportLiftApplied, Some(true))
     assertEquals(parsed.quietSupportRejectReasons, List("planner_owned_row"))
@@ -516,7 +516,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     val js =
       Json.obj(
         "sampleId" -> "sample_1",
-        "surface" -> "bookmaker",
+        "surface" -> "moveReview",
         "sliceKind" -> SliceKind.StrategicChoice,
         "fen" -> "8/8/8/8/8/8/8/8 w - - 0 1",
         "playedSan" -> "Nd5",
@@ -747,7 +747,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     val weakerDuplicate =
       QuietRichRow(
         schemaVersion = "cqf_track3_quiet_rich.v1",
-        sampleId = "game-1:long_structural_squeeze:55:bookmaker",
+        sampleId = "game-1:long_structural_squeeze:55:moveReview",
         gameKey = "game-1",
         bucket = SliceKind.ProphylaxisRestraint,
         sliceKind = SliceKind.LongStructuralSqueeze,
@@ -759,7 +759,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
         lane = "upstream-blocked / non-eligible rows",
         statusReasons = Nil,
         plannerSceneType = Some("forcing_defense"),
-        bookmakerFallbackMode = Some("planner_owned"),
+        moveReviewFallbackMode = Some("planner_owned"),
         quietnessVerified = Some(true),
         quietnessSpreadCp = Some(8),
         quietnessNotes = Nil,
@@ -768,20 +768,20 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
       )
     val strongerDuplicate =
       weakerDuplicate.copy(
-        sampleId = "game-1:transition_heavy_endgames:55:bookmaker",
+        sampleId = "game-1:transition_heavy_endgames:55:moveReview",
         sliceKind = SliceKind.TransitionHeavyEndgames,
         plannerSceneType = Some("quiet_improvement"),
-        bookmakerFallbackMode = Some("exact_factual"),
+        moveReviewFallbackMode = Some("exact_factual"),
         quietnessSpreadCp = Some(4),
         directSources = List("MoveDelta.pv_delta")
       )
     val distinctRow =
       weakerDuplicate.copy(
-        sampleId = "game-2:long_structural_squeeze:58:bookmaker",
+        sampleId = "game-2:long_structural_squeeze:58:moveReview",
         gameKey = "game-2",
         targetPly = 58,
         playedSan = "Rc8",
-        bookmakerFallbackMode = Some("exact_factual"),
+        moveReviewFallbackMode = Some("exact_factual"),
         quietnessSpreadCp = Some(5),
         directSources = List("MoveDelta.pv_delta")
       )
@@ -799,16 +799,16 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
           )
       )
 
-    assertEquals(selected.map(_.sampleId), List("game-1:transition_heavy_endgames:55:bookmaker", "game-2:long_structural_squeeze:58:bookmaker"))
+    assertEquals(selected.map(_.sampleId), List("game-1:transition_heavy_endgames:55:moveReview", "game-2:long_structural_squeeze:58:moveReview"))
   }
 
   test("retargetManifestEntries rewrites sample ids and slice kinds for collection lanes") {
     val entries =
       List(
         SliceManifestEntry(
-          sampleId = "game-1:opening_transition:10:bookmaker",
+          sampleId = "game-1:opening_transition:10:moveReview",
           gameKey = "game-1",
-          surface = "bookmaker",
+          surface = "moveReview",
           sliceKind = SliceKind.OpeningTransition,
           targetPly = 10,
           fen = questionFen,
@@ -842,7 +842,7 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(
       retargeted.map(_.sampleId),
       List(
-        "game-1:opening_deviation_after_stable_development:10:bookmaker",
+        "game-1:opening_deviation_after_stable_development:10:moveReview",
         "game-1:opening_deviation_after_stable_development:10:chronicle"
       )
     )

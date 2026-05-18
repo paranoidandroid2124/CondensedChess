@@ -1,4 +1,4 @@
-package lila.commentary.tools.bookmaker
+package lila.commentary.tools.moveReview
 
 import java.nio.file.{ Files, Path, Paths }
 
@@ -8,13 +8,13 @@ import lila.commentary.tools.review.CommentaryPlayerQcSupport
 
 import scala.util.control.NonFatal
 
-object BookmakerPlannerSliceBuilder:
+object MoveReviewPlannerSliceBuilder:
 
   import CommentaryPlayerQcSupport.*
 
   final case class Config(
       catalogPath: Path = DefaultCatalogDir.resolve("catalog.jsonl"),
-      outPath: Path = DefaultManifestDir.resolve("bookmaker_planner_signoff_slice.jsonl"),
+      outPath: Path = DefaultManifestDir.resolve("move_review_planner_signoff_slice.jsonl"),
       depth: Int = 8,
       multiPv: Int = 2,
       perKindTarget: Int = 2,
@@ -30,11 +30,11 @@ object BookmakerPlannerSliceBuilder:
       readJsonLines[CatalogEntry](config.catalogPath) match
         case Right(value) => value
         case Left(err) =>
-          System.err.println(s"[bookmaker-planner-slice] failed to read `${config.catalogPath}`: $err")
+          System.err.println(s"[move-review-planner-slice] failed to read `${config.catalogPath}`: $err")
           sys.exit(1)
 
     if catalog.isEmpty then
-      System.err.println(s"[bookmaker-planner-slice] no catalog entries in `${config.catalogPath}`")
+      System.err.println(s"[move-review-planner-slice] no catalog entries in `${config.catalogPath}`")
       sys.exit(1)
 
     val engine = new LocalUciEngine(config.enginePath, timeoutMs = 30000L)
@@ -55,16 +55,16 @@ object BookmakerPlannerSliceBuilder:
             }
           catch
             case NonFatal(err) =>
-              println(s"[bookmaker-planner-slice] skipped game `${entry.gameKey}`: ${err.getMessage}")
+              println(s"[move-review-planner-slice] skipped game `${entry.gameKey}`: ${err.getMessage}")
       }
 
       writeJsonLines(config.outPath, selected.toList)
       println(
-        s"[bookmaker-planner-slice] wrote `${config.outPath}` (samples=${selected.size}, counts=${counts.toMap.toList.sortBy(_._1).mkString(", ")})"
+        s"[move-review-planner-slice] wrote `${config.outPath}` (samples=${selected.size}, counts=${counts.toMap.toList.sortBy(_._1).mkString(", ")})"
       )
       if !targetsMet(counts.toMap, config) then
         println(
-          s"[bookmaker-planner-slice] target incomplete after scanning ${config.maxGames.min(catalog.size)} games: ${counts.toMap}"
+          s"[move-review-planner-slice] target incomplete after scanning ${config.maxGames.min(catalog.size)} games: ${counts.toMap}"
         )
     finally engine.close()
 
@@ -101,7 +101,7 @@ object BookmakerPlannerSliceBuilder:
           )
         )
       ).flatMap { snapshot =>
-        val runtime = bookmakerPlannerRuntime(snapshot)
+        val runtime = moveReviewPlannerRuntime(snapshot)
         categoryOf(runtime.planner).map { category =>
           buildSliceEntry(entry, plyData, category) -> category
         }
@@ -118,26 +118,26 @@ object BookmakerPlannerSliceBuilder:
         .replaceAll("([a-z])([A-Z])", "$1_$2")
         .toLowerCase
     SliceManifestEntry(
-      sampleId = s"${entry.gameKey}:signoff_${normalizedCategory}:${plyData.ply}:bookmaker",
+      sampleId = s"${entry.gameKey}:signoff_${normalizedCategory}:${plyData.ply}:moveReview",
       gameKey = entry.gameKey,
-      surface = "bookmaker",
+      surface = "moveReview",
       sliceKind = s"signoff_${normalizedCategory}",
       targetPly = plyData.ply,
       fen = plyData.fen,
       playedSan = plyData.playedMove,
       opening = entry.opening,
-      tags = (entry.familyTags :+ "bookmaker_signoff" :+ normalizedCategory).distinct,
+      tags = (entry.familyTags :+ "move_review_signoff" :+ normalizedCategory).distinct,
       pgnPath = entry.pgnPath,
       playedUci = plyData.playedUci,
       variant = entry.variant,
       mixBucket = Some(entry.mixBucket)
     )
 
-  private def categoryOf(trace: BookmakerPlannerTrace): Option[String] =
-    val plannerOwned = trace.bookmakerFallbackMode == "planner_owned"
+  private def categoryOf(trace: MoveReviewPlannerTrace): Option[String] =
+    val plannerOwned = trace.moveReviewFallbackMode == "planner_owned"
     trace.primaryKind match
       case Some(kind) if plannerOwned && coreKinds.contains(kind) => Some(kind)
-      case _ if trace.bookmakerFallbackMode == "exact_factual" ||
+      case _ if trace.moveReviewFallbackMode == "exact_factual" ||
           trace.primaryFallbackMode.exists(_ != "PlannerOwned")   => Some("negative")
       case _                                                     => None
 
@@ -156,13 +156,13 @@ object BookmakerPlannerSliceBuilder:
         .orElse(sys.env.get("STOCKFISH_BIN").map(_.trim).filter(_.nonEmpty))
         .map(Paths.get(_))
         .getOrElse {
-          System.err.println("[bookmaker-planner-slice] missing engine path. Pass `--engine /path/to/uci-engine`.")
+          System.err.println("[move-review-planner-slice] missing engine path. Pass `--engine /path/to/uci-engine`.")
           sys.exit(1)
         }
     Config(
       catalogPath = positional.headOption.map(Paths.get(_)).getOrElse(DefaultCatalogDir.resolve("catalog.jsonl")),
       outPath =
-        positional.lift(1).map(Paths.get(_)).getOrElse(DefaultManifestDir.resolve("bookmaker_planner_signoff_slice.jsonl")),
+        positional.lift(1).map(Paths.get(_)).getOrElse(DefaultManifestDir.resolve("move_review_planner_signoff_slice.jsonl")),
       depth = optionInt(args, "--depth").getOrElse(8).max(6),
       multiPv = optionInt(args, "--multi-pv").orElse(optionInt(args, "--multiPv")).getOrElse(2).max(1),
       perKindTarget = optionInt(args, "--per-kind").getOrElse(2).max(1),

@@ -17,7 +17,7 @@ class OpenAiClientParsingTest extends FunSuite:
       modelSync = "gpt-4.1-mini",
       modelFallback = "",
       modelAsync = "gpt-4.1-mini",
-      promptCacheKeyPrefix = "bookmaker:test",
+      promptCacheKeyPrefix = "moveReview:test",
       enabled = true,
       temperature = 0.2,
       maxOutputTokens = 256,

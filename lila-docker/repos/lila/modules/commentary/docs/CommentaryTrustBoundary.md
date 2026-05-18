@@ -166,7 +166,7 @@ no exact witness, but they do not rename a layer to `family`.
   same-branch contrast/consequence
   (`Before the move, d6 was not yet fixed as the target on that defended
   branch.` / `That same defended branch keeps the pressure fixed on d6.`).
-  Bookmaker and Chronicle consume that planner-owned delta as primary instead
+  MoveReview and Chronicle consume that planner-owned delta as primary instead
   of exact factual fallback, but the trust boundary stays strict: the ranking
   preference is limited to this admitted `exact_target_fixation` packet, and
   no broad state-summary, generic weakness prose, or support-only relabel may
@@ -194,7 +194,7 @@ no exact witness, but they do not rename a layer to `family`.
   `main_bundle=The key strategic fact here is that c6 is the fixed target.`,
   and planner-owned `WhatMattersHere` with the bounded coda
   `So the task is to keep the queenside pressure trained on c6 instead of
-  rushing a conversion.` Bookmaker and Chronicle may consume that deterministic
+  rushing a conversion.` MoveReview and Chronicle may consume that deterministic
   planner-owned primary, but the trust boundary stays strict:
   `QuestionFirstCommentaryPlanner` only accepts the certified
   `carlsbad_fixed_target_probe` packet there and rejects generic
@@ -597,7 +597,7 @@ a parallel runtime path.
 | `hidden_defensive_resource` | a supposedly compressed defense may still have several viable holds | `bestReplyStable` / future snapshot checks already existed in partial form | defender resource count is measured explicitly and certification fails when replies stay too broad |
 | `move_order_fragility` | the idea works only in one exact order and collapses under the best defensive move order | existing experiment metadata could mark move-order sensitivity | certification converts that fragility into an explicit failure reason and downgrades planner admission |
 | `local_to_global_overreach` | a move-local edge is overstated as a whole-position conversion story | truth boundary already bans scene-local to global-owner revival | B1 requires conversion-ready eval posture and bounded route persistence; equal/unclear positions fail |
-| `surface_reinflation` | Chronicle / Bookmaker / Active or whole-game replay can revive a weakened claim | shared planner/filter path plus factual fallback already existed | uncertified conversion experiments are downgraded before planner reuse, and surface tests require factual fallback instead of revived conversion prose |
+| `surface_reinflation` | Chronicle / MoveReview / Active or whole-game replay can revive a weakened claim | shared planner/filter path plus factual fallback already existed | uncertified conversion experiments are downgraded before planner reuse, and surface tests require factual fallback instead of revived conversion prose |
 
 #### Fixture scope
 
@@ -610,8 +610,8 @@ The B1 fixture pack now includes:
 - `pv_restatement_only`
 - `local_truth_overreach`
 
-Surface-safety coverage is also included through replay/bookmaker regressions
-that verify uncertified conversion ideas stay out of Chronicle / Bookmaker /
+Surface-safety coverage is also included through replay/moveReview regressions
+that verify uncertified conversion ideas stay out of Chronicle / MoveReview /
 Active primaries and collapse to exact factual fallback instead of
 stronger-looking strategic prose.
 
@@ -636,9 +636,9 @@ Broad validation pack:
   certification contract and `NarrativeContextBuilder` gate stay aligned across
   a broader corpus
 - real-surface validation:
-  replay/bookmaker/chronicle/active expectations are exercised through
+  replay/moveReview/chronicle/active expectations are exercised through
   `RestrictedDefenseConversionProofBoundaryTest`,
-  `SurfaceReplayParityTest`, and the existing bookmaker fixture path
+  `SurfaceReplayParityTest`, and the existing moveReview fixture path
 - whole-game support reuse:
   failed restricted-defense conversion ideas are checked to remain support-only
   in wrap-up/whole-game reuse instead of reviving as decisive conversion truth
@@ -682,7 +682,7 @@ Acceptance matrix:
     none in the targeted broad-validation matrix
 - surface:
   - `covered`:
-    Bookmaker, Chronicle, Active, and whole-game/support reuse
+    MoveReview, Chronicle, Active, and whole-game/support reuse
   - `deferred`:
     none inside the targeted broad-validation surface pack
   - `failed`:
@@ -691,11 +691,11 @@ Acceptance matrix:
 Actual surface validation status:
 
 - certified positive restricted-defense conversion currently survives as a
-  planner-owned `WhyThis` technical conversion on Bookmaker / Chronicle /
+  planner-owned `WhyThis` technical conversion on MoveReview / Chronicle /
   Active, not as a stronger `WhyNow` timing claim
 - fragile or uncertified restricted-defense conversion ideas fail closed to
   exact factual fallback and stay out of planner-owned Chronicle / Active /
-  Bookmaker primaries
+  MoveReview primaries
 - whole-game / wrap-up reuse keeps failed restricted-defense conversion support
   as support-only and does not revive it as `decisiveShift` or `payoff`
 
@@ -945,7 +945,7 @@ Surface matrix:
 
 | Surface | Status | Why |
 | --- | --- | --- |
-| `Bookmaker` | `likely coverable now` | strongest planner-owned/fallback discipline for positive and negative cases |
+| `MoveReview` | `likely coverable now` | strongest planner-owned/fallback discipline for positive and negative cases |
 | `Chronicle` | `likely coverable now` | shared planner path is available, but must mirror the same downgrade rules |
 | `Active` | `likely deferred` | omission/parity can be tested now, but positive squeeze ownership remains diagnostic-sensitive |
 | `whole-game / wrap-up / support reuse` | `likely unsafe` | early B2 should validate only non-reinflation; positive wrapper reuse is too inflation-prone |
@@ -969,7 +969,7 @@ Surface matrix:
   should stay unchanged in role; it may consume only already-certified
   experiments through the existing evidence-backed plan pool
 - `StrategicNarrativePlanSupport`:
-  remains the shared replay gate so Bookmaker / Chronicle / Active all see the
+  remains the shared replay gate so MoveReview / Chronicle / Active all see the
   same downgraded planner pool
 - `DecisiveTruth`:
   keeps the same fail-closed replay and wrapper discipline; B2 should not add a
@@ -1056,7 +1056,7 @@ closing validation-only best-defense and stitched-branch persistence loopholes.
 - helper:
   `CounterplayRestraintProof`
 - owner path:
-  `NarrativeContextBuilder -> StrategicPlanExperiment evidence tier downgrade -> StrategicNarrativePlanSupport.filterEvidenceBacked -> QuestionFirstCommentaryPlanner -> Chronicle / Bookmaker / Active replay`
+  `NarrativeContextBuilder -> StrategicPlanExperiment evidence tier downgrade -> StrategicNarrativePlanSupport.filterEvidenceBacked -> QuestionFirstCommentaryPlanner -> Chronicle / MoveReview / Active replay`
 - applicable experiments only:
   `PlanTheme.RestrictionProphylaxis` with
   `PlanKind.BreakPrevention` or `PlanKind.KeySquareDenial`
@@ -1076,7 +1076,7 @@ closing validation-only best-defense and stitched-branch persistence loopholes.
 #### Planner and surface behavior
 
 - uncertified suppression experiments downgrade to `deferred` before
-  `mainStrategicPlans` are filtered, so Chronicle / Bookmaker / Active all see
+  `mainStrategicPlans` are filtered, so Chronicle / MoveReview / Active all see
   the same reduced planner pool
 - certified suppression plans may stay in the move-delta `WhyThis` lane even
   when the same move also carries prevented-plan support:
@@ -1141,7 +1141,7 @@ Negative / near-miss fixtures:
 Surface verification:
 
 - planner-owned `WhyThis` parity is green for certified B2 positives
-- Chronicle / Bookmaker reuse the same downgraded planner pool
+- Chronicle / MoveReview reuse the same downgraded planner pool
 - Active is checked for parity/non-reinflation only
 - whole-game support is verified negative-only:
   no decisive-shift or payoff wrapper survives from the uncertified shell
@@ -1242,7 +1242,7 @@ charter after B2 bounded-scope completion and before any later B3 implementation
   `NarrativeContextBuilder -> PlanEvidenceEvaluator -> StrategicPlanExperiment -> QuestionFirstCommentaryPlanner -> DecisiveTruth sanitize -> existing surfaces`
   and do not open a new runtime lane
 - surface inflation forbidden:
-  Bookmaker, Chronicle, Active, and whole-game/support reuse may not strengthen
+  MoveReview, Chronicle, Active, and whole-game/support reuse may not strengthen
   a squeeze/bind claim beyond the upstream certification result
 - local bounded claim before whole-position ambition:
   B3 may certify a bounded local `dual-axis squeeze` shell, not a whole-position
@@ -1390,7 +1390,7 @@ Mandatory fail-closed reasons for B3 should include at least:
 | `fortress_like_but_not_winning` | static restriction is confused with a certifiable squeeze route | existing whole-position caution, conversion-tail checks, decisive-proof discipline | require bounded route continuity and block strong payoff language when progress is not visible | cramped-looking hold with no breakthrough, no bounded follow-through, and no worsening defender resource state |
 | `local_to_global_overreach` | local multi-axis restriction gets inflated into whole-position domination | `CommentaryTruthBoundary` scene-local limits, planner ownership, support-only replay discipline | backend `claimScope` must stay local and B3 positives stay off whole-game reuse | one sector bind is rewritten as `the opponent has no play anywhere` |
 | `waiting_move_disguised_as_bind` | a quiet improving move is mistaken for a squeeze | quiet-intent fallback, move-delta anchoring, prevented-plan gating | require opponent-facing multi-axis restriction plus continuity; otherwise demote to support-only or exact factual | king/piece improvement with nicer coordination but no measurable defender-resource loss |
-| `surface_reinflation` | uncertified shell returns on Bookmaker, Chronicle, Active, or wrappers as a stronger claim | shared replay gate, `StrategicNarrativePlanSupport`, `CommentaryEngine`, existing parity harnesses | certification must downgrade before planner reuse and remain support-only everywhere else | uncertified squeeze wording appears in sidecars/support carriers and tries to revive on a stronger surface |
+| `surface_reinflation` | uncertified shell returns on MoveReview, Chronicle, Active, or wrappers as a stronger claim | shared replay gate, `StrategicNarrativePlanSupport`, `CommentaryEngine`, existing parity harnesses | certification must downgrade before planner reuse and remain support-only everywhere else | uncertified squeeze wording appears in sidecars/support carriers and tries to revive on a stronger surface |
 
 #### Broad validation charter
 
@@ -1441,7 +1441,7 @@ Surface matrix:
 | --- | --- | --- |
 | `planner-owned WhyThis` | `likely coverable now` | strongest owner path for bounded local squeeze/bind explanation |
 | `planner-owned WhatChanged` | `likely deferred` | existing move-delta lane remains legal, but B3-specific positive ownership should not begin here |
-| `Bookmaker` | `likely coverable now` | strongest planner-first/fallback discipline once upstream certification exists |
+| `MoveReview` | `likely coverable now` | strongest planner-first/fallback discipline once upstream certification exists |
 | `Chronicle` | `likely coverable now` | shared planner/replay path can mirror the same downgrade rules |
 | `Active` | `likely deferred` | parity/non-reinflation can be tested now, but positive bind ownership remains diagnostic-sensitive |
 | `whole-game / wrap-up / support reuse` | `likely unsafe` | B3 early slices should validate only non-reinflation, not positive wrapper reuse |
@@ -1471,7 +1471,7 @@ Surface matrix:
   planner-owned `WhyThis`, while `WhatChanged` remains the preexisting
   independently-legal move-delta lane
 - `StrategicNarrativePlanSupport`:
-  remains the shared replay gate so Bookmaker, Chronicle, and Active all see
+  remains the shared replay gate so MoveReview, Chronicle, and Active all see
   the same downgraded planner pool
 - `DecisiveTruth` and `PlayerFacingTruthModePolicy`:
   keep the same local-scope, ontology, and replay discipline so B3 does not add
@@ -1654,7 +1654,7 @@ bounded B1 / B2 / B3 maintenance charter.
   persistence without a bounded follow-through route stays uncertified
 - `surface_reinflation`:
   uncertified or overclaiming dual-axis shells are downgraded before planner
-  reuse and remain blocked from stronger Bookmaker / Chronicle / Active /
+  reuse and remain blocked from stronger MoveReview / Chronicle / Active /
   whole-game ownership
 
 #### Residual cells still outside the live B3 positive scope
@@ -1740,7 +1740,7 @@ heavy-piece, slight-edge, or color-complex overclaim.
   `NarrativeContextBuilder -> PlanEvidenceEvaluator -> StrategicPlanExperiment -> QuestionFirstCommentaryPlanner -> StrategicNarrativePlanSupport -> DecisiveTruth sanitize -> existing surfaces`
 - no new runtime path, payload/schema, surface phrase class, or whole-game owner lane
 - surface inflation forbidden:
-  uncertified B4 shells must downgrade before Chronicle / Bookmaker / Active /
+  uncertified B4 shells must downgrade before Chronicle / MoveReview / Active /
   whole-game reuse
 - texture expansion before phase/eval expansion:
   B4 should widen the certifiable local bind texture before reopening
@@ -1809,7 +1809,7 @@ Current surface phrasing gap:
 - `QuietMoveIntentBuilder` and `MainPathMoveDeltaClaimBuilder` do not yet have
   a surface-safe phrase path for `file usability loss`
 - because of that gap, positive B4 file-bind readiness is still deferred on
-  planner-owned `WhyThis`, Bookmaker, and Chronicle even though the upstream
+  planner-owned `WhyThis`, MoveReview, and Chronicle even though the upstream
   builder/runtime path is the preferred reuse lane
 
 #### Backend-only contract drafts
@@ -1893,7 +1893,7 @@ Rejected for positive drafting now:
 | `fortress_like_but_not_progressing` | a static hold is confused with a certifiable bind | B3 fortress-risk and route-continuity checks | require `progressVisibility` or bounded continuation; otherwise fail closed | locked file and denied square with no breakthrough, no worsening defender state, and no conversion tail |
 | `slight_edge_overclaim` | a mild edge is narrated as a squeeze | B2/B3 clearly-better gate | explicit `slightEdgeOverclaimRisk`, bounded language cap, and continued defer of slightly-better positives | `+80` to `+120` position with local control but no real progress route |
 | `cross_branch_stitching` | best defense, persistence, and continuation are borrowed from different probe branches | existing branch-key / same-defended-branch logic | every B4 proof component must key to the same defended branch | best defense comes from branch A, file denial from branch B, and continuation from branch C |
-| `surface_reinflation` | support carriers revive a stronger claim on Bookmaker / Chronicle / Active / wrap-up | `StrategicNarrativePlanSupport`, replay parity tests, cross-surface trust harness | downgrade before planner reuse and keep whole-game/support reuse blocked | uncertified local file shell reappears as `no counterplay` or `squeeze` on a stronger surface |
+| `surface_reinflation` | support carriers revive a stronger claim on MoveReview / Chronicle / Active / wrap-up | `StrategicNarrativePlanSupport`, replay parity tests, cross-surface trust harness | downgrade before planner reuse and keep whole-game/support reuse blocked | uncertified local file shell reappears as `no counterplay` or `squeeze` on a stronger surface |
 
 #### Broad validation charter
 
@@ -1943,7 +1943,7 @@ Surface matrix:
 | --- | --- | --- |
 | `planner-owned WhyThis` | `likely deferred` | strongest eventual owner path, but current carrier and phrasing paths do not yet preserve file usability loss cleanly |
 | `planner-owned WhatChanged` | `likely deferred` | keep the move-delta lane independent; do not widen B4 positivity here first |
-| `Bookmaker` | `likely deferred` | planner-first replay is reusable, but current phrasing still prefers break or first-square language over file usability loss |
+| `MoveReview` | `likely deferred` | planner-first replay is reusable, but current phrasing still prefers break or first-square language over file usability loss |
 | `Chronicle` | `likely deferred` | shared replay path is reusable, but current phrasing still prefers break or first-square language over file usability loss |
 | `Active` | `likely deferred` | parity/non-reinflation can be tested now, but positive ownership remains diagnostic-sensitive |
 | `whole-game / wrap-up / support reuse` | `likely unsafe` | early B4 work should validate only non-reinflation, not positive wrapper reuse |
@@ -1997,7 +1997,7 @@ Narrow scope:
   route-denial evidence inside the current carrier
 - positive output cap:
   planner-owned `WhyThis` first after the carrier/surface gap closes;
-  Bookmaker / Chronicle may mirror the upstream certificate only after the same
+  MoveReview / Chronicle may mirror the upstream certificate only after the same
   phrasing gap is closed, while `WhatChanged`, Active, and whole-game reuse
   remain non-inflation-only
 - explicit non-goals:
@@ -2054,7 +2054,7 @@ Positive scope now open:
 
 - bounded planner-owned `WhyThis`
 - bounded move-linked `WhatChanged`
-- Bookmaker / Chronicle parity only through the same planner/builder gate
+- MoveReview / Chronicle parity only through the same planner/builder gate
 
 Still deferred or negative-only:
 
@@ -2185,7 +2185,7 @@ rollout remains unopened.
   `NarrativeContextBuilder -> PlanEvidenceEvaluator -> StrategicPlanExperiment -> QuestionFirstCommentaryPlanner -> StrategicNarrativePlanSupport -> DecisiveTruth sanitize -> existing surfaces`
 - no new runtime path, payload/schema, surface phrase class, or whole-game owner lane
 - surface reinflation forbidden:
-  uncertified B5 shells must downgrade before Chronicle / Bookmaker / Active /
+  uncertified B5 shells must downgrade before Chronicle / MoveReview / Active /
   whole-game reuse
 - local bounded claim before whole-position ambition:
   B5 is not a permission slip for `no counterplay`, global squeeze, or
@@ -2197,7 +2197,7 @@ rollout remains unopened.
 
 | Candidate | Expected positive scope | Main overclaim risk | Main falsification burden | Expected surface risk | Strongest reusable signals | B5 verdict |
 | --- | --- | --- | --- | --- | --- | --- |
-| `heavy-piece local bind` | one bounded file / entry corridor remains restricted with major pieces still on the board | queen infiltration, rook lifts, forcing checks, and perpetuals make a local shell look like a whole-position clamp | enumerate heavy-piece release inventory under concrete best defense, keep same-branch persistence, and prove the shell survives without stitched branches | `very high`; Bookmaker / Chronicle / Active can sound much stronger than the local truth | B4 file-entry contract shape, direct reply probes, `bestDefenseBranchKey`, `futureSnapshot.newThreatKinds`, `keyMotifs`, `deniedEntryScope`, `deniedSquares`, claim certification | `deferred` for positive rollout, but it is the most reusable next recon family and the recommended negative-first B5b lane |
+| `heavy-piece local bind` | one bounded file / entry corridor remains restricted with major pieces still on the board | queen infiltration, rook lifts, forcing checks, and perpetuals make a local shell look like a whole-position clamp | enumerate heavy-piece release inventory under concrete best defense, keep same-branch persistence, and prove the shell survives without stitched branches | `very high`; MoveReview / Chronicle / Active can sound much stronger than the local truth | B4 file-entry contract shape, direct reply probes, `bestDefenseBranchKey`, `futureSnapshot.newThreatKinds`, `keyMotifs`, `deniedEntryScope`, `deniedSquares`, claim certification | `deferred` for positive rollout, but it is the most reusable next recon family and the recommended negative-first B5b lane |
 | `slightly-better local squeeze` | local restriction language below winning-route level in a small edge posture | a comfortable edge is narrated as a certified squeeze even when no progress route exists | separate progress from fortress/static hold, require visible defender-resource worsening, and hard-fail small surviving releases | `very high`; every surface wants to inflate mild-edge control into squeeze rhetoric | best-defense branch reuse, bounded continuation, fortress-risk patterns, `futureSnapshot`, claim certification | `unsafe` as the first positive B5 slice; keep negative-only until progress proof exists |
 | `named route-network bind` | a small named route network, not generic square-control rhetoric | isolated squares or one-file pressure are overcounted as a meaningful network | prove route continuity, non-redundant square chaining, and no reroute through an untouched sector or color complex | `high`; square naming is especially vulnerable to pretty positional prose | `deniedSquares`, route-denial validation, B3/B4 axis-independence grammar, same-branch persistence, `futureSnapshot.planBlockersRemoved` | `deferred`; next positive frontier candidate after B5 |
 | `transition-adjacent route` | one bounded move-local route into a better technical task near a middlegame -> endgame handoff | a local route becomes a whole-ending verdict, fortress verdict, or king-race thesis | prove same-branch task shift, route continuity, and fortress/king-race exclusion under best defense | `high`; `WhatChanged`, Chronicle, and wrap-up can overstate it into the ending's full story | B1 restricted-defense route persistence, `convert_reply_multipv`, same-branch keys, `futureSnapshot`, `endgameTransitionClaim`, endgame features as support only | `deferred`; second-line recon family, not the first B5 implementation slice |
@@ -2249,7 +2249,7 @@ Reusable only as support, not as proof:
 - plain eval edge without measurable local resource loss
 - `WeakComplex` / color-complex language without a named route-loss anchor
 - surface persistence by itself:
-  Bookmaker / Chronicle / Active survival does not certify the route
+  MoveReview / Chronicle / Active survival does not certify the route
 - whole-game / wrap-up support reuse:
   it is a reinflation seam, not proof
 
@@ -2398,7 +2398,7 @@ Surface matrix:
 | --- | --- | --- |
 | `planner-owned WhyThis` | `likely deferred` | strongest eventual owner path, but no B5 positive family is approved yet |
 | `planner-owned WhatChanged` | `likely deferred` | transition-adjacent reuse is plausible later, but the task-shift proof is not ready |
-| `Bookmaker` | `likely deferred` | replay path is reusable, but positional phrasing is too inflation-prone at B5 risk level |
+| `MoveReview` | `likely deferred` | replay path is reusable, but positional phrasing is too inflation-prone at B5 risk level |
 | `Chronicle` | `likely deferred` | same replay reuse exists, but route and ending implications still inflate easily |
 | `Active` | `likely deferred` | parity / non-reinflation can be tested now, but positive ownership remains diagnostic-sensitive |
 | `whole-game / wrap-up / support reuse` | `likely unsafe` | early B5 work should validate only non-reinflation, not positive wrapper reuse |
@@ -2430,7 +2430,7 @@ Design changes forced by self-critique:
   contract
 - keep `heavy-piece middlegame` and `heavy-piece local bind` at
   `likely deferred` in the validation charter rather than `likely coverable now`
-- keep planner / Bookmaker / Chronicle / Active positive ownership closed for
+- keep planner / MoveReview / Chronicle / Active positive ownership closed for
   heavy-piece work until that negative-first burden is cleared
 - leave `slightly-better local squeeze` and `bounded color-complex
   restriction` outside the first B5 slice entirely instead of treating them as
@@ -2457,7 +2457,7 @@ Narrow scope:
 - acceptance bar before any later positive reopening:
   same-branch best defense, empty heavy-piece release inventory,
   non-fragile continuation, and green non-reinflation behavior across planner /
-  Bookmaker / Chronicle / Active / whole-game negative packs
+  MoveReview / Chronicle / Active / whole-game negative packs
 
 Why this slice should go first:
 
@@ -2575,7 +2575,7 @@ Session verdict:
   - exact-board anchored
   - same-defended-branch
   - reroute-aware
-  - fail-closed before Chronicle / Bookmaker / Active / whole-game reuse
+  - fail-closed before Chronicle / MoveReview / Active / whole-game reuse
 - architectural boundary:
   any future B6 work must stay inside the existing
   `RestrictionProphylaxis -> file-entry reuse` lane with backend-only
@@ -2641,7 +2641,7 @@ Deferred broader drafts:
 | `engine_pv_paraphrase` | a maneuver line gets retold as a network bind even though no bounded route loss was measured | claim-certification quantifier / attribution / ontology checks | require node/edge/reroute evidence and opponent-facing denial, not just a PV maneuver | reuse the heavy-piece middlegame control FEN `r1bq1rk1/pp3ppp/2n1pn2/2bp4/3P4/2N1PN2/PPQ2PPP/R1B2RK1 w - - 0 12`; a line like rook doubling or king improvement alone must not certify a network |
 | `cross_branch_stitching` | best defense, reroute denial, and continuation are borrowed from different branches | existing branch-key / same-defended-branch logic | require node denial, reroute denial, persistence, and continuation to share one `bestDefenseBranchKey` | reuse `stitched_heavy_piece_bundle` at `2rq1rk1/pp3ppp/2n1pn2/3p4/3P2P1/2P1PN2/PPQ2P1P/2RR2K1 w - - 0 24` and block any stitched network shell |
 | `static_net_without_progress` | a stable-looking net is confused with certifiable strategic progress even though no bounded continuation exists | B3 / B4 fortress-risk and bounded-continuation checks | require `continuationBound` plus visible blocker removal / target change, otherwise fail closed | reuse `fortress_like_but_not_progressing` at `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P2NP1/PPQ2P1P/2RR2K1 w - - 0 24` and block network wording when no defender resource actually worsens |
-| `surface_reinflation` | uncertified local route shells are restated as stronger planner/replay/wrap-up theses | B5b replay gate, trust harness, evidence-backed-plan filter | keep downgrade-before-reuse discipline and block whole-game reuse until explicit later signoff | reuse the surface reinflation FEN `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/P1P1PN2/1PQ2PPP/2R2RK1 w - - 0 24` across planner / Bookmaker / Chronicle / Active / whole-game |
+| `surface_reinflation` | uncertified local route shells are restated as stronger planner/replay/wrap-up theses | B5b replay gate, trust harness, evidence-backed-plan filter | keep downgrade-before-reuse discipline and block whole-game reuse until explicit later signoff | reuse the surface reinflation FEN `2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/P1P1PN2/1PQ2PPP/2R2RK1 w - - 0 24` across planner / MoveReview / Chronicle / Active / whole-game |
 | `file_entry_restatement_only` | the draft does not add a new burden beyond B4 and simply renames the file-entry pair as a network | existing B4 certified surface-pair gate and local file-entry contract | require one independently denied reroute beyond the B4 pair or fail back to B4-only truth | reuse the B4 positive control FEN `2r2rk1/pp3pp1/2n1p2p/3p4/1p1P1P2/P1P1PN1P/1P4P1/2R2RK1 w - - 0 24` with the existing `c-file + b4` pair and confirm B6 does not open without a third non-redundant denial |
 
 ### Broad validation charter
@@ -2691,7 +2691,7 @@ Surface matrix:
 | --- | --- | --- |
 | `planner-owned WhyThis` | `likely coverable now` | this is the narrowest owner path for a local route-network claim if the B6 contract certifies |
 | `planner-owned WhatChanged` | `likely deferred` | change-language drifts too easily into bigger route or conversion theses |
-| `Bookmaker` | `likely deferred` | replay phrasing is reusable later, but the network wording is still inflation-prone |
+| `MoveReview` | `likely deferred` | replay phrasing is reusable later, but the network wording is still inflation-prone |
 | `Chronicle` | `likely deferred` | same replay reuse exists, but route prose still needs stronger containment |
 | `Active` | `likely deferred` | non-reinflation can be checked, but positive ownership is still diagnostic-sensitive |
 | `whole-game / wrap-up / support reuse` | `likely unsafe` | B6 should validate non-reinflation only, not positive wrapper reuse |
@@ -2728,7 +2728,7 @@ Design changes forced by self-critique:
   first slice above, not for general route chains or sector networks
 - tighten the surface charter:
   only `planner-owned WhyThis` is tentatively coverable;
-  `WhatChanged`, Bookmaker, Chronicle, and Active stay `likely deferred`;
+  `WhatChanged`, MoveReview, Chronicle, and Active stay `likely deferred`;
   whole-game / wrap-up remain `likely unsafe`
 - keep heavy-piece, transition-adjacent, slight-edge, and color-complex route
   families outside the first B6 slice
@@ -2773,7 +2773,7 @@ Narrow scope:
   branches, and surface reinflation
 - surface scope:
   if B6b opens later, open only `planner-owned WhyThis` first; keep
-  `WhatChanged`, Bookmaker, Chronicle, Active, and whole-game / wrap-up closed
+  `WhatChanged`, MoveReview, Chronicle, Active, and whole-game / wrap-up closed
 - implementation boundary:
   backend-only contract / downgrade work only; no new public payload/schema,
   owner lane, or surface phrase class
@@ -2807,7 +2807,7 @@ Session verdict:
 - no new runtime path, payload/schema field, surface phrase class, or owner lane was
   introduced
 - positive owner scope is planner-owned `WhyThis` only
-- `WhatChanged`, Bookmaker, Chronicle, Active, and whole-game / wrap-up remain
+- `WhatChanged`, MoveReview, Chronicle, Active, and whole-game / wrap-up remain
   replay-closed for `sourceKinds += named_route_network_bind`
 
 ### Contract and hard fails
@@ -2904,7 +2904,7 @@ Session verdict:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `broader route-chain rollout` | one current B6 triplet plus one exact intermediate node and one reroute denial on the same defended branch, still clearly-better late middlegame, still planner-owned `WhyThis` only | first product-meaningful widening beyond a local triplet because the route claim starts expressing actual continuity | `high` but still bounded | B4 file-entry pair, B6 reroute denial, same-defended-branch grammar, `futureSnapshot.planBlockersRemoved`, `planPrereqsMet`, `PreventedPlan.deniedSquares`, `deniedEntryScope`, `claimCertification` | `fake_route_chain`, `redundant_intermediate_node`, `chain_only_on_nonbest_branch`, `untouched_sector_escape`, root-best failure on the played move | `medium-high` if replay stays closed | `blocked on the current exact FEN`; after-move proof survives, but the move itself does not pass the live root-best gate |
 | `broader posture/phase expansion` | the same B6/B6-expansion truth in slightly-better late middlegame, heavy-piece middlegame, or transition-adjacent cells | broad row coverage once the route contract is trusted | `very high` | current B6 route continuity, B1 persistence grammar, B5b heavy-piece exclusion, current eval/phase gating | `posture_inflation`, heavy-piece release proof, transition task-shift proof, stronger progress burden | `high` | `deferred` until a broader route-chain slice survives exact-board criticism on the current cell |
-| `replay / whole-game positive reuse review` | limited Chronicle / Bookmaker / Active / wrapper reuse of planner-certified route truth | high cross-surface impact | `very high` | replay-closed `sourceKinds`, `StrategicNarrativePlanSupport.evidenceBackedMainPlans`, planner replay filters, existing non-reinflation harnesses | `replay_reinflation`, `whole_game_wrapper_leak`, exact carried-contract parity across surfaces | `very high` | `deferred` until route-chain truth is broader and stable on planner-only scope |
+| `replay / whole-game positive reuse review` | limited Chronicle / MoveReview / Active / wrapper reuse of planner-certified route truth | high cross-surface impact | `very high` | replay-closed `sourceKinds`, `StrategicNarrativePlanSupport.evidenceBackedMainPlans`, planner replay filters, existing non-reinflation harnesses | `replay_reinflation`, `whole_game_wrapper_leak`, exact carried-contract parity across surfaces | `very high` | `deferred` until route-chain truth is broader and stable on planner-only scope |
 | `sector-network rollout` | more than one local chain or more than one entry branch in the same sector | medium-high if it ever becomes safe | `extreme` | prevented-plan inventory, `releaseRisksRemaining`, same-branch grammar, `deniedEntryScope = sector` support signals | sector-boundary definition, multi-chain continuity, `untouched_sector_escape`, local-to-sector overreach | `extreme` | `likely unsafe` as the first expansion candidate |
 | `color-complex route expansion` | a route shell narrated through one color complex or mobility cage | medium prose value, low truth margin | `extreme` | denied-square inventory, weak-complex / mobility-cage support signals, `futureSnapshot` | `color_complex_escape`, exact route anchor on one branch, mobility-cage release proof, rhetoric drift | `extreme` | `likely unsafe`; keep support-only / negative-first |
 | `none / more B6 boundary first` | keep the positive frontier closed and do no B6-family widening yet | lowest immediate risk but no product movement | `low` | existing B2 / B3 / B4 / B5b / B6b fail-closed gates | none beyond current regression watch | `lowest` | selected by the 2026-04-02 live-runtime triage because the only plausible route-chain slice failed the root-best gate |
@@ -3007,7 +3007,7 @@ Surface matrix:
 | --- | --- | --- |
 | `planner-owned WhyThis` | `likely coverable next` | this is still the narrowest owner path for a bounded route-chain claim |
 | `planner-owned WhatChanged` | `likely deferred` | change-language drifts too easily into broader route or conversion theses |
-| `Bookmaker` | `likely deferred` | replay phrasing is reusable later, but the chain wording is still inflation-prone |
+| `MoveReview` | `likely deferred` | replay phrasing is reusable later, but the chain wording is still inflation-prone |
 | `Chronicle` | `likely deferred` | same replay reuse exists, but exact carried-chain parity is not proven yet |
 | `Active` | `likely deferred` | non-reinflation can be checked, but positive ownership is still diagnostic-sensitive |
 | `whole-game / wrap-up / support reuse` | `likely unsafe` | the next slice should validate non-reinflation only, not positive wrapper reuse |
@@ -3234,7 +3234,7 @@ family, or new owner lane is opened by this section.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `one favorable trade corridor` | one exact exchange corridor that removes a blocker on the best-defense branch | medium | favorable trade language inflates into `better ending` or `nearly winning` rhetoric | pin the exact trigger, exact best-defense reply, and show that the corridor survives without branch stitching | `high`; simplification phrasing inflates quickly on replay surfaces | `bestDefenseBranchKey`, same-branch reuse, `convert_reply_multipv`, `moveOrderFragility`, `futureSnapshot.planBlockersRemoved` | `deferred` as a trigger-only subcomponent, not the first truth-owning claim |
 | `one bounded task-shift after forced simplification` | one same-branch shift from the current task into one narrower technical task such as king activation, target fixation, or file occupation | highest | `fake_transition`, `endgame_verdict_inflation`, and `engine_pv_paraphrase` | prove trigger, shifted task, bounded continuation, and surviving release suppression on the same defended branch | `high`, but containable if it stays planner `WhyThis` only | B1 route persistence, B6 branch identity grammar, `futureSnapshot.planPrereqsMet`, `planBlockersRemoved`, `targetsDelta`, `convert_reply_multipv` | `likely coverable next`, but still closed until the proof burden below is met |
-| `one conversion-adjacent technical route` | one bounded route into a narrower conversion task after the simplification | medium-high | a local route becomes a broader conversion thesis or endgame verdict | separate the route from the ending verdict and require that the defender's best branch still leaves one bounded next task rather than a narrative of the whole ending | `very high`; Chronicle / Bookmaker can turn it into whole-game meaning fast | B1 conversion persistence, same-branch keys, `futureSnapshot`, existing conversion motifs | `deferred` until the narrower task-shift slice survives criticism |
+| `one conversion-adjacent technical route` | one bounded route into a narrower conversion task after the simplification | medium-high | a local route becomes a broader conversion thesis or endgame verdict | separate the route from the ending verdict and require that the defender's best branch still leaves one bounded next task rather than a narrative of the whole ending | `very high`; Chronicle / MoveReview can turn it into whole-game meaning fast | B1 conversion persistence, same-branch keys, `futureSnapshot`, existing conversion motifs | `deferred` until the narrower task-shift slice survives criticism |
 | `one king-activation / target-fixation route` | one exact post-simplification technical task involving king path, target fixation, or file occupation | medium | king activity or target language drifts into race, fortress, or theorem-level endgame prose | require exact current-task removal plus exact shifted-task witness on the same branch; keep theoretical outcome support-only | `very high`; overlaps too easily with `EndgameTransition` replay prose | `futureSnapshot.targetsDelta`, `planPrereqsMet`, `EndgameFeature` as support only, same-branch keys | `deferred` as a downstream specialization, not the first slice |
 | `whole ending thesis` | whole ending verdict or long-run winning-route narration | superficially high | immediate overclaim and cross-surface reinflation | impossible to keep bounded enough for first B7 work | `maximal` | none that are safe for a first slice | `unsafe` |
 | `none / keep runtime closed` | design baseline only until one candidate survives exact-board criticism | near-term trust value is highest | reuse bias can still pressure a premature rollout | require one exact-FEN positive control plus near-miss negatives before any slice opens | lowest | existing B1 / B5b / B6 fail-closed gates, cross-surface regression harness | `current operating rule` until the corpus burden is satisfied |
@@ -3292,7 +3292,7 @@ Candidate-specific rules:
 | `branch_stitched_transition` | trigger, task shift, continuation, and release suppression are borrowed from different branches | current same-branch failures and B6 branch identity boundary | require one branch token across trigger, best defense, continuation, and release inventory; no first-move fallback | one exact FEN where PV1 gives the trade, PV2 gives the continuation, and PV3 removes the release; certification must fail |
 | `heavy_piece_release_survives` | a transition-looking trade leaves queen/rook counterplay or forcing checks alive | B5b heavy-piece negative validation pack | require `releaseRisksRemaining` to be empty or the slice fails closed | B5b heavy-piece negatives including `2rq1rk1/pp3ppp/2n1pn2/3p4/3P2P1/2P1PN2/PPQ2P1P/2RR2K1 w - - 0 24` and related shells |
 | `route_network_restatement_only` | a B6 route denial gets relabeled as `transition` without any true task change | B6 exact contract and planner surface narrowing | require explicit `currentTask` / `shiftedTask` delta and fail if the evidence only proves route denial | the B6 route-chain FEN above, where the only surviving wider witness is the backend-visible `a5` detour |
-| `surface_reinflation` | planner-local truth is revived by Chronicle / Bookmaker / Active as a stronger ending thesis | evidence-backed-plan filter and existing replay closures for B6 | clone the replay-closure posture: planner `WhyThis` only first, keep `WhatChanged`, Chronicle, Bookmaker, Active, and whole-game closed | one planner-local exact FEN whose replay wrapper tries to say `better ending` or `technical win` |
+| `surface_reinflation` | planner-local truth is revived by Chronicle / MoveReview / Active as a stronger ending thesis | evidence-backed-plan filter and existing replay closures for B6 | clone the replay-closure posture: planner `WhyThis` only first, keep `WhatChanged`, Chronicle, MoveReview, Active, and whole-game closed | one planner-local exact FEN whose replay wrapper tries to say `better ending` or `technical win` |
 | `engine_pv_paraphrase` | the model paraphrases an engine liquidation line as if it were a stable strategic route | current `pv_restatement_only` criticism from B1/B6 families | require measurable task-shift fields and bounded continuation, not just a neat PV | one exact FEN where the PV simplifies but `planBlockersRemoved` / `planPrereqsMet` do not prove a new bounded task |
 
 ### Broad validation charter
@@ -3334,7 +3334,7 @@ Surface matrix:
 | --- | --- | --- |
 | `planner-owned WhyThis` | `likely coverable next` | narrowest owner path and easiest place to keep the claim bounded |
 | `planner-owned WhatChanged` | `likely deferred` | it overstates task-shift truth too easily on first contact |
-| `Bookmaker` | `likely deferred` | replay phrasing is reusable later, but it is too inflation-prone for first-slice B7 |
+| `MoveReview` | `likely deferred` | replay phrasing is reusable later, but it is too inflation-prone for first-slice B7 |
 | `Chronicle` | `likely deferred` | same replay risk; too easy to turn the claim into the ending's full story |
 | `Active` | `likely deferred` | parity and non-reinflation can be tested, but positive ownership should stay closed |
 | `whole-game / wrap-up / support reuse` | `likely unsafe` | strongest reinflation seam and explicitly out of scope for first B7 work |
@@ -3397,7 +3397,7 @@ Surface matrix:
 
 - first B7 slice, if it ever opens, starts at planner-owned `WhyThis` only
 - `planner-owned WhatChanged` stays closed for the first slice
-- Chronicle, Bookmaker, Active, and whole-game / wrap-up reuse stay fail-closed
+- Chronicle, MoveReview, Active, and whole-game / wrap-up reuse stay fail-closed
 - B7 may not reactivate or piggyback on the existing
   `endgame_transition_translator` owner lane
 - support-only signals such as `endgameTransitionClaim` and endgame pattern
@@ -3488,7 +3488,7 @@ Hard preconditions before any B7b implementation:
   `occupy_support_file_pressure` may appear only as a bounded same-branch
   witness, never as the owned shifted task
 - keep the only positive surface at planner-owned `WhyThis`
-- keep `WhatChanged`, Chronicle, Bookmaker, Active, and whole-game reuse
+- keep `WhatChanged`, Chronicle, MoveReview, Active, and whole-game reuse
   fail-closed
 
 ### Exact-FEN corpus recon status
@@ -3572,7 +3572,7 @@ Owner-path admissibility map:
 | ingress | exact-board trigger, best defense, and same-branch continuation already exist for `K09B` / `K09F` and now materialize as same-task simplification | not the blocker anymore | none at producer discovery |
 | carrier/proof | current carriers can now privately certify owner seed, continuation, and structure witness for bounded favorable simplification | no private record yet proves a distinct `currentTask` / `shiftedTask` witness beyond same-task continuity | add a private/backend-only task-shift certification beside existing builder certifications only if a new exact row requires it |
 | planner admissibility | `buildWhyThisPlan` can now admit bounded `favorable_simplification` on the existing `mainBundle` lane | there is still no B7 planner source, and the current exact rows do not justify adding one | keep B7 deferred unless a distinct task-shift proof survives on the same architecture |
-| replay/whole-game containment | current safe fallback is the line preview only | any broader surface would reinflate into route or ending rhetoric | require `surfaceContainmentMarker = planner_why_this_only`; keep `WhatChanged`, Chronicle, Bookmaker, Active, and whole-game fail-closed |
+| replay/whole-game containment | current safe fallback is the line preview only | any broader surface would reinflate into route or ending rhetoric | require `surfaceContainmentMarker = planner_why_this_only`; keep `WhatChanged`, Chronicle, MoveReview, Active, and whole-game fail-closed |
 
 Canonical admissibility conclusion:
 
@@ -3690,7 +3690,7 @@ Same as B6:
 Stricter than B6:
 
 - no replay reuse review is open
-- no Chronicle / Bookmaker / Active positive carryover is open
+- no Chronicle / MoveReview / Active positive carryover is open
 - no `WhatChanged` ownership is open
 - no theme-thread or whole-game wrapper reuse is open
 
@@ -3819,7 +3819,7 @@ Admissibility decision memo:
   inflation blockers
 - fixture-only transition prose that does not survive exact-board replay stays
   outside the B7 corpus; current blockers include the `open_file_fight` and
-  `exchange_sacrifice` bookmaker fixtures, whose recorded move text does not
+  `exchange_sacrifice` moveReview fixtures, whose recorded move text does not
   replay cleanly from the listed FEN
 
 Net effect:
@@ -3919,7 +3919,7 @@ Chronicle is the most canonical truth-bound surface path:
   builds the truth frame / truth contract
 - sanitized context and strategy pack then feed outline / render
 
-Bookmaker / MoveReview is also truth-bound:
+MoveReview / MoveReview is also truth-bound:
 
 - `MoveReviewCompressionPolicy.scala`
 - `CommentaryApi.scala`
@@ -3961,7 +3961,7 @@ opening prose still requires the centralized
 `NarrativeContext.openingGoalEvaluation`, computed after legal current-move
 replay. Endgame prose similarly requires canonical endgame facts; phase-only
 king/pawn/rook prose is not enough.
-`moveReviewExplanation` is carried by the selected Bookmaker slots and attached
+`moveReviewExplanation` is carried by the selected MoveReview slots and attached
 to the API payload only when the selected source is
 `basic_move_explanation`; planner-owned prose does not carry this basic
 instructional title as a sidecar, and the API does not recompute the basic
@@ -4003,7 +4003,7 @@ The primary fallback truth rewrite sites are:
 Frontend does not mint new truth, but it does give support material direct
 user-facing implication via:
 
-- `bookmaker.ts`
+- `moveReview.ts`
 - `narrativeView.ts`
 
 ### 2. Lexicon / Template Authority Map
@@ -4156,14 +4156,14 @@ The harness compares and regressions on:
 
 Accepted residuals encoded in the harness:
 
-- Bookmaker and Chronicle must agree on canonical planner owner for the
+- MoveReview and Chronicle must agree on canonical planner owner for the
   positive and defensive-stop fixtures
-- Bookmaker may keep the documented bounded quiet-support fallback lift on the
+- MoveReview may keep the documented bounded quiet-support fallback lift on the
   exact-factual fallback lane, while Chronicle must keep that same fixture
   claim-only
 - Active remains diagnostic-only:
   omission is still allowed on the residual fixtures, but any future surfaced
-  Active owner must not outrun the canonical Bookmaker / Chronicle owner
+  Active owner must not outrun the canonical MoveReview / Chronicle owner
 
 ### 2C. Step 7 Negative Fixture Pack Status
 
@@ -4191,7 +4191,7 @@ Covered risk classes:
 
 Current surface coverage inside the pack:
 
-- Bookmaker
+- MoveReview
 - Chronicle
 - Active
 - validator-level release cleanup
@@ -4199,7 +4199,7 @@ Current surface coverage inside the pack:
 
 Accepted residuals encoded in the pack:
 
-- Bookmaker may keep the documented one-line quiet-support residual on the
+- MoveReview may keep the documented one-line quiet-support residual on the
   exact-factual fallback lane
 - Chronicle must keep the matching fallback lane claim-only
 - Active may omit on diagnostic-only lanes; omission remains accepted
@@ -4319,7 +4319,7 @@ Current guards:
 
 Residual problem:
 
-Bookmaker and Chronicle are mostly contract-bound; Active replay now consumes
+MoveReview and Chronicle are mostly contract-bound; Active replay now consumes
 the same truth contract, but validator-gated attach/omit behavior still leaves
 the surface diagnostic-only and not signoff-aligned.
 
@@ -4329,7 +4329,7 @@ Observed in current runtime:
 
 - `NarrativeSignalDigestBuilder.scala`
 - `StrategyPackBuilder.scala`
-- `bookmaker.ts`
+- `moveReview.ts`
 - `narrativeView.ts`
 
 Current guards:
@@ -4349,7 +4349,7 @@ Observed in current runtime:
 - `AlternativeNarrativeSupport.scala`
 - `StrategicNarrativePlanSupport.scala`
 - `PlayerFacingMoveDeltaBuilder.scala`
-- `bookmaker.ts`
+- `moveReview.ts`
 - `narrativeView.ts`
 
 Current guards:
@@ -4389,7 +4389,7 @@ Structural risk not fully realized yet:
 Current guards:
 
 - sanitize path in `DecisiveTruth.scala`
-- duplicate / contract-safe checks in Bookmaker and Chronicle fallback support
+- duplicate / contract-safe checks in MoveReview and Chronicle fallback support
 - `narrativeView.ts` now requires canonical `signalDigest.decisionComparison`
   before rendering decision-comparison support
 - Chronicle factual fallback rejects quiet-support lift after planner-owned
@@ -4408,14 +4408,14 @@ Current guards:
 Observed in current runtime:
 
 - Chronicle quiet-support fallback attach path
-- Bookmaker quiet-support fallback attach path
+- MoveReview quiet-support fallback attach path
 - omitted Active note surfaces and frontend support/detail blocks
 
 Current guards:
 
 - fail-closed classification
 - `CommentaryTruthBoundary` / SSoT blocked-lane prohibitions
-- duplicate/same-sentence rejection on Bookmaker/Chronicle
+- duplicate/same-sentence rejection on MoveReview/Chronicle
 
 Residual problem:
 
@@ -4428,20 +4428,20 @@ longer appends quiet-support prose.
 
 | Payload field | Source definition | Current render site | Classification | Risk |
 | --- | --- | --- | --- | --- |
-| `strategyPack.strategicIdeas`, `pieceRoutes`, `pieceMoveRefs`, `directionalTargets`, `longTermFocus` | `responsePayload.ts`, `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only carrier` | `unsupported_generalization` |
-| `signalDigest.decisionComparison` | `models.scala`, `responsePayload.ts` | `bookmaker.ts`, `narrativeView.ts` | `support_only`, benchmark-adjacent; exact comparative subfields (`comparedMove`, `comparativeConsequence`, `comparativeSource`) are canonical only on the admitted `exact_target_fixation_delta` lane | `fallback_truth_rewrite` if a non-canonical frontend/backend reprojection is reintroduced |
-| `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `unsupported_generalization` |
-| `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only` | `support_only_overreach` |
-| `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `bookmaker.ts`, `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
-| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `MoveReviewIdeaSurface.scala`, `CommentaryFactSurface.scala`, `MoveReviewPvFacts.scala`, `MoveReviewPvChainValidator.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, and endgame facts | `responsePayload.ts`, `bookmaker.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
+| `strategyPack.strategicIdeas`, `pieceRoutes`, `pieceMoveRefs`, `directionalTargets`, `longTermFocus` | `responsePayload.ts`, `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only carrier` | `unsupported_generalization` |
+| `signalDigest.decisionComparison` | `models.scala`, `responsePayload.ts` | `moveReview.ts`, `narrativeView.ts` | `support_only`, benchmark-adjacent; exact comparative subfields (`comparedMove`, `comparativeConsequence`, `comparativeSource`) are canonical only on the admitted `exact_target_fixation_delta` lane | `fallback_truth_rewrite` if a non-canonical frontend/backend reprojection is reintroduced |
+| `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only` | `unsupported_generalization` |
+| `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only` | `support_only_overreach` |
+| `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
+| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `MoveReviewIdeaSurface.scala`, `CommentaryFactSurface.scala`, `MoveReviewPvFacts.scala`, `MoveReviewPvChainValidator.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, and endgame facts | `responsePayload.ts`, `moveReview.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, or extended beyond supplied SAN/PV |
 | `activeStrategicNote`, `activeStrategicIdeas`, `activeStrategicRoutes`, `activeStrategicMoves`, `activeDirectionalTargets`, `activeBranchDossier` | `GameChronicleResponse.scala` | `narrativeView.ts` | `Active-only surface` | `surface_divergence` |
 | `topEngineMove` | `GameChronicleResponse.scala` | `narrativeView.ts` | `fallback input only` | `blocked_lane_contamination` residual; Chronicle decision-comparison fallback rewrite closed |
 
 ### 5. Surface Consistency Audit
 
-#### Bookmaker
+#### MoveReview
 
-Bookmaker remains the most stable trust-bound surface.
+MoveReview remains the most stable trust-bound surface.
 
 - planner-first
 - bounded basic MoveReview explanation before exact-factual fallback when no
@@ -4454,7 +4454,7 @@ Accepted residuals:
    `ForcingDefense` family when the primary contrast is
    `QuestionOutsideScope`.
 2. exact-factual fallback may still receive one quiet-support sentence, but
-   only if duplicate rejection and `bookmakerContractSafe` pass.
+   only if duplicate rejection and `moveReviewContractSafe` pass.
 3. basic MoveReview explanation may use legal current-move replay,
    canonical facts/motifs, centralized grounded opening goals, exact endgame
    facts, optional short PV refs, and descriptor-backed UCI-coupled validated
@@ -4473,7 +4473,7 @@ Accepted residuals:
 #### Chronicle
 
 Chronicle is mostly contract-bound but allows more implication variance than
-Bookmaker.
+MoveReview.
 
 Accepted residuals:
 
@@ -4530,7 +4530,7 @@ support-only material into portable lesson truth.
 
 | Required guard | Why it is necessary | First files / paths to touch |
 | --- | --- | --- |
-| frontend support implication cap | lesson cannot sit on top of frontend-visible support implication that still outruns current trust authority | `bookmaker.ts`, `narrativeView.ts`, `responsePayload.ts` |
+| frontend support implication cap | lesson cannot sit on top of frontend-visible support implication that still outruns current trust authority | `moveReview.ts`, `narrativeView.ts`, `responsePayload.ts` |
 | Active signoff cleanup | lesson divergence would still leak through a diagnostic-only surface even after contract alignment | `ActiveStrategicCoachingBriefBuilder.scala`, `CommentaryApi.scala`, `ActiveStrategicNoteValidator.scala` |
 | broader authority rollout maintenance | currently tagged fragment families are enough for CTH-A, but future lesson work still needs broader authority ownership over any newly reused generalized family | `NarrativeLexicon.scala`, `NarrativeOutlineBuilder.scala`, `CommentaryEngine.scala` |
 | lesson-specific admissibility layer | only move-linked, scene-scoped, owner-bound, evidence-bound lesson candidates may survive even after the current generalization gate | `NarrativeOutlineBuilder.scala`, `NarrativeLexicon.scala` |
@@ -4636,9 +4636,9 @@ the Carlsen-Anand row remains a surface regression sample, not the family
 condition. The IQP and DefenderTrade contracts are deliberately capped at
 `SupportedLocal` for this pass; neither can become `CertifiedOwner`.
 
-Bookmaker and Chronicle must consume the planner-owned authority decision and may
+MoveReview and Chronicle must consume the planner-owned authority decision and may
 not independently reconstruct a stronger surface. The matrix now records the
-actual deterministic Bookmaker slots/fallback surface, not just the planner
+actual deterministic MoveReview slots/fallback surface, not just the planner
 primary claim. The regression authority for this slice is
 `AuthoritySurfaceLedgerTest`; the printable replay matrix is generated by
 `AuthoritySurfaceLedger` into
@@ -4685,14 +4685,14 @@ Current expanded matrix result on 2026-05-15:
     materializes `proofSource=exact_target_fixation`, `scope=MoveLocal`,
     `contract=subplan:static_weakness_fixation`, and `CertifiedOwner`; the
     primary surface is `This changes the position by fixing d6 as the target.`
-    and Bookmaker / Chronicle may add only the exact same-branch
+    and MoveReview / Chronicle may add only the exact same-branch
     contrast/consequence.
   - source-backed natural C simplification example:
     `source-salov-ljubojevic-1992-simplification-window` materializes
     `proofSource=simplification_window`, `scope=MoveLocal`,
     `contract=subplan:simplification_window`, and `CertifiedOwner`. The
     primary surface is `This trade keeps the same local edge on d5.`;
-    Bookmaker and Chronicle append only the bounded alternative sentence
+    MoveReview and Chronicle append only the bounded alternative sentence
     `The practical alternative Qxd5 remains secondary here.`
 - `SupportedLocal=14`
   - examples:
@@ -4709,12 +4709,12 @@ Current expanded matrix result on 2026-05-15:
     consequence, contrast, or coda text that re-inflates the claim.
   - the Carlsen-Anand row renders exactly:
     `A local reading is that this exchange moves the game into the queenless branch.`
-    across primary, Bookmaker, and Chronicle.
+    across primary, MoveReview, and Chronicle.
   - the controlled IQP row renders exactly:
     `A local reading is that this sequence leaves an isolated pawn as the local target.`
-    across primary, Bookmaker, and Chronicle.
+    across primary, MoveReview, and Chronicle.
   - the natural IQP rows render the same downgraded IQP sentence across
-    primary, Bookmaker, and Chronicle:
+    primary, MoveReview, and Chronicle:
     `source-capablanca-golombek-1939-iqp-inducement`,
     `source-evans-opsahl-1950-iqp-inducement`,
     `source-alekhine-bogoljubow-1936-iqp-inducement`,
@@ -4722,20 +4722,20 @@ Current expanded matrix result on 2026-05-15:
     `source-botvinnik-vidmar-1936-iqp-opening-inducement`.
   - the natural DefenderTrade row renders exactly:
     `A local reading is that this exchange removes a defender on the local branch.`
-    across primary, Bookmaker, and Chronicle.
+    across primary, MoveReview, and Chronicle.
   - the controlled break-prevention row renders exactly:
     `A local reading is that this keeps ...c5 from coming right away.`
-    across primary, Bookmaker, and Chronicle; it remains a controlled
+    across primary, MoveReview, and Chronicle; it remains a controlled
     `SupportedLocal` proof target, not a broad runtime release.
   - the controlled prophylaxis-restraint row renders exactly:
     `A local reading is that this slows down queenside counterplay before it gets started.`
-    across primary, Bookmaker, and Chronicle; it remains a controlled
+    across primary, MoveReview, and Chronicle; it remains a controlled
     `SupportedLocal` proof target on `prophylactic_move` /
     `counterplay_restraint`, not a broad prophylaxis release.
   - the natural break-prevention rows render exactly:
     `A local reading is that this keeps ...a5 from coming right away.`
     or `A local reading is that this keeps ...b5 from coming right away.`
-    across primary, Bookmaker, and Chronicle; they are source-backed
+    across primary, MoveReview, and Chronicle; they are source-backed
     `neutralize_key_break` admission, not a general clean-route release.
 - `Suppressed=42`
   - examples:
@@ -4826,7 +4826,7 @@ The same rerun's contract-proof split is `-:-=12`,
 `Releasable:subplan:queen_trade_shield=1`,
 `Releasable:subplan:simplification_window=1`, and
 `Releasable:subplan:static_weakness_fixation=1`. This batch did not fail
-because Bookmaker or Chronicle distorted an admitted local claim; current
+because MoveReview or Chronicle distorted an admitted local claim; current
 source acceptance is instead determined by the `verdict=admit_authority_row`
 rows in `strategic_claim_source_review.*`.
 
@@ -4966,9 +4966,9 @@ The same pass caught two surface issues before signoff:
   support evidence on a tactical-first row. That sentence family is now treated
   as low-value Chronicle support and the matrix leak check explicitly rejects
   it on B/C tactical-veto rows.
-- Bookmaker matrix validation originally inspected only
+- MoveReview matrix validation originally inspected only
   `renderSelection(...).primary.claim`, which missed actual slot/fallback
-  surface behavior. The matrix now renders deterministic Bookmaker prose from
+  surface behavior. The matrix now renders deterministic MoveReview prose from
   the same planner runtime; this also exposed and fixed the narrow
   `SupportedLocal` claim-only slot gate so the downgraded one-liner can surface
   without support/coda reinflation.
@@ -5133,7 +5133,7 @@ limit: `source-camara-bazan-1960-b7-b5-break-prevention`, the exact ply-27
 board-derived `...b7-b5` route. After copying only that row into the fixed
 catalog and rerunning the then-current full source review and authority surface
 ledger, it admitted as `counterplay_axis_suppression` /
-`neutralize_key_break`, `release=SupportedLocal`, with primary, Bookmaker, and
+`neutralize_key_break`, `release=SupportedLocal`, with primary, MoveReview, and
 Chronicle all exactly
 `A local reading is that this keeps ...b5 from coming right away.` That older
 snapshot is historical only. The 2026-05-18 Stockfish 18 rerun of
@@ -5157,7 +5157,7 @@ admission-unit structure to `prophylactic_move` /
 resource, defended branch key, same-branch persistence, and no release risk.
 The controlled positive now renders exactly
 `A local reading is that this slows down queenside counterplay before it gets started.`
-across primary, Bookmaker, and Chronicle. The three negative controls close as
+across primary, MoveReview, and Chronicle. The three negative controls close as
 explicit tactical veto, missing witness, and rival/relabel suppression. The
 test/tooling-only `AdmissionUnitReview` runner writes
 `tmp/strategic_admission_unit_review.tsv` and

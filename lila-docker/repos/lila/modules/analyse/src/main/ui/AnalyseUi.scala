@@ -45,7 +45,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
           Json
             .obj(
               "data" -> data,
-              "bookmaker" -> (pov.game.variant.standard || pov.game.variant.chess960)
+              "moveReview" -> (pov.game.variant.standard || pov.game.variant.chess960)
             )
             .add("inlinePgn", inlinePgn)
             .add("importHistory", importHistory) ++
@@ -60,7 +60,7 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
         main(
           cls := List(
             "analyse" -> true,
-            "analyse--bookmaker" -> (pov.game.variant.standard || pov.game.variant.chess960)
+            "analyse--moveReview" -> (pov.game.variant.standard || pov.game.variant.chess960)
           )
         )(
           pov.game.synthetic.option(
@@ -82,12 +82,12 @@ final class AnalyseUi(helpers: Helpers)(endpoints: AnalyseEndpoints):
               pov.game.variant.chess960.option(chess960selector(chess960PositionNum)),
               (pov.game.variant.standard || pov.game.variant.chess960).option(
                 fieldset(
-                  cls := "analyse__bookmaker toggle-box toggle-box--toggle",
-                  id := "bookmaker-field",
-                  attr("data-bookmaker") := "true"
+                  cls := "analyse__move-review toggle-box toggle-box--toggle",
+                  id := "move-review-field",
+                  attr("data-move-review") := "true"
                 )(
-                  legend(tabindex := 0)("Bookmaker"),
-                  div(cls := "analyse__bookmaker-text")(narrative)
+                  legend(tabindex := 0)("MoveReview"),
+                  div(cls := "analyse__move-review-text")(narrative)
                 )
               )
             )

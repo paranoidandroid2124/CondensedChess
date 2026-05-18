@@ -57,7 +57,7 @@ class StructurePlanArcBuilderTest extends FunSuite:
           viability = PlanViability(0.81, "high", "slow burn")
         )
       ),
-      renderMode = NarrativeRenderMode.Bookmaker
+      renderMode = NarrativeRenderMode.MoveReview
     )
 
   test("carlsbad minority attack chooses rook deployment and immediate move contribution") {

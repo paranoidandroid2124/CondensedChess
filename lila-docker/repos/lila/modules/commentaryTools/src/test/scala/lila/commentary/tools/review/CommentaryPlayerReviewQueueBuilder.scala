@@ -16,7 +16,7 @@ object CommentaryPlayerReviewQueueBuilder:
 
   final case class Config(
       manifestPath: Path = DefaultManifestDir.resolve("slice_manifest.jsonl"),
-      bookmakerOutputsPath: Path = DefaultBookmakerRunDir.resolve("bookmaker_outputs.jsonl"),
+      moveReviewOutputsPath: Path = DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl"),
       chronicleReportPath: Path = DefaultChronicleRunDir.resolve("report.json"),
       outPath: Path = DefaultReviewDir.resolve("review_queue.jsonl"),
       summaryPath: Path = DefaultReportDir.resolve("review_queue_summary.json"),
@@ -66,13 +66,13 @@ object CommentaryPlayerReviewQueueBuilder:
       queue.count(row => row.surface == ReviewSurface.Chronicle && row.reviewKind == ReviewKind.FocusMoment)
     val wholeGameCount =
       queue.count(row => row.surface == ReviewSurface.Chronicle && row.reviewKind == ReviewKind.WholeGame)
-    val bookmakerCount = queue.count(_.surface == ReviewSurface.Bookmaker)
+    val moveReviewCount = queue.count(_.surface == ReviewSurface.MoveReview)
     val mandatory = queue.count(entry => config.fullReview || isMandatoryReview(entry.sliceKind, entry.flags))
     val summary =
       ChronicleQueueReport(
         version = 1,
         generatedAt = java.time.Instant.now().toString,
-        bookmakerOutputCount = bookmakerCount,
+        moveReviewOutputCount = moveReviewCount,
         chronicleMomentCount = chronicleMomentCount,
         wholeGameReviewCount = wholeGameCount,
         mandatoryReviewCount = mandatory,
@@ -91,11 +91,11 @@ object CommentaryPlayerReviewQueueBuilder:
         case Left(err) =>
           System.err.println(s"[player-qc-queue] failed to read manifest `${config.manifestPath}`: $err")
           sys.exit(1)
-    val bookmaker =
-      readJsonLines[BookmakerOutputEntry](config.bookmakerOutputsPath) match
+    val moveReview =
+      readJsonLines[MoveReviewOutputEntry](config.moveReviewOutputsPath) match
         case Right(value) => value.map(output => output.sampleId -> output).toMap
         case Left(err) =>
-          System.err.println(s"[player-qc-queue] failed to read bookmaker outputs `${config.bookmakerOutputsPath}`: $err")
+          System.err.println(s"[player-qc-queue] failed to read moveReview outputs `${config.moveReviewOutputsPath}`: $err")
           sys.exit(1)
 
     val chronicleReport = readRunReportOrExit(config.chronicleReportPath)
@@ -105,16 +105,16 @@ object CommentaryPlayerReviewQueueBuilder:
     val queue =
       manifest.flatMap { entry =>
         entry.surface match
-          case ReviewSurface.Bookmaker =>
-            bookmaker.get(entry.sampleId).flatMap { output =>
+          case ReviewSurface.MoveReview =>
+            moveReview.get(entry.sampleId).flatMap { output =>
               val flags = reviewFlags(output.commentary, output.supportRows, output.advancedRows, output.sliceKind)
               val include = config.fullReview || isMandatoryReview(output.sliceKind, flags) || sampleByHash(output.sampleId)
               Option.when(include) {
                 ReviewQueueEntry(
                   sampleId = output.sampleId,
                   gameId = output.gameKey,
-                  surface = ReviewSurface.Bookmaker,
-                  reviewKind = ReviewKind.BookmakerFocus,
+                  surface = ReviewSurface.MoveReview,
+                  reviewKind = ReviewKind.MoveReviewFocus,
                   sliceKind = output.sliceKind,
                   fen = output.fen,
                   playedSan = output.playedSan,
@@ -159,7 +159,7 @@ object CommentaryPlayerReviewQueueBuilder:
       ChronicleQueueReport(
         version = 1,
         generatedAt = java.time.Instant.now().toString,
-        bookmakerOutputCount = bookmaker.size,
+        moveReviewOutputCount = moveReview.size,
         chronicleMomentCount = chronicleByKey.values.map(_.size).sum,
         wholeGameReviewCount = 0,
         mandatoryReviewCount = mandatory,
@@ -203,39 +203,39 @@ object CommentaryPlayerReviewQueueBuilder:
         )
       }
 
-    val bookmakerRowPayload = bookmakerPayload(entry.gameId, moment, rawDir)
-    val bookmakerSampleId = s"${entry.auditId}:${moment.ply}:bookmaker"
-    val bookmakerFlags =
+    val moveReviewRowPayload = moveReviewPayload(entry.gameId, moment, rawDir)
+    val moveReviewSampleId = s"${entry.auditId}:${moment.ply}:moveReview"
+    val moveReviewFlags =
       reviewFlags(
-        bookmakerRowPayload.commentary,
-        bookmakerRowPayload.supportRows,
-        bookmakerRowPayload.advancedRows,
-        WholeGameSliceKind.BookmakerFocus
+        moveReviewRowPayload.commentary,
+        moveReviewRowPayload.supportRows,
+        moveReviewRowPayload.advancedRows,
+        WholeGameSliceKind.MoveReviewFocus
       )
-    val bookmakerEntry =
-      Option.when(fullReview || isMandatoryReview(WholeGameSliceKind.BookmakerFocus, bookmakerFlags) || sampleByHash(bookmakerSampleId)) {
+    val moveReviewEntry =
+      Option.when(fullReview || isMandatoryReview(WholeGameSliceKind.MoveReviewFocus, moveReviewFlags) || sampleByHash(moveReviewSampleId)) {
         ReviewQueueEntry(
-          sampleId = bookmakerSampleId,
+          sampleId = moveReviewSampleId,
           auditId = Some(entry.auditId),
           gameId = entry.gameId,
-          surface = ReviewSurface.Bookmaker,
-          reviewKind = ReviewKind.BookmakerFocus,
-          sliceKind = WholeGameSliceKind.BookmakerFocus,
+          surface = ReviewSurface.MoveReview,
+          reviewKind = ReviewKind.MoveReviewFocus,
+          sliceKind = WholeGameSliceKind.MoveReviewFocus,
           tier = Some(entry.tier),
           openingFamily = Some(entry.openingFamily),
           label = Some(entry.label),
           pairedSampleId = Some(chronicleSampleId),
           fen = momentFen(rawDir, entry.gameId, moment.ply).getOrElse(""),
           playedSan = "",
-          mainProse = bookmakerRowPayload.commentary,
-          supportRows = flattenRows(bookmakerRowPayload.supportRows),
-          advancedRows = flattenRows(bookmakerRowPayload.advancedRows),
-          flags = bookmakerFlags
+          mainProse = moveReviewRowPayload.commentary,
+          supportRows = flattenRows(moveReviewRowPayload.supportRows),
+          advancedRows = flattenRows(moveReviewRowPayload.advancedRows),
+          flags = moveReviewFlags
         )
       }
 
     val activeSampleId = s"${entry.auditId}:${moment.ply}:active"
-    val activeRows = activeReviewRows(moment, bookmakerRowPayload.commentary)
+    val activeRows = activeReviewRows(moment, moveReviewRowPayload.commentary)
     val activeFlags = activeReviewFlags(moment, activeRows._1, activeRows._2)
     val activeEntry =
       Option.when(fullReview || activeFlags.nonEmpty || sampleByHash(activeSampleId)) {
@@ -259,7 +259,7 @@ object CommentaryPlayerReviewQueueBuilder:
         )
       }
 
-    List(chronicleEntry, bookmakerEntry, activeEntry).flatten
+    List(chronicleEntry, moveReviewEntry, activeEntry).flatten
 
   private def buildWholeGameEntry(entry: AuditSetEntry, game: GameReport, rawDir: Path): Option[ReviewQueueEntry] =
     val rawPath = rawDir.resolve(s"${entry.gameId}.game_arc.json")
@@ -340,27 +340,27 @@ object CommentaryPlayerReviewQueueBuilder:
       .map(value => List(SupportRow("Active note", value)))
       .getOrElse(Nil)
 
-  private final case class BookmakerPayload(
+  private final case class MoveReviewPayload(
       commentary: String,
       supportRows: List[SupportRow],
       advancedRows: List[SupportRow]
   )
 
-  private def bookmakerPayload(gameId: String, moment: FocusMomentReport, rawDir: Path): BookmakerPayload =
-    val rawBookmakerPath = rawDir.resolve(s"${gameId}.ply_${moment.ply}.bookmaker.json")
-    if !Files.exists(rawBookmakerPath) then
-      BookmakerPayload(
-        commentary = moment.bookmakerCommentary,
+  private def moveReviewPayload(gameId: String, moment: FocusMomentReport, rawDir: Path): MoveReviewPayload =
+    val rawMoveReviewPath = rawDir.resolve(s"${gameId}.ply_${moment.ply}.move_review.json")
+    if !Files.exists(rawMoveReviewPath) then
+      MoveReviewPayload(
+        commentary = moment.moveReviewCommentary,
         supportRows = chronicleSupportRows(moment),
         advancedRows = Nil
       )
     else
-      val js = Json.parse(Files.readString(rawBookmakerPath))
-      val commentary = (js \ "commentary").asOpt[String].getOrElse(moment.bookmakerCommentary)
-      val (support, advanced) = bookmakerRowsFromJson(js)
-      BookmakerPayload(commentary = commentary, supportRows = support, advancedRows = advanced)
+      val js = Json.parse(Files.readString(rawMoveReviewPath))
+      val commentary = (js \ "commentary").asOpt[String].getOrElse(moment.moveReviewCommentary)
+      val (support, advanced) = moveReviewRowsFromJson(js)
+      MoveReviewPayload(commentary = commentary, supportRows = support, advancedRows = advanced)
 
-  private def bookmakerRowsFromJson(js: JsValue): (List[SupportRow], List[SupportRow]) =
+  private def moveReviewRowsFromJson(js: JsValue): (List[SupportRow], List[SupportRow]) =
     val support = mutable.ListBuffer.empty[SupportRow]
     val advanced = mutable.ListBuffer.empty[SupportRow]
     val signalDigest = js \ "signalDigest"
@@ -445,7 +445,7 @@ object CommentaryPlayerReviewQueueBuilder:
 
     (support.toList.distinct, advanced.toList.distinct)
 
-  private def activeReviewRows(moment: FocusMomentReport, bookmakerCommentary: String): (List[SupportRow], List[SupportRow]) =
+  private def activeReviewRows(moment: FocusMomentReport, moveReviewCommentary: String): (List[SupportRow], List[SupportRow]) =
     val support =
       List(
         Some(SupportRow("Status", moment.activeNoteStatus)),
@@ -454,7 +454,7 @@ object CommentaryPlayerReviewQueueBuilder:
         moment.execution.map(value => SupportRow("Execution", value)),
         moment.dominantIdea.map(value => SupportRow("Chronicle idea", value)),
         Some(SupportRow("Chronicle narrative", moment.gameArcNarrative)),
-        Option.when(bookmakerCommentary.trim.nonEmpty)(SupportRow("Bookmaker", bookmakerCommentary))
+        Option.when(moveReviewCommentary.trim.nonEmpty)(SupportRow("MoveReview", moveReviewCommentary))
       ).flatten
     val advanced =
       List(
@@ -752,8 +752,8 @@ object CommentaryPlayerReviewQueueBuilder:
       case None =>
         Config(
           manifestPath = positional.headOption.map(Paths.get(_)).getOrElse(DefaultManifestDir.resolve("slice_manifest.jsonl")),
-          bookmakerOutputsPath =
-            positional.lift(1).map(Paths.get(_)).getOrElse(DefaultBookmakerRunDir.resolve("bookmaker_outputs.jsonl")),
+          moveReviewOutputsPath =
+            positional.lift(1).map(Paths.get(_)).getOrElse(DefaultMoveReviewRunDir.resolve("move_review_outputs.jsonl")),
           chronicleReportPath =
             positional.lift(2).map(Paths.get(_)).getOrElse(DefaultChronicleRunDir.resolve("report.json")),
           outPath = positional.lift(3).map(Paths.get(_)).getOrElse(DefaultReviewDir.resolve("review_queue.jsonl")),

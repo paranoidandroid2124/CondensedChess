@@ -52,7 +52,7 @@ object OpenAiConfig:
       modelActiveFallback = sys.env.getOrElse("OPENAI_MODEL_ACTIVE_FALLBACK", proFallback),
       modelActiveAsync = sys.env.getOrElse("OPENAI_MODEL_ACTIVE_ASYNC", "gpt-5-mini"),
       reasoningEffortActive = activeReasoning,
-      promptCacheKeyPrefix = sys.env.getOrElse("OPENAI_PROMPT_CACHE_KEY_PREFIX", "bookmaker:polish:v2"),
+      promptCacheKeyPrefix = sys.env.getOrElse("OPENAI_PROMPT_CACHE_KEY_PREFIX", "moveReview:polish:v2"),
       enabled = apiKey.nonEmpty,
       temperature = sys.env.getOrElse("OPENAI_TEMPERATURE", "0.2").toDoubleOption.getOrElse(0.2),
       maxOutputTokens = maxOutput,

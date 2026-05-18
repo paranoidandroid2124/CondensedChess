@@ -45,7 +45,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
 
   private enum SurfaceCell:
     case PlannerWhyThis
-    case Bookmaker
+    case MoveReview
     case Chronicle
     case Active
     case WholeGame
@@ -842,7 +842,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
     )
 
   private def whyThisSurfaceCtx(evidenceTier: String): NarrativeContext =
-    BookmakerProseGoldenFixtures.prophylacticCut.ctx.copy(
+    MoveReviewProseGoldenFixtures.prophylacticCut.ctx.copy(
       authorQuestions =
         List(
           AuthorQuestion(
@@ -902,7 +902,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
     )
 
   private def whyThisNamedResourceCtx(missingBranch: Boolean = false): NarrativeContext =
-    BookmakerProseGoldenFixtures.prophylacticCut.ctx.copy(
+    MoveReviewProseGoldenFixtures.prophylacticCut.ctx.copy(
       authorQuestions =
         List(
           AuthorQuestion(
@@ -1019,7 +1019,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
     )
 
   private def surfaceReinflationCtx: NarrativeContext =
-    BookmakerProseGoldenFixtures.prophylacticCut.ctx.copy(
+    MoveReviewProseGoldenFixtures.prophylacticCut.ctx.copy(
       semantic = None,
       decision = None,
       authorQuestions =
@@ -1170,7 +1170,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
           rankedPlans = rankedPlans
         )
       )
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
@@ -1178,7 +1178,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         strategyPack = None,
         truthContract = None
       )
-    val bookmakerFallback =
+    val moveReviewFallback =
       MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
@@ -1186,17 +1186,17 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         strategyPack = None,
         truthContract = None
       )
-    val bookmakerParagraphs =
+    val moveReviewParagraphs =
       MoveReviewProseContract.splitParagraphs(
-        LiveNarrativeCompressionCore.deterministicProse(bookmakerFallback)
+        LiveNarrativeCompressionCore.deterministicProse(moveReviewFallback)
       )
 
     assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs.decisionFrame))
     assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
     chronicleArtifact.foreach(artifact => assertNoSuppressionInflation(artifact.narrative))
-    assert(bookmakerParagraphs.nonEmpty, clues(bookmakerParagraphs, bookmakerFallback))
-    bookmakerSlots.foreach { slots =>
+    assert(moveReviewParagraphs.nonEmpty, clues(moveReviewParagraphs, moveReviewFallback))
+    moveReviewSlots.foreach { slots =>
       assertNoSuppressionInflation(slots.claim)
       slots.supportPrimary.foreach(assertNoSuppressionInflation)
       slots.supportSecondary.foreach(assertNoSuppressionInflation)
@@ -1225,7 +1225,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
           rankedPlans = rankedPlans
         )
       )
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
@@ -1233,7 +1233,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         strategyPack = prophylacticMovePack,
         truthContract = None
       )
-    val bookmakerFallback =
+    val moveReviewFallback =
       MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
@@ -1279,15 +1279,15 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
       assert(artifact.narrative.toLowerCase.contains("queenside counterplay"), clues(artifact.narrative))
     }
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
-    assert(bookmakerSlots.nonEmpty, clues(bookmakerSlots, rankedPlans))
-    bookmakerSlots.foreach { slots =>
+    assert(moveReviewSlots.nonEmpty, clues(moveReviewSlots, rankedPlans))
+    moveReviewSlots.foreach { slots =>
       assertNoSuppressionInflation(slots.claim)
       assert(slots.claim.toLowerCase.contains("queenside counterplay"), clues(slots.claim))
     }
-    assertNoSuppressionInflation(bookmakerFallback.claim)
+    assertNoSuppressionInflation(moveReviewFallback.claim)
     assert(
-      bookmakerFallback.claim.toLowerCase.contains("queenside counterplay"),
-      clues(bookmakerFallback.claim)
+      moveReviewFallback.claim.toLowerCase.contains("queenside counterplay"),
+      clues(moveReviewFallback.claim)
     )
   }
 
@@ -1341,7 +1341,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
 
   test("exact positive control promotes neutralize-key-break only as a bounded WhatChanged move delta") {
     val ctx =
-      BookmakerProseGoldenFixtures.prophylacticCut.ctx.copy(
+      MoveReviewProseGoldenFixtures.prophylacticCut.ctx.copy(
         fen = QueenlessLateMiddlegameFen,
         authorQuestions =
           List(
@@ -1466,7 +1466,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         strategyPack = pack,
         truthContract = None
       )
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
@@ -1474,7 +1474,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         strategyPack = pack,
         truthContract = None
       )
-    val bookmakerFallback =
+    val moveReviewFallback =
       MoveReviewCompressionPolicy.buildSlotsOrFallback(
         ctx,
         outline,
@@ -1507,13 +1507,13 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
       assertNoSuppressionInflation(artifact.narrative)
       assert(artifact.narrative.toLowerCase.contains("c5"), clues(artifact.narrative))
     }
-    assert(bookmakerSlots.nonEmpty, clues(bookmakerSlots, rankedPlans))
-    bookmakerSlots.foreach { slots =>
+    assert(moveReviewSlots.nonEmpty, clues(moveReviewSlots, rankedPlans))
+    moveReviewSlots.foreach { slots =>
       assertNoSuppressionInflation(slots.claim)
       assert(slots.claim.toLowerCase.contains("c5"), clues(slots.claim))
     }
-    assertNoSuppressionInflation(bookmakerFallback.claim)
-    assert(bookmakerFallback.claim.toLowerCase.contains("c5"), clues(bookmakerFallback.claim))
+    assertNoSuppressionInflation(moveReviewFallback.claim)
+    assert(moveReviewFallback.claim.toLowerCase.contains("c5"), clues(moveReviewFallback.claim))
   }
 
   test("uncertified shell cannot re-inflate across planner, replay, or whole-game reuse") {
@@ -1531,7 +1531,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
           rankedPlans = rankedPlans
         )
       )
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
@@ -1593,7 +1593,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
     assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs.decisionFrame))
     assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
-    assertEquals(bookmakerSlots, None, clues(bookmakerSlots, rankedPlans))
+    assertEquals(moveReviewSlots, None, clues(moveReviewSlots, rankedPlans))
     assertEquals(fallbackSlots.paragraphPlan, List("p1=claim"), clues(fallbackSlots))
     assertNoSuppressionInflation(fallbackClaim)
     assertEquals(wholeGameSupport.decisiveShift, None, clues(wholeGameSupport))
@@ -1642,7 +1642,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
         covered =
           Set(
             SurfaceCell.PlannerWhyThis,
-            SurfaceCell.Bookmaker,
+            SurfaceCell.MoveReview,
             SurfaceCell.Chronicle,
             SurfaceCell.Active
           ),
@@ -1698,7 +1698,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
       surfaceCoverage,
       Map(
         SurfaceCell.PlannerWhyThis -> CoverageState.Covered,
-        SurfaceCell.Bookmaker -> CoverageState.Covered,
+        SurfaceCell.MoveReview -> CoverageState.Covered,
         SurfaceCell.Chronicle -> CoverageState.Covered,
         SurfaceCell.Active -> CoverageState.Covered,
         SurfaceCell.WholeGame -> CoverageState.Unsafe

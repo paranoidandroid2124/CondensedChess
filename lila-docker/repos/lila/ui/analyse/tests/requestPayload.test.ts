@@ -1,11 +1,11 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBookmakerRequest } from '../src/bookmaker/requestPayload';
+import { buildMoveReviewRequest } from '../src/moveReview/requestPayload';
 import { buildFullAnalysisRequestPayload } from '../src/narrative/requestPayload';
 
 describe('request payload builders', () => {
-  test('bookmaker request includes the current variant in context', () => {
-    const payload = buildBookmakerRequest({
+  test('moveReview request includes the current variant in context', () => {
+    const payload = buildMoveReviewRequest({
       fen: 'fen',
       lastMove: 'e2e4',
       variations: null,

@@ -554,7 +554,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
     )
 
   private def heavyPieceSurfaceCtx: NarrativeContext =
-    BookmakerProseGoldenFixtures.prophylacticCut.ctx.copy(
+    MoveReviewProseGoldenFixtures.prophylacticCut.ctx.copy(
       fen = SurfaceBlockFen,
       ply = 24,
       playedMove = Some("a2a3"),
@@ -586,7 +586,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
           )
         ),
       semantic =
-        BookmakerProseGoldenFixtures.prophylacticCut.ctx.semantic.map(_.copy(
+        MoveReviewProseGoldenFixtures.prophylacticCut.ctx.semantic.map(_.copy(
           preventedPlans =
             List(
               PreventedPlanInfo(
@@ -815,7 +815,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
     assert(contract.failsIf.contains("direct_best_defense_missing"), clues(contract))
   }
 
-  test("heavy-piece local bind shell cannot re-inflate across planner, replay, active, bookmaker, or whole-game reuse") {
+  test("heavy-piece local bind shell cannot re-inflate across planner, replay, active, moveReview, or whole-game reuse") {
     val ctx = heavyPieceSurfaceCtx
     val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = None, truthContract = None)
     val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
@@ -837,7 +837,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
           rankedPlans = rankedPlans
         )
       )
-    val bookmakerSlots =
+    val moveReviewSlots =
       MoveReviewCompressionPolicy.buildSlots(
         ctx,
         outline,
@@ -899,7 +899,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
       plannerInputs.mainBundle.flatMap(_.mainClaim).map(_.claimText).toList ++
         plannerInputs.quietIntent.map(_.claimText).toList ++
         rankedPlans.primary.map(_.claim).toList ++
-        bookmakerSlots.map(_.claim).toList ++
+        moveReviewSlots.map(_.claim).toList ++
         chronicleArtifact.map(_.narrative).filter(_.nonEmpty).toList
 
     assertEquals(HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx), true, clues(ctx.fen, ctx.mainStrategicPlans, ctx.strategicPlanExperiments))
@@ -908,7 +908,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
     assertEquals(rankedPlans.primary, None, clues(rankedPlans, plannerInputs))
     assertEquals(chronicleSelection, None, clues(chronicleSelection, rankedPlans))
     assertEquals(activeSelection, None, clues(activeSelection, rankedPlans))
-    assertEquals(bookmakerSlots, None, clues(bookmakerSlots, rankedPlans))
+    assertEquals(moveReviewSlots, None, clues(moveReviewSlots, rankedPlans))
     assertEquals(fallbackSlots.paragraphPlan, List("p1=claim"), clues(fallbackSlots))
     assertNoHeavyPieceInflation(fallbackClaim)
     surfacedTexts.foreach(assertNoHeavyPieceInflation)

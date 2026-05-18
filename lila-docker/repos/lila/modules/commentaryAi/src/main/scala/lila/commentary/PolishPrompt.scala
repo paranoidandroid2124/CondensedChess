@@ -11,18 +11,18 @@ object PolishPrompt:
   private val proseModeReminder: String =
     "Structure reminder: return plain prose only; do not emit UI section titles, bullets, or markdown; preserve draft paragraph breaks."
 
-  private def bookmakerParagraphReminder(
+  private def moveReviewParagraphReminder(
       momentType: Option[String],
-      bookmakerSlots: Option[MoveReviewPolishSlots]
+      moveReviewSlots: Option[MoveReviewPolishSlots]
   ): String =
     if momentType.isDefined then
       "When refining this narrative, preserve the draft paragraph rhythm unless a small edit improves clarity."
     else
-      bookmakerSlots match
+      moveReviewSlots match
         case Some(slots) if slots.paragraphPlan == List("p1=claim") =>
-          "For isolated-move / Bookmaker prose in compact mode, keep one brief paragraph with 1-2 sentences."
+          "For isolated-move / MoveReview prose in compact mode, keep one brief paragraph with 1-2 sentences."
         case _ =>
-          "For isolated-move / Bookmaker prose, keep 2-3 short paragraphs and 2-4 total sentences."
+          "For isolated-move / MoveReview prose, keep 2-3 short paragraphs and 2-4 total sentences."
 
   private def claimOpeningClause(claim: String): String =
     val trimmed = Option(claim).map(_.trim).getOrElse("")
@@ -116,7 +116,7 @@ object PolishPrompt:
       |   `Strategic Signals`, `Evidence Probes`, `Authoring Evidence`, or `Alternative Options`.
       |   Return plain prose only: no markdown headers, no bullet lists, no metadata wrapper text.
       |8. Preserve paragraph structure when possible. Do not collapse multi-paragraph draft text into
-      |   one block. In isolated-move / Bookmaker mode, target 2-3 short paragraphs and 2-4 total sentences,
+      |   one block. In isolated-move / MoveReview mode, target 2-3 short paragraphs and 2-4 total sentences,
       |   usually: immediate move meaning -> strategic consequence -> optional cited line or practical nuance.
       |   If the slots indicate compact mode, keep a single brief paragraph instead.
       |9. Treat slot metadata as a hard topic budget. Do not promote sidecar concepts such as evidence tiers,
@@ -152,12 +152,12 @@ object PolishPrompt:
       tension: Option[Double] = None,
       salience: Option[lila.commentary.model.strategic.StrategicSalience] = None,
       momentType: Option[String] = None,
-      bookmakerSlots: Option[MoveReviewPolishSlots] = None
+      moveReviewSlots: Option[MoveReviewPolishSlots] = None
   ): String =
     val deltaStr = evalDelta.map(d => s"$d cp").getOrElse("N/A")
     val momentTypeStr = momentType.map(m => s"Key Moment ($m) - Part of Full Game Review").getOrElse("Isolated Move")
-    val modeReminder = bookmakerParagraphReminder(momentType, bookmakerSlots)
-    bookmakerSlots match
+    val modeReminder = moveReviewParagraphReminder(momentType, moveReviewSlots)
+    moveReviewSlots match
       case Some(slots) =>
         val supportText = slots.support.mkString("\n")
         val claimLead = claimOpeningClause(slots.claim)
@@ -254,7 +254,7 @@ object PolishPrompt:
       fen: String,
       openingName: Option[String] = None,
       allowedSans: List[String] = Nil,
-      bookmakerSlots: Option[MoveReviewPolishSlots] = None
+      moveReviewSlots: Option[MoveReviewPolishSlots] = None
   ): String =
     val deltaStr = evalDelta.map(d => s"$d cp").getOrElse("N/A")
     val allowedSansStr =
@@ -264,7 +264,7 @@ object PolishPrompt:
         .distinct
         .take(28)
         .mkString(", ")
-    bookmakerSlots match
+    moveReviewSlots match
       case Some(slots) =>
         val supportText = slots.support.mkString("\n")
         val claimLead = claimOpeningClause(slots.claim)
@@ -295,7 +295,7 @@ object PolishPrompt:
            |Anchor tokens ([[MV_*]], [[MK_*]], [[EV_*]], [[VB_*]]) must be preserved exactly and in-order.
            |
            |$proseModeReminder
-           |If the original draft is isolated-move / Bookmaker prose, keep 2-3 short paragraphs and 2-4 total sentences unless the slot plan is compact.
+           |If the original draft is isolated-move / MoveReview prose, keep 2-3 short paragraphs and 2-4 total sentences unless the slot plan is compact.
            |Paragraph 1 must begin with this exact opening clause: "$claimLead".
            |Keep the slot claim's opening clause intact rather than paraphrasing it into a generic restatement.
            |
@@ -341,7 +341,7 @@ object PolishPrompt:
            |Anchor tokens ([[MV_*]], [[MK_*]], [[EV_*]], [[VB_*]]) must be preserved exactly and in-order.
            |
            |$proseModeReminder
-           |If the original draft is isolated-move / Bookmaker prose, keep 2-3 short paragraphs and 2-4 total sentences.
+           |If the original draft is isolated-move / MoveReview prose, keep 2-3 short paragraphs and 2-4 total sentences.
            |
            |## STRICT REPAIR REQUIREMENTS
            |- Keep factual claims from ORIGINAL_DRAFT.
