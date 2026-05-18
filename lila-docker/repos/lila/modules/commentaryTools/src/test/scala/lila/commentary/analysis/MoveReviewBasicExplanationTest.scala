@@ -48,7 +48,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
       opening: Option[OpeningReference] = None,
       facts: List[Fact] = Nil,
       candidateFacts: List[Fact] = Nil,
-      candidateMotifs: List[Motif] = Nil
+      candidateMotifs: List[Motif] = Nil,
+      openingGoalEvaluation: Option[OpeningGoals.Evaluation] = None
   ): NarrativeContext =
     NarrativeContext(
       fen = fen,
@@ -78,7 +79,8 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
       facts = facts,
       openingEvent = opening.map(ref => OpeningEvent.Intro(ref.eco.getOrElse(""), ref.name.getOrElse("Opening"), phaseReason, List(playedSan))),
       openingData = opening,
-      openingGoalEvaluation = Option.when(opening.exists(_.name.contains("Italian Game")) && playedMove == "f1c4")(developmentGoal),
+      openingGoalEvaluation =
+        openingGoalEvaluation.orElse(Option.when(opening.exists(_.name.contains("Italian Game")) && playedMove == "f1c4")(developmentGoal)),
       renderMode = NarrativeRenderMode.MoveReview
     )
 
@@ -141,6 +143,60 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(explanation.reasonTags.contains("line_proof:opening_goal"), clue(explanation.reasonTags))
     assertEquals(explanation.shortLine.map(_.san), Some(List("Bc4", "Nf6", "d3")), clue(explanation.shortLine))
     assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("quiet_development"), clue(explanation.pvInterpretation))
+  }
+
+  test("Ruy Lopez and Queen's Gambit opening explanations require exact PV-backed goals") {
+    val ruyFen =
+      "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+    val qgFen =
+      "rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2"
+    val ruy =
+      MoveReviewExplanationBuilder
+        .build(
+          ctx(
+            fen = ruyFen,
+            playedMove = "f1b5",
+            playedSan = "Bb5",
+            phase = "Opening",
+            ply = 5,
+            phaseReason = "Ruy Lopez development",
+            opening = Some(openingRef("Ruy Lopez", "C60", "f1b5", "Bb5")),
+            openingGoalEvaluation = Some(developmentGoal)
+          ),
+          Some(refsForLine(ruyFen, List("f1b5", "a7a6", "b5a4"), List("Bb5", "a6", "Ba4")))
+        )
+        .getOrElse(fail("expected exact Ruy Lopez opening explanation"))
+    val qg =
+      MoveReviewExplanationBuilder
+        .build(
+          ctx(
+            fen = qgFen,
+            playedMove = "c2c4",
+            playedSan = "c4",
+            phase = "Opening",
+            ply = 3,
+            phaseReason = "Queen's Gambit center challenge",
+            opening = Some(openingRef("Queen's Gambit", "D06", "c2c4", "c4")),
+            openingGoalEvaluation = Some(
+              OpeningGoals.Evaluation(
+                goalName = "Center Challenge",
+                status = OpeningGoals.Status.Achieved,
+                supportedEvidence = List("queen-pawn tension"),
+                missingEvidence = Nil,
+                confidence = 0.82
+              )
+            )
+          ),
+          Some(refsForLine(qgFen, List("c2c4", "e7e6", "b1c3"), List("c4", "e6", "Nc3")))
+        )
+        .getOrElse(fail("expected exact Queen's Gambit opening explanation"))
+
+    assertEquals(ruy.source, "opening_goal", clue(ruy))
+    assertEquals(ruy.pvInterpretation.flatMap(_.opponentReplyMeaning), Some("asks_piece_commitment"), clue(ruy.pvInterpretation))
+    assert(ruy.pvInterpretation.exists(_.learningPoint.contains("Ba4")), clue(ruy.pvInterpretation))
+    assertEquals(qg.source, "opening_goal", clue(qg))
+    assertEquals(qg.pvInterpretation.map(_.linePurpose), Some("challenge_center"), clue(qg.pvInterpretation))
+    assert(qg.reasonTags.contains("review_intent:normal_development"), clue(qg.reasonTags))
   }
 
   test("opening name alone does not admit opening prose without a grounded goal") {
@@ -313,6 +369,29 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(explanation.reasonTags.contains("line_proof:defensive_answer"), clue(explanation.reasonTags))
   }
 
+  test("castling explanation requires exact PV-backed king-safety sequencing") {
+    val fen =
+      "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"
+    val noPv =
+      MoveReviewExplanationBuilder.build(
+        ctx(fen, "e1g1", "O-O", phase = "Opening", ply = 7, phaseReason = "castle without PV"),
+        None
+      )
+    val explanation =
+      MoveReviewExplanationBuilder
+        .build(
+          ctx(fen, "e1g1", "O-O", phase = "Opening", ply = 7, phaseReason = "king safety with PV"),
+          Some(refsForLine(fen, List("e1g1", "f8e7", "f1e1"), List("O-O", "Be7", "Re1")))
+        )
+        .getOrElse(fail("expected exact castle explanation"))
+
+    assertEquals(noPv, None)
+    assertEquals(explanation.source, "basic_move_explanation", clue(explanation))
+    assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("king_safety_first"), clue(explanation.pvInterpretation))
+    assert(explanation.reasonTags.contains("review_intent:king_safety"), clue(explanation.reasonTags))
+    assert(explanation.pvInterpretation.exists(_.learningPoint.contains("king safety")), clue(explanation.pvInterpretation))
+  }
+
   test("endgame facts admit activity prose without an endgame idea catalog") {
     val fen = "8/8/8/8/8/8/4P3/4K2k w - - 0 1"
     val kingActivity =
@@ -339,6 +418,49 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assert(explanation.pvInterpretation.exists(_.confirms.contains("improves_endgame_activity")), clue(explanation.pvInterpretation))
     assert(explanation.reasonTags.contains("review_intent:improves_endgame_activity"), clue(explanation.reasonTags))
     assert(explanation.prose.toLowerCase.contains("king activity"), clue(explanation.prose))
+  }
+
+  test("passed-pawn and rook endgame activity require exact facts plus legal PV") {
+    val passedPawnFen =
+      "8/4k3/8/8/8/8/4P3/4K3 w - - 0 1"
+    val rookFen =
+      "4k3/8/8/8/8/8/R3P3/4K3 w - - 0 1"
+    val passedPawn =
+      MoveReviewExplanationBuilder
+        .build(
+          ctx(
+            fen = passedPawnFen,
+            playedMove = "e2e4",
+            playedSan = "e4",
+            phase = "Endgame",
+            ply = 60,
+            phaseReason = "passed pawn support",
+            candidateFacts = List(Fact.PawnPromotion(Square.E4, promotedTo = None, FactScope.CandidatePv))
+          ),
+          Some(refsForLine(passedPawnFen, List("e2e4", "e7d6", "e1d2"), List("e4", "Kd6", "Kd2")))
+        )
+        .getOrElse(fail("expected exact passed-pawn endgame explanation"))
+    val rookActivity =
+      MoveReviewExplanationBuilder
+        .build(
+          ctx(
+            fen = rookFen,
+            playedMove = "a2a7",
+            playedSan = "Ra7",
+            phase = "Endgame",
+            ply = 60,
+            phaseReason = "rook activity",
+            candidateFacts = List(Fact.RookEndgamePattern("RookBehindPassedPawn", FactScope.CandidatePv))
+          ),
+          Some(refsForLine(rookFen, List("a2a7", "e8d8", "a7a8"), List("Ra7", "Kd8", "Ra8")))
+        )
+        .getOrElse(fail("expected exact rook endgame explanation"))
+
+    assertEquals(passedPawn.pvInterpretation.map(_.linePurpose), Some("improve_endgame_activity"), clue(passedPawn))
+    assert(passedPawn.reasonTags.contains("pawn_promotion"), clue(passedPawn.reasonTags))
+    assertEquals(rookActivity.pvInterpretation.map(_.linePurpose), Some("improve_endgame_activity"), clue(rookActivity))
+    assert(rookActivity.reasonTags.contains("rook_endgame_pattern"), clue(rookActivity.reasonTags))
+    assert(rookActivity.pvInterpretation.exists(_.learningPoint.contains("Ra8")), clue(rookActivity.pvInterpretation))
   }
 
   test("phase-only endgame move stays closed without exact facts") {

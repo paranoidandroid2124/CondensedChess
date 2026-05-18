@@ -99,6 +99,45 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
       continuation = continuation
     )
 
+  private def refsForLine(startFen: String, ucis: List[String], sans: List[String], lineId: String): MoveReviewRefs =
+    val fens = ucis.indices.toList.map(idx => NarrativeUtils.uciListToFen(startFen, ucis.take(idx + 1)))
+    MoveReviewRefs(
+      startFen = startFen,
+      startPly = NarrativeUtils.plyFromFen(startFen).map(_ + 1).getOrElse(1),
+      variations = List(
+        MoveReviewVariationRef(
+          lineId = lineId,
+          scoreCp = 12,
+          mate = None,
+          depth = 16,
+          moves =
+            ucis.zip(sans).zipWithIndex.map { case ((uci, san), idx) =>
+              val ply = NarrativeUtils.plyFromFen(startFen).map(_ + 1 + idx).getOrElse(idx + 1)
+              MoveReviewMoveRef(
+                refId = s"${lineId}_m${idx + 1}",
+                san = san,
+                uci = uci,
+                fenAfter = fens(idx),
+                ply = ply,
+                moveNo = (ply + 1) / 2,
+                marker = Some(if ply % 2 == 1 then s"${(ply + 1) / 2}." else s"${(ply + 1) / 2}...")
+              )
+            }
+        )
+      )
+    )
+
+  private def exactLineFacts(
+      startFen: String,
+      playedUci: String,
+      ucis: List[String],
+      sans: List[String],
+      lineId: String
+  ): MoveReviewPvLine.LineFacts =
+    MoveReviewPvLine
+      .firstCoupled(startFen, playedUci, Some(refsForLine(startFen, ucis, sans, lineId)))
+      .getOrElse(fail(s"expected legal coupled PV for $playedUci from $startFen"))
+
   test("fact wording tags priority and consequence come from the single idea surface") {
     val fork = Fact.Fork(Square.F5, Knight, List(Square.E7 -> Rook, Square.H4 -> Queen), FactScope.Now)
     val pin = Fact.Pin(Square.B4, Bishop, Square.C3, Knight, Square.E1, _root_.chess.King, isAbsolute = true, FactScope.Now)
@@ -219,6 +258,65 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     assert(descriptor.baseProse.contains("Italian Game"), clue(descriptor.baseProse))
   }
 
+  test("normal development descriptors are pinned to exact legal opening PVs") {
+    val italianFen =
+      "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3"
+    val ruyFen = italianFen
+    val qgFen =
+      "rnbqkbnr/ppp1pppp/8/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 2"
+    val goal =
+      OpeningGoals.Evaluation(
+        goalName = "Development Logic",
+        status = OpeningGoals.Status.Achieved,
+        supportedEvidence = List("minor-piece development"),
+        missingEvidence = Nil,
+        confidence = 0.86
+      )
+    val centerGoal =
+      OpeningGoals.Evaluation(
+        goalName = "Center Challenge",
+        status = OpeningGoals.Status.Achieved,
+        supportedEvidence = List("queen-pawn tension"),
+        missingEvidence = Nil,
+        confidence = 0.82
+      )
+
+    val italian =
+      CommentaryIdeaSurface
+        .describe(
+          played("f1c4", "Bc4", Square.F1, Square.C4, Piece(Color.White, Bishop)),
+          evidence(openingGoal = Some(goal), openingName = Some("Italian Game")),
+          Some(exactLineFacts(italianFen, "f1c4", List("f1c4", "g8f6", "d2d3"), List("Bc4", "Nf6", "d3"), "italian"))
+        )
+        .getOrElse(fail("expected exact Italian development descriptor"))
+    val ruy =
+      CommentaryIdeaSurface
+        .describe(
+          played("f1b5", "Bb5", Square.F1, Square.B5, Piece(Color.White, Bishop)),
+          evidence(openingGoal = Some(goal), openingName = Some("Ruy Lopez")),
+          Some(exactLineFacts(ruyFen, "f1b5", List("f1b5", "a7a6", "b5a4"), List("Bb5", "a6", "Ba4"), "ruy"))
+        )
+        .getOrElse(fail("expected exact Ruy Lopez development descriptor"))
+    val qg =
+      CommentaryIdeaSurface
+        .describe(
+          played("c2c4", "c4", Square.C2, Square.C4, Piece(Color.White, Pawn)),
+          evidence(openingGoal = Some(centerGoal), openingName = Some("Queen's Gambit")),
+          Some(exactLineFacts(qgFen, "c2c4", List("c2c4", "e7e6", "b1c3"), List("c4", "e6", "Nc3"), "qg"))
+        )
+        .getOrElse(fail("expected exact Queen's Gambit development descriptor"))
+
+    assertEquals(italian.reviewIntent, "normal_development", clue(italian))
+    assertEquals(italian.opponentReplyMeaning, Some("attacks_center_pawn"), clue(italian))
+    assert(italian.learningPoint.exists(_.contains("d3")), clue(italian.learningPoint))
+    assertEquals(ruy.reviewIntent, "normal_development", clue(ruy))
+    assertEquals(ruy.opponentReplyMeaning, Some("asks_piece_commitment"), clue(ruy))
+    assert(ruy.learningPoint.exists(_.contains("Ba4")), clue(ruy.learningPoint))
+    assertEquals(qg.reviewIntent, "normal_development", clue(qg))
+    assertEquals(qg.linePurpose, Some("challenge_center"), clue(qg))
+    assert(qg.confirms.contains("opening_goal"), clue(qg.confirms))
+  }
+
   test("descriptor rule order keeps grounded opening before tactical fallback") {
     val current =
       played("f1c4", "Bc4", Square.F1, Square.C4, Piece(Color.White, _root_.chess.Bishop))
@@ -325,7 +423,80 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
     )
   }
 
+  test("pin and skewer intent fixtures use exact legal PV proof") {
+    val pinFen =
+      "4kb2/8/8/8/8/2N5/8/4K3 b - - 0 1"
+    val skewerFen =
+      "r3k3/8/8/8/8/8/8/4K2Q b - - 0 1"
+    val pinFact =
+      Fact.Pin(Square.B4, Bishop, Square.C3, Knight, Square.E1, _root_.chess.King, isAbsolute = true, FactScope.CandidatePv)
+    val skewerFact =
+      Fact.Skewer(Square.A1, Rook, Square.E1, _root_.chess.King, Square.H1, Queen, FactScope.CandidatePv)
+
+    val pin =
+      CommentaryIdeaSurface
+        .describe(
+          played("f8b4", "Bb4", Square.F8, Square.B4, Piece(Color.Black, Bishop)),
+          evidence(facts = List(pinFact)),
+          Some(exactLineFacts(pinFen, "f8b4", List("f8b4", "e1f1", "b4c3"), List("Bb4", "Kf1", "Bxc3"), "pin"))
+        )
+        .getOrElse(fail("expected exact pin descriptor"))
+    val skewer =
+      CommentaryIdeaSurface
+        .describe(
+          played("a8a1", "Ra1+", Square.A8, Square.A1, Piece(Color.Black, Rook)),
+          evidence(facts = List(skewerFact)),
+          Some(exactLineFacts(skewerFen, "a8a1", List("a8a1", "e1f2", "a1h1"), List("Ra1+", "Kf2", "Rxh1"), "skewer"))
+        )
+        .getOrElse(fail("expected exact skewer descriptor"))
+
+    assertEquals(pin.reviewIntent, "creates_threat", clue(pin))
+    assertEquals(pin.ideaKind, "pin", clue(pin))
+    assertEquals(pin.linePurpose, Some("create_tactical_threat"), clue(pin))
+    assert(pin.confirms.contains("pin"), clue(pin.confirms))
+    assert(pin.reasonTags.contains("line_proof:tactical_threat"), clue(pin.reasonTags))
+    assertEquals(skewer.reviewIntent, "creates_threat", clue(skewer))
+    assertEquals(skewer.ideaKind, "skewer", clue(skewer))
+    assertEquals(skewer.linePurpose, Some("create_tactical_threat"), clue(skewer))
+    assert(skewer.confirms.contains("skewer"), clue(skewer.confirms))
+  }
+
+  test("endgame activity descriptors cover exact passed-pawn and rook-activity PVs") {
+    val passedPawnFen =
+      "8/4k3/8/8/8/8/4P3/4K3 w - - 0 1"
+    val rookFen =
+      "4k3/8/8/8/8/8/R3P3/4K3 w - - 0 1"
+    val passedPawn =
+      CommentaryIdeaSurface
+        .describe(
+          played("e2e4", "e4", Square.E2, Square.E4, Piece(Color.White, Pawn)),
+          evidence(facts = List(Fact.PawnPromotion(Square.E4, promotedTo = None, FactScope.CandidatePv))),
+          Some(exactLineFacts(passedPawnFen, "e2e4", List("e2e4", "e7d6", "e1d2"), List("e4", "Kd6", "Kd2"), "passed_pawn"))
+        )
+        .getOrElse(fail("expected exact passed-pawn activity descriptor"))
+    val rookActivity =
+      CommentaryIdeaSurface
+        .describe(
+          played("a2a7", "Ra7", Square.A2, Square.A7, Piece(Color.White, Rook)),
+          evidence(facts = List(Fact.RookEndgamePattern("RookBehindPassedPawn", FactScope.CandidatePv))),
+          Some(exactLineFacts(rookFen, "a2a7", List("a2a7", "e8d8", "a7a8"), List("Ra7", "Kd8", "Ra8"), "rook_activity"))
+        )
+        .getOrElse(fail("expected exact rook-activity descriptor"))
+
+    assertEquals(passedPawn.reviewIntent, "improves_endgame_activity", clue(passedPawn))
+    assertEquals(passedPawn.linePurpose, Some("improve_endgame_activity"), clue(passedPawn))
+    assert(passedPawn.reasonTags.contains("pawn_promotion"), clue(passedPawn.reasonTags))
+    assert(passedPawn.confirms.contains("endgame_activity"), clue(passedPawn.confirms))
+    assertEquals(rookActivity.reviewIntent, "improves_endgame_activity", clue(rookActivity))
+    assert(rookActivity.reasonTags.contains("rook_endgame_pattern"), clue(rookActivity.reasonTags))
+    assert(rookActivity.learningPoint.exists(_.contains("Ra8")), clue(rookActivity.learningPoint))
+  }
+
   test("capture descriptors stay PV-backed and owned by the idea surface") {
+    val pawnCaptureFen =
+      "rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2"
+    val bishopCaptureFen =
+      "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"
     val pawnCapture =
       CommentaryIdeaSurface
         .describe(
@@ -333,7 +504,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
           evidence(motifs =
             List(Motif.Capture(Pawn, Pawn, Square.D5, Motif.CaptureType.Normal, Color.White, 12, Some("exd5")))
           ),
-          Some(lineFacts(moveRef("m1", "exd5", "e4d5", 12), Some(moveRef("m2", "Qxd5", "d8d5", 13))))
+          Some(exactLineFacts(pawnCaptureFen, "e4d5", List("e4d5", "d8d5", "b1c3"), List("exd5", "Qxd5", "Nc3"), "pawn_capture"))
         )
         .getOrElse(fail("expected capture tension descriptor"))
     val pieceCapture =
@@ -343,7 +514,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
           evidence(motifs =
             List(Motif.Capture(Bishop, Pawn, Square.F7, Motif.CaptureType.Exchange, Color.White, 16, Some("Bxf7+")))
           ),
-          Some(lineFacts(moveRef("m1", "Bxf7+", "c4f7", 16), Some(moveRef("m2", "Kxf7", "e8f7", 17))))
+          Some(exactLineFacts(bishopCaptureFen, "c4f7", List("c4f7", "e8f7", "e1g1"), List("Bxf7+", "Kxf7", "O-O"), "bishop_capture"))
         )
         .getOrElse(fail("expected exchange clarification descriptor"))
     val noReply =
@@ -399,6 +570,8 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
   }
 
   test("castling descriptor requires PV proof for king-safety surface") {
+    val castleFen =
+      "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4"
     val noPv =
       CommentaryIdeaSurface.describe(
         played("e1g1", "O-O", Square.E1, Square.G1, Piece(Color.White, _root_.chess.King)),
@@ -410,7 +583,7 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
         .describe(
           played("e1g1", "O-O", Square.E1, Square.G1, Piece(Color.White, _root_.chess.King)),
           evidence(),
-          Some(lineFacts(moveRef("m1", "O-O", "e1g1", 9), Some(moveRef("m2", "Nf6", "g8f6", 10)), Some(moveRef("m3", "Re1", "f1e1", 11))))
+          Some(exactLineFacts(castleFen, "e1g1", List("e1g1", "f8e7", "f1e1"), List("O-O", "Be7", "Re1"), "castle"))
         )
         .getOrElse(fail("expected PV-proved castling descriptor"))
 
@@ -424,10 +597,12 @@ final class CommentaryIdeaSurfaceTest extends FunSuite:
   }
 
   test("certified strategic support needs packet proof and PV proof") {
+    val startFen =
+      "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     val current =
       played("h2h3", "h3", Square.H2, Square.H3, Piece(Color.White, Pawn))
     val line =
-      Some(lineFacts(moveRef("m1", "h3", "h2h3", 22), Some(moveRef("m2", "b5", "b7b5", 23)), Some(moveRef("m3", "a4", "a2a4", 24))))
+      Some(exactLineFacts(startFen, "h2h3", List("h2h3", "b7b5", "a2a4"), List("h3", "b5", "a4"), "strategy"))
     val certified =
       strategicDelta("neutralize_key_break", "counterplay_axis_suppression", PlayerFacingMoveDeltaClass.CounterplayReduction)
     val packetOnly =
