@@ -1,6 +1,7 @@
 package lila.commentary.analysis.claim
 
 import lila.commentary.analysis.*
+import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceSourceId, ProofFamilyId, ProofSourceId }
 private[commentary] enum ProofContractStatus:
   case Releasable
   case BackendOnly
@@ -98,17 +99,24 @@ private[commentary] object ProofContractRules:
   private val TacticalWitnesses =
     Set(ProofWitness.OwnerSeed)
 
+  private def proofFamily(theme: PlanTaxonomy.PlanTheme): ProofFamilyId =
+    ProofFamilyId.fromPlanTheme(theme).getOrElse(sys.error(s"missing proof family registry for theme ${theme.id}"))
+
+  private def proofFamily(subplan: PlanTaxonomy.PlanKind): ProofFamilyId =
+    ProofFamilyId.fromPlanKind(subplan).getOrElse(sys.error(s"missing proof family registry for subplan ${subplan.id}"))
+
   private def themeContract(
       theme: PlanTaxonomy.PlanTheme,
       status: ProofContractStatus,
       defaultFailureTaxonomy: String
   ): ProofContract =
+    val family = proofFamily(theme)
     ProofContract(
       id = s"theme:${theme.id}",
-      proofFamily = theme.id,
+      proofFamily = family.wireKey,
       theme = Some(theme),
       subplan = None,
-      acceptedSources = Set(theme.id),
+      acceptedSources = Set(family.wireKey),
       allowedScopes = Set(PlayerFacingPacketScope.BackendOnly),
       requiredWitnesses =
         if theme == PlanTaxonomy.PlanTheme.ImmediateTacticalGain then TacticalWitnesses else DeferredWitnesses,
@@ -121,7 +129,9 @@ private[commentary] object ProofContractRules:
   private def subplanContract(
       subplan: PlanTaxonomy.PlanKind,
       status: ProofContractStatus,
-      acceptedSources: Set[String],
+      acceptedSources: Set[ProofSourceId],
+      acceptedSourceFamilies: Set[ProofFamilyId] = Set.empty,
+      acceptedSelectorSources: Set[EvidenceSourceId] = Set.empty,
       allowedScopes: Set[PlayerFacingPacketScope],
       requiredWitnesses: Set[ProofWitness],
       certifiedEligible: Boolean,
@@ -129,12 +139,18 @@ private[commentary] object ProofContractRules:
       defaultFailureTaxonomy: String,
       includeSubplanSource: Boolean = true
   ): ProofContract =
+    val family = proofFamily(subplan)
+    val acceptedSourceWires =
+      acceptedSources.map(_.wireKey) ++
+        acceptedSourceFamilies.map(_.wireKey) ++
+        acceptedSelectorSources.map(_.wireKey) ++
+        Option.when(includeSubplanSource)(family.wireKey)
     ProofContract(
       id = s"subplan:${subplan.id}",
-      proofFamily = subplan.id,
+      proofFamily = family.wireKey,
       theme = Some(subplan.theme),
       subplan = Some(subplan),
-      acceptedSources = acceptedSources ++ Option.when(includeSubplanSource)(subplan.id),
+      acceptedSources = acceptedSourceWires,
       allowedScopes = allowedScopes,
       requiredWitnesses = requiredWitnesses,
       status = status,
@@ -144,21 +160,27 @@ private[commentary] object ProofContractRules:
     )
 
   private def customContract(
-      id: String,
-      proofFamily: String,
-      acceptedSources: Set[String],
+      id: ProofFamilyId,
+      acceptedSources: Set[ProofSourceId],
+      acceptedSourceFamilies: Set[ProofFamilyId] = Set.empty,
+      acceptedSelectorSources: Set[EvidenceSourceId] = Set.empty,
       allowedScopes: Set[PlayerFacingPacketScope],
       requiredWitnesses: Set[ProofWitness],
       certifiedEligible: Boolean,
       supportedLocalEligible: Boolean,
       defaultFailureTaxonomy: String
   ): ProofContract =
+    val acceptedSourceWires =
+      acceptedSources.map(_.wireKey) ++
+        acceptedSourceFamilies.map(_.wireKey) ++
+        acceptedSelectorSources.map(_.wireKey) +
+        id.wireKey
     ProofContract(
-      id = s"runtime:$id",
-      proofFamily = proofFamily,
+      id = s"runtime:${id.wireKey}",
+      proofFamily = id.wireKey,
       theme = None,
       subplan = None,
-      acceptedSources = acceptedSources + proofFamily,
+      acceptedSources = acceptedSourceWires,
       allowedScopes = allowedScopes,
       requiredWitnesses = requiredWitnesses,
       status = ProofContractStatus.Releasable,
@@ -172,10 +194,10 @@ private[commentary] object ProofContractRules:
       if theme == PlanTaxonomy.PlanTheme.WeaknessFixation then
         ProofContract(
           id = s"theme:${theme.id}",
-          proofFamily = theme.id,
+          proofFamily = proofFamily(theme).wireKey,
           theme = Some(theme),
           subplan = None,
-          acceptedSources = Set(theme.id),
+          acceptedSources = Set(proofFamily(theme).wireKey),
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
           requiredWitnesses = ExactOwnerWitnesses,
           status = ProofContractStatus.Releasable,
@@ -199,7 +221,7 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.ExactTargetFixationProofSource),
+          acceptedSources = Set(ProofSourceId.ExactTargetFixation),
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
           requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
           certifiedEligible = true,
@@ -210,7 +232,7 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource),
+          acceptedSources = Set(ProofSourceId.CarlsbadFixedTargetProbe),
           allowedScopes = Set(PlayerFacingPacketScope.PositionLocal),
           requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
           certifiedEligible = true,
@@ -220,20 +242,20 @@ private[commentary] object ProofContractRules:
       case subplan @ PlanTaxonomy.PlanKind.MinorityAttackFixation =>
         subplanContract(
           subplan = subplan,
-          status = ProofContractStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource),
-          allowedScopes = Set(PlayerFacingPacketScope.PositionLocal),
-          requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
-          certifiedEligible = true,
-          supportedLocalEligible = true,
-          defaultFailureTaxonomy = "position_probe_not_certified",
+          status = ProofContractStatus.Deferred,
+          acceptedSources = Set.empty,
+          allowedScopes = Set(PlayerFacingPacketScope.BackendOnly, PlayerFacingPacketScope.LineScoped),
+          requiredWitnesses = DeferredWitnesses,
+          certifiedEligible = false,
+          supportedLocalEligible = false,
+          defaultFailureTaxonomy = "deferred_no_exact_owner",
           includeSubplanSource = false
         )
       case subplan @ PlanTaxonomy.PlanKind.IQPInducement =>
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.IQPInducementProbeProofSource),
+          acceptedSources = Set(ProofSourceId.IQPInducementProbe),
           allowedScopes = Set(PlayerFacingPacketScope.PositionLocal, PlayerFacingPacketScope.MoveLocal),
           requiredWitnesses =
             WeakOwnerWitnesses +
@@ -246,7 +268,15 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Releasable,
-          acceptedSources = Set("classification_transformation_window", "exchange_availability_bridge", "capture_exchange_transformation", "iqp_simplification_profile", "plan_match_transformation"),
+          acceptedSources = Set.empty,
+          acceptedSelectorSources =
+            Set(
+              EvidenceSourceId.ClassificationTransformationWindow,
+              EvidenceSourceId.ExchangeAvailabilityBridge,
+              EvidenceSourceId.CaptureExchangeTransformation,
+              EvidenceSourceId.IqpSimplificationProfile,
+              EvidenceSourceId.PlanMatchTransformation
+            ),
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
           requiredWitnesses = ExactOwnerWitnesses + ProofWitness.StructureTransition,
           certifiedEligible = true,
@@ -257,7 +287,7 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.DefenderTradeProofSource, "exchange_forcing_delta"),
+          acceptedSources = Set(ProofSourceId.ExchangeForcingDelta),
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
           requiredWitnesses = WeakOwnerWitnesses + ProofWitness.StructureTransition,
           certifiedEligible = false,
@@ -268,7 +298,7 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Releasable,
-          acceptedSources = Set(PlayerFacingTruthModePolicy.QueenTradeShieldProofSource),
+          acceptedSources = Set.empty,
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
           requiredWitnesses = WeakOwnerWitnesses + ProofWitness.ExactSlice,
           certifiedEligible = false,
@@ -279,7 +309,7 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Releasable,
-          acceptedSources = Set(CentralBreakTimingWitness.ProofSource),
+          acceptedSources = Set.empty,
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal),
           requiredWitnesses =
             WeakOwnerWitnesses +
@@ -292,7 +322,7 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Releasable,
-          acceptedSources = Set("bad_piece_liquidation"),
+          acceptedSources = Set.empty,
           allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
           requiredWitnesses = WeakOwnerWitnesses,
           certifiedEligible = false,
@@ -303,7 +333,7 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.BackendOnly,
-          acceptedSources = Set(subplan.id),
+          acceptedSources = Set.empty,
           allowedScopes = Set(PlayerFacingPacketScope.BackendOnly),
           requiredWitnesses = TacticalWitnesses,
           certifiedEligible = false,
@@ -314,7 +344,7 @@ private[commentary] object ProofContractRules:
         subplanContract(
           subplan = subplan,
           status = ProofContractStatus.Deferred,
-          acceptedSources = Set(subplan.id),
+          acceptedSources = Set.empty,
           allowedScopes = Set(PlayerFacingPacketScope.BackendOnly, PlayerFacingPacketScope.LineScoped),
           requiredWitnesses = DeferredWitnesses,
           certifiedEligible = false,
@@ -326,9 +356,13 @@ private[commentary] object ProofContractRules:
   private val RuntimeContracts =
     List(
       customContract(
-        id = "half_open_file_pressure",
-        proofFamily = "half_open_file_pressure",
-        acceptedSources = Set("local_file_entry_bind", PlanTaxonomy.PlanKind.OpenFilePressure.id, PlanTaxonomy.PlanKind.RookFileTransfer.id),
+        id = ProofFamilyId.HalfOpenFilePressure,
+        acceptedSources = Set(ProofSourceId.LocalFileEntryBind),
+        acceptedSourceFamilies =
+          Set(
+            proofFamily(PlanTaxonomy.PlanKind.OpenFilePressure),
+            proofFamily(PlanTaxonomy.PlanKind.RookFileTransfer)
+          ),
         allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
         requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
         certifiedEligible = true,
@@ -336,9 +370,9 @@ private[commentary] object ProofContractRules:
         defaultFailureTaxonomy = "certified_owner_path"
       ),
       customContract(
-        id = "neutralize_key_break",
-        proofFamily = "neutralize_key_break",
-        acceptedSources = Set("counterplay_axis_suppression", PlanTaxonomy.PlanKind.BreakPrevention.id),
+        id = ProofFamilyId.NeutralizeKeyBreak,
+        acceptedSources = Set(ProofSourceId.CounterplayAxisSuppression),
+        acceptedSourceFamilies = Set(proofFamily(PlanTaxonomy.PlanKind.BreakPrevention)),
         allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
         requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
         certifiedEligible = true,
@@ -346,9 +380,9 @@ private[commentary] object ProofContractRules:
         defaultFailureTaxonomy = "certified_owner_path"
       ),
       customContract(
-        id = "counterplay_restraint",
-        proofFamily = "counterplay_restraint",
-        acceptedSources = Set("prophylactic_move", PlanTaxonomy.PlanKind.ProphylaxisRestraint.id),
+        id = ProofFamilyId.CounterplayRestraint,
+        acceptedSources = Set(ProofSourceId.ProphylacticMove),
+        acceptedSourceFamilies = Set(proofFamily(PlanTaxonomy.PlanKind.ProphylaxisRestraint)),
         allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
         requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
         certifiedEligible = true,
@@ -356,9 +390,9 @@ private[commentary] object ProofContractRules:
         defaultFailureTaxonomy = "certified_owner_path"
       ),
       customContract(
-        id = "trade_key_defender",
-        proofFamily = "trade_key_defender",
-        acceptedSources = Set("exchange_forcing_delta", PlanTaxonomy.PlanKind.DefenderTrade.id),
+        id = ProofFamilyId.TradeKeyDefender,
+        acceptedSources = Set(ProofSourceId.ExchangeForcingDelta),
+        acceptedSourceFamilies = Set(proofFamily(PlanTaxonomy.PlanKind.DefenderTrade)),
         allowedScopes = Set(PlayerFacingPacketScope.MoveLocal),
         requiredWitnesses = ExactOwnerWitnesses + ProofWitness.StructureTransition,
         certifiedEligible = true,
@@ -366,9 +400,8 @@ private[commentary] object ProofContractRules:
         defaultFailureTaxonomy = "attacking_piece_trade_unowned"
       ),
       customContract(
-        id = PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofFamily,
-        proofFamily = PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofFamily,
-        acceptedSources = Set(PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource),
+        id = ProofFamilyId.TargetFocusedCoordination,
+        acceptedSources = Set(ProofSourceId.TargetFocusedCoordinationProbe),
         allowedScopes = Set(PlayerFacingPacketScope.PositionLocal),
         requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
         certifiedEligible = true,

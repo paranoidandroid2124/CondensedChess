@@ -59,12 +59,12 @@ private[commentary] object StrategicIdeaFenFixtures:
     ),
     Fixture(
       id = "K03",
-      label = "Carlsbad fixed targets",
+      label = "Carlsbad line pressure",
       fen = "r1bqrnk1/1p2bppp/2p2n2/p2p2B1/3P4/P1NBP3/1PQ1NPPP/1R3RK1 b - - 0 12",
-      expectedDominant = StrategicIdeaKind.TargetFixing,
+      expectedDominant = StrategicIdeaKind.LineOccupation,
       producerChecks = List(
         ProducerCheck.StructureProfileIs(StructureId.Carlsbad),
-        ProducerCheck.WeakSquareOrWeakComplex
+        ProducerCheck.LineAccess
       )
     ),
     Fixture(
@@ -181,24 +181,24 @@ private[commentary] object StrategicIdeaFenFixtures:
     ),
     Fixture(
       id = "B15",
-      label = "Carlsbad fixed-chain pressure",
+      label = "Carlsbad c-file pressure",
       fen = "r1bqr1k1/pp2bppp/2p1nn2/3p4/3P3B/2NBPP2/PPQ1N1PP/R4RK1 w - - 2 12",
-      expectedDominant = StrategicIdeaKind.TargetFixing,
+      expectedDominant = StrategicIdeaKind.LineOccupation,
       boundaryAgainst = Some(StrategicIdeaKind.SpaceGainOrRestriction),
       producerChecks = List(
         ProducerCheck.StructureProfileIs(StructureId.Carlsbad),
-        ProducerCheck.WeakSquareOrWeakComplex
+        ProducerCheck.LineAccess
       )
     ),
     Fixture(
       id = "B16",
-      label = "Carlsbad pressure resists trade overclassification",
+      label = "Carlsbad c-file pressure resists trade overclassification",
       fen = "r1b1rnk1/pp2qppp/2p5/3p3n/3P4/2NBPP2/PPQ1N1PP/R4RK1 w - - 0 13",
-      expectedDominant = StrategicIdeaKind.TargetFixing,
+      expectedDominant = StrategicIdeaKind.LineOccupation,
       forbiddenKinds = List(StrategicIdeaKind.FavorableTradeOrTransformation),
       producerChecks = List(
         ProducerCheck.StructureProfileIs(StructureId.Carlsbad),
-        ProducerCheck.WeakSquareOrWeakComplex
+        ProducerCheck.LineAccess
       )
     ),
     Fixture(
@@ -282,11 +282,12 @@ private[commentary] object StrategicIdeaFenFixtures:
     ),
     Fixture(
       id = "K15",
-      label = "Grunfeld Exchange Mainline",
+      label = "Grunfeld Exchange space clamp",
       fen = "r1bq1rk1/pp2ppbp/2np1np1/2p5/2PPP3/2N1BP2/PP2N1PP/R2QKB1R w KQ - 0 9",
-      expectedDominant = StrategicIdeaKind.PawnBreak,
+      expectedDominant = StrategicIdeaKind.SpaceGainOrRestriction,
       producerChecks = List(
-        ProducerCheck.StructureProfileIs(StructureId.FluidCenter)
+        ProducerCheck.StructureProfileIs(StructureId.FluidCenter),
+        ProducerCheck.SpaceRestriction
       )
     ),
     Fixture(
@@ -310,12 +311,12 @@ private[commentary] object StrategicIdeaFenFixtures:
     ),
     Fixture(
       id = "K17",
-      label = "Open Catalan tension",
+      label = "Open Catalan IQP space bind",
       fen = "rn1q1rk1/pb2bppp/1p2pn2/2p5/2pP4/2N2NP1/PP2PPBP/R1BQR1K1 w - - 0 10",
-      expectedDominant = StrategicIdeaKind.PawnBreak,
+      expectedDominant = StrategicIdeaKind.SpaceGainOrRestriction,
       producerChecks = List(
         ProducerCheck.StructureProfileIs(StructureId.IQPWhite),
-        ProducerCheck.BreakCandidate
+        ProducerCheck.SpaceRestriction
       )
     ),
     Fixture(
@@ -429,28 +430,28 @@ private[commentary] object StrategicIdeaFenFixtures:
     followUp(
       id = "K03A",
       seedId = "K03",
-      label = "Carlsbad fixed targets continuation 1",
+      label = "Carlsbad line pressure continuation 1",
       fen = "r1bqrnk1/4bppp/2p2n2/pp1p2B1/3P4/P1NBP3/1PQ1NPPP/3R1RK1 b - - 1 13",
       stockfishScoreCp = -13
     ),
     followUp(
       id = "K03B",
       seedId = "K03",
-      label = "Carlsbad fixed targets continuation 2",
+      label = "Carlsbad line pressure continuation 2",
       fen = "r1bqrnk1/1p3ppp/2pb1n2/p2p2B1/3P4/P1NBP2P/1PQ1NPP1/1R3RK1 b - - 0 13",
       stockfishScoreCp = 36
     ),
     followUp(
       id = "K03C",
       seedId = "K03",
-      label = "Carlsbad fixed targets continuation 3",
+      label = "Carlsbad line pressure continuation 3",
       fen = "r1bqrnk1/1p2bpp1/2p2n1p/p2p4/3P1B2/P1NBP3/1PQ1NPPP/1R3RK1 b - - 1 13",
       stockfishScoreCp = 28
     ),
     followUp(
       id = "K03D",
       seedId = "K03",
-      label = "Carlsbad fixed targets continuation 4",
+      label = "Carlsbad line pressure continuation 4",
       fen = "r2qrnk1/1p2bppp/2p1bn2/p2p2B1/3P4/P1NBP3/1PQ1NPPP/3R1RK1 b - - 2 13",
       stockfishScoreCp = 29
     ),
@@ -598,14 +599,14 @@ private[commentary] object StrategicIdeaFenFixtures:
     followUp(
       id = "B15A",
       seedId = "B15",
-      label = "Carlsbad fixed-chain pressure continuation 1",
+      label = "Carlsbad c-file pressure continuation 1",
       fen = "r1bqr1k1/pp2bpp1/2p1nn1p/3p4/3P3B/2NBPP2/PPQ1N1PP/3R1RK1 w - - 0 13",
       stockfishScoreCp = 79
     ),
     followUp(
       id = "B16B",
       seedId = "B16",
-      label = "Carlsbad pressure resists trade overclassification continuation 2",
+      label = "Carlsbad c-file pressure resists trade overclassification continuation 2",
       fen = "r1b1rnk1/pp2qppp/2p2n2/3p4/3P4/3BPP2/PPQ1N1PP/R2N1RK1 w - - 2 14",
       stockfishScoreCp = 62
     ),
@@ -875,11 +876,11 @@ private[commentary] object StrategicIdeaFenFixtures:
     followUp(
       id = "K15A",
       seedId = "K15",
-      label = "Grunfeld Exchange Mainline continuation 2",
+      label = "Grunfeld Exchange space clamp continuation 2",
       fen = "r1bq1rk1/pp3pbp/2nppnp1/2p5/2PPP3/2N1BP2/PP1QN1PP/R3KB1R w KQ - 0 1",
       stockfishScoreCp = 71
     ).copy(
-      producerChecks = List(ProducerCheck.BreakCandidate)
+      producerChecks = List(ProducerCheck.SpaceRestriction)
     ),
     followUp(
       id = "B21A",
@@ -922,13 +923,13 @@ private[commentary] object StrategicIdeaFenFixtures:
     followUp(
       id = "K19A",
       seedId = "K19",
-      label = "Endgame conversion stays target-led",
+      label = "Endgame file pressure beats weak-target shell",
       fen = "8/1k1r4/4p3/1P1pP2p/R2P3P/3K2P1/8/8 b - - 1 45",
       stockfishScoreCp = 115,
       requireMaterialParity = false
     ).copy(
-      expectedDominant = StrategicIdeaKind.TargetFixing,
-      producerChecks = List(ProducerCheck.WeakSquareOrWeakComplex)
+      expectedDominant = StrategicIdeaKind.LineOccupation,
+      producerChecks = List(ProducerCheck.LineAccess)
     )
   )
 
@@ -965,10 +966,10 @@ private[commentary] object StrategicIdeaFenFixtures:
     ),
     compensationAcceptance(
       id = "G04",
-      label = "Benko compensation fixes queenside targets",
+      label = "Benko compensation stays line-led",
       fen = "rn1qkb1r/4pp1p/3p1np1/2pP4/4P3/2N2N2/PP3PPP/R1BQ1K1R b kq - 0 9",
-      expectedDominant = StrategicIdeaKind.TargetFixing,
-      producerChecks = List(ProducerCheck.WeakSquareOrWeakComplex),
+      expectedDominant = StrategicIdeaKind.LineOccupation,
+      producerChecks = List(ProducerCheck.LineAccess),
       stockfishScoreCp = 94,
       compensationSide = "black",
       seedRef = Some("benko_fixation")
@@ -1027,10 +1028,10 @@ private[commentary] object StrategicIdeaFenFixtures:
     ),
     compensationAcceptance(
       id = "G10",
-      label = "QID compensation mismatch stays target-led",
+      label = "QID compensation mismatch stays line-led",
       fen = "rnbq1rk1/2n2ppp/1pp2b2/p2pPN2/5B2/6P1/P1Q1NPBP/3R1RK1 b - - 0 18",
-      expectedDominant = StrategicIdeaKind.TargetFixing,
-      producerChecks = List(ProducerCheck.WeakSquareOrWeakComplex),
+      expectedDominant = StrategicIdeaKind.LineOccupation,
+      producerChecks = List(ProducerCheck.LineAccess),
       stockfishScoreCp = -106,
       compensationSide = "white",
       sideToMoveMismatch = true,

@@ -4,6 +4,7 @@ import chess.*
 import lila.commentary.model.*
 import lila.commentary.model.Motif.*
 import lila.commentary.analysis.L3.{ PawnPlayAnalysis, PositionClassification, ThreatAnalysis, TensionPolicy }
+import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
 import lila.commentary.model.structure.{ PlanAlignment, StructureId, StructureProfile }
 import chess.Color.White
 import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, PlanKind }
@@ -99,19 +100,19 @@ object PlanMatcher:
       case PlanTaxonomy.PlanKind.KeySquareDenial     => "entry_square_denial"
       case PlanTaxonomy.PlanKind.OpenFilePressure    => "bounded_file_pressure"
       case PlanTaxonomy.PlanKind.RookFileTransfer    => "bounded_file_pressure"
-      case PlanTaxonomy.PlanKind.DefenderTrade       => "trade_key_defender"
+      case PlanTaxonomy.PlanKind.DefenderTrade       => ProofFamilyId.TradeKeyDefender.wireKey
       case PlanTaxonomy.PlanKind.SimplificationWindow => PlanTaxonomy.PlanKind.SimplificationWindow.id
-      case PlanTaxonomy.PlanKind.ProphylaxisRestraint => "counterplay_restraint"
+      case PlanTaxonomy.PlanKind.ProphylaxisRestraint => ProofFamilyId.CounterplayRestraint.wireKey
       case other                                       => other.id
     }.orElse(PlanTaxonomy.PlanTheme.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")
 
   def proofFamily(themeL1: String, subplanId: Option[String]): String =
     PlanTaxonomy.PlanKind.fromId(subplanId.getOrElse("")).map {
-      case PlanTaxonomy.PlanKind.BreakPrevention     => "neutralize_key_break"
-      case PlanTaxonomy.PlanKind.KeySquareDenial     => "half_open_file_pressure"
-      case PlanTaxonomy.PlanKind.OpenFilePressure    => "half_open_file_pressure"
-      case PlanTaxonomy.PlanKind.RookFileTransfer    => "half_open_file_pressure"
-      case PlanTaxonomy.PlanKind.DefenderTrade       => "trade_key_defender"
+      case PlanTaxonomy.PlanKind.BreakPrevention     => ProofFamilyId.NeutralizeKeyBreak.wireKey
+      case PlanTaxonomy.PlanKind.KeySquareDenial     => ProofFamilyId.HalfOpenFilePressure.wireKey
+      case PlanTaxonomy.PlanKind.OpenFilePressure    => ProofFamilyId.HalfOpenFilePressure.wireKey
+      case PlanTaxonomy.PlanKind.RookFileTransfer    => ProofFamilyId.HalfOpenFilePressure.wireKey
+      case PlanTaxonomy.PlanKind.DefenderTrade       => ProofFamilyId.TradeKeyDefender.wireKey
       case PlanTaxonomy.PlanKind.SimplificationWindow => PlanTaxonomy.PlanKind.SimplificationWindow.id
       case other                                       => other.id
     }.orElse(PlanTaxonomy.PlanTheme.fromId(themeL1).map(_.id)).getOrElse("strategic_claim")

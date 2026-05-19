@@ -38,9 +38,12 @@ class StrategicConceptSemanticsTest extends FunSuite:
     assertEquals(obs.side, Color.White)
     assertEquals(obs.primaryBreak, Some("b4b5"))
     assert(obs.targets.contains("c6"), clues(obs))
-    assert(obs.structuralDelta.exists(_.pawnTensionDelta > 0), clues(obs))
+    assert(obs.structuralDelta.exists(_.createdTension.contains("b5-c6")), clues(obs))
+    assert(obs.structuralDelta.exists(_.targetPressureDelta > 0), clues(obs))
+    assert(obs.structuralDelta.exists(_.newWeakPawns.contains("c6")), clues(obs))
     assert(obs.essentialEvidence.exists(_.id == "reachable_break"), clues(obs))
     assert(obs.essentialEvidence.exists(_.id == "structural_consequence"), clues(obs))
+    assert(obs.essentialEvidence.exists(_.id == "not_refuted"), clues(obs))
   }
 
   test("same structure without an opening profile is still recognized by board predicate") {
@@ -76,6 +79,18 @@ class StrategicConceptSemanticsTest extends FunSuite:
     assert(obs.targets.contains("f6"), clues(obs))
   }
 
+  test("prep-break chain is recognized without treating the prep pawn count as the concept") {
+    val obs =
+      minority("4k3/pp3ppp/2p5/3p4/3P4/1P2P3/P4PPP/4K3 w - - 0 1")
+        .find(_.wing == "queenside")
+        .getOrElse(fail("missing queenside minority observation"))
+
+    assertEquals(obs.status, StrategicConceptSemantics.ConceptStatus.SemanticReady)
+    assertEquals(obs.prepMoves, List("b3b4"))
+    assertEquals(obs.primaryBreak, Some("b4b5"))
+    assert(obs.structuralDelta.exists(_.createdTension.contains("b5-c6")), clues(obs))
+  }
+
   test("pawn-count minority without a targetable majority remains only a candidate") {
     val obs =
       minority("4k3/ppp2ppp/8/8/1P6/4P3/P4PPP/4K3 w - - 0 1")
@@ -97,14 +112,39 @@ class StrategicConceptSemanticsTest extends FunSuite:
     assert(obs.blockedReasons.contains("reachable_break_missing"), clues(obs))
   }
 
-  test("reachable break without structural consequence is not certified as a concept") {
+  test("break that adds pressure to an already-attacked target records pressure rather than fake tension") {
     val obs =
       minority("4k3/pp3ppp/2p5/3P4/1P6/4P3/P4PPP/4K3 w - - 0 1")
         .find(_.wing == "queenside")
         .getOrElse(fail("missing queenside minority candidate"))
 
+    assertEquals(obs.status, StrategicConceptSemantics.ConceptStatus.SemanticReady)
+    assert(obs.structuralDelta.exists(_.createdTension.isEmpty), clues(obs))
+    assert(obs.structuralDelta.exists(_.targetPressureDelta > 0), clues(obs))
+  }
+
+  test("kingside pawn storm against the king is not classified as minority attack") {
+    val obs =
+      minority("6k1/6pp/5p2/8/6P1/4P3/7P/4K3 w - - 0 1")
+        .find(_.wing == "kingside")
+        .getOrElse(fail("missing kingside minority candidate"))
+
     assert(obs.status != StrategicConceptSemantics.ConceptStatus.SemanticReady, clues(obs))
-    assert(obs.blockedReasons.exists(_.contains("structural_consequence")), clues(obs))
+    assert(obs.blockedReasons.contains("king_side_pawn_storm"), clues(obs))
+  }
+
+  test("semantic-ready evidence is irredundant at the condition level") {
+    val obs =
+      minority("4k3/pp3ppp/2p5/3p4/1P1P4/4P3/P4PPP/4K3 w - - 0 1")
+        .find(_.wing == "queenside")
+        .getOrElse(fail("missing queenside minority observation"))
+
+    val essentialIds = obs.essentialEvidence.map(_.id).toSet
+    assertEquals(
+      essentialIds,
+      Set("wing_minority", "targetable_enemy_majority", "reachable_break", "structural_consequence", "not_refuted")
+    )
+    assert(obs.supportingEvidence.forall(evidence => !essentialIds.contains(evidence.id)), clues(obs))
   }
 
   test("structural candidate is refuted when immediate tactical danger dominates") {

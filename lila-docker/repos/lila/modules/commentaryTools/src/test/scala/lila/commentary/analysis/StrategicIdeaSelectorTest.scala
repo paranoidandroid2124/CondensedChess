@@ -233,7 +233,7 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assert(ideas.headOption.exists(_.evidenceRefs.contains("source:directional_target_fixation")))
   }
 
-  test("minority-attack fixation carries queenside target squares into the idea packet") {
+  test("minority-attack semantic support carries queenside target squares without release-family source") {
     val fen = "4k3/pp3ppp/2p5/3p4/1P1P4/4P3/P4PPP/4K3 w - - 0 1"
     val semantic =
       StrategicIdeaSemanticContext(
@@ -264,7 +264,10 @@ class StrategicIdeaSelectorTest extends FunSuite:
 
     assertEquals(ideas.headOption.map(_.kind), Some(StrategicIdeaKind.TargetFixing))
     assert(ideas.headOption.exists(_.focusSquares.contains("c6")))
-    assert(ideas.headOption.exists(_.evidenceRefs.contains("source:minority_attack_fixation")))
+    assert(ideas.headOption.exists(_.evidenceRefs.contains("source:minority_attack_semantic")))
+    assert(ideas.headOption.exists(_.evidenceRefs.contains("target_pressure_semantic")), clues(ideas.headOption.map(_.evidenceRefs)))
+    assert(!ideas.headOption.exists(_.evidenceRefs.contains("source:target_pressure_semantic")))
+    assert(!ideas.headOption.exists(_.evidenceRefs.contains("source:minority_attack_fixation")))
   }
 
   test("compensation development lead promotes king-attack build-up over broad space") {

@@ -101,8 +101,7 @@ object AuthoritySurfaceLedger:
       "source-camara-bazan-1960-b7-b5-break-prevention",
       "source-pfleger-maalouf-1961-a6-a5-break-prevention",
       "source-salov-ljubojevic-1992-simplification-window",
-      "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
-      "source-aronian-andreikin-2014-defender-trade"
+      "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation"
     )
 
   private val sourceSurfaceFixtures =
@@ -202,14 +201,6 @@ object AuthoritySurfaceLedger:
           "source:B:static_weakness_fixation",
           "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
           taxonomy = "source_static_weakness_fixation"
-        )
-      case "source-aronian-andreikin-2014-defender-trade" =>
-        Sample(
-          "source-aronian-andreikin-2014-defender-trade",
-          "source-aronian-andreikin-2014-defender-trade",
-          "source:C:defender_trade",
-          "Fixed source surface fixture copied from prior SourceReview evidence; surface-contract replay only.",
-          taxonomy = "source_defender_trade"
         )
       case other => sys.error(s"missing source sample metadata: $other")
     }

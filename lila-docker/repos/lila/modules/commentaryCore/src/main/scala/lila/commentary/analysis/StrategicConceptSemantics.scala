@@ -1,6 +1,9 @@
 package lila.commentary.analysis
 
 import _root_.chess.{ Board, Color, Pawn, Square }
+import _root_.chess.format.Fen
+import _root_.chess.variant.Standard
+import lila.commentary.analysis.structure.{ StructuralDelta, StructuralDeltaAnalyzer }
 
 private[commentary] object StrategicConceptSemantics:
 
@@ -17,26 +20,6 @@ private[commentary] object StrategicConceptSemantics:
       move: Option[String] = None,
       essential: Boolean = true
   )
-
-  final case class StructuralDelta(
-      openedFiles: List[String] = Nil,
-      semiOpenedFiles: List[String] = Nil,
-      newWeakPawns: List[String] = Nil,
-      newWeakSquares: List[String] = Nil,
-      pawnTensionBefore: Int = 0,
-      pawnTensionAfter: Int = 0,
-      kingShelterDelta: Int = 0,
-      mobilityDelta: Int = 0
-  ):
-    def pawnTensionDelta: Int = pawnTensionAfter - pawnTensionBefore
-    def hasConsequence: Boolean =
-      openedFiles.nonEmpty ||
-        semiOpenedFiles.nonEmpty ||
-        newWeakPawns.nonEmpty ||
-        newWeakSquares.nonEmpty ||
-        pawnTensionDelta > 0 ||
-        kingShelterDelta != 0 ||
-        mobilityDelta != 0
 
   final case class StrategicConceptObservation(
       conceptId: String,
@@ -59,7 +42,20 @@ private[commentary] object StrategicConceptSemantics:
       prepMoves: List[String],
       target: String,
       attackSquare: String,
-      startSquare: String
+      startSquare: String,
+      afterFen: String,
+      afterBoard: Board
+  )
+
+  private final case class TargetInfo(
+      square: String,
+      reasons: List[String]
+  )
+
+  private final case class ConceptCondition(
+      id: String,
+      passed: Boolean,
+      evidence: EvidenceAtom
   )
 
   def minorityAttackObservations(
@@ -81,31 +77,56 @@ private[commentary] object StrategicConceptSemantics:
     val enemyPawns = pawnsOnFiles(board, side, files, enemy = true)
     if ownPawns.isEmpty || ownPawns.size >= enemyPawns.size || enemyPawns.size < 2 then None
     else
-      val targetSquares = targetableEnemyMajority(board, side, files)
+      val targetInfos = targetableEnemyMajority(board, side, files)
+      val targetSquares = targetInfos.map(_.square)
       val breakCandidates =
-        targetSquares.flatMap(target => reachableBreaks(board, side, files, ownPawns, target))
+        targetSquares.flatMap(target => reachableBreaks(board, side, files, ownPawns, target, semantic.fen))
       val chosenBreak = breakCandidates.headOption
-      val structuralDelta = chosenBreak.flatMap(candidate => structuralDeltaFor(board, side, targetSquares, candidate))
+      val structuralDelta =
+        chosenBreak.flatMap(candidate =>
+          StructuralDeltaAnalyzer.delta(
+            beforeFen = semantic.fen,
+            beforeBoard = board,
+            afterFen = candidate.afterFen,
+            afterBoard = candidate.afterBoard,
+            side = side,
+            files = files,
+            targets = targetSquares,
+            createdTensionFrom = Some(candidate.attackSquare)
+          )
+        )
+      val kingSidePawnStorm =
+        targetSquares.nonEmpty && chosenBreak.nonEmpty && wing == "kingside" && enemyKingOnWing(board, side, files)
       val blocked =
         List(
           Option.when(targetSquares.isEmpty)("targetable_enemy_majority_missing"),
           Option.when(targetSquares.nonEmpty && chosenBreak.isEmpty)("reachable_break_missing"),
           Option.when(chosenBreak.nonEmpty && structuralDelta.forall(!_.hasConsequence))(
             "structural_consequence_missing"
-          )
+          ),
+          Option.when(kingSidePawnStorm)("king_side_pawn_storm")
         ).flatten
       val hasSemanticCore =
-        targetSquares.nonEmpty && chosenBreak.nonEmpty && structuralDelta.exists(_.hasConsequence)
+        targetSquares.nonEmpty &&
+          chosenBreak.nonEmpty &&
+          structuralDelta.exists(_.hasConsequence) &&
+          !kingSidePawnStorm
       val tacticalRefuted = hasSemanticCore && immediateTacticalRefutation(semantic)
       val status =
         if tacticalRefuted then ConceptStatus.Refuted
         else if hasSemanticCore then ConceptStatus.SemanticReady
         else if targetSquares.nonEmpty && chosenBreak.isEmpty then ConceptStatus.Deferred
         else ConceptStatus.Candidate
-      val evidence =
+      val conditions =
         List(
-          Some(EvidenceAtom("wing_minority", "pawn_structure", essential = true)),
-          Option.when(targetSquares.nonEmpty)(
+          ConceptCondition(
+            "wing_minority",
+            passed = true,
+            EvidenceAtom("wing_minority", "pawn_structure", essential = true)
+          ),
+          ConceptCondition(
+            "targetable_enemy_majority",
+            passed = targetSquares.nonEmpty,
             EvidenceAtom(
               "targetable_enemy_majority",
               "pawn_structure",
@@ -113,13 +134,25 @@ private[commentary] object StrategicConceptSemantics:
               essential = true
             )
           ),
-          chosenBreak.map(candidate =>
-            EvidenceAtom("reachable_break", "pawn_break", move = Some(candidate.primaryMove), essential = true)
+          ConceptCondition(
+            "reachable_break",
+            passed = chosenBreak.nonEmpty,
+            EvidenceAtom("reachable_break", "pawn_break", move = chosenBreak.map(_.primaryMove), essential = true)
           ),
-          structuralDelta.filter(_.hasConsequence).map(_ =>
+          ConceptCondition(
+            "structural_consequence",
+            passed = structuralDelta.exists(_.hasConsequence),
             EvidenceAtom("structural_consequence", "counterfactual_delta", essential = true)
+          ),
+          ConceptCondition(
+            "not_refuted",
+            passed = !tacticalRefuted && !kingSidePawnStorm,
+            EvidenceAtom("not_refuted", "soundness_guard", essential = true)
           )
-        ).flatten
+        )
+      val evidence =
+        if status == ConceptStatus.SemanticReady then irredundantEvidence(conditions)
+        else conditions.collect { case condition if condition.passed => condition.evidence }
       Some(
         StrategicConceptObservation(
           conceptId = MinorityAttackConceptId,
@@ -133,9 +166,13 @@ private[commentary] object StrategicConceptSemantics:
           structuralDelta = structuralDelta.filter(_.hasConsequence),
           essentialEvidence = evidence,
           supportingEvidence =
-            List(
+            (List(
               EvidenceAtom(s"minority_pawns:${ownPawns.size}-${enemyPawns.size}", "pawn_count", essential = false)
-            ),
+            ) ++ targetInfos.flatMap(info =>
+              info.reasons.map(reason =>
+                EvidenceAtom(s"target_reason:$reason", "pawn_structure", square = Some(info.square), essential = false)
+              )
+            )).filterNot(support => evidence.exists(_.id == support.id)),
           blockedReasons = (blocked ++ Option.when(tacticalRefuted)("tactical_refutation")).distinct,
           symmetryKey = s"${if side.white then "white" else "black"}:$wing:${files.mkString}"
         )
@@ -145,57 +182,63 @@ private[commentary] object StrategicConceptSemantics:
       board: Board,
       side: Color,
       files: List[Char]
-  ): List[String] =
+  ): List[TargetInfo] =
+    val enemyPawns = board.byPiece(!side, Pawn)
+    val backward = PositionAnalyzer.backwardPawns(!side, enemyPawns, board).map(_.key).toSet
+    val isolated = PositionAnalyzer.isolatedPawns(enemyPawns).map(_.key).toSet
     pawnsOnFiles(board, side, files, enemy = true)
-      .filter(square => isAdvancedEnemyPawn(square, side) && hasTargetChain(board, square, side))
-      .map(_.key)
-      .distinct
+      .flatMap { square =>
+        val reasons =
+          List(
+            Option.when(hasTargetChain(board, square, side))("target_chain"),
+            Option.when(backward.contains(square.key))("backward_pawn"),
+            Option.when(isolated.contains(square.key))("isolated_pawn"),
+            Option.when(isFixedByEnemyBlocker(board, square, side))("fixed_pawn")
+          ).flatten
+        Option.when(isAdvancedEnemyPawn(square, side) && reasons.nonEmpty)(
+          TargetInfo(square.key, reasons.distinct)
+        )
+      }
+      .groupBy(_.square)
+      .values
+      .map(infos => infos.reduce((left, right) => left.copy(reasons = (left.reasons ++ right.reasons).distinct)))
+      .toList
+      .sortBy(_.square)
 
   private def reachableBreaks(
       board: Board,
       side: Color,
       files: List[Char],
       ownPawns: List[Square],
-      target: String
+      target: String,
+      baseFen: String
   ): List[BreakCandidate] =
     attackingSquaresForTarget(target, side)
       .filter(square => square.headOption.exists(files.contains))
       .flatMap { attackSquare =>
         backward(attackSquare, side).flatMap { startSquare =>
           val pawnsOnFile = ownPawns.filter(_.key.headOption == startSquare.headOption)
-          pawnsOnFile.find(pawn => canReachStagingSquare(board, side, pawn.key, startSquare)).map { pawn =>
+          pawnsOnFile.find(pawn => canReachStagingSquare(board, side, pawn.key, startSquare)).flatMap { pawn =>
             val prepMoves =
               if pawn.key == startSquare then Nil
               else List(s"${pawn.key}$startSquare")
-            BreakCandidate(
-              primaryMove = s"$startSquare$attackSquare",
-              prepMoves = prepMoves,
-              target = target,
-              attackSquare = attackSquare,
-              startSquare = startSquare
-            )
+            val primaryMove = s"$startSquare$attackSquare"
+            legalBreakFenAfter(baseFen, side, prepMoves, primaryMove).flatMap { afterFen =>
+              Fen.read(Standard, Fen.Full(afterFen)).map { afterPosition =>
+                BreakCandidate(
+                  primaryMove = primaryMove,
+                  prepMoves = prepMoves,
+                  target = target,
+                  attackSquare = attackSquare,
+                  startSquare = startSquare,
+                  afterFen = afterFen,
+                  afterBoard = afterPosition.board
+                )
+              }
+            }
           }
         }
       }
-
-  private def structuralDeltaFor(
-      board: Board,
-      side: Color,
-      targets: List[String],
-      candidate: BreakCandidate
-  ): Option[StructuralDelta] =
-    val beforeAttacks = targets.filter(target => sidePawnAttacksTarget(board, side, target))
-    val afterAttacks =
-      targets.filter(target => pawnAttacks(candidate.attackSquare, side).contains(target))
-    val newTargets = afterAttacks.diff(beforeAttacks).distinct
-    Some(
-      StructuralDelta(
-        newWeakPawns = newTargets,
-        newWeakSquares = newTargets,
-        pawnTensionBefore = beforeAttacks.size,
-        pawnTensionAfter = afterAttacks.size
-      )
-    )
 
   private def immediateTacticalRefutation(
       semantic: StrategicIdeaSemanticContext
@@ -205,6 +248,64 @@ private[commentary] object StrategicConceptSemantics:
         !threats.threatIgnorable &&
         threats.maxLossIfIgnored >= 300
     )
+
+  private def irredundantEvidence(conditions: List[ConceptCondition]): List[EvidenceAtom] =
+    val required =
+      Set("wing_minority", "targetable_enemy_majority", "reachable_break", "structural_consequence", "not_refuted")
+    conditions.filter(condition =>
+      condition.passed &&
+        required.contains(condition.id) &&
+        !semanticReadyWithout(conditions, condition.id)
+    ).map(_.evidence)
+
+  private def semanticReadyWithout(conditions: List[ConceptCondition], removedId: String): Boolean =
+    val remaining = conditions.filterNot(_.id == removedId)
+    Set("wing_minority", "targetable_enemy_majority", "reachable_break", "structural_consequence", "not_refuted")
+      .forall(id => remaining.exists(condition => condition.id == id && condition.passed))
+
+  private def legalFenAfter(baseFen: String, moves: List[String]): Option[String] =
+    val normalizedMoves = moves.map(NarrativeUtils.normalizeUciMove).filter(_.nonEmpty)
+    Option.when(baseFen.trim.nonEmpty && normalizedMoves.nonEmpty)(()).flatMap { _ =>
+      var currentFen = baseFen
+      var ok = true
+      val iterator = normalizedMoves.iterator
+      while iterator.hasNext && ok do
+        val move = iterator.next()
+        if !move.matches("^[a-h][1-8][a-h][1-8][qrbn]?$") then ok = false
+        else
+          val nextFen = NarrativeUtils.uciListToFen(currentFen, List(move))
+          if boardStateFen(nextFen) == boardStateFen(currentFen) then ok = false
+          else currentFen = nextFen
+      Option.when(ok)(currentFen)
+    }
+
+  private def legalBreakFenAfter(
+      baseFen: String,
+      side: Color,
+      prepMoves: List[String],
+      primaryMove: String
+  ): Option[String] =
+    if prepMoves.isEmpty then legalFenAfter(baseFen, List(primaryMove))
+    else
+      legalFenAfter(baseFen, prepMoves).flatMap { afterPrepFen =>
+        legalFenAfter(withSideToMove(afterPrepFen, side), List(primaryMove))
+      }
+
+  private def withSideToMove(fen: String, side: Color): String =
+    val parts = normalizeFen(fen).split("\\s+").toList
+    parts match
+      case board :: _ :: castling :: ep :: rest =>
+        (board :: (if side.white then "w" else "b") :: castling :: ep :: rest).mkString(" ")
+      case _ => fen
+
+  private def boardStateFen(fen: String): String =
+    normalizeFen(fen).split("\\s+").take(4).mkString(" ")
+
+  private def normalizeFen(fen: String): String =
+    Option(fen).getOrElse("").trim.split("\\s+").filter(_.nonEmpty).mkString(" ")
+
+  private def enemyKingOnWing(board: Board, side: Color, files: List[Char]): Boolean =
+    board.kingPosOf(!side).exists(square => square.key.headOption.exists(files.contains))
 
   private def pawnsOnFiles(
       board: Board,
@@ -234,15 +335,12 @@ private[commentary] object StrategicConceptSemantics:
       )
     }
 
-  private def sidePawnAttacksTarget(
-      board: Board,
-      side: Color,
-      target: String
-  ): Boolean =
-    Square.all.exists { square =>
-      board.pieceAt(square).exists(piece => piece.color == side && piece.role == Pawn) &&
-        pawnAttacks(square.key, side).contains(target)
-    }
+  private def isFixedByEnemyBlocker(board: Board, target: Square, side: Color): Boolean =
+    val enemyColor = !side
+    val stopRank = target.rank.value + (if enemyColor.white then 1 else -1)
+    Square.at(target.file.value, stopRank).exists(square =>
+      board.pieceAt(square).exists(piece => piece.role == Pawn && piece.color == side)
+    )
 
   private def canReachStagingSquare(
       board: Board,
@@ -278,15 +376,6 @@ private[commentary] object StrategicConceptSemantics:
       startRank = rank - forwardDirection(side)
       if startRank >= 1 && startRank <= 8
     yield s"$file$startRank"
-
-  private def pawnAttacks(square: String, side: Color): List[String] =
-    for
-      file <- fileOf(square).toList
-      rank <- rankOf(square).toList
-      targetRank = rank + forwardDirection(side)
-      targetFile <- List((file - 1).toChar, (file + 1).toChar)
-      if targetFile >= 'a' && targetFile <= 'h' && targetRank >= 1 && targetRank <= 8
-    yield s"$targetFile$targetRank"
 
   private def adjacentSquares(square: String): List[String] =
     for

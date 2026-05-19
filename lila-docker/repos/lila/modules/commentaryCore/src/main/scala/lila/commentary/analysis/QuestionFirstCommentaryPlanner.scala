@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 
 import lila.commentary.analysis.claim.*
+import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
 import lila.commentary.StrategyPack
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
@@ -395,7 +396,8 @@ private[commentary] object QuestionPlannerInputsBuilder:
 private[commentary] object QuestionFirstCommentaryPlanner:
 
   private val PlannerLinePurpose = "planner_line_proof"
-  private val NeutralizeKeyBreakProofFamily = "neutralize_key_break"
+  private val NeutralizeKeyBreakProofFamily = ProofFamilyId.NeutralizeKeyBreak.wireKey
+  private val CounterplayRestraintProofFamily = ProofFamilyId.CounterplayRestraint.wireKey
 
   private[commentary] def openingRelationReplayClaim(ctx: NarrativeContext): Option[String] =
     OpeningPrecedentBranching
@@ -967,7 +969,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       .filter(_.scope == PlayerFacingClaimScope.MoveLocal)
       .flatMap(_.packet)
       .exists(packet =>
-        Set("neutralize_key_break", "counterplay_restraint").contains(packet.proofFamily) &&
+        Set(NeutralizeKeyBreakProofFamily, CounterplayRestraintProofFamily).contains(packet.proofFamily) &&
           packet.scope == PlayerFacingPacketScope.MoveLocal &&
           packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
           packet.suppressionReasons.isEmpty &&

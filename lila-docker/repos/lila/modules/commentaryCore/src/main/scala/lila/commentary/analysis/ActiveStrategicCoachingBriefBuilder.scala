@@ -5,6 +5,7 @@ import _root_.chess.format.Fen
 import _root_.chess.variant.Standard
 
 import lila.commentary.*
+import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
@@ -269,7 +270,7 @@ private[commentary] object ActiveStrategicCoachingBriefBuilder:
       val sourceKinds =
         Set(claim.sourceKind, s"${claim.sourceKind}_line").filter(_.trim.nonEmpty)
       claim.packet.exists { packet =>
-        packet.proofFamily == "half_open_file_pressure" &&
+        packet.proofFamily == ProofFamilyId.HalfOpenFilePressure.wireKey &&
           (
             NarrativeDedupCore.sameSemanticSentence(claim.claimText, plan.claim) ||
               plan.sourceKinds.exists(sourceKinds.contains)
@@ -285,7 +286,7 @@ private[commentary] object ActiveStrategicCoachingBriefBuilder:
       val sourceKinds =
         Set(claim.sourceKind, s"${claim.sourceKind}_line").filter(_.trim.nonEmpty)
       claim.packet.exists { packet =>
-        packet.proofFamily == "counterplay_restraint" &&
+        packet.proofFamily == ProofFamilyId.CounterplayRestraint.wireKey &&
           (
             NarrativeDedupCore.sameSemanticSentence(claim.claimText, plan.claim) ||
               plan.sourceKinds.exists(sourceKinds.contains)

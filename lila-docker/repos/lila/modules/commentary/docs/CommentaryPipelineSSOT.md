@@ -1089,7 +1089,7 @@ Current rules:
   - packet fallback stays fail-closed:
     `weak_main` is allowed only when the shared packet has no surviving
     suppression or release-risk reasons and the owner is not one of the current
-    line-only pilots; `line_only` keeps exact-board
+    line-only diagnostic lanes; `line_only` keeps exact-board
     evidence visible without reopening move-local ownership; `exact_factual`
     preserves strategic-mode classification when needed without reconstructing
     strategy text from raw support carriers
@@ -1100,7 +1100,7 @@ Current rules:
     lane. `MainPathMoveDeltaClaimBuilder` and `QuietMoveIntentBuilder` may
     reuse those private witness terms for local anchor wording, but no new
     public schema or surface phrase class is opened by that reuse
-  - current packetized pilot mapping is narrower than the existing planner
+  - current packetized release mapping is narrower than the existing planner
     lanes:
     exact B2 `neutralize_key_break` is now promoted on one bounded move-delta
     slice only:
@@ -1291,15 +1291,62 @@ Current rules:
     target shape (`white to move`, black pawns on `c6` and `d5`, white pawns
     on `b2` and `d4`), `StrategicConceptSemantics` also recognizes the same
     board as a generic `minority_attack` observation with a targetable enemy
-    majority, reachable queenside break, and structural delta, the defended
-    branch key is present, there is no live `exact_target_fixation` move owner
-    already, and the reviewed weakness support survives on the live row. On
+    majority, legal/reachable queenside break, and an irredundant structural
+    delta certificate. The shared runtime helper
+    `analysis.structure.StructuralDeltaAnalyzer` now owns that before/after
+    structural delta model for support-only semantic consumers. The delta must
+    be tied to the `c6` target through created tension, new target weakness, or
+    target-pressure gain; pawn-count minority alone is not support. The
+    typed observation boundary in
+    `analysis.semantic.StrategicObservationIds` /
+    `analysis.semantic.StrategicSemanticObservation` now separates
+    `SemanticObservationId`, registered selector `EvidenceSourceId`, support
+    `FactId`, `ProofSourceId`, and `ProofFamilyId` before the selector renders
+    the existing `evidenceRefs: List[String]` wire shape. The selector source
+    surface is typed internally; new selector sources must be registered rather
+    than minted as raw `"source:*"` strings. `analysis.semantic.
+    StrategicSemanticObservationPipeline` is the producer boundary for generic
+    semantic support; its first producer adapts minority / target-pressure
+    observations into typed selector support. `analysis.semantic.
+    StrategicIdeaEvidencePipeline` is the typed selector-evidence assembly
+    boundary, and role-specific producers live under
+    `analysis.semantic.evidence`: slow structural ideas are split into
+    `StructuralSpaceEvidenceProducer`, `LineOccupationEvidenceProducer`,
+    `OutpostEvidenceProducer`, and `MinorPieceImbalanceEvidenceProducer`,
+    while selector themes are split into `ProphylaxisEvidenceProducer`,
+    `KingAttackEvidenceProducer`, `TransformationEvidenceProducer`, and
+    `CounterplayEvidenceProducer`. Shared helper logic stays in
+    `StrategicIdeaEvidenceSupport`.
+    `StrategicIdeaSelector` still owns `pawn_break`, `target_fixing`,
+    merge/rank/arbitration, and final `EvidenceRef.wireKey` rendering. This is
+    ranking/support infrastructure only; it does not open a new packet, proof
+    contract, planner owner, or release family. The selector
+    may surface
+    `target_pressure_semantic` as an internal factId, but that fact is not a
+    packet owner, proof source, proof family, or planner admission key.
+    The proof registry is now typed as well: `ProofFamilyId` owns taxonomy
+    families, promoted runtime release families, generic packet fallback
+    families, and packet-local surface families without proof-contract release
+    authority; `ProofSourceId` owns probe,
+    delta, and bounded local witness sources. `ProofContractRules` builds
+    contracts from those ids, with any legacy selector-source accepted aliases
+    declared through registered `EvidenceSourceId` rather than raw strings.
+    Public packet fields and `StrategyIdeaSignal.evidenceRefs` remain wire
+    strings for compatibility; typed ids are the internal construction and
+    guard boundary. The
+    defended branch key is present, there
+    is no live `exact_target_fixation` move owner already, and the reviewed
+    weakness support survives on the live row. On
     that admitted slice the runtime now
     materializes `proofSource=carlsbad_fixed_target_probe`,
     `proofFamily=backward_pawn_targeting`, `scope=PositionLocal`,
     `bestDefenseBranchKey=h4f2|b7b5` on `B15A` / `f1e1|c8d7` on `B16B`,
     `sameBranchState=Proven`, `persistence=Stable`, and
     `main_bundle=The key strategic fact here is that c6 is the fixed target.`
+    The legacy `minority_attack_fixation` subplan remains vocabulary for
+    planning / active-thread support only: it is not a release owner family,
+    not an accepted `carlsbad_fixed_target_probe` proof contract alias, and a
+    non-exact minority shell does not materialize a player-facing packet.
     `QuestionFirstCommentaryPlanner` now admits only that certified packet as
     planner-owned `WhatMattersHere` and rejects generic `PositionLocal`
     shells as `position_probe_not_certified`, so MoveReview and Chronicle
@@ -1827,8 +1874,8 @@ Current rules:
   - `QuestionFirstCommentaryPlanner` is the canonical internal planner for
     question composition
   - planner output is internal-only and ranked as `primary + optional
-    secondary + rejected`; no new API/frontend payload fields are exposed in
-    Phase 2
+    secondary + rejected`; this outline-planner payload does not expose new
+    API/frontend fields
   - `DecisionPoint` is no longer built from raw author-question prose; it is
     mapped from planner `claim` plus concrete `contrast`
   - `Evidence` is mapped from planner evidence ownership; bounded
@@ -2304,11 +2351,12 @@ Prompt-bearing surfaces are intentionally narrow and role-specific.
 - public strategic-puzzle shell is now plan-first:
   `plan -> move -> reveal`
 - `plans[]` plus `planId + startUci` are the public solve contract
-- exact proof data now lives only behind the runtime `proof` layer in v2;
+- exact proof data now lives only behind the runtime `proof` layer in the
+  current nested proof contract:
   flat `rootChoices`, `nodes`, and `forcedReplies` are no longer part of the
   public runtime shell contract
 - strategic-puzzle stored docs must now carry the nested `proof` field;
-  pre-v2 stored puzzle docs are no longer read-compatible and must be
+  legacy flat stored puzzle docs are no longer read-compatible and must be
   republished before runtime use
 - strategic-puzzle completion no longer accepts line-only replay as a public
   solve path; the server resolves attempts from `planId + startUci`, then

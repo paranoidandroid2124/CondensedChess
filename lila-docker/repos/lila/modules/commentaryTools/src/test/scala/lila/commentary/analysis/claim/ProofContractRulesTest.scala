@@ -86,7 +86,9 @@ class ProofContractRulesTest extends FunSuite:
       ProofContractRules
         .contractForProofFamily(PlanTaxonomy.PlanKind.MinorityAttackFixation.id)
         .getOrElse(fail("missing minority attack fixation contract"))
-    assert(minority.acceptedSources.contains(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource), clues(minority))
+    assertEquals(minority.status, ProofContractStatus.Deferred)
+    assert(!minority.authorityEligible, clues(minority))
+    assert(!minority.acceptedSources.contains(PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource), clues(minority))
     assert(!minority.acceptedSources.contains("minority_attack_fixation"), clues(minority))
     assert(queenTrade.supportedLocalEligible, clues(queenTrade))
     assert(!queenTrade.certifiedEligible, clues(queenTrade))
@@ -106,6 +108,12 @@ class ProofContractRulesTest extends FunSuite:
     assert(!contract.id.toLowerCase.contains("source-"), clues(contract))
     assert(!contract.acceptedSources.exists(_.toLowerCase.contains("source-")), clues(contract))
   }
+
+  test("semantic support observations have no proof contract authority") {
+    assertEquals(ProofContractRules.contractForProofFamily("target_pressure_semantic"), None)
+    assertEquals(ProofContractRules.contractForProofFamily("minority_attack_semantic"), None)
+  }
+
   test("DefenderTrade is supported-local releasable only through exact defender proof") {
     val contract =
       ProofContractRules

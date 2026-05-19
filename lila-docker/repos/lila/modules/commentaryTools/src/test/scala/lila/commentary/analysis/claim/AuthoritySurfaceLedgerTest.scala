@@ -133,16 +133,10 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(sourceStaticWeakness.contractId.contains(PlanTaxonomy.PlanKind.StaticWeaknessFixation.id), clues(sourceStaticWeakness))
     assertEquals(sourceStaticWeakness.taxonomy, "source_static_weakness_fixation")
 
-    val sourceDefenderTrade = byId("source-aronian-andreikin-2014-defender-trade")
-    assertEquals(sourceDefenderTrade.release, "SupportedLocal")
-    assertEquals(sourceDefenderTrade.primary, "A local reading is that this exchange removes a defender on the local branch.")
-    assertEquals(sourceDefenderTrade.moveReview, sourceDefenderTrade.primary)
-    assertEquals(sourceDefenderTrade.chronicle, sourceDefenderTrade.primary)
-    assert(sourceDefenderTrade.plannerOwner.contains(s"MoveDelta:${PlayerFacingTruthModePolicy.DefenderTradeProofSource}"), clues(sourceDefenderTrade))
-    assertEquals(sourceDefenderTrade.contractStatus, "Releasable")
-    assert(sourceDefenderTrade.contractId.contains(PlanTaxonomy.PlanKind.DefenderTrade.id), clues(sourceDefenderTrade))
-    assertEquals(sourceDefenderTrade.taxonomy, "source_defender_trade")
-    assert(!sourceDefenderTrade.moveReview.contains("stays best"), clues(sourceDefenderTrade))
+    assert(
+      !byId.contains("source-aronian-andreikin-2014-defender-trade"),
+      clues(byId.keySet.toList.sorted)
+    )
 
     val iqpControl = byId("iqp-supported-local-control")
     assertEquals(iqpControl.release, "SupportedLocal")
@@ -258,8 +252,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         "source-evans-opsahl-1950-iqp-inducement",
         "source-alekhine-bogoljubow-1936-iqp-inducement",
         "source-najdorf-sergeant-1939-iqp-inducement",
-        "source-botvinnik-vidmar-1936-iqp-opening-inducement",
-        "source-aronian-andreikin-2014-defender-trade"
+        "source-botvinnik-vidmar-1936-iqp-opening-inducement"
       )
     )
     assertEquals(
@@ -342,13 +335,13 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(review.contains("## TacticalVeto"), clues(review))
     assert(
       review.contains(
-        "Surface SupportedLocal fixtures: source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention, source-pfleger-maalouf-1961-a6-a5-break-prevention, source-aronian-andreikin-2014-defender-trade"
+        "Surface SupportedLocal fixtures: source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention, source-pfleger-maalouf-1961-a6-a5-break-prevention"
       ),
       clues(review)
     )
     assert(
       review.contains(
-        "Source surface fixtures: source-evans-opsahl-1950, source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention, source-pfleger-maalouf-1961-a6-a5-break-prevention, source-salov-ljubojevic-1992-simplification-window, source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation, source-aronian-andreikin-2014-defender-trade"
+        "Source surface fixtures: source-evans-opsahl-1950, source-carlsen-anand-2014-g6, source-capablanca-golombek-1939-iqp-inducement, source-evans-opsahl-1950-iqp-inducement, source-alekhine-bogoljubow-1936-iqp-inducement, source-najdorf-sergeant-1939-iqp-inducement, source-botvinnik-vidmar-1936-iqp-opening-inducement, source-maderna-palermo-1955-a6-a5-break-prevention, source-camara-bazan-1960-b7-b5-break-prevention, source-pfleger-maalouf-1961-a6-a5-break-prevention, source-salov-ljubojevic-1992-simplification-window, source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation"
       ),
       clues(review)
     )
@@ -374,13 +367,12 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         "source-camara-bazan-1960-b7-b5-break-prevention",
         "source-pfleger-maalouf-1961-a6-a5-break-prevention",
         "source-salov-ljubojevic-1992-simplification-window",
-        "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation",
-        "source-aronian-andreikin-2014-defender-trade"
+        "source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation"
       )
     )
     val sourceRows = AuthoritySurfaceLedger.observations().filter(_.sample.id.startsWith("source-"))
     assertEquals(sourceRows.map(_.sample.id), AuthoritySurfaceLedger.sourceSurfaceFixtureIds)
-    assertEquals(sourceRows.map(_.release), List("CertifiedOwner", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "CertifiedOwner", "CertifiedOwner", "SupportedLocal"))
+    assertEquals(sourceRows.map(_.release), List("CertifiedOwner", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "SupportedLocal", "CertifiedOwner", "CertifiedOwner"))
   }
 
   test("TacticalVeto rows require explicit veto or a releasable baseline") {

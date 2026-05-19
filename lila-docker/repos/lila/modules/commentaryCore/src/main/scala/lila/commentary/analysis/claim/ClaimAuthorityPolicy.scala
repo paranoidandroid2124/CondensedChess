@@ -1,6 +1,7 @@
 package lila.commentary.analysis.claim
 
 import lila.commentary.analysis.*
+import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.AuthorQuestionKind
 
@@ -153,8 +154,8 @@ private[commentary] object ClaimAuthorityPolicy:
       plan: QuestionPlan
   ): Option[PlayerFacingClaimPacket] =
     mainPathPackets(inputs).find(packet =>
-      packet.proofSource == "counterplay_axis_suppression" &&
-        packet.proofFamily == "neutralize_key_break" &&
+      packet.proofSource == ProofSourceId.CounterplayAxisSuppression.wireKey &&
+        packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey &&
         supportsLocalMoveDelta(packet) &&
         hasExactOwnerPath(packet) &&
         timingWitnessMatchesPacket(plan, packet)
@@ -166,10 +167,10 @@ private[commentary] object ClaimAuthorityPolicy:
     }
 
   private def exactMoveDeltaSupportedLocal(packet: PlayerFacingClaimPacket): Boolean =
-    (packet.proofSource == "counterplay_axis_suppression" &&
-      packet.proofFamily == "neutralize_key_break") ||
-      (packet.proofSource == "prophylactic_move" &&
-        packet.proofFamily == "counterplay_restraint")
+    (packet.proofSource == ProofSourceId.CounterplayAxisSuppression.wireKey &&
+      packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey) ||
+      (packet.proofSource == ProofSourceId.ProphylacticMove.wireKey &&
+        packet.proofFamily == ProofFamilyId.CounterplayRestraint.wireKey)
 
   private def matchingMoveDeltaPacket(
       inputs: QuestionPlannerInputs,

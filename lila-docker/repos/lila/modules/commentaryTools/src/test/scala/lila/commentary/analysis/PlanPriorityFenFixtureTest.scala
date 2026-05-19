@@ -411,7 +411,10 @@ class PlanPriorityFenFixtureTest extends FunSuite:
       val evaluated = evaluatedFixtures.find(_.fixture.id == fixture.id).getOrElse(fail(s"missing ${fixture.id}"))
       val top = evaluated.data.plans.headOption.getOrElse(fail(s"missing top plan for ${fixture.id}"))
 
-      assert(fixture.expectedTopThemes.contains(topTheme(top)))
+      assert(
+        fixture.expectedTopThemes.contains(topTheme(top)),
+        clue(s"${fixture.id} top=${topTheme(top)} expected=${fixture.expectedTopThemes.toList.sorted.mkString(",")} supports=${top.supports.mkString(",")}")
+      )
       assert(fixture.expectedTaskModes.contains(taskMode(evaluated.data)))
       assert(top.score >= 0.5, clue(s"${fixture.id} top score too low: ${top.score}"))
     }
@@ -424,7 +427,10 @@ class PlanPriorityFenFixtureTest extends FunSuite:
 
       assert(fixture.requireMaterialImbalance, clue(s"${fixture.id} should declare material imbalance"))
       assert(materialValueDiff(evaluated.board) != 0, clue(s"${fixture.id} should be materially imbalanced"))
-      assert(fixture.expectedTopThemes.contains(topTheme(top)))
+      assert(
+        fixture.expectedTopThemes.contains(topTheme(top)),
+        clue(s"${fixture.id} top=${topTheme(top)} expected=${fixture.expectedTopThemes.toList.sorted.mkString(",")} supports=${top.supports.mkString(",")}")
+      )
       assert(simplifyBias(evaluated.data), clue(s"${fixture.id} should be in simplify/conversion mode"))
       assert(fixture.expectedTaskModes.contains(taskMode(evaluated.data)))
     }
@@ -439,7 +445,10 @@ class PlanPriorityFenFixtureTest extends FunSuite:
       if fixture.requireMaterialParity then
         assertEquals(materialValueDiff(evaluated.board), 0, clue(s"${fixture.id} should stay materially even"))
 
-      assert(fixture.expectedTopThemes.contains(topTheme(top)))
+      assert(
+        fixture.expectedTopThemes.contains(topTheme(top)),
+        clue(s"${fixture.id} top=${topTheme(top)} expected=${fixture.expectedTopThemes.toList.sorted.mkString(",")} supports=${top.supports.mkString(",")}")
+      )
       assert(fixture.expectedTaskModes.contains(taskMode(evaluated.data)))
       assert(
         themes.intersect(fixture.requiredSecondaryThemes).nonEmpty,

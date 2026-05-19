@@ -416,10 +416,10 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
             deploymentSurfaceMode = Some("exact")
           )
       )
-    val frame = decisionFrame(activeMoment)
+    val frame = CertifiedDecisionFrameBuilder.build(activeMoment, deltaBundle, None)
     val replay =
       ActiveStrategicCoachingBriefBuilder
-        .replayPlanner(activeMoment, deltaBundle, dossier, frame)
+        .replayPlanner(activeMoment, emptyDeltaBundle, None, frame)
         .getOrElse(fail("expected defensive planner replay"))
 
     assertEquals(replay.rankedPlans.primary, None)
@@ -432,7 +432,7 @@ class ActiveStrategicCoachingBriefBuilderTest extends FunSuite:
       clue(replay.rankedPlans.ownerTrace.ownerCandidateLabels)
     )
     assertEquals(
-      ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(activeMoment, deltaBundle, dossier, frame),
+      ActiveStrategicCoachingBriefBuilder.selectPlannerSurface(activeMoment, emptyDeltaBundle, None, frame),
       None
     )
   }

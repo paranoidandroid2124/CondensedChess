@@ -1,6 +1,7 @@
 package lila.commentary.analysis
 
 import lila.commentary.{ RouteSurfaceMode, StrategyPack }
+import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
 import lila.commentary.model.*
 import lila.commentary.model.strategic.{ VariationLine, VariationTag }
 
@@ -39,6 +40,17 @@ private[commentary] final case class MainPathClaimBundle(
   def primaryClaim: Option[MainPathScopedClaim] = mainClaim.orElse(lineScopedClaim)
 
 private[commentary] object MainPathMoveDeltaClaimBuilder:
+
+  private val QueenTradeShieldFamily =
+    ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.QueenTradeShield).get.wireKey
+  private val IQPInducementFamily =
+    ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.IQPInducement).get.wireKey
+  private val DefenderTradeFamily =
+    ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.DefenderTrade).get.wireKey
+  private val BadPieceLiquidationFamily =
+    ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.BadPieceLiquidation).get.wireKey
+  private val BoundedFavorableSimplificationFamily =
+    ProofFamilyId.fromPlanKind(PlanTaxonomy.PlanKind.SimplificationWindow).get.wireKey
 
   def build(
       ctx: NarrativeContext,
@@ -267,19 +279,19 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
         )
       case PlayerFacingMoveDeltaClass.ExchangeForcing =>
         preferredWitnessAnchor(delta.packet).orElse(anchor).map { square =>
-          if delta.packet.proofFamily == PlanTaxonomy.PlanKind.QueenTradeShield.id &&
+          if delta.packet.proofFamily == QueenTradeShieldFamily &&
               delta.packet.proofSource == PlayerFacingTruthModePolicy.QueenTradeShieldProofSource
           then "This exchange moves the game into the queenless branch."
-          else if delta.packet.proofFamily == PlanTaxonomy.PlanKind.IQPInducement.id &&
+          else if delta.packet.proofFamily == IQPInducementFamily &&
               delta.packet.proofSource == PlayerFacingTruthModePolicy.IQPInducementProbeProofSource
           then "This sequence leaves an isolated pawn as the local target."
-          else if delta.packet.proofFamily == PlanTaxonomy.PlanKind.DefenderTrade.id &&
+          else if delta.packet.proofFamily == DefenderTradeFamily &&
               delta.packet.proofSource == PlayerFacingTruthModePolicy.DefenderTradeProofSource
           then "This exchange removes a defender on the local branch."
-          else if delta.packet.proofFamily == PlanTaxonomy.PlanKind.BadPieceLiquidation.id &&
+          else if delta.packet.proofFamily == BadPieceLiquidationFamily &&
               delta.packet.proofSource == PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource
           then "This trade clears the bad piece from the local branch."
-          else if delta.packet.proofFamily == PlanTaxonomy.PlanKind.SimplificationWindow.id then
+          else if delta.packet.proofFamily == BoundedFavorableSimplificationFamily then
             delta.modalityTier match
               case PlayerFacingClaimModalityTier.Forces =>
                 s"This favorable simplification keeps the same local edge after the trade on $square."
@@ -291,8 +303,8 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
               case _                                    => s"This keeps the exchange on $square available."
         }
       case PlayerFacingMoveDeltaClass.CounterplayReduction =>
-        val namedBreakOnly = delta.packet.proofFamily == "neutralize_key_break"
-        val namedResourceOnly = delta.packet.proofFamily == "counterplay_restraint"
+        val namedBreakOnly = delta.packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey
+        val namedResourceOnly = delta.packet.proofFamily == ProofFamilyId.CounterplayRestraint.wireKey
         strategicCounterplayClaim(ctx, delta)
           .orElse {
             Option.unless(namedBreakOnly || namedResourceOnly) {
@@ -337,8 +349,8 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
       delta: PlayerFacingMoveDeltaEvidence
   ): Option[String] =
     val witnessAnchor = preferredWitnessAnchor(delta.packet)
-    val namedBreakOnly = delta.packet.proofFamily == "neutralize_key_break"
-    val namedResourceOnly = delta.packet.proofFamily == "counterplay_restraint"
+    val namedBreakOnly = delta.packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey
+    val namedResourceOnly = delta.packet.proofFamily == ProofFamilyId.CounterplayRestraint.wireKey
     Option.unless(HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx) && !namedBreakOnly) {
       val preventedPlans =
         ctx.semantic.toList.flatMap(_.preventedPlans)

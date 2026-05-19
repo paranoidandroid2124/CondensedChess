@@ -2785,7 +2785,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     }
   }
 
-  test("minority-attack-fixation stays fail-closed under the reviewed weakness absorb gate") {
+  test("minority-attack-fixation shell does not create a packet without exact Carlsbad witness") {
     val ctx =
       baseCtx().copy(
         fen = "r1bq1rk1/pp2ppbp/2np2p1/8/2PP4/1P1BPN2/P4PPP/R1BQ1RK1 w - - 0 11",
@@ -2880,13 +2880,9 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
         ctx,
         StrategyPackSurface.from(pack),
         None
-      ).get
+      )
 
-    assertEquals(delta.packet.proofFamily, PlanTaxonomy.PlanKind.MinorityAttackFixation.id)
-    assertEquals(delta.packet.sameBranchState, PlayerFacingSameBranchState.Proven)
-    assertEquals(delta.packet.proofPathWitness.ownerSeedTerms.contains("b7"), true)
-    assertNotEquals(delta.packet.fallbackMode, PlayerFacingClaimFallbackMode.WeakMain)
-    assert(!PlayerFacingClaimProof.allowsWeakMainClaim(delta.packet))
+    assertEquals(delta, None)
 
     val bundle = MainPathMoveDeltaClaimBuilder.build(ctx, pack, None)
     assertEquals(bundle.flatMap(_.mainClaim), None)

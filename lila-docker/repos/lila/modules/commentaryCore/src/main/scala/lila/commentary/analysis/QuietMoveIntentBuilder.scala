@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 
 import lila.commentary.analysis.claim.*
+import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
 import lila.commentary.model.*
 
 private[commentary] enum QuietMoveIntentClass:
@@ -294,7 +295,7 @@ private[commentary] object QuietMoveIntentBuilder:
       PlayerFacingClaimPacket.isLineOnlyPilot(claim.sourceKind, proofFamily)
     val quietCounterplayPilot =
       claim.intentClass == QuietMoveIntentClass.CounterplayRestraint &&
-        proofFamily == "neutralize_key_break"
+        proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey
     val fallbackMode =
       if lineOnlyPilot || quietCounterplayPilot then PlayerFacingClaimFallbackMode.LineOnly
       else if PlayerFacingClaimProof.allowsWeakMainClaim(
@@ -461,10 +462,10 @@ private[commentary] object QuietMoveIntentBuilder:
       intentClass: QuietMoveIntentClass
   ): String =
     intentClass match
-      case QuietMoveIntentClass.CounterplayRestraint => "neutralize_key_break"
-      case QuietMoveIntentClass.KingSafety           => "king_safety"
-      case QuietMoveIntentClass.TechnicalConversionStep => "technical_conversion"
-      case QuietMoveIntentClass.PieceImprovement     => "piece_improvement"
+      case QuietMoveIntentClass.CounterplayRestraint => ProofFamilyId.NeutralizeKeyBreak.wireKey
+      case QuietMoveIntentClass.KingSafety           => ProofFamilyId.KingSafety.wireKey
+      case QuietMoveIntentClass.TechnicalConversionStep => ProofFamilyId.TechnicalConversion.wireKey
+      case QuietMoveIntentClass.PieceImprovement     => ProofFamilyId.PieceImprovement.wireKey
 
   private def quietBestDefenseMove(
       ctx: NarrativeContext
@@ -556,12 +557,12 @@ private[commentary] object QuietMoveIntentBuilder:
     val evidenceBacked = ctx.strategicPlanExperiments.filter(exp => normalize(exp.evidenceTier) == "evidence backed")
     val matched =
       proofFamily match
-        case "neutralize_key_break" =>
+        case family if family == ProofFamilyId.NeutralizeKeyBreak.wireKey =>
           evidenceBacked.filter(exp =>
             exp.counterBreakNeutralized ||
               exp.subplanId.contains(PlanTaxonomy.PlanKind.BreakPrevention.id)
           )
-        case "counterplay_restraint" =>
+        case family if family == ProofFamilyId.CounterplayRestraint.wireKey =>
           evidenceBacked.filter(exp =>
             exp.subplanId.contains(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id) ||
               exp.themeL1 == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id

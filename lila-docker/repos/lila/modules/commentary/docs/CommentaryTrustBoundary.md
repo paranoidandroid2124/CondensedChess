@@ -110,12 +110,54 @@ no exact witness, but they do not rename a layer to `family`.
   before packet release. Its first live concept is `minority_attack`, represented
   as an internal observation over side, wing/file-set, target chain, reachable
   pawn break, structural delta, essential/supporting evidence, blocked reasons,
-  and symmetry key. `SemanticReady` here is not `CertifiedOwner`: it is support
-  evidence for selector/probe code, while user-facing release still requires a
-  separate exact packet/certificate. Existing QGD/Carlsbad/c6 logic is therefore
-  one release-safe instance of a generic observation, not the definition of
-  minority attack.
-- Packet pilot status on 2026-04-03:
+  and symmetry key. `analysis.structure.StructuralDeltaAnalyzer` owns the
+  reusable legal before/after structural delta certificate: it records
+  created/resolved pawn tension, new weak pawn/square evidence, file-access
+  changes, and target-pressure gain, and essential evidence is kept
+  irredundant at the condition level. `SemanticReady` here is not
+  `CertifiedOwner`: it is support evidence for selector/probe code, while
+  user-facing release still requires a separate exact packet/certificate.
+  `analysis.semantic.StrategicObservationIds`,
+  `analysis.semantic.StrategicSemanticObservation`, and
+  `analysis.semantic.StrategicSemanticObservationPipeline` are the typed
+  compatibility boundary for this support layer: semantic observation ids,
+  registered selector source ids, support fact ids, proof source ids, and proof
+  family ids are distinct domains, and only the final selector surface renders
+  them back into the legacy `evidenceRefs` strings. Selector source ids are now
+  registered before use so support observations cannot silently become raw
+  proof/release-like `"source:*"` strings.
+  `analysis.semantic.StrategicIdeaEvidencePipeline` now owns typed
+  selector-evidence assembly, while role-specific producers live under
+  `analysis.semantic.evidence`: slow structural families are split by
+  `space`, `line_occupation`, `outpost`, and `minor_piece`, and selector
+  themes are split by `prophylaxis`, `king_attack`,
+  `favorable_trade` / transformation, and `counterplay_suppression`.
+  Shared support logic stays in `StrategicIdeaEvidenceSupport`. These
+  observations can rebalance internal
+  ranking against generic target/pawn support, but they remain selector support
+  only and do not confer `CertifiedOwner`, `SupportedLocal`, proof-source,
+  proof-family, or planner-owner authority. Generic Carlsbad/compensation
+  target shells without exact target-release evidence are treated as selector
+  support in ranking fixtures rather than as target release assertions.
+  Proof-contract construction now also consumes registered `ProofSourceId` and
+  `ProofFamilyId` values. Promoted runtime families such as
+  `half_open_file_pressure`, `neutralize_key_break`,
+  `counterplay_restraint`, `trade_key_defender`, and
+  `target_focused_coordination`, generic packet fallback families, and
+  packet-only quiet families are registry-owned even when public packets still
+  carry string fields. If an old contract needs to admit a selector source as a
+  compatibility alias, that alias must be a registered `EvidenceSourceId`; it
+  does not gain semantic or release authority by being admitted as a source
+  wire key.
+  `target_pressure_semantic` is selector-visible support only; it is not
+  `CertifiedOwner`, `SupportedLocal`, a proof source, a proof family, or a
+  planner admission key.
+  Selector-visible support uses `minority_attack_semantic`; the legacy
+  `minority_attack_fixation` name remains planning / active-thread vocabulary
+  only and is deferred in proof-contract authority. Existing QGD/Carlsbad/c6
+  logic is therefore one release-safe instance of a generic observation, not
+  the definition of minority attack.
+- Packet release status on 2026-04-03:
   `neutralize_key_break` is now the first promoted packet-owned family:
   one exact-board named-break suppression may release as a bounded move-local
   `WhatChanged` claim only when the packet carries a concrete
@@ -212,7 +254,11 @@ no exact witness, but they do not rename a layer to `family`.
   `QuestionFirstCommentaryPlanner` only accepts the certified
   `carlsbad_fixed_target_probe` packet there and rejects generic
   `PositionLocal` shells as `position_probe_not_certified`;
-  the lane is current-position only, may not be rewritten as move-local
+  `backward_pawn_targeting` is the only canonical release family for that
+  packet, and `minority_attack_fixation` is not a proof-contract or
+  `releaseOwnerFamilies` alias. A non-exact minority shell must fail closed
+  before packet materialization rather than carrying a diagnostic player-facing
+  packet. The lane is current-position only, may not be rewritten as move-local
   explanation, may not reuse support-only `mainStrategicPlans` / `strategyPack`
   prose as the owner claim, and may not generalize into a broad Carlsbad
   lesson or a minority-attack shell.
@@ -284,11 +330,11 @@ no exact witness, but they do not rename a layer to `family`.
   `proofFamily=bad_piece_liquidation`, `scope=MoveLocal`, `fallback=WeakMain`,
   and the downgraded surface
   `A local reading is that this trade clears the bad piece from the local branch.`
-  The pilot does not open `PositionLocal`, generic favorable-exchange prose,
+  This admitted cell does not open `PositionLocal`, generic favorable-exchange prose,
   `defender_trade`, `queen_trade_shield`, `simplification_window`, or future
   `worst_piece_improvement`; rows without actual liquidation stay review-only.
 - Promotion-record requirement:
-  pilot-cell status, exact FEN controls, blockers, and touched verification now
+  admission-cell status, exact FEN controls, blockers, and touched verification now
   live in
   `modules/commentary/tmp/strategic-promotion-record.md`; do not call a cell
   `promoted` without that record plus same-change doc updates.
@@ -312,9 +358,10 @@ no exact witness, but they do not rename a layer to `family`.
   `CTH`
 - strategic-puzzle cross-surface rule:
   the public solve shell is plan-first, while exact line/tree data remains a
-  proof/replay layer; v2 should consume that layer only through the nested
-  runtime `proof` adapter. Flat legacy tree fields are removed from the public
-  shell, stored pre-v2 puzzle docs must be republished, and solve completion
+  proof/replay layer; current puzzle runtime should consume that layer only
+  through the nested runtime `proof` adapter. Flat legacy tree fields are
+  removed from the public shell, legacy flat puzzle docs must be republished,
+  and solve completion
   should trust `planId + startUci` rather than any client-supplied line
   replay. Reveal copy should explain the shared bounded task and accepted
   start before it narrates the proof line. Frontend review labels must stay
@@ -4695,8 +4742,9 @@ Current matrix scope:
   (Capablanca-Golombek 1939, Evans-Opsahl 1950,
   Alekhine-Bogoljubow 1936, Najdorf-Sergeant 1939, and Botvinnik-Vidmar
   1936), the Salov-Ljubojevic 1992 simplification-window row, the
-  Boleslavsky-Nezhmetdinov 1950 static-weakness row, plus the
-  Aronian-Andreikin 2014 defender-trade row as non-authority source evidence
+  Boleslavsky-Nezhmetdinov 1950 static-weakness row; the
+  Aronian-Andreikin 2014 defender-trade row remains SourceReview-only
+  non-authority evidence and is not part of the surface fixture matrix
 - controlled `SupportedLocal` degradation rows for B fixed-target and C
   favorable-simplification, a controlled exact IQP inducement row, and a
   controlled `break_prevention` / `counterplay_axis_suppression` row
@@ -4756,9 +4804,6 @@ Current expanded matrix result on 2026-05-15:
     `source-alekhine-bogoljubow-1936-iqp-inducement`,
     `source-najdorf-sergeant-1939-iqp-inducement`, and
     `source-botvinnik-vidmar-1936-iqp-opening-inducement`.
-  - the natural DefenderTrade row renders exactly:
-    `A local reading is that this exchange removes a defender on the local branch.`
-    across primary, MoveReview, and Chronicle.
   - the controlled break-prevention row renders exactly:
     `A local reading is that this keeps ...c5 from coming right away.`
     across primary, MoveReview, and Chronicle; it remains a controlled
@@ -4881,7 +4926,7 @@ The targeted IQP plus simplification, static-weakness, and DefenderTrade window
 probes confirm five natural IQP authority rows, one Botvinnik IQP
 owner-missing screen, one natural simplification-window authority row, one
 natural static-weakness authority row, one static-weakness owner-missing screen,
-and one natural DefenderTrade `SupportedLocal` authority row:
+and one natural DefenderTrade owner-missing screen:
 
 - `source-capablanca-golombek-1939-iqp-inducement` is a one-ply exact row:
   ply 45, FEN
@@ -4942,7 +4987,7 @@ and one natural DefenderTrade `SupportedLocal` authority row:
   ply 33, FEN
   `3k1b1r/p2b1ppp/1n3n2/4p3/8/1R4P1/P1QPqPBP/2B2RK1 w - - 0 17`.
   The source move `c1a3` is near-top rather than PV1:
-  `near_top_multipv_contains_played_top=c2b1_gap=14cp`. The current engine
+  `near_top_multipv_contains_played_top=c2b1_gap=15cp`. The current engine
   branch does not prove the defender is removed on the same exchange square, so
   the row remains non-authority with `owner:defender_trade_owner_missing`.
   The historical source branch is useful as a regression/admission sample only;
@@ -5178,10 +5223,10 @@ real-engine break-prevention rows that currently admit are Lokvenc-Czerniak
 1952, Maderna-Palermo 1955, Camara-Bazan 1960, Sliwa-Gromek 1960, and
 Pfleger-Maalouf 1961. Luckis-Bielicki 1961 and Polugaevsky-Giorgadze 1956 are
 review evidence, not current source-review authority, until they again pass the
-full engine-backed owner stack. The
-surface ledger still reports `SupportedLocal=15` as a canned surface-contract
-matrix, but it must not be read as source-review acceptance when it conflicts
-with `SourceReview`. This is still not a broad clean-route release; clean
+full engine-backed owner stack. The 2026-05-19 surface ledger reports
+`SupportedLocal=14` after removing source rows that current `SourceReview`
+rejects from the surface fixture matrix; it must not be read as source-review
+acceptance when it conflicts with `SourceReview`. This is still not a broad clean-route release; clean
 scanner rows remain discovery-only unless the fixed catalog row passes the
 full authority stack.
 
@@ -5215,7 +5260,7 @@ Failure taxonomy anchors for authority rows:
 | `source_iqp_inducement` | source-backed exact IQP witness admitted as natural `SupportedLocal` |
 | `source_simplification_window` | source-backed exact simplification-window witness admitted as natural `CertifiedOwner` |
 | `source_static_weakness_fixation` | source-backed exact static-weakness witness admitted as natural `CertifiedOwner` |
-| `source_defender_trade` | source-backed DefenderTrade witness admitted only as `SupportedLocal`; requires exact source replay through the board/PV-derived `defender_trade` packet, PV1-or-near-top engine authority, planner admission, tactical veto, and claim-only surfaces |
+| `source_defender_trade` | SourceReview-only DefenderTrade source taxonomy until exact source replay proves the board/PV-derived `defender_trade` packet; the current Aronian-Andreikin row remains non-authority with `owner:defender_trade_owner_missing` and is not a surface fixture |
 | `source_bad_piece_liquidation` | source-backed bad-piece-liquidation witness admitted only as `SupportedLocal`; requires exact source replay through the board/PV-derived `bad_piece_liquidation` packet, planner admission, tactical veto, rival-family closure, and claim-only surfaces |
 | `break_prevention_supported_local` | controlled exact named-break witness admitted only as `SupportedLocal` through `counterplay_axis_suppression` / `neutralize_key_break`; natural source rows still require exact owner packet proof |
 | `source_break_prevention` | source-backed break-prevention candidates are screen rows unless the exact `neutralize_key_break` packet/proof materializes; incidental non-break owner packets inside the window do not admit the family |
@@ -5227,7 +5272,7 @@ Failure taxonomy anchors for authority rows:
 | `owner:bad_piece_liquidation_piece_not_bad` | liquidation-like exchange lacks direct bad-piece evidence such as low mobility, blocked route, domination, or own-plan obstruction |
 | `owner:bad_piece_liquidation_no_actual_liquidation` | bad-piece prose or repositioning exists, but the played move / PV prefix does not actually trade or remove the constrained piece |
 | `owner:bad_piece_liquidation_rival_or_relabel` | the row belongs to tactical-first, generic simplification, defender removal, queen-trade shield, or another rival family |
-| `proof:bad_piece_liquidation_contract_mismatch` | a row materializes a non-`bad_piece_liquidation` packet and may not be relabeled into the pilot family |
+| `proof:bad_piece_liquidation_contract_mismatch` | a row materializes a non-`bad_piece_liquidation` packet and may not be relabeled into the admitted family |
 | `owner:prophylaxis_restraint_witness_missing` | no exact named-resource prophylactic witness is available for the family row |
 | `proof:prophylaxis_restraint_contract_mismatch` | a row materializes a rival packet, such as target fixation or named-break prevention, and may not be relabeled as `prophylaxis_restraint` |
 | `owner:prophylaxis_restraint_rival_or_relabel` | a named-resource prophylaxis shell is blocked by release-risk or generic/rival counterplay relabel |
