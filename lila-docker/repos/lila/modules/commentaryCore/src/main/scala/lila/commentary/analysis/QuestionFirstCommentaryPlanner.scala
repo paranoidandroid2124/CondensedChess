@@ -1249,7 +1249,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     val release =
       rawPositionProbe.flatMap(claim =>
         claim.packet.map(packet =>
-          claim -> ClaimAuthorityPolicy.decidePositionProbe(ctx, inputs, truthContract, packet)
+          claim -> PlannerClaimAdmission.decidePositionProbe(ctx, inputs, truthContract, packet)
         )
       )
     release match
@@ -1258,13 +1258,14 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           case Some(_) => reject(question, QuestionPlanFallbackMode.FactualFallback, "position_probe_not_certified")
           case None    => reject(question, QuestionPlanFallbackMode.FactualFallback, "position_probe_missing")
       case Some((_, decision)) if !decision.admitted =>
-        val vetoReasons =
+        val rejectionReasons =
           Option.when(decision.vetoReasons.nonEmpty)("strategic_claim_tactical_veto").toList ++
-            decision.vetoReasons
+            decision.vetoReasons ++
+            decision.failureCodes.filterNot(decision.vetoReasons.contains)
         reject(
           question,
           QuestionPlanFallbackMode.FactualFallback,
-          (if vetoReasons.nonEmpty then vetoReasons else List("position_probe_not_certified"))*
+          (if rejectionReasons.nonEmpty then rejectionReasons else List("position_probe_not_certified"))*
         )
       case Some((claim, decision)) =>
         val packet = claim.packet.get
@@ -1288,7 +1289,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           question = question,
           kind = AuthorQuestionKind.WhatMattersHere,
           claim =
-            if supportedLocal then ClaimAuthorityPolicy.supportedLocalSurface(claim.claimText)
+            if supportedLocal then PlannerClaimAdmission.supportedLocalSurface(claim.claimText)
             else claim.claimText,
           evidence = evidence,
           contrast = None,
@@ -2075,7 +2076,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
   ): (List[QuestionPlan], List[RejectedQuestionPlan]) =
     plans.foldLeft((List.empty[QuestionPlan], List.empty[RejectedQuestionPlan])) {
       case ((kept, rejected), plan) =>
-        ClaimAuthorityPolicy.planAuthorityDecision(ctx, inputs, truthContract, plan) match
+        PlannerClaimAdmission.planAuthorityDecision(ctx, inputs, truthContract, plan) match
           case Some(decision) if decision.tier == ClaimAuthorityTier.Suppressed =>
             (
               kept,
@@ -2097,7 +2098,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           case Some(decision) if decision.tier == ClaimAuthorityTier.SupportedLocal =>
             (
               kept :+ plan.copy(
-                claim = ClaimAuthorityPolicy.supportedLocalSurface(plan.claim),
+                claim = PlannerClaimAdmission.supportedLocalSurface(plan.claim),
                 evidence = None,
                 contrast = None,
                 consequence = None,
@@ -2319,7 +2320,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
             (
               claim,
               packet,
-              ClaimAuthorityPolicy.decidePositionProbe(ctx, inputs, truthContract, packet)
+              PlannerClaimAdmission.decidePositionProbe(ctx, inputs, truthContract, packet)
             )
           )
         )

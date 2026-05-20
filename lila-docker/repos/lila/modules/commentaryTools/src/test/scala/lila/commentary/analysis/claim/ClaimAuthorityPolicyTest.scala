@@ -10,6 +10,7 @@ class ClaimAuthorityPolicyTest extends FunSuite:
       List(
         ClaimAuthorityTier.CertifiedOwner,
         ClaimAuthorityTier.SupportedLocal,
+        ClaimAuthorityTier.DiagnosticOnly,
         ClaimAuthorityTier.Suppressed
       )
     )
@@ -18,7 +19,19 @@ class ClaimAuthorityPolicyTest extends FunSuite:
   test("authority decision admits only non-suppressed strategic claim tiers") {
     assert(ClaimAuthorityDecision(ClaimAuthorityTier.CertifiedOwner).admitted)
     assert(ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal).admitted)
+    assert(!ClaimAuthorityDecision(ClaimAuthorityTier.DiagnosticOnly).admitted)
     assert(!ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed).admitted)
+  }
+
+  test("authority decision exposes failure codes while preserving tactical veto compatibility") {
+    val decision =
+      ClaimAuthorityDecision(
+        tier = ClaimAuthorityTier.Suppressed,
+        failureCodes = List("contract:deferred", "truth_contract_tactical_refutation")
+      )
+
+    assertEquals(decision.failureCodes, List("contract:deferred", "truth_contract_tactical_refutation"))
+    assertEquals(decision.vetoReasons, List("truth_contract_tactical_refutation"))
   }
 
   test("supported local surface strips strong strategic framing") {

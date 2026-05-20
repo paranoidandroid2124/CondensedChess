@@ -292,6 +292,7 @@ private[commentary] object StrategicObservationIds:
     val CounterplayRestraint = register("counterplay_restraint")
     val TradeKeyDefender = register("trade_key_defender")
     val TargetFocusedCoordination = register("target_focused_coordination")
+    val ColorComplexSqueeze = register("color_complex_squeeze")
 
     val NewAccess = register("new_access")
     val PressureIncrease = register("pressure_increase")
@@ -311,6 +312,7 @@ private[commentary] object StrategicObservationIds:
           CounterplayRestraint,
           TradeKeyDefender,
           TargetFocusedCoordination,
+          ColorComplexSqueeze,
           NewAccess,
           PressureIncrease,
           ExchangeForcing,

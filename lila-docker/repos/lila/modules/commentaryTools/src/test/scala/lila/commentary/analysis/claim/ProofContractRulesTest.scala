@@ -137,6 +137,18 @@ class ProofContractRulesTest extends FunSuite:
     assertEquals(ProofContractRules.contractForProofFamily("minority_attack_semantic"), None)
   }
 
+  test("color-complex squeeze is explicit but authority closed") {
+    val contract =
+      ProofContractRules
+        .contractForProofFamily("color_complex_squeeze")
+        .getOrElse(fail("missing color-complex squeeze contract"))
+
+    assertEquals(contract.status, ProofContractStatus.Deferred)
+    assert(!contract.certifiedEligible, clues(contract))
+    assert(!contract.supportedLocalEligible, clues(contract))
+    assertEquals(contract.defaultFailureTaxonomy, "color_complex_authority_closed")
+  }
+
   test("DefenderTrade is supported-local releasable only through exact defender proof") {
     val contract =
       ProofContractRules

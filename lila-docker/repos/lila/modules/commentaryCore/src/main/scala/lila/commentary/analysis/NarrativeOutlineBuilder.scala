@@ -7,6 +7,8 @@ import lila.commentary.model._
 import lila.commentary.model.authoring._
 import lila.commentary.model.strategic.VariationLine
 import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, ThemeResolver, SubplanCatalog, PlanKind }
+import lila.commentary.analysis.render.*
+import lila.commentary.analysis.render.FragmentAuthority.{ rawFragmentText, releasedFragmentText, supportFragment }
 
 /**
  * NarrativeOutlineBuilder: SSOT for "what to say"
@@ -22,79 +24,6 @@ object NarrativeOutlineBuilder:
     "strategic_shift" -> 1,
     "engine" -> 1
   )
-  private enum FragmentAuthority:
-    case render_only
-    case support_only
-    case unsafe_as_truth
-    case unsafe_as_lesson
-    case candidate_for_future_lesson
-    case requires_move_linked_anchor
-  private case class AuthorityTaggedFragment(
-    text: String,
-    authority: FragmentAuthority,
-    moveLinkedAnchor: Boolean = false,
-    sceneGrounded: Boolean = false,
-    evidenceBacked: Boolean = false,
-    plannerOwned: Boolean = false,
-    contractConsistent: Boolean = false,
-    generalized: Boolean = false
-  ):
-    def rawText: String = Option(text).map(_.trim).getOrElse("")
-    def hasRawText: Boolean = rawText.nonEmpty
-    def groundedForAdmission: Boolean =
-      moveLinkedAnchor || sceneGrounded || evidenceBacked || plannerOwned || contractConsistent
-    def releasedText: String =
-      if !hasRawText then ""
-      else
-        authority match
-          case FragmentAuthority.unsafe_as_truth           => ""
-          case FragmentAuthority.unsafe_as_lesson          => ""
-          case FragmentAuthority.candidate_for_future_lesson => ""
-          case FragmentAuthority.requires_move_linked_anchor =>
-            if moveLinkedAnchor && groundedForAdmission then rawText else ""
-          case FragmentAuthority.support_only =>
-            if generalized && !groundedForAdmission then ""
-            else rawText
-          case _ => rawText
-
-  private def supportFragment(
-    text: String,
-    moveLinkedAnchor: Boolean = false,
-    sceneGrounded: Boolean = false,
-    evidenceBacked: Boolean = false,
-    plannerOwned: Boolean = false,
-    contractConsistent: Boolean = false,
-    generalized: Boolean = false
-  ): AuthorityTaggedFragment =
-    AuthorityTaggedFragment(
-      text = text,
-      authority = FragmentAuthority.support_only,
-      moveLinkedAnchor = moveLinkedAnchor,
-      sceneGrounded = sceneGrounded,
-      evidenceBacked = evidenceBacked,
-      plannerOwned = plannerOwned,
-      contractConsistent = contractConsistent,
-      generalized = generalized
-    )
-
-  private def releasedFragmentText(
-    fragments: List[AuthorityTaggedFragment]
-  ): String =
-    fragments
-      .map(_.releasedText)
-      .filter(_.nonEmpty)
-      .mkString(" ")
-      .trim
-  private def rawFragmentText(
-    fragments: Iterable[AuthorityTaggedFragment]
-  ): String =
-    fragments
-      .iterator
-      .map(_.rawText)
-      .filter(_.nonEmpty)
-      .mkString(" ")
-      .trim
-
   private case class BoardAnchor(text: String, consumedThreat: Boolean = false, consumedFact: Boolean = false)
   private case class AlternativeEngineSignal(
     rank: Option[Int],

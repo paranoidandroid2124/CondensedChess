@@ -407,6 +407,19 @@ private[commentary] object ProofContractRules:
         certifiedEligible = true,
         supportedLocalEligible = true,
         defaultFailureTaxonomy = "certified_owner_path"
+      ),
+      ProofContract(
+        id = s"runtime:${ProofFamilyId.ColorComplexSqueeze.wireKey}",
+        proofFamily = ProofFamilyId.ColorComplexSqueeze.wireKey,
+        theme = None,
+        subplan = None,
+        acceptedSources = Set(ProofFamilyId.ColorComplexSqueeze.wireKey),
+        allowedScopes = Set(PlayerFacingPacketScope.BackendOnly),
+        requiredWitnesses = DeferredWitnesses,
+        status = ProofContractStatus.Deferred,
+        certifiedEligible = false,
+        supportedLocalEligible = false,
+        defaultFailureTaxonomy = "color_complex_authority_closed"
       )
     )
 

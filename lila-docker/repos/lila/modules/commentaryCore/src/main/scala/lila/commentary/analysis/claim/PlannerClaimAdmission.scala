@@ -3,7 +3,7 @@ package lila.commentary.analysis.claim
 import lila.commentary.analysis.*
 import lila.commentary.model.NarrativeContext
 
-private[commentary] object ClaimAuthorityPolicy:
+private[commentary] object PlannerClaimAdmission:
 
   def decidePositionProbe(
       ctx: Option[NarrativeContext],
@@ -11,15 +11,7 @@ private[commentary] object ClaimAuthorityPolicy:
       truthContract: Option[DecisiveTruthContract],
       packet: PlayerFacingClaimPacket
   ): ClaimAuthorityDecision =
-    PlannerClaimAdmission.decidePositionProbe(ctx, inputs, truthContract, packet)
-
-  def shouldTacticalVetoPlan(
-      ctx: Option[NarrativeContext],
-      inputs: QuestionPlannerInputs,
-      truthContract: Option[DecisiveTruthContract],
-      plan: QuestionPlan
-  ): Option[ClaimAuthorityDecision] =
-    ClaimAuthorityResolver.shouldTacticalVetoPlan(ctx, inputs, truthContract, plan)
+    ClaimAuthorityResolver.decidePositionProbe(ctx, inputs, truthContract, packet)
 
   def planAuthorityDecision(
       ctx: Option[NarrativeContext],
@@ -27,7 +19,7 @@ private[commentary] object ClaimAuthorityPolicy:
       truthContract: Option[DecisiveTruthContract],
       plan: QuestionPlan
   ): Option[ClaimAuthorityDecision] =
-    PlannerClaimAdmission.planAuthorityDecision(ctx, inputs, truthContract, plan)
+    ClaimAuthorityResolver.planAuthorityDecision(ctx, inputs, truthContract, plan)
 
   def supportedLocalSurface(raw: String): String =
-    PlannerClaimAdmission.supportedLocalSurface(raw)
+    ClaimAuthorityResolver.supportedLocalSurface(raw)
