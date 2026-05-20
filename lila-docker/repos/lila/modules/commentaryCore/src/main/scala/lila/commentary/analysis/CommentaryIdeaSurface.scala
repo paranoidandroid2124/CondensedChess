@@ -32,7 +32,9 @@ private[commentary] object CommentaryIdeaSurface:
       motifs: List[Motif],
       openingGoal: Option[OpeningGoals.Evaluation],
       openingName: Option[String],
-      strategicDelta: Option[PlayerFacingMoveDeltaEvidence] = None
+      strategicDelta: Option[PlayerFacingMoveDeltaEvidence] = None,
+      phase: String = "",
+      ply: Int = 0
   ):
     def endgameFacts: List[Fact] =
       facts.collect {
@@ -140,7 +142,8 @@ private[commentary] object CommentaryIdeaSurface:
       MoveReviewIdeaRule("tactical", tacticalDescriptor),
       MoveReviewIdeaRule("target", targetDescriptor),
       MoveReviewIdeaRule("capture", captureDescriptor),
-      MoveReviewIdeaRule("endgame", endgameDescriptor)
+      MoveReviewIdeaRule("endgame", endgameDescriptor),
+      MoveReviewIdeaRule("line_backed_local", lineBackedLocalDescriptor)
     )
 
   // MoveReview admission rules. Keep descriptor selection before rendering fields.
@@ -508,7 +511,74 @@ private[commentary] object CommentaryIdeaSurface:
       )
     }
 
-  @annotation.nowarn("msg=unused")
+  private def lineBackedLocalDescriptor(
+      played: PlayedMove,
+      evidence: MoveReviewEvidence,
+      lineFacts: Option[MoveReviewPvLine.LineFacts],
+      characterBand: MoveCharacterBand,
+      @unused truthContract: Option[DecisiveTruthContract]
+  ): Option[MoveReviewIdeaDescriptor] =
+    lineFacts.filter(line => line.reply.nonEmpty && isOpeningPhase(evidence)).map { line =>
+      val purpose = localLinePurpose(played)
+      descriptor(
+        ideaKind = "line_backed_local",
+        reviewIntent = localReviewIntent(purpose),
+        moveCharacterBand = characterBand,
+        source = "basic_move_explanation",
+        title = localTitle(played, purpose),
+        baseProse = localPurposeText(played, purpose),
+        reasonTags = List("line_backed_local", s"local_purpose:$purpose"),
+        linePurpose = Some(purpose),
+        lineProof = lineProof("line_backed_local", played, line),
+        played = played,
+        evidence = evidence,
+        lineFacts = lineFacts,
+        requiresPvForAdmission = true
+      )
+    }
+
+  private def localLinePurpose(played: PlayedMove): String =
+    if isCentralBreak(played.uci, played.isWhite) then "challenge_center"
+    else if played.isCapture then "local_capture"
+    else
+      played.role match
+        case chess.Knight | chess.Bishop => "quiet_development"
+        case chess.Pawn                  => "local_pawn_setup"
+        case _                           => "local_piece_improvement"
+
+  private def localReviewIntent(purpose: String): String =
+    purpose match
+      case "challenge_center"        => "keeps_tension"
+      case "local_capture"           => "clarifies_exchange"
+      case "quiet_development"       => "normal_development"
+      case "local_piece_improvement" => "quiet_improvement"
+      case _                         => "keeps_tension"
+
+  private def localTitle(played: PlayedMove, purpose: String): String =
+    purpose match
+      case "challenge_center"        => s"${played.san} challenges the center"
+      case "local_capture"           => s"${played.san} changes the local material"
+      case "quiet_development"       => s"${played.san} develops the ${roleLabel(played.role)}"
+      case "local_piece_improvement" => s"${played.san} improves the ${roleLabel(played.role)}"
+      case _                         => s"${played.san} changes the pawn setup"
+
+  private def localPurposeText(played: PlayedMove, purpose: String): String =
+    purpose match
+      case "challenge_center" =>
+        s"${played.san} challenges the center immediately."
+      case "local_capture" =>
+        s"${played.san} captures on ${played.toKey} and keeps the material change concrete."
+      case "quiet_development" =>
+        s"${played.san} develops the ${roleLabel(played.role)} to ${played.toKey}."
+      case "local_piece_improvement" =>
+        s"${played.san} improves the ${roleLabel(played.role)} on ${played.toKey}."
+      case _ =>
+        s"${played.san} changes the pawn setup on ${played.toKey}."
+
+  private def isOpeningPhase(evidence: MoveReviewEvidence): Boolean =
+    evidence.phase.trim.equalsIgnoreCase("opening") ||
+      (evidence.openingName.nonEmpty && evidence.ply > 0 && evidence.ply <= 20)
+
   private def descriptor(
       ideaKind: String,
       reviewIntent: String,
@@ -698,7 +768,8 @@ private[commentary] object CommentaryIdeaSurface:
       else if evidence.facts.exists(f => f.isInstanceOf[Fact.HangingPiece] || f.isInstanceOf[Fact.TargetPiece]) then Some("addresses_target")
       else if Set("e7e6", "d7d6", "c7c6", "e2e3", "d2d3", "c2c3").contains(uci) then Some("reinforces_center")
       else if Set("c7c5", "c2c4", "d7d5", "d2d4", "e7e5", "e2e4").contains(uci) then Some("challenges_center")
-      else if uci.endsWith("c6") || uci.endsWith("f6") || uci.endsWith("c3") || uci.endsWith("f3") then Some("develops_and_contests")
+      else if reply.san.trim.startsWith("N") && Set("c6", "f6", "c3", "f3").contains(uci.takeRight(2)) then
+        Some("knight_development")
       else None
 
     def confirmedFacts(
@@ -743,8 +814,8 @@ private[commentary] object CommentaryIdeaSurface:
             s"$replySan reinforces the center and asks how ${played.san} will keep its point."
           case Some("challenges_center") =>
             s"$replySan challenges the center and asks whether ${played.san}'s idea holds up."
-          case Some("develops_and_contests") =>
-            s"$replySan develops while contesting the setup ${played.san} chose."
+          case Some("knight_development") =>
+            s"$replySan develops a knight toward the center."
           case _ =>
             s"$replySan is the first reply that tests the point of ${played.san}."
       )

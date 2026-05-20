@@ -2,14 +2,15 @@ package lila.commentary.tools.review
 
 import java.nio.file.Paths
 
-import chess.White
+import chess.{ Black, White }
 import munit.FunSuite
 import play.api.libs.json.Json
 
 import lila.commentary.*
-import lila.commentary.analysis.UserFacingSignalSanitizer
+import lila.commentary.analysis.{ MoveReviewPvLine, UserFacingSignalSanitizer }
 import lila.commentary.model.StrategicPlanExperiment
 import lila.commentary.model.authoring.*
+import lila.commentary.model.strategic.VariationLine
 import lila.commentary.tools.review.CommentarySceneCoverageCollectionMaterializer.{ QuietRichRow, retargetManifestEntries, selectQuietRichRowsForCollection }
 
 class CommentaryPlayerQcSupportTest extends FunSuite:
@@ -178,6 +179,43 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assertEquals(ratingBucketOf(headers), RatingBucket.Elite)
     assertEquals(timeControlBucketOf(headers), TimeControlBucket.Classical)
     assertEquals(inferMixBucket(Paths.get("C:\\tmp\\masters\\game.pgn"), headers), MixBucket.MasterClassical)
+  }
+
+  test("analyzePly seeds move-review refs from after-PV when root only has the played move") {
+    val fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+    val snapshot =
+      analyzePlyWithOpeningRef(
+        entry =
+          CatalogEntry(
+            gameKey = "one-ply-root",
+            source = "test",
+            sourceId = "test",
+            pgnPath = "C:\\tmp\\sicilian.pgn",
+            mixBucket = MixBucket.Club,
+            familyTags = Nil,
+            ratingBucket = RatingBucket.Club,
+            timeControlBucket = TimeControlBucket.Rapid,
+            opening = Some("Sicilian Defense"),
+            eco = Some("B20")
+          ),
+        plyData = PgnAnalysisHelper.PlyData(2, fen, "c5", "c7c5", Black),
+        beforeVariations = List(VariationLine(List("c7c5"), scoreCp = -12, mate = None, depth = 0)),
+        afterEval =
+          Some(
+            MoveEval(
+              ply = 2,
+              cp = -12,
+              mate = None,
+              variations = List(VariationLine(List("g1f3", "b8c6"), scoreCp = -12, mate = None, depth = 8))
+            )
+          ),
+        openingRef = None
+      ).getOrElse(fail("expected analyzePlyWithOpeningRef to return a snapshot"))
+
+    val coupled = MoveReviewPvLine.firstCoupled(fen, "c7c5", snapshot.refs)
+
+    assertEquals(coupled.map(_.first.uci), Some("c7c5"), clue(snapshot.refs))
+    assertEquals(coupled.flatMap(_.reply).map(_.uci), Some("g1f3"), clue(snapshot.refs))
   }
 
   test("selectCorpus enforces event cap and per-player cap") {

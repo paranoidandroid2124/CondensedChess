@@ -53,6 +53,15 @@ cannot become owner claims. `MoveReviewScopedTakeaway` is the sole internal
 takeaway authority and is scoped to FEN + played move + branch + evidence tier;
 it is not Track 5 lesson authority.
 
+`line_backed_local` is a bounded MoveReview basic-lane descriptor, not a new
+authority tier. It may speak only when `MoveReviewPvLine` has already replayed
+a same-FEN, played-move-coupled PV reply and the context is opening-phase or
+opening-labeled early ply (`ply <= 20`). The wording is limited to board-local
+piece placement, pawn setup, capture, or central-challenge text. It does not
+turn opening labels into opening-goal proof, does not admit tactical prose
+without current-move-owned motif/fact corroboration, and does not reopen
+phase-only endgame prose without exact endgame facts.
+
 ## Admission Vocabulary
 
 Current trust/admission wording uses distinct layer names:
@@ -4318,7 +4327,7 @@ The current fixture bundle covers:
 
 - planner-owned positive
 - exact-factual fallback
-- quiet-support residual
+- quiet-support diagnostic residual
 - generalized-support negative
 - Active diagnostic residual
 
@@ -4334,9 +4343,9 @@ Accepted residuals encoded in the harness:
 
 - MoveReview and Chronicle must agree on canonical planner owner for the
   positive and defensive-stop fixtures
-- MoveReview may keep the documented bounded quiet-support fallback lift on the
-  exact-factual fallback lane, while Chronicle must keep that same fixture
-  claim-only
+- MoveReview exact-factual fallback must stay claim-only except for legal local
+  factual support from `MoveReviewLocalFactualFallback`; quiet-support rows may
+  be traced for QC but cannot attach prose on that lane
 - Active remains diagnostic-only:
   omission is still allowed on the residual fixtures, but any future surfaced
   Active owner must not outrun the canonical MoveReview / Chronicle owner
@@ -4375,8 +4384,9 @@ Current surface coverage inside the pack:
 
 Accepted residuals encoded in the pack:
 
-- MoveReview may keep the documented one-line quiet-support residual on the
-  exact-factual fallback lane
+- MoveReview exact-factual fallback keeps quiet-support residuals
+  diagnostic-only; no quiet-support line may be attached under the factual
+  claim
 - Chronicle must keep the matching fallback lane claim-only
 - Active may omit on diagnostic-only lanes; omission remains accepted
 - OpeningTheory may keep the currently admitted anchored
@@ -4588,16 +4598,15 @@ Current guards:
   `strategyPack`, support-only carriers, plan text, compensation, pressure,
   route, coordination, prophylaxis, or quiet positional motif prose as an owner
   claim. If those factual anchors are missing, it falls back to the legacy
-  literal floor such as `This captures.` Local factual support, when present,
-  also blocks the later quiet-support lift from adding a second support
-  implication.
+  literal floor such as `This captures.` No later quiet-support path may add a
+  second support implication under the exact-factual claim.
 
 #### Blocked-lane contamination
 
 Observed in current runtime:
 
 - Chronicle quiet-support fallback attach path
-- MoveReview quiet-support fallback attach path
+- MoveReview quiet-support diagnostic trace path
 - omitted Active note surfaces and frontend support/detail blocks
 
 Current guards:
@@ -4672,9 +4681,8 @@ Accepted residuals:
 
 1. top-2 swap is allowed only when Chronicle priority is higher and
    `notWeaker` holds.
-2. quiet support is attached only for `MoveDelta + pv_delta` primary rows with
-   no existing support and no duplicate sentence; exact-factual fallback stays
-   claim-only.
+2. quiet support may attach only to retained Chronicle planner rows under the
+   renderer-only policy; exact-factual fallback stays claim-only.
 3. no-contract fallback may still preserve raw `blunder` / `missed_win`
    failure classification as a narrow exact-factual residual; strategic owner
    families still require canonical truth or separate support-only fallback.

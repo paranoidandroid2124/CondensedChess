@@ -80,7 +80,9 @@ private[commentary] object MoveReviewExplanationBuilder:
       motifs = motifs,
       openingGoal = openingGoal,
       openingName = ctx.openingData.flatMap(_.name).orElse(openingNameFromEvent(ctx)),
-      strategicDelta = PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx, StrategyPackSurface.from(strategyPack), truthContract)
+      strategicDelta = PlayerFacingTruthModePolicy.mainPathMoveDeltaEvidence(ctx, StrategyPackSurface.from(strategyPack), truthContract),
+      phase = Option(ctx.phase.current).filter(_.trim.nonEmpty).getOrElse(ctx.header.phase),
+      ply = ctx.ply
     )
 
   private def qualityLabel(truthContract: Option[DecisiveTruthContract]): Option[String] =

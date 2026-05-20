@@ -92,6 +92,7 @@ object MoveReviewCorpusRunner:
           val runtimeTrace = analyzedPly.map(moveReviewPlannerRuntime)
           val plannerTrace = runtimeTrace.map(_.planner).getOrElse(MoveReviewPlannerTrace())
           val quietSupportTrace = runtimeTrace.map(_.quietSupport).getOrElse(MoveReviewQuietSupportTrace())
+          val coverageTrace = runtimeTrace.map(_.coverage).getOrElse(MoveReviewCoverageDiagnostics.Result.empty)
           val digestHashes =
             analyzedPly
             .map(CommentaryQualitySupport.moveReviewDigests)
@@ -191,7 +192,13 @@ object MoveReviewCorpusRunner:
             moveReviewSnapshotDigestHash = digestHashes.snapshotDigestHash,
             moveReviewCarryDigestHash = digestHashes.carryDigestHash,
             moveReviewAugmentationDigestHash = digestHashes.augmentationDigestHash,
-            moveReviewBundleDigestHash = digestHashes.bundleDigestHash
+            moveReviewBundleDigestHash = digestHashes.bundleDigestHash,
+            moveReviewSourceKind = coverageTrace.moveReviewSourceKind,
+            basicEvidenceStatus = coverageTrace.basicEvidenceStatus,
+            basicEvidenceRejectReasons = coverageTrace.basicEvidenceRejectReasons,
+            supportedLocalCandidateFamilies = coverageTrace.supportedLocalCandidateFamilies,
+            supportedLocalAdmittedFamilies = coverageTrace.supportedLocalAdmittedFamilies,
+            supportedLocalRejectReasons = coverageTrace.supportedLocalRejectReasons
           ).withQuietSupportTrace(quietSupportTrace)
         }
 

@@ -1,10 +1,19 @@
 package lila.commentary.analysis.claim
 
-import lila.commentary.tools.claim.*
-
 import munit.FunSuite
 
 class ClaimAuthorityPolicyTest extends FunSuite:
+
+  test("authority decision has one public admission ladder with no extra roles") {
+    assertEquals(
+      ClaimAuthorityTier.values.toList,
+      List(
+        ClaimAuthorityTier.CertifiedOwner,
+        ClaimAuthorityTier.SupportedLocal,
+        ClaimAuthorityTier.Suppressed
+      )
+    )
+  }
 
   test("authority decision admits only non-suppressed strategic claim tiers") {
     assert(ClaimAuthorityDecision(ClaimAuthorityTier.CertifiedOwner).admitted)

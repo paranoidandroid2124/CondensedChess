@@ -217,6 +217,34 @@ final class MoveReviewBasicExplanationTest extends FunSuite:
     assertEquals(explanation, None, clue(explanation))
   }
 
+  test("PV-backed local descriptor admits a bounded center challenge without opening-goal evidence") {
+    val fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"
+    val explanation =
+      MoveReviewExplanationBuilder
+        .build(
+          ctx(
+            fen = fen,
+            playedMove = "c7c5",
+            playedSan = "c5",
+            phase = "Opening",
+            ply = 2,
+            phaseReason = "Sicilian center challenge",
+            opening = Some(openingRef("Sicilian Defense", "B20", "c7c5", "c5")),
+            openingGoalEvaluation = None
+          ),
+          Some(refsForLine(fen, List("c7c5", "g1f3", "b8c6"), List("c5", "Nf3", "Nc6")))
+        )
+        .getOrElse(fail("expected line-backed local descriptor"))
+
+    assertEquals(explanation.source, "basic_move_explanation", clue(explanation))
+    assert(explanation.prose.contains("challenges the center"), clue(explanation.prose))
+    assert(explanation.prose.contains("Nf3 develops a knight toward the center"), clue(explanation.prose))
+    assert(!explanation.prose.contains("contesting the setup c5 chose"), clue(explanation.prose))
+    assert(explanation.reasonTags.contains("line_backed_local"), clue(explanation.reasonTags))
+    assertEquals(explanation.pvInterpretation.map(_.linePurpose), Some("challenge_center"), clue(explanation.pvInterpretation))
+    assertEquals(explanation.shortLine.map(_.san), Some(List("c5", "Nf3", "Nc6")), clue(explanation.shortLine))
+  }
+
   test("validated PV enriches an opening goal with semantic line meaning") {
     val explanation =
       MoveReviewExplanationBuilder

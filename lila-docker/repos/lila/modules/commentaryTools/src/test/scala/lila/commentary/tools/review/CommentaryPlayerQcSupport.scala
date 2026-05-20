@@ -19,6 +19,7 @@ import lila.commentary.model.NarrativeRenderMode
 import lila.commentary.model.NarrativeContext
 import lila.commentary.model.authoring.AuthorQuestionKind
 import lila.commentary.model.strategic.VariationLine
+import lila.commentary.tools.moveReview.MoveReviewCoverageDiagnostics
 
 object CommentaryPlayerQcSupport:
 
@@ -356,7 +357,13 @@ object CommentaryPlayerQcSupport:
       quietSupportCandidateSourceKinds: List[String] = Nil,
       quietSupportCandidateVerbFamily: Option[String] = None,
       quietSupportCandidateText: Option[String] = None,
-      quietSupportFactualSentence: Option[String] = None
+      quietSupportFactualSentence: Option[String] = None,
+      moveReviewSourceKind: Option[String] = None,
+      basicEvidenceStatus: Option[String] = None,
+      basicEvidenceRejectReasons: List[String] = Nil,
+      supportedLocalCandidateFamilies: List[String] = Nil,
+      supportedLocalAdmittedFamilies: List[String] = Nil,
+      supportedLocalRejectReasons: List[String] = Nil
   ):
     def withQuietSupportTrace(quietSupportTrace: MoveReviewQuietSupportTrace): MoveReviewOutputEntry =
       copy(
@@ -467,7 +474,8 @@ object CommentaryPlayerQcSupport:
   final case class MoveReviewRuntimeTrace(
       planner: MoveReviewPlannerTrace,
       prose: String,
-      quietSupport: MoveReviewQuietSupportTrace = MoveReviewQuietSupportTrace()
+      quietSupport: MoveReviewQuietSupportTrace = MoveReviewQuietSupportTrace(),
+      coverage: MoveReviewCoverageDiagnostics.Result = MoveReviewCoverageDiagnostics.Result.empty
   )
 
   final case class AuditSetEntry(
@@ -1002,7 +1010,16 @@ object CommentaryPlayerQcSupport:
         val strategyPack = truthContract.fold(rawStrategyPack)(DecisiveTruth.sanitizeStrategyPack(rawStrategyPack, _))
         val signalDigest =
           strategyPack.flatMap(_.signalDigest).orElse(NarrativeSignalDigestBuilder.build(ctx))
-        val refs = buildMoveReviewRefs(plyData.fen, data.alternatives)
+        val afterFen = NarrativeUtils.uciListToFen(plyData.fen, List(plyData.playedUci))
+        val refVariations =
+          CommentaryApi.appendMoveReviewAfterPvProofVariation(
+            fenBefore = plyData.fen,
+            lastMove = Some(plyData.playedUci),
+            afterFen = Some(afterFen),
+            base = data.alternatives,
+            afterVars = afterEval.map(_.getVariations).getOrElse(Nil)
+          )
+        val refs = buildMoveReviewRefs(plyData.fen, refVariations)
         SliceSnapshot(
           entry = entry,
           plyData = plyData,
@@ -1768,6 +1785,15 @@ object CommentaryPlayerQcSupport:
           truthContract = snapshot.truthContract
         )
       )
+    val coverageTrace =
+      MoveReviewCoverageDiagnostics.build(
+        ctx = snapshot.ctx,
+        refs = snapshot.refs,
+        strategyPack = snapshot.strategyPack,
+        truthContract = snapshot.truthContract,
+        slots = slots,
+        plannerInputs = plannerInputs
+      )
     val deterministicProse =
       Option(LiveNarrativeCompressionCore.deterministicProse(slots)).map(_.trim).getOrElse("")
     val rawPvDelta = rawCtx.decision.map(_.delta)
@@ -1846,9 +1872,10 @@ object CommentaryPlayerQcSupport:
                   !sentence.equalsIgnoreCase(existing.trim)
                 )
               )
-        ),
+      ),
       prose = prose,
-      quietSupport = quietSupportTrace
+      quietSupport = quietSupportTrace,
+      coverage = coverageTrace
     )
 
   def moveReviewPlannerTrace(snapshot: SliceSnapshot): MoveReviewPlannerTrace =

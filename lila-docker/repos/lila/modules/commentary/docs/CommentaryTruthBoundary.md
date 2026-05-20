@@ -685,6 +685,10 @@ plus the local quality-audit rerun artifacts referenced there.
   - Chronicle exact-factual fallback is claim-only:
     quiet-support diagnostics may still run for audit, but fallback rows may
     not append a support sentence once planner-owned surface composition failed
+  - MoveReview exact-factual fallback is claim-only except for legal local
+    facts emitted by `MoveReviewLocalFactualFallback`; quiet-support
+    diagnostics may still run for audit, but cannot append support beneath the
+    factual claim
   - shared-planner scene-first admission is shared-planner owned:
     Chronicle / MoveReview / Active may consume the same planner trace
     (`scene_type`, `owner_candidates`, `admitted_families`,

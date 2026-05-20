@@ -695,33 +695,17 @@ private[commentary] object MoveReviewCompressionPolicy:
               plannerRuntime.rankedPlans,
               strategyPack
             )
-          val supportCandidate =
-            Option.when(baseSlots.supportPrimary.isEmpty)(composerTrace.line).flatten
-              .flatMap { line =>
-                Option.when(!sameSentence(line.text, factual)) {
-                  claimOnly.copy(
-                    supportPrimary = Some(line.text),
-                    factGuardrails = (fallbackGuardrails ++ List(line.text)).distinct,
-                    paragraphPlan = List("p1=claim", "p2=support_chain")
-                  )
-                }
-              }
-          val liftApplied =
-            supportCandidate.exists(moveReviewContractSafe)
           val rejectReasons =
             composerTrace.rejectReasons ++
               Option.when(localSupportCandidate.nonEmpty && localSupportAccepted.isEmpty)("local_factual_support_contract_rejected") ++
-              Option.when(composerTrace.line.nonEmpty && baseSlots.supportPrimary.isEmpty && supportCandidate.isEmpty)("support_same_sentence_as_claim") ++
-              Option.when(supportCandidate.nonEmpty && !liftApplied)("support_contract_rejected")
+              Option.when(composerTrace.line.nonEmpty)("quiet_support_diagnostic_only")
           ExactFactualFallbackResult(
-            finalSlots =
-              if baseSlots.supportPrimary.nonEmpty then baseSlots
-              else supportCandidate.filter(moveReviewContractSafe).getOrElse(baseSlots),
+            finalSlots = baseSlots,
             trace =
               ExactFactualQuietSupportTrace(
                 factualSentence = Some(factual),
                 composerTrace = composerTrace,
-                liftApplied = liftApplied,
+                liftApplied = false,
                 rejectReasons = rejectReasons.distinct
               )
           )

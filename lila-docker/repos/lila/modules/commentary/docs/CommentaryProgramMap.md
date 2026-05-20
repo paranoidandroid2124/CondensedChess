@@ -75,6 +75,14 @@ may still say family when it is not naming a current pipeline layer.
   historical fixtures, test/tooling support, or MoveReview-consumed
   infrastructure. Future `SupportedLocal` / `ScopedTakeaway` expansion is
   MoveReview-first and may not reopen Chronicle/Active authority paths.
+- 2026-05-21 MoveReview evidence coverage follow-through:
+  the test/tooling corpus path now reuses the same after-PV proof-variation
+  carrier as runtime instead of a separate projection helper, and the
+  MoveReview basic lane has one bounded `line_backed_local` descriptor for
+  opening-phase / opening-labeled early-ply rows with validated coupled PV
+  proof. The full 315-row audit (`move_review_coverage_full_v5`) records
+  `planner=196`, `basic_move_explanation=119`, `exact_factual_fallback=0`,
+  with no basic evidence-gap or `SupportedLocal` evidence-gap candidates.
 - Step 1-7:
   closed and signoff-ready
 - CQF Track 0-4:
@@ -543,9 +551,20 @@ Representative preserved rows include:
 - `Nxe3`
 - `Rxc4`
 
-The selected quiet-support subset also remains intact on the representative
-`34. a5` row (`runtimeGatePassCount=4`, `quietSupportLiftAppliedCount=4`,
-baseline selected owner/question divergence `=0`, stronger-verb leakage `=0`).
+The selected quiet-support subset remains useful for source isolation on the
+representative `34. a5` row, but after the diagnostic-only fallback close a
+runtime gate pass is not an applied MoveReview lift: exact-factual MoveReview
+output must keep `quietSupportLiftApplied=false` and may audit the gate
+separately from visible prose.
+
+MoveReview evidence-coverage audit is now a test/tooling-only maintenance
+surface. Corpus JSONL rows can record the final source kind
+(`planner`, `basic_move_explanation`, or `exact_factual_fallback`), basic-lane
+emission / blocker status, and SupportedLocal candidate / admitted / reject
+families. `MoveReviewEvidenceCoverageAudit` consumes those diagnostics to rank
+the next runtime expansion candidates separately from evidence-gap candidates.
+This does not change player-facing prose or reopen the single
+planner -> basic move explanation -> exact factual fallback pipeline.
 
 The remaining residual review row is `Ng4`, a style-choice /
 `pv_delta_missing` upstream lane outside the Track 3 quiet-support planner fix.

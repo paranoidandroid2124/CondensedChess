@@ -169,12 +169,6 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         )
     )
 
-  private def assertNoForbiddenQuietSupport(text: String): Unit =
-    val lowered = text.toLowerCase
-    List("prepare", "launch", "force", "secure", "neutraliz").foreach { stem =>
-      assert(!lowered.matches(s""".*\\b${stem}\\w*\\b.*"""), clues(text, stem))
-    }
-
   private def tacticalCtx(base: NarrativeContext): NarrativeContext =
     base.copy(
       meta = Some(
@@ -1446,7 +1440,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
-  test("exact factual fallback can lift an eligible quiet-support row with one bounded support sentence") {
+  test("exact factual fallback keeps quiet-support diagnostic-only") {
     val ctx =
       MoveReviewProseGoldenFixtures.openFileFight.ctx.copy(
         authorQuestions = Nil,
@@ -1481,11 +1475,11 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(rankedPlans.ownerTrace.selectedQuestion, None, clues(rankedPlans.ownerTrace))
     assertEquals(rankedPlans.ownerTrace.selectedPlannerOwnerKind, None, clues(rankedPlans.ownerTrace))
     assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
-    assert(slots.supportPrimary.exists(_.toLowerCase.contains("available")), clues(slots))
+    assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
-    assertEquals(slots.paragraphPlan, List("p1=claim", "p2=support_chain"))
-    assertEquals(quietTrace.liftApplied, true, clues(quietTrace))
-    assertEquals(quietTrace.rejectReasons, Nil, clues(quietTrace))
+    assertEquals(slots.paragraphPlan, List("p1=claim"))
+    assertEquals(quietTrace.liftApplied, false, clues(quietTrace))
+    assert(quietTrace.rejectReasons.contains("quiet_support_diagnostic_only"), clues(quietTrace))
     assertEquals(quietTrace.composerTrace.gatePassed, true, clues(quietTrace))
     assertEquals(quietTrace.composerTrace.gate.sceneType, SceneType.TransitionConversion.wireName, clues(quietTrace))
     assertEquals(quietTrace.composerTrace.gate.pvDeltaAvailable, true, clues(quietTrace))
@@ -1495,7 +1489,6 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       Some(QuietStrategicSupportComposer.Bucket.SlowRouteImprovement),
       clues(quietTrace)
     )
-    assertNoForbiddenQuietSupport(slots.supportPrimary.getOrElse(""))
   }
 
   test("planner-owned moveReview rows skip quiet-support fallback lifting") {

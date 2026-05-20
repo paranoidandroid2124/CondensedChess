@@ -610,6 +610,12 @@ Current canonical flow:
      the endgame oracle remain the meaning producers
    - phase-only endgame moves remain closed unless exact endgame facts are
      paired with a validated PV-backed semantic interpretation
+   - when no richer descriptor owns the row, `line_backed_local` may admit a
+     conservative basic explanation only for opening-phase or opening-labeled
+     early-ply (`ply <= 20`) MoveReview contexts with a validated coupled PV
+     reply; it renders only board-local role / pawn / capture / central-break
+     wording and does not reopen tactical `creates_threat`, phase-only endgame,
+     or strategic owner authority
    - this lane may own a basic instructional paragraph, but it is not a
      strategic authority lane and may not override a certified planner claim
    - when refs contain a safe preview line, `MoveReviewShortLine` carries the
@@ -708,9 +714,11 @@ Current canonical flow:
      and current-move-owned ply-zero fork/pin/skewer candidate motifs; ambient
      motifs, quiet plan motifs, route, pressure, coordination, prophylaxis, and
      centralization remain inadmissible fallback support.
-   - local factual support, when present, occupies `supportPrimary` ahead of
-     quiet-support fallback lift; the public `moveReviewExplanation` payload
-     remains reserved for `sourceKind=basic_move_explanation`.
+   - local factual support, when present, is the only `supportPrimary` allowed
+     on this lane; quiet-support composer output remains diagnostic-only and
+     cannot attach support under an exact-factual claim. The public
+     `moveReviewExplanation` payload remains reserved for
+     `sourceKind=basic_move_explanation`.
 8. deterministic draft prose is rendered from those slots.
    - `NarrativeOutlineBuilder` still emits plain `OutlineBeat.text`, but the
      runtime now keeps several mixed families split locally until the final
@@ -969,19 +977,19 @@ Current rules:
       UCI, and legal replayed chain. If legal replay, SAN/UCI consistency, or
       captured-role anchoring is unavailable, fallback drops to the legacy
       literal move-shape floor such as `This captures.`
-    - the quiet-support baseline cohort adds one narrow fallback-lift above
+    - the quiet-support baseline cohort no longer adds fallback support above
       that floor:
-      when planner-owned slots do not survive, runtime may attach at most one
-      bounded quiet-support sentence under the exact factual claim, but only on
-      the move-linked `MoveDelta.pv_delta` subset backed by `signalDigest`
-      route / structure / pressure material
-    - local factual PV support has priority over quiet-support fallback:
-      quiet-support lift runs only when the legal local factual provider did
-      not already attach a validated factual support sentence
-    - that fallback-lift is support-only:
-      it does not reopen proof-contract authority, question ranking, legality, or
-      raw domain-hint revival, and planner trace still records the row as an
-      exact-factual fallback rather than a planner-owned promotion
+      when planner-owned slots do not survive, `QuietStrategicSupportComposer`
+      may still record gate status for QC, but its candidate line stays out of
+      `supportPrimary` and out of user-facing prose on the exact-factual lane.
+    - local factual PV support is therefore not a priority race with
+      quiet-support fallback; it is the only optional support sentence admitted
+      on the exact-factual lane, and only when the legal local factual provider
+      validated the same-FEN / first-UCI PV preview.
+    - the diagnostic quiet-support trace does not reopen proof-contract
+      authority, question ranking, legality, raw domain-hint revival, or a
+      secondary support path; planner trace still records the row as an
+      exact-factual fallback rather than a planner-owned promotion.
     - QC reruns now also record a quiet-support diagnostic trace for the
       exact-factual path, including runtime gate status
       (`sceneType`, selected planner owner kind/source, `pvDelta` availability,
@@ -1028,16 +1036,11 @@ Current rules:
       (`quiet_improvement` / `transition_conversion`, or absent), so preexisting
       `tactical_failure` rows stay in `selector_mismatch` rather than the
       baseline-selected lane
-    - latest real16 upstream-fix rerun:
-      the local quiet-support report summary under the quality-audit report
-      root
-      shows the selected quiet-support subset repaired (`runtimeGatePassCount=4`,
-      quiet-support lift applied in the artifact field `quietSupportLiftAppliedCount=4`,
-      baseline selected owner/question divergence `=0`, stronger-verb leakage
-      `=0`), and the blocked/non-eligible lane is reduced to one residual
-      fallback spike (`blockedFallbackSpikeCount=1`) after planner-owned
-      `ForcingDefense` is preserved on the representative `Ke7`, `Nxe3`, and
-      `Rxc4` blocked rows
+    - historical real16 upstream-fix reruns recorded the quiet-support gate
+      separately from planner drift. After the diagnostic-only close, a gate
+      pass is not an applied lift: `quietSupportLiftApplied` must remain false
+      for exact-factual MoveReview output, while runtime-gate status can still
+      be audited for source isolation.
     - the remaining blocked spike is the style-choice `Ng4` row where
       `NarrativeContextBuilder` does not surface move-linked `pv_delta`
       ingress (`style_choice_pv_delta_unavailable`); that residual sits
@@ -1047,8 +1050,9 @@ Current rules:
     quiet-intent gating, `CommentaryEngine` runs a post-selection
     commentability pass that reselects the next commentable move in the same
     thread or drops that surfaced move when no same-thread replacement exists
-    - Chronicle quiet-support replay now mirrors the accepted MoveReview
-      fallback-lift only on the same narrow quiet subset
+    - Chronicle quiet-support replay is a renderer-only diagnostic/internal
+      path, not a MoveReview exact-factual fallback mirror; where retained, it
+      remains limited to the same narrow quiet subset
       (`long_structural_squeeze`, `slow_route_improvement`,
       `pressure_maintenance_without_immediate_tactic`) and only when the
       replayed planner surface is already legal `MoveDelta/pv_delta`
