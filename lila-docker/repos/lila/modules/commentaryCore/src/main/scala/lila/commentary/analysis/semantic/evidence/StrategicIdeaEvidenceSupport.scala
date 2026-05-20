@@ -2,7 +2,7 @@ package lila.commentary.analysis.semantic.evidence
 
 import lila.commentary.*
 import lila.commentary.analysis.{ PlanTaxonomy, PositionFeatures, StrategicIdeaSemanticContext, StrategicStateFeatures }
-import lila.commentary.analysis.semantic.StrategicIdeaEvidence
+import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceTier }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import _root_.chess.{ Bishop, Board, Color, File, Knight, Pawn, Queen, Rank, Role, Rook, Square }
 import lila.commentary.analysis.L3.{ PawnPlayAnalysis, ThreatAnalysis, ThreatKind }
@@ -24,7 +24,8 @@ private[evidence] object StrategicIdeaEvidenceSupport:
       focusDiagonals: List[String] = Nil,
       focusZone: Option[String] = None,
       beneficiaryPieces: List[String] = Nil,
-      factIds: List[String] = Nil
+      factIds: List[String] = Nil,
+      tier: StrategicIdeaEvidenceTier = StrategicIdeaEvidenceTier.SelectorSupport
   ): StrategicIdeaEvidence =
     StrategicIdeaEvidence.from(
       ownerSide = ownerSide,
@@ -37,7 +38,8 @@ private[evidence] object StrategicIdeaEvidenceSupport:
       focusDiagonals = focusDiagonals,
       focusZone = focusZone,
       beneficiaryPieces = beneficiaryPieces,
-      factIds = factIds
+      factIds = factIds,
+      tier = tier
     )
 
   def prophylaxisThreatBonus(prevented: PreventedPlan): Double =

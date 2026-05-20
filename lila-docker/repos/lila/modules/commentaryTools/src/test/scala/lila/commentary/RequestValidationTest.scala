@@ -4,30 +4,6 @@ import munit.FunSuite
 
 class RequestValidationTest extends FunSuite:
 
-  private val ShortGamePgn =
-    """[Event "Mini"]
-      |[Site "?"]
-      |[Date "2026.03.19"]
-      |[Round "?"]
-      |[White "White"]
-      |[Black "Black"]
-      |[Result "*"]
-      |
-      |1.e4 e5 2.Nf3 Nc6 *
-      |""".stripMargin
-
-  private val LongEnoughGamePgn =
-    """[Event "Mini"]
-      |[Site "?"]
-      |[Date "2026.03.19"]
-      |[Round "?"]
-      |[White "White"]
-      |[Black "Black"]
-      |[Result "*"]
-      |
-      |1.e4 e5 2.Nf3 Nc6 3.Bb5 a6 4.Ba4 Nf6 5.O-O *
-      |""".stripMargin
-
   test("move review rejects positions before ply five") {
     val req =
       CommentRequest(
@@ -56,36 +32,6 @@ class RequestValidationTest extends FunSuite:
       )
 
     val result = CommentRequest.validateMoveReview(req)
-
-    assert(result.isRight, clues(result))
-  }
-
-  test("game review rejects games shorter than nine plies") {
-    val req =
-      FullAnalysisRequest(
-        pgn = ShortGamePgn,
-        evals = Nil,
-        options = AnalysisOptions(style = "book", focusOn = List("mistakes", "turning_points"))
-      )
-
-    val result = FullAnalysisRequest.validateGameReview(req)
-
-    assertEquals(result.left.toOption.map(_.code), Some("game_review_too_short"))
-    val error = result.left.toOption.getOrElse(fail("expected game_review_too_short"))
-    assert(error.message.contains("move 5"), clues(error.message))
-    assert(error.message.contains("Game Review"), clues(error.message))
-    assert(!error.message.toLowerCase.contains("ply"), clues(error.message))
-  }
-
-  test("game review accepts games from ply nine onward") {
-    val req =
-      FullAnalysisRequest(
-        pgn = LongEnoughGamePgn,
-        evals = Nil,
-        options = AnalysisOptions(style = "book", focusOn = List("mistakes", "turning_points"))
-      )
-
-    val result = FullAnalysisRequest.validateGameReview(req)
 
     assert(result.isRight, clues(result))
   }

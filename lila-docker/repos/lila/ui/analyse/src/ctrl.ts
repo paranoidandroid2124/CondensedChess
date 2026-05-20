@@ -57,15 +57,8 @@ import {
   type BoardLabelMode,
 } from './boardWorkspace';
 import {
-  make as makeNarrative,
-  type GameChronicleMoment,
-  type GameChronicleResponse,
-  type NarrativeCtrl,
-} from './narrative/narrativeCtrl';
-import {
   initialReviewState,
   reduceReviewState,
-  shouldFetchReviewPatterns,
   type NarrativeMomentFilter,
   type ReviewPrimaryTab,
   type ReviewSurfaceMode,
@@ -100,51 +93,6 @@ interface AnalyseHistoryState {
 
 function magicLinkHref(): string {
   return `/auth/magic-link?referrer=${encodeURIComponent(location.pathname + location.search)}`;
-}
-
-function clipStudyNote(text: string | null | undefined, max: number): string {
-  const normalized = (text || '').replace(/\s+/g, ' ').trim();
-  if (!normalized) return '';
-  if (normalized.length <= max) return normalized;
-  return `${normalized.slice(0, max - 3).trimEnd()}...`;
-}
-
-function studyMomentLabel(moment: GameChronicleMoment): string {
-  const moveNumber = moment.moveNumber || Math.floor((moment.ply + 1) / 2);
-  const side = moment.side || (moment.ply % 2 === 0 ? 'black' : 'white');
-  return `${moveNumber}${side === 'black' ? '...' : '.'}`;
-}
-
-function buildStudyNarrativeNote(data: GameChronicleResponse | null | undefined): string | null {
-  if (!data) return null;
-  const lines: string[] = ['Guided review notebook brief'];
-
-  if (data.themes?.length) lines.push(`Themes: ${data.themes.join(' | ')}`);
-
-  const intro = clipStudyNote(data.intro, 1200);
-  if (intro) {
-    lines.push('');
-    lines.push(intro);
-  }
-
-  const highlights = (data.moments || []).slice(0, 5).flatMap(moment => {
-    const narrative = clipStudyNote(moment.narrative, 220);
-    return narrative ? [`- ${studyMomentLabel(moment)} ${narrative}`] : [];
-  });
-
-  if (highlights.length) {
-    lines.push('');
-    lines.push('Highlighted moments');
-    lines.push(...highlights);
-  }
-
-  const conclusion = clipStudyNote(data.conclusion, 320);
-  if (conclusion) {
-    lines.push('');
-    lines.push(`Closing note: ${conclusion}`);
-  }
-
-  return lines.join('\n').trim();
 }
 
 function snapshotVariationsForStudy(snapshot: StudyMoveReviewSnapshot): any[] {
@@ -188,7 +136,6 @@ export default class AnalyseCtrl implements CevalHandler {
   promotion: PromotionCtrl;
 
   moveReview?: MoveReviewNarrative;
-  narrative?: NarrativeCtrl;
 
   // state flags
   justPlayed?: string; // pos
@@ -248,7 +195,6 @@ export default class AnalyseCtrl implements CevalHandler {
   requestInitialPly?: number; // start ply from the URL location hash
   cgConfig: any; // latest chessground config (useful for revert)
   pvUciQueue: Uci[] = [];
-  private narrativeRouteOverlay: { fen: FEN; shapes: DrawShape[] } | null = null;
   private restoringHistory = false;
 
   constructor(
@@ -267,8 +213,6 @@ export default class AnalyseCtrl implements CevalHandler {
 
     if (this.data.forecast) this.forecast = new ForecastCtrl(this.data.forecast, this.data, redraw);
     if (this.opts.moveReview) this.moveReview = moveReviewNarrative(this);
-
-    this.narrative = makeNarrative(this);
 
     this.instanciateEvalCache();
 
@@ -290,7 +234,6 @@ export default class AnalyseCtrl implements CevalHandler {
     this.resetAutoShapes();
     this.explorer.setNode();
     this.explorer.setNode();
-    this.narrative.syncPersistedNarrative();
 
     if (location.hash === '#menu') requestIdleCallback(this.actionMenu.toggle, 500);
     this.startCeval();
@@ -454,7 +397,7 @@ export default class AnalyseCtrl implements CevalHandler {
 
   studyActionToneValue = (): 'info' | 'success' | 'error' => this.studyActionTone;
 
-  hasNarrativeStudyBrief = (): boolean => !!buildStudyNarrativeNote(this.narrative?.data());
+  hasNarrativeStudyBrief = (): boolean => false;
 
   studyStatusText = (): string => {
     if (this.studyWriteError) return `Notebook sync paused: ${this.studyWriteError}`;
@@ -515,15 +458,6 @@ export default class AnalyseCtrl implements CevalHandler {
       });
 
       const ref: studyApi.StudyRef = { id: created.id, chapterId: created.chapterId };
-      const narrativeNote = buildStudyNarrativeNote(this.narrative?.data());
-
-      if (narrativeNote) {
-        try {
-          await studyApi.setNodeComment(ref, '', narrativeNote);
-        } catch (e) {
-          console.warn('Study narrative note export failed', e);
-        }
-      }
 
       if (snapshots.length) {
         this.studyTransferCount = snapshots.length;
@@ -853,7 +787,6 @@ export default class AnalyseCtrl implements CevalHandler {
     this.syncWorkspacePrefs();
     this.redirecting = false;
     this.setPath(treePath.root);
-    this.narrative?.syncPersistedNarrative();
     this.initCeval();
     this.instanciateEvalCache();
     this.cgVersion.js++;
@@ -1115,15 +1048,6 @@ export default class AnalyseCtrl implements CevalHandler {
   setAutoShapes = (): void => {
     if (!site.blindMode) this.chessground?.setAutoShapes(computeAutoShapes(this));
   };
-
-  setNarrativeRouteOverlay = (overlay: { fen: FEN; shapes: DrawShape[] } | null): void => {
-    this.narrativeRouteOverlay = overlay;
-    this.setAutoShapes();
-    this.redraw();
-  };
-
-  narrativeRouteOverlayShapes = (): DrawShape[] =>
-    this.narrativeRouteOverlay?.fen === this.node.fen ? this.narrativeRouteOverlay.shapes : [];
 
   private onNewCeval = (ev: Tree.ClientEval, path: Tree.Path, isThreat?: boolean): void => {
     this.tree.updateAt(path, (node: Tree.Node) => {
@@ -1503,33 +1427,30 @@ export default class AnalyseCtrl implements CevalHandler {
 
   setReviewSelectedMoment = (ply: Ply | null): void => {
     if (!this.isReviewShell()) return;
-    const moment = ply ? this.findReviewMomentByPly(ply) : undefined;
     this.setReviewState({
       ...this.reviewState(),
       selectedMomentPly: ply,
-      selectedCollapseId: moment?.collapse?.interval ?? this.selectedReviewCollapseId(),
+      selectedCollapseId: null,
     });
   };
 
   selectReviewMoment = (ply: Ply | null): void => {
     if (!this.isReviewShell()) return;
-    const moment = ply ? this.findReviewMomentByPly(ply) : undefined;
     this.setReviewState({
       ...this.reviewState(),
-      primaryTab: 'moments',
+      primaryTab: 'explain',
       selectedMomentPly: ply,
-      selectedCollapseId: moment?.collapse?.interval ?? this.selectedReviewCollapseId(),
+      selectedCollapseId: null,
     });
   };
 
   selectReviewCollapse = (collapseId: string | null): void => {
     if (!this.isReviewShell()) return;
-    const moment = collapseId ? this.findReviewMomentByCollapseId(collapseId) : undefined;
     this.setReviewState({
       ...this.reviewState(),
-      primaryTab: 'repair',
+      primaryTab: 'explain',
       selectedCollapseId: collapseId,
-      selectedMomentPly: moment?.ply ?? this.selectedReviewMomentPly(),
+      selectedMomentPly: null,
     });
   };
 
@@ -1552,158 +1473,30 @@ export default class AnalyseCtrl implements CevalHandler {
 
   private syncReviewShellState(state: ReviewUIState): void {
     if (!this.isReviewShell()) return;
-    const explorerOpen = state.surfaceMode === 'raw' && state.primaryTab === 'explorer' && this.explorer.allowed();
+    const explorerOpen = state.primaryTab === 'explorer' && this.explorer.allowed();
     if (explorerOpen) {
       if (!this.explorer.enabled()) this.explorer.toggle();
       this.explorer.setNode();
     } else this.explorer.disable();
-    this.actionMenu(state.surfaceMode === 'raw' && state.primaryTab === 'board');
-    if (
-      state.surfaceMode === 'raw' &&
-      shouldFetchReviewPatterns(state, {
-        narrativeAvailable: !!this.narrative,
-        hasDnaData: !!this.narrative?.dnaData(),
-        dnaLoading: !!this.narrative?.dnaLoading(),
-      })
-    )
-      void this.narrative!.fetchDefeatDna();
+    this.actionMenu(state.primaryTab === 'board');
   }
 
   private ensureReviewSelections(state: ReviewUIState): ReviewUIState {
-    let next = state;
-    if ((next.primaryTab === 'explorer' || next.utilityPanel === 'explorer') && !this.explorer.allowed())
-      next = { ...next, primaryTab: 'moves', utilityPanel: null };
-    if (next.surfaceMode === 'review' && next.utilityPanel) next = { ...next, utilityPanel: null };
-    if (
-      next.surfaceMode === 'raw' &&
-      next.primaryTab !== 'moves' &&
-      next.primaryTab !== 'patterns' &&
-      next.primaryTab !== 'import' &&
-      next.primaryTab !== 'explain' &&
-      next.primaryTab !== 'engine' &&
-      next.primaryTab !== 'explorer' &&
-      next.primaryTab !== 'board'
-    )
-      next = { ...next, primaryTab: 'moves' };
-    const moment = next.selectedMomentPly ? this.findReviewMomentByPly(next.selectedMomentPly) : undefined;
-    if (next.surfaceMode === 'review') {
-      const reviewMoments = this.reviewMoments('critical');
-      const fallbackMoment = reviewMoments[0] || this.reviewMoments('all')[0];
-      if (!fallbackMoment) next = { ...next, selectedMomentPly: null, selectedCollapseId: null };
-      else if (!moment)
-        next = {
-          ...next,
-          selectedMomentPly: fallbackMoment.ply,
-          selectedCollapseId: fallbackMoment.collapse?.interval ?? next.selectedCollapseId,
-        };
-    }
-    if (next.primaryTab === 'moments') {
-      const filtered = this.reviewMoments(next.momentFilter);
-      if (!filtered.length) next = { ...next, selectedMomentPly: null };
-      else if (!moment || !filtered.some(candidate => candidate.ply === moment.ply))
-        next = { ...next, selectedMomentPly: filtered[0].ply };
-    }
-    if (next.primaryTab === 'repair') {
-      const collapseMoment = next.selectedCollapseId
-        ? this.findReviewMomentByCollapseId(next.selectedCollapseId)
-        : undefined;
-      const firstCollapse = this.reviewCollapseMoments()[0];
-      if (!firstCollapse) next = { ...next, selectedCollapseId: null };
-      else if (!collapseMoment)
-        next = {
-          ...next,
-          selectedCollapseId: firstCollapse.collapse!.interval,
-          selectedMomentPly: next.selectedMomentPly ?? firstCollapse.ply,
-        };
-    }
-    return next;
+    const allowedTabs = new Set<ReviewPrimaryTab>(['explain', 'engine', 'explorer', 'moves', 'import', 'board']);
+    const primaryTab = allowedTabs.has(state.primaryTab) ? state.primaryTab : 'explain';
+    const utilityPanel =
+      primaryTab === 'explorer' || primaryTab === 'board' ? primaryTab : null;
+    return {
+      ...state,
+      surfaceMode: 'review',
+      primaryTab,
+      utilityPanel,
+      selectedMomentPly: null,
+      selectedCollapseId: null,
+    };
   }
 
-  private reviewMoments(filter: NarrativeMomentFilter = this.reviewMomentFilter()): GameChronicleMoment[] {
-    const moments = this.narrative?.data()?.moments || [];
-    if (filter === 'all') return moments.slice();
-    if (filter === 'collapses') return moments.filter(moment => !!moment.collapse);
-    return moments.filter(this.isCriticalReviewMoment);
-  }
-
-  private reviewCollapseMoments(): GameChronicleMoment[] {
-    return (this.narrative?.data()?.moments || []).filter(moment => !!moment.collapse);
-  }
-
-  private isCriticalReviewMoment(moment: GameChronicleMoment): boolean {
-    if (moment.collapse) return true;
-    const haystack = [moment.moveClassification, moment.momentType, moment.strategicSalience]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-    return ['critical', 'turning', 'blunder', 'mistake', 'missed', 'swing'].some(token => haystack.includes(token));
-  }
-
-  private findReviewMomentByPly(ply: Ply): GameChronicleMoment | undefined {
-    return (this.narrative?.data()?.moments || []).find(moment => moment.ply === ply);
-  }
-
-  private findReviewMomentByCollapseId(collapseId: string): GameChronicleMoment | undefined {
-    return (this.narrative?.data()?.moments || []).find(moment => moment.collapse?.interval === collapseId);
-  }
-
-  private syncReviewSelectionFromNode(): void {
-    if (!this.isReviewShell()) return;
-    const state = this.reviewState();
-    let next = state;
-
-    if (state.surfaceMode === 'review') {
-      const exactMoment = this.findReviewMomentByPly(this.node.ply);
-      if (exactMoment && exactMoment.ply !== state.selectedMomentPly) {
-        next = {
-          ...next,
-          selectedMomentPly: exactMoment.ply,
-          selectedCollapseId: exactMoment.collapse?.interval ?? next.selectedCollapseId,
-        };
-      }
-    }
-
-    if (state.primaryTab === 'moments') {
-      const exactMoment = this.findReviewMomentByPly(this.node.ply);
-      if (exactMoment && exactMoment.ply !== state.selectedMomentPly) {
-        next = {
-          ...next,
-          selectedMomentPly: exactMoment.ply,
-          selectedCollapseId: exactMoment.collapse?.interval ?? next.selectedCollapseId,
-        };
-      }
-    }
-
-    if (state.primaryTab === 'repair') {
-      const collapseMoment =
-        this.reviewCollapseMoments().find(moment => this.reviewCollapseContainsPly(moment, this.node.ply)) ||
-        (state.selectedCollapseId ? this.findReviewMomentByCollapseId(state.selectedCollapseId) : undefined);
-      if (
-        collapseMoment?.collapse &&
-        (collapseMoment.collapse.interval !== state.selectedCollapseId || collapseMoment.ply !== state.selectedMomentPly)
-      ) {
-        next = {
-          ...next,
-          selectedCollapseId: collapseMoment.collapse.interval,
-          selectedMomentPly: collapseMoment.ply,
-        };
-      }
-    }
-
-    if (next !== state) {
-      this.reviewState(next);
-      this.persistReviewState(next);
-    }
-  }
-
-  private reviewCollapseContainsPly(moment: GameChronicleMoment, ply: Ply): boolean {
-    const collapse = moment.collapse;
-    if (!collapse) return false;
-    const [startRaw, endRaw] = collapse.interval.split('-').map(Number);
-    const start = Number.isFinite(startRaw) ? startRaw : moment.ply;
-    const end = Number.isFinite(endRaw) ? endRaw : start;
-    return (ply >= start && ply <= end) || ply === collapse.earliestPreventablePly || ply === moment.ply;
-  }
+  private syncReviewSelectionFromNode(): void {}
 
   activeControlBarTool() {
     if (this.isReviewShell()) {
@@ -1713,9 +1506,7 @@ export default class AnalyseCtrl implements CevalHandler {
     }
     return this.actionMenu()
       ? 'action-menu'
-      : this.narrative?.enabled()
-        ? 'narrative'
-        : this.explorer.enabled()
+      : this.explorer.enabled()
           ? 'opening-explorer'
           : false;
   }
@@ -1791,7 +1582,6 @@ export default class AnalyseCtrl implements CevalHandler {
     }
     if (!this.actionMenu()) {
       if (this.explorer.enabled()) this.explorer.toggle();
-      this.narrative?.enabled(false);
     }
     this.actionMenu.toggle();
   };
@@ -1809,37 +1599,8 @@ export default class AnalyseCtrl implements CevalHandler {
     if (!this.explorer.allowed()) return;
     if (!this.explorer.enabled()) {
       this.actionMenu(false);
-      this.narrative?.enabled(false);
     }
     this.explorer.toggle();
-  };
-
-  toggleNarrative = (): void => {
-    if (!this.narrative) return;
-    if (this.isReviewShell()) {
-      this.setReviewSurfaceMode('review');
-      this.setReviewPrimaryTab('overview');
-      if (!this.narrative.data() && !this.narrative.loading()) void this.openNarrative();
-      return;
-    }
-    if (!this.narrative.enabled()) {
-      this.actionMenu(false);
-      this.explorer.disable();
-    }
-    this.narrative.toggle();
-  };
-
-  openNarrative = async (pgnOverride?: string | null): Promise<void> => {
-    if (!this.narrative) return;
-    if (this.isReviewShell()) {
-      this.setReviewSurfaceMode('review');
-      this.setReviewPrimaryTab('overview');
-    }
-    else {
-      this.actionMenu(false);
-      this.explorer.disable();
-    }
-    await this.narrative.openAndFetch(pgnOverride);
   };
 
   withCg = <A>(f: (cg: ChessgroundApi) => A): A | undefined =>

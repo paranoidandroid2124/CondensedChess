@@ -105,7 +105,7 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     assertEquals(explanation, None, clues(explanation))
     assertEquals(
       MoveReviewProseContract.stripMoveHeader(slots.claim),
-      "This is a pawn move to h3.",
+      "This moves the pawn to h3.",
       clues(slots)
     )
     assertEquals(slots.paragraphPlan, List("p1=claim"), clues(slots))

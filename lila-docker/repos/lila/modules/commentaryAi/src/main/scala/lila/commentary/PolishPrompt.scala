@@ -1,6 +1,7 @@
 package lila.commentary
 
 import lila.commentary.analysis.{ MoveReviewPolishSlots, LiveNarrativeCompressionCore }
+import lila.commentary.model.FactFragment
 
 /** System prompt and per-request polish prompt builder for AI polishing.
   *
@@ -40,6 +41,26 @@ object PolishPrompt:
 
   private def optionalLine(label: String, value: Option[String]): Option[String] =
     value.map(_.trim).filter(_.nonEmpty).map(v => s"$label: $v")
+
+  private def show_fact_data(fragments: List[FactFragment]): String =
+    fragments.map {
+      case f: FactFragment.OpeningGoalFragment =>
+        val optOpening = f.openingName.map(n => s" | opening: $n").getOrElse("")
+        val supported = if (f.supportedEvidence.nonEmpty) s" | supported: ${f.supportedEvidence.mkString(", ")}" else ""
+        s"- OpeningGoal | san: ${f.san}$optOpening | goal: ${f.goalName}$supported"
+      case f: FactFragment.KingSafetyFragment =>
+        s"- KingSafety | san: ${f.san}"
+      case f: FactFragment.StrategicSupportFragment =>
+        s"- StrategicSupport | san: ${f.san} | family: ${f.proofFamily} | source: ${f.proofSource} | purpose: ${f.purpose}"
+      case f: FactFragment.TacticalThreatFragment =>
+        s"- TacticalThreat | san: ${f.san} | kind: ${f.kind} | targets: ${f.targets.mkString(", ")}"
+      case f: FactFragment.DirectThreatFragment =>
+        s"- DirectThreat | san: ${f.san} | defensive: ${f.isDefensive} | reason: ${f.reason}"
+      case f: FactFragment.CaptureFragment =>
+        s"- Capture | san: ${f.san} | purpose: ${f.purpose}"
+      case f: FactFragment.EndgameFragment =>
+        s"- Endgame | san: ${f.san} | facts: ${f.facts.mkString(", ")}"
+    }.mkString("\n")
 
   private def contextHeader(
       phase: String,
@@ -159,6 +180,9 @@ object PolishPrompt:
     val modeReminder = moveReviewParagraphReminder(momentType, moveReviewSlots)
     moveReviewSlots match
       case Some(slots) =>
+        val dryFactsSection = slots.factFragments.filter(_.nonEmpty).map { frags =>
+          s"\n## DRY FACTS\n${show_fact_data(frags)}"
+        }.getOrElse("")
         val supportText = slots.support.mkString("\n")
         val claimLead = claimOpeningClause(slots.claim)
         val tensionSection = slots.tension.map(t => s"\n## SLOT TENSION\n$t").getOrElse("")
@@ -210,7 +234,7 @@ object PolishPrompt:
            |${slots.claim}
            |
            |## SLOT SUPPORT
-           |$supportText$tensionSection$evidenceSection$codaSection
+           |$supportText$tensionSection$evidenceSection$codaSection$dryFactsSection
            |
            |## FACT GUARDRAILS
            |$guardrailText""".stripMargin
@@ -266,6 +290,9 @@ object PolishPrompt:
         .mkString(", ")
     moveReviewSlots match
       case Some(slots) =>
+        val dryFactsSection = slots.factFragments.filter(_.nonEmpty).map { frags =>
+          s"\n## DRY FACTS\n${show_fact_data(frags)}"
+        }.getOrElse("")
         val supportText = slots.support.mkString("\n")
         val claimLead = claimOpeningClause(slots.claim)
         val tensionSection = slots.tension.map(t => s"\n## SLOT TENSION\n$t").getOrElse("")
@@ -312,7 +339,7 @@ object PolishPrompt:
            |${slots.claim}
            |
            |## SLOT SUPPORT
-           |$supportText$tensionSection$evidenceSection$codaSection
+           |$supportText$tensionSection$evidenceSection$codaSection$dryFactsSection
            |
            |## FACT GUARDRAILS
            |$guardrailText

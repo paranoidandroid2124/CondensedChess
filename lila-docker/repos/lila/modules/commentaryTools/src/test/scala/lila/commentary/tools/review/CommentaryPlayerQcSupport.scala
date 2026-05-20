@@ -868,7 +868,7 @@ object CommentaryPlayerQcSupport:
       generatedAt = Instant.now().toString,
       asOfDate = java.time.LocalDate.now().toString,
       title = "Commentary Player QC Corpus",
-      description = "External mixed PGN corpus for MoveReview/Game Chronicle qualitative signoff.",
+      description = "External mixed PGN corpus for MoveReview qualitative signoff.",
       games =
         entries.map { entry =>
           val pgn = Files.readString(Paths.get(entry.pgnPath), StandardCharsets.UTF_8)

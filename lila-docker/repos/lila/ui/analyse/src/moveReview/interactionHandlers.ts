@@ -100,23 +100,23 @@ export function initMoveReviewHandlers(onEvalToggle: () => void): void {
       const fen = $(this).data('fen');
       const color = $(this).data('color') || 'white';
       const lastmove = $(this).data('lastmove');
-      if (fen) pubsub.emit('analysis.move-review.hover', { fen, color, lastmove });
+      if (fen) pubsub.emit('analysis.move-review.hover' as any, { fen, color, lastmove });
     })
     .on('mouseleave.moveReview', '.analyse__move-review-text .pv-line', () => {
-      pubsub.emit('analysis.move-review.hover', null);
+      pubsub.emit('analysis.move-review.hover' as any, null);
     })
     .on('click.moveReview', '.analyse__move-review-text .move-chip', function (this: HTMLElement) {
       if (suppressNextTap) return;
       const uci = $(this).data('uci');
       const san = $(this).data('san');
-      if (uci) pubsub.emit('analysis.move-review.move', { uci, san });
+      if (uci) pubsub.emit('analysis.move-review.move' as any, { uci, san });
     })
     .on('keydown.moveReview', '.analyse__move-review-text .move-chip--interactive', function (this: HTMLElement, e) {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
       const uci = $(this).data('uci');
       const san = $(this).data('san');
-      if (uci) pubsub.emit('analysis.move-review.move', { uci, san });
+      if (uci) pubsub.emit('analysis.move-review.move' as any, { uci, san });
     })
     .on('keydown.moveReview', '.analyse__move-review-text [data-ref-id], .analyse__move-review-text [data-board]', function (this: HTMLElement, e) {
       if (e.key !== 'Escape') return;

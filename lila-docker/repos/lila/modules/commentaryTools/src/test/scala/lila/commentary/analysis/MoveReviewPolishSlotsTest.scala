@@ -1,5 +1,6 @@
 package lila.commentary.analysis
 
+import chess.*
 import munit.FunSuite
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
@@ -197,6 +198,62 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       beats = List(
         OutlineBeat(kind = OutlineBeatKind.Context, text = "Context beat."),
         OutlineBeat(kind = OutlineBeatKind.MainMove, text = s"$claim $followUp")
+      )
+    )
+
+  private def localFallbackCtx(
+      fen: String,
+      playedMove: String,
+      playedSan: String,
+      ply: Int = 1
+  ): NarrativeContext =
+    NarrativeContext(
+      fen = fen,
+      header = ContextHeader("Middlegame", "Normal", "StyleChoice", "Low", "ExplainPlan"),
+      ply = ply,
+      playedMove = Some(playedMove),
+      playedSan = Some(playedSan),
+      summary = NarrativeSummary("local factual fallback", None, "StyleChoice", "Maintain", "0.00"),
+      threats = ThreatTable(Nil, Nil),
+      pawnPlay = PawnPlayTable(false, None, "Low", "Maintain", "Quiet", "Background", None, false, "quiet"),
+      plans = PlanTable(Nil, Nil),
+      delta = None,
+      phase = PhaseContext("Middlegame", "local factual fallback"),
+      candidates = Nil,
+      renderMode = NarrativeRenderMode.MoveReview
+    )
+
+  private def legalRefsForLine(
+      startFen: String,
+      ucis: List[String],
+      sans: List[String],
+      lineId: String = "line_01"
+  ): MoveReviewRefs =
+    val fens =
+      ucis.indices.toList.map(idx => NarrativeUtils.uciListToFen(startFen, ucis.take(idx + 1)))
+    MoveReviewRefs(
+      startFen = startFen,
+      startPly = NarrativeUtils.plyFromFen(startFen).map(_ + 1).getOrElse(1),
+      variations = List(
+        MoveReviewVariationRef(
+          lineId = lineId,
+          scoreCp = 32,
+          mate = None,
+          depth = 18,
+          moves =
+            ucis.zip(sans).zipWithIndex.map { case ((uci, san), idx) =>
+              val ply = NarrativeUtils.plyFromFen(startFen).map(_ + 1 + idx).getOrElse(idx + 1)
+              MoveReviewMoveRef(
+                refId = s"${lineId}_m${idx + 1}",
+                san = san,
+                uci = uci,
+                fenAfter = fens(idx),
+                ply = ply,
+                moveNo = (ply + 1) / 2,
+                marker = None
+              )
+            }
+        )
       )
     )
 
@@ -1126,6 +1183,244 @@ class MoveReviewPolishSlotsTest extends FunSuite:
 
     assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures on c6.")
     assertEquals(slots.paragraphPlan, List("p1=claim"))
+  }
+
+  test("direct moveReview fallback uses legal board truth to name the captured piece") {
+    val fen = "7k/8/2n5/8/2Q5/8/8/4K3 w - - 0 1"
+    val ctx =
+      localFallbackCtx(
+        fen = fen,
+        playedMove = "c4c6",
+        playedSan = "Qxc6"
+      )
+    val outline = genericDecisionOutline("A capture.", "Nothing else is stable.")
+    val slots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = None
+      )
+
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures the knight on c6.")
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ExactFactualFallback)
+    assertEquals(slots.supportPrimary, Some("The local material change is a captured knight."))
+    assertEquals(slots.paragraphPlan, List("p1=claim", "p2=support_chain"))
+  }
+
+  test("direct moveReview fallback names only legal local pawn and promotion facts") {
+    val pawnCtx =
+      localFallbackCtx(
+        fen = "4k3/8/8/8/8/8/P7/4K3 w - - 0 1",
+        playedMove = "a2a3",
+        playedSan = "a3"
+      )
+    val promotionCtx =
+      localFallbackCtx(
+        fen = "8/4P3/k7/8/8/8/8/4K3 w - - 0 1",
+        playedMove = "e7e8q",
+        playedSan = "e8=Q"
+      )
+    val outline = genericDecisionOutline("A local move.", "Nothing else is stable.")
+    val pawnSlots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(pawnCtx, outline, refs = None, strategyPack = None)
+    val promotionSlots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(promotionCtx, outline, refs = None, strategyPack = None)
+
+    assertEquals(MoveReviewProseContract.stripMoveHeader(pawnSlots.claim), "This moves the pawn to a3.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(promotionSlots.claim), "This promotes to a queen on e8.")
+    assertEquals(pawnSlots.supportPrimary, None)
+    assertEquals(promotionSlots.supportPrimary, Some("The local material change is a pawn becoming a queen."))
+  }
+
+  test("direct moveReview fallback adds coupled PV support only when the line replays") {
+    val fen = "7k/8/2n5/8/2Q5/8/8/4K3 w - - 0 1"
+    val ctx =
+      localFallbackCtx(
+        fen = fen,
+        playedMove = "c4c6",
+        playedSan = "Qxc6"
+      )
+    val refs =
+      legalRefsForLine(
+        fen,
+        List("c4c6", "h8g8", "c6d6"),
+        List("Qxc6", "Kg8", "Qd6")
+      )
+    val corrupted =
+      refs.copy(
+        variations =
+          refs.variations.map(line =>
+            line.copy(moves = line.moves.updated(1, line.moves(1).copy(fenAfter = line.moves.head.fenAfter)))
+          )
+      )
+    val outline = genericDecisionOutline("A capture.", "Nothing else is stable.")
+    val supported =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = Some(refs), strategyPack = None)
+    val unsupported =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = Some(corrupted), strategyPack = None)
+
+    assertEquals(MoveReviewProseContract.stripMoveHeader(supported.claim), "This captures the knight on c6.")
+    assertEquals(
+      supported.supportPrimary,
+      Some("The local material change is a captured knight. The checked line begins Qxc6 Kg8.")
+    )
+    assertEquals(supported.paragraphPlan, List("p1=claim", "p2=support_chain"))
+    assertEquals(unsupported.supportPrimary, Some("The local material change is a captured knight."))
+    assertEquals(unsupported.paragraphPlan, List("p1=claim", "p2=support_chain"))
+  }
+
+  test("direct local factual fallback does not read surface-only strategy pack prose") {
+    val fen = "7k/8/2n5/8/2Q5/8/8/4K3 w - - 0 1"
+    val ctx =
+      localFallbackCtx(
+        fen = fen,
+        playedMove = "c4c6",
+        playedSan = "Qxc6"
+      )
+    val refs =
+      legalRefsForLine(
+        fen,
+        List("c4c6", "h8g8", "c6d6"),
+        List("Qxc6", "Kg8", "Qd6")
+      )
+    val strategyPack =
+      Some(
+        surfaceDrivenPack(
+          routePurpose = "compensation route pressure",
+          targetSquare = "g7",
+          compensation = Some("compensation for material")
+        )
+      )
+    val slots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        genericDecisionOutline("A capture.", "Nothing else is stable."),
+        refs = Some(refs),
+        strategyPack = strategyPack
+      )
+    val renderedFallback =
+      (List(MoveReviewProseContract.stripMoveHeader(slots.claim)) ++ slots.supportPrimary.toList)
+        .mkString(" ")
+        .toLowerCase
+
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures the knight on c6.")
+    assertEquals(
+      slots.supportPrimary,
+      Some("The local material change is a captured knight. The checked line begins Qxc6 Kg8.")
+    )
+    assert(!renderedFallback.contains("compensation"), clue(renderedFallback))
+    assert(!renderedFallback.contains("pressure"), clue(renderedFallback))
+    assert(!renderedFallback.contains("route"), clue(renderedFallback))
+    assert(!renderedFallback.contains("g7"), clue(renderedFallback))
+  }
+
+  test("direct moveReview fallback names special capture and promotion material facts") {
+    val enPassant =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        localFallbackCtx(
+          fen = "rnbqkbnr/pp2pppp/8/2ppP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 3",
+          playedMove = "e5d6",
+          playedSan = "exd6"
+        ),
+        genericDecisionOutline("A local move.", "Nothing else is stable."),
+        refs = None,
+        strategyPack = None
+      )
+    val promotionCapture =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        localFallbackCtx(
+          fen = "7r/6P1/k7/8/8/8/8/4K3 w - - 0 1",
+          playedMove = "g7h8q",
+          playedSan = "gxh8=Q"
+        ),
+        genericDecisionOutline("A local move.", "Nothing else is stable."),
+        refs = None,
+        strategyPack = None
+      )
+
+    assertEquals(MoveReviewProseContract.stripMoveHeader(enPassant.claim), "This captures the pawn en passant and lands on d6.")
+    assertEquals(enPassant.supportPrimary, Some("The local material change is a captured pawn."))
+    assertEquals(
+      MoveReviewProseContract.stripMoveHeader(promotionCapture.claim),
+      "This captures the rook on h8 and promotes to a queen."
+    )
+    assertEquals(
+      promotionCapture.supportPrimary,
+      Some("The local material change is a captured rook plus a pawn becoming a queen.")
+    )
+  }
+
+  test("direct moveReview fallback adds only board-local tactical check support") {
+    val checkSlots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        localFallbackCtx(
+          fen = "4k3/8/8/8/8/8/4R3/4K3 w - - 0 1",
+          playedMove = "e2e7",
+          playedSan = "Re7+"
+        ),
+        genericDecisionOutline("A local move.", "Nothing else is stable."),
+        refs = None,
+        strategyPack = None
+      )
+    val mateSlots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        localFallbackCtx(
+          fen = "7k/8/5KQ1/8/8/8/8/8 w - - 0 1",
+          playedMove = "g6g7",
+          playedSan = "Qg7#"
+        ),
+        genericDecisionOutline("A local move.", "Nothing else is stable."),
+        refs = None,
+        strategyPack = None
+      )
+
+    assertEquals(MoveReviewProseContract.stripMoveHeader(checkSlots.claim), "This puts the rook on e7.")
+    assertEquals(checkSlots.supportPrimary, Some("It also gives check."))
+    assertEquals(MoveReviewProseContract.stripMoveHeader(mateSlots.claim), "This puts the queen on g7.")
+    assertEquals(mateSlots.supportPrimary, Some("It also gives checkmate."))
+  }
+
+  test("direct moveReview fallback only uses current-move-owned tactical motifs") {
+    val fen = "4k3/4r3/8/8/3N3q/8/8/2K5 w - - 0 1"
+    val forkCandidate =
+      CandidateInfo(
+        move = "Nf5",
+        uci = Some("d4f5"),
+        annotation = "",
+        planAlignment = "local tactic",
+        tacticalAlert = None,
+        practicalDifficulty = "clean",
+        whyNot = None,
+        lineMotifs =
+          List(Motif.Fork(Knight, List(Rook, Queen), Square.F5, List(Square.E7, Square.H4), Color.White, 0, Some("Nf5")))
+      )
+    val laterForkCandidate =
+      forkCandidate.copy(lineMotifs =
+        List(Motif.Fork(Knight, List(Rook, Queen), Square.F5, List(Square.E7, Square.H4), Color.White, 1, Some("Nf5")))
+      )
+    val quietMotifCandidate =
+      forkCandidate.copy(lineMotifs =
+        List(Motif.Centralization(Knight, Square.F5, Color.White, 0, Some("Nf5")))
+      )
+    val baseCtx =
+      localFallbackCtx(
+        fen = fen,
+        playedMove = "d4f5",
+        playedSan = "Nf5"
+      )
+    val outline = genericDecisionOutline("A local move.", "Nothing else is stable.")
+    val owned =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(baseCtx.copy(candidates = List(forkCandidate)), outline, refs = None, strategyPack = None)
+    val plyLater =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(baseCtx.copy(candidates = List(laterForkCandidate)), outline, refs = None, strategyPack = None)
+    val quiet =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(baseCtx.copy(candidates = List(quietMotifCandidate)), outline, refs = None, strategyPack = None)
+
+    assertEquals(MoveReviewProseContract.stripMoveHeader(owned.claim), "This puts the knight on f5.")
+    assertEquals(owned.supportPrimary, Some("It also creates a fork."))
+    assertEquals(plyLater.supportPrimary, None)
+    assertEquals(quiet.supportPrimary, None)
   }
 
   test("direct moveReview fallback keeps ambiguous captures literal") {

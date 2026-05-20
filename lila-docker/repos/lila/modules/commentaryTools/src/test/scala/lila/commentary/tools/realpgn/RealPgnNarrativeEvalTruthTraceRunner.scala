@@ -228,7 +228,7 @@ object RealPgnNarrativeEvalTruthTraceRunner:
         sourceMode = "rule",
         model = None,
         planTier = PlanTier.Pro,
-        commentaryMode = CommentaryMode.Active
+        commentaryMode = CommentaryMode.Polish
       )
     val probeBundles = collectProbeMomentBundles(initialResponse, MaxProbeMoments)
     val (probeResultsByPly, unsupportedProbeCount, executedProbeCount) =

@@ -15,7 +15,6 @@ type Action =
   | 'last'
   | 'scrub-help'
   | 'opening-explorer'
-  | 'narrative'
   | 'menu'
   | 'analysis';
 
@@ -61,21 +60,6 @@ export function renderControls(ctrl: AnalyseCtrl) {
         },
         [icon(licon.Book as any)],
       ),
-      !reviewShell &&
-        ctrl.narrative &&
-        hl(
-          'button.fbt',
-          {
-            attrs: {
-              title: 'Game Chronicle',
-              'data-act': 'narrative',
-            },
-            class: {
-              active: ctrl.activeControlBarTool() === 'narrative',
-            },
-            },
-          [icon(licon.BubbleSpeech as any)],
-        ),
       hl(
         'button.fbt',
         {
@@ -127,12 +111,10 @@ function clickControl(ctrl: AnalyseCtrl, e: PointerEvent) {
   else if (action === 'last') control.last(ctrl);
   else if (action === 'scrub-help') scrubHelp(ctrl);
   else if (action === 'opening-explorer') ctrl.toggleExplorer();
-  else if (action === 'narrative') ctrl.toggleNarrative();
   else if (action === 'menu') ctrl.toggleActionMenu();
   else if (action === 'analysis') {
     if (ctrl.activeControlBarTool()) {
       ctrl.explorer.disable();
-      ctrl.narrative?.enabled(false);
       ctrl.actionMenu(false);
       if (ctrl.isReviewShell()) ctrl.setReviewUtilityPanel(null);
     }

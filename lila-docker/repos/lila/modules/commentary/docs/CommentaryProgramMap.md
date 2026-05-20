@@ -67,6 +67,14 @@ may still say family when it is not naming a current pipeline layer.
 
 ## Current Canonical State
 
+- 2026-05-20 MoveReview-only authority consolidation:
+  user-facing commentary authority is now MoveReview-only. Chronicle/Game
+  Chronicle, Guided Review, Defeat DNA, Active strategic-note generation, and
+  full-game commentary API endpoints are removed product surfaces. Shared
+  Game Arc / planner / proof helpers may remain only as internal diagnostics,
+  historical fixtures, test/tooling support, or MoveReview-consumed
+  infrastructure. Future `SupportedLocal` / `ScopedTakeaway` expansion is
+  MoveReview-first and may not reopen Chronicle/Active authority paths.
 - Step 1-7:
   closed and signoff-ready
 - CQF Track 0-4:
@@ -142,13 +150,57 @@ may still say family when it is not naming a current pipeline layer.
   remains a separate queue, and any future B7b work must stay inside the frozen
   owner-path / task-vocabulary baseline plus the same-branch nasty-case
   charter. Sector-network and color-complex route expansion remain later,
-  riskier B6 cells. Treat the later frontier map as:
+  riskier B6 cells; exact color-complex pressure may be detected only as
+  non-authority `semantic.evidence` / `ValidatedPressure`, not as a positive
+  owner lane. Exact color-complex FEN readiness now has a dedicated private proof-readiness
+  helper (`ColorComplexSqueezeProof`) plus commentaryTools corpus fixtures with
+  explicit pass/fail reason codes. The helper separates weak-complex squeeze
+  proof from route-denial file / entry / reroute proof, but it does not open
+  `SupportedLocal`, `WhatMattersHere`, a packet path, or lesson-level
+  explanation. Its readiness gate accepts a majority same-color weak-complex
+  core with adjacent off-color support squares, functional defender paralysis
+  beyond raw mobility delta, stable zone persistence wording, and
+  escape-denial wording without treating those relaxations as authority. The
+  scanner now keeps two-square color-complex cores in review scope instead of
+  filtering them out before proof review. It still rejects stale proof probes
+  whose FEN key does not match the evaluated current position, so Karpov-style
+  source identity is a regression fixture rather than a whitelist predicate.
+  The scanner separates `itemDetected`, `squeezeReadiness`, and
+  `authorityDecision`, and `authorityDecision` remains `authority_closed` for
+  every row. Engine review also separates usable `escape=` squares from
+  `artifactEscape=` geometry that does not release a constrained defender
+  piece. The 2026-05-20 full-game `SourceWitnessCatalog` scanner found 16
+  `readiness_pass` rows across 9 distinct FENs and 5784 `readiness_fail` rows;
+  the candidate review grouped them into 4 reviewable strategy events and 2
+  artifact events. Karpov-Unzicker 1974 and Alekhine-Bogoljubow 1936 are
+  `engine_persistent_readiness_candidate` rows at
+  `color_complex_squeeze_readiness` scope; Lokvenc-Czerniak 1952 and
+  Maderna-Palermo 1955 remain `engine_best_defense_review_required` because
+  engine MultiPV lines expose usable escape or persistence blockers on the
+  same proof shape. Treat those rows as source intake, not authority.
+  Treat the later frontier map as:
   `B6 = named route-network bind`,
   `B7 = transition-adjacent strategic route`,
   `B8 = slight-edge local squeeze` only after fortress/progress separation is
   closed, and
   `B9 = bounded color-complex / mobility-cage` as the last and most
   risk-sensitive family
+- Break-prevention source-intake tooling now uses the same resource/release
+  separation: `BreakClampCandidateScanner` reports `itemDetected`,
+  `releaseReadiness`, `releaseDecision=authority_closed`, and raw / usable /
+  artifact release routes, while `BreakClampSourceTriage` ranks event-level
+  `release_pass` survivors and harmless-transform artifacts instead of raw
+  clean-row count. The 2026-05-20 ModernBenoni6e4 broad slice found 15
+  release-pass artifact events. Route-token alignment now rejects transient
+  source rows when the scanner route and materialized SourceReview surface
+  drift apart; the guarded triage has 9 admitted rows, 6 review-required rows,
+  and 4 clean black-midgame admitted events. Pomar-Toran 1969 ply 27 is now the
+  fixed real-game harmless-transform source-intake row, with `14.b4` denying
+  `...b5-b4` while the raw `...c5xb4` transform is branch-proven harmless and
+  selected `SourceWindowReview` admits through the existing
+  `neutralize_key_break` packet. This improves source review triage only;
+  existing `neutralize_key_break` authority still requires the fixed exact packet,
+  proof contract, tactical veto, planner admission, and claim-only surface.
 - Separate from the B-route map, `central_break_timing` now has a bounded
   `SupportedLocal` release boundary on the existing move-delta path:
   board-backed break support may release only through the certified
@@ -206,8 +258,9 @@ Its purpose was not “make commentary rich”, but:
 5. `Planner integration`
    - admitted-but-unbuildable and demote dead-end paths were closed
 6. `Surface replay`
-   - Chronicle / MoveReview / Active were verified not to rewrite planner
-     legality
+   - the historical Chronicle / MoveReview / Active replay pass verified that
+     planner legality was not rewritten; current product authority keeps only
+     the MoveReview side of that result
 7. `Collision corpus / signoff`
    - final verdict became `signoff-ready`
 
@@ -358,8 +411,7 @@ Current status:
   narrow contrast support on already-legal owners
 - Current surface status:
   - MoveReview: `signoff-ready`
-  - Chronicle: `signoff-ready`
-  - Active: `scope-cut (diagnostic-only)`
+  - Chronicle / Active: `removed product surfaces; historical signoff context only`
 
 #### Track 3 — Quiet / Strategic Richness
 
@@ -457,14 +509,17 @@ Current frontier status:
   one non-redundant reroute denial` on the same defended branch, still inside
   the existing `RestrictionProphylaxis -> file-entry reuse` lane, with planner-
   owned `WhyThis` as the only positive owner scope; replay / whole-game reuse,
-  route-chain / sector-network / color-complex expansion, and heavy-piece
-  positives remain closed
+  route-chain / sector-network / color-complex positive authority expansion,
+  and heavy-piece positives remain closed
 - B6 family expansion baseline is now design-ready:
   the next bounded candidate is broader route-chain rollout, but only as one
   exact same-branch intermediate-node chain above the current B6 triplet;
   posture/phase expansion stays deferred until that chain survives exact-board
   criticism, replay / whole-game positive reuse stays deferred after that, and
-  sector-network / color-complex remain unsafe
+  sector-network / color-complex remain unsafe; color-complex exact-FEN
+  readiness now has a dedicated proof-shape evaluator, controlled positive
+  tests, one real source survivor, and full-game source-catalog review
+  candidates, but authority status is unchanged
 - confirmed post-B5 frontier map:
   `B6 = named route-network bind`
 - then:
@@ -577,4 +632,4 @@ Use this shorthand consistently:
 
 Use this wording when you need a concise new-session handoff:
 
-`Step 1-7 is complete and signoff-ready. That closed scene-first admission, owner legality, planner/build/replay consistency, surface parity, and collision signoff. We are now in CQF, but the active trust-owning rollout remains narrow: the B-route runtime is bounded to B1 / B2 / B3 / B4, B5b negative-first containment is current bounded scope complete, and B6b remains planner-only on the same restriction-prophylaxis lane. Separately, central_break_timing has a bounded SupportedLocal move-delta path through board-backed break support; plan-only central-break rows remain review-only. Broad route-chain, sector-network, heavy-piece positive, slight-edge squeeze, and color-complex expansion stay closed. Use CommentaryProgramMap first, then SSoT and CommentaryTruthBoundary; detailed rerun evidence lives in local quality artifacts rather than a separate appendix document.`
+`Step 1-7 is complete and signoff-ready. That closed scene-first admission, owner legality, planner/build/replay consistency, surface parity, and collision signoff. We are now in CQF, but the active trust-owning rollout remains narrow: the B-route runtime is bounded to B1 / B2 / B3 / B4, B5b negative-first containment is current bounded scope complete, and B6b remains planner-only on the same restriction-prophylaxis lane. Separately, central_break_timing has a bounded SupportedLocal move-delta path through board-backed break support; plan-only central-break rows remain review-only. Broad route-chain, sector-network, heavy-piece positive, slight-edge squeeze, and color-complex positive authority stay closed; exact color-complex pressure may appear only as non-authority selector `ValidatedPressure`, while `ColorComplexSqueezeProof` is proof-readiness only. Karpov-Unzicker 1974 and Alekhine-Bogoljubow 1936 are real `engine_persistent_readiness_candidate` rows, but source-catalog readiness rows remain review/source-intake artifacts, not authority. Break-prevention harmless-transform review is route-token guarded and has one fixed real-game intake survivor, Pomar-Toran 1969 ply 27, which admits only through the existing `neutralize_key_break` packet and does not open broad transform authority. Use CommentaryProgramMap first, then SSoT and CommentaryTruthBoundary; detailed rerun evidence lives in local quality artifacts rather than a separate appendix document.`

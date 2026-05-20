@@ -25,6 +25,50 @@ object ChronicleActivePlannerSliceRunner:
   given Format[ActiveStrategicCoachingBriefBuilder.DeterministicComposeDebug] =
     Json.format[ActiveStrategicCoachingBriefBuilder.DeterministicComposeDebug]
 
+  private final case class ActiveFinalizationTrace(
+      stage: String,
+      plannerApproved: Boolean,
+      noteBuilt: Boolean,
+      validatorPassed: Boolean,
+      isAttached: Boolean,
+      rejectReason: Option[String],
+      hardReasons: List[String],
+      warningReasons: List[String],
+      noteCandidate: Option[String],
+      composeDebug: Option[ActiveStrategicCoachingBriefBuilder.DeterministicComposeDebug]
+  )
+
+  private def traceActiveFinalization(
+      plannerSelection: Option[ActiveStrategicCoachingBriefBuilder.PlannerSurfaceSelection]
+  ): ActiveFinalizationTrace =
+    plannerSelection match
+      case None =>
+        ActiveFinalizationTrace(
+          stage = "no_primary",
+          plannerApproved = false,
+          noteBuilt = false,
+          validatorPassed = false,
+          isAttached = false,
+          rejectReason = Some("no_primary"),
+          hardReasons = Nil,
+          warningReasons = Nil,
+          noteCandidate = None,
+          composeDebug = None
+        )
+      case Some(_) =>
+        ActiveFinalizationTrace(
+          stage = "active_surface_removed",
+          plannerApproved = true,
+          noteBuilt = false,
+          validatorPassed = false,
+          isAttached = false,
+          rejectReason = Some("active_surface_removed"),
+          hardReasons = List("active_surface_removed"),
+          warningReasons = Nil,
+          noteCandidate = None,
+          composeDebug = None
+        )
+
   final case class Config(
       manifestPath: Path = DefaultManifestDir.resolve("slice_manifest.jsonl"),
       entriesPath: Path = DefaultReportDir.resolve("phase4_planner_surface_entries.jsonl"),
@@ -643,16 +687,7 @@ object ChronicleActivePlannerSliceRunner:
           decisionFrame
         )
       )
-    val activeTrace =
-      api.traceActiveFinalization(
-        moment = replayMoment,
-        deltaBundle = deltaBundle,
-        dossier = dossier,
-        routeRefs = routeRefs,
-        moveRefs = moveRefs,
-        plannerSelection = activeSelection,
-        strategicBranchSelected = false
-      )
+    val activeTrace = traceActiveFinalization(activeSelection)
     val chronicleDigests = CommentaryQualitySupport.chronicleReplayDigests(snapshot)
     val activeDigests =
       CommentaryQualitySupport.activeReplayDigests(snapshot, routeRefs, moveRefs, dossier)
@@ -926,16 +961,7 @@ object ChronicleActivePlannerSliceRunner:
       replay.flatMap(ActiveStrategicCoachingBriefBuilder.selectPlannerSurface)
     val chronicleDigests = CommentaryQualitySupport.chronicleDigests(internalMoment)
     val activeDigests = CommentaryQualitySupport.activeDigests(internalMoment, routeRefs, moveRefs, dossier)
-    val activeTrace =
-      api.traceActiveFinalization(
-        moment = internalMoment,
-        deltaBundle = deltaBundle,
-        dossier = dossier,
-        routeRefs = routeRefs,
-        moveRefs = moveRefs,
-        plannerSelection = activeSelection,
-        strategicBranchSelected = internalMoment.strategicBranch
-      )
+    val activeTrace = traceActiveFinalization(activeSelection)
     val rejectedKinds =
       replay.toList.flatMap(_.rankedPlans.rejected.map(_.questionKind.toString)).distinct
     val rejectedReasons =

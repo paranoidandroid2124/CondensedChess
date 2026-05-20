@@ -143,7 +143,7 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
         val mainClaim =
           strategicClaim(delta, ctx, surface, truthContract)
             .flatMap(clean)
-            .filter(_ => delta.allowsWeakMainClaim)
+            .filter(_ => delta.allowsWeakMainClaim || delta.check_qualifying)
             .filter(text =>
               PlayerFacingTruthModePolicy.allowsStrategicClaimText(
                 text,
@@ -153,11 +153,14 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
               )
             )
             .map { text =>
+              val finalClaimText =
+                if (delta.allowsWeakMainClaim) text
+                else qualify_text(text)
               MainPathScopedClaim(
                 scope = claimScope(delta.packet),
                 mode = PlayerFacingTruthMode.Strategic,
                 deltaClass = Some(delta.deltaClass),
-                claimText = text,
+                claimText = finalClaimText,
                 anchorTerms = anchorTerms,
                 evidenceLines = lineEvidence,
                 sourceKind = sourceKind,
@@ -575,3 +578,34 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
 
   private def clean(raw: String): Option[String] =
     Option(raw).map(_.trim).filter(_.nonEmpty).map(UserFacingSignalSanitizer.sanitize)
+
+  private def qualify_text(raw: String): String =
+    val low = raw.trim
+    if low.startsWith("This opens access") then
+      low.replace("This opens access", "This attempts to open access")
+    else if low.startsWith("This makes the exchange") then
+      low.replace("This makes the exchange", "This prepares the exchange")
+    else if low.startsWith("This removes") then
+      low.replace("This removes", "This attempts to remove")
+    else if low.startsWith("This limits") then
+      low.replace("This limits", "This seeks to limit")
+    else if low.startsWith("This keeps") then
+      low.replace("This keeps", "This tries to keep")
+    else if low.startsWith("This continues") then
+      low.replace("This continues", "This attempts to continue")
+    else if low.startsWith("This cuts down") then
+      low.replace("This cuts down", "This aims to cut down")
+    else if low.startsWith("This slows down") then
+      low.replace("This slows down", "This seeks to slow down")
+    else if low.startsWith("This advances") then
+      low.replace("This advances", "This plans to advance")
+    else if low.startsWith("This supports") then
+      low.replace("This supports", "This hopes to support")
+    else if low.startsWith("This trade clears") then
+      low.replace("This trade clears", "This trade intends to clear")
+    else if low.startsWith("This favorable simplification keeps") then
+      low.replace("This favorable simplification keeps", "This simplification aims to keep")
+    else if low.startsWith("This ") then
+      low.replaceFirst("This ", "This tentatively ")
+    else
+      s"$low (intended)"

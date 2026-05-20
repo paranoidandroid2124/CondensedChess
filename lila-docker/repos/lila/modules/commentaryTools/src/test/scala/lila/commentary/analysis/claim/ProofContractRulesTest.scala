@@ -109,6 +109,29 @@ class ProofContractRulesTest extends FunSuite:
     assert(!contract.acceptedSources.exists(_.toLowerCase.contains("source-")), clues(contract))
   }
 
+  test("supported-local admission requires accepted source and required witnesses") {
+    val packet =
+      supportedIqpPacket()
+    val wrongSource =
+      packet.copy(proofSource = "minority_attack_semantic")
+    val missingStructureWitness =
+      packet.copy(
+        proofPathWitness =
+          PlayerFacingProofPathWitness(
+            ownerSeedTerms = List("iqp"),
+            continuationTerms = List("d5")
+          )
+      )
+
+    assertEquals(ProofContractRules.failureCodes(packet), Nil)
+    assert(ProofContractRules.supportedLocalAdmissible(packet), clues(packet))
+    assert(!ProofContractRules.certifiedOwnerAdmissible(packet), clues(packet))
+    assert(!ProofContractRules.supportedLocalAdmissible(wrongSource), clues(ProofContractRules.failureCodes(wrongSource)))
+    assert(ProofContractRules.failureCodes(wrongSource).contains("contract:source_not_accepted"))
+    assert(!ProofContractRules.supportedLocalAdmissible(missingStructureWitness), clues(ProofContractRules.failureCodes(missingStructureWitness)))
+    assert(ProofContractRules.failureCodes(missingStructureWitness).contains("witness:structure_transition_missing"))
+  }
+
   test("semantic support observations have no proof contract authority") {
     assertEquals(ProofContractRules.contractForProofFamily("target_pressure_semantic"), None)
     assertEquals(ProofContractRules.contractForProofFamily("minority_attack_semantic"), None)
@@ -129,3 +152,17 @@ class ProofContractRulesTest extends FunSuite:
     assert(!contract.id.toLowerCase.contains("source-"), clues(contract))
     assert(!contract.acceptedSources.exists(_.toLowerCase.contains("source-")), clues(contract))
   }
+
+  private def supportedIqpPacket(): PlayerFacingClaimPacket =
+    PlayerFacingClaimPacket(
+      proofSource = PlayerFacingTruthModePolicy.IQPInducementProbeProofSource,
+      proofFamily = PlanTaxonomy.PlanKind.IQPInducement.id,
+      scope = PlayerFacingPacketScope.PositionLocal,
+      fallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
+          ownerSeedTerms = List("iqp"),
+          continuationTerms = List("d5"),
+          structureTransitionTerms = List("isolated_d_pawn")
+        )
+    )

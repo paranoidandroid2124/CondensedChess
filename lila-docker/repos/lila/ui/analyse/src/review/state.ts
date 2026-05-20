@@ -43,13 +43,6 @@ export const initialReviewState = (): ReviewUIState => ({
   analysisDetailsOpen: false,
 });
 
-export function shouldFetchReviewPatterns(
-  state: Pick<ReviewUIState, 'primaryTab'>,
-  opts: { narrativeAvailable: boolean; hasDnaData: boolean; dnaLoading: boolean },
-): boolean {
-  return state.primaryTab === 'patterns' && opts.narrativeAvailable && !opts.hasDnaData && !opts.dnaLoading;
-}
-
 export function reduceReviewState(state: ReviewUIState, action: ReviewUIAction): ReviewUIState {
   switch (action.type) {
     case 'surface-mode':

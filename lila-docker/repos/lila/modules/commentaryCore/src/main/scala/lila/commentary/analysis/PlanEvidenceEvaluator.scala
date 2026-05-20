@@ -285,7 +285,11 @@ object PlanEvidenceEvaluator:
 
       val userFacingThemeLeaders =
         evaluated
-          .filter(_.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked)
+          .filter(ep =>
+            ep.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked ||
+              ep.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly ||
+              ep.userFacingEligibility == UserFacingPlanEligibility.PvCoupledOnly
+          )
           .groupBy(_.themeL1)
           .values
           .toList
@@ -300,9 +304,11 @@ object PlanEvidenceEvaluator:
           .take(3)
           .zipWithIndex
           .map { case (ep, idx) =>
-            markProbeBacked(
-              ep.hypothesis.copy(rank = idx + 1)
-            )
+            val hyp = ep.hypothesis.copy(rank = idx + 1)
+            if (ep.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked)
+              markProbeBacked(hyp)
+            else
+              mark_provisional(hyp)
           }
 
       val diagnosticEntries =
@@ -783,6 +789,9 @@ object PlanEvidenceEvaluator:
 
   private def markProbeBacked(h: PlanHypothesis): PlanHypothesis =
     h.copy(evidenceSources = (h.evidenceSources :+ "probe_backed:validated_support").distinct)
+
+  private def mark_provisional(h: PlanHypothesis): PlanHypothesis =
+    h.copy(evidenceSources = (h.evidenceSources :+ "provisional:unvalidated_support").distinct)
 
   private def isSupportive(req: ProbeRequest, pr: ProbeResult, isWhiteToMove: Boolean): Boolean =
     val purpose = req.purpose.orElse(pr.purpose).getOrElse("")

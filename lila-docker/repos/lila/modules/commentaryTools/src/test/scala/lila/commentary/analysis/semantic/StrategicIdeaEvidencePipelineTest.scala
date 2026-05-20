@@ -2,8 +2,8 @@ package lila.commentary.analysis.semantic
 
 import _root_.chess.{ Color, File, Rook, Square }
 
-import lila.commentary.StrategyPack
-import lila.commentary.analysis.StrategicIdeaSemanticContext
+import lila.commentary.{ StrategicIdeaKind, StrategyPack }
+import lila.commentary.analysis.{ StrategicIdeaSemanticContext, StrategicStateFeatures }
 import lila.commentary.model.strategic.{ PositionalTag, PreventedPlan }
 import munit.FunSuite
 
@@ -30,6 +30,32 @@ class StrategicIdeaEvidencePipelineTest extends FunSuite:
     assert(observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.OutpostTag), clues(observations))
     assert(observations.exists(_.source == StrategicObservationIds.EvidenceSourceId.BishopPairAdvantage), clues(observations))
     assert(observations.flatMap(_.factIds).forall(fact => !fact.wireKey.startsWith("source:")))
+  }
+
+  test("color-complex clamp carries exact weak-square support without proof authority") {
+    val semantic =
+      StrategicIdeaSemanticContext
+        .empty("white")
+        .copy(
+          strategicState = Some(StrategicStateFeatures.empty.copy(whiteColorComplexClamp = true)),
+          positionalFeatures = List(
+            PositionalTag.ColorComplexWeakness(Color.Black, "dark", List(Square.F6, Square.H6, Square.G7))
+          )
+        )
+
+    val observations =
+      StrategicIdeaEvidencePipeline.collect(StrategyPack(sideToMove = "white"), semantic)
+    val colorComplex =
+      observations.find(_.source == StrategicObservationIds.EvidenceSourceId.ColorComplexClamp)
+
+    assertEquals(colorComplex.map(_.kind), Some(StrategicIdeaKind.SpaceGainOrRestriction))
+    assertEquals(colorComplex.map(_.tier), Some(StrategicIdeaEvidenceTier.ValidatedPressure))
+    assertEquals(colorComplex.map(_.focusSquares), Some(List("f6", "h6", "g7")))
+    assertEquals(colorComplex.flatMap(_.focusZone), Some("dark-square complex"))
+    assert(colorComplex.exists(_.factIds.exists(_.wireKey == "state_color_complex_clamp")), clues(colorComplex))
+    assert(colorComplex.exists(_.factIds.exists(_.wireKey == "enemy_color_complex_weakness")), clues(colorComplex))
+    assert(colorComplex.exists(_.factIds.exists(_.wireKey == "color_complex_dark")), clues(colorComplex))
+    assert(colorComplex.exists(_.factIds.forall(fact => !fact.wireKey.startsWith("source:"))), clues(colorComplex))
   }
 
   test("theme producers emit typed selector evidence for typed selector families") {

@@ -80,10 +80,12 @@ private[commentary] object CommentaryIdeaSurface:
       tension: Option[String],
       opponentReplyMeaning: Option[String],
       learningPoint: Option[String],
-      requiresPvForAdmission: Boolean
+      scopedTakeaway: Option[MoveReviewScopedTakeaway.ScopedTakeaway] = None,
+      requiresPvForAdmission: Boolean,
+      factFragments: List[FactFragment] = Nil
   ):
     def prose: String =
-      List(Some(movePurpose), opponentQuestion, lineResolution, learningPoint)
+      List(Some(movePurpose), opponentQuestion, lineResolution, scopedTakeaway.map(_.text).orElse(learningPoint))
         .flatten
         .map(_.trim)
         .filter(_.nonEmpty)
@@ -100,7 +102,7 @@ private[commentary] object CommentaryIdeaSurface:
           confirms = confirms,
           tension = tension.getOrElse("tension_maintained"),
           opponentReplyMeaning = opponentReplyMeaning,
-          learningPoint = learningPoint.getOrElse(""),
+          learningPoint = scopedTakeaway.map(_.text).orElse(learningPoint).getOrElse(""),
           supportedByLineId = Some(line.line.lineId),
           confidence = "bounded_local"
         )
@@ -173,7 +175,13 @@ private[commentary] object CommentaryIdeaSurface:
         played = played,
         evidence = evidence,
         lineFacts = lineFacts,
-        requiresPvForAdmission = true
+        requiresPvForAdmission = true,
+        factFragments = List(FactFragment.OpeningGoalFragment(
+          san = played.san,
+          openingName = evidence.openingName,
+          goalName = goal.goalName,
+          supportedEvidence = goal.supportedEvidence.map(_.trim).filter(_.nonEmpty)
+        ))
       )
 
   private def castlingDescriptor(
@@ -196,7 +204,8 @@ private[commentary] object CommentaryIdeaSurface:
         played = played,
         evidence = MoveReviewEvidence(Nil, Nil, None, None),
         lineFacts = lineFacts,
-        requiresPvForAdmission = true
+        requiresPvForAdmission = true,
+        factFragments = List(FactFragment.KingSafetyFragment(played.san))
       )
     }
 
@@ -229,7 +238,13 @@ private[commentary] object CommentaryIdeaSurface:
         played = played,
         evidence = evidence,
         lineFacts = lineFacts,
-        requiresPvForAdmission = true
+        requiresPvForAdmission = true,
+        factFragments = List(FactFragment.StrategicSupportFragment(
+          san = played.san,
+          proofFamily = delta.packet.proofFamily,
+          proofSource = delta.packet.proofSource,
+          purpose = strategicPurpose(played, delta)
+        ))
       )
 
   private def tacticalDescriptor(
@@ -267,7 +282,12 @@ private[commentary] object CommentaryIdeaSurface:
           played = played,
           evidence = evidence,
           lineFacts = lineFacts,
-          requiresPvForAdmission = true
+          requiresPvForAdmission = true,
+          factFragments = List(FactFragment.TacticalThreatFragment(
+            san = played.san,
+            kind = owned.kind,
+            targets = owned.fact.participants.map(_.key)
+          ))
         )
     }
 
@@ -416,7 +436,12 @@ private[commentary] object CommentaryIdeaSurface:
         played = played,
         evidence = evidence,
         lineFacts = lineFacts,
-        requiresPvForAdmission = true
+        requiresPvForAdmission = true,
+        factFragments = List(FactFragment.DirectThreatFragment(
+          san = played.san,
+          isDefensive = defensive,
+          reason = if defensive then "answer_direct_threat" else "create_tactical_threat"
+        ))
       )
     }
 
@@ -446,7 +471,11 @@ private[commentary] object CommentaryIdeaSurface:
         played = played,
         evidence = evidence,
         lineFacts = lineFacts,
-        requiresPvForAdmission = true
+        requiresPvForAdmission = true,
+        factFragments = List(FactFragment.CaptureFragment(
+          san = played.san,
+          purpose = purpose
+        ))
       )
     }
 
@@ -471,10 +500,15 @@ private[commentary] object CommentaryIdeaSurface:
         played = played,
         evidence = evidence,
         lineFacts = lineFacts,
-        requiresPvForAdmission = true
+        requiresPvForAdmission = true,
+        factFragments = List(FactFragment.EndgameFragment(
+          san = played.san,
+          facts = evidence.endgameFacts.map(_.toString)
+        ))
       )
     }
 
+  @annotation.nowarn("msg=unused")
   private def descriptor(
       ideaKind: String,
       reviewIntent: String,
@@ -488,8 +522,10 @@ private[commentary] object CommentaryIdeaSurface:
       played: PlayedMove,
       evidence: MoveReviewEvidence,
       lineFacts: Option[MoveReviewPvLine.LineFacts],
-      requiresPvForAdmission: Boolean
+      requiresPvForAdmission: Boolean,
+      factFragments: List[FactFragment] = Nil
   ): MoveReviewIdeaDescriptor =
+    val frags = factFragments
     val opponentReplyMeaning = lineFacts.flatMap(_.reply).flatMap(reply => PvMeaning.classifyOpponentReply(played, evidence, reply))
     val movePurpose = baseProse.trim
     val opponentQuestion =
@@ -499,6 +535,8 @@ private[commentary] object CommentaryIdeaSurface:
     val expandedReasonTags =
       (reasonTags ++ lineProof.tags ++ List(s"review_intent:$reviewIntent", s"character_band:${moveCharacterBand.key}")).distinct
     val confirms = PvMeaning.confirmedFacts(reviewIntent, linePurpose, evidence, expandedReasonTags)
+    val scopedTakeaway =
+      linePurpose.flatMap(purpose => MoveReviewScopedTakeaway.build(purpose, played, evidence, lineFacts))
     MoveReviewIdeaDescriptor(
       ideaKind = ideaKind,
       reviewIntent = reviewIntent,
@@ -514,8 +552,10 @@ private[commentary] object CommentaryIdeaSurface:
       linePurpose = linePurpose,
       tension = linePurpose.map(purpose => PvMeaning.classifyTension(purpose, played, lineFacts.flatMap(_.reply), lineFacts.flatMap(_.continuation))),
       opponentReplyMeaning = opponentReplyMeaning,
-      learningPoint = linePurpose.flatMap(purpose => PvMeaning.learningPoint(purpose, played, evidence, lineFacts)),
-      requiresPvForAdmission = requiresPvForAdmission
+      learningPoint = scopedTakeaway.map(_.text),
+      scopedTakeaway = scopedTakeaway,
+      requiresPvForAdmission = requiresPvForAdmission,
+      factFragments = frags
     )
 
   private def moveCharacterBand(truthContract: Option[DecisiveTruthContract]): MoveCharacterBand =
@@ -742,45 +782,6 @@ private[commentary] object CommentaryIdeaSurface:
           continuationSan.map(move => s"$move shows the next local use of the verified endgame feature.")
         case _ =>
           continuationSan.map(move => s"$move shows how the idea from ${played.san} is maintained.")
-
-    def learningPoint(
-        purpose: String,
-        played: PlayedMove,
-        evidence: MoveReviewEvidence,
-        lineFacts: Option[MoveReviewPvLine.LineFacts]
-    ): Option[String] =
-      lineFacts.map { line =>
-        val replySan = line.reply.map(_.san).filter(_.nonEmpty).getOrElse("the reply")
-        val continuationSan = line.continuation.map(_.san).filter(_.nonEmpty).getOrElse("the follow-up")
-        val openingName = evidence.openingGoal.map(_.goalName.toLowerCase).getOrElse("")
-        purpose match
-          case "quiet_development" if line.continuation.exists(move => MoveReviewPvLine.normalizeUci(move.uci) == "d2d3") =>
-            s"$replySan asks about the e4 pawn, and $continuationSan shows the quiet setup: keep ${played.san} useful, support e4, and postpone the central break."
-          case "quiet_development" =>
-            s"The line keeps the purpose local: ${played.san} improves the setup, $replySan asks for a response, and $continuationSan shows how the development is maintained."
-          case "center_break_setup" =>
-            s"The line shows the setup idea: ${played.san} comes first, then $continuationSan tests whether the center can be opened on better terms."
-          case "challenge_center" =>
-            s"The line keeps the center question alive: ${played.san} starts the challenge while $continuationSan shows how the structure is supported."
-          case "king_safety_first" =>
-            s"The line shows king safety first: ${played.san} gets the king safe before deciding how or when to open the center."
-          case "create_tactical_threat" if openingName.nonEmpty =>
-            s"The PV keeps the opening goal bounded: ${played.san} is the move under review, $replySan is the first answer, and the line does not authorize a broader evaluation claim."
-          case "create_tactical_threat" =>
-            s"The PV keeps the tactical point concrete: ${played.san} creates the verified target pattern, and $replySan is the first line response to that pressure."
-          case "answer_direct_threat" =>
-            s"${played.san} creates a direct target, and $replySan is the reply that asks the moved piece to prove the threat instead of letting it continue for free."
-          case "resolve_capture_tension" =>
-            s"The PV shows the capture tension clearly: ${played.san} can be answered by $replySan, so the lesson is what remains after the recapture rather than the capture alone."
-          case "clarify_exchange" =>
-            s"The line clarifies the exchange: ${played.san} is met by $replySan, so the sequence resolves which trade remains on ${played.toKey}."
-          case "improve_endgame_activity" if evidence.endgameFacts.exists(_.isInstanceOf[Fact.KingActivity]) =>
-            s"The line shows king activity in the endgame: ${played.san} improves the king first, and $continuationSan shows how that activity starts to matter."
-          case "improve_endgame_activity" =>
-            s"The line shows endgame activity in concrete terms: ${played.san} changes the verified endgame feature, and $continuationSan shows the next local use."
-          case _ =>
-            s"The line keeps the purpose local: ${played.san} sets the idea, $replySan asks for a response, and $continuationSan shows how it is maintained."
-      }
 
   // FactProjection: canonical Fact -> surface wording, tags, IDs, and selection policy.
   def statement(bead: Int, fact: Fact, ctx: NarrativeContext): Option[String] =

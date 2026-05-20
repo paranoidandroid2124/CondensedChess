@@ -67,7 +67,7 @@ private[commentary] object MoveReviewCompressionPolicy:
       plannerInputsRuntime(ctx, refs, strategyPack, truthContract)
     slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
       .orElse(basicMoveExplanationSlots(ctx, refs, truthContract, strategyPack))
-      .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, strategyPack))
+      .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs, strategyPack))
       .getOrElse(omittedSlots)
 
   private[commentary] def buildSlotsOrFallbackFromPlannerRuntime(
@@ -83,7 +83,7 @@ private[commentary] object MoveReviewCompressionPolicy:
         rankedPlans = rankedPlans
       )
     slotsFromPlanner(ctx, inputs, rankedPlans, truthContract)
-      .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, strategyPack))
+      .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs = None, strategyPack))
       .getOrElse(omittedSlots)
 
   private[analysis] def cleanNarrativeSentence(raw: String, ctx: NarrativeContext): Option[String] =
@@ -123,7 +123,7 @@ private[commentary] object MoveReviewCompressionPolicy:
         plannerRuntime.rankedPlans,
         strategyPack
       )
-    exactFactualFallbackResult(ctx, plannerRuntime, strategyPack)
+    exactFactualFallbackResult(ctx, plannerRuntime, refs, strategyPack)
       .map(_.trace)
       .getOrElse(
         ExactFactualQuietSupportTrace(
@@ -578,9 +578,10 @@ private[commentary] object MoveReviewCompressionPolicy:
   private def exactFactualFallbackSlots(
       ctx: NarrativeContext,
       plannerRuntime: PlannerRuntime,
+      refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack]
   ): Option[MoveReviewPolishSlots] =
-    exactFactualFallbackResult(ctx, plannerRuntime, strategyPack).map(_.finalSlots)
+    exactFactualFallbackResult(ctx, plannerRuntime, refs, strategyPack).map(_.finalSlots)
 
   private def basicMoveExplanationSlots(
       ctx: NarrativeContext,
@@ -623,7 +624,8 @@ private[commentary] object MoveReviewCompressionPolicy:
             if support.nonEmpty then List("p1=claim", "p2=support_chain")
             else List("p1=claim"),
           sourceKind = MoveReviewPolishSlots.Source.BasicMoveExplanation,
-          moveReviewExplanation = Some(explanation)
+          moveReviewExplanation = Some(explanation),
+          factFragments = explanation.factFragments
         )
       }
     }
@@ -637,58 +639,93 @@ private[commentary] object MoveReviewCompressionPolicy:
   private def exactFactualFallbackResult(
       ctx: NarrativeContext,
       plannerRuntime: PlannerRuntime,
+      refs: Option[MoveReviewRefs],
       strategyPack: Option[StrategyPack]
   ): Option[ExactFactualFallbackResult] =
-    QuietMoveIntentBuilder.exactFactualSentence(ctx)
-      .flatMap(cleanSentence(_, ctx))
-      .map { factual =>
-        val claimOnly =
-          MoveReviewPolishSlots(
-            lens = StrategicLens.Decision,
-            claim = prefixMoveHeader(ctx, factual),
-            supportPrimary = None,
-            supportSecondary = None,
-            tension = None,
-            evidenceHook = None,
-            coda = None,
+    MoveReviewLocalFactualFallback.build(ctx, refs)
+      .orElse(
+        QuietMoveIntentBuilder.exactFactualSentence(ctx).map { factual =>
+          MoveReviewLocalFactualFallback.Result(
+            claim = factual,
+            support = None,
             factGuardrails = Nil,
-            paragraphPlan = List("p1=claim"),
-            sourceKind = MoveReviewPolishSlots.Source.ExactFactualFallback
+            sourceTag = "san_literal_fallback"
           )
-        val composerTrace =
-          QuietStrategicSupportComposer.diagnose(
-            ctx,
-            plannerRuntime.inputs,
-            plannerRuntime.rankedPlans,
-            strategyPack
-          )
-        val supportCandidate =
-          composerTrace.line
-            .flatMap(line =>
-              Option.when(!sameSentence(line.text, factual)) {
+        }
+      )
+      .flatMap { fallback =>
+        cleanSentence(fallback.claim, ctx).map { factual =>
+          val fallbackGuardrails =
+            (fallback.factGuardrails :+ s"MoveReview exact factual fallback source: ${fallback.sourceTag}").distinct
+          val claimOnly =
+            MoveReviewPolishSlots(
+              lens = StrategicLens.Decision,
+              claim = prefixMoveHeader(ctx, factual),
+              supportPrimary = None,
+              supportSecondary = None,
+              tension = None,
+              evidenceHook = None,
+              coda = None,
+              factGuardrails = fallbackGuardrails,
+              paragraphPlan = List("p1=claim"),
+              sourceKind = MoveReviewPolishSlots.Source.ExactFactualFallback
+            )
+          val cleanLocalSupport =
+            if fallback.sourceTag == "legal_local_factual" then cleanLocalFactualSupport(_, ctx)
+            else cleanSentence(_, ctx)
+          val localSupportCandidate =
+            fallback.support
+              .flatMap(cleanLocalSupport)
+              .filter(text => !sameSentence(text, factual))
+              .map { support =>
                 claimOnly.copy(
-                  supportPrimary = Some(line.text),
-                  factGuardrails = List(line.text),
+                  supportPrimary = Some(support),
+                  factGuardrails = (fallbackGuardrails ++ List(support)).distinct,
                   paragraphPlan = List("p1=claim", "p2=support_chain")
                 )
               }
+          val localSupportAccepted =
+            localSupportCandidate.filter(moveReviewContractSafe)
+          val baseSlots =
+            localSupportAccepted.getOrElse(claimOnly)
+          val composerTrace =
+            QuietStrategicSupportComposer.diagnose(
+              ctx,
+              plannerRuntime.inputs,
+              plannerRuntime.rankedPlans,
+              strategyPack
             )
-        val liftApplied =
-          supportCandidate.exists(moveReviewContractSafe)
-        val rejectReasons =
-          composerTrace.rejectReasons ++
-            Option.when(composerTrace.line.nonEmpty && supportCandidate.isEmpty)("support_same_sentence_as_claim") ++
-            Option.when(supportCandidate.nonEmpty && !liftApplied)("support_contract_rejected")
-        ExactFactualFallbackResult(
-          finalSlots = supportCandidate.filter(moveReviewContractSafe).getOrElse(claimOnly),
-          trace =
-            ExactFactualQuietSupportTrace(
-              factualSentence = Some(factual),
-              composerTrace = composerTrace,
-              liftApplied = liftApplied,
-              rejectReasons = rejectReasons.distinct
-            )
-        )
+          val supportCandidate =
+            Option.when(baseSlots.supportPrimary.isEmpty)(composerTrace.line).flatten
+              .flatMap { line =>
+                Option.when(!sameSentence(line.text, factual)) {
+                  claimOnly.copy(
+                    supportPrimary = Some(line.text),
+                    factGuardrails = (fallbackGuardrails ++ List(line.text)).distinct,
+                    paragraphPlan = List("p1=claim", "p2=support_chain")
+                  )
+                }
+              }
+          val liftApplied =
+            supportCandidate.exists(moveReviewContractSafe)
+          val rejectReasons =
+            composerTrace.rejectReasons ++
+              Option.when(localSupportCandidate.nonEmpty && localSupportAccepted.isEmpty)("local_factual_support_contract_rejected") ++
+              Option.when(composerTrace.line.nonEmpty && baseSlots.supportPrimary.isEmpty && supportCandidate.isEmpty)("support_same_sentence_as_claim") ++
+              Option.when(supportCandidate.nonEmpty && !liftApplied)("support_contract_rejected")
+          ExactFactualFallbackResult(
+            finalSlots =
+              if baseSlots.supportPrimary.nonEmpty then baseSlots
+              else supportCandidate.filter(moveReviewContractSafe).getOrElse(baseSlots),
+            trace =
+              ExactFactualQuietSupportTrace(
+                factualSentence = Some(factual),
+                composerTrace = composerTrace,
+                liftApplied = liftApplied,
+                rejectReasons = rejectReasons.distinct
+              )
+          )
+        }
       }
 
   private def omittedSlots: MoveReviewPolishSlots =
@@ -715,6 +752,20 @@ private[commentary] object MoveReviewCompressionPolicy:
       .filter(text => LiveNarrativeCompressionCore.playerLanguageHits(text).isEmpty)
       .filter(LiveNarrativeCompressionCore.keepPlayerFacingSentence)
       .filterNot(LiveNarrativeCompressionCore.isLowValueNarrativeSentence)
+      .filter(text => !containsNonBackedPlanName(text, ctx))
+      .filter(text => namedPlanAllowed(text, ctx))
+      .filterNot(_.equalsIgnoreCase("Concrete support is still limited."))
+
+  private def cleanLocalFactualSupport(raw: String, ctx: NarrativeContext): Option[String] =
+    normalized(raw)
+      .map(MoveReviewSlotSanitizer.sanitizeUserText)
+      .map(LiveNarrativeCompressionCore.rewritePlayerLanguage)
+      .flatMap(normalized)
+      .map(LiveNarrativeCompressionCore.trimLeadScaffold)
+      .flatMap(normalized)
+      .filter(text => systemLanguageHits(text).isEmpty)
+      .filter(text => LiveNarrativeCompressionCore.playerLanguageHits(text).isEmpty)
+      .filter(LiveNarrativeCompressionCore.keepPlayerFacingSentence)
       .filter(text => !containsNonBackedPlanName(text, ctx))
       .filter(text => namedPlanAllowed(text, ctx))
       .filterNot(_.equalsIgnoreCase("Concrete support is still limited."))

@@ -25,6 +25,21 @@ If Chesstory cannot verify a decisive claim, a concrete benchmark, or a
 compensation story, it must become less specific instead of inventing a more
 vivid explanation.
 
+## MoveReview-Only Signoff Surface
+
+As of the 2026-05-20 authority consolidation, the only user-facing commentary
+truth surface is MoveReview. Chronicle/Game Chronicle, Guided Review, Defeat
+DNA, and Active strategic notes are removed product surfaces, not compatibility
+surfaces. Any remaining Game Arc / Chronicle / Active names in source or test
+tooling are internal diagnostics, historical audit fixtures, or shared proof
+helpers unless a current MoveReview consumer is named explicitly.
+
+Future `SupportedLocal` and `ScopedTakeaway` expansion must therefore be
+admitted, rendered, and signed off through MoveReview first. Track 5 broad
+lesson authority remains closed, and `ScopedTakeaway` remains a FEN + played
+move + branch + evidence-tier local statement projected into the existing
+MoveReview `learningPoint` compatibility field.
+
 The current Step 4 / 5 authority slice reinforces that rule inside outline
 assembly:
 
@@ -66,14 +81,14 @@ assembly:
    blunder truth do not share the same decisive explanation.
 7. Resolve `TruthVisibilityRole` so real exemplars can stay visible even when
    prose permission is too weak to let them overclaim.
-8. Resolve `TruthSurfaceMode` so Chronicle / MoveReview / Active know whether a
-   row may explain investment, preserve it, explain conversion, explain
-   failure, or stay neutral.
+8. Resolve `TruthSurfaceMode` so MoveReview knows whether a row may explain
+   investment, preserve it, explain conversion, explain failure, or stay
+   neutral.
 9. Resolve `TruthExemplarRole` so visible exemplar preservation is measured
    separately from ownership and separately from compensation-positive prose.
 10. Promote decisive moments using truth and exemplar preservation, not only
    salience.
-11. Realize Chronicle / MoveReview / Active from that truth-bound state.
+11. Realize MoveReview from that truth-bound state.
 12. Allow optional wording polish only after truth-bound prose exists.
 13. Judge release readiness with both automatic health checks and GM-style
    manual audit.
@@ -138,8 +153,8 @@ The following are automatic truth-boundary blockers:
 - played move is verified best, but a surface calls it wrong / loose /
   inaccurate / blunder-like
 - a surface names a benchmark move that is not the verified best move
-- internal blunder truth is softened into compensation-positive MoveReview or
-  Active framing
+- internal blunder truth is softened into compensation-positive MoveReview
+  framing
 - whole-game decisive shift / punishment story contradicts the decisive-truth
   contract
 - a verified or provisional positive investment exemplar is missing from the
@@ -799,9 +814,29 @@ plus the local quality-audit rerun artifacts referenced there.
   - direct MoveReview requests do not surface blank prose:
     if tactical / strategic / quiet-intent all fail, runtime may still emit a
     final exact factual one-liner from current move semantics
-    - that fallback floor must stay literal:
-      when target-square anchoring is absent, capture fallback may say only
-      `This captures.` and may not infer simplification / exchange semantics
+    - MoveReview direct fallback may use legal local factual anchoring:
+      legal replayed UCI plus board truth may name only the played piece,
+      destination, captured role, en passant, castling, promotion, local
+      material delta, after-board check/checkmate, current-move-owned
+      fork/pin/skewer motifs, and a PV preview that starts from the same FEN
+      and legally replays from the played UCI
+    - that factual anchoring is not strategic meaning:
+      simplification, exchange benefit, compensation, pressure, plan,
+      persistence, or lesson wording remain forbidden unless separately owned
+      by the planner/truth contract
+    - MoveReview basic explanations may project a scoped takeaway into
+      `MoveReviewPvInterpretation.learningPoint` only through
+      `MoveReviewScopedTakeaway`: the text must stay tied to the reviewed UCI,
+      post-move FEN, same coupled PV line, evidence tier, and guardrail tags.
+      This is bounded local instruction, not Track 5 lesson truth, and it may
+      not generalize into rules such as `always`, `generally`, `shared lesson`,
+      or `in every position`.
+    - the fallback floor must still fail closed:
+      when legal replay, SAN/UCI consistency, captured-role / material-delta
+      anchoring, current-move motif ownership, or coupled PV replay is absent,
+      fallback may emit only the narrower surviving local fact; unanchored
+      capture fallback may still say only `This captures.` and may not infer
+      simplification / exchange semantics
   - direct MoveReview requests also do not surface half-admitted planner prose:
     if planner-owned slots lose their support/evidence owner or fail the hard
     gate, runtime must still fall back to the exact factual one-liner rather

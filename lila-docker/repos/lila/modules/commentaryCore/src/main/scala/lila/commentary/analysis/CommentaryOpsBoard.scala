@@ -26,49 +26,6 @@ object CommentaryOpsBoard:
   object MoveReviewMetrics:
     given Writes[MoveReviewMetrics] = Json.writes[MoveReviewMetrics]
 
-  final case class FullGameMetrics(
-      compareObserved: Long,
-      compareConsistencyRate: Double,
-      repairAttempts: Long,
-      repairBypassed: Long,
-      softRepairApplied: Long,
-      mergedRetrySkipped: Long,
-      invalidReasonCounts: Map[String, Long]
-  )
-  object FullGameMetrics:
-    given Writes[FullGameMetrics] = Json.writes[FullGameMetrics]
-
-  final case class ActiveMetrics(
-      selectedMoments: Long,
-      attempts: Long,
-      attached: Long,
-      omitted: Long,
-      primaryAccepted: Long,
-      repairAttempts: Long,
-      repairRecovered: Long,
-      attachRate: Double,
-      thesisAgreementRate: Double,
-      dossierAttachRate: Double,
-      dossierCompareRate: Double,
-      dossierRouteRefRate: Double,
-      dossierReferenceFailureRate: Double,
-      provider: Option[String],
-      configuredModel: Option[String],
-      fallbackModel: Option[String],
-      reasoningEffort: Option[String],
-      observedModelDistribution: Map[String, Long],
-      omitReasons: Map[String, Long],
-      warningReasons: Map[String, Long],
-      routeRedeployCount: Long,
-      routeMoveRefCount: Long,
-      routeHiddenSafetyCount: Long,
-      routeTowardOnlyCount: Long,
-      routeExactSurfaceCount: Long,
-      routeOpponentHiddenCount: Long
-  )
-  object ActiveMetrics:
-    given Writes[ActiveMetrics] = Json.writes[ActiveMetrics]
-
   final case class PromptUsageMetrics(
       attempts: Long,
       cacheHits: Long,
@@ -83,8 +40,6 @@ object CommentaryOpsBoard:
   final case class Snapshot(
       generatedAtMs: Long,
       moveReview: MoveReviewMetrics,
-      fullgame: FullGameMetrics,
-      active: ActiveMetrics,
       promptUsage: Map[String, PromptUsageMetrics],
       recentSamples: List[Sample]
   )

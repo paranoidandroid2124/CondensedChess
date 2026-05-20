@@ -4,6 +4,10 @@ import lila.commentary.analysis.structure.StructuralDelta
 import lila.commentary.analysis.StrategicConceptSemantics
 import lila.commentary.analysis.semantic.StrategicObservationIds.*
 
+private[commentary] enum StrategicSemanticObservationRole:
+  case SupportOnly
+  case SelectorSource
+
 private[commentary] final case class StrategicSemanticObservation(
     id: SemanticObservationId,
     ownerSide: String,
@@ -11,10 +15,13 @@ private[commentary] final case class StrategicSemanticObservation(
     focusZone: Option[String] = None,
     source: Option[EvidenceSourceId] = None,
     facts: List[FactId] = Nil,
-    supportOnly: Boolean = true,
+    role: StrategicSemanticObservationRole = StrategicSemanticObservationRole.SupportOnly,
     proofSource: Option[ProofSourceId] = None,
     proofFamily: Option[ProofFamilyId] = None
 ):
+  def supportOnly: Boolean =
+    role == StrategicSemanticObservationRole.SupportOnly
+
   def evidenceRefs: List[EvidenceRef] =
     source.map(EvidenceRef.Source(_)).toList ++ facts.distinct.map(EvidenceRef.Fact(_))
 
@@ -36,7 +43,7 @@ private[commentary] object StrategicSemanticObservation:
       focusSquares = focusSquares.distinct,
       focusZone = focusZone,
       facts = facts.distinct,
-      supportOnly = true
+      role = StrategicSemanticObservationRole.SupportOnly
     )
 
   def selectorSource(
@@ -54,7 +61,7 @@ private[commentary] object StrategicSemanticObservation:
       focusZone = focusZone,
       source = Some(source),
       facts = facts.distinct,
-      supportOnly = false
+      role = StrategicSemanticObservationRole.SelectorSource
     )
 
   def minorityAttack(

@@ -16,7 +16,7 @@ case class CommentaryCacheContext(
     lang: String,
     planTier: String,
     commentaryMode: String,
-    activeNoteFingerprint: String = ""
+    authorityFingerprint: String = ""
 )
 
 /** Server-side Caffeine TTL cache for commentary responses.
@@ -98,7 +98,7 @@ final class CommentaryCache(using Executor):
     val probePart = probeFingerprint(probeResults).map(fp => s"probe:$fp").getOrElse("probe:-")
     val commentaryPart = commentaryContext
       .map { ctx =>
-        s"commentary:${ctx.model}:${ctx.promptVersion}:${ctx.lang}:${ctx.planTier}:${ctx.commentaryMode}:${ctx.activeNoteFingerprint}"
+        s"commentary:${ctx.model}:${ctx.promptVersion}:${ctx.lang}:${ctx.planTier}:${ctx.commentaryMode}:${ctx.authorityFingerprint}"
       }
       .getOrElse("commentary:-")
     s"${baseKey(fen, lastMove)}|state:${stateFingerprint(planStateToken, endgameStateToken)}|$probePart|$commentaryPart"

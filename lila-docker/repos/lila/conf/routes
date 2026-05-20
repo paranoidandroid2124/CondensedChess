@@ -107,13 +107,9 @@ GET   /embed/analysis                  controllers.UserAnalysis.embed
 GET   /api/explorer/:db                controllers.ExplorerProxy.opening(db: String)
 
 # AI Analysis
-POST  /api/commentary/game-analysis-local     controllers.CommentaryController.analyzeGameLocal
-POST  /api/commentary/game-analysis-async     controllers.CommentaryController.analyzeGameAsync
-GET   /api/commentary/game-analysis-async/:jobId controllers.CommentaryController.analyzeGameAsyncStatus(jobId)
 POST  /api/commentary/move-review-position      controllers.CommentaryController.moveReviewPosition
 GET   /api/commentary/opening/masters          controllers.CommentaryController.openingMasters(fen: String)
 GET   /api/commentary/opening/master-pgn/:id   controllers.CommentaryController.openingMasterPgn(id)
-GET   /api/commentary/defeat-dna              controllers.CommentaryController.defeatDna
 GET   /support                         controllers.Main.support
 GET   /plan                            controllers.Main.plan
 GET   /beta-feedback                   controllers.BetaFeedback.formPage(surface: String ?= "general", feature: String ?= "", entrypoint: String ?= "", returnTo: String ?= "", notify: Boolean ?= false)

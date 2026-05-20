@@ -6,7 +6,7 @@ import munit.FunSuite
 import lila.commentary.*
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
-import lila.commentary.model.strategic.PreventedPlan
+import lila.commentary.model.strategic.{ EngineEvidence, PreventedPlan, PvMove, VariationLine }
 
 class TwoAxisBindProofBoundaryTest extends FunSuite:
 
@@ -761,6 +761,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
 
   private def whyThisSurfaceCtx(evidenceTier: String, planName: String): NarrativeContext =
     MoveReviewProseGoldenFixtures.prophylacticCut.ctx.copy(
+      fen = QueenlessLateMiddlegameFen,
       authorQuestions =
         List(
           AuthorQuestion(
@@ -816,7 +817,81 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
             moveOrderSensitive = evidenceTier != "evidence_backed",
             experimentConfidence = if evidenceTier == "evidence_backed" then 0.90 else 0.30
           )
+        ),
+      semantic =
+        Some(
+          SemanticSection(
+            structuralWeaknesses = Nil,
+            pieceActivity = Nil,
+            positionalFeatures = Nil,
+            compensation = None,
+            endgameFeatures = None,
+            practicalAssessment = None,
+            preventedPlans = List(
+              PreventedPlanInfo(
+                planId = "deny_c_file",
+                deniedSquares = List("c5"),
+                breakNeutralized = Some("c-file"),
+                mobilityDelta = -2,
+                counterplayScoreDrop = 145,
+                preventedThreatType = Some("counterplay"),
+                sourceScope = FactScope.Now,
+                citationLine = None,
+                deniedResourceClass = Some("break"),
+                deniedEntryScope = Some("file")
+              ),
+              PreventedPlanInfo(
+                planId = "deny_entry",
+                deniedSquares = List("b4"),
+                breakNeutralized = None,
+                mobilityDelta = -2,
+                counterplayScoreDrop = 130,
+                preventedThreatType = Some("counterplay"),
+                sourceScope = FactScope.Now,
+                citationLine = None,
+                deniedResourceClass = Some("entry_square"),
+                deniedEntryScope = Some("single_square")
+              )
+            ),
+            conceptSummary = Nil
+          )
+        ),
+      engineEvidence =
+        Some(
+          EngineEvidence(
+            depth = 18,
+            variations = List(
+              VariationLine(
+                moves = List("c1c8", "f8e8", "c8e8"),
+                scoreCp = 90,
+                depth = 18,
+                parsedMoves = List(
+                  PvMove("c1c8", "Rc8", "c1", "c8", "R", isCapture = false, capturedPiece = None, givesCheck = false),
+                  PvMove("f8e8", "Rfe8", "f8", "e8", "R", isCapture = false, capturedPiece = None, givesCheck = false),
+                  PvMove("c8e8", "Rxe8+", "c8", "e8", "R", isCapture = true, capturedPiece = Some("r"), givesCheck = true)
+                )
+              )
+            )
+          )
         )
+    )
+
+  private def dualAxisSurfacePack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      directionalTargets = List(
+        StrategyDirectionalTarget(
+          targetId = "target_b4",
+          ownerSide = "white",
+          piece = "R",
+          from = "c1",
+          targetSquare = "b4",
+          readiness = DirectionalTargetReadiness.Build,
+          strategicReasons = List("keep b4 closed while controlling the c-file"),
+          evidence = List("probe")
+        )
+      ),
+      signalDigest = Some(NarrativeSignalDigest(decision = Some("keep b4 closed while controlling the c-file")))
     )
 
   private def surfaceReinflationCtx: NarrativeContext =
@@ -895,8 +970,9 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
 
   test("planner-owned WhyThis parity holds for a certified dual-axis bind without stronger bind inflation") {
     val ctx = whyThisSurfaceCtx("evidence_backed", "Stop the ...c5 break and keep b4 closed")
-    val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = None, truthContract = None)
-    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = None, truthContract = None)
+    val strategyPack = Some(dualAxisSurfacePack)
+    val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = strategyPack, truthContract = None)
+    val plannerInputs = QuestionPlannerInputsBuilder.build(ctx, strategyPack = strategyPack, truthContract = None)
     val rankedPlans = QuestionFirstCommentaryPlanner.plan(ctx, plannerInputs, truthContract = None)
     val chronicleSelection =
       GameChronicleCompressionPolicy.selectPlannerSurface(rankedPlans, plannerInputs)
@@ -904,7 +980,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
       GameChronicleCompressionPolicy.renderWithTrace(
         ctx = ctx,
         parts = emptyParts.copy(focusedOutline = outline),
-        strategyPack = None,
+        strategyPack = strategyPack,
         truthContract = None
       )
     val activeSelection =
@@ -920,7 +996,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
         ctx,
         outline,
         refs = None,
-        strategyPack = None,
+        strategyPack = strategyPack,
         truthContract = None
       )
     val moveReviewFallback =
@@ -928,7 +1004,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
         ctx,
         outline,
         refs = None,
-        strategyPack = None,
+        strategyPack = strategyPack,
         truthContract = None
       )
     val moveReviewParagraphs =

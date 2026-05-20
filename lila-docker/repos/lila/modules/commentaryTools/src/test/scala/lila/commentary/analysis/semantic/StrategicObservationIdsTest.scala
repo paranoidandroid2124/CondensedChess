@@ -118,8 +118,9 @@ class StrategicObservationIdsTest extends FunSuite:
             StrategicObservationIds.SemanticObservationId.TargetPressureSemantic
           )
         )
-      )
+    )
 
+    assertEquals(observation.role, StrategicSemanticObservationRole.SupportOnly)
     assert(observation.supportOnly, clues(observation))
     assertEquals(observation.source, None)
     assertEquals(observation.proofSource, None)
@@ -149,8 +150,9 @@ class StrategicObservationIdsTest extends FunSuite:
             StrategicObservationIds.SemanticObservationId.MinorityAttackSemantic
           )
         )
-      )
+    )
 
+    assertEquals(observation.role, StrategicSemanticObservationRole.SelectorSource)
     assert(!observation.supportOnly, clues(observation))
     assertEquals(observation.wireEvidenceRefs, List("source:minority_attack_semantic", "minority_attack_semantic"))
     assertEquals(observation.proofSource, None)

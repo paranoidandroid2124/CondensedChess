@@ -33,13 +33,36 @@ Current canonical scope includes:
 
 - strategic / semantic / endgame / opening / probe / plan / pawn / structure /
   threat / practicality / counterfactual helper modules
-- Chronicle / Game Arc generation
-- MoveReview context, rendering, slot building, optional polish, and frontend
-  consumption
-- Active-note selection, deterministic draft generation, optional polish, and
-  frontend consumption
+- MoveReview context, rendering, scoped takeaway projection, local factual
+  fallback, optional polish, and frontend consumption
+- shared Game Arc / planner / proof helpers only when MoveReview or
+  test/tooling diagnostics consume them directly
 - prompt-bearing surfaces that affect commentary behavior
-- signoff / audit entry points used by the real-PGN signoff runner
+- MoveReview signoff / audit entry points
+
+## MoveReview-Only Authority Note
+
+As of the 2026-05-20 authority consolidation, user-facing commentary authority
+is MoveReview-only. The removed product surfaces are:
+
+- `/api/commentary/game-analysis-local`
+- `/api/commentary/game-analysis-async`
+- `/api/commentary/game-analysis-async/:jobId`
+- `/api/commentary/defeat-dna`
+- analyse UI Guided Review / Game Chronicle / Defeat DNA panels
+- Active strategic-note model generation, repair, validation, routing, and
+  public/frontend payload consumption
+
+`CommentaryEngine.generateGameArcDiagnostic`,
+`NarrativeContextBuilder`, `BookStyleRenderer.validatedOutline`, shared planner
+helpers, proof-contract helpers, and real-PGN/test tooling may still exist as
+internal diagnostics or shared analysis infrastructure. They are not
+product-authority surfaces, and they may not reintroduce Chronicle/Active
+public payloads or frontend entrypoints.
+
+Older references in this file to Chronicle, Active, whole-game replay, or
+cross-surface parity are historical audit context unless a current MoveReview
+path is named explicitly.
 
 ## Runtime Naming Vocabulary
 
@@ -71,16 +94,14 @@ Out of scope:
 ### 1. Deterministic-first canonical path
 
 - Canonical decisive-move truth is derived before prose generation.
-- Canonical Chronicle / Game Arc behavior is deterministic.
 - Canonical MoveReview draft generation is deterministic.
-- Canonical Active-note attach / omit behavior is deterministic.
 - AI polish may improve wording, but it does not own strategic truth or note
   existence on the signoff path.
 
 ### 1A. Truth-first move fact layer
 
-- Per key moment, the canonical runtime derives an internal
-  `MoveTruthFrame` before Chronicle / MoveReview / Active prose is built.
+- Per MoveReview request, the canonical runtime derives an internal
+  `MoveTruthFrame` / MoveReview context before user-facing prose is built.
 - `MoveTruthFrame` is the fact layer; `DecisiveTruthContract` is only the
   surface projection consumed by selection and rendering.
 - The frame classifies seven fact families:
@@ -151,9 +172,9 @@ Out of scope:
   - the verified payoff anchor
   - whether compensation prose is allowed
   - whether benchmark prose is allowed
-- serialized truth fields on `GameArcMoment` / `GameChronicleMoment` are
-  compatibility/debug projections only. Runtime selection, whole-game binding,
-  and signoff-path control flow must consume canonical `MoveTruthFrame` /
+- serialized truth fields on retained diagnostic Game Arc models are
+  compatibility/debug projections only. MoveReview runtime and signoff-path
+  control flow must consume canonical `MoveTruthFrame` /
   `DecisiveTruthContract`, not re-derive truth from serialized strings.
 - no-contract `fallbackMomentProjection` is now failure-only:
   raw `blunder` / `missed_win` classification may preserve a compact failure
@@ -216,7 +237,7 @@ Out of scope:
 
 - `StrategyPackBuilder` builds the shared strategic carrier.
 - `StrategyPackSurface` is the shared extraction / normalization layer used by
-  Chronicle, MoveReview, and Active note.
+  MoveReview and retained internal diagnostics.
 - compensation family / theater / mode / normalization are resolved once and
   reused across surfaces instead of being independently reinterpreted.
 - raw compensation flags on `StrategyPackSurface`
@@ -232,8 +253,8 @@ Out of scope:
   fresh investment ownership by default.
 - decisive-truth derivation reads the raw pre-sanitization `StrategyPack`
   before surface cleanup. Investment exemplars are classified from verified raw
-  pack evidence first, and only then are Chronicle / MoveReview / Active
-  surfaces sanitized from the finalized contract.
+  pack evidence first, and only then is MoveReview sanitized from the finalized
+  contract.
 - decisive-truth derivation tracks four evidence provenance buckets:
   - `current_material`
   - `current_semantic`
@@ -617,6 +638,17 @@ Current canonical flow:
       `NarrativeOutlineBuilder`, decisive-truth motif tagging, and MoveReview
       consume this same projection boundary instead of re-encoding parallel
       `Fact -> wording/tag/descriptor` switches
+    - `MoveReviewScopedTakeaway` is the internal owner for MoveReview-local
+      takeaway text before it is projected into the compatibility
+      `MoveReviewPvInterpretation.learningPoint` field. It binds the text to
+      the post-move FEN, played UCI, coupled PV line id, source, evidence tier,
+      and guardrails; it is not a public payload field and does not create a
+      Chronicle / Active / Track 5 lesson model.
+    - role boundaries remain split rather than merged: `FactFragment` carries
+      raw source metadata, `MoveReviewPvInterpretation.learningPoint` is the
+      public compatibility projection, `NarrativeOutlineBuilder` fragment
+      authority stays outline-local, and `MoveReviewLocalFactualFallback` stays
+      a factual fallback provider rather than a takeaway generator
     - `CommentaryIdeaSurface.MoveReviewEvidence` is only the MoveReview
       basic-lane projection input assembled by `MoveReviewExplanationBuilder`;
       it is not a Chronicle / Outline / Claim carrier and must not be treated
@@ -654,7 +686,7 @@ Current canonical flow:
      a tone selector for the basic MoveReview lane; it is not a new truth tier
      and does not change planner authority, `SupportedLocal`, or signoff
    - the prose may use that interpretation to explain current-move purpose,
-     the opponent reply's local question, and the learning point confirmed by
+     the opponent reply's local question, and the scoped takeaway confirmed by
      the short PV, but the PV line remains a separate `shortLine` field and may
      not become a broader strategic/evaluation claim
     - `MoveReviewPolishSlots.sourceKind` records the selected visible lane; the
@@ -664,6 +696,21 @@ Current canonical flow:
       basic title into the UI
 7. if neither planner nor basic instructional lane survives, runtime uses the
    exact factual fallback or omission.
+   - MoveReview exact-factual fallback is now a legal local factual explanation
+     layer: `MoveReviewLocalFactualFallback` reads only legal current-move
+     replay and board truth to combine move facts, material delta,
+     tactical-only after-board / current-move-owned motifs, and optional
+     same-FEN coupled-PV preview.
+   - material support is local fact only (`captured knight`,
+     `pawn becoming a queen`, or both); it may not become advantage,
+     compensation, simplification, or exchange-benefit wording.
+   - tactical fallback support is limited to legal after-board check/checkmate
+     and current-move-owned ply-zero fork/pin/skewer candidate motifs; ambient
+     motifs, quiet plan motifs, route, pressure, coordination, prophylaxis, and
+     centralization remain inadmissible fallback support.
+   - local factual support, when present, occupies `supportPrimary` ahead of
+     quiet-support fallback lift; the public `moveReviewExplanation` payload
+     remains reserved for `sourceKind=basic_move_explanation`.
 8. deterministic draft prose is rendered from those slots.
    - `NarrativeOutlineBuilder` still emits plain `OutlineBeat.text`, but the
      runtime now keeps several mixed families split locally until the final
@@ -725,8 +772,8 @@ Current rules:
 - MoveReview ledger rows are computed, evidence-gated, and UI-owned.
 - `moveReviewExplanation` is structured local review output: `title`, `prose`,
   optional `qualityLabel`, `reasonTags`, optional `shortLine`, optional
-  `pvInterpretation`, and `source`; it is emitted only when the selected
-  MoveReview slots have `sourceKind=basic_move_explanation`.
+  `pvInterpretation`, `source`, and optional `factFragments`; it is emitted
+  only when the selected MoveReview slots have `sourceKind=basic_move_explanation`.
 - the commentary body is optional-polish prose only
 - AI polish must stay slot-grounded and must not add new topics
 - MoveReview slot ownership is planner-first:
@@ -895,13 +942,10 @@ Current rules:
     acceptable quantifier / attribution / stability grades; otherwise runtime
     falls straight to the exact factual sentence (`This puts the rook on c3.`,
     `This castles.`, etc.) rather than reviving a softer strategic intention
-  - user-facing strategic plans are probe-backed only:
-    runtime `mainStrategicPlans` may surface only hypotheses with validated
-    supportive probe results plus move-local delta ownership; `pv_coupled`,
-    `deferred`, and structural-only escalations are removed from the runtime
-    hot path
-  - latent / pv-coupled / deferred strategic hypotheses are no longer runtime
-    carriers:
+  - user-facing strategic plans include probe-backed plans and provisional plans:
+    runtime `mainStrategicPlans` may surface hypotheses with validated
+    supportive probe results (`ProbeBacked`), or structural/PV-coupled hypotheses (`StructuralOnly` / `PvCoupledOnly`) with provisional or qualifying language when no probe-backed leader exists.
+  - latent / deferred strategic hypotheses remain restricted:
     `latentPlans` and `whyAbsentFromTopMultiPV` are absent from user-facing
     runtime responses and surfaced Chronicle moment payloads, while structured
     diagnostic entries are emitted only to local raw/debug sidecars
@@ -917,17 +961,23 @@ Current rules:
   - direct MoveReview requests do not surface blank prose:
     after tactical / strategic / quiet-intent checks fail, runtime may still
     emit one exact factual fallback sentence from current move semantics
-    - that exact-factual floor is literal move-shape only:
-      planner/direct fallback may describe castles, destination-anchored piece
-      moves, and target-anchored captures, but when capture targeting is
-      unavailable it must fail closed to `This captures.` rather than adding
-      generalized simplification / exchange meaning from fallback state
+    - MoveReview direct fallback first tries a local factual provider:
+      `MoveReviewLocalFactualFallback` reuses legal current-move replay to
+      describe only the played move's role, destination, captured role,
+      castling, or promotion. It may add one coupled PV preview sentence only
+      when `MoveReviewPvLine.firstCoupled` proves the same start FEN, first
+      UCI, and legal replayed chain. If legal replay, SAN/UCI consistency, or
+      captured-role anchoring is unavailable, fallback drops to the legacy
+      literal move-shape floor such as `This captures.`
     - the quiet-support baseline cohort adds one narrow fallback-lift above
       that floor:
       when planner-owned slots do not survive, runtime may attach at most one
       bounded quiet-support sentence under the exact factual claim, but only on
       the move-linked `MoveDelta.pv_delta` subset backed by `signalDigest`
       route / structure / pressure material
+    - local factual PV support has priority over quiet-support fallback:
+      quiet-support lift runs only when the legal local factual provider did
+      not already attach a validated factual support sentence
     - that fallback-lift is support-only:
       it does not reopen proof-contract authority, question ranking, legality, or
       raw domain-hint revival, and planner trace still records the row as an
@@ -1139,6 +1189,35 @@ Current rules:
     transform blocker, and only when the defended branch itself shows the
     transform capture, the immediate recapture, and no restored same-destination
     release route. Transform evidence never becomes player-facing prose.
+    The commentaryTools break-clamp scanner mirrors that boundary as
+    source-intake tooling: each row now separates `itemDetected`,
+    `releaseReadiness`, and `releaseDecision`, and splits transform resources
+    into `rawReleaseRoutes`, `usableReleaseRoutes`, and
+    `artifactReleaseRoutes`. Branch-proven harmless recaptures count as
+    artifact diagnostics rather than usable releases; still-releasing,
+    unproven, restored, unstable, engine-missing, absent-source, and too-short
+    branches remain fail-closed. The legacy `clean_route_clamp`
+    classification is only a compatibility projection for `release_pass`, and
+    `releaseDecision` stays `authority_closed`. The 2026-05-20 broad
+    ModernBenoni6e4 slice (`offset=0`, `limit=500`, Stockfish depth 10,
+    MultiPV 3) is the current harmless-transform intake baseline:
+    candidate scanning produced 15 `artifactReleaseRows`, and artifact-only
+    source triage considered 15 artifact events. After adding route-token
+    alignment to transient source rows, `SourceReview` requires the scanner's
+    expected break token to materialize in the packet / claim surface; the
+    `...d7-d5` / `...d6-d5` opening rows that surfaced as `...d4` now fail as
+    `proof:break_prevention_route_mismatch`. The guarded triage baseline has
+    9 admitted rows and 6 review-required rows. The clean black-midgame
+    admitted band is four events (`...f7-f5`, `...h7-h5`, `...b5-b4`,
+    `...g6-g5`); white-route and late-endgame rows remain review candidates,
+    not automatic catalog promotions. Pomar-Toran 1969 ply 27 is now
+    fixed as the first real-game harmless-transform source-intake fixture:
+    `14.b4` denies `...b5-b4`, the raw `...c5xb4` transform is branch-proven
+    harmless after `Rxb4`, and selected `SourceWindowReview` admits only via
+    the existing `counterplay_axis_suppression` /
+    `neutralize_key_break` `SupportedLocal` packet. This is not a new proof
+    source, proof family, planner owner, public API field, or broad transform
+    release.
     The materializer writes only the existing internal carrier
     (`deniedResourceClass = break`, `deniedEntryScope = file`, named
     `breakNeutralized`, negative `mobilityDelta`), does not fabricate
@@ -1317,6 +1396,70 @@ Current rules:
     `KingAttackEvidenceProducer`, `TransformationEvidenceProducer`, and
     `CounterplayEvidenceProducer`. Shared helper logic stays in
     `StrategicIdeaEvidenceSupport`.
+    `StructuralSpaceEvidenceProducer` may enrich `ColorComplexClamp` selector
+    evidence with same-position enemy `ColorComplexWeakness` squares and
+    color-complex fact ids (`enemy_color_complex_weakness`,
+    `color_complex_dark` / `color_complex_light`) so ranking can see the exact
+    weak-square support. That exact support is tagged internally as
+    `StrategicIdeaEvidenceTier.ValidatedPressure`; ordinary selector evidence
+    remains `SelectorSupport`. Both tiers keep the existing
+    `StrategyIdeaSignal.evidenceRefs` wire shape, and neither tier opens a
+    packet, proof source, proof family, planner owner, or public payload field.
+    Color-complex positive readiness is tracked separately from selector
+    support. Runtime `ColorComplexSqueezeProof` now defines a private,
+    non-authority proof-readiness contract for the color-complex shape itself:
+    an exact weak-complex core, `ColorComplexSqueezeValidation`, defender
+    mobility loss or functional defender paralysis, same-branch persistence,
+    and usable opposite-color escape exclusion. The anchor is no longer
+    overfit to 100% same-color squares: adjacent off-color support squares may
+    be present when the same-color weak-complex core remains the majority, and
+    the test/tooling scanner keeps two-square cores in review scope instead of
+    prefiltering them out.
+    Persistence may be witnessed by exact squares or stable zone language such
+    as a kingside dark-square complex, and escape-denial wording no longer
+    fails merely because it contains the word `escape`. It intentionally does
+    not reuse route-denial file / entry / reroute certification as the proof
+    shape. Proof probes consumed by this
+    helper must also match the evaluated current-position FEN key; stale probe
+    replay fails as `probe_fen_mismatch`. Source ids, source rows, and named
+    survivor FENs are provenance / regression fixtures only, not admission
+    predicates. The commentaryTools test-only
+    `ColorComplexExactFenCorpus` classifies exact FEN controls and their
+    expected fail-closed reason codes, with separate controlled positive
+    controls to prove the evaluator has a pass condition. It now also records
+    one real source positive survivor,
+    `karpov_unzicker_1974_dark_complex_squeeze_candidate`, but only at
+    `color_complex_squeeze_readiness` scope, and keeps
+    `lokvenc_czerniak_1952_dark_complex_review_required` on the same proof
+    shape with `opposite_color_escape` as its blocker. The test/tooling-only
+    `ColorComplexCandidateScanner`, `ColorComplexCandidateReview`, and
+    `runColorComplexCandidateScan` runner scan exact PGN plies /
+    RealPgn-style corpora, group duplicate candidate rows into strategic
+    events, demote late endgame / edge artifacts, optionally attach Stockfish
+    MultiPV best-defense persistence checks, and write
+    `tmp/color_complex_candidate_scan.tsv`,
+    `tmp/color_complex_candidate_scan.md`,
+    `tmp/color_complex_candidate_review.tsv`, and
+    `tmp/color_complex_candidate_review.md`. The scanner now keeps strategic
+    item existence, squeeze readiness, and authority decision as separate
+    fields: `itemDetected`, `squeezeReadiness` (`readiness_pass` /
+    `readiness_fail`), and `authorityDecision` (`authority_closed`). The
+    review layer further separates engine-line `escape=` as a usable escape
+    for constrained defender pieces from `artifactEscape=` geometry such as
+    vacated or pawn-guarded squares that do not release the squeeze by
+    themselves. The
+    2026-05-20 full `SourceWitnessCatalog` scan with two-square cores enabled
+    found 16 `readiness_pass` rows across 9 distinct FENs and 5784
+    `readiness_fail` rows. Review grouped the pass rows into 4 reviewable
+    strategy events and 2 artifact events. Karpov-Unzicker 1974 and
+    Alekhine-Bogoljubow 1936 survived engine best-defense review as
+    `engine_persistent_readiness_candidate`; Lokvenc-Czerniak 1952 and
+    Maderna-Palermo 1955 stayed `engine_best_defense_review_required` because
+    best-defense lines exposed usable escape / persistence blockers. These
+    are discovery/source intake
+    rows only: the helper is not consumed by selector, planner admission,
+    packet creation, renderer code, `SupportedLocal`, `CertifiedOwner`,
+    `WhatMattersHere`, or public payload fields.
     `StrategicIdeaSelector` still owns `pawn_break`, `target_fixing`,
     merge/rank/arbitration, and final `EvidenceRef.wireKey` rendering. This is
     ranking/support infrastructure only; it does not open a new packet, proof
@@ -1331,6 +1474,11 @@ Current rules:
     delta, and bounded local witness sources. `ProofContractRules` builds
     contracts from those ids, with any legacy selector-source accepted aliases
     declared through registered `EvidenceSourceId` rather than raw strings.
+    `ClaimAuthorityPolicy` does not independently recalculate
+    `CertifiedOwner` or `SupportedLocal` contract acceptance; it consumes
+    `ProofContractRules.certifiedOwnerAdmissible(packet)` and
+    `ProofContractRules.supportedLocalAdmissible(packet)`, both of which
+    require `contract.accepts(packet)` and an empty `failureCodes(packet)`.
     Public packet fields and `StrategyIdeaSignal.evidenceRefs` remain wire
     strings for compatibility; typed ids are the internal construction and
     guard boundary. The
@@ -1454,6 +1602,7 @@ Primary files:
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/NarrativeContextBuilder.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/BookStyleRenderer.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/CommentaryIdeaSurface.scala`
+- `modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewLocalFactualFallback.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewPvLine.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/MoveReviewPolishSlots.scala`
 - `modules/commentaryCore/src/main/scala/lila/commentary/analysis/CertifiedDecisionFrameBuilder.scala`

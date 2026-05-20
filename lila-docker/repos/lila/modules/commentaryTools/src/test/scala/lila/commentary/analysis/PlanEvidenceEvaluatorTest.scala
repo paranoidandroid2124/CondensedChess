@@ -80,7 +80,11 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
         droppedProbeCount = 0
       )
 
-    assertEquals(partition.mainPlans, Nil)
+    assertEquals(partition.mainPlans.map(_.planId), List("CentralControl"))
+    assert(
+      partition.mainPlans.headOption.exists(_.evidenceSources.contains("provisional:unvalidated_support")),
+      clue(partition.mainPlans)
+    )
     assert(
       partition.diagnosticSidecar.entries.exists(entry =>
         entry.planId == "CentralControl" &&
@@ -89,7 +93,6 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
       clue(partition.diagnosticSidecar)
     )
   }
-
   test("partition marks plan as refuted when validated refutation probe exceeds cp-loss bound") {
     val plan =
       hypothesis(
@@ -418,4 +421,30 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
     assert(partition.diagnosticSidecar.downgradedWeakClaims >= 1)
     assert(partition.diagnosticSidecar.quantifierFailures >= 1)
     assert(partition.diagnosticSidecar.stabilityFailures >= 1)
+  }
+
+  test("partition admits structural-only plans as provisional leaders when probe-backed is missing") {
+    val structuralPlan =
+      hypothesis(
+        id = "StructuralBreak",
+        name = "Structural break plan",
+        score = 0.82,
+        sources = List("support:engine_hypothesis", "structural_state:pawn_duo")
+      )
+
+    val partition =
+      PlanEvidenceEvaluator.partition(
+        hypotheses = List(structuralPlan),
+        probeRequests = Nil,
+        validatedProbeResults = Nil,
+        rulePlanIds = Set.empty,
+        isWhiteToMove = true,
+        droppedProbeCount = 0
+      )
+
+    assertEquals(partition.mainPlans.map(_.planId), List("StructuralBreak"))
+    assert(
+      partition.mainPlans.headOption.exists(_.evidenceSources.contains("provisional:unvalidated_support")),
+      clue(partition.mainPlans)
+    )
   }

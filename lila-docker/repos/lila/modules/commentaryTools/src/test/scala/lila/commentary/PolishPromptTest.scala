@@ -174,3 +174,52 @@ class PolishPromptTest extends FunSuite:
     assert(!prompt.contains("Nature:"))
     assert(!prompt.contains("Tension:"))
   }
+
+  test("buildPolishPrompt and buildRepairPrompt format and include factFragments") {
+    val fixture = MoveReviewProseGoldenFixtures.openFileFight
+    val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
+    val baseSlots = MoveReviewPolishSlotsBuilder.buildOrFallback(
+      fixture.ctx,
+      outline,
+      refs = None,
+      strategyPack = fixture.strategyPack
+    )
+    val slots = baseSlots.copy(
+      claim = "12. Bc4 in the Italian Game develops through Development Logic.",
+      factFragments = Some(List(
+        FactFragment.OpeningGoalFragment(
+          san = "Bc4",
+          openingName = Some("Italian Game"),
+          goalName = "Development Logic",
+          supportedEvidence = List("Nf6", "d3")
+        )
+      ))
+    )
+
+    val prompt = PolishPrompt.buildPolishPrompt(
+      prose = slots.claim,
+      phase = "opening",
+      evalDelta = None,
+      concepts = Nil,
+      fen = "",
+      openingName = Some("Italian Game"),
+      moveReviewSlots = Some(slots)
+    )
+
+    assert(prompt.contains("## DRY FACTS"))
+    assert(prompt.contains("- OpeningGoal | san: Bc4 | opening: Italian Game | goal: Development Logic | supported: Nf6, d3"))
+
+    val repairPrompt = PolishPrompt.buildRepairPrompt(
+      originalProse = slots.claim,
+      rejectedPolish = "Italian Game is cool.",
+      phase = "opening",
+      evalDelta = None,
+      concepts = Nil,
+      fen = "",
+      openingName = Some("Italian Game"),
+      moveReviewSlots = Some(slots)
+    )
+
+    assert(repairPrompt.contains("## DRY FACTS"))
+    assert(repairPrompt.contains("- OpeningGoal | san: Bc4 | opening: Italian Game | goal: Development Logic | supported: Nf6, d3"))
+  }

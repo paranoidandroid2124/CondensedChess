@@ -481,23 +481,9 @@ object RealPgnNarrativeEvalRunner:
         case Left(err)    => throw new IllegalArgumentException(s"$gameLabel: PGN validation failed: $err")
 
     val afterMoveEvals = buildAfterMoveEvals(plyData, engine, depth, multiPv)
-    val initialArtifacts =
-      Await.result(
-        api.analyzeGameChronicleLocalArtifacts(
-          pgn = pgn,
-          evals = afterMoveEvals,
-          style = "active",
-          focusOn = List("strategy", "long_plan", "piece_route"),
-          allowAiPolish = false,
-          asyncTier = false,
-          lang = "en",
-          planTier = PlanTier.Pro,
-          commentaryMode = CommentaryMode.Active
-        ),
-        180.seconds
-      ).getOrElse(throw new IllegalStateException(s"$gameLabel: empty Game Chronicle response"))
-    val initialInternalResponse = initialArtifacts.internalResponse
-    val initialVisibleResponse = initialArtifacts.response
+    val initialArtifacts = buildChronicleArtifacts(pgn, afterMoveEvals, Map.empty)
+    val initialInternalResponse = initialArtifacts._1
+    val initialVisibleResponse = initialArtifacts._2
 
     val probeBundles = collectProbeMomentBundles(initialInternalResponse, MaxProbeMoments)
     val (probeResultsByPly, unsupportedProbeCount, executedProbeCount) =
@@ -505,27 +491,12 @@ object RealPgnNarrativeEvalRunner:
 
     val refinedArtifacts =
       if probeResultsByPly.isEmpty then initialArtifacts
-      else
-        Await.result(
-          api.analyzeGameChronicleLocalArtifacts(
-            pgn = pgn,
-            evals = afterMoveEvals,
-            style = "active",
-            focusOn = List("strategy", "long_plan", "piece_route"),
-            allowAiPolish = false,
-            asyncTier = false,
-            lang = "en",
-            planTier = PlanTier.Pro,
-            commentaryMode = CommentaryMode.Active,
-            probeResultsByPly = probeResultsByPly
-          ),
-          180.seconds
-        ).getOrElse(initialArtifacts)
+      else buildChronicleArtifacts(pgn, afterMoveEvals, probeResultsByPly)
 
     ChronicleRunArtifacts(
       initialMomentCount = initialVisibleResponse.moments.size,
-      internalResponse = refinedArtifacts.internalResponse,
-      response = refinedArtifacts.response,
+      internalResponse = refinedArtifacts._1,
+      response = refinedArtifacts._2,
       afterMoveEvals = afterMoveEvals,
       probeResultsByPly = probeResultsByPly,
       probeCandidateMoments = probeBundles.size,
@@ -533,6 +504,27 @@ object RealPgnNarrativeEvalRunner:
       probeUnsupportedCount = unsupportedProbeCount,
       probeExecutedCount = executedProbeCount
     )
+
+  private def buildChronicleArtifacts(
+      pgn: String,
+      afterMoveEvals: List[MoveEval],
+      probeResultsByPly: Map[Int, List[lila.commentary.model.ProbeResult]]
+  ): (GameChronicleResponse, GameChronicleResponse) =
+    val evalMap = afterMoveEvals.map(eval => eval.ply -> eval.getVariations).toMap
+    val diagnostic =
+      CommentaryEngine.generateGameArcDiagnostic(
+        pgn = pgn,
+        evals = evalMap,
+        probeResultsByPly = probeResultsByPly,
+        variantKey = EarlyOpeningNarrationPolicy.StandardVariant
+      )
+    val response =
+      GameChronicleResponse.fromGameArc(
+        diagnostic.arc,
+        planTier = PlanTier.Pro,
+        commentaryMode = CommentaryMode.Polish
+      )
+    (response, response)
 
   private def buildFocusMomentReport(
       game: CorpusGame,
@@ -569,7 +561,7 @@ object RealPgnNarrativeEvalRunner:
             allowAiPolish = false,
             lang = "en",
             planTier = PlanTier.Pro,
-            commentaryMode = CommentaryMode.Active
+            commentaryMode = CommentaryMode.Polish
           ),
           180.seconds
         )
@@ -680,42 +672,13 @@ object RealPgnNarrativeEvalRunner:
         case Left(err)    => throw new IllegalArgumentException(s"${guard.id}: PGN validation failed: $err")
 
     val afterMoveEvals = buildAfterMoveEvals(plyData, engine, config.depth, config.multiPv)
-    val initialResponse =
-      Await.result(
-        api.analyzeGameChronicleLocal(
-          pgn = game.pgn,
-          evals = afterMoveEvals,
-          style = "active",
-          focusOn = List("strategy", "long_plan", "piece_route"),
-          allowAiPolish = false,
-          asyncTier = false,
-          lang = "en",
-          planTier = PlanTier.Pro,
-          commentaryMode = CommentaryMode.Active
-        ),
-        180.seconds
-      ).getOrElse(throw new IllegalStateException(s"${guard.id}: empty Game Chronicle response"))
+    val initialResponse = buildChronicleArtifacts(game.pgn, afterMoveEvals, Map.empty)._2
 
     val probeBundles = collectProbeMomentBundles(initialResponse, MaxProbeMoments)
     val (probeResultsByPly, _, _) = executeSupportedProbeRequests(probeBundles, engine)
     val refinedResponse =
       if probeResultsByPly.isEmpty then initialResponse
-      else
-        Await.result(
-          api.analyzeGameChronicleLocal(
-            pgn = game.pgn,
-            evals = afterMoveEvals,
-            style = "active",
-            focusOn = List("strategy", "long_plan", "piece_route"),
-            allowAiPolish = false,
-            asyncTier = false,
-            lang = "en",
-            planTier = PlanTier.Pro,
-            commentaryMode = CommentaryMode.Active,
-            probeResultsByPly = probeResultsByPly
-          ),
-          180.seconds
-        ).getOrElse(initialResponse)
+      else buildChronicleArtifacts(game.pgn, afterMoveEvals, probeResultsByPly)._2
 
     val internalTruthByPly =
       buildInternalTruthByPly(

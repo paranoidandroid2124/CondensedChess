@@ -29,7 +29,7 @@ private[commentary] object ClaimAuthorityPolicy:
     if tacticalReasons.nonEmpty && isSupportedPositionProbeFamily(packet.proofFamily) then
       ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
     else if PlayerFacingTruthModePolicy.certifiedPositionProbePacket(packet) &&
-        ProofContractRules.certifiedEligible(packet.proofFamily)
+        ProofContractRules.certifiedOwnerAdmissible(packet)
     then
       ClaimAuthorityDecision(ClaimAuthorityTier.CertifiedOwner)
     else if supportsLocalPositionProbe(packet) then
@@ -113,8 +113,7 @@ private[commentary] object ClaimAuthorityPolicy:
       packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
       packet.suppressionReasons.isEmpty &&
       packet.releaseRisks.isEmpty &&
-      isSupportedPositionProbeFamily(packet.proofFamily) &&
-      ProofContractRules.supportedLocalEligible(packet.proofFamily) &&
+      ProofContractRules.supportedLocalAdmissible(packet) &&
       PlayerFacingClaimProof.allowsWeakMainClaim(packet)
 
   private def decideSupportedMoveDelta(
@@ -189,8 +188,7 @@ private[commentary] object ClaimAuthorityPolicy:
       packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
       packet.suppressionReasons.isEmpty &&
       packet.releaseRisks.isEmpty &&
-      ProofContractRules.supportsMoveDeltaProofFamily(packet.proofFamily) &&
-      ProofContractRules.supportedLocalEligible(packet.proofFamily) &&
+      ProofContractRules.supportedLocalAdmissible(packet) &&
       PlayerFacingClaimProof.allowsWeakMainClaim(packet)
 
   private def hasExactOwnerPath(packet: PlayerFacingClaimPacket): Boolean =

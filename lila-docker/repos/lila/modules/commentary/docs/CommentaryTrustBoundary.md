@@ -34,6 +34,25 @@ Use the documents in this order:
 - `CommentaryTrustBoundary.md`
   - canonical trust-risk map, CTH audit baseline, trust-boundary priority map
 
+## MoveReview-Only Trust Boundary
+
+As of the 2026-05-20 authority consolidation, trust-hardening applies to a
+single user-facing commentary surface: MoveReview. Chronicle/Game Chronicle,
+Guided Review, Defeat DNA, and Active strategic-note consumption have been
+removed from public API, runtime orchestration, and analyse UI authority paths.
+
+Retained Game Arc / Chronicle / Active names are allowed only as internal
+diagnostics, historical fixtures, test/tooling helpers, or shared proof/planner
+infrastructure used by MoveReview. They may not create product payloads,
+frontend entrypoints, owner claims, or fallback truth rewrites.
+
+`MoveReviewLocalFactualFallback` remains a local factual provider only:
+move facts, material delta, tactical-only motifs, and PV-coupled facts may
+support exact-factual fallback, but support-only/strategyPack carriers still
+cannot become owner claims. `MoveReviewScopedTakeaway` is the sole internal
+takeaway authority and is scoped to FEN + played move + branch + evidence tier;
+it is not Track 5 lesson authority.
+
 ## Admission Vocabulary
 
 Current trust/admission wording uses distinct layer names:
@@ -105,6 +124,13 @@ no exact witness, but they do not rename a layer to `family`.
   `proofPathWitness` lane (`ownerSeedTerms`, `continuationTerms`,
   `rivalTerms`, `structureTransitionTerms`) so owner-path proof can deepen
   without adding any new public schema, payload, or persisted debug field.
+- Tiered commentary / qualifying system note:
+  The pipeline now supports a tiered/qualifying commentary system to mitigate commentary sparsity.
+  When no probe-backed leader exists for a moment, structural-only and PV-coupled-only plans
+  are admitted as provisional leaders (`provisional:unvalidated_support`).
+  To protect the truth boundary, these provisional claims use qualified phrasing (e.g., "This attempts to...")
+  via `MainPathMoveDeltaClaimBuilder.qualify_text` and are permitted by `PlayerFacingTruthModePolicy`
+  under the `AllowsQualifyingClaim` mode.
 - Generic concept boundary note:
   `StrategicConceptSemantics` is now the generic semantic predicate boundary
   before packet release. Its first live concept is `minority_attack`, represented
@@ -139,6 +165,65 @@ no exact witness, but they do not rename a layer to `family`.
   proof-family, or planner-owner authority. Generic Carlsbad/compensation
   target shells without exact target-release evidence are treated as selector
   support in ranking fixtures rather than as target release assertions.
+  Color-complex support follows the same rule: `ColorComplexClamp` may carry
+  exact same-position enemy weak-square support from `ColorComplexWeakness`
+  into selector evidence and mark it as
+  `StrategicIdeaEvidenceTier.ValidatedPressure`, but valid pressure is not
+  authority. Color-complex positives, mobility-cage prose, and any
+  `PositionLocal` / `WhatMattersHere` owner remain closed without a separate
+  exact packet/certificate. The private `ColorComplexSqueezeProof`
+  readiness helper now prevents route-denial file / entry / reroute proof from
+  substituting for color-complex proof: it requires a majority same-color
+  weak-complex core, color-complex validation, defender mobility loss or
+  functional defender paralysis, same-branch persistence witnessed by exact
+  squares or stable zone language, and usable opposite-color escape exclusion.
+  Adjacent off-color support squares may be present, and positive
+  escape-denial wording is not treated as an escape resource. The test/tooling
+  scanner now keeps two-square color-complex cores in review scope rather than
+  prefiltering them out. It also requires consumed proof probes
+  to match the evaluated current-position FEN key, so a source survivor cannot
+  be replayed into a different position by source id or fixture identity.
+  The test/tooling-only `ColorComplexExactFenCorpus` now records exact FEN
+  readiness controls for this closed family: a pretty-but-uncertified dark-
+  square squeeze fails the dedicated proof shape, route-only evidence fails as
+  `route_denial_only_shape_leak`, and the TrustBoundary
+  `color_complex_escape` FEN stays failed on its exact route-proof objections.
+  Controlled positive fixtures prove the evaluator has a pass condition, but
+  they are not product survivors. `ColorComplexExactFenCorpus` now also fixes
+  one real source positive survivor,
+  `karpov_unzicker_1974_dark_complex_squeeze_candidate`, at readiness scope
+  only, and keeps the Lokvenc-Czerniak 1952 candidate on the same structural
+  proof shape with `opposite_color_escape` as its blocker. Source rows and
+  FENs remain provenance / regression fixtures, not authority predicates. The
+  test/tooling-only `ColorComplexCandidateScanner` and
+  `ColorComplexCandidateReview` run real PGN / RealPgn-style discovery scans
+  through the same private proof-readiness helper, then group duplicate rows,
+  demote endgame/edge artifacts, and attach optional Stockfish MultiPV
+  best-defense persistence checks. The scanner separates `itemDetected`,
+  `squeezeReadiness` (`readiness_pass` / `readiness_fail`), and
+  `authorityDecision` (`authority_closed`) instead of presenting support rows
+  as authority candidates. The engine review then separates usable `escape=`
+  squares, which a constrained defender piece can actually use, from
+  `artifactEscape=` geometry such as vacated or pawn-guarded squares. The
+  full-game catalog scan on 2026-05-20 with
+  two-square cores enabled found 16 `readiness_pass` rows across 9 distinct
+  FENs and 5784 `readiness_fail` rows, grouped into 4 reviewable strategy
+  events and 2 artifacts. Karpov-Unzicker 1974 and Alekhine-Bogoljubow 1936
+  survived engine review as `engine_persistent_readiness_candidate`, while
+  Lokvenc-Czerniak 1952 and Maderna-Palermo 1955 stayed
+  `engine_best_defense_review_required` because best-defense lines still
+  expose usable escape or persistence blockers. Gate failures remain dominated by
+  `opposite_color_escape`, then `persistence_missing` and
+  `defender_mobility_loss_missing`. These rows are diagnostic intake for
+  future authority review, not runtime admission: they still need packet
+  proof, planner admission, tactical/rival-family veto, and claim-only surface
+  checks before any `SupportedLocal`, `CertifiedOwner`, `PositionLocal`, or
+  `WhatMattersHere` path can open. Admission for existing packet families is
+  centralized through `ProofContractRules.certifiedOwnerAdmissible(packet)`
+  and `ProofContractRules.supportedLocalAdmissible(packet)`, so
+  `ClaimAuthorityPolicy` may not admit `CertifiedOwner` or `SupportedLocal`
+  from a packet whose contract rejects the source/family or reports any
+  failure code.
   Proof-contract construction now also consumes registered `ProofSourceId` and
   `ProofFamilyId` values. Promoted runtime families such as
   `half_open_file_pressure`, `neutralize_key_break`,
@@ -994,7 +1079,7 @@ Texture matrix:
 | --- | --- | --- |
 | `prophylactic clamp` | `likely coverable now` | best match for existing prevented-plan and route-denial evidence |
 | `square/file bind` | `likely coverable now` | can stay move-local when the denied route is concrete |
-| `color-complex squeeze` | `likely deferred` | current signals exist, but counterexample resistance is weaker |
+| `color-complex squeeze` | `proof-readiness only` | dedicated pass/fail shape exists and one real source survivor is fixed, but no authority path is open |
 | `quiet king/piece improvement` | `likely unsafe` | too easy to confuse with waiting or generic improvement |
 | `restriction-first then conversion` | `likely coverable now` | reuses the B1 conversion tail once the suppression half is certified |
 | `hidden-break fake squeeze` | `likely unsafe` | mandatory negative corpus, not positive scope |
@@ -1488,7 +1573,7 @@ Texture matrix:
 | --- | --- | --- |
 | `break suppression + entry denial` | `likely coverable now` | best fit for existing `PreventedPlan` + route-denial evidence and non-redundant axis counting |
 | `file / square bind` | `likely deferred` | axis independence is plausible, but overcounting and PV restatement risk are still high |
-| `color-complex squeeze` | `likely deferred` | current ontology and probe hooks exist, but counterexample resistance is weaker |
+| `color-complex squeeze` | `proof-readiness only` | dedicated pass/fail shape exists and one real source survivor is fixed, but no authority path is open |
 | `piece mobility cage` | `likely deferred` | mobility evidence exists, but tactical-release and overreading risk are still high |
 | `quiet king/piece improvement only` | `likely unsafe` | too easy to confuse with waiting or generic improvement |
 | `fortress-like near-miss` | `likely unsafe` | mandatory negative corpus, not early positive scope |
@@ -1814,7 +1899,7 @@ heavy-piece, slight-edge, or color-complex overclaim.
 | `slightly-better local squeeze` | local restriction language below winning-route level | a comfortable edge gets narrated as a certified squeeze | separate progress from fortress/static hold, cap language, and fail closed on small releases | `high` | current eval gating, fortress-risk reuse, route continuity, same-branch persistence | `deferred`; positive B4 not recommended |
 | `file bind` | one denied file corridor plus one single corroborating entry square on the same defended branch | file occupancy or pressure is mistaken for denied file access | prove opponent-facing file usability loss, not just our piece placement; enumerate off-file releases | `medium` | builder-level `PreventedPlan.deniedEntryScope` / `deniedSquares` / `deniedResourceClass` / `counterplayScoreDrop`, reply probes, `futureSnapshot`, branch-key reuse | `deferred until carrier/surface gap closure`; still the preferred B4 entry slice |
 | `square-network bind` | a small named route network, not generic square rhetoric | isolated squares are overcounted as a network | prove route continuity and non-redundant square chaining | `medium-high` | `deniedSquares`, key-square denial, `futureSnapshot.planBlockersRemoved`, B3 axis-independence grammar | `deferred`; not part of the first positive slice beyond a single corroborating entry square |
-| `bounded color-complex restriction` | a color-complex idea tied to a named route loss | pretty positional prose outruns certifiable local truth | tie every color-complex claim to concrete entry/break loss plus same-branch persistence | `very high` | `ColorComplexSqueezeValidation`, weak-complex / denied-square signals, `futureSnapshot` | `unsafe` as the next positive slice |
+| `bounded color-complex restriction` | a color-complex squeeze tied to a majority same-color weak-complex core rather than file / entry / reroute proof | pretty positional prose outruns certifiable local truth, or route-denial shells masquerade as color-complex proof | prove weak-complex core, defender mobility loss or functional paralysis, same-branch persistence by square or zone witness, and usable opposite-color escape exclusion through `ColorComplexSqueezeValidation`; fail route-only evidence as `route_denial_only_shape_leak` | `very high` | `ColorComplexSqueezeProof`, `ColorComplexSqueezeValidation`, weak-complex squares, mobility/paralysis evidence, `futureSnapshot` | proof-readiness only; positive authority still unsafe |
 
 Operational conclusion:
 
@@ -1936,8 +2021,9 @@ Deferred contract draft:
 Rejected for positive drafting now:
 
 - do not open a positive `boundedColorComplexRestriction` contract yet
-- keep color-complex work negative-only until the claim can point to a named
-  entry / break / file loss and survive same-branch release testing
+- keep color-complex work proof-readiness only until a real exact-FEN survivor
+  satisfies the dedicated weak-complex / mobility-loss / escape-exclusion
+  contract and a separate authority plan admits it
 
 #### Criticism matrix
 
@@ -2261,7 +2347,7 @@ rollout remains unopened.
 | `slightly-better local squeeze` | local restriction language below winning-route level in a small edge posture | a comfortable edge is narrated as a certified squeeze even when no progress route exists | separate progress from fortress/static hold, require visible defender-resource worsening, and hard-fail small surviving releases | `very high`; every surface wants to inflate mild-edge control into squeeze rhetoric | best-defense branch reuse, bounded continuation, fortress-risk patterns, `futureSnapshot`, claim certification | `unsafe` as the first positive B5 slice; keep negative-only until progress proof exists |
 | `named route-network bind` | a small named route network, not generic square-control rhetoric | isolated squares or one-file pressure are overcounted as a meaningful network | prove route continuity, non-redundant square chaining, and no reroute through an untouched sector or color complex | `high`; square naming is especially vulnerable to pretty positional prose | `deniedSquares`, route-denial validation, B3/B4 axis-independence grammar, same-branch persistence, `futureSnapshot.planBlockersRemoved` | `deferred`; next positive frontier candidate after B5 |
 | `transition-adjacent route` | one bounded move-local route into a better technical task near a middlegame -> endgame handoff | a local route becomes a whole-ending verdict, fortress verdict, or king-race thesis | prove same-branch task shift, route continuity, and fortress/king-race exclusion under best defense | `high`; `WhatChanged`, Chronicle, and wrap-up can overstate it into the ending's full story | B1 restricted-defense route persistence, `convert_reply_multipv`, same-branch keys, `futureSnapshot`, `endgameTransitionClaim`, endgame features as support only | `deferred`; second-line recon family, not the first B5 implementation slice |
-| `bounded color-complex / mobility-cage` | a color-complex idea tied to one named route loss or one bounded mobility cage | dark-square / light-square rhetoric outruns certifiable local truth and generic mobility-cage prose inflates too easily | tie every abstract claim to concrete entry/break/file loss on the same defended branch and block rhetoric drift when that route proof is missing | `very high`; lexicon and support carriers already make this sound stronger than it is | `ColorComplexSqueezeValidation`, `WeakComplex`, denied squares, `futureSnapshot` | `unsafe`; last and most optional frontier family |
+| `bounded color-complex / mobility-cage` | a color-complex squeeze with a majority same-color weak-complex core, or a separate bounded mobility cage | dark-square / light-square rhetoric outruns certifiable local truth and generic mobility-cage prose inflates too easily | for color-complex, require the dedicated proof shape: weak-complex core, defender mobility loss or functional paralysis, same-branch square/zone persistence, and usable opposite-color escape exclusion; route proof may support context but must not substitute for the color-complex contract | `very high`; lexicon and support carriers already make this sound stronger than it is | `ColorComplexSqueezeProof`, `ColorComplexSqueezeValidation`, `WeakComplex`, mobility/paralysis evidence, `futureSnapshot` | proof-readiness only; positive authority still unsafe |
 | `none / keep positive frontier closed` | no new positive charter until one family survives negative-first criticism | reuse bias makes a familiar local shell feel safer than it is | prove that the leading candidate survives the nasty-case pack before any positive wording is approved | `lowest` immediate surface risk, but only if the frontier stays explicitly closed | existing B2 / B3 / B4 fail-closed gates, cross-surface harness, evidence-backed plan filter | `recommended current baseline`: no B5 positive slice opens yet |
 
 Operational conclusion:
@@ -2388,8 +2474,9 @@ Deferred draft:
 Rejected for positive drafting now:
 
 - do not open a positive `boundedColorComplexRestriction` contract yet
-- keep color-complex work negative-only until the claim can point to one named
-  entry / break / file loss and survive same-branch release testing
+- keep color-complex work proof-readiness only until a real exact-FEN survivor
+  satisfies the dedicated weak-complex / mobility-loss / escape-exclusion
+  contract and a separate authority plan admits it
 
 #### Criticism matrix
 
@@ -2649,7 +2736,7 @@ Session verdict:
 | `file-entry pair + one non-redundant reroute denial` | one file corridor remains usable while one primary entry square and one nearby reroute square/edge both stay denied on the same defended branch | it is just B4 file-entry bind with one extra square counted as a `network` | prove the extra node is independent of the file-entry pair, prove reroute denial survives best defense, and prove bounded continuation still exists without untouched-sector or color-complex escape | `high`; named squares sound richer than the underlying local truth | B4 file-entry pair logic, `PreventedPlan.deniedSquares`, `deniedEntryScope`, `futureSnapshot.planBlockersRemoved`, `bestDefenseBranchKey`, same-branch persistence, claim certification | `selected B6b first-slice candidate`; `likely coverable now` only in this very narrow form |
 | `one named route chain + one reroute denial` | one bounded three-node route chain survives as an actual local strategic route rather than a single-axis clamp | route order and connectivity are invented from a maneuver line or from adjacent controlled squares | prove `routeEdges`, route order, same-branch persistence, and defender-facing reroute collapse rather than a pretty node list | `very high`; planner and replay prose can easily narrate the chain more strongly than the proof | denied-square inventory, B3 / B4 independence grammar, `futureSnapshot`, claim certification | `likely deferred`; current signals are still stronger on nodes than on graph continuity |
 | `bounded sector route network` | a small sector-level network with more than one entry branch | local restriction inflates into whole-wing or whole-position control | prove untouched-sector reroutes are dead, avoid branch stitching, and keep the claim from sounding like domination | `very high`; Chronicle / wrap-up pressure would overstate it quickly | same-branch grammar, prevented-plan inventory, future snapshots | `likely unsafe`; too close to reinflation and whole-position rhetoric |
-| `color-complex / mobility-cage route shell` | a route claim narrated through one color complex or one mobility cage | abstract square-complex prose outruns the exact local route loss | tie the claim to one exact named route loss on the same branch and exclude opposite-color reroutes | `very high`; the rhetoric is stronger than the current proof | denied squares, `WeakComplex`, mobility/cage support signals | `likely unsafe`; keep support-only / negative-first |
+| `color-complex / mobility-cage route shell` | a route claim narrated through one color complex or one mobility cage | abstract square-complex prose outruns the exact local route loss, or route proof is mistaken for color-complex proof | route-only evidence must fail as `route_denial_only_shape_leak`; any color-complex positive needs the dedicated weak-complex-core / functional-paralysis / usable-escape-exclusion contract | `very high`; the rhetoric is stronger than the current proof | `ColorComplexSqueezeProof`, `WeakComplex`, mobility/cage support signals, denied squares as context only | `likely unsafe`; keep support-only / proof-readiness only |
 | `none / keep the positive frontier closed` | no new positive B6 slice opens until the network candidate survives nasty-case review | reuse bias makes the route idea feel safer than it is | keep the closure fallback available if the selected candidate fails exact-board criticism | `lowest` immediate surface risk | existing B2 / B3 / B4 / B5b fail-closed gates | `fallback only`; not chosen after the self-critique below |
 
 ### Backend-only contract drafts
@@ -2966,7 +3053,7 @@ Session verdict:
 | `broader posture/phase expansion` | the same B6/B6-expansion truth in slightly-better late middlegame, heavy-piece middlegame, or transition-adjacent cells | broad row coverage once the route contract is trusted | `very high` | current B6 route continuity, B1 persistence grammar, B5b heavy-piece exclusion, current eval/phase gating | `posture_inflation`, heavy-piece release proof, transition task-shift proof, stronger progress burden | `high` | `deferred` until a broader route-chain slice survives exact-board criticism on the current cell |
 | `replay / whole-game positive reuse review` | limited Chronicle / MoveReview / Active / wrapper reuse of planner-certified route truth | high cross-surface impact | `very high` | replay-closed `sourceKinds`, `StrategicNarrativePlanSupport.evidenceBackedMainPlans`, planner replay filters, existing non-reinflation harnesses | `replay_reinflation`, `whole_game_wrapper_leak`, exact carried-contract parity across surfaces | `very high` | `deferred` until route-chain truth is broader and stable on planner-only scope |
 | `sector-network rollout` | more than one local chain or more than one entry branch in the same sector | medium-high if it ever becomes safe | `extreme` | prevented-plan inventory, `releaseRisksRemaining`, same-branch grammar, `deniedEntryScope = sector` support signals | sector-boundary definition, multi-chain continuity, `untouched_sector_escape`, local-to-sector overreach | `extreme` | `likely unsafe` as the first expansion candidate |
-| `color-complex route expansion` | a route shell narrated through one color complex or mobility cage | medium prose value, low truth margin | `extreme` | denied-square inventory, weak-complex / mobility-cage support signals, `futureSnapshot` | `color_complex_escape`, exact route anchor on one branch, mobility-cage release proof, rhetoric drift | `extreme` | `likely unsafe`; keep support-only / negative-first |
+| `color-complex route expansion` | a route shell narrated through one color complex or mobility cage | medium prose value, low truth margin; route proof can wrongly substitute for color-complex proof | `extreme` | `ColorComplexSqueezeProof`, weak-complex / mobility-cage support signals, `futureSnapshot`, denied-square inventory as context only | `color_complex_escape`, `route_denial_only_shape_leak`, weak-complex core loss, functional-paralysis absence, rhetoric drift | `extreme` | `likely unsafe`; keep support-only / proof-readiness only |
 | `none / more B6 boundary first` | keep the positive frontier closed and do no B6-family widening yet | lowest immediate risk but no product movement | `low` | existing B2 / B3 / B4 / B5b / B6b fail-closed gates | none beyond current regression watch | `lowest` | selected by the 2026-04-02 live-runtime triage because the only plausible route-chain slice failed the root-best gate |
 
 ### Backend-only contract drafts
@@ -4020,7 +4107,10 @@ NarrativeLexicon, Outline, decisive-truth motif tagging, and claim policy.
 The MoveReview descriptor first records a bounded `MoveReviewLineProof`, then
 maps that proof into `reviewIntent` plus internal `moveCharacterBand`, and only
 then renders `movePurpose`, `opponentQuestion`, and `lineResolution` through the
-existing `MoveReviewExplanation` shape. These are local instructional metadata
+existing `MoveReviewExplanation` shape. It also carries structured `factFragments`
+(`FactFragment.scala`) containing raw, un-templated strategic data (OpeningGoal,
+KingSafety, StrategicSupport, TacticalThreat, DirectThreat, Capture, Endgame)
+to seed LLM polishing. These are local instructional metadata
 only: `reviewIntent` is not player-intent proof, `MoveReviewLineProof` is not a
 new proof system beyond the supplied legal PV, and `moveCharacterBand` is not a
 truth tier, `SupportedLocal` upgrade, or permission to claim engine preference.
@@ -4032,9 +4122,12 @@ cross-surface carrier for Chronicle, Outline, or Claim truth.
 oracle output remain the meaning producer boundary.
 The interpretation is bounded
 instructional metadata (`linePurpose`, `confirms`, `tension`,
-`opponentReplyMeaning`, `learningPoint`) for prose density; it is not engine
-truth, strategic authority, or permission to invent SAN/PV/evaluation claims
-beyond the supplied line.
+`opponentReplyMeaning`, `learningPoint`) for prose density; the learning point
+is now the compatibility projection of internal `MoveReviewScopedTakeaway`,
+which binds the text to the reviewed UCI, post-move FEN, coupled PV line id,
+evidence tier, source, and guardrails before projection. It is not engine truth,
+strategic authority, a support-only promotion path, or permission to invent
+SAN/PV/evaluation claims beyond the supplied line.
 Opening identity itself is reference metadata: `OpeningNameLookup` resolves
 canonical `eco/name` from normalized FEN/EPD keys and
 `OpeningExplorerClient` may merge that label with explorer statistics, but the
@@ -4485,6 +4578,19 @@ Current guards:
   fail closed to `This captures.` instead of generalized simplifying/exchange
   prose; the no-question outline branch also falls straight to exact factual
   text or omission instead of restitching decision/meta/close-candidate prose
+- MoveReview exact-factual fallback now has a local factual provider, not a
+  fallback truth rewrite:
+  `MoveReviewLocalFactualFallback` can enrich the floor only from legal
+  current-move replay, SAN/UCI consistency, board target/captured-role truth,
+  material delta, en passant, promotion/castling facts, tactical-only
+  after-board check/checkmate, current-move-owned ply-zero fork/pin/skewer
+  motifs, and a same-FEN first-UCI legal PV preview. It does not read
+  `strategyPack`, support-only carriers, plan text, compensation, pressure,
+  route, coordination, prophylaxis, or quiet positional motif prose as an owner
+  claim. If those factual anchors are missing, it falls back to the legacy
+  literal floor such as `This captures.` Local factual support, when present,
+  also blocks the later quiet-support lift from adding a second support
+  implication.
 
 #### Blocked-lane contamination
 
@@ -4516,7 +4622,7 @@ longer appends quiet-support prose.
 | `signalDigest.structuralCue`, `structureProfile`, `centerState` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only` | `unsupported_generalization` |
 | `signalDigest.prophylaxisPlan`, `prophylaxisThreat`, `counterplayScoreDrop` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only` | `support_only_overreach` |
 | `signalDigest.compensation`, `compensationVectors`, `investedMaterial` | `models.scala` | `moveReview.ts`, `narrativeView.ts` | `support_only`, contract-sensitive | `overclaim_strength` |
-| `moveReviewExplanation` | `models.scala`, `MoveReviewExplanationBuilder.scala`, `CommentaryIdeaSurface.scala`, `MoveReviewPvLine.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from legal current-move replay, validated/coupled PV line proof, `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, endgame facts, optional certified `PlayerFacingMoveDeltaEvidence`, and descriptor-local `reviewIntent` / `moveCharacterBand` metadata | `responsePayload.ts`, `moveReview.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, admitted without PV proof, or extended beyond supplied SAN/PV |
+| `moveReviewExplanation` | `models.scala`, `FactFragment.scala`, `MoveReviewExplanationBuilder.scala`, `CommentaryIdeaSurface.scala`, `MoveReviewScopedTakeaway.scala`, `MoveReviewPvLine.scala`, `UserFacingPayloadSanitizer.scala`; meaning evidence comes from legal current-move replay, validated/coupled PV line proof, `Fact`, `Motif`, `FactExtractor`, `ThreatAnalyzer`, centralized `OpeningGoals` evaluation, endgame facts, optional certified `PlayerFacingMoveDeltaEvidence`, descriptor-local `reviewIntent` / `moveCharacterBand` metadata, and a scoped local takeaway projected into existing `learningPoint` | `responsePayload.ts`, `moveReview.ts`, `studyPersistence.ts`; emitted only for selected `basic_move_explanation` slots | `bounded instructional/local` | `unsupported_generalization` if promoted into strategic truth, emitted beside planner-owned prose, admitted without PV proof, projected without scoped FEN/UCI/PV evidence, or extended beyond supplied SAN/PV |
 | `activeStrategicNote`, `activeStrategicIdeas`, `activeStrategicRoutes`, `activeStrategicMoves`, `activeDirectionalTargets`, `activeBranchDossier` | `GameChronicleResponse.scala` | `narrativeView.ts` | `Active-only surface` | `surface_divergence` |
 | `topEngineMove` | `GameChronicleResponse.scala` | `narrativeView.ts` | `fallback input only` | `blocked_lane_contamination` residual; Chronicle decision-comparison fallback rewrite closed |
 
@@ -4546,8 +4652,12 @@ Accepted residuals:
    PV-backed semantic interpretation; uncoupled/malformed/missing-fen,
    illegal-chain, mismatched-start, or mismatched-board PV lines may keep
    `shortLine` but must not receive semantic interpretation.
-4. planner/direct exact-factual fallback may stay as a narrow residual only at
-   literal move-shape scope; ambiguous captures may not pick up
+4. planner/direct exact-factual fallback may stay as a narrow residual. On
+   MoveReview direct fallback, legal current-move replay may enrich that floor
+   with local facts only: moved role, destination, captured role, promotion,
+   castling, and a same-FEN first-UCI legal PV preview. It may not promote
+   `strategyPack`, support-only carriers, compensation, pressure, route, or
+   plan text into an owner claim, and ambiguous captures may not pick up
    simplification/exchange meaning.
 5. decision-comparison support may render the exact comparative lane only from
    canonical `signalDigest.decisionComparison`; it may not replace the primary
@@ -5165,34 +5275,75 @@ still vetoed by tactical truth mode. This opens the real release lane for the
 packet-backed Lokvenc-Czerniak and Sliwa-Gromek forcing-defense timing rows
 without making clean-route detection itself a release condition.
 
-The test/tooling-only clean break-clamp candidate scanner is a discovery aid
-for the next source hunt, not an authority path. It reads PGN / RealPgn-style
-corpus input, pre-screens exact plies with the private route evidence already
-used by `BreakClampMaterializer`, and reports only candidate rows where a
-played quiet move removes an opponent contact pawn-break route with no
-same-destination transform route. The scanner writes
+The test/tooling-only break-clamp candidate scanner is a discovery aid for the
+next source hunt, not an authority path. It reads PGN / RealPgn-style corpus
+input, pre-screens exact plies with the private route evidence already used by
+`BreakClampMaterializer`, and now separates three review facts: `itemDetected`
+means the played quiet move removed a legal opponent contact-break route,
+`releaseReadiness` records `release_pass` / `release_fail`, and
+`releaseDecision` remains `authority_closed` for every row. Transform routes
+are reported as `rawReleaseRoutes`, `usableReleaseRoutes`, and
+`artifactReleaseRoutes`: a branch-proven harmless recapture is an artifact
+diagnostic rather than a blocker, while unproven, still-releasing,
+same-route-restored, branch-unstable, engine-missing, absent-source-move, and
+too-short-branch cases remain fail-closed. The legacy `clean_route_clamp`
+classification is only a compatibility projection for `release_pass`. The
+scanner writes
 `tmp/strategic_break_clamp_candidate_scan.tsv` and
 `tmp/strategic_break_clamp_candidate_scan.md`; those files are review artifacts
 only and never update `SourceWitnessCatalog` or matrix admission by themselves.
-A `clean_route_clamp` row remains a proposed source candidate that must still
-be added manually and rerun through exact replay, engine authority,
-`neutralize_key_break` owner packet proof, tactical veto, planner admission,
-and claim-only surface checks. Transform-blocked rows deliberately reuse the
-existing `owner:break_prevention_*` blocker taxonomy so Karpov-Unzicker-style
-diagnostics stay visible without opening a recapturable-transform release.
+A `release_pass` / compatibility `clean_route_clamp` row remains a proposed
+source-intake candidate that must still be added manually and rerun through
+exact replay, engine authority, `neutralize_key_break` owner packet proof,
+tactical veto, planner admission, and claim-only surface checks. Transform
+blocked rows deliberately reuse the existing `owner:break_prevention_*`
+blocker taxonomy so Karpov-Unzicker-style diagnostics stay visible without
+opening a broad transform release.
 
 The test/tooling-only `BreakClampSourceTriage` pass is a second-stage
-discovery aid, not a runtime authority path. It takes scanner
-`clean_route_clamp` rows, ranks them deterministically, builds transient
-`A:break_prevention` `SourceCandidate` rows with exact one-ply ranges, and
-dry-runs those rows through `SourceReview` without first editing
-`SourceWitnessCatalog`. It writes
+discovery aid, not a runtime authority path. It takes scanner `release_pass`
+rows, ranks them deterministically, builds transient `A:break_prevention`
+`SourceCandidate` rows with exact one-ply ranges, and dry-runs those rows
+through `SourceReview` without first editing `SourceWitnessCatalog`. Its
+summary reports `releasePassRows`, `releaseFailRows`,
+`enginePersistentReleaseEvents`, `reviewRequiredEvents`, and
+`artifactReleaseEvents` so before/after work is judged by event-level survivor
+quality rather than raw clean-row inflation. It writes
 `tmp/strategic_break_clamp_source_triage.tsv` and
 `tmp/strategic_break_clamp_source_triage.md`; those artifacts may suggest a
 fixed source row, but they do not admit authority by themselves. A triaged row
 still needs the fixed catalog copy plus exact replay, engine authority,
 `neutralize_key_break` owner packet proof, tactical veto, planner admission,
 and claim-only surfaces before it can enter the authority matrix.
+
+The 2026-05-20 harmless-transform source hunt ran `BreakClampCandidateScanner`
+over the public ModernBenoni6e4 corpus slice `offset=0`, `limit=500` at
+Stockfish depth 10 / MultiPV 3. The scan produced 15 release-pass rows with
+`artifactReleaseRoutes != "-"`; artifact-only triage considered those 15
+events, reported `enginePersistentReleaseEvents=15`,
+`artifactReleaseEvents=15`, and, after route-token alignment, reports
+`reviewRequiredEvents=6` and 9 admitted rows through the existing SourceReview
+admission path. Transient source rows now carry an expected break token from
+the scanner route, and SourceReview admits break-prevention rows only when that
+exact token materializes in the packet / claim surface. The previously
+admitted opening rows where scanner routes `...d7-d5` or `...d6-d5` surfaced as
+`...d4` are rejected as `proof:break_prevention_route_mismatch`. The admitted
+set still contains white-route and late-endgame review rows, so only
+board-clean source rows should be copied into the fixed catalog. The first fixed
+real-game intake row is
+`source-pomar-toran-1969-b5-b4-harmless-transform-break-prevention`: Pomar
+Salamanca-Toran Albero 1969, exact ply 27, FEN
+`1rbqr1k1/p1n2pbp/3p1np1/1ppP4/4P3/2NBBP2/PP1QN1PP/1R3RK1 w - - 0 14`,
+played `b2b4`, denied route `...b5-b4`, raw transform `...c5xb4`, and checked
+branch `b2b4 c5b4 b1b4 ...` proving the transform harmless after recapture.
+Selected `SourceWindowReview` admits it as
+`counterplay_axis_suppression` / `neutralize_key_break`,
+`release=SupportedLocal`, with the bounded surface
+`A local reading is that this keeps ...b5-b4 from coming right away.` This row
+does not create a new proof source, proof family, planner owner, or broad
+clean-route / transform release; it only proves that the harmless-transform
+split can recover real source-intake survivors that the older raw-transform
+blocker would have discarded.
 
 The 2026-05-14 and 2026-05-15 corpus source-hunt passes remain discovery
 history, not acceptance. They added Modern Benoni clean-route candidates such
@@ -5219,7 +5370,7 @@ Chronicle all exactly
 `A local reading is that this keeps ...b5 from coming right away.` That older
 snapshot is historical only. The 2026-05-18 Stockfish 18 rerun of
 `strategic_claim_source_review.*` now reports `admit_authority_row=15`; the
-real-engine break-prevention rows that currently admit are Lokvenc-Czerniak
+real-engine break-prevention rows in that full-matrix snapshot are Lokvenc-Czerniak
 1952, Maderna-Palermo 1955, Camara-Bazan 1960, Sliwa-Gromek 1960, and
 Pfleger-Maalouf 1961. Luckis-Bielicki 1961 and Polugaevsky-Giorgadze 1956 are
 review evidence, not current source-review authority, until they again pass the

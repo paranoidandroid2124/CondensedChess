@@ -16,7 +16,8 @@ final case class MoveReviewPolishSlots(
     factGuardrails: List[String],
     paragraphPlan: List[String],
     sourceKind: String = MoveReviewPolishSlots.Source.Planner,
-    moveReviewExplanation: Option[MoveReviewExplanation] = None
+    moveReviewExplanation: Option[MoveReviewExplanation] = None,
+    factFragments: Option[List[FactFragment]] = None
 ):
   def support: List[String] = List(supportPrimary, supportSecondary).flatten.filter(_.nonEmpty)
   def validationSeedText: String =
@@ -100,7 +101,7 @@ object MoveReviewProseContract:
     val genericHits =
       (genericPhrases.filter(text.toLowerCase.contains) ++
         MoveReviewCompressionPolicy.systemLanguageHits(text)).distinct
-    val sentenceCount = countSentences(paragraphs)
+    val sentenceCount = count_sentences(paragraphs)
     val paragraphBudgetOk =
       if expectsSingleParagraph(slots) then
         paragraphs.size == 1 && sentenceCount >= 1 && sentenceCount <= 2
@@ -148,18 +149,18 @@ object MoveReviewProseContract:
   private def expectsSingleParagraph(slots: MoveReviewPolishSlots): Boolean =
     slots.paragraphPlan == List("p1=claim")
 
-  private def countSentences(paragraphs: List[String]): Int =
-    paragraphs.flatMap(splitSentences).size
+  private def count_sentences(paragraphs: List[String]): Int =
+    paragraphs.flatMap(split_sentences).size
 
-  private def splitSentences(text: String): List[String] =
-    protectChessMoveNumbers(Option(text).getOrElse(""))
+  private[commentary] def split_sentences(text: String): List[String] =
+    mask_moves(Option(text).getOrElse(""))
       .split("""(?<=[.!?])\s+""")
       .toList
-      .map(restoreChessMoveNumbers)
+      .map(restore_moves)
       .map(_.trim)
       .filter(_.nonEmpty)
 
-  private def protectChessMoveNumbers(text: String): String =
+  private def mask_moves(text: String): String =
     text
       .replaceAll(
         """\b(\d+)\.\.\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""",
@@ -170,7 +171,7 @@ object MoveReviewProseContract:
         "$1<PLY>"
       )
 
-  private def restoreChessMoveNumbers(text: String): String =
+  private def restore_moves(text: String): String =
     text
       .replace("<ELLIPSIS>", "...")
       .replace("<PLY>", ".")
@@ -305,30 +306,6 @@ object MoveReviewSoftRepair:
     if trimmed.isEmpty || trimmed.matches(""".*[.!?]$""") then trimmed
     else s"$trimmed."
 
-  private def splitSentences(text: String): List[String] =
-    protectChessMoveNumbers(Option(text).getOrElse(""))
-      .split("""(?<=[.!?])\s+""")
-      .toList
-      .map(restoreChessMoveNumbers)
-      .map(_.trim)
-      .filter(_.nonEmpty)
-
-  private def protectChessMoveNumbers(text: String): String =
-    text
-      .replaceAll(
-        """\b(\d+)\.\.\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""",
-        "$1<ELLIPSIS>"
-      )
-      .replaceAll(
-        """\b(\d+)\.(?=\s*(?:O-O(?:-O)?|[KQRBN]?[a-h]?[1-8]?x?[a-h][1-8](?:=[QRBN])?[+#]?|[a-h][1-8]))""",
-        "$1<PLY>"
-      )
-
-  private def restoreChessMoveNumbers(text: String): String =
-    text
-      .replace("<ELLIPSIS>", "...")
-      .replace("<PLY>", ".")
-
   private def trimToSentenceBudget(
       paragraphs: List[String],
       sentenceTarget: Int,
@@ -338,7 +315,7 @@ object MoveReviewSoftRepair:
     var remaining = sentenceTarget
     paragraphs.take(paragraphTarget).foreach { paragraph =>
       if remaining > 0 then
-        val keep = splitSentences(paragraph).take(remaining)
+        val keep = MoveReviewProseContract.split_sentences(paragraph).take(remaining)
         if keep.nonEmpty then
           limited += keep.mkString(" ").trim
           remaining -= keep.size

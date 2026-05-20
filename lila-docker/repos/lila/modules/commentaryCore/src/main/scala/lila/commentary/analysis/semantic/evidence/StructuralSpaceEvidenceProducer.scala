@@ -2,7 +2,7 @@ package lila.commentary.analysis.semantic.evidence
 
 import lila.commentary.*
 import lila.commentary.analysis.StrategicIdeaSemanticContext
-import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer }
+import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceProducer, StrategicIdeaEvidenceTier }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import _root_.chess.{ Color, Square }
 import lila.commentary.model.{ PlanId }
@@ -25,6 +25,18 @@ private[commentary] object StructuralSpaceEvidenceProducer extends StrategicIdea
       side: String,
       semantic: StrategicIdeaSemanticContext
   ): List[StrategicIdeaEvidence] =
+    val enemyColorComplexWeakness =
+      semantic.positionalFeatures
+        .collect {
+          case PositionalTag.ColorComplexWeakness(owner, squareColor, squares) if !matchesSide(owner, side) =>
+            (
+              colorComplexToken(squareColor),
+              squares.map(_.key).distinct.take(3)
+            )
+        }
+        .sortBy { case (squareColor, squares) => (-squares.size, squareColor.getOrElse("")) }
+        .headOption
+
     val tagEvidence =
       semantic.positionalFeatures.collect {
         case PositionalTag.SpaceAdvantage(color) if matchesSide(color, side) =>
@@ -43,14 +55,23 @@ private[commentary] object StructuralSpaceEvidenceProducer extends StrategicIdea
       semantic.strategicState
         .filter(colorComplexClampFor(side, _))
         .map { _ =>
+          val complexToken = enemyColorComplexWeakness.flatMap(_._1)
+          val weakSquares = enemyColorComplexWeakness.map(_._2).getOrElse(Nil)
           evidence(
             ownerSide = side,
             kind = StrategicIdeaKind.SpaceGainOrRestriction,
             readiness = StrategicIdeaReadiness.Build,
             source = EvidenceSourceId.ColorComplexClamp,
             confidence = 0.80,
-            focusZone = Some("center"),
-            factIds = List("state_color_complex_clamp")
+            tier =
+              if weakSquares.nonEmpty && complexToken.nonEmpty then StrategicIdeaEvidenceTier.ValidatedPressure
+              else StrategicIdeaEvidenceTier.SelectorSupport,
+            focusSquares = weakSquares,
+            focusZone = complexToken.map(token => s"$token-square complex").orElse(Some("center")),
+            factIds =
+              List("state_color_complex_clamp") ++
+                Option.when(weakSquares.nonEmpty)("enemy_color_complex_weakness").toList ++
+                complexToken.map(token => s"color_complex_$token").toList
           )
         }
         .toList
@@ -185,3 +206,9 @@ private[commentary] object StructuralSpaceEvidenceProducer extends StrategicIdea
 
     tagEvidence ++ clampEvidence ++ centralSpaceEvidence ++ mobilityRestriction ++ lockedCenterBind ++ alignmentSpaceRace ++
       planBridge ++ maroczyProfile ++ iqpSpaceBridge ++ iqpCentralPresence
+
+  private def colorComplexToken(squareColor: String): Option[String] =
+    val normalized = squareColor.trim.toLowerCase
+    if normalized.contains("dark") then Some("dark")
+    else if normalized.contains("light") then Some("light")
+    else Option.when(normalized.nonEmpty)(normalized)

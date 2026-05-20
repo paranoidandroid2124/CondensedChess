@@ -126,9 +126,11 @@ case class MoveReviewExplanation(
     reasonTags: List[String] = Nil,
     shortLine: Option[MoveReviewShortLine] = None,
     pvInterpretation: Option[MoveReviewPvInterpretation] = None,
-    source: String = "basic_move_explanation"
+    source: String = "basic_move_explanation",
+    factFragments: Option[List[lila.commentary.model.FactFragment]] = None
 )
 object MoveReviewExplanation:
+  import lila.commentary.model.FactFragment
   given Writes[MoveReviewExplanation] = Json.writes[MoveReviewExplanation]
 
 case class MoveReviewPolishMeta(
@@ -657,82 +659,9 @@ case class MoveReviewResult(
     diagnosticPlanSidecar: Option[lila.commentary.analysis.PlanEvidenceEvaluator.DiagnosticPlanSidecar] = None
 )
 
-object AsyncGameAnalysisDurability:
-  val EphemeralMemory = "ephemeral_memory"
-
 case class GameAnalysisValidationError(
     code: String,
     message: String
 )
 object GameAnalysisValidationError:
   given Writes[GameAnalysisValidationError] = Json.writes[GameAnalysisValidationError]
-
-case class AsyncGameAnalysisSubmitResponse(
-    jobId: String,
-    status: String,
-    statusToken: String,
-    refineToken: String,
-    durability: String = AsyncGameAnalysisDurability.EphemeralMemory,
-    expiresAtMs: Long
-)
-object AsyncGameAnalysisSubmitResponse:
-  given Writes[AsyncGameAnalysisSubmitResponse] = Json.writes[AsyncGameAnalysisSubmitResponse]
-
-case class AsyncGameAnalysisStatusResponse(
-    jobId: String,
-    status: String,
-    createdAtMs: Long,
-    updatedAtMs: Long,
-    expiresAtMs: Long,
-    durability: String = AsyncGameAnalysisDurability.EphemeralMemory,
-    result: Option[GameChronicleResponse] = None,
-    error: Option[String] = None
-)
-object AsyncGameAnalysisStatusResponse:
-  given Writes[AsyncGameAnalysisStatusResponse] = Json.writes[AsyncGameAnalysisStatusResponse]
-
-case class AnalysisOptions(style: String, focusOn: List[String])
-object AnalysisOptions:
-  given Reads[AnalysisOptions] = Json.reads[AnalysisOptions]
-
-case class ProbeResultsByPlyEntry(
-    ply: Int,
-    results: List[lila.commentary.model.ProbeResult]
-)
-object ProbeResultsByPlyEntry:
-  given Reads[ProbeResultsByPlyEntry] = Json.reads[ProbeResultsByPlyEntry]
-  given Writes[ProbeResultsByPlyEntry] = Json.writes[ProbeResultsByPlyEntry]
-
-case class FullAnalysisRequest(
-    pgn: String,
-    evals: List[MoveEval],
-    options: AnalysisOptions,
-    probeResultsByPly: Option[List[ProbeResultsByPlyEntry]] = None,
-    variant: Option[String] = None
-)
-object FullAnalysisRequest:
-  val MaxPgnChars = 200000
-  val MinGameReviewPly = 9
-  private def moveNumberFromPly(ply: Int): Int = math.max(1, (ply + 1) / 2)
-
-  given Reads[FullAnalysisRequest] = Json.reads[FullAnalysisRequest]
-
-  def validateGameReview(request: FullAnalysisRequest): Either[GameAnalysisValidationError, FullAnalysisRequest] =
-    val normalizedPgn = Option(request.pgn).map(_.trim).getOrElse("")
-    if normalizedPgn.isEmpty then
-      Left(GameAnalysisValidationError("invalid_pgn", "PGN payload is empty."))
-    else if normalizedPgn.length > MaxPgnChars then
-      Left(GameAnalysisValidationError("invalid_pgn", s"PGN payload exceeds $MaxPgnChars characters."))
-    else
-      lila.commentary.PgnAnalysisHelper.extractPlyDataStrict(normalizedPgn) match
-        case Left(err)     => Left(GameAnalysisValidationError("invalid_pgn", s"PGN payload is invalid: $err"))
-        case Right(plyData) =>
-          val totalPly = plyData.lastOption.map(_.ply).getOrElse(0)
-          if totalPly < MinGameReviewPly then
-            Left(
-              GameAnalysisValidationError(
-                "game_review_too_short",
-                s"Game Review opens from move ${moveNumberFromPly(MinGameReviewPly)}. Let the game develop a little more first."
-              )
-            )
-          else Right(request.copy(pgn = normalizedPgn))

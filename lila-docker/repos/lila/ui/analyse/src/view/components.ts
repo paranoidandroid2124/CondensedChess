@@ -19,7 +19,6 @@ import { renderBoardPreview } from 'lib/view/boardPreview';
 
 import { boardSettingsView, view as actionMenu } from './actionMenu';
 import explorerView, { renderExplorerPanel } from '../explorer/explorerView';
-import { narrativeView } from '../narrative/narrativeView';
 import { view as forkView } from '../fork';
 import { reviewView } from '../review/view';
 import renderClocks from './clocks';
@@ -132,7 +131,7 @@ function renderSidebar(ctrl: AnalyseCtrl): VNode | undefined {
   );
 }
 
-type WorkspaceToolId = 'opening-explorer' | 'narrative' | 'action-menu';
+type WorkspaceToolId = 'opening-explorer' | 'action-menu';
 type NotebookGlyphKind = 'notebook' | 'bookmark' | 'page' | 'section';
 
 type WorkspaceTool = {
@@ -214,8 +213,6 @@ function notebookGlyphForTool(tool: WorkspaceTool): NotebookGlyphKind {
   switch (tool.id) {
     case 'opening-explorer':
       return 'bookmark';
-    case 'narrative':
-      return 'page';
     default:
       return 'section';
   }
@@ -236,22 +233,6 @@ function workspaceTools(ctrl: AnalyseCtrl): WorkspaceTool[] {
       open: ctrl.toggleExplorer,
     },
   ];
-
-  if (ctrl.narrative) {
-    tools.push({
-      id: 'narrative',
-      label: 'Guided Review',
-      summary: ctrl.narrative.loading()
-        ? 'Guided review is running'
-        : ctrl.narrative.data()
-          ? 'Resume guided review'
-          : 'Review this game',
-      icon: licon.BubbleSpeech,
-      active: ctrl.activeControlBarTool() === 'narrative',
-      busy: ctrl.narrative.loading(),
-      open: ctrl.toggleNarrative,
-    });
-  }
 
   tools.push({
     id: 'action-menu',
@@ -329,7 +310,7 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
         },
         [
         hl('div.analyse-review__mobile-board-copy', [
-          hl('strong', ctrl.reviewSurfaceMode() === 'review' ? 'Guided Review board' : 'Full Analysis board'),
+          hl('strong', 'Move Review board'),
           hl(
             'span',
             ctrl.node.ply > 0
@@ -354,11 +335,7 @@ export function renderTools({ ctrl, concealOf, allowVideo }: ViewContext, embedd
       ]),
     ]);
   }
-  const narrativeEnabled = !!ctrl.narrative?.enabled();
-  const narrativeNode = ctrl.narrative ? narrativeView(ctrl.narrative) : null;
-  const activeTool = narrativeEnabled
-    ? narrativeNode || explorerView(ctrl)
-    : explorerView(ctrl) || narrativeNode;
+  const activeTool = explorerView(ctrl);
   return hl('div.analyse__tools', [
     allowVideo && embeddedVideo,
     showCeval && cevalView.renderCeval(ctrl),
@@ -544,22 +521,6 @@ export function renderInputs(ctrl: AnalyseCtrl): VNode | undefined {
             },
             [icon(licon.Reload as any), ' Reset draft'],
           ),
-        hl(
-          'button.button.button-thin.bottom-action.text',
-          {
-            attrs: {
-              title:
-                pgnInspection.status === 'ready'
-                  ? 'Analyze the staged PGN without importing it first.'
-                  : 'Runs deeper on-device WASM scan; may take longer for full PGNs.',
-              disabled: pgnInspection.status === 'invalid',
-            },
-            hook: bind('click', () => {
-              void ctrl.openNarrative(pgnInspection.status === 'ready' ? draftPgn : undefined);
-            }),
-          },
-          [icon(licon.Book as any), ' Review this game'],
-        ),
       ]),
       renderInlineStatus(
         pgnInspection.headline,
@@ -806,7 +767,6 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
   const busy = ctrl.studyCreateBusy();
   const needsAuth = ctrl.studyNeedsAuth();
   const transferCount = ctrl.studyTransferCountValue();
-  const narrativeReady = ctrl.hasNarrativeStudyBrief();
   const error = ctrl.studyCreateErrorText();
 
   return hl('section.copyables__study.copyables__study--launch', [
@@ -814,7 +774,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
       renderNotebookPanelCover(
         'Untitled notebook',
         'First section from analysis',
-        narrativeReady ? 'Guided review brief ready' : 'Add commentary as you go',
+        'Add explanations as you go',
       ),
       hl('div.copyables__study-copy', [
         hl('span.copyables__study-eyebrow', 'Research notebook'),
@@ -851,7 +811,7 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
     hl('div.analyse-review__summary-grid.copyables__study-summary', [
       compactSummaryCard('PGN + move tree', 'base'),
       compactSummaryCard('Saved explanations', 'saved lines'),
-      compactSummaryCard(narrativeReady ? 'Guided review brief included' : 'Guided review brief optional', 'section intro'),
+      compactSummaryCard('Move Review notes', 'section intro'),
     ]),
     renderStudyStatusCard(
       busy
@@ -866,7 +826,6 @@ function renderStudyLaunchPanel(ctrl: AnalyseCtrl): VNode {
       studyFeaturePill('page', 'Move-by-move notes'),
       studyFeaturePill('section', 'Branches stay explorable'),
       studyFeaturePill('bookmark', 'Shareable section URL'),
-      narrativeReady ? studyFeaturePill('notebook', 'Guided review brief') : null,
     ]),
   ]);
 }

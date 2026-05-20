@@ -29,7 +29,8 @@ private[commentary] object MoveReviewExplanationBuilder:
         reasonTags = descriptor.reasonTags,
         shortLine = shortLine,
         pvInterpretation = pvInterpretation,
-        source = descriptor.source
+        source = descriptor.source,
+        factFragments = Option.when(descriptor.factFragments.nonEmpty)(descriptor.factFragments)
       )
 
   def current(ctx: NarrativeContext): Option[CommentaryIdeaSurface.PlayedMove] =

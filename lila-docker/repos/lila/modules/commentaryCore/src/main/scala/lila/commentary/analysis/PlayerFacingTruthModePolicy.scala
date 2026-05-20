@@ -50,6 +50,9 @@ private[commentary] final case class PlayerFacingMoveDeltaEvidence(
   def allowsWeakMainClaim: Boolean =
     PlayerFacingClaimProof.allowsWeakMainClaim(packet)
 
+  def check_qualifying: Boolean =
+    PlayerFacingClaimProof.check_qualifying(packet)
+
   def allowsLineEvidenceHook: Boolean =
     PlayerFacingClaimProof.allowsLineEvidenceHook(packet)
 
@@ -128,7 +131,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     (classify(ctx, strategyPack, truthContract) == PlayerFacingTruthMode.Strategic ||
       exactPacketStrategicMode) &&
       deltaEvidence.exists(delta =>
-        delta.allowsWeakMainClaim &&
+        (delta.allowsWeakMainClaim || delta.check_qualifying) &&
         !overpromotedStrategicFormula(text) &&
           !containsUnsupportedConnector(text, delta) &&
           (

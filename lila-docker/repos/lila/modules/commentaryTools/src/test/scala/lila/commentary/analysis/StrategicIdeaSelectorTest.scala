@@ -110,6 +110,28 @@ class StrategicIdeaSelectorTest extends FunSuite:
     assertEquals(typed, Nil)
   }
 
+  test("color-complex clamp remains selector support without proof authority") {
+    val semantic =
+      StrategicIdeaSemanticContext
+        .empty("white")
+        .copy(
+          strategicState = Some(StrategicStateFeatures.empty.copy(whiteColorComplexClamp = true)),
+          positionalFeatures = List(
+            PositionalTag.ColorComplexWeakness(Color.Black, "dark", List(Square.F6, Square.H6, Square.G7))
+          )
+        )
+
+    val ideas = StrategicIdeaSelector.select(StrategyPack(sideToMove = "white"), semantic)
+    val spaceIdea = ideas.find(_.kind == StrategicIdeaKind.SpaceGainOrRestriction)
+
+    assert(spaceIdea.exists(_.evidenceRefs.contains("source:color_complex_clamp")), clues(ideas))
+    assert(spaceIdea.exists(_.evidenceRefs.contains("enemy_color_complex_weakness")), clues(ideas))
+    assert(spaceIdea.exists(_.evidenceRefs.contains("color_complex_dark")), clues(ideas))
+    assert(spaceIdea.exists(_.focusSquares == List("f6", "h6", "g7")), clues(ideas))
+    assert(spaceIdea.exists(_.focusZone.contains("dark-square complex")), clues(ideas))
+    assert(ideas.flatMap(_.evidenceRefs).forall(ref => !ref.startsWith("proof:")), clues(ideas))
+  }
+
   test("refuted experiment blocks matching king-attack idea") {
     val semantic =
       StrategicIdeaSemanticContext(

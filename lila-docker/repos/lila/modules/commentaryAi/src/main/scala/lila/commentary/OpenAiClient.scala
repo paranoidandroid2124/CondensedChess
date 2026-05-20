@@ -37,8 +37,6 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     logger.info(
       s"OpenAI polish enabled: sync=${config.modelSync}, async=${config.modelAsync}, fallback=${config.modelFallback}, " +
         s"pro_sync=${config.modelProSync}, pro_async=${config.modelProAsync}, pro_fallback=${config.modelProFallback}, " +
-        s"active_sync=${config.modelActiveSync}, active_async=${config.modelActiveAsync}, active_fallback=${config.modelActiveFallback}, " +
-        s"active_reasoning=${config.reasoningEffortActive}, " +
         s"max_output_tokens=${config.maxOutputTokens}"
     )
   else logger.info("OpenAI polish disabled (no API key)")
@@ -57,46 +55,25 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       reasoningEffort: Option[String]
   )
 
-  private val PromptFamilyPolish = "polish"
-  private val PromptFamilyActiveNote = "active_note"
-
   def isEnabled: Boolean = config.enabled
   def syncModelName(planTier: String = PlanTier.Basic, commentaryMode: String = CommentaryMode.Polish): String =
-    selectModelRoute(asyncTier = false, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyPolish).primary
+    selectModelRoute(asyncTier = false, planTier = planTier).primary
 
   def asyncModelName(planTier: String = PlanTier.Basic, commentaryMode: String = CommentaryMode.Polish): String =
-    selectModelRoute(asyncTier = true, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyPolish).primary
-
-  def activeNoteSyncModelName(planTier: String = PlanTier.Pro, commentaryMode: String = CommentaryMode.Active): String =
-    selectModelRoute(asyncTier = false, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyActiveNote).primary
-
-  def activeNoteAsyncModelName(planTier: String = PlanTier.Pro, commentaryMode: String = CommentaryMode.Active): String =
-    selectModelRoute(asyncTier = true, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyActiveNote).primary
-
-  def activeNoteFallbackModelName(asyncTier: Boolean, planTier: String = PlanTier.Pro, commentaryMode: String = CommentaryMode.Active): Option[String] =
-    selectModelRoute(asyncTier = asyncTier, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyActiveNote).fallback
-
-  def activeNoteReasoningEffort(asyncTier: Boolean, planTier: String = PlanTier.Pro, commentaryMode: String = CommentaryMode.Active): Option[String] =
-    selectModelRoute(asyncTier = asyncTier, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyActiveNote).reasoningEffort
-
-  def activeNoteRouteSummary(asyncTier: Boolean, planTier: String = PlanTier.Pro, commentaryMode: String = CommentaryMode.Active): RouteSummary =
-    toRouteSummary(selectModelRoute(asyncTier = asyncTier, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyActiveNote))
+    selectModelRoute(asyncTier = true, planTier = planTier).primary
 
   def standardRouteSummary(asyncTier: Boolean, planTier: String = PlanTier.Basic, commentaryMode: String = CommentaryMode.Polish): RouteSummary =
-    toRouteSummary(selectModelRoute(asyncTier = asyncTier, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyPolish))
+    toRouteSummary(selectModelRoute(asyncTier = asyncTier, planTier = planTier))
 
   private def clean(value: String): Option[String] =
     Option(value).map(_.trim).filter(_.nonEmpty)
 
   private def selectModelRoute(
       asyncTier: Boolean,
-      planTier: String,
-      commentaryMode: String,
-      promptFamily: String
+      planTier: String
   ): ModelRoute =
     val normalizedTier = PlanTier.normalize(planTier)
-    val normalizedLevel = CommentaryMode.normalize(commentaryMode)
-    val wantsPro = normalizedTier == PlanTier.Pro && normalizedLevel == CommentaryMode.Active
+    val wantsPro = normalizedTier == PlanTier.Pro
     val defaultPrimary =
       if asyncTier then clean(config.modelAsync)
       else clean(config.modelSync)
@@ -105,29 +82,18 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       if asyncTier then clean(config.modelProAsync)
       else clean(config.modelProSync)
     val proFallback = clean(config.modelProFallback).orElse(defaultFallback)
-    val activePrimary =
-      if asyncTier then clean(config.modelActiveAsync)
-      else clean(config.modelActiveSync)
-    val activeFallback = clean(config.modelActiveFallback)
-      .orElse(if wantsPro then proFallback else defaultFallback)
     val chosenPrimary =
-      if promptFamily == PromptFamilyActiveNote then
-        activePrimary
-          .orElse(if wantsPro then proPrimary else defaultPrimary)
-      else if wantsPro then proPrimary.orElse(defaultPrimary)
+      if wantsPro then proPrimary.orElse(defaultPrimary)
       else defaultPrimary
     val primary = chosenPrimary.getOrElse("gpt-5-mini")
     val fallback =
-      if promptFamily == PromptFamilyActiveNote then activeFallback.filter(_ != primary)
-      else if wantsPro then proFallback.filter(_ != primary)
+      if wantsPro then proFallback.filter(_ != primary)
       else defaultFallback.filter(_ != primary)
     ModelRoute(
       primary = primary,
       fallback = fallback,
       serviceTier = Option.when(asyncTier)("flex"),
-      reasoningEffort =
-        if promptFamily == PromptFamilyActiveNote then activeReasoningEffortForModel(primary)
-        else defaultReasoningEffortForModel(primary)
+      reasoningEffort = defaultReasoningEffortForModel(primary)
     )
 
   private def toRouteSummary(route: ModelRoute): RouteSummary =
@@ -278,142 +244,6 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       segmentMode = segmentMode
     )
 
-  def activeStrategicNoteSync(
-      draftNote: String,
-      phase: String,
-      momentType: String,
-      concepts: List[String],
-      fen: String,
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier] = None,
-      routeRefs: List[ActiveStrategicRouteRef] = Nil,
-      moveRefs: List[ActiveStrategicMoveRef] = Nil,
-      lang: String = "en",
-      maxOutputTokens: Option[Int] = None,
-      planTier: String = PlanTier.Pro,
-      commentaryMode: String = CommentaryMode.Active
-  ): Future[Option[OpenAiPolishResult]] =
-    activeStrategicNoteWithFallback(
-      draftNote = draftNote,
-      phase = phase,
-      momentType = momentType,
-      concepts = concepts,
-      fen = fen,
-      strategyPack = strategyPack,
-      dossier = dossier,
-      routeRefs = routeRefs,
-      moveRefs = moveRefs,
-      asyncTier = false,
-      planTier = planTier,
-      commentaryMode = commentaryMode,
-      lang = lang,
-      maxOutputTokens = maxOutputTokens
-    )
-
-  def activeStrategicNoteAsync(
-      draftNote: String,
-      phase: String,
-      momentType: String,
-      concepts: List[String],
-      fen: String,
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier] = None,
-      routeRefs: List[ActiveStrategicRouteRef] = Nil,
-      moveRefs: List[ActiveStrategicMoveRef] = Nil,
-      lang: String = "en",
-      maxOutputTokens: Option[Int] = None,
-      planTier: String = PlanTier.Pro,
-      commentaryMode: String = CommentaryMode.Active
-  ): Future[Option[OpenAiPolishResult]] =
-    activeStrategicNoteWithFallback(
-      draftNote = draftNote,
-      phase = phase,
-      momentType = momentType,
-      concepts = concepts,
-      fen = fen,
-      strategyPack = strategyPack,
-      dossier = dossier,
-      routeRefs = routeRefs,
-      moveRefs = moveRefs,
-      asyncTier = true,
-      planTier = planTier,
-      commentaryMode = commentaryMode,
-      lang = lang,
-      maxOutputTokens = maxOutputTokens
-    )
-
-  def repairActiveStrategicNoteSync(
-      draftNote: String,
-      rejectedPolish: String,
-      failureReasons: List[String],
-      phase: String,
-      momentType: String,
-      concepts: List[String],
-      fen: String,
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier] = None,
-      routeRefs: List[ActiveStrategicRouteRef] = Nil,
-      moveRefs: List[ActiveStrategicMoveRef] = Nil,
-      lang: String = "en",
-      maxOutputTokens: Option[Int] = None,
-      planTier: String = PlanTier.Pro,
-      commentaryMode: String = CommentaryMode.Active
-  ): Future[Option[OpenAiPolishResult]] =
-    repairActiveStrategicNoteWithFallback(
-      draftNote = draftNote,
-      rejectedPolish = rejectedPolish,
-      failureReasons = failureReasons,
-      phase = phase,
-      momentType = momentType,
-      concepts = concepts,
-      fen = fen,
-      strategyPack = strategyPack,
-      dossier = dossier,
-      routeRefs = routeRefs,
-      moveRefs = moveRefs,
-      asyncTier = false,
-      planTier = planTier,
-      commentaryMode = commentaryMode,
-      lang = lang,
-      maxOutputTokens = maxOutputTokens
-    )
-
-  def repairActiveStrategicNoteAsync(
-      draftNote: String,
-      rejectedPolish: String,
-      failureReasons: List[String],
-      phase: String,
-      momentType: String,
-      concepts: List[String],
-      fen: String,
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier] = None,
-      routeRefs: List[ActiveStrategicRouteRef] = Nil,
-      moveRefs: List[ActiveStrategicMoveRef] = Nil,
-      lang: String = "en",
-      maxOutputTokens: Option[Int] = None,
-      planTier: String = PlanTier.Pro,
-      commentaryMode: String = CommentaryMode.Active
-  ): Future[Option[OpenAiPolishResult]] =
-    repairActiveStrategicNoteWithFallback(
-      draftNote = draftNote,
-      rejectedPolish = rejectedPolish,
-      failureReasons = failureReasons,
-      phase = phase,
-      momentType = momentType,
-      concepts = concepts,
-      fen = fen,
-      strategyPack = strategyPack,
-      dossier = dossier,
-      routeRefs = routeRefs,
-      moveRefs = moveRefs,
-      asyncTier = true,
-      planTier = planTier,
-      commentaryMode = commentaryMode,
-      lang = lang,
-      maxOutputTokens = maxOutputTokens
-    )
-
   def strategicPuzzleTerminalSync(
       input: StrategicPuzzlePrompt.TerminalInput,
       lang: String = "en",
@@ -499,7 +329,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     if !config.enabled || prose.isBlank then Future.successful(None)
     else
       val route =
-        selectModelRoute(asyncTier = asyncTier, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyPolish)
+        selectModelRoute(asyncTier = asyncTier, planTier = planTier)
       callModel(
         prose = prose,
         phase = phase,
@@ -564,7 +394,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     if !config.enabled || originalProse.isBlank || rejectedPolish.isBlank then Future.successful(None)
     else
       val route =
-        selectModelRoute(asyncTier = asyncTier, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyPolish)
+        selectModelRoute(asyncTier = asyncTier, planTier = planTier)
       callRepairModel(
         originalProse = originalProse,
         rejectedPolish = rejectedPolish,
@@ -607,130 +437,6 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
               Future.successful(None)
       }
 
-  private def activeStrategicNoteWithFallback(
-      draftNote: String,
-      phase: String,
-      momentType: String,
-      concepts: List[String],
-      fen: String,
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier],
-      routeRefs: List[ActiveStrategicRouteRef],
-      moveRefs: List[ActiveStrategicMoveRef],
-      asyncTier: Boolean,
-      planTier: String,
-      commentaryMode: String,
-      lang: String,
-      maxOutputTokens: Option[Int]
-  ): Future[Option[OpenAiPolishResult]] =
-    if !config.enabled || draftNote.isBlank then Future.successful(None)
-    else
-      val route =
-        selectModelRoute(asyncTier = asyncTier, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyActiveNote)
-      callActiveStrategicNoteModel(
-        draftNote = draftNote,
-        phase = phase,
-        momentType = momentType,
-        concepts = concepts,
-        fen = fen,
-        strategyPack = strategyPack,
-        dossier = dossier,
-        routeRefs = routeRefs,
-        moveRefs = moveRefs,
-        model = route.primary,
-        serviceTier = route.serviceTier,
-        reasoningEffort = route.reasoningEffort,
-        lang = lang,
-        maxOutputTokens = maxOutputTokens
-      ).flatMap {
-        case some @ Some(_) => Future.successful(some)
-        case None =>
-          route.fallback match
-            case Some(fb) =>
-              callActiveStrategicNoteModel(
-                draftNote = draftNote,
-                phase = phase,
-                momentType = momentType,
-                concepts = concepts,
-                fen = fen,
-                strategyPack = strategyPack,
-                dossier = dossier,
-                routeRefs = routeRefs,
-                moveRefs = moveRefs,
-                model = fb,
-                serviceTier = route.serviceTier,
-                reasoningEffort = route.reasoningEffort,
-                lang = lang,
-                maxOutputTokens = maxOutputTokens
-              )
-            case None => Future.successful(None)
-      }
-
-  private def repairActiveStrategicNoteWithFallback(
-      draftNote: String,
-      rejectedPolish: String,
-      failureReasons: List[String],
-      phase: String,
-      momentType: String,
-      concepts: List[String],
-      fen: String,
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier],
-      routeRefs: List[ActiveStrategicRouteRef],
-      moveRefs: List[ActiveStrategicMoveRef],
-      asyncTier: Boolean,
-      planTier: String,
-      commentaryMode: String,
-      lang: String,
-      maxOutputTokens: Option[Int]
-  ): Future[Option[OpenAiPolishResult]] =
-    if !config.enabled || draftNote.isBlank || rejectedPolish.isBlank then Future.successful(None)
-    else
-      val route =
-        selectModelRoute(asyncTier = asyncTier, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyActiveNote)
-      callRepairActiveStrategicNoteModel(
-        draftNote = draftNote,
-        rejectedPolish = rejectedPolish,
-        failureReasons = failureReasons,
-        phase = phase,
-        momentType = momentType,
-        concepts = concepts,
-        fen = fen,
-        strategyPack = strategyPack,
-        dossier = dossier,
-        routeRefs = routeRefs,
-        moveRefs = moveRefs,
-        model = route.primary,
-        serviceTier = route.serviceTier,
-        reasoningEffort = route.reasoningEffort,
-        lang = lang,
-        maxOutputTokens = maxOutputTokens
-      ).flatMap {
-        case some @ Some(_) => Future.successful(some)
-        case None =>
-          route.fallback match
-            case Some(fb) =>
-              callRepairActiveStrategicNoteModel(
-                draftNote = draftNote,
-                rejectedPolish = rejectedPolish,
-                failureReasons = failureReasons,
-                phase = phase,
-                momentType = momentType,
-                concepts = concepts,
-                fen = fen,
-                strategyPack = strategyPack,
-                dossier = dossier,
-                routeRefs = routeRefs,
-                moveRefs = moveRefs,
-                model = fb,
-                serviceTier = route.serviceTier,
-                reasoningEffort = route.reasoningEffort,
-                lang = lang,
-                maxOutputTokens = maxOutputTokens
-              )
-            case None => Future.successful(None)
-      }
-
   private def strategicPuzzleTerminalWithFallback(
       input: StrategicPuzzlePrompt.TerminalInput,
       asyncTier: Boolean,
@@ -742,7 +448,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     if !config.enabled || input.draftCommentary.isBlank then Future.successful(None)
     else
       val route =
-        selectModelRoute(asyncTier = asyncTier, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyPolish)
+        selectModelRoute(asyncTier = asyncTier, planTier = planTier)
       val userPrompt = StrategicPuzzlePrompt.buildTerminalPrompt(input)
       callModelWithPrompt(
         userPrompt = userPrompt,
@@ -780,7 +486,7 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     if !config.enabled || input.draftSummary.isBlank then Future.successful(None)
     else
       val route =
-        selectModelRoute(asyncTier = asyncTier, planTier = planTier, commentaryMode = commentaryMode, promptFamily = PromptFamilyPolish)
+        selectModelRoute(asyncTier = asyncTier, planTier = planTier)
       val userPrompt = StrategicPuzzlePrompt.buildSummaryPrompt(input)
       callModelWithPrompt(
         userPrompt = userPrompt,
@@ -846,84 +552,6 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
       reasoningEffort = reasoningEffort,
       lang = lang,
       maxOutputTokens = maxOutputTokens
-    )
-
-  private def callActiveStrategicNoteModel(
-      draftNote: String,
-      phase: String,
-      momentType: String,
-      concepts: List[String],
-      fen: String,
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier],
-      routeRefs: List[ActiveStrategicRouteRef],
-      moveRefs: List[ActiveStrategicMoveRef],
-      model: String,
-      serviceTier: Option[String],
-      reasoningEffort: Option[String],
-      lang: String,
-      maxOutputTokens: Option[Int]
-  ): Future[Option[OpenAiPolishResult]] =
-    val userPrompt = ActiveStrategicPrompt.buildPrompt(
-      draftNote = draftNote,
-      phase = phase,
-      momentType = momentType,
-      fen = fen,
-      concepts = concepts,
-      strategyPack = strategyPack,
-      dossier = dossier,
-      routeRefs = routeRefs,
-      moveRefs = moveRefs
-    )
-    callModelWithPrompt(
-      userPrompt = userPrompt,
-      model = model,
-      serviceTier = serviceTier,
-      reasoningEffort = reasoningEffort,
-      lang = lang,
-      maxOutputTokens = maxOutputTokens,
-      systemPrompt = ActiveStrategicPrompt.systemPrompt
-    )
-
-  private def callRepairActiveStrategicNoteModel(
-      draftNote: String,
-      rejectedPolish: String,
-      failureReasons: List[String],
-      phase: String,
-      momentType: String,
-      concepts: List[String],
-      fen: String,
-      strategyPack: Option[StrategyPack],
-      dossier: Option[ActiveBranchDossier],
-      routeRefs: List[ActiveStrategicRouteRef],
-      moveRefs: List[ActiveStrategicMoveRef],
-      model: String,
-      serviceTier: Option[String],
-      reasoningEffort: Option[String],
-      lang: String,
-      maxOutputTokens: Option[Int]
-  ): Future[Option[OpenAiPolishResult]] =
-    val userPrompt = ActiveStrategicPrompt.buildRepairPrompt(
-      draftNote = draftNote,
-      rejectedPolish = rejectedPolish,
-      failureReasons = failureReasons,
-      phase = phase,
-      momentType = momentType,
-      fen = fen,
-      concepts = concepts,
-      strategyPack = strategyPack,
-      dossier = dossier,
-      routeRefs = routeRefs,
-      moveRefs = moveRefs
-    )
-    callModelWithPrompt(
-      userPrompt = userPrompt,
-      model = model,
-      serviceTier = serviceTier,
-      reasoningEffort = reasoningEffort,
-      lang = lang,
-      maxOutputTokens = maxOutputTokens,
-      systemPrompt = ActiveStrategicPrompt.systemPrompt
     )
 
   private def callRepairModel(
@@ -1062,10 +690,6 @@ final class OpenAiClient(ws: StandaloneWSClient, config: OpenAiConfig)(using Exe
     if isModernGpt5Model(model) then Some("none")
     else if isGpt5Model(model) then Some("minimal")
     else None
-
-  private def activeReasoningEffortForModel(model: String): Option[String] =
-    if isModernGpt5Model(model) then Some(config.reasoningEffortActive)
-    else defaultReasoningEffortForModel(model)
 
   private def parsePolishResponse(body: String, requestedModel: String): Option[OpenAiPolishResult] =
     try

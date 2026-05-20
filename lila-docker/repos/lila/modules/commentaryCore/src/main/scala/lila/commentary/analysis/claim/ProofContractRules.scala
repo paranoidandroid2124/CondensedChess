@@ -445,6 +445,20 @@ private[commentary] object ProofContractRules:
   def supportedLocalEligible(proofFamily: String): Boolean =
     contractForProofFamily(proofFamily).exists(_.supportedLocalEligible)
 
+  def certifiedOwnerAdmissible(packet: PlayerFacingClaimPacket): Boolean =
+    contractForPacket(packet).exists(contract =>
+      contract.certifiedEligible &&
+        contract.accepts(packet) &&
+        failureCodes(packet, Some(contract)).isEmpty
+    )
+
+  def supportedLocalAdmissible(packet: PlayerFacingClaimPacket): Boolean =
+    contractForPacket(packet).exists(contract =>
+      contract.supportedLocalEligible &&
+        contract.accepts(packet) &&
+        failureCodes(packet, Some(contract)).isEmpty
+    )
+
   def traceFor(packet: PlayerFacingClaimPacket): ProofTrace =
     val contract = contractForPacket(packet)
     ProofTrace(

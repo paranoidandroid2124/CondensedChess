@@ -40,14 +40,6 @@ class OpenAiClientRoutingTest extends FunSuite:
   private def defaultReasoning(model: String): Option[String] =
     defaultReasoningMethod.invoke(client, model).asInstanceOf[Option[String]]
 
-  test("active note route uses dedicated active model config") {
-    val route = client.activeNoteRouteSummary(asyncTier = false, planTier = PlanTier.Pro, commentaryMode = CommentaryMode.Active)
-
-    assertEquals(route.primary, "gpt-5.2")
-    assertEquals(route.fallback, Some("gpt-5-mini"))
-    assertEquals(route.reasoningEffort, Some("none"))
-  }
-
   test("standard polish route stays on mini defaults") {
     val route = client.standardRouteSummary(asyncTier = false, planTier = PlanTier.Basic, commentaryMode = CommentaryMode.Polish)
 

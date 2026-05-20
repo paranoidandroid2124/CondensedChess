@@ -3,6 +3,10 @@ package lila.commentary.analysis.semantic
 import lila.commentary.{ StrategicIdeaGroup, StrategicIdeaKind }
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ EvidenceSourceId, FactId }
 
+private[commentary] enum StrategicIdeaEvidenceTier:
+  case SelectorSupport
+  case ValidatedPressure
+
 private[commentary] final case class StrategicIdeaEvidence(
     ownerSide: String,
     kind: String,
@@ -10,6 +14,7 @@ private[commentary] final case class StrategicIdeaEvidence(
     readiness: String,
     source: EvidenceSourceId,
     confidence: Double,
+    tier: StrategicIdeaEvidenceTier = StrategicIdeaEvidenceTier.SelectorSupport,
     focusSquares: List[String] = Nil,
     focusFiles: List[String] = Nil,
     focusDiagonals: List[String] = Nil,
@@ -33,7 +38,8 @@ private[commentary] object StrategicIdeaEvidence:
       focusZone: Option[String] = None,
       beneficiaryPieces: List[String] = Nil,
       factIds: List[String] = Nil,
-      typedFactIds: List[FactId] = Nil
+      typedFactIds: List[FactId] = Nil,
+      tier: StrategicIdeaEvidenceTier = StrategicIdeaEvidenceTier.SelectorSupport
   ): StrategicIdeaEvidence =
     StrategicIdeaEvidence(
       ownerSide = ownerSide,
@@ -42,6 +48,7 @@ private[commentary] object StrategicIdeaEvidence:
       readiness = readiness,
       source = source,
       confidence = confidence.max(0.0).min(0.98),
+      tier = tier,
       focusSquares = focusSquares.distinct.filter(_.nonEmpty),
       focusFiles = focusFiles.distinct.filter(_.nonEmpty),
       focusDiagonals = focusDiagonals.distinct.filter(_.nonEmpty),

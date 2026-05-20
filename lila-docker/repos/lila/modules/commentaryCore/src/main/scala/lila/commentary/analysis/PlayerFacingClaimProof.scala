@@ -225,3 +225,34 @@ private[commentary] object PlayerFacingClaimProof:
         provenance = packet.claimGate.provenanceClass,
         taintFlags = packet.claimGate.taintFlags.toSet
       )
+
+  def check_qualifying(packet: PlayerFacingClaimPacket): Boolean =
+    primaryClaimScopeAllowed(packet) &&
+      packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
+      packet.suppressionReasons.isEmpty &&
+      !packet.claimGate.alternativeDominance &&
+      packetWitnessSatisfiesClaim(packet) &&
+      verify_qualifying(
+        certificateStatus = packet.claimGate.certificateStatus,
+        quantifier = packet.claimGate.quantifier,
+        attribution = packet.claimGate.attributionGrade,
+        provenance = packet.claimGate.provenanceClass,
+        taintFlags = packet.claimGate.taintFlags.toSet
+      )
+
+  private def verify_qualifying(
+      certificateStatus: PlayerFacingCertificateStatus,
+      quantifier: PlayerFacingClaimQuantifier,
+      attribution: PlayerFacingClaimAttributionGrade,
+      provenance: PlayerFacingClaimProvenanceClass,
+      taintFlags: Set[PlayerFacingClaimTaintFlag]
+  ): Boolean =
+    (certificateStatus == PlayerFacingCertificateStatus.Valid ||
+      certificateStatus == PlayerFacingCertificateStatus.WeaklyValid) &&
+      (provenance == PlayerFacingClaimProvenanceClass.ProbeBacked ||
+        provenance == PlayerFacingClaimProvenanceClass.StructuralOnly ||
+        provenance == PlayerFacingClaimProvenanceClass.PvCoupled) &&
+      !taintFlags.contains(PlayerFacingClaimTaintFlag.Deferred) &&
+      !taintFlags.contains(PlayerFacingClaimTaintFlag.BranchConditioned) &&
+      quantifier != PlayerFacingClaimQuantifier.LineConditioned &&
+      attribution != PlayerFacingClaimAttributionGrade.StateOnly

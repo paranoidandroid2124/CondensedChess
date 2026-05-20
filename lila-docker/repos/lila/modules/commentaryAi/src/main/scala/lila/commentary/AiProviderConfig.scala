@@ -2,7 +2,6 @@ package lila.commentary
 
 case class AiProviderConfig(
     provider: String,
-    providerActiveNote: String,
     promptVersion: String,
     polishGateThreshold: Double,
     premiumOnly: Boolean,
@@ -11,8 +10,6 @@ case class AiProviderConfig(
   def isOpenAi: Boolean = provider == "openai"
   def isGemini: Boolean = provider == "gemini"
   def isNone: Boolean = provider == "none"
-  def activeNoteProviderResolved: String = providerActiveNote
-  def isActiveNoteNone: Boolean = activeNoteProviderResolved == "none"
 
 object AiProviderConfig:
 
@@ -44,13 +41,6 @@ object AiProviderConfig:
 
     AiProviderConfig(
       provider = normalizeProvider(sys.env.getOrElse("AI_PROVIDER", "openai")),
-      providerActiveNote =
-        normalizeProvider(
-          sys.env
-            .get("AI_PROVIDER_ACTIVE_NOTE")
-            .filter(_.trim.nonEmpty)
-            .getOrElse("gemini")
-        ),
       promptVersion = sys.env.getOrElse("AI_PROMPT_VERSION", "v1"),
       polishGateThreshold = threshold,
       premiumOnly = boolEnv("AI_POLISH_PREMIUM_ONLY", default = true),
