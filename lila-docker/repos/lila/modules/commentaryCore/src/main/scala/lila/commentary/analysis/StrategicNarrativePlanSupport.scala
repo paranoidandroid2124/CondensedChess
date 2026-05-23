@@ -6,9 +6,9 @@ import lila.commentary.model.authoring.PlanHypothesis
 private[commentary] object StrategicNarrativePlanSupport:
 
   def evidenceBackedMainPlans(ctx: NarrativeContext): List[PlanHypothesis] =
-    filterEvidenceBacked(ctx.mainStrategicPlans, ctx.strategicPlanExperiments)
+    ctx.strategicPlanEvidence.probeBackedMainPlans
 
-  def filterEvidenceBacked(
+  def legacyFilterEvidenceBacked(
       plans: List[PlanHypothesis],
       experiments: List[lila.commentary.model.StrategicPlanExperiment]
   ): List[PlanHypothesis] =
@@ -28,16 +28,13 @@ private[commentary] object StrategicNarrativePlanSupport:
     }.toSet
 
   def evidenceBackedPlanNames(ctx: NarrativeContext): List[String] =
-    evidenceBackedMainPlans(ctx).flatMap(plan => displayText(plan.planName))
+    ctx.strategicPlanEvidence.probeBackedPlanNames
 
   def evidenceBackedLeadingPlanName(ctx: NarrativeContext): Option[String] =
-    evidenceBackedPlanNames(ctx).headOption
+    ctx.strategicPlanEvidence.leadingProbeBackedPlanName
 
   private def planKey(planId: String, subplanId: Option[String]): String =
     s"${normalized(planId).getOrElse("")}|${subplanId.flatMap(normalized).getOrElse("")}"
 
   private def normalized(raw: String): Option[String] =
     Option(raw).map(_.trim).filter(_.nonEmpty).map(_.toLowerCase)
-
-  private def displayText(raw: String): Option[String] =
-    Option(raw).map(_.trim).filter(_.nonEmpty)

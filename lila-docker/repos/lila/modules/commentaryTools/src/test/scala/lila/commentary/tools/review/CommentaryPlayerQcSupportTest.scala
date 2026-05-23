@@ -303,7 +303,116 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
     assert(flags.exists(_.startsWith("taxonomy_residue:")), clues(flags))
   }
 
-  test("buildMoveReviewRows humanizes raw support labels") {
+  test("buildMoveReviewRows prefers canonical player surface over raw carriers") {
+    val response =
+      CommentResponse(
+        commentary = "7... O-O: The move prepares the e pawn break.",
+        concepts = Nil,
+        mainStrategicPlans = List(
+          PlanHypothesis(
+            planId = "ghost",
+            planName = "Raw ghost plan",
+            rank = 1,
+            score = 0.71,
+            preconditions = Nil,
+            executionSteps = Nil,
+            failureModes = Nil,
+            viability = PlanViability(0.71, "high", "Raw ghost risk"),
+            evidenceSources = Nil
+          )
+        ),
+        strategicPlanExperiments = List(
+          StrategicPlanExperiment(
+            planId = "ghost",
+            themeL1 = "raw_theme",
+            subplanId = None,
+            evidenceTier = "raw_probe",
+            supportProbeCount = 0,
+            refuteProbeCount = 0,
+            bestReplyStable = false,
+            futureSnapshotAligned = false,
+            counterBreakNeutralized = false,
+            moveOrderSensitive = true,
+            experimentConfidence = 0.51
+          )
+        ),
+        signalDigest = Some(
+          NarrativeSignalDigest(
+            decisionComparison =
+              Some(
+                DecisionComparisonDigest(
+                  chosenMove = Some("Nf3"),
+                  engineBestMove = Some("Nc6"),
+                  cpLossVsChosen = Some(42),
+                  comparedMove = Some("Nc6"),
+                  comparativeConsequence = Some("raw carrier consequence")
+                )
+              ),
+            structureProfile = Some("raw carrier structure")
+          )
+        ),
+        moveReviewPlayerSurface =
+          Some(
+            MoveReviewPlayerSurface(
+              summaryRows =
+                List(
+                  MoveReviewPlayerSurfaceRow("Surface support", "The c-file pressure is the visible player point.")
+                ),
+              advancedRows =
+                List(
+                  MoveReviewPlayerSurfaceRow("Surface detail", "The supporting detail also comes from the surface.")
+                ),
+              decisionComparison =
+                Some(
+                  MoveReviewPlayerDecisionComparison(
+                    kicker = "Decision compare",
+                    gapLabel = Some("+18cp"),
+                    chosenSan = Some("O-O"),
+                    engineSan = Some("Re8"),
+                    comparedSan = Some("Re8"),
+                    secondaryText = Some("keeps the e-file pressure"),
+                    chosenMatchesBest = false
+                  )
+                ),
+              probeRows =
+                List(
+                  MoveReviewPlayerSurfaceRow("Probe", "24... e4 remains the checked reply.")
+                ),
+              authorRows =
+                List(
+                  MoveReviewPlayerAuthorRow(
+                    title = "Author check",
+                    status = "ready",
+                    question = "Why now?",
+                    why = Some("Tests the reply window."),
+                    meta = List("branch verified"),
+                    branches =
+                      List(
+                        MoveReviewPlayerSurfaceRow("Line", "24... e4 25. Qd2 Re8")
+                      )
+                  )
+                )
+            )
+          )
+      )
+
+    val (support, advanced) = buildMoveReviewRows(response)
+    val combinedText = (support ++ advanced).map(row => s"${row.label}: ${row.text}").mkString("\n")
+
+    assertEquals(support.find(_.label == "Surface support").map(_.text), Some("The c-file pressure is the visible player point."))
+    assertEquals(
+      support.find(_.label == "Decision compare").map(_.text),
+      Some("played O-O, engine looked at Re8, compared Re8, gap +18cp, keeps the e-file pressure")
+    )
+    assert(advanced.exists(row => row.label == "Surface detail" && row.text.contains("supporting detail")))
+    assert(advanced.exists(row => row.label == "Probe" && row.text.contains("24... e4")))
+    assert(advanced.exists(row => row.label == "Author check" && row.text.contains("Why now?")))
+    assert(!combinedText.contains("Raw ghost plan"), clue(combinedText))
+    assert(!combinedText.contains("raw carrier structure"), clue(combinedText))
+    assert(!combinedText.contains("raw carrier consequence"), clue(combinedText))
+  }
+
+  test("buildMoveReviewRows does not rebuild support rows from raw carriers without player surface") {
     val response =
       CommentResponse(
         commentary = "7... O-O: The move prepares the e pawn break.",
@@ -352,16 +461,11 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
 
     val (support, advanced) = buildMoveReviewRows(response)
 
-    assertEquals(
-      support.find(_.label == "Main plans").map(_.text),
-      Some("Preparing the e-break [pv coupled], Improving piece placement")
-    )
-    assertEquals(support.find(_.label == "Why it stayed conditional"), None)
-    assertEquals(advanced.find(_.label == "Latent plan"), None)
-    assertEquals(advanced.find(_.label == "Latent reason"), None)
+    assertEquals(support, Nil)
+    assertEquals(advanced, Nil)
   }
 
-  test("buildMoveReviewRows drops abstract support labels in compensation context") {
+  test("buildMoveReviewRows keeps compensation raw carriers out without player surface") {
     val response =
       CommentResponse(
         commentary = "12... Rxb2: The material can wait while the queenside files stay active.",
@@ -400,9 +504,8 @@ class CommentaryPlayerQcSupportTest extends FunSuite:
 
     val (support, advanced) = buildMoveReviewRows(response)
 
-    assertEquals(support.find(_.label == "Main plans").map(_.text), Some("Preparing the e-break"))
-    assertEquals(advanced.find(_.label == "Latent plan"), None)
-    assertEquals(advanced.find(_.label == "Latent reason"), None)
+    assertEquals(support, Nil)
+    assertEquals(advanced, Nil)
   }
 
   test("sentenceCount ignores chess move-number dots in cited moveReview prose") {

@@ -585,7 +585,7 @@ private[commentary] object HeavyPieceLocalBindValidation:
     val perpetualLike =
       checkBursts >= 3
     val exchangeSac =
-      replayedMoves.exists(isExchangeSacrificeRelease)
+      hasExchangeSacrificeRelease(replayedMoves)
     List(
       Option.when(queenInfiltration)("queen_infiltration"),
       Option.when(rookLift)("rook_lift"),
@@ -597,12 +597,12 @@ private[commentary] object HeavyPieceLocalBindValidation:
   private def isQueenInfiltration(
       move: ExactBranchMove
   ): Boolean =
-    val enemyTerritory =
-      if move.mover.white then move.to.rank.value >= 4
+    val deepEnemyTerritory =
+      if move.mover.white then move.to.rank.value >= 6
       else move.to.rank.value <= 3
     val deepAdvance =
       (move.from.rank.value - move.to.rank.value).abs >= 2
-    move.piece == Queen && enemyTerritory && (deepAdvance || move.givesCheck)
+    move.piece == Queen && deepEnemyTerritory && deepAdvance
 
   private def isRookLiftOrSwitch(
       move: ExactBranchMove
@@ -615,10 +615,38 @@ private[commentary] object HeavyPieceLocalBindValidation:
     val leavesBackRank =
       move.from.rank == backRank && move.to.rank != backRank
     val lateralSwitch =
-      fromRank == toRank && fromFile != toFile
+      fromRank == toRank && fromFile != toFile && move.from.rank != backRank
     move.piece == Rook && (leavesBackRank || lateralSwitch)
 
-  private def isExchangeSacrificeRelease(
+  private def hasExchangeSacrificeRelease(
+      replayedMoves: List[ExactBranchMove]
+  ): Boolean =
+    replayedMoves.zipWithIndex.exists { case (move, index) =>
+      isRookLowerValueCapture(move) &&
+        rookRecapturedAfter(
+          moves = replayedMoves.drop(index + 1),
+          rookMover = move.mover,
+          rookSquare = move.to
+        )
+    }
+
+  private def rookRecapturedAfter(
+      moves: List[ExactBranchMove],
+      rookMover: Color,
+      rookSquare: Square
+  ): Boolean =
+    var currentSquare = rookSquare
+    moves.exists { move =>
+      if move.mover == rookMover && move.piece == Rook && move.from == currentSquare then
+        currentSquare = move.to
+        false
+      else
+        move.mover != rookMover &&
+          move.to == currentSquare &&
+          move.capturedRole.contains(Rook)
+    }
+
+  private def isRookLowerValueCapture(
       move: ExactBranchMove
   ): Boolean =
     move.piece == Rook &&
@@ -981,7 +1009,7 @@ private[commentary] object HeavyPieceLocalBindValidation:
   private def breakFileToken(
       raw: String
   ): String =
-    "(?i)([a-h])".r.findFirstMatchIn(Option(raw).getOrElse("")).map(_.group(1).toLowerCase).getOrElse("")
+    BreakFileToken.extractOrEmpty(raw)
 
   private def independentFromFile(
       file: String,

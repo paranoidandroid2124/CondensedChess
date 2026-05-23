@@ -2,6 +2,7 @@ package lila.commentary.analysis.strategic
 
 import chess._
 import chess.Bitboard
+import lila.commentary.analysis.BreakFileToken
 import lila.commentary.model._
 import lila.commentary.model.strategic._
 import lila.commentary.model.strategic.VariationLine
@@ -113,7 +114,7 @@ class ProphylaxisAnalyzerImpl extends ProphylaxisAnalyzer {
     }
 
   private def extractBreakFile(planId: String): String =
-    "(?i)\\b([a-h])\\b".r.findFirstMatchIn(planId).map(_.group(1).toLowerCase).getOrElse("unknown")
+    BreakFileToken.extractOrUnknown(planId)
 }
 
 class ActivityAnalyzerImpl extends ActivityAnalyzer {

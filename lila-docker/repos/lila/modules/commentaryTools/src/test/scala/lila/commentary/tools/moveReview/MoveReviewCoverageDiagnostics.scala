@@ -3,6 +3,7 @@ package lila.commentary.tools.moveReview
 import lila.commentary.{ MoveReviewMoveRef, MoveReviewRefs, StrategyPack }
 import lila.commentary.analysis.*
 import lila.commentary.analysis.claim.ProofContractRules
+import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
 import lila.commentary.model.*
 
 object MoveReviewCoverageDiagnostics:
@@ -41,7 +42,14 @@ object MoveReviewCoverageDiagnostics:
       plannerInputs: QuestionPlannerInputs
   ): Result =
     val basic = basicEvidence(ctx, refs, strategyPack, truthContract, slots.sourceKind)
-    val supportedLocal = supportedLocalFromInputs(plannerInputs)
+    val supportedLocal =
+      supportedLocalFromInputs(
+        ctx,
+        plannerInputs,
+        tacticalVetoReasons(plannerInputs, truthContract),
+        playedSan = ctx.playedSan,
+        playedUci = ctx.playedMove
+      )
     Result(
       moveReviewSourceKind = Some(slots.sourceKind),
       basicEvidenceStatus = Some(basic.status),
@@ -114,21 +122,46 @@ object MoveReviewCoverageDiagnostics:
       )("capture_not_immediate_recapture")
     ).flatten
 
-  private def supportedLocalFromInputs(inputs: QuestionPlannerInputs): SupportedLocalDiagnostic =
-    supportedLocalFromPackets(mainPathPackets(inputs))
+  private def supportedLocalFromInputs(
+      ctx: NarrativeContext,
+      inputs: QuestionPlannerInputs,
+      tacticalVetoReasons: List[String],
+      playedSan: Option[String],
+      playedUci: Option[String]
+  ): SupportedLocalDiagnostic =
+    supportedLocalFromPackets(mainPathPackets(inputs), tacticalVetoReasons, playedSan, playedUci, Some(ctx))
 
-  private[moveReview] def supportedLocalFromPackets(packets: List[PlayerFacingClaimPacket]): SupportedLocalDiagnostic =
+  private[moveReview] def supportedLocalFromPackets(
+      packets: List[PlayerFacingClaimPacket],
+      tacticalVetoReasons: List[String] = Nil,
+      playedSan: Option[String] = None,
+      playedUci: Option[String] = None,
+      ctx: Option[NarrativeContext] = None
+  ): SupportedLocalDiagnostic =
     val candidates =
       packets.filter(packet => ProofContractRules.supportedLocalEligible(packet.proofFamily))
     val admitted =
-      candidates.filter(supportedLocalPolicyAdmitted)
+      candidates.filter(packet =>
+        supportedLocalPolicyAdmitted(packet) &&
+          !tacticalVetoApplies(packet, tacticalVetoReasons) &&
+          supportedLocalSurfaceAdmitted(packet, playedSan, playedUci, ctx)
+      )
     val rejectReasons =
       candidates
-        .filterNot(supportedLocalPolicyAdmitted)
+        .filterNot(packet =>
+          supportedLocalPolicyAdmitted(packet) &&
+            !tacticalVetoApplies(packet, tacticalVetoReasons) &&
+            supportedLocalSurfaceAdmitted(packet, playedSan, playedUci, ctx)
+        )
         .flatMap { packet =>
           val trace = ProofContractRules.traceFor(packet)
           val failures =
-            (trace.failureCodes ++ policyFailureCodes(packet)).distinct match
+            (
+              trace.failureCodes ++
+                policyFailureCodes(packet) ++
+                tacticalFailureCodes(packet, tacticalVetoReasons) ++
+                surfaceFailureCodes(packet, playedSan, playedUci, ctx)
+            ).distinct match
               case Nil => List("policy:not_supported_local_admitted")
               case xs  => xs
           failures.map(code => s"${packet.proofFamily}:$code")
@@ -157,6 +190,77 @@ object MoveReviewCoverageDiagnostics:
       Option.when(packet.releaseRisks.nonEmpty)("policy:release_risk"),
       Option.when(!PlayerFacingClaimProof.allowsWeakMainClaim(packet))("policy:weak_main_gate_blocked")
     ).flatten
+
+  private def tacticalFailureCodes(
+      packet: PlayerFacingClaimPacket,
+      tacticalVetoReasons: List[String]
+  ): List[String] =
+    if tacticalVetoApplies(packet, tacticalVetoReasons) then
+      tacticalVetoReasons.distinct.map(reason => s"tactical_veto:$reason")
+    else Nil
+
+  private def tacticalVetoApplies(
+      packet: PlayerFacingClaimPacket,
+      tacticalVetoReasons: List[String]
+  ): Boolean =
+    tacticalVetoReasons.nonEmpty &&
+      (
+        packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey ||
+          packet.proofFamily == CentralBreakTimingWitness.ProofFamily
+      )
+
+  private def supportedLocalSurfaceAdmitted(
+      packet: PlayerFacingClaimPacket,
+      playedSan: Option[String],
+      playedUci: Option[String],
+      ctx: Option[NarrativeContext]
+  ): Boolean =
+    if packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey then
+      NeutralizeKeyBreakSurfaceGate.decideForPacket(packet, playedSan, playedUci).admitted
+    else if packet.proofFamily == CentralBreakTimingWitness.ProofFamily then
+      ctx.flatMap(CentralBreakTimingWitness.exact).exists(CentralBreakTimingSurfaceGate.decide(_).admitted)
+    else true
+
+  private def surfaceFailureCodes(
+      packet: PlayerFacingClaimPacket,
+      playedSan: Option[String],
+      playedUci: Option[String],
+      ctx: Option[NarrativeContext]
+  ): List[String] =
+    if packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey then
+      NeutralizeKeyBreakSurfaceGate.decideForPacket(packet, playedSan, playedUci).rejectReason.toList
+    else if packet.proofFamily == CentralBreakTimingWitness.ProofFamily then
+      ctx
+        .flatMap(CentralBreakTimingWitness.exact)
+        .map(CentralBreakTimingSurfaceGate.decide(_).rejectReason.toList)
+        .getOrElse(List(CentralBreakTimingSurfaceGate.MissingExactWitness))
+    else Nil
+
+  private def tacticalVetoReasons(
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): List[String] =
+    val contractReasons =
+      truthContract.toList.flatMap { contract =>
+        List(
+          Option.when(contract.truthClass == DecisiveTruthClass.Blunder)("truth_contract_blunder"),
+          Option.when(contract.truthClass == DecisiveTruthClass.MissedWin)("truth_contract_missed_win"),
+          Option.when(contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad)(
+            "truth_contract_tactical_refutation"
+          ),
+          Option.when(contract.failureMode == FailureInterpretationMode.TacticalRefutation)(
+            "truth_contract_tactical_failure_mode"
+          )
+        ).flatten
+      }
+    val inputReasons =
+      List(
+        Option.when(inputs.truthMode == PlayerFacingTruthMode.Tactical)("planner_truth_mode_tactical"),
+        Option.when(inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical))(
+          "main_claim_tactical"
+        )
+      ).flatten
+    (contractReasons ++ inputReasons).distinct
 
   private def mainPathPackets(inputs: QuestionPlannerInputs): List[PlayerFacingClaimPacket] =
     inputs.mainBundle.toList.flatMap { bundle =>

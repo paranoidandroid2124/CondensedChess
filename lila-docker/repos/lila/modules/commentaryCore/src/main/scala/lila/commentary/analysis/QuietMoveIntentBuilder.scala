@@ -342,17 +342,10 @@ private[commentary] object QuietMoveIntentBuilder:
   private def quietClaimProvenance(
       ctx: NarrativeContext
   ): PlayerFacingClaimProvenanceClass =
-    val evidenceBacked =
-      StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx).nonEmpty ||
-        ctx.strategicPlanExperiments.exists(_.evidenceTier == "evidence_backed")
-    val pvCoupled =
-      ctx.strategicPlanExperiments.exists(_.evidenceTier == "pv_coupled")
-    val deferred =
-      ctx.strategicPlanExperiments.exists(_.evidenceTier == "deferred") ||
-        ctx.probeRequests.nonEmpty
-    if evidenceBacked then PlayerFacingClaimProvenanceClass.ProbeBacked
-    else if pvCoupled then PlayerFacingClaimProvenanceClass.PvCoupled
-    else if deferred then PlayerFacingClaimProvenanceClass.Deferred
+    val evidence = ctx.strategicPlanEvidence
+    if evidence.hasProbeBacked then PlayerFacingClaimProvenanceClass.ProbeBacked
+    else if evidence.pvCoupledPlans.nonEmpty then PlayerFacingClaimProvenanceClass.PvCoupled
+    else if evidence.deferredPlans.nonEmpty || ctx.probeRequests.nonEmpty then PlayerFacingClaimProvenanceClass.Deferred
     else PlayerFacingClaimProvenanceClass.StructuralOnly
 
   private def quietClaimQuantifier(
@@ -361,17 +354,9 @@ private[commentary] object QuietMoveIntentBuilder:
   ): PlayerFacingClaimQuantifier =
     if provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
       PlayerFacingClaimQuantifier.LineConditioned
-    else if ctx.strategicPlanExperiments.exists(exp =>
-        exp.evidenceTier == "evidence_backed" &&
-          exp.bestReplyStable &&
-          exp.futureSnapshotAligned &&
-          !exp.moveOrderSensitive
-      ) then
+    else if quietProbeBackedCertifications(ctx).exists(_.quantifier == PlayerFacingClaimQuantifier.Universal) then
       PlayerFacingClaimQuantifier.Universal
-    else if ctx.strategicPlanExperiments.exists(exp =>
-        exp.evidenceTier == "evidence_backed" &&
-          (exp.bestReplyStable || exp.futureSnapshotAligned)
-      ) then
+    else if quietProbeBackedCertifications(ctx).exists(_.quantifier == PlayerFacingClaimQuantifier.BestResponse) then
       PlayerFacingClaimQuantifier.BestResponse
     else PlayerFacingClaimQuantifier.Existential
 
@@ -381,14 +366,9 @@ private[commentary] object QuietMoveIntentBuilder:
   ): PlayerFacingClaimStabilityGrade =
     if provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
       PlayerFacingClaimStabilityGrade.Unknown
-    else if ctx.strategicPlanExperiments.exists(exp =>
-        exp.evidenceTier == "evidence_backed" &&
-          (exp.bestReplyStable || exp.futureSnapshotAligned) &&
-          !exp.moveOrderSensitive
-      ) then
+    else if quietProbeBackedCertifications(ctx).exists(_.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable) then
       PlayerFacingClaimStabilityGrade.Stable
-    else if ctx.strategicPlanExperiments.exists(_.evidenceTier == "evidence_backed") then
-      PlayerFacingClaimStabilityGrade.Unstable
+    else if ctx.strategicPlanEvidence.hasProbeBacked then PlayerFacingClaimStabilityGrade.Unstable
     else PlayerFacingClaimStabilityGrade.Unknown
 
   private def quietAttributionGrade(
@@ -501,12 +481,14 @@ private[commentary] object QuietMoveIntentBuilder:
     val continuationTerms =
       quietBestDefenseBranchKey(ctx).toList ++
         quietBestDefenseMove(ctx).toList ++
-        quietEvidenceBackedExperiments(ctx, quietProofFamily(intentClass)).flatMap { experiment =>
+        quietEvidencePlans(ctx, quietProofFamily(intentClass)).flatMap { plan =>
+          val cert = plan.claimCertification
           List(
-            Option.when(experiment.bestReplyStable)("best_reply_stable"),
-            Option.when(experiment.futureSnapshotAligned)("future_snapshot_aligned"),
-            Option.when(experiment.counterBreakNeutralized)("counter_break_neutralized")
-          ).flatten
+            Option.when(cert.quantifier == PlayerFacingClaimQuantifier.Universal)("universal"),
+            Option.when(cert.quantifier == PlayerFacingClaimQuantifier.BestResponse)("best_response"),
+            Option.when(cert.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable)("stable"),
+            Option.when(cert.provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked)("probe_backed")
+          ).flatten ++ plan.supportProbeIds.map(id => s"support_probe:$id")
         }
     PlayerFacingProofPathWitness(
       ownerSeedTerms = ownerSeedTerms.distinct,
@@ -526,11 +508,11 @@ private[commentary] object QuietMoveIntentBuilder:
     else if quietBestDefenseBranchKey(ctx).isEmpty then
       PlayerFacingSameBranchState.Missing
     else
-      val experiments = quietEvidenceBackedExperiments(ctx, proofFamily)
+      val plans = quietEvidencePlans(ctx, proofFamily)
       if proofPathWitness.hasOwnerSeed &&
-          experiments.exists(exp => exp.bestReplyStable && exp.futureSnapshotAligned && !exp.moveOrderSensitive)
+          plans.exists(_.claimCertification.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable)
       then PlayerFacingSameBranchState.Proven
-      else if proofPathWitness.hasContinuation || experiments.nonEmpty then PlayerFacingSameBranchState.Ambiguous
+      else if proofPathWitness.hasContinuation || plans.nonEmpty then PlayerFacingSameBranchState.Ambiguous
       else PlayerFacingSameBranchState.Missing
 
   private def quietPersistence(
@@ -541,34 +523,37 @@ private[commentary] object QuietMoveIntentBuilder:
     if provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
       PlayerFacingClaimPersistence.Broken
     else
-      val experiments = quietEvidenceBackedExperiments(ctx, proofFamily)
-      if experiments.exists(exp => exp.bestReplyStable && exp.futureSnapshotAligned && !exp.moveOrderSensitive) then
+      val plans = quietEvidencePlans(ctx, proofFamily)
+      if plans.exists(_.claimCertification.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable) then
         PlayerFacingClaimPersistence.Stable
-      else if experiments.exists(_.bestReplyStable) then
+      else if plans.exists(_.claimCertification.quantifier == PlayerFacingClaimQuantifier.BestResponse) then
         PlayerFacingClaimPersistence.BestDefenseOnly
-      else if experiments.exists(_.futureSnapshotAligned) then
+      else if plans.exists(_.supportProbeIds.nonEmpty) then
         PlayerFacingClaimPersistence.FutureOnly
       else PlayerFacingClaimPersistence.Broken
 
-  private def quietEvidenceBackedExperiments(
+  private def quietEvidencePlans(
       ctx: NarrativeContext,
       proofFamily: String
-  ): List[StrategicPlanExperiment] =
-    val evidenceBacked = ctx.strategicPlanExperiments.filter(exp => normalize(exp.evidenceTier) == "evidence backed")
+  ): List[PlanEvidenceEvaluator.EvaluatedPlan] =
+    val evidenceBacked = ctx.strategicPlanEvidence.probeBackedPlans
     val matched =
       proofFamily match
         case family if family == ProofFamilyId.NeutralizeKeyBreak.wireKey =>
-          evidenceBacked.filter(exp =>
-            exp.counterBreakNeutralized ||
-              exp.subplanId.contains(PlanTaxonomy.PlanKind.BreakPrevention.id)
-          )
+          evidenceBacked.filter(_.subplanId.contains(PlanTaxonomy.PlanKind.BreakPrevention.id))
         case family if family == ProofFamilyId.CounterplayRestraint.wireKey =>
-          evidenceBacked.filter(exp =>
-            exp.subplanId.contains(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id) ||
-              exp.themeL1 == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id
+          evidenceBacked.filter(plan =>
+            plan.subplanId.contains(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id) ||
+              plan.themeL1 == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id
           )
-        case _ => evidenceBacked
+        case _ =>
+          evidenceBacked.filter(plan => PlanMatcher.proofFamily(plan.themeL1, plan.subplanId) == proofFamily)
     if matched.nonEmpty then matched else evidenceBacked
+
+  private def quietProbeBackedCertifications(
+      ctx: NarrativeContext
+  ): List[PlanEvidenceEvaluator.ClaimCertification] =
+    ctx.strategicPlanEvidence.probeBackedPlans.map(_.claimCertification)
 
   private def candidateText(candidate: CandidateInfo): String =
     normalize(

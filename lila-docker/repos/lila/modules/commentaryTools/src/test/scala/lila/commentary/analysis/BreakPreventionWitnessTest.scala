@@ -28,15 +28,19 @@ class BreakPreventionWitnessTest extends FunSuite:
   test("materialized break-clamp plan can become an exact named-break witness") {
     val materialized = materializedBreakInfo()
     val diagnosis = BreakPreventionWitness.diagnose(
-      ctx = breakCtx(),
+      ctx = breakCtx(
+        fen = "4k3/8/8/1p6/8/2P5/1P6/4K3 w - - 0 1",
+        playedMove = "b2b4",
+        engineMoves = List("b2b4", "e8e7", "e1e2", "e7e6")
+      ),
       surface = StrategyPackSurface.from(Some(breakPack())),
       preventedNow = List(materialized)
     )
 
     assertEquals(diagnosis.failureCodes, Nil)
-    assert(diagnosis.witness.exists(_.breakToken == "...b4"), clues(diagnosis))
+    assert(diagnosis.witness.exists(_.breakToken == "...b5-b4"), clues(diagnosis))
     assert(diagnosis.exactReady, clues(diagnosis))
-    assertEquals(diagnosis.witness.map(_.ownerSeedTerms), Some(List("...b4", "b4")))
+    assertEquals(diagnosis.witness.map(_.ownerSeedTerms), Some(List("...b5-b4", "b4")))
   }
 
   test("clean route evidence can prove persistence without a separate probe experiment") {
@@ -53,7 +57,7 @@ class BreakPreventionWitnessTest extends FunSuite:
     )
 
     assertEquals(diagnosis.failureCodes, Nil)
-    assert(diagnosis.witness.exists(_.breakToken == "...b4"), clues(diagnosis))
+    assert(diagnosis.witness.exists(_.breakToken == "...b5-b4"), clues(diagnosis))
     assert(diagnosis.exactReady, clues(diagnosis))
   }
 
@@ -70,7 +74,7 @@ class BreakPreventionWitnessTest extends FunSuite:
       preventedNow = List(materialized)
     )
 
-    assert(diagnosis.witness.exists(_.breakToken == "...b4"), clues(diagnosis))
+    assert(diagnosis.witness.exists(_.breakToken == "...b5-b4"), clues(diagnosis))
     assertEquals(diagnosis.failureCodes, List(BreakPreventionWitness.Failure.PersistenceUnstable))
     assert(!diagnosis.exactReady, clues(diagnosis))
   }
@@ -281,7 +285,7 @@ class BreakPreventionWitnessTest extends FunSuite:
   private def materializedBreakInfo(
       fen: String = "4k3/8/8/1p6/8/2P5/1P6/4K3 w - - 0 1",
       line: List[String] = List("b2b4", "e8e7", "e1e2", "e7e6"),
-      expectedBreak: String = "...b4"
+      expectedBreak: String = "...b5-b4"
   ): PreventedPlanInfo =
     val plan =
       BreakClampMaterializer

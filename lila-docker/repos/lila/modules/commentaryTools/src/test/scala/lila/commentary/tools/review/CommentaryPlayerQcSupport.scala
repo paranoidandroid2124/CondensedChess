@@ -1592,89 +1592,61 @@ object CommentaryPlayerQcSupport:
       flags += s"priority_slice:$sliceKind"
     flags.toList.distinct
 
-  def buildMoveReviewRows(response: CommentResponse): (List[SupportRow], List[SupportRow]) =
-    val support = scala.collection.mutable.ListBuffer.empty[SupportRow]
-    val advanced = scala.collection.mutable.ListBuffer.empty[SupportRow]
-    val compensationContext =
-      response.signalDigest.exists(d =>
-        d.compensation.exists(_.trim.nonEmpty) ||
-          d.investedMaterial.exists(_ > 0) ||
-          d.compensationVectors.exists(_.trim.nonEmpty)
-      )
-    def sanitizeRowText(raw: String): Option[String] =
-      Option(raw)
-        .map(UserFacingSignalSanitizer.sanitize)
-        .map(_.trim)
-        .filter(text => !compensationContext || UserFacingSignalSanitizer.allowCompensationSupportText(text))
-        .filter(_.nonEmpty)
+  private def sanitizeSurfaceText(raw: String): Option[String] =
+    Option(raw)
+      .map(UserFacingSignalSanitizer.sanitize)
+      .map(_.trim)
+      .filter(_.nonEmpty)
 
-    val experimentsByPlan =
-      response.strategicPlanExperiments.map { exp =>
-        (exp.planId, exp.subplanId.getOrElse("")) -> exp
-      }.toMap
+  private def surfaceSupportRow(row: MoveReviewPlayerSurfaceRow): Option[SupportRow] =
+    val label = Option(row.label).map(_.trim).filter(_.nonEmpty).getOrElse("Detail")
+    sanitizeSurfaceText(row.text).map(text => SupportRow(label, text))
 
-    val planRows =
-      response.mainStrategicPlans.flatMap { plan =>
-        val key = (plan.planId, plan.subplanId.getOrElse(""))
-        val badge = experimentsByPlan.get(key).map(_.evidenceTier.replace('_', ' '))
-        val label = badge.fold(plan.planName)(tier => s"${plan.planName} [$tier]")
-        sanitizeRowText(label)
-      }
-    if planRows.nonEmpty then support += SupportRow("Main plans", planRows.mkString(", "))
-
-    response.signalDigest.flatMap(_.decisionComparison).foreach { compare =>
-      val text =
-        List(
-          compare.chosenMove.map(move => s"played $move"),
-          compare.engineBestMove.filterNot(compare.chosenMove.contains).map(move => s"engine looked at $move"),
-          compare.cpLossVsChosen.map(loss => s"gap ${loss}cp")
-        ).flatten.mkString(", ")
-      if text.nonEmpty then support += SupportRow("Decision compare", text)
-    }
-
-    response.signalDigest.flatMap(_.opening).flatMap(sanitizeRowText).filter(LiveNarrativeCompressionCore.keepPlayerFacingSentence).foreach { opening =>
-      support += SupportRow("Opening", opening)
-    }
-    response.signalDigest.flatMap(_.opponentPlan).flatMap(sanitizeRowText).filter(LiveNarrativeCompressionCore.keepPlayerFacingSentence).foreach { opponent =>
-      support += SupportRow("Opponent", opponent)
-    }
-
-    response.signalDigest.foreach { digest =>
-      val structure =
-        List(digest.structureProfile, digest.structuralCue, digest.centerState).flatten.flatMap(sanitizeRowText).distinct.mkString("; ")
-      if structure.nonEmpty && LiveNarrativeCompressionCore.keepPlayerFacingSentence(structure) then
-        support += SupportRow("Structure", structure)
-
-      val deployment =
-        List(
-          digest.deploymentPiece,
-          Option.when(digest.deploymentRoute.nonEmpty)(digest.deploymentRoute.mkString(" -> ")),
-          digest.deploymentPurpose
-        ).flatten.flatMap(sanitizeRowText).mkString(" ")
-      if deployment.nonEmpty && LiveNarrativeCompressionCore.hasConcreteAnchor(deployment) then
-        support += SupportRow("Piece deployment", deployment)
-
-      val practicalText =
-        List(
-          digest.practicalVerdict.flatMap(sanitizeRowText),
-          digest.practicalFactors.flatMap(f => LiveNarrativeCompressionCore.renderPracticalBiasPlayer(f, f).toList).headOption.flatMap(sanitizeRowText)
-        ).flatten.mkString("; ")
-      if practicalText.nonEmpty && LiveNarrativeCompressionCore.keepPlayerFacingSentence(practicalText) then
-        support += SupportRow("Practical", practicalText)
-
+  private def surfaceDecisionComparisonRow(compare: MoveReviewPlayerDecisionComparison): Option[SupportRow] =
+    val label = Option(compare.kicker).map(_.trim).filter(_.nonEmpty).getOrElse("Decision compare")
+    val engineSan =
+      compare.engineSan
+        .filterNot(engine => compare.chosenMatchesBest || compare.chosenSan.contains(engine))
+        .map(move => s"engine looked at $move")
+    val text =
       List(
-        digest.compensation.flatMap(sanitizeRowText).map(text => SupportRow("Compensation", text)),
-        digest.authoringEvidence.flatMap(sanitizeRowText).map(text => SupportRow("Evidence note", text)),
-        Option.when(digest.preservedSignals.nonEmpty) {
-          val preserved = digest.preservedSignals.flatMap(sanitizeRowText).mkString("; ")
-          SupportRow("Preserved signals", preserved)
-        }.filter(_.text.nonEmpty)
-      ).flatten.foreach { row =>
-        if LiveNarrativeCompressionCore.keepPlayerFacingSentence(row.text) then advanced += row
-      }
-    }
+        compare.chosenSan.map(move => s"played $move"),
+        engineSan,
+        compare.comparedSan.map(move => s"compared $move"),
+        compare.gapLabel.map(gap => s"gap $gap"),
+        compare.secondaryText
+      ).flatten.mkString(", ")
+    sanitizeSurfaceText(text).map(clean => SupportRow(label, clean))
 
-    (support.toList.distinct, advanced.toList.distinct)
+  private def surfaceAuthorRow(row: MoveReviewPlayerAuthorRow): Option[SupportRow] =
+    val label = Option(row.title).map(_.trim).filter(_.nonEmpty).getOrElse("Author check")
+    val branchTexts =
+      row.branches.flatMap { branch =>
+        sanitizeSurfaceText(branch.text).map { text =>
+          Option(branch.label).map(_.trim).filter(_.nonEmpty).fold(text)(label => s"$label: $text")
+        }
+      }
+    val text =
+      (List(Some(row.question), row.why).flatten ++ branchTexts)
+        .flatMap(sanitizeSurfaceText)
+        .distinct
+        .mkString("; ")
+    sanitizeSurfaceText(text).map(clean => SupportRow(label, clean))
+
+  private def buildMoveReviewRowsFromPlayerSurface(surface: MoveReviewPlayerSurface): (List[SupportRow], List[SupportRow]) =
+    val support =
+      (surface.summaryRows.flatMap(surfaceSupportRow) ++ surface.decisionComparison.flatMap(surfaceDecisionComparisonRow).toList)
+        .distinct
+    val advanced =
+      (surface.advancedRows.flatMap(surfaceSupportRow) ++
+        surface.probeRows.flatMap(surfaceSupportRow) ++
+        surface.authorRows.flatMap(surfaceAuthorRow)).distinct
+    (support, advanced)
+
+  def buildMoveReviewRows(response: CommentResponse): (List[SupportRow], List[SupportRow]) =
+    response.moveReviewPlayerSurface match
+      case Some(surface) => buildMoveReviewRowsFromPlayerSurface(surface)
+      case None          => (Nil, Nil)
 
   def buildChronicleRows(moment: GameChronicleMoment): (List[SupportRow], List[SupportRow]) =
     val proxy =

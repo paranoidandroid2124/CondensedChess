@@ -220,8 +220,8 @@ object PlanMatcher:
     var out = plans
     val tactical = out.find(theme(_) == Theme.ImmediateTacticalGain).map(_.score).getOrElse(0.0)
     if tactical >= 0.72 then
-      out.filter(p => theme(p) != Theme.ImmediateTacticalGain).foreach { p =>
-        out = adjust(out, theme(p), 0.48, "override: immediate tactical gain")
+      out.map(theme).filter(_ != Theme.ImmediateTacticalGain).distinct.foreach { planTheme =>
+        out = adjust(out, planTheme, 0.48, "override: immediate tactical gain")
       }
     if ctx.underDefensivePressure then
       out = adjust(out, Theme.Restriction, 1.15, "defensive pressure boost")

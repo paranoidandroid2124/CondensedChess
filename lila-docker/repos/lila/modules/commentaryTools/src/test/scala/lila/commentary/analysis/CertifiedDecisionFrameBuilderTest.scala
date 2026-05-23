@@ -73,6 +73,8 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
           futureSnapshotAligned = true
         )
       ),
+      strategicPlanEvidence =
+        StrategicPlanEvidenceTestSupport.probeBacked(List(plan("kingside_attack", "Kingside Pressure"))),
       renderMode = NarrativeRenderMode.MoveReview
     )
 
@@ -338,7 +340,8 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
             planId = "kingside_attack",
             evidenceTier = "deferred"
           )
-        )
+        ),
+        strategicPlanEvidence = PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty
       )
 
     val pack = strategyPack()
@@ -393,6 +396,14 @@ class CertifiedDecisionFrameBuilderTest extends FunSuite:
               List(
                 plan("kingside_attack", "Kingside Pressure").copy(
                   executionSteps = List("Keep the pressure on g7.")
+                )
+              ),
+            strategicPlanEvidence =
+              StrategicPlanEvidenceTestSupport.probeBacked(
+                List(
+                  plan("kingside_attack", "Kingside Pressure").copy(
+                    executionSteps = List("Keep the pressure on g7.")
+                  )
                 )
               )
           ),

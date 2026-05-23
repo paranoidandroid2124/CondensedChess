@@ -11,7 +11,8 @@ Current work is a boundary redesign plus docs compression:
 - claim authority is centralized under `analysis.claim`
 - planner authority checks are delegated through `PlannerClaimAdmission`
 - render release safety is centralized under `analysis.render.FragmentAuthority`
-- public MoveReview API/wire/frontend shape is unchanged
+- public MoveReview wire is minimized around backend-owned structured
+  diagnostics and the certified `moveReviewPlayerSurface`
 - canonical docs stay as four files, but historical CTH logs are compressed
   into current-state rules and summary tables
 
@@ -60,7 +61,8 @@ Closed unless a new audit explicitly opens them:
 - broad color-complex squeeze authority
 - broad heavy-piece/local-bind/global-squeeze expansion
 - Track 5 lesson authority
-- public API/frontend wire changes
+- public API/frontend wire expansion except audited typed diagnostics or
+  payload minimization that does not create product authority
 - support-only or deferred carrier promotion
 
 Color-complex has an explicit deferred contract:

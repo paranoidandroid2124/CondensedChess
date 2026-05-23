@@ -82,7 +82,7 @@ class StructurePlanArcBuilderTest extends FunSuite:
 
     val arc = StructurePlanArcBuilder.build(ctx).getOrElse(fail("missing structure arc"))
     assertEquals(arc.structureLabel, "Carlsbad")
-    assertEquals(arc.planLabel, "Minority Attack")
+    assertEquals(arc.planLabel, "Build queenside pressure")
     assertEquals(arc.primaryDeployment.piece, "R")
     assertEquals(arc.primaryDeployment.destination, "b-file")
     assert(StructurePlanArcBuilder.proseEligible(arc))

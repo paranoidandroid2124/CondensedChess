@@ -31,6 +31,14 @@ object MoveReviewEvidenceCoverageAudit:
       supportedLocalAdmittedFamilyCounts: Map[String, Int],
       supportedLocalRejectReasonCounts: Map[String, Int],
       supportedLocalRejectBucketCounts: Map[String, Int],
+      counterplayBreakRowCount: Int,
+      counterplayBreakNamedTokenRowCount: Int,
+      counterplayBreakGenericFallbackCount: Int,
+      counterplayBreakPlayedMoveCollisionCount: Int,
+      centralBreakRowCount: Int,
+      centralBreakNamedTokenRowCount: Int,
+      centralBreakGenericFallbackCount: Int,
+      centralBreakDiagonalCaptureVisibleCount: Int,
       basicExpansionCandidateSampleIds: List[String],
       supportedLocalRuntimeCandidateSampleIds: List[String],
       supportedLocalEvidenceGapSampleIds: List[String],
@@ -79,6 +87,39 @@ object MoveReviewEvidenceCoverageAudit:
             entry.supportedLocalRejectReasons.nonEmpty
         )
         .sortBy(_.sampleId)
+    val counterplayBreakRows =
+      coveredEntries.flatMap(entry =>
+        entry.supportRows
+          .filter(row => row.label == "Counterplay break")
+          .map(row => entry -> row)
+      )
+    val counterplayBreakGenericFallbacks =
+      counterplayBreakRows.filter { case (_, row) => genericCounterplayBreakText(row.text) }
+    val counterplayBreakPlayedMoveCollisions =
+      counterplayBreakRows.filter { case (entry, row) => counterplayBreakPlayedMoveCollision(entry, row.text) }
+    val counterplayBreakNamedTokenRows =
+      counterplayBreakRows.filter { case (entry, row) =>
+        counterplayBreakSurfaceToken(row.text).nonEmpty &&
+          !genericCounterplayBreakText(row.text) &&
+          !counterplayBreakPlayedMoveCollision(entry, row.text)
+      }
+    val centralBreakRows =
+      coveredEntries.flatMap(entry =>
+        entry.supportRows
+          .filter(row => row.label == "Central break")
+          .map(row => entry -> row)
+      )
+    val centralBreakGenericFallbacks =
+      centralBreakRows.filter { case (_, row) => genericCentralBreakText(row.text) }
+    val centralBreakDiagonalCaptures =
+      centralBreakRows.filter { case (_, row) =>
+        centralBreakSurfaceToken(row.text).exists(centralBreakDiagonalCaptureToken)
+      }
+    val centralBreakNamedTokenRows =
+      centralBreakRows.filter { case (_, row) =>
+        centralBreakSurfaceToken(row.text).exists(coreCentralBreakRouteToken) &&
+          !genericCentralBreakText(row.text)
+      }
 
     Report(
       Summary(
@@ -93,6 +134,14 @@ object MoveReviewEvidenceCoverageAudit:
         supportedLocalRejectReasonCounts = countValues(coveredEntries.flatMap(_.supportedLocalRejectReasons)),
         supportedLocalRejectBucketCounts =
           countValues(coveredEntries.flatMap(_.supportedLocalRejectReasons).map(supportedLocalRejectBucket)),
+        counterplayBreakRowCount = counterplayBreakRows.size,
+        counterplayBreakNamedTokenRowCount = counterplayBreakNamedTokenRows.size,
+        counterplayBreakGenericFallbackCount = counterplayBreakGenericFallbacks.size,
+        counterplayBreakPlayedMoveCollisionCount = counterplayBreakPlayedMoveCollisions.size,
+        centralBreakRowCount = centralBreakRows.size,
+        centralBreakNamedTokenRowCount = centralBreakNamedTokenRows.size,
+        centralBreakGenericFallbackCount = centralBreakGenericFallbacks.size,
+        centralBreakDiagonalCaptureVisibleCount = centralBreakDiagonalCaptures.size,
         basicExpansionCandidateSampleIds = basicCandidateIds,
         supportedLocalRuntimeCandidateSampleIds = supportedRuntimeCandidates.map(_.sampleId),
         supportedLocalEvidenceGapSampleIds = supportedEvidenceGaps.map(_.sampleId),
@@ -182,6 +231,7 @@ object MoveReviewEvidenceCoverageAudit:
   private def supportedLocalRejectBucket(reason: String): String =
     val code = dropFamilyPrefix(reason)
     if code.startsWith("contract:source") then "source"
+    else if code.startsWith("surface:") then "surface"
     else if code.startsWith("contract:scope") || code.startsWith("policy:") then "surface"
     else if code.startsWith("contract:") then "contract"
     else if code.startsWith("witness:") || code.startsWith("rival:") then "witness"
@@ -192,6 +242,76 @@ object MoveReviewEvidenceCoverageAudit:
     reason.indexOf(':') match
       case idx if idx >= 0 && idx + 1 < reason.length => reason.substring(idx + 1)
       case _                                          => reason
+
+  private def genericCounterplayBreakText(text: String): Boolean =
+    val low = text.trim.toLowerCase
+    low.contains("from coming right away") ||
+      low.contains("material threat before it lands")
+
+  private def counterplayBreakSurfaceToken(text: String): Option[String] =
+    val pattern =
+      """(?i)\bstops\s+the\s+((?:\.\.\.)?[a-h][1-8](?:-[a-h][1-8])?)\s+break\s+before\s+it\s+appears\b""".r
+    pattern.findFirstMatchIn(text).map(_.group(1).toLowerCase)
+
+  private def genericCentralBreakText(text: String): Boolean =
+    val low = text.trim.toLowerCase
+    low.contains("local reading") ||
+      low.contains("strategic point") ||
+      low.contains("central_break_timing") ||
+      """(?i)\b(?:\.\.\.)?[de]-break\b""".r.findFirstIn(text).nonEmpty
+
+  private def centralBreakSurfaceToken(text: String): Option[String] =
+    val pattern =
+      """(?i)\b(?:also\s+plays|also\s+leaves|uses|keeps)\s+the\s+((?:\.\.\.)?[de][1-8]-[de][1-8])\s+break\b""".r
+    pattern.findFirstMatchIn(text).map(_.group(1).toLowerCase)
+
+  private def coreCentralBreakRouteToken(token: String): Boolean =
+    routeSquares(token).exists { case (from, to) =>
+      from.take(1) == to.take(1) &&
+        Set("d", "e").contains(from.take(1)) &&
+        Set("d4", "e4", "d5", "e5").contains(to)
+    }
+
+  private def centralBreakDiagonalCaptureToken(token: String): Boolean =
+    routeSquares(token).exists { case (from, to) =>
+      Set("d", "e").contains(from.take(1)) &&
+        Set("d", "e").contains(to.take(1)) &&
+        from.take(1) != to.take(1)
+    }
+
+  private def routeSquares(token: String): Option[(String, String)] =
+    val core = token.stripPrefix("...")
+    core.split("-", 2).toList match
+      case from :: to :: Nil
+          if from.matches("""[a-h][1-8]""") && to.matches("""[a-h][1-8]""") =>
+        Some(from -> to)
+      case _ => None
+
+  private def counterplayBreakPlayedMoveCollision(
+      entry: MoveReviewOutputEntry,
+      text: String
+  ): Boolean =
+    counterplayBreakSurfaceToken(text).flatMap(singleSquareToken).exists { square =>
+      playedTargetSquare(entry.playedUci).contains(square) ||
+        playedSanTargetSquare(entry.playedSan).contains(square)
+    }
+
+  private def singleSquareToken(token: String): Option[String] =
+    val core = token.stripPrefix("...")
+    Option.when(core.matches("""[a-h][1-8]"""))(core)
+
+  private def playedTargetSquare(playedUci: String): Option[String] =
+    Option(playedUci)
+      .map(_.trim.toLowerCase)
+      .filter(_.matches("""[a-h][1-8][a-h][1-8][nbrq]?"""))
+      .map(_.slice(2, 4))
+
+  private def playedSanTargetSquare(playedSan: String): Option[String] =
+    Option(playedSan)
+      .map(_.trim.toLowerCase.replaceAll("[+#?!]+$", ""))
+      .flatMap { san =>
+        """([a-h][1-8])(?:=[nbrq])?$""".r.findFirstMatchIn(san).map(_.group(1))
+      }
 
   private def renderMarkdown(report: Report): String =
     val s = report.summary
@@ -206,6 +326,14 @@ object MoveReviewEvidenceCoverageAudit:
        |- SupportedLocal candidate families: ${renderCounts(s.supportedLocalCandidateFamilyCounts)}
        |- SupportedLocal admitted families: ${renderCounts(s.supportedLocalAdmittedFamilyCounts)}
        |- SupportedLocal reject buckets: ${renderCounts(s.supportedLocalRejectBucketCounts)}
+       |- Counterplay break rows: ${s.counterplayBreakRowCount}
+       |- Counterplay break named-token rows: ${s.counterplayBreakNamedTokenRowCount}
+       |- Counterplay break generic fallback rows: ${s.counterplayBreakGenericFallbackCount}
+       |- Counterplay break played-move collision rows: ${s.counterplayBreakPlayedMoveCollisionCount}
+       |- Central break rows: ${s.centralBreakRowCount}
+       |- Central break named-token rows: ${s.centralBreakNamedTokenRowCount}
+       |- Central break generic fallback rows: ${s.centralBreakGenericFallbackCount}
+       |- Central break diagonal-capture visible rows: ${s.centralBreakDiagonalCaptureVisibleCount}
        |- basic expansion candidates: ${renderIds(s.basicExpansionCandidateSampleIds)}
        |- SupportedLocal runtime candidates: ${renderIds(s.supportedLocalRuntimeCandidateSampleIds)}
        |- SupportedLocal evidence gaps: ${renderIds(s.supportedLocalEvidenceGapSampleIds)}

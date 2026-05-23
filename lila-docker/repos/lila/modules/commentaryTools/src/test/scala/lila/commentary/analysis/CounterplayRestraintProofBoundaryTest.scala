@@ -898,7 +898,27 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
             moveOrderSensitive = evidenceTier != "evidence_backed",
             experimentConfidence = if evidenceTier == "evidence_backed" then 0.88 else 0.34
           )
-        )
+        ),
+      strategicPlanEvidence =
+        if evidenceTier == "evidence_backed" then
+          StrategicPlanEvidenceTestSupport.probeBacked(
+            List(
+              PlanHypothesis(
+                planId = "named_break_suppression",
+                planName = "Clamp the ...c5 break",
+                rank = 1,
+                score = 0.81,
+                preconditions = Nil,
+                executionSteps = List("Keep the ...c5 break closed first."),
+                failureModes = List("If the c-file opens, Black gets active play."),
+                viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
+                evidenceSources = List("theme:restriction_prophylaxis"),
+                themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+                subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
+              )
+            )
+          )
+        else PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty
     )
 
   private def whyThisNamedResourceCtx(missingBranch: Boolean = false): NarrativeContext =
@@ -957,6 +977,24 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
             counterBreakNeutralized = true,
             moveOrderSensitive = false,
             experimentConfidence = 0.87
+          )
+        ),
+      strategicPlanEvidence =
+        StrategicPlanEvidenceTestSupport.probeBacked(
+          List(
+            PlanHypothesis(
+              planId = "prophylactic_move_named_resource",
+              planName = "Slow queenside counterplay before expanding",
+              rank = 1,
+              score = 0.82,
+              preconditions = Nil,
+              executionSteps = List("Slow queenside counterplay before expanding."),
+              failureModes = List("If the branch opens up, queenside counterplay comes back."),
+              viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
+              evidenceSources = List("theme:restriction_prophylaxis"),
+              themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.ProphylaxisRestraint.id)
+            )
           )
         ),
       semantic = Some(
@@ -1140,7 +1178,7 @@ class CounterplayRestraintProofBoundaryTest extends FunSuite:
       )
       assertEquals(
         StrategicNarrativePlanSupport
-          .filterEvidenceBacked(List(plan.hypothesis), experiments)
+          .legacyFilterEvidenceBacked(List(plan.hypothesis), experiments)
           .nonEmpty,
         scenario.expectedCertified,
         clues(scenario.id, certification, experiments)

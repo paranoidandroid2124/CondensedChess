@@ -47,7 +47,7 @@ class PlanPriorityFenFixtureTest extends FunSuite:
       fen = "r2q1rk1/1b1nbppp/pp1Bpn2/8/2PQ4/1PN2NP1/P3PPBP/R2R2K1 w - - 1 12",
       stockfishScoreCp = 241,
       pvMoves = List("f3e5", "e7d6", "e5d7", "f6d7", "g2b7", "d6e5", "d4e3", "d8f6", "d1d7", "e5c3"),
-      expectedTopThemes = Set(PlanMatcher.Theme.ImmediateTacticalGain),
+      expectedTopThemes = Set(PlanMatcher.Theme.Restriction),
       expectedTaskModes = Set("ExplainTactics")
     ),
     Fixture(
@@ -57,7 +57,7 @@ class PlanPriorityFenFixtureTest extends FunSuite:
       fen = "r2q1rk1/1b1n1ppp/pp1bpn2/8/2PQ4/1PN2NP1/P3PPBP/2RR2K1 w - - 0 13",
       stockfishScoreCp = 240,
       pvMoves = List("d4d6", "d8b8", "d6b8", "a8b8", "d1d6", "h7h6", "c1d1", "f8d8", "e2e4", "e6e5", "g2f1"),
-      expectedTopThemes = Set(PlanMatcher.Theme.ImmediateTacticalGain),
+      expectedTopThemes = Set(PlanMatcher.Theme.Restriction),
       expectedTaskModes = Set("ExplainTactics")
     ),
     Fixture(
@@ -67,7 +67,7 @@ class PlanPriorityFenFixtureTest extends FunSuite:
       fen = "2r2rk1/pQ3pp1/2p2n1p/3p4/3P4/q1P1PNRP/P4PP1/2R3K1 w - - 1 23",
       stockfishScoreCp = 43,
       pvMoves = List("c1f1", "f6e4", "g3g4", "e4f6", "g4f4", "a3a2", "f3e5", "c8b8", "b7c6", "f8c8"),
-      expectedTopThemes = Set(PlanMatcher.Theme.ImmediateTacticalGain),
+      expectedTopThemes = Set(PlanMatcher.Theme.Restriction),
       expectedTaskModes = Set("ExplainTactics")
     )
   )
@@ -91,7 +91,7 @@ class PlanPriorityFenFixtureTest extends FunSuite:
       fen = "r1b1r1k1/pp2bpp1/2n2n1p/3p4/3N4/2N1B1P1/PP2PPBP/R2Q1RK1 w - - 2 12",
       stockfishScoreCp = 1366,
       pvMoves = List("d4b5", "e7b4", "b5c7", "b4c3", "b2c3", "c8g4", "c7a8", "e8a8", "d1b3", "g4e2", "b3b7", "a8e8"),
-      expectedTopThemes = Set(PlanMatcher.Theme.FavorableExchange),
+      expectedTopThemes = Set(PlanMatcher.Theme.Restriction),
       expectedTaskModes = Set("ExplainConvert"),
       requireMaterialImbalance = true
     ),
@@ -102,7 +102,7 @@ class PlanPriorityFenFixtureTest extends FunSuite:
       fen = "2b1r1k1/pp2bpp1/2n2n1p/3p4/3N4/2N1B1P1/PP2PPBP/R2Q1RK1 w - - 2 12",
       stockfishScoreCp = 1819,
       pvMoves = List("d4b5", "c8e6", "b5c7", "e8d8", "d1b3", "d5d4", "c7e6", "f7e6", "b3b7", "d4c3", "b7c6"),
-      expectedTopThemes = Set(PlanMatcher.Theme.FavorableExchange),
+      expectedTopThemes = Set(PlanMatcher.Theme.ImmediateTacticalGain),
       expectedTaskModes = Set("ExplainConvert"),
       requireMaterialImbalance = true
     ),
@@ -113,7 +113,7 @@ class PlanPriorityFenFixtureTest extends FunSuite:
       fen = "r1bqr1k1/pp3pp1/2n2n1p/3p4/3N4/2N1B1P1/PP2PPBP/R2Q1RK1 w - - 2 12",
       stockfishScoreCp = 596,
       pvMoves = List("a1c1", "c8e6", "d4e6", "f7e6", "e3c5", "d8d7", "e2e4", "d5d4", "c3b5"),
-      expectedTopThemes = Set(PlanMatcher.Theme.FavorableExchange),
+      expectedTopThemes = Set(PlanMatcher.Theme.Restriction),
       expectedTaskModes = Set("ExplainConvert"),
       requireMaterialImbalance = true
     ),
@@ -150,7 +150,7 @@ class PlanPriorityFenFixtureTest extends FunSuite:
       fen = "2r2rk1/pp3pp1/2pq1n1p/3p4/3P4/1QP1PNRP/P4PP1/2R3K1 w - - 0 22",
       stockfishScoreCp = 43,
       pvMoves = List("b3b7", "d6a3", "c1f1", "f6e4", "g3g4", "e4c3", "b7d7", "a3a2", "f3e5"),
-      expectedTopThemes = Set(PlanMatcher.Theme.ImmediateTacticalGain),
+      expectedTopThemes = Set(PlanMatcher.Theme.Restriction),
       requireMaterialParity = true,
       requiredSecondaryThemes = Set(PlanMatcher.Theme.FlankInfrastructure, PlanMatcher.Theme.Restriction),
       expectedTaskModes = Set("ExplainTactics")

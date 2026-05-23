@@ -731,6 +731,6 @@ class StrategyPackBuilderTest extends FunSuite:
     )
     assertEquals(
       StrategyPackSurface.compensationSubtypeLabel(surface),
-      Some("queenside/target_fixing/intentionally_deferred/durable_pressure")
+      Some("center/target_fixing/intentionally_deferred/durable_pressure")
     )
   }

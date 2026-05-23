@@ -1417,7 +1417,7 @@ private[commentary] object RouteNetworkBindProof:
   private def breakFileToken(
       raw: String
   ): String =
-    "(?i)([a-h])".r.findFirstMatchIn(Option(raw).getOrElse("")).map(_.group(1).toLowerCase).getOrElse("")
+    BreakFileToken.extractOrEmpty(raw)
 
   private def independentFromFile(
       file: String,

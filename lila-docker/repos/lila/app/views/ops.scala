@@ -927,7 +927,7 @@ object ops:
               ),
               div(cls := "ops-kv-item")(
                 strong("GUI scope"),
-                span("Use it to inspect compare rates, fallback rates, active-note routing, and prompt usage before going deeper into logs or GCP dashboards.")
+                span("Use it to inspect MoveReview compare rates, fallback rates, and prompt usage before going deeper into logs or GCP dashboards.")
               ),
               div(cls := "ops-kv-item")(
                 strong("Raw data"),
@@ -942,9 +942,7 @@ object ops:
             ),
             div(cls := "ops-summary-grid")(
               statCard("MoveReview requests", snapshot.moveReview.requests.toString),
-              statCard("MoveReview fallback", percentageOrNoData(snapshot.moveReview.polishFallbackRate, snapshot.moveReview.polishAttempts, "attempts")),
-              statCard("Full-game consistency", percentageOrNoData(snapshot.fullgame.compareConsistencyRate, snapshot.fullgame.compareObserved)),
-              statCard("Active attach rate", percentageOrNoData(snapshot.active.attachRate, snapshot.active.attempts, "attempts"))
+              statCard("MoveReview fallback", percentageOrNoData(snapshot.moveReview.polishFallbackRate, snapshot.moveReview.polishAttempts, "attempts"))
             )
           ),
           div(cls := "ops-grid")(
@@ -961,56 +959,6 @@ object ops:
                   "Compare observed" -> snapshot.moveReview.compareObserved.toString,
                   "Compare consistency" -> percentageOrNoData(snapshot.moveReview.compareConsistencyRate, snapshot.moveReview.compareObserved),
                   "Average cost USD" -> usd(snapshot.moveReview.avgCostUsd)
-                )
-              ),
-              div(cls := "ops-card")(
-                h2("Full game"),
-                renderKeyValues(
-                  "Compare observed" -> snapshot.fullgame.compareObserved.toString,
-                  "Compare consistency" -> percentageOrNoData(snapshot.fullgame.compareConsistencyRate, snapshot.fullgame.compareObserved),
-                  "Repair attempts" -> snapshot.fullgame.repairAttempts.toString,
-                  "Repair bypassed" -> snapshot.fullgame.repairBypassed.toString,
-                  "Soft repair applied" -> snapshot.fullgame.softRepairApplied.toString,
-                  "Merged retry skipped" -> snapshot.fullgame.mergedRetrySkipped.toString
-                ),
-                h3("Invalid reason counts"),
-                renderStringLongTable(snapshot.fullgame.invalidReasonCounts)
-              ),
-              div(cls := "ops-card")(
-                h2("Active note / Game Chronicle"),
-                renderKeyValues(
-                  "Selected moments" -> snapshot.active.selectedMoments.toString,
-                  "Attempts" -> snapshot.active.attempts.toString,
-                  "Attached" -> snapshot.active.attached.toString,
-                  "Omitted" -> snapshot.active.omitted.toString,
-                  "Primary accepted" -> snapshot.active.primaryAccepted.toString,
-                  "Repair attempts" -> snapshot.active.repairAttempts.toString,
-                  "Repair recovered" -> snapshot.active.repairRecovered.toString,
-                  "Attach rate" -> percentageOrNoData(snapshot.active.attachRate, snapshot.active.attempts, "attempts"),
-                  "Thesis agreement" -> percentageOrNoData(snapshot.active.thesisAgreementRate, snapshot.active.primaryAccepted, "accepted"),
-                  "Dossier attach" -> percentageOrNoData(snapshot.active.dossierAttachRate, snapshot.active.selectedMoments, "selected"),
-                  "Dossier compare" -> percentageOrNoData(snapshot.active.dossierCompareRate, snapshot.active.attached, "attached"),
-                  "Dossier route ref" -> percentageOrNoData(snapshot.active.dossierRouteRefRate, snapshot.active.attached, "attached"),
-                  "Dossier ref failure" -> percentageOrNoData(snapshot.active.dossierReferenceFailureRate, snapshot.active.attached, "attached"),
-                  "Provider" -> snapshot.active.provider.getOrElse("-"),
-                  "Configured model" -> snapshot.active.configuredModel.getOrElse("-"),
-                  "Fallback model" -> snapshot.active.fallbackModel.getOrElse("-"),
-                  "Reasoning effort" -> snapshot.active.reasoningEffort.getOrElse("-")
-                ),
-                h3("Observed models"),
-                renderStringLongTable(snapshot.active.observedModelDistribution),
-                h3("Omit reasons"),
-                renderStringLongTable(snapshot.active.omitReasons),
-                h3("Warning reasons"),
-                renderStringLongTable(snapshot.active.warningReasons),
-                h3("Route counters"),
-                renderKeyValues(
-                  "Redeploy" -> snapshot.active.routeRedeployCount.toString,
-                  "Move ref" -> snapshot.active.routeMoveRefCount.toString,
-                  "Hidden safety" -> snapshot.active.routeHiddenSafetyCount.toString,
-                  "Toward only" -> snapshot.active.routeTowardOnlyCount.toString,
-                  "Exact surface" -> snapshot.active.routeExactSurfaceCount.toString,
-                  "Opponent hidden" -> snapshot.active.routeOpponentHiddenCount.toString
                 )
               ),
               div(cls := "ops-card")(

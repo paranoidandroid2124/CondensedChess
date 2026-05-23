@@ -5,6 +5,7 @@ import lila.commentary.analysis.*
 import lila.commentary.analysis.claim.ProofContractRules
 import lila.commentary.analysis.semantic.StrategicObservationIds.{ ProofFamilyId, ProofSourceId }
 import lila.commentary.model.*
+import lila.commentary.model.strategic.VariationLine
 import munit.FunSuite
 
 final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
@@ -19,6 +20,13 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
       totalGames = 420000,
       topMoves = List(ExplorerMove("f1c4", "Bc4", 210000, 93000, 52000, 65000, 2460)),
       sampleGames = Nil
+    )
+  private val MadernaExactFen =
+    "nrb1r1k1/1pqn1pbp/p2p2p1/P1pP4/2N1PP2/2N2B2/1P4PP/R1BQR1K1 w - - 3 17"
+  private val MadernaExactLines =
+    List(
+      VariationLine(List("e4e5", "d6e5", "f4e5", "d7e5", "c4e5"), scoreCp = 82, depth = 18),
+      VariationLine(List("c1e3", "b7b5", "a5b6"), scoreCp = 36, depth = 18)
     )
 
   private def developmentGoal: OpeningGoals.Evaluation =
@@ -111,6 +119,29 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
   private def plannerInputs(ctx: NarrativeContext): QuestionPlannerInputs =
     QuestionPlannerInputsBuilder.build(ctx, None, truthContract = None, candidateEvidenceLines = Nil)
 
+  private def centralScene: (NarrativeContext, QuestionPlannerInputs, PlayerFacingClaimPacket) =
+    val data =
+      CommentaryEngine
+        .assessExtended(
+          fen = MadernaExactFen,
+          variations = MadernaExactLines,
+          playedMove = Some("e4e5"),
+          phase = Some("middlegame"),
+          ply = 33,
+          prevMove = Some("e4e5")
+        )
+        .getOrElse(fail(s"analysis missing for $MadernaExactFen"))
+    val centralCtx = NarrativeContextBuilder.build(data, data.toContext, None)
+    val pack = StrategyPackBuilder.build(data, centralCtx).getOrElse(fail("strategy pack missing for central scene"))
+    val inputs = QuestionPlannerInputsBuilder.build(centralCtx, Some(pack), truthContract = None)
+    val packet =
+      inputs.mainBundle
+        .flatMap(_.mainClaim)
+        .flatMap(_.packet)
+        .filter(_.proofFamily == CentralBreakTimingWitness.ProofFamily)
+        .getOrElse(fail(s"central packet missing: ${inputs.mainBundle}"))
+    (centralCtx, inputs, packet)
+
   test("records basic source kind when basic move explanation wins") {
     val refs = refsForLine(italianBeforeBc4, List("f1c4", "g8f6", "d2d3"), List("Bc4", "Nf6", "d3"))
     val outline = BookStyleRenderer.validatedOutline(italianCtx)
@@ -195,4 +226,134 @@ final class MoveReviewCoverageDiagnosticsTest extends FunSuite:
     expectedFailures.foreach { code =>
       assert(diagnostic.rejectReasons.contains(s"$acceptedFamily:$code"), clue(diagnostic.rejectReasons))
     }
+  }
+
+  test("SupportedLocal diagnostics keep tactical-veto neutralize rows out of admitted families") {
+    val family = ProofFamilyId.NeutralizeKeyBreak.wireKey
+    val packet =
+      PlayerFacingClaimPacket(
+        claimGate = PlanEvidenceEvaluator.ClaimCertification(
+          certificateStatus = PlayerFacingCertificateStatus.Valid,
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked
+        ),
+        proofSource = ProofSourceId.CounterplayAxisSuppression.wireKey,
+        proofFamily = family,
+        scope = PlayerFacingPacketScope.MoveLocal,
+        anchorTerms = List("d5"),
+        bestDefenseBranchKey = Some("e4d5|c6d5"),
+        sameBranchState = PlayerFacingSameBranchState.Proven,
+        persistence = PlayerFacingClaimPersistence.Stable,
+        proofPathWitness = PlayerFacingProofPathWitness(
+          ownerSeedTerms = List("neutralize_key_break", "d5"),
+          continuationTerms = List("e4d5", "c6d5")
+        ),
+        fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
+      )
+
+    val diagnostic =
+      MoveReviewCoverageDiagnostics.supportedLocalFromPackets(
+        packets = List(packet),
+        tacticalVetoReasons = List("planner_truth_mode_tactical")
+      )
+
+    assertEquals(diagnostic.candidateFamilies, List(family))
+    assertEquals(diagnostic.admittedFamilies, Nil)
+    assert(diagnostic.rejectReasons.contains(s"$family:tactical_veto:planner_truth_mode_tactical"), clue(diagnostic.rejectReasons))
+  }
+
+  test("SupportedLocal diagnostics require a named neutralize break token") {
+    val family = ProofFamilyId.NeutralizeKeyBreak.wireKey
+    val packet =
+      PlayerFacingClaimPacket(
+        claimGate = PlanEvidenceEvaluator.ClaimCertification(
+          certificateStatus = PlayerFacingCertificateStatus.Valid,
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked
+        ),
+        proofSource = ProofSourceId.CounterplayAxisSuppression.wireKey,
+        proofFamily = family,
+        scope = PlayerFacingPacketScope.MoveLocal,
+        anchorTerms = Nil,
+        bestDefenseBranchKey = Some("e4d5|c6d5"),
+        sameBranchState = PlayerFacingSameBranchState.Proven,
+        persistence = PlayerFacingClaimPersistence.Stable,
+        proofPathWitness = PlayerFacingProofPathWitness(
+          ownerSeedTerms = List("neutralize_key_break", "counterplay_axis_suppression"),
+          continuationTerms = List("e4d5", "c6d5")
+        ),
+        fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
+      )
+
+    val diagnostic = MoveReviewCoverageDiagnostics.supportedLocalFromPackets(List(packet))
+
+    assertEquals(diagnostic.candidateFamilies, List(family))
+    assertEquals(diagnostic.admittedFamilies, Nil)
+    assert(diagnostic.rejectReasons.contains(s"$family:surface:named_break_missing"), clue(diagnostic.rejectReasons))
+  }
+
+  test("SupportedLocal diagnostics reject neutralize break tokens that collide with the played move") {
+    val family = ProofFamilyId.NeutralizeKeyBreak.wireKey
+    val packet =
+      PlayerFacingClaimPacket(
+        claimGate = PlanEvidenceEvaluator.ClaimCertification(
+          certificateStatus = PlayerFacingCertificateStatus.Valid,
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          attributionGrade = PlayerFacingClaimAttributionGrade.AnchoredButShared,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked
+        ),
+        proofSource = ProofSourceId.CounterplayAxisSuppression.wireKey,
+        proofFamily = family,
+        scope = PlayerFacingPacketScope.MoveLocal,
+        anchorTerms = List("g4"),
+        bestDefenseBranchKey = Some("c8g4|d2g5"),
+        sameBranchState = PlayerFacingSameBranchState.Proven,
+        persistence = PlayerFacingClaimPersistence.Stable,
+        proofPathWitness = PlayerFacingProofPathWitness(
+          ownerSeedTerms = List("neutralize_key_break", "g4"),
+          structureTransitionTerms = List("g4")
+        ),
+        fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
+      )
+
+    val diagnostic =
+      MoveReviewCoverageDiagnostics.supportedLocalFromPackets(
+        packets = List(packet),
+        playedSan = Some("Bg4"),
+        playedUci = Some("c8g4")
+      )
+
+    assertEquals(diagnostic.candidateFamilies, List(family))
+    assertEquals(diagnostic.admittedFamilies, Nil)
+    assert(diagnostic.rejectReasons.contains(s"$family:surface:played_move_collision"), clue(diagnostic.rejectReasons))
+  }
+
+  test("SupportedLocal diagnostics admit central_break_timing only with exact surface witness context") {
+    val (centralCtx, _, packet) = centralScene
+    val family = CentralBreakTimingWitness.ProofFamily
+
+    val admitted =
+      MoveReviewCoverageDiagnostics.supportedLocalFromPackets(
+        packets = List(packet),
+        ctx = Some(centralCtx)
+      )
+    val missingContext =
+      MoveReviewCoverageDiagnostics.supportedLocalFromPackets(
+        packets = List(packet),
+        ctx = None
+      )
+
+    assertEquals(admitted.candidateFamilies, List(family))
+    assertEquals(admitted.admittedFamilies, List(family))
+    assertEquals(missingContext.candidateFamilies, List(family))
+    assertEquals(missingContext.admittedFamilies, Nil)
+    assert(
+      missingContext.rejectReasons.contains(s"$family:${CentralBreakTimingSurfaceGate.MissingExactWitness}"),
+      clue(missingContext.rejectReasons)
+    )
   }

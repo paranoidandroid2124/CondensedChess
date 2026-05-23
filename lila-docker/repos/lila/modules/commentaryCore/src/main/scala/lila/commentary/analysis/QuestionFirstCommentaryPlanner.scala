@@ -2098,7 +2098,9 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           case Some(decision) if decision.tier == ClaimAuthorityTier.SupportedLocal =>
             (
               kept :+ plan.copy(
-                claim = PlannerClaimAdmission.supportedLocalSurface(plan.claim),
+                claim =
+                  if plan.plannerSource == CentralBreakTimingWitness.ProofSource then plan.claim
+                  else PlannerClaimAdmission.supportedLocalSurface(plan.claim),
                 evidence = None,
                 contrast = None,
                 consequence = None,

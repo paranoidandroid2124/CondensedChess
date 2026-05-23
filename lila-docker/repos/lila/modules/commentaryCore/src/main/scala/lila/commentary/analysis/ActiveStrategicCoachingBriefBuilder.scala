@@ -714,7 +714,7 @@ private[commentary] object ActiveStrategicCoachingBriefBuilder:
     }
 
   private def replayEvidenceBackedPlans(moment: GameChronicleMoment): List[PlanHypothesis] =
-    StrategicNarrativePlanSupport.filterEvidenceBacked(
+    StrategicNarrativePlanSupport.legacyFilterEvidenceBacked(
       moment.mainStrategicPlans,
       moment.strategicPlanExperiments
     )

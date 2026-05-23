@@ -614,7 +614,7 @@ private[commentary] object CertifiedDecisionFrameBuilder:
       candidateKeys.exists(evidencePlanKeys.contains)
 
   private def evidenceBackedMainPlans(moment: GameChronicleMoment): List[PlanHypothesis] =
-    StrategicNarrativePlanSupport.filterEvidenceBacked(
+    StrategicNarrativePlanSupport.legacyFilterEvidenceBacked(
       moment.mainStrategicPlans,
       moment.strategicPlanExperiments
     )

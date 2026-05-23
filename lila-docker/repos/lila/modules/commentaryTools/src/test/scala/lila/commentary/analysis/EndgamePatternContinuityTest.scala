@@ -43,10 +43,11 @@ class EndgamePatternContinuityTest extends FunSuite:
       pattern: Option[String],
       patternAge: Int = 0,
       transition: Option[String] = None,
-      outcome: String = "Draw"
+      outcome: String = "Draw",
+      fen: String = syntheticFen
   ): NarrativeContext =
     NarrativeContext(
-      fen = syntheticFen,
+      fen = fen,
       header = ContextHeader("Endgame", "Normal", "StyleChoice", "Low", "ExplainConvert"),
       ply = 80,
       summary = NarrativeSummary("Endgame Technique", None, "StyleChoice", "Maintain", "0.00"),
@@ -80,6 +81,15 @@ class EndgamePatternContinuityTest extends FunSuite:
         )
       )
     )
+
+  private def goldsetFen(pattern: String, positive: Boolean): Option[String] =
+    EndgamePatternGoldsetSupport.rows
+      .find(_.pattern.equalsIgnoreCase(pattern))
+      .flatMap(row =>
+        row.cases
+          .find(c => (c.expectedLabel == row.pattern) == positive)
+          .map(_.fen)
+      )
 
   test("Lucena continuity ages across ply gaps and emits dissolution transition") {
     val (m38, s38) = analyzeAt(lucenaFen, 38, None)
@@ -199,7 +209,7 @@ class EndgamePatternContinuityTest extends FunSuite:
     assertEquals(m71.endgameTransition, None)
   }
 
-  test("Remaining DB patterns emit hold and loss causality prose") {
+  test("Remaining DB patterns emit draft hold and loss causality prose") {
     val holdCases = List(
       "WrongRookPawnWrongBishopFortress" -> "promotion corner",
       "OutsidePasserDecoy" -> "remote passer",
@@ -241,8 +251,13 @@ class EndgamePatternContinuityTest extends FunSuite:
     )
 
     holdCases.foreach { case (pattern, anchor) =>
-      val ctx = syntheticContext(pattern = Some(pattern), patternAge = 4)
-      val text = BookStyleRenderer.render(ctx)
+      val ctx =
+        syntheticContext(
+          pattern = Some(pattern),
+          patternAge = 4,
+          fen = goldsetFen(pattern, positive = true).getOrElse(syntheticFen)
+        )
+      val text = BookStyleRenderer.renderDraft(ctx)
       assert(
         text.contains("because") && text.toLowerCase.contains(anchor.toLowerCase),
         s"expected hold causality for $pattern, got: $text"
@@ -252,9 +267,10 @@ class EndgamePatternContinuityTest extends FunSuite:
     lossCases.foreach { case (pattern, anchor) =>
       val ctx = syntheticContext(
         pattern = None,
-        transition = Some(s"$pattern(Draw) → none(Unclear)")
+        transition = Some(s"$pattern(Draw) → none(Unclear)"),
+        fen = goldsetFen(pattern, positive = false).getOrElse(syntheticFen)
       )
-      val text = BookStyleRenderer.render(ctx)
+      val text = BookStyleRenderer.renderDraft(ctx)
       assert(
         text.contains("because") && text.toLowerCase.contains(anchor.toLowerCase),
         s"expected loss causality for $pattern, got: $text"

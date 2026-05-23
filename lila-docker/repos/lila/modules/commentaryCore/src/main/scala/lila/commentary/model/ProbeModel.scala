@@ -146,7 +146,9 @@ object ProbeContractValidator:
       isValid: Boolean,
       missingSignals: List[String],
       reasonCodes: List[String],
-      certificateStatus: ProbeCertificateStatus = ProbeCertificateStatus.Valid
+      certificateStatus: ProbeCertificateStatus = ProbeCertificateStatus.Valid,
+      hardReasonCodes: List[String] = Nil,
+      softReasonCodes: List[String] = Nil
   )
 
   private val branchPurposes = Set(
@@ -265,41 +267,39 @@ object ProbeContractValidator:
         .filter(_ > 0)
     val depthFloorUnmet =
       depthFloor.exists(floor => result.depth.exists(_ < floor))
-    val bindingEchoMissing =
+    val hardReasons =
       List(
+        Option.when(fenMismatch)("FEN_MISMATCH"),
+        Option.when(idMismatch)("ID_MISMATCH"),
+        Option.when(moveMismatch)("PROBED_MOVE_MISMATCH"),
+        Option.when(fromPurpose.missingSignals.nonEmpty && fromRequest.isEmpty)("PURPOSE_CONTRACT_MISSING"),
+        Option.when(depthFloor.nonEmpty && result.depth.isEmpty)("DEPTH_FLOOR_UNVERIFIED"),
+        Option.when(depthFloorUnmet)("DEPTH_FLOOR_UNMET")
+      ).flatten
+    val softReasons =
+      List(
+        Option.when(purposeMismatch)("PURPOSE_MISMATCH"),
+        Option.when(objectiveMismatch)("OBJECTIVE_MISMATCH"),
+        Option.when(seedMismatch)("SEED_MISMATCH"),
         Option.when(request.variationHash.exists(_.trim.nonEmpty) && result.variationHash.forall(_.trim.isEmpty))("VARIATION_HASH_MISSING"),
+        Option.when(variationHashMismatch)("VARIATION_HASH_MISMATCH"),
         Option.when(
           request.engineConfigFingerprint.exists(_.trim.nonEmpty) &&
             result.engineConfigFingerprint.forall(_.trim.isEmpty)
         )("ENGINE_CONFIG_FINGERPRINT_MISSING"),
-        Option.when(depthFloor.nonEmpty && result.depth.isEmpty)("DEPTH_FLOOR_UNVERIFIED")
-      ).flatten
-    val mismatchReasons =
-      List(
-        Option.when(fenMismatch)("FEN_MISMATCH"),
-        Option.when(objectiveMismatch)("OBJECTIVE_MISMATCH"),
-        Option.when(seedMismatch)("SEED_MISMATCH"),
-        Option.when(moveMismatch)("PROBED_MOVE_MISMATCH"),
-        Option.when(variationHashMismatch)("VARIATION_HASH_MISMATCH"),
         Option.when(engineConfigMismatch)("ENGINE_CONFIG_MISMATCH")
       ).flatten
-    val invalidReasons =
-      List(
-        Option.when(purposeMismatch)("PURPOSE_MISMATCH"),
-        Option.when(idMismatch)("ID_MISMATCH"),
-        Option.when(fromPurpose.missingSignals.nonEmpty && fromRequest.isEmpty)("PURPOSE_CONTRACT_MISSING"),
-        Option.when(depthFloorUnmet)("DEPTH_FLOOR_UNMET")
-      ).flatten
-    val weakReasons = bindingEchoMissing
+    val allHardReasons = (base.hardReasonCodes ++ hardReasons).distinct
     val certificateStatus =
-      if mismatchReasons.nonEmpty then ProbeCertificateStatus.StaleOrMismatched
-      else if !base.isValid || invalidReasons.nonEmpty then ProbeCertificateStatus.Invalid
-      else if weakReasons.nonEmpty then ProbeCertificateStatus.WeaklyValid
+      if allHardReasons.nonEmpty then ProbeCertificateStatus.Invalid
+      else if softReasons.nonEmpty then ProbeCertificateStatus.WeaklyValid
       else ProbeCertificateStatus.Valid
     base.copy(
-      isValid = certificateStatus == ProbeCertificateStatus.Valid,
-      reasonCodes = (base.reasonCodes ++ mismatchReasons ++ invalidReasons ++ weakReasons).distinct,
-      certificateStatus = certificateStatus
+      isValid = allHardReasons.isEmpty,
+      reasonCodes = (base.reasonCodes ++ allHardReasons ++ softReasons).distinct,
+      certificateStatus = certificateStatus,
+      hardReasonCodes = allHardReasons,
+      softReasonCodes = softReasons.distinct
     )
 
   private def validateSignals(
@@ -314,12 +314,15 @@ object ProbeContractValidator:
       )
     else
       val missing = requiredSignals.filterNot(sig => hasSignal(sig, result)).toList.sorted
+      val hardReasons =
+        if missing.isEmpty then Nil else List("MISSING_REQUIRED_SIGNALS") ++ missing
       ValidationResult(
         isValid = missing.isEmpty,
         missingSignals = missing,
         reasonCodes =
           if missing.isEmpty then List("REQUIRED_SIGNALS_PRESENT")
-          else List("MISSING_REQUIRED_SIGNALS")
+          else List("MISSING_REQUIRED_SIGNALS"),
+        hardReasonCodes = hardReasons
       )
 
   private def purposeRequiredSignals(purpose: String): Set[String] =

@@ -2,9 +2,10 @@ package lila.commentary.analysis
 
 import chess.Color
 import lila.commentary.model.{ Plan, PlanMatch, PlanSequenceSummary, TransitionType }
-import lila.commentary.model.strategic.PlanLifecyclePhase
+import lila.commentary.model.strategic.{ EndgamePatternState, PlanContinuity, PlanLifecyclePhase, TheoreticalOutcomeHint }
 import munit.FunSuite
 import play.api.libs.json.Json
+import java.util.Locale
 
 class PlanStateTrackerTest extends FunSuite:
 
@@ -84,4 +85,39 @@ class PlanStateTrackerTest extends FunSuite:
     val whitePrimary = decoded.getColorState(Color.White).primary.get
     assertEquals(whitePrimary.planName, "Central Control")
     assertEquals(whitePrimary.phase, PlanLifecyclePhase.Preparation)
+  }
+
+  test("fingerprints use locale-independent two-decimal formatting") {
+    val original = Locale.getDefault
+    Locale.setDefault(Locale.GERMANY)
+    try
+      val continuity =
+        PlanContinuity(
+          planName = "Central Control",
+          planId = Some("central_control"),
+          consecutivePlies = 2,
+          startingPly = 9,
+          phase = PlanLifecyclePhase.Execution,
+          commitmentScore = 0.35
+        )
+      val colorState =
+        PlanStateTracker.ColorPlanState(
+          primary = Some(continuity),
+          lastTransition = Some(PlanStateTracker.TransitionSnapshot(TransitionType.Continuation, 0.75)),
+          lastPly = Some(12)
+        )
+      val endgame =
+        EndgamePatternState(
+          activePattern = Some("rook_activity"),
+          patternAge = 2,
+          outcomeHint = TheoreticalOutcomeHint.Draw,
+          prevKingActivityDelta = 1,
+          prevConfidence = 0.67,
+          lastPly = 44
+        )
+
+      assert(continuity.build_fingerprint.contains(":0.35:"), clue(continuity.build_fingerprint))
+      assert(colorState.build_fingerprint.contains("Continuation:0.75"), clue(colorState.build_fingerprint))
+      assert(endgame.build_fingerprint.contains(":0.67:"), clue(endgame.build_fingerprint))
+    finally Locale.setDefault(original)
   }

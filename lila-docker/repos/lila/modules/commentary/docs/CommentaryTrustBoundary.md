@@ -39,21 +39,84 @@ truth contract. `PlannerClaimAdmission` is the planner adapter.
 The planner may rank and select questions, but it must not decide proof-family,
 source, scope, tactical-veto, or fallback authority by itself.
 
+## Plan Promotion Trust Boundary
+
+`PlanEvidenceEvaluator` owns strategic plan promotion. `ProbeBacked`,
+`StructuralOnly`, `PvCoupledOnly`, `Deferred`, and `Refuted` are typed
+evaluation outcomes, not downstream string matches.
+
+Downstream user-facing consumers must read the typed
+`StrategicPlanEvidenceView` projected into `NarrativeContext`. Raw
+`StrategicPlanExperiment.evidenceTier` strings and the
+`probe_backed:validated_support` marker are diagnostic/compatibility carriers,
+not release, provenance, quantifier, stability, or outline-selection
+authority.
+`UserFacingPayloadSanitizer` also treats that marker as non-authoritative:
+MoveReview plan payloads are retained only when `CommentaryApi` passes a
+matching typed `EvaluatedPlan` whose eligibility is `ProbeBacked` and whose
+support probe set is non-empty. Cached/default sanitizer paths and chronicle
+moments have no typed admission carrier and therefore fail closed for
+`mainStrategicPlans` and their plan-experiment metadata.
+The one cache-hit exception is a previously sanitized MoveReview response:
+`sanitizeCachedMoveReview` may preserve cached `mainStrategicPlans`,
+matching plan experiments, continuity token, and ledger only when the cached
+response already has `moveReviewPlayerSurface` and all retained plan evidence
+source markers have been removed. Marker-bearing cached plans still fail
+closed.
+
+Probe validation separates chess evidence from bookkeeping:
+
+- hard failures: FEN/probed-move/id mismatch, required board signal missing,
+  depth-floor missing or unmet, mate/refutation/cp-loss beyond contract
+- soft diagnostics: purpose/objective label drift and hash/fingerprint echo
+  drift
+
+Soft diagnostics may remain in audit output, but they must not by themselves
+block a board-valid supporting probe. `alternativeDominance` is ranking
+metadata and must not be reported as refutation.
+
+Exact-family trust is witness-bound. A subplan id such as
+`central_break_timing` may explain the plan taxonomy, but it must not open the
+exact central-break owner path unless the exact witness is present; otherwise
+the typed evidence may only support the bounded generic plan-advance path.
+
 ## Proof And Packet Boundary
 
 `PlayerFacingClaimPacket` is the runtime carrier for exact claim candidates.
 `ProofContractRules` decides which proof families can be certified or supported
 locally.
 
+Opening-family prose claims are also kept out of the API presentation layer.
+`OpeningFamilyClaimResolver` owns the claim-boundary decision from
+`OpeningFamilyMatchProof` (`opening`, phase, ply, FEN). A family claim is
+`SupportedLocal` when either the opening label or exact board structure matches
+each claimed family, and `Suppressed` when any claimed family lacks both forms
+of proof. Short aliases require exact matches to avoid substring authority.
+`RuleTemplateSanitizer` may replace suppressed prose with a neutral fallback
+sentence, but regex/string claim parsing in `CommentaryApi` is not authority.
+
 Current strict rules:
 
 - `PositionLocal` scope alone never admits `WhatMattersHere`.
 - exact owner slices require certified source/family predicates.
+- break/file-axis admission uses the centralized `BreakFileToken` parser; a
+  plain prose word or incidental `a`-`h` letter is not evidence for a file.
+- position-probe question seeds must use the exact FEN being generated. The
+  Carlsbad fixed-target seed remains closed unless the exact board target and
+  minority-support predicate both pass.
 - support material never enters the owner pool directly.
 - tactical truth veto outranks strategic authority.
 - line-scoped claims may survive only as subordinate evidence unless a main
   path strategic claim is independently admitted.
 - support-only carriers may not re-inflate after certification failed closed.
+
+Heavy-piece local-bind release vetoes are exact-replay risks, not generic
+heavy-piece movement heuristics. A release may be signaled by a true deep queen
+infiltration, a rook lift/switch away from the back-rank shuffle case,
+repeated heavy-piece checks, or an exchange sacrifice where a rook captures
+lower material and is then recaptured on the replayed branch. A queen
+centralization/single check, an unrecaptured rook capture, or a back-rank rook
+shuffle must not by itself create `heavy_piece_release_illusion`.
 
 Color-complex squeeze is explicitly authority-closed:
 
@@ -79,11 +142,101 @@ authority review, not runtime admission.
 
 `NarrativeOutlineBuilder` assembles beats; it does not own release legality.
 `NarrativeOutlineValidator` remains the final scrubber.
+`UserFacingSignalSanitizer` strips raw diagnostic labels such as `theme:` and
+`subplan:`, but preserves canonical player-facing headings such as
+`Key theme:`. `FullGameDraftNormalizer` may rewrite sanitized key-theme
+scaffolding into prose; that rewrite is cleanup only and does not create
+authority.
 
 ## API And Frontend Trust Boundary
 
 `CommentaryApi` must serialize typed surviving payloads without recomputing
 authority.
+
+MoveReview fallback/retry handling is backend-owned. `CommentaryController`
+emits `diagnostics.status` and `diagnostics.sourceModeReason` from
+`MoveReviewResponseDiagnostics`, which evaluates final fallback prose through
+`PlayerProseBoundary` and existing polish/source-mode codes. The frontend uses
+`diagnostics.status == retryable_fallback` to retry or ignore a fallback
+response; it must not parse commentary prose, English phrases, helper labels,
+or source-mode prefixes to decide retryability.
+
+MoveReview player-visible support UI is owned by the backend-certified
+`MoveReviewPlayerSurface` payload built by `MoveReviewPlayerPayloadBuilder`.
+The public MoveReview wire is built by `MoveReviewResponsePayload` and no
+longer emits raw `strategyPack`, top-level `signalDigest`, author
+question/evidence summaries, concepts, plan-tier/commentary-mode controls,
+full `mainStrategicPlans`, or `strategicPlanExperiments`. It exposes
+`mainStrategicPlanCount` for UI metadata instead of plan arrays. `probeRequests`
+remain a compatibility array on the public schema, but the current sanitized
+MoveReview response emits it empty; public MoveReview does not expose raw probe
+orchestration requests. Public polish metadata excludes validation reasons,
+token counts, cost estimates, and strategy-coverage diagnostics; fallback/retry
+state is owned by `diagnostics.status/sourceModeReason` instead. Frontend
+decoding and stored snapshot restore strip those internal polish fields from
+stale payloads before they can become DOM metadata.
+`MoveReviewPlayerPayloadBuilder` must not read raw `strategyPack`, raw
+`signalDigest`, or outbound `probeRequests` to create product rows; it may
+project only already bounded surface inputs such as selected evaluated plans,
+the certified explanation, the strategic ledger, refs, and authoring summaries.
+The current supported-local product projections are narrow.
+`neutralize_key_break`: `MoveReviewSupportedLocalSurfaceRows` can add a
+`Counterplay break` summary row only from the same planner runtime used to
+build prose, and only after `ClaimAuthorityResolver` returns `SupportedLocal`
+for a `neutralize_key_break` timing plan or main-path packet claim from
+`counterplay_axis_suppression` with an exact owner path and no tactical veto.
+This is a bounded local-reading support row, not a `CertifiedOwner` upgrade,
+not a proof-contract expansion, and not a tactical-veto relaxation. The row
+must be built from a named break token in the timing witness or packet
+owner/structure/anchor terms; raw claim prose is not token authority. If
+`BreakClampMaterializer` proves that the played move occupies the opponent
+break destination, the trusted witness is the full route token (`e4-e5`,
+`...b5-b4`), not the self-referential destination square. Tokenless packets,
+generic fallback wording, and single-square tokens that collide with the played
+move must not become product-visible `Counterplay break` rows. The row must not
+expose the internal `SupportedLocal`/local-reading label or raw proof
+family/source metadata through public row `source`.
+`central_break_timing`: product-visible `Central break` rows require the exact
+runtime witness, including a non-capturing same-file d/e pawn advance to
+`d4`, `e4`, `d5`, or `e5`, board link, source/family match, route-shaped break
+token, and an admitted `SupportedLocal` main-path packet. Diagonal captures
+(`d4-e5`, `...e5-d4`) and prep/challenge pushes (`...d7-d6`, `e2-e3`) are
+separate reject shapes, not product-visible `Central break` rows. The reviewed
+played move may seed the exact witness when it is itself that same legal
+central break, even if the top PV does not replay it; this path still requires
+the legal board move and the same packet/source/family boundary. PV gap and
+two-move branch key are diagnostics for this row, not proof of monopoly value
+and not hard release gates. Taxonomy, strategy-pack labels, raw claim prose,
+and signal-digest text do not admit the row. Forcing-defense scenes may only
+receive subordinate support wording; tactical truth veto remains higher
+priority.
+`CommentaryApi` passes those same selected evaluated plans into
+`UserFacingPayloadSanitizer`; sanitizer does not admit strategic plans from
+`probe_backed:validated_support` or `StrategicPlanExperiment.evidenceTier`
+strings. Strategic-plan experiments may survive only in the internal sanitized
+response model when their plan key matches a retained typed-admitted plan; they
+are not emitted on the public MoveReview wire.
+On cache hits, `CommentaryApi` uses the cache-specific sanitizer path so the
+already sanitized fresh response does not lose continuity state or certified
+ledger data on read, while legacy/marker-bearing strategic metadata remains
+closed.
+When authoring summaries were assembled from pending probe requests, raw request
+purpose/objective/plan/seed metadata remains support-only and must not be
+rendered as player authoring meta. Probe-backed and authoring-backed ledger
+rows may use certified line/eval evidence, but not request/result
+purpose/objective metadata, raw source IDs, row provenance/source metadata, or
+`signalDigest` decision fallback text. Deferred decision moves are also not
+admitted to the player surface; sanitizer and frontend decoding must ignore
+them.
+The frontend may decode raw carriers for orchestration or diagnostics, but it
+must not use them to rebuild the player support, advanced, probe, authoring, or
+decision-comparison sections.
+No Gzip/Base64 opaque strategic token is treated as a security or trust
+boundary. Structured continuity tokens remain compatibility state until a
+server-signed, versioned, expiring, request-bound token contract exists.
+QC/report queue tooling follows the same rule: when `moveReviewPlayerSurface`
+exists, support rows come from that surface rather than raw `signalDigest`,
+`mainStrategicPlans`, or `strategicPlanExperiments`.
 
 Frontend code must not rebuild strategic meaning from:
 
@@ -92,11 +245,26 @@ Frontend code must not rebuild strategic meaning from:
 - latent/deferred fields
 - support-only carriers
 - raw `strategyPack`
+- raw `signalDigest`
+- raw `authorEvidence`, `probeRequests`, or `mainStrategicPlans`
 - omitted decision-comparison data
 - free-form helper prose
 
 MoveReview and narrative views render only typed payload fields that survived
-backend authority.
+backend authority. For MoveReview support panels, that typed field is
+`moveReviewPlayerSurface`; if it is missing, no support panel is reconstructed.
+
+MoveReview corpus and QC reports must measure the same player surface. When
+`moveReviewPlayerSurface` is present, performance rows come from that field
+only; raw carrier reconstruction is not used for MoveReview QC support rows.
+Tactical-failure `neutralize_key_break` diagnostics must remain rejected or
+veto-bucketed in QC and must not count as admitted product-visible support.
+Tokenless or played-move-collision `neutralize_key_break` diagnostics are also
+QC rejections, not admitted product-visible support.
+Missing MoveReview raw artifacts or missing canonical surfaces do not authorize
+raw-carrier or chronicle metadata fallback for MoveReview support rows, and
+active-note QC rows must not export chronicle objective/focus/execution metadata
+as support rows.
 
 ## Active Risk Map
 
@@ -105,8 +273,15 @@ backend authority.
 | support-only becomes owner | claim-authority kernel, proof contracts, planner adapter |
 | fallback truth rewrite | truth contract first; no-contract fallback is failure-only |
 | broad strategic overclaim | exact packet/certified slice required |
+| plan promotion blocked by bookkeeping drift | hard/soft probe validation split in `PlanEvidenceEvaluator` |
+| raw evidence-tier string becomes authority | `StrategicPlanEvidenceView` is the current runtime read-model |
+| sibling score treated as refutation | `alternativeDominance` remains ranking metadata, not `Refuted` |
 | renderer leaks unsafe prose | `FragmentAuthority` plus validator scrub |
-| frontend rebuilds omitted meaning | typed payload only; no fallback reconstruction |
+| frontend rebuilds omitted meaning | `moveReviewPlayerSurface` for MoveReview product UI; no raw-carrier reconstruction |
+| frontend parses fallback prose for retry state | backend `diagnostics.status/sourceModeReason`; no prose regex gate |
+| QC reports measure a virtual raw surface | `buildMoveReviewRows` uses `moveReviewPlayerSurface`; absent surface yields no MoveReview support rows |
+| tactical neutralize support leaks through diagnostics | `ClaimAuthorityResolver` tactical veto plus QC veto rejection for `neutralize_key_break` |
+| generic or self-referential break support leaks | named-token surface gate rejects tokenless and played-move-collision `neutralize_key_break` rows |
 | color-complex premature release | deferred contract and authority-closed failure |
 | lesson overgeneralization | Track 5 deferred; scoped takeaway only |
 

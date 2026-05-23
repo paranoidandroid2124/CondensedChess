@@ -101,6 +101,71 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       experimentConfidence = 0.86
     )
 
+  extension (ctx: NarrativeContext)
+    private def withTypedEvidenceFromLegacy: NarrativeContext =
+      val evaluated =
+        ctx.mainStrategicPlans.map { plan =>
+          val experiment =
+            ctx.strategicPlanExperiments
+              .find(exp =>
+                exp.planId == plan.planId &&
+                  exp.subplanId == plan.subplanId
+              )
+              .orElse(ctx.strategicPlanExperiments.find(_.planId == plan.planId))
+          val quantifier =
+            experiment match
+              case Some(exp) if exp.bestReplyStable && exp.futureSnapshotAligned && !exp.moveOrderSensitive =>
+                PlayerFacingClaimQuantifier.Universal
+              case Some(exp) if exp.bestReplyStable || exp.futureSnapshotAligned =>
+                PlayerFacingClaimQuantifier.BestResponse
+              case _ =>
+                PlayerFacingClaimQuantifier.Existential
+          val stability =
+            experiment match
+              case Some(exp) if (exp.bestReplyStable || exp.futureSnapshotAligned) && !exp.moveOrderSensitive =>
+                PlayerFacingClaimStabilityGrade.Stable
+              case Some(_) =>
+                PlayerFacingClaimStabilityGrade.Unstable
+              case None =>
+                PlayerFacingClaimStabilityGrade.Unknown
+          PlanEvidenceEvaluator.EvaluatedPlan(
+            hypothesis = plan,
+            status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked,
+            userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked,
+            reason = "test typed evidence",
+            supportProbeIds =
+              experiment
+                .map(exp => List.fill(math.max(1, exp.supportProbeCount))("legacy_support_probe"))
+                .getOrElse(List("legacy_support_probe")),
+            refuteProbeIds =
+              experiment
+                .map(exp => List.fill(exp.refuteProbeCount)("legacy_refute_probe"))
+                .getOrElse(Nil),
+            themeL1 = plan.themeL1,
+            subplanId = plan.subplanId,
+            claimCertification =
+              PlanEvidenceEvaluator.ClaimCertification(
+                certificateStatus =
+                  if stability == PlayerFacingClaimStabilityGrade.Stable then PlayerFacingCertificateStatus.Valid
+                  else PlayerFacingCertificateStatus.WeaklyValid,
+                quantifier = quantifier,
+                modalityTier = PlayerFacingClaimModalityTier.Supports,
+                attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
+                stabilityGrade = stability,
+                provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
+                ontologyFamily = PlayerFacingClaimOntologyKind.PlanAdvance,
+                alternativeDominance = false
+              )
+          )
+        }
+      ctx.copy(
+        strategicPlanEvidence =
+          PlanEvidenceEvaluator.StrategicPlanEvidenceView(
+            selectedPlans = evaluated,
+            evaluatedPlans = evaluated
+          )
+      )
+
   private val defaultQuestions =
     List(
       AuthorQuestion("why_this", AuthorQuestionKind.WhyThis, 100, "Why this move?"),
@@ -224,7 +289,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
               )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -402,6 +467,16 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
   test("plan-advance delta claim remains strategic when the move makes a concrete break available") {
     val ctx =
       baseCtx().copy(
+        mainStrategicPlans =
+          List(
+            evidenceBackedPlan(
+              planId = "central_space_bind",
+              planName = "Prepare the central break",
+              subplanId = PlanTaxonomy.PlanKind.CentralBreakTiming.id,
+              executionSteps = List("Support the e4 break."),
+              themeL1 = PlanTaxonomy.PlanTheme.PawnBreakPreparation.id
+            )
+          ),
         strategicPlanExperiments = List(
           StrategicPlanExperiment(
             planId = "central_space_bind",
@@ -429,7 +504,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             confidence = ConfidenceLevel.Probe
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -705,7 +780,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             confidence = ConfidenceLevel.Probe
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -977,7 +1052,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -1083,7 +1158,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -1174,7 +1249,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -1271,7 +1346,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -1370,7 +1445,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -1735,7 +1810,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -1922,7 +1997,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -2015,7 +2090,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -2346,7 +2421,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -2854,7 +2929,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(
@@ -3043,7 +3118,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             )
           )
         )
-      )
+      ).withTypedEvidenceFromLegacy
     val pack =
       Some(
         StrategyPack(

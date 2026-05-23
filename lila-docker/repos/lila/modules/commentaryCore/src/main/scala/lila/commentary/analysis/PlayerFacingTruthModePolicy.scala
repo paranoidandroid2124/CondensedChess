@@ -867,7 +867,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
         provenanceClass = provenanceClass,
         taintFlags = taintFlags.toList,
         ontologyFamily = ontologyFamily,
-        alternativeDominance = ctx.strategicPlanExperiments.exists(_.refuteProbeCount > 0)
+        alternativeDominance =
+          ctx.strategicPlanEvidence.evaluatedPlans.exists(_.claimCertification.alternativeDominance)
       )
     val packet =
       mainPathClaimPacket(
@@ -1255,7 +1256,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
     CentralBreakTimingWitness.exact(ctx).filter(_ => centralBreakTimingFamilyAligned(ctx))
 
   private def centralBreakTimingFamilyAligned(ctx: NarrativeContext): Boolean =
-    val evidencePlans = StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx)
+    val evidencePlans = ctx.strategicPlanEvidence.probeBackedMainPlans
     val rivalSubplans =
       Set(
         PlanTaxonomy.PlanKind.BreakPrevention.id,
@@ -1264,18 +1265,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val centralPlan =
       evidencePlans.exists(plan =>
         plan.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.CentralBreakTiming.id)
-      ) ||
-        ctx.strategicPlanExperiments.exists(exp =>
-          exp.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.CentralBreakTiming.id) &&
-            isEvidenceBackedTier(exp.evidenceTier)
-        )
+      )
     val rivalPlan =
       evidencePlans.exists(plan =>
         plan.subplanId.exists(id => rivalSubplans.contains(normalize(id)))
-      ) ||
-        ctx.strategicPlanExperiments.exists(exp =>
-          exp.subplanId.exists(id => rivalSubplans.contains(normalize(id))) &&
-            isEvidenceBackedTier(exp.evidenceTier)
       )
     centralPlan || !rivalPlan
 
@@ -1424,7 +1417,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
             (owner == HalfOpenFilePressureFamily && localFileEntryPair.isEmpty) ||
             (owner == NeutralizeKeyBreakFamily && !preventedNow.exists(_.breakNeutralized.exists(_.trim.nonEmpty))) ||
             (owner == CounterplayRestraintFamily && !hasNamedPreventedResource(preventedNow)) ||
-            (owner == "prophylaxis_restraint" && !hasNamedPreventedResource(preventedNow))
+            (owner == "prophylaxis_restraint" && !hasNamedPreventedResource(preventedNow)) ||
+            (owner == CentralBreakTimingWitness.ProofFamily && centralBreakTimingWitness.isEmpty)
           }
         ClaimOwnerSeed(
           proofSource = genericProofSource(deltaClass),
@@ -1638,25 +1632,24 @@ private[commentary] object PlayerFacingTruthModePolicy:
       .headOption
       .map(plan => PlanMatcher.triggerKind(plan.themeL1, plan.subplanId))
 
-  private def ownerLinkedEvidenceBackedExperiments(
+  private def ownerLinkedProbeBackedPlans(
       ctx: NarrativeContext,
       ownerSeed: ClaimOwnerSeed
-  ): List[StrategicPlanExperiment] =
+  ): List[PlanEvidenceEvaluator.EvaluatedPlan] =
     val evidenceBacked =
-      ctx.strategicPlanExperiments.filter(exp => isEvidenceBackedTier(exp.evidenceTier))
-    val matched = evidenceBacked.filter(exp => ownerPathMatchesExperiment(ownerSeed, exp))
+      ctx.strategicPlanEvidence.probeBackedPlans
+    val matched = evidenceBacked.filter(plan => ownerPathMatchesPlan(ownerSeed, plan))
     if matched.nonEmpty then matched else evidenceBacked
 
-  private def ownerPathMatchesExperiment(
+  private def ownerPathMatchesPlan(
       ownerSeed: ClaimOwnerSeed,
-      experiment: StrategicPlanExperiment
+      plan: PlanEvidenceEvaluator.EvaluatedPlan
   ): Boolean =
-    val subplan = experiment.subplanId.map(normalize)
-    val theme = normalize(experiment.themeL1)
+    val subplan = plan.subplanId.map(normalize)
+    val theme = normalize(plan.themeL1)
     ownerSeed.proofFamily match
       case NeutralizeKeyBreakFamily =>
-        subplan.contains(normalize(PlanTaxonomy.PlanKind.BreakPrevention.id)) ||
-          experiment.counterBreakNeutralized
+        subplan.contains(normalize(PlanTaxonomy.PlanKind.BreakPrevention.id))
       case HalfOpenFilePressureFamily =>
         Set(
           PlanTaxonomy.PlanKind.KeySquareDenial.id,
@@ -1742,14 +1735,16 @@ private[commentary] object PlayerFacingTruthModePolicy:
         badPieceLiquidationContinuation ++
         queenTradeShieldContinuation ++
         centralBreakTimingContinuation ++
-        ownerLinkedEvidenceBackedExperiments(ctx, ownerSeed).flatMap { experiment =>
+        ownerLinkedProbeBackedPlans(ctx, ownerSeed).flatMap { plan =>
+          val cert = plan.claimCertification
           List(
-            Option.when(experiment.bestReplyStable)("best_reply_stable"),
-            Option.when(experiment.futureSnapshotAligned)("future_snapshot_aligned"),
-            Option.when(experiment.counterBreakNeutralized)("counter_break_neutralized"),
-            experiment.subplanId.flatMap(clean).map(id => s"subplan:$id"),
-            clean(experiment.themeL1).map(theme => s"theme:$theme")
-          ).flatten
+            Option.when(cert.quantifier == PlayerFacingClaimQuantifier.Universal)("universal"),
+            Option.when(cert.quantifier == PlayerFacingClaimQuantifier.BestResponse)("best_response"),
+            Option.when(cert.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable)("stable"),
+            Option.when(cert.provenanceClass == PlayerFacingClaimProvenanceClass.ProbeBacked)("probe_backed"),
+            plan.subplanId.flatMap(clean).map(id => s"subplan:$id"),
+            clean(plan.themeL1).map(theme => s"theme:$theme")
+          ).flatten ++ plan.supportProbeIds.map(id => s"support_probe:$id")
         }
     ).distinct
 
@@ -1943,7 +1938,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
   private[commentary] def centralBreakTimingClaimText(
       witness: CentralBreakTimingWitness.Witness
   ): String =
-    s"A local reading is that this improves the ${witness.breakToken} timing on this branch."
+    if witness.sourceTags.contains("board:played_break") then
+      s"This also plays the ${witness.breakToken} break at this moment."
+    else s"This also leaves the ${witness.breakToken} break available on the checked line."
 
   private def exactCounterplayRestraintClaimText(
       ctx: NarrativeContext,
@@ -2040,27 +2037,39 @@ private[commentary] object PlayerFacingTruthModePolicy:
     val branchVisible = bestDefenseBranchKey.nonEmpty
     val exactBreakPrevention = exactBreakPreventionProof(ctx, surface, ownerSeed)
     val concreteOwnerSeed = ownerSeed.ownerSeedTerms.nonEmpty
+    val exactCentralBreakTimingContinuation =
+      Option.when(ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily) {
+        CentralBreakTimingWitness.exact(ctx).toList.flatMap(_.structureTransitionTerms)
+      }.getOrElse(Nil)
     if exactBreakPrevention && branchVisible && concreteOwnerSeed && continuationTerms.nonEmpty then
+      PlayerFacingSameBranchState.Proven
+    else if ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily &&
+        concreteOwnerSeed &&
+        exactCentralBreakTimingContinuation.nonEmpty &&
+        continuationTerms.nonEmpty
+    then
       PlayerFacingSameBranchState.Proven
     else if claimGate.provenanceClass != PlayerFacingClaimProvenanceClass.ProbeBacked then
       PlayerFacingSameBranchState.Missing
     else if !branchVisible then
       PlayerFacingSameBranchState.Missing
     else
-      val evidenceBacked = ownerLinkedEvidenceBackedExperiments(ctx, ownerSeed)
+      val evidenceBacked = ownerLinkedProbeBackedPlans(ctx, ownerSeed)
       val exactTradeContinuation =
         exactBoundedSimplificationContinuationSquare(ctx, ownerSeed)
       val exactSliceContinuation =
         exactSliceContinuationTerms(ctx, ownerSeed)
       val defenderTradeContinuation =
         defenderTradeContinuationTerms(ctx, ownerSeed)
-      val exactCentralBreakTimingContinuation =
-        Option.when(ownerSeed.proofFamily == CentralBreakTimingWitness.ProofFamily) {
-          CentralBreakTimingWitness.exact(ctx).toList.flatMap(_.structureTransitionTerms)
-        }.getOrElse(Nil)
-      val stableBestDefense = evidenceBacked.exists(_.bestReplyStable)
-      val futureAligned = evidenceBacked.exists(_.futureSnapshotAligned)
-      val moveOrderClean = !evidenceBacked.exists(_.moveOrderSensitive)
+      val stableBestDefense =
+        evidenceBacked.exists(plan =>
+          plan.claimCertification.quantifier == PlayerFacingClaimQuantifier.BestResponse ||
+            plan.claimCertification.quantifier == PlayerFacingClaimQuantifier.Universal
+        )
+      val futureAligned =
+        evidenceBacked.exists(_.claimCertification.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable)
+      val moveOrderClean =
+        !evidenceBacked.exists(_.claimCertification.taintFlags.contains(PlayerFacingClaimTaintFlag.BranchConditioned))
       val concreteTransition = ownerSeed.structureTransitionTerms.nonEmpty
       if exactSliceDescriptor(ownerSeed).nonEmpty &&
           concreteOwnerSeed &&
@@ -2122,7 +2131,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
         hasQueenTradeShieldWitness(ctx)
     then PlayerFacingClaimPersistence.BestDefenseOnly
     else
-      val evidenceBacked = ownerLinkedEvidenceBackedExperiments(ctx, ownerSeed)
+      val evidenceBacked = ownerLinkedProbeBackedPlans(ctx, ownerSeed)
       if exactSliceContinuationTerms(ctx, ownerSeed).nonEmpty &&
           exactSliceDescriptor(ownerSeed).nonEmpty &&
           claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
@@ -2153,11 +2162,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
           claimGate.stabilityGrade != PlayerFacingClaimStabilityGrade.Unstable
       then
         PlayerFacingClaimPersistence.Stable
-      else if evidenceBacked.exists(exp => exp.bestReplyStable && exp.futureSnapshotAligned && !exp.moveOrderSensitive) then
+      else if evidenceBacked.exists(_.claimCertification.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable) then
         PlayerFacingClaimPersistence.Stable
-      else if evidenceBacked.exists(_.bestReplyStable) then
+      else if evidenceBacked.exists(_.claimCertification.quantifier == PlayerFacingClaimQuantifier.BestResponse) then
         PlayerFacingClaimPersistence.BestDefenseOnly
-      else if evidenceBacked.exists(_.futureSnapshotAligned) then
+      else if evidenceBacked.exists(_.supportProbeIds.nonEmpty) then
         PlayerFacingClaimPersistence.FutureOnly
       else PlayerFacingClaimPersistence.Broken
 
@@ -2224,7 +2233,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
       rivalAssessment: RivalAssessment
   ): List[String] =
     val risks = scala.collection.mutable.ListBuffer.empty[String]
-    if ownerLinkedEvidenceBackedExperiments(ctx, ownerSeed).exists(_.moveOrderSensitive) then
+    if ownerLinkedProbeBackedPlans(ctx, ownerSeed).exists(
+        _.claimCertification.taintFlags.contains(PlayerFacingClaimTaintFlag.BranchConditioned)
+      )
+    then
       risks += PlayerFacingClaimReleaseRisk.MoveOrderFragility
     if HeavyPieceLocalBindValidation.blocksPlayerFacingShell(ctx) then
       risks += PlayerFacingClaimReleaseRisk.HeavyPieceLeakage
@@ -2460,7 +2472,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
             persistence == PlayerFacingClaimPersistence.Stable
         case family if family == CentralBreakTimingWitness.ProofFamily =>
           ownerSeed.proofSource == CentralBreakTimingWitness.ProofSource &&
-            bestDefenseBranchKey.nonEmpty &&
             sameBranchState == PlayerFacingSameBranchState.Proven &&
             persistence == PlayerFacingClaimPersistence.Stable
         case family if family == BoundedFavorableSimplificationFamily =>
@@ -2671,9 +2682,8 @@ private[commentary] object PlayerFacingTruthModePolicy:
 
   private def defenderTradeFamilyVisible(ctx: NarrativeContext): Boolean =
     leadingProofFamily(ctx).contains(DefenderTradeFamily) ||
-      ctx.strategicPlanExperiments.exists(exp =>
-        exp.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.DefenderTrade.id) &&
-          isEvidenceBackedTier(exp.evidenceTier)
+      ctx.strategicPlanEvidence.probeBackedMainPlans.exists(plan =>
+        plan.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.DefenderTrade.id)
       ) ||
       ctx.mainStrategicPlans.exists(plan =>
         plan.subplanId.exists(id => normalize(id) == PlanTaxonomy.PlanKind.DefenderTrade.id)
@@ -3540,14 +3550,16 @@ private[commentary] object PlayerFacingTruthModePolicy:
 
   private[commentary] def positionProbeQuestionSeed(
       ctx: IntegratedContext,
-      posOpt: Option[_root_.chess.Position]
+      posOpt: Option[_root_.chess.Position],
+      fen: String
   ): Option[PositionProbeQuestionSeed] =
-    carlsbadFixedTargetQuestionSeed(ctx, posOpt)
+    carlsbadFixedTargetQuestionSeed(ctx, posOpt, fen)
       .orElse(targetFocusedCoordinationQuestionSeed(ctx, posOpt))
 
   private def carlsbadFixedTargetQuestionSeed(
       ctx: IntegratedContext,
-      posOpt: Option[_root_.chess.Position]
+      posOpt: Option[_root_.chess.Position],
+      fen: String
   ): Option[PositionProbeQuestionSeed] =
     Option.when(
       ctx.isWhiteToMove &&
@@ -3555,7 +3567,7 @@ private[commentary] object PlayerFacingTruthModePolicy:
         !ctx.attackingOpportunityAtRisk &&
         posOpt.exists(pos =>
           carlsbadFixedTargetBoardTarget(pos.board, pos.color).contains("c6") &&
-            carlsbadFixedTargetGenericMinoritySupport("", pos.board, pos.color)
+            carlsbadFixedTargetGenericMinoritySupport(fen, pos.board, pos.color)
         )
     ) {
       PositionProbeQuestionSeed(
@@ -3650,12 +3662,6 @@ private[commentary] object PlayerFacingTruthModePolicy:
           )
       )
 
-  private def isEvidenceBackedTier(raw: String): Boolean =
-    val normalized = normalize(raw)
-    normalized == "evidence_backed" ||
-      normalized == "evidence backed" ||
-      normalized == "evidencebacked"
-
   private def claimProvenance(
       ctx: NarrativeContext,
       surface: StrategyPackSurface.Snapshot,
@@ -3682,16 +3688,11 @@ private[commentary] object PlayerFacingTruthModePolicy:
         bestDefenseBranchKeyFromContext(ctx).nonEmpty
     val exactCentralBreakTiming =
       deltaClass == PlayerFacingMoveDeltaClass.PlanAdvance &&
-        centralBreakTimingReleaseWitness(ctx).nonEmpty &&
-        bestDefenseBranchKeyFromContext(ctx).nonEmpty
-    val evidenceBacked =
-      StrategicNarrativePlanSupport.evidenceBackedMainPlans(ctx).nonEmpty ||
-        ctx.strategicPlanExperiments.exists(_.evidenceTier == "evidence_backed")
-    val pvCoupled =
-      ctx.strategicPlanExperiments.exists(_.evidenceTier == "pv_coupled")
-    val deferred =
-      ctx.strategicPlanExperiments.exists(_.evidenceTier == "deferred") ||
-        ctx.probeRequests.nonEmpty
+        centralBreakTimingReleaseWitness(ctx).nonEmpty
+    val evidence = ctx.strategicPlanEvidence
+    val evidenceBacked = evidence.hasProbeBacked
+    val pvCoupled = evidence.pvCoupledPlans.nonEmpty
+    val deferred = evidence.deferredPlans.nonEmpty || ctx.probeRequests.nonEmpty
     if evidenceBacked ||
         exactBoundedSimplification ||
         exactIqpInducement ||
@@ -3744,13 +3745,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
         centralBreakTimingReleaseWitness(ctx).nonEmpty
     then PlayerFacingClaimQuantifier.BestResponse
     else
-      val evidenceBackedExperiments =
-        ctx.strategicPlanExperiments.filter(_.evidenceTier == "evidence_backed")
-      if evidenceBackedExperiments.exists(exp =>
-          exp.bestReplyStable && exp.futureSnapshotAligned && !exp.moveOrderSensitive
-        ) then
+      val certs = ctx.strategicPlanEvidence.probeBackedPlans.map(_.claimCertification)
+      if certs.exists(_.quantifier == PlayerFacingClaimQuantifier.Universal) then
         PlayerFacingClaimQuantifier.Universal
-      else if evidenceBackedExperiments.exists(exp => exp.bestReplyStable || exp.futureSnapshotAligned) then
+      else if certs.exists(_.quantifier == PlayerFacingClaimQuantifier.BestResponse) then
         PlayerFacingClaimQuantifier.BestResponse
       else PlayerFacingClaimQuantifier.Existential
 
@@ -3792,12 +3790,10 @@ private[commentary] object PlayerFacingTruthModePolicy:
         centralBreakTimingReleaseWitness(ctx).nonEmpty
     then PlayerFacingClaimStabilityGrade.Stable
     else
-      val evidenceBackedExperiments =
-        ctx.strategicPlanExperiments.filter(_.evidenceTier == "evidence_backed")
-      if evidenceBackedExperiments.exists(exp =>
-          (exp.bestReplyStable || exp.futureSnapshotAligned) && !exp.moveOrderSensitive
-        ) then PlayerFacingClaimStabilityGrade.Stable
-      else if evidenceBackedExperiments.nonEmpty then PlayerFacingClaimStabilityGrade.Unstable
+      val certs = ctx.strategicPlanEvidence.probeBackedPlans.map(_.claimCertification)
+      if certs.exists(_.stabilityGrade == PlayerFacingClaimStabilityGrade.Stable) then
+        PlayerFacingClaimStabilityGrade.Stable
+      else if certs.nonEmpty then PlayerFacingClaimStabilityGrade.Unstable
       else PlayerFacingClaimStabilityGrade.Unknown
 
   private def claimTaintFlags(

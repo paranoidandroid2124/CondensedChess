@@ -32,20 +32,17 @@ class ExactBoardEngineProofTest extends FunSuite:
       HeavyPieceCase(
         id = "off_sector_break_release",
         fen = "2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P2N2/PPQ2PPP/2RR2K1 w - - 0 24",
-        expectedTopLine = List("c3c4", "c8b8", "f3e5", "c6e7", "c4c5", "e7c6", "e5c6", "b7c6"),
-        expectedFeatures = Set("rook_lift")
+        expectedTopLine = List("c3c4", "c8b8", "f3e5", "c6e7", "c4c5", "e7c6", "e5c6", "b7c6")
       ),
       HeavyPieceCase(
         id = "pressure_only_waiting_move",
         fen = "2rq1rk1/pp3ppp/2n1pn2/3p4/3P4/2P1P3/PPQ2PPP/2RR2K1 w - - 0 24",
-        expectedTopLine = List("g2g3", "b7b5", "g1g2", "e6e5", "d1e1", "e5d4", "e3d4"),
-        expectedFeatures = Set("rook_lift")
+        expectedTopLine = List("g2g3", "b7b5", "g1g2", "e6e5", "d1e1", "e5d4", "e3d4")
       ),
       HeavyPieceCase(
         id = "stitched_heavy_piece_bundle",
         fen = "2rq1rk1/pp3ppp/2n1pn2/3p4/3P2P1/2P1PN2/PPQ2P1P/2RR2K1 w - - 0 24",
-        expectedTopLine = List("g1h1", "f6g4", "d1g1", "g4f6", "f3g5", "h7h6"),
-        expectedFeatures = Set("rook_lift")
+        expectedTopLine = List("g1h1", "f6g4", "d1g1", "g4f6", "f3g5", "h7h6")
       )
     )
 

@@ -5,6 +5,7 @@ import {
   buildStoredMoveReviewEntry,
   persistSessionMoveReviewSnapshot,
   readSessionMoveReviewSnapshot,
+  sanitizeStoredMoveReviewEntry,
   type StoredMoveReviewEntry,
 } from '../src/moveReview/studyPersistence';
 import { restoreStoredMoveReviewTokens } from '../src/moveReview/stateContinuity';
@@ -155,20 +156,7 @@ describe('moveReview session persistence', () => {
         sourceMode: 'ai_polished',
         model: 'gpt-5-mini',
         cacheHit: false,
-        mainStrategicPlans: [{
-          planId: 'p1',
-          planName: 'Clamp the kingside',
-          rank: 1,
-          score: 0.91,
-          preconditions: ['Keep the center closed'],
-          executionSteps: ['Bring the knight toward e3'],
-          failureModes: ['...c5 opens the center'],
-          viability: {
-            score: 0.91,
-            label: 'credible',
-            risk: 'medium',
-          },
-        }],
+        mainStrategicPlanCount: 1,
         moveReviewLedger: null,
         planStateToken: null,
         endgameStateToken: null,
@@ -189,5 +177,53 @@ describe('moveReview session persistence', () => {
       analysisFen: 'fen-1',
       originPath: 'path-a',
     });
+  });
+
+  test('sanitizeStoredMoveReviewEntry strips stale internal polish diagnostics from restored entries', () => {
+    const entry: StoredMoveReviewEntry = {
+      html: '<div>cached</div>',
+      refs: null,
+      polishMeta: {
+        provider: 'openai',
+        model: 'gpt-test',
+        sourceMode: 'ai_polished',
+        validationPhase: 'middlegame',
+        validationReasons: ['contract_violation'],
+        cacheHit: false,
+        promptTokens: 123,
+        cachedTokens: 45,
+        completionTokens: 67,
+        estimatedCostUsd: 0.0123,
+        strategyCoverage: {
+          mode: 'strict',
+          enforced: true,
+          threshold: 0.7,
+          availableCategories: 4,
+          coveredCategories: 3,
+          requiredCategories: 2,
+          coverageScore: 0.75,
+          passesThreshold: true,
+          planSignals: 2,
+          planHits: 1,
+          routeSignals: 1,
+          routeHits: 1,
+          focusSignals: 1,
+          focusHits: 1,
+        },
+      },
+      sourceMode: 'ai_polished',
+      model: 'gpt-test',
+      cacheHit: false,
+      mainPlansCount: 0,
+    };
+
+    const sanitized = sanitizeStoredMoveReviewEntry(entry);
+
+    assert.deepEqual(sanitized.polishMeta?.validationReasons, []);
+    assert.equal(sanitized.polishMeta?.promptTokens, null);
+    assert.equal(sanitized.polishMeta?.cachedTokens, null);
+    assert.equal(sanitized.polishMeta?.completionTokens, null);
+    assert.equal(sanitized.polishMeta?.estimatedCostUsd, null);
+    assert.equal(sanitized.polishMeta?.strategyCoverage, null);
   });
 });

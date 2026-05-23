@@ -56,6 +56,29 @@ class FullGameDraftNormalizerTest extends FunSuite:
             subplanId = Some("break_prevention")
           )
         ),
+        strategicPlanEvidence =
+          StrategicPlanEvidenceTestSupport.probeBacked(
+            List(
+              PlanHypothesis(
+                planId = "break_prevention",
+                planName = "Break prevention",
+                rank = 1,
+                score = 0.82,
+                preconditions = List("rook access stays available", "them king remains a kingside target"),
+                executionSteps = Nil,
+                failureModes = List("opponent blocks with. 7-pawn push"),
+                viability = PlanViability(0.82, "high", "stable"),
+                refutation = Some("the center opens too early"),
+                evidenceSources = List(
+                  "theme:restriction_prophylaxis",
+                  "subplan:break_prevention",
+                  "seed:pawnstorm_kingside"
+                ),
+                themeL1 = "restriction_prophylaxis",
+                subplanId = Some("break_prevention")
+              )
+            )
+          ),
         renderMode = NarrativeRenderMode.FullGame
       )
 
@@ -102,6 +125,29 @@ class FullGameDraftNormalizerTest extends FunSuite:
             subplanId = Some("rook_pawn_march")
           )
         ),
+        strategicPlanEvidence =
+          StrategicPlanEvidenceTestSupport.probeBacked(
+            List(
+              PlanHypothesis(
+                planId = "PawnStorm",
+                planName = "PawnStorm Kingside",
+                rank = 1,
+                score = 0.82,
+                preconditions = List("center stays locked"),
+                executionSteps = Nil,
+                failureModes = List("opponent hits the center before plan matures"),
+                viability = PlanViability(0.82, "high", "stable"),
+                refutation = Some("the center opens too early"),
+                evidenceSources = List(
+                  "latent_seed:PawnStorm_Kingside",
+                  "theme:flank_infrastructure",
+                  "subplan:rook_pawn_march"
+                ),
+                themeL1 = "flank_infrastructure",
+                subplanId = Some("rook_pawn_march")
+              )
+            )
+          ),
         renderMode = NarrativeRenderMode.FullGame
       )
 
@@ -162,7 +208,7 @@ class FullGameDraftNormalizerTest extends FunSuite:
 
     assert(!normalized.contains("Strategic focus"))
     assert(!normalized.toLowerCase.contains("strategic stack"))
-    assert(normalized.contains("Key theme: Minority attack."))
+    assert(normalized.contains("Key theme: Minority attack."), clue(normalized))
     assert(normalized.contains("The main plan remains Minority attack."))
     assert(normalized.toLowerCase.contains("pressure on b2"))
     assert(normalized.toLowerCase.contains("timing precision"))

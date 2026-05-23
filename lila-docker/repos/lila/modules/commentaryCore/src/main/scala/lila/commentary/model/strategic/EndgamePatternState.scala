@@ -1,6 +1,7 @@
 package lila.commentary.model.strategic
 
 import play.api.libs.json.*
+import lila.commentary.model.FingerprintFormat
 
 /**
  * Tracks endgame pattern continuity across consecutive moves.
@@ -17,7 +18,9 @@ case class EndgamePatternState(
     prevKingActivityDelta: Int,
     prevConfidence: Double,
     lastPly: Int
-)
+):
+  lazy val build_fingerprint: String =
+    s"${activePattern.getOrElse("n")}:$patternAge:${outcomeHint.toString}:$prevKingActivityDelta:${FingerprintFormat.fixed2(prevConfidence)}:$lastPly"
 
 object EndgamePatternState:
   private given Reads[TheoreticalOutcomeHint] = Reads {

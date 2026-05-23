@@ -3,6 +3,8 @@ package lila.commentary
 import munit.FunSuite
 import play.api.libs.json.{ JsObject, Json }
 
+import lila.commentary.analysis.PlanStateTracker
+import lila.commentary.analysis.PlanEvidenceEvaluator.{ EvaluatedPlan, PlanEvidenceStatus, UserFacingPlanEligibility }
 import lila.commentary.model.StrategicPlanExperiment
 import lila.commentary.model.authoring.*
 import lila.strategicPuzzle.StrategicPuzzle.*
@@ -30,6 +32,37 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     bannedPhrases.foreach { phrase =>
       assert(!text.toLowerCase.contains(phrase.toLowerCase), clue(text))
     }
+
+  private def typedEvaluation(
+      plan: PlanHypothesis,
+      eligibility: UserFacingPlanEligibility,
+      supportProbeIds: List[String] = Nil
+  ): EvaluatedPlan =
+    EvaluatedPlan(
+      hypothesis = plan,
+      status =
+        eligibility match
+          case UserFacingPlanEligibility.ProbeBacked   => PlanEvidenceStatus.PlayableEvidenceBacked
+          case UserFacingPlanEligibility.StructuralOnly => PlanEvidenceStatus.PlayableEvidenceBacked
+          case UserFacingPlanEligibility.PvCoupledOnly => PlanEvidenceStatus.PlayablePvCoupled
+          case UserFacingPlanEligibility.Deferred      => PlanEvidenceStatus.Deferred
+          case UserFacingPlanEligibility.Refuted       => PlanEvidenceStatus.Refuted,
+      userFacingEligibility = eligibility,
+      reason = "test typed evaluator admission",
+      supportProbeIds = supportProbeIds,
+      themeL1 = plan.themeL1,
+      subplanId = plan.subplanId
+    )
+
+  private def probeBackedEvaluation(plan: PlanHypothesis): EvaluatedPlan =
+    typedEvaluation(
+      plan = plan,
+      eligibility = UserFacingPlanEligibility.ProbeBacked,
+      supportProbeIds = List("probe_1")
+    )
+
+  private def deferredEvaluation(plan: PlanHypothesis): EvaluatedPlan =
+    typedEvaluation(plan, UserFacingPlanEligibility.Deferred)
 
   test("sanitizes moveReview response across structured user-facing fields") {
     val response =
@@ -72,6 +105,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             failureModes = List("probe evidence pending"),
             viability = PlanViability(score = 0.7, label = "medium", risk = "return vector collapse"),
             refutation = Some("engine-coupled continuation fails"),
+            subplanId = Some("rook_lift_scaffold"),
             evidenceSources = List("probe_backed:validated_support")
           )
         ),
@@ -175,10 +209,50 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
             ),
             source = "support:basic"
           )
+        ),
+        moveReviewPlayerSurface = Some(
+          MoveReviewPlayerSurface(
+            title = Some("PlayableByPV support title"),
+            summaryRows = List(
+              MoveReviewPlayerSurfaceRow(
+                label = "support:Main",
+                text = "strict evidence mode with return vector",
+                source = Some("support:engine_hypothesis"),
+                refSans = List("Qe3")
+              )
+            ),
+            decisionComparison = Some(
+              MoveReviewPlayerDecisionComparison(
+                kicker = "Decision compare",
+                deferredSan = Some("Qe3"),
+                secondaryText = Some("accepted as PlayableByPV fallback")
+              )
+            ),
+            authorRows = List(
+              MoveReviewPlayerAuthorRow(
+                title = "theme:Authoring",
+                status = "probe evidence pending",
+                question = "Does {seed} still work?",
+                why = Some("engine-coupled continuation"),
+                meta = List("seed:pawnstorm_kingside"),
+                branches = List(
+                  MoveReviewPlayerSurfaceRow(
+                    label = "line_1",
+                    text = "return vector through line pressure",
+                    source = Some("authoring")
+                  )
+                )
+              )
+            )
+          )
         )
       )
 
-    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val sanitized =
+      UserFacingPayloadSanitizer.sanitize(
+        response,
+        admittedPlans = response.mainStrategicPlans.map(probeBackedEvaluation)
+      )
     val rendered =
       List(
         sanitized.commentary,
@@ -228,6 +302,27 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
                 interpretation.opponentReplyMeaning.toList ++
                 interpretation.supportedByLineId.toList
             )
+        ).mkString(" "),
+        sanitized.moveReviewPlayerSurface.toList.flatMap(surface =>
+          surface.title.toList ++
+            surface.summaryRows.flatMap(row => List(row.label, row.text) ++ row.source.toList ++ row.refSans) ++
+            surface.advancedRows.flatMap(row => List(row.label, row.text) ++ row.source.toList ++ row.refSans) ++
+            surface.probeRows.flatMap(row => List(row.label, row.text) ++ row.source.toList ++ row.refSans) ++
+            surface.decisionComparison.toList.flatMap(comparison =>
+              List(comparison.kicker) ++
+                comparison.gapLabel.toList ++
+                comparison.chosenSan.toList ++
+                comparison.engineSan.toList ++
+                comparison.comparedSan.toList ++
+                comparison.deferredSan.toList ++
+                comparison.secondaryText.toList
+            ) ++
+            surface.authorRows.flatMap(row =>
+              List(row.title, row.status, row.question) ++
+                row.why.toList ++
+                row.meta ++
+                row.branches.flatMap(branch => List(branch.label, branch.text) ++ branch.source.toList ++ branch.refSans)
+            )
         ).mkString(" ")
       ).mkString(" ")
 
@@ -241,12 +336,362 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
     assertEquals(sanitized.signalDigest.flatMap(_.opponentPlan), None, clue(sanitized.signalDigest))
     assertEquals(sanitized.signalDigest.flatMap(_.dominantIdeaKind), None, clue(sanitized.signalDigest))
     assertEquals(sanitized.signalDigest.flatMap(_.decision), None, clue(sanitized.signalDigest))
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.flatMap(_.decisionComparison).flatMap(_.deferredSan),
+      None,
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(_.authorRows.flatMap(_.meta)),
+      Nil,
+      clue(sanitized.moveReviewPlayerSurface)
+    )
+    assertEquals(
+      sanitized.moveReviewPlayerSurface.toList.flatMap(surface =>
+        surface.summaryRows.flatMap(_.source) ++
+          surface.advancedRows.flatMap(_.source) ++
+          surface.probeRows.flatMap(_.source) ++
+          surface.authorRows.flatMap(_.branches.flatMap(_.source))
+      ),
+      Nil,
+      clue(sanitized.moveReviewPlayerSurface)
+    )
     assertEquals(sanitized.mainStrategicPlans.size, 1, clue(sanitized.mainStrategicPlans))
     assertEquals(sanitized.strategicPlanExperiments.size, 1, clue(sanitized.strategicPlanExperiments))
     assert(rendered.toLowerCase.contains("pays off") || rendered.toLowerCase.contains("engine-backed"), clue(rendered))
   }
 
-  test("sanitizes game chronicle moments without dropping strategic plan experiment metadata") {
+  test("does not admit strategic plans from probe-backed marker alone") {
+    val markerOnlyPlan =
+      PlanHypothesis(
+        planId = "marker_only",
+        planName = "Marker-only plan",
+        rank = 1,
+        score = 0.7,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.7, "medium", "marker-only risk"),
+        evidenceSources = List("probe_backed:validated_support")
+      )
+    val response =
+      CommentResponse(
+        commentary = "Marker-only payload",
+        concepts = Nil,
+        mainStrategicPlans = List(markerOnlyPlan),
+        strategicPlanExperiments = List(
+          StrategicPlanExperiment(
+            planId = "marker_only",
+            themeL1 = "piece_redeployment",
+            subplanId = None,
+            evidenceTier = "evidence_backed",
+            supportProbeCount = 1,
+            refuteProbeCount = 0,
+            bestReplyStable = true,
+            futureSnapshotAligned = true,
+            counterBreakNeutralized = true,
+            moveOrderSensitive = false,
+            experimentConfidence = 0.8
+          )
+        )
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+
+    assertEquals(sanitized.mainStrategicPlans, Nil, clue(sanitized.mainStrategicPlans))
+    assertEquals(sanitized.strategicPlanExperiments, Nil, clue(sanitized.strategicPlanExperiments))
+  }
+
+  test("admits strategic plans only from typed evaluator decisions") {
+    val admittedPlan =
+      PlanHypothesis(
+        planId = "admitted",
+        planName = "Admitted plan",
+        rank = 1,
+        score = 0.7,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.7, "medium", "risk"),
+        evidenceSources = List("probe_backed:validated_support")
+      )
+    val deferredPlan =
+      PlanHypothesis(
+        planId = "deferred",
+        planName = "Deferred plan",
+        rank = 2,
+        score = 0.65,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.65, "medium", "risk"),
+        evidenceSources = List("probe_backed:validated_support")
+      )
+    val response =
+      CommentResponse(
+        commentary = "Typed admission payload",
+        concepts = Nil,
+        mainStrategicPlans = List(admittedPlan, deferredPlan),
+        strategicPlanExperiments = List(
+          StrategicPlanExperiment(
+            planId = "admitted",
+            themeL1 = "piece_redeployment",
+            subplanId = None,
+            evidenceTier = "evidence_backed",
+            supportProbeCount = 1,
+            refuteProbeCount = 0,
+            bestReplyStable = true,
+            futureSnapshotAligned = true,
+            counterBreakNeutralized = true,
+            moveOrderSensitive = false,
+            experimentConfidence = 0.8
+          ),
+          StrategicPlanExperiment(
+            planId = "deferred",
+            themeL1 = "piece_redeployment",
+            subplanId = None,
+            evidenceTier = "evidence_backed",
+            supportProbeCount = 1,
+            refuteProbeCount = 0,
+            bestReplyStable = true,
+            futureSnapshotAligned = true,
+            counterBreakNeutralized = true,
+            moveOrderSensitive = false,
+            experimentConfidence = 0.8
+          )
+        )
+      )
+
+    val sanitized =
+      UserFacingPayloadSanitizer.sanitize(
+        response,
+        admittedPlans = List(probeBackedEvaluation(admittedPlan), deferredEvaluation(deferredPlan))
+      )
+
+    assertEquals(sanitized.mainStrategicPlans.map(_.planId), List("admitted"), clue(sanitized.mainStrategicPlans))
+    assertEquals(sanitized.mainStrategicPlans.flatMap(_.evidenceSources), Nil, clue(sanitized.mainStrategicPlans))
+    assertEquals(sanitized.strategicPlanExperiments.map(_.planId), List("admitted"), clue(sanitized.strategicPlanExperiments))
+  }
+
+  test("rejects typed strategic admissions without probe-backed support ids") {
+    val plans =
+      List(
+        "empty_support" -> UserFacingPlanEligibility.ProbeBacked,
+        "structural" -> UserFacingPlanEligibility.StructuralOnly,
+        "pv_coupled" -> UserFacingPlanEligibility.PvCoupledOnly,
+        "refuted" -> UserFacingPlanEligibility.Refuted
+      ).map { case (id, eligibility) =>
+        PlanHypothesis(
+          planId = id,
+          planName = s"$id plan",
+          rank = 1,
+          score = 0.7,
+          preconditions = Nil,
+          executionSteps = Nil,
+          failureModes = Nil,
+          viability = PlanViability(0.7, "medium", "risk"),
+          evidenceSources = List("probe_backed:validated_support")
+        ) -> eligibility
+      }
+    val response =
+      CommentResponse(
+        commentary = "Typed non-admission payload",
+        concepts = Nil,
+        mainStrategicPlans = plans.map(_._1),
+        strategicPlanExperiments =
+          plans.map { case (plan, _) =>
+            StrategicPlanExperiment(
+              planId = plan.planId,
+              themeL1 = "piece_redeployment",
+              subplanId = None,
+              evidenceTier = "evidence_backed",
+              supportProbeCount = 1,
+              refuteProbeCount = 0,
+              bestReplyStable = true,
+              futureSnapshotAligned = true,
+              counterBreakNeutralized = true,
+              moveOrderSensitive = false,
+              experimentConfidence = 0.8
+            )
+          }
+      )
+    val typedAdmissions =
+      plans.map { case (plan, eligibility) =>
+        typedEvaluation(
+          plan = plan,
+          eligibility = eligibility,
+          supportProbeIds =
+            if eligibility == UserFacingPlanEligibility.ProbeBacked then Nil
+            else List("probe_1")
+        )
+      }
+
+    val sanitized =
+      UserFacingPayloadSanitizer.sanitize(
+        response,
+        admittedPlans = typedAdmissions
+      )
+
+    assertEquals(sanitized.mainStrategicPlans, Nil, clue(sanitized.mainStrategicPlans))
+    assertEquals(sanitized.strategicPlanExperiments, Nil, clue(sanitized.strategicPlanExperiments))
+  }
+
+  test("does not admit plans from mismatched typed evaluator keys") {
+    val payloadPlan =
+      PlanHypothesis(
+        planId = "payload_plan",
+        planName = "Payload plan",
+        rank = 1,
+        score = 0.7,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.7, "medium", "risk"),
+        subplanId = Some("payload_subplan"),
+        evidenceSources = List("probe_backed:validated_support")
+      )
+    val unrelatedTypedPlan =
+      payloadPlan.copy(planId = "other_plan", subplanId = Some("other_subplan"))
+    val response =
+      CommentResponse(
+        commentary = "Mismatched typed payload",
+        concepts = Nil,
+        mainStrategicPlans = List(payloadPlan),
+        strategicPlanExperiments = List(
+          StrategicPlanExperiment(
+            planId = "payload_plan",
+            themeL1 = "piece_redeployment",
+            subplanId = Some("payload_subplan"),
+            evidenceTier = "evidence_backed",
+            supportProbeCount = 1,
+            refuteProbeCount = 0,
+            bestReplyStable = true,
+            futureSnapshotAligned = true,
+            counterBreakNeutralized = true,
+            moveOrderSensitive = false,
+            experimentConfidence = 0.8
+          )
+        )
+      )
+
+    val sanitized =
+      UserFacingPayloadSanitizer.sanitize(
+        response,
+        admittedPlans = List(probeBackedEvaluation(unrelatedTypedPlan))
+      )
+
+    assertEquals(sanitized.mainStrategicPlans, Nil, clue(sanitized.mainStrategicPlans))
+    assertEquals(sanitized.strategicPlanExperiments, Nil, clue(sanitized.strategicPlanExperiments))
+  }
+
+  test("preserves already sanitized cached moveReview continuity and ledger fields") {
+    val cachedPlan =
+      PlanHypothesis(
+        planId = "cached_plan",
+        planName = "Cached plan",
+        rank = 1,
+        score = 0.7,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.7, "medium", "risk"),
+        evidenceSources = Nil
+      )
+    val response =
+      CommentResponse(
+        commentary = "Cached payload",
+        concepts = Nil,
+        mainStrategicPlans = List(cachedPlan),
+        strategicPlanExperiments = List(
+          StrategicPlanExperiment(
+            planId = "cached_plan",
+            themeL1 = "piece_redeployment",
+            subplanId = None,
+            evidenceTier = "evidence_backed",
+            supportProbeCount = 1,
+            refuteProbeCount = 0,
+            bestReplyStable = true,
+            futureSnapshotAligned = true,
+            counterBreakNeutralized = true,
+            moveOrderSensitive = false,
+            experimentConfidence = 0.8
+          )
+        ),
+        planStateToken = Some(PlanStateTracker()),
+        moveReviewLedger = Some(
+          MoveReviewStrategicLedger(
+            motifKey = "cached",
+            motifLabel = "Cached motif",
+            stageKey = "hold",
+            stageLabel = "Hold",
+            carryOver = false
+          )
+        ),
+        moveReviewPlayerSurface = Some(
+          MoveReviewPlayerSurface(
+            summaryRows = List(MoveReviewPlayerSurfaceRow(label = "Plan", text = "Cached typed surface"))
+          )
+        )
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitizeCachedMoveReview(response)
+
+    assertEquals(sanitized.mainStrategicPlans.map(_.planId), List("cached_plan"), clue(sanitized.mainStrategicPlans))
+    assertEquals(sanitized.strategicPlanExperiments.map(_.planId), List("cached_plan"), clue(sanitized.strategicPlanExperiments))
+    assert(sanitized.planStateToken.nonEmpty, clue(sanitized.planStateToken))
+    assert(sanitized.moveReviewLedger.nonEmpty, clue(sanitized.moveReviewLedger))
+    assert(sanitized.moveReviewPlayerSurface.nonEmpty, clue(sanitized.moveReviewPlayerSurface))
+  }
+
+  test("does not preserve marker-only cached moveReview strategic metadata") {
+    val markerPlan =
+      PlanHypothesis(
+        planId = "cached_marker",
+        planName = "Cached marker plan",
+        rank = 1,
+        score = 0.7,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.7, "medium", "risk"),
+        evidenceSources = List("probe_backed:validated_support")
+      )
+    val response =
+      CommentResponse(
+        commentary = "Cached marker payload",
+        concepts = Nil,
+        mainStrategicPlans = List(markerPlan),
+        strategicPlanExperiments = List(
+          StrategicPlanExperiment(
+            planId = "cached_marker",
+            themeL1 = "piece_redeployment",
+            subplanId = None,
+            evidenceTier = "evidence_backed",
+            supportProbeCount = 1,
+            refuteProbeCount = 0,
+            bestReplyStable = true,
+            futureSnapshotAligned = true,
+            counterBreakNeutralized = true,
+            moveOrderSensitive = false,
+            experimentConfidence = 0.8
+          )
+        ),
+        planStateToken = Some(PlanStateTracker()),
+        moveReviewPlayerSurface = Some(
+          MoveReviewPlayerSurface(
+            summaryRows = List(MoveReviewPlayerSurfaceRow(label = "Plan", text = "Cached typed surface"))
+          )
+        )
+      )
+
+    val sanitized = UserFacingPayloadSanitizer.sanitizeCachedMoveReview(response)
+
+    assertEquals(sanitized.mainStrategicPlans, Nil, clue(sanitized.mainStrategicPlans))
+    assertEquals(sanitized.strategicPlanExperiments, Nil, clue(sanitized.strategicPlanExperiments))
+    assertEquals(sanitized.planStateToken, None, clue(sanitized.planStateToken))
+  }
+
+  test("sanitizes game chronicle moments and fails closed for marker-only strategic metadata") {
     val response =
       GameChronicleResponse(
         schema = "chesstory.game_chronicle.v2",
@@ -321,16 +766,8 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       )
 
     val sanitized = UserFacingPayloadSanitizer.sanitize(response)
-    assertEquals(
-      sanitized.moments.head.strategicPlanExperiments.map(_.evidenceTier),
-      List("evidence_backed"),
-      clue(sanitized.moments.head.strategicPlanExperiments)
-    )
-    assertEquals(
-      sanitized.moments.head.strategicPlanExperiments.headOption.flatMap(_.subplanId),
-      Some("rook_lift_scaffold"),
-      clue(sanitized.moments.head.strategicPlanExperiments)
-    )
+    assertEquals(sanitized.moments.head.mainStrategicPlans, Nil, clue(sanitized.moments.head.mainStrategicPlans))
+    assertEquals(sanitized.moments.head.strategicPlanExperiments, Nil, clue(sanitized.moments.head.strategicPlanExperiments))
     val momentJson = Json.toJson(sanitized.moments.head).as[JsObject]
     assertEquals(sanitized.moments.head.concepts, Nil, clue(sanitized.moments.head))
     assertEquals(momentJson.keys.contains("latentPlans"), false, clue(momentJson))
@@ -368,7 +805,11 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
         )
       )
 
-    val sanitized = UserFacingPayloadSanitizer.sanitize(response)
+    val sanitized =
+      UserFacingPayloadSanitizer.sanitize(
+        response,
+        admittedPlans = response.mainStrategicPlans.map(probeBackedEvaluation)
+      )
 
     assertEquals(sanitized.mainStrategicPlans.map(_.planName), List("Preparing the e-break"), clue(sanitized))
     assertEquals(

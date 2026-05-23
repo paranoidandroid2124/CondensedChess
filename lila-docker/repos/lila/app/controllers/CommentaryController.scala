@@ -3,7 +3,7 @@ package controllers
 import play.api.mvc._
 import play.api.libs.json._
 import lila.app.{ *, given }
-import lila.commentary.{ CommentRequest, GameAnalysisValidationError, CommentaryApi }
+import lila.commentary.{ CommentRequest, GameAnalysisValidationError, CommentaryApi, MoveReviewResponsePayload }
 import lila.analyse.ui.MoveReviewRenderer
 import lila.commentary.model.OpeningReference.given
 
@@ -88,28 +88,12 @@ final class CommentaryController(
                           refs = response.refs
                         )
                         .toString
-                      val baseJson = Json.obj(
-                        "schema" -> "chesstory.move_review.v2",
-                        "html" -> html,
-                        "commentary" -> response.commentary,
-                        "variations" -> response.variations,
-                        "concepts" -> response.concepts,
-                        "probeRequests" -> response.probeRequests,
-                        "authorQuestions" -> response.authorQuestions,
-                        "authorEvidence" -> response.authorEvidence,
-                        "mainStrategicPlans" -> response.mainStrategicPlans,
-                        "planStateToken" -> response.planStateToken,
-                        "endgameStateToken" -> response.endgameStateToken,
-                        "sourceMode" -> response.sourceMode,
-                        "model" -> response.model,
-                        "planTier" -> response.planTier,
-                        "commentaryMode" -> response.commentaryMode,
-                        "strategyPack" -> response.strategyPack,
-                        "signalDigest" -> response.signalDigest,
-                        "cacheHit" -> result.cacheHit
-                      )
-                      val withRefs = response.refs.fold(baseJson)(r => baseJson ++ Json.obj("refs" -> r))
-                      val payload = response.polishMeta.fold(withRefs)(m => withRefs ++ Json.obj("polishMeta" -> m))
+                      val payload =
+                        MoveReviewResponsePayload.json(
+                          response = response,
+                          html = html,
+                          cacheHit = result.cacheHit
+                        )
                       Ok(
                         payload
                       )

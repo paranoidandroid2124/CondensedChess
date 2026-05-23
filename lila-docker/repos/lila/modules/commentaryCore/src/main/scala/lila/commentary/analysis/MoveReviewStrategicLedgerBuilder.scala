@@ -168,7 +168,7 @@ object MoveReviewStrategicLedgerBuilder:
       endgameStateToken: Option[EndgamePatternState]
   ): Option[MoveReviewStrategicLedger] =
     val digest = strategyPack.flatMap(_.signalDigest).orElse(NarrativeSignalDigestBuilder.build(ctx))
-    val decision = digest.flatMap(_.decisionComparison).orElse(DecisionComparisonBuilder.digest(ctx))
+    val decision = DecisionComparisonBuilder.digest(ctx)
     val routeSignal = hasRouteSignal(ctx, strategyPack, digest)
     val carryOver = hasCarryOver(ctx, planStateToken, endgameStateToken)
     val planProfile = collectPlanProfile(ctx)
@@ -613,8 +613,6 @@ object MoveReviewStrategicLedgerBuilder:
     val likelySupport = result.deltaVsBaseline >= -40 || alignedMotif
     Option.when(likelySupport) {
       val noteBits = List(
-        result.objective.map(trimSentence).filter(_.nonEmpty),
-        result.purpose.map(trimSentence).filter(_.nonEmpty),
         Option.when(result.deltaVsBaseline != 0)(s"${result.deltaVsBaseline}cp vs baseline")
       ).flatten.distinct
       LineCandidate(
@@ -634,8 +632,6 @@ object MoveReviewStrategicLedgerBuilder:
   ): Option[LineCandidate] =
     Option.when(result.deltaVsBaseline < 0) {
       val noteBits = List(
-        result.objective.map(trimSentence).filter(_.nonEmpty),
-        result.purpose.map(trimSentence).filter(_.nonEmpty),
         Option.when(result.deltaVsBaseline != 0)(s"${result.deltaVsBaseline}cp vs baseline")
       ).flatten.distinct
       LineCandidate(
@@ -698,8 +694,7 @@ object MoveReviewStrategicLedgerBuilder:
       .map { branch =>
         val noteBits = List(
           Option.when(branch.keyMove.trim.nonEmpty)(s"key move ${branch.keyMove.trim}"),
-          branch.depth.map(depth => s"depth $depth"),
-          Option.when(evidence.purpose.trim.nonEmpty)(trimSentence(evidence.purpose))
+          branch.depth.map(depth => s"depth $depth")
         ).flatten
         LineCandidate(
           title = "Authoring branch",

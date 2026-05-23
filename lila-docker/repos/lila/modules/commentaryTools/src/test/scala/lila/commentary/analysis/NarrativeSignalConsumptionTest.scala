@@ -90,7 +90,7 @@ class NarrativeSignalConsumptionTest extends FunSuite:
     )
   }
 
-  test("decision beat is emitted from decision rationale and meta signals even without author questions") {
+  test("decision rationale without author questions stays out of planner-owned decision beats") {
     val ctx = baseContext.copy(
       decision = Some(
         DecisionRationale(
@@ -116,33 +116,14 @@ class NarrativeSignalConsumptionTest extends FunSuite:
     )
 
     val (outline, _) = NarrativeOutlineBuilder.build(ctx, new TraceRecorder())
-    val decisionBeat = outline.beats.find(_.kind == OutlineBeatKind.DecisionPoint).getOrElse(fail("missing decision beat"))
-
-    assert(
-      decisionBeat.text.contains("The idea is straightforward: resolves back-rank mate"),
-      s"expected decision logic in decision beat, got: ${decisionBeat.text}"
-    )
-    assert(
-      decisionBeat.text.contains("The focal point is g7."),
-      s"expected focal point in decision beat, got: ${decisionBeat.text}"
-    )
-    assert(
-      decisionBeat.text.contains("The tradeoff is dark-square drift."),
-      s"expected move-attributed tradeoff in decision beat, got: ${decisionBeat.text}"
-    )
-    assert(
-      !decisionBeat.text.contains("'g4' is refuted"),
-      s"expected uncited why-not text to stay out of decision beat, got: ${decisionBeat.text}"
-    )
+    assertEquals(outline.beats.find(_.kind == OutlineBeatKind.DecisionPoint), None, clues(outline.beats))
 
     val prose = BookStyleRenderer.render(ctx)
     assert(
-      prose.contains("The idea is straightforward: resolves back-rank mate"),
-      s"expected decision logic to reach final prose, got: $prose"
-    )
-    assert(
-      prose.contains("The tradeoff is dark-square drift."),
-      s"expected move-attributed tradeoff to reach final prose, got: $prose"
+      !prose.contains("The idea is straightforward: resolves back-rank mate") &&
+        !prose.contains("The tradeoff is dark-square drift.") &&
+        !prose.contains("'g4' is refuted"),
+      s"expected uncited decision rationale to stay out of final prose, got: $prose"
     )
   }
 

@@ -9,14 +9,14 @@ import munit.FunSuite
 
 class BreakClampMaterializerTest extends FunSuite:
 
-  test("materializes a named break when a legal null-turn break is blocked by the played move") {
+  test("materializes a route-shaped named break when the played move occupies the break destination") {
     val plans =
       materialize(
         fen = "4k3/8/8/1p6/8/2P5/1P6/4K3 w - - 0 1",
         line = List("b2b4", "e8e7", "e1e2", "e7e6")
       )
 
-    val breakPlan = plans.find(_.breakNeutralized.contains("...b4"))
+    val breakPlan = plans.find(_.breakNeutralized.contains("...b5-b4"))
     assert(breakPlan.nonEmpty, clues(plans))
     assert(breakPlan.flatMap(_.deniedResourceClass).contains("break"), clues(breakPlan))
     assert(breakPlan.flatMap(_.deniedEntryScope).contains("file"), clues(breakPlan))
@@ -24,6 +24,21 @@ class BreakClampMaterializerTest extends FunSuite:
     assert(breakPlan.map(_.counterplayScoreDrop).contains(0), clues(breakPlan))
     assert(breakPlan.exists(_.mobilityDelta < 0), clues(breakPlan))
     assert(breakPlan.map(_.deniedSquares.map(_.key)).contains(List("b4")), clues(breakPlan))
+  }
+
+  test("materializes the opponent route instead of the played destination in opening center clamps") {
+    val plans =
+      BreakClampMaterializer.materialize(
+        fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+        board = Fen.read(Standard, Fen.Full("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"))
+          .map(_.board)
+          .getOrElse(fail("bad opening FEN")),
+        color = Color.Black,
+        mainLine = VariationLine(moves = List("e7e5", "g1f3", "b8c6", "d2d4"), scoreCp = 0, depth = 16)
+      )
+
+    assert(plans.exists(_.breakNeutralized.contains("e4-e5")), clues(plans))
+    assert(!plans.exists(_.breakNeutralized.contains("e5")), clues(plans))
   }
 
   test("classifies a same-destination capture as a transform risk rather than route restoration") {
@@ -168,9 +183,28 @@ class BreakClampMaterializerTest extends FunSuite:
         threatLine = None
       )
 
-    val breakPlan = plans.find(_.breakNeutralized.contains("...b4"))
+    val breakPlan = plans.find(_.breakNeutralized.contains("...b5-b4"))
     assert(breakPlan.nonEmpty, clues(plans))
     assert(breakPlan.map(_.sourceScope).contains(FactScope.Now), clues(breakPlan))
+  }
+
+  test("prophylaxis analyzer extracts break file from underscore square plan ids") {
+    val fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1"
+    val plans =
+      ProphylaxisAnalyzerImpl().analyze(
+        fen = fen,
+        board = Fen.read(Standard, Fen.Full(fen)).map(_.board).getOrElse(fail(s"bad FEN: $fen")),
+        color = Color.White,
+        mainLine = VariationLine(moves = Nil, scoreCp = 140, depth = 16),
+        threatLine = Some(VariationLine(moves = Nil, scoreCp = 0, depth = 16)),
+        explicitPlanId = Some("neutralize_f5_break")
+      )
+
+    val plan =
+      plans.find(_.planId == "neutralize_f5_break").getOrElse(fail(s"missing explicit plan: $plans"))
+
+    assertEquals(plan.breakNeutralized, Some("f"), clues(plan))
+    assertEquals(plan.deniedEntryScope, Some("file"), clues(plan))
   }
 
   private def materialize(fen: String, line: List[String]) =

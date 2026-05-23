@@ -351,7 +351,7 @@ object CommentaryPlayerReviewQueueBuilder:
     if !Files.exists(rawMoveReviewPath) then
       MoveReviewPayload(
         commentary = moment.moveReviewCommentary,
-        supportRows = chronicleSupportRows(moment),
+        supportRows = Nil,
         advancedRows = Nil
       )
     else
@@ -361,106 +361,60 @@ object CommentaryPlayerReviewQueueBuilder:
       MoveReviewPayload(commentary = commentary, supportRows = support, advancedRows = advanced)
 
   private def moveReviewRowsFromJson(js: JsValue): (List[SupportRow], List[SupportRow]) =
-    val support = mutable.ListBuffer.empty[SupportRow]
-    val advanced = mutable.ListBuffer.empty[SupportRow]
-    val signalDigest = js \ "signalDigest"
-    val compensationContext =
-      (signalDigest \ "compensation").asOpt[String].exists(_.trim.nonEmpty) ||
-        (signalDigest \ "investedMaterial").asOpt[Int].exists(_ > 0) ||
-        (signalDigest \ "compensationVectors").asOpt[List[String]].exists(_.exists(_.trim.nonEmpty))
+    moveReviewPlayerSurfaceRowsFromJson(js).getOrElse((Nil, Nil))
 
-    def sanitizeRowText(raw: String): Option[String] =
-      Option(raw)
-        .map(UserFacingSignalSanitizer.sanitize)
-        .map(_.trim)
-        .filter(text => !compensationContext || UserFacingSignalSanitizer.allowCompensationSupportText(text))
-        .filter(_.nonEmpty)
+  private def moveReviewPlayerSurfaceRowsFromJson(js: JsValue): Option[(List[SupportRow], List[SupportRow])] =
+    val surface = js \ "moveReviewPlayerSurface"
+    val schema = (surface \ "schema").asOpt[String]
+    Option.when(schema.contains("chesstory.move_review.player_surface.v1")) {
+      val support =
+        rowsFromJson(surface \ "summaryRows")
+      val advanced =
+        rowsFromJson(surface \ "advancedRows") ++
+          rowsFromJson(surface \ "probeRows") ++
+          authorRowsFromJson(surface \ "authorRows")
+      (support.distinct, advanced.distinct)
+    }
 
-    val experimentsByPlan =
-      (js \ "strategicPlanExperiments")
-        .asOpt[List[JsObject]]
-        .getOrElse(Nil)
-        .map { exp =>
-          val key = ((exp \ "planId").asOpt[String].getOrElse(""), (exp \ "subplanId").asOpt[String].getOrElse(""))
-          key -> (exp \ "evidenceTier").asOpt[String].map(_.replace('_', ' '))
+  private def rowsFromJson(value: JsLookupResult): List[SupportRow] =
+    value.asOpt[List[JsObject]].getOrElse(Nil).flatMap { row =>
+      for
+        label <- (row \ "label").asOpt[String].map(_.trim).filter(_.nonEmpty)
+        text <- (row \ "text").asOpt[String].flatMap(sanitizeSurfaceText)
+      yield SupportRow(label, text)
+    }
+
+  private def authorRowsFromJson(value: JsLookupResult): List[SupportRow] =
+    value.asOpt[List[JsObject]].getOrElse(Nil).flatMap { row =>
+      val label = (row \ "title").asOpt[String].map(_.trim).filter(_.nonEmpty).getOrElse("Author check")
+      val branchText =
+        (row \ "branches").asOpt[List[JsObject]].getOrElse(Nil).flatMap { branch =>
+          val branchLabel = (branch \ "label").asOpt[String].map(_.trim).filter(_.nonEmpty)
+          (branch \ "text").asOpt[String].flatMap(sanitizeSurfaceText).map { text =>
+            branchLabel.fold(text)(value => s"$value: $text")
+          }
         }
-        .toMap
-
-    val planRows =
-      (js \ "mainStrategicPlans")
-        .asOpt[List[JsObject]]
-        .getOrElse(Nil)
-        .flatMap { plan =>
-          val key = ((plan \ "planId").asOpt[String].getOrElse(""), (plan \ "subplanId").asOpt[String].getOrElse(""))
-          val label =
-            experimentsByPlan.get(key).flatten match
-              case Some(tier) => s"${(plan \ "planName").asOpt[String].getOrElse("")} [$tier]"
-              case None       => (plan \ "planName").asOpt[String].getOrElse("")
-          sanitizeRowText(label)
-        }
-    if planRows.nonEmpty then support += SupportRow("Main plans", planRows.mkString(", "))
-
-    (signalDigest \ "opening").asOpt[String].flatMap(sanitizeRowText).filter(LiveNarrativeCompressionCore.keepPlayerFacingSentence).foreach { opening =>
-      support += SupportRow("Opening", opening)
-    }
-    (signalDigest \ "opponentPlan").asOpt[String].flatMap(sanitizeRowText).filter(LiveNarrativeCompressionCore.keepPlayerFacingSentence).foreach { opponent =>
-      support += SupportRow("Opponent", opponent)
+      val text =
+        (List((row \ "question").asOpt[String], (row \ "why").asOpt[String]).flatten ++ branchText)
+          .flatMap(sanitizeSurfaceText)
+          .distinct
+          .mkString("; ")
+      Option.when(text.nonEmpty)(SupportRow(label, text))
     }
 
-    val structure =
-      List(
-        (signalDigest \ "structureProfile").asOpt[String],
-        (signalDigest \ "structuralCue").asOpt[String],
-        (signalDigest \ "centerState").asOpt[String]
-      ).flatten.flatMap(sanitizeRowText).distinct.mkString("; ")
-    if structure.nonEmpty && LiveNarrativeCompressionCore.keepPlayerFacingSentence(structure) then
-      support += SupportRow("Structure", structure)
-
-    val deployment =
-      List(
-        (signalDigest \ "deploymentPiece").asOpt[String],
-        (signalDigest \ "deploymentRoute").asOpt[List[String]].filter(_.nonEmpty).map(_.mkString(" -> ")),
-        (signalDigest \ "deploymentPurpose").asOpt[String]
-      ).flatten.flatMap(sanitizeRowText).mkString(" ")
-    if deployment.nonEmpty && LiveNarrativeCompressionCore.hasConcreteAnchor(deployment) then
-      support += SupportRow("Piece deployment", deployment)
-
-    val practical =
-      List(
-        (signalDigest \ "practicalVerdict").asOpt[String].flatMap(sanitizeRowText),
-        (signalDigest \ "practicalFactors").asOpt[List[String]].flatMap(_.headOption).flatMap(f => LiveNarrativeCompressionCore.renderPracticalBiasPlayer(f, f).toList.headOption).flatMap(sanitizeRowText)
-      ).flatten.mkString("; ")
-    if practical.nonEmpty && LiveNarrativeCompressionCore.keepPlayerFacingSentence(practical) then
-      support += SupportRow("Practical", practical)
-
-    List(
-      (signalDigest \ "compensation").asOpt[String].flatMap(sanitizeRowText).map(text => SupportRow("Compensation", text)),
-      (signalDigest \ "authoringEvidence").asOpt[String].flatMap(sanitizeRowText).map(text => SupportRow("Evidence note", text)),
-      (signalDigest \ "preservedSignals").asOpt[List[String]].filter(_.nonEmpty).map(values =>
-        SupportRow("Preserved signals", values.flatMap(sanitizeRowText).mkString("; "))
-      )
-    ).flatten.foreach { row =>
-      if row.text.nonEmpty && LiveNarrativeCompressionCore.keepPlayerFacingSentence(row.text) then advanced += row
-    }
-
-    (support.toList.distinct, advanced.toList.distinct)
+  private def sanitizeSurfaceText(raw: String): Option[String] =
+    Option(raw)
+      .map(UserFacingSignalSanitizer.sanitize)
+      .map(_.trim)
+      .filter(_.nonEmpty)
 
   private def activeReviewRows(moment: FocusMomentReport, moveReviewCommentary: String): (List[SupportRow], List[SupportRow]) =
     val support =
       List(
         Some(SupportRow("Status", moment.activeNoteStatus)),
-        moment.objective.map(value => SupportRow("Objective", value)),
-        moment.focus.map(value => SupportRow("Focus", value)),
-        moment.execution.map(value => SupportRow("Execution", value)),
-        moment.dominantIdea.map(value => SupportRow("Chronicle idea", value)),
-        Some(SupportRow("Chronicle narrative", moment.gameArcNarrative)),
         Option.when(moveReviewCommentary.trim.nonEmpty)(SupportRow("MoveReview", moveReviewCommentary))
       ).flatten
-    val advanced =
-      List(
-        moment.secondaryIdea.map(value => SupportRow("Secondary idea", value))
-      ).flatten
-    (support, advanced)
+    (support, Nil)
 
   private def activeReviewFlags(
       moment: FocusMomentReport,

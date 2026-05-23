@@ -7,6 +7,17 @@ import lila.commentary.model.authoring.AuthorQuestionKind
 
 private[commentary] object ClaimAuthorityResolver:
 
+  final case class SupportedLocalNeutralizeKeyBreakAdmission(
+      packet: PlayerFacingClaimPacket,
+      decision: ClaimAuthorityDecision
+  )
+
+  final case class SupportedLocalCentralBreakTimingAdmission(
+      packet: PlayerFacingClaimPacket,
+      witness: CentralBreakTimingWitness.Witness,
+      decision: ClaimAuthorityDecision
+  )
+
   def decidePositionProbe(
       ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs,
@@ -36,6 +47,79 @@ private[commentary] object ClaimAuthorityResolver:
     shouldTacticalVetoPlan(ctx, inputs, truthContract, plan)
       .orElse(decideSupportedMoveDelta(inputs, plan))
       .orElse(decideSupportedNeutralizeKeyBreakTiming(ctx, inputs, truthContract, plan))
+
+  def supportedLocalNeutralizeKeyBreakTimingDecision(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      plan: QuestionPlan
+  ): Option[ClaimAuthorityDecision] =
+    supportedLocalNeutralizeKeyBreakTimingAdmission(ctx, inputs, truthContract, plan).map(_.decision)
+
+  def supportedLocalNeutralizeKeyBreakTimingAdmission(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      plan: QuestionPlan
+  ): Option[SupportedLocalNeutralizeKeyBreakAdmission] =
+    if !isNeutralizeKeyBreakTimingPlan(plan) then None
+    else
+      matchingNeutralizeKeyBreakTimingPacket(inputs, plan).map { packet =>
+        val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
+        val decision =
+          if tacticalReasons.nonEmpty then
+            ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
+          else ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
+        SupportedLocalNeutralizeKeyBreakAdmission(packet, decision)
+      }
+
+  def supportedLocalNeutralizeKeyBreakPacketDecision(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      packet: PlayerFacingClaimPacket
+  ): ClaimAuthorityDecision =
+    if packet.proofSource != ProofSourceId.CounterplayAxisSuppression.wireKey ||
+        packet.proofFamily != ProofFamilyId.NeutralizeKeyBreak.wireKey
+    then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, authorityFailureCodes(packet))
+    else
+      val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
+      if tacticalReasons.nonEmpty then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
+      else if supportsLocalMoveDelta(packet) && hasExactOwnerPath(packet) then
+        ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
+      else ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, authorityFailureCodes(packet))
+
+  def supportedLocalCentralBreakTimingPacketDecision(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      packet: PlayerFacingClaimPacket
+  ): ClaimAuthorityDecision =
+    supportedLocalCentralBreakTimingAdmission(ctx, inputs, truthContract, packet)
+      .map(_.decision)
+      .getOrElse(ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, authorityFailureCodes(packet)))
+
+  def supportedLocalCentralBreakTimingAdmission(
+      ctx: Option[NarrativeContext],
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract],
+      packet: PlayerFacingClaimPacket
+  ): Option[SupportedLocalCentralBreakTimingAdmission] =
+    if packet.proofSource != CentralBreakTimingWitness.ProofSource ||
+        packet.proofFamily != CentralBreakTimingWitness.ProofFamily
+    then None
+    else
+      for
+        narrativeCtx <- ctx
+        witness <- CentralBreakTimingWitness.exact(narrativeCtx)
+        if supportsLocalMoveDelta(packet)
+        if centralBreakTimingWitnessMatchesPacket(witness, packet)
+      yield
+        val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
+        val decision =
+          if tacticalReasons.nonEmpty then ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
+          else ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
+        SupportedLocalCentralBreakTimingAdmission(packet, witness, decision)
 
   def shouldTacticalVetoPlan(
       ctx: Option[NarrativeContext],
@@ -136,14 +220,7 @@ private[commentary] object ClaimAuthorityResolver:
       truthContract: Option[DecisiveTruthContract],
       plan: QuestionPlan
   ): Option[ClaimAuthorityDecision] =
-    if !isNeutralizeKeyBreakTimingPlan(plan) then None
-    else
-      matchingNeutralizeKeyBreakTimingPacket(inputs, plan).map { _ =>
-        val tacticalReasons = tacticalVetoReasons(ctx, inputs, truthContract)
-        if tacticalReasons.nonEmpty then
-          ClaimAuthorityDecision(ClaimAuthorityTier.Suppressed, tacticalReasons)
-        else ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
-      }
+    supportedLocalNeutralizeKeyBreakTimingAdmission(ctx, inputs, truthContract, plan).map(_.decision)
 
   private def isNeutralizeKeyBreakTimingPlan(plan: QuestionPlan): Boolean =
     plan.plannerOwnerKind == PlannerOwnerKind.ForcingDefense &&
@@ -241,6 +318,18 @@ private[commentary] object ClaimAuthorityResolver:
         packet.proofPathWitness.continuationTerms ++
         packet.proofPathWitness.structureTransitionTerms
     ).flatMap(witnessTokenVariants).filter(validTimingWitnessToken).toSet
+
+  private def centralBreakTimingWitnessMatchesPacket(
+      witness: CentralBreakTimingWitness.Witness,
+      packet: PlayerFacingClaimPacket
+  ): Boolean =
+    val witnessTokens =
+      (
+        witness.ownerSeedTerms ++
+          witness.structureTransitionTerms ++
+          List(witness.breakMove, witness.breakSquare, witness.breakToken)
+      ).flatMap(witnessTokenVariants).filter(validTimingWitnessToken).toSet
+    timingWitnessTokens(packet).exists(witnessTokens.contains)
 
   private def witnessTokenVariants(raw: String): List[String] =
     val trimmed = Option(raw).map(_.trim).filter(_.nonEmpty).toList

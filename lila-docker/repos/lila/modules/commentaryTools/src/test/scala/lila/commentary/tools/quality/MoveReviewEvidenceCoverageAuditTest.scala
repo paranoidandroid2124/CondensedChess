@@ -12,7 +12,10 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
       basicReasons: List[String] = Nil,
       supportedCandidates: List[String] = Nil,
       supportedAdmitted: List[String] = Nil,
-      supportedRejectReasons: List[String] = Nil
+      supportedRejectReasons: List[String] = Nil,
+      playedSan: String = "Qa4",
+      playedUci: String = "d1a4",
+      supportRows: List[SupportRow] = Nil
   ): MoveReviewOutputEntry =
     MoveReviewOutputEntry(
       sampleId = sampleId,
@@ -20,11 +23,11 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
       sliceKind = "strategic_choice",
       targetPly = 12,
       fen = "8/8/8/8/8/8/8/8 w - - 0 1",
-      playedSan = "Qa4",
-      playedUci = "d1a4",
+      playedSan = playedSan,
+      playedUci = playedUci,
       opening = None,
       commentary = "12. Qa4: This moves the queen to a4.",
-      supportRows = Nil,
+      supportRows = supportRows,
       advancedRows = Nil,
       sourceMode = "rule",
       model = None,
@@ -104,4 +107,108 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
 
     assertEquals(report.summary.basicExpansionCandidateSampleIds, List("projection"))
     assertEquals(report.summary.evidenceGapCandidates, Nil)
+  }
+
+  test("buckets neutralize surface gate rejects as surface rejects") {
+    val report =
+      MoveReviewEvidenceCoverageAudit.build(
+        List(
+          entry(
+            "surface_reject",
+            Some("exact_factual_fallback"),
+            supportedCandidates = List("neutralize_key_break"),
+            supportedRejectReasons = List("neutralize_key_break:surface:played_move_collision")
+          )
+        )
+      )
+
+    assertEquals(report.summary.supportedLocalRejectBucketCounts.get("surface"), Some(1))
+  }
+
+  test("counts Counterplay break row quality separately from row presence") {
+    val report =
+      MoveReviewEvidenceCoverageAudit.build(
+        List(
+          entry(
+            "named",
+            Some("planner"),
+            basicStatus = Some("planner_preempted"),
+            supportRows = List(
+              SupportRow(
+                "Counterplay break",
+                "On the checked line, this stops the ...c5 break before it appears."
+              )
+            )
+          ),
+          entry(
+            "generic",
+            Some("planner"),
+            basicStatus = Some("planner_preempted"),
+            supportRows = List(
+              SupportRow("Counterplay break", "A local reading is that this keeps c5 from coming right away.")
+            )
+          ),
+          entry(
+            "collision",
+            Some("planner"),
+            basicStatus = Some("planner_preempted"),
+            playedSan = "Bg4",
+            playedUci = "c8g4",
+            supportRows = List(
+              SupportRow(
+                "Counterplay break",
+                "On the checked line, this stops the g4 break before it appears."
+              )
+            )
+          )
+        )
+      )
+
+    assertEquals(report.summary.counterplayBreakRowCount, 3)
+    assertEquals(report.summary.counterplayBreakNamedTokenRowCount, 1)
+    assertEquals(report.summary.counterplayBreakGenericFallbackCount, 1)
+    assertEquals(report.summary.counterplayBreakPlayedMoveCollisionCount, 1)
+  }
+
+  test("counts Central break row quality separately from row presence") {
+    val report =
+      MoveReviewEvidenceCoverageAudit.build(
+        List(
+          entry(
+            "named",
+            Some("planner"),
+            basicStatus = Some("planner_preempted"),
+            supportRows = List(
+              SupportRow(
+                "Central break",
+                "On the checked line, this also plays the e4-e5 break at this moment."
+              )
+            )
+          ),
+          entry(
+            "generic",
+            Some("planner"),
+            basicStatus = Some("planner_preempted"),
+            supportRows = List(
+              SupportRow("Central break", "A local reading is that this improves the central_break_timing branch.")
+            )
+          ),
+          entry(
+            "diagonal",
+            Some("planner"),
+            basicStatus = Some("planner_preempted"),
+            supportRows = List(
+              SupportRow(
+                "Central break",
+                "On the checked line, this also plays the d4-e5 break at this moment."
+              )
+            )
+          )
+        )
+      )
+
+    assertEquals(report.summary.centralBreakRowCount, 3)
+    assertEquals(report.summary.centralBreakNamedTokenRowCount, 1)
+    assertEquals(report.summary.centralBreakGenericFallbackCount, 1)
+    assertEquals(report.summary.centralBreakDiagonalCaptureVisibleCount, 1)
   }

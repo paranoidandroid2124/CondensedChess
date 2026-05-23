@@ -236,7 +236,7 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
       Json.obj(
         "commentary" -> "12... Nd5: The move fixes the knight on d5 and prepares c4 next.",
         "mainStrategicPlans" -> Json.arr(
-          Json.obj("planId" -> "plan_1", "subplanId" -> play.api.libs.json.JsNull, "planName" -> "Preparing c4")
+          Json.obj("planId" -> "plan_1", "subplanId" -> play.api.libs.json.JsNull, "planName" -> "Raw carrier plan")
         ),
         "strategicPlanExperiments" -> Json.arr(
           Json.obj("planId" -> "plan_1", "subplanId" -> play.api.libs.json.JsNull, "evidenceTier" -> "pv_coupled")
@@ -251,6 +251,17 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
           "practicalVerdict" -> "The position stays easier to handle.",
           "compensation" -> "The open c-file gives enough pressure.",
           "preservedSignals" -> Json.arr("Pressure on d5")
+        ),
+        "moveReviewPlayerSurface" -> Json.obj(
+          "schema" -> "chesstory.move_review.player_surface.v1",
+          "summaryRows" -> Json.arr(
+            Json.obj("label" -> "Main plans", "text" -> "Surface plan only")
+          ),
+          "advancedRows" -> Json.arr(
+            Json.obj("label" -> "Execution", "text" -> "Surface execution only")
+          ),
+          "probeRows" -> Json.arr(),
+          "authorRows" -> Json.arr()
         )
       )
     writeJson(rawDir.resolve("game_focus.ply_24.move_review.json"), rawMoveReview)
@@ -291,12 +302,146 @@ class CommentaryPlayerAuditWorkflowTest extends FunSuite:
     assertEquals(summary.wholeGameReviewCount, 1)
     assert(queue.forall(_.auditId.contains("edge_case_000:game_focus")))
     assert(queue.exists(entry => entry.surface == ReviewSurface.Chronicle && entry.reviewKind == ReviewKind.WholeGame))
-    assert(queue.exists(entry => entry.surface == ReviewSurface.MoveReview && entry.supportRows.exists(_.startsWith("Main plans:"))))
-    assert(queue.exists(entry => entry.surface == ReviewSurface.ActiveNote && entry.pairedSampleId.nonEmpty))
+    val moveReviewEntry =
+      queue.find(entry => entry.surface == ReviewSurface.MoveReview).getOrElse(fail("missing moveReview row"))
+    assert(moveReviewEntry.supportRows.exists(_.contains("Surface plan only")), clue(moveReviewEntry.supportRows))
+    assert(moveReviewEntry.advancedRows.exists(_.contains("Surface execution only")), clue(moveReviewEntry.advancedRows))
+    assert(!moveReviewEntry.supportRows.exists(_.contains("Raw carrier plan")), clue(moveReviewEntry.supportRows))
+    val activeEntry =
+      queue.find(entry => entry.surface == ReviewSurface.ActiveNote).getOrElse(fail("missing active row"))
+    assert(activeEntry.pairedSampleId.nonEmpty)
+    assert(!activeEntry.supportRows.exists(_.startsWith("Objective:")), clue(activeEntry.supportRows))
+    assert(!activeEntry.supportRows.exists(_.startsWith("Focus:")), clue(activeEntry.supportRows))
+    assert(!activeEntry.supportRows.exists(_.startsWith("Execution:")), clue(activeEntry.supportRows))
+    assert(!activeEntry.supportRows.exists(_.startsWith("Chronicle idea:")), clue(activeEntry.supportRows))
     val wholeGame = queue.find(entry => entry.surface == ReviewSurface.Chronicle && entry.reviewKind == ReviewKind.WholeGame).getOrElse(fail("missing whole-game row"))
     assert(wholeGame.mainProse.contains("White was mainly playing for"), clue(wholeGame.mainProse))
     assert(wholeGame.mainProse.contains("The decisive shift came through"), clue(wholeGame.mainProse))
     assert(wholeGame.supportRows.exists(_.contains("Punishment: Blunder @24 was punished")), clue(wholeGame.supportRows))
+  }
+
+  test("buildAuditQueue does not synthesize MoveReview support rows from chronicle metadata when raw surface is absent") {
+    val root = tempDir("audit-queue-missing-move-review")
+    val runDir = root.resolve("edge_case_000")
+    val rawDir = runDir.resolve("raw")
+    Files.createDirectories(rawDir)
+
+    val game = sampleGameReport("game_focus", "edge_case", "other", "Focus Game")
+    writeJson(runDir.resolve("report.json"), Json.toJson(sampleRunReport(game)))
+    writeJson(
+      rawDir.resolve("game_focus.game_arc.json"),
+      Json.obj(
+        "intro" -> "White built around d5.",
+        "conclusion" -> "The d5 square decided the game.",
+        "themes" -> Json.arr("Pressure on d5"),
+        "review" -> Json.obj("blundersCount" -> 0, "missedWinsCount" -> 0, "selectedMomentPlies" -> Json.arr(24)),
+        "moments" -> Json.arr()
+      )
+    )
+    val auditSet =
+      AuditSetManifest(
+        generatedAt = "2026-03-22T00:00:00Z",
+        title = "audit",
+        description = "audit",
+        games =
+          List(
+            AuditSetEntry(
+              auditId = "edge_case_000:game_focus",
+              gameId = "game_focus",
+              tier = "edge_case",
+              openingFamily = "other",
+              label = "Focus Game",
+              reportPath = runDir.resolve("report.json").toString,
+              rawDir = rawDir.toString,
+              sourceTag = "edge_case_000"
+            )
+          )
+      )
+    val auditSetPath = root.resolve("audit_set.json")
+    writeJson(auditSetPath, Json.toJson(auditSet))
+
+    val (queue, _) =
+      CommentaryPlayerReviewQueueBuilder.buildAuditQueue(
+        CommentaryPlayerReviewQueueBuilder.Config(
+          outPath = root.resolve("review_queue.jsonl"),
+          summaryPath = root.resolve("review_queue_summary.json"),
+          auditSetPath = Some(auditSetPath),
+          fullReview = true
+        ),
+        auditSetPath
+      )
+    val moveReviewEntry =
+      queue.find(entry => entry.surface == ReviewSurface.MoveReview).getOrElse(fail("missing moveReview row"))
+
+    assertEquals(moveReviewEntry.supportRows, Nil)
+    assertEquals(moveReviewEntry.advancedRows, Nil)
+    assert(moveReviewEntry.mainProse.contains("12... Nd5"), clue(moveReviewEntry.mainProse))
+  }
+
+  test("buildAuditQueue does not synthesize MoveReview support rows from raw carriers without player surface") {
+    val root = tempDir("audit-queue-raw-carrier-move-review")
+    val runDir = root.resolve("edge_case_000")
+    val rawDir = runDir.resolve("raw")
+    Files.createDirectories(rawDir)
+
+    val game = sampleGameReport("game_focus", "edge_case", "other", "Focus Game")
+    writeJson(runDir.resolve("report.json"), Json.toJson(sampleRunReport(game)))
+    writeJson(
+      rawDir.resolve("game_focus.game_arc.json"),
+      Json.obj(
+        "intro" -> "White built around d5.",
+        "conclusion" -> "The d5 square decided the game.",
+        "moments" -> Json.arr()
+      )
+    )
+    writeJson(
+      rawDir.resolve("game_focus.ply_24.move_review.json"),
+      Json.obj(
+        "commentary" -> "12... Nd5: The move fixes the knight.",
+        "mainStrategicPlans" -> Json.arr(Json.obj("planName" -> "Raw carrier plan")),
+        "signalDigest" -> Json.obj(
+          "deploymentPurpose" -> "raw deployment purpose",
+          "authoringEvidence" -> "raw authoring evidence"
+        )
+      )
+    )
+    val auditSet =
+      AuditSetManifest(
+        generatedAt = "2026-03-22T00:00:00Z",
+        title = "audit",
+        description = "audit",
+        games =
+          List(
+            AuditSetEntry(
+              auditId = "edge_case_000:game_focus",
+              gameId = "game_focus",
+              tier = "edge_case",
+              openingFamily = "other",
+              label = "Focus Game",
+              reportPath = runDir.resolve("report.json").toString,
+              rawDir = rawDir.toString,
+              sourceTag = "edge_case_000"
+            )
+          )
+      )
+    val auditSetPath = root.resolve("audit_set.json")
+    writeJson(auditSetPath, Json.toJson(auditSet))
+
+    val (queue, _) =
+      CommentaryPlayerReviewQueueBuilder.buildAuditQueue(
+        CommentaryPlayerReviewQueueBuilder.Config(
+          outPath = root.resolve("review_queue.jsonl"),
+          summaryPath = root.resolve("review_queue_summary.json"),
+          auditSetPath = Some(auditSetPath),
+          fullReview = true
+        ),
+        auditSetPath
+      )
+    val moveReviewEntry =
+      queue.find(entry => entry.surface == ReviewSurface.MoveReview).getOrElse(fail("missing moveReview row"))
+
+    assertEquals(moveReviewEntry.supportRows, Nil)
+    assertEquals(moveReviewEntry.advancedRows, Nil)
   }
 
   test("review merge uses queue metadata to emit richer family summaries") {

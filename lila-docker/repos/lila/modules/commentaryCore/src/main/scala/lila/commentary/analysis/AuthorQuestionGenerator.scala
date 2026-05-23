@@ -366,7 +366,7 @@ object AuthorQuestionGenerator:
     fen: String,
     playedUci: String
   ): Option[AuthorQuestion] =
-    PlayerFacingTruthModePolicy.positionProbeQuestionSeed(ctx, posOpt).map { seed =>
+    PlayerFacingTruthModePolicy.positionProbeQuestionSeed(ctx, posOpt, fen).map { seed =>
       AuthorQuestion(
         id = s"probe_${Integer.toHexString((fen + playedUci).hashCode)}",
         kind = AuthorQuestionKind.WhatMattersHere,

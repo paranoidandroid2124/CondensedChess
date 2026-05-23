@@ -3,10 +3,8 @@ import type {
   AuthorQuestionSummary,
   EndgameStateToken,
   EvalVariation,
-  PlanHypothesis,
   PlanStateToken,
   ProbeRequest,
-  StrategicPlanExperiment,
 } from './types';
 
 export type MoveRefV1 = {
@@ -78,6 +76,11 @@ export type PolishMetaV1 = {
   strategyCoverage?: StrategyCoverageMetaV1 | null;
 };
 
+export type MoveReviewDiagnosticsV1 = {
+  status: string;
+  sourceModeReason: string;
+};
+
 export type StrategyCoverageMetaV1 = {
   mode: string;
   enforced: boolean;
@@ -94,18 +97,6 @@ export type StrategyCoverageMetaV1 = {
   focusSignals: number;
   focusHits: number;
 };
-
-import type {
-  NarrativeSignalDigest,
-  StrategicIdeaGroup,
-  StrategicIdeaKind,
-} from '../chesstory/signalTypes';
-export type {
-  DecisionComparisonDigest,
-  NarrativeSignalDigest,
-  StrategicIdeaGroup,
-  StrategicIdeaKind,
-} from '../chesstory/signalTypes';
 
 export type MoveReviewLedgerLineV1 = {
   title: string;
@@ -130,65 +121,39 @@ export type MoveReviewStrategicLedgerV1 = {
   resourceLine?: MoveReviewLedgerLineV1 | null;
 };
 
-export type StrategyPieceRouteV1 = {
-  ownerSide: string;
-  piece: string;
-  from: string;
-  route: string[];
-  purpose: string;
-  strategicFit: number;
-  tacticalSafety: number;
-  surfaceConfidence: number;
-  surfaceMode: string;
-  evidence?: string[];
+export type MoveReviewPlayerSurfaceRowV1 = {
+  label: string;
+  text: string;
+  tone?: string | null;
+  refSans: string[];
 };
 
-export type StrategyPieceMoveRefV1 = {
-  ownerSide: string;
-  piece: string;
-  from: string;
-  target: string;
-  idea: string;
-  tacticalTheme?: string | null;
-  evidence?: string[];
+export type MoveReviewPlayerDecisionComparisonV1 = {
+  kicker: string;
+  gapLabel?: string | null;
+  chosenSan?: string | null;
+  engineSan?: string | null;
+  comparedSan?: string | null;
+  secondaryText?: string | null;
+  chosenMatchesBest: boolean;
 };
 
-export type StrategyDirectionalTargetV1 = {
-  targetId: string;
-  ownerSide: string;
-  piece: string;
-  from: string;
-  targetSquare: string;
-  readiness: string;
-  strategicReasons?: string[];
-  prerequisites?: string[];
-  evidence?: string[];
+export type MoveReviewPlayerAuthorRowV1 = {
+  title: string;
+  status: string;
+  question: string;
+  why?: string | null;
+  branches: MoveReviewPlayerSurfaceRowV1[];
 };
 
-export type StrategyIdeaSignalV1 = {
-  ideaId: string;
-  ownerSide: string;
-  kind: StrategicIdeaKind | string;
-  group: StrategicIdeaGroup | string;
-  readiness: string;
-  focusSquares?: string[];
-  focusFiles?: string[];
-  focusDiagonals?: string[];
-  focusZone?: string | null;
-  beneficiaryPieces?: string[];
-  confidence: number;
-  evidenceRefs?: string[];
-};
-
-export type StrategyPackV1 = {
-  schema: string;
-  sideToMove: string;
-  strategicIdeas: StrategyIdeaSignalV1[];
-  pieceRoutes: StrategyPieceRouteV1[];
-  pieceMoveRefs: StrategyPieceMoveRefV1[];
-  directionalTargets: StrategyDirectionalTargetV1[];
-  longTermFocus: string[];
-  signalDigest?: NarrativeSignalDigest | null;
+export type MoveReviewPlayerSurfaceV1 = {
+  schema: 'chesstory.move_review.player_surface.v1';
+  title?: string | null;
+  summaryRows: MoveReviewPlayerSurfaceRowV1[];
+  advancedRows: MoveReviewPlayerSurfaceRowV1[];
+  decisionComparison?: MoveReviewPlayerDecisionComparisonV1 | null;
+  probeRows: MoveReviewPlayerSurfaceRowV1[];
+  authorRows: MoveReviewPlayerAuthorRowV1[];
 };
 
 export type DecodedMoveReviewResponse = {
@@ -199,12 +164,11 @@ export type DecodedMoveReviewResponse = {
   cacheHit: boolean | null;
   refs: MoveReviewRefsV1 | null;
   polishMeta: PolishMetaV1 | null;
+  diagnostics: MoveReviewDiagnosticsV1 | null;
   moveReviewExplanation: MoveReviewExplanationV1 | null;
   moveReviewLedger: MoveReviewStrategicLedgerV1 | null;
-  strategyPack: StrategyPackV1 | null;
-  signalDigest: NarrativeSignalDigest | null;
-  mainStrategicPlans: PlanHypothesis[];
-  strategicPlanExperiments: StrategicPlanExperiment[];
+  moveReviewPlayerSurface: MoveReviewPlayerSurfaceV1 | null;
+  mainStrategicPlanCount: number;
   probeRequests: ProbeRequest[];
   authorQuestions: AuthorQuestionSummary[];
   authorEvidence: AuthorEvidenceSummary[];
@@ -227,19 +191,18 @@ export type MaybeResponse = {
   probeRequests?: unknown;
   authorQuestions?: unknown;
   authorEvidence?: unknown;
-  mainStrategicPlans?: unknown;
-  strategicPlanExperiments?: unknown;
+  mainStrategicPlanCount?: unknown;
   planStateToken?: unknown;
   endgameStateToken?: unknown;
   sourceMode?: unknown;
   model?: unknown;
   cacheHit?: unknown;
-  signalDigest?: unknown;
   moveReviewLedger?: unknown;
   moveReviewExplanation?: unknown;
-  strategyPack?: unknown;
+  moveReviewPlayerSurface?: unknown;
   refs?: unknown;
   polishMeta?: unknown;
+  diagnostics?: unknown;
   ratelimit?: {
     seconds?: unknown;
   };
@@ -274,35 +237,10 @@ export function authorEvidenceFromResponse(data: MaybeResponse): AuthorEvidenceS
   return Array.isArray(data?.authorEvidence) ? (data.authorEvidence as AuthorEvidenceSummary[]) : [];
 }
 
-export function mainStrategicPlansFromResponse(data: MaybeResponse): PlanHypothesis[] {
-  return Array.isArray(data?.mainStrategicPlans) ? (data.mainStrategicPlans as PlanHypothesis[]) : [];
-}
-
-function strategicPlanExperimentFromUnknown(raw: unknown): StrategicPlanExperiment | null {
-  if (!isRecord(raw)) return null;
-  if (typeof raw.planId !== 'string' || typeof raw.themeL1 !== 'string' || typeof raw.evidenceTier !== 'string')
-    return null;
-  return {
-    planId: raw.planId,
-    themeL1: raw.themeL1,
-    subplanId: typeof raw.subplanId === 'string' ? raw.subplanId : null,
-    evidenceTier: raw.evidenceTier,
-    supportProbeCount: typeof raw.supportProbeCount === 'number' ? raw.supportProbeCount : 0,
-    refuteProbeCount: typeof raw.refuteProbeCount === 'number' ? raw.refuteProbeCount : 0,
-    bestReplyStable: raw.bestReplyStable === true,
-    futureSnapshotAligned: raw.futureSnapshotAligned === true,
-    counterBreakNeutralized: raw.counterBreakNeutralized === true,
-    moveOrderSensitive: raw.moveOrderSensitive === true,
-    experimentConfidence: typeof raw.experimentConfidence === 'number' ? raw.experimentConfidence : 0,
-  };
-}
-
-export function strategicPlanExperimentsFromResponse(data: MaybeResponse): StrategicPlanExperiment[] {
-  return Array.isArray(data?.strategicPlanExperiments)
-    ? (data.strategicPlanExperiments as unknown[])
-        .map(strategicPlanExperimentFromUnknown)
-        .filter((value): value is StrategicPlanExperiment => !!value)
-    : [];
+export function mainStrategicPlanCountFromResponse(data: MaybeResponse): number {
+  if (typeof data?.mainStrategicPlanCount === 'number' && Number.isFinite(data.mainStrategicPlanCount))
+    return Math.max(0, Math.trunc(data.mainStrategicPlanCount));
+  return 0;
 }
 
 export function planStateTokenFromResponse(data: MaybeResponse): PlanStateToken | null {
@@ -329,12 +267,97 @@ export function cacheHitFromResponse(data: MaybeResponse): boolean | null {
   return typeof data?.cacheHit === 'boolean' ? data.cacheHit : null;
 }
 
-export function signalDigestFromResponse(data: MaybeResponse): NarrativeSignalDigest | null {
-  return isRecord(data?.signalDigest) ? (data.signalDigest as NarrativeSignalDigest) : null;
+export function moveReviewDiagnosticsFromResponse(data: MaybeResponse): MoveReviewDiagnosticsV1 | null {
+  const raw = data?.diagnostics;
+  if (!isRecord(raw)) return null;
+  if (typeof raw.status !== 'string' || typeof raw.sourceModeReason !== 'string') return null;
+  return {
+    status: raw.status,
+    sourceModeReason: raw.sourceModeReason,
+  };
 }
 
-export function strategyPackFromResponse(data: MaybeResponse): StrategyPackV1 | null {
-  return isRecord(data?.strategyPack) ? (data.strategyPack as StrategyPackV1) : null;
+export function moveReviewNeedsRetry(decoded: Pick<DecodedMoveReviewResponse, 'diagnostics'>): boolean {
+  return decoded.diagnostics?.status === 'retryable_fallback';
+}
+
+function surfaceRowFromUnknown(raw: unknown): MoveReviewPlayerSurfaceRowV1 | null {
+  if (!isRecord(raw)) return null;
+  if (typeof raw.label !== 'string' || typeof raw.text !== 'string') return null;
+  const refSans = raw.refSans == null ? [] : stringListFromUnknown(raw.refSans);
+  if (!refSans) return null;
+  return {
+    label: raw.label,
+    text: raw.text,
+    tone: typeof raw.tone === 'string' ? raw.tone : null,
+    refSans,
+  };
+}
+
+function surfaceRowsFromUnknown(raw: unknown): MoveReviewPlayerSurfaceRowV1[] | null {
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) return null;
+  const rows = raw.map(surfaceRowFromUnknown);
+  if (rows.some(row => !row)) return null;
+  return rows as MoveReviewPlayerSurfaceRowV1[];
+}
+
+function playerDecisionComparisonFromUnknown(raw: unknown): MoveReviewPlayerDecisionComparisonV1 | null {
+  if (!isRecord(raw)) return null;
+  if (typeof raw.kicker !== 'string' || typeof raw.chosenMatchesBest !== 'boolean') return null;
+  return {
+    kicker: raw.kicker,
+    gapLabel: typeof raw.gapLabel === 'string' ? raw.gapLabel : null,
+    chosenSan: typeof raw.chosenSan === 'string' ? raw.chosenSan : null,
+    engineSan: typeof raw.engineSan === 'string' ? raw.engineSan : null,
+    comparedSan: typeof raw.comparedSan === 'string' ? raw.comparedSan : null,
+    secondaryText: typeof raw.secondaryText === 'string' ? raw.secondaryText : null,
+    chosenMatchesBest: raw.chosenMatchesBest,
+  };
+}
+
+function playerAuthorRowFromUnknown(raw: unknown): MoveReviewPlayerAuthorRowV1 | null {
+  if (!isRecord(raw)) return null;
+  if (typeof raw.title !== 'string' || typeof raw.status !== 'string' || typeof raw.question !== 'string') return null;
+  const branches = surfaceRowsFromUnknown(raw.branches);
+  if (!branches) return null;
+  return {
+    title: raw.title,
+    status: raw.status,
+    question: raw.question,
+    why: typeof raw.why === 'string' ? raw.why : null,
+    branches,
+  };
+}
+
+function playerAuthorRowsFromUnknown(raw: unknown): MoveReviewPlayerAuthorRowV1[] | null {
+  if (raw == null) return [];
+  if (!Array.isArray(raw)) return null;
+  const rows = raw.map(playerAuthorRowFromUnknown);
+  if (rows.some(row => !row)) return null;
+  return rows as MoveReviewPlayerAuthorRowV1[];
+}
+
+export function moveReviewPlayerSurfaceFromResponse(data: MaybeResponse): MoveReviewPlayerSurfaceV1 | null {
+  const raw = data?.moveReviewPlayerSurface;
+  if (!isRecord(raw)) return null;
+  if (raw.schema !== 'chesstory.move_review.player_surface.v1') return null;
+  const summaryRows = surfaceRowsFromUnknown(raw.summaryRows);
+  const advancedRows = surfaceRowsFromUnknown(raw.advancedRows);
+  const probeRows = surfaceRowsFromUnknown(raw.probeRows);
+  const authorRows = playerAuthorRowsFromUnknown(raw.authorRows);
+  const decisionComparison = raw.decisionComparison == null ? null : playerDecisionComparisonFromUnknown(raw.decisionComparison);
+  if (!summaryRows || !advancedRows || !probeRows || !authorRows) return null;
+  if (raw.decisionComparison != null && !decisionComparison) return null;
+  return {
+    schema: 'chesstory.move_review.player_surface.v1',
+    title: typeof raw.title === 'string' ? raw.title : null,
+    summaryRows,
+    advancedRows,
+    decisionComparison,
+    probeRows,
+    authorRows,
+  };
 }
 
 function fallbackList<T>(primary: T[], fallback?: T[]): T[] {
@@ -353,12 +376,11 @@ export function decodeMoveReviewResponse(
     cacheHit: cacheHitFromResponse(data),
     refs: refsFromResponse(data),
     polishMeta: polishMetaFromResponse(data),
+    diagnostics: moveReviewDiagnosticsFromResponse(data),
     moveReviewExplanation: moveReviewExplanationFromResponse(data),
     moveReviewLedger: moveReviewLedgerFromResponse(data),
-    strategyPack: strategyPackFromResponse(data),
-    signalDigest: signalDigestFromResponse(data),
-    mainStrategicPlans: mainStrategicPlansFromResponse(data),
-    strategicPlanExperiments: strategicPlanExperimentsFromResponse(data),
+    moveReviewPlayerSurface: moveReviewPlayerSurfaceFromResponse(data),
+    mainStrategicPlanCount: mainStrategicPlanCountFromResponse(data),
     probeRequests: fallbackList(probeRequestsFromResponse(data), fallbacks.probeRequests),
     authorQuestions: fallbackList(authorQuestionsFromResponse(data), fallbacks.authorQuestions),
     authorEvidence: fallbackList(authorEvidenceFromResponse(data), fallbacks.authorEvidence),
@@ -546,65 +568,27 @@ export function polishMetaFromResponse(data: MaybeResponse): PolishMetaV1 | null
     typeof raw.provider !== 'string' ||
     typeof raw.sourceMode !== 'string' ||
     typeof raw.validationPhase !== 'string' ||
-    typeof raw.cacheHit !== 'boolean' ||
-    !Array.isArray(raw.validationReasons)
+    typeof raw.cacheHit !== 'boolean'
   )
     return null;
 
-  const validationReasons = raw.validationReasons.filter((v): v is string => typeof v === 'string');
-  if (validationReasons.length !== raw.validationReasons.length) return null;
-  const strategyCoverage = parseStrategyCoverage(raw.strategyCoverage);
+  const validationReasonList = raw.validationReasons == null ? [] : raw.validationReasons;
+  if (!Array.isArray(validationReasonList)) return null;
+  const validationReasons = validationReasonList.filter((v): v is string => typeof v === 'string');
+  if (validationReasons.length !== validationReasonList.length) return null;
 
   return {
     provider: raw.provider,
     model: typeof raw.model === 'string' ? raw.model : null,
     sourceMode: raw.sourceMode,
     validationPhase: raw.validationPhase,
-    validationReasons,
+    validationReasons: [],
     cacheHit: raw.cacheHit,
-    promptTokens: typeof raw.promptTokens === 'number' ? raw.promptTokens : null,
-    cachedTokens: typeof raw.cachedTokens === 'number' ? raw.cachedTokens : null,
-    completionTokens: typeof raw.completionTokens === 'number' ? raw.completionTokens : null,
-    estimatedCostUsd: typeof raw.estimatedCostUsd === 'number' ? raw.estimatedCostUsd : null,
-    strategyCoverage,
-  };
-}
-
-function parseStrategyCoverage(raw: unknown): StrategyCoverageMetaV1 | null {
-  if (!isRecord(raw)) return null;
-  if (
-    typeof raw.mode !== 'string' ||
-    typeof raw.enforced !== 'boolean' ||
-    typeof raw.threshold !== 'number' ||
-    typeof raw.availableCategories !== 'number' ||
-    typeof raw.coveredCategories !== 'number' ||
-    typeof raw.requiredCategories !== 'number' ||
-    typeof raw.coverageScore !== 'number' ||
-    typeof raw.passesThreshold !== 'boolean' ||
-    typeof raw.planSignals !== 'number' ||
-    typeof raw.planHits !== 'number' ||
-    typeof raw.routeSignals !== 'number' ||
-    typeof raw.routeHits !== 'number' ||
-    typeof raw.focusSignals !== 'number' ||
-    typeof raw.focusHits !== 'number'
-  )
-    return null;
-
-  return {
-    mode: raw.mode,
-    enforced: raw.enforced,
-    threshold: raw.threshold,
-    availableCategories: raw.availableCategories,
-    coveredCategories: raw.coveredCategories,
-    requiredCategories: raw.requiredCategories,
-    coverageScore: raw.coverageScore,
-    passesThreshold: raw.passesThreshold,
-    planSignals: raw.planSignals,
-    planHits: raw.planHits,
-    routeSignals: raw.routeSignals,
-    routeHits: raw.routeHits,
-    focusSignals: raw.focusSignals,
-    focusHits: raw.focusHits,
+    promptTokens: null,
+    cachedTokens: null,
+    completionTokens: null,
+    estimatedCostUsd: null,
+    strategyCoverage: null,
   };
 }
 

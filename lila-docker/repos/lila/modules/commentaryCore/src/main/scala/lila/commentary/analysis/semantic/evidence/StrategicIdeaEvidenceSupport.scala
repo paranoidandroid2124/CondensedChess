@@ -1,7 +1,7 @@
 package lila.commentary.analysis.semantic.evidence
 
 import lila.commentary.*
-import lila.commentary.analysis.{ PlanTaxonomy, PositionFeatures, StrategicIdeaSemanticContext, StrategicStateFeatures }
+import lila.commentary.analysis.{ BreakFileToken, PlanTaxonomy, PositionFeatures, StrategicIdeaSemanticContext, StrategicStateFeatures }
 import lila.commentary.analysis.semantic.{ StrategicIdeaEvidence, StrategicIdeaEvidenceTier }
 import lila.commentary.analysis.semantic.StrategicObservationIds.EvidenceSourceId
 import _root_.chess.{ Bishop, Board, Color, File, Knight, Pawn, Queen, Rank, Role, Rook, Square }
@@ -12,6 +12,17 @@ import lila.commentary.model.structure.{ StructureId }
 
 
 private[evidence] object StrategicIdeaEvidenceSupport:
+
+  private enum ExperimentEvidenceTier:
+    case Refuted, Other
+
+  private def experimentTier(experiment: StrategicPlanExperiment): ExperimentEvidenceTier =
+    experiment.evidenceTier match
+      case "refuted" => ExperimentEvidenceTier.Refuted
+      case _         => ExperimentEvidenceTier.Other
+
+  private def isPlayableExperiment(experiment: StrategicPlanExperiment): Boolean =
+    experimentTier(experiment) != ExperimentEvidenceTier.Refuted
 
   def evidence(
       ownerSide: String,
@@ -171,7 +182,7 @@ private[evidence] object StrategicIdeaEvidenceSupport:
   ): Boolean =
     semantic.strategicPlanExperiments.exists { experiment =>
       planEvidenceAppliesToKind(experiment, kind) &&
-        experiment.evidenceTier != "refuted" &&
+        isPlayableExperiment(experiment) &&
         !experiment.moveOrderSensitive &&
         (
           experiment.bestReplyStable ||
@@ -394,14 +405,7 @@ private[evidence] object StrategicIdeaEvidenceSupport:
       case _      => "K"
 
   def normalizeFileToken(value: String): Option[String] =
-    Option(value)
-      .map(_.trim.toLowerCase)
-      .filter(_.nonEmpty)
-      .flatMap(raw =>
-        raw.headOption
-          .filter(ch => ch >= 'a' && ch <= 'h')
-          .map(_.toString)
-      )
+    BreakFileToken.extract(value)
 
   def zoneFromFileToken(file: String): Option[String] =
     file.trim.toLowerCase.headOption.flatMap {

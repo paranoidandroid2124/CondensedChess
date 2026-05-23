@@ -142,7 +142,7 @@ final class BreakClampSourceTriageTest extends munit.FunSuite:
     assertEquals(observation.verdict, SourceReview.Verdict.AdmitAuthorityRow)
     assertEquals(observation.mainProofSource, "counterplay_axis_suppression")
     assert(observation.packetSummary.contains("proof_family=neutralize_key_break"), clues(observation.packetSummary))
-    assertEquals(observation.primary, "A local reading is that this keeps ...a5 from coming right away.")
+    assertEquals(observation.primary, "A local reading is that this keeps ...a6-a5 from coming right away.")
     assertEquals(observation.primary, observation.moveReview)
     assertEquals(observation.primary, observation.chronicle)
   }

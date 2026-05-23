@@ -519,13 +519,22 @@ private[commentary] object SourceReview:
     val claimOnly =
       surface.primary == surface.moveReview &&
         surface.primary == surface.chronicle
-    claimOnly &&
-      List(surface.primary, surface.moveReview, surface.chronicle).forall { text =>
+    val texts = List(surface.primary, surface.moveReview, surface.chronicle)
+    val localReadingSafe =
+      texts.forall { text =>
         val low = text.toLowerCase
         low.contains("a local reading is that") &&
           !low.contains("the key strategic fact") &&
           !low.contains("so the task is")
       }
+    val centralBreakSafe =
+      surface.mainProofSource.contains(PlanTaxonomy.PlanKind.CentralBreakTiming.id) &&
+        texts.forall(text =>
+          """(?i)\b(?:also\s+plays|also\s+leaves|uses|keeps)\s+the\s+(?:\.\.\.)?([de])[1-8]-\1[45]\s+break\b""".r
+            .findFirstIn(text)
+            .nonEmpty
+        )
+    claimOnly && (localReadingSafe || centralBreakSafe)
 
   private def sourceReviewGroupAligned(
       source: SourceWitnessCatalog.SourceCandidate,

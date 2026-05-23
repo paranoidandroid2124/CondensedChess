@@ -44,6 +44,8 @@ case class NarrativeContext(
   probeRequests: List[ProbeRequest] = Nil,
   mainStrategicPlans: List[PlanHypothesis] = Nil,
   strategicPlanExperiments: List[StrategicPlanExperiment] = Nil,
+  strategicPlanEvidence: lila.commentary.analysis.PlanEvidenceEvaluator.StrategicPlanEvidenceView =
+    lila.commentary.analysis.PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty,
 
 
   meta: Option[MetaSignals] = None,

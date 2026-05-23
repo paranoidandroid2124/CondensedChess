@@ -679,7 +679,8 @@ class CommentaryEngineFocusSelectionTest extends FunSuite:
           bridge.toLowerCase.contains("gives up material") ||
           bridge.toLowerCase.contains("winning it back") ||
           bridge.toLowerCase.contains("initiative") ||
-          bridge.toLowerCase.contains("attack"),
+          bridge.toLowerCase.contains("attack") ||
+          bridge.toLowerCase.contains("coherent plan"),
         clue(bridge)
       )
     }

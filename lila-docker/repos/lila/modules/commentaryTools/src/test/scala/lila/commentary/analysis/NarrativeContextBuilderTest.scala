@@ -124,8 +124,8 @@ class NarrativeContextBuilderTest extends FunSuite {
         userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked,
         reason = "validated by purpose-aligned probe evidence",
         supportProbeIds = List("probe_1"),
-        themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
-        subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
+        themeL1 = PlanTaxonomy.PlanTheme.PieceRedeployment.id,
+        subplanId = None
       )
     )
 
@@ -245,13 +245,13 @@ class NarrativeContextBuilderTest extends FunSuite {
     assertEquals(experiments.head.evidenceTier, "deferred", clue(experiments))
     assert(
       StrategicNarrativePlanSupport
-        .filterEvidenceBacked(List(conversionPlan.hypothesis), experiments)
+        .legacyFilterEvidenceBacked(List(conversionPlan.hypothesis), experiments)
         .isEmpty,
       clue(experiments)
     )
   }
 
-  test("buildWithDiagnostics keeps latent strategic hypotheses out of runtime context and sidecars them instead") {
+  test("buildWithDiagnostics keeps selected provisional hypotheses as compatibility payload and sidecars authority") {
     val plan =
       PlanHypothesis(
         planId = "CentralControl",
@@ -269,13 +269,55 @@ class NarrativeContextBuilderTest extends FunSuite {
     val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true)
     val result = NarrativeContextBuilder.buildWithDiagnostics(data, ctx, None)
 
-    assertEquals(result.context.mainStrategicPlans, Nil)
+    assertEquals(result.context.mainStrategicPlans.map(_.planId), List("CentralControl"))
+    assert(
+      result.context.mainStrategicPlans.headOption.exists(_.evidenceSources.contains("provisional:unvalidated_support")),
+      clue(result.context.mainStrategicPlans)
+    )
+    assertEquals(result.selectedMainEvaluatedPlans.map(_.hypothesis.planId), List("CentralControl"))
+    assertEquals(result.context.strategicPlanEvidence.selectedPlans.map(_.hypothesis.planId), List("CentralControl"))
+    assertEquals(result.context.strategicPlanEvidence.pvCoupledPlans.map(_.hypothesis.planId), List("CentralControl"))
+    assertEquals(StrategicNarrativePlanSupport.evidenceBackedMainPlans(result.context), Nil)
     assert(
       result.diagnosticPlanSidecar.entries.exists(entry =>
         entry.planId == "CentralControl" &&
           entry.userFacingEligibility == "pv_coupled_only"
       ),
       clue(result.diagnosticPlanSidecar)
+    )
+  }
+
+  test("typed strategic plan support ignores legacy evidenceTier-only authority") {
+    val plan =
+      PlanHypothesis(
+        planId = "LegacyPlan",
+        planName = "Legacy plan",
+        rank = 1,
+        score = 0.7,
+        preconditions = Nil,
+        executionSteps = Nil,
+        failureModes = Nil,
+        viability = PlanViability(0.7, "medium", "legacy")
+      )
+    val experiment =
+      StrategicPlanExperiment(
+        planId = "LegacyPlan",
+        evidenceTier = "evidence_backed",
+        supportProbeCount = 1
+      )
+    val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true)
+    val narrativeCtx =
+      NarrativeContextBuilder
+        .build(minimalData(), ctx, None)
+        .copy(
+          mainStrategicPlans = List(plan),
+          strategicPlanExperiments = List(experiment)
+        )
+
+    assertEquals(StrategicNarrativePlanSupport.evidenceBackedMainPlans(narrativeCtx), Nil)
+    assertEquals(
+      StrategicNarrativePlanSupport.legacyFilterEvidenceBacked(List(plan), List(experiment)).map(_.planId),
+      List("LegacyPlan")
     )
   }
 

@@ -115,7 +115,7 @@ class CentralBreakTimingPolicyTest extends FunSuite:
     assertNoCentralRelease(scene)
   }
 
-  test("central-break timing stays closed when the PV timing gap is below forty centipawns") {
+  test("central-break timing releases when the board-backed break is not best-line-exclusive") {
     val scene =
       snapshot(
         fen = DirectBreakFen,
@@ -128,7 +128,11 @@ class CentralBreakTimingPolicyTest extends FunSuite:
           )
       )
 
-    assertNoCentralRelease(scene)
+    val packet = centralPacket(scene)
+
+    assertEquals(packet.proofSource, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+    assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+    assert(scene.ranked.primary.exists(_.plannerSource == PlanTaxonomy.PlanKind.CentralBreakTiming.id), clues(scene.ranked))
   }
 
   test("rival-family relabel does not promote a central-break packet") {
@@ -173,6 +177,99 @@ class CentralBreakTimingPolicyTest extends FunSuite:
       )
 
     assertNoCentralRelease(scene)
+  }
+
+  test("central-break timing release does not require a two-move branch key") {
+    val scene =
+      snapshot(
+        fen = DirectBreakFen,
+        ply = 15,
+        playedMove = "d4d5",
+        lines =
+          List(
+            VariationLine(List("d4d5"), scoreCp = 0, depth = 18),
+            VariationLine(List("b1c3"), scoreCp = 0, depth = 18)
+          )
+      )
+    val packet = centralPacket(scene)
+
+    assertEquals(packet.bestDefenseBranchKey, None)
+    assertEquals(packet.proofSource, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+    assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+  }
+
+  test("played same-file central break releases even when top PV omits that break") {
+    val scene =
+      snapshot(
+        fen = DirectBreakFen,
+        ply = 15,
+        playedMove = "d4d5",
+        lines =
+          List(
+            VariationLine(List("b1c3", "e8g8", "h2h3"), scoreCp = 0, depth = 18)
+          )
+      )
+    val packet = centralPacket(scene)
+    val witness =
+      CentralBreakTimingWitness
+        .exact(scene.ctx)
+        .getOrElse(fail(s"missing central-break witness: ${CentralBreakTimingWitness.diagnose(scene.ctx)}"))
+
+    assertEquals(packet.proofSource, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+    assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.CentralBreakTiming.id)
+    assertEquals(witness.breakMove, "d4d5")
+    assert(witness.sourceTags.contains("board:played_break"), clues(witness))
+    assert(witness.sourceTags.contains("board:played_move_direct"), clues(witness))
+  }
+
+  test("diagonal central captures stay outside central-break timing release") {
+    val diagonalCaptureFen =
+      "r2q1rk1/pp2npb1/2p1b1pp/3pB3/3PN3/1BP2N2/PP3PPP/R2Q1RK1 b - - 0 15"
+    val scene =
+      snapshot(
+        fen = diagonalCaptureFen,
+        ply = 30,
+        playedMove = "d5e4",
+        lines =
+          List(
+            VariationLine(List("d5e4"), scoreCp = 0, depth = 18),
+            VariationLine(List("g7e5"), scoreCp = 0, depth = 18)
+          )
+      )
+
+    assertNoCentralRelease(scene)
+    assert(
+      CentralBreakTimingWitness
+        .diagnose(scene.ctx)
+        .failureCodes
+        .contains("central_break_timing:diagonal_capture_liquidation"),
+      clue(CentralBreakTimingWitness.diagnose(scene.ctx))
+    )
+  }
+
+  test("prep or challenge pawn moves stay outside central-break timing release") {
+    val prepFen =
+      "rnbqkbnr/pp1ppppp/8/2p1P3/2B5/5Q2/PPPP1PPP/RNB1K1NR b KQkq - 2 4"
+    val scene =
+      snapshot(
+        fen = prepFen,
+        ply = 8,
+        playedMove = "d7d6",
+        lines =
+          List(
+            VariationLine(List("d7d6"), scoreCp = 0, depth = 18),
+            VariationLine(List("b8c6"), scoreCp = 0, depth = 18)
+          )
+      )
+
+    assertNoCentralRelease(scene)
+    assert(
+      CentralBreakTimingWitness
+        .diagnose(scene.ctx)
+        .failureCodes
+        .contains("central_break_timing:prep_or_challenge"),
+      clue(CentralBreakTimingWitness.diagnose(scene.ctx))
+    )
   }
 
   private def snapshot(

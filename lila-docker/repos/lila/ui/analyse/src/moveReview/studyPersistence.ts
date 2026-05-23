@@ -60,7 +60,7 @@ type StoredMoveReviewEntrySource = Pick<
   | 'model'
   | 'cacheHit'
   | 'moveReviewExplanation'
-  | 'mainStrategicPlans'
+  | 'mainStrategicPlanCount'
   | 'moveReviewLedger'
   | 'planStateToken'
   | 'endgameStateToken'
@@ -71,7 +71,7 @@ export function buildStoredMoveReviewEntry(
   html: string,
   tokenContext: StoredMoveReviewTokenContext,
 ): StoredMoveReviewEntry {
-  return {
+  return sanitizeStoredMoveReviewEntry({
     html,
     refs: decoded.refs,
     polishMeta: decoded.polishMeta,
@@ -79,11 +79,36 @@ export function buildStoredMoveReviewEntry(
     model: decoded.model,
     cacheHit: decoded.cacheHit,
     moveReviewExplanation: decoded.moveReviewExplanation,
-    mainPlansCount: decoded.mainStrategicPlans.length,
+    mainPlansCount: decoded.mainStrategicPlanCount,
     moveReviewLedger: decoded.moveReviewLedger,
     planStateToken: decoded.planStateToken,
     endgameStateToken: decoded.endgameStateToken,
     tokenContext,
+  });
+}
+
+export function sanitizeStoredMoveReviewEntry(entry: StoredMoveReviewEntry): StoredMoveReviewEntry {
+  return {
+    ...entry,
+    polishMeta: sanitizeStoredPolishMeta(entry.polishMeta),
+    mainPlansCount: Math.max(0, Math.trunc(Number(entry.mainPlansCount) || 0)),
+  };
+}
+
+function sanitizeStoredPolishMeta(meta: PolishMetaV1 | null | undefined): PolishMetaV1 | null {
+  if (!meta) return null;
+  return {
+    provider: meta.provider,
+    model: meta.model ?? null,
+    sourceMode: meta.sourceMode,
+    validationPhase: meta.validationPhase,
+    validationReasons: [],
+    cacheHit: meta.cacheHit,
+    promptTokens: null,
+    cachedTokens: null,
+    completionTokens: null,
+    estimatedCostUsd: null,
+    strategyCoverage: null,
   };
 }
 
@@ -139,7 +164,10 @@ function normalizeStudySnapshot(raw: unknown): StudyMoveReviewSnapshot | null {
     typeof parsed.entry.html !== 'string'
   )
     return null;
-  return parsed;
+  return {
+    ...parsed,
+    entry: sanitizeStoredMoveReviewEntry(parsed.entry),
+  };
 }
 
 function pruneSnapshots(): void {
@@ -190,7 +218,7 @@ export function persistStudyMoveReviewSnapshot(
     originPath,
     savedAt: Date.now(),
     commentary,
-    entry,
+    entry: sanitizeStoredMoveReviewEntry(entry),
   };
 
   try {
@@ -224,7 +252,10 @@ export function readStudyMoveReviewSnapshot(
       typeof parsed.entry.html !== 'string'
     )
       return null;
-    return parsed;
+    return {
+      ...parsed,
+      entry: sanitizeStoredMoveReviewEntry(parsed.entry),
+    };
   } catch {
     return null;
   }
@@ -247,7 +278,10 @@ export function listStudyMoveReviewSnapshots(ref: StudyMoveReviewRef): StudyMove
           typeof parsed.entry.html !== 'string'
         )
           return null;
-        return parsed;
+        return {
+          ...parsed,
+          entry: sanitizeStoredMoveReviewEntry(parsed.entry),
+        };
       } catch {
         return null;
       }
@@ -281,7 +315,7 @@ export function persistSessionMoveReviewSnapshot(
         originPath,
         savedAt: Date.now(),
         commentary,
-        entry,
+        entry: sanitizeStoredMoveReviewEntry(entry),
       }),
     );
   } catch {
@@ -321,7 +355,7 @@ export function readSessionMoveReviewSnapshot(scope: string, commentPath: string
       originPath: parsed.originPath || parsed.entry.tokenContext?.originPath || '',
       savedAt: typeof parsed.savedAt === 'number' ? parsed.savedAt : 0,
       commentary: parsed.commentary,
-      entry: parsed.entry,
+      entry: sanitizeStoredMoveReviewEntry(parsed.entry),
     };
   } catch {
     return null;

@@ -16,6 +16,8 @@ private[commentary] object CentralBreakTimingWitness:
     val NoPv = "central_break_timing:no_pv"
     val PvGapTooSmall = "central_break_timing:pv_gap_below_40"
     val NoCentralBreak = "central_break_timing:no_central_break"
+    val DiagonalCapture = "central_break_timing:diagonal_capture_liquidation"
+    val PrepOrChallenge = "central_break_timing:prep_or_challenge"
     val NoBoardLink = "central_break_timing:no_board_link"
     val PlanOnly = "central_break_timing:plan_only"
     val BranchMissing = "central_break_timing:branch_missing"
@@ -53,22 +55,25 @@ private[commentary] object CentralBreakTimingWitness:
     (parsed, variations.headOption) match
       case (Some(position), Some(pv1)) =>
         val pvGap = pvGapForMover(position.color, variations)
-        val breakCandidate = firstCentralBreak(position, pv1)
         val played = playedMove(ctx, pv1)
+        val breakCandidate =
+          playedDirectCentralBreak(position, played)
+            .orElse(firstCentralBreak(position, pv1))
         val branch = branchKey(pv1.moves)
+        val gap = pvGap.getOrElse(0)
+        val shapeFailure =
+          played
+            .flatMap(uci => legalMove(position, uci))
+            .flatMap(move => rejectedCentralBreakShape(move, position.color))
+            .orElse(firstRejectedCentralBreakShape(position, pv1))
         val failureCodes =
           List(
-            Option.when(pvGap.exists(_ < PvGapThresholdCp))(Failure.PvGapTooSmall),
-            Option.when(pvGap.isEmpty)(Failure.PvGapTooSmall),
-            Option.when(breakCandidate.isEmpty)(Failure.NoCentralBreak),
-            Option.when(branch.isEmpty)(Failure.BranchMissing)
+            Option.when(breakCandidate.isEmpty)(shapeFailure.getOrElse(Failure.NoCentralBreak))
           ).flatten
         val witnesses =
           for
-            gap <- pvGap.toList
             candidate <- breakCandidate.toList
             playedUci <- played.toList
-            if gap >= PvGapThresholdCp
             playedMove <- legalMove(position, playedUci).toList
           yield buildWitness(
             ctx = ctx,
@@ -76,6 +81,7 @@ private[commentary] object CentralBreakTimingWitness:
             playedMove = playedMove,
             candidate = candidate,
             gap = gap,
+            branchMissing = branch.isEmpty,
             pv1 = pv1
           )
         val (releasable, reviewOnly) = witnesses.partition(_.releasable)
@@ -108,7 +114,8 @@ private[commentary] object CentralBreakTimingWitness:
       move: Move,
       uci: String,
       plyIndex: Int,
-      before: Position
+      before: Position,
+      fromPlayedMove: Boolean = false
   )
 
   private def buildWitness(
@@ -117,6 +124,7 @@ private[commentary] object CentralBreakTimingWitness:
       playedMove: Move,
       candidate: BreakCandidate,
       gap: Int,
+      branchMissing: Boolean,
       pv1: VariationLine
   ): Witness =
     val playedIsBreak =
@@ -129,12 +137,15 @@ private[commentary] object CentralBreakTimingWitness:
     val support =
       if hasBoardLink then Support.BoardBacked else Support.PlanOnly
     val breakSquare = candidate.move.dest.key
-    val breakToken = breakTokenFor(position.color, breakSquare)
+    val breakToken = breakTokenFor(position.color, candidate.move)
     val sourceTags =
       (
-        List(ProofFamily) ++
+          List(ProofFamily) ++
           Option.when(ctx.fen.trim == MadernaExactFen)("exact:maderna-palermo-1955-direct-break").toList ++
           Option.when(ctx.fen.trim == MadernaPrepFen)("review:maderna-palermo-1955-prep").toList ++
+          Option.when(gap < PvGapThresholdCp)(s"diagnostic:${Failure.PvGapTooSmall}").toList ++
+          Option.when(branchMissing)(s"diagnostic:${Failure.BranchMissing}").toList ++
+          Option.when(candidate.fromPlayedMove)("board:played_move_direct").toList ++
           Option.when(playedIsBreak)("board:played_break").toList ++
           Option.when(!playedIsBreak && hasBoardLink)("board:break_support").toList ++
           Option.when(!hasBoardLink)("plan_only").toList
@@ -162,6 +173,7 @@ private[commentary] object CentralBreakTimingWitness:
           List(
             "central_break_timing_branch",
             s"central_break:$breakSquare",
+            s"break_token:$breakToken",
             s"break_move:${candidate.uci}"
           ) ++
             branch.map(key => s"best_branch:$key") ++
@@ -178,12 +190,23 @@ private[commentary] object CentralBreakTimingWitness:
         legalMove(current, uci) match
           case Some(move) =>
             val found =
-              Option.when(current.color == initialSide && isCentralBreak(move, initialSide, current.board)) {
+              Option.when(current.color == initialSide && isCentralBreak(move, initialSide)) {
                 BreakCandidate(move = move, uci = uci, plyIndex = index, before = current)
               }
             (move.after, found)
           case None => (current, None)
     }._2
+
+  private def playedDirectCentralBreak(
+      position: Position,
+      played: Option[String]
+  ): Option[BreakCandidate] =
+    played
+      .flatMap(uci => legalMove(position, uci).map(uci -> _))
+      .collect {
+        case (uci, move) if isCentralBreak(move, position.color) =>
+          BreakCandidate(move = move, uci = uci, plyIndex = 0, before = position, fromPlayedMove = true)
+      }
 
   private def normalizedPvMoves(pv: VariationLine): List[String] =
     val raw =
@@ -206,13 +229,39 @@ private[commentary] object CentralBreakTimingWitness:
       second <- variations.lift(1)
     yield PerspectiveMath.improvementForMover(color, top.scoreCp, second.scoreCp)
 
-  private def isCentralBreak(move: Move, side: Color, board: Board): Boolean =
+  private def firstRejectedCentralBreakShape(position: Position, pv: VariationLine): Option[String] =
+    val initialSide = position.color
+    val moves = normalizedPvMoves(pv).take(BreakHorizonPly)
+    moves.zipWithIndex.foldLeft((position, Option.empty[String])) {
+      case ((current, found), _) if found.nonEmpty => (current, found)
+      case ((current, _), (uci, _)) =>
+        legalMove(current, uci) match
+          case Some(move) =>
+            val found =
+              Option.when(current.color == initialSide)(rejectedCentralBreakShape(move, initialSide)).flatten
+            (move.after, found)
+          case None => (current, None)
+    }._2
+
+  private def rejectedCentralBreakShape(move: Move, side: Color): Option[String] =
+    if !centralPawnAdvanceCandidate(move, side) then None
+    else if move.captures && centralFile(move.dest) then Some(Failure.DiagonalCapture)
+    else if sameFile(move) && centralFile(move.dest) && !coreCentralDestination(move.dest) then Some(Failure.PrepOrChallenge)
+    else None
+
+  private def isCentralBreak(move: Move, side: Color): Boolean =
+    centralPawnAdvanceCandidate(move, side) &&
+      !move.captures &&
+      sameFile(move) &&
+      centralFile(move.dest) &&
+      coreCentralDestination(move.dest) &&
+      adjacentEnemyPawn(move.after.board, side, move.dest)
+
+  private def centralPawnAdvanceCandidate(move: Move, side: Color): Boolean =
     move.piece.role == Pawn &&
       move.piece.color == side &&
       isForward(move, side) &&
-      centralFile(move.orig) &&
-      centralFile(move.dest) &&
-      (move.captures || adjacentEnemyPawn(board, side, move.dest))
+      centralFile(move.orig)
 
   private def isForward(move: Move, side: Color): Boolean =
     if side.white then move.dest.rank.value > move.orig.rank.value
@@ -220,6 +269,12 @@ private[commentary] object CentralBreakTimingWitness:
 
   private def centralFile(square: Square): Boolean =
     square.file.value == 3 || square.file.value == 4
+
+  private def sameFile(move: Move): Boolean =
+    move.orig.file == move.dest.file
+
+  private def coreCentralDestination(square: Square): Boolean =
+    Set("d4", "e4", "d5", "e5").contains(square.key)
 
   private def adjacentEnemyPawn(board: Board, side: Color, square: Square): Boolean =
     Square.all.exists(candidate =>
@@ -252,9 +307,9 @@ private[commentary] object CentralBreakTimingWitness:
       case first :: second :: Nil => Some(s"${first.toLowerCase}|${second.toLowerCase}")
       case _                      => None
 
-  private def breakTokenFor(side: Color, square: String): String =
-    val file = square.headOption.map(_.toString).getOrElse(square)
-    if side.black then s"...$file-break" else s"$file-break"
+  private def breakTokenFor(side: Color, move: Move): String =
+    val route = s"${move.orig.key}-${move.dest.key}"
+    if side.black then s"...$route" else route
 
   private def adjacent(a: Square, b: Square): Boolean =
     (a.file.value - b.file.value).abs <= 1 &&

@@ -1,5 +1,6 @@
 package lila.commentary
 
+import lila.commentary.analysis.PlanEvidenceEvaluator.{ EvaluatedPlan, UserFacingPlanEligibility }
 import lila.commentary.analysis.UserFacingSignalSanitizer
 import lila.commentary.model.StrategicPlanExperiment
 import lila.commentary.model.authoring.PlanHypothesis
@@ -8,12 +9,41 @@ import lila.strategicPuzzle.StrategicPuzzle.*
 object UserFacingPayloadSanitizer:
 
   def sanitize(response: CommentResponse): CommentResponse =
+    sanitize(response, admittedPlans = Nil)
+
+  def sanitize(
+      response: CommentResponse,
+      admittedPlans: List[EvaluatedPlan]
+  ): CommentResponse =
+    sanitize(
+      response = response,
+      admittedPlans = admittedPlans,
+      previouslyAdmittedPlanKeys = Set.empty
+    )
+
+  def sanitizeCachedMoveReview(response: CommentResponse): CommentResponse =
+    sanitize(
+      response = response,
+      admittedPlans = Nil,
+      previouslyAdmittedPlanKeys = cachedMoveReviewPlanKeys(response)
+    )
+
+  private def sanitize(
+      response: CommentResponse,
+      admittedPlans: List[EvaluatedPlan],
+      previouslyAdmittedPlanKeys: Set[String]
+  ): CommentResponse =
+    val admittedPlanKeys =
+      previouslyAdmittedPlanKeys ++ admittedPlans
+        .filter(isTypedProbeBackedPlan)
+        .map(plan => planKey(plan.hypothesis))
+        .toSet
     val sanitizedPlans =
       response.mainStrategicPlans
-        .filter(isProbeBackedPlan)
+        .filter(plan => admittedPlanKeys.contains(planKey(plan)))
         .map(sanitizePlanHypothesis)
     val allowedPlanKeys = sanitizedPlans.map(planKey).toSet
-    val allowedPlanIds = sanitizedPlans.map(planIdKey).toSet
+    val allowedPlanIds = sanitizedPlans.filter(_.subplanId.isEmpty).map(planIdKey).toSet
     val allowedPlanNames = sanitizedPlans.map(_.planName.trim.toLowerCase).toSet
     response.copy(
       commentary = clean(response.commentary),
@@ -30,7 +60,8 @@ object UserFacingPayloadSanitizer:
       strategyPack = response.strategyPack.flatMap(pack => sanitizeStrategyPack(pack, allowedPlanNames)),
       signalDigest = response.signalDigest.map(sanitizeSignalDigest),
       moveReviewLedger = response.moveReviewLedger.filter(_ => sanitizedPlans.nonEmpty).map(sanitizeMoveReviewLedger),
-      moveReviewExplanation = response.moveReviewExplanation.map(sanitizeMoveReviewExplanation)
+      moveReviewExplanation = response.moveReviewExplanation.map(sanitizeMoveReviewExplanation),
+      moveReviewPlayerSurface = response.moveReviewPlayerSurface.map(sanitizeMoveReviewPlayerSurface)
     )
 
   def sanitize(response: GameChronicleResponse): GameChronicleResponse =
@@ -62,12 +93,9 @@ object UserFacingPayloadSanitizer:
     )
 
   private def sanitizeMoment(moment: GameChronicleMoment): GameChronicleMoment =
-    val sanitizedPlans =
-      moment.mainStrategicPlans
-        .filter(isProbeBackedPlan)
-        .map(sanitizePlanHypothesis)
+    val sanitizedPlans = List.empty[PlanHypothesis]
     val allowedPlanKeys = sanitizedPlans.map(planKey).toSet
-    val allowedPlanIds = sanitizedPlans.map(planIdKey).toSet
+    val allowedPlanIds = sanitizedPlans.filter(_.subplanId.isEmpty).map(planIdKey).toSet
     val allowedPlanNames = sanitizedPlans.map(_.planName.trim.toLowerCase).toSet
     moment.copy(
       moveClassification = cleanOpt(moment.moveClassification),
@@ -245,6 +273,60 @@ object UserFacingPayloadSanitizer:
       confidence = clean(interpretation.confidence)
     )
 
+  private def sanitizeMoveReviewPlayerSurface(surface: MoveReviewPlayerSurface): MoveReviewPlayerSurface =
+    surface.copy(
+      schema = clean(surface.schema),
+      title = cleanOpt(surface.title),
+      summaryRows = surface.summaryRows.flatMap(sanitizeMoveReviewPlayerSurfaceRow),
+      advancedRows = surface.advancedRows.flatMap(sanitizeMoveReviewPlayerSurfaceRow),
+      decisionComparison = surface.decisionComparison.map(sanitizeMoveReviewPlayerDecisionComparison),
+      probeRows = surface.probeRows.flatMap(sanitizeMoveReviewPlayerSurfaceRow),
+      authorRows = surface.authorRows.flatMap(sanitizeMoveReviewPlayerAuthorRow)
+    )
+
+  private def sanitizeMoveReviewPlayerSurfaceRow(
+      row: MoveReviewPlayerSurfaceRow
+  ): Option[MoveReviewPlayerSurfaceRow] =
+    for
+      label <- cleanOpt(Some(row.label))
+      text <- cleanOpt(Some(row.text))
+    yield row.copy(
+      label = label,
+      text = text,
+      tone = cleanOpt(row.tone),
+      source = None,
+      refSans = cleanList(row.refSans)
+    )
+
+  private def sanitizeMoveReviewPlayerDecisionComparison(
+      comparison: MoveReviewPlayerDecisionComparison
+  ): MoveReviewPlayerDecisionComparison =
+    comparison.copy(
+      kicker = clean(comparison.kicker),
+      gapLabel = cleanOpt(comparison.gapLabel),
+      chosenSan = cleanOpt(comparison.chosenSan),
+      engineSan = cleanOpt(comparison.engineSan),
+      comparedSan = cleanOpt(comparison.comparedSan),
+      deferredSan = None,
+      secondaryText = cleanOpt(comparison.secondaryText)
+    )
+
+  private def sanitizeMoveReviewPlayerAuthorRow(
+      row: MoveReviewPlayerAuthorRow
+  ): Option[MoveReviewPlayerAuthorRow] =
+    for
+      title <- cleanOpt(Some(row.title))
+      status <- cleanOpt(Some(row.status))
+      question <- cleanOpt(Some(row.question))
+    yield row.copy(
+      title = title,
+      status = status,
+      question = question,
+      why = cleanOpt(row.why),
+      meta = Nil,
+      branches = row.branches.flatMap(sanitizeMoveReviewPlayerSurfaceRow)
+    )
+
   private def sanitizeActiveIdeaRef(ref: ActiveStrategicIdeaRef): ActiveStrategicIdeaRef =
     ref.copy(focusSummary = clean(ref.focusSummary))
 
@@ -304,8 +386,16 @@ object UserFacingPayloadSanitizer:
       stageLabel = clean(ref.stageLabel)
     )
 
-  private def isProbeBackedPlan(plan: PlanHypothesis): Boolean =
-    plan.evidenceSources.exists(_.trim.equalsIgnoreCase("probe_backed:validated_support"))
+  private def isTypedProbeBackedPlan(plan: EvaluatedPlan): Boolean =
+    plan.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked &&
+      plan.supportProbeIds.exists(_.trim.nonEmpty)
+
+  private def cachedMoveReviewPlanKeys(response: CommentResponse): Set[String] =
+    if response.moveReviewPlayerSurface.nonEmpty &&
+      response.mainStrategicPlans.nonEmpty &&
+      response.mainStrategicPlans.forall(_.evidenceSources.isEmpty)
+    then response.mainStrategicPlans.map(planKey).toSet
+    else Set.empty
 
   private def sanitizeChronicleThemes(
       themes: List[String],
@@ -346,7 +436,8 @@ object UserFacingPayloadSanitizer:
       allowedPlanKeys: Set[String],
       allowedPlanIds: Set[String]
   ): Boolean =
-    allowedPlanKeys.contains(planKey(planId, subplanId)) || allowedPlanIds.contains(planIdKey(planId))
+    allowedPlanKeys.contains(planKey(planId, subplanId)) ||
+      (subplanId.forall(_.trim.isEmpty) && allowedPlanIds.contains(planIdKey(planId)))
 
   private def sanitizeRuntimeShell(shell: RuntimeShell): RuntimeShell =
     shell.copy(

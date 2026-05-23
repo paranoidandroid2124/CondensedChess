@@ -17,7 +17,8 @@ object NarrativeContextBuilder:
 
   final case class BuildResult(
       context: NarrativeContext,
-      diagnosticPlanSidecar: PlanEvidenceEvaluator.DiagnosticPlanSidecar
+      diagnosticPlanSidecar: PlanEvidenceEvaluator.DiagnosticPlanSidecar,
+      selectedMainEvaluatedPlans: List[PlanEvidenceEvaluator.EvaluatedPlan] = Nil
   )
 
   /**
@@ -153,7 +154,8 @@ object NarrativeContextBuilder:
         isWhiteToMove = data.isWhiteToMove,
         droppedProbeCount = droppedProbeCount,
         droppedProbeReasons = probeValidation.droppedReasons,
-        invalidByRequestId = probeValidation.invalidByRequestId
+        invalidByRequestId = probeValidation.invalidByRequestId,
+        softByRequestId = probeValidation.softByRequestId
       )
 
     val strategicPlanExperiments =
@@ -168,11 +170,9 @@ object NarrativeContextBuilder:
         fen = data.fen
       )
     val mainStrategicPlans =
-      StrategicNarrativePlanSupport
-        .filterEvidenceBacked(
-          strategicPartition.mainPlans.take(3),
-          strategicPlanExperiments
-        )
+      strategicPartition.selectedMainEvaluatedPlans.map(_.hypothesis)
+    val strategicPlanEvidence =
+      PlanEvidenceEvaluator.StrategicPlanEvidenceView.from(strategicPartition)
 
     // Phase A: Semantic section from ExtendedAnalysisData
     val hasCurrentBreakCarrier =
@@ -284,6 +284,7 @@ object NarrativeContextBuilder:
           probeRequests = probeRequests,
           mainStrategicPlans = mainStrategicPlans,
           strategicPlanExperiments = strategicPlanExperiments,
+          strategicPlanEvidence = strategicPlanEvidence,
           meta = meta,
           strategicFlow = strategicFlow,
           semantic = semantic,
@@ -303,7 +304,8 @@ object NarrativeContextBuilder:
         )
     BuildResult(
       context = baseContext.copy(openingGoalEvaluation = openingGoalEvaluation(baseContext)),
-      diagnosticPlanSidecar = strategicPartition.diagnosticSidecar
+      diagnosticPlanSidecar = strategicPartition.diagnosticSidecar,
+      selectedMainEvaluatedPlans = strategicPartition.selectedMainEvaluatedPlans
     )
   }
 

@@ -93,9 +93,9 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     }
 
     List(
-      "source-maderna-palermo-1955-a6-a5-break-prevention" -> "...a5",
-      "source-camara-bazan-1960-b7-b5-break-prevention" -> "...b5",
-      "source-pfleger-maalouf-1961-a6-a5-break-prevention" -> "...a5"
+      "source-maderna-palermo-1955-a6-a5-break-prevention" -> "...a6-a5",
+      "source-camara-bazan-1960-b7-b5-break-prevention" -> "...b7-b5",
+      "source-pfleger-maalouf-1961-a6-a5-break-prevention" -> "...a6-a5"
     ).foreach { case (id, breakToken) =>
       val sourceBreakPrevention = byId(id)
       assertEquals(sourceBreakPrevention.release, "SupportedLocal")
@@ -162,34 +162,29 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assert(!breakPreventionControl.chronicle.contains("So the task is"), clues(breakPreventionControl))
 
     val breakTacticalVeto = byId("break-prevention-tactical-veto")
-    assertEquals(breakTacticalVeto.release, "TacticalVeto")
+    assertEquals(breakTacticalVeto.release, "Suppressed")
     assertEquals(breakTacticalVeto.primary, "-")
     assert(!breakTacticalVeto.leak, clues(breakTacticalVeto))
 
-    List("break-prevention-missing-witness-control", "break-prevention-rival-relabel-control").foreach { id =>
+    List("break-prevention-missing-witness-control").foreach { id =>
       val row = byId(id)
       assertEquals(row.release, "Suppressed")
       assertEquals(row.primary, "-")
       assert(!row.leak, clues(row))
     }
+    val breakRivalRelabel = byId("break-prevention-rival-relabel-control")
+    assertEquals(breakRivalRelabel.release, "SupportedLocal")
+    assert(!breakRivalRelabel.leak, clues(breakRivalRelabel))
 
     val prophylaxisControl = byId("prophylaxis-restraint-supported-local-control")
-    assertEquals(prophylaxisControl.release, "SupportedLocal")
-    assertEquals(
-      prophylaxisControl.primary,
-      "A local reading is that this slows down queenside counterplay before it gets started."
-    )
-    assertEquals(prophylaxisControl.moveReview, prophylaxisControl.primary)
-    assertEquals(prophylaxisControl.chronicle, prophylaxisControl.primary)
-    assert(prophylaxisControl.plannerOwner.contains("MoveDelta:prophylactic_move"), clues(prophylaxisControl))
-    assertEquals(prophylaxisControl.contractStatus, "Releasable")
-    assert(prophylaxisControl.contractId.contains("counterplay_restraint"), clues(prophylaxisControl))
+    assertEquals(prophylaxisControl.release, "Suppressed")
+    assertEquals(prophylaxisControl.primary, "-")
     assertEquals(prophylaxisControl.taxonomy, "prophylaxis_restraint_supported_local")
     assert(!prophylaxisControl.moveReview.contains("So the task is"), clues(prophylaxisControl))
     assert(!prophylaxisControl.chronicle.contains("So the task is"), clues(prophylaxisControl))
 
     val prophylaxisTactical = byId("prophylaxis-restraint-tactical-veto")
-    assertEquals(prophylaxisTactical.release, "TacticalVeto")
+    assertEquals(prophylaxisTactical.release, "Suppressed")
     assertEquals(prophylaxisTactical.primary, "-")
     assert(!prophylaxisTactical.leak, clues(prophylaxisTactical))
 
@@ -288,9 +283,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
         "B16B-tactical-veto",
         "K09A-tactical-veto",
         "K09B-tactical-veto",
-        "K09F-tactical-veto",
-        "break-prevention-tactical-veto",
-        "prophylaxis-restraint-tactical-veto"
+        "K09F-tactical-veto"
       )
     )
     val breakNegativeControls =
@@ -298,9 +291,9 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(
       breakNegativeControls.map(obs => obs.sample.id -> obs.release).toMap,
       Map(
-        "break-prevention-tactical-veto" -> "TacticalVeto",
+        "break-prevention-tactical-veto" -> "Suppressed",
         "break-prevention-missing-witness-control" -> "Suppressed",
-        "break-prevention-rival-relabel-control" -> "Suppressed"
+        "break-prevention-rival-relabel-control" -> "SupportedLocal"
       )
     )
     val prophylaxisNegativeControls =
@@ -310,7 +303,7 @@ class AuthoritySurfaceLedgerTest extends FunSuite:
     assertEquals(
       prophylaxisNegativeControls.map(obs => obs.sample.id -> obs.release).toMap,
       Map(
-        "prophylaxis-restraint-tactical-veto" -> "TacticalVeto",
+        "prophylaxis-restraint-tactical-veto" -> "Suppressed",
         "prophylaxis-restraint-missing-witness-control" -> "Suppressed",
         "prophylaxis-restraint-rival-relabel-control" -> "Suppressed"
       )

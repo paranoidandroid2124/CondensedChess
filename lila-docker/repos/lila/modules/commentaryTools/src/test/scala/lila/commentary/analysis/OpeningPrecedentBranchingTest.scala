@@ -46,6 +46,22 @@ class OpeningPrecedentBranchingTest extends FunSuite:
           themeL1 = "open_file"
         )
       ),
+      strategicPlanEvidence =
+        StrategicPlanEvidenceTestSupport.probeBacked(
+          List(
+            PlanHypothesis(
+              planId = "queenside_pressure",
+              planName = "Queenside Pressure",
+              rank = 1,
+              score = 0.84,
+              preconditions = Nil,
+              executionSteps = Nil,
+              failureModes = Nil,
+              viability = lila.commentary.model.authoring.PlanViability(0.8, "high", "slow"),
+              themeL1 = "open_file"
+            )
+          )
+        ),
       openingEvent = Some(OpeningEvent.BranchPoint(List("Qc2", "b3", "dxc5"), "Main line shifts", Some("lichess.org/game1"))),
       openingData = Some(
         OpeningReference(
@@ -126,6 +142,7 @@ class OpeningPrecedentBranchingTest extends FunSuite:
             themeL1 = "opening_principles"
           )
         ),
+        strategicPlanEvidence = PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty,
         openingEvent = Some(OpeningEvent.BranchPoint(List("g3", "Bg2", "O-O"), "Main line shifts", Some("lichess.org/game3"))),
         openingData = ctx.openingData.map(_.copy(sampleGames =
           List(
@@ -170,6 +187,7 @@ class OpeningPrecedentBranchingTest extends FunSuite:
             themeL1 = "opening_principles"
           )
         ),
+        strategicPlanEvidence = PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty,
         openingEvent = Some(OpeningEvent.Intro("B01", "Scandinavian Defense", "early queen exposure", List("Qxd5", "Nc3", "Qa4"))),
         openingData = ctx.openingData.map(_.copy(sampleGames =
           List(

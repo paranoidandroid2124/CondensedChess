@@ -18,42 +18,26 @@ import {
     type StudyMoveReviewRef,
 } from './moveReview/studyPersistence';
 import { flushMoveReviewStudySyncQueue, rememberMoveReviewStudySync } from './moveReview/studySyncQueue';
-import { buildDecisionComparisonSurface } from './decisionComparison';
-import {
-    buildPlayerFacingSupportOptions,
-    filterPlayerFacingValues,
-    formatDeploymentSummary,
-    formatEvidenceStatus,
-    humanizeToken,
-    rewritePlayerFacingSupportText,
-} from './chesstory/signalFormatting';
 import {
     decodeMoveReviewResponse,
+    moveReviewNeedsRetry,
     type DecodedMoveReviewResponse,
+    type MoveReviewPlayerAuthorRowV1,
+    type MoveReviewPlayerDecisionComparisonV1,
+    type MoveReviewPlayerSurfaceRowV1,
+    type MoveReviewPlayerSurfaceV1,
     type MoveReviewStrategicLedgerV1,
     type MoveReviewRefsV1,
     type MoveReviewExplanationV1,
-    type NarrativeSignalDigest,
     type PolishMetaV1,
-    type StrategyPackV1,
     variationLinesFromResponse,
 } from './moveReview/responsePayload';
-import {
-    moveReviewLedgerRootAttrs,
-    renderMoveReviewLedgerProbeRows,
-} from './moveReview/ledgerSurface';
-import { formatStrategicPlanText, strategicPlanExperimentIndex } from './moveReview/planSupportSurface';
+import { moveReviewLedgerRootAttrs } from './moveReview/ledgerSurface';
 import { escapeHtml, normalizeSanToken, renderInteractiveSanChip } from './moveReview/surfaceShared';
 import { restoreStoredMoveReviewTokens } from './moveReview/stateContinuity';
-import { buildCompactSupportSurface } from './chesstory/compactSupportSurface';
 import type {
-    AuthorEvidenceSummary,
-    AuthorQuestionSummary,
     EndgameStateToken,
-    PlanHypothesis,
     PlanStateToken,
-    ProbeRequest,
-    StrategicPlanExperiment,
 } from './moveReview/types';
 
 export type MoveReviewNarrative = (nodes: Tree.Node[]) => void;
@@ -377,42 +361,36 @@ function renderMoveReviewMoveChip(
 }
 
 function renderDecisionCompareStrip(
-    comparison: NarrativeSignalDigest['decisionComparison'],
+    comparison: MoveReviewPlayerDecisionComparisonV1 | null | undefined,
     refIndex: MoveReviewRefIndex,
 ): string | null {
-    const surface = buildDecisionComparisonSurface(comparison, {
-        includeEngineLine: false,
-        includeEvidence: false,
-    });
-    const chosen = comparison?.chosenMove?.trim() || '';
-    const best = comparison?.engineBestMove?.trim() || '';
-    const compared = comparison?.comparativeConsequence?.trim() ? comparison?.comparedMove?.trim() || '' : '';
-    const deferred = comparison?.comparativeConsequence?.trim() ? '' : comparison?.deferredMove?.trim() || '';
-    const secondary = surface.secondary;
+    if (!comparison) return null;
+    const chosen = comparison.chosenSan?.trim() || '';
+    const best = comparison.engineSan?.trim() || '';
+    const compared = comparison.comparedSan?.trim() || '';
+    const secondary = comparison.secondaryText?.trim() || '';
 
     const moveBits = [
         renderMoveReviewMoveChip('Chosen', chosen, refIndex.firstBySan, 'chosen'),
-        !surface.chosenMatchesBest ? renderMoveReviewMoveChip('Engine', best, refIndex.firstBySan, 'engine') : null,
+        !comparison.chosenMatchesBest ? renderMoveReviewMoveChip('Engine', best, refIndex.firstBySan, 'engine') : null,
         compared ? renderMoveReviewMoveChip('Compared', compared, refIndex.firstBySan, 'deferred') : null,
-        deferred ? renderMoveReviewMoveChip(comparison?.practicalAlternative ? 'Practical' : 'Deferred', deferred, refIndex.firstBySan, 'deferred') : null,
     ].filter(Boolean);
 
     if (!moveBits.length && !secondary) return null;
 
     const classes = [
         'move-review-decision-compare',
-        surface.chosenMatchesBest ? 'move-review-decision-compare--match' : '',
-        !surface.headline ? 'move-review-decision-compare--fallback' : '',
+        comparison.chosenMatchesBest ? 'move-review-decision-compare--match' : '',
+        !chosen && !best ? 'move-review-decision-compare--fallback' : '',
     ]
         .filter(Boolean)
         .join(' ');
-    const kicker = !surface.headline ? 'Alternative context' : 'Decision compare';
 
     return `
       <div class="${classes}">
         <div class="move-review-decision-compare__topline">
-          <span class="move-review-decision-compare__kicker">${escapeHtml(kicker)}</span>
-          ${surface.gap ? `<span class="move-review-decision-compare__gap">${escapeHtml(surface.gap)}</span>` : ''}
+          <span class="move-review-decision-compare__kicker">${escapeHtml(comparison.kicker)}</span>
+          ${comparison.gapLabel ? `<span class="move-review-decision-compare__gap">${escapeHtml(comparison.gapLabel)}</span>` : ''}
         </div>
         ${moveBits.length ? `<div class="move-review-decision-compare__moves">${moveBits.join('')}</div>` : ''}
         ${secondary ? `<div class="move-review-decision-compare__secondary">${escapeHtml(secondary)}</div>` : ''}
@@ -420,254 +398,92 @@ function renderDecisionCompareStrip(
     `;
 }
 
-type MoveReviewStrategySurface = {
-    idea: string | null;
-    campaign: string | null;
-    execution: string | null;
-    objective: string | null;
-};
-
-function moveReviewIdeaText(kind: string | null | undefined, focus: string | null | undefined): string | null {
-    const base = typeof kind === 'string' && kind.trim() ? humanizeToken(kind.replace(/_/g, ' ')) : '';
-    const suffix = typeof focus === 'string' && focus.trim() ? focus.trim() : '';
-    const text = [base, suffix].filter(Boolean).join(' · ').trim();
-    return text || null;
+function renderSurfaceRow(row: MoveReviewPlayerSurfaceRowV1, refIndex: MoveReviewRefIndex): string {
+    const chips = (row.refSans || [])
+        .map(san => {
+            const normalized = normalizeSanToken(san);
+            if (!normalized) return '';
+            const ref = refIndex.anyBySan.get(normalized) || null;
+            return renderInteractiveSanChip(san, ref, {
+                interactiveClasses: 'move-review-strategic-summary__move-chip move-chip move-chip--interactive',
+                fallbackTag: 'code',
+                fallbackClasses: 'move-review-strategic-summary__move-chip',
+            });
+        })
+        .filter(Boolean)
+        .join(' ');
+    return `
+      <div class="move-review-strategic-summary__row">
+        <strong>${escapeHtml(row.label)}:</strong> ${escapeHtml(row.text)}
+        ${chips ? `<span class="move-review-strategic-summary__refs">${chips}</span>` : ''}
+      </div>
+    `;
 }
 
-function moveReviewRouteText(strategyPack: StrategyPackV1 | null, owner: string | null): string | null {
-    const route =
-        strategyPack?.pieceRoutes?.find(r => r.surfaceMode !== 'hidden' && (!owner || r.ownerSide === owner)) ||
-        strategyPack?.pieceRoutes?.find(r => r.surfaceMode !== 'hidden');
-    if (!route) return null;
-    const destination = Array.isArray(route.route) && route.route.length ? route.route[route.route.length - 1] : '';
-    const piece = humanizeToken(route.piece);
-    if (route.surfaceMode === 'exact' && route.route.length >= 2) {
-        return [(`${piece} via ${route.route.join('-')}`).trim(), route.purpose || ''].filter(Boolean).join(' · ');
-    }
-    return [(`${piece} toward ${destination}`).trim(), route.purpose || ''].filter(Boolean).join(' · ');
+function surfaceStatusLabel(status: string): string {
+    return status
+        .replace(/[_-]+/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(part => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
+        .join(' ');
 }
 
-function moveReviewMoveRefText(strategyPack: StrategyPackV1 | null, owner: string | null): string | null {
-    const moveRef =
-        strategyPack?.pieceMoveRefs?.find(ref => !owner || ref.ownerSide === owner) ||
-        strategyPack?.pieceMoveRefs?.[0];
-    if (!moveRef) return null;
-    return [humanizeToken(moveRef.piece), `toward ${moveRef.target}`, moveRef.idea || ''].filter(Boolean).join(' · ');
-}
-
-function moveReviewObjectiveText(strategyPack: StrategyPackV1 | null, owner: string | null): string | null {
-    const target =
-        strategyPack?.directionalTargets?.find(value => !owner || value.ownerSide === owner) ||
-        strategyPack?.directionalTargets?.[0];
-    if (target) return `make ${target.targetSquare} available for the ${humanizeToken(target.piece)}`;
-    const focus = strategyPack?.longTermFocus?.find(Boolean)?.trim();
-    return focus || null;
-}
-
-function buildMoveReviewStrategySurface(
-    strategyPack: StrategyPackV1 | null,
-    signalDigest: NarrativeSignalDigest | null,
-): MoveReviewStrategySurface {
-    const dominantIdea = strategyPack?.strategicIdeas?.[0] || null;
-    const secondaryIdea = strategyPack?.strategicIdeas?.[1] || null;
-    const owner = dominantIdea?.ownerSide || strategyPack?.sideToMove || null;
-    const sideToMove = strategyPack?.sideToMove || null;
-    const dominantText =
-        moveReviewIdeaText(signalDigest?.dominantIdeaKind, signalDigest?.dominantIdeaFocus) ||
-        moveReviewIdeaText(dominantIdea?.kind || null, [
-            ...(dominantIdea?.focusSquares || []),
-            ...(dominantIdea?.focusFiles || []),
-            ...(dominantIdea?.focusDiagonals || []),
-            dominantIdea?.focusZone || '',
-        ].filter(Boolean).join(', '));
-    const secondaryText =
-        moveReviewIdeaText(signalDigest?.secondaryIdeaKind, signalDigest?.secondaryIdeaFocus) ||
-        moveReviewIdeaText(secondaryIdea?.kind || null, [
-            ...(secondaryIdea?.focusSquares || []),
-            ...(secondaryIdea?.focusFiles || []),
-            ...(secondaryIdea?.focusDiagonals || []),
-            secondaryIdea?.focusZone || '',
-        ].filter(Boolean).join(', '));
-
-    return {
-        idea: [dominantText ? `Dominant ${dominantText}` : '', secondaryText ? `Secondary ${secondaryText}` : '']
-            .filter(Boolean)
-            .join(' · ') || null,
-        campaign: owner && sideToMove && owner !== sideToMove ? `${humanizeToken(owner)} campaign` : null,
-        execution: moveReviewRouteText(strategyPack, owner) || moveReviewMoveRefText(strategyPack, owner),
-        objective: moveReviewObjectiveText(strategyPack, owner),
-    };
+function renderAuthorRow(row: MoveReviewPlayerAuthorRowV1, refIndex: MoveReviewRefIndex): string {
+    const statusKey = (row.status || 'question_only').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_');
+    const branchMarkup = (row.branches || [])
+        .map(branch => {
+            const san = (branch.refSans && branch.refSans[0]) || branch.label;
+            const normalized = normalizeSanToken(san);
+            const moveRef = normalized ? refIndex.anyBySan.get(normalized) : null;
+            const branchMove = moveRef
+                ? `<span class="move-review-authoring-summary__branch-move move-chip move-chip--interactive" data-ref-id="${escapeHtml(moveRef.refId)}" data-uci="${escapeHtml(moveRef.uci)}" data-san="${escapeHtml(moveRef.san)}" tabindex="0">${escapeHtml(branch.label)}</span>`
+                : `<code>${escapeHtml(branch.label)}</code>`;
+            return `
+              <div class="move-review-authoring-summary__branch">
+                ${branchMove}
+                <span>${escapeHtml(branch.text)}</span>
+              </div>
+            `;
+        })
+        .join('');
+    return `
+      <div class="move-review-authoring-summary__card">
+        <div class="move-review-authoring-summary__head">
+          <strong>${escapeHtml(row.title)}</strong>
+          <span class="move-review-authoring-summary__status move-review-authoring-summary__status--${escapeHtml(statusKey)}">${escapeHtml(surfaceStatusLabel(row.status))}</span>
+        </div>
+        <div class="move-review-authoring-summary__question">${escapeHtml(row.question)}</div>
+        ${row.why ? `<div class="move-review-authoring-summary__why">${escapeHtml(row.why)}</div>` : ''}
+        ${branchMarkup ? `<div class="move-review-authoring-summary__branches">${branchMarkup}</div>` : ''}
+      </div>
+    `;
 }
 
 function decorateMoveReviewHtml(
     html: string,
     moveReviewExplanation: MoveReviewExplanationV1 | null,
     refs: MoveReviewRefsV1 | null,
-    ledger: MoveReviewStrategicLedgerV1 | null,
-    strategyPack: StrategyPackV1 | null,
-    signalDigest: NarrativeSignalDigest | null,
-    mainPlans: PlanHypothesis[],
-    strategicPlanExperiments: StrategicPlanExperiment[],
-    probeRequests: ProbeRequest[],
-    authorQuestions: AuthorQuestionSummary[],
-    authorEvidence: AuthorEvidenceSummary[],
+    playerSurface: MoveReviewPlayerSurfaceV1 | null,
 ): string {
     const rows: string[] = [];
     const advancedRows: string[] = [];
     const probeRows: string[] = [];
     const authorRows: string[] = [];
-    const decisionComparison = signalDigest?.decisionComparison;
-    const strategySurface = buildMoveReviewStrategySurface(strategyPack, signalDigest);
     const refIndex = buildMoveReviewRefIndex(refs);
-    const resolveLedgerRef = (san: string) => refIndex.anyBySan.get(normalizeSanToken(san)) || null;
-    const authorQuestionById = new Map(authorQuestions.map(question => [question.id, question]));
-    const experimentIndex = strategicPlanExperimentIndex(strategicPlanExperiments);
-    const supportOpts = buildPlayerFacingSupportOptions(signalDigest);
-    const moveReviewTitle = moveReviewExplanation?.title?.trim()
-        ? `<div class="move-review-move-review__title">${escapeHtml(moveReviewExplanation.title.trim())}</div>`
+    const titleText = playerSurface?.title?.trim() || moveReviewExplanation?.title?.trim() || '';
+    const moveReviewTitle = titleText
+        ? `<div class="move-review-move-review__title">${escapeHtml(titleText)}</div>`
         : '';
-    const mainPlanTexts = mainPlans
-        .slice(0, 2)
-        .map(plan => formatStrategicPlanText(plan, experimentIndex))
-        .filter(Boolean);
-    const deploymentSummary = signalDigest ? formatDeploymentSummary(signalDigest) : null;
-    const compactSurface = buildCompactSupportSurface({
-        signalDigest,
-        mainPlanTexts,
-        deploymentSummary,
-    });
-    const compactPlanText = compactSurface.mainPlanTexts.map(escapeHtml).join(' · ');
-    const pushAdvancedRow = (label: string, value: string | null | undefined) => {
-        const cleaned = rewritePlayerFacingSupportText(value, supportOpts);
-        if (!cleaned) return;
-        advancedRows.push(`<div class="move-review-strategic-summary__row"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(cleaned)}</div>`);
-    };
 
-    if (compactPlanText)
-        rows.push(`<div class="move-review-strategic-summary__row"><strong>Main plans:</strong> ${compactPlanText}</div>`);
-    const decisionStrip = renderDecisionCompareStrip(decisionComparison, refIndex);
+    if (!playerSurface) return moveReviewTitle ? `${moveReviewTitle}${html}` : html;
+
+    playerSurface.summaryRows.forEach(row => rows.push(renderSurfaceRow(row, refIndex)));
+    const decisionStrip = renderDecisionCompareStrip(playerSurface.decisionComparison, refIndex);
     if (decisionStrip) rows.push(decisionStrip);
-    compactSurface.rows.forEach(([label, value]) => {
-        rows.push(`<div class="move-review-strategic-summary__row"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</div>`);
-    });
-
-    const structureBits = filterPlayerFacingValues([
-        signalDigest?.structureProfile || '',
-        signalDigest?.centerState ? `${signalDigest.centerState.toLowerCase()} center` : '',
-    ], supportOpts);
-    pushAdvancedRow('Idea', strategySurface.idea);
-    pushAdvancedRow('Execution', strategySurface.execution);
-    pushAdvancedRow('Objective', strategySurface.objective);
-    if (structureBits.length)
-        advancedRows.push(`<div class="move-review-strategic-summary__row"><strong>Structure:</strong> ${escapeHtml(structureBits.join(' · '))}</div>`);
-    if (signalDigest?.prophylaxisPlan || signalDigest?.prophylaxisThreat || typeof signalDigest?.counterplayScoreDrop === 'number') {
-        const prophylaxisDetails = filterPlayerFacingValues([
-            signalDigest?.prophylaxisThreat ? `stops ${signalDigest.prophylaxisThreat}` : '',
-            signalDigest?.prophylaxisPlan ? `slows down ${signalDigest.prophylaxisPlan}` : '',
-        ], supportOpts);
-        if (prophylaxisDetails.length)
-            advancedRows.push(`<div class="move-review-strategic-summary__row"><strong>Prophylaxis:</strong> ${escapeHtml(prophylaxisDetails.join(' · '))}</div>`);
-    }
-    const compensationDetails = filterPlayerFacingValues([signalDigest?.compensation || ''], supportOpts);
-    if (compensationDetails.length)
-        advancedRows.push(`<div class="move-review-strategic-summary__row"><strong>Compensation:</strong> ${escapeHtml(compensationDetails.join(' · '))}</div>`);
-    probeRows.push(...renderMoveReviewLedgerProbeRows(ledger, resolveLedgerRef));
-    probeRequests
-        .slice(0, 2)
-        .forEach((probe, idx) => {
-            const planName = typeof probe.planName === 'string' ? probe.planName.trim() : '';
-            const questionKind = typeof probe.questionKind === 'string' ? probe.questionKind.trim() : '';
-            const purpose = typeof probe.purpose === 'string' ? probe.purpose.trim() : '';
-            const objective = typeof probe.objective === 'string' ? probe.objective.trim() : '';
-            const primary =
-                planName ||
-                questionKind ||
-                objective ||
-                purpose ||
-                `probe ${idx + 1}`;
-            const details = [
-                purpose && purpose !== primary ? purpose : '',
-                objective && objective !== primary ? objective : '',
-            ];
-            const movePreview =
-                Array.isArray(probe.moves) && probe.moves.length
-                    ? probe.moves.slice(0, 2).map((move: string) => escapeHtml(move)).join(' / ')
-                    : '';
-            const detailText = filterPlayerFacingValues(details, supportOpts).join(' | ');
-            probeRows.push(`
-              <div class="move-review-probe-summary__row">
-                <strong>${escapeHtml(primary)}:</strong>
-                <span>${escapeHtml(detailText)}</span>
-                ${movePreview ? `<code>${movePreview}</code>` : ''}
-              </div>
-            `);
-        });
-
-    authorEvidence.slice(0, 2).forEach(summary => {
-        const question = authorQuestionById.get(summary.questionId);
-        const statusKey = (summary.status || 'question_only').trim().toLowerCase();
-        const why = (summary.why || question?.why || '').trim();
-        const anchors = (question?.anchors || []).filter(Boolean).slice(0, 2);
-        const purposes = (summary.purposes || []).filter(Boolean).slice(0, 2);
-        const objectives = (summary.probeObjectives || []).filter(Boolean).slice(0, 2);
-        const linkedPlans = (summary.linkedPlans || []).filter(Boolean).slice(0, 2);
-        const branches = (summary.branches || []).slice(0, 2);
-        const meta = filterPlayerFacingValues([
-            linkedPlans.length ? `plans ${linkedPlans.join(', ')}` : '',
-            purposes.length ? `focus ${purposes.join('; ')}` : '',
-            objectives.length ? `objective ${objectives.join('; ')}` : '',
-            anchors.length ? `anchors ${anchors.join(', ')}` : '',
-        ], supportOpts);
-        const branchMarkup = branches
-            .map(branch => {
-                const details = filterPlayerFacingValues([branch.line], supportOpts);
-                const normalizedKeyMove = normalizeSanToken(branch.keyMove);
-                const moveRef = refIndex.anyBySan.get(normalizedKeyMove);
-                const branchMove = moveRef
-                    ? `<span class="move-review-authoring-summary__branch-move move-chip move-chip--interactive" data-ref-id="${escapeHtml(moveRef.refId)}" data-uci="${escapeHtml(moveRef.uci)}" data-san="${escapeHtml(moveRef.san)}" tabindex="0">${escapeHtml(branch.keyMove)}</span>`
-                    : `<code>${escapeHtml(branch.keyMove)}</code>`;
-                return `
-                  <div class="move-review-authoring-summary__branch">
-                    ${branchMove}
-                    <span>${escapeHtml(details.join(' · '))}</span>
-                  </div>
-                `;
-            })
-            .join('');
-        authorRows.push(`
-          <div class="move-review-authoring-summary__card">
-            <div class="move-review-authoring-summary__head">
-              <strong>${escapeHtml(humanizeToken(summary.questionKind || question?.kind || 'Authoring'))}</strong>
-              <span class="move-review-authoring-summary__status move-review-authoring-summary__status--${escapeHtml(statusKey)}">${escapeHtml(formatEvidenceStatus(statusKey))}</span>
-            </div>
-            <div class="move-review-authoring-summary__question">${escapeHtml(summary.question)}</div>
-            ${why ? `<div class="move-review-authoring-summary__why">${escapeHtml(why)}</div>` : ''}
-            ${meta.length ? `<div class="move-review-authoring-summary__meta">${escapeHtml(meta.join(' · '))}</div>` : ''}
-            ${branchMarkup ? `<div class="move-review-authoring-summary__branches">${branchMarkup}</div>` : ''}
-          </div>
-        `);
-    });
-
-    if (!authorRows.length) {
-        authorQuestions.slice(0, 2).forEach(question => {
-        const why = (question.why || '').trim();
-        const anchors = (question.anchors || []).filter(Boolean).slice(0, 2);
-        const meta = filterPlayerFacingValues([
-            anchors.length ? `anchors ${anchors.join(', ')}` : '',
-        ], supportOpts);
-            authorRows.push(`
-              <div class="move-review-authoring-summary__card">
-                <div class="move-review-authoring-summary__head">
-                  <strong>${escapeHtml(humanizeToken(question.kind || 'Authoring'))}</strong>
-                  <span class="move-review-authoring-summary__status move-review-authoring-summary__status--question_only">Heuristic</span>
-                </div>
-                <div class="move-review-authoring-summary__question">${escapeHtml(question.question)}</div>
-                ${why ? `<div class="move-review-authoring-summary__why">${escapeHtml(why)}</div>` : ''}
-                ${meta.length ? `<div class="move-review-authoring-summary__meta">${escapeHtml(meta.join(' · '))}</div>` : ''}
-              </div>
-            `);
-        });
-    }
+    playerSurface.advancedRows.forEach(row => advancedRows.push(renderSurfaceRow(row, refIndex)));
+    playerSurface.probeRows.forEach(row => probeRows.push(renderSurfaceRow(row, refIndex)));
+    playerSurface.authorRows.forEach(row => authorRows.push(renderAuthorRow(row, refIndex)));
 
     if (!rows.length && !advancedRows.length && !probeRows.length && !authorRows.length)
         return moveReviewTitle ? `${moveReviewTitle}${html}` : html;
@@ -717,14 +533,7 @@ function decorateDecodedMoveReviewHtml(decoded: DecodedMoveReviewResponse): stri
         decoded.html,
         decoded.moveReviewExplanation,
         decoded.refs,
-        decoded.moveReviewLedger,
-        decoded.strategyPack,
-        decoded.signalDigest,
-        decoded.mainStrategicPlans,
-        decoded.strategicPlanExperiments,
-        decoded.probeRequests,
-        decoded.authorQuestions,
-        decoded.authorEvidence,
+        decoded.moveReviewPlayerSurface,
     );
 }
 
@@ -865,29 +674,15 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
             else root.removeAttribute('data-commentary-polish-model');
             root.setAttribute('data-commentary-polish-source', polishMeta.sourceMode);
             root.setAttribute('data-commentary-polish-cache-hit', String(polishMeta.cacheHit));
-            if (polishMeta.validationReasons.length)
-                root.setAttribute('data-commentary-polish-reasons', polishMeta.validationReasons.join(','));
-            else root.removeAttribute('data-commentary-polish-reasons');
-            if (polishMeta.strategyCoverage) {
-                const s = polishMeta.strategyCoverage;
-                root.setAttribute('data-commentary-strategy-mode', s.mode);
-                root.setAttribute('data-commentary-strategy-score', s.coverageScore.toFixed(2));
-                root.setAttribute('data-commentary-strategy-covered', String(s.coveredCategories));
-                root.setAttribute('data-commentary-strategy-required', String(s.requiredCategories));
-                root.setAttribute('data-commentary-strategy-pass', String(s.passesThreshold));
-                root.setAttribute('data-commentary-strategy-plan', `${s.planHits}/${s.planSignals}`);
-                root.setAttribute('data-commentary-strategy-route', `${s.routeHits}/${s.routeSignals}`);
-                root.setAttribute('data-commentary-strategy-focus', `${s.focusHits}/${s.focusSignals}`);
-            } else {
-                root.removeAttribute('data-commentary-strategy-mode');
-                root.removeAttribute('data-commentary-strategy-score');
-                root.removeAttribute('data-commentary-strategy-covered');
-                root.removeAttribute('data-commentary-strategy-required');
-                root.removeAttribute('data-commentary-strategy-pass');
-                root.removeAttribute('data-commentary-strategy-plan');
-                root.removeAttribute('data-commentary-strategy-route');
-                root.removeAttribute('data-commentary-strategy-focus');
-            }
+            root.removeAttribute('data-commentary-polish-reasons');
+            root.removeAttribute('data-commentary-strategy-mode');
+            root.removeAttribute('data-commentary-strategy-score');
+            root.removeAttribute('data-commentary-strategy-covered');
+            root.removeAttribute('data-commentary-strategy-required');
+            root.removeAttribute('data-commentary-strategy-pass');
+            root.removeAttribute('data-commentary-strategy-plan');
+            root.removeAttribute('data-commentary-strategy-route');
+            root.removeAttribute('data-commentary-strategy-focus');
         } else {
             root.removeAttribute('data-commentary-polish-provider');
             root.removeAttribute('data-commentary-polish-phase');
@@ -1076,11 +871,6 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
 
     const loginHref = () =>
         `/auth/magic-link?referrer=${encodeURIComponent(location.pathname + location.search)}`;
-
-    const suspiciousFallback = (text: string): boolean =>
-        /under strict evidence mode|probe evidence pending|engine-coupled continuation|theme:|subplan:|\{seed\}|PlayableByPV|PlayedPV|return vector|cash out/i.test(
-            text,
-        );
 
     const showIdle = () => {
         setMoveReviewRefs(null);
@@ -1271,10 +1061,7 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
             else endgameStateByPath.delete(context.stateKey);
             const html = decoded.html;
             const commentary = decoded.commentary;
-            if (
-                (decoded.sourceMode?.startsWith('fallback_rule') || decoded.sourceMode === 'rule_circuit_open') &&
-                suspiciousFallback(commentary)
-            ) {
+            if (moveReviewNeedsRetry(decoded)) {
                 activeRequestKey = null;
                 return showRetry('Commentary timed out before polish completed. Retry for a clean explanation.');
             }
@@ -1353,11 +1140,7 @@ export default function moveReviewNarrative(ctrl?: AnalyseCtrl): MoveReviewNarra
                         if (emittedRefinedEndgameToken) endgameStateByPath.set(context.stateKey, emittedRefinedEndgameToken);
                         else endgameStateByPath.delete(context.stateKey);
                         const refinedCommentary = decodedRefined.commentary;
-                        if (
-                            (decodedRefined.sourceMode?.startsWith('fallback_rule') ||
-                                decodedRefined.sourceMode === 'rule_circuit_open') &&
-                            suspiciousFallback(refinedCommentary)
-                        ) {
+                        if (moveReviewNeedsRetry(decodedRefined)) {
                             activeRequestKey = null;
                             return;
                         }

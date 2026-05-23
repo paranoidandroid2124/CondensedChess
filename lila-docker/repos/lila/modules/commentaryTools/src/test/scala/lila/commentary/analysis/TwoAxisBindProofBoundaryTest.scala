@@ -818,6 +818,26 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
             experimentConfidence = if evidenceTier == "evidence_backed" then 0.90 else 0.30
           )
         ),
+      strategicPlanEvidence =
+        if evidenceTier == "evidence_backed" then
+          StrategicPlanEvidenceTestSupport.probeBacked(
+            List(
+              PlanHypothesis(
+                planId = "dual_axis_bind",
+                planName = planName,
+                rank = 1,
+                score = 0.84,
+                preconditions = Nil,
+                executionSteps = List("Stop the ...c5 break and keep b4 unavailable."),
+                failureModes = List("If either route reopens, the bind disappears."),
+                viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
+                evidenceSources = List("theme:restriction_prophylaxis"),
+                themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+                subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
+              )
+            )
+          )
+        else PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty,
       semantic =
         Some(
           SemanticSection(
@@ -960,7 +980,7 @@ class TwoAxisBindProofBoundaryTest extends FunSuite:
       )
       assertEquals(
         StrategicNarrativePlanSupport
-          .filterEvidenceBacked(List(plan.hypothesis), experiments)
+          .legacyFilterEvidenceBacked(List(plan.hypothesis), experiments)
           .nonEmpty,
         scenario.expectedCertified,
         clues(scenario.id, certification, experiments)

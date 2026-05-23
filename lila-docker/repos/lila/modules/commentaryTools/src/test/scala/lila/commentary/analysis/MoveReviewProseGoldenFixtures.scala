@@ -31,7 +31,8 @@ object MoveReviewProseGoldenFixtures:
       truthContract: Option[DecisiveTruthContract] = None,
       expectedPrimaryKind: Option[AuthorQuestionKind] = None,
       expectedClaimFragment: Option[String] = None,
-      expectedFallbackClaim: Option[String] = None
+      expectedFallbackClaim: Option[String] = None,
+      expectExpandedProse: Boolean = true
   )
 
   private def baseContext(
@@ -278,6 +279,18 @@ object MoveReviewProseGoldenFixtures:
             counterBreakNeutralized = true,
             moveOrderSensitive = false,
             experimentConfidence = 0.86
+          )
+        ),
+      strategicPlanEvidence =
+        StrategicPlanEvidenceTestSupport.probeBacked(
+          List(
+            plan(
+              id = planId,
+              name = "Clamp the ...c5 break",
+              theme = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+              evidence = List(s"theme:${PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id}"),
+              subplan = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
+            ).copy(executionSteps = List("Keep the opponent's main counterplay route closed first."))
           )
         ),
       semantic =
@@ -854,6 +867,17 @@ object MoveReviewProseGoldenFixtures:
             bestReplyStable = true,
             futureSnapshotAligned = true
           )
+        ),
+      strategicPlanEvidence =
+        StrategicPlanEvidenceTestSupport.probeBacked(
+          List(
+            plan(
+              id = "kingside_pressure",
+              name = "Kingside Pressure",
+              theme = "kingside_attack",
+              evidence = List("probe-backed")
+            ).copy(executionSteps = List("Keep the pressure on g7."))
+          )
         )
     )
 
@@ -1025,7 +1049,9 @@ object MoveReviewProseGoldenFixtures:
                   counterBreakNeutralized = true,
                   experimentConfidence = 0.9
                 )
-              )
+              ),
+            strategicPlanEvidence =
+              StrategicPlanEvidenceTestSupport.probeBacked(oppositeBishopsConversion.ctx.mainStrategicPlans)
           ),
         strategyPack =
           Some(
@@ -1150,7 +1176,8 @@ object MoveReviewProseGoldenFixtures:
             ),
           strategyPack = Some(neutralizeKeyBreakPack),
           expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
-          expectedClaimFragment = Some("stop")
+          expectedClaimFragment = Some("stop"),
+          expectExpandedProse = false
         ),
       PlannerRuntimeFixture(
         id = "what_must_be_stopped_negative",
@@ -1208,7 +1235,8 @@ object MoveReviewProseGoldenFixtures:
             ),
           strategyPack = Some(neutralizeKeyBreakPack),
           expectedPrimaryKind = Some(AuthorQuestionKind.WhatMustBeStopped),
-          expectedClaimFragment = Some("stop")
+          expectedClaimFragment = Some("stop"),
+          expectExpandedProse = false
         ),
       PlannerRuntimeFixture(
         id = "whose_plan_is_faster_fallback",

@@ -3,7 +3,8 @@ package lila.commentary
 import scala.concurrent.Future
 import java.util.concurrent.atomic.AtomicLong
 import java.time.Instant
-import lila.commentary.analysis.{ AuthoringEvidenceSummaryBuilder, MoveReviewPolishSlots, MoveReviewPolishSlotsBuilder, MoveReviewProseContract, MoveReviewPvLine, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, BookStyleRenderer, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary }
+import lila.commentary.analysis.{ AuthoringEvidenceSummaryBuilder, MoveReviewCompressionPolicy, MoveReviewPlayerPayloadBuilder, MoveReviewPolishSlots, MoveReviewProseContract, MoveReviewPvLine, MoveReviewSoftRepair, MoveReviewStrategicLedgerBuilder, MoveReviewSupportedLocalSurfaceRows, BookStyleRenderer, CertifiedDecisionFrameBuilder, CommentaryEngine, CommentaryOpsBoard, CommentaryOpsSignals, CommentaryPayloadNormalizer, DecisiveTruth, DecisiveTruthContract, EarlyOpeningNarrationPolicy, FullGameDraftNormalizer, LineScopedCitation, LiveNarrativeCompressionCore, NarrativeContextBuilder, NarrativeDedupCore, NarrativeUtils, OpeningExplorerClient, PlanEvidenceEvaluator, PlayerFacingMoveDeltaBuilder, PlayerFacingTruthModePolicy, ProbePurposeClassifier, QuestionPlan, StrategicSignalMatcher, StrategyPackBuilder, StrategyPackSurface, PlayerProseBoundary }
+import lila.commentary.analysis.claim.OpeningFamilyClaimResolver
 import lila.commentary.model.OpeningReference
 import lila.commentary.model.structure.StructureId
 import lila.commentary.model.strategic.{ VariationLine, TheoreticalOutcomeHint }
@@ -2303,36 +2304,50 @@ final class CommentaryApi(
       )
     moveReviewRequests.incrementAndGet()
     if prevStateToken.isDefined || prevEndgameStateToken.isDefined then tokenPresentCount.incrementAndGet()
-    commentaryCache.get(fen, lastMove, incomingProbes, prevStateToken, prevEndgameStateToken, cacheCtx) match
-      case Some(cached) =>
-        val sanitizedCached =
-          dedupeMoveReviewResponse(
-            UserFacingPayloadSanitizer.sanitize(cached)
+    val shouldFetchMasters =
+      phase.trim.equalsIgnoreCase("opening") &&
+        resolvedPly >= OpeningRefMinPly &&
+        resolvedPly <= OpeningRefMaxPly
+    val openingRefFuture =
+      if openingData.isDefined then Future.successful(Some(openingExplorer.enrichWithLocalPgn(fen, openingData.get)))
+      else if shouldFetchMasters then openingExplorer.fetchMasters(fen)
+      else Future.successful(None)
+
+    openingRefFuture.flatMap { openingRef =>
+      val openingCacheFingerprint = CommentaryCache.openingFingerprint(openingRef)
+      val moveReviewCacheKey =
+        commentaryCache.key(fen, lastMove, incomingProbes, prevStateToken, prevEndgameStateToken, cacheCtx, openingCacheFingerprint)
+      commentaryCache.get(moveReviewCacheKey) match
+        case Some(cached) =>
+          val sanitizedCached =
+            dedupeMoveReviewResponse(
+              UserFacingPayloadSanitizer.sanitizeCachedMoveReview(cached)
+            )
+          stateAwareCacheHitCount.incrementAndGet()
+          logger.debug(s"Cache hit: ${fen.take(20)}...")
+          traceMoveReviewFallbackResponse(
+            response = sanitizedCached,
+            phase = phase,
+            ply = resolvedPly,
+            lastMove = lastMove,
+            cacheHit = true,
+            openingRefPresent = openingRef.isDefined,
+            incomingProbeCount = incomingProbes.size
           )
-        stateAwareCacheHitCount.incrementAndGet()
-        logger.debug(s"Cache hit: ${fen.take(20)}...")
-        traceMoveReviewFallbackResponse(
-          response = sanitizedCached,
-          phase = phase,
-          ply = resolvedPly,
-          lastMove = lastMove,
-          cacheHit = true,
-          openingRefPresent = openingData.isDefined,
-          incomingProbeCount = incomingProbes.size
-        )
-        recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = None)
-        maybeLogMoveReviewMetrics()
-        Future.successful(Some(MoveReviewResult(response = sanitizedCached, cacheHit = true)))
-      case None =>
-        stateAwareCacheMissCount.incrementAndGet()
-        computeMoveReviewResponse(
-          fen, lastMove, eval, variations, probeResults, openingData,
-          afterFen, afterEval, afterVariations, opening, phase, ply, variant, prevStateToken, prevEndgameStateToken, allowAiPolish, lang, cacheCtx, normalizedPlanTier, effectiveLevel
-        ).map:
-          case (responseOpt, structEvalMsOpt) =>
-          recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = structEvalMsOpt)
+          recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = None)
           maybeLogMoveReviewMetrics()
-          responseOpt
+          Future.successful(Some(MoveReviewResult(response = sanitizedCached, cacheHit = true)))
+        case None =>
+          stateAwareCacheMissCount.incrementAndGet()
+          computeMoveReviewResponse(
+            fen, lastMove, eval, variations, probeResults, openingRef,
+            afterFen, afterEval, afterVariations, opening, phase, ply, variant, prevStateToken, prevEndgameStateToken, allowAiPolish, lang, moveReviewCacheKey, normalizedPlanTier, effectiveLevel
+          ).map:
+            case (responseOpt, structEvalMsOpt) =>
+            recordLatencyMetrics(totalLatencyMs = elapsedMs(requestStartNs), structureEvalLatencyMs = structEvalMsOpt)
+            maybeLogMoveReviewMetrics()
+            responseOpt
+    }
         
 
 
@@ -2342,7 +2357,7 @@ final class CommentaryApi(
       eval: Option[EvalData],
       variations: Option[List[VariationLine]],
       probeResults: Option[List[lila.commentary.model.ProbeResult]],
-      openingData: Option[OpeningReference],
+      openingRef: Option[OpeningReference],
       afterFen: Option[String],
       afterEval: Option[EvalData],
       afterVariations: Option[List[VariationLine]],
@@ -2354,7 +2369,7 @@ final class CommentaryApi(
       prevEndgameStateToken: Option[lila.commentary.model.strategic.EndgamePatternState],
       allowAiPolish: Boolean,
       lang: String,
-      cacheCtx: Option[CommentaryCacheContext],
+      cacheKey: CommentaryCache.Key,
       planTier: String,
       commentaryMode: String
   ): Future[(Option[MoveReviewResult], Option[Long])] =
@@ -2390,17 +2405,6 @@ final class CommentaryApi(
     val afterVars = afterVariations.filter(_.nonEmpty).orElse(afterVarsFromEval).getOrElse(Nil)
     if vars.isEmpty then Future.successful(None -> None)
     else
-      val shouldFetchMasters =
-        phase.trim.equalsIgnoreCase("opening") &&
-          effectivePly >= OpeningRefMinPly &&
-          effectivePly <= OpeningRefMaxPly
-
-      val mastersFut =
-        if openingData.isDefined then Future.successful(Some(openingExplorer.enrichWithLocalPgn(fen, openingData.get)))
-        else if shouldFetchMasters then openingExplorer.fetchMasters(fen)
-        else Future.successful(None)
-
-      mastersFut.flatMap { openingRef =>
         val isWhiteTurn = fen.contains(" w ")
         val movingColor = if (isWhiteTurn) _root_.chess.Color.White else _root_.chess.Color.Black
         val tracker = prevStateToken.getOrElse(lila.commentary.analysis.PlanStateTracker.empty)
@@ -2500,7 +2504,9 @@ final class CommentaryApi(
               )
             val refs = buildMoveReviewRefs(fen, moveReviewRefVariations)
             val outline = BookStyleRenderer.validatedOutline(ctx, Some(truthContract), strategyPack)
-            val moveReviewSlots = MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs, strategyPack, Some(truthContract))
+            val moveReviewRuntime =
+              MoveReviewCompressionPolicy.buildSlotsOrFallbackWithRuntime(ctx, outline, refs, strategyPack, Some(truthContract))
+            val moveReviewSlots = moveReviewRuntime.slots
             val moveReviewExplanation = moveReviewSlots.moveReviewExplanation
             val proseRaw = LiveNarrativeCompressionCore.deterministicProse(moveReviewSlots)
             val prose = RuleTemplateSanitizer.sanitize(
@@ -2523,6 +2529,24 @@ final class CommentaryApi(
               endgameStateToken = prevEndgameStateToken
             )
             val authoringSurface = AuthoringEvidenceSummaryBuilder.build(ctx)
+            val outboundProbeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests
+            val supportedLocalRows =
+              MoveReviewSupportedLocalSurfaceRows.build(
+                ctx = ctx,
+                inputs = moveReviewRuntime.inputs,
+                rankedPlans = moveReviewRuntime.rankedPlans,
+                truthContract = Some(truthContract)
+              )
+            val moveReviewPlayerSurface =
+              MoveReviewPlayerPayloadBuilder.build(
+                ctx = ctx,
+                moveReviewExplanation = moveReviewExplanation,
+                moveReviewLedger = moveReviewLedger,
+                refs = refs,
+                evaluatedPlans = contextBuild.selectedMainEvaluatedPlans,
+                authoringSurface = authoringSurface,
+                supportedLocalRows = supportedLocalRows
+              )
             val strategyPromptHints = strategyHints(strategyPack)
             val validationSeed = Option(moveReviewSlots.validationSeedText).filter(_.nonEmpty).getOrElse(compactProse)
 
@@ -2553,7 +2577,7 @@ final class CommentaryApi(
                       commentary = EarlyOpeningNarrationPolicy.clampNarrative(ctx, decision.commentary),
                       concepts = baseConcepts,
                       variations = dataWithContinuity.alternatives,
-                      probeRequests = if probeResults.exists(_.nonEmpty) then Nil else ctx.probeRequests,
+                      probeRequests = outboundProbeRequests,
                       authorQuestions = authoringSurface.questions,
                       authorEvidence = authoringSurface.evidence,
                       mainStrategicPlans = ctx.mainStrategicPlans,
@@ -2575,8 +2599,10 @@ final class CommentaryApi(
                       strategyPack = strategyPack,
                       signalDigest = strategyPack.flatMap(_.signalDigest),
                       moveReviewLedger = moveReviewLedger,
-                      moveReviewExplanation = moveReviewExplanation
-                    )
+                      moveReviewExplanation = moveReviewExplanation,
+                      moveReviewPlayerSurface = Some(moveReviewPlayerSurface)
+                    ),
+                    admittedPlans = contextBuild.selectedMainEvaluatedPlans
                   )
                 )
               recordComparisonObservation(
@@ -2596,15 +2622,7 @@ final class CommentaryApi(
                 incomingProbeCount = probeResults.getOrElse(Nil).size
               )
               if response.planStateToken.isDefined then tokenEmitCount.incrementAndGet()
-              commentaryCache.put(
-                fen = fen,
-                lastMove = lastMove,
-                response = response,
-                probeResults = probeResults.getOrElse(Nil),
-                planStateToken = prevStateToken,
-                endgameStateToken = prevEndgameStateToken,
-                commentaryContext = cacheCtx
-              )
+              commentaryCache.put(cacheKey, response)
               Some(
                 MoveReviewResult(
                   response = response,
@@ -2613,223 +2631,11 @@ final class CommentaryApi(
                 )
               ) -> dataWithContinuity.structureEvalLatencyMs
             }
-      }
 
 
 private[commentary] object RuleTemplateSanitizer:
 
-  private case class OpeningFamily(
-      id: String,
-      aliases: List[String],
-      markers: List[String]
-  )
-
-  // Opening-stage guard: phase labels can drift, so we still sanitize early middle games.
-  private val OpeningStageMaxPly = 24
-
-  private val openingFamilies = List(
-    OpeningFamily(
-      id = "open_games",
-      aliases = List(
-        "open game",
-        "king's pawn",
-        "kings pawn",
-        "italian",
-        "ruy lopez",
-        "spanish",
-        "scotch",
-        "four knights",
-        "petrov",
-        "philidor",
-        "vienna",
-        "bishop's opening",
-        "bishops opening",
-        "ponziani"
-      ),
-      markers = List(
-        "open games (1.e4 e5)",
-        "open games",
-        "central e4-e5 structure",
-        "e4-e5 structure"
-      )
-    ),
-    OpeningFamily(
-      id = "sicilian",
-      aliases = List(
-        "sicilian",
-        "najdorf",
-        "dragon",
-        "scheveningen",
-        "sveshnikov",
-        "taimanov",
-        "kan",
-        "rossolimo",
-        "alapin",
-        "smith-morra",
-        "closed sicilian"
-      ),
-      markers = List("sicilian")
-    ),
-    OpeningFamily(
-      id = "french",
-      aliases = List(
-        "french",
-        "winawer",
-        "tarrasch",
-        "rubinstein",
-        "maccutcheon",
-        "steinitz"
-      ),
-      markers = List("french")
-    ),
-    OpeningFamily(
-      id = "caro_kann",
-      aliases = List("caro-kann", "caro kann"),
-      markers = List("caro-kann", "caro kann")
-    ),
-    OpeningFamily(
-      id = "scandinavian",
-      aliases = List("scandinavian", "center counter"),
-      markers = List("scandinavian")
-    ),
-    OpeningFamily(
-      id = "nimzo_indian",
-      aliases = List("nimzo", "nimzo-indian", "nimzo indian"),
-      markers = List("nimzo")
-    ),
-    OpeningFamily(
-      id = "kings_indian",
-      aliases = List("king's indian", "kings indian", "k.i.d", "kid"),
-      markers = List("king's indian", "kings indian")
-    ),
-    OpeningFamily(
-      id = "benoni",
-      aliases = List("benoni", "modern benoni"),
-      markers = List("benoni")
-    ),
-    OpeningFamily(
-      id = "catalan",
-      aliases = List("catalan"),
-      markers = List("catalan")
-    ),
-    OpeningFamily(
-      id = "queens_gambit",
-      aliases = List("queen's gambit", "queens gambit", "qgd", "qga"),
-      markers = List("queen's gambit", "queens gambit")
-    ),
-    OpeningFamily(
-      id = "london",
-      aliases = List("london"),
-      markers = List("london")
-    ),
-    OpeningFamily(
-      id = "english",
-      aliases = List("english"),
-      markers = List("english")
-    ),
-    OpeningFamily(
-      id = "austrian",
-      aliases = List("austrian attack", "pirc", "modern defense"),
-      markers = List("austrian attack", "pirc", "modern defense")
-    )
-  )
-
-  private val familiesById = openingFamilies.map(f => f.id -> f).toMap
   private val sentenceBoundaryRegex = java.util.regex.Pattern.compile("""(?<=[.!?])\s+""")
-  private val requiresStructureRegex =
-    """(?i)\brequires?\s+an?\s+([^,.;:!?]{2,60}?)\s+structure\b""".r
-  private val typicalInRegex =
-    """(?i)\btypical in\s+([^,.;:!?]{2,60})""".r
-
-  private def normalizeOpening(opening: Option[String]): String =
-    opening.getOrElse("").trim.toLowerCase
-
-  private def isOpeningStage(phase: String, ply: Int): Boolean =
-    phase.equalsIgnoreCase("opening") ||
-      (phase.equalsIgnoreCase("middlegame") && ply > 0 && ply <= OpeningStageMaxPly)
-
-  private def familyIdFromPhrase(phrase: String): Option[String] =
-    val normalized = phrase.trim.toLowerCase
-    openingFamilies
-      .find { family =>
-        family.aliases.exists(alias => normalized.contains(alias) || alias.contains(normalized))
-      }
-      .map(_.id)
-
-  private def detectMentionedFamilyIds(sentence: String): Set[String] =
-    val lower = sentence.toLowerCase
-    val direct = openingFamilies.collect {
-      case family if family.markers.exists(lower.contains) => family.id
-    }
-    val fromPatterns =
-      (requiresStructureRegex.findAllMatchIn(lower).map(_.group(1)).toList ++
-        typicalInRegex.findAllMatchIn(lower).map(_.group(1)).toList)
-        .flatMap(familyIdFromPhrase)
-    (direct ++ fromPatterns).toSet
-
-  private def openingMatchesFamily(openingLower: String, familyId: String): Boolean =
-    familiesById
-      .get(familyId)
-      .exists(_.aliases.exists(alias => openingLower.contains(alias)))
-
-  private def parseFenPieces(fen: String): Option[Map[String, Char]] =
-    val boardPart = Option(fen).map(_.trim).filter(_.nonEmpty).flatMap(_.split(" ").headOption).getOrElse("")
-    val ranks = boardPart.split("/")
-    if ranks.length != 8 then None
-    else
-      val pieces = scala.collection.mutable.Map.empty[String, Char]
-      var valid = true
-      ranks.zipWithIndex.foreach { case (rankStr, rankIdx) =>
-        if valid then
-          var file = 0
-          rankStr.foreach { ch =>
-            if ch.isDigit then file += ch.asDigit
-            else
-              if file >= 0 && file < 8 then
-                val sq = s"${('a' + file).toChar}${8 - rankIdx}"
-                pieces.update(sq, ch)
-              else valid = false
-              file += 1
-          }
-          if file != 8 then valid = false
-      }
-      if valid then Some(pieces.toMap) else None
-
-  private def hasPiece(board: Map[String, Char], square: String, piece: Char): Boolean =
-    board.get(square).contains(piece)
-
-  private def structureMatchesFamily(fen: Option[String], familyId: String): Boolean =
-    val boardOpt = fen.flatMap(parseFenPieces)
-    boardOpt.exists { board =>
-      familyId match
-        case "open_games" =>
-          hasPiece(board, "e4", 'P') && hasPiece(board, "e5", 'p')
-        case "sicilian" =>
-          hasPiece(board, "c5", 'p')
-        case "french" =>
-          hasPiece(board, "e6", 'p') && hasPiece(board, "d5", 'p')
-        case "caro_kann" =>
-          hasPiece(board, "c6", 'p') && hasPiece(board, "d5", 'p')
-        case "scandinavian" =>
-          hasPiece(board, "e4", 'P') && hasPiece(board, "d5", 'p')
-        case "catalan" =>
-          hasPiece(board, "d4", 'P') && hasPiece(board, "c4", 'P') && hasPiece(board, "g2", 'B')
-        case "queens_gambit" =>
-          hasPiece(board, "d4", 'P') && hasPiece(board, "c4", 'P')
-        case "london" =>
-          hasPiece(board, "d4", 'P') && hasPiece(board, "e3", 'P') && hasPiece(board, "f4", 'B')
-        case "english" =>
-          hasPiece(board, "c4", 'P')
-        case "kings_indian" =>
-          hasPiece(board, "f6", 'n') && hasPiece(board, "g7", 'b') && hasPiece(board, "g6", 'p')
-        case "nimzo_indian" =>
-          hasPiece(board, "f6", 'n') && hasPiece(board, "b4", 'b')
-        case "benoni" =>
-          hasPiece(board, "c5", 'p') && hasPiece(board, "d6", 'p') && hasPiece(board, "d5", 'P')
-        case "austrian" =>
-          hasPiece(board, "e4", 'P') && hasPiece(board, "f4", 'P')
-        case _ => true
-    }
 
   private def shouldNeutralizeFamilySentence(
       sentence: String,
@@ -2838,17 +2644,15 @@ private[commentary] object RuleTemplateSanitizer:
       ply: Int,
       fen: Option[String]
   ): Boolean =
-    val openingLower = normalizeOpening(opening)
-    if openingLower.isEmpty || !isOpeningStage(phase, ply) then false
-    else
-      val mentionedFamilies = detectMentionedFamilyIds(sentence)
-      val labelMismatch =
-        mentionedFamilies.nonEmpty &&
-          mentionedFamilies.forall(familyId => !openingMatchesFamily(openingLower, familyId))
-      val structureMismatch =
-        mentionedFamilies.nonEmpty &&
-          mentionedFamilies.forall(familyId => !structureMatchesFamily(fen, familyId))
-      labelMismatch && structureMismatch
+    OpeningFamilyClaimResolver.suppressesUnsupportedFamilyClaim(
+      sentence,
+      OpeningFamilyClaimResolver.OpeningFamilyMatchProof(
+        opening = opening,
+        phase = phase,
+        ply = ply,
+        fen = fen
+      )
+    )
 
   private def neutralizeUnsupportedFamilyClaims(
       text: String,

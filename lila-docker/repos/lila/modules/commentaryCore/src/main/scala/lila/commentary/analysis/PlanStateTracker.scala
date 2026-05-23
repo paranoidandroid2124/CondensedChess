@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import lila.commentary.model.{ PlanMatch, PlanSequenceSummary, TransitionType }
+import lila.commentary.model.{ FingerprintFormat, PlanMatch, PlanSequenceSummary, TransitionType }
 import lila.commentary.model.strategic.{ PlanContinuity, PlanLifecyclePhase }
 import _root_.chess.Color
 
@@ -18,6 +18,10 @@ import _root_.chess.Color
 case class PlanStateTracker(
   history: Map[Color, PlanStateTracker.ColorPlanState] = PlanStateTracker.defaultHistory
 ):
+  lazy val build_fingerprint: String =
+    val wStr = getColorState(Color.White).build_fingerprint
+    val bStr = getColorState(Color.Black).build_fingerprint
+    s"w:$wStr;b:$bStr"
 
   def update(
       movingColor: Color,
@@ -182,7 +186,13 @@ object PlanStateTracker:
       secondary: Option[PlanContinuity] = None,
       lastTransition: Option[TransitionSnapshot] = None,
       lastPly: Option[Int] = None
-  )
+  ):
+    lazy val build_fingerprint: String =
+      val pStr = primary.map(_.build_fingerprint).getOrElse("n")
+      val sStr = secondary.map(_.build_fingerprint).getOrElse("n")
+      val tStr = lastTransition.map(t => s"${t.transitionType}:${FingerprintFormat.fixed2(t.momentum)}").getOrElse("n")
+      val plyStr = lastPly.map(_.toString).getOrElse("n")
+      s"$pStr|$sStr|$tStr|$plyStr"
 
   private[analysis] val defaultHistory: Map[Color, ColorPlanState] =
     Map(Color.White -> ColorPlanState(), Color.Black -> ColorPlanState())

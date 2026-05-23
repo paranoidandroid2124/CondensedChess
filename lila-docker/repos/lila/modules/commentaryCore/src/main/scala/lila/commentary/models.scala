@@ -628,6 +628,52 @@ case class AuthorEvidenceSummary(
 object AuthorEvidenceSummary:
   given Writes[AuthorEvidenceSummary] = Json.writes[AuthorEvidenceSummary]
 
+case class MoveReviewPlayerSurfaceRow(
+    label: String,
+    text: String,
+    tone: Option[String] = None,
+    source: Option[String] = None,
+    refSans: List[String] = Nil
+)
+object MoveReviewPlayerSurfaceRow:
+  given Writes[MoveReviewPlayerSurfaceRow] = Json.writes[MoveReviewPlayerSurfaceRow]
+
+case class MoveReviewPlayerDecisionComparison(
+    kicker: String,
+    gapLabel: Option[String] = None,
+    chosenSan: Option[String] = None,
+    engineSan: Option[String] = None,
+    comparedSan: Option[String] = None,
+    deferredSan: Option[String] = None,
+    secondaryText: Option[String] = None,
+    chosenMatchesBest: Boolean = false
+)
+object MoveReviewPlayerDecisionComparison:
+  given Writes[MoveReviewPlayerDecisionComparison] = Json.writes[MoveReviewPlayerDecisionComparison]
+
+case class MoveReviewPlayerAuthorRow(
+    title: String,
+    status: String,
+    question: String,
+    why: Option[String] = None,
+    meta: List[String] = Nil,
+    branches: List[MoveReviewPlayerSurfaceRow] = Nil
+)
+object MoveReviewPlayerAuthorRow:
+  given Writes[MoveReviewPlayerAuthorRow] = Json.writes[MoveReviewPlayerAuthorRow]
+
+case class MoveReviewPlayerSurface(
+    schema: String = "chesstory.move_review.player_surface.v1",
+    title: Option[String] = None,
+    summaryRows: List[MoveReviewPlayerSurfaceRow] = Nil,
+    advancedRows: List[MoveReviewPlayerSurfaceRow] = Nil,
+    decisionComparison: Option[MoveReviewPlayerDecisionComparison] = None,
+    probeRows: List[MoveReviewPlayerSurfaceRow] = Nil,
+    authorRows: List[MoveReviewPlayerAuthorRow] = Nil
+)
+object MoveReviewPlayerSurface:
+  given Writes[MoveReviewPlayerSurface] = Json.writes[MoveReviewPlayerSurface]
+
 case class CommentResponse(
   commentary: String,
   concepts: List[String],
@@ -648,7 +694,8 @@ case class CommentResponse(
   strategyPack: Option[StrategyPack] = None,
   signalDigest: Option[NarrativeSignalDigest] = None,
   moveReviewLedger: Option[MoveReviewStrategicLedger] = None,
-  moveReviewExplanation: Option[MoveReviewExplanation] = None
+  moveReviewExplanation: Option[MoveReviewExplanation] = None,
+  moveReviewPlayerSurface: Option[MoveReviewPlayerSurface] = None
 )
 object CommentResponse:
   given Writes[CommentResponse] = Json.writes[CommentResponse]

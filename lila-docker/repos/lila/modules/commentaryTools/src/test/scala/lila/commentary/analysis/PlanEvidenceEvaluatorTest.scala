@@ -271,6 +271,212 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
     )
   }
 
+  test("partition promotes board-valid probes even when bookkeeping metadata drifts") {
+    val backedPlan =
+      hypothesis(
+        id = "PieceActivation",
+        name = "Piece activation",
+        score = 0.74,
+        sources = List("support:engine_hypothesis", "theme:piece_redeployment")
+      )
+    val request = ProbeRequest(
+      id = "probe_soft_support",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("g1f3"),
+      depth = 18,
+      purpose = Some("theme_plan_validation"),
+      objective = Some("validate_plan_presence"),
+      planId = Some("PieceActivation"),
+      requiredSignals = List("replyPvs", "futureSnapshot"),
+      candidateMove = Some("g1f3"),
+      depthFloor = Some(18),
+      variationHash = Some("expected-hash"),
+      engineConfigFingerprint = Some("wasm_stockfish:depth=18:multipv=1")
+    )
+    val result = ProbeResult(
+      id = "probe_soft_support",
+      fen = Some("4k3/8/8/8/8/8/8/4K3 w - - 0 1"),
+      evalCp = 24,
+      bestReplyPv = List("g8f6", "e2e4"),
+      replyPvs = Some(List(List("g8f6", "e2e4"))),
+      deltaVsBaseline = 8,
+      keyMotifs = List("piece_activation"),
+      purpose = Some("free_tempo_branches"),
+      objective = Some("validate_latent_plan"),
+      probedMove = Some("g1f3"),
+      depth = Some(18),
+      futureSnapshot = Some(
+        FutureSnapshot(
+          resolvedThreatKinds = List("Development"),
+          newThreatKinds = Nil,
+          targetsDelta = TargetsDelta(Nil, Nil, List("e4"), Nil),
+          planBlockersRemoved = List("development_complete"),
+          planPrereqsMet = List("piece_activation_ready")
+        )
+      ),
+      variationHash = Some("other-hash"),
+      engineConfigFingerprint = Some("wasm_stockfish:depth=18:multipv=2")
+    )
+    val validation =
+      PlanEvidenceEvaluator.validateProbeResults(
+        rawResults = List(result),
+        probeRequests = List(request)
+      )
+
+    val partition =
+      PlanEvidenceEvaluator.partition(
+        hypotheses = List(backedPlan),
+        probeRequests = List(request),
+        validatedProbeResults = validation.validResults,
+        rulePlanIds = Set("pieceactivation"),
+        isWhiteToMove = true,
+        droppedProbeCount = validation.droppedCount,
+        droppedProbeReasons = validation.droppedReasons,
+        invalidByRequestId = validation.invalidByRequestId,
+        softByRequestId = validation.softByRequestId
+      )
+
+    assertEquals(validation.droppedCount, 0)
+    assertEquals(partition.mainPlans.map(_.planId), List("PieceActivation"), clue(partition.mainPlans))
+    assertEquals(
+      partition.selectedMainEvaluatedPlans.map(_.hypothesis.planId),
+      List("PieceActivation"),
+      clue(partition.selectedMainEvaluatedPlans)
+    )
+    assert(
+      partition.selectedMainEvaluatedPlans.exists(ep =>
+        ep.userFacingEligibility == PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked &&
+          ep.supportProbeIds.contains("probe_soft_support")
+      ),
+      clue(partition.selectedMainEvaluatedPlans)
+    )
+    val entry = partition.diagnosticSidecar.entries.find(_.planId == "PieceActivation").getOrElse(fail("missing entry"))
+    assert(entry.reasonCodes.contains("purpose_mismatch"), clue(entry.reasonCodes))
+    assert(entry.reasonCodes.contains("engine_config_mismatch"), clue(entry.reasonCodes))
+  }
+
+  test("partition records alternative dominance without treating it as refutation") {
+    val strongerSibling =
+      hypothesis(
+        id = "PieceActivationMain",
+        name = "Piece activation main route",
+        score = 0.86,
+        sources = List("support:engine_hypothesis", "theme:piece_redeployment")
+      )
+    val supportedSibling =
+      hypothesis(
+        id = "PieceActivationSide",
+        name = "Piece activation side route",
+        score = 0.68,
+        sources = List("theme:piece_redeployment")
+      )
+    val request = ProbeRequest(
+      id = "probe_side_support",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("g1f3"),
+      depth = 18,
+      purpose = Some("theme_plan_validation"),
+      planId = Some("PieceActivationSide"),
+      requiredSignals = List("replyPvs", "futureSnapshot")
+    )
+    val result = ProbeResult(
+      id = "probe_side_support",
+      evalCp = 18,
+      bestReplyPv = List("g8f6", "e2e4"),
+      replyPvs = Some(List(List("g8f6", "e2e4"))),
+      deltaVsBaseline = 6,
+      keyMotifs = List("piece_activation"),
+      purpose = Some("theme_plan_validation"),
+      futureSnapshot = Some(
+        FutureSnapshot(
+          resolvedThreatKinds = Nil,
+          newThreatKinds = Nil,
+          targetsDelta = TargetsDelta(Nil, Nil, List("e4"), Nil),
+          planBlockersRemoved = List("development_complete"),
+          planPrereqsMet = List("piece_activation_ready")
+        )
+      )
+    )
+
+    val partition =
+      PlanEvidenceEvaluator.partition(
+        hypotheses = List(strongerSibling, supportedSibling),
+        probeRequests = List(request),
+        validatedProbeResults = List(result),
+        rulePlanIds = Set("pieceactivationmain"),
+        isWhiteToMove = true,
+        droppedProbeCount = 0
+      )
+
+    val sideEntry = partition.diagnosticSidecar.entries.find(_.planId == "PieceActivationSide").getOrElse(fail("missing side entry"))
+    assertEquals(sideEntry.userFacingEligibility, "probe_backed")
+    assertEquals(sideEntry.status, "playable_evidence_backed")
+    assert(sideEntry.alternativeDominance)
+    assert(sideEntry.reasonCodes.contains("alternative_dominance"))
+    assert(!sideEntry.reasonCodes.contains("probe_refuted"))
+    assertEquals(partition.selectedMainEvaluatedPlans.map(_.hypothesis.planId), List("PieceActivationMain"))
+  }
+
+  test("strategic plan evidence view projects typed selected and blocked plans") {
+    val selectedPlan =
+      hypothesis(
+        id = "PieceActivation",
+        name = "Piece activation",
+        score = 0.78,
+        sources = List("support:engine_hypothesis")
+      )
+    val deferredPlan =
+      hypothesis(
+        id = "PawnStorm",
+        name = "Pawn storm",
+        score = 0.64,
+        sources = List("latent_seed:kingside_rook_pawn_march")
+      )
+    val request = ProbeRequest(
+      id = "probe_view_support",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("g1f3"),
+      depth = 20,
+      purpose = Some("theme_plan_validation"),
+      planId = Some("PieceActivation"),
+      requiredSignals = List("replyPvs", "futureSnapshot")
+    )
+    val result = ProbeResult(
+      id = "probe_view_support",
+      evalCp = 24,
+      bestReplyPv = List("g8f6", "e2e4"),
+      replyPvs = Some(List(List("g8f6", "e2e4"))),
+      deltaVsBaseline = 8,
+      keyMotifs = List("piece_activation"),
+      futureSnapshot = Some(
+        FutureSnapshot(
+          resolvedThreatKinds = Nil,
+          newThreatKinds = Nil,
+          targetsDelta = TargetsDelta(Nil, Nil, List("e4"), Nil),
+          planBlockersRemoved = List("development_complete"),
+          planPrereqsMet = List("piece_activation_ready")
+        )
+      )
+    )
+
+    val partition =
+      PlanEvidenceEvaluator.partition(
+        hypotheses = List(selectedPlan, deferredPlan),
+        probeRequests = List(request),
+        validatedProbeResults = List(result),
+        rulePlanIds = Set("pieceactivation"),
+        isWhiteToMove = true,
+        droppedProbeCount = 0
+      )
+    val view = PlanEvidenceEvaluator.StrategicPlanEvidenceView.from(partition)
+
+    assertEquals(view.selectedPlans.map(_.hypothesis.planId), List("PieceActivation"))
+    assertEquals(view.probeBackedPlans.map(_.hypothesis.planId), List("PieceActivation"))
+    assertEquals(view.deferredPlans.map(_.hypothesis.planId), List("PawnStorm"))
+    assert(view.hasProbeBacked)
+    assertEquals(view.bestEvidenceFor("PieceActivation", None).map(_.userFacingEligibility), Some(PlanEvidenceEvaluator.UserFacingPlanEligibility.ProbeBacked))
+  }
+
   test("partition records certification metadata for probe-backed plans in diagnostic sidecar") {
     val backedPlan =
       hypothesis(

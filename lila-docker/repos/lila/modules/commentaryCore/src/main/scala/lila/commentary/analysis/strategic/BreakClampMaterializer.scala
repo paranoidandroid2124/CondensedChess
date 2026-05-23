@@ -36,6 +36,7 @@ object BreakClampMaterializer:
       origin: Square,
       destination: Square,
       kind: BreakRouteKind,
+      destinationIsPlayedDestination: Boolean,
       transformRisk: BreakTransformRisk,
       transformRoutes: List[String],
       transformAssessments: List[BreakTransformAssessment] = Nil,
@@ -74,7 +75,8 @@ object BreakClampMaterializer:
       )
       .map { evidence =>
         val token =
-          if evidence.transformRisk == BreakTransformRisk.CaptureTransform then evidence.token
+          if evidence.transformRisk == BreakTransformRisk.CaptureTransform || evidence.destinationIsPlayedDestination
+          then evidence.token
           else evidence.destinationToken
         PreventedPlan(
           planId = s"neutralize_${token.filter(_.isLetterOrDigit)}_break",
@@ -130,6 +132,7 @@ object BreakClampMaterializer:
           origin = candidate.origin,
           destination = candidate.destination,
           kind = candidate.kind,
+          destinationIsPlayedDestination = candidate.destination == snapshot.playedMove.dest,
           transformRisk = transformRisk,
           transformRoutes = transformRoutes,
           transformAssessments = transformAssessments,

@@ -30,7 +30,7 @@ private[commentary] object UserFacingSignalSanitizer:
     "so the plan cannot drift" -> "so the idea stays clear",
     "more confirmation is still needed" -> ""
   )
-  private val rawLabelRegex = """\b(?:subplan|theme|support|seed|proposal):([a-z0-9_]+)\b""".r
+  private val rawLabelRegex = """(?i)(?<!\bkey\s)\b(?:subplan|theme|support|seed|proposal):\s*([a-z0-9_-]+)\b""".r
   private val bracketedSubplanRegex = """\s*\[subplan:[^\]]+\]""".r
   private val placeholderLiteralPatterns: List[String] = List(
     "playablebypv",
@@ -114,7 +114,7 @@ private[commentary] object UserFacingSignalSanitizer:
     PlayerFacingSupportPolicy.allowCompensationSupportText(text)
 
   private def humanizeLabel(raw: String): String =
-    Option(raw).getOrElse("").replace('_', ' ').trim
+    Option(raw).getOrElse("").replace('_', ' ').replace('-', ' ').trim
 
   private def rewriteHelperNotation(text: String): String =
     Option(text)

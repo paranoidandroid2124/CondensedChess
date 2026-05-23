@@ -455,7 +455,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
       )
       assertEquals(
         StrategicNarrativePlanSupport
-          .filterEvidenceBacked(List(plan.hypothesis), experiments)
+          .legacyFilterEvidenceBacked(List(plan.hypothesis), experiments)
           .nonEmpty,
         scenario.expectedCertified,
         clues(scenario.id, certification, experiments)

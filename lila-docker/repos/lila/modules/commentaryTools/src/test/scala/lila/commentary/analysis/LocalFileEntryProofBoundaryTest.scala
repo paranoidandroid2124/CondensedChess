@@ -634,6 +634,24 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
     )
 
   private def whyThisSurfaceCtx(evidenceTier: String): NarrativeContext =
+    val evidencePlans =
+      Option.when(evidenceTier == "evidence_backed") {
+        List(
+          PlanHypothesis(
+            planId = "local_file_entry_bind",
+            planName = "Take the c-file away and keep b4 closed",
+            rank = 1,
+            score = 0.84,
+            preconditions = Nil,
+            executionSteps = List("Take the file away first and keep one entry square closed."),
+            failureModes = List("If the file or entry reopens, the bind vanishes."),
+            viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
+            evidenceSources = List("theme:restriction_prophylaxis"),
+            themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+            subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
+          )
+        )
+      }.getOrElse(Nil)
     MoveReviewProseGoldenFixtures.prophylacticCut.ctx.copy(
       authorQuestions =
         List(
@@ -686,24 +704,8 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
               )
             )
         )),
-      mainStrategicPlans =
-        Option.when(evidenceTier == "evidence_backed") {
-          List(
-            PlanHypothesis(
-              planId = "local_file_entry_bind",
-              planName = "Take the c-file away and keep b4 closed",
-              rank = 1,
-              score = 0.84,
-              preconditions = Nil,
-              executionSteps = List("Take the file away first and keep one entry square closed."),
-              failureModes = List("If the file or entry reopens, the bind vanishes."),
-              viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
-              evidenceSources = List("theme:restriction_prophylaxis"),
-              themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
-              subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id)
-            )
-          )
-        }.getOrElse(Nil),
+      mainStrategicPlans = evidencePlans,
+      strategicPlanEvidence = StrategicPlanEvidenceTestSupport.probeBacked(evidencePlans),
       strategicPlanExperiments =
         List(
           StrategicPlanExperiment(
@@ -866,6 +868,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
     seeded.copy(
       strategicPlanExperiments =
         seeded.strategicPlanExperiments.map(_.copy(evidenceTier = "deferred", bestReplyStable = false, futureSnapshotAligned = false)),
+      strategicPlanEvidence = PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty,
       authorQuestions =
         List(
           AuthorQuestion(
@@ -910,6 +913,25 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
             themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
             subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
             refutation = Some("Black can fight back by using the c-file and entering on b4.")
+          )
+        ),
+      strategicPlanEvidence =
+        StrategicPlanEvidenceTestSupport.probeBacked(
+          List(
+            PlanHypothesis(
+              planId = "local_file_entry_bind",
+              planName = "Improve the rook before the next phase",
+              rank = 1,
+              score = 0.84,
+              preconditions = Nil,
+              executionSteps = List("Improve the rook before pressing further."),
+              failureModes = List("If the c-file reopens and b4 becomes available, the bind vanishes."),
+              viability = PlanViability(score = 0.8, label = "high", risk = "surface"),
+              evidenceSources = List("theme:restriction_prophylaxis"),
+              themeL1 = PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id,
+              subplanId = Some(PlanTaxonomy.PlanKind.BreakPrevention.id),
+              refutation = Some("Black can fight back by using the c-file and entering on b4.")
+            )
           )
         )
     )

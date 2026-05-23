@@ -94,18 +94,13 @@ class MoveReviewAfterCompensationCarrierTest extends FunSuite:
       )
       .getOrElse(fail(s"empty moveReview response for $fen"))
 
-  private def assertCompensationCarrier(result: MoveReviewResult): Unit =
+  private def assertCompensationCarrierClosed(result: MoveReviewResult): Unit =
     val digest = result.response.signalDigest.getOrElse(fail("missing signal digest"))
-    assert(digest.compensation.exists(_.trim.nonEmpty), clue(digest))
-    assert(digest.compensationVectors.exists(_.trim.nonEmpty), clue(digest))
-    assert(digest.investedMaterial.exists(_ > 0), clue(digest))
-    val commentary = Option(result.response.commentary).getOrElse("").toLowerCase
-    assert(
-      commentary.contains("compensation") || commentary.contains("initiative"),
-      clue(result.response.commentary)
-    )
+    assertEquals(digest.compensation, None, clue(digest))
+    assertEquals(digest.compensationVectors, Nil, clue(digest))
+    assertEquals(digest.investedMaterial, None, clue(digest))
 
-  test("CAT02 moveReview path keeps after-move compensation carrier alive") {
+  test("CAT02 moveReview path keeps unverified after-move compensation carrier closed") {
     val result =
       directMoveReview(
         fen = "r3kb1r/2R2p1p/4p1p1/p2qP3/3p4/P4PP1/1P1Q2KP/R7 w kq - 0 23",
@@ -135,10 +130,10 @@ class MoveReviewAfterCompensationCarrierTest extends FunSuite:
         phase = "endgame"
       )
 
-    assertCompensationCarrier(result)
+    assertCompensationCarrierClosed(result)
   }
 
-  test("QID02 moveReview path keeps after-move compensation carrier alive") {
+  test("QID02 moveReview path keeps unverified after-move compensation carrier closed") {
     val result =
       directMoveReview(
         fen = "5rk1/p1r3p1/1p2p2p/1q1nP3/2p1Q2P/P1P3P1/1P2RPK1/2B4R b - - 2 26",
@@ -168,5 +163,5 @@ class MoveReviewAfterCompensationCarrierTest extends FunSuite:
         phase = "endgame"
       )
 
-    assertCompensationCarrier(result)
+    assertCompensationCarrierClosed(result)
   }

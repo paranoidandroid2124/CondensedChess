@@ -280,15 +280,15 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
         sideToMove = "white",
         evalCp = 188,
         planName = "Lock the c-file and b4 even though the rooks can switch wings",
-        bestDefenseLine = Some(List("h2h3", "c6a5", "c2e2", "a7a6", "b2b3", "a5c6", "c3c4", "h7h6", "c4d5", "e6d5")),
-        releaseLine = List("c2e2", "c6e7", "g2f3", "f8e8"),
+        bestDefenseLine = Some(List("h2h3", "c6a5", "d1d2", "a7a6", "b2b3", "a5c6", "c3c4", "h7h6", "c4d5", "e6d5")),
+        releaseLine = List("d1d2", "c6e7", "g2f3", "f8e8"),
         probes =
           List(
             directReplyProbe(
               id = "rook_lift_reply",
               baseFen = RookLiftFen,
-              bestDefenseLine = List("h2h3", "c6a5", "c2e2", "a7a6", "b2b3", "a5c6", "c3c4", "h7h6", "c4d5", "e6d5"),
-              releaseLine = List("c2e2", "c6e7", "g2f3", "f8e8"),
+              bestDefenseLine = List("h2h3", "c6a5", "d1d2", "a7a6", "b2b3", "a5c6", "c3c4", "h7h6", "c4d5", "e6d5"),
+              releaseLine = List("d1d2", "c6e7", "g2f3", "f8e8"),
               futureSnapshot =
                 Some(
                   basePositiveSnapshot(

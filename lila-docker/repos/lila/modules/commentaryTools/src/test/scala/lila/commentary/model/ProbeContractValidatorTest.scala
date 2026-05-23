@@ -43,25 +43,43 @@ class ProbeContractValidatorTest extends FunSuite:
     assertEquals(validation.missingSignals, List("futureSnapshot"))
   }
 
-  test("validateAgainstRequest fails on purpose mismatch") {
+  test("validateAgainstRequest keeps bookkeeping drift as soft diagnostics") {
     val request = ProbeRequest(
       id = "probe-3",
       fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
       moves = List("h2h4"),
       depth = 16,
-      purpose = Some("recapture_branches")
+      purpose = Some("recapture_branches"),
+      objective = Some("compare_recaptures"),
+      requiredSignals = List("replyPvs"),
+      candidateMove = Some("h2h4"),
+      depthFloor = Some(16),
+      variationHash = Some("expected-hash"),
+      engineConfigFingerprint = Some("wasm_stockfish:depth=16:multipv=1")
     )
     val result = ProbeResult(
       id = "probe-3",
+      fen = Some("4k3/8/8/8/8/8/8/4K3 w - - 0 1"),
       evalCp = 8,
       bestReplyPv = List("h7h5"),
+      replyPvs = Some(List(List("h7h5"))),
       deltaVsBaseline = 0,
       keyMotifs = List("recapture_branching"),
-      purpose = Some("keep_tension_branches")
+      purpose = Some("keep_tension_branches"),
+      objective = Some("compare_tension"),
+      probedMove = Some("h2h4"),
+      depth = Some(16),
+      variationHash = Some("other-hash"),
+      engineConfigFingerprint = Some("wasm_stockfish:depth=16:multipv=2")
     )
 
     val validation = ProbeContractValidator.validateAgainstRequest(request, result)
-    assertEquals(validation.isValid, false)
+    assertEquals(validation.isValid, true)
+    assertEquals(validation.hardReasonCodes, Nil)
+    assert(validation.softReasonCodes.contains("PURPOSE_MISMATCH"))
+    assert(validation.softReasonCodes.contains("OBJECTIVE_MISMATCH"))
+    assert(validation.softReasonCodes.contains("VARIATION_HASH_MISMATCH"))
+    assert(validation.softReasonCodes.contains("ENGINE_CONFIG_MISMATCH"))
     assert(validation.reasonCodes.contains("PURPOSE_MISMATCH"))
   }
 
@@ -99,8 +117,36 @@ class ProbeContractValidatorTest extends FunSuite:
     assertEquals(validation.isValid, false)
     assertEquals(
       validation.certificateStatus,
-      ProbeContractValidator.ProbeCertificateStatus.StaleOrMismatched
+      ProbeContractValidator.ProbeCertificateStatus.Invalid
     )
-    assert(validation.reasonCodes.contains("FEN_MISMATCH"))
-    assert(validation.reasonCodes.contains("VARIATION_HASH_MISMATCH"))
+    assert(validation.hardReasonCodes.contains("FEN_MISMATCH"))
+    assert(validation.softReasonCodes.contains("VARIATION_HASH_MISMATCH"))
+  }
+
+  test("validateAgainstRequest treats missing depth verification as hard invalid") {
+    val request = ProbeRequest(
+      id = "probe-5",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("e2e4"),
+      depth = 18,
+      purpose = Some("theme_plan_validation"),
+      requiredSignals = List("replyPvs"),
+      candidateMove = Some("e2e4"),
+      depthFloor = Some(18)
+    )
+    val result = ProbeResult(
+      id = "probe-5",
+      fen = Some("4k3/8/8/8/8/8/8/4K3 w - - 0 1"),
+      evalCp = 24,
+      bestReplyPv = List("e7e5"),
+      replyPvs = Some(List(List("e7e5"))),
+      deltaVsBaseline = 6,
+      keyMotifs = List("theme_plan_validation"),
+      purpose = Some("theme_plan_validation"),
+      probedMove = Some("e2e4")
+    )
+
+    val validation = ProbeContractValidator.validateAgainstRequest(request, result)
+    assertEquals(validation.isValid, false)
+    assert(validation.hardReasonCodes.contains("DEPTH_FLOOR_UNVERIFIED"))
   }

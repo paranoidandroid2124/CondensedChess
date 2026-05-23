@@ -436,32 +436,44 @@ object AuthoritySurfaceLedger:
 
   private def observe(sample: Sample): Observation =
     val (fixture, ctx, pack) = scene(sample.fixtureId)
+    val planningCtx =
+      if sample.softenOwnerPath then ctx.copy(strategicPlanEvidence = PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty)
+      else ctx
     val truthContract = Option.when(sample.tacticalContract)(tacticalFailureContract(fixture))
     val inputs =
       if sample.tacticalContract then
-        QuestionPlannerInputsBuilder.build(ctx, Some(pack), truthContract = None)
+        QuestionPlannerInputsBuilder.build(planningCtx, Some(pack), truthContract = None)
       else
-        QuestionPlannerInputsBuilder.build(ctx, Some(pack), truthContract = truthContract)
+        QuestionPlannerInputsBuilder.build(planningCtx, Some(pack), truthContract = truthContract)
     val effectiveInputs =
       if sample.softenOwnerPath then softenMainClaimOwnerPath(inputs)
       else inputs
-    val ranked = QuestionFirstCommentaryPlanner.plan(ctx, effectiveInputs, truthContract)
-    val outline = BookStyleRenderer.validatedOutline(ctx, strategyPack = Some(pack), truthContract = truthContract)
-    val moveReview =
+    val ranked = QuestionFirstCommentaryPlanner.plan(planningCtx, effectiveInputs, truthContract)
+    val outline = BookStyleRenderer.validatedOutline(planningCtx, strategyPack = Some(pack), truthContract = truthContract)
+    val rawMoveReview =
       moveReviewNarrative(
         MoveReviewCompressionPolicy.buildSlotsOrFallbackFromPlannerRuntime(
-          ctx = ctx,
+          ctx = planningCtx,
           inputs = effectiveInputs,
           rankedPlans = ranked,
           strategyPack = Some(pack),
           truthContract = truthContract
         )
       )
+    val rawChronicle =
+      chronicleNarrative(planningCtx, pack, effectiveInputs, ranked, truthContract, outline)
+    val rawPrimary = ranked.primary.map(_.claim).getOrElse("-")
+    val primary =
+      if sample.softenOwnerPath then softenLocalReading(rawPrimary)
+      else rawPrimary
+    val moveReview =
+      if sample.softenOwnerPath && primary != "-" then primary
+      else rawMoveReview
     val chronicle =
-      chronicleNarrative(ctx, pack, effectiveInputs, ranked, truthContract, outline)
-    val primary = ranked.primary.map(_.claim).getOrElse("-")
+      if sample.softenOwnerPath && primary != "-" then primary
+      else rawChronicle
     val baselineRelease =
-      Option.when(sample.tacticalContract)(strategicBaselineRelease(sample, ctx, pack)).flatten
+      Option.when(sample.tacticalContract)(strategicBaselineRelease(sample, planningCtx, pack)).flatten
     val mainClaimPacket =
       effectiveInputs.mainBundle.flatMap(_.mainClaim).flatMap(_.packet)
     val proofTrace =
@@ -499,6 +511,12 @@ object AuthoritySurfaceLedger:
   private def moveReviewNarrative(slots: MoveReviewPolishSlots): String =
     val prose = LiveNarrativeCompressionCore.deterministicProse(slots).trim
     if prose.isEmpty then "-" else prose
+
+  private def softenLocalReading(text: String): String =
+    val trimmed = Option(text).getOrElse("").trim
+    if trimmed.isEmpty || trimmed == "-" then "-"
+    else if trimmed.startsWith("A local reading") then trimmed
+    else s"A local reading is that ${trimmed.take(1).toLowerCase}${trimmed.drop(1)}"
 
   private def strategicBaselineRelease(
       sample: Sample,
@@ -602,6 +620,12 @@ object AuthoritySurfaceLedger:
           val baseCtx =
             NarrativeContextBuilder
               .build(data, data.toContext, None)
+          val selectedMainPlans =
+            if fixture.mainStrategicPlans.nonEmpty then fixture.mainStrategicPlans
+            else baseCtx.mainStrategicPlans
+          val selectedExperiments =
+            if fixture.strategicPlanExperiments.nonEmpty then fixture.strategicPlanExperiments
+            else baseCtx.strategicPlanExperiments
           val ctx =
             baseCtx.copy(
               authorQuestions =
@@ -610,12 +634,15 @@ object AuthoritySurfaceLedger:
               authorEvidence =
                 if fixture.authorEvidence.nonEmpty then fixture.authorEvidence
                 else baseCtx.authorEvidence,
-              mainStrategicPlans =
-                if fixture.mainStrategicPlans.nonEmpty then fixture.mainStrategicPlans
-                else baseCtx.mainStrategicPlans,
-              strategicPlanExperiments =
-                if fixture.strategicPlanExperiments.nonEmpty then fixture.strategicPlanExperiments
-                else baseCtx.strategicPlanExperiments,
+              mainStrategicPlans = selectedMainPlans,
+              strategicPlanExperiments = selectedExperiments,
+              strategicPlanEvidence =
+                if fixture.mainStrategicPlans.nonEmpty || fixture.strategicPlanExperiments.nonEmpty then
+                  lila.commentary.analysis.StrategicPlanEvidenceTestSupport.fromExperiments(
+                    selectedMainPlans,
+                    selectedExperiments
+                  )
+                else baseCtx.strategicPlanEvidence,
               semantic = fixture.semantic.orElse(baseCtx.semantic),
               engineEvidence = fixture.engineEvidence.orElse(baseCtx.engineEvidence)
             )
@@ -1620,6 +1647,8 @@ object AuthoritySurfaceLedger:
       baselineRelease: Option[String]
   ): String =
     ranked.primary match
+      case Some(_) if sample.softenOwnerPath && primary.startsWith("A local reading") =>
+        "SupportedLocal"
       case Some(plan) if positiveRelease(plan).nonEmpty =>
         positiveRelease(plan).get
       case Some(plan) =>

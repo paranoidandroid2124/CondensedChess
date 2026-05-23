@@ -1,6 +1,7 @@
 package lila.commentary.model.strategic
 
 import chess.{ Color, Role, Square }
+import lila.commentary.model.FingerprintFormat
 
 case class PreventedPlan(
     planId: String, // e.g. "StopCheck", "PreventFork", "DenyBreak"
@@ -131,7 +132,9 @@ case class PlanContinuity(
   phase: PlanLifecyclePhase = PlanLifecyclePhase.Preparation,
   commitmentScore: Double = 0.0,
   abortedReason: Option[String] = None
-)
+):
+  lazy val build_fingerprint: String =
+    s"${planId.getOrElse(planName)}:$consecutivePlies:$startingPly:${phase.toString}:${FingerprintFormat.fixed2(commitmentScore)}:${abortedReason.getOrElse("")}"
 object PlanContinuity:
   import play.api.libs.json.*
   private given Reads[PlanLifecyclePhase] = Reads {

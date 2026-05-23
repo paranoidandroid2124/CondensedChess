@@ -56,7 +56,8 @@ object PlanEvidenceEvaluator:
       validResults: List[ProbeResult],
       droppedCount: Int,
       droppedReasons: List[String],
-      invalidByRequestId: Map[String, List[String]]
+      invalidByRequestId: Map[String, List[String]],
+      softByRequestId: Map[String, List[String]] = Map.empty
   )
 
   case class DiagnosticPlanEntry(
@@ -103,8 +104,63 @@ object PlanEvidenceEvaluator:
   case class PartitionedPlans(
       mainPlans: List[PlanHypothesis],
       evaluated: List[EvaluatedPlan],
+      selectedMainEvaluatedPlans: List[EvaluatedPlan] = Nil,
       diagnosticSidecar: DiagnosticPlanSidecar = DiagnosticPlanSidecar()
   )
+
+  case class StrategicPlanEvidenceView(
+      selectedPlans: List[EvaluatedPlan] = Nil,
+      evaluatedPlans: List[EvaluatedPlan] = Nil
+  ):
+    def isEmpty: Boolean = selectedPlans.isEmpty && evaluatedPlans.isEmpty
+    def nonEmpty: Boolean = !isEmpty
+
+    def probeBackedPlans: List[EvaluatedPlan] =
+      selectedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked)
+
+    def pvCoupledPlans: List[EvaluatedPlan] =
+      evaluatedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.PvCoupledOnly)
+
+    def deferredPlans: List[EvaluatedPlan] =
+      evaluatedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.Deferred)
+
+    def refutedPlans: List[EvaluatedPlan] =
+      evaluatedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.Refuted)
+
+    def structuralOnlyPlans: List[EvaluatedPlan] =
+      evaluatedPlans.filter(_.userFacingEligibility == UserFacingPlanEligibility.StructuralOnly)
+
+    def hasProbeBacked: Boolean = probeBackedPlans.nonEmpty
+
+    def bestEvidenceFor(planId: String, subplanId: Option[String]): Option[EvaluatedPlan] =
+      (selectedPlans ++ evaluatedPlans)
+        .filter(plan =>
+          normalizeText(plan.hypothesis.planId) == normalizeText(planId) &&
+            subplanId.forall(id => plan.hypothesis.subplanId.exists(normalizeText(_) == normalizeText(id)))
+        )
+        .sortBy(plan => -rankingScore(plan))
+        .headOption
+
+    def probeBackedMainPlans: List[PlanHypothesis] =
+      probeBackedPlans.map(_.hypothesis)
+
+    def probeBackedPlanNames: List[String] =
+      probeBackedMainPlans.flatMap(plan => cleanText(plan.planName))
+
+    def leadingProbeBackedPlanName: Option[String] =
+      probeBackedPlanNames.headOption
+
+    def leadingProbeBackedCertification: Option[ClaimCertification] =
+      probeBackedPlans.headOption.map(_.claimCertification)
+
+  object StrategicPlanEvidenceView:
+    val empty: StrategicPlanEvidenceView = StrategicPlanEvidenceView()
+
+    def from(partition: PartitionedPlans): StrategicPlanEvidenceView =
+      StrategicPlanEvidenceView(
+        selectedPlans = partition.selectedMainEvaluatedPlans,
+        evaluatedPlans = partition.evaluated
+      )
 
   private val PvCoupledPlayableThreshold = 0.55
 
@@ -116,6 +172,7 @@ object PlanEvidenceEvaluator:
     val valid = scala.collection.mutable.ListBuffer.empty[ProbeResult]
     val droppedReasons = scala.collection.mutable.ListBuffer.empty[String]
     val invalidByRequest = scala.collection.mutable.Map.empty[String, List[String]]
+    val softByRequest = scala.collection.mutable.Map.empty[String, List[String]]
     var dropped = 0
 
     rawResults.foreach { pr =>
@@ -127,18 +184,24 @@ object PlanEvidenceEvaluator:
 
       if validation.isValid then
         valid += pr
+        reqOpt.foreach { req =>
+          val soft = validation.softReasonCodes.distinct.filter(_.nonEmpty)
+          if soft.nonEmpty then
+            val existing = softByRequest.getOrElse(req.id, Nil)
+            softByRequest.update(req.id, (existing ++ soft).distinct)
+        }
       else
         dropped += 1
         val reason =
           if validation.missingSignals.nonEmpty then
             s"supporting evidence is still incomplete: missing ${describeSignalList(validation.missingSignals)}"
-          else if validation.reasonCodes.nonEmpty then
+          else if validation.hardReasonCodes.nonEmpty then
             "supporting evidence is still incomplete after validation"
           else "supporting evidence is still incomplete"
         droppedReasons += reason
         reqOpt.foreach { req =>
           val details =
-            (validation.missingSignals ++ validation.reasonCodes).distinct.filter(_.nonEmpty)
+            (validation.missingSignals ++ validation.hardReasonCodes).distinct.filter(_.nonEmpty)
           if details.nonEmpty then
             val existing = invalidByRequest.getOrElse(req.id, Nil)
             invalidByRequest.update(req.id, (existing ++ details).distinct)
@@ -149,7 +212,8 @@ object PlanEvidenceEvaluator:
       validResults = valid.toList,
       droppedCount = dropped,
       droppedReasons = droppedReasons.toList.distinct.take(4),
-      invalidByRequestId = invalidByRequest.toMap
+      invalidByRequestId = invalidByRequest.toMap,
+      softByRequestId = softByRequest.toMap
     )
 
   def partition(
@@ -160,12 +224,14 @@ object PlanEvidenceEvaluator:
       isWhiteToMove: Boolean,
       droppedProbeCount: Int,
       droppedProbeReasons: List[String] = Nil,
-      invalidByRequestId: Map[String, List[String]] = Map.empty
+      invalidByRequestId: Map[String, List[String]] = Map.empty,
+      softByRequestId: Map[String, List[String]] = Map.empty
   ): PartitionedPlans =
     if hypotheses.isEmpty then
       PartitionedPlans(
         mainPlans = Nil,
         evaluated = Nil,
+        selectedMainEvaluatedPlans = Nil,
         diagnosticSidecar =
           DiagnosticPlanSidecar(
             entries = Nil,
@@ -218,11 +284,6 @@ object PlanEvidenceEvaluator:
               val (_, pr) = refutations.maxBy { case (req, res) => moverLoss(res, isWhiteToMove) - req.maxCpLoss.getOrElse(120) }
               val collapse = pr.l1Delta.flatMap(_.collapseReason).getOrElse("forcing tactical concession")
               (PlanEvidenceStatus.Refuted, s"concrete follow-up refutes it: $collapse")
-            else if alternativeDominance then
-              (
-                PlanEvidenceStatus.Refuted,
-                "a stronger sibling plan explains the position more directly, so this wording would be misleading"
-              )
             else if supports.nonEmpty then
               (PlanEvidenceStatus.PlayableEvidenceBacked, "backed by concrete supporting lines")
             else if structuralEscalation then
@@ -244,7 +305,7 @@ object PlanEvidenceEvaluator:
               (PlanEvidenceStatus.Deferred, why)
 
           val userFacingEligibility =
-            if refutations.nonEmpty || alternativeDominance then UserFacingPlanEligibility.Refuted
+            if refutations.nonEmpty then UserFacingPlanEligibility.Refuted
             else if supports.nonEmpty then UserFacingPlanEligibility.ProbeBacked
             else if structuralEscalation then UserFacingPlanEligibility.StructuralOnly
             else if pvCoupled && h.score >= PvCoupledPlayableThreshold then UserFacingPlanEligibility.PvCoupledOnly
@@ -298,22 +359,29 @@ object PlanEvidenceEvaluator:
       val mainPlanCandidates =
         userFacingThemeLeaders
 
-      val mainPlans =
+      val selectedMainEvaluatedPlans =
         mainPlanCandidates
           .sortBy(ep => -rankingScore(ep))
           .take(3)
           .zipWithIndex
           .map { case (ep, idx) =>
             val hyp = ep.hypothesis.copy(rank = idx + 1)
-            if (ep.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked)
-              markProbeBacked(hyp)
-            else
-              mark_provisional(hyp)
+            val marked =
+              if (ep.userFacingEligibility == UserFacingPlanEligibility.ProbeBacked)
+                markProbeBacked(hyp)
+              else
+                mark_provisional(hyp)
+            ep.copy(hypothesis = marked)
           }
+
+      val mainPlans =
+        selectedMainEvaluatedPlans.map(_.hypothesis)
 
       val diagnosticEntries =
         evaluated.map { ep =>
           val linkedRequests = probeRequests.filter(req => requestMatchesHypothesis(req, ep.hypothesis))
+          val softReasonCodes =
+            linkedRequests.flatMap(req => softByRequestId.getOrElse(req.id, Nil)).distinct
           DiagnosticPlanEntry(
             planId = ep.hypothesis.planId,
             subplanId = ep.hypothesis.subplanId,
@@ -335,7 +403,8 @@ object PlanEvidenceEvaluator:
             reasonCodes =
               diagnosticReasonCodes(
                 ep = ep,
-                linkedRequests = linkedRequests
+                linkedRequests = linkedRequests,
+                softReasonCodes = softReasonCodes
               ),
             maxCpLoss =
               linkedRequests
@@ -353,6 +422,7 @@ object PlanEvidenceEvaluator:
       PartitionedPlans(
         mainPlans = mainPlans,
         evaluated = evaluated,
+        selectedMainEvaluatedPlans = selectedMainEvaluatedPlans,
         diagnosticSidecar =
           DiagnosticPlanSidecar(
             entries = diagnosticEntries,
@@ -570,7 +640,7 @@ object PlanEvidenceEvaluator:
         Option.when(missingSignals.nonEmpty && supports.isEmpty)(PlayerFacingClaimTaintFlag.Deferred)
       ).flatten
     val certificateStatus =
-      if refutations.nonEmpty || alternativeDominance then PlayerFacingCertificateStatus.Invalid
+      if refutations.nonEmpty then PlayerFacingCertificateStatus.Invalid
       else if supports.nonEmpty && quantifier != PlayerFacingClaimQuantifier.Existential then
         PlayerFacingCertificateStatus.Valid
       else if supports.nonEmpty then PlayerFacingCertificateStatus.WeaklyValid
@@ -617,6 +687,9 @@ object PlanEvidenceEvaluator:
 
   private def rankingScore(h: PlanHypothesis): Double =
     h.score + h.viability.score * 0.1
+
+  private def cleanText(raw: String): Option[String] =
+    Option(raw).map(_.trim).filter(_.nonEmpty)
 
   private def indicatesAdvancement(themeId: String, result: ProbeResult): Boolean =
     result.futureSnapshot.exists(snapshot =>
@@ -756,7 +829,8 @@ object PlanEvidenceEvaluator:
 
   private def diagnosticReasonCodes(
       ep: EvaluatedPlan,
-      linkedRequests: List[ProbeRequest]
+      linkedRequests: List[ProbeRequest],
+      softReasonCodes: List[String]
   ): List[String] =
     val base =
       ep.userFacingEligibility match
@@ -779,7 +853,9 @@ object PlanEvidenceEvaluator:
       Option.when(linkedRequests.isEmpty)("no_linked_probe_request").toList
     val alternativeCodes =
       Option.when(ep.claimCertification.alternativeDominance)("alternative_dominance").toList
-    (base ++ certificateCodes ++ requestCodes ++ alternativeCodes ++ ep.missingSignals).distinct
+    val softCodes =
+      softReasonCodes.map(normalizeReasonCode)
+    (base ++ certificateCodes ++ requestCodes ++ alternativeCodes ++ ep.missingSignals ++ softCodes).distinct
 
   private def normalizeReasonCode(raw: String): String =
     Option(raw)

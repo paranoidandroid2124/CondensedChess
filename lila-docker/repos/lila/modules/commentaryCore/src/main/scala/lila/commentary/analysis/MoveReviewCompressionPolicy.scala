@@ -22,6 +22,12 @@ private[commentary] object MoveReviewCompressionPolicy:
       rejectReasons: List[String]
   )
 
+  private[commentary] final case class RuntimeResult(
+      slots: MoveReviewPolishSlots,
+      inputs: QuestionPlannerInputs,
+      rankedPlans: RankedQuestionPlans
+  )
+
   private final case class PlannerRuntime(
       inputs: QuestionPlannerInputs,
       rankedPlans: RankedQuestionPlans
@@ -63,12 +69,27 @@ private[commentary] object MoveReviewCompressionPolicy:
       strategyPack: Option[StrategyPack],
       truthContract: Option[DecisiveTruthContract] = None
   ): MoveReviewPolishSlots =
+    buildSlotsOrFallbackWithRuntime(ctx, outline, refs, strategyPack, truthContract).slots
+
+  private[commentary] def buildSlotsOrFallbackWithRuntime(
+      ctx: NarrativeContext,
+      @unused outline: NarrativeOutline,
+      refs: Option[MoveReviewRefs],
+      strategyPack: Option[StrategyPack],
+      truthContract: Option[DecisiveTruthContract] = None
+  ): RuntimeResult =
     val plannerRuntime =
       plannerInputsRuntime(ctx, refs, strategyPack, truthContract)
-    slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
-      .orElse(basicMoveExplanationSlots(ctx, refs, truthContract, strategyPack))
-      .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs, strategyPack))
-      .getOrElse(omittedSlots)
+    val slots =
+      slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
+        .orElse(basicMoveExplanationSlots(ctx, refs, truthContract, strategyPack))
+        .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs, strategyPack))
+        .getOrElse(omittedSlots)
+    RuntimeResult(
+      slots = slots,
+      inputs = plannerRuntime.inputs,
+      rankedPlans = plannerRuntime.rankedPlans
+    )
 
   private[commentary] def buildSlotsOrFallbackFromPlannerRuntime(
       ctx: NarrativeContext,

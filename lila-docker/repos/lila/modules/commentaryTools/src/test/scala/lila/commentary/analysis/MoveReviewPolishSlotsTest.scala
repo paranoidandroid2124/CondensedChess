@@ -357,6 +357,23 @@ class MoveReviewPolishSlotsTest extends FunSuite:
               bestReplyStable = true,
               futureSnapshotAligned = true
             )
+          ),
+        strategicPlanEvidence =
+          StrategicPlanEvidenceTestSupport.probeBacked(
+            List(
+              PlanHypothesis(
+                planId = "kingside_expansion",
+                planName = "Kingside Pressure",
+                rank = 1,
+                score = 0.82,
+                preconditions = Nil,
+                executionSteps = List("Keep the pressure on g7."),
+                failureModes = Nil,
+                viability = PlanViability(score = 0.82, label = "high", risk = "stable"),
+                evidenceSources = List("probe-backed"),
+                themeL1 = "kingside_space"
+              )
+            )
           )
       )
     val strategyPack = surfaceDrivenPack(routePurpose = "kingside pressure", targetSquare = "g7")
@@ -399,7 +416,8 @@ class MoveReviewPolishSlotsTest extends FunSuite:
               bestReplyStable = false,
               futureSnapshotAligned = false
             )
-          )
+          ),
+        strategicPlanEvidence = PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty
       )
     val strategyPack = surfaceDrivenPack(routePurpose = "kingside pressure", targetSquare = "g7")
     val slots =
@@ -795,7 +813,8 @@ class MoveReviewPolishSlotsTest extends FunSuite:
               bestReplyStable = true,
               futureSnapshotAligned = true
             )
-          )
+          ),
+        strategicPlanEvidence = PlanEvidenceEvaluator.StrategicPlanEvidenceView.empty
       )
     val outline =
       genericDecisionOutline(
@@ -1544,6 +1563,23 @@ class MoveReviewPolishSlotsTest extends FunSuite:
               evidenceTier = "evidence_backed",
               bestReplyStable = true,
               futureSnapshotAligned = true
+            )
+          ),
+        strategicPlanEvidence =
+          StrategicPlanEvidenceTestSupport.probeBacked(
+            List(
+              PlanHypothesis(
+                planId = "kingside_expansion",
+                planName = "Kingside Pressure",
+                rank = 1,
+                score = 0.82,
+                preconditions = Nil,
+                executionSteps = List("Keep the pressure on g7."),
+                failureModes = Nil,
+                viability = PlanViability(score = 0.82, label = "high", risk = "stable"),
+                evidenceSources = List("probe-backed"),
+                themeL1 = "kingside_space"
+              )
             )
           )
       )

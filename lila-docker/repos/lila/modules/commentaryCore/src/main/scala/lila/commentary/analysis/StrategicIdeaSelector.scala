@@ -54,6 +54,23 @@ private[commentary] object StrategicIdeaSelector:
     val PreventionOrSuppression = "prevention_or_suppression"
     val ConversionOrTransformation = "conversion_or_transformation"
 
+  private enum ExperimentEvidenceTier:
+    case EvidenceBacked, PvCoupled, Deferred, Refuted, Other
+
+  private def experimentTier(experiment: StrategicPlanExperiment): ExperimentEvidenceTier =
+    experiment.evidenceTier match
+      case "evidence_backed" => ExperimentEvidenceTier.EvidenceBacked
+      case "pv_coupled"      => ExperimentEvidenceTier.PvCoupled
+      case "deferred"        => ExperimentEvidenceTier.Deferred
+      case "refuted"         => ExperimentEvidenceTier.Refuted
+      case _                 => ExperimentEvidenceTier.Other
+
+  private def isRefutedExperiment(experiment: StrategicPlanExperiment): Boolean =
+    experimentTier(experiment) == ExperimentEvidenceTier.Refuted
+
+  private def isPlayableExperiment(experiment: StrategicPlanExperiment): Boolean =
+    !isRefutedExperiment(experiment)
+
   def enrich(pack: StrategyPack): StrategyPack =
     enrich(pack, StrategicIdeaSemanticContext.empty(pack.sideToMove))
 
@@ -532,7 +549,7 @@ private[commentary] object StrategicIdeaSelector:
             Option.when(
               semantic.strategicPlanExperiments.exists(experiment =>
                 experiment.themeL1 == PlanTaxonomy.PlanTheme.WeaknessFixation.id &&
-                  experiment.evidenceTier != "refuted"
+                  isPlayableExperiment(experiment)
               )
             )(0.08).getOrElse(0.0)
           evidence(
@@ -832,7 +849,7 @@ private[commentary] object StrategicIdeaSelector:
         then 0.14
         else if semantic.strategicPlanExperiments.exists(experiment =>
             experiment.themeL1 == PlanTaxonomy.PlanTheme.ImmediateTacticalGain.id &&
-              experiment.evidenceTier != "refuted"
+              isPlayableExperiment(experiment)
           )
         then 0.04
         else 0.0
@@ -1063,7 +1080,7 @@ private[commentary] object StrategicIdeaSelector:
       kind: String,
       experiment: StrategicPlanExperiment
   ): Boolean =
-    experiment.evidenceTier == "refuted" ||
+    isRefutedExperiment(experiment) ||
       (
         isCounterBreakCriticalKind(kind) &&
           (experiment.supportProbeCount > 0 || experiment.refuteProbeCount > 0) &&
@@ -1076,12 +1093,12 @@ private[commentary] object StrategicIdeaSelector:
       experiment: StrategicPlanExperiment
   ): Double =
     val tierModifier =
-      experiment.evidenceTier match
-        case "evidence_backed" => 0.22
-        case "pv_coupled"      => 0.10
-        case "deferred"        => -0.10
-        case "refuted"         => -0.30
-        case _                 => 0.0
+      experimentTier(experiment) match
+        case ExperimentEvidenceTier.EvidenceBacked => 0.22
+        case ExperimentEvidenceTier.PvCoupled      => 0.10
+        case ExperimentEvidenceTier.Deferred       => -0.10
+        case ExperimentEvidenceTier.Refuted        => -0.30
+        case ExperimentEvidenceTier.Other          => 0.0
     val bestReplyModifier =
       if experiment.bestReplyStable then 0.12
       else if experiment.supportProbeCount + experiment.refuteProbeCount > 0 then -0.12
@@ -1112,10 +1129,10 @@ private[commentary] object StrategicIdeaSelector:
       experiments
         .filter(_.themeL1 == PlanTaxonomy.PlanTheme.ImmediateTacticalGain.id)
         .map { experiment =>
-          experiment.evidenceTier match
-            case "evidence_backed" => -0.16
-            case "pv_coupled"      => -0.08
-            case _                 => 0.0
+          experimentTier(experiment) match
+            case ExperimentEvidenceTier.EvidenceBacked => -0.16
+            case ExperimentEvidenceTier.PvCoupled      => -0.08
+            case _                                     => 0.0
         }
         .sum
         .max(-0.16)
@@ -1546,7 +1563,7 @@ private[commentary] object StrategicIdeaSelector:
   ): Boolean =
     semantic.strategicPlanExperiments.exists { experiment =>
       planEvidenceAppliesToKind(experiment, kind) &&
-        experiment.evidenceTier != "refuted" &&
+        isPlayableExperiment(experiment) &&
         !experiment.moveOrderSensitive &&
         (
           experiment.bestReplyStable ||
@@ -1639,7 +1656,7 @@ private[commentary] object StrategicIdeaSelector:
     val reviewedWeaknessExperiment =
       semantic.strategicPlanExperiments.exists(experiment =>
         experiment.themeL1 == PlanTaxonomy.PlanTheme.WeaknessFixation.id &&
-          experiment.evidenceTier != "refuted"
+          isPlayableExperiment(experiment)
       )
     val corroboratedWeakness =
       candidate.focusSquares.nonEmpty &&
@@ -2176,14 +2193,7 @@ private[commentary] object StrategicIdeaSelector:
       case _   => "piece"
 
   private def normalizeFileToken(value: String): Option[String] =
-    Option(value)
-      .map(_.trim.toLowerCase)
-      .filter(_.nonEmpty)
-      .flatMap(raw =>
-        raw.headOption
-          .filter(ch => ch >= 'a' && ch <= 'h')
-          .map(_.toString)
-      )
+    BreakFileToken.extract(value)
 
   private def zoneFromFileToken(file: String): Option[String] =
     file.trim.toLowerCase.headOption.flatMap {

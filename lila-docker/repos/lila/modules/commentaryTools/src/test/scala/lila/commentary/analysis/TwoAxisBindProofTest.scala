@@ -249,6 +249,22 @@ class TwoAxisBindProofTest extends FunSuite:
     assert(cert.failsIf.contains("axis_independence_not_proven"), clue(cert))
   }
 
+  test("axis independence parses the break square instead of prose prefix letters") {
+    val cert =
+      certification(
+        plan = evaluatedRestrictionPlan(List("probe_reply", "probe_validation")),
+        probes = List(directReplyProbe("probe_reply"), validationProbe("probe_validation")),
+        preventedPlans =
+          List(
+            preventedBreakPlan(label = "neutralized_break:d5"),
+            preventedEntryPlan(square = "e4")
+          )
+      )
+
+    assert(cert.axisIndependence.proven, clue(cert))
+    assert(!cert.failsIf.contains("axis_independence_not_proven"), clue(cert))
+  }
+
   test("dual_axis_burden_missing fails when only the primary axis carries measurable restriction") {
     val cert =
       certification(

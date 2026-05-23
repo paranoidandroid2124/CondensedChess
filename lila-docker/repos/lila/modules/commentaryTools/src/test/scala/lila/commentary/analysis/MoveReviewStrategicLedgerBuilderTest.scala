@@ -1,9 +1,10 @@
 package lila.commentary.analysis
 
 import munit.FunSuite
-import lila.commentary.{ MoveReviewMoveRef, MoveReviewRefs, MoveReviewVariationRef, StrategyPack, StrategyPieceRoute }
+import lila.commentary.{ DecisionComparisonDigest, MoveReviewMoveRef, MoveReviewRefs, MoveReviewVariationRef, NarrativeSignalDigest, StrategyPack, StrategyPieceRoute }
 import lila.commentary.model.NarrativeContext
 import lila.commentary.model.ProbeResult
+import lila.commentary.model.authoring.{ EvidenceBranch, QuestionEvidence }
 import lila.commentary.model.strategic.{ EngineEvidence, PlanContinuity, PlanLifecyclePhase, VariationLine }
 import _root_.chess.Color
 
@@ -122,6 +123,35 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
     assertEquals(primary.sanMoves.length, 4)
   }
 
+  test("probe ledger notes do not project request-derived purpose or objective") {
+    val legalFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+    val rawPurpose = "raw request purpose text"
+    val rawObjective = "raw request objective text"
+    val probe =
+      ProbeResult(
+        id = "probe-rook-pawn",
+        fen = Some(legalFen),
+        evalCp = 28,
+        bestReplyPv = List("e7e5", "g1f3"),
+        deltaVsBaseline = 12,
+        keyMotifs = List("rook_pawn_march"),
+        purpose = Some(rawPurpose),
+        objective = Some(rawObjective),
+        probedMove = Some("e2e4"),
+        depth = Some(20)
+      )
+    val ledger =
+      build(
+        MoveReviewProseGoldenFixtures.rookPawnMarch.ctx.copy(fen = legalFen),
+        probeResults = List(probe)
+      )
+    val note = ledger.primaryLine.flatMap(_.note).getOrElse("")
+
+    assert(!note.contains(rawPurpose), clue(note))
+    assert(!note.contains(rawObjective), clue(note))
+    assert(note.contains("12cp vs baseline"), clue(note))
+  }
+
   test("falls back to decision-compare engine pv when no supportive probe exists") {
     val legalFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
     val ctx =
@@ -146,11 +176,74 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
     assert(primary.sanMoves.nonEmpty)
   }
 
+  test("raw strategyPack signal digest decision does not create player ledger lines") {
+    val rawEvidence = "raw signal digest evidence text"
+    val pack =
+      StrategyPack(
+        sideToMove = "white",
+        signalDigest =
+          Some(
+            NarrativeSignalDigest(
+              decisionComparison =
+                Some(
+                  DecisionComparisonDigest(
+                    engineBestPv = List("Nf3", "Nc6"),
+                    engineBestScoreCp = Some(20),
+                    evidence = Some(rawEvidence)
+                  )
+                )
+            )
+          )
+      )
+    val ledger =
+      maybeBuild(
+        MoveReviewProseGoldenFixtures.rookPawnMarch.ctx,
+        strategyPack = Some(pack)
+      )
+    val rendered =
+      ledger.toList.flatMap { value =>
+        List(value.primaryLine, value.resourceLine).flatten.flatMap(line =>
+          List(line.title, line.source) ++ line.note.toList ++ line.sanMoves
+        )
+      }.mkString(" ")
+
+    assert(!rendered.contains(rawEvidence), clue(rendered))
+    assert(!rendered.contains("decision_compare"), clue(rendered))
+  }
+
   test("prefers authoring branches for the resource line") {
     val ledger = build(MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx)
     val resource = ledger.resourceLine.getOrElse(fail("missing resource line"))
     assertEquals(resource.source, "authoring")
     assert(resource.sanMoves.nonEmpty)
+  }
+
+  test("authoring branch ledger notes do not project probe-result purpose") {
+    val rawPurpose = "raw result purpose from probe request"
+    val ctx =
+      MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx.copy(
+        authorEvidence =
+          List(
+            QuestionEvidence(
+              questionId = "why_this_1",
+              purpose = rawPurpose,
+              branches =
+                List(
+                  EvidenceBranch(
+                    keyMove = "Nf3",
+                    line = "Nf3 Nc6",
+                    depth = Some(18)
+                  )
+                )
+            )
+          )
+      )
+    val ledger = build(ctx)
+    val note = ledger.resourceLine.flatMap(_.note).getOrElse("")
+
+    assert(!note.contains(rawPurpose), clue(note))
+    assert(note.contains("key move Nf3"), clue(note))
+    assert(note.contains("depth 18"), clue(note))
   }
 
   test("uses variation fallback for the resource line when authoring evidence is absent") {

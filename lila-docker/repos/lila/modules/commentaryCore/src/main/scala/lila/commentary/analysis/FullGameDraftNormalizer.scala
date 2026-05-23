@@ -32,6 +32,9 @@ private[commentary] object FullGameDraftNormalizer:
     """(?i)\bStrategic focus centers on\s+""" -> "The position revolves around ",
     """(?i)\bStrategic focus remains on\s+""" -> "The position still turns on ",
     """(?i)\bStrategic focus is sharpening along\s+""" -> "Pressure is sharpening along ",
+    """(?i)\bKey theme centers on\s+""" -> "The position revolves around ",
+    """(?i)\bKey theme remains on\s+""" -> "The position still turns on ",
+    """(?i)\bKey theme is sharpening along\s+""" -> "Pressure is sharpening along ",
     """(?i)\bThe strategic stack still points first to\s+""" -> "The main plan remains ",
     """(?i)\bThe strategic stack still favors\s+""" -> "The main plan remains ",
     """(?i)\bThe backup strategic stack is\s+""" -> "Secondary ideas still include "
