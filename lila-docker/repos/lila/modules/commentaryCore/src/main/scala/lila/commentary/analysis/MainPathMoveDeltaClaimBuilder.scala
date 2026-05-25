@@ -1,6 +1,7 @@
 package lila.commentary.analysis
 
 import lila.commentary.{ RouteSurfaceMode, StrategyPack }
+import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
 import lila.commentary.analysis.semantic.StrategicObservationIds.ProofFamilyId
 import lila.commentary.model.*
 import lila.commentary.model.strategic.{ VariationLine, VariationTag }
@@ -19,6 +20,7 @@ private[commentary] final case class MainPathScopedClaim(
     evidenceLines: List[String],
     sourceKind: String,
     tacticalOwnership: Option[String],
+    prefixKind: PlayerFacingClaimPrefixKind = PlayerFacingClaimPrefixKind.None,
     packet: Option[PlayerFacingClaimPacket] = None
 ):
   def lens: StrategicLens =
@@ -156,11 +158,20 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
               val finalClaimText =
                 if (delta.allowsWeakMainClaim) text
                 else qualify_text(text)
+              val prefix =
+                if (delta.deltaClass == PlayerFacingMoveDeltaClass.PressureIncrease &&
+                    (delta.packet.proofSource == PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource ||
+                     delta.packet.proofSource == PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource)) {
+                  PlayerFacingClaimPrefixKind.KeyStrategicFact
+                } else {
+                  PlayerFacingClaimPrefixKind.None
+                }
               MainPathScopedClaim(
                 scope = claimScope(delta.packet),
                 mode = PlayerFacingTruthMode.Strategic,
                 deltaClass = Some(delta.deltaClass),
                 claimText = finalClaimText,
+                prefixKind = prefix,
                 anchorTerms = anchorTerms,
                 evidenceLines = lineEvidence,
                 sourceKind = sourceKind,

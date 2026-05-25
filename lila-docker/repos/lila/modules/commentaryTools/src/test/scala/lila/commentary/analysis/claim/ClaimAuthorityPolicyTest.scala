@@ -40,5 +40,5 @@ class ClaimAuthorityPolicyTest extends FunSuite:
         "The key strategic fact here is that this exchange moves the game into the queenless branch."
       )
 
-    assertEquals(surface, "A local reading is that this exchange moves the game into the queenless branch.")
+    assertEquals(surface, "A key idea is that this exchange moves the game into the queenless branch.")
   }

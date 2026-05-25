@@ -9,7 +9,7 @@ import lila.commentary.model.strategic.VariationLine
 import lila.commentary.analysis.PlanTaxonomy.{ PlanTheme, ThemeResolver, SubplanCatalog, PlanKind }
 import lila.commentary.analysis.render.*
 import lila.commentary.analysis.render.FragmentAuthority.{ rawFragmentText, releasedFragmentText, supportFragment }
-
+import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
 /**
  * NarrativeOutlineBuilder: SSOT for "what to say"
  *
@@ -732,11 +732,12 @@ object NarrativeOutlineBuilder:
   ): Option[OutlineBeat] =
     rankedPlans.primary match
       case Some(plan) =>
-        rec.use(s"planner.primary.${plan.questionId}", plan.claim, "Decision point")
+        val renderedClaim = plan.prefixKind.render(plan.claim)
+        rec.use(s"planner.primary.${plan.questionId}", renderedClaim, "Decision point")
         val text =
           List(
-            Some(plan.claim),
-            plan.contrast.filterNot(contrast => plan.claim.equalsIgnoreCase(contrast))
+            Some(renderedClaim),
+            plan.contrast.filterNot(contrast => renderedClaim.equalsIgnoreCase(contrast))
           ).flatten.mkString(" ").trim
         Some(
           OutlineBeat(
@@ -1354,9 +1355,7 @@ object NarrativeOutlineBuilder:
 
       val deltaText = buildDeltaAfterMoveText(ctx, bead).getOrElse("")
       val alternativeSupportText =
-        Option.when(CriticalAnnotationPolicy.shouldPrioritizeClaim(ctx)) {
-          AlternativeNarrativeSupport.sentence(ctx).map(ensureSentence).filter(_.nonEmpty).getOrElse("")
-        }.filter(_.nonEmpty).getOrElse("")
+        AlternativeNarrativeSupport.sentence(ctx).map(ensureSentence).filter(_.nonEmpty).getOrElse("")
       val precedentText = precedentTextOpt.getOrElse("")
       if precedentText.nonEmpty then
         rec.use("openingData.sampleGames", "1", "Move-level precedent")

@@ -3488,9 +3488,9 @@ private[commentary] object PlayerFacingTruthModePolicy:
   ): Option[String] =
     exactSliceTargetSquare(packet).orElse(fallbackAnchor).map { square =>
       if packet.proofSource == CarlsbadFixedTargetProbeProofSource then
-        s"The key strategic fact here is that $square is the fixed target."
+        s"$square is the fixed target."
       else if packet.proofSource == TargetFocusedCoordinationProofSource then
-        s"The key strategic fact here is that the pressure is coordinated on $square."
+        s"the pressure is coordinated on $square."
       else if packet.proofSource == ExactTargetFixationProofSource then
         modalityTier match
           case PlayerFacingClaimModalityTier.Supports => s"This keeps $square fixed as the target."

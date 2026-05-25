@@ -165,7 +165,7 @@ class AdmissionUnitReviewTest extends FunSuite:
         contractId = "runtime:counterplay_restraint",
         contractStatus = "Releasable",
         release = "SupportedLocal",
-        primary = "A local reading is that this slows down queenside counterplay before it gets started."
+        primary = "A key idea is that this slows down queenside counterplay before it gets started."
       )
     val mismatch =
       observation(
@@ -204,7 +204,7 @@ class AdmissionUnitReviewTest extends FunSuite:
         contractId = "runtime:counterplay_restraint",
         contractStatus = "Releasable",
         release = "SupportedLocal",
-        primary = "A local reading is that this slows down queenside counterplay before it gets started."
+        primary = "A key idea is that this slows down queenside counterplay before it gets started."
       )
     val admittedB = admittedA.copy(source = source("source-admitted-b"), ply = Some(47))
     val blocked =

@@ -1,12 +1,14 @@
 package lila.commentary.analysis
 
 import lila.commentary.model.NarrativeContext
+import lila.commentary.MoveReviewRefs
 
 private[analysis] object NarrativeEvidenceHooks:
 
-  def build(ctx: NarrativeContext): Option[String] =
+  def build(ctx: NarrativeContext, refs: Option[MoveReviewRefs] = None): Option[String] =
     authorEvidenceHook(ctx)
       .orElse(probeRequestHook(ctx))
+      .orElse(lineConsequenceHook(ctx, refs))
       .orElse(topVariationHook(ctx))
       .map(UserFacingSignalSanitizer.sanitize)
 
@@ -28,6 +30,9 @@ private[analysis] object NarrativeEvidenceHooks:
       val moveText = Option.when(moves.nonEmpty)(s" through ${joinNatural(moves)}").getOrElse("")
       (plan orElse objective).map(label => s"Further probe work still targets $label$moveText.")
     }
+
+  private def lineConsequenceHook(ctx: NarrativeContext, refs: Option[MoveReviewRefs]): Option[String] =
+    LineConsequenceEvaluator.narrativeCandidate(ctx, refs).map(_.playerSentence)
 
   private def topVariationHook(ctx: NarrativeContext): Option[String] =
     ctx.engineEvidence.flatMap(_.best).flatMap { line =>

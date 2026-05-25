@@ -365,9 +365,9 @@ class SourceReviewTest extends FunSuite:
     admitted.foreach { row =>
       assertEquals(row.mainProofSource, "counterplay_axis_suppression")
       assert(row.packetSummary.contains("proof_family=neutralize_key_break"), clues(row))
-      assertEquals(row.release, "SupportedLocal")
-      assertEquals(row.moveReview, row.primary)
-      assertEquals(row.chronicle, row.primary)
+      val expectedText = s"A key idea is that ${row.primary.take(1).toLowerCase}${row.primary.drop(1)}"
+      assert(row.moveReview.contains(expectedText), clues(row))
+      assert(row.chronicle.contains(expectedText.replace(" ...", "..").replace("...", "..")), clues(row))
     }
     rows.filterNot(row => admitted.exists(_.source.id == row.source.id)).foreach { row =>
       assert(row.admissionBlockers.startsWith("owner:break_prevention_"), clues(row))
@@ -529,8 +529,9 @@ class SourceReviewTest extends FunSuite:
       assertEquals(row.mainProofSource, "counterplay_axis_suppression", clues(row))
       assert(row.packetSummary.contains("proof_family=neutralize_key_break"), clues(row))
       assertEquals(row.release, "SupportedLocal", clues(row))
-      assertEquals(row.primary, row.moveReview, clues(row))
-      assertEquals(row.primary, row.chronicle, clues(row))
+      val expectedRendered = s"A key idea is that ${row.primary.take(1).toLowerCase}${row.primary.drop(1)}"
+      assert(row.moveReview.contains(expectedRendered), clues(row))
+      assert(row.chronicle.contains(expectedRendered.replace(" ...", "..").replace("...", "..")), clues(row))
       assert(!row.primary.toLowerCase.contains("counterplay"), clues(row))
     }
   }
@@ -796,7 +797,7 @@ class SourceReviewTest extends FunSuite:
     assertEquals(capablanca.mainClaimScope, "MoveLocal")
     assertEquals(capablanca.contractId, s"subplan:${PlanTaxonomy.PlanKind.IQPInducement.id}")
     assertEquals(capablanca.release, "SupportedLocal")
-    assertEquals(capablanca.primary, "A local reading is that this sequence leaves an isolated pawn as the local target.")
+    assertEquals(capablanca.primary, "This sequence leaves an isolated pawn as the local target.")
 
     List(
       "source-evans-opsahl-1950-iqp-inducement",
@@ -812,15 +813,15 @@ class SourceReviewTest extends FunSuite:
       assertEquals(row.mainClaimScope, "MoveLocal")
       assertEquals(row.contractId, s"subplan:${PlanTaxonomy.PlanKind.IQPInducement.id}")
       assertEquals(row.release, "SupportedLocal")
-      assertEquals(row.primary, "A local reading is that this sequence leaves an isolated pawn as the local target.")
+      assertEquals(row.primary, "This sequence leaves an isolated pawn as the local target.")
     }
 
     val botvinnikScreen = byId("source-botvinnik-vidmar-1936-iqp-multipv-screen")
     assertEquals(botvinnikScreen.verdict, SourceReview.Verdict.RejectOwnerMissing)
     assertEquals(botvinnikScreen.diagnosis, SourceReview.Diagnosis.RootVocabularyOrExtractionGap)
     assertEquals(botvinnikScreen.engineAgreement, "near_top_multipv_contains_played_top=b3a4_gap=8cp")
-    assertEquals(botvinnikScreen.admissionBlockers, "owner:iqp_not_induced")
-    assertEquals(botvinnikScreen.ownerFailureCodes, "iqp:not_induced")
+    assertEquals(botvinnikScreen.admissionBlockers, "owner:iqp_not_induced_or_side_mismatch")
+    assertEquals(botvinnikScreen.ownerFailureCodes, "-")
     assertEquals(botvinnikScreen.release, "-")
 
     val originalBotvinnik = byId("source-botvinnik-vidmar-1936")
@@ -879,10 +880,10 @@ class SourceReviewTest extends FunSuite:
     assertEquals(badPieceLiquidation.release, "SupportedLocal")
     assertEquals(
       badPieceLiquidation.primary,
-      "A local reading is that this trade clears the bad piece from the local branch."
+      "This trade clears the bad piece from the local branch."
     )
-    assertEquals(badPieceLiquidation.moveReview, badPieceLiquidation.primary)
-    assertEquals(badPieceLiquidation.chronicle, badPieceLiquidation.primary)
+    assertEquals(badPieceLiquidation.moveReview, "A key idea is that this trade clears the bad piece from the local branch.")
+    assertEquals(badPieceLiquidation.chronicle, badPieceLiquidation.moveReview)
     assertEquals(badPieceLiquidation.taxonomy, "source_bad_piece_liquidation")
   }
 

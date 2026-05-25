@@ -474,6 +474,7 @@ object CommentaryEngine:
           PlanProposalEngine.mergePlanFirstWithEngine(
             planFirst = planFirstHypotheses,
             engineHypotheses = engineHypotheses,
+            ctx = ctx,
             maxItems = 3
           )
         val salienceThemeShare =

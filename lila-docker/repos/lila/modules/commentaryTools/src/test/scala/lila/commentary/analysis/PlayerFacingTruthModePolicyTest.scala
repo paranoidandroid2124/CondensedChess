@@ -6,6 +6,7 @@ import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
 import lila.commentary.model.authoring.NarrativeOutline
 import lila.commentary.model.strategic.{ EngineEvidence, PvMove, VariationLine }
+import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
 
 class PlayerFacingTruthModePolicyTest extends FunSuite:
 
@@ -1367,8 +1368,9 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
     assertEquals(
       primary.claim,
-      "A local reading is that the move has to happen now because otherwise c1c8 is demanded immediately."
+      "The move has to happen now because otherwise c1c8 is demanded immediately."
     )
+    assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.SupportedLocal)
     assertEquals(primary.evidence, None)
     assertEquals(primary.contrast, None)
     assertEquals(primary.consequence, None)
@@ -1468,8 +1470,9 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
     assertEquals(
       primary.claim,
-      "A local reading is that this has to stop the opponent's material threat before it lands."
+      "This has to stop the opponent's material threat before it lands."
     )
+    assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.SupportedLocal)
     assertEquals(primary.evidence, None)
     assertEquals(primary.contrast, None)
     assertEquals(primary.consequence, None)
@@ -2520,7 +2523,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the probe packet"))
 
       assertEquals(mainClaim.scope, PlayerFacingClaimScope.PositionLocal)
-      assertEquals(mainClaim.claimText, "The key strategic fact here is that c6 is the fixed target.")
+      assertEquals(mainClaim.claimText, "c6 is the fixed target.")
+      assertEquals(mainClaim.prefixKind, PlayerFacingClaimPrefixKind.KeyStrategicFact)
       assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource)
       assertEquals(packet.proofFamily, PlanTaxonomy.PlanKind.BackwardPawnTargeting.id)
       assertEquals(packet.scope, PlayerFacingPacketScope.PositionLocal)
@@ -2537,7 +2541,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       )
       assertEquals(
         ranked.primary.map(_.claim),
-        Some("The key strategic fact here is that c6 is the fixed target.")
+        Some("c6 is the fixed target.")
       )
       assertEquals(
         ranked.primary.flatMap(_.consequence.map(_.text)),
@@ -2566,7 +2570,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       val packet = mainClaim.packet.getOrElse(fail(s"$id should carry the probe packet"))
 
       assertEquals(mainClaim.scope, PlayerFacingClaimScope.PositionLocal)
-      assertEquals(mainClaim.claimText, "The key strategic fact here is that the pressure is coordinated on c6.")
+      assertEquals(mainClaim.claimText, "the pressure is coordinated on c6.")
+      assertEquals(mainClaim.prefixKind, PlayerFacingClaimPrefixKind.KeyStrategicFact)
       assertEquals(packet.proofSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource)
       assertEquals(packet.proofFamily, PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofFamily)
       assertEquals(packet.scope, PlayerFacingPacketScope.PositionLocal)
@@ -2584,7 +2589,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       assertEquals(ranked.primary.map(_.questionKind), Some(AuthorQuestionKind.WhatMattersHere))
       assertEquals(
         ranked.primary.map(_.claim),
-        Some("The key strategic fact here is that the pressure is coordinated on c6.")
+        Some("the pressure is coordinated on c6.")
       )
       assertEquals(
         ranked.primary.flatMap(_.consequence.map(_.text)),
@@ -3283,7 +3288,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     )
     assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
     assertEquals(primary.plannerSource, PlayerFacingTruthModePolicy.DefenderTradeProofSource)
-    assertEquals(primary.claim, "A local reading is that this exchange removes a defender on the local branch.")
+    assertEquals(primary.claim, "This exchange removes a defender on the local branch.")
+    assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.SupportedLocal)
     assertEquals(primary.contrast, None)
     assertEquals(primary.consequence, None)
     assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
@@ -3388,7 +3394,8 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
 
     assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
     assertEquals(primary.plannerSource, PlayerFacingTruthModePolicy.BadPieceLiquidationProofSource)
-    assertEquals(primary.claim, "A local reading is that this trade clears the bad piece from the local branch.")
+    assertEquals(primary.claim, "This trade clears the bad piece from the local branch.")
+    assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.SupportedLocal)
     assertEquals(primary.contrast, None)
     assertEquals(primary.consequence, None)
     assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))

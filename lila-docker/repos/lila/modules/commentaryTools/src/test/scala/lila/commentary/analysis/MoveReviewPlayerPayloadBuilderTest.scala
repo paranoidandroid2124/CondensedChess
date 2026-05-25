@@ -18,7 +18,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       moveReviewLedger: Option[MoveReviewStrategicLedger] = None,
       evaluatedPlans: List[EvaluatedPlan] = Nil,
       authoringSurface: AuthoringEvidenceSurface = emptyAuthoringSurface,
-      supportedLocalRows: List[MoveReviewPlayerSurfaceRow] = Nil
+      supportedLocalRows: List[MoveReviewPlayerSurfaceRow] = Nil,
+      decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None
   ): MoveReviewPlayerSurface =
     MoveReviewPlayerPayloadBuilder.build(
       ctx = ctx,
@@ -27,7 +28,8 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       refs = None,
       evaluatedPlans = evaluatedPlans,
       authoringSurface = authoringSurface,
-      supportedLocalRows = supportedLocalRows
+      supportedLocalRows = supportedLocalRows,
+      decisionComparisonSurface = decisionComparisonSurface
     )
 
   private def plan(
@@ -82,6 +84,141 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assertEquals(surface.schema, "chesstory.move_review.player_surface.v1")
     assertEquals(surface.title, Some("Move review title"))
     assertEquals(surface.decisionComparison, None)
+  }
+
+  test("uses only certified decision comparison surface input for the player strip") {
+    val certified =
+      MoveReviewPlayerDecisionComparison(
+        kicker = "Decision point",
+        gapLabel = Some("220cp"),
+        chosenSan = Some("h4"),
+        engineSan = Some("g4"),
+        comparedSan = None,
+        deferredSan = Some("raw deferred should be stripped later"),
+        secondaryText = Some("The checked line reaches an exchange sequence after Bxc6, so the decision is about which structure remains."),
+        chosenMatchesBest = false
+      )
+
+    val surface = build(decisionComparisonSurface = Some(certified))
+
+    assertEquals(surface.decisionComparison, Some(certified))
+  }
+
+  test("builds a player decision strip only from surface-candidate line consequence") {
+    val evidence = surfaceLineEvidence()
+    val digest =
+      DecisionComparisonDigest(
+        chosenMove = Some("h4"),
+        engineBestMove = Some("g4"),
+        engineBestPv = evidence.sanMoves,
+        cpLossVsChosen = Some(220),
+        evidence = Some(evidence.playerSentence),
+        chosenMatchesBest = false
+      )
+
+    val surface =
+      MoveReviewPlayerPayloadBuilder
+        .decisionComparisonSurface(Some(digest), Some(evidence))
+        .getOrElse(fail("missing decision surface"))
+
+    assertEquals(surface.kicker, "Decision point")
+    assertEquals(surface.gapLabel, Some("220cp"))
+    assertEquals(surface.chosenSan, Some("h4"))
+    assertEquals(surface.engineSan, Some("g4"))
+    assert(surface.secondaryText.exists(_.contains("exchange sequence")), clue(surface))
+  }
+
+  test("does not surface diagnostic-only line consequence") {
+    val evidence = surfaceLineEvidence()
+    val digest =
+      DecisionComparisonDigest(
+        chosenMove = Some("h4"),
+        engineBestMove = Some("g4"),
+        cpLossVsChosen = Some(220),
+        chosenMatchesBest = false
+      )
+    val diagnostic = evidence.copy(
+      release = LineConsequenceRelease.DiagnosticOnly,
+      rejectReasons = List("line_consequence:engine_only")
+    )
+
+    assertEquals(MoveReviewPlayerPayloadBuilder.decisionComparisonSurface(Some(digest), Some(diagnostic)), None)
+  }
+
+  test("does not surface bare small cp gaps without exact comparison or practical alternative") {
+    val digest =
+      DecisionComparisonDigest(
+        chosenMove = Some("h4"),
+        engineBestMove = Some("g4"),
+        cpLossVsChosen = Some(30),
+        chosenMatchesBest = false
+      )
+
+    assertEquals(MoveReviewPlayerPayloadBuilder.decisionComparisonSurface(Some(digest), Some(surfaceLineEvidence())), None)
+  }
+
+  test("surfaces moderate cp gaps with bounded line consequence wording") {
+    val evidence = surfaceLineEvidence()
+    val digest =
+      DecisionComparisonDigest(
+        chosenMove = Some("h4"),
+        engineBestMove = Some("g4"),
+        cpLossVsChosen = Some(45),
+        evidence = Some(evidence.playerSentence),
+        chosenMatchesBest = false
+      )
+
+    val surface =
+      MoveReviewPlayerPayloadBuilder
+        .decisionComparisonSurface(Some(digest), Some(evidence))
+        .getOrElse(fail("missing moderate-gap decision surface"))
+
+    assertEquals(surface.gapLabel, Some("45cp slight"))
+    assert(surface.secondaryText.exists(_.contains("exchange sequence")), clue(surface))
+  }
+
+  test("allows same-first-move branch comparison when replayed line diverges later") {
+    val evidence = surfaceLineEvidence()
+    val digest =
+      DecisionComparisonDigest(
+        chosenMove = Some("Nf3"),
+        engineBestMove = Some("Nf3"),
+        comparedMove = Some("Nf3"),
+        cpLossVsChosen = Some(45),
+        evidence = Some(evidence.playerSentence),
+        chosenMatchesBest = true
+      )
+
+    val surface =
+      MoveReviewPlayerPayloadBuilder
+        .decisionComparisonSurface(Some(digest), Some(evidence))
+        .getOrElse(fail("missing same-first-move decision surface"))
+
+    assertEquals(surface.chosenSan, Some("Nf3"))
+    assertEquals(surface.engineSan, Some("Nf3"))
+    assertEquals(surface.comparedSan, Some("Nf3"))
+    assert(surface.secondaryText.exists(_.contains("which structure remains")), clue(surface))
+  }
+
+  test("non-blocking line consequence diagnostic tags do not close the player strip") {
+    val evidence =
+      surfaceLineEvidence().copy(rejectReasons = List("line_consequence:low_gap_diagnostic"))
+    val digest =
+      DecisionComparisonDigest(
+        chosenMove = Some("h4"),
+        engineBestMove = Some("g4"),
+        cpLossVsChosen = Some(220),
+        evidence = Some(evidence.playerSentence),
+        chosenMatchesBest = false
+      )
+
+    val surface =
+      MoveReviewPlayerPayloadBuilder
+        .decisionComparisonSurface(Some(digest), Some(evidence))
+        .getOrElse(fail("missing decision surface with non-blocking diagnostic tag"))
+
+    assertEquals(surface.gapLabel, Some("220cp"))
+    assert(!surface.secondaryText.exists(_.contains("line_consequence:")), clue(surface))
   }
 
   test("probe rows come from the certified ledger only") {
@@ -230,7 +367,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     val supported =
       MoveReviewPlayerSurfaceRow(
         label = "Counterplay break",
-        text = "A local reading is that this move stops the d5 break.",
+        text = "A key idea is that this move stops the d5 break.",
         source = Some("counterplay_axis_suppression"),
         refSans = List("exd5")
       )
@@ -298,3 +435,20 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
     assert(surface.advancedRows.exists(row => row.label == "Objective" && row.text.contains("d-file remains controlled")))
     assert(surface.advancedRows.exists(row => row.label == "Prophylaxis" && row.text.contains("Deny the counter-break")))
   }
+
+  private def surfaceLineEvidence(): LineConsequenceEvidence =
+    LineConsequenceEvidence(
+      lineId = Some("exchange"),
+      sanMoves = List("Nf3", "Nc6", "Bb5", "a6", "Bxc6", "dxc6"),
+      uciMoves = List("g1f3", "b8c6", "f1b5", "a7a6", "b5c6", "d7c6"),
+      scoreCp = Some(42),
+      mate = None,
+      depth = Some(20),
+      windowPly = 6,
+      kind = LineConsequenceKind.ExchangeSequence,
+      triggerSan = Some("Bxc6"),
+      consequence = "The checked line reaches an exchange sequence after Bxc6.",
+      whyItMatters = Some("The decision is about which structure remains."),
+      release = LineConsequenceRelease.SurfaceCandidate,
+      rejectReasons = Nil
+    )

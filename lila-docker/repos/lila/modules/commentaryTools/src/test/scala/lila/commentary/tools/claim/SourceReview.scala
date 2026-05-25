@@ -128,7 +128,8 @@ private[commentary] object SourceReview:
       contractFailures: List[String],
       ownerFailureCodes: List[String],
       breakPreventionFailureCodes: List[String],
-      releaseDecision: Option[String]
+      releaseDecision: Option[String],
+      primaryPrefixKind: Option[PlayerFacingClaimPrefixKind]
   )
 
   private val header =
@@ -473,14 +474,15 @@ private[commentary] object SourceReview:
       packetSummary = mainClaim.flatMap(_.packet).map(packetSummary),
       contractId = proofTrace.flatMap(_.contractId),
       contractStatus = proofTrace.flatMap(_.contractStatus),
-      contractFailures = proofTrace.toList.flatMap(_.failureCodes),
-      ownerFailureCodes = PlayerFacingTruthModePolicy.iqpInducementFailureCodes(ctx),
+      contractFailures = mainClaim.flatMap(_.packet).map(_.proofTrace.failureCodes).getOrElse(Nil),
+      ownerFailureCodes = ranked.primary.map(_.demotionReasons).getOrElse(Nil),
       breakPreventionFailureCodes =
         BreakPreventionWitness
           .diagnose(ctx, surfaceSnapshot, inputs.preventedPlansNow)
           .failureCodes
           .map(code => s"break_prevention_$code"),
-      releaseDecision = releaseDecision
+      releaseDecision = releaseDecision,
+      primaryPrefixKind = ranked.primary.map(_.prefixKind)
     )
 
   private[commentary] def classifyAdmission(
@@ -515,15 +517,24 @@ private[commentary] object SourceReview:
     then Some("CertifiedOwner")
     else None
 
+  private def containsSemantic(haystack: String, needle: String): Boolean =
+    val cleanHaystack = haystack.toLowerCase.replaceAll("""[^a-z0-9]""", "")
+    val cleanNeedle = needle.toLowerCase.replaceAll("""[^a-z0-9]""", "")
+    cleanHaystack.contains(cleanNeedle)
+
   private def supportedLocalSurfaceSafe(surface: EvaluationSurface): Boolean =
-    val claimOnly =
-      surface.primary == surface.moveReview &&
-        surface.primary == surface.chronicle
-    val texts = List(surface.primary, surface.moveReview, surface.chronicle)
+    val renderedPrimary =
+      surface.primaryPrefixKind match
+        case Some(kind) => kind.render(surface.primary)
+        case _          => surface.primary
+    val containsClaim =
+      (containsSemantic(surface.moveReview, surface.primary) || containsSemantic(surface.moveReview, renderedPrimary)) &&
+        (containsSemantic(surface.chronicle, surface.primary) || containsSemantic(surface.chronicle, renderedPrimary))
+    val texts = List(surface.moveReview, surface.chronicle)
     val localReadingSafe =
       texts.forall { text =>
         val low = text.toLowerCase
-        low.contains("a local reading is that") &&
+        low.contains("a key idea is that") &&
           !low.contains("the key strategic fact") &&
           !low.contains("so the task is")
       }
@@ -534,7 +545,7 @@ private[commentary] object SourceReview:
             .findFirstIn(text)
             .nonEmpty
         )
-    claimOnly && (localReadingSafe || centralBreakSafe)
+    containsClaim && (localReadingSafe || centralBreakSafe)
 
   private def sourceReviewGroupAligned(
       source: SourceWitnessCatalog.SourceCandidate,

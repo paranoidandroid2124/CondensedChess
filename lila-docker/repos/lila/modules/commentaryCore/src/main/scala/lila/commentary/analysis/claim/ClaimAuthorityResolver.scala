@@ -31,7 +31,7 @@ private[commentary] object ClaimAuthorityResolver:
         ProofContractRules.certifiedOwnerAdmissible(packet)
     then
       ClaimAuthorityDecision(ClaimAuthorityTier.CertifiedOwner)
-    else if supportsLocalPositionProbe(packet) then
+    else if supportsLocalPositionProbe(ctx, packet) then
       ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
     else if ProofContractRules.contractForPacket(packet).exists(_.status == ProofContractStatus.Deferred) then
       ClaimAuthorityDecision(ClaimAuthorityTier.DiagnosticOnly, authorityFailureCodes(packet))
@@ -133,12 +133,16 @@ private[commentary] object ClaimAuthorityResolver:
     }
 
   def supportedLocalSurface(raw: String): String =
-    if normalize(raw).startsWith("a local reading is that ") then raw.trim
+    if normalize(raw).startsWith("a key idea is that ") then raw.trim
     else
       val stripped =
         stripPrefix(raw, "The key strategic fact here is that ")
           .orElse(stripPrefix(raw, "The strategic point is that "))
           .orElse(stripPrefix(raw, "This shows that "))
+          .orElse(stripPrefix(raw, "A local reading is that "))
+          .orElse(stripPrefix(raw, "a local reading is that "))
+          .orElse(stripPrefix(raw, "A key idea is that "))
+          .orElse(stripPrefix(raw, "a key idea is that "))
           .getOrElse(raw.trim)
           .stripSuffix(".")
           .trim
@@ -146,49 +150,82 @@ private[commentary] object ClaimAuthorityResolver:
         stripped.headOption match
           case Some(head) => s"${head.toLower}${stripped.drop(1)}"
           case None       => stripped
-      s"A local reading is that $lowered."
+      s"A key idea is that $lowered."
 
   private def tacticalVetoReasons(
       ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract]
   ): List[String] =
-    val contractReasons =
-      truthContract.toList.flatMap { contract =>
+    if allow_soft_veto(inputs, truthContract) then Nil
+    else
+      val contractReasons =
+        truthContract.toList.flatMap { contract =>
+          List(
+            Option.when(contract.truthClass == DecisiveTruthClass.Blunder)("truth_contract_blunder"),
+            Option.when(contract.truthClass == DecisiveTruthClass.MissedWin)("truth_contract_missed_win"),
+            Option.when(contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad)(
+              "truth_contract_tactical_refutation"
+            ),
+            Option.when(contract.failureMode == FailureInterpretationMode.TacticalRefutation)(
+              "truth_contract_tactical_failure_mode"
+            )
+          ).flatten
+        }
+      val inputReasons =
         List(
-          Option.when(contract.truthClass == DecisiveTruthClass.Blunder)("truth_contract_blunder"),
-          Option.when(contract.truthClass == DecisiveTruthClass.MissedWin)("truth_contract_missed_win"),
-          Option.when(contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad)(
-            "truth_contract_tactical_refutation"
-          ),
-          Option.when(contract.failureMode == FailureInterpretationMode.TacticalRefutation)(
-            "truth_contract_tactical_failure_mode"
+          Option.when(inputs.truthMode == PlayerFacingTruthMode.Tactical)("planner_truth_mode_tactical"),
+          Option.when(inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical))(
+            "main_claim_tactical"
           )
         ).flatten
-      }
-    val inputReasons =
-      List(
-        Option.when(inputs.truthMode == PlayerFacingTruthMode.Tactical)("planner_truth_mode_tactical"),
-        Option.when(inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical))(
-          "main_claim_tactical"
-        )
-      ).flatten
-    val ctxReasons =
-      ctx.toList.flatMap { narrativeCtx =>
-        val tactical = TacticalTensionPolicy.evaluate(narrativeCtx, truthContract)
-        List(
-          Option.when(tactical.severeCounterfactual)("context_severe_counterfactual")
-        ).flatten
-      }
-    (contractReasons ++ inputReasons ++ ctxReasons).distinct
+      val ctxReasons =
+        ctx.toList.flatMap { narrativeCtx =>
+          val tactical = TacticalTensionPolicy.evaluate(narrativeCtx, truthContract)
+          List(
+            Option.when(tactical.severeCounterfactual)("context_severe_counterfactual")
+          ).flatten
+        }
+      (contractReasons ++ inputReasons ++ ctxReasons).distinct
 
-  private def supportsLocalPositionProbe(packet: PlayerFacingClaimPacket): Boolean =
+  private def allow_soft_veto(
+      inputs: QuestionPlannerInputs,
+      truthContract: Option[DecisiveTruthContract]
+  ): Boolean =
+    if inputs.truthMode == PlayerFacingTruthMode.Tactical ||
+      inputs.mainBundle.flatMap(_.mainClaim).exists(_.mode == PlayerFacingTruthMode.Tactical)
+    then false
+    else
+      val cpLoss = truthContract.map(_.cpLoss)
+        .orElse(inputs.counterfactual.map(_.cpLoss))
+        .orElse(inputs.decisionComparison.flatMap(_.cpLossVsChosen))
+        .getOrElse(0)
+      val isMultiPv = inputs.decisionComparison.exists(_.practicalAlternative)
+      val isTacticalFailure = truthContract.exists { contract =>
+        contract.truthClass == DecisiveTruthClass.Blunder ||
+          contract.truthClass == DecisiveTruthClass.MissedWin ||
+          (contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad) ||
+          contract.failureMode == FailureInterpretationMode.TacticalRefutation
+      }
+      !isTacticalFailure && (cpLoss <= 30 || isMultiPv)
+
+  private def supportsLocalPositionProbe(ctx: Option[NarrativeContext], packet: PlayerFacingClaimPacket): Boolean =
     packet.scope == PlayerFacingPacketScope.PositionLocal &&
       packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
       packet.suppressionReasons.isEmpty &&
       packet.releaseRisks.isEmpty &&
-      supportedLocalPositionProbeAdmissible(packet) &&
+      (supportedLocalPositionProbeAdmissible(packet) || admit_confidence(ctx, packet)) &&
       PlayerFacingClaimProof.allowsWeakMainClaim(packet)
+
+  private def admit_confidence(ctx: Option[NarrativeContext], packet: PlayerFacingClaimPacket): Boolean =
+    ctx.exists { narrativeCtx =>
+      narrativeCtx.strategicPlanExperiments.exists { experiment =>
+        val matchesFamily = experiment.subplanId.contains(packet.proofFamily) ||
+          experiment.planId.equalsIgnoreCase(packet.proofFamily) ||
+          experiment.themeL1.equalsIgnoreCase(packet.proofFamily)
+        matchesFamily && experiment.experimentConfidence > 0.85
+      }
+    }
 
   private def supportedLocalPositionProbeAdmissible(packet: PlayerFacingClaimPacket): Boolean =
     ProofContractRules.contractForPacket(packet).exists { contract =>
@@ -249,7 +286,9 @@ private[commentary] object ClaimAuthorityResolver:
     (packet.proofSource == ProofSourceId.CounterplayAxisSuppression.wireKey &&
       packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey) ||
       (packet.proofSource == ProofSourceId.ProphylacticMove.wireKey &&
-        packet.proofFamily == ProofFamilyId.CounterplayRestraint.wireKey)
+        packet.proofFamily == ProofFamilyId.CounterplayRestraint.wireKey) ||
+      (packet.proofSource == ProofSourceId.LocalFileEntryBind.wireKey &&
+        packet.proofFamily == ProofFamilyId.HalfOpenFilePressure.wireKey)
 
   private def matchingMoveDeltaPacket(
       inputs: QuestionPlannerInputs,

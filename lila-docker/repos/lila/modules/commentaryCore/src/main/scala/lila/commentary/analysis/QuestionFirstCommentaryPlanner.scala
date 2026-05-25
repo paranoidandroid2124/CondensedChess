@@ -241,6 +241,7 @@ private[commentary] final case class QuestionPlan(
     admissibilityReasons: List[String],
     plannerOwnerKind: PlannerOwnerKind,
     plannerSource: String,
+    prefixKind: PlayerFacingClaimPrefixKind = PlayerFacingClaimPrefixKind.None,
     demotionReasons: List[String] = Nil,
     timingWitness: Option[QuestionPlanTimingWitness] = None
 )
@@ -717,6 +718,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
       admissibilityReasons: List[String],
       plannerOwnerKind: PlannerOwnerKind,
       plannerSource: String,
+      prefixKind: PlayerFacingClaimPrefixKind = PlayerFacingClaimPrefixKind.None,
       demotionReasons: List[String] = Nil,
       timingWitness: Option[QuestionPlanTimingWitness] = None
   ): Either[QuestionPlan, RejectedQuestionPlan] =
@@ -737,6 +739,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
             admissibilityReasons = admissibilityReasons.distinct,
             plannerOwnerKind = plannerOwnerKind,
             plannerSource = plannerSource,
+            prefixKind = prefixKind,
             demotionReasons = demotionReasons.distinct,
             timingWitness = timingWitness.map(witness =>
               witness.copy(witnessTokens = witness.witnessTokens.flatMap(timingWitnessTokenVariants).distinct)
@@ -1288,9 +1291,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
         mkPlan(
           question = question,
           kind = AuthorQuestionKind.WhatMattersHere,
-          claim =
-            if supportedLocal then PlannerClaimAdmission.supportedLocalSurface(claim.claimText)
-            else claim.claimText,
+          claim = claim.claimText,
           evidence = evidence,
           contrast = None,
           consequence = consequence,
@@ -1304,7 +1305,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
               Option.when(decision.tier == ClaimAuthorityTier.CertifiedOwner)("certified_position_probe").toList ++
               Option.when(supportedLocal)("strategic_claim_supported_local").toList,
           plannerOwnerKind = PlannerOwnerKind.PositionProbe,
-          plannerSource = plannerSource
+          plannerSource = plannerSource,
+          prefixKind = if supportedLocal then PlayerFacingClaimPrefixKind.SupportedLocal else claim.prefixKind
         )
 
   private def positionProbeConsequence(packet: PlayerFacingClaimPacket): Option[String] =
@@ -1360,8 +1362,8 @@ private[commentary] object QuestionFirstCommentaryPlanner:
                 ).distinct
             )
           val contrast =
-            inputs.decisionComparison.flatMap(_.deferredMove.map(move => s"The practical alternative $move remains secondary here."))
-              .orElse(inputs.alternativeNarrative.map(_.sentence))
+            inputs.alternativeNarrative.map(_.sentence)
+              .orElse(inputs.decisionComparison.flatMap(_.deferredMove.map(move => s"The practical alternative $move remains secondary here.")))
               .orElse(onlyMovePressure(inputs, truthContract))
           val consequence =
             inputs.pvDelta
@@ -2098,9 +2100,10 @@ private[commentary] object QuestionFirstCommentaryPlanner:
           case Some(decision) if decision.tier == ClaimAuthorityTier.SupportedLocal =>
             (
               kept :+ plan.copy(
-                claim =
-                  if plan.plannerSource == CentralBreakTimingWitness.ProofSource then plan.claim
-                  else PlannerClaimAdmission.supportedLocalSurface(plan.claim),
+                claim = plan.claim,
+                prefixKind =
+                  if plan.plannerSource == CentralBreakTimingWitness.ProofSource then plan.prefixKind
+                  else PlayerFacingClaimPrefixKind.SupportedLocal,
                 evidence = None,
                 contrast = None,
                 consequence = None,
@@ -2490,11 +2493,15 @@ private[commentary] object QuestionFirstCommentaryPlanner:
     val decisionComparisonSupport =
       inputs.alternativeNarrative
         .filter(_.source == "close_candidate")
-        .map { _ =>
+        .map { alternative =>
+          val enriched =
+            practical.ContrastiveSupportAdmissibility.enrichedCloseCandidateSentence(alternative.sentence)
           ownerCandidate(
             plannerOwnerKind = PlannerOwnerKind.DecisionTiming,
             source = "close_candidate",
-            sourceKinds = List("alternative_narrative", "close_candidate"),
+            sourceKinds =
+              if enriched then List("alternative_narrative", "close_candidate", "enriched_close_candidate")
+              else List("alternative_narrative", "close_candidate"),
             questionKinds = List(
               AuthorQuestionKind.WhyThis,
               AuthorQuestionKind.WhyNow,
@@ -2504,7 +2511,7 @@ private[commentary] object QuestionFirstCommentaryPlanner:
             materiality = OwnerCandidateMateriality.SupportMaterial,
             timingSource = Some(TimingSource.CloseCandidate),
             proposedOwnerMapping = "DecisionTiming/support_only",
-            reasons = List("raw_close_alternative")
+            reasons = List(if enriched then "enriched_close_candidate" else "raw_close_alternative")
           )
         }
         .toList

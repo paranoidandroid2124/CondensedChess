@@ -145,7 +145,7 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
             Some("planner"),
             basicStatus = Some("planner_preempted"),
             supportRows = List(
-              SupportRow("Counterplay break", "A local reading is that this keeps c5 from coming right away.")
+              SupportRow("Counterplay break", "A key idea is that this keeps c5 from coming right away.")
             )
           ),
           entry(
@@ -190,7 +190,7 @@ final class MoveReviewEvidenceCoverageAuditTest extends FunSuite:
             Some("planner"),
             basicStatus = Some("planner_preempted"),
             supportRows = List(
-              SupportRow("Central break", "A local reading is that this improves the central_break_timing branch.")
+              SupportRow("Central break", "A key idea is that this improves the central_break_timing branch.")
             )
           ),
           entry(

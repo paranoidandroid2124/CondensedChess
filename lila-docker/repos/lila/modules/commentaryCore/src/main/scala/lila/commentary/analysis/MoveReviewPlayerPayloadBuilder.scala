@@ -10,6 +10,48 @@ import lila.commentary.analysis.PlanTaxonomy.{ PlanKind, PlanTheme }
 object MoveReviewPlayerPayloadBuilder:
 
   private val Schema = "chesstory.move_review.player_surface.v1"
+  private val MinDecisionSurfaceGapCp = 35
+  private val ClearDecisionSurfaceGapCp = 60
+  private val ExactComparativeSource = "exact"
+  private val UnsafeDecisionFragments =
+    List(
+      "proves the plan",
+      "wins strategically",
+      "book line says",
+      "book line proves",
+      "opening family"
+    )
+
+  def decisionComparisonSurface(
+      ctx: NarrativeContext,
+      refs: Option[MoveReviewRefs]
+  ): Option[MoveReviewPlayerDecisionComparison] =
+    decisionComparisonSurface(
+      comparison = DecisionComparisonBuilder.digest(ctx, refs),
+      lineEvidence = LineConsequenceEvaluator.surfaceCandidate(ctx, refs)
+    )
+
+  private[analysis] def decisionComparisonSurface(
+      comparison: Option[DecisionComparisonDigest],
+      lineEvidence: Option[LineConsequenceEvidence]
+  ): Option[MoveReviewPlayerDecisionComparison] =
+    for
+      digest <- comparison
+      evidence <- lineEvidence
+      if evidence.surfaceReady
+      if hasComparableDecisionShape(digest, evidence)
+      if hasDecisionSurfaceReason(digest)
+      secondary <- safeDecisionSecondaryText(evidence.playerSentence)
+    yield MoveReviewPlayerDecisionComparison(
+      kicker = "Decision point",
+      gapLabel = digest.cpLossVsChosen.map(decisionGapLabel),
+      chosenSan = cleanMove(digest.chosenMove),
+      engineSan = cleanMove(digest.engineBestMove),
+      comparedSan = cleanMove(digest.comparedMove),
+      deferredSan = None,
+      secondaryText = Some(secondary),
+      chosenMatchesBest = digest.chosenMatchesBest
+    )
 
   def build(
       ctx: NarrativeContext,
@@ -18,7 +60,8 @@ object MoveReviewPlayerPayloadBuilder:
       refs: Option[MoveReviewRefs],
       evaluatedPlans: List[EvaluatedPlan],
       authoringSurface: AuthoringEvidenceSurface,
-      supportedLocalRows: List[MoveReviewPlayerSurfaceRow] = Nil
+      supportedLocalRows: List[MoveReviewPlayerSurfaceRow] = Nil,
+      decisionComparisonSurface: Option[MoveReviewPlayerDecisionComparison] = None
   ): MoveReviewPlayerSurface =
     val knownSans = refs.toList.flatMap(_.variations.flatMap(_.moves.map(_.san))).map(normalizeSan).toSet
     val promotedPlans = evaluatedPlans.filter(isProbeBackedPlan).sortBy(_.hypothesis.rank)
@@ -32,7 +75,7 @@ object MoveReviewPlayerPayloadBuilder:
           .orElse(ctx.playedSan.flatMap(san => cleanOpt(Some(s"Move review: $san")))),
       summaryRows = summaryRows,
       advancedRows = advancedRows(promotedPlans),
-      decisionComparison = None,
+      decisionComparison = decisionComparisonSurface.map(sanitizeDecisionComparison),
       probeRows = ledgerRows(moveReviewLedger, knownSans),
       authorRows = authorRows(authoringSurface, knownSans)
     )
@@ -176,6 +219,76 @@ object MoveReviewPlayerPayloadBuilder:
         refSans = refSans(sourceRow.refSans, knownSans)
       )
     }
+
+  private def sanitizeDecisionComparison(
+      comparison: MoveReviewPlayerDecisionComparison
+  ): MoveReviewPlayerDecisionComparison =
+    comparison.copy(
+      kicker = clean(comparison.kicker),
+      gapLabel = cleanOpt(comparison.gapLabel),
+      chosenSan = cleanOpt(comparison.chosenSan),
+      engineSan = cleanOpt(comparison.engineSan),
+      comparedSan = cleanOpt(comparison.comparedSan),
+      deferredSan = cleanOpt(comparison.deferredSan),
+      secondaryText = cleanOpt(comparison.secondaryText)
+    )
+
+  private def hasTwoComparableMoves(digest: DecisionComparisonDigest): Boolean =
+    List(digest.chosenMove, digest.engineBestMove, digest.comparedMove)
+      .flatten
+      .flatMap(move => cleanMove(Some(move)))
+      .map(normalizeMove)
+      .distinct
+      .size >= 2
+
+  private def hasComparableDecisionShape(
+      digest: DecisionComparisonDigest,
+      evidence: LineConsequenceEvidence
+  ): Boolean =
+    hasTwoComparableMoves(digest) || hasLaterLineDivergence(digest, evidence)
+
+  private def hasLaterLineDivergence(
+      digest: DecisionComparisonDigest,
+      evidence: LineConsequenceEvidence
+  ): Boolean =
+    val compared = cleanMove(digest.comparedMove)
+    val anchorMoves = List(digest.chosenMove, digest.engineBestMove).flatten.flatMap(move => cleanMove(Some(move)))
+    compared.exists { comparedMove =>
+      anchorMoves.exists(anchor => normalizeMove(anchor) == normalizeMove(comparedMove)) &&
+        evidence.kind != LineConsequenceKind.PreviewOnly &&
+        triggerPly(evidence).exists(_ > 1)
+    }
+
+  private def hasDecisionSurfaceReason(digest: DecisionComparisonDigest): Boolean =
+    digest.cpLossVsChosen.exists(_ >= MinDecisionSurfaceGapCp) ||
+      digest.practicalAlternative ||
+      (
+        digest.comparativeConsequence.exists(_.trim.nonEmpty) &&
+          digest.comparativeSource.exists(_.toLowerCase.contains(ExactComparativeSource))
+      )
+
+  private def decisionGapLabel(cp: Int): String =
+    if cp >= ClearDecisionSurfaceGapCp then s"${cp}cp"
+    else s"${cp}cp slight"
+
+  private def triggerPly(evidence: LineConsequenceEvidence): Option[Int] =
+    evidence.triggerSan
+      .flatMap(trigger =>
+        evidence.sanMoves.indexWhere(san => normalizeMove(san) == normalizeMove(trigger)) match
+          case -1  => None
+          case idx => Some(idx + 1)
+      )
+
+  private def safeDecisionSecondaryText(raw: String): Option[String] =
+    val text = clean(raw).trim
+    val low = text.toLowerCase
+    Option.when(text.nonEmpty && !UnsafeDecisionFragments.exists(low.contains))(text)
+
+  private def cleanMove(raw: Option[String]): Option[String] =
+    raw.map(clean).map(_.trim).filter(_.nonEmpty)
+
+  private def normalizeMove(raw: String): String =
+    raw.replaceAll("""[+#?!]+$""", "").toLowerCase
 
   private def refSans(sans: List[String], knownSans: Set[String]): List[String] =
     val cleaned = cleanList(sans)

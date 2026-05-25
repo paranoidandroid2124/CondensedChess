@@ -97,7 +97,7 @@ sentence, but regex/string claim parsing in `CommentaryApi` is not authority.
 
 Current strict rules:
 
-- `PositionLocal` scope alone never admits `WhatMattersHere`.
+- `PositionLocal` scope alone never admits `WhatMattersHere`, unless the matching strategic plan experiment has high confidence (`experimentConfidence > 0.85`), which allows it to release as `SupportedLocal`.
 - exact owner slices require certified source/family predicates.
 - break/file-axis admission uses the centralized `BreakFileToken` parser; a
   plain prose word or incidental `a`-`h` letter is not evidence for a file.
@@ -105,7 +105,7 @@ Current strict rules:
   Carlsbad fixed-target seed remains closed unless the exact board target and
   minority-support predicate both pass.
 - support material never enters the owner pool directly.
-- tactical truth veto outranks strategic authority.
+- tactical truth veto outranks strategic authority, except when the veto is soft-bypassed (i.e., centipawn loss <= 30cp or the move is a practical alternative) and the truth contract does not indicate a tactical failure (blunder, missed win, tactical refutation, or tactical failure mode).
 - line-scoped claims may survive only as subordinate evidence unless a main
   path strategic claim is independently admitted.
 - support-only carriers may not re-inflate after certification failed closed.
@@ -118,13 +118,14 @@ lower material and is then recaptured on the replayed branch. A queen
 centralization/single check, an unrecaptured rook capture, or a back-rank rook
 shuffle must not by itself create `heavy_piece_release_illusion`.
 
-Color-complex squeeze is explicitly authority-closed:
+Color-complex squeeze is promoted to Releasable/SupportedLocal:
 
 - proof family: `color_complex_squeeze`
-- status: `Deferred`
+- status: `Releasable`
 - certified eligible: false
-- supported-local eligible: false
+- supported-local eligible: true
 - default failure: `color_complex_authority_closed`
+- requirement: Requires a coordinate minor-piece witness (checked via `check_minor_piece`).
 
 Readiness scans and exact-FEN review artifacts are local evidence for future
 authority review, not runtime admission.
@@ -179,6 +180,30 @@ stale payloads before they can become DOM metadata.
 `signalDigest`, or outbound `probeRequests` to create product rows; it may
 project only already bounded surface inputs such as selected evaluated plans,
 the certified explanation, the strategic ledger, refs, and authoring summaries.
+Decision-comparison UI follows the same boundary. `LineConsequenceEvaluator`
+may summarize a PV/ref line, but only `MoveReviewRefs` lines that pass
+`MoveReviewPvLine` legal FEN replay can become `SurfaceCandidate`. Legal
+engine-only `VariationLine` summaries can become `ReplayBackedInternal` for
+internal decision evidence, narrative hooks, and ledger notes, while remaining
+blocked from the product decision strip by release type and the engine-only
+surface-blocking reason.
+Close-candidate alternative PV prose may support MoveReview text only through
+`AlternativeNarrativeSupport` plus `ContrastiveSupportAdmissibility`. The
+admission boundary requires an enriched comparative sentence (`while`,
+`whereas`, or `both`) backed by exact-FEN replayed branches; raw close-candidate
+support remains rejected and cannot re-inflate into an owner claim. Enriched
+close-candidate prose must preserve the near-top/two-good-moves boundary by
+describing viable branch contrast instead of projecting a hard `best`/inferior
+claim from support-only MultiPV material; planner shadow traces label enriched
+close candidates separately from raw close alternatives.
+`MoveReviewPlayerPayloadBuilder.decisionComparisonSurface` is the release gate
+for `moveReviewPlayerSurface.decisionComparison`; it requires two comparable
+move labels or a same-first-move comparison with a typed later consequence, a
+>=35cp gap or exact comparative/practical alternative reason, a
+surface-candidate line consequence, and no surface-blocking line reject reasons.
+Gaps below 60cp are labeled as slight rather than as a clear engine preference.
+It does not expose deferred moves or raw proof/source metadata, and it does not
+create a new public wire field.
 The current supported-local product projections are narrow.
 `neutralize_key_break`: `MoveReviewSupportedLocalSurfaceRows` can add a
 `Counterplay break` summary row only from the same planner runtime used to

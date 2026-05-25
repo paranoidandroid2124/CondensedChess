@@ -4,6 +4,7 @@ import munit.FunSuite
 import lila.commentary.model.*
 import lila.commentary.model.authoring.*
 import lila.commentary.model.strategic.{ EngineEvidence, PvMove, VariationLine }
+import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
 
 class QuestionFirstCommentaryPlannerTest extends FunSuite:
 
@@ -80,7 +81,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
   private def positionLocalClaim(
       text: String,
       sourceKind: String = PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource,
-      packet: PlayerFacingClaimPacket
+      packet: PlayerFacingClaimPacket,
+      prefixKind: PlayerFacingClaimPrefixKind = PlayerFacingClaimPrefixKind.KeyStrategicFact
   ): MainPathScopedClaim =
     MainPathScopedClaim(
       scope = PlayerFacingClaimScope.PositionLocal,
@@ -91,8 +93,10 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       evidenceLines = List("14...Qb6 15.Rb1"),
       sourceKind = sourceKind,
       tacticalOwnership = None,
+      prefixKind = prefixKind,
       packet = Some(packet)
     )
+
 
   private def lineClaim(text: String, sourceKind: String = "line_delta"): MainPathScopedClaim =
     MainPathScopedClaim(
@@ -396,7 +400,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               MainPathClaimBundle(
                 Some(
                   positionLocalClaim(
-                    "The key strategic fact here is that c6 is the fixed target.",
+                    "c6 is the fixed target.",
                     packet = certifiedPositionProbePacket()
                   )
                 ),
@@ -430,7 +434,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               MainPathClaimBundle(
                 Some(
                   positionLocalClaim(
-                    "The key strategic fact here is that c6 is the fixed target.",
+                    "c6 is the fixed target.",
                     packet = certifiedPositionProbePacket()
                   )
                 ),
@@ -488,7 +492,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(primary.questionKind, AuthorQuestionKind.WhyThis)
     assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.MoveDelta)
     assertEquals(primary.plannerSource, PlayerFacingTruthModePolicy.QueenTradeShieldProofSource)
-    assertEquals(primary.claim, "A local reading is that this exchange moves the game into the queenless branch.")
+    assertEquals(primary.claim, "This exchange moves the game into the queenless branch.")
+    assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.SupportedLocal)
     assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
     assertEquals(primary.evidence, None)
     assertEquals(primary.contrast, None)
@@ -507,7 +512,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               MainPathClaimBundle(
                 Some(
                   positionLocalClaim(
-                    "The key strategic fact here is that the pressure is coordinated on c6.",
+                    "the pressure is coordinated on c6.",
                     sourceKind = PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource,
                     packet =
                       certifiedPositionProbePacket(
@@ -544,7 +549,8 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     assertEquals(primary.questionKind, AuthorQuestionKind.WhatMattersHere)
     assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
     assertEquals(primary.plannerSource, PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource)
-    assertEquals(primary.claim, "The key strategic fact here is that the pressure is coordinated on c6.")
+    assertEquals(primary.claim, "the pressure is coordinated on c6.")
+    assertEquals(primary.prefixKind, PlayerFacingClaimPrefixKind.KeyStrategicFact)
     assertEquals(
       primary.consequence.map(_.text),
       Some("So the task is to keep the pressure coordinated on c6 until the target has to give way.")
@@ -563,7 +569,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               MainPathClaimBundle(
                 Some(
                   positionLocalClaim(
-                    "The key strategic fact here is that c6 is the fixed target.",
+                    "c6 is the fixed target.",
                     packet =
                       certifiedPositionProbePacket(
                         sameBranchState = PlayerFacingSameBranchState.Ambiguous,
@@ -602,7 +608,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               MainPathClaimBundle(
                 Some(
                   positionLocalClaim(
-                    "The key strategic fact here is that c6 is the fixed target.",
+                    "c6 is the fixed target.",
                     packet =
                       certifiedPositionProbePacket(
                         sameBranchState = PlayerFacingSameBranchState.Ambiguous,
@@ -637,7 +643,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
               MainPathClaimBundle(
                 Some(
                   positionLocalClaim(
-                    "The key strategic fact here is that c6 is the fixed target.",
+                    "c6 is the fixed target.",
                     packet =
                       certifiedPositionProbePacket(
                         sameBranchState = PlayerFacingSameBranchState.Ambiguous,
@@ -890,6 +896,56 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       ),
       clues(plans.ownerTrace.ownerCandidateLabels)
     )
+  }
+
+  test("shadow normalization does not mark enriched close alternatives as raw blockers") {
+    val q = question("q_shadow_enriched_alt", AuthorQuestionKind.WhyThis)
+    val ctx = baseCtx(List(q))
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle = Some(MainPathClaimBundle(Some(mainClaim("This improves pressure on e5.")), Some(lineClaim("14...Rc8 15.Re1 Qc7")))),
+          decisionComparison =
+            Some(
+              DecisionComparison(
+                chosenMove = Some("e4"),
+                engineBestMove = Some("e4"),
+                engineBestScoreCp = Some(18),
+                engineBestPv = Nil,
+                cpLossVsChosen = None,
+                deferredMove = Some("Qe2"),
+                deferredReason = Some("different strategic branches"),
+                deferredSource = Some("close_candidate"),
+                evidence = Some("14...Rc8 15.Re1 Qc7"),
+                practicalAlternative = true,
+                chosenMatchesBest = true
+              )
+            ),
+          alternativeNarrative =
+            Some(
+              AlternativeNarrative(
+                move = Some("Qe2"),
+                reason = "different strategic branches",
+                sentence =
+                  "Both candidate branches are viable: the played e4 follows 1. e4 e5, whereas Qe2 opts for 1. Qe2 e5.",
+                source = "close_candidate"
+              )
+            )
+        ),
+        None
+      )
+
+    val closeCandidateLabels =
+      plans.ownerTrace.ownerCandidateLabels.filter(label =>
+        label.contains("DecisionTiming") &&
+          label.contains("source_kind=close_candidate") &&
+          label.contains("timing_source=close_candidate")
+      )
+
+    assert(closeCandidateLabels.nonEmpty, clues(plans.ownerTrace.ownerCandidateLabels))
+    assert(closeCandidateLabels.exists(_.contains("enriched_close_candidate")), clues(closeCandidateLabels))
+    assert(!closeCandidateLabels.exists(_.contains("raw_close_alternative")), clues(closeCandidateLabels))
   }
 
   test("shadow normalization distinguishes raw opening/endgame signals from move-linked translators") {

@@ -1,63 +1,11 @@
 # Strategic Claim Authority Source Window Review
 
-rows=107
+rows=21
 Acceptance rule: only verdict=admit_authority_row is source acceptance; release on rejected rows is diagnostic materialization.
 
-- source-alekhine-bogoljubow-1936-iqp-inducement: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=20 verdict=admit_authority_row release=SupportedLocal source=iqp_inducement_probe scope=MoveLocal contract=subplan:iqp_inducement contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that this sequence leaves an isolated pawn as the local target.
-- source-aronian-andreikin-2014-defender-trade: scanned=1 diagnostics=root_vocabulary_or_extraction_gap=1 blockers=owner:defender_trade_owner_missing=1
-  best=ply=33 verdict=reject_owner_missing release=- source=- scope=- contract=- contractStatus=- failures=- ownerFailures=- engine=near_top_multipv_contains_played_top=c2b1_gap=15cp primary=-
-- source-bad-piece-liquidation-pilot: scanned=1 diagnostics=root_vocabulary_or_extraction_gap=1 blockers=owner:bad_piece_liquidation_witness_missing=1
-  best=ply=1 verdict=reject_owner_missing release=- source=- scope=- contract=- contractStatus=- failures=- ownerFailures=bad_piece_liquidation_witness_missing engine=top_pv_matches_played primary=-
-- source-boleslavsky-nezhmetdinov-1950-static-weakness-fixation: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=19 verdict=admit_authority_row release=CertifiedOwner source=exact_target_fixation scope=MoveLocal contract=subplan:static_weakness_fixation contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=This changes the position by fixing d6 as the target.
-- source-botvinnik-vidmar-1936: scanned=15 diagnostics=admit_ready=2, engine_multipv_only_source_move=1, engine_top_move_disagrees=3, root_vocabulary_or_extraction_gap=9 blockers=engine:source_move_absent_from_multipv=3, engine:source_move_multipv_only=1, owner:iqp_not_induced=13
-  best=ply=25 verdict=admit_authority_row release=SupportedLocal source=counterplay_axis_suppression scope=MoveLocal contract=runtime:neutralize_key_break contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that this keeps ...e5 from coming right away.
-- source-botvinnik-vidmar-1936-iqp-multipv-screen: scanned=1 diagnostics=root_vocabulary_or_extraction_gap=1 blockers=owner:iqp_not_induced=1
-  best=ply=31 verdict=reject_owner_missing release=- source=- scope=- contract=- contractStatus=- failures=- ownerFailures=iqp:not_induced engine=near_top_multipv_contains_played_top=b3a4_gap=6cp primary=-
 - source-botvinnik-vidmar-1936-iqp-opening-inducement: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=16 verdict=admit_authority_row release=SupportedLocal source=iqp_inducement_probe scope=MoveLocal contract=subplan:iqp_inducement contractStatus=Releasable failures=- ownerFailures=- engine=near_top_multipv_contains_played_top=h7h6_gap=4cp primary=A local reading is that this sequence leaves an isolated pawn as the local target.
-- source-camara-bazan-1960-b7-b5-break-prevention: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=27 verdict=admit_authority_row release=SupportedLocal source=counterplay_axis_suppression scope=MoveLocal contract=runtime:neutralize_key_break contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that this keeps ...b5 from coming right away.
-- source-capablanca-golombek-1939: scanned=15 diagnostics=admit_ready=2, engine_top_move_disagrees=4, root_vocabulary_or_extraction_gap=9 blockers=engine:source_move_absent_from_multipv=4, owner:carlsbad_probe_missing=13
-  best=ply=44 verdict=admit_authority_row release=CertifiedOwner source=exact_target_fixation scope=MoveLocal contract=subplan:static_weakness_fixation contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=This changes the position by fixing a2 as the target.
-- source-capablanca-golombek-1939-iqp-inducement: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=45 verdict=admit_authority_row release=SupportedLocal source=iqp_inducement_probe scope=MoveLocal contract=subplan:iqp_inducement contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that this sequence leaves an isolated pawn as the local target.
-- source-carlsen-anand-2014-g6: scanned=4 diagnostics=admit_ready=2, root_vocabulary_or_extraction_gap=2 blockers=owner:root_vocabulary_or_extraction_gap=2
-  best=ply=15 verdict=admit_authority_row release=SupportedLocal source=queen_trade_shield scope=MoveLocal contract=subplan:queen_trade_shield contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that this exchange moves the game into the queenless branch.
-- source-evans-opsahl-1950: scanned=19 diagnostics=admit_ready=4, root_vocabulary_or_extraction_gap=15 blockers=owner:carlsbad_probe_missing=15
-  best=ply=25 verdict=admit_authority_row release=CertifiedOwner source=carlsbad_fixed_target_probe scope=PositionLocal contract=subplan:backward_pawn_targeting contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=The key strategic fact here is that c6 is the fixed target.
-- source-evans-opsahl-1950-iqp-inducement: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=33 verdict=admit_authority_row release=SupportedLocal source=iqp_inducement_probe scope=MoveLocal contract=subplan:iqp_inducement contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that this sequence leaves an isolated pawn as the local target.
-- source-karpov-andersson-1975-hedgehog-break-screen: scanned=4 diagnostics=root_vocabulary_or_extraction_gap=4 blockers=owner:break_prevention_no_prevented_plan=1, proof:break_prevention_contract_mismatch=3
-  best=ply=48 verdict=reject_owner_missing release=SupportedLocal source=iqp_inducement_probe scope=MoveLocal contract=subplan:iqp_inducement contractStatus=Releasable failures=- ownerFailures=proof:break_prevention_contract_mismatch engine=near_top_multipv_contains_played_top=a8b7_gap=8cp primary=A local reading is that this sequence leaves an isolated pawn as the local target.
-- source-karpov-unzicker-1974-break-prevention: scanned=17 diagnostics=admit_ready=1, engine_top_move_disagrees=4, root_vocabulary_or_extraction_gap=12 blockers=engine:source_move_absent_from_multipv=4, owner:break_prevention_capture_transform_recapture_unproven=1, owner:break_prevention_no_prevented_plan=14
-  best=ply=44 verdict=admit_authority_row release=SupportedLocal source=counterplay_axis_suppression scope=MoveLocal contract=runtime:neutralize_key_break contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that the move has to happen now because otherwise c5c4 is demanded immediately.
-- source-kramnik-anand-2001: scanned=6 diagnostics=tactical_first_source=6 blockers=tactical:first=6
-  best=ply=27 verdict=reject_tactical_first release=- source=- scope=- contract=- contractStatus=- failures=- ownerFailures=- engine=top_pv_matches_played primary=-
-- source-kramnik-anand-2001-iqp-opening-inducement: scanned=1 diagnostics=engine_top_move_disagrees=1 blockers=engine:source_move_absent_from_multipv=1, owner:iqp_not_induced=1
-  best=ply=14 verdict=reject_owner_missing release=- source=- scope=- contract=- contractStatus=- failures=- ownerFailures=iqp:not_induced engine=pv_available_top_differs:b7b5 primary=-
-- source-lokvenc-czerniak-1952-b6-b5-break-prevention: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=23 verdict=admit_authority_row release=SupportedLocal source=counterplay_axis_suppression scope=MoveLocal contract=runtime:neutralize_key_break contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that the move has to happen now because otherwise e2b5 is demanded immediately.
-- source-luckis-bielicki-1961-a6-a5-break-prevention: scanned=1 diagnostics=root_vocabulary_or_extraction_gap=1 blockers=proof:break_prevention_contract_mismatch=1
-  best=ply=33 verdict=reject_owner_missing release=SupportedLocal source=iqp_inducement_probe scope=MoveLocal contract=subplan:iqp_inducement contractStatus=Releasable failures=- ownerFailures=proof:break_prevention_contract_mismatch engine=near_top_multipv_contains_played_top=f4g3_gap=8cp primary=A local reading is that this sequence leaves an isolated pawn as the local target.
-- source-maderna-palermo-1955-a6-a5-break-prevention: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=29 verdict=admit_authority_row release=SupportedLocal source=counterplay_axis_suppression scope=MoveLocal contract=runtime:neutralize_key_break contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that this keeps ...a5 from coming right away.
-- source-maderna-palermo-1955-central-break-prep-review: scanned=1 diagnostics=root_vocabulary_or_extraction_gap=1 blockers=owner:central_break_timing_witness_missing=1
-  best=ply=31 verdict=reject_owner_missing release=- source=counterplay_axis_suppression scope=MoveLocal contract=runtime:neutralize_key_break contractStatus=Releasable failures=- ownerFailures=central_break_timing_witness_missing engine=top_pv_matches_played primary=A local reading is that this keeps ...c4 from coming right away.
-- source-maderna-palermo-1955-central-break-timing: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=33 verdict=admit_authority_row release=SupportedLocal source=central_break_timing scope=MoveLocal contract=subplan:central_break_timing contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that this improves the e-break timing on this branch.
-- source-maderna-palermo-1955-static-weakness-fixation: scanned=1 diagnostics=root_vocabulary_or_extraction_gap=1 blockers=owner:root_vocabulary_or_extraction_gap=1
-  best=ply=17 verdict=reject_owner_missing release=- source=- scope=- contract=- contractStatus=- failures=- ownerFailures=- engine=top_pv_matches_played primary=The move has to happen now because otherwise f3d2 is demanded immediately.
-- source-najdorf-sergeant-1939-iqp-inducement: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=23 verdict=admit_authority_row release=SupportedLocal source=iqp_inducement_probe scope=MoveLocal contract=subplan:iqp_inducement contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that this sequence leaves an isolated pawn as the local target.
-- source-pfleger-maalouf-1961-a6-a5-break-prevention: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=33 verdict=admit_authority_row release=SupportedLocal source=counterplay_axis_suppression scope=MoveLocal contract=runtime:neutralize_key_break contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that this keeps ...a5 from coming right away.
-- source-polugaevsky-giorgadze-1956-c5-c4-break-prevention: scanned=1 diagnostics=root_vocabulary_or_extraction_gap=1 blockers=proof:break_prevention_contract_mismatch=1
-  best=ply=23 verdict=reject_owner_missing release=- source=- scope=- contract=- contractStatus=- failures=- ownerFailures=proof:break_prevention_contract_mismatch engine=near_top_multipv_contains_played_top=e2d3_gap=10cp primary=-
-- source-salov-ljubojevic-1992-simplification-window: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=71 verdict=admit_authority_row release=CertifiedOwner source=simplification_window scope=MoveLocal contract=subplan:simplification_window contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=This trade keeps the same local edge on d5.
-- source-sliwa-gromek-1960-a6-a5-break-prevention: scanned=1 diagnostics=admit_ready=1 blockers=none
-  best=ply=55 verdict=admit_authority_row release=SupportedLocal source=counterplay_axis_suppression scope=MoveLocal contract=runtime:neutralize_key_break contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=A local reading is that the move has to happen now because otherwise a4a5 is demanded immediately.
-- source-tartakower-capablanca-1924: scanned=6 diagnostics=tactical_first_source=6 blockers=tactical:first=6
-  best=ply=17 verdict=reject_tactical_first release=- source=- scope=- contract=- contractStatus=- failures=- ownerFailures=- engine=top_pv_matches_played primary=-
+  best=ply=16 verdict=admit_authority_row release=SupportedLocal source=iqp_inducement_probe scope=MoveLocal contract=subplan:iqp_inducement contractStatus=Releasable failures=- ownerFailures=- engine=near_top_multipv_contains_played_top=d5c4_gap=5cp primary=This sequence leaves an isolated pawn as the local target.
+- source-evans-opsahl-1950: scanned=19 diagnostics=admit_ready=3, engine_top_move_disagrees=4, root_vocabulary_or_extraction_gap=12 blockers=engine:source_move_absent_from_multipv=4, owner:carlsbad_probe_missing=16
+  best=ply=37 verdict=admit_authority_row release=SupportedLocal source=iqp_inducement_probe scope=MoveLocal contract=subplan:iqp_inducement contractStatus=Releasable failures=- ownerFailures=- engine=top_pv_matches_played primary=This sequence leaves an isolated pawn as the local target.
+- source-salov-ljubojevic-1992-simplification-window: scanned=1 diagnostics=root_vocabulary_or_extraction_gap=1 blockers=owner:root_vocabulary_or_extraction_gap=1
+  best=ply=71 verdict=reject_owner_missing release=- source=- scope=- contract=- contractStatus=- failures=- ownerFailures=- engine=top_pv_matches_played primary=-

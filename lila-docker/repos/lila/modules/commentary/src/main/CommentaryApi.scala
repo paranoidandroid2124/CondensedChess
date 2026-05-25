@@ -2537,6 +2537,8 @@ final class CommentaryApi(
                 rankedPlans = moveReviewRuntime.rankedPlans,
                 truthContract = Some(truthContract)
               )
+            val decisionComparisonSurface =
+              MoveReviewPlayerPayloadBuilder.decisionComparisonSurface(ctx, refs)
             val moveReviewPlayerSurface =
               MoveReviewPlayerPayloadBuilder.build(
                 ctx = ctx,
@@ -2545,7 +2547,8 @@ final class CommentaryApi(
                 refs = refs,
                 evaluatedPlans = contextBuild.selectedMainEvaluatedPlans,
                 authoringSurface = authoringSurface,
-                supportedLocalRows = supportedLocalRows
+                supportedLocalRows = supportedLocalRows,
+                decisionComparisonSurface = decisionComparisonSurface
               )
             val strategyPromptHints = strategyHints(strategyPack)
             val validationSeed = Option(moveReviewSlots.validationSeedText).filter(_.nonEmpty).getOrElse(compactProse)

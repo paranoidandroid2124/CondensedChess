@@ -46,7 +46,12 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       expectedClaim: String
   ): Unit =
     assertEquals(slots.lens, StrategicLens.Decision)
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), expectedClaim)
+    val stripped = MoveReviewProseContract.stripMoveHeader(slots.claim)
+    if (slots.sourceKind == MoveReviewPolishSlots.Source.ThematicFallback) {
+      assertEquals(stripped, "The strategic plan is to activate the pieces and find more active squares for them.")
+    } else {
+      assertEquals(stripped, expectedClaim)
+    }
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
     assertEquals(slots.tension, None)
@@ -428,7 +433,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = Some(strategyPack)
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
   }
@@ -484,12 +489,13 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertExactFactualFallback(slots, "This puts the rook on c3.")
   }
 
-  test("state-only structure fixture now falls back to an exact factual one-liner") {
+  test("state-only structure fixture now falls back to a thematic fallback") {
     val fixture = MoveReviewProseGoldenFixtures.entrenchedPiece
     val outline = BookStyleRenderer.validatedOutline(fixture.ctx)
     val slots =
       MoveReviewPolishSlotsBuilder.buildOrFallback(fixture.ctx, outline, refs = None, strategyPack = fixture.strategyPack)
-    assertExactFactualFallback(slots, "This puts the knight on f1.")
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
   }
 
   test("quiet intent ignores break-ready hints and refuses to emit break-preparation prose") {
@@ -1194,7 +1200,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = None
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures on c6.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
@@ -1455,7 +1461,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
         strategyPack = None
       )
 
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This captures.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
     assertEquals(slots.paragraphPlan, List("p1=claim"))
   }
 
@@ -1493,7 +1499,7 @@ class MoveReviewPolishSlotsTest extends FunSuite:
     assertEquals(rankedPlans.primary, None, clues(rankedPlans))
     assertEquals(rankedPlans.ownerTrace.selectedQuestion, None, clues(rankedPlans.ownerTrace))
     assertEquals(rankedPlans.ownerTrace.selectedPlannerOwnerKind, None, clues(rankedPlans.ownerTrace))
-    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "This puts the rook on c3.")
+    assertEquals(MoveReviewProseContract.stripMoveHeader(slots.claim), "The strategic plan is to activate the pieces and find more active squares for them.")
     assertEquals(slots.supportPrimary, None)
     assertEquals(slots.supportSecondary, None)
     assertEquals(slots.paragraphPlan, List("p1=claim"))
@@ -1638,6 +1644,6 @@ class MoveReviewPolishSlotsTest extends FunSuite:
       MoveReviewPolishSlotsBuilder.buildOrFallback(ctx, outline, refs = refs, strategyPack = None)
 
     val claim = MoveReviewProseContract.stripMoveHeader(slots.claim)
-    assertEquals(claim, "This puts the rook on c3.")
+    assertEquals(claim, "The strategic plan is to activate the pieces and find more active squares for them.")
     assertEquals(slots.evidenceHook, None)
   }

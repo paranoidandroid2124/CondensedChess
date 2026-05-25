@@ -936,7 +936,7 @@ object MoveReviewProseGoldenFixtures:
           ),
         strategyPack = Some(pressurePack()),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the rook on c3.")
+        expectedFallbackClaim = Some("The strategic plan is to activate the pieces and find more active squares for them.")
       ),
       PlannerRuntimeFixture(
         id = "why_this_fallback",
@@ -955,7 +955,7 @@ object MoveReviewProseGoldenFixtures:
               List(evidence("q_why_this_fallback", "reply_multipv", List("14...Rc8 15.Re1 Qd8")))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the rook on c3.")
+        expectedFallbackClaim = Some("The strategic plan is to activate the pieces and find more active squares for them.")
       ),
       PlannerRuntimeFixture(
         id = "why_now_tactical_fallback",
@@ -980,7 +980,7 @@ object MoveReviewProseGoldenFixtures:
             )
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the rook on c3.")
+        expectedFallbackClaim = Some("The strategic plan is to activate the pieces and find more active squares for them.")
       ),
       PlannerRuntimeFixture(
         id = "why_now_negative",
@@ -992,7 +992,7 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_why_now_negative", AuthorQuestionKind.WhyNow))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the rook on c3.")
+        expectedFallbackClaim = Some("The strategic plan is to activate the pieces and find more active squares for them.")
       ),
       PlannerRuntimeFixture(
         id = "why_now_fallback",
@@ -1008,7 +1008,7 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_why_now_fallback", AuthorQuestionKind.WhyNow))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the rook on c3.")
+        expectedFallbackClaim = Some("The strategic plan is to activate the pieces and find more active squares for them.")
       ),
       PlannerRuntimeFixture(
         id = "restricted_defense_conversion_positive",
@@ -1116,7 +1116,7 @@ object MoveReviewProseGoldenFixtures:
             )
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the bishop on f3.")
+        expectedFallbackClaim = Some("The strategic plan is to transform the advantage and simplify the game toward a won ending.")
       ),
       PlannerRuntimeFixture(
         id = "what_changed_positive",
@@ -1143,7 +1143,7 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_changed_negative", AuthorQuestionKind.WhatChanged))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the knight on f1.")
+        expectedFallbackClaim = Some("The strategic plan is to activate the pieces and find more active squares for them.")
       ),
       PlannerRuntimeFixture(
         id = "what_changed_fallback",
@@ -1159,7 +1159,7 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_changed_fallback", AuthorQuestionKind.WhatChanged))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the rook on c3.")
+        expectedFallbackClaim = Some("The strategic plan is to activate the pieces and find more active squares for them.")
       ),
       PlannerRuntimeFixture(
         id = "what_must_be_stopped_positive",
@@ -1191,7 +1191,7 @@ object MoveReviewProseGoldenFixtures:
           ),
         strategyPack = Some(pressurePack()),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the rook on c3.")
+        expectedFallbackClaim = Some("The strategic plan is to activate the pieces and find more active squares for them.")
       ),
       PlannerRuntimeFixture(
         id = "what_must_be_stopped_fallback",
@@ -1207,7 +1207,7 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_stop_fallback", AuthorQuestionKind.WhatMustBeStopped))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the rook on c3.")
+        expectedFallbackClaim = Some("The strategic plan is to activate the pieces and find more active squares for them.")
       ),
       PlannerRuntimeFixture(
         id = "whose_plan_is_faster_positive",
@@ -1253,6 +1253,6 @@ object MoveReviewProseGoldenFixtures:
             authorQuestions = List(question("q_race_fallback", AuthorQuestionKind.WhosePlanIsFaster))
           ),
         expectedPrimaryKind = None,
-        expectedFallbackClaim = Some("This puts the rook on c3.")
+        expectedFallbackClaim = Some("The strategic plan is to activate the pieces and find more active squares for them.")
       )
     )

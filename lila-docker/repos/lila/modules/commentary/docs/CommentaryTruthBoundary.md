@@ -45,6 +45,13 @@ and tactical veto checks agree.
 carriers may not emit owner claims. They may remain in internal reports or
 debug traces.
 
+`ReplayBackedInternal` line-consequence evidence is not a truth-owner
+promotion. It means the PV was legally replayed for bounded narrative or ledger
+use, but it cannot emit player decision-strip claims unless the line also comes
+from `MoveReviewRefs` as a `SurfaceCandidate`. A replay-observed central pawn
+advance without `CentralBreakTimingWitness.exact` is only a local line
+transition, not the `central_break_timing` proof family.
+
 Strategic plan refutation must be exact-board/probe truth. Sibling plan ranking
 or alternative-dominance metadata can demote selection, but it is not a chess
 refutation and must not be reported as `Refuted`.
@@ -75,10 +82,7 @@ English prose or underscore-separated plan ids. Heavy-piece release truth must
 come from exact branch replay: queen centralization, one check, an unrecaptured
 rook capture, or a back-rank rook shuffle is not enough to refute a local bind.
 
-Color-complex squeeze authority is currently closed. `color_complex_squeeze`
-has an explicit deferred proof contract and default failure
-`color_complex_authority_closed`; corpus/readiness rows are evidence for future
-review only.
+Color-complex squeeze is promoted to Releasable/SupportedLocal when backed by a coordinate minor-piece witness. It requires both a coordinate and a minor piece (bishop/knight) in the packet terms to avoid premature releases.
 
 ## No-Go Truth Failures
 
@@ -99,6 +103,9 @@ These are release blockers:
 - broad lesson or rule wording appears without local scoped-takeaway authority
 - decision comparison is rebuilt from `topEngineMove`, `cpLossVsChosen`, or
   latent/deferred carriers
+- line/PV consequence wording is surfaced from engine-only `VariationLine`
+  interpretation or failed ref replay instead of a `MoveReviewRefs` line that
+  passed legal FEN replay
 - strategic plan refutation is inferred from sibling score/ranking rather than
   exact board/probe evidence
 - strategic plan truth is inferred from raw `evidenceTier`, compatibility

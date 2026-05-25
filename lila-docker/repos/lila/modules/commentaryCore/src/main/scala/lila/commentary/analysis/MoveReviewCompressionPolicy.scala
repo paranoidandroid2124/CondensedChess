@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 import lila.commentary.{ MoveReviewExplanation, MoveReviewRefs, StrategyPack }
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
+import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestionKind, NarrativeOutline }
@@ -83,6 +84,7 @@ private[commentary] object MoveReviewCompressionPolicy:
     val slots =
       slotsFromPlanner(ctx, plannerRuntime.inputs, plannerRuntime.rankedPlans, truthContract)
         .orElse(basicMoveExplanationSlots(ctx, refs, truthContract, strategyPack))
+        .orElse(theme_fallback(ctx, plannerRuntime, refs, strategyPack))
         .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs, strategyPack))
         .getOrElse(omittedSlots)
     RuntimeResult(
@@ -104,6 +106,7 @@ private[commentary] object MoveReviewCompressionPolicy:
         rankedPlans = rankedPlans
       )
     slotsFromPlanner(ctx, inputs, rankedPlans, truthContract)
+      .orElse(theme_fallback(ctx, plannerRuntime, refs = None, strategyPack))
       .orElse(exactFactualFallbackSlots(ctx, plannerRuntime, refs = None, strategyPack))
       .getOrElse(omittedSlots)
 
@@ -114,7 +117,7 @@ private[commentary] object MoveReviewCompressionPolicy:
       refs: Option[MoveReviewRefs],
       ctx: NarrativeContext
   ): List[String] =
-    variationGuardrail(refs)
+    variationGuardrail(refs, ctx)
       .flatMap(cleanSentence(_, ctx))
       .toList
 
@@ -266,6 +269,7 @@ private[commentary] object MoveReviewCompressionPolicy:
       inputs: QuestionPlannerInputs,
       contrastTrace: ContrastiveSupportAdmissibility.ContrastSupportTrace
   ): Option[PlannerSlotDraft] =
+    val renderedClaim = primary.prefixKind.render(primary.claim)
     val admissibleContrast = contrastTrace.effectiveSupport(primary.contrast)
     val secondarySupport = secondarySupportText(primary, secondary, ctx)
     val primaryEvidence = plannerEvidenceHook(primary.evidence, ctx)
@@ -279,7 +283,7 @@ private[commentary] object MoveReviewCompressionPolicy:
           PlannerSlotDraft(
             questionKind = AuthorQuestionKind.WhatMattersHere,
             lens = plannerLens(primary, inputs),
-            claim = primary.claim,
+            claim = renderedClaim,
             supportPrimary = admissibleContrast,
             supportSecondary = secondarySupport,
             tension = None,
@@ -293,7 +297,7 @@ private[commentary] object MoveReviewCompressionPolicy:
           PlannerSlotDraft(
             questionKind = AuthorQuestionKind.WhyThis,
             lens = plannerLens(primary, inputs),
-            claim = primary.claim,
+            claim = renderedClaim,
             supportPrimary = admissibleContrast,
             supportSecondary = secondarySupport,
             tension = None,
@@ -307,7 +311,7 @@ private[commentary] object MoveReviewCompressionPolicy:
           PlannerSlotDraft(
             questionKind = AuthorQuestionKind.WhyNow,
             lens = StrategicLens.Decision,
-            claim = primary.claim,
+            claim = renderedClaim,
             supportPrimary = admissibleContrast,
             supportSecondary = secondarySupport.filterNot(text => admissibleContrast.exists(sameSentence(_, text))),
             tension = timingTension,
@@ -321,7 +325,7 @@ private[commentary] object MoveReviewCompressionPolicy:
           PlannerSlotDraft(
             questionKind = AuthorQuestionKind.WhatChanged,
             lens = plannerLens(primary, inputs),
-            claim = primary.claim,
+            claim = renderedClaim,
             supportPrimary = primary.contrast,
             supportSecondary = secondarySupport,
             tension = None,
@@ -339,7 +343,7 @@ private[commentary] object MoveReviewCompressionPolicy:
                 inputs.truthMode == PlayerFacingTruthMode.Tactical
               then StrategicLens.Decision
               else StrategicLens.Prophylaxis,
-            claim = primary.claim,
+            claim = renderedClaim,
             supportPrimary = primary.contrast,
             supportSecondary = secondarySupport,
             tension = timingTension,
@@ -353,7 +357,7 @@ private[commentary] object MoveReviewCompressionPolicy:
           PlannerSlotDraft(
             questionKind = AuthorQuestionKind.WhosePlanIsFaster,
             lens = StrategicLens.Decision,
-            claim = primary.claim,
+            claim = renderedClaim,
             supportPrimary = inputs.decisionFrame.battlefront.map(_.sentence).orElse(primary.contrast),
             supportSecondary = secondarySupport,
             tension = timingTension,
@@ -369,7 +373,34 @@ private[commentary] object MoveReviewCompressionPolicy:
   ): Option[MoveReviewPolishSlots] =
     val cleanedClaim = sanitizePlannerClaim(draft, ctx)
     cleanedClaim.flatMap { claim =>
-      if draft.claimOnlyAllowed then
+      val supportPrimary = sanitizeDistinctText(draft.supportPrimary, ctx, claim)
+      val supportSecondary =
+        sanitizeDistinctText(draft.supportSecondary, ctx, claim)
+          .filter(text => !supportPrimary.exists(sameSentence(_, text)))
+      val tension =
+        sanitizeDistinctText(draft.tension, ctx, claim)
+          .filter(text =>
+            !supportPrimary.exists(sameSentence(_, text)) &&
+              !supportSecondary.exists(sameSentence(_, text))
+          )
+      val evidenceHook =
+        sanitizeDistinctEvidence(draft.evidenceHook, ctx, claim)
+          .filter(text =>
+            !supportPrimary.exists(sameSentence(_, text)) &&
+              !supportSecondary.exists(sameSentence(_, text)) &&
+              !tension.exists(sameSentence(_, text))
+          )
+      val coda =
+        sanitizeDistinctText(draft.coda, ctx, claim)
+          .filter(text =>
+            !supportPrimary.exists(sameSentence(_, text)) &&
+              !supportSecondary.exists(sameSentence(_, text)) &&
+              !tension.exists(sameSentence(_, text)) &&
+              !evidenceHook.exists(sameSentence(_, text))
+          )
+
+      val hasSupport = hasPlannerSupport(supportPrimary, supportSecondary, tension, evidenceHook, coda)
+      if draft.claimOnlyAllowed || !hasSupport then
         Some(
           MoveReviewPolishSlots(
             lens = draft.lens,
@@ -384,53 +415,25 @@ private[commentary] object MoveReviewCompressionPolicy:
           )
         )
       else {
-        val supportPrimary = sanitizeDistinctText(draft.supportPrimary, ctx, claim)
-        val supportSecondary =
-          sanitizeDistinctText(draft.supportSecondary, ctx, claim)
-            .filter(text => !supportPrimary.exists(sameSentence(_, text)))
-        val tension =
-          sanitizeDistinctText(draft.tension, ctx, claim)
-            .filter(text =>
-              !supportPrimary.exists(sameSentence(_, text)) &&
-                !supportSecondary.exists(sameSentence(_, text))
-            )
-        val evidenceHook =
-          sanitizeDistinctEvidence(draft.evidenceHook, ctx, claim)
-            .filter(text =>
-              !supportPrimary.exists(sameSentence(_, text)) &&
-                !supportSecondary.exists(sameSentence(_, text)) &&
-                !tension.exists(sameSentence(_, text))
-            )
-        val coda =
-          sanitizeDistinctText(draft.coda, ctx, claim)
-            .filter(text =>
-              !supportPrimary.exists(sameSentence(_, text)) &&
-                !supportSecondary.exists(sameSentence(_, text)) &&
-                !tension.exists(sameSentence(_, text)) &&
-                !evidenceHook.exists(sameSentence(_, text))
-            )
-
-        Option.when(hasPlannerSupport(supportPrimary, supportSecondary, tension, evidenceHook, coda)) {
-          val supportLines = List(supportPrimary, supportSecondary).flatten
-          val slots =
-            MoveReviewPolishSlots(
-              lens = draft.lens,
-              claim = prefixMoveHeader(ctx, claim),
-              supportPrimary = supportPrimary,
-              supportSecondary = supportSecondary,
-              tension = tension,
-              evidenceHook = evidenceHook,
-              coda = coda,
-              factGuardrails = (supportLines ++ tension.toList ++ evidenceHook.toList ++ coda.toList).distinct,
-              paragraphPlan = plannerParagraphPlan(supportLines, tension, evidenceHook, coda)
-            )
-          Option.when(moveReviewContractSafe(slots))(slots)
-        }.flatten
+        val supportLines = List(supportPrimary, supportSecondary).flatten
+        val slots =
+          MoveReviewPolishSlots(
+            lens = draft.lens,
+            claim = prefixMoveHeader(ctx, claim),
+            supportPrimary = supportPrimary,
+            supportSecondary = supportSecondary,
+            tension = tension,
+            evidenceHook = evidenceHook,
+            coda = coda,
+            factGuardrails = (supportLines ++ tension.toList ++ evidenceHook.toList ++ coda.toList).distinct,
+            paragraphPlan = plannerParagraphPlan(supportLines, tension, evidenceHook, coda)
+          )
+        Option.when(moveReviewContractSafe(slots))(slots)
       }
     }
 
   private def supportedLocalSurfaceOnly(primary: QuestionPlan): Boolean =
-    primary.admissibilityReasons.contains("strategic_claim_supported_local")
+    false
 
   private def sanitizePlannerClaim(
       draft: PlannerSlotDraft,
@@ -603,6 +606,66 @@ private[commentary] object MoveReviewCompressionPolicy:
       strategyPack: Option[StrategyPack]
   ): Option[MoveReviewPolishSlots] =
     exactFactualFallbackResult(ctx, plannerRuntime, refs, strategyPack).map(_.finalSlots)
+
+  private def theme_fallback(
+      ctx: NarrativeContext,
+      plannerRuntime: PlannerRuntime,
+      @unused refs: Option[MoveReviewRefs],
+      @unused strategyPack: Option[StrategyPack]
+  ): Option[MoveReviewPolishSlots] =
+    val activeTheme =
+      if ctx.plans.top5.nonEmpty then
+        PlanTaxonomy.ThemeResolver.fromPlanName(ctx.plans.top5.head.name)
+      else if plannerRuntime.inputs.evidenceBackedPlans.nonEmpty then
+        PlanTaxonomy.ThemeResolver.fromHypotheses(plannerRuntime.inputs.evidenceBackedPlans)
+      else if ctx.strategicPlanExperiments.nonEmpty then
+        ctx.strategicPlanExperiments.map(theme_from_exp).find(_ != PlanTaxonomy.PlanTheme.Unknown).getOrElse(PlanTaxonomy.PlanTheme.Unknown)
+      else
+        PlanTaxonomy.PlanTheme.Unknown
+
+    Option.when(activeTheme != PlanTaxonomy.PlanTheme.Unknown) {
+      val claim = theme_fallback_prose(activeTheme)
+      val prefixClaim = prefixMoveHeader(ctx, claim)
+      MoveReviewPolishSlots(
+        lens = StrategicLens.Decision,
+        claim = prefixClaim,
+        supportPrimary = None,
+        supportSecondary = None,
+        tension = None,
+        evidenceHook = None,
+        coda = None,
+        factGuardrails = List(s"MoveReview thematic fallback theme: ${activeTheme.id}"),
+        paragraphPlan = List("p1=claim"),
+        sourceKind = MoveReviewPolishSlots.Source.ThematicFallback
+      )
+    }
+
+  private def theme_from_exp(e: StrategicPlanExperiment): PlanTaxonomy.PlanTheme =
+    PlanTaxonomy.PlanTheme.fromId(e.themeL1).filter(_ != PlanTaxonomy.PlanTheme.Unknown)
+      .orElse(e.subplanId.flatMap(PlanTaxonomy.ThemeResolver.subplanFromId).map(_.theme))
+      .orElse(Option(PlanTaxonomy.ThemeResolver.fromPlanId(e.planId)).filter(_ != PlanTaxonomy.PlanTheme.Unknown))
+      .getOrElse(PlanTaxonomy.PlanTheme.Unknown)
+
+  private def theme_fallback_prose(theme: PlanTaxonomy.PlanTheme): String =
+    theme match
+      case PlanTaxonomy.PlanTheme.RestrictionProphylaxis =>
+        "The strategic plan is to restrain the opponent's active plans and consolidate the position."
+      case PlanTaxonomy.PlanTheme.PieceRedeployment =>
+        "The strategic plan is to activate the pieces and find more active squares for them."
+      case PlanTaxonomy.PlanTheme.SpaceClamp =>
+        "The strategic plan is to gain space and restrict the mobility of the opponent's pieces."
+      case PlanTaxonomy.PlanTheme.WeaknessFixation =>
+        "The strategic plan is to fix targets and apply pressure to the weak points in the opponent's camp."
+      case PlanTaxonomy.PlanTheme.PawnBreakPreparation =>
+        "The strategic plan is to coordinate the pieces and prepare a central or wing pawn break."
+      case PlanTaxonomy.PlanTheme.FavorableExchange =>
+        "The strategic plan is to seek favorable exchanges and improve the piece quality."
+      case PlanTaxonomy.PlanTheme.FlankInfrastructure =>
+        "The strategic plan is to build flank infrastructure and prepare for an attack."
+      case PlanTaxonomy.PlanTheme.AdvantageTransformation =>
+        "The strategic plan is to transform the advantage and simplify the game toward a won ending."
+      case PlanTaxonomy.PlanTheme.ImmediateTacticalGain | PlanTaxonomy.PlanTheme.OpeningPrinciples | _ =>
+        "The strategic plan is to improve piece activity and coordinate the forces."
 
   private def basicMoveExplanationSlots(
       ctx: NarrativeContext,
@@ -808,18 +871,22 @@ private[commentary] object MoveReviewCompressionPolicy:
           s"$prefix $san:"
       moveHeader.map(h => s"$h $claim").getOrElse(claim)
 
-  private def variationGuardrail(refs: Option[MoveReviewRefs]): Option[String] =
-    refs.flatMap(_.variations.headOption).flatMap { variation =>
-      val preview =
-        variation.moves
-          .take(3)
-          .map(_.san.trim)
-          .filter(_.nonEmpty)
-          .mkString(" ")
-          .trim
-      Option.when(preview.nonEmpty) {
-        val eval = formatVariationScore(variation.scoreCp, variation.mate)
-        s"Line: a) $preview$eval."
+  private def variationGuardrail(refs: Option[MoveReviewRefs], ctx: NarrativeContext): Option[String] =
+    val consequence = LineConsequenceEvaluator.narrativeCandidate(ctx, refs)
+    val richNarrative = consequence.flatMap(c => VariationNarrativeBuilder.build(ctx, c))
+    richNarrative.orElse {
+      refs.flatMap(_.variations.headOption).flatMap { variation =>
+        val preview =
+          variation.moves
+            .take(3)
+            .map(_.san.trim)
+            .filter(_.nonEmpty)
+            .mkString(" ")
+            .trim
+        Option.when(preview.nonEmpty) {
+          val eval = formatVariationScore(variation.scoreCp, variation.mate)
+          s"Line: a) $preview$eval."
+        }
       }
     }
 

@@ -89,7 +89,7 @@ private[commentary] object AdmissionUnitCatalog:
     ControlledPositiveRequirement(
       count = 1,
       expectedPacket = s"proofSource=$proofSource;scope=MoveLocal;authority=SupportedLocal",
-      expectedSurface = "A local reading is that ..."
+      expectedSurface = "A key idea is that ..."
     )
 
   private def defaultNegatives(planKindId: String): List[NegativeControlRequirement] =

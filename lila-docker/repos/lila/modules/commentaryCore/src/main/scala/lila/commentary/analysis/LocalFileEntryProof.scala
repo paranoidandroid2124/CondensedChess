@@ -113,7 +113,12 @@ private[commentary] object LocalFileEntryProof:
   )
 
   private val ApplicableSubplans =
-    Set(PlanKind.BreakPrevention.id, PlanKind.KeySquareDenial.id)
+    Set(
+      PlanKind.BreakPrevention.id,
+      PlanKind.KeySquareDenial.id,
+      PlanKind.OpenFilePressure.id,
+      PlanKind.RookFileTransfer.id
+    )
   private val DirectReplyPurposes =
     Set("defense_reply_multipv", "reply_multipv")
   private val ValidationPurposes =
@@ -489,7 +494,8 @@ private[commentary] object LocalFileEntryProof:
     surfacePair(
       preventedPlans = preventedPlans.filter(_.sourceScope == FactScope.Now),
       evidenceBackedPlans = evidenceBackedPlans.filter(plan =>
-        normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id &&
+        (normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id ||
+          normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.PieceRedeployment.id) &&
           plan.subplanId.exists(id => ApplicableSubplans.contains(normalize(id)))
       )
     )
@@ -518,7 +524,8 @@ private[commentary] object LocalFileEntryProof:
   private def isApplicablePlan(
       plan: PlanEvidenceEvaluator.EvaluatedPlan
   ): Boolean =
-    normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id &&
+    (normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.RestrictionProphylaxis.id ||
+      normalize(plan.themeL1) == PlanTaxonomy.PlanTheme.PieceRedeployment.id) &&
       plan.subplanId.exists(id => ApplicableSubplans.contains(normalize(id)))
 
   private def strongestFileAxis(

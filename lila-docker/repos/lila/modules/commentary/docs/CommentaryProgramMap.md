@@ -58,18 +58,17 @@ Open for maintenance:
 
 Closed unless a new audit explicitly opens them:
 
-- broad color-complex squeeze authority
 - broad heavy-piece/local-bind/global-squeeze expansion
 - Track 5 lesson authority
 - public API/frontend wire expansion except audited typed diagnostics or
   payload minimization that does not create product authority
 - support-only or deferred carrier promotion
 
-Color-complex has an explicit deferred contract:
+Color-complex has an explicit contract (promoted to Releasable/SupportedLocal when a coordinate minor-piece witness exists):
 
 | proof family | status | certified | supported local | failure |
 | --- | --- | --- | --- | --- |
-| `color_complex_squeeze` | `Deferred` | false | false | `color_complex_authority_closed` |
+| `color_complex_squeeze` | `Releasable` | false | true | `color_complex_authority_closed` |
 
 ## Verification Expectations
 

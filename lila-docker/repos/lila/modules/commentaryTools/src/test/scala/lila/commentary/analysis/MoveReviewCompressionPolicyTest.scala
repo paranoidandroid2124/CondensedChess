@@ -160,3 +160,38 @@ final class MoveReviewCompressionPolicyTest extends FunSuite:
     )
     assertNotEquals(slots.paragraphPlan, List("p1=claim"), clues(fixture.id, slots))
   }
+
+  test("thematic fallback is selected when strategic plans are active but exact witness proof fails") {
+    val ctx = quietH3Ctx.copy(
+      plans = PlanTable(
+        top5 = List(
+          PlanRow(
+            rank = 1,
+            name = "OpenFilePressure",
+            score = 0.92,
+            evidence = List("rook doubling on open d-file"),
+            supports = Nil,
+            blockers = Nil,
+            missingPrereqs = Nil
+          )
+        ),
+        suppressed = Nil
+      )
+    )
+    val outline = BookStyleRenderer.validatedOutline(ctx)
+    val slots =
+      MoveReviewPolishSlotsBuilder.buildOrFallback(
+        ctx,
+        outline,
+        refs = None,
+        strategyPack = None,
+        truthContract = None
+      )
+
+    assertEquals(slots.sourceKind, MoveReviewPolishSlots.Source.ThematicFallback)
+    assertEquals(
+      MoveReviewProseContract.stripMoveHeader(slots.claim),
+      "The strategic plan is to activate the pieces and find more active squares for them."
+    )
+    assertEquals(slots.paragraphPlan, List("p1=claim"))
+  }

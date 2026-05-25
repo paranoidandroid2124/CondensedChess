@@ -176,6 +176,56 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
     assert(primary.sanMoves.nonEmpty)
   }
 
+  test("decision-compare ledger note uses typed replayed line consequence when available") {
+    val legalFen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+    val ucis = List("g1f3", "b8c6", "f1b5", "a7a6", "b5c6", "d7c6")
+    val ctx =
+      MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx.copy(
+        fen = legalFen,
+        playedMove = Some("g1f3"),
+        playedSan = Some("Nf3"),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 20,
+            variations = List(VariationLine(ucis, scoreCp = 42, depth = 20))
+          )
+        )
+      )
+    val ledger =
+      build(
+        ctx,
+        refs = Some(replayedRefs(legalFen, "exchange", ucis, List("Nf3", "Nc6", "Bb5", "a6", "Bxc6", "dxc6")))
+      )
+    val primary = ledger.primaryLine.getOrElse(fail("missing decision line"))
+
+    assertEquals(primary.source, "decision_compare")
+    assert(primary.note.exists(_.toLowerCase.contains("exchange sequence")), clue(primary))
+    assert(!primary.note.exists(_.contains("line_consequence:")), clue(primary))
+  }
+
+  test("decision-compare ledger note can use replay-backed engine consequence without refs") {
+    val legalFen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+    val ucis = List("g1f3", "b8c6", "f1b5", "a7a6", "b5c6", "d7c6")
+    val ctx =
+      MoveReviewProseGoldenFixtures.exchangeSacrifice.ctx.copy(
+        fen = legalFen,
+        playedMove = Some("g1f3"),
+        playedSan = Some("Nf3"),
+        engineEvidence = Some(
+          EngineEvidence(
+            depth = 20,
+            variations = List(VariationLine(ucis, scoreCp = 42, depth = 20))
+          )
+        )
+      )
+    val ledger = build(ctx, refs = None)
+    val primary = ledger.primaryLine.getOrElse(fail("missing decision line"))
+
+    assertEquals(primary.source, "decision_compare")
+    assert(primary.note.exists(_.toLowerCase.contains("exchange sequence")), clue(primary))
+    assert(!primary.note.exists(_.contains("line_consequence:")), clue(primary))
+  }
+
   test("raw strategyPack signal digest decision does not create player ledger lines") {
     val rawEvidence = "raw signal digest evidence text"
     val pack =
@@ -329,4 +379,38 @@ class MoveReviewStrategicLedgerBuilderTest extends FunSuite:
           )
         )
       )
+    )
+
+  private def replayedRefs(
+      fen: String,
+      lineId: String,
+      ucis: List[String],
+      sans: List[String]
+  ): MoveReviewRefs =
+    val fens = ucis.indices.toList.map(idx => NarrativeUtils.uciListToFen(fen, ucis.take(idx + 1)))
+    MoveReviewRefs(
+      startFen = fen,
+      startPly = NarrativeUtils.plyFromFen(fen).getOrElse(1),
+      variations =
+        List(
+          MoveReviewVariationRef(
+            lineId = lineId,
+            scoreCp = 42,
+            mate = None,
+            depth = 20,
+            moves =
+              ucis.zip(sans).zipWithIndex.map { case ((uci, san), idx) =>
+                val ply = NarrativeUtils.plyFromFen(fen).map(_ + 1 + idx).getOrElse(idx + 1)
+                MoveReviewMoveRef(
+                  refId = s"$lineId-${idx + 1}",
+                  san = san,
+                  uci = uci,
+                  fenAfter = fens(idx),
+                  ply = ply,
+                  moveNo = (ply + 1) / 2,
+                  marker = None
+                )
+              }
+          )
+        )
     )

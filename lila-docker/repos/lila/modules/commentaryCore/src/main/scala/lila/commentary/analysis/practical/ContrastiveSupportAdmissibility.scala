@@ -170,7 +170,16 @@ private[commentary] object ContrastiveSupportAdmissibility:
   ): ContrastSupportTrace =
     clean(comparison.deferredSource) match
       case Some(source) if sameText(source, "close_candidate") =>
-        reject(RejectReason.RawCloseCandidate)
+        inputs.alternativeNarrative match
+          case Some(alt) if enrichedCloseCandidateSentence(alt.sentence) =>
+            allow(
+              sourceKind = "enriched_close_candidate",
+              anchor = alt.move.getOrElse(""),
+              consequence = alt.reason,
+              sentence = alt.sentence
+            )
+          case _ =>
+            reject(RejectReason.RawCloseCandidate)
       case Some(source) if isEngineGapLike(source) && decisionComparisonConsequence(comparison).isEmpty =>
         reject(RejectReason.VagueEnginePreference)
       case _ if decisionComparisonConsequence(comparison).isEmpty && comparison.cpLossVsChosen.exists(math.abs(_) >= 60) =>
@@ -203,6 +212,15 @@ private[commentary] object ContrastiveSupportAdmissibility:
             reject(RejectReason.MissingContrastCandidate)
           case _ =>
             reject(RejectReason.MissingConcreteConsequence)
+
+  private[commentary] def enrichedCloseCandidateSentence(sentence: String): Boolean =
+    val normalized = normalize(sentence)
+    normalized.nonEmpty &&
+      (
+        normalized.contains("while") ||
+          normalized.contains("whereas") ||
+          normalized.contains("both")
+      )
 
   private def resolvedConsequence(
       primary: QuestionPlan,

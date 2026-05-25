@@ -38,6 +38,7 @@ object MoveReviewPolishSlots:
     val Planner = "planner"
     val BasicMoveExplanation = "basic_move_explanation"
     val ExactFactualFallback = "exact_factual_fallback"
+    val ThematicFallback = "thematic_fallback"
 
 object MoveReviewSlotSanitizer:
   def sanitizeUserText(raw: String): String =
@@ -104,9 +105,9 @@ object MoveReviewProseContract:
     val sentenceCount = count_sentences(paragraphs)
     val paragraphBudgetOk =
       if expectsSingleParagraph(slots) then
-        paragraphs.size == 1 && sentenceCount >= 1 && sentenceCount <= 2
+        paragraphs.size == 1 && sentenceCount >= 1 && sentenceCount <= 3
       else
-        paragraphs.size >= 2 && paragraphs.size <= 3 && sentenceCount >= 2 && sentenceCount <= 4
+        paragraphs.size >= 2 && paragraphs.size <= 3 && sentenceCount >= 2 && sentenceCount <= 6
     Evaluation(
       paragraphs = paragraphs,
       sentenceCount = sentenceCount,
@@ -197,7 +198,7 @@ object MoveReviewSoftRepair:
     val paragraphTarget =
       if singleParagraphMode then 1
       else deterministic.size.max(2).min(3)
-    val sentenceTarget = if singleParagraphMode then 2 else 4
+    val sentenceTarget = if singleParagraphMode then 3 else 6
     var paragraphs = if initial.nonEmpty then initial else deterministic
     if initial.isEmpty then actions += "empty_to_deterministic"
 

@@ -1,6 +1,6 @@
 package lila.commentary.analysis
 
-import lila.commentary.DecisionComparisonDigest
+import lila.commentary.{ DecisionComparisonDigest, MoveReviewRefs }
 import lila.commentary.model.NarrativeContext
 import lila.commentary.model.strategic.VariationLine
 
@@ -40,12 +40,13 @@ private[analysis] final case class DecisionComparison(
 
 private[analysis] object DecisionComparisonBuilder:
 
-  def build(ctx: NarrativeContext): Option[DecisionComparison] =
+  def build(ctx: NarrativeContext, refs: Option[MoveReviewRefs] = None): Option[DecisionComparison] =
     val chosen = chosenMove(ctx)
     val bestLine = ctx.engineEvidence.flatMap(_.best)
     val bestMove = bestLine.flatMap(leadSan(ctx.fen, _))
     val bestScore = bestLine.map(_.effectiveScore)
-    val bestPv = bestLine.flatMap(linePreview(ctx.fen, _)).getOrElse(Nil)
+    val lineConsequence = LineConsequenceEvaluator.narrativeCandidate(ctx, refs)
+    val bestPv = lineConsequence.map(_.sanMoves.take(4)).filter(_.nonEmpty).orElse(bestLine.flatMap(linePreview(ctx.fen, _))).getOrElse(Nil)
     val cpLoss = ctx.counterfactual.map(_.cpLoss).filter(_ > 0)
     val alternative = AlternativeNarrativeSupport.build(ctx)
     val fallbackDeferred = bestMove.filterNot(best => chosen.exists(equalMoveToken(best, _)))
@@ -59,7 +60,7 @@ private[analysis] object DecisionComparisonBuilder:
         }
     val deferredSource =
       alternative.map(_.source).orElse(Option.when(fallbackDeferred.nonEmpty)("engine_gap"))
-    val evidence = NarrativeEvidenceHooks.build(ctx)
+    val evidence = NarrativeEvidenceHooks.build(ctx, refs)
     val chosenMatchesBest =
       (chosen, bestMove) match
         case (Some(c), Some(b)) => equalMoveToken(c, b)
@@ -84,8 +85,8 @@ private[analysis] object DecisionComparisonBuilder:
       )
     )
 
-  def digest(ctx: NarrativeContext): Option[DecisionComparisonDigest] =
-    build(ctx).map(_.toDigest)
+  def digest(ctx: NarrativeContext, refs: Option[MoveReviewRefs] = None): Option[DecisionComparisonDigest] =
+    build(ctx, refs).map(_.toDigest)
 
   private def chosenMove(ctx: NarrativeContext): Option[String] =
     ctx.playedSan.map(normalize).filter(_.nonEmpty)

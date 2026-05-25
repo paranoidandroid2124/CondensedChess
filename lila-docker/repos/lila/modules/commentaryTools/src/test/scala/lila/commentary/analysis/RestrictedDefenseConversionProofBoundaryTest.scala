@@ -397,7 +397,7 @@ class RestrictedDefenseConversionProofBoundaryTest extends FunSuite:
         expectedChroniclePlannerOwned = false,
         expectedActivePrimary = None,
         expectedMoveReviewPlannerOwned = false,
-        expectedFallbackClaim = Some("This puts the bishop on f3.")
+        expectedFallbackClaim = Some("The strategic plan is to transform the advantage and simplify the game toward a won ending.")
       )
     )
 

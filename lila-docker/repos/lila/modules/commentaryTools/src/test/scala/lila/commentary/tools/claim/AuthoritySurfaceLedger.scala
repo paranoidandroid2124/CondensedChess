@@ -515,8 +515,11 @@ object AuthoritySurfaceLedger:
   private def softenLocalReading(text: String): String =
     val trimmed = Option(text).getOrElse("").trim
     if trimmed.isEmpty || trimmed == "-" then "-"
-    else if trimmed.startsWith("A local reading") then trimmed
-    else s"A local reading is that ${trimmed.take(1).toLowerCase}${trimmed.drop(1)}"
+    else if trimmed.startsWith("A key idea") then trimmed
+    else if trimmed.startsWith("A local reading") then
+      val stripped = trimmed.stripPrefix("A local reading is that ").stripPrefix("a local reading is that ")
+      s"A key idea is that ${stripped.take(1).toLowerCase}${stripped.drop(1)}"
+    else s"A key idea is that ${trimmed.take(1).toLowerCase}${trimmed.drop(1)}"
 
   private def strategicBaselineRelease(
       sample: Sample,
@@ -1646,8 +1649,8 @@ object AuthoritySurfaceLedger:
       chronicle: String,
       baselineRelease: Option[String]
   ): String =
-    ranked.primary match
-      case Some(_) if sample.softenOwnerPath && primary.startsWith("A local reading") =>
+     ranked.primary match
+      case Some(_) if sample.softenOwnerPath && (primary.startsWith("A local reading") || primary.startsWith("A key idea")) =>
         "SupportedLocal"
       case Some(plan) if positiveRelease(plan).nonEmpty =>
         positiveRelease(plan).get
@@ -1679,6 +1682,7 @@ object AuthoritySurfaceLedger:
       "simplification",
       "target fixation",
       "local reading",
+      "key idea",
       "further probe work",
       "probe work still targets"
     ).exists(text.contains)

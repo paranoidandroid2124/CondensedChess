@@ -315,6 +315,8 @@ object PlanTaxonomy:
     import PlanTheme.*
 
     private val planAliases: List[(String, PlanTheme)] = List(
+      "openfile" -> PieceRedeployment,
+      "oppositebishopsconversion" -> AdvantageTransformation,
       "openingprinciples" -> OpeningPrinciples,
       "openingdevelopment" -> OpeningPrinciples,
       "opening development" -> OpeningPrinciples,
@@ -648,9 +650,12 @@ object PlanTaxonomy:
     val low = normalize(raw)
     low.split("theme:").lift(1).map(_.trim).filter(_.nonEmpty).map(v => s"theme:$v")
 
+  private def strip_text_noise(s: String): String =
+    Option(s).getOrElse("").trim.toLowerCase.replace("_", "").replace(" ", "").replace("-", "")
+
   private def byAlias[T](raw: String, aliases: List[(String, T)]): Option[T] =
-    val low = normalize(raw)
-    aliases.collectFirst { case (needle, value) if low.contains(needle) => value }
+    val simplifiedRaw = strip_text_noise(raw)
+    aliases.collectFirst { case (needle, value) if simplifiedRaw.contains(strip_text_noise(needle)) => value }
 
   private def normalize(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase

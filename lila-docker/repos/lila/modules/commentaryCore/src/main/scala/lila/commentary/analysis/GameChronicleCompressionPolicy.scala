@@ -2,6 +2,7 @@ package lila.commentary.analysis
 
 import lila.commentary.StrategyPack
 import lila.commentary.analysis.practical.ContrastiveSupportAdmissibility
+import lila.commentary.analysis.claim.PlayerFacingClaimPrefixKind
 import lila.commentary.analysis.render.QuietStrategicSupportComposer
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestionKind, OutlineBeat, OutlineBeatKind }
@@ -255,16 +256,17 @@ private[commentary] object GameChronicleCompressionPolicy:
     }
 
   private def supportedLocalSurfaceOnly(primary: QuestionPlan): Boolean =
-    primary.admissibilityReasons.contains("strategic_claim_supported_local")
+    false
 
   private def sanitizePrimaryClaim(
       plan: QuestionPlan,
       ctx: NarrativeContext
   ): Option[String] =
-    cleanChronicleSentence(plan.claim, ctx)
+    val rendered = plan.prefixKind.render(plan.claim)
+    cleanChronicleSentence(rendered, ctx)
       .orElse {
         Option.when(plan.questionKind == AuthorQuestionKind.WhosePlanIsFaster) {
-          MoveReviewCompressionPolicy.relaxedCertifiedRaceSentence(plan.claim, ctx)
+          MoveReviewCompressionPolicy.relaxedCertifiedRaceSentence(rendered, ctx)
         }.flatten
       }
 

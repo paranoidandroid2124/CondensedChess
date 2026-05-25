@@ -1,6 +1,7 @@
 package lila.commentary.analysis
 
 import munit.FunSuite
+import lila.commentary.{ MoveReviewMoveRef, MoveReviewRefs, MoveReviewVariationRef }
 import lila.commentary.model.*
 import lila.commentary.model.strategic.{ CounterfactualMatch, EngineEvidence, PvMove, VariationLine }
 
@@ -96,6 +97,43 @@ class DecisionComparisonBuilderTest extends FunSuite:
     assertEquals(comparison.deferredSource, Some("close_candidate"))
     assertEquals(comparison.practicalAlternative, true)
     assert(comparison.deferredReason.exists(_.nonEmpty))
+  }
+
+  test("build prefers typed replayed line consequence over bare PV preview evidence") {
+    val fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+    val ucis = List("g1f3", "b8c6", "f1b5", "a7a6", "b5c6", "d7c6")
+    val ctx =
+      baseContext.copy(
+        fen = fen,
+        playedMove = Some("g1f3"),
+        playedSan = Some("Nf3"),
+        engineEvidence = Some(EngineEvidence(depth = 20, variations = List(VariationLine(ucis, scoreCp = 42, depth = 20))))
+      )
+    val refs = replayedRefs(fen, "exchange", ucis, List("Nf3", "Nc6", "Bb5", "a6", "Bxc6", "dxc6"))
+
+    val comparison = DecisionComparisonBuilder.build(ctx = ctx, refs = Some(refs)).getOrElse(fail("missing comparison"))
+
+    assert(comparison.evidence.exists(_.toLowerCase.contains("exchange sequence")), clue(comparison))
+    assert(!comparison.evidence.exists(_.startsWith("The engine line begins")), clue(comparison))
+    assertEquals(comparison.engineBestPv, List("Nf3", "Nc6", "Bb5", "a6"))
+  }
+
+  test("build can use replay-backed engine evidence internally when refs are absent") {
+    val fen = "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+    val ucis = List("g1f3", "b8c6", "f1b5", "a7a6", "b5c6", "d7c6")
+    val ctx =
+      baseContext.copy(
+        fen = fen,
+        playedMove = Some("g1f3"),
+        playedSan = Some("Nf3"),
+        engineEvidence = Some(EngineEvidence(depth = 20, variations = List(VariationLine(ucis, scoreCp = 42, depth = 20))))
+      )
+
+    val comparison = DecisionComparisonBuilder.build(ctx = ctx, refs = None).getOrElse(fail("missing comparison"))
+
+    assert(comparison.evidence.exists(_.toLowerCase.contains("exchange sequence")), clue(comparison))
+    assert(!comparison.evidence.exists(_.startsWith("The engine line begins")), clue(comparison))
+    assertEquals(comparison.engineBestPv, List("Nf3", "Nc6", "Bb5", "a6"))
   }
 
   test("exact target-fixation row carries a comparative consequence against the top multipv alternative") {
@@ -241,3 +279,37 @@ class DecisionComparisonBuilderTest extends FunSuite:
     assertEquals(comparison.comparativeConsequence, None)
     assertEquals(comparison.comparativeSource, None)
   }
+
+  private def replayedRefs(
+      fen: String,
+      lineId: String,
+      ucis: List[String],
+      sans: List[String]
+  ): MoveReviewRefs =
+    val fens = ucis.indices.toList.map(idx => NarrativeUtils.uciListToFen(fen, ucis.take(idx + 1)))
+    MoveReviewRefs(
+      startFen = fen,
+      startPly = NarrativeUtils.plyFromFen(fen).getOrElse(1),
+      variations =
+        List(
+          MoveReviewVariationRef(
+            lineId = lineId,
+            scoreCp = 42,
+            mate = None,
+            depth = 20,
+            moves =
+              ucis.zip(sans).zipWithIndex.map { case ((uci, san), idx) =>
+                val ply = NarrativeUtils.plyFromFen(fen).map(_ + 1 + idx).getOrElse(idx + 1)
+                MoveReviewMoveRef(
+                  refId = s"$lineId-${idx + 1}",
+                  san = san,
+                  uci = uci,
+                  fenAfter = fens(idx),
+                  ply = ply,
+                  moveNo = (ply + 1) / 2,
+                  marker = None
+                )
+              }
+          )
+        )
+    )

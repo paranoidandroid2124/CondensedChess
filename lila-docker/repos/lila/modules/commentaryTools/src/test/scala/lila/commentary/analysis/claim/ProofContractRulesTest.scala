@@ -137,16 +137,43 @@ class ProofContractRulesTest extends FunSuite:
     assertEquals(ProofContractRules.contractForProofFamily("minority_attack_semantic"), None)
   }
 
-  test("color-complex squeeze is explicit but authority closed") {
+  test("color-complex squeeze is explicit but promoted to Releasable / SupportedLocal") {
     val contract =
       ProofContractRules
         .contractForProofFamily("color_complex_squeeze")
         .getOrElse(fail("missing color-complex squeeze contract"))
 
-    assertEquals(contract.status, ProofContractStatus.Deferred)
+    assertEquals(contract.status, ProofContractStatus.Releasable)
     assert(!contract.certifiedEligible, clues(contract))
-    assert(!contract.supportedLocalEligible, clues(contract))
+    assert(contract.supportedLocalEligible, clues(contract))
     assertEquals(contract.defaultFailureTaxonomy, "color_complex_authority_closed")
+
+    val packetWithWitness = PlayerFacingClaimPacket(
+      proofSource = "color_complex_squeeze",
+      proofFamily = "color_complex_squeeze",
+      scope = PlayerFacingPacketScope.PositionLocal,
+      fallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
+      anchorTerms = List("knight"),
+      proofPathWitness = PlayerFacingProofPathWitness(
+        ownerSeedTerms = List("e4"),
+        continuationTerms = List("d4")
+      )
+    )
+    val packetWithoutWitness = PlayerFacingClaimPacket(
+      proofSource = "color_complex_squeeze",
+      proofFamily = "color_complex_squeeze",
+      scope = PlayerFacingPacketScope.PositionLocal,
+      fallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
+      proofPathWitness = PlayerFacingProofPathWitness(
+        ownerSeedTerms = List("e4"),
+        continuationTerms = List("d4")
+      )
+    )
+
+    assertEquals(ProofContractRules.failureCodes(packetWithWitness), Nil)
+    assert(ProofContractRules.supportedLocalAdmissible(packetWithWitness), clues(packetWithWitness))
+    assert(!ProofContractRules.supportedLocalAdmissible(packetWithoutWitness), clues(packetWithoutWitness))
+    assert(ProofContractRules.failureCodes(packetWithoutWitness).contains("witness:color_complex_minor_piece_missing"))
   }
 
   test("DefenderTrade is supported-local releasable only through exact defender proof") {

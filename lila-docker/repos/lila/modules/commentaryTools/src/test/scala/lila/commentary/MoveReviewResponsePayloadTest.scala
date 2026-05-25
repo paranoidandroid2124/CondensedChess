@@ -97,7 +97,17 @@ class MoveReviewResponsePayloadTest extends FunSuite:
         signalDigest = Some(NarrativeSignalDigest(authoringEvidence = Some("internal evidence"))),
         moveReviewPlayerSurface = Some(
           MoveReviewPlayerSurface(
-            summaryRows = List(MoveReviewPlayerSurfaceRow(label = "Plan", text = "Stable public support"))
+            summaryRows = List(MoveReviewPlayerSurfaceRow(label = "Plan", text = "Stable public support")),
+            decisionComparison =
+              Some(
+                MoveReviewPlayerDecisionComparison(
+                  kicker = "Decision point",
+                  gapLabel = Some("220cp"),
+                  chosenSan = Some("h4"),
+                  engineSan = Some("g4"),
+                  secondaryText = Some("The checked line reaches an exchange sequence after Bxc6.")
+                )
+              )
           )
         )
       )
@@ -123,6 +133,7 @@ class MoveReviewResponsePayloadTest extends FunSuite:
 
     assertEquals((payload \ "schema").as[String], "chesstory.move_review.v2", clue(payload))
     assertEquals((payload \ "html").as[String], "<section>public html</section>", clue(payload))
+    assertEquals((payload \ "moveReviewPlayerSurface" \ "decisionComparison" \ "kicker").as[String], "Decision point", clue(payload))
     assertEquals((payload \ "probeRequests").as[List[JsObject]], Nil, clue(payload))
     assertEquals((payload \ "mainStrategicPlanCount").as[Int], 1, clue(payload))
     assertEquals((payload \ "diagnostics" \ "status").as[String], "fallback_available", clue(payload))

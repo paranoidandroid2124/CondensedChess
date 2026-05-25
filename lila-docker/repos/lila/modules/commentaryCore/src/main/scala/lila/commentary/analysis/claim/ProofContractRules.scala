@@ -329,6 +329,17 @@ private[commentary] object ProofContractRules:
           supportedLocalEligible = true,
           defaultFailureTaxonomy = "attacking_piece_trade_unowned"
         )
+      case subplan @ PlanTaxonomy.PlanKind.OutpostEntrenchment =>
+        subplanContract(
+          subplan = subplan,
+          status = ProofContractStatus.Releasable,
+          acceptedSources = Set.empty,
+          allowedScopes = Set(PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.PositionLocal),
+          requiredWitnesses = WeakOwnerWitnesses,
+          certifiedEligible = false,
+          supportedLocalEligible = true,
+          defaultFailureTaxonomy = "outpost_entrenchment_witness_missing"
+        )
       case subplan if subplan.theme == PlanTaxonomy.PlanTheme.ImmediateTacticalGain =>
         subplanContract(
           subplan = subplan,
@@ -414,11 +425,11 @@ private[commentary] object ProofContractRules:
         theme = None,
         subplan = None,
         acceptedSources = Set(ProofFamilyId.ColorComplexSqueeze.wireKey),
-        allowedScopes = Set(PlayerFacingPacketScope.BackendOnly),
-        requiredWitnesses = DeferredWitnesses,
-        status = ProofContractStatus.Deferred,
+        allowedScopes = Set(PlayerFacingPacketScope.PositionLocal, PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.BackendOnly),
+        requiredWitnesses = WeakOwnerWitnesses,
+        status = ProofContractStatus.Releasable,
         certifiedEligible = false,
-        supportedLocalEligible = false,
+        supportedLocalEligible = true,
         defaultFailureTaxonomy = "color_complex_authority_closed"
       )
     )
@@ -508,6 +519,9 @@ private[commentary] object ProofContractRules:
             Option.when(c.requiredWitnesses.contains(ProofWitness.OwnerSeed) && !packet.proofPathWitness.hasOwnerSeed)(
               "witness:owner_seed_missing"
             ),
+            Option.when(c.proofFamily == ProofFamilyId.ColorComplexSqueeze.wireKey && !check_minor_piece(packet))(
+              "witness:color_complex_minor_piece_missing"
+            ),
             Option.when(c.requiredWitnesses.contains(ProofWitness.Continuation) && !packet.proofPathWitness.hasContinuation)(
               "witness:continuation_missing"
             ),
@@ -535,6 +549,19 @@ private[commentary] object ProofContractRules:
         packet.suppressionReasons.map(reason => s"suppression:$reason") ++
         packet.releaseRisks.map(risk => s"risk:$risk")
     ).distinct
+
+  private def check_minor_piece(packet: PlayerFacingClaimPacket): Boolean =
+    val terms = packet.anchorTerms ++
+      packet.proofPathWitness.ownerSeedTerms ++
+      packet.proofPathWitness.continuationTerms ++
+      packet.proofPathWitness.structureTransitionTerms
+    val hasCoordinate = terms.exists(t => t.matches(".*[a-h][1-8].*"))
+    val hasMinorPiece = terms.exists { t =>
+      val lower = t.toLowerCase
+      lower.contains("bishop") || lower.contains("knight") || lower.contains(" b ") || lower.contains(" n ") ||
+        lower.matches(".*\\b(b|n)\\b.*") || lower.matches(".*[bn][a-h][1-8].*")
+    }
+    hasCoordinate && hasMinorPiece
 
   private def normalize(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase

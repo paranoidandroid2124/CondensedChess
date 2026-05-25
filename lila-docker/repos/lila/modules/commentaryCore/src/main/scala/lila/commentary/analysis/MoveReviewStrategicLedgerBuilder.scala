@@ -168,7 +168,7 @@ object MoveReviewStrategicLedgerBuilder:
       endgameStateToken: Option[EndgamePatternState]
   ): Option[MoveReviewStrategicLedger] =
     val digest = strategyPack.flatMap(_.signalDigest).orElse(NarrativeSignalDigestBuilder.build(ctx))
-    val decision = DecisionComparisonBuilder.digest(ctx)
+    val decision = DecisionComparisonBuilder.digest(ctx, refs)
     val routeSignal = hasRouteSignal(ctx, strategyPack, digest)
     val carryOver = hasCarryOver(ctx, planStateToken, endgameStateToken)
     val planProfile = collectPlanProfile(ctx)
@@ -576,13 +576,14 @@ object MoveReviewStrategicLedgerBuilder:
       refs: Option[MoveReviewRefs],
       probeResults: List[ProbeResult]
   ): Option[LineCandidate] =
+    val lineConsequence = LineConsequenceEvaluator.narrativeCandidate(ctx, refs)
     val supportiveProbe =
       probeResults.flatMap(result => supportiveProbeCandidate(ctx, result, motifKey))
         .sortBy(candidate => (-candidate.weight, candidate.title))
         .headOption
 
     supportiveProbe
-      .orElse(decisionLineCandidate(decision))
+      .orElse(decisionLineCandidate(decision, lineConsequence))
       .orElse(refVariationCandidate(refs, preferredIndex = 0))
 
   private def chooseResourceLine(
@@ -654,7 +655,8 @@ object MoveReviewStrategicLedgerBuilder:
     NarrativeUtils.uciListToSan(baseFen, uciMoves).map(_.trim).filter(_.nonEmpty).take(4)
 
   private def decisionLineCandidate(
-      decision: Option[DecisionComparisonDigest]
+      decision: Option[DecisionComparisonDigest],
+      lineConsequence: Option[LineConsequenceEvidence]
   ): Option[LineCandidate] =
     decision.flatMap { digest =>
       Option.when(digest.engineBestPv.nonEmpty) {
@@ -663,7 +665,12 @@ object MoveReviewStrategicLedgerBuilder:
           sanMoves = digest.engineBestPv.take(4),
           scoreCp = digest.engineBestScoreCp,
           mate = None,
-          note = digest.evidence.map(trimSentence).filter(_.nonEmpty),
+          note =
+            lineConsequence
+              .map(_.playerSentence)
+              .orElse(digest.evidence)
+              .map(trimSentence)
+              .filter(_.nonEmpty),
           source = "decision_compare",
           weight = 2.0
         )

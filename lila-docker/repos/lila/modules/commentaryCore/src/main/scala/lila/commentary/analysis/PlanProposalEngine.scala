@@ -32,13 +32,19 @@ object PlanProposalEngine:
     val expanded = expandSubplanAlternatives(combined)
     val ranked = rankBySubplanViability(expanded)
 
-    ranked.take(maxItems).zipWithIndex.map { case (h, idx) =>
+    val proposed = ranked.take(maxItems).zipWithIndex.map { case (h, idx) =>
       h.copy(rank = idx + 1)
+    }
+
+    ctx.classification match {
+      case Some(cls) => proposed.map(h => lila.commentary.analysis.L4.PositionalPlanEngine.enrich(fen, cls, ctx.pawnAnalysis, h))
+      case None => proposed
     }
 
   def mergePlanFirstWithEngine(
       planFirst: List[PlanHypothesis],
       engineHypotheses: List[PlanHypothesis],
+      ctx: IntegratedContext,
       maxItems: Int = DefaultMaxItems
   ): List[PlanHypothesis] =
     val merged = scala.collection.mutable.LinkedHashMap.empty[String, PlanHypothesis]
@@ -80,7 +86,12 @@ object PlanProposalEngine:
       }
 
     val result = rankBySubplanViability(merged.values.toList).take(maxItems)
-    result.zipWithIndex.map { case (h, idx) => h.copy(rank = idx + 1) }
+    val ranked = result.zipWithIndex.map { case (h, idx) => h.copy(rank = idx + 1) }
+
+    ctx.classification match {
+      case Some(cls) => ranked.map(h => lila.commentary.analysis.L4.PositionalPlanEngine.enrich(ctx.positionKey.getOrElse(""), cls, ctx.pawnAnalysis, h))
+      case None => ranked
+    }
 
   private def structuralProposals(
       state: StrategicStateFeatures,
