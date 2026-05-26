@@ -159,9 +159,12 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
                 if (delta.allowsWeakMainClaim) text
                 else qualify_text(text)
               val prefix =
-                if (delta.deltaClass == PlayerFacingMoveDeltaClass.PressureIncrease &&
+                if (
+                  (delta.deltaClass == PlayerFacingMoveDeltaClass.PressureIncrease &&
                     (delta.packet.proofSource == PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource ||
-                     delta.packet.proofSource == PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource)) {
+                      delta.packet.proofSource == PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource)) ||
+                  delta.packet.proofSource == PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource
+                ) {
                   PlayerFacingClaimPrefixKind.KeyStrategicFact
                 } else {
                   PlayerFacingClaimPrefixKind.None
@@ -327,7 +330,7 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
                   case PlayerFacingClaimOntologyKind.RouteDenial =>
                     "This keeps the opponent from getting easy entry there."
                   case PlayerFacingClaimOntologyKind.ColorComplexSqueeze =>
-                    s"This keeps a longer squeeze around $focal."
+                    s"A minor piece keeps the color-complex pressure on $focal."
                   case _ =>
                     if delta.modalityTier == PlayerFacingClaimModalityTier.Supports then
                       s"This cuts down the opponent's counterplay around $focal."
@@ -394,9 +397,7 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
                     .orElse(witnessAnchor)
                     .map(square => s"This keeps the opponent out of $square.")
                 case PlayerFacingClaimOntologyKind.ColorComplexSqueeze =>
-                  clean(prevented.planId)
-                    .filterNot(_.equalsIgnoreCase("counterplay"))
-                    .map(plan => s"This keeps a longer squeeze on $plan.")
+                  witnessAnchor.map(square => s"A minor piece keeps the color-complex pressure on $square.")
                 case _ =>
                   Option.when(namedResourceOnly) {
                       clean(prevented.planId)
@@ -544,6 +545,8 @@ private[commentary] object MainPathMoveDeltaClaimBuilder:
   ): String =
     Option.when(
       packet.proofSource == PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource ||
+        packet.proofSource == PlayerFacingTruthModePolicy.TargetFocusedCoordinationProofSource ||
+        packet.proofSource == PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource ||
         packet.proofSource == PlayerFacingTruthModePolicy.QueenTradeShieldProofSource ||
         packet.proofSource == PlayerFacingTruthModePolicy.IQPInducementProbeProofSource ||
         packet.proofSource == PlayerFacingTruthModePolicy.DefenderTradeProofSource ||

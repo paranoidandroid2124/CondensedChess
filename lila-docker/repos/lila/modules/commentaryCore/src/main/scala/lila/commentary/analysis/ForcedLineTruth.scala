@@ -197,14 +197,29 @@ object ForcedLineTruth:
     (sq.file == File.A || sq.file == File.B || sq.file == File.G || sq.file == File.H) &&
     (sq.rank == Rank.First || sq.rank == Rank.Second || sq.rank == Rank.Seventh || sq.rank == Rank.Eighth)
 
-  private def verifySequence(startFen: String, moves: List[String], expected: ExpectedResult): Boolean =
-     applyLineStrict(startFen, moves) match
-       case Some((finalPos, _)) =>
-         expected match
-           case ExpectedResult.Mate => finalPos.checkMate
-           case ExpectedResult.Stalemate => finalPos.staleMate
-           case _ => true // Accept functional traps
-       case None => false
+  private[analysis] def verifySequence(startFen: String, moves: List[String], expected: ExpectedResult): Boolean =
+    Fen.read(chess.variant.Standard, Fen.Full(startFen)).exists { startPos =>
+      applyLineStrict(startFen, moves) match
+        case Some((finalPos, _)) =>
+          expected match
+            case ExpectedResult.Mate      => finalPos.checkMate
+            case ExpectedResult.Stalemate => finalPos.staleMate
+            case ExpectedResult.WinMaterial =>
+              val finalMover = !finalPos.color
+              materialBalance(finalPos.board, finalMover) - materialBalance(startPos.board, finalMover) >= 250
+            case ExpectedResult.Perpetual => false
+        case None => false
+    }
+
+  private def materialBalance(board: Board, color: Color): Int =
+    materialScore(board, color) - materialScore(board, !color)
+
+  private def materialScore(board: Board, color: Color): Int =
+    board.byPiece(color, Pawn).count * 100 +
+      board.byPiece(color, Knight).count * 320 +
+      board.byPiece(color, Bishop).count * 330 +
+      board.byPiece(color, Rook).count * 500 +
+      board.byPiece(color, Queen).count * 900
 
   private def generateSanLine(startFen: String, moves: List[String]): List[String] =
     applyLineStrict(startFen, moves).map(_._2).getOrElse(Nil)

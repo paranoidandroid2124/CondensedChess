@@ -249,10 +249,7 @@ private[commentary] object PlayerFacingClaimProof:
   ): Boolean =
     (certificateStatus == PlayerFacingCertificateStatus.Valid ||
       certificateStatus == PlayerFacingCertificateStatus.WeaklyValid) &&
-      (provenance == PlayerFacingClaimProvenanceClass.ProbeBacked ||
-        provenance == PlayerFacingClaimProvenanceClass.StructuralOnly ||
-        provenance == PlayerFacingClaimProvenanceClass.PvCoupled) &&
-      !taintFlags.contains(PlayerFacingClaimTaintFlag.Deferred) &&
-      !taintFlags.contains(PlayerFacingClaimTaintFlag.BranchConditioned) &&
+      provenance == PlayerFacingClaimProvenanceClass.ProbeBacked &&
+      !blocksMainClaim(taintFlags) &&
       quantifier != PlayerFacingClaimQuantifier.LineConditioned &&
       attribution != PlayerFacingClaimAttributionGrade.StateOnly

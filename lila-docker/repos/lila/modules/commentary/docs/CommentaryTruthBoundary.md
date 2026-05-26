@@ -81,8 +81,18 @@ parsed by the shared runtime boundary, not from incidental letters inside
 English prose or underscore-separated plan ids. Heavy-piece release truth must
 come from exact branch replay: queen centralization, one check, an unrecaptured
 rook capture, or a back-rank rook shuffle is not enough to refute a local bind.
+Forced-line trap truth may not release a named material-winning trap from a
+legal move string alone; non-mating trap lines must show a material-balance
+gain for the side that makes the final material-winning move in the verified
+line.
 
-Color-complex squeeze is promoted to Releasable/SupportedLocal when backed by a coordinate minor-piece witness. It requires both a coordinate and a minor piece (bishop/knight) in the packet terms to avoid premature releases.
+Color-complex squeeze truth is exact-board only. The live proof source is
+`color_complex_squeeze_probe`, and release requires a parsed FEN, an
+opponent-owned semantic weak square, matching color-complex/hole/fianchetto
+evidence, and a friendly bishop or knight that actually attacks that square on
+the board. Coordinate and minor-piece words in packet terms are trace labels
+only; they cannot certify truth. Final release still requires proven
+same-branch state and stable persistence.
 
 ## No-Go Truth Failures
 

@@ -238,6 +238,7 @@ private[commentary] object StrategicObservationIds:
     val CarlsbadFixedTargetProbe = register("carlsbad_fixed_target_probe")
     val IQPInducementProbe = register("iqp_inducement_probe")
     val TargetFocusedCoordinationProbe = register("target_focused_coordination_probe")
+    val ColorComplexSqueezeProbe = register("color_complex_squeeze_probe")
 
     val LocalFileEntryBind = register("local_file_entry_bind")
     val CounterplayAxisSuppression = register("counterplay_axis_suppression")
@@ -257,6 +258,7 @@ private[commentary] object StrategicObservationIds:
         CarlsbadFixedTargetProbe,
         IQPInducementProbe,
         TargetFocusedCoordinationProbe,
+        ColorComplexSqueezeProbe,
         LocalFileEntryBind,
         CounterplayAxisSuppression,
         ProphylacticMove,

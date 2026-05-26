@@ -137,43 +137,147 @@ class ProofContractRulesTest extends FunSuite:
     assertEquals(ProofContractRules.contractForProofFamily("minority_attack_semantic"), None)
   }
 
-  test("color-complex squeeze is explicit but promoted to Releasable / SupportedLocal") {
+  test("color-complex squeeze requires exact board-backed probe authority") {
     val contract =
       ProofContractRules
         .contractForProofFamily("color_complex_squeeze")
         .getOrElse(fail("missing color-complex squeeze contract"))
 
     assertEquals(contract.status, ProofContractStatus.Releasable)
-    assert(!contract.certifiedEligible, clues(contract))
+    assert(contract.certifiedEligible, clues(contract))
     assert(contract.supportedLocalEligible, clues(contract))
+    assertEquals(contract.acceptedSources, Set(PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource))
+    assertEquals(contract.allowedScopes, Set(PlayerFacingPacketScope.PositionLocal))
+    assert(contract.requiredWitnesses.contains(ProofWitness.ExactSlice), clues(contract))
     assertEquals(contract.defaultFailureTaxonomy, "color_complex_authority_closed")
 
-    val packetWithWitness = PlayerFacingClaimPacket(
+    val oldStringMatchedPacket = PlayerFacingClaimPacket(
       proofSource = "color_complex_squeeze",
       proofFamily = "color_complex_squeeze",
       scope = PlayerFacingPacketScope.PositionLocal,
       fallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
-      anchorTerms = List("knight"),
+      anchorTerms = List("e5", "bishop", "knight"),
       proofPathWitness = PlayerFacingProofPathWitness(
-        ownerSeedTerms = List("e4"),
-        continuationTerms = List("d4")
+        ownerSeedTerms = List("e5", "bishop", "knight"),
+        continuationTerms = List("e5"),
+        structureTransitionTerms = List("color_complex_squeeze")
       )
     )
-    val packetWithoutWitness = PlayerFacingClaimPacket(
-      proofSource = "color_complex_squeeze",
+    val exactProbeTerms =
+      List(
+        "e5",
+        "weak_square:e5",
+        "color_complex:light",
+        "minor_piece:knight_c4",
+        "attacks:e5",
+        "minor_piece_attack:c4-e5",
+        "color_complex_squeeze_probe"
+      )
+    val exactProbePacket = PlayerFacingClaimPacket(
+      claimGate =
+        PlanEvidenceEvaluator.ClaimCertification(
+          certificateStatus = PlayerFacingCertificateStatus.Valid,
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
+          ontologyFamily = PlayerFacingClaimOntologyKind.ColorComplexSqueeze
+        ),
+      proofSource = PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource,
       proofFamily = "color_complex_squeeze",
       scope = PlayerFacingPacketScope.PositionLocal,
+      triggerKind = "position_probe",
+      anchorTerms = List("e5"),
+      bestDefenseMove = Some("e8f8"),
+      bestDefenseBranchKey = Some("c4e5|e8f8"),
+      sameBranchState = PlayerFacingSameBranchState.Proven,
+      persistence = PlayerFacingClaimPersistence.Stable,
       fallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
       proofPathWitness = PlayerFacingProofPathWitness(
-        ownerSeedTerms = List("e4"),
-        continuationTerms = List("d4")
+        ownerSeedTerms =
+          exactProbeTerms.filterNot(_ == "color_complex_squeeze_probe"),
+        continuationTerms = List("c4e5|e8f8"),
+        structureTransitionTerms = List("color_complex_squeeze_probe", "weak_square:e5", "minor_piece_attack:c4-e5"),
+        exactSliceProof =
+          Some(
+            PlayerFacingExactSliceProof(
+              proofSource = PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource,
+              proofFamily = "color_complex_squeeze",
+              kind = PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource,
+              target = "e5",
+              terms = exactProbeTerms
+            )
+          )
       )
     )
+    val exactProbeWithoutExactTerms =
+      exactProbePacket.copy(
+        proofPathWitness =
+          PlayerFacingProofPathWitness(
+            ownerSeedTerms = List("e5", "bishop", "knight"),
+            continuationTerms = List("c4e5|e8f8"),
+            structureTransitionTerms = List("color_complex_squeeze_probe")
+          )
+      )
 
-    assertEquals(ProofContractRules.failureCodes(packetWithWitness), Nil)
-    assert(ProofContractRules.supportedLocalAdmissible(packetWithWitness), clues(packetWithWitness))
-    assert(!ProofContractRules.supportedLocalAdmissible(packetWithoutWitness), clues(packetWithoutWitness))
-    assert(ProofContractRules.failureCodes(packetWithoutWitness).contains("witness:color_complex_minor_piece_missing"))
+    assert(!ProofContractRules.supportedLocalAdmissible(oldStringMatchedPacket), clues(ProofContractRules.failureCodes(oldStringMatchedPacket)))
+    assert(ProofContractRules.failureCodes(oldStringMatchedPacket).contains("contract:source_not_accepted"))
+    assert(!ProofContractRules.supportedLocalAdmissible(exactProbeWithoutExactTerms), clues(exactProbeWithoutExactTerms))
+    assert(ProofContractRules.failureCodes(exactProbeWithoutExactTerms).contains("witness:exact_slice_missing"))
+    assertEquals(ProofContractRules.failureCodes(exactProbePacket), Nil)
+    assert(ProofContractRules.supportedLocalAdmissible(exactProbePacket), clues(exactProbePacket))
+    assert(ProofContractRules.certifiedOwnerAdmissible(exactProbePacket), clues(exactProbePacket))
+  }
+
+  test("exact-slice contracts require typed exact-slice proof, not generic witness strings") {
+    val packet = PlayerFacingClaimPacket(
+      claimGate =
+        PlanEvidenceEvaluator.ClaimCertification(
+          certificateStatus = PlayerFacingCertificateStatus.Valid,
+          quantifier = PlayerFacingClaimQuantifier.BestResponse,
+          attributionGrade = PlayerFacingClaimAttributionGrade.Distinctive,
+          stabilityGrade = PlayerFacingClaimStabilityGrade.Stable,
+          provenanceClass = PlayerFacingClaimProvenanceClass.ProbeBacked,
+          ontologyFamily = PlayerFacingClaimOntologyKind.Pressure
+        ),
+      proofSource = PlayerFacingTruthModePolicy.ExactTargetFixationProofSource,
+      proofFamily = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+      scope = PlayerFacingPacketScope.MoveLocal,
+      triggerKind = "target_fixation",
+      anchorTerms = List("d6", "fixed_target:d6"),
+      bestDefenseMove = Some("b8a6"),
+      bestDefenseBranchKey = Some("f3d2|b8a6"),
+      sameBranchState = PlayerFacingSameBranchState.Proven,
+      persistence = PlayerFacingClaimPersistence.Stable,
+      fallbackMode = PlayerFacingClaimFallbackMode.WeakMain,
+      proofPathWitness =
+        PlayerFacingProofPathWitness(
+          ownerSeedTerms = List("d6", "fixed_target:d6", "backward_pawn_target"),
+          continuationTerms = List("exact_target_fixation", "fixed_target:d6", "best_branch:f3d2|b8a6"),
+          structureTransitionTerms = List("weak_complex:d6", "backward_pawn_target")
+        )
+    )
+    val typed =
+      packet.copy(
+        proofPathWitness =
+          packet.proofPathWitness.copy(
+            exactSliceProof =
+              Some(
+                PlayerFacingExactSliceProof(
+                  proofSource = PlayerFacingTruthModePolicy.ExactTargetFixationProofSource,
+                  proofFamily = PlanTaxonomy.PlanKind.StaticWeaknessFixation.id,
+                  kind = PlayerFacingTruthModePolicy.ExactTargetFixationProofSource,
+                  target = "d6",
+                  terms = List("d6", "fixed_target:d6", "backward_pawn_target", "weak_complex:d6")
+                )
+              )
+          )
+      )
+
+    assert(!ProofContractRules.certifiedOwnerAdmissible(packet), clues(ProofContractRules.failureCodes(packet)))
+    assert(ProofContractRules.failureCodes(packet).contains("witness:exact_slice_missing"))
+    assertEquals(ProofContractRules.failureCodes(typed), Nil)
+    assert(ProofContractRules.certifiedOwnerAdmissible(typed), clues(ProofContractRules.failureCodes(typed)))
   }
 
   test("DefenderTrade is supported-local releasable only through exact defender proof") {

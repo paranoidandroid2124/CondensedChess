@@ -1542,10 +1542,10 @@ private[commentary] object DecisiveTruth:
     CommentaryIdeaSurface.canonicalFactId(fact)
 
   private def moverPerspectiveCp(fen: String, cp: Int): Int =
-    if fenSideToMoveIsWhite(fen) then cp else -cp
+    sideToMoveFromFen(fen).map(color => if color.white then cp else -cp).getOrElse(0)
 
-  private def fenSideToMoveIsWhite(fen: String): Boolean =
-    Option(fen).getOrElse("").trim.split("\\s+").drop(1).headOption.contains("w")
+  private def sideToMoveFromFen(fen: String): Option[Color] =
+    Fen.read(_root_.chess.variant.Standard, Fen.Full(fen)).map(_.color)
 
   private def winPercentFromCp(cp: Int): Double =
     50.0 + 50.0 * (2.0 / (1.0 + math.exp(-WinPercentSlope * cp.toDouble)) - 1.0)
@@ -1734,7 +1734,7 @@ private[commentary] object DecisiveTruth:
         .map(_.toLowerCase.replaceAll("""[^a-z0-9\s]""", " ").replaceAll("""\s+""", " ").trim)
         .filter(_.nonEmpty)
         .getOrElse("no_anchor")
-    val sideKey = if fenSideToMoveIsWhite(ctx.fen) then "white" else "black"
+    val sideKey = sideToMoveFromFen(ctx.fen).map(color => if color.white then "white" else "black").getOrElse("unknown")
     s"$sideKey:${reasonFamily.toString.toLowerCase}:$anchorKey"
 
   private def materialShiftForMove(

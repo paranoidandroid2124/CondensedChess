@@ -150,3 +150,64 @@ class ProbeContractValidatorTest extends FunSuite:
     assertEquals(validation.isValid, false)
     assert(validation.hardReasonCodes.contains("DEPTH_FLOOR_UNVERIFIED"))
   }
+
+  test("purpose-generated motifs and future snapshots do not satisfy required authority signals") {
+    val request = ProbeRequest(
+      id = "probe-generated",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("c4e5"),
+      depth = 18,
+      purpose = Some("color_complex_squeeze_validation"),
+      requiredSignals = List("replyPvs", "keyMotifs", "futureSnapshot")
+    )
+    val result = ProbeResult(
+      id = "probe-generated",
+      fen = Some("4k3/8/8/8/8/8/8/4K3 w - - 0 1"),
+      evalCp = 20,
+      bestReplyPv = List("e8f8"),
+      replyPvs = Some(List(List("e8f8"))),
+      deltaVsBaseline = 0,
+      keyMotifs = List("color_complex_squeeze_validation"),
+      purpose = Some("color_complex_squeeze_validation"),
+      futureSnapshot =
+        Some(
+          FutureSnapshot(
+            resolvedThreatKinds = Nil,
+            newThreatKinds = Nil,
+            targetsDelta = TargetsDelta(Nil, Nil, List("e5"), Nil),
+            planBlockersRemoved = Nil,
+            planPrereqsMet = List("color_complex_squeeze_validation")
+          )
+        ),
+      generatedRequiredSignals = List("keyMotifs", "futureSnapshot"),
+      motifInferenceMode = Some("purpose_only")
+    )
+
+    val validation = ProbeContractValidator.validateAgainstRequest(request, result)
+    assertEquals(validation.isValid, false)
+    assert(validation.missingSignals.contains("keyMotifs"))
+    assert(validation.missingSignals.contains("futureSnapshot"))
+    assert(!validation.missingSignals.contains("replyPvs"))
+  }
+
+  test("unknown required probe signals fail closed") {
+    val request = ProbeRequest(
+      id = "probe-unknown-signal",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("e2e4"),
+      depth = 18,
+      requiredSignals = List("replyPvs", "madeUpSignal")
+    )
+    val result = ProbeResult(
+      id = "probe-unknown-signal",
+      evalCp = 10,
+      bestReplyPv = List("e7e5"),
+      replyPvs = Some(List(List("e7e5"))),
+      deltaVsBaseline = 0,
+      keyMotifs = Nil
+    )
+
+    val validation = ProbeContractValidator.validateAgainstRequest(request, result)
+    assertEquals(validation.isValid, false)
+    assertEquals(validation.missingSignals, List("madeUpSignal"))
+  }

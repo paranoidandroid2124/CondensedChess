@@ -424,11 +424,11 @@ private[commentary] object ProofContractRules:
         proofFamily = ProofFamilyId.ColorComplexSqueeze.wireKey,
         theme = None,
         subplan = None,
-        acceptedSources = Set(ProofFamilyId.ColorComplexSqueeze.wireKey),
-        allowedScopes = Set(PlayerFacingPacketScope.PositionLocal, PlayerFacingPacketScope.MoveLocal, PlayerFacingPacketScope.BackendOnly),
-        requiredWitnesses = WeakOwnerWitnesses,
+        acceptedSources = Set(ProofSourceId.ColorComplexSqueezeProbe.wireKey),
+        allowedScopes = Set(PlayerFacingPacketScope.PositionLocal),
+        requiredWitnesses = ExactOwnerWitnesses + ProofWitness.ExactSlice,
         status = ProofContractStatus.Releasable,
-        certifiedEligible = false,
+        certifiedEligible = true,
         supportedLocalEligible = true,
         defaultFailureTaxonomy = "color_complex_authority_closed"
       )
@@ -519,9 +519,6 @@ private[commentary] object ProofContractRules:
             Option.when(c.requiredWitnesses.contains(ProofWitness.OwnerSeed) && !packet.proofPathWitness.hasOwnerSeed)(
               "witness:owner_seed_missing"
             ),
-            Option.when(c.proofFamily == ProofFamilyId.ColorComplexSqueeze.wireKey && !check_minor_piece(packet))(
-              "witness:color_complex_minor_piece_missing"
-            ),
             Option.when(c.requiredWitnesses.contains(ProofWitness.Continuation) && !packet.proofPathWitness.hasContinuation)(
               "witness:continuation_missing"
             ),
@@ -533,6 +530,12 @@ private[commentary] object ProofContractRules:
             ),
             Option.when(c.requiredWitnesses.contains(ProofWitness.StructureTransition) && !packet.proofPathWitness.hasStructureTransition)(
               "witness:structure_transition_missing"
+            ),
+            Option.when(
+              c.requiredWitnesses.contains(ProofWitness.ExactSlice) &&
+                !exactSliceWitnessPresent(packet)
+            )(
+              "witness:exact_slice_missing"
             ),
             Option.when(
               c.requiredWitnesses.contains(ProofWitness.NoRivalRelease) &&
@@ -550,18 +553,32 @@ private[commentary] object ProofContractRules:
         packet.releaseRisks.map(risk => s"risk:$risk")
     ).distinct
 
-  private def check_minor_piece(packet: PlayerFacingClaimPacket): Boolean =
-    val terms = packet.anchorTerms ++
-      packet.proofPathWitness.ownerSeedTerms ++
-      packet.proofPathWitness.continuationTerms ++
-      packet.proofPathWitness.structureTransitionTerms
-    val hasCoordinate = terms.exists(t => t.matches(".*[a-h][1-8].*"))
-    val hasMinorPiece = terms.exists { t =>
-      val lower = t.toLowerCase
-      lower.contains("bishop") || lower.contains("knight") || lower.contains(" b ") || lower.contains(" n ") ||
-        lower.matches(".*\\b(b|n)\\b.*") || lower.matches(".*[bn][a-h][1-8].*")
+  private def exactSliceWitnessPresent(packet: PlayerFacingClaimPacket): Boolean =
+    packet.proofPathWitness.exactSliceProof.exists { proof =>
+      val kind = normalize(proof.kind)
+      val target = normalize(proof.target)
+      val terms = proof.terms.map(normalize).filter(_.nonEmpty)
+      def has(term: String): Boolean = terms.contains(term)
+      def hasPattern(pattern: String): Boolean = terms.exists(_.matches(pattern))
+      val packetMatched =
+        normalize(proof.proofSource) == normalize(packet.proofSource) &&
+          normalize(proof.proofFamily) == normalize(packet.proofFamily) &&
+          kind.nonEmpty &&
+          target.nonEmpty
+      val colorComplexExact =
+        packet.proofSource != ProofSourceId.ColorComplexSqueezeProbe.wireKey ||
+          (
+            kind == ProofSourceId.ColorComplexSqueezeProbe.wireKey &&
+              target.matches("[a-h][1-8]") &&
+              has(ProofSourceId.ColorComplexSqueezeProbe.wireKey) &&
+              has(s"weak_square:$target") &&
+              hasPattern("""color_complex:(light|dark)""") &&
+              hasPattern("""minor_piece:(bishop|knight)_[a-h][1-8]""") &&
+              has(s"attacks:$target") &&
+              hasPattern(s"""minor_piece_attack:[a-h][1-8]-$target""")
+          )
+      packetMatched && colorComplexExact
     }
-    hasCoordinate && hasMinorPiece
 
   private def normalize(raw: String): String =
     Option(raw).getOrElse("").trim.toLowerCase

@@ -72,12 +72,56 @@ object MovePredicates:
             // Must be a capture on the target square by a piece (usually) or pawn
             mv.captures && mv.dest == on
           case MovePattern.BatteryFormation(front, back, line) =>
-            // Hard to verify single move is "BatteryFormation" without state history, 
-            // but we can check if the move places 'front' or 'back' piece on the line.
-            // For now, accept if role matches and dest is on the line (simplified).
-            // A more robust check would require the board state to see if they align.
-            val onLine = line match
-              case lila.commentary.model.authoring.LineType.FileLine(f) => mv.dest.file == f
-              case lila.commentary.model.authoring.LineType.RankLine(r) => mv.dest.rank == r
-              case _ => true
-            (mv.piece.role == front || mv.piece.role == back) && onLine
+            val movedRoleOk = mv.piece.role == front || mv.piece.role == back
+            movedRoleOk &&
+              destinationMatchesLine(mv.dest, line) &&
+              batteryPartnerOnLine(mv.after.board, mv.piece.color, mv.dest, movedPartnerRole(mv.piece.role, front, back), line)
+
+  private def movedPartnerRole(moved: Role, front: Role, back: Role): Role =
+    if moved == front then back else front
+
+  private def destinationMatchesLine(
+      destination: Square,
+      line: lila.commentary.model.authoring.LineType
+  ): Boolean =
+    line match
+      case lila.commentary.model.authoring.LineType.FileLine(file) => destination.file == file
+      case lila.commentary.model.authoring.LineType.RankLine(rank) => destination.rank == rank
+      case lila.commentary.model.authoring.LineType.DiagonalLine   => true
+
+  private def batteryPartnerOnLine(
+      board: Board,
+      color: Color,
+      destination: Square,
+      partnerRole: Role,
+      line: lila.commentary.model.authoring.LineType
+  ): Boolean =
+    board.byPiece(color, partnerRole).exists { partner =>
+      partner != destination &&
+        (line match
+          case lila.commentary.model.authoring.LineType.FileLine(file) => partner.file == file
+          case lila.commentary.model.authoring.LineType.RankLine(rank) => partner.rank == rank
+          case lila.commentary.model.authoring.LineType.DiagonalLine   => sameDiagonal(destination, partner)
+        ) &&
+        clearRayBetween(board, destination, partner)
+    }
+
+  private def sameDiagonal(left: Square, right: Square): Boolean =
+    (left.file.value - right.file.value).abs == (left.rank.value - right.rank.value).abs
+
+  private def clearRayBetween(board: Board, from: Square, to: Square): Boolean =
+    val fileDiff = to.file.value - from.file.value
+    val rankDiff = to.rank.value - from.rank.value
+    val aligned =
+      fileDiff == 0 || rankDiff == 0 || fileDiff.abs == rankDiff.abs
+    if !aligned then false
+    else
+      val fileStep = Integer.signum(fileDiff)
+      val rankStep = Integer.signum(rankDiff)
+      def loop(file: Int, rank: Int): Boolean =
+        Square.at(file, rank) match
+          case Some(square) if square == to => true
+          case Some(square) =>
+            board.pieceAt(square).isEmpty && loop(file + fileStep, rank + rankStep)
+          case None => false
+      loop(from.file.value + fileStep, from.rank.value + rankStep)

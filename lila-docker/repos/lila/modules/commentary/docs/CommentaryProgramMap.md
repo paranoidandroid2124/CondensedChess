@@ -54,6 +54,9 @@ Open for maintenance:
 
 - exact-board promoted slices already covered by proof contracts
 - source/test tooling that improves exact witness quality
+- trigger hardening that removes generic string overlap, unknown-subtype
+  fail-open, blocked battery geometry, or legal-line-only trap truth without
+  expanding public authority
 - docs and package cleanup that preserves the current authority boundary
 
 Closed unless a new audit explicitly opens them:
@@ -64,11 +67,16 @@ Closed unless a new audit explicitly opens them:
   payload minimization that does not create product authority
 - support-only or deferred carrier promotion
 
-Color-complex has an explicit contract (promoted to Releasable/SupportedLocal when a coordinate minor-piece witness exists):
+Color-complex has an explicit exact-board contract. It is closed to generic
+`color_complex_squeeze` source packets and opens only through
+`color_complex_squeeze_probe`, where the board proves that a friendly bishop or
+knight attacks the opponent-owned semantic weak square and the packet branch is
+proven/stable. The packet contract consumes a typed exact-slice proof, not
+generic coordinate/minor-piece strings:
 
-| proof family | status | certified | supported local | failure |
-| --- | --- | --- | --- | --- |
-| `color_complex_squeeze` | `Releasable` | false | true | `color_complex_authority_closed` |
+| proof family | proof source | status | certified | supported local | failure |
+| --- | --- | --- | --- | --- | --- |
+| `color_complex_squeeze` | `color_complex_squeeze_probe` | `Releasable` | true | true | `color_complex_authority_closed` |
 
 ## Verification Expectations
 

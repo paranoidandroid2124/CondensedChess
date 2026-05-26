@@ -1,5 +1,9 @@
 package lila.commentary.analysis.claim
 
+import _root_.chess.{ Bishop, Knight, Pawn, Queen, Rook, Square }
+import _root_.chess.format.Fen
+import _root_.chess.variant.Standard
+
 private[commentary] object OpeningFamilyClaimResolver:
 
   final case class OpeningFamilyMatchProof(
@@ -205,34 +209,27 @@ private[commentary] object OpeningFamilyClaimResolver:
       .get(familyKey)
       .exists(_.aliases.exists(alias => phraseMatchesAlias(openingLower, alias)))
 
-  private def parseFenPieces(fen: String): Option[Map[String, Char]] =
-    val boardPart = Option(fen).map(_.trim).filter(_.nonEmpty).flatMap(_.split(" ").headOption).getOrElse("")
-    val ranks = boardPart.split("/")
-    if ranks.length != 8 then None
-    else
-      val pieces = scala.collection.mutable.Map.empty[String, Char]
-      var valid = true
-      ranks.zipWithIndex.foreach { case (rankStr, rankIdx) =>
-        if valid then
-          var file = 0
-          rankStr.foreach { ch =>
-            if ch.isDigit then file += ch.asDigit
-            else
-              if file >= 0 && file < 8 then
-                val sq = s"${('a' + file).toChar}${8 - rankIdx}"
-                pieces.update(sq, ch)
-              else valid = false
-              file += 1
-          }
-          if file != 8 then valid = false
-      }
-      if valid then Some(pieces.toMap) else None
+  private def parseFenBoard(fen: String): Option[_root_.chess.Board] =
+    Fen.read(Standard, Fen.Full(fen)).map(_.board)
 
-  private def hasPiece(board: Map[String, Char], square: String, piece: Char): Boolean =
-    board.get(square).contains(piece)
+  private def hasPiece(board: _root_.chess.Board, square: String, piece: Char): Boolean =
+    val roleOpt =
+      piece.toLower match
+        case 'p' => Some(Pawn)
+        case 'n' => Some(Knight)
+        case 'b' => Some(Bishop)
+        case 'r' => Some(Rook)
+        case 'q' => Some(Queen)
+        case _   => None
+    roleOpt.exists { role =>
+      Square.all
+        .find(_.key == square)
+        .flatMap(board.pieceAt)
+        .exists(actual => actual.role == role && actual.color.white == piece.isUpper)
+    }
 
   private def structureMatchesFamily(fen: Option[String], familyKey: String): Boolean =
-    val boardOpt = fen.flatMap(parseFenPieces)
+    val boardOpt = fen.flatMap(parseFenBoard)
     boardOpt.exists { board =>
       familyKey match
         case "open_games" =>
@@ -261,5 +258,5 @@ private[commentary] object OpeningFamilyClaimResolver:
           hasPiece(board, "c5", 'p') && hasPiece(board, "d6", 'p') && hasPiece(board, "d5", 'P')
         case "austrian" =>
           hasPiece(board, "e4", 'P') && hasPiece(board, "f4", 'P')
-        case _ => true
+        case _ => false
     }

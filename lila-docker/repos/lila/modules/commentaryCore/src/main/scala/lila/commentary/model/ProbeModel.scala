@@ -336,11 +336,11 @@ object ProbeContractValidator:
       case "replyPvs" =>
         result.replyPvs.exists(_.exists(_.nonEmpty)) || result.bestReplyPv.nonEmpty
       case "keyMotifs" =>
-        result.keyMotifs.nonEmpty
+        result.keyMotifs.nonEmpty && !clientGeneratedProbeSignal(signal, result)
       case "l1Delta" =>
-        result.l1Delta.isDefined
+        result.l1Delta.isDefined && !clientGeneratedProbeSignal(signal, result)
       case "futureSnapshot" =>
-        result.futureSnapshot.isDefined
+        result.futureSnapshot.isDefined && !clientGeneratedProbeSignal(signal, result)
       case "purpose" =>
         result.purpose.exists(_.nonEmpty)
       case "depth" =>
@@ -350,4 +350,15 @@ object ProbeContractValidator:
       case "engineConfigFingerprint" =>
         result.engineConfigFingerprint.exists(_.trim.nonEmpty)
       case _ =>
-        true
+        false
+
+  private def clientGeneratedProbeSignal(signal: String, result: ProbeResult): Boolean =
+    val normalizedSignal = signal.trim
+    val generatedByRequiredSignals =
+      result.generatedRequiredSignals.exists(_.trim == normalizedSignal)
+    val generatedByPurposeOnlyInference =
+      result.motifInferenceMode.exists { raw =>
+        val mode = raw.trim.toLowerCase
+        mode == "purpose_only" || mode == "purpose_plus_compat"
+      } && Set("keyMotifs", "l1Delta", "futureSnapshot").contains(normalizedSignal)
+    generatedByRequiredSignals || generatedByPurposeOnlyInference

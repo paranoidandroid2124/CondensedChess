@@ -1,7 +1,7 @@
 package lila.commentary.analysis
 
 import munit.FunSuite
-import lila.commentary.{ DirectionalTargetReadiness, GameChronicleMoment, NarrativeSignalDigest, RouteSurfaceMode, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
+import lila.commentary.{ DirectionalTargetReadiness, GameChronicleMoment, NarrativeSignalDigest, RouteSurfaceMode, StrategicIdeaGroup, StrategicIdeaKind, StrategicIdeaReadiness, StrategyDirectionalTarget, StrategyIdeaSignal, StrategyPack, StrategyPieceMoveRef, StrategyPieceRoute }
 import lila.commentary.model.*
 import lila.commentary.model.authoring.{ AuthorQuestion, AuthorQuestionKind, PlanHypothesis, PlanViability }
 import lila.commentary.model.authoring.NarrativeOutline
@@ -102,6 +102,93 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       experimentConfidence = 0.86
     )
 
+  private def colorComplexCtx(fen: String): NarrativeContext =
+    baseCtx().copy(
+      fen = fen,
+      engineEvidence = Some(
+        EngineEvidence(
+          depth = 16,
+          variations = List(VariationLine(List("c4e5", "e8f8", "e5g6", "f8g8"), 20, depth = 16))
+        )
+      ),
+      semantic = Some(
+        SemanticSection(
+          structuralWeaknesses =
+            List(
+              WeakComplexInfo(
+                owner = "Black",
+                squareColor = "light",
+                squares = List("e5"),
+                isOutpost = false,
+                cause = "light-square holes after the fianchetto bishop disappeared"
+              )
+            ),
+          pieceActivity =
+            List(
+              PieceActivityInfo(
+                piece = "Knight",
+                square = "c4",
+                mobilityScore = 0.8,
+                isTrapped = false,
+                isBadBishop = false,
+                keyRoutes = List("e5"),
+                coordinationLinks = Nil,
+                directionalTargets = List("e5")
+              )
+            ),
+          positionalFeatures =
+            List(PositionalTagInfo("ColorComplexWeakness", None, None, "Black", Some("light squares: e5"))),
+          compensation = None,
+          endgameFeatures = None,
+          practicalAssessment = None,
+          preventedPlans =
+            List(
+              PreventedPlanInfo(
+                planId = "color_complex_squeeze",
+                deniedSquares = List("e5"),
+                breakNeutralized = None,
+                mobilityDelta = -1,
+                counterplayScoreDrop = 90,
+                preventedThreatType = Some("counterplay"),
+                sourceScope = FactScope.Now
+              )
+            ),
+          conceptSummary = List("color complex pressure")
+        )
+      )
+    )
+
+  private def colorComplexPack: StrategyPack =
+    StrategyPack(
+      sideToMove = "white",
+      pieceMoveRefs =
+        List(
+          StrategyPieceMoveRef(
+            ownerSide = "white",
+            piece = "Knight",
+            from = "c4",
+            target = "e5",
+            idea = "color-complex pressure",
+            evidence = List("color_complex_weakness")
+          )
+        ),
+      strategicIdeas =
+        List(
+          StrategyIdeaSignal(
+            ideaId = "color_complex_squeeze",
+            ownerSide = "white",
+            kind = "color_complex_squeeze",
+            group = StrategicIdeaGroup.StructuralChange,
+            readiness = StrategicIdeaReadiness.Ready,
+            focusSquares = List("e5"),
+            confidence = 0.92,
+            evidenceRefs = List("color_complex_weakness")
+          )
+        ),
+      longTermFocus = List("pressure on e5"),
+      evidence = List("color_complex_weakness:e5")
+    )
+
   extension (ctx: NarrativeContext)
     private def withTypedEvidenceFromLegacy: NarrativeContext =
       val evaluated =
@@ -166,6 +253,55 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
             evaluatedPlans = evaluated
           )
       )
+
+  test("color-complex exact witness releases only when a minor piece attacks the semantic weak square") {
+    val ctx = colorComplexCtx("4k3/8/8/8/2N5/8/8/4K3 w - - 0 1")
+    val surface = StrategyPackSurface.from(Some(colorComplexPack))
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(ctx, surface, truthContract = None)
+        .getOrElse(fail("missing color-complex delta"))
+
+    assertEquals(delta.packet.proofSource, PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource)
+    assertEquals(delta.packet.proofFamily, PlayerFacingTruthModePolicy.ColorComplexSqueezeProofFamily)
+    assertEquals(delta.packet.scope, PlayerFacingPacketScope.PositionLocal)
+    assert(delta.packet.proofPathWitness.ownerSeedTerms.contains("weak_square:e5"), clues(delta.packet))
+    assert(delta.packet.proofPathWitness.ownerSeedTerms.contains("minor_piece_attack:c4-e5"), clues(delta.packet))
+    assert(PlayerFacingTruthModePolicy.certifiedPositionProbePacket(delta.packet), clues(delta.packet))
+  }
+
+  test("color-complex text and semantic square do not release when the minor piece does not attack it") {
+    val ctx = colorComplexCtx("4k3/8/8/8/8/2N5/8/4K3 w - - 0 1")
+    val surface = StrategyPackSurface.from(Some(colorComplexPack))
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(ctx, surface, truthContract = None)
+        .getOrElse(fail("missing generic counterplay delta"))
+
+    assertNotEquals(delta.packet.proofSource, PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource)
+    assert(!PlayerFacingTruthModePolicy.certifiedPositionProbePacket(delta.packet), clues(delta.packet))
+  }
+
+  test("experiment confidence alone does not create color-complex authority") {
+    val ctx =
+      colorComplexCtx("4k3/8/8/8/8/2N5/8/4K3 w - - 0 1").copy(
+        strategicPlanExperiments =
+          List(
+            evidenceBackedExperiment(
+              planId = "color_complex_plan",
+              subplanId = PlanTaxonomy.PlanKind.OppositeBishopsConversion.id
+            ).copy(experimentConfidence = 0.90)
+          )
+      )
+    val surface = StrategyPackSurface.from(Some(colorComplexPack))
+    val delta =
+      PlayerFacingTruthModePolicy
+        .mainPathMoveDeltaEvidence(ctx, surface, truthContract = None)
+        .getOrElse(fail("missing generic counterplay delta"))
+
+    assertNotEquals(delta.packet.proofSource, PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource)
+    assert(!PlayerFacingTruthModePolicy.certifiedPositionProbePacket(delta.packet), clues(delta.packet))
+  }
 
   private val defaultQuestions =
     List(
@@ -465,7 +601,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
     )
   }
 
-  test("plan-advance delta claim remains strategic when the move makes a concrete break available") {
+  test("generic plan-advance delta claim stays closed without an explicit owner path") {
     val ctx =
       baseCtx().copy(
         mainStrategicPlans =
@@ -545,7 +681,7 @@ class PlayerFacingTruthModePolicyTest extends FunSuite:
       PlayerFacingTruthMode.Strategic
     )
     assert(
-      PlayerFacingTruthModePolicy.allowsStrategicClaimText(
+      !PlayerFacingTruthModePolicy.allowsStrategicClaimText(
         "Qe2 keeps the e4 push available while covering the c4 pawn.",
         ctx,
         pack,

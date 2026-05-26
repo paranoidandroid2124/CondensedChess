@@ -1429,10 +1429,16 @@ private[commentary] object StrategyPackSurface:
           case "line_occupation" =>
             containsAny(purpose, List("open-file occupation", "file occupation", "file pressure", "open file"))
           case "target_fixing" =>
-            containsAny(purpose, List("open-file occupation", "file occupation", "pressure"))
+            containsAny(purpose, List("target fixing", "fixed target", "fixed pawn", "weak pawn", "target pressure"))
           case "counterplay_denial" =>
             containsAny(purpose, List("contain", "deny", "restrict", "occupation", "pressure"))
-          case _ => true
+          case "break_preparation" =>
+            containsAny(purpose, List("break", "hook", "pawn storm", "scaffold"))
+          case "defender_tied_down" =>
+            containsAny(purpose, List("defender", "tie down", "tied down", "passive", "pressure"))
+          case "conversion_window" =>
+            containsAny(purpose, List("convert", "conversion", "cash out", "transition", "trade"))
+          case _ => false
       theaterOk && modeOk
     }
 
@@ -1451,7 +1457,19 @@ private[commentary] object StrategyPackSurface:
                 containsAny(idea, List("contest the pawn", "fixed target", "fixed pawn", "weak pawn")))
           case "counterplay_denial" =>
             containsAny(idea, List("restrict", "deny", "tie down", "contain"))
-          case _ => moveRef.piece != "K"
+          case "line_occupation" =>
+            moveRef.piece != "K" &&
+              (
+                evidence.exists(e => e.contains("file") || e.contains("line")) ||
+                  containsAny(idea, List("file", "open line", "line pressure", "file pressure"))
+              )
+          case "break_preparation" =>
+            moveRef.piece != "K" && containsAny(idea, List("break", "hook", "pawn storm", "scaffold"))
+          case "defender_tied_down" =>
+            moveRef.piece != "K" && containsAny(idea, List("defender", "tie down", "tied down", "passive"))
+          case "conversion_window" =>
+            moveRef.piece != "K" && containsAny(idea, List("convert", "conversion", "cash out", "transition", "trade"))
+          case _ => false
       theaterOk && modeOk
     }
 
@@ -1545,10 +1563,7 @@ private[commentary] object StrategyPackSurface:
         allMoveRefs.exists(moveRef =>
           moveRef.evidence.map(normalizeText).map(_.toLowerCase).contains("target_pawn") ||
             containsAny(normalizeText(moveRef.idea).toLowerCase, List("contest the pawn", "fixed pawn", "weak pawn"))
-        ) ||
-          allRoutes.exists(route =>
-            containsAny(normalizeText(route.purpose).toLowerCase, List("open-file occupation", "file occupation", "file pressure", "open file"))
-          )
+        )
       val structuralPressureTheater =
         deriveStructuralPressureTheater(allRoutes, allMoveRefs, allDirectionalTargets, lowered)
       val quietStructuralCompensation =

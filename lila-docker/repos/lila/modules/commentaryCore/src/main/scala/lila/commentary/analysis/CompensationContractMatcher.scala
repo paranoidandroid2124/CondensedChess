@@ -32,7 +32,8 @@ private[commentary] object CompensationContractMatcher:
           case "queenside" => normalized.contains("queenside")
           case "center"    => normalized.contains("center") || normalized.contains("central")
           case "kingside"  => normalized.contains("kingside")
-          case _           => true
+          case "mixed"     => true
+          case _           => false
       val modeOk =
         subtype.pressureMode match
           case "line_occupation" =>
@@ -43,7 +44,20 @@ private[commentary] object CompensationContractMatcher:
           case "target_fixing" =>
             containsAny(
               normalized,
-              List("fixed target", "fixed targets", "targets tied down", "fixed pawn", "weak pawn", "tied down")
+              List(
+                "fixed target",
+                "fixed targets",
+                "fixed queenside target",
+                "fixed central target",
+                "fixed kingside target",
+                "queenside targets",
+                "central targets",
+                "kingside targets",
+                "targets tied down",
+                "fixed pawn",
+                "weak pawn",
+                "tied down"
+              )
             )
           case "counterplay_denial" =>
             containsAny(normalized, List("counterplay", "deny", "denying", "restrict", "restricting", "stop the counterplay"))
@@ -52,12 +66,12 @@ private[commentary] object CompensationContractMatcher:
           case "conversion_window" =>
             containsAny(normalized, List("convert", "conversion", "cash out", "transition"))
           case "break_preparation" =>
-            containsAny(normalized, List("break", "pawn break"))
-          case _ => mentionsCompensationKeyword(normalized)
+            containsAny(normalized, List("break", "pawn break", "hook", "pawn storm", "scaffold"))
+          case _ => false
       val recoveryOk =
         subtype.recoveryPolicy match
           case "immediate" => true
-          case _ =>
+          case "delayed" | "intentionally_deferred" =>
             containsAny(
               normalized,
               List(
@@ -65,14 +79,19 @@ private[commentary] object CompensationContractMatcher:
                 "winning the material back",
                 "recover the material",
                 "recover material",
-                "before taking the material"
+                "before taking the material",
+                "delayed recovery",
+                "delay recovery",
+                "delay material recovery"
               )
-            ) || mentionsCompensationKeyword(normalized)
+            )
+          case _ => false
       val stabilityOk =
         subtype.stabilityClass match
           case "transition_only" => containsAny(normalized, List("convert", "conversion", "cash out", "transition"))
           case "durable_pressure" => true
-          case _                  => true
+          case "tactical_window"  => true
+          case _                  => false
       theaterOk && modeOk && recoveryOk && stabilityOk
 
   def canonicalSubtype(surface: Snapshot): Option[CompensationSubtype] =

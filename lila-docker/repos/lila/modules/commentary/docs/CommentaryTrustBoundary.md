@@ -51,6 +51,10 @@ Downstream user-facing consumers must read the typed
 `probe_backed:validated_support` marker are diagnostic/compatibility carriers,
 not release, provenance, quantifier, stability, or outline-selection
 authority.
+Only typed `ProbeBacked` evaluated plans can enter selected main-plan
+authority. `StructuralOnly` and `PvCoupledOnly` may remain in diagnostics or
+support context, but they cannot own a main claim or satisfy
+`check_qualifying`.
 `UserFacingPayloadSanitizer` also treats that marker as non-authoritative:
 MoveReview plan payloads are retained only when `CommentaryApi` passes a
 matching typed `EvaluatedPlan` whose eligibility is `ProbeBacked` and whose
@@ -74,6 +78,10 @@ Probe validation separates chess evidence from bookkeeping:
 Soft diagnostics may remain in audit output, but they must not by themselves
 block a board-valid supporting probe. `alternativeDominance` is ranking
 metadata and must not be reported as refutation.
+Client-generated `keyMotifs`, `l1Delta`, and `futureSnapshot` values marked by
+`generatedRequiredSignals` or `motifInferenceMode=purpose_only` /
+`purpose_plus_compat` do not satisfy required authority signals. Unknown
+required probe signals fail closed.
 
 Exact-family trust is witness-bound. A subplan id such as
 `central_break_timing` may explain the plan taxonomy, but it must not open the
@@ -97,18 +105,29 @@ sentence, but regex/string claim parsing in `CommentaryApi` is not authority.
 
 Current strict rules:
 
-- `PositionLocal` scope alone never admits `WhatMattersHere`, unless the matching strategic plan experiment has high confidence (`experimentConfidence > 0.85`), which allows it to release as `SupportedLocal`.
-- exact owner slices require certified source/family predicates.
+- `PositionLocal` scope alone never admits `WhatMattersHere`. A position probe
+  must be a certified exact-slice packet or a supported-local packet with an
+  accepted contract and no contract failure codes. `experimentConfidence` is
+  not an admission bypass.
+- exact owner slices require certified source/family predicates plus a typed
+  `PlayerFacingExactSliceProof`; generic witness strings in anchor or
+  structure terms do not satisfy `ExactSlice`.
 - break/file-axis admission uses the centralized `BreakFileToken` parser; a
   plain prose word or incidental `a`-`h` letter is not evidence for a file.
 - position-probe question seeds must use the exact FEN being generated. The
   Carlsbad fixed-target seed remains closed unless the exact board target and
   minority-support predicate both pass.
 - support material never enters the owner pool directly.
-- tactical truth veto outranks strategic authority, except when the veto is soft-bypassed (i.e., centipawn loss <= 30cp or the move is a practical alternative) and the truth contract does not indicate a tactical failure (blunder, missed win, tactical refutation, or tactical failure mode).
+- tactical truth veto outranks strategic authority. The only soft path is a
+  non-tactical surface with no tactical-failure contract, no severe
+  counterfactual, and an observed cp loss of <= 30cp.
 - line-scoped claims may survive only as subordinate evidence unless a main
   path strategic claim is independently admitted.
 - support-only carriers may not re-inflate after certification failed closed.
+- timing-witness admission is structured-token only. UCI moves, exact board
+  squares, and piece-square anchors may couple a planner timing witness to a
+  packet; generic long words shared by prose and packet terms are diagnostics,
+  not authority.
 
 Heavy-piece local-bind release vetoes are exact-replay risks, not generic
 heavy-piece movement heuristics. A release may be signaled by a true deep queen
@@ -118,14 +137,21 @@ lower material and is then recaptured on the replayed branch. A queen
 centralization/single check, an unrecaptured rook capture, or a back-rank rook
 shuffle must not by itself create `heavy_piece_release_illusion`.
 
-Color-complex squeeze is promoted to Releasable/SupportedLocal:
+Color-complex squeeze is promoted only through an exact board-backed position
+probe:
 
 - proof family: `color_complex_squeeze`
+- proof source: `color_complex_squeeze_probe`
 - status: `Releasable`
-- certified eligible: false
+- certified eligible: true
 - supported-local eligible: true
 - default failure: `color_complex_authority_closed`
-- requirement: Requires a coordinate minor-piece witness (checked via `check_minor_piece`).
+- requirement: FEN parses; the opponent owns the semantic weak square; the
+  weakness is color-complex/hole/fianchetto tagged; a friendly bishop or knight
+  actually attacks that weak square on the board; surface/semantic evidence
+  points to the same square; best-defense branch, same-branch proof, and stable
+  persistence survive the packet boundary. Coordinate and minor-piece words are
+  trace terms only, not authority.
 
 Readiness scans and exact-FEN review artifacts are local evidence for future
 authority review, not runtime admission.
@@ -235,6 +261,17 @@ and not hard release gates. Taxonomy, strategy-pack labels, raw claim prose,
 and signal-digest text do not admit the row. Forcing-defense scenes may only
 receive subordinate support wording; tactical truth veto remains higher
 priority.
+
+Compensation subtype matching is fail-closed for unknown subtype dimensions.
+Generic compensation prose can still mention the theme, but it cannot satisfy a
+specific subtype contract unless the theater, mode, recovery policy, and
+stability class are recognized and the text carries the matching subtype
+anchors. Delayed/deferred compensation requires an explicit recovery/defer
+anchor rather than the word `compensation` alone. Target-fixing compensation
+cannot be authorized by generic `pressure` or file-occupation route prose; it
+needs target/fixed-pawn/weak-pawn language or typed target evidence. Battery
+formation predicates require the moved piece and partner to share the declared
+line with no blocker between them.
 `CommentaryApi` passes those same selected evaluated plans into
 `UserFacingPayloadSanitizer`; sanitizer does not admit strategic plans from
 `probe_backed:validated_support` or `StrategicPlanExperiment.evidenceTier`
@@ -307,7 +344,7 @@ as support rows.
 | QC reports measure a virtual raw surface | `buildMoveReviewRows` uses `moveReviewPlayerSurface`; absent surface yields no MoveReview support rows |
 | tactical neutralize support leaks through diagnostics | `ClaimAuthorityResolver` tactical veto plus QC veto rejection for `neutralize_key_break` |
 | generic or self-referential break support leaks | named-token surface gate rejects tokenless and played-move-collision `neutralize_key_break` rows |
-| color-complex premature release | deferred contract and authority-closed failure |
+| color-complex premature release | typed exact-slice proof plus authority-closed failure |
 | lesson overgeneralization | Track 5 deferred; scoped takeaway only |
 
 ## CTH Priority Summary

@@ -82,14 +82,15 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
       text: String,
       sourceKind: String = PlayerFacingTruthModePolicy.CarlsbadFixedTargetProbeProofSource,
       packet: PlayerFacingClaimPacket,
-      prefixKind: PlayerFacingClaimPrefixKind = PlayerFacingClaimPrefixKind.KeyStrategicFact
+      prefixKind: PlayerFacingClaimPrefixKind = PlayerFacingClaimPrefixKind.KeyStrategicFact,
+      anchorTerms: List[String] = List("c6")
   ): MainPathScopedClaim =
     MainPathScopedClaim(
       scope = PlayerFacingClaimScope.PositionLocal,
       mode = PlayerFacingTruthMode.Strategic,
       deltaClass = Some(PlayerFacingMoveDeltaClass.PressureIncrease),
       claimText = text,
-      anchorTerms = List("c6"),
+      anchorTerms = anchorTerms,
       evidenceLines = List("14...Qb6 15.Rb1"),
       sourceKind = sourceKind,
       tacticalOwnership = None,
@@ -153,7 +154,17 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         PlayerFacingProofPathWitness(
           ownerSeedTerms = ownerSeedTerms,
           continuationTerms = continuationTerms,
-          structureTransitionTerms = structureTransitionTerms
+          structureTransitionTerms = structureTransitionTerms,
+          exactSliceProof =
+            Some(
+              PlayerFacingExactSliceProof(
+                proofSource = proofSource,
+                proofFamily = proofFamily,
+                kind = proofSource,
+                target = anchorSquare,
+                terms = (ownerSeedTerms ++ structureTransitionTerms).distinct
+              )
+            )
         ),
       fallbackMode = fallbackMode
     )
@@ -182,7 +193,17 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         PlayerFacingProofPathWitness(
           ownerSeedTerms = List("queen_trade_shield", "queenless_branch", "c6", "d8"),
           continuationTerms = List("d4c6", "d7c6", "d3d8", "e8d8"),
-          structureTransitionTerms = List("queenless_branch", "queen_trade")
+          structureTransitionTerms = List("queenless_branch", "queen_trade"),
+          exactSliceProof =
+            Some(
+              PlayerFacingExactSliceProof(
+                proofSource = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
+                proofFamily = PlanTaxonomy.PlanKind.QueenTradeShield.id,
+                kind = PlayerFacingTruthModePolicy.QueenTradeShieldProofSource,
+                target = "queen_trade",
+                terms = List("queen_trade_shield", "queenless_branch", "queen_trade", "c6", "d8")
+              )
+            )
         ),
       fallbackMode = PlayerFacingClaimFallbackMode.WeakMain
     )
@@ -596,7 +617,7 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
     )
   }
 
-  test("WhatMattersHere soft-admits B/C position probes without exact owner-path certification when tactics are quiet") {
+  test("WhatMattersHere rejects position probes when branch and persistence are not certified") {
     val q = question("q_probe_supported", AuthorQuestionKind.WhatMattersHere)
     val ctx = baseCtx(List(q))
     val plans =
@@ -623,12 +644,73 @@ class QuestionFirstCommentaryPlannerTest extends FunSuite:
         None
       )
 
-    val primary = plans.primary.getOrElse(fail("missing supported position probe"))
+    assertEquals(plans.primary, None)
+    assert(
+      plans.rejected.exists(rejected =>
+        rejected.questionKind == AuthorQuestionKind.WhatMattersHere &&
+          rejected.reasons.contains("position_probe_not_certified")
+      ),
+      clues(plans.rejected)
+    )
+    assert(
+      plans.ownerTrace.ownerCandidateLabels.forall(label => !label.contains("admission_decision=SupportedLocal")),
+      clues(plans.ownerTrace.ownerCandidateLabels)
+    )
+  }
+
+  test("WhatMattersHere admits certified color-complex squeeze position probe") {
+    val q = question("q_probe_color_complex", AuthorQuestionKind.WhatMattersHere)
+    val ctx = baseCtx(List(q))
+    val packet =
+      certifiedPositionProbePacket(
+        proofSource = PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource,
+        proofFamily = PlayerFacingTruthModePolicy.ColorComplexSqueezeProofFamily,
+        anchorSquare = "e5",
+        ownerSeedTerms =
+          List(
+            "e5",
+            "weak_square:e5",
+            "color_complex:light",
+            "minor_piece:knight_c4",
+            "attacks:e5",
+            "minor_piece_attack:c4-e5"
+          ),
+        continuationTerms = List("color_complex_squeeze_probe", "weak_square:e5", "best_branch:c4e5|e8f8"),
+        structureTransitionTerms = List("color_complex_squeeze_probe", "weak_square:e5", "minor_piece_attack:c4-e5"),
+        bestDefenseMove = "e8f8",
+        bestDefenseBranchKey = "c4e5|e8f8"
+      )
+    val plans =
+      QuestionFirstCommentaryPlanner.plan(
+        ctx,
+        inputs(
+          mainBundle =
+            Some(
+              MainPathClaimBundle(
+                Some(
+                  positionLocalClaim(
+                    "A minor piece keeps the color-complex pressure on e5.",
+                    sourceKind = PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource,
+                    packet = packet,
+                    anchorTerms = List("e5")
+                  )
+                ),
+                Some(lineClaim("1.Nxe5 Kf8"))
+              )
+            )
+        ),
+        None
+      )
+
+    val primary = plans.primary.getOrElse(fail("missing color-complex position probe"))
     assertEquals(primary.questionKind, AuthorQuestionKind.WhatMattersHere)
     assertEquals(primary.plannerOwnerKind, PlannerOwnerKind.PositionProbe)
-    assert(primary.admissibilityReasons.contains("strategic_claim_supported_local"), clues(primary))
-    assert(!primary.claim.contains("The key strategic fact"), clues(primary.claim))
-    assertEquals(primary.consequence, None)
+    assertEquals(primary.plannerSource, PlayerFacingTruthModePolicy.ColorComplexSqueezeProbeProofSource)
+    assert(primary.admissibilityReasons.contains("certified_position_probe"), clues(primary))
+    assertEquals(
+      primary.consequence.map(_.text),
+      Some("So the task is to keep the minor-piece color-complex pressure centered on e5 stable.")
+    )
   }
 
   test("WhatMattersHere suppresses B/C position probes under a tactical failure veto") {

@@ -274,8 +274,12 @@ export function createProbeOrchestrator(ctrl: AnalyseCtrl | undefined, isSession
     } catch { }
   };
 
-  const workPlyAfterMove = (fen: string): number => (fen.includes(' w ') ? 1 : 0);
-  const workPlyAtFen = (fen: string): number => (fen.includes(' w ') ? 0 : 1);
+  const activeColorFromFen = (fen: string): 'w' | 'b' | undefined => {
+    const active = fen.trim().split(/\s+/)[1];
+    return active === 'w' || active === 'b' ? active : undefined;
+  };
+  const workPlyAfterMove = (fen: string): number => (activeColorFromFen(fen) === 'w' ? 1 : 0);
+  const workPlyAtFen = (fen: string): number => (activeColorFromFen(fen) === 'b' ? 1 : 0);
   const variant = () => ctrl?.data.game.variant.key ?? 'standard';
 
   const runEval = async (

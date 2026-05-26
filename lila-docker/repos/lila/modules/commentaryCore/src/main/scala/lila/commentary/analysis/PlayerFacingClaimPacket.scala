@@ -45,16 +45,26 @@ private[commentary] object PlayerFacingClaimReleaseRisk:
   val RouteMirage = "route_mirage"
   val RivalRelease = "rival_release"
 
+private[commentary] final case class PlayerFacingExactSliceProof(
+    proofSource: String,
+    proofFamily: String,
+    kind: String,
+    target: String,
+    terms: List[String] = Nil
+)
+
 private[commentary] final case class PlayerFacingProofPathWitness(
     ownerSeedTerms: List[String] = Nil,
     continuationTerms: List[String] = Nil,
     rivalTerms: List[String] = Nil,
-    structureTransitionTerms: List[String] = Nil
+    structureTransitionTerms: List[String] = Nil,
+    exactSliceProof: Option[PlayerFacingExactSliceProof] = None
 ):
   def hasOwnerSeed: Boolean = ownerSeedTerms.nonEmpty
   def hasContinuation: Boolean = continuationTerms.nonEmpty
   def hasRivalContext: Boolean = rivalTerms.nonEmpty
   def hasStructureTransition: Boolean = structureTransitionTerms.nonEmpty
+  def hasExactSlice: Boolean = exactSliceProof.nonEmpty
 
 private[commentary] object PlayerFacingProofPathWitness:
   val empty: PlayerFacingProofPathWitness = PlayerFacingProofPathWitness()

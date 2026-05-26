@@ -46,7 +46,10 @@ The maintained path is:
 6. `PlanEvidenceEvaluator` validates probe evidence and owns plan promotion
    authority: `ProbeBacked`, `StructuralOnly`, `PvCoupledOnly`, `Deferred`,
    and `Refuted`. `StrategicPlanEvidenceView` is the internal typed read-model
-   projected from the evaluator for downstream consumers.
+   projected from the evaluator for downstream consumers. Only `ProbeBacked`
+   evaluated plans can enter selected main-plan authority; `StructuralOnly`
+   and `PvCoupledOnly` remain diagnostic/support-only and cannot own a main
+   claim.
    `PlanMatcher` compatibility policy applies immediate tactical overrides per
    distinct non-tactical theme, not per plan instance, so duplicate plans in the
    same theme cannot receive exponential score decay.
@@ -59,12 +62,20 @@ The maintained path is:
 9. `analysis.claim` resolves claim authority:
    - `ClaimAuthorityDecision` defines the tier and failure-code model.
    - `ClaimAuthorityResolver` owns certified/support/suppressed/diagnostic
-     decisions from packet, plan, and truth contract. It performs confidence-based
-     `PositionLocal` gating (admitting plans with `experimentConfidence > 0.85`)
-     and soft-bypasses tactical vetoes when centipawn loss is <= 30cp or the move is a practical alternative.
+     decisions from packet, plan, and truth contract. `PositionLocal` scope is
+     never authority by itself: position probes must be certified exact-slice
+     packets, or a supported-local contract whose failure-code set is empty.
+     `experimentConfidence` is ranking/diagnostic metadata only. Tactical veto
+     softening is limited to non-tactical surfaces with no tactical-failure
+     contract and an observed cp loss of <= 30cp.
+     Timing-witness coupling is structured-token only: UCI moves, board
+     squares, and piece-square anchors may match; generic long prose words may
+     not couple a timing plan to a packet.
    - `PlannerClaimAdmission` connects planner inputs to the resolver.
    - `OpeningFamilyClaimResolver` owns textual opening-family claim
-     validation from `OpeningFamilyMatchProof` (`opening`, phase, ply, FEN).
+     validation from `OpeningFamilyMatchProof` (`opening`, phase, ply, FEN);
+     FEN structure checks use the chess board parser rather than manual rank
+     string parsing.
    - `ClaimAuthorityPolicy` remains a compatibility facade only.
 10. `QuestionFirstCommentaryPlanner` selects and ranks questions. It does not
    own low-level proof/source/scope/fallback authority.
@@ -84,7 +95,9 @@ The maintained path is:
     main-path packet claim as `SupportedLocal` with no tactical veto and an
     exact owner path. The row also requires a named break token from the timing
     witness or packet owner/structure/anchor terms, such as `...c5`, `c5`, or
-    `d4-d5`; raw claim prose is not parsed for the token. When
+    `d4-d5`; generic shared words such as `counterplay`, `break`, or
+    `timing` are not witness tokens, and raw claim prose is not parsed for the
+    token. When
     `BreakClampMaterializer` proves that the played move occupies the
     opponent break destination, the producer carries the full route token
     (`e4-e5`, `...b5-b4`) instead of the self-referential destination square.
@@ -294,11 +307,18 @@ it does not own the opening-family proof rules.
 
 Current explicit promoted family:
 
-| proof family | status | certified | supported local | default failure |
-| --- | --- | --- | --- | --- |
-| `color_complex_squeeze` | `Releasable` | false | true | `color_complex_authority_closed` |
+| proof family | proof source | status | certified | supported local | default failure |
+| --- | --- | --- | --- | --- | --- |
+| `color_complex_squeeze` | `color_complex_squeeze_probe` | `Releasable` | true | true | `color_complex_authority_closed` |
 
-Color-complex support is promoted to Releasable/SupportedLocal when backed by a coordinate minor-piece witness (checked via `check_minor_piece` requiring both a coordinate and a minor piece in the terms).
+Color-complex support is promoted only by the exact board witness in
+`PlayerFacingTruthModePolicy`: parsed FEN, opponent-owned semantic weak square,
+color-complex/hole/fianchetto evidence, actual friendly bishop/knight attack
+geometry on that square, same-square surface/semantic evidence, and a proven
+stable packet branch. Coordinate/minor-piece terms remain trace labels only.
+All `ExactSlice` contracts now require a typed `PlayerFacingExactSliceProof`
+attached to `PlayerFacingProofPathWitness`; generic anchor, continuation, or
+structure terms are not enough to satisfy the slice witness.
 
 ## Renderer Boundary
 

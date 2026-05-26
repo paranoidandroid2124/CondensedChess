@@ -31,7 +31,7 @@ private[commentary] object ClaimAuthorityResolver:
         ProofContractRules.certifiedOwnerAdmissible(packet)
     then
       ClaimAuthorityDecision(ClaimAuthorityTier.CertifiedOwner)
-    else if supportsLocalPositionProbe(ctx, packet) then
+    else if supportsLocalPositionProbe(packet) then
       ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal)
     else if ProofContractRules.contractForPacket(packet).exists(_.status == ProofContractStatus.Deferred) then
       ClaimAuthorityDecision(ClaimAuthorityTier.DiagnosticOnly, authorityFailureCodes(packet))
@@ -157,7 +157,7 @@ private[commentary] object ClaimAuthorityResolver:
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract]
   ): List[String] =
-    if allow_soft_veto(inputs, truthContract) then Nil
+    if allow_soft_veto(ctx, inputs, truthContract) then Nil
     else
       val contractReasons =
         truthContract.toList.flatMap { contract =>
@@ -189,6 +189,7 @@ private[commentary] object ClaimAuthorityResolver:
       (contractReasons ++ inputReasons ++ ctxReasons).distinct
 
   private def allow_soft_veto(
+      ctx: Option[NarrativeContext],
       inputs: QuestionPlannerInputs,
       truthContract: Option[DecisiveTruthContract]
   ): Boolean =
@@ -199,45 +200,29 @@ private[commentary] object ClaimAuthorityResolver:
       val cpLoss = truthContract.map(_.cpLoss)
         .orElse(inputs.counterfactual.map(_.cpLoss))
         .orElse(inputs.decisionComparison.flatMap(_.cpLossVsChosen))
-        .getOrElse(0)
-      val isMultiPv = inputs.decisionComparison.exists(_.practicalAlternative)
       val isTacticalFailure = truthContract.exists { contract =>
         contract.truthClass == DecisiveTruthClass.Blunder ||
           contract.truthClass == DecisiveTruthClass.MissedWin ||
           (contract.reasonFamily == DecisiveReasonKind.TacticalRefutation && contract.isBad) ||
           contract.failureMode == FailureInterpretationMode.TacticalRefutation
       }
-      !isTacticalFailure && (cpLoss <= 30 || isMultiPv)
+      val severeCounterfactual =
+        ctx.exists(narrativeCtx => TacticalTensionPolicy.evaluate(narrativeCtx, truthContract).severeCounterfactual)
+      !isTacticalFailure && !severeCounterfactual && cpLoss.exists(_ <= 30)
 
-  private def supportsLocalPositionProbe(ctx: Option[NarrativeContext], packet: PlayerFacingClaimPacket): Boolean =
+  private def supportsLocalPositionProbe(packet: PlayerFacingClaimPacket): Boolean =
     packet.scope == PlayerFacingPacketScope.PositionLocal &&
       packet.fallbackMode == PlayerFacingClaimFallbackMode.WeakMain &&
       packet.suppressionReasons.isEmpty &&
       packet.releaseRisks.isEmpty &&
-      (supportedLocalPositionProbeAdmissible(packet) || admit_confidence(ctx, packet)) &&
+      supportedLocalPositionProbeAdmissible(packet) &&
       PlayerFacingClaimProof.allowsWeakMainClaim(packet)
-
-  private def admit_confidence(ctx: Option[NarrativeContext], packet: PlayerFacingClaimPacket): Boolean =
-    ctx.exists { narrativeCtx =>
-      narrativeCtx.strategicPlanExperiments.exists { experiment =>
-        val matchesFamily = experiment.subplanId.contains(packet.proofFamily) ||
-          experiment.planId.equalsIgnoreCase(packet.proofFamily) ||
-          experiment.themeL1.equalsIgnoreCase(packet.proofFamily)
-        matchesFamily && experiment.experimentConfidence > 0.85
-      }
-    }
 
   private def supportedLocalPositionProbeAdmissible(packet: PlayerFacingClaimPacket): Boolean =
     ProofContractRules.contractForPacket(packet).exists { contract =>
       contract.supportedLocalEligible &&
         contract.accepts(packet) &&
-        ProofContractRules
-          .failureCodes(packet, Some(contract))
-          .filterNot(code =>
-            code == "witness:branch_not_proven" ||
-              code == "witness:persistence_not_stable"
-          )
-          .isEmpty
+        ProofContractRules.failureCodes(packet, Some(contract)).isEmpty
     }
 
   private def decideSupportedMoveDelta(
@@ -376,7 +361,7 @@ private[commentary] object ClaimAuthorityResolver:
 
   private def validTimingWitnessToken(token: String): Boolean =
     val normalized = normalize(token)
-    normalized.length >= 4 ||
+    normalized.matches("""[a-h][1-8][a-h][1-8][nbrq]?""") ||
       normalized.matches("""[a-h][1-8]""") ||
       normalized.matches("""[nbrqk][a-h][1-8]""")
 

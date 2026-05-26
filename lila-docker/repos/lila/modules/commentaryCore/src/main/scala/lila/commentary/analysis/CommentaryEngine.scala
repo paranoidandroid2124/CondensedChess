@@ -917,39 +917,45 @@ object CommentaryEngine:
             val ply = p.ply
 
             if vars.nonEmpty then
-              val isWhiteTurn = p.fen.contains(" w ")
-              val movingColor = if isWhiteTurn then _root_.chess.Color.White else _root_.chess.Color.Black
-
-              val analysis = assessExtended(
-                fen = p.fen,
-                variations = vars,
-                playedMove = Some(playedUci),
-                opening = None,
-                phase = None,
-                ply = ply,
-                prevMove = Some(playedUci),
-                prevPlanContinuity = planTracker.getContinuity(movingColor),
-                prevEndgameState = prevEgState
-              )
-
-              analysis match
-                case Some(data) =>
-                  val nextTracker = planTracker.update(
-                    movingColor = movingColor,
+              activeColorFromFen(p.fen)
+                .map { movingColor =>
+                  val analysis = assessExtended(
+                    fen = p.fen,
+                    variations = vars,
+                    playedMove = Some(playedUci),
+                    opening = None,
+                    phase = None,
                     ply = ply,
-                    primaryPlan = data.plans.headOption,
-                    secondaryPlan = data.plans.lift(1),
-                    sequence = data.planSequence
+                    prevMove = Some(playedUci),
+                    prevPlanContinuity = planTracker.getContinuity(movingColor),
+                    prevEndgameState = prevEgState
                   )
-                  val nextEgState =
-                    lila.commentary.model.strategic.EndgamePatternState.evolve(prevEgState, data.endgameFeatures, ply)
-                  (acc :+ data.copy(planContinuity = nextTracker.getContinuity(movingColor)), nextTracker, nextEgState)
-                case None =>
-                  (acc, planTracker, prevEgState)
+
+                  analysis match
+                    case Some(data) =>
+                      val nextTracker = planTracker.update(
+                        movingColor = movingColor,
+                        ply = ply,
+                        primaryPlan = data.plans.headOption,
+                        secondaryPlan = data.plans.lift(1),
+                        sequence = data.planSequence
+                      )
+                      val nextEgState =
+                        lila.commentary.model.strategic.EndgamePatternState.evolve(prevEgState, data.endgameFeatures, ply)
+                      (acc :+ data.copy(planContinuity = nextTracker.getContinuity(movingColor)), nextTracker, nextEgState)
+                    case None =>
+                      (acc, planTracker, prevEgState)
+                }
+                .getOrElse((acc, planTracker, prevEgState))
             else
               (acc, planTracker, prevEgState)
         }
     results
+
+  private def activeColorFromFen(fen: String): Option[_root_.chess.Color] =
+    _root_.chess.format.Fen
+      .read(_root_.chess.variant.Standard, _root_.chess.format.Fen.Full(fen))
+      .map(_.color)
 
   private def buildPreviewTruthBounds(
       moments: List[KeyMoment],
