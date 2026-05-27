@@ -223,12 +223,12 @@ private[commentary] object HeavyPieceLocalBindValidation:
       val corroboratingEntry =
         primaryFile.flatMap(primary => strongestIndependentEntry(primary, entryAxisSignals))
       val fileRouteLossVisible =
-        primaryFile.exists(primary =>
-          sameBranchPersistenceResults.exists(result => mentionsFileDenial(result, primary.file))
+        primaryFile.exists(file =>
+          sameBranchPersistenceResults.exists(result => confirmsFileDenial(result, file))
         )
       val entryAxisPersistence =
         corroboratingEntry.exists(entry =>
-          sameBranchPersistenceResults.exists(result => mentionsEntryDenial(result, entry.square))
+          sameBranchPersistenceResults.exists(result => confirmsEntryDenial(result, entry.square))
         )
       val futureSnapshotPersistence =
         sameBranchValidationResults.nonEmpty && fileRouteLossVisible && entryAxisPersistence
@@ -814,57 +814,34 @@ private[commentary] object HeavyPieceLocalBindValidation:
       result.bestReplyPv.flatMap(clean).mkString(" ")
     )
 
-  private def mentionsFileDenial(
+  private def confirmsFileDenial(
       result: ProbeResult,
-      file: String
+      file: FileAxisSignal
   ): Boolean =
-    result.futureSnapshot.exists(snapshot => mentionsFileDenial(snapshot, file)) ||
-      result.keyMotifs.flatMap(clean).exists(text => mentionsFileDenial(text, file))
+    routeValidationPurpose(result) &&
+      result.futureSnapshot.exists(snapshot =>
+        snapshot.resolvedThreatKinds.exists(kind => normalize(kind) == "counterplay") &&
+          exactFileDenied(snapshot, file)
+      )
 
-  private def mentionsFileDenial(
+  private def exactFileDenied(
       snapshot: FutureSnapshot,
-      file: String
+      file: FileAxisSignal
   ): Boolean =
-    (
-      snapshot.planPrereqsMet ++
-        snapshot.planBlockersRemoved ++
-        snapshot.targetsDelta.strategicAdded ++
-        snapshot.targetsDelta.strategicRemoved
-    ).flatMap(clean).exists(text => mentionsFileDenial(text, file))
+    val denied = snapshot.targetsDelta.strategicRemoved.map(normalize).toSet
+    List(file.label, s"${file.file}-file", file.file).map(normalize).exists(denied)
 
-  private def mentionsFileDenial(
-      raw: String,
-      file: String
-  ): Boolean =
-    val low = normalize(raw)
-    fileMention(low, file) &&
-      List("closed", "shut", "denied", "unavailable", "sealed", "counterplay route", "entry").exists(low.contains)
-
-  private def mentionsEntryDenial(
+  private def confirmsEntryDenial(
       result: ProbeResult,
       square: String
   ): Boolean =
-    result.futureSnapshot.exists(snapshot => mentionsEntryDenial(snapshot, square)) ||
-      result.keyMotifs.flatMap(clean).exists(text => mentionsEntryDenial(text, square))
+    routeValidationPurpose(result) &&
+      result.futureSnapshot.exists(snapshot =>
+        snapshot.targetsDelta.strategicRemoved.exists(token => normalize(token) == normalize(square))
+      )
 
-  private def mentionsEntryDenial(
-      snapshot: FutureSnapshot,
-      square: String
-  ): Boolean =
-    (
-      snapshot.planPrereqsMet ++
-        snapshot.planBlockersRemoved ++
-        snapshot.targetsDelta.strategicAdded ++
-        snapshot.targetsDelta.strategicRemoved
-    ).flatMap(clean).exists(text => mentionsEntryDenial(text, square))
-
-  private def mentionsEntryDenial(
-      raw: String,
-      square: String
-  ): Boolean =
-    val low = normalize(raw)
-    low.contains(square.toLowerCase) &&
-      List("closed", "denied", "unavailable", "shut", "entry", "route").exists(low.contains)
+  private def routeValidationPurpose(result: ProbeResult): Boolean =
+    result.purpose.exists(purpose => ValidationPurposes.contains(normalize(purpose)))
 
   private def mentionsBoundedContinuation(
       snapshot: FutureSnapshot
@@ -998,13 +975,6 @@ private[commentary] object HeavyPieceLocalBindValidation:
       hypothesis.failureModes ++ hypothesis.refutation.toList)
       .flatMap(clean)
       .exists(text => InflationTokens.exists(token => normalize(text).contains(token)))
-
-  private def fileMention(
-      normalizedText: String,
-      file: String
-  ): Boolean =
-    normalizedText.contains(s"$file-file") ||
-      normalizedText.contains(s"$file file")
 
   private def breakFileToken(
       raw: String

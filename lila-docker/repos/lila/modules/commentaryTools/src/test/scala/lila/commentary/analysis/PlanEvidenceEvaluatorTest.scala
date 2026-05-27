@@ -859,16 +859,24 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
   test("partition keeps structural-only plans out of selected main plans when probe-backed is missing") {
     val structuralPlan =
       hypothesis(
-        id = "StructuralBreak",
-        name = "Structural break plan",
+        id = "StructuralBind",
+        name = "Structural bind plan",
         score = 0.82,
         sources = List("support:engine_hypothesis", "structural_state:pawn_duo")
       )
+    val structuralRequest = ProbeRequest(
+      id = "probe_structural_bind",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("e2e4"),
+      depth = 20,
+      planId = Some("StructuralBind"),
+      requiredSignals = List("replyPvs", "futureSnapshot")
+    )
 
     val partition =
       PlanEvidenceEvaluator.partition(
         hypotheses = List(structuralPlan),
-        probeRequests = Nil,
+        probeRequests = List(structuralRequest),
         validatedProbeResults = Nil,
         rulePlanIds = Set.empty,
         isWhiteToMove = true,
@@ -876,4 +884,15 @@ class PlanEvidenceEvaluatorTest extends FunSuite:
       )
 
     assertEquals(partition.mainPlans, Nil)
+    val evaluated = partition.evaluated.headOption.getOrElse(fail("missing structural plan"))
+    assertEquals(evaluated.status, PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableStructuralOnly)
+    assertEquals(evaluated.userFacingEligibility, PlanEvidenceEvaluator.UserFacingPlanEligibility.StructuralOnly)
+    assert(
+      partition.diagnosticSidecar.entries.exists(entry =>
+        entry.planId == "StructuralBind" &&
+          entry.status == "playable_structural_only" &&
+          entry.userFacingEligibility == "structural_only"
+      ),
+      clue(partition.diagnosticSidecar)
+    )
   }

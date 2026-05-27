@@ -144,7 +144,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
           FutureSnapshot(
             resolvedThreatKinds = List("Counterplay"),
             newThreatKinds = Nil,
-            targetsDelta = TargetsDelta(Nil, Nil, List("conversion route stabilizes"), List("b4")),
+            targetsDelta = TargetsDelta(Nil, Nil, List("conversion route stabilizes"), List("c-file", "b4")),
             planBlockersRemoved = List("the c-file stays closed"),
             planPrereqsMet = List("b4 stays unavailable")
           )
@@ -187,7 +187,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
           FutureSnapshot(
             resolvedThreatKinds = List("Counterplay"),
             newThreatKinds = Nil,
-            targetsDelta = TargetsDelta(Nil, Nil, List("conversion route stabilizes"), List("b4")),
+            targetsDelta = TargetsDelta(Nil, Nil, List("conversion route stabilizes"), List("c-file", "b4")),
             planBlockersRemoved = List("the c-file stays closed"),
             planPrereqsMet = List("b4 stays unavailable", "conversion route stabilizes")
           )
@@ -391,7 +391,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
                   FutureSnapshot(
                     resolvedThreatKinds = List("Counterplay"),
                     newThreatKinds = Nil,
-                    targetsDelta = TargetsDelta(Nil, Nil, Nil, List("b4")),
+                    targetsDelta = TargetsDelta(Nil, Nil, Nil, List("c-file", "b4")),
                     planBlockersRemoved = Nil,
                     planPrereqsMet = List("b4 stays unavailable")
                   )
@@ -536,7 +536,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
                   FutureSnapshot(
                     resolvedThreatKinds = List("Counterplay"),
                     newThreatKinds = Nil,
-                    targetsDelta = TargetsDelta(Nil, Nil, Nil, List("b4")),
+                    targetsDelta = TargetsDelta(Nil, Nil, Nil, List("c-file", "b4")),
                     planBlockersRemoved = List("the c-file stays closed"),
                     planPrereqsMet = List("b4 stays unavailable")
                   )
@@ -550,7 +550,7 @@ class LocalFileEntryProofBoundaryTest extends FunSuite:
                   FutureSnapshot(
                     resolvedThreatKinds = List("Counterplay"),
                     newThreatKinds = Nil,
-                    targetsDelta = TargetsDelta(Nil, Nil, Nil, List("b4")),
+                    targetsDelta = TargetsDelta(Nil, Nil, Nil, List("c-file", "b4")),
                     planBlockersRemoved = List("the c-file stays closed"),
                     planPrereqsMet = List("b4 stays unavailable")
                   )

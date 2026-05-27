@@ -64,11 +64,13 @@ The maintained path is:
    projected from the evaluator for downstream consumers. Only `ProbeBacked`
    evaluated plans can enter selected main-plan authority; `StructuralOnly`
    and `PvCoupledOnly` remain diagnostic/support-only and cannot own a main
-   claim. Probe results must echo the exact requested FEN and probed move
-   before they can satisfy a board-bound request; multi-move requests require
-   the returned `probedMove`/candidate move to be present and to match one of
-   the requested moves. Unknown request purposes have no probe contract and
-   fail closed even when explicit `requiredSignals` are present.
+   claim. `StructuralOnly` serializes as structural-only compatibility data,
+   never as `evidence_backed`. Probe results must echo the exact requested FEN
+   and probed move before they can satisfy a board-bound request; both echoed
+   FEN strings must parse and echoed moves must be valid UCI. Multi-move
+   requests require the returned `probedMove`/candidate move to be present and
+   to match one of the requested moves. Unknown request purposes have no probe
+   contract and fail closed even when explicit `requiredSignals` are present.
    Request-to-plan coupling uses exact plan id, exact seed, exact normalized
    plan name, or unbound typed theme/subplan contract alignment. When more
    than one explicit binding is supplied, all supplied bindings must match the
@@ -102,16 +104,21 @@ The maintained path is:
      context, a present truth contract, no tactical-failure contract, and an
      observed cp loss of <= 30cp; missing context or truth contract produces
      tactical-veto failure codes instead of opening authority.
-     Timing-witness coupling is structured-token only: UCI moves, board
-     squares, and piece-square anchors may match; generic long prose words may
-     not couple a timing plan to a packet.
+     Timing-witness coupling is structured-token only. For
+     `neutralize_key_break` / `counterplay_axis_suppression`, the planner
+     named-break token must match the packet's typed exact-slice proof token;
+     owner, anchor, structure, continuation, and generic prose terms never
+     couple a timing plan to a packet.
    - `PlannerClaimAdmission` connects planner inputs to the resolver.
    - `OpeningFamilyClaimResolver` owns opening-family admission from a
      structured `OpeningFamilyId` plus `OpeningFamilyMatchProof` (`opening`,
-     phase, ply, FEN); FEN structure checks use the chess board parser rather
-     than manual rank string parsing. Arbitrary prose sentences are legacy
-     suppression-only inputs and cannot create `SupportedLocal` opening
-     authority.
+     phase, ply, FEN). The proof FEN must resolve through the static
+     `OpeningNameLookup` ECO/opening book to the same requested family; shallow
+     board-piece structure checks are not an authority source.
+     A structured claim needs both an opening-label family match and an
+     opening-book FEN family match.
+     Arbitrary prose sentences are legacy suppression-only inputs and cannot
+     create `SupportedLocal` opening authority.
    - `ClaimAuthorityPolicy` remains a compatibility facade only.
 10. `QuestionFirstCommentaryPlanner` selects and ranks questions. It does not
    own low-level proof/source/scope/fallback authority. Prevented-plan
@@ -189,7 +196,9 @@ The maintained path is:
     move comparisons only when a typed consequence appears after the first ply,
     and emits only the existing public decision-comparison field. Known
     surface-blocking line reject reasons still fail closed; diagnostic tags that
-    are not surface blockers do not by themselves close the strip.
+    are not surface blockers do not by themselves close the strip. `PreviewOnly`
+    consequences cannot provide player decision secondary text; release safety
+    is typed by `LineConsequenceEvidence`, not by English phrase denylists.
     `CommentaryApi` obtains
     `MoveReviewPolishSlots` and the planner inputs/ranked plans from the same
     `MoveReviewCompressionPolicy` runtime result, so prose and player-surface
@@ -353,11 +362,12 @@ It must not contain planner ranking policy or renderer wording policy.
 Opening-family claims use the claim-boundary resolver instead of API regex
 authority. `OpeningFamilyClaimResolver` admits only structured
 `OpeningFamilyId` claims against `OpeningFamilyMatchProof`, returning
-`SupportedLocal` when either the opening label or exact FEN structure supports
-the requested family. Arbitrary prose is retained only as a legacy
+`SupportedLocal` only when the opening label and static opening-book FEN lookup
+both support the requested family. Shallow piece-square structure checks are not
+used as opening truth and cannot create structure-only authority. Arbitrary prose is retained only as a legacy
 suppression-only guard: it can return `Suppressed` with mismatch failure codes
-when a sentence mentions a family unsupported by both label and board
-structure, but it cannot create `SupportedLocal` authority. Short aliases are
+when a sentence mentions a family unsupported by both label and opening-book
+FEN proof, but it cannot create `SupportedLocal` authority. Short aliases are
 exact word-slice matches only, so substring accidents such as `Caro-Kann`
 matching `Kan`, or `nimz` matching `nimzo-indian`, do not create authority.
 Rendered prose is not split and rewritten by `CommentaryApi` for

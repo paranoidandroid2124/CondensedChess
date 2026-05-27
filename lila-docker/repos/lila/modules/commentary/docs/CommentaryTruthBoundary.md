@@ -71,13 +71,14 @@ Strategic plan promotion and demotion must be consumed through the typed
 subplan ids cannot by themselves certify truth, refutation, provenance,
 quantifier, stability, or exact-family ownership.
 Board-bound probe truth requires the returned probe certificate to echo the
-requested FEN and probed move; missing values are not truth. For multi-move
-requests, the certified move must be one of the requested moves. Unknown
-request purposes have no truth contract and cannot be rescued by explicit
-signal names or by the result's own purpose. Unknown-purpose probes also cannot
-be treated as refutations through the default cp-loss bound. Refutation probes
-are negative evidence only: if they do not refute a plan, they clear that
-specific punishment path but do not certify the plan as true.
+requested FEN and probed move; missing or malformed values are not truth. Both
+echoed FEN strings must parse and echoed moves must be valid UCI. For
+multi-move requests, the certified move must be one of the requested moves.
+Unknown request purposes have no truth contract and cannot be rescued by
+explicit signal names or by the result's own purpose. Unknown-purpose probes
+also cannot be treated as refutations through the default cp-loss bound.
+Refutation probes are negative evidence only: if they do not refute a plan,
+they clear that specific punishment path but do not certify the plan as true.
 
 Exact-family strategic truth remains witness-bound. A plan taxonomy label such
 as `central_break_timing` does not certify the exact central-break proof family
@@ -117,6 +118,9 @@ parsed by the shared runtime boundary, not from incidental letters inside
 English prose or underscore-separated plan ids. Heavy-piece release truth must
 come from exact branch replay: queen centralization, one check, an unrecaptured
 rook capture, or a back-rank rook shuffle is not enough to refute a local bind.
+Heavy-piece file/entry persistence truth must not be parsed from English
+denial phrases; it requires typed route-validation purpose, exact counterplay
+resolution, exact denied file removal, and exact denied-square removal signals.
 Forced-line trap truth may not release a named trap from a legal move string
 alone. A named opening trap requires the reviewed move to be the trap entry and
 a coupled PV/variation line to confirm the remaining sequence before the line is

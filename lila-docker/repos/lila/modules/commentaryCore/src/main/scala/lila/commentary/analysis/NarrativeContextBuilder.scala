@@ -550,10 +550,11 @@ object NarrativeContextBuilder:
 
   private def evidenceTierOf(status: PlanEvidenceEvaluator.PlanEvidenceStatus): String =
     status match
-      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked => "evidence_backed"
-      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled      => "pv_coupled"
-      case PlanEvidenceEvaluator.PlanEvidenceStatus.Deferred               => "deferred"
-      case PlanEvidenceEvaluator.PlanEvidenceStatus.Refuted                => "refuted"
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked  => "evidence_backed"
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableStructuralOnly  => "structural_only"
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled       => "pv_coupled"
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.Deferred                => "deferred"
+      case PlanEvidenceEvaluator.PlanEvidenceStatus.Refuted                 => "refuted"
 
   private def hasReplyCoverage(result: ProbeResult): Boolean =
     result.bestReplyPv.nonEmpty || result.replyPvs.exists(_.exists(_.nonEmpty))
@@ -597,6 +598,7 @@ object NarrativeContextBuilder:
     val base =
       tier match
         case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableEvidenceBacked => 0.82
+        case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableStructuralOnly => 0.52
         case PlanEvidenceEvaluator.PlanEvidenceStatus.PlayablePvCoupled      => 0.62
         case PlanEvidenceEvaluator.PlanEvidenceStatus.Deferred               => 0.38
         case PlanEvidenceEvaluator.PlanEvidenceStatus.Refuted                => 0.10

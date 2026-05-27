@@ -15,6 +15,7 @@ object PlanEvidenceEvaluator:
 
   enum PlanEvidenceStatus:
     case PlayableEvidenceBacked
+    case PlayableStructuralOnly
     case PlayablePvCoupled
     case Refuted
     case Deferred
@@ -287,7 +288,7 @@ object PlanEvidenceEvaluator:
             else if supports.nonEmpty then
               (PlanEvidenceStatus.PlayableEvidenceBacked, "backed by concrete supporting lines")
             else if structuralEscalation then
-              (PlanEvidenceStatus.PlayableEvidenceBacked, "backed by the structure with no refutation signal")
+              (PlanEvidenceStatus.PlayableStructuralOnly, "backed by the structure with no refutation signal")
             else if pvCoupled && h.score >= PvCoupledPlayableThreshold then
               (
                 PlanEvidenceStatus.PlayablePvCoupled,
@@ -745,6 +746,7 @@ object PlanEvidenceEvaluator:
   private def statusCode(status: PlanEvidenceStatus): String =
     status match
       case PlanEvidenceStatus.PlayableEvidenceBacked => "playable_evidence_backed"
+      case PlanEvidenceStatus.PlayableStructuralOnly => "playable_structural_only"
       case PlanEvidenceStatus.PlayablePvCoupled      => "playable_pv_coupled"
       case PlanEvidenceStatus.Refuted                => "refuted"
       case PlanEvidenceStatus.Deferred               => "deferred"

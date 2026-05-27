@@ -13,14 +13,6 @@ object MoveReviewPlayerPayloadBuilder:
   private val MinDecisionSurfaceGapCp = 35
   private val ClearDecisionSurfaceGapCp = 60
   private val ExactComparativeSource = "exact"
-  private val UnsafeDecisionFragments =
-    List(
-      "proves the plan",
-      "wins strategically",
-      "book line says",
-      "book line proves",
-      "opening family"
-    )
 
   def decisionComparisonSurface(
       ctx: NarrativeContext,
@@ -41,7 +33,7 @@ object MoveReviewPlayerPayloadBuilder:
       if evidence.surfaceReady
       if hasComparableDecisionShape(digest, evidence)
       if hasDecisionSurfaceReason(digest)
-      secondary <- safeDecisionSecondaryText(evidence.playerSentence)
+      secondary <- safeDecisionSecondaryText(evidence)
     yield MoveReviewPlayerDecisionComparison(
       kicker = "Decision point",
       gapLabel = digest.cpLossVsChosen.map(decisionGapLabel),
@@ -280,10 +272,10 @@ object MoveReviewPlayerPayloadBuilder:
           case idx => Some(idx + 1)
       )
 
-  private def safeDecisionSecondaryText(raw: String): Option[String] =
-    val text = clean(raw).trim
-    val low = text.toLowerCase
-    Option.when(text.nonEmpty && !UnsafeDecisionFragments.exists(low.contains))(text)
+  private def safeDecisionSecondaryText(evidence: LineConsequenceEvidence): Option[String] =
+    Option
+      .when(evidence.kind != LineConsequenceKind.PreviewOnly)(clean(evidence.playerSentence).trim)
+      .filter(_.nonEmpty)
 
   private def cleanMove(raw: Option[String]): Option[String] =
     raw.map(clean).map(_.trim).filter(_.nonEmpty)

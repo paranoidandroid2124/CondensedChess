@@ -43,7 +43,7 @@ class UserFacingPayloadSanitizerTest extends FunSuite:
       status =
         eligibility match
           case UserFacingPlanEligibility.ProbeBacked   => PlanEvidenceStatus.PlayableEvidenceBacked
-          case UserFacingPlanEligibility.StructuralOnly => PlanEvidenceStatus.PlayableEvidenceBacked
+          case UserFacingPlanEligibility.StructuralOnly => PlanEvidenceStatus.PlayableStructuralOnly
           case UserFacingPlanEligibility.PvCoupledOnly => PlanEvidenceStatus.PlayablePvCoupled
           case UserFacingPlanEligibility.Deferred      => PlanEvidenceStatus.Deferred
           case UserFacingPlanEligibility.Refuted       => PlanEvidenceStatus.Refuted,

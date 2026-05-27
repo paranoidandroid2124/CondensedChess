@@ -1,5 +1,7 @@
 package lila.commentary.model
 
+import _root_.chess.format.Fen
+import _root_.chess.variant.Standard
 import play.api.libs.json._
 
 /**
@@ -248,6 +250,10 @@ object ProbeContractValidator:
       requestFen.nonEmpty && resultFen.isEmpty
     val fenMismatch =
       requestFen.exists(expected => resultFen.exists(_ != expected))
+    val requestFenInvalid =
+      requestFen.exists(fen => Fen.read(Standard, Fen.Full(fen)).isEmpty)
+    val resultFenInvalid =
+      resultFen.exists(fen => Fen.read(Standard, Fen.Full(fen)).isEmpty)
     val objectiveMismatch =
       request.objective.flatMap(expected => result.objective.map(_ != expected)).contains(true)
     val seedMismatch =
@@ -265,6 +271,10 @@ object ProbeContractValidator:
       allowedMoves.nonEmpty && resultMove.isEmpty
     val moveMismatch =
       resultMove.exists(move => allowedMoves.nonEmpty && !allowedMoves.contains(move))
+    val requestMoveInvalid =
+      allowedMoves.exists(move => !validUciMove(move))
+    val resultMoveInvalid =
+      resultMove.exists(move => !validUciMove(move))
     val variationHashMismatch =
       request.variationHash.flatMap(expected => result.variationHash.map(_ != expected)).contains(true)
     val engineConfigMismatch =
@@ -278,10 +288,14 @@ object ProbeContractValidator:
     val hardReasons =
       List(
         Option.when(fenMissing)("FEN_UNVERIFIED"),
+        Option.when(requestFenInvalid)("REQUEST_FEN_INVALID"),
+        Option.when(resultFenInvalid)("RESULT_FEN_INVALID"),
         Option.when(fenMismatch)("FEN_MISMATCH"),
         Option.when(idMismatch)("ID_MISMATCH"),
         Option.when(moveMissing)("PROBED_MOVE_UNVERIFIED"),
+        Option.when(requestMoveInvalid)("REQUEST_MOVE_INVALID"),
         Option.when(moveMismatch)("PROBED_MOVE_MISMATCH"),
+        Option.when(resultMoveInvalid)("PROBED_MOVE_INVALID"),
         Option.when(purposeContractMissing)("PURPOSE_CONTRACT_MISSING"),
         Option.when(depthFloor.nonEmpty && result.depth.isEmpty)("DEPTH_FLOOR_UNVERIFIED"),
         Option.when(depthFloorUnmet)("DEPTH_FLOOR_UNMET")
@@ -311,6 +325,9 @@ object ProbeContractValidator:
       hardReasonCodes = allHardReasons,
       softReasonCodes = softReasons.distinct
     )
+
+  private def validUciMove(raw: String): Boolean =
+    Option(raw).map(_.trim.toLowerCase).exists(_.matches("""[a-h][1-8][a-h][1-8][nbrq]?"""))
 
   private def validateSignals(
       result: ProbeResult,

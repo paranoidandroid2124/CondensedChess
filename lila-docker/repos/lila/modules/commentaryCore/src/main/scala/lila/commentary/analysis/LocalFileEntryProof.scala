@@ -170,19 +170,6 @@ private[commentary] object LocalFileEntryProof:
     )
   private val TacticalReleaseTokens =
     List("sac", "perpet", "forcing", "tactic", "check chain", "rook lift", "queen infiltration")
-  private val FileDenialTokens =
-    List(
-      "closed",
-      "shut",
-      "denied",
-      "unavailable",
-      "sealed",
-      "no access",
-      "cannot use",
-      "can t use",
-      "counterplay route",
-      "entry route"
-    )
 
   def evaluate(
       plan: PlanEvidenceEvaluator.EvaluatedPlan,
@@ -259,17 +246,15 @@ private[commentary] object LocalFileEntryProof:
       val fileUsabilityMeasured =
         primaryFile.exists(axisBurdenMeasured)
       val fileRouteLossVisible =
-        primaryFile.exists(primary =>
-          sameBranchPersistenceResults.exists(result =>
-            mentionsFileDenial(result, primary.file)
-          )
+        primaryFile.exists(file =>
+          sameBranchPersistenceResults.exists(result => confirmsFileDenial(result, file))
         )
       val entryAxisMeasured =
         corroboratingEntry.exists(axisBurdenMeasured)
       val entryAxisPersistence =
         corroboratingEntry.exists(entry =>
           sameBranchPersistenceResults.exists(result =>
-            mentionsEntryDenial(result, entry.square)
+            confirmsEntryDenial(result, entry.square)
           )
         )
       val futureSnapshotPersistence =
@@ -757,56 +742,34 @@ private[commentary] object LocalFileEntryProof:
       result.keyMotifs.flatMap(clean).filter(looksLikeTacticalRelease).map(motif => s"motif:$motif")
     (collapseSignals ++ snapshotSignals ++ motifSignals).distinct
 
-  private def mentionsFileDenial(
+  private def confirmsFileDenial(
       result: ProbeResult,
-      file: String
+      file: FileAxisSignal
   ): Boolean =
-    result.futureSnapshot.exists(snapshot => mentionsFileDenial(snapshot, file)) ||
-      result.keyMotifs.flatMap(clean).exists(text => mentionsFileDenial(text, file))
+    routeValidationPurpose(result) &&
+      result.futureSnapshot.exists(snapshot =>
+        snapshot.resolvedThreatKinds.exists(kind => normalize(kind) == "counterplay") &&
+          exactFileDenied(snapshot, file)
+      )
 
-  private def mentionsFileDenial(
+  private def exactFileDenied(
       snapshot: FutureSnapshot,
-      file: String
+      file: FileAxisSignal
   ): Boolean =
-    (
-      snapshot.planPrereqsMet ++
-        snapshot.planBlockersRemoved ++
-        snapshot.targetsDelta.strategicAdded ++
-        snapshot.targetsDelta.strategicRemoved
-    ).flatMap(clean).exists(text => mentionsFileDenial(text, file))
+    val denied = snapshot.targetsDelta.strategicRemoved.map(normalize).toSet
+    List(file.label, s"${file.file}-file", file.file).map(normalize).exists(denied)
 
-  private def mentionsFileDenial(
-      raw: String,
-      file: String
-  ): Boolean =
-    val low = normalize(raw)
-    fileMention(low, file) && FileDenialTokens.exists(low.contains)
-
-  private def mentionsEntryDenial(
+  private def confirmsEntryDenial(
       result: ProbeResult,
       square: String
   ): Boolean =
-    result.futureSnapshot.exists(snapshot => mentionsEntryDenial(snapshot, square)) ||
-      result.keyMotifs.flatMap(clean).exists(text => mentionsEntryDenial(text, square))
+    routeValidationPurpose(result) &&
+      result.futureSnapshot.exists(snapshot =>
+        snapshot.targetsDelta.strategicRemoved.exists(token => normalize(token) == normalize(square))
+      )
 
-  private def mentionsEntryDenial(
-      snapshot: FutureSnapshot,
-      square: String
-  ): Boolean =
-    (
-      snapshot.planPrereqsMet ++
-        snapshot.planBlockersRemoved ++
-        snapshot.targetsDelta.strategicAdded ++
-        snapshot.targetsDelta.strategicRemoved
-    ).flatMap(clean).exists(text => mentionsEntryDenial(text, square))
-
-  private def mentionsEntryDenial(
-      raw: String,
-      square: String
-  ): Boolean =
-    val low = normalize(raw)
-    low.contains(square.toLowerCase) &&
-      List("closed", "denied", "unavailable", "shut", "entry", "route").exists(low.contains)
+  private def routeValidationPurpose(result: ProbeResult): Boolean =
+    result.purpose.exists(purpose => ValidationPurposes.contains(normalize(purpose)))
 
   private def mentionsBoundedContinuation(
       snapshot: FutureSnapshot
@@ -976,13 +939,6 @@ private[commentary] object LocalFileEntryProof:
   ): Boolean =
     val low = normalize(raw)
     TacticalReleaseTokens.exists(low.contains)
-
-  private def fileMention(
-      normalizedText: String,
-      file: String
-  ): Boolean =
-    normalizedText.contains(s"$file-file") ||
-      normalizedText.contains(s"$file file")
 
   private def breakFileToken(
       raw: String

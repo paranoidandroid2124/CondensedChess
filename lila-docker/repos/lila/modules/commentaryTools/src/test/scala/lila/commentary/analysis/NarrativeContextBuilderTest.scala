@@ -167,6 +167,44 @@ class NarrativeContextBuilderTest extends FunSuite {
     assert(experiments.head.experimentConfidence > 0.8)
   }
 
+  test("buildStrategicPlanExperiments serializes structural-only plans outside evidence-backed authority") {
+    val structuralPlan =
+      PlanEvidenceEvaluator.EvaluatedPlan(
+        hypothesis =
+          PlanHypothesis(
+            planId = "structural_break",
+            planName = "Structural break",
+            rank = 1,
+            score = 0.78,
+            preconditions = Nil,
+            executionSteps = Nil,
+            failureModes = Nil,
+            viability = PlanViability(0.72, "medium", "structure only"),
+            evidenceSources = List("support:engine_hypothesis", "structural_state:pawn_duo")
+          ),
+        status = PlanEvidenceEvaluator.PlanEvidenceStatus.PlayableStructuralOnly,
+        userFacingEligibility = PlanEvidenceEvaluator.UserFacingPlanEligibility.StructuralOnly,
+        reason = "structure only",
+        themeL1 = PlanTaxonomy.PlanTheme.PawnBreakPreparation.id
+      )
+
+    val experiments =
+      NarrativeContextBuilder.buildStrategicPlanExperiments(
+        evaluated = List(structuralPlan),
+        validatedProbeResults = Nil,
+        preventedPlans = Nil,
+        evalCp = 50,
+        isWhiteToMove = true
+      )
+
+    assertEquals(experiments.map(_.evidenceTier), List("structural_only"), clue(experiments))
+    assertEquals(
+      StrategicNarrativePlanSupport.legacyFilterEvidenceBacked(List(structuralPlan.hypothesis), experiments),
+      Nil,
+      clue(experiments)
+    )
+  }
+
   test("buildStrategicPlanExperiments downgrades uncertified conversion ideas before planner consumption") {
     val conversionPlan =
       PlanEvidenceEvaluator.EvaluatedPlan(
@@ -251,7 +289,7 @@ class NarrativeContextBuilderTest extends FunSuite {
     )
   }
 
-  test("buildWithDiagnostics keeps selected provisional hypotheses as compatibility payload and sidecars authority") {
+  test("buildWithDiagnostics keeps provisional hypotheses out of compatibility payload and sidecars authority") {
     val plan =
       PlanHypothesis(
         planId = "CentralControl",
@@ -269,13 +307,9 @@ class NarrativeContextBuilderTest extends FunSuite {
     val ctx = IntegratedContext(evalCp = 50, isWhiteToMove = true)
     val result = NarrativeContextBuilder.buildWithDiagnostics(data, ctx, None)
 
-    assertEquals(result.context.mainStrategicPlans.map(_.planId), List("CentralControl"))
-    assert(
-      result.context.mainStrategicPlans.headOption.exists(_.evidenceSources.contains("provisional:unvalidated_support")),
-      clue(result.context.mainStrategicPlans)
-    )
-    assertEquals(result.selectedMainEvaluatedPlans.map(_.hypothesis.planId), List("CentralControl"))
-    assertEquals(result.context.strategicPlanEvidence.selectedPlans.map(_.hypothesis.planId), List("CentralControl"))
+    assertEquals(result.context.mainStrategicPlans.map(_.planId), Nil)
+    assertEquals(result.selectedMainEvaluatedPlans.map(_.hypothesis.planId), Nil)
+    assertEquals(result.context.strategicPlanEvidence.selectedPlans.map(_.hypothesis.planId), Nil)
     assertEquals(result.context.strategicPlanEvidence.pvCoupledPlans.map(_.hypothesis.planId), List("CentralControl"))
     assertEquals(StrategicNarrativePlanSupport.evidenceBackedMainPlans(result.context), Nil)
     assert(
@@ -1106,6 +1140,7 @@ class NarrativeContextBuilderTest extends FunSuite {
       bestReplyPv = List("e7e5", "d2d4"),
       deltaVsBaseline = -180,
       keyMotifs = Nil,
+      purpose = Some("defense_reply_multipv"),
       mate = None
     )
     
@@ -1117,6 +1152,7 @@ class NarrativeContextBuilderTest extends FunSuite {
       bestReplyPv = List("d7d5"),
       deltaVsBaseline = -330,
       keyMotifs = Nil,
+      purpose = Some("defense_reply_multipv"),
       mate = None
     )
     
@@ -1429,6 +1465,7 @@ class NarrativeContextBuilderTest extends FunSuite {
       bestReplyPv = List("d7d5"),
       deltaVsBaseline = -350,
       keyMotifs = Nil,
+      purpose = Some("defense_reply_multipv"),
       l1Delta = Some(l1Delta)
     )
     
@@ -1459,6 +1496,7 @@ class NarrativeContextBuilderTest extends FunSuite {
       bestReplyPv = List("e7e5", "d2d4"),
       deltaVsBaseline = -300,
       keyMotifs = Nil,
+      purpose = Some("defense_reply_multipv"),
       l1Delta = Some(l1Delta)
     )
     
@@ -1709,9 +1747,10 @@ class NarrativeContextBuilderTest extends FunSuite {
     val probeResult = ProbeResult(
       id = "style-choice-probe",
       evalCp = 96,
-      bestReplyPv = Nil,
+      bestReplyPv = List("e7e5"),
       deltaVsBaseline = 8,
       keyMotifs = Nil,
+      purpose = Some("defense_reply_multipv"),
       probedMove = Some("e2e4"),
       futureSnapshot = Some(
         FutureSnapshot(
@@ -1771,9 +1810,10 @@ class NarrativeContextBuilderTest extends FunSuite {
     val probeResult = ProbeResult(
       id = "test",
       evalCp = 100,
-      bestReplyPv = Nil,
+      bestReplyPv = List("e7e5"),
       deltaVsBaseline = 0,
       keyMotifs = Nil,
+      purpose = Some("defense_reply_multipv"),
       probedMove = Some("e2e4"),
       futureSnapshot = Some(futureSnapshot)
     )
@@ -1828,9 +1868,10 @@ class NarrativeContextBuilderTest extends FunSuite {
     val probeResult = ProbeResult(
       id = "test2",
       evalCp = 100,
-      bestReplyPv = Nil,
+      bestReplyPv = List("e7e5"),
       deltaVsBaseline = 0,
       keyMotifs = Nil,
+      purpose = Some("defense_reply_multipv"),
       probedMove = Some("d4d5"),
       futureSnapshot = Some(futureSnapshot)
     )

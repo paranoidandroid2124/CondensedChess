@@ -123,6 +123,66 @@ class ProbeContractValidatorTest extends FunSuite:
     assert(validation.softReasonCodes.contains("VARIATION_HASH_MISMATCH"))
   }
 
+  test("validateAgainstRequest rejects malformed FEN even when the echo string matches") {
+    val request = ProbeRequest(
+      id = "probe-bad-fen",
+      fen = "not-a-fen",
+      moves = List("e2e4"),
+      depth = 18,
+      purpose = Some("theme_plan_validation"),
+      requiredSignals = List("replyPvs"),
+      candidateMove = Some("e2e4")
+    )
+    val result = ProbeResult(
+      id = "probe-bad-fen",
+      fen = Some("not-a-fen"),
+      evalCp = 24,
+      bestReplyPv = List("e7e5"),
+      replyPvs = Some(List(List("e7e5"))),
+      deltaVsBaseline = 6,
+      keyMotifs = List("theme_plan_validation"),
+      purpose = Some("theme_plan_validation"),
+      probedMove = Some("e2e4"),
+      depth = Some(18)
+    )
+
+    val validation = ProbeContractValidator.validateAgainstRequest(request, result)
+
+    assertEquals(validation.isValid, false)
+    assert(validation.hardReasonCodes.contains("REQUEST_FEN_INVALID"))
+    assert(validation.hardReasonCodes.contains("RESULT_FEN_INVALID"))
+  }
+
+  test("validateAgainstRequest rejects malformed UCI move echoes") {
+    val request = ProbeRequest(
+      id = "probe-bad-move",
+      fen = "4k3/8/8/8/8/8/8/4K3 w - - 0 1",
+      moves = List("notuci"),
+      depth = 18,
+      purpose = Some("theme_plan_validation"),
+      requiredSignals = List("replyPvs"),
+      candidateMove = Some("notuci")
+    )
+    val result = ProbeResult(
+      id = "probe-bad-move",
+      fen = Some("4k3/8/8/8/8/8/8/4K3 w - - 0 1"),
+      evalCp = 24,
+      bestReplyPv = List("e7e5"),
+      replyPvs = Some(List(List("e7e5"))),
+      deltaVsBaseline = 6,
+      keyMotifs = List("theme_plan_validation"),
+      purpose = Some("theme_plan_validation"),
+      probedMove = Some("notuci"),
+      depth = Some(18)
+    )
+
+    val validation = ProbeContractValidator.validateAgainstRequest(request, result)
+
+    assertEquals(validation.isValid, false)
+    assert(validation.hardReasonCodes.contains("REQUEST_MOVE_INVALID"))
+    assert(validation.hardReasonCodes.contains("PROBED_MOVE_INVALID"))
+  }
+
   test("validateAgainstRequest rejects missing board and move certificate fields") {
     val request = ProbeRequest(
       id = "probe-missing-board",

@@ -1,16 +1,22 @@
 package lila.commentary.analysis.claim
 
+import lila.commentary.analysis.NarrativeUtils
+
 class OpeningFamilyClaimResolverTest extends munit.FunSuite:
 
   private val FamilyClaim = OpeningFamilyClaimResolver.OpeningFamilyClaim
   private val FamilyId = OpeningFamilyClaimResolver.OpeningFamilyId
 
+  private val InitialFen =
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
   private val OpenGamesFen =
-    "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+    NarrativeUtils.uciListToFen(InitialFen, List("e2e4", "e7e5", "g1f3", "b8c6", "f1c4"))
   private val CaroKannFen =
-    "rnbqkbnr/ppp1pppp/2p5/3p4/3P4/8/PPP1PPPP/RNBQKBNR w KQkq - 0 3"
+    NarrativeUtils.uciListToFen(InitialFen, List("e2e4", "c7c6", "d2d4", "d7d5"))
   private val SicilianFen =
-    "rnbqkbnr/pp1ppppp/8/2p5/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2"
+    NarrativeUtils.uciListToFen(InitialFen, List("e2e4", "c7c5", "g1f3"))
+  private val CoincidentalSicilianShapeFen =
+    "4k3/8/8/2p5/4P3/8/8/4K3 w - - 0 1"
 
   private def proofWithOpening(
       opening: Option[String],
@@ -48,41 +54,61 @@ class OpeningFamilyClaimResolverTest extends munit.FunSuite:
     )
   }
 
-  test("raw opening-family prose is legacy suppression-only even when the opening label matches") {
+  test("raw opening-family prose suppresses when label matches but board proof does not") {
     val decision =
       OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
         "This plan is typical in Open Games (1.e4 e5).",
         proof(opening = "Italian Game", fen = CaroKannFen)
       )
 
-    assertEquals(decision, None)
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
   }
 
-  test("admits structured opening-family claims when the opening label matches") {
+  test("suppresses structured opening-family claims when only the opening label matches") {
     val decision =
       OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
         FamilyClaim(FamilyId.OpenGames),
         proof(opening = "Italian Game", fen = CaroKannFen)
       )
 
-    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.SupportedLocal), clue(decision))
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
   }
 
-  test("admits structured opening-family claims when exact board structure matches despite label drift") {
+  test("suppresses structured opening-family claims when only shallow board structure matches") {
     val decision =
       OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
         FamilyClaim(FamilyId.Sicilian),
         proof(opening = "French Defense", fen = SicilianFen)
       )
 
-    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.SupportedLocal), clue(decision))
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
   }
 
-  test("admits structured opening-family claims from FEN proof even without an opening label") {
+  test("suppresses opening-family claims when only coincidental piece placement matches") {
+    val decision =
+      OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
+        FamilyClaim(FamilyId.Sicilian),
+        proof(opening = "Sicilian Defense", fen = CoincidentalSicilianShapeFen)
+      )
+
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
+  }
+
+  test("suppresses structured opening-family claims from FEN proof without an opening label") {
     val decision =
       OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
         FamilyClaim(FamilyId.OpenGames),
         proofWithOpening(opening = None, fen = OpenGamesFen)
+      )
+
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
+  }
+
+  test("admits structured opening-family claims when label and board structure both match") {
+    val decision =
+      OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
+        FamilyClaim(FamilyId.OpenGames),
+        proof(opening = "Italian Game", fen = OpenGamesFen)
       )
 
     assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.SupportedLocal), clue(decision))
@@ -102,24 +128,25 @@ class OpeningFamilyClaimResolverTest extends munit.FunSuite:
     )
   }
 
-  test("does not turn Caro-Kann into a Sicilian Kan claim") {
+  test("does not turn Caro-Kann into a Sicilian Kan claim and suppresses unsupported Caro-Kann proof") {
     val decision =
       OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
         "This setup requires a Caro-Kann structure.",
         proof(opening = "Queen's Gambit Declined", fen = CaroKannFen)
       )
 
-    assertEquals(decision, None)
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
+    assert(!decision.toList.flatMap(_.failureCodes).contains("opening_family_mismatch:sicilian"), clue(decision))
   }
 
-  test("admits structured Caro-Kann claims from FEN proof") {
+  test("suppresses structured Caro-Kann claims when only FEN proof matches") {
     val decision =
       OpeningFamilyClaimResolver.decideOpeningFamilyClaim(
         FamilyClaim(FamilyId.CaroKann),
         proof(opening = "Queen's Gambit Declined", fen = CaroKannFen)
       )
 
-    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.SupportedLocal), clue(decision))
+    assertEquals(decision.map(_.tier), Some(ClaimAuthorityTier.Suppressed), clue(decision))
   }
 
   test("partial aliases such as nimz do not match Nimzo-Indian") {

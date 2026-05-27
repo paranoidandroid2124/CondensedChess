@@ -64,7 +64,8 @@ authority.
 Only typed `ProbeBacked` evaluated plans can enter selected main-plan
 authority. `StructuralOnly` and `PvCoupledOnly` may remain in diagnostics or
 support context, but they cannot own a main claim or satisfy
-`check_qualifying`.
+`check_qualifying`. Structural-only plans must also remain structural-only in
+compatibility carriers; they must not serialize as `evidence_backed`.
 `UserFacingPayloadSanitizer` also treats that marker as non-authoritative:
 MoveReview plan payloads are retained only when `CommentaryApi` passes a
 matching typed `EvaluatedPlan` whose eligibility is `ProbeBacked` and whose
@@ -81,8 +82,9 @@ closed.
 Probe validation separates chess evidence from bookkeeping:
 
 - hard failures: missing or mismatched FEN/probed move/id for a board-bound
-  request, missing required board signal, missing purpose contract,
-  depth-floor missing or unmet, mate/refutation/cp-loss beyond contract
+  request, malformed FEN or probed move echo, missing required board signal,
+  missing purpose contract, depth-floor missing or unmet,
+  mate/refutation/cp-loss beyond contract
 - soft diagnostics: purpose/objective label drift and hash/fingerprint echo
   drift
 
@@ -132,14 +134,17 @@ contract.
 Opening-family prose claims are also kept out of the API presentation layer.
 `OpeningFamilyClaimResolver` owns the claim-boundary decision from structured
 `OpeningFamilyId` plus `OpeningFamilyMatchProof` (`opening`, phase, ply, FEN).
-A structured family claim is `SupportedLocal` when either the opening label or
-exact board structure matches the requested family. Arbitrary prose sentences
-are legacy suppression-only inputs: they may close an unsupported family claim,
-but they cannot create `SupportedLocal` authority. Short aliases require exact
-word-slice matches to avoid substring authority. `CommentaryApi` no longer
-splits rendered prose into sentences or rewrites unsupported opening-family
-text after rendering; family mismatch must be excluded or suppressed before
-surface prose is built.
+A structured family claim is `SupportedLocal` only when the opening label and
+static `OpeningNameLookup` ECO/opening-book FEN result both match the requested
+family. Shallow piece-square structure predicates are not used as opening
+truth and cannot independently certify transpositions or coincidental later
+positions.
+Arbitrary prose sentences are legacy suppression-only inputs: they may close
+an unsupported family claim, but they cannot create `SupportedLocal`
+authority. Short aliases require exact word-slice matches to avoid substring
+authority. `CommentaryApi` no longer splits rendered prose into sentences or
+rewrites unsupported opening-family text after rendering; family mismatch must
+be excluded or suppressed before surface prose is built.
 
 Current strict rules:
 
@@ -167,9 +172,12 @@ Current strict rules:
   path strategic claim is independently admitted.
 - support-only carriers may not re-inflate after certification failed closed.
 - timing-witness admission is structured-token only. UCI moves, exact board
-  squares, and piece-square anchors may couple a planner timing witness to a
-  packet; generic long words shared by prose and packet terms are diagnostics,
-  not authority.
+  squares, and piece-square anchors may couple non-neutralize timing witnesses
+  only when their proof contract explicitly allows it. For
+  `neutralize_key_break` / `counterplay_axis_suppression`, only the planner
+  named-break token and typed exact-slice packet token may match; packet owner,
+  anchor, structure, continuation, and raw claim terms are diagnostics, not
+  authority.
 
 Heavy-piece local-bind release vetoes are exact-replay risks, not generic
 heavy-piece movement heuristics. A release may be signaled by a true deep queen
@@ -177,7 +185,11 @@ infiltration, a rook lift/switch away from the back-rank shuffle case,
 repeated heavy-piece checks, or an exchange sacrifice where a rook captures
 lower material and is then recaptured on the replayed branch. A queen
 centralization/single check, an unrecaptured rook capture, or a back-rank rook
-shuffle must not by itself create `heavy_piece_release_illusion`.
+shuffle must not by itself create `heavy_piece_release_illusion`. File and
+entry persistence must come from typed route validation signals: validation
+purpose plus exact `Counterplay` resolution, exact denied file removal, and
+exact denied square removal for the entry. English phrases in `keyMotifs`,
+`planBlockersRemoved`, `planPrereqsMet`, or target text are diagnostics only.
 
 Color-complex squeeze is promoted only through an exact board-backed position
 probe:

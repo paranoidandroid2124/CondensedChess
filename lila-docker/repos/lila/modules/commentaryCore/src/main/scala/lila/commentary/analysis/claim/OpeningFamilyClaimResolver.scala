@@ -1,8 +1,6 @@
 package lila.commentary.analysis.claim
 
-import _root_.chess.{ Bishop, Knight, Pawn, Queen, Rook, Square }
-import _root_.chess.format.Fen
-import _root_.chess.variant.Standard
+import lila.commentary.analysis.OpeningNameLookup
 
 private[commentary] object OpeningFamilyClaimResolver:
 
@@ -164,8 +162,7 @@ private[commentary] object OpeningFamilyClaimResolver:
   ): Option[ClaimAuthorityDecision] =
     val openingLower = normalizeOpening(proof.opening)
     if !isOpeningStage(proof.phase, proof.ply) then None
-    else if openingMatchesFamily(openingLower, claim.family) ||
-        structureMatchesFamily(proof.fen, claim.family)
+    else if openingProofMatchesFamily(openingLower, proof.fen, claim.family)
     then Some(ClaimAuthorityDecision(ClaimAuthorityTier.SupportedLocal))
     else
       Some(
@@ -191,8 +188,7 @@ private[commentary] object OpeningFamilyClaimResolver:
       else
         val unsupportedFamilies =
           mentionedFamilies.filterNot(familyKey =>
-            openingMatchesFamily(openingLower, familyKey) ||
-              structureMatchesFamily(proof.fen, familyKey)
+            openingProofMatchesFamily(openingLower, proof.fen, familyKey)
           )
         if unsupportedFamilies.nonEmpty then
           val familyCodes =
@@ -251,6 +247,14 @@ private[commentary] object OpeningFamilyClaimResolver:
       .get(familyKey)
       .exists(_.aliases.exists(alias => phraseMatchesAlias(openingLower, alias)))
 
+  private def openingProofMatchesFamily(
+      openingLower: String,
+      fen: Option[String],
+      familyKey: OpeningFamilyId
+  ): Boolean =
+    openingMatchesFamily(openingLower, familyKey) &&
+      bookFenMatchesFamily(fen, familyKey)
+
   private def normalizedWords(raw: String): List[String] =
     Option(raw).getOrElse("").toLowerCase.replaceAll("""[^a-z0-9]+""", " ").trim
       .split("\\s+")
@@ -261,53 +265,7 @@ private[commentary] object OpeningFamilyClaimResolver:
     slice.nonEmpty &&
       words.sliding(slice.length).exists(_ == slice)
 
-  private def parseFenBoard(fen: String): Option[_root_.chess.Board] =
-    Fen.read(Standard, Fen.Full(fen)).map(_.board)
-
-  private def hasPiece(board: _root_.chess.Board, square: String, piece: Char): Boolean =
-    val roleOpt =
-      piece.toLower match
-        case 'p' => Some(Pawn)
-        case 'n' => Some(Knight)
-        case 'b' => Some(Bishop)
-        case 'r' => Some(Rook)
-        case 'q' => Some(Queen)
-        case _   => None
-    roleOpt.exists { role =>
-      Square.all
-        .find(_.key == square)
-        .flatMap(board.pieceAt)
-        .exists(actual => actual.role == role && actual.color.white == piece.isUpper)
-    }
-
-  private def structureMatchesFamily(fen: Option[String], familyKey: OpeningFamilyId): Boolean =
-    val boardOpt = fen.flatMap(parseFenBoard)
-    boardOpt.exists { board =>
-      familyKey match
-        case OpeningFamilyId.OpenGames =>
-          hasPiece(board, "e4", 'P') && hasPiece(board, "e5", 'p')
-        case OpeningFamilyId.Sicilian =>
-          hasPiece(board, "c5", 'p')
-        case OpeningFamilyId.French =>
-          hasPiece(board, "e6", 'p') && hasPiece(board, "d5", 'p')
-        case OpeningFamilyId.CaroKann =>
-          hasPiece(board, "c6", 'p') && hasPiece(board, "d5", 'p')
-        case OpeningFamilyId.Scandinavian =>
-          hasPiece(board, "e4", 'P') && hasPiece(board, "d5", 'p')
-        case OpeningFamilyId.Catalan =>
-          hasPiece(board, "d4", 'P') && hasPiece(board, "c4", 'P') && hasPiece(board, "g2", 'B')
-        case OpeningFamilyId.QueensGambit =>
-          hasPiece(board, "d4", 'P') && hasPiece(board, "c4", 'P')
-        case OpeningFamilyId.London =>
-          hasPiece(board, "d4", 'P') && hasPiece(board, "e3", 'P') && hasPiece(board, "f4", 'B')
-        case OpeningFamilyId.English =>
-          hasPiece(board, "c4", 'P')
-        case OpeningFamilyId.KingsIndian =>
-          hasPiece(board, "f6", 'n') && hasPiece(board, "g7", 'b') && hasPiece(board, "g6", 'p')
-        case OpeningFamilyId.NimzoIndian =>
-          hasPiece(board, "f6", 'n') && hasPiece(board, "b4", 'b')
-        case OpeningFamilyId.Benoni =>
-          hasPiece(board, "c5", 'p') && hasPiece(board, "d6", 'p') && hasPiece(board, "d5", 'P')
-        case OpeningFamilyId.Austrian =>
-          hasPiece(board, "e4", 'P') && hasPiece(board, "f4", 'P')
-    }
+  private def bookFenMatchesFamily(fen: Option[String], familyKey: OpeningFamilyId): Boolean =
+    fen.flatMap(OpeningNameLookup.default.lookup)
+      .flatMap(_.name)
+      .exists(name => openingMatchesFamily(normalizeOpening(Some(name)), familyKey))

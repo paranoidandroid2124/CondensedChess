@@ -66,6 +66,7 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
         if eligibility == UserFacingPlanEligibility.Refuted then PlanEvidenceStatus.Refuted
         else if eligibility == UserFacingPlanEligibility.PvCoupledOnly then PlanEvidenceStatus.PlayablePvCoupled
         else if eligibility == UserFacingPlanEligibility.Deferred then PlanEvidenceStatus.Deferred
+        else if eligibility == UserFacingPlanEligibility.StructuralOnly then PlanEvidenceStatus.PlayableStructuralOnly
         else PlanEvidenceStatus.PlayableEvidenceBacked,
       userFacingEligibility = eligibility,
       reason = "test",
@@ -155,6 +156,24 @@ final class MoveReviewPlayerPayloadBuilderTest extends FunSuite:
       )
 
     assertEquals(MoveReviewPlayerPayloadBuilder.decisionComparisonSurface(Some(digest), Some(surfaceLineEvidence())), None)
+  }
+
+  test("does not use preview-only line consequence text for the player decision strip") {
+    val preview =
+      surfaceLineEvidence().copy(
+        kind = LineConsequenceKind.PreviewOnly,
+        consequence = "This proves this plan.",
+        whyItMatters = Some("It wins strategically.")
+      )
+    val digest =
+      DecisionComparisonDigest(
+        chosenMove = Some("h4"),
+        engineBestMove = Some("g4"),
+        cpLossVsChosen = Some(220),
+        chosenMatchesBest = false
+      )
+
+    assertEquals(MoveReviewPlayerPayloadBuilder.decisionComparisonSurface(Some(digest), Some(preview)), None)
   }
 
   test("surfaces moderate cp gaps with bounded line consequence wording") {

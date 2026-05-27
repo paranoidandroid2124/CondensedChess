@@ -175,7 +175,7 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
     FutureSnapshot(
       resolvedThreatKinds = List("Counterplay"),
       newThreatKinds = newThreatKinds,
-      targetsDelta = TargetsDelta(tacticalAdded, Nil, List(continuation), List(entrySquare)),
+      targetsDelta = TargetsDelta(tacticalAdded, Nil, List(continuation), List(fileLabel, entrySquare)),
       planBlockersRemoved = List(s"the $fileLabel stays closed"),
       planPrereqsMet = List(s"$entrySquare stays unavailable", continuation)
     )
@@ -193,9 +193,18 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
     FutureSnapshot(
       resolvedThreatKinds = List("Counterplay"),
       newThreatKinds = Nil,
-      targetsDelta = TargetsDelta(Nil, Nil, Nil, List("b4")),
+      targetsDelta = TargetsDelta(Nil, Nil, Nil, List("c-file", "b4")),
       planBlockersRemoved = List("the c-file stays closed"),
       planPrereqsMet = List("b4 stays unavailable")
+    )
+
+  private def proseOnlyDenialSnapshot: FutureSnapshot =
+    FutureSnapshot(
+      resolvedThreatKinds = Nil,
+      newThreatKinds = Nil,
+      targetsDelta = TargetsDelta(Nil, Nil, List("the c-file stays closed"), Nil),
+      planBlockersRemoved = List("the c-file stays closed"),
+      planPrereqsMet = List("b4 entry denied")
     )
 
   private def preventedFilePlan(
@@ -720,6 +729,58 @@ class HeavyPieceLocalBindNegativeValidationTest extends FunSuite:
 
     assert(contract.heavyPieceReleaseInventory.contains("queen_infiltration"), clues(contract))
     assert(!contract.bestDefenseReleaseSurvivors.contains("queen_infiltration"), clues(contract))
+  }
+
+  test("english denial prose does not certify heavy-piece file or entry persistence") {
+    val bestDefenseLine = List("c3c4", "a7a6", "c4d5", "d8d5", "a2a3", "d5d7", "c2b3")
+    val fixture =
+      ExactFixture(
+        id = "prose_only_denial_shell",
+        source = s"fen:$QueenInfiltrationFen",
+        fen = QueenInfiltrationFen,
+        sideToMove = "white",
+        evalCp = 188,
+        planName = "Claim a heavy-piece shell from prose denial text",
+        bestDefenseLine = Some(bestDefenseLine),
+        releaseLine = List("b2b3", "d8e7", "c3c4", "e7a3"),
+        probes =
+          List(
+            directReplyProbe(
+              id = "prose_only_reply",
+              baseFen = QueenInfiltrationFen,
+              bestDefenseLine = bestDefenseLine,
+              releaseLine = List("b2b3", "d8e7", "c3c4", "e7a3"),
+              futureSnapshot = Some(proseOnlyDenialSnapshot),
+              keyMotifs = List("c-file denied", "b4 entry denied", "queen infiltration")
+            ),
+            validationProbe(
+              id = "prose_only_validation",
+              baseFen = QueenInfiltrationFen,
+              branch = bestDefenseLine.take(2),
+              futureSnapshot = Some(proseOnlyDenialSnapshot),
+              keyMotifs = List("c-file denied", "b4 entry denied")
+            )
+          ),
+        preventedPlans = List(preventedFilePlan(), preventedEntryPlan()),
+        expectedFails = Set.empty
+      )
+    val contract =
+      HeavyPieceLocalBindValidation
+        .evaluate(
+          plan = heavyPlan(fixture),
+          probeResultsById = fixture.probes.map(probe => probe.id -> probe).toMap,
+          preventedPlans = fixture.preventedPlans,
+          evalCp = fixture.evalCp,
+          isWhiteToMove = true,
+          phase = "middlegame",
+          ply = 24,
+          fen = fixture.fen
+        )
+        .getOrElse(fail("expected heavy-piece contract"))
+
+    assertEquals(contract.routeContinuity.futureSnapshotPersistent, false, clues(contract))
+    assertEquals(contract.pressurePersistence, false, clues(contract))
+    assert(contract.failsIf.contains("pressure_only_waiting_move"), clues(contract))
   }
 
   test("same-first-move divergent continuation does not count as the same defended branch") {

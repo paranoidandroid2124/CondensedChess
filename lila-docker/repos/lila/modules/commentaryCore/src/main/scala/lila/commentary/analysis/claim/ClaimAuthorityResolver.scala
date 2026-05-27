@@ -321,38 +321,8 @@ private[commentary] object ClaimAuthorityResolver:
           witness.source == plan.plannerSource &&
           witness.namedBreak.flatMap(canonicalBreakToken).exists(packetToken.contains)
       }
-    else if packet.proofFamily == ProofFamilyId.NeutralizeKeyBreak.wireKey then
-      timingWitnessTermsMatchPacket(plan, packet)
     else
       false
-
-  private def timingWitnessTermsMatchPacket(
-      plan: QuestionPlan,
-      packet: PlayerFacingClaimPacket
-  ): Boolean =
-    val packetTokens = timingWitnessTokens(packet)
-    plan.timingWitness.exists { witness =>
-      witness.proofFamily == packet.proofFamily &&
-        witness.source == plan.plannerSource &&
-        timingWitnessTokens(witness).exists(packetTokens.contains)
-    }
-
-  private def timingWitnessTokens(witness: QuestionPlanTimingWitness): Set[String] =
-    (
-      witness.namedBreak.toList ++
-        witness.continuationMove.toList ++
-        witness.branchKey.toList ++
-        witness.witnessTokens
-    ).flatMap(witnessTokenVariants).filter(validTimingWitnessToken).toSet
-
-  private def timingWitnessTokens(packet: PlayerFacingClaimPacket): Set[String] =
-    (
-      packet.anchorTerms ++
-        packet.bestDefenseBranchKey.toList ++
-        packet.proofPathWitness.ownerSeedTerms ++
-        packet.proofPathWitness.continuationTerms ++
-        packet.proofPathWitness.structureTransitionTerms
-    ).flatMap(witnessTokenVariants).filter(validTimingWitnessToken).toSet
 
   private def centralBreakTimingWitnessMatchesPacket(
       witness: CentralBreakTimingWitness.Witness,
@@ -390,16 +360,6 @@ private[commentary] object ClaimAuthorityResolver:
       Option.when(core.matches("""[a-h][1-8]""") || core.matches("""[a-h][1-8]-[a-h][1-8]""")) {
         s"${if hasEllipsis then "..." else ""}$core"
       }
-
-  private def witnessTokenVariants(raw: String): List[String] =
-    val trimmed = Option(raw).map(_.trim).filter(_.nonEmpty).toList
-    (trimmed ++ trimmed.flatMap(_.split("""[^A-Za-z0-9]+""").toList)).map(normalize)
-
-  private def validTimingWitnessToken(token: String): Boolean =
-    val normalized = normalize(token)
-    normalized.matches("""[a-h][1-8][a-h][1-8][nbrq]?""") ||
-      normalized.matches("""[a-h][1-8]""") ||
-      normalized.matches("""[nbrqk][a-h][1-8]""")
 
   private def authorityFailureCodes(packet: PlayerFacingClaimPacket): List[String] =
     val taxonomy =
